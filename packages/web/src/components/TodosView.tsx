@@ -4,7 +4,7 @@ import { ChevronsUpDown, Inbox } from "lucide-react"
 import type { ThreadView, BoardSnapshot, RegisteredQuestionView, TranscriptMessage } from "@frizz/shared"
 import { questionFencesLive } from "@frizz/shared"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { queueCardTargetY, showToast, store } from "../store.ts"
+import { queueCardTargetY, showToast, slugsInThreadDrawers, store } from "../store.ts"
 import { pageScrollY } from "../lib/pageScrollLock.ts"
 import { rpc } from "../api/rpc.ts"
 import { useBoard, asThreads, useTranscript } from "../hooks.ts"
@@ -305,6 +305,11 @@ export function TodosView() {
   }, [items, leaving, exitTick])
   // Remember this render's exact order (board + held) so the NEXT departure captures a stable slot.
   prevRenderRef.current = renderItems.map((i) => i.id)
+  // A card whose thread is open in a drawer is skipped at PAINT time only (see slugsInThreadDrawers).
+  // Filtering `items` instead would route it through the exit machinery above — a fade, a neighbour
+  // pin, and a finalize timer that could hide it again after the drawer had already closed.
+  const inDrawer = slugsInThreadDrawers(useSnapshot(store).drawers)
+  const visibleItems = renderItems.filter((it) => !inDrawer.has(it.id))
 
   // Drive EVERY exiting card through the SAME board-independent exit, so all dismissal paths (Mark done,
   // Snooze, or steering the agent by sending a message) behave identically:
@@ -502,9 +507,9 @@ export function TodosView() {
           error hidden in an unrendered field). */}
       <BoardErrorsBanner board={board} />
 
-      {renderItems.length > 0 && (
+      {visibleItems.length > 0 && (
         <div className="flex flex-col">
-          {renderItems.map((item, i) => (
+          {visibleItems.map((item, i) => (
             <Fragment key={item.id}>
               <CardSlot slug={item.id} leaving={isLeaving(item.id)}>
                 <QueueCard thread={item} leaving={isLeaving(item.id)} frozen={isFrozen(item)} onResolve={resolve} onUnresolve={unresolve} />
@@ -516,7 +521,7 @@ export function TodosView() {
                   Each rule follows its card — none after the last — so it unmounts with that card, and
                   the `+ hr` rule in styles.css fades it alongside. The 40px on each side is also the
                   scroll landing's QUEUE_CARD_VIEWPORT_TOP: keep the two in step. */}
-              {i < renderItems.length - 1 && <hr className="my-10 border-0 border-t border-border/60" />}
+              {i < visibleItems.length - 1 && <hr className="my-10 border-0 border-t border-border/60" />}
             </Fragment>
           ))}
         </div>

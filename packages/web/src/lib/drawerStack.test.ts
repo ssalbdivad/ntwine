@@ -6,6 +6,7 @@ import {
   pushMarkdownDrawer,
   pushSubAgentDrawer,
   removeDrawerAfterExit,
+  slugsInThreadDrawers,
   store,
 } from "../store.ts"
 
@@ -108,4 +109,15 @@ test("re-clicking the open parent thread closes the child stacked over it", () =
   pushDrawer("thread", "parent")
   assert.deepEqual(shape(), [{ kind: "thread", slug: "parent", subId: undefined }])
   assert.equal(store.drawers[0]?.id, parentId)
+})
+
+test("slugsInThreadDrawers names live chat and terminal layers, not docs or closing layers", () => {
+  const slugs = slugsInThreadDrawers([
+    { kind: "thread", slug: "chat" },
+    { kind: "terminal", slug: "term" },
+    { kind: "doc", slug: "doc-only" },
+    { kind: "subagent", slug: "parent-of-sub" },
+    { kind: "thread", slug: "sliding-out", closing: true },
+  ])
+  assert.deepEqual([...slugs].sort(), ["chat", "term"])
 })

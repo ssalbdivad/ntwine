@@ -261,6 +261,17 @@ function openOrRaiseDrawer(next: Omit<Drawer, "id" | "closing" | "openedAt">): v
   queueMicrotask(() => focusDrawer(existing.id))
 }
 
+// Slugs whose FULL panel is up in a live drawer — the chat sheet, or a command thread's terminal. The
+// queue hides these threads' cards: the open paths never stack a drawer over a queued card (see
+// openThread / scrollToQueueCard), but a thread whose drawer is ALREADY open can rest INTO the queue,
+// and its card then mounted behind the drawer showing the identical panel twice (maintainer
+// 2026-09-23). Hiding the card rather than closing the drawer is deliberate: the reader is usually in
+// that drawer's composer at exactly that moment. A closing layer does not count, so the card is back in
+// place as the drawer slides off it. A doc drawer shows different content and does not hide the card.
+export function slugsInThreadDrawers(drawers: readonly Pick<Drawer, "kind" | "slug" | "closing">[]): Set<string> {
+  return new Set(drawers.filter((d) => !d.closing && (d.kind === "thread" || d.kind === "terminal")).map((d) => d.slug))
+}
+
 export function pushDrawer(kind: "thread" | "doc" | "terminal", slug: string, opts?: { routed?: boolean }): void {
   openOrRaiseDrawer({ kind, slug, routed: opts?.routed })
 }
