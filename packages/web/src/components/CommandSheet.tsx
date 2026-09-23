@@ -8,6 +8,7 @@ import { abbreviateHome } from "../lib/paths.ts"
 import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
 import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
+import { StateButton } from "./ThreadLifecycleFooter.tsx"
 
 // LAZY for the same reason as the sign-in modal's: @xterm/xterm is browser-only, and node (tests)
 // imports the drawer stack transitively.
@@ -59,6 +60,8 @@ export function CommandSheet({ id, slug, depth, widthDepth }: { id: number; slug
                     {pending === "stop" ? "Stopping…" : "Stop"}
                   </button>
                 ) : null}
+                {/* A finished run is queued like a rested thread; done is the same verb here as on its card. */}
+                {command.state === "exited" && thread?.state !== "archived" && thread ? <StateButton thread={thread} /> : null}
                 <button type="button" data-command-restart disabled={pending !== null} onClick={() => act("restart", close)} className={actionClass}>
                   {pending === "restart" ? "Restarting…" : "Restart"}
                 </button>

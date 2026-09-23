@@ -27,6 +27,7 @@ import { agentCompletionCall } from "../lib/subAgentCompletion.ts"
 import { coalesceToolActivityMessages } from "../lib/toolActivity.ts"
 import { prefs } from "../lib/prefs.ts"
 import { ThreadComposerBox } from "./ThreadComposerBox.tsx"
+import { CommandQueueCard } from "./CommandQueueCard.tsx"
 import { BackgroundOpsStrip, ThreadSlugContext, QueueDismissContext } from "./ChatView.tsx"
 import { HeaderActions } from "./HeaderActions.tsx"
 import { ThreadLifecycleFooter } from "./ThreadLifecycleFooter.tsx"
@@ -512,7 +513,11 @@ export function TodosView() {
           {visibleItems.map((item, i) => (
             <Fragment key={item.id}>
               <CardSlot slug={item.id} leaving={isLeaving(item.id)}>
-                <QueueCard thread={item} leaving={isLeaving(item.id)} frozen={isFrozen(item)} onResolve={resolve} onUnresolve={unresolve} />
+                {item.kind === "command" ? (
+                  <CommandQueueCard thread={item} leaving={isLeaving(item.id)} onResolve={resolve} onUnresolve={unresolve} />
+                ) : (
+                  <QueueCard thread={item} leaving={isLeaving(item.id)} frozen={isFrozen(item)} onResolve={resolve} onUnresolve={unresolve} />
+                )}
               </CardSlot>
               {/* The inter-card hairline rule, a SIBLING of the slots rather than a child of the card
                   above it: the rule separates two cards, so it belongs between them in the markup, and a

@@ -2637,7 +2637,8 @@ export const ThreadView = z.object({
   // "command" = a TERMINAL COMMAND thread: a shell command started from the prompt box's Terminal tab,
   // running in a server-owned pty the browser attaches to over /term (see `command` below). Every
   // session guard (`kind !== "session"`) already excludes it, which is the point: it has no agent, no
-  // transcript, no queue card and no lifecycle verb, and must never be mistaken for one that does.
+  // transcript and no agent verb. It DOES share the lifecycle: a FINISHED run queues (`needsYou`) with a
+  // card of its own and is marked done like any thread (`state`); a running one sits with Running.
   kind: z.enum(["session", "legacy", "command"]).optional(),
   command: CommandThreadState.optional(),
   // No registry row (a maintainer terminal discovered from the JSONL dir): read-only transcript,
@@ -2776,7 +2777,9 @@ export type ThreadView = z.infer<typeof ThreadView>
  * disagreed with the rail it sits beside would be worse than no badge.
  */
 export function queuedThread(t: Pick<ThreadView, "kind" | "foreign" | "needsYou" | "state">): boolean {
-  return t.kind === "session" && t.foreign !== true && t.needsYou === true && t.state !== "archived"
+  // A terminal COMMAND thread queues too, once its run has finished (command-threads.ts derives that
+  // `needsYou`): the human reads the result and marks it done, exactly as with a rested agent.
+  return (t.kind === "session" || t.kind === "command") && t.foreign !== true && t.needsYou === true && t.state !== "archived"
 }
 
 // STRUCTURED board error — a machine-readable companion to the legacy `errors: string[]` so the

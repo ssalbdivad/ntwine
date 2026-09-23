@@ -1,15 +1,8 @@
 import type { CommandThreadState, ThreadView } from "@frizz/shared"
 
-// TERMINAL COMMAND THREADS on the rail — commands the human ran from the prompt box's Terminal tab.
-// They are NOT part of the four Frizz bands: no agent, no queue card, no snooze, no Done. `sectionOf`
-// already drops them (it keeps only `kind === "session"`), and they get a band of their own, the same
-// way External sessions do.
-export function commandThreads(threads: readonly ThreadView[]): ThreadView[] {
-  return threads
-    .filter((t) => t.kind === "command" && t.command !== undefined)
-    // Newest run first: the command you just started is the one you are looking for.
-    .sort((a, b) => (b.command!.startedAt).localeCompare(a.command!.startedAt) || a.id.localeCompare(b.id))
-}
+// TERMINAL COMMAND THREADS — commands the human ran from the prompt box's Terminal tab. They share the
+// board's bands with agent threads (groups.ts sectionOf): running → Running, finished → the queue with
+// a card of their own, marked done → Done. What sets them apart is the row (mono text, a terminal mark).
 
 // How a run stands, in the rail and the drawer header alike.
 export function commandStateLabel(command: CommandThreadState): string {

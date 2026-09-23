@@ -16,7 +16,7 @@ import {
 } from "../groups.ts"
 import { ageSpan } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
-import { commandFailed, commandStateLabel, commandThreads } from "../lib/commandThreads.ts"
+import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
 import { visibleChildOps } from "../lib/childOps.ts"
 import { childOpDismisser } from "../lib/dismissChildOp.ts"
 import { ChildOpRow } from "./ChildOpRow.tsx"
@@ -556,10 +556,6 @@ export function MobileBoard() {
   const askCount = queue.filter(needsAction).length
 
   const rows = tab === "queue" ? queue : tab === "snoozed" ? sections.snoozed : sections.inactive
-  // Terminal command threads ride under the queue's rows: the phone has no Terminals band, and a dev
-  // server started from the + sheet must still be reachable once its drawer is closed.
-  const terminals = useMemo(() => commandThreads(all), [all])
-  const terminalRows = tab === "queue" ? terminals : []
   const statusView = snap.view.startsWith("status:") ? snap.view.slice(7) : null
   const identity = projectIdentity(board)
 
@@ -603,7 +599,7 @@ export function MobileBoard() {
           <div className="flex min-h-0 flex-1 flex-col">
             <StatusListView status={statusView} />
           </div>
-        ) : rows.length === 0 && terminalRows.length === 0 ? (
+        ) : rows.length === 0 ? (
           <EmptyBand
             label={
               !board
@@ -616,29 +612,23 @@ export function MobileBoard() {
             }
           />
         ) : (
-          <>
-          {rows.length > 0 && <div className="border-b border-border/70 bg-panel/60">
-            {rows.map((t, i) => (
-              <MobileThreadRow
-                key={t.id}
-                t={t}
-                last={i === rows.length - 1}
-                openSwipe={openSwipe === t.id}
-                onOpenSwipe={(open) => setOpenSwipe(open ? t.id : null)}
-              />
-            ))}
-          </div>}
-          {terminalRows.length > 0 && (
-            <section aria-label="Terminals" className="mt-4">
-              <div className="px-4 pb-1.5 text-[11px] uppercase tracking-wide text-muted-70">Terminals</div>
-              <div className="border-y border-border/70 bg-panel/60">
-                {terminalRows.map((t, i) => (
-                  <MobileCommandRow key={t.id} t={t} last={i === terminalRows.length - 1} />
-                ))}
-              </div>
-            </section>
-          )}
-          </>
+          <div className="border-b border-border/70 bg-panel/60">
+            {/* Terminal command threads share the lists (groups.ts sectionOf): running and finished in
+                the Queue tab, marked done in Done. They have no swipe verbs, so they get their own row. */}
+            {rows.map((t, i) =>
+              t.kind === "command" ? (
+                <MobileCommandRow key={t.id} t={t} last={i === rows.length - 1} />
+              ) : (
+                <MobileThreadRow
+                  key={t.id}
+                  t={t}
+                  last={i === rows.length - 1}
+                  openSwipe={openSwipe === t.id}
+                  onOpenSwipe={(open) => setOpenSwipe(open ? t.id : null)}
+                />
+              ),
+            )}
+          </div>
         )}
       </div>
 

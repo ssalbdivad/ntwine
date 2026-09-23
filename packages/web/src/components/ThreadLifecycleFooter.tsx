@@ -222,6 +222,22 @@ export function StateButton({
   // "done" card feels instantaneous, while an executing turn still waits and shows the confirm dialog.
   const complete = (terminateLive: boolean, optimistic: boolean) => {
     setPending(true)
+    // A TERMINAL COMMAND thread has no session to end: only a finished run is offered this button, and
+    // completing it is the plain lifecycle write. Always immediate, so always optimistic.
+    if (thread.kind === "command") {
+      onArchived?.()
+      markArchived(thread.id)
+      rpc
+        .setThreadState({ slug: thread.id, state: "archived" })
+        .then(() => showToast("Done"))
+        .catch((error) => {
+          clearArchived(thread.id)
+          onDismissCancel?.()
+          showToast(`Couldn’t finish: ${(error as Error).message.slice(0, 80)}`)
+          setPending(false)
+        })
+      return
+    }
     if (optimistic) onArchived?.() // start the exit animation immediately
     // Move the SIDEBAR row to Done now, on the same prediction the queue card's fade already runs on —
     // and gated on the prediction rather than on `optimistic`, because the thread drawer's copy of this

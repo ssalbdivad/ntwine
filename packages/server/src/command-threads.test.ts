@@ -133,3 +133,25 @@ test("the command environment drops every FRIZZ_* variable and names a colour te
   assert.equal(env.PATH, "/bin")
   assert.equal(env.TERM, "xterm-256color")
 })
+
+test("a finished run queues until it is marked done, and a restart reopens it", { skip: !posix }, async () => {
+  const { runner, storage } = harness()
+  const { slug } = runner.start("sleep 30")
+  // Running is live work: never queued, never done.
+  assert.equal(row(runner, slug)?.needsYou, false)
+  assert.equal(row(runner, slug)?.state, "open")
+  await runner.stop(slug)
+  const finished = await until(() => (row(runner, slug)?.command?.state === "exited" ? row(runner, slug) : undefined), "the stop")
+  assert.equal(finished.needsYou, true)
+
+  assert.equal(storage.setCommandThreadState(slug, "archived"), true)
+  assert.equal(row(runner, slug)?.needsYou, false)
+  assert.equal(row(runner, slug)?.state, "archived")
+  assert.equal(row(runner, slug)?.archived, true)
+
+  await runner.restart(slug)
+  assert.equal(row(runner, slug)?.state, "open")
+  assert.equal(row(runner, slug)?.needsYou, false)
+  await runner.remove(slug)
+  assert.equal(storage.setCommandThreadState(slug, "archived"), false)
+})

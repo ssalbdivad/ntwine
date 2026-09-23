@@ -2332,6 +2332,15 @@ export function createRouter(ctx: AppContext) {
     setThreadState: mutation({
       input: z.object({ slug: ThreadSlug, state: z.enum(["open", "archived"]) }).strict(),
       handler: async ({ input }) => {
+        // A terminal command thread shares the lifecycle (command-threads.ts). Only a FINISHED run can
+        // be marked done: one still running is live work, and filing it under Done would hide it.
+        const command = ctx.commandRunner.threads().find((t) => t.id === input.slug)
+        if (command) {
+          if (input.state === "archived" && command.command?.state === "running") throw new Error("Stop the command before marking it done")
+          ctx.storage.setCommandThreadState(input.slug, input.state)
+          ctx.board.refresh()
+          return
+        }
         if (!ctx.storage.getSession(input.slug)) throw new Error(`no session registered for ${input.slug}`)
         ctx.storage.setState(input.slug, input.state)
         ctx.board.refresh() // storage-only change — overlay is enough

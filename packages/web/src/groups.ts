@@ -876,6 +876,9 @@ export function sectionOf(t: ThreadView): SectionKey | null {
   // Rested bands together; the rule between them is drawn downstream (partitionActive), and the
   // needs-you/awaiting distinction renders as the row INDICATOR and the queue cards, not as sections.
   // Legacy (.frizz-file) rows are HIDDEN entirely (null; not even a shelf). Foreign never rows.
+  // A terminal COMMAND thread shares the lifecycle: running → Active, finished → Rested (the server
+  // sets `needsYou`), marked done → Done. It has no snooze, so the Snoozed band never claims one.
+  if (t.kind === "command") return t.state === "archived" ? "inactive" : "active"
   if (t.kind !== "session") return null
   // Archived → Done, UNLESS it's actively running: a live, in-flight session must never sit under Done
   // (maintainer, hit 3×). It shows in the Active band with its spinner while it works, and drops back

@@ -11,7 +11,7 @@ import { prefs } from "../lib/prefs.ts"
 import { sectionThreads, externalThreads, orderByInteraction, partitionActive, needsAction, displayTitle, titleIsProvisional, isPinned, isSnoozed, parkedAwaitingHint, sessionIndicatorKind, offersRetry, futureSnoozedUntil, lastActiveLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents } from "../groups.ts"
 import { ageSpan, relativeAge, limitResumeClock } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
-import { commandFailed, commandStateLabel, commandThreads } from "../lib/commandThreads.ts"
+import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
 import { BoxSpinner, STATUS_BOX } from "./BoxSpinner.tsx"
 import { ChildOpRow } from "./ChildOpRow.tsx"
 import { ExpandThreadLink } from "./ExpandThreadLink.tsx"
@@ -103,9 +103,6 @@ export function Sidebar() {
   // the label prints the agent's own last output — two clocks that disagree whenever a transcript is
   // touched without the agent speaking (a resume that writes a header, a copy, a restore).
   const externalSessions = orderByInteraction(externalThreads(all))
-  // Terminal command threads — commands run from the prompt box's Terminal tab. Their own band, like
-  // External: sectionThreads keeps only session rows, so none of these can land in a Frizz band.
-  const terminals = commandThreads(all)
   const collapsed = snap.sidebarCollapsed
   const activeThreads = sections.active
   const heldThreads = sections.snoozed
@@ -279,8 +276,7 @@ export function Sidebar() {
               const { running, rested } = partitionActive(activeThreads)
               const renderRow = (restedAge: boolean) => (t: ThreadView) => (
                 <div key={t.id}>
-                  <ThreadRow t={t} active={activeId === t.id} onQueueNavigate={navigateToQueueCard} restedAge={restedAge} />
-                  <SubAgentRows t={t} />
+                  <RailRow t={t} active={activeId === t.id} onQueueNavigate={navigateToQueueCard} restedAge={restedAge} />
                 </div>
               )
               return (
@@ -304,19 +300,6 @@ export function Sidebar() {
             // the pinned rows ARE open threads, so the claim would be visibly false one band up.
             <div className="py-1 pl-5 pr-1.5 text-[11.5px] text-muted-50">No open threads</div>
           ) : null}
-          {/* TERMINALS — commands the human ran from the prompt box's Terminal tab, each a live pty whose
-              drawer is the terminal itself. Directly under the agents' bands and NOT collapsible, like
-              Running: a dev server you started is live work you want in view. A finished run stays until
-              it is removed from its drawer, so a failed build is still there to read. */}
-          {terminals.length > 0 && (
-            <section aria-label="Terminals">
-              <hr className="my-3 border-border/50" />
-              <SectionHeader label="Terminals" count={terminals.length} />
-              {terminals.map((t) => (
-                <CommandRow key={t.id} t={t} active={activeId === t.id} />
-              ))}
-            </section>
-          )}
           {/* HELD — every deliberate clock/hourglass/timed wait, visibly de-emphasized and labeled so
               it cannot read as active work. COLLAPSIBLE, and collapsed by default (maintainer
               2026-08-04): nothing here is waiting on the rail's reader right now, so it opens as a
@@ -392,37 +375,59 @@ export function Sidebar() {
   )
 }
 
+// One row of a band, whichever kind of thread it is. Terminal command threads share the bands with
+// agent threads (groups.ts sectionOf) but not the agent row's verbs, so they get their own row.
+function RailRow({ t, active, onQueueNavigate, restedAge = false }: { t: ThreadView; active: boolean; onQueueNavigate?: (id: string) => void; restedAge?: boolean }) {
+  if (t.kind === "command") return <CommandRow t={t} active={active} onQueueNavigate={onQueueNavigate} />
+  return (
+    <>
+      <ThreadRow t={t} active={active} onQueueNavigate={onQueueNavigate} restedAge={restedAge} />
+      <SubAgentRows t={t} />
+    </>
+  )
+}
+
 // A TERMINAL COMMAND row. The same geometry as ThreadRow — marker rail, indicator column, 13px title,
-// right-justified state column in the rest time's place — so the band reads as part of the rail, but
-// none of a thread row's verbs: the drawer holds Stop / Restart / Remove.
-const CommandRow = memo(function CommandRow({ t, active }: { t: ThreadView; active: boolean }) {
+// right-justified state column in the rest time's place — and the same lifecycle: running it sits
+// with Running, finished it queues with a card (a click scrolls to it), and marked done it moves to
+// Done, where its check unchecks to reopen. None of an agent row's verbs: the drawer holds Stop /
+// Restart / Remove.
+const CommandRow = memo(function CommandRow({ t, active, onQueueNavigate }: { t: ThreadView; active: boolean; onQueueNavigate?: (id: string) => void }) {
   const command = t.command
   if (!command) return null
   const running = command.state === "running"
   const failed = commandFailed(command)
+  const done = t.state === "archived"
   return (
     <div
       data-sidebar-item={t.id}
       data-command-row={command.state}
-      className={`group relative flex min-w-0 items-start rounded-md transition-[color,opacity] after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:bg-hover after:opacity-0 after:transition-opacity hover:after:opacity-100 ${running ? "" : "sidebar-row-dim"}`}
+      className={`group relative flex min-w-0 items-start rounded-md transition-[color,opacity] after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:bg-hover after:opacity-0 after:transition-opacity hover:after:opacity-100 ${done ? "sidebar-row-dim" : ""}`}
     >
       <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-5">
         {active && <span className="absolute inset-y-0 left-1 w-[2px] rounded-full bg-accent" />}
       </span>
       <button
-        onClick={() => openThread(t.id)}
+        onClick={() => {
+          // Queued ⇒ its card is in the main column; scroll there rather than open a drawer over it.
+          if (t.needsYou && scrollToQueueCard(t.id)) {
+            onQueueNavigate?.(t.id)
+            return
+          }
+          openThread(t.id)
+        }}
         aria-current={active ? "location" : undefined}
         className="min-w-0 flex-1 flex items-start gap-2 pb-1 pl-5 pr-1.5 pt-1 text-left"
       >
         <span className="w-4 h-[19px] shrink-0 flex items-center justify-center">
-          {running ? (
+          {done ? null : running ? (
             <span aria-label="Running" className="frizz-live-dot frizz-live-dot--shell" />
           ) : (
             <TerminalSquare aria-label={commandStateLabel(command)} size={13} className={failed ? "text-danger-soft" : "text-muted-60"} />
           )}
         </span>
         <span className="flex min-w-0 flex-1 items-baseline gap-3">
-          <span className={`font-mono-keep min-w-0 flex-1 truncate text-[12px] leading-[19px] ${running ? "text-fg/90" : "text-fg/75"}`} title={command.command}>
+          <span className={`font-mono-keep min-w-0 flex-1 truncate text-[12px] leading-[19px] ${done ? "text-fg/75" : "text-fg/90"}`} title={command.command}>
             {command.command}
           </span>
           {!running && (
@@ -432,6 +437,7 @@ const CommandRow = memo(function CommandRow({ t, active }: { t: ThreadView; acti
           )}
         </span>
       </button>
+      {done && <RowUncheckDone t={t} />}
     </div>
   )
 })
@@ -568,8 +574,7 @@ function DoneBand({
             // inside the band, so the offset comes back off.
             style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
           >
-            <ThreadRow t={t} active={activeId === t.id} onQueueNavigate={onQueueNavigate} />
-            <SubAgentRows t={t} />
+            <RailRow t={t} active={activeId === t.id} onQueueNavigate={onQueueNavigate} />
           </div>
         )
       })}

@@ -19,7 +19,10 @@ import type { LoginAttachment } from "./login-utility.ts"
 // process up. Boot records every run that never reported an exit as interrupted, so the rail says
 // "interrupted" and offers Restart rather than showing a server that is not there.
 //
-// NOT an agent surface, and nothing here pretends to be one: no transcript, no queue card, no wake.
+// NOT an agent surface, and nothing here pretends to be one: no transcript and no wake. It DOES share
+// the board's lifecycle: a finished run is waiting on the human exactly like a rested thread (`needsYou`),
+// and it leaves the threads band the same way, by being marked done (`state: archived`). A run that is
+// still going — `npm run dev` — never queues; it sits with the running threads until it ends.
 
 // A dev server's log is long-lived and chatty; a late viewer needs the recent screen, not the banner.
 // Trimmed from the FRONT, at a line boundary where one is near, so the replay starts on a clean line.
@@ -223,7 +226,7 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
       warnings: [],
       runtime: running ? "running" : "exited",
       unread: false,
-      archived: false,
+      archived: row.state === "archived",
       spawnedAt: new Date(row.created_at).toISOString(),
       lastActivityAt: command.exitedAt ?? startedAt,
       lastUserAt: startedAt,
@@ -234,7 +237,8 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
       questions: [],
       kind: "command",
       command,
-      needsYou: false,
+      state: row.state,
+      needsYou: !running && row.state !== "archived",
     }
   }
 

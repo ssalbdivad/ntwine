@@ -431,6 +431,8 @@ export interface CommandThreadRow {
   exited_at: number | null
   exit_code: number | null
   stopped: number
+  /** 'archived' once the human marks the finished run done; a restart reopens it. */
+  state: "open" | "archived"
 }
 
 /** A saved destination, independent of running work and completion. */
@@ -726,6 +728,8 @@ export interface Storage {
   /** Boot: every run with no recorded exit died with the previous server. */
   interruptRunningCommandThreads(exitedAtMs: number): void
   dropCommandThread(slug: string): boolean
+  /** Mark as done / reopen. False when no such command thread exists. */
+  setCommandThreadState(slug: string, state: "open" | "archived"): boolean
   /** Register a watch, or return the armed one already covering this (thread, kind, target). Idempotent
    *  by that triple, so a worker re-registering the same wait after a wake gets one row, not two. */
   armThreadWatch(watch: { id: string; slug: string; kind: "shell" | "agent"; target: string; createdAtMs: number; expiresAtMs: number }): ThreadWatchRow
@@ -1290,6 +1294,8 @@ export const STORAGE_SCHEMA = `
       exit_code   INTEGER,
       -- 1 ⇒ the human pressed Stop, so a non-zero code is not a failure worth colouring.
       stopped     INTEGER NOT NULL DEFAULT 0,
+      -- 'archived' once the human marks a finished run done (it leaves the threads band for Done).
+      state       TEXT NOT NULL DEFAULT 'open',
       PRIMARY KEY (project_id, slug)
     );
 `
@@ -1317,7 +1323,12 @@ export function ensureStorageSchema(db: Database): void {
   }
   // Same stack, other tables. `pr_watch.kind` (2026-09-14): an issue watcher is a row in the PR
   // watcher's table, and every live file predates the column.
-  for (const [table, column] of [["pr_watch", "kind TEXT NOT NULL DEFAULT 'pull'"]] as const) {
+  for (const [table, column] of [
+    ["pr_watch", "kind TEXT NOT NULL DEFAULT 'pull'"],
+    // `command_thread.state` (2026-09-23): a finished command queues like a rested thread and is
+    // marked done the same way; the table shipped the same day without it.
+    ["command_thread", "state TEXT NOT NULL DEFAULT 'open'"],
+  ] as const) {
     try {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column}`)
     } catch {
@@ -1822,10 +1833,10 @@ export function createStorage(source: string | Database, projectId: string): Sto
     VALUES (@project_id, @slug, @command, @createdAtMs, @createdAtMs)
   `)
   const listCommandThreadsStmt = scope.prepare<[], CommandThreadRow>(
-    "SELECT slug, command, created_at, started_at, runs, exited_at, exit_code, stopped FROM command_thread WHERE project_id = @project_id ORDER BY created_at, slug",
+    "SELECT slug, command, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM command_thread WHERE project_id = @project_id ORDER BY created_at, slug",
   )
   const restartCommandThreadStmt = scope.prepare(`
-    UPDATE command_thread SET started_at = ?, runs = runs + 1, exited_at = NULL, exit_code = NULL, stopped = 0
+    UPDATE command_thread SET started_at = ?, runs = runs + 1, exited_at = NULL, exit_code = NULL, stopped = 0, state = 'open'
     WHERE project_id = @project_id AND slug = ?
   `)
   const recordCommandExitStmt = scope.prepare(`
@@ -1836,6 +1847,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     "UPDATE command_thread SET exited_at = ? WHERE project_id = @project_id AND exited_at IS NULL",
   )
   const dropCommandThreadStmt = scope.prepare("DELETE FROM command_thread WHERE project_id = @project_id AND slug = ?")
+  const setCommandThreadStateStmt = scope.prepare("UPDATE command_thread SET state = ? WHERE project_id = @project_id AND slug = ?")
   const armThreadWatchStmt = scope.prepare(`
     INSERT INTO thread_watch (project_id, id, thread_slug, kind, target, state, created_at, expires_at, settled_at)
     VALUES (@project_id, @id, @slug, @kind, @target, 'armed', @createdAtMs, @expiresAtMs, NULL)
@@ -2627,6 +2639,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     recordCommandExit: (slug, exit) => void recordCommandExitStmt.run(exit.exitedAtMs, exit.exitCode, exit.stopped ? 1 : 0, slug),
     interruptRunningCommandThreads: (exitedAtMs) => void interruptCommandThreadsStmt.run(exitedAtMs),
     dropCommandThread: (slug) => dropCommandThreadStmt.run(slug).changes === 1,
+    setCommandThreadState: (slug, state) => setCommandThreadStateStmt.run(state, slug).changes === 1,
     // IDEMPOTENT BY (thread, kind, target), which is what the partial unique index enforces. A worker
     // woken by an expiry re-registers the same wait, and a worker that simply calls twice must not end
     // up with two rows to drop — so an existing armed row is RETURNED rather than replaced. Replacing

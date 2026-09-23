@@ -140,6 +140,9 @@ export function TerminalPane({ slug, exitedStatus }: { slug: string; exitedStatu
         ws = null
         if (terminalCloseKind(event.code, event.reason) === "exited") {
           terminalExited = true
+          // Nothing is reading keystrokes any more, so a cursor block under the last line only says
+          // otherwise (DECTCEM hide; a restart mounts a fresh pane with its own cursor).
+          term.write("\x1b[?25l")
           setExitCode(terminalExitCode(event.reason))
           setConnection("exited")
           return
@@ -261,9 +264,9 @@ export function TerminalPane({ slug, exitedStatus }: { slug: string; exitedStatu
     <div className="relative flex-1 min-h-0 bg-bg">
       <div ref={hostRef} className="absolute inset-0 p-2" />
       {connection === "exited" && !inputOverflow && exitedStatus ? (
-        <div role="status" aria-live="polite" className="absolute bottom-0 inset-x-0 flex items-center justify-between px-3 py-1.5 bg-panel border-t border-border text-xs">
-          {exitedStatus(exitCode)}
-        </div>
+        // An exitedStatus that renders nothing asks for NO bar (the command queue card states the
+        // outcome in its own header), not for the generic "Session exited" one below.
+        exitedNode(exitedStatus(exitCode))
       ) : (connection !== "open" || inputOverflow) && (
         <div role="status" aria-live="polite" className="absolute bottom-0 inset-x-0 flex items-center justify-between px-3 py-1.5 bg-panel border-t border-border text-xs">
           <span className="text-muted">
@@ -285,6 +288,15 @@ export function TerminalPane({ slug, exitedStatus }: { slug: string; exitedStatu
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function exitedNode(content: ReactNode): ReactNode {
+  if (content == null) return null
+  return (
+    <div role="status" aria-live="polite" className="absolute bottom-0 inset-x-0 flex items-center justify-between px-3 py-1.5 bg-panel border-t border-border text-xs">
+      {content}
     </div>
   )
 }
