@@ -488,17 +488,19 @@ export function SectionHeader({ label, icon, count, collapsed, onToggle }: { lab
 
 // Ready's header icon: a developer, posed as the counterpart of lucide's Bot on Working — its glasses'
 // temples reach out where the bot's ear ticks do — so the pair reads as "you" beside "the agent"
-// (maintainer 2026-09-23: "a cute developer face that mirrors the robot face"). The glasses alone make
+// (maintainer 2026-09-23: "a cute developer face that mirrors the robot face"). Glasses with pupils make
 // it human; hair was tried and dropped, because at 11px it crowded the lenses into a blob. Drawn on
 // lucide's grid and pen.
 function DevMark({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="8" />
-      {/* The frames are ONE line, ear to ear — temple, lens, bridge, lens, temple — so the temples
-          stand in for the bot's ear ticks (maintainer: "make the frames a better more contiguous
-          line"). A 1.75 pen keeps the lenses open at 11px. */}
-      <path strokeWidth={1.75} d="M2 11.5h3.6a2.4 2.4 0 1 0 4.8 0 2.4 2.4 0 1 0-4.8 0m4.8 0h3.2a2.4 2.4 0 1 0 4.8 0 2.4 2.4 0 1 0-4.8 0m4.8 0H22" />
+      {/* The frames are ONE line — temple, lens, bridge, lens, temple — with the temples tilting up
+          toward the ears the way real frames sit, where the bot has its ear ticks (maintainer 2026-09-23:
+          "a better more contiguous line", then "tilted up slightly"). A 1.75 pen keeps the lenses open
+          at 11px; the pupils are dots, a zero-length stroke at a heavier pen. */}
+      <path strokeWidth={1.75} d="M2.5 9.5 5.2 11.5a2.8 2.8 0 1 0 5.6 0 2.8 2.8 0 1 0-5.6 0m5.6 0c.8-.6 1.6-.6 2.4 0a2.8 2.8 0 1 0 5.6 0 2.8 2.8 0 1 0-5.6 0m5.6 0 2.7-2" />
+      <path strokeWidth={2.4} d="M8 11.8h.01M16 11.8h.01" />
     </svg>
   )
 }
