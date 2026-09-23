@@ -684,6 +684,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   })
   const terminalOptionsFor = (c: AppContext) => ({
     resolveLogin: (slug: string) => c.loginUtility.attach(slug),
+    resolveCommand: (slug: string) => c.commandRunner.attach(slug),
   })
   const appSocketOptionsFor = (c: AppContext) => ({
     bus: c.bus,
@@ -792,6 +793,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   })
   const cleanupTailer = createRetryableCleanup(tenant.tailer)
   const cleanupLoginUtility = createRetryableCleanup(tenant.loginUtility)
+  const cleanupCommandRunner = createRetryableCleanup(tenant.commandRunner)
   const cleanupSubscriptions = createRetryableCleanup(tenant.subscriptions)
   const cleanupScheduler = createRetryableCleanup(tenant.scheduler)
   const cleanupBoard = createRetryableCleanup(tenant.board)
@@ -828,6 +830,8 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       { name: "tailer producer", run: cleanupTailer },
       // Kill any live login-attempt pane so OAuth bytes never outlive the server.
       { name: "login utility", run: cleanupLoginUtility },
+      // Hang up every terminal command thread, so a dev server started from Frizz stops with it.
+      { name: "terminal commands", run: cleanupCommandRunner },
       { name: "context subscriptions", run: cleanupSubscriptions },
       { name: "wake scheduler", run: cleanupScheduler },
       { name: "board producer and watcher", run: cleanupBoard },

@@ -58,8 +58,9 @@ export interface LoginAttachment {
   /** Keystrokes from this viewer (the pasted OAuth code). */
   write(data: string): void
   resize(cols: number, rows: number): void
-  /** The pty exited — the CLI finished, either way. */
-  onExit(listener: () => void): () => void
+  /** The pty exited — the CLI finished, either way. A terminal command thread (command-threads.ts)
+   *  rides this same shape and passes its exit code; the sign-in CLI's code means nothing and is omitted. */
+  onExit(listener: (exitCode?: number) => void): () => void
   close(): void
 }
 

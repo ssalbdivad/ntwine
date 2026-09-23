@@ -33,7 +33,7 @@ export interface AiRenameAvailability {
 // exactly the threads you are watching (maintainer 2026-08-26: "when you click it, it currently does
 // not do anything at all"). What it genuinely needs is a LIVE broker daemon to ask.
 export function aiRenameAvailability(thread: {
-  kind?: "session" | "legacy"
+  kind?: "session" | "legacy" | "command"
   foreign?: boolean
   backend?: "claude" | "codex" | "acp"
   // A Claude row dispatched before the broker became the sole transport has no control channel, and

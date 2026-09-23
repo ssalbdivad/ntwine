@@ -3,7 +3,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query"
 import { acpModelSlug, type AccountBackend, type DispatchInput } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
-import { showToast, store } from "../store.ts"
+import { pushDrawer, showToast, store } from "../store.ts"
+import { useSnapshot } from "valtio"
+import { ArrowUp, Loader2 } from "lucide-react"
+import { abbreviateHome } from "../lib/paths.ts"
+import { RAIL_SEND_OFFSET } from "../lib/iconRhythm.ts"
 import { Composer } from "./Composer.tsx"
 import { GithubTrigger, useGithubTriggerVisible } from "./GithubTrigger.tsx"
 import { ProfileGridSelector } from "./ProfileGridSelector.tsx"
@@ -17,10 +21,146 @@ import { draftKey, draftStore, useDraft, useProjectDir } from "../lib/drafts.ts"
 import { parseAccountAlias } from "../lib/signIn.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 
-// THE dispatch prompt box — composer + quiet selects row — shared by every surface that can start a
-// thread: the queue's inline section and the anywhere-modal. There is no title field — the server
-// derives a fallback and Claude names the session itself (ai-title), which the UI prefers for display.
+// Which tab the prompt box was last on. Module-level so every mount of the box (the rail, the empty
+// board, the anywhere-modal) opens where the human left it for the rest of the tab's life.
+let lastDispatchMode: DispatchMode = "prompt"
+type DispatchMode = "prompt" | "terminal"
+
+// THE prompt box, in two tabs: PROMPT starts an agent thread, TERMINAL runs a shell command in the
+// project directory as a thread of its own whose drawer is the live terminal (`npm run dev`, a test
+// watcher). Shared by every surface that can start a thread: the rail, the empty board's centered
+// box and the anywhere-modal.
 export function DispatchForm({
+  autoFocus,
+  onDispatched,
+}: {
+  autoFocus?: boolean
+  onDispatched?: () => void
+}) {
+  const [mode, setModeState] = useState<DispatchMode>(lastDispatchMode)
+  const setMode = (next: DispatchMode) => {
+    lastDispatchMode = next
+    setModeState(next)
+  }
+  return (
+    <div className="w-full flex flex-col gap-1.5">
+      <DispatchTabs mode={mode} onChange={setMode} />
+      {mode === "prompt" ? (
+        <PromptForm autoFocus={autoFocus} onDispatched={onDispatched} />
+      ) : (
+        <CommandForm autoFocus={autoFocus} onDispatched={onDispatched} />
+      )}
+    </div>
+  )
+}
+
+function DispatchTabs({ mode, onChange }: { mode: DispatchMode; onChange: (mode: DispatchMode) => void }) {
+  const tab = (value: DispatchMode, label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={mode === value}
+      data-dispatch-tab={value}
+      onClick={() => onChange(value)}
+      // The selected tab is a bordered chip: panel-2 alone is a 2% step off the page in light mode and
+      // left the selection readable only through the text colour.
+      className={`rounded-md border px-2 py-0.5 text-[11.5px] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-focus-ink-60 ${
+        mode === value ? "border-border bg-panel-2 text-fg" : "border-transparent text-muted hover:text-fg"
+      }`}
+    >
+      {label}
+    </button>
+  )
+  return (
+    <div role="tablist" aria-label="Start a thread" className="flex items-center gap-0.5 px-0.5">
+      {tab("prompt", "Prompt")}
+      {tab("terminal", "Terminal")}
+    </div>
+  )
+}
+
+// The TERMINAL tab: one shell command, run by the server in a pty in the project directory. The
+// thread's drawer opens straight onto the running terminal — seeing it run is why the human is here.
+function CommandForm({ autoFocus, onDispatched }: { autoFocus?: boolean; onDispatched?: () => void }) {
+  const projectDir = useProjectDir()
+  const homeDir = useSnapshot(store).board?.homeDir
+  const [command, setCommand, clearCommand] = useDraft(draftKey.command(projectDir))
+  const start = useMutation({
+    mutationFn: (input: string) => rpc.commandStart({ command: input }),
+    onSuccess: (res) => {
+      onDispatched?.()
+      pushDrawer("terminal", res.slug)
+    },
+    onError: (e, input) => {
+      if (!draftStore.get(draftKey.command(projectDir))) setCommand(input)
+      showToast(`Could not start the command: ${(e as Error).message.slice(0, 80)}`)
+    },
+  })
+  function submit() {
+    const trimmed = command.trim()
+    if (!trimmed || start.isPending) return
+    clearCommand()
+    start.mutate(trimmed)
+  }
+  const hasContent = command.trim().length > 0
+  return (
+    <div className="group relative rounded-xl border border-border bg-bg transition-colors focus-within:border-accent">
+      <div className="flex items-start">
+        {/* The shell's own prompt mark, in the input's font, so the box reads as a command line. */}
+        <span aria-hidden className="font-mono-keep select-none pl-3.5 pt-2.5 text-[13px] leading-relaxed text-muted-60">$</span>
+        <textarea
+          data-surface="commandComposer"
+          data-claims-escape
+          value={command}
+          autoFocus={autoFocus}
+          disabled={start.isPending}
+          onChange={(e) => setCommand(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation()
+              e.currentTarget.blur()
+              return
+            }
+            // A command is one line: Enter runs it, and Shift-Enter is not a newline worth offering.
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              submit()
+            }
+          }}
+          placeholder="npm run dev"
+          rows={1}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          style={{ minHeight: 96, maxHeight: 340 }}
+          className="font-mono-keep block w-full min-w-0 flex-1 resize-none bg-transparent py-2.5 pl-2 pr-3.5 text-[13px] leading-relaxed text-fg outline-none placeholder:text-muted scrollbar-none disabled:opacity-60"
+        />
+      </div>
+      <div className="flex min-w-0 items-center pb-1.5 pl-3.5 pr-20">
+        <span className="min-w-0 truncate py-1 text-[11px] text-muted-60" title={projectDir}>
+          Runs in <span className="font-mono-keep">{projectDir ? abbreviateHome(projectDir, homeDir) : "the project directory"}</span>
+        </span>
+      </div>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={submit}
+        disabled={!hasContent || start.isPending}
+        title="Run (Enter)"
+        aria-label="Run command"
+        className={`icon-hover-outline absolute bottom-2 ${RAIL_SEND_OFFSET} flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
+          hasContent && !start.isPending ? "bg-fg text-bg hover:opacity-90 active:scale-95" : "bg-panel-2 text-muted"
+        }`}
+      >
+        {start.isPending ? <Loader2 size={14} strokeWidth={2.5} className="animate-spin" /> : <ArrowUp size={14} strokeWidth={2.5} />}
+      </button>
+    </div>
+  )
+}
+
+// The PROMPT tab — composer + quiet selects row. There is no title field — the server derives a
+// fallback and Claude names the session itself (ai-title), which the UI prefers for display.
+function PromptForm({
   autoFocus,
   onDispatched,
 }: {

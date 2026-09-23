@@ -133,7 +133,7 @@ export const store = proxy({
   // same entry so App can render its sheet without a board lookup after the operation finishes.
   drawers: [] as {
     id: number
-    kind: "thread" | "doc" | "subagent" | "shell" | "markdown"
+    kind: "thread" | "doc" | "subagent" | "shell" | "markdown" | "terminal"
     slug: string
     routed?: boolean // URL/deep-link-created thread: visible on first paint, never an invisible animated backdrop
     subId?: string // subagent/shell: the launch tool_use id (the RPC handle + dedupe key)
@@ -261,7 +261,7 @@ function openOrRaiseDrawer(next: Omit<Drawer, "id" | "closing" | "openedAt">): v
   queueMicrotask(() => focusDrawer(existing.id))
 }
 
-export function pushDrawer(kind: "thread" | "doc", slug: string, opts?: { routed?: boolean }): void {
+export function pushDrawer(kind: "thread" | "doc" | "terminal", slug: string, opts?: { routed?: boolean }): void {
   openOrRaiseDrawer({ kind, slug, routed: opts?.routed })
 }
 
@@ -285,6 +285,8 @@ export function pushBackgroundShellDrawer(slug: string, id: string, opts: { labe
 // seeing) opens the chat drawer. The doc drawer carries the adopt ("Start a session") affordance.
 export function openThread(slug: string): void {
   const t = store.board?.threads.find((x) => x.id === slug)
+  // A terminal command thread has no chat and no document: its drawer IS the live terminal.
+  if (t?.kind === "command") return pushDrawer("terminal", slug)
   if (t?.needsYou && scrollToQueueCard(slug)) return
   pushDrawer(t && t.runtime === "none" ? "doc" : "thread", slug)
 }
@@ -311,7 +313,7 @@ export function resolveRoutedThread(): void {
     return
   }
   if (route.kind === "found" && route.thread.needsYou && scrollToQueueCard(slug)) return
-  pushDrawer("thread", slug, { routed: true })
+  pushDrawer(route.kind === "found" && route.thread.kind === "command" ? "terminal" : "thread", slug, { routed: true })
 }
 
 // THE FULLSCREEN DOOR, PLAYED BACKWARDS. react-router re-arms the door's view transition for the POP

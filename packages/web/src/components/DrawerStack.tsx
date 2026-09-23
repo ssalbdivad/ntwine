@@ -10,6 +10,7 @@ import { SubAgentSheet } from "./SubAgentSheet.tsx"
 import { BackgroundShellSheet } from "./BackgroundShellSheet.tsx"
 import { MarkdownDrawer } from "./MarkdownDrawer.tsx"
 import { ThreadDrawer } from "./ThreadDrawer.tsx"
+import { CommandSheet } from "./CommandSheet.tsx"
 import { ErrorBoundary, DrawerErrorSheet } from "./ErrorBoundary.tsx"
 
 // The side-drawer STACK, and the Escape chain that unwinds it. Lives in its own component because
@@ -99,6 +100,8 @@ export function DrawerStack() {
             depth={i}
             widthDepth={widthDepth}
           />
+        ) : d.kind === "terminal" ? (
+          <CommandSheet key={d.id} id={d.id} slug={d.slug} depth={i} widthDepth={widthDepth} />
         ) : d.kind === "markdown" ? (
           <MarkdownDrawer key={d.id} id={d.id} path={d.path ?? d.slug} title={d.label ?? d.slug} depth={i} widthDepth={widthDepth} />
         ) : (

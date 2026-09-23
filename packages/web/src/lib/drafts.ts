@@ -86,6 +86,8 @@ export function projectDraftScope(projectDir: string | undefined): string {
 }
 export const draftKey = {
   dispatch: (projectDir: string | undefined) => `dispatch:${projectDraftScope(projectDir)}:new`,
+  // The prompt box's Terminal tab: the shell command about to be run, kept apart from the prompt draft.
+  command: (projectDir: string | undefined) => `command:${projectDraftScope(projectDir)}:new`,
   followUp: (projectDir: string | undefined, slug: string, sessionId?: string) => `followup:${projectDraftScope(projectDir)}:${encodeURIComponent(slug)}:${encodeURIComponent(sessionId ?? "unowned")}`,
   adopt: (projectDir: string | undefined, slug: string) => `adopt:${projectDraftScope(projectDir)}:${encodeURIComponent(slug)}`,
   answer: (projectDir: string | undefined, slug: string, sessionId: string | undefined, messageId: string, block: number) => `answer:${projectDraftScope(projectDir)}:${encodeURIComponent(slug)}:${encodeURIComponent(sessionId ?? "unowned")}:${encodeURIComponent(messageId)}:${block}`,

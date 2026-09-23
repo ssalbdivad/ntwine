@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import type { TermClientMsg } from "@frizz/shared"
-import { queuedTerminalInputBytes, terminalCloseKind, terminalReconnectDelay } from "../lib/terminalConnection.ts"
+import { queuedTerminalInputBytes, terminalCloseKind, terminalExitCode, terminalReconnectDelay } from "../lib/terminalConnection.ts"
 import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
 import { apiBase } from "../lib/base-path.ts"
 import { getThemeSnapshot, subscribeTheme } from "../lib/theme.ts"
@@ -35,10 +35,15 @@ function terminalTheme() {
 // render service and took the whole React tree down on a Terminal→Chat tab switch). For an
 // agent's TUI the DOM renderer's throughput is more than enough; revisit WebGL only with an
 // explicit devicePixelRatio-resync if profiling ever demands it.
-export function TerminalPane({ slug }: { slug: string }) {
+//
+// `exitedStatus` replaces the exited status line. A terminal command thread passes one: its process
+// finishing is the whole story (with a code worth showing), and "Resume" — which focuses an agent's
+// composer — has nothing to resume there.
+export function TerminalPane({ slug, exitedStatus }: { slug: string; exitedStatus?: (exitCode: number | null) => ReactNode }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const [connection, setConnection] = useState<"connecting" | "open" | "reconnecting" | "exited">("connecting")
+  const [exitCode, setExitCode] = useState<number | null>(null)
   const [inputOverflow, setInputOverflow] = useState(false)
 
   useEffect(() => {
@@ -135,6 +140,7 @@ export function TerminalPane({ slug }: { slug: string }) {
         ws = null
         if (terminalCloseKind(event.code, event.reason) === "exited") {
           terminalExited = true
+          setExitCode(terminalExitCode(event.reason))
           setConnection("exited")
           return
         }
@@ -254,7 +260,11 @@ export function TerminalPane({ slug }: { slug: string }) {
   return (
     <div className="relative flex-1 min-h-0 bg-bg">
       <div ref={hostRef} className="absolute inset-0 p-2" />
-      {(connection !== "open" || inputOverflow) && (
+      {connection === "exited" && !inputOverflow && exitedStatus ? (
+        <div role="status" aria-live="polite" className="absolute bottom-0 inset-x-0 flex items-center justify-between px-3 py-1.5 bg-panel border-t border-border text-xs">
+          {exitedStatus(exitCode)}
+        </div>
+      ) : (connection !== "open" || inputOverflow) && (
         <div role="status" aria-live="polite" className="absolute bottom-0 inset-x-0 flex items-center justify-between px-3 py-1.5 bg-panel border-t border-border text-xs">
           <span className="text-muted">
             {inputOverflow

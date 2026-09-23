@@ -1761,6 +1761,8 @@ export interface BoardManagerDeps {
   now?: () => number
   codexTurnLiveness?: CodexTurnLivenessReader
   claudeBrokerDaemonAlive?: ClaudeBrokerLivenessReader
+  // The project's terminal command threads (command-threads.ts), already shaped as rows.
+  commandThreads?: () => ThreadView[]
 }
 
 export function createBoard(
@@ -1946,7 +1948,7 @@ export function createBoard(
     notifyNeedsYou(sessionThreads)
     return {
       ...base,
-      threads: [...sessionThreads, ...buildForeignThreads()],
+      threads: [...sessionThreads, ...buildForeignThreads(), ...(deps.commandThreads?.() ?? [])],
       errors: [],
       warnings: [],
       errorItems: [],

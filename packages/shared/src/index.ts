@@ -2496,6 +2496,33 @@ export type DropOwnLinkInput = z.infer<typeof DropOwnLinkInput>
 export const DropOwnLinkResult = z.object({ dropped: z.boolean() }).strict()
 export type DropOwnLinkResult = z.infer<typeof DropOwnLinkResult>
 
+// A terminal command thread's run, as the rail and its drawer render it. `runId` counts starts, so a
+// restart is a NEW terminal to the browser (a fresh pty, a fresh screen) rather than more output on the
+// old one. An exited run with no `exitCode` is one the server went away under (a Frizz restart takes
+// its children with it) — shown as interrupted, never as a success.
+export const CommandThreadState = z.object({
+  command: z.string(),
+  state: z.enum(["running", "exited"]),
+  runId: z.number().int(),
+  startedAt: z.string(),
+  exitedAt: z.string().optional(),
+  exitCode: z.number().int().optional(),
+  // The human pressed Stop — the signal's code is theirs, not a failure.
+  stopped: z.boolean().optional(),
+})
+export type CommandThreadState = z.infer<typeof CommandThreadState>
+
+// The prompt box's Terminal tab. A command is ONE line of shell, run in the project directory.
+export const COMMAND_THREAD_MAX_CHARS = 4_000
+export const StartCommandInput = z.object({
+  command: z.string().trim().min(1).max(COMMAND_THREAD_MAX_CHARS),
+}).strict()
+export type StartCommandInput = z.infer<typeof StartCommandInput>
+export const CommandThreadInput = z.object({ slug: ThreadSlug }).strict()
+export type CommandThreadInput = z.infer<typeof CommandThreadInput>
+export const CommandThreadResult = z.object({ slug: ThreadSlug }).strict()
+export type CommandThreadResult = z.infer<typeof CommandThreadResult>
+
 // One sidebar row: frizz board thread + runtime overlay.
 export const ThreadView = z.object({
   id: ThreadSlug, // slug; filename is <slug>.md
@@ -2607,7 +2634,12 @@ export const ThreadView = z.object({
   // constructors that predate the model still typecheck and old snapshots parse unchanged. ----
   // "session" = a session-backed thread (the working rail's unit); "legacy" (or absent) = a .frizz
   // file row, rendered read-only in the collapsed Legacy shelf.
-  kind: z.enum(["session", "legacy"]).optional(),
+  // "command" = a TERMINAL COMMAND thread: a shell command started from the prompt box's Terminal tab,
+  // running in a server-owned pty the browser attaches to over /term (see `command` below). Every
+  // session guard (`kind !== "session"`) already excludes it, which is the point: it has no agent, no
+  // transcript, no queue card and no lifecycle verb, and must never be mistaken for one that does.
+  kind: z.enum(["session", "legacy", "command"]).optional(),
+  command: CommandThreadState.optional(),
   // No registry row (a maintainer terminal discovered from the JSONL dir): read-only transcript,
   // no lifecycle verbs (no composer / kill / resume), never in Needs-you, no archive/seen state.
   foreign: z.boolean().optional(),

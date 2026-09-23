@@ -421,6 +421,18 @@ export interface PrWatchRow {
   cursor: string | null
 }
 
+/** A terminal command thread's definition and its latest run (command-threads.ts). */
+export interface CommandThreadRow {
+  slug: string
+  command: string
+  created_at: number
+  started_at: number
+  runs: number
+  exited_at: number | null
+  exit_code: number | null
+  stopped: number
+}
+
 /** A saved destination, independent of running work and completion. */
 export interface ThreadLinkRow {
   id: string
@@ -706,6 +718,14 @@ export interface Storage {
   listThreadLinks(slug: string): ThreadLinkRow[]
   threadLinksBySlug(): Map<string, ThreadLinkRow[]>
   dropThreadLink(slug: string, id: string): boolean
+  insertCommandThread(row: { slug: string; command: string; createdAtMs: number }): void
+  listCommandThreads(): CommandThreadRow[]
+  /** A fresh run of an existing command: bumps `runs` and clears the previous outcome. */
+  restartCommandThread(slug: string, startedAtMs: number): void
+  recordCommandExit(slug: string, exit: { exitedAtMs: number; exitCode: number | null; stopped: boolean }): void
+  /** Boot: every run with no recorded exit died with the previous server. */
+  interruptRunningCommandThreads(exitedAtMs: number): void
+  dropCommandThread(slug: string): boolean
   /** Register a watch, or return the armed one already covering this (thread, kind, target). Idempotent
    *  by that triple, so a worker re-registering the same wait after a wake gets one row, not two. */
   armThreadWatch(watch: { id: string; slug: string; kind: "shell" | "agent"; target: string; createdAtMs: number; expiresAtMs: number }): ThreadWatchRow
@@ -1253,12 +1273,32 @@ export const STORAGE_SCHEMA = `
     );
     CREATE INDEX IF NOT EXISTS subagent_steer_timeline
       ON subagent_steer(project_id, thread_slug, subagent_id, sent_at);
+    -- A TERMINAL COMMAND thread (2026-09-23): a shell command the human started from the prompt box's
+    -- Terminal tab, whose pty the control plane owns (command-threads.ts). Only the DEFINITION and the
+    -- last run's outcome are durable — the pty is a child of the server and dies with it, so a row whose
+    -- run never recorded an exit is one a restart interrupted, and boot says so rather than showing a
+    -- process that is not there. RUNS counts starts, so a restart is a new terminal to the browser.
+    CREATE TABLE IF NOT EXISTS command_thread (
+      project_id  TEXT NOT NULL,
+      slug        TEXT NOT NULL,
+      command     TEXT NOT NULL,
+      created_at  INTEGER NOT NULL,
+      started_at  INTEGER NOT NULL,
+      runs        INTEGER NOT NULL DEFAULT 1,
+      exited_at   INTEGER,
+      -- NULL with exited_at set ⇒ no exit was observed (the server went away under it).
+      exit_code   INTEGER,
+      -- 1 ⇒ the human pressed Stop, so a non-zero code is not a failure worth colouring.
+      stopped     INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (project_id, slug)
+    );
 `
 
 /** Every table this module owns, for the importer and the project purge. */
 export const STORAGE_TABLES = [
   "session", "settings", "tombstone", "adoption_claim", "adoption_retired_attempt", "retired_op",
   "thread_timer", "pr_watch", "thread_watch", "thread_question", "thread_done", "subagent_steer", "thread_link",
+  "command_thread",
 ] as const
 
 /** Idempotent; run by every createStorage and by frizz-db.ts before an import. */
@@ -1777,6 +1817,25 @@ export function createStorage(source: string | Database, projectId: string): Sto
   )
   const dropThreadLinkStmt = scope.prepare("DELETE FROM thread_link WHERE project_id = @project_id AND thread_slug = ? AND id = ?")
   const delThreadLinks = scope.prepare("DELETE FROM thread_link WHERE project_id = @project_id AND thread_slug = ?")
+  const insertCommandThreadStmt = scope.prepare<{ slug: string; command: string; createdAtMs: number }>(`
+    INSERT INTO command_thread (project_id, slug, command, created_at, started_at)
+    VALUES (@project_id, @slug, @command, @createdAtMs, @createdAtMs)
+  `)
+  const listCommandThreadsStmt = scope.prepare<[], CommandThreadRow>(
+    "SELECT slug, command, created_at, started_at, runs, exited_at, exit_code, stopped FROM command_thread WHERE project_id = @project_id ORDER BY created_at, slug",
+  )
+  const restartCommandThreadStmt = scope.prepare(`
+    UPDATE command_thread SET started_at = ?, runs = runs + 1, exited_at = NULL, exit_code = NULL, stopped = 0
+    WHERE project_id = @project_id AND slug = ?
+  `)
+  const recordCommandExitStmt = scope.prepare(`
+    UPDATE command_thread SET exited_at = ?, exit_code = ?, stopped = ?
+    WHERE project_id = @project_id AND slug = ?
+  `)
+  const interruptCommandThreadsStmt = scope.prepare(
+    "UPDATE command_thread SET exited_at = ? WHERE project_id = @project_id AND exited_at IS NULL",
+  )
+  const dropCommandThreadStmt = scope.prepare("DELETE FROM command_thread WHERE project_id = @project_id AND slug = ?")
   const armThreadWatchStmt = scope.prepare(`
     INSERT INTO thread_watch (project_id, id, thread_slug, kind, target, state, created_at, expires_at, settled_at)
     VALUES (@project_id, @id, @slug, @kind, @target, 'armed', @createdAtMs, @expiresAtMs, NULL)
@@ -2562,6 +2621,12 @@ export function createStorage(source: string | Database, projectId: string): Sto
     listThreadLinks: (slug) => threadLinksBySlugStmt.all(slug),
     threadLinksBySlug: () => groupBySlug(threadLinksStmt.all()),
     dropThreadLink: (slug, id) => dropThreadLinkStmt.run(slug, id).changes === 1,
+    insertCommandThread: (row) => void insertCommandThreadStmt.run(row),
+    listCommandThreads: () => listCommandThreadsStmt.all(),
+    restartCommandThread: (slug, startedAtMs) => void restartCommandThreadStmt.run(startedAtMs, slug),
+    recordCommandExit: (slug, exit) => void recordCommandExitStmt.run(exit.exitedAtMs, exit.exitCode, exit.stopped ? 1 : 0, slug),
+    interruptRunningCommandThreads: (exitedAtMs) => void interruptCommandThreadsStmt.run(exitedAtMs),
+    dropCommandThread: (slug) => dropCommandThreadStmt.run(slug).changes === 1,
     // IDEMPOTENT BY (thread, kind, target), which is what the partial unique index enforces. A worker
     // woken by an expiry re-registers the same wait, and a worker that simply calls twice must not end
     // up with two rows to drop — so an existing armed row is RETURNED rather than replaced. Replacing

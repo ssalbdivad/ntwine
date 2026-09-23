@@ -8,6 +8,12 @@ export function terminalCloseKind(code: number, reason: string): TerminalCloseKi
   return code === 1000 && /^pty exit\s+-?\d+$/.test(reason.trim()) ? "exited" : "reconnect"
 }
 
+// The exit code the server named in an "exited" close reason, or null when it named none.
+export function terminalExitCode(reason: string): number | null {
+  const match = /^pty exit\s+(-?\d+)$/.exec(reason.trim())
+  return match ? Number(match[1]) : null
+}
+
 // Fast first recovery, capped so an offline server never becomes a reconnect storm.
 export function terminalReconnectDelay(failures: number): number {
   return Math.min(250 * 2 ** Math.max(0, failures - 1), 5_000)

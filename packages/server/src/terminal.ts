@@ -6,8 +6,9 @@ import { ThreadSlug, type TermClientMsg, FRIZZ_ROUTE_PREFIX } from "@frizz/share
 import { isTrustedLocalWebSocketRequest, rejectWebSocketUpgrade } from "./local-origin.ts"
 import type { LoginAttachment } from "./login-utility.ts"
 
-// The /term/<slug> transport. It serves exactly ONE thing: a provider sign-in attempt, whose pty the
-// login utility owns and shares across every viewing tab.
+// The /term/<slug> transport. It serves exactly TWO things, both ptys some other module owns and shares
+// across every viewing tab: a provider sign-in attempt (login-utility.ts), and a terminal command thread
+// the human started from the prompt box (command-threads.ts).
 //
 // It used to attach each viewer to a `tmux -L <socket> attach-session -t frizz-<slug>` so an operator
 // could watch an agent's TUI. Agents no longer run in panes — the broker drives them over pipes — so
@@ -93,6 +94,9 @@ export interface TerminalServer {
 export interface TerminalServerDeps {
   // Resolve a live provider sign-in attempt. Null ⇒ this slug is not attachable.
   resolveLogin?: (slug: string) => LoginAttachment | null
+  // Resolve one of this project's terminal command threads. Consulted only when no login attempt
+  // claims the slug; the two id spaces (`login-…`, `term-…`) never overlap anyway.
+  resolveCommand?: (slug: string) => LoginAttachment | null
   maxOutputBufferBytes?: number
   maxViewers?: number
   maxViewersPerSlug?: number
@@ -131,9 +135,10 @@ function adaptLoginSource(attachment: LoginAttachment): TerminalSource {
       return { dispose: unsubscribe }
     },
     onExit(listener) {
-      // The utility reports "the CLI finished" without a code; 0 keeps the close reason well-formed
-      // (the caller re-reads credential state for the real verdict, never this number).
-      const unsubscribe = attachment.onExit(() => listener({ exitCode: 0 }))
+      // The sign-in utility reports "the CLI finished" without a code; 0 keeps the close reason
+      // well-formed (the caller re-reads credential state for the real verdict, never this number). A
+      // command thread passes its real code, which the drawer shows.
+      const unsubscribe = attachment.onExit((exitCode) => listener({ exitCode: exitCode ?? 0 }))
       return { dispose: unsubscribe }
     },
     resize: (cols, rows) => attachment.resize(cols, rows),
@@ -323,12 +328,12 @@ export function createTerminalServer(deps: TerminalServerDeps = {}): TerminalSer
       return
     }
 
-    // /term serves exactly ONE thing now: a provider sign-in attempt, whose pty the login utility
-    // owns and shares across viewers. An agent thread has no terminal to attach to — it runs inside a
-    // detached daemon over pipes — so a slug that is not a live login attempt is simply not attachable.
+    // /term serves a provider sign-in attempt or a terminal command thread — in both, the pty belongs
+    // to its owning module and is shared across viewers. An AGENT thread has no terminal to attach to —
+    // it runs inside a detached daemon over pipes — so a slug that is neither is simply not attachable.
     let loginAttachment: LoginAttachment | null = null
     try {
-      loginAttachment = deps.resolveLogin?.(slug) ?? null
+      loginAttachment = deps.resolveLogin?.(slug) ?? deps.resolveCommand?.(slug) ?? null
     } catch {
       beginClose(1011, "terminal unavailable")
       return
