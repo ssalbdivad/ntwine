@@ -16,6 +16,7 @@ import { execFileSync, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { createRpcClient } from "./lib/rpc-client.mjs"
 
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
@@ -139,6 +140,23 @@ const SCRIPTS = {
       prompt: "Upgrade pg to v9 and fix whatever breaks.",
       closing: "**Fixed, except** the `LISTEN/NOTIFY` bridge — the driver upgrade is on `main`, but v9 drops the `notification` event's `processId` field and the bridge used it to ignore its own writes.\n\nI left the bridge on the old field behind a shim so nothing regresses; replacing it needs a decision about how the bridge should recognise its own notifications.",
     },
+    // THE SAME SLUG AS marketing-site's — a slug is unique only within a project, and every action on
+    // the all-queues page must land on the card's own project, never on its namesake's.
+    {
+      slug: "fix-flaky-login-test", title: "Fix the flaky login test", rest: 30,
+      prompt: "The login e2e test fails about one run in ten on CI.",
+      closing: done(
+        "**Fixed** — the login test waited on a fixed 500ms timeout for the session cookie, and CI's slower runners set it later than that.\n\n" +
+          "It now waits on the `Set-Cookie` response itself, so it is as fast as the fastest runner and as patient as the slowest. I ran it 200 times against a runner throttled to a quarter of its CPU and it passed every time; before the change the same loop failed 23 times.\n\n" +
+          "Two other tests in `e2e/auth/` used the same fixed wait. They were not flaking yet, but they would on the same runners, so I moved them onto the same helper while I was there.\n\n" +
+          "The helper lives in `e2e/support/waitForSession.ts` and is documented beside the other waits; nothing else in the suite used the pattern.",
+        [
+          "**Replaced the fixed wait** in `e2e/auth/login.spec.ts` with `waitForSession()`, which waits on the response that sets the cookie.",
+          "**Moved two sibling tests** onto the same helper before they started flaking.",
+          "**Ran it 200 times** on a throttled runner: 200/200 green, against 177/200 before.",
+        ],
+      ),
+    },
     { slug: "trace-slow-checkout", title: "Trace the slow checkout endpoint", rest: 2, inFlight: true, gerund: "Profiling the checkout handler", prompt: "Checkout p99 doubled since Tuesday. Find out why." },
     { slug: "retire-v1-webhooks", title: "Retire the v1 webhook format", rest: 300, archived: true, prompt: "Remove the v1 webhook serializer.", closing: done("**Fixed** — v1 webhooks are gone.", ["**Removed** `src/webhooks/v1.ts` and its fixtures."]) },
   ],
@@ -165,6 +183,14 @@ const SCRIPTS = {
         ],
       },
     },
+    // acme-api has a thread of the same slug (see there).
+    {
+      slug: "fix-flaky-login-test", title: "Fix the flaky login test", rest: 26,
+      prompt: "The marketing site's login smoke test fails intermittently.",
+      closing: done("**Fixed** — the smoke test clicked the login button before hydration finished; it now waits for the form to be interactive.", [
+        "**Waited for hydration** in `tests/smoke/login.spec.ts` before clicking.",
+      ]),
+    },
     { slug: "og-image-generator", title: "Generate OG images at build time", rest: 1, inFlight: true, gerund: "Rendering the OG image templates", prompt: "Generate social cards for every blog post at build time." },
     { slug: "blog-rss-feed", title: "Add an RSS feed for the blog", rest: 3, inFlight: true, gerund: "Validating the feed against the RSS spec", prompt: "Add an RSS feed at /blog/rss.xml." },
   ],
@@ -184,4 +210,9 @@ const SCRIPTS = {
 for (const project of projects) {
   for (const thread of SCRIPTS[project.slug] ?? []) seed(project, thread)
 }
+// OPEN every board. adhoc-stack registers its `--also-project` tenants after the server is up, which is
+// after the boot-time priming pass has already walked the registry (server/tenant-prime.ts), so without a
+// visit they stay closed and the page draws them as "Not open". One read each is the visit.
+const origin = new URL(stack.url).origin
+for (const project of projects) await createRpcClient(`${origin}/`, project.id).query("board")
 console.log(JSON.stringify({ seeded: projects.map((p) => p.slug), daemonPid: daemon.pid }))

@@ -562,7 +562,7 @@ function AllQueuesLink() {
       className="inline-flex items-center gap-1.5 rounded-full border border-border py-1 pl-2.5 pr-3 text-[12px] text-muted outline-none transition-colors hover:border-border-strong hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
     >
       <Inbox size={14} aria-hidden="true" />
-      All queues
+      <span>All queues</span>
       {total > 0 && (
         <span
           aria-label={`${total} in the queue`}

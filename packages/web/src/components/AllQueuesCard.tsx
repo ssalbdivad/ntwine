@@ -14,17 +14,19 @@
 // page's socket, and on this page all three name the LAUNCHING project.
 import { memo, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowUpRight, Check, ChevronDown, Hourglass, Maximize2 } from "lucide-react"
+import { ArrowUpRight, Check, ChevronRight, Hourglass, Maximize2, RotateCcw } from "lucide-react"
 import { useNavigate } from "react-router"
 import type { ThreadView } from "@frizz/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
-import { displayTitle, lastActiveLabelAt } from "../groups.ts"
+import { displayTitle, lastActiveLabelAt, offersRetry } from "../groups.ts"
 import { threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { copyTextToClipboard } from "../lib/clipboard.ts"
 import { draftKey, draftStore, useDraftValues } from "../lib/drafts.ts"
 import { splitFenceBlocks } from "../lib/fenceBlocks.ts"
 import { rememberFullscreenOrigin } from "../lib/fullscreenHandoff.ts"
+import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
+import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/transcriptMetaLabels.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { splitQuestionBlocks } from "../lib/questionBlocks.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
@@ -128,6 +130,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
               <LastActive at={lastActiveLabelAt(thread)} fallbackAt={thread.spawnedAt} className="mt-0.5 block truncate text-[11px] leading-tight text-muted-75" />
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
+              {offersRetry(thread) && <RetryButton project={project} thread={thread} onSent={onLeave} onFailed={onReturn} />}
               <Tooltip label={`Open in ${project.name}`}>
                 <a href={boardHref} aria-label={`Open in ${project.name}`} onClick={(event) => openBoard(event, boardHref, false)} className={HEADER_ICON_CLASS}>
                   <ArrowUpRight size={15} />
@@ -152,15 +155,15 @@ export const AllQueuesCard = memo(function AllQueuesCard({
                     <Prose md={parts.prose} />
                   </ClampedBody>
                 )
-              ) : (
+              ) : thread.lastAssistant || handoff.isError ? (
                 // The board's own 200-character preview, until the whole message lands: a card that shows
                 // the gist at once beats one that is blank for a round trip.
-                <p className="text-[13px] leading-5 text-muted-80">
-                  {thread.lastAssistant ?? (handoff.isError ? "The handoff could not be read." : "")}
-                </p>
-              )}
+                <p className="text-[13px] leading-5 text-muted-80">{thread.lastAssistant ?? "The handoff could not be read."}</p>
+              ) : null}
               {parts?.fences.map((fence, index) => <FenceBody key={index} kind={fence.kind} body={fence.body} />)}
-              {parts && showsRestedCard(thread, text) && <RestedCard thread={thread} />}
+              {/* Not gated on the handoff: a STALL's last record is often a tool call with no prose at
+                  all, and its notice is about the process, not the message (showsRestedCard). */}
+              {showsRestedCard(thread, text) && <RestedCard thread={thread} />}
             </div>
 
             {thread.questions && thread.questions.length > 0 && (
@@ -185,6 +188,45 @@ export const AllQueuesCard = memo(function AllQueuesCard({
     </div>
   )
 })
+
+/**
+ * The board card's stall recovery (HeaderActions.tsx RetryButton): the same message through the same
+ * follow-up, sent to the thread's own project. The thread goes back to work, so the card leaves.
+ */
+function RetryButton({ project, thread, onSent, onFailed }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onFailed: () => void }) {
+  const queryClient = useQueryClient()
+  const retry = useMutation({
+    mutationFn: () =>
+      projectRpc(project.id).followUp({ slug: thread.id, sessionId: thread.sessionId ?? "", message: STALLED_RETRY_MESSAGE, deliveryId: crypto.randomUUID() }),
+    onMutate: onSent,
+    onSuccess: () => {
+      showToast("Retrying…")
+      void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
+    },
+    onError: (error) => {
+      onFailed()
+      showToast(`Retry failed: ${(error instanceof Error ? error.message : "unknown error").slice(0, 80)}`)
+    },
+  })
+  return (
+    <Tooltip label="Retry — resume this session where it left off">
+      <button
+        type="button"
+        onClick={() => retry.mutate()}
+        disabled={retry.isPending || !thread.sessionId}
+        aria-label="Retry exited session"
+        onMouseDown={(event) => event.preventDefault()}
+        // `mr-[9px]`: the pill's border IS its ink, and the ↗ beside it carries ~9.4px of dead box on its
+        // left, so this puts Retry at the cluster's own rhythm — MEASURED 2026-09-23 (ink-gaps.mjs, dsf 4,
+        // sans): ↗ → ⤢ 20.50px of ink; Retry → ↗ 15.43px at `mr-1`, 20.43px here.
+        className="mr-[9px] flex items-center gap-1.5 rounded-md border border-accent/45 bg-accent/10 px-2.5 py-1 text-[12px] font-medium text-accent outline-none transition-colors hover:border-accent/70 hover:bg-accent/15 disabled:opacity-50"
+      >
+        <RotateCcw size={12} />
+        Retry
+      </button>
+    </Tooltip>
+  )
+}
 
 /**
  * Markdown links inside this card, pointed at the card's project.
@@ -299,16 +341,18 @@ function ClampedBody({ resetKey, children }: { resetKey: string; children: React
         <div ref={inner} className="flex min-w-0 flex-col gap-4">{children}</div>
       </div>
       {overflows && (
-        // The board's disclosure row ("Ran 3 tool calls ›"): muted text and its chevron, no chrome.
+        // The board's disclosure row ("Ran 3 tool calls ›", ChatView.tsx): its label type, its hover, and
+        // its measured chevron (transcriptMetaChevronClass carries the ink trims and the cap-band shift),
+        // so this toggle and the transcript's read as one control.
         <button
           type="button"
           data-xq-show-more
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
-          className="flex items-center gap-0.5 self-start rounded-sm text-[12px] text-muted outline-none transition-colors hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
+          className={`${TRANSCRIPT_META_LABEL_CLASS} group flex items-baseline gap-1.5 self-start rounded outline-none transition-colors hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60`}
         >
-          {open ? "Show less" : "Show more"}
-          <ChevronDown size={13} aria-hidden className={`transition-transform ${open ? "rotate-180" : ""}`} />
+          <span>{open ? "Show less" : "Show more"}</span>
+          <ChevronRight aria-hidden="true" size={13} className={transcriptMetaChevronClass(open)} />
         </button>
       )}
     </div>

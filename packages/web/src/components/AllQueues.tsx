@@ -94,7 +94,7 @@ export function AllQueuesPage() {
         ) : queues.error && !queues.data ? (
           <p className="my-auto text-center text-[13px] text-muted">Could not read the queues: {String(queues.error)}</p>
         ) : (
-          <div className="my-auto flex w-full min-w-0 flex-col py-8">
+          <div className="my-auto flex w-full min-w-0 flex-col py-8 max-[800px]:pt-2">
             {lanes.map((project, index) => (
               <div key={project.id} className="min-w-0">
                 {index > 0 && <hr className="my-10 border-0 border-t border-border/60" />}
@@ -363,9 +363,12 @@ function Lane({ project, leaving }: { project: QueuesProject; leaving: LeavingCa
     <section data-xq-lane={project.id} aria-label={`${project.name} queue`} className="flex min-w-0 scroll-mt-4 flex-col gap-6">
       <header className="sticky top-0 z-10 -mx-1 flex min-w-0 items-center gap-2.5 bg-bg/90 px-1 py-2.5 backdrop-blur-sm">
         <ProjectSquare project={project.card ?? fallbackCard(project)} size={22} />
+        {/* The NAME keeps its room and the count line gives way: on a phone "marketing-site" beside
+            "4 in the queue · 1 snoozed" truncated the name to "marketin…", the one word that says whose
+            cards these are. */}
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <h2 className="min-w-0 truncate text-[14px] font-semibold text-fg">{project.name}</h2>
-          <span className="shrink-0 text-[11.5px] text-muted-70">{laneSummary(project)}</span>
+          <h2 className="max-w-full shrink-0 truncate text-[14px] font-semibold text-fg">{project.name}</h2>
+          <span className="min-w-0 truncate text-[11.5px] text-muted-70">{laneSummary(project)}</span>
         </div>
         <Link
           to={boardHref}
