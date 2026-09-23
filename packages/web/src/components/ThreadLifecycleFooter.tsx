@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { AlarmClock, Check, Loader2 } from "lucide-react"
 import type { CompletionHold, ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
@@ -217,6 +217,18 @@ export function StateButton({
   // the board snapshot: the snapshot lags the RPC by up to a poll, and the whole point of this copy is
   // that it describes the exact state the server refused on.
   const [hold, setHold] = useState<CompletionHold | undefined>(undefined)
+  // The thread's newest message (`lastUserAt`) as of the dialog opening. A message delivered while it is
+  // up — the human sending one from the composer or another tab — reopens the conversation they were
+  // about to close, and the hold the dialog lists describes a turn that is no longer current, so it
+  // withdraws itself rather than offering to end a session on stale evidence. DERIVED rather than closed
+  // from an effect: `confirmOpen` may stay true underneath, and the next decline re-captures the stamp,
+  // so a stale dialog can never flash back while a re-click's RPC is in flight. The ref is read when the
+  // reply lands, not at click time, so a message delivered mid-RPC does not immediately hide the dialog
+  // the server opened on it.
+  const lastUserAt = useRef(thread.lastUserAt)
+  lastUserAt.current = thread.lastUserAt
+  const [confirmUserAt, setConfirmUserAt] = useState<string | undefined>(undefined)
+  const dialogOpen = confirmOpen && thread.lastUserAt === confirmUserAt
   // `optimistic`: fade the card NOW (before the RPC) rather than after the round-trip. Only when a
   // reinstate path exists AND the completion is predicted to archive immediately — so the common resting
   // "done" card feels instantaneous, while an executing turn still waits and shows the confirm dialog.
@@ -259,6 +271,7 @@ export function StateButton({
           // gone instance — the user simply sees the card return and can click again. Safe either way.
           if (optimistic) onDismissCancel?.()
           setHold(result.hold)
+          setConfirmUserAt(lastUserAt.current)
           setConfirmOpen(true)
           setPending(false)
           return
@@ -292,7 +305,7 @@ export function StateButton({
         Mark as done
       </button>
       <Dialog
-        open={confirmOpen}
+        open={dialogOpen}
         onOpenChange={(open) => {
           if (!pending) setConfirmOpen(open)
         }}

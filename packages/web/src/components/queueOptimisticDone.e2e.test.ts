@@ -122,3 +122,37 @@ test("a needsConfirmation reply reinstates the optimistically-dismissed card and
     await browser.close()
   }
 })
+
+test("a message delivered while the confirmation dialog is up withdraws it", {
+  skip: !baseUrl,
+  timeout: 60_000,
+}, async () => {
+  const { browser, page, errors } = await launch()
+  try {
+    await page.goto(`${baseUrl}/optimistic-done-fixture.html?needsConfirmation=1`, { waitUntil: "networkidle0" })
+    await page.waitForSelector(cardSel(SLUG))
+    await page.evaluate((slug) => {
+      const card = document.querySelector(`[data-queue-card-root="${slug}"]`)!
+      card.querySelector<HTMLButtonElement>('[data-thread-lifecycle-footer] button[aria-label="Mark as done"]')!.click()
+    }, SLUG)
+    await page.waitForSelector("[data-completion-hold]")
+
+    // Negative control: a message to a DIFFERENT thread leaves this dialog alone.
+    await page.evaluate(() => (window as unknown as { __deliverMessage: (s: string) => void }).__deliverMessage("csv-export"))
+    await new Promise((r) => setTimeout(r, 200))
+    assert.equal(await page.$("[data-completion-hold]") !== null, true, "an unrelated thread's message keeps the dialog")
+
+    await page.evaluate((slug) => (window as unknown as { __deliverMessage: (s: string) => void }).__deliverMessage(slug), SLUG)
+    await page.waitForFunction(() => !document.querySelector("[data-completion-hold]"), { timeout: 2000 })
+
+    // …and Mark as done still works afterwards: a fresh decline reopens it.
+    await page.evaluate((slug) => {
+      const card = document.querySelector(`[data-queue-card-root="${slug}"]`)!
+      card.querySelector<HTMLButtonElement>('[data-thread-lifecycle-footer] button[aria-label="Mark as done"]')!.click()
+    }, SLUG)
+    await page.waitForSelector("[data-completion-hold]", { timeout: 2000 })
+    assert.deepEqual(errors, [], "no console/page errors")
+  } finally {
+    await browser.close()
+  }
+})

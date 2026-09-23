@@ -60,6 +60,12 @@ function makeThread(id: string, title: string): ThreadViewModel {
 
 const threads = CARDS.map((c) => makeThread(c.id, c.title))
 store.board = { projectDir: "/fixture/frizz", threads } as BoardSnapshot
+// A driver delivers a message into a thread by bumping its `lastUserAt` through the live store, the same
+// field the real board refresh moves when the human sends one.
+;(window as unknown as { __deliverMessage: (slug: string) => void }).__deliverMessage = (slug) => {
+  const thread = store.board!.threads.find((t) => t.id === slug)!
+  thread.lastUserAt = new Date().toISOString()
+}
 
 function transcriptFor(slug: string, title: string): { messages: TranscriptMessage[]; transcriptKey: string; hasEarlier: boolean; historyLoaded: boolean } {
   const body = `**${title}** — implemented, verified, and self-reviewed.\n\n\`\`\`done\nShipped the fix and the regression test; gates green.\n\`\`\``
