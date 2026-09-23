@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, ExternalLink, Github, Hourglass, Loader2, Pin, PinOff, RotateCcw, SquareCheck, TerminalSquare, Timer } from "lucide-react"
+import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, ExternalLink, Github, Hourglass, Inbox, Loader2, Pin, PinOff, RotateCcw, SquareCheck, TerminalSquare, Timer } from "lucide-react"
 import type { BoardSnapshot, ThreadView } from "@frizz/shared"
 import { store, openThread, scrollToQueueCard, queueCardTargetY, pushSubAgentDrawer, showToast, QUEUE_CARD_VIEWPORT_TOP } from "../store.ts"
 import { rpc } from "../api/rpc.ts"
@@ -263,7 +263,7 @@ export function Sidebar() {
               … should not be collapsible"). The labels use the maintainer's own words for the bands —
               READY for the cue and WORKING for the spinning rows (QUEUE and RUNNING until 2026-09-23),
               rather than the code's Rested/Active keys, because the label is copy the human reads. Each
-              wears an icon naming WHOSE move it is — a developer (yours) and a bot (the agent's) — since
+              wears an icon naming WHOSE move it is — an inbox (yours) and a bot (the agent's) — since
               "Working" alone does not say who is working (see SectionHeader).
               RESTED — the cue — sits FIRST, right under the prompt box (maintainer 2026-08-08), in the
               EXACT queue order, so the rail's top row is opposite the queue's top card and scrolling
@@ -283,7 +283,7 @@ export function Sidebar() {
               )
               return (
                 <>
-                  {rested.length > 0 && <SectionHeader label="Ready" icon={<DevMark size={11} />} count={rested.length} />}
+                  {rested.length > 0 && <SectionHeader label="Ready" icon={<Inbox size={11} />} count={rested.length} />}
                   {rested.map(renderRow(true))}
                   {running.length > 0 && rested.length > 0 && <hr className="my-3 border-border/50" />}
                   {running.length > 0 && <SectionHeader label="Working" icon={<Bot size={11} />} count={running.length} />}
@@ -453,7 +453,9 @@ const CommandRow = memo(function CommandRow({ t, active, onQueueNavigate }: { t:
 // static div with a caret-width spacer, so every icon and label sits in the same column.
 //
 // Every band wears an icon (maintainer 2026-09-23), and above all the two whose names alone do not say
-// whose move it is: Ready is a developer (yours) and Working a bot (the agent's). The bot is static — the
+// whose move it is: Ready is an inbox (yours) and Working a bot (the agent's). A developer's face
+// mirroring the bot was tried and dropped: at 11px a round head reads as an emoji, and every feature
+// added to make it human (hair, glasses, pupils) fused with the next. The bot is static — the
 // rows under it already spin, and a header is permanent chrome.
 export function SectionHeader({ label, icon, count, collapsed, onToggle }: { label: string; icon?: ReactNode; count: number; collapsed?: boolean; onToggle?: () => void }) {
   const inner = (
@@ -483,25 +485,6 @@ export function SectionHeader({ label, icon, count, collapsed, onToggle }: { lab
     </button>
   ) : (
     <div className={cls}>{inner}</div>
-  )
-}
-
-// Ready's header icon: a developer, posed as the counterpart of lucide's Bot on Working — its glasses'
-// temples reach out where the bot's ear ticks do — so the pair reads as "you" beside "the agent"
-// (maintainer 2026-09-23: "a cute developer face that mirrors the robot face"). Glasses with pupils make
-// it human; hair was tried and dropped, because at 11px it crowded the lenses into a blob. Drawn on
-// lucide's grid and pen.
-function DevMark({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="8" />
-      {/* The frames are ONE line — temple, lens, bridge, lens, temple — with the temples tilting up
-          toward the ears the way real frames sit, where the bot has its ear ticks (maintainer 2026-09-23:
-          "a better more contiguous line", then "tilted up slightly"). A 1.75 pen keeps the lenses open
-          at 11px; the pupils are dots, a zero-length stroke at a heavier pen. */}
-      <path strokeWidth={1.75} d="M2.5 9.5 5.2 11.5a2.8 2.8 0 1 0 5.6 0 2.8 2.8 0 1 0-5.6 0m5.6 0c.8-.6 1.6-.6 2.4 0a2.8 2.8 0 1 0 5.6 0 2.8 2.8 0 1 0-5.6 0m5.6 0 2.7-2" />
-      <path strokeWidth={2.4} d="M8 11.8h.01M16 11.8h.01" />
-    </svg>
   )
 }
 
