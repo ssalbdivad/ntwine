@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react"
-import { projectRpc, rpc, type Api } from "./rpc.ts"
+import { projectApiBase, projectRpc, rpc, type Api } from "./rpc.ts"
+import { apiBase } from "../lib/base-path.ts"
 
 // WHICH PROJECT A SHARED THREAD CONTROL ACTS ON.
 //
@@ -27,6 +28,12 @@ export function ThreadProjectScope({ projectId, children }: { projectId: string;
 /** The client a thread control must use: its thread's own project's, or the page's. */
 export function useThreadApi(): Api {
   return useContext(ThreadScopeContext)?.api ?? rpc
+}
+
+/** The same choice for a control that opens its own connection — a terminal's `/term/<slug>` socket. */
+export function useThreadApiBase(): string {
+  const scope = useContext(ThreadScopeContext)
+  return scope ? projectApiBase(scope.projectId) : apiBase()
 }
 
 /**

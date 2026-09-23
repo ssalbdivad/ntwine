@@ -98,7 +98,8 @@ try {
     const lanes = await page.$$eval("[data-xq-lane]", (els) => els.map((el) => el.getAttribute("data-xq-lane")))
     check("lanes follow the rail order, one per project with a queue", JSON.stringify(lanes) === JSON.stringify(order.map((slug) => ids[slug])), `${lanes.length} lanes`)
     const cards = await page.$$eval("[data-xq-card]", (els) => els.length)
-    check("every queued thread has a card", cards === 8, `${cards} cards`)
+    // Eight agent threads, plus a finished terminal command in billing-worker and in the launcher.
+    check("every queued thread has a card", cards === 10, `${cards} cards`)
     const both = await Promise.all([page.$(card("acme-api", "fix-flaky-login-test")), page.$(card("marketing-site", "fix-flaky-login-test"))])
     check("the same slug in two projects is two cards", both.every(Boolean))
   })
@@ -163,6 +164,30 @@ try {
     await waitFor("the launcher thread to archive", async () => { const t = await threadOf("acme-api", "fix-flaky-login-test"); return t && (t.archived || t.state === "archived") ? t : null })
     const tenant = await threadOf("marketing-site", "fix-flaky-login-test")
     check("Mark as done on the launcher's same-slug card leaves the tenant's alone", tenant && !tenant.archived && tenant.state !== "archived", `tenant state ${tenant?.state}`)
+  })
+
+  // The seed ran a real command in billing-worker and in the launcher; each finished run queues.
+  const commandOf = async (project) => (await api(project).query("board")).threads.find((t) => t.kind === "command")
+
+  await step("a tenant's finished command shows its own run, in its lane and its rail", async () => {
+    const command = await commandOf("billing-worker")
+    const scope = card("billing-worker", command.id)
+    await page.$eval(scope, (el) => el.scrollIntoView({ block: "center" }))
+    // The screen is the pty's replay over `/term/<slug>` — which, addressed through the page, would ask the
+    // launcher's terminal server for a slug it never minted.
+    const screen = await waitFor("the command's screen", () => page.$eval(scope, (el) => el.querySelector(".xterm-rows")?.textContent?.includes("billing-worker ran") ?? false), 8_000).catch(() => false)
+    const text = await page.$eval(scope, (el) => el.textContent ?? "")
+    const rail = await page.$eval(`[data-xq-rail-project="${ids["billing-worker"]}"]`, (el) => el.textContent ?? "")
+    check("a tenant's finished command shows its own run, in its lane and its rail", screen && text.includes("exit 3") && rail.includes("exit 3") && rail.includes("billing-worker ran"), `screen ${screen ? "replayed" : "blank"}, card ${text.includes("exit 3") ? "says exit 3" : "no state"}`)
+    await page.screenshot({ path: join(shots, "aq-verify-command.png") })
+  })
+
+  await step("Mark as done on a tenant's command finishes ITS command", async () => {
+    const command = await commandOf("billing-worker")
+    await (await buttonIn(card("billing-worker", command.id), "Mark as done")).click()
+    const done = await waitFor("the tenant command to archive", async () => { const t = await threadOf("billing-worker", command.id); return t?.state === "archived" ? t : null }).catch(() => null)
+    const launcher = await commandOf("acme-api")
+    check("Mark as done on a tenant's command finishes ITS command", Boolean(done) && wrote("billing-worker", "setThreadState") && !wrote("acme-api", "setThreadState") && launcher?.state !== "archived", `tenant ${done ? "archived" : "still open"}, launcher's ${launcher?.state}`)
   })
 
   await step("answering a tenant's registered question answers it there", async () => {

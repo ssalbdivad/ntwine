@@ -3635,7 +3635,9 @@ export function createRouter(ctx: AppContext) {
             const snapshot = await board.snapshot()
             let doneCount = 0
             const threads = snapshot.threads.filter((thread) => {
-              if (thread.kind !== "session" || thread.foreign) return false
+              // A terminal command thread queues like a session once its run ends (queuedThread), and
+              // the rail badge counts it — so the page that lists the queue must carry it too.
+              if ((thread.kind !== "session" && thread.kind !== "command") || thread.foreign) return false
               if (thread.state === "archived" && !mayStillBeWorking(thread)) {
                 doneCount++
                 return false

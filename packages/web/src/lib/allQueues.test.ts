@@ -135,3 +135,14 @@ test("an archived row the server sent as possibly-working is banded by the rail'
   assert.deepEqual(project!.running.map((t) => t.id), ["sub-agent-out"])
   assert.equal(project!.doneCount, 6)
 })
+
+test("a terminal command thread takes the band its own rail gives it: a finished run queues, a running one runs", () => {
+  const run = (state: "running" | "exited") => ({ command: "pnpm test", state, runId: 1, startedAt: "2026-09-23T09:00:00.000Z", ...(state === "exited" ? { exitedAt: "2026-09-23T09:05:00.000Z", exitCode: 1 } : {}) })
+  const [project] = queuesProjects([card("a")], [queue("a", [
+    thread("term-finished", { kind: "command", needsYou: true, command: run("exited") }),
+    thread("term-running", { kind: "command", command: run("running") }),
+  ])])
+  assert.deepEqual(project!.queued.map((t) => t.id), ["term-finished"])
+  assert.deepEqual(project!.running.map((t) => t.id), ["term-running"])
+  assert.deepEqual(queuesTotals([project!]), { queued: 1, running: 1, projectsWithQueue: 1 })
+})

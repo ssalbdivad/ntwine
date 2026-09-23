@@ -46,6 +46,11 @@ test("answers every open project with its open threads, its Done count and the i
           // A project's own terminal is read-only and never queues; a legacy row is not a session.
           session("terminal", { foreign: true, needsYou: true }),
           { id: "legacy", kind: "legacy" },
+          // A terminal command thread shares the lifecycle: a finished run queues, a running one runs, and
+          // one marked done is Done like any other.
+          { id: "term-finished", kind: "command", state: "open", needsYou: true },
+          { id: "term-running", kind: "command", state: "open" },
+          { id: "term-done", kind: "command", state: "archived" },
         ],
         { projectSlug: "alpha", projectName: "Alpha", projectDir: "/work/alpha", homeDir: "/home/me", githubRepo: "me/alpha" },
       ),
@@ -62,8 +67,8 @@ test("answers every open project with its open threads, its Done count and the i
     { projectSlug: alpha!.projectSlug, projectName: alpha!.projectName, projectDir: alpha!.projectDir, homeDir: alpha!.homeDir, githubRepo: alpha!.githubRepo },
     { projectSlug: "alpha", projectName: "Alpha", projectDir: "/work/alpha", homeDir: "/home/me", githubRepo: "me/alpha" },
   )
-  assert.deepEqual(alpha!.threads.map((t) => t.id), ["queued", "running", "snoozed", "wrapping-up", "sub-agent-out"])
-  assert.equal(alpha!.doneCount, 3)
+  assert.deepEqual(alpha!.threads.map((t) => t.id), ["queued", "running", "snoozed", "wrapping-up", "sub-agent-out", "term-finished", "term-running"])
+  assert.equal(alpha!.doneCount, 4)
   assert.deepEqual(
     { projectSlug: beta!.projectSlug, projectName: beta!.projectName, projectDir: beta!.projectDir, threads: beta!.threads, doneCount: beta!.doneCount },
     { projectSlug: "b", projectName: "b", projectDir: "/work/b", threads: [], doneCount: 0 },

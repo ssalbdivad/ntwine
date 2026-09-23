@@ -4867,8 +4867,10 @@ export type DirectoryPickResult = z.infer<typeof DirectoryPickResult>
  * rail draws — plus any ARCHIVED one that may still be working (the rail keeps those out of Done while
  * they are); every other archived thread is Done, which grows without bound (553 rows on one real
  * board), so it is `doneCount` here. The client's `sectionOf` has the last word on the archived rows it
- * is sent, and counts the ones it puts in Done. Foreign sessions (a project's own terminals) are left out; they are read-only and never
- * queue. The client bands them with the same pure `groups.ts` functions the rail uses.
+ * is sent, and counts the ones it puts in Done. TERMINAL COMMAND threads ride along on the same terms:
+ * a finished run queues (`queuedThread`, which the rail badge counts too) and a running one is Running.
+ * Foreign sessions (a project's own terminals) are left out; they are read-only and never queue. The
+ * client bands every row with the same pure `groups.ts` functions the rail uses.
  */
 export const ProjectQueue = z.object({
   projectId: z.string(),

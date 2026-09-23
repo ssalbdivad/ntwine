@@ -39,7 +39,11 @@ function terminalTheme() {
 // `exitedStatus` replaces the exited status line. A terminal command thread passes one: its process
 // finishing is the whole story (with a code worth showing), and "Resume" — which focuses an agent's
 // composer — has nothing to resume there.
-export function TerminalPane({ slug, exitedStatus }: { slug: string; exitedStatus?: (exitCode: number | null) => ReactNode }) {
+//
+// `base` names the project whose pty this is. It defaults to the page's (`apiBase()`), which is right on
+// a board; the All queues page draws other projects' command cards and passes theirs, since a bare
+// `/term/<slug>` there reaches the LAUNCHING project's terminal server.
+export function TerminalPane({ slug, exitedStatus, base }: { slug: string; exitedStatus?: (exitCode: number | null) => ReactNode; base?: string }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const [connection, setConnection] = useState<"connecting" | "open" | "reconnecting" | "exited">("connecting")
@@ -82,7 +86,7 @@ export function TerminalPane({ slug, exitedStatus }: { slug: string; exitedStatu
     }
 
     const proto = location.protocol === "https:" ? "wss" : "ws"
-    const url = `${proto}://${location.host}${apiBase()}/term/${slug}`
+    const url = `${proto}://${location.host}${base ?? apiBase()}/term/${slug}`
     let ws: WebSocket | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined
     let disposed = false
@@ -252,13 +256,21 @@ export function TerminalPane({ slug, exitedStatus }: { slug: string; exitedStatu
       }
       // dispose() can throw if xterm internals were corrupted (e.g. a zero-dim fit) — a cleanup
       // throw would take the whole React tree down with it, which is far worse than a leak.
-      try {
-        term.dispose()
-      } catch (e) {
-        console.warn("xterm dispose failed", e)
-      }
+      //
+      // DEFERRED ONE TASK. `term.open()` queues a `setTimeout(() => viewport.syncScrollArea())` (xterm
+      // 5.5 Viewport's constructor), and a pane torn down before it fires — a queue card mounted and
+      // dropped in the same beat, which a switch into a board holding a command card does — disposed
+      // the renderer underneath it: an uncaught "reading 'dimensions'" on every such switch. Timers of
+      // one delay run in the order they were set, so this one lands after xterm's, against a live term.
+      setTimeout(() => {
+        try {
+          term.dispose()
+        } catch (e) {
+          console.warn("xterm dispose failed", e)
+        }
+      })
     }
-  }, [slug])
+  }, [slug, base])
 
   return (
     <div className="relative flex-1 min-h-0 bg-bg">

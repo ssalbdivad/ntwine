@@ -16,5 +16,7 @@ test("terminal updates colors only for resolved-theme changes without remounting
   assert.match(source, /let resolvedTheme = getThemeSnapshot\(\)\.resolved/)
   assert.match(source, /if \(nextResolved === resolvedTheme\) return/)
   assert.match(source, /term\.options\.theme = terminalTheme\(\)/)
-  assert.match(source, /\}, \[slug\]\)/)
+  // The attach effect keys on WHICH pty (its slug, and the project it lives in) and nothing about the
+  // theme — a theme change recolours in place rather than tearing the terminal down.
+  assert.match(source, /\}, \[slug, base\]\)/)
 })

@@ -225,4 +225,22 @@ for (const project of projects) {
 // visit they stay closed and the page draws them as "Not open". One read each is the visit.
 const origin = new URL(stack.url).origin
 for (const project of projects) await createRpcClient(`${origin}/`, project.id).query("board")
+
+// A FINISHED TERMINAL COMMAND in a tenant and in the launcher — the prompt box's Terminal tab, run for
+// real through each project's own `commandStart`, so each pty lives on its own project's terminal server.
+// A finished run queues with a card of its own, and that card's screen, Restart and Mark as done must
+// reach the card's project: a bare `/term/<slug>` on a page that names no project is the LAUNCHER's.
+const commands = { "billing-worker": "printf 'billing-worker ran\\n'; exit 3", [stack.launcher.slug]: "printf 'acme-api ran\\n'" }
+for (const project of projects) {
+  const command = commands[project.slug]
+  if (!command) continue
+  const api = createRpcClient(`${origin}/`, project.id)
+  const { slug } = await api.mutate("commandStart", { command })
+  const deadline = Date.now() + 15_000
+  while ((await api.query("board")).threads.find((t) => t.id === slug)?.command?.state !== "exited") {
+    if (Date.now() > deadline) throw new Error(`${project.slug}'s command ${slug} never finished`)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  console.log(`seeded ${project.slug}/${slug} (terminal command)`)
+}
 console.log(JSON.stringify({ seeded: projects.map((p) => p.slug), daemonPid: daemon.pid }))

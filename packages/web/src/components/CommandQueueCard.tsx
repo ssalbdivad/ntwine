@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react"
 import { TerminalSquare } from "lucide-react"
 import type { ThreadView } from "@frizz/shared"
-import { rpc } from "../api/rpc.ts"
+import { useThreadApi, useThreadApiBase } from "../api/threadApi.tsx"
 import { openThread, showToast } from "../store.ts"
 import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
 import { STRIP_INK_GAP } from "../lib/iconRhythm.ts"
@@ -20,20 +20,27 @@ const TerminalPane = lazy(() => import("./TerminalPane.tsx").then((m) => ({ defa
 //
 // Only a finished run ever cards (the server's `needsYou`), so the pane never drives a live process
 // here and never fights the drawer over the pty's size.
-export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve }: {
+//
+// PROJECT-SCOPED through api/threadApi.tsx: on a board it acts on the page's project, and under the All
+// queues page's `ThreadProjectScope` its Restart, its pty and its Mark as done all go to the card's own
+// project. `onOpen` replaces the drawer there, which is the page's and would open the wrong thread.
+export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve, onOpen }: {
   thread: ThreadView
   leaving: boolean
   onResolve: (slug: string) => void
   onUnresolve: (slug: string) => void
+  onOpen?: () => void
 }) {
   const command = thread.command
+  const api = useThreadApi()
+  const termBase = useThreadApiBase()
   const [restarting, setRestarting] = useState(false)
   if (!command) return null
   const failed = commandFailed(command)
   const restart = () => {
     if (restarting) return
     setRestarting(true)
-    rpc
+    api
       .commandRestart({ slug: thread.id })
       .catch((error: unknown) => showToast(error instanceof Error ? error.message : "Could not restart this command"))
       .finally(() => setRestarting(false))
@@ -46,7 +53,7 @@ export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve }: {
       className={`flex min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border border-border-strong bg-panel shadow-lg shadow-shadow-ink/25`}
     >
       <div className={`flex items-center gap-2 bg-panel px-5 py-3.5 ${BLOCK_RADIUS_TOP} border-b border-border/60`}>
-        <button type="button" onClick={() => openThread(thread.id)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
+        <button type="button" onClick={onOpen ?? (() => openThread(thread.id))} className="flex min-w-0 flex-1 items-start gap-2 text-left">
           <TerminalSquare aria-hidden size={14} className={`mt-[3px] shrink-0 ${failed ? "text-danger-soft" : "text-muted-60"}`} />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-mono-keep text-[13px] leading-snug text-fg" title={command.command}>{command.command}</span>
@@ -62,7 +69,7 @@ export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve }: {
           fit, which painted a strip over the footer's top edge. */}
       <div className="flex h-[240px] min-h-0 flex-col overflow-hidden">
         <Suspense fallback={<div className="flex-1 bg-bg" />}>
-          <TerminalPane key={`${thread.id}:${command.runId}`} slug={thread.id} exitedStatus={() => null} />
+          <TerminalPane key={`${thread.id}:${command.runId}`} slug={thread.id} base={termBase} exitedStatus={() => null} />
         </Suspense>
       </div>
       <footer

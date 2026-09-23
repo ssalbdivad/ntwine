@@ -20,21 +20,24 @@
 // client (`projectRpc`). See AllQueuesCard.tsx for the card's half of the same rule.
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowUpRight, House, Inbox } from "lucide-react"
+import { ArrowUpRight, House, Inbox, TerminalSquare } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import type { ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { displayTitle } from "../groups.ts"
 import { isBusy, laneSummary, queuesProjects, queuesTotals, threadKey, type QueuesProject } from "../lib/allQueues.ts"
+import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
 import { prefs } from "../lib/prefs.ts"
 import { STATUS_ROW_ACTION, STATUS_ROW_ICON } from "../lib/statusRow.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { AllQueuesCard, threadBoardHref } from "./AllQueuesCard.tsx"
+import { CommandQueueCard } from "./CommandQueueCard.tsx"
 import { ProjectSquare } from "./ProjectRail.tsx"
 import { ProviderMark } from "./ProviderMark.tsx"
 import { ROW_ACTION_CLASS, RestedAge, SIDEBAR_COLUMN_CLASS, SectionHeader, ThreadIndicator, TitleWithTrailers } from "./Sidebar.tsx"
 import { Tooltip } from "./Tooltip.tsx"
+import { ThreadProjectScope } from "../api/threadApi.tsx"
 
 /** How often the page re-reads every project. The rail's badges poll at 5s; this is the page the
  *  operator is looking AT, so it runs a little faster — the read is the servers' cached snapshots. */
@@ -270,20 +273,56 @@ function RailRow({ t, door, active = false, restedAge = false, dim = false, onCl
       {/* The board's scroll marker: the card this row faces is the one being read. */}
       {active && <span aria-hidden className="absolute inset-y-0 left-1 w-[2px] rounded-full bg-accent" />}
       <button type="button" onClick={onClick} className={ROW_BUTTON_CLASS} aria-current={active || undefined}>
-        <span className={INDICATOR_SLOT}>
-          <ThreadIndicator t={t} />
-        </span>
-        <span className="flex min-w-0 flex-1 items-baseline gap-3">
-          <span className={`min-w-0 flex-1 break-words text-[13px] leading-[19px] ${dim ? "text-fg/75" : "text-fg/90"}`}>
-            <TitleWithTrailers title={displayTitle(t)}>
-              <ProviderMark backend={t.backend} model={t.model} className="ml-1" />
-            </TitleWithTrailers>
-          </span>
-          {restedAge && <RestedAge t={t} yieldsToRetry />}
-        </span>
+        {t.kind === "command" && t.command ? (
+          <CommandRowBody command={t.command} />
+        ) : (
+          <>
+            <span className={INDICATOR_SLOT}>
+              <ThreadIndicator t={t} />
+            </span>
+            <span className="flex min-w-0 flex-1 items-baseline gap-3">
+              <span className={`min-w-0 flex-1 break-words text-[13px] leading-[19px] ${dim ? "text-fg/75" : "text-fg/90"}`}>
+                <TitleWithTrailers title={displayTitle(t)}>
+                  <ProviderMark backend={t.backend} model={t.model} className="ml-1" />
+                </TitleWithTrailers>
+              </span>
+              {restedAge && <RestedAge t={t} yieldsToRetry />}
+            </span>
+          </>
+        )}
       </button>
       {door && <RowDoor href={door} label="Open on its board" />}
     </div>
+  )
+}
+
+/**
+ * A terminal command's row, as the board's rail draws it (Sidebar.tsx CommandRow): the terminal mark or
+ * the live dot, the command in mono, and how the run stands where an agent row keeps its rest time.
+ */
+function CommandRowBody({ command }: { command: NonNullable<ThreadView["command"]> }) {
+  const running = command.state === "running"
+  const failed = commandFailed(command)
+  return (
+    <>
+      <span className={INDICATOR_SLOT}>
+        {running ? (
+          <span aria-label="Running" className="frizz-live-dot frizz-live-dot--shell" />
+        ) : (
+          <TerminalSquare aria-label={commandStateLabel(command)} size={13} className={failed ? "text-danger-soft" : "text-muted-60"} />
+        )}
+      </span>
+      <span className="flex min-w-0 flex-1 items-baseline gap-3">
+        <span className="font-mono-keep min-w-0 flex-1 truncate text-[12px] leading-[19px] text-fg/90" title={command.command}>
+          {command.command}
+        </span>
+        {!running && (
+          <span className={`shrink-0 tabular-nums text-[10.5px] leading-[19px] ${failed ? "text-danger-soft" : "text-muted-55"}`}>
+            {commandStateLabel(command)}
+          </span>
+        )}
+      </span>
+    </>
   )
 }
 
@@ -355,6 +394,7 @@ function QueueBadge({ count }: { count: number }) {
  * relative path at its directory and a `/thread/<slug>` link at its board — never at the page's.
  */
 function Lane({ project, leaving }: { project: QueuesProject; leaving: LeavingCards }) {
+  const navigate = useNavigate()
   const scope = useMemo(
     () => ({
       projectId: project.id,
@@ -389,6 +429,27 @@ function Lane({ project, leaving }: { project: QueuesProject; leaving: LeavingCa
         {project.queued.map((t) => {
           const key = threadKey(project.id, t.id)
           if (leaving.hidden(key)) return null
+          // A finished terminal command takes the board's own command card, scoped to its project: its
+          // pty, its Restart and its Mark as done all belong to this lane's project, not the page's.
+          if (t.kind === "command") {
+            return (
+              <div key={key} data-xq-card={key} data-queue-leaving={leaving.isLeaving(key)} className="frizz-card-slot min-w-0">
+                <div className="frizz-card-clip min-h-0 min-w-0">
+                  <div className="frizz-card-body min-w-0">
+                    <ThreadProjectScope projectId={project.id}>
+                      <CommandQueueCard
+                        thread={t}
+                        leaving={leaving.isLeaving(key)}
+                        onResolve={leaving.leave(key)}
+                        onUnresolve={leaving.restore(key)}
+                        onOpen={() => navigate(threadBoardHref(project, t.id))}
+                      />
+                    </ThreadProjectScope>
+                  </div>
+                </div>
+              </div>
+            )
+          }
           return (
             <AllQueuesCard
               key={key}
