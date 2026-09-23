@@ -4821,6 +4821,49 @@ export const DirectoryPickResult = z.discriminatedUnion("kind", [
 ])
 export type DirectoryPickResult = z.infer<typeof DirectoryPickResult>
 
+/**
+ * One project's slice of the machine-wide queues read (`projectsQueues`) — the All queues page's data.
+ *
+ * THE PROJECT TRAVELS WITH ITS THREADS. A `ThreadView` carries no project, and slugs are unique only
+ * within one, so a list merged across projects is only safe to act on while every row still says whose
+ * it is. The page addresses each action through `/_frizz/<projectId>/rpc`, never through its own URL.
+ *
+ * `threads` is every OPEN session thread — the Queue, Running, Snoozed and Pinned rows the project's own
+ * rail draws — and never a Done one: Done grows without bound (553 rows on one real board), so it is a
+ * count here. Foreign sessions (a project's own terminals) are left out; they are read-only and never
+ * queue. The client bands them with the same pure `groups.ts` functions the rail uses.
+ */
+export const ProjectQueue = z.object({
+  projectId: z.string(),
+  /** The registry slug — the `<slug>` in `/project/<slug>`. */
+  projectSlug: z.string(),
+  projectName: z.string(),
+  /** What a relative path in this project's prose resolves against, and a `~` expands to. */
+  projectDir: z.string(),
+  homeDir: z.string().optional(),
+  /** `owner/repo` for `#123` autolinks in this project's prose — never the page's. */
+  githubRepo: z.string().optional(),
+  threads: z.array(ThreadView),
+  doneCount: z.number().int().nonnegative(),
+})
+export type ProjectQueue = z.infer<typeof ProjectQueue>
+
+/**
+ * A resting thread's handoff, whole: the text a queue card is built around.
+ *
+ * The board carries only a ~200-character, whitespace-collapsed preview (`ThreadView.lastAssistant`),
+ * which loses exactly the structure a verdict line and a done card depend on. This is the final
+ * assistant message of the latest transcript window, verbatim, plus the human's own last message so a
+ * card can say what the agent was answering. Both absent when the thread has not spoken.
+ */
+export const ThreadHandoff = z.object({
+  text: z.string().optional(),
+  at: z.string().optional(),
+  asked: z.string().optional(),
+  askedAt: z.string().optional(),
+})
+export type ThreadHandoff = z.infer<typeof ThreadHandoff>
+
 /** Where a thread slug actually lives, for a link that no longer says which project it belongs to. */
 export const ThreadLocation = z.object({ projectSlug: z.string(), projectName: z.string() })
 export type ThreadLocation = z.infer<typeof ThreadLocation>

@@ -169,7 +169,7 @@ import { projectRetiredBackgroundOps, retiredOpsFor } from "./transcript.ts"
 import { clearProjectIcon, customIconPath, findById, forgetProject, ICON_SCAN_VERSION, listProjects, moveProjectDirectory, renameProject, reorderProjects, setProjectIcon, type RegistryEntry } from "./project-registry.ts"
 import { basename, dirname } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread } from "@frizz/shared"
+import { ProjectCard, ProjectQueue, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff } from "@frizz/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
 import { chosenProjectRoot, ensureProjectIdFile, existingProjectId, isHomeDirectory, writeProjectIdFile } from "./project-root.ts"
@@ -748,6 +748,41 @@ function mergeSubAgentSteers(messages: TranscriptMessage[], steers: SubAgentStee
     else merged.splice(next, 0, message)
   }
   return merged
+}
+
+/** The longest human message a handoff carries back. A card shows a line or two of it, and the first
+ *  message of a thread is the whole dispatch prompt, which can run to pages. */
+const HANDOFF_ASKED_MAX = 1200
+
+/**
+ * The two messages a queue card is built from, out of a transcript window: the LAST assistant message
+ * that says anything, and the last message the HUMAN wrote before it.
+ *
+ * "Says anything" skips a tools-only step and the transcript's own punctuation (sub-agent events,
+ * reasoning summaries). "The human" skips everything Frizz put in the worker's composer on its own —
+ * a wake, a sub-agent steer — because a card that answered "what did you ask for?" with a PR-watcher
+ * status line would be quoting the wrong author.
+ */
+export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff {
+  let last = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!
+    if (m.role === "assistant" && !m.kind && m.text.trim()) { last = i; break }
+  }
+  if (last === -1) return {}
+  const reply = messages[last]!
+  let asked: TranscriptMessage | undefined
+  for (let i = last - 1; i >= 0; i--) {
+    const m = messages[i]!
+    if (m.role === "user" && !m.kind && !m.wake && !m.agentInstruction && !m.peerFrom && (m.displayText ?? m.text).trim()) { asked = m; break }
+  }
+  const askedText = asked ? (asked.displayText ?? asked.text).trim() : undefined
+  return {
+    text: reply.text,
+    at: reply.at,
+    asked: askedText && askedText.length > HANDOFF_ASKED_MAX ? `${askedText.slice(0, HANDOFF_ASKED_MAX - 1)}…` : askedText,
+    askedAt: asked?.at,
+  }
 }
 
 export function createRouter(ctx: AppContext) {
@@ -1355,6 +1390,21 @@ export function createRouter(ctx: AppContext) {
         // backendFor routes a codex thread through the codex rollout reader (else it renders empty).
         const page = readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor)
         return retireOpsInPage(input.slug, projectTranscriptPageAgentLifecycles(page, (id) => ctx.tailer.subAgent(input.slug, id), (taskId) => ctx.tailer.subAgentByTaskId?.(input.slug, taskId)))
+      },
+    }),
+
+    // A resting thread's handoff, whole — the final assistant message and the human's last message.
+    //
+    // The All queues page's card body. Every OTHER queue surface renders the whole latest window through
+    // `threadTranscript`; that page draws one card per queued thread across EVERY project at once, so it
+    // asks for exactly the two messages a card shows. Read without the edited-files scan (two git spawns
+    // per call) that only the thread's own file rail needs, the same economy the /ws push producer makes.
+    threadHandoff: query({
+      input: SlugInput,
+      output: ThreadHandoff,
+      handler: async ({ input }) => {
+        const page = readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor, { editedFiles: false })
+        return handoffOf(page.messages)
       },
     }),
 
@@ -3485,6 +3535,56 @@ export function createRouter(ctx: AppContext) {
           }
         }
         return counts
+      },
+    }),
+
+    /**
+     * Every open project's threads, for the All queues page — the machine-wide sibling of
+     * `projectsQueueCounts`, and answered the same way: from the boards this process has OPEN, never by
+     * opening one. A project with no board here has no honest queue, so it is absent rather than empty;
+     * the client joins this with `projectsList` and says so.
+     *
+     * OPEN THREADS, NOT JUST QUEUED ONES. The page draws each project's Running and Snoozed rows beside
+     * its queue, the way the project's own rail does, so it needs them — and banding is the client's
+     * job, done with the same pure `groups.ts` functions the rail uses, so the two cannot disagree about
+     * which band a thread is in. Done rows are a COUNT: that band grows without bound.
+     *
+     * The slug, name and directory come from each board's own snapshot — the same values that project's
+     * page is stamped with — so an action this page takes is addressed exactly as that board would be.
+     */
+    projectsQueues: query({
+      output: z.array(ProjectQueue),
+      handler: async () => {
+        const out: ProjectQueue[] = []
+        const open = ctx.activeTenants?.() ?? [{ project: ctx.project, board: ctx.board }]
+        for (const { project, board } of open) {
+          try {
+            const snapshot = await board.snapshot()
+            let doneCount = 0
+            const threads = snapshot.threads.filter((thread) => {
+              if (thread.kind !== "session" || thread.foreign) return false
+              if (thread.state === "archived" && thread.runtime !== "running" && thread.runtime !== "spawning") {
+                doneCount++
+                return false
+              }
+              return true
+            })
+            out.push({
+              projectId: project.id,
+              projectSlug: snapshot.projectSlug ?? project.id,
+              projectName: snapshot.projectName || project.name,
+              projectDir: snapshot.projectDir || project.dir,
+              homeDir: snapshot.homeDir,
+              githubRepo: snapshot.githubRepo,
+              threads,
+              doneCount,
+            })
+          } catch {
+            // A board stopping mid-walk is a project missing from this round, not a failed request for
+            // every other project — the same rule `projectsQueueCounts` keeps.
+          }
+        }
+        return out
       },
     }),
 
