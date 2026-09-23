@@ -30,6 +30,7 @@ if (process.env.FRIZZ_DEV_CHILD === "1") {
   const { createSupervisorShutdownHandler, startDevSupervisor } = await import("./dev-supervisor.ts")
 
   let supervisor: Awaited<ReturnType<typeof startDevSupervisor>>
+  let boot: Awaited<typeof supervisor.firstBoot>
   try {
     supervisor = await startDevSupervisor({
       port: DEFAULT_PORT,
@@ -50,11 +51,14 @@ if (process.env.FRIZZ_DEV_CHILD === "1") {
             : `[frizz] ${event.kind}: ${event.message}`,
         ),
     })
-    await supervisor.firstBoot
+    boot = await supervisor.firstBoot
   } catch (error) {
     launchOwner.release()
     throw error
   }
+  // Say where the board is once it answers. Without this line the last thing in the terminal was
+  // Vite's "bundling dependencies…", so a server that had been ready for minutes looked hung.
+  console.log(`[frizz] ready at http://127.0.0.1:${boot.port}/`)
 
   const stop = createSupervisorShutdownHandler({
     close: () => supervisor.close(),
