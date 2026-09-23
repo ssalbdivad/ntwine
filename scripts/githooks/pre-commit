@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Refuse a commit that records files as DELETED while they are still sitting in the working tree.
 #
 # Why this exists. Many agents share this one working tree and one git index, so the standing advice
