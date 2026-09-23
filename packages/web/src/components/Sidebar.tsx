@@ -28,7 +28,7 @@ import { formatSnoozedUntil, formatAutoSnoozedUntil, formatUserSnooze } from "..
 import { formatCompactElapsed } from "../lib/durationLabels.ts"
 import { awaitingProse, awaitingWaitClause } from "../lib/awaitingPresentation.ts"
 import { useOptimisticallySteered } from "../lib/steering.ts"
-import { useOptimisticallyArchived } from "../lib/optimisticArchive.ts"
+import { clearArchived, useOptimisticallyArchived } from "../lib/optimisticArchive.ts"
 import { activeSidebarSection, queueNavigationSettled, railRevealDelta, type SidebarSectionGeometry } from "../lib/sidebarScrollspy.ts"
 import type { ReactElement, ReactNode, RefObject } from "react"
 
@@ -637,6 +637,9 @@ export const ThreadRow = memo(function ThreadRow({
   // thread — which sectionOf files under Active with its spinner — keeps its full weight there too.
   const done = !legacy && sessionIndicatorKind(t) === "archived"
   const dim = snoozed || done
+  // The done CHECK is a real checkbox on a row frizz owns: unchecking it reopens the thread. A foreign
+  // row is read-only (the server has no session to write), so its check stays a plain mark.
+  const uncheckable = done && !foreign
   const dimLabel = !legacy && titleIsProvisional(t)
   // The rows with an obvious single next action carry that verb INLINE, instead of making you open the
   // thread to find it. offersRetry (groups.ts) picks them: a STALLED row (the [!] mark — process
@@ -693,7 +696,9 @@ export const ThreadRow = memo(function ThreadRow({
       >
         {/* h-[19px] so the indicator centers on the title's FIRST line, not the middle of a wrapped row. */}
         <span className="w-4 h-[19px] shrink-0 flex items-center justify-center">
-          <ThreadIndicator t={t} legacy={legacy} />
+          {/* An uncheckable row draws its check in the overlay button below instead — a button cannot
+              nest inside this one — so the column is held empty here to keep the title where it is. */}
+          {!uncheckable && <ThreadIndicator t={t} legacy={legacy} />}
         </span>
         <span className="min-w-0 flex-1 flex flex-col">
           {/* items-BASELINE, not items-center: the rest time is a smaller type size sitting beside the
@@ -743,6 +748,7 @@ export const ThreadRow = memo(function ThreadRow({
           </span>
         </span>
       </button>
+      {uncheckable && <RowUncheckDone t={t} />}
       {/* The Mark-as verb survives ONLY on legacy rows (a .frizz verb). Session lifecycle controls
           live in the thread footer. */}
       {legacy && (
@@ -943,6 +949,50 @@ function RowPinButton({ t, className = "" }: { t: ThreadView; className?: string
         className={`${ROW_ACTION_CLASS} disabled:opacity-50 ${className}`}
       >
         {pinned ? <PinOff size={12} fill="currentColor" /> : <Pin size={12} />}
+      </button>
+    </Tooltip>
+  )
+}
+
+// UNCHECKING DONE — the rail's [✓] is a checkbox, and clearing it reopens the thread. The server's
+// `setThreadState(open)` flips ONLY the lifecycle column; everything the board derives the row from
+// (fence, open questions, runtime, watches) is untouched, so the row lands back in whatever band and
+// wears whatever mark it would have had without the archive — a pending question reads "?" and queues
+// again, a bare rest returns to the cue. Two things the archive did are NOT undone, because they cannot
+// be: Mark as done STOPPED a resting worker (so a reopened bare rest reads as stalled, with Retry), and
+// it cleared any snooze.
+//
+// Overlaid on the row's indicator column (same `pl-5`/`pt-1` offsets as the row button), not nested
+// in it, for the same reason the hover actions are overlays: a button inside the row's button is
+// invalid markup and swallows the row's own click.
+function RowUncheckDone({ t }: { t: ThreadView }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <Tooltip label="Done — uncheck to reopen" side="left">
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked
+        aria-label="Done — uncheck to reopen"
+        data-sidebar-uncheck-done={t.id}
+        disabled={busy}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.stopPropagation()
+          setBusy(true)
+          // A Mark-as-done from the last few seconds may still have its optimistic hint up, and that hint
+          // would hold the row under Done over the server's reopen until it expired.
+          clearArchived(t.id)
+          rpc
+            .setThreadState({ slug: t.id, state: "open" })
+            .catch((error: unknown) => showToast(`Reopen failed: ${String(error instanceof Error ? error.message : error).slice(0, 80)}`))
+            .finally(() => setBusy(false))
+        }}
+        className="absolute left-5 top-1 flex h-[19px] w-4 items-center justify-center rounded outline-none focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-50"
+      >
+        {/* The indicator's NODE, not ThreadIndicator: that wraps its own "Done" tooltip, and this
+            button's tooltip already says it — nested, the two would open together. */}
+        <span data-rail-glyph="archived" className="flex items-center justify-center">{sessionIndicatorFor(t).node}</span>
       </button>
     </Tooltip>
   )

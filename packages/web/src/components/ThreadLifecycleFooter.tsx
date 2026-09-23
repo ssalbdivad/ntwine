@@ -94,10 +94,10 @@ export function ThreadLifecycleFooter({
 }
 
 // What a completed thread says where its Mark-as-done button used to be. A STATEMENT, not a control:
-// there is deliberately no Reopen verb anywhere in frizz — a bump un-archives the thread on its way
-// through (server/src/resume.ts un-archives up front on any follow-up), so the composer directly above
-// this readout already IS the reopen affordance and the tooltip points at it rather than adding a
-// second one.
+// a bump un-archives the thread on its way through (server/src/resume.ts un-archives up front on any
+// follow-up), so the composer directly above this readout already IS the reopen affordance and the
+// tooltip points at it. (Reopening WITHOUT sending anything is the rail's done checkbox — unchecking it
+// — see RowUncheckDone in Sidebar.tsx.)
 //
 // Same Check + "Done" pairing the sidebar's rail indicator and the ```done fence card use, so one
 // vocabulary covers all three surfaces.
