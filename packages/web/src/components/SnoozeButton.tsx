@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from "react"
 import { useSnapshot } from "valtio"
 import { AlarmClock, ChevronDown, Loader2 } from "lucide-react"
 import { SNOOZE_PROMPT_MAX, type ThreadView } from "@frizz/shared"
-import { rpc } from "../api/rpc.ts"
+import { useThreadApi } from "../api/threadApi.tsx"
 import { futureSnoozedUntil } from "../groups.ts"
 import {
   SNOOZE_PRESETS,
@@ -21,6 +21,7 @@ import { Dialog } from "./ui/Dialog.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 
 export function SnoozeButton({ thread, onSnoozed }: { thread: ThreadView; onSnoozed?: () => void }) {
+  const api = useThreadApi()
   const [busy, setBusy] = useState(false)
   const [customOpen, setCustomOpen] = useState(false)
   const [customValue, setCustomValue] = useState("")
@@ -40,7 +41,7 @@ export function SnoozeButton({ thread, onSnoozed }: { thread: ThreadView; onSnoo
   async function apply(until: string | null, prompt: string | null = null): Promise<void> {
     setBusy(true)
     try {
-      await rpc.setThreadSnooze({ slug: thread.id, sessionId: thread.sessionId ?? "", until, prompt: until ? prompt : null })
+      await api.setThreadSnooze({ slug: thread.id, sessionId: thread.sessionId ?? "", until, prompt: until ? prompt : null })
       if (until) {
         showToast(`${prompt ? "Bump scheduled" : "Snoozed"} · ${formatSnoozeWake(until)}`)
         onSnoozed?.()

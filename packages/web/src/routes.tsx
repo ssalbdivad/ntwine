@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Outlet, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
 import { App } from "./App.tsx"
+import { AllQueuesPage } from "./components/AllQueues.tsx"
 import { ProjectGrid } from "./components/ProjectGrid.tsx"
 import { ProjectRail, RAIL_INSET_CLASS } from "./components/ProjectRail.tsx"
 import { StandaloneThreadPage } from "./components/StandaloneThreadPage.tsx"
@@ -129,6 +130,15 @@ function GridRoute() {
 }
 
 /**
+ * Every project's queue on one page — the level above a board. Like the grid it names no project, so it
+ * leaves the feed wherever it was: nothing on it reads the feed, and every read and action it makes
+ * names its project explicitly (see AllQueues.tsx).
+ */
+function QueuesRoute() {
+  return <AllQueuesPage />
+}
+
+/**
  * URL → store, for the routes INSIDE a board.
  *
  * The drawer stack is valtio state, not route state, because a drawer is a stack with its own
@@ -199,6 +209,8 @@ export const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       { path: "/", element: <GridRoute /> },
+      // Declared, not left to the catch-all below — which would draw the launching project's board.
+      { path: "/queues", element: <QueuesRoute /> },
       // The launching project, unprefixed. `/` itself belongs to the grid, so this project reaches its
       // board through a thread or status path — see base-path.ts on why an empty base is supported.
       { path: "/thread/:thread", element: <BoardRoute /> },

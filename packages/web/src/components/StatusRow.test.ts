@@ -55,19 +55,20 @@ test("controls run along the left; the project anchors the right", () => {
   const html = render()
 
   const home = html.indexOf('aria-label="All projects"')
+  const queues = html.indexOf('aria-label="All queues"')
   const settings = html.indexOf('aria-label="Settings"')
   const quota = html.indexOf("data-quota-bar")
   const project = html.indexOf("data-project-identity-state")
 
-  assert.ok(home >= 0 && settings >= 0 && quota >= 0 && project >= 0, "every segment renders")
-  assert.ok(home < settings, "the way out of the project leads")
+  assert.ok(home >= 0 && queues >= 0 && settings >= 0 && quota >= 0 && project >= 0, "every segment renders")
+  assert.ok(home < queues && queues < settings, "the ways out of the project lead, the grid first")
   assert.ok(settings < quota, "the buttons precede the readouts")
   assert.ok(quota < project, "the project is last, at the far edge")
   // `ml-auto` on the identity IS the split. Without it the name packs left with everything else.
   assert.match(html, /class="ml-auto flex min-w-0 items-center"/)
 })
 
-test("TWO dividers: home is a door OUT, settings and reload act on the app you are in", () => {
+test("TWO dividers: home and all queues are doors OUT, settings and reload act on the app you are in", () => {
   const html = render()
   // One divider would group all three as "buttons". The first one is the whole distinction.
   assert.equal(html.split('class="h-3 w-px shrink-0 bg-border"').length - 1, 2)

@@ -69,6 +69,23 @@ test("machine-wide keys stay shared, or the rail refetches itself on every switc
   })
 })
 
+test("a key that carries its project is that project's, whatever page reads it — and never the launcher's", () => {
+  const qc = client()
+  // The All queues page names no project, so its ambient scope is the LAUNCHING project's. A per-thread
+  // read it makes for beta must not land there: the launcher has its own `fix-auth`.
+  withPathname("/queues", () => qc.setQueryData(["ofProject", "beta-id", "handoff", "fix-auth"], { text: "beta's" }))
+  withPathname("/thread/fix-auth", () => {
+    assert.equal(qc.getQueryData(["handoff", "fix-auth"]), undefined, "the launcher's own scope never sees it")
+  })
+  withPathname("/project/alpha", () => {
+    assert.deepEqual(qc.getQueryData(["ofProject", "beta-id", "handoff", "fix-auth"]), { text: "beta's" })
+  })
+  withPathname("/queues", () => qc.setQueryData(["projectsQueues"], [{ projectId: "beta-id" }]))
+  withPathname("/project/beta", () => {
+    assert.deepEqual(qc.getQueryData(["projectsQueues"]), [{ projectId: "beta-id" }], "the all-queues read belongs to the machine")
+  })
+})
+
 test("the unprefixed launching project is a scope of its own, not the absence of one", () => {
   const qc = client()
   // `/thread/x` with no `/project/<slug>` in front of it is a real project — the one the server was

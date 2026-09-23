@@ -12,8 +12,8 @@
 import * as RadixDialog from "@radix-ui/react-dialog"
 import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Ellipsis, ImagePlus, Loader2 } from "lucide-react"
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
+import { Ellipsis, ImagePlus, Inbox, Loader2 } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { slugify, type ProjectCard } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
@@ -548,6 +548,34 @@ function AddProjectDialog({
   )
 }
 
+/**
+ * The door to every project's queue on one page (`/queues`), with how many threads are waiting across
+ * them. The count is the rail badges' own poll (`projectsQueueCounts`, one cache entry for both), summed.
+ */
+function AllQueuesLink() {
+  const counts = useQuery({ queryKey: ["projectsQueueCounts"], queryFn: () => rpc.projectsQueueCounts(), refetchInterval: 5_000 })
+  const total = Object.values(counts.data ?? {}).reduce((sum, count) => sum + count, 0)
+  return (
+    <Link
+      to="/queues"
+      data-grid-all-queues
+      className="inline-flex items-center gap-1.5 rounded-full border border-border py-1 pl-2.5 pr-3 text-[12px] text-muted outline-none transition-colors hover:border-border-strong hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
+    >
+      <Inbox size={14} aria-hidden="true" />
+      All queues
+      {total > 0 && (
+        <span
+          aria-label={`${total} in the queue`}
+          className="ml-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent-fill px-[4px] text-[10px] font-semibold leading-none proportional-nums text-on-accent"
+        >
+          {/* The cap band, not the line box — the rail badge's fix (ProjectRail.tsx). */}
+          <span style={{ textBox: "trim-both cap alphabetic" } as CSSProperties}>{total}</span>
+        </span>
+      )}
+    </Link>
+  )
+}
+
 export function ProjectGrid() {
   // The typed-path dialog is the FALLBACK, not the front door: it opens only when the machine has no
   // picker, or the picker failed to open and said why.
@@ -611,7 +639,9 @@ export function ProjectGrid() {
             A project is a folder on this machine. Frizz keeps one board of threads per project, and
             serves them all from here.
           </p>
-        ) : null}
+        ) : (
+          <AllQueuesLink />
+        )}
       </div>
 
       {error ? (

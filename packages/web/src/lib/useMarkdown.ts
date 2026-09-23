@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react"
-import { mdToHtml, mdInlineToHtml } from "./markdown.ts"
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react"
+import { mdToHtml, mdInlineToHtml, type MarkdownScopeOptions } from "./markdown.ts"
 import { githubRepoForLinks, subscribeGithubRepo } from "./githubAutolink.ts"
 import { githubRefsInHtml, noteGithubRefs } from "./githubHovercards.ts"
 import { localPathBase, subscribeLocalPathBase, type LocalPathBase } from "./localPathBase.ts"
@@ -15,6 +15,17 @@ import { localPathBase, subscribeLocalPathBase, type LocalPathBase } from "./loc
 //
 // useSyncExternalStore over a SCALAR rather than useSnapshot, matching lib/deliverQueuedNow.ts: this
 // runs in every prose block on screen, and the value changes at most once per page.
+
+/**
+ * WHOSE PROSE THIS IS, for a subtree rendering a project other than the page's own.
+ *
+ * Every hook below reads the page's project out of module state (the repo a `#123` links into, the root
+ * a relative path resolves against) — right on a board, which shows one project, and wrong on the All
+ * queues page, which shows every project on a page that names none. That page wraps each project's
+ * cards in one of these, and every markdown surface inside — its own prose AND the shared question
+ * cards it reuses — renders against that project without knowing the page is different.
+ */
+export const MarkdownScopeContext = createContext<Required<Pick<MarkdownScopeOptions, "repo" | "appPath">> & Pick<MarkdownScopeOptions, "baseDir" | "homeDir"> | null>(null)
 
 /** The repo GitHub-style references link to, as a render input. */
 export function useGithubRepoForLinks(): string | null {
@@ -38,15 +49,17 @@ export function useLocalPathBase(): LocalPathBase {
  * resolves against on every other surface.
  */
 export function useMarkdownHtml(md: string, opts?: { baseDir?: string; asDocument?: boolean }): string {
-  const repo = useGithubRepoForLinks()
-  const base = useLocalPathBase()
+  const pageRepo = useGithubRepoForLinks()
+  const pageBase = useLocalPathBase()
+  const scope = useContext(MarkdownScopeContext)
   const { baseDir, asDocument } = opts ?? {}
-  const dir = baseDir ?? base.dir
-  // `repo` is deliberately a dependency without appearing in the body — it is an input to mdToHtml
-  // through githubAutolink.ts's module state, not through this argument list.
+  const dir = baseDir ?? (scope ? scope.baseDir : pageBase.dir)
+  const home = scope ? scope.homeDir : pageBase.home
+  // `pageRepo` is deliberately a dependency even where it is not passed: without a scope it is an input
+  // to mdToHtml through githubAutolink.ts's module state, not through this argument list.
   const html = useMemo(
-    () => mdToHtml(md, { baseDir: dir, homeDir: base.home, document: asDocument }),
-    [md, dir, base.home, asDocument, repo],
+    () => mdToHtml(md, { baseDir: dir, homeDir: home, document: asDocument, repo: scope?.repo, appPath: scope?.appPath }),
+    [md, dir, home, asDocument, pageRepo, scope?.repo, scope?.appPath],
   )
   useGithubHovercardRefs(html)
   return html
@@ -70,11 +83,14 @@ function useGithubHovercardRefs(html: string): void {
 
 /** Inline-only prose → sanitized HTML, for hosts that are one line tall (see mdInlineToHtml). */
 export function useInlineMarkdownHtml(md: string): string {
-  const repo = useGithubRepoForLinks()
-  const base = useLocalPathBase()
+  const pageRepo = useGithubRepoForLinks()
+  const pageBase = useLocalPathBase()
+  const scope = useContext(MarkdownScopeContext)
+  const dir = scope ? scope.baseDir : pageBase.dir
+  const home = scope ? scope.homeDir : pageBase.home
   const html = useMemo(
-    () => mdInlineToHtml(md, { baseDir: base.dir, homeDir: base.home }),
-    [md, base.dir, base.home, repo],
+    () => mdInlineToHtml(md, { baseDir: dir, homeDir: home, repo: scope?.repo, appPath: scope?.appPath }),
+    [md, dir, home, pageRepo, scope?.repo, scope?.appPath],
   )
   useGithubHovercardRefs(html)
   return html
