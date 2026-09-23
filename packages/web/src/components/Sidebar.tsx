@@ -486,21 +486,19 @@ export function SectionHeader({ label, icon, count, collapsed, onToggle }: { lab
   )
 }
 
-// Ready's header icon: a developer — a swept fringe, wire glasses — posed as the counterpart of
-// lucide's Bot on Working, down to the same ear ticks either side, so the pair reads as "you" beside
-// "the agent" (maintainer 2026-09-23: "a cute developer face that mirrors the robot face", then "give
-// it some normal hair and glasses"). Lucide has no such face; this is drawn on its grid and pen.
+// Ready's header icon: a developer, posed as the counterpart of lucide's Bot on Working — its glasses'
+// temples reach out where the bot's ear ticks do — so the pair reads as "you" beside "the agent"
+// (maintainer 2026-09-23: "a cute developer face that mirrors the robot face"). The glasses alone make
+// it human; hair was tried and dropped, because at 11px it crowded the lenses into a blob. Drawn on
+// lucide's grid and pen.
 function DevMark({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4.5 12.5v1a7.5 7.5 0 0 0 15 0v-1" />
-      <path d="M4.5 12.5C4.5 7.5 7.8 4.5 12 4.5s7.5 3 7.5 8c-3 0-6-1-8-3.5-1.5 2-4 3.5-7 3.5z" />
-      <path d="M2.5 14h2" />
-      <path d="M19.5 14h2" />
-      {/* The frames are ONE line — temple, lens, bridge, lens, temple — at a lighter pen, so the lenses
-          stay open at 11px instead of filling in against the fringe (maintainer: "ensuring the frames
-          are a contiguous line"). */}
-      <path strokeWidth={1.5} d="M5 14.8h1.4a2.2 2.2 0 1 0 4.4 0 2.2 2.2 0 1 0-4.4 0m4.4 0h2.4a2.2 2.2 0 1 0 4.4 0 2.2 2.2 0 1 0-4.4 0m4.4 0H19" />
+      <circle cx="12" cy="12" r="8" />
+      {/* The frames are ONE line, ear to ear — temple, lens, bridge, lens, temple — so the temples
+          stand in for the bot's ear ticks (maintainer: "make the frames a better more contiguous
+          line"). A 1.75 pen keeps the lenses open at 11px. */}
+      <path strokeWidth={1.75} d="M2 11.5h3.6a2.4 2.4 0 1 0 4.8 0 2.4 2.4 0 1 0-4.8 0m4.8 0h3.2a2.4 2.4 0 1 0 4.8 0 2.4 2.4 0 1 0-4.8 0m4.8 0H22" />
     </svg>
   )
 }
