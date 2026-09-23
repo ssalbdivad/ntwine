@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query"
 import type { SocketClientMsg, SocketServerMsg } from "@frizz/shared"
 import { store } from "../store.ts"
 import { BoardStream } from "./board-stream.ts"
-import { connectSSE, rebindSSEProject } from "./sse.ts"
+import { connectSSE, onForeignSSEFrame, rebindSSEProject } from "./sse.ts"
 import { mergeOptimistic, preserveMessageIdentity, type QueuedMessage } from "../lib/transcript-sync.ts"
 import { reconcileLatestPage, reconcileLiveMessages, type PaginatedTranscriptData } from "../lib/transcriptPagination.ts"
 import { invalidateInteractionQueries } from "./interaction-cache.ts"
@@ -78,6 +78,18 @@ function wsUrl(): string {
 let feedProject: string | undefined
 let feedBound = false
 
+// A FRAME DROPPED BECAUSE THE PAGE HAS LEFT IS NEWS THE PROJECT'S BOARD NEVER GOT, so the feed stops
+// vouching for that board. Leaving a board for a page that names no project — the grid, All queues —
+// keeps the connection on purpose (coming straight back is then free), but every frame that arrives
+// meanwhile is discarded below, and the board in the store stays exactly as it was when the page left.
+// All queues is where that bites: the operator marks the project's threads done THERE, the deltas that
+// say so are dropped HERE, and a return to the board found `feedIsBoundTo` still true, so nothing
+// rebound and the finished cards were still in its queue. Unbound, the return re-seeds from a keyframe.
+function missedFrame(): void {
+  feedBound = false
+}
+onForeignSSEFrame(missedFrame)
+
 function noteFeedProject(): void {
   feedProject = projectSlug()
   feedBound = true
@@ -118,7 +130,11 @@ function connect(): void {
     // A frame for the project we have left goes nowhere. `ws !== sock` catches a socket already
     // superseded here; the project check catches the window before that, where this IS the current
     // socket and the address bar has already moved on.
-    if (ws !== sock || socketProject !== projectSlug()) return
+    if (ws !== sock) return
+    if (socketProject !== projectSlug()) {
+      missedFrame()
+      return
+    }
     lastMsg = Date.now()
     try {
       const msg = JSON.parse(e.data) as SocketServerMsg

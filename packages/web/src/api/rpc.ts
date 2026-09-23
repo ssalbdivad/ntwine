@@ -61,18 +61,18 @@ export async function parseRpcResponse(res: Response, name: string): Promise<unk
   return json.result
 }
 
-async function call(name: string, type: ProcType, input?: unknown, opts?: RpcCallOpts): Promise<unknown> {
+async function call(base: string, name: string, type: ProcType, input?: unknown, opts?: RpcCallOpts): Promise<unknown> {
   // The old child may remain healthy while its durable owner is building a replacement. Do not let
   // a mutation race that handoff; local draft state remains editable and every query stays available.
   assertMutationAllowedDuringControlPlaneTransition(type)
   if (type === "query") {
-    const url = new URL(`${apiBase()}/rpc/${name}`, location.origin)
+    const url = new URL(`${base}/rpc/${name}`, location.origin)
     if (input !== undefined) url.searchParams.set("input", JSON.stringify(input))
     const res = await fetch(url.toString(), { signal: opts?.signal })
     noteServerBootId(res.headers.get("x-frizz-boot")) // notice a server restart on any RPC roundtrip
     return parseRpcResponse(res, name)
   }
-  const res = await fetch(`${apiBase()}/rpc/${name}`, {
+  const res = await fetch(`${base}/rpc/${name}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input ?? {}),
@@ -82,10 +82,47 @@ async function call(name: string, type: ProcType, input?: unknown, opts?: RpcCal
   return parseRpcResponse(res, name)
 }
 
-export const rpc = new Proxy({} as Api, {
-  get(_target, name: string) {
-    const type = (PROCEDURES as Record<string, ProcType | undefined>)[name]
-    if (!type) return undefined
-    return (input?: unknown, opts?: RpcCallOpts) => call(name, type, input, opts)
-  },
-})
+/** A typed client whose every call goes to `base()`, read at CALL time. */
+function createRpc(base: () => string): Api {
+  return new Proxy({} as Api, {
+    get(_target, name: string) {
+      const type = (PROCEDURES as Record<string, ProcType | undefined>)[name]
+      if (!type) return undefined
+      return (input?: unknown, opts?: RpcCallOpts) => call(base(), name, type, input, opts)
+    },
+  })
+}
+
+/** THIS PAGE's project — whichever one the address bar names, or the launching project unprefixed. */
+export const rpc = createRpc(() => apiBase())
+
+const projectClients = new Map<string, Api>()
+
+/**
+ * A client pinned to ONE project, whatever page it is called from.
+ *
+ * `rpc` above answers "which project" from the address bar at call time, which is right on a board and
+ * silently wrong anywhere that shows several projects at once: on a page that names no project it means
+ * the LAUNCHING one, so a thread action taken there for another project's `fix-auth` lands on the
+ * launcher's `fix-auth` instead (slugs are unique only within a project). The All queues page makes
+ * every per-thread call through one of these.
+ *
+ * ADDRESSED BY ID, NOT SLUG. The server resolves either, but a slug changes when a project is renamed,
+ * and a stale one falls through to the launching project's app — which answers every procedure with a
+ * plain 404 that reads as "restart required". The id is what the worker MCP server uses for the same
+ * reason.
+ */
+export function projectRpc(projectId: string): Api {
+  let client = projectClients.get(projectId)
+  if (!client) {
+    const base = projectApiBase(projectId)
+    client = createRpc(() => base)
+    projectClients.set(projectId, client)
+  }
+  return client
+}
+
+/** `apiBase()` for a project named explicitly — its `/_frizz/<id>` routes (`/rpc`, `/attach`, …). */
+export function projectApiBase(projectId: string): string {
+  return `${FRIZZ_ROUTE_PREFIX}/${encodeURIComponent(projectId)}`
+}

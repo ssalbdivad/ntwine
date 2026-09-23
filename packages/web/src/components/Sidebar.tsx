@@ -74,7 +74,7 @@ import type { ReactElement, ReactNode, RefObject } from "react"
 // insane"). Group opacity composites the finished glyph once, so fill and stroke read as one solid
 // body. Identical for the stroke-only door and Retry; `disabled:opacity-50` still wins, as a variant
 // utility over a bare one.
-const ROW_ACTION_CLASS = "flex h-[19px] w-[19px] items-center justify-center rounded text-muted opacity-70 outline-none transition-[color,opacity] hover:bg-panel-2 hover:text-fg hover:opacity-100"
+export const ROW_ACTION_CLASS = "flex h-[19px] w-[19px] items-center justify-center rounded text-muted opacity-70 outline-none transition-[color,opacity] hover:bg-panel-2 hover:text-fg hover:opacity-100"
 
 export const SIDEBAR_COLUMN_CLASS =
   "sticky top-0 self-start h-screen w-[clamp(272px,34vw,680px)] shrink-0 flex flex-col justify-center max-[800px]:static max-[800px]:h-auto max-[800px]:w-full max-[800px]:justify-start max-[800px]:pt-16"
@@ -624,7 +624,7 @@ function DoneBand({
 // keeps a dozen characters of company either way.
 const MAX_GLUED_TITLE_WORD = 16
 const GLUED_TITLE_TAIL = 12
-function TitleWithTrailers({ title, children }: { title: string; children: ReactNode }) {
+export function TitleWithTrailers({ title, children }: { title: string; children: ReactNode }) {
   const text = title.trimEnd()
   const wordStart = text.lastIndexOf(" ") + 1
   const cut = text.length - wordStart <= MAX_GLUED_TITLE_WORD ? wordStart : text.length - GLUED_TITLE_TAIL
@@ -850,7 +850,7 @@ export const ThreadRow = memo(function ThreadRow({
 // "ago", and it is right-justified rather than trailing the title so the whole cue reads as one column
 // of times — a title's length must not decide where its timestamp sits. `useNowMs` is the app's single
 // 30s wall clock, so a screenful of these ticks on one timer.
-function RestedAge({ t, yieldsToRetry }: { t: ThreadView; yieldsToRetry?: boolean }) {
+export function RestedAge({ t, yieldsToRetry }: { t: ThreadView; yieldsToRetry?: boolean }) {
   const now = useNowMs()
   const at = lastActiveLabelAt(t)
   const span = ageSpan(at, now)

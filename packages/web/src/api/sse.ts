@@ -56,7 +56,10 @@ function connect() {
   })
 
   es.onmessage = (e) => {
-    if (streamProject !== projectSlug()) return
+    if (streamProject !== projectSlug()) {
+      foreignFrame()
+      return
+    }
     lastMsg = Date.now()
     try {
       stream.handle(JSON.parse(e.data) as ServerEvent)
@@ -135,6 +138,14 @@ function resync() {
  * a different project now" and dispatches to whichever transport is live. It went a while with NO
  * caller at all, which meant the paragraph above described a bug rather than a fix.
  */
+// Told when a frame is dropped because the page has left this stream's project — socket.ts owns the
+// binding for both transports and un-binds on it (see `missedFrame` there). A registration rather than
+// an import, because socket.ts already imports this module.
+let foreignFrame: () => void = () => {}
+export function onForeignSSEFrame(listener: () => void): void {
+  foreignFrame = listener
+}
+
 export function rebindSSEProject(): void {
   stream.reset()
   es?.close()

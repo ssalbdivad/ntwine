@@ -17,6 +17,8 @@ import type {
   StartCommandInput,
   CommandThreadInput,
   CommandThreadResult,
+  ProjectQueue,
+  ThreadHandoff,
   UpsertOwnLinkInput,
   UpsertOwnLinkResult,
   DropOwnLinkInput,
@@ -128,6 +130,9 @@ export interface Api {
   board(): Promise<BoardSnapshot>
   threadBody(input: { slug: string }): Promise<{ markdown: string }>
   threadTranscript(input: { slug: string }): Promise<TranscriptPage>
+  // A resting thread's final assistant message and the human's last one — the All queues page's card
+  // body. Called PROJECT-BOUND (`/_frizz/<projectId>/rpc`), like every per-thread verb that page uses.
+  threadHandoff(input: { slug: string }): Promise<ThreadHandoff>
   threadTranscriptEarlier(input: TranscriptEarlierInput): Promise<TranscriptPage>
   // `steerable` is the server's answer to "can this child be prompted right now" — a broker-backed
   // claude thread's own live Agent-tool child, and nothing else. The drawer renders its prompt box
@@ -329,6 +334,11 @@ export interface Api {
   // as zero. The server opens every registered project within about a second of boot, so that is a transient
   // state and not the "you have not clicked into it yet" it used to be — see server/tenant-prime.ts.
   projectsQueueCounts(): Promise<Record<string, number>>
+  // Every OPEN project's open threads (Queue, Running, Snoozed, Pinned) plus its Done count — the All
+  // queues page. Machine-scoped like the counts above, and answered from the same open boards: a
+  // project with no board here is absent. Each entry names its project, which is what every action
+  // the page takes is addressed by.
+  projectsQueues(): Promise<ProjectQueue[]>
   // Opens the machine's native image picker ALREADY IN the project's directory, then stores what
   // comes back. The browser input cannot be aimed anywhere, which is the whole reason this exists.
   projectIconPick(input: { id: string }): Promise<DirectoryPickResult>
@@ -370,6 +380,7 @@ export const PROCEDURES = {
   board: "query",
   threadBody: "query",
   threadTranscript: "query",
+  threadHandoff: "query",
   threadTranscriptEarlier: "query",
   subAgentTranscript: "query",
   subAgentSteer: "mutation",
@@ -456,6 +467,7 @@ export const PROCEDURES = {
   projectsReorder: "mutation",
   projectRemove: "mutation",
   projectsQueueCounts: "query",
+  projectsQueues: "query",
   projectIconPick: "mutation",
   projectIconSet: "mutation",
   projectIconClear: "mutation",

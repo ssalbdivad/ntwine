@@ -1,4 +1,4 @@
-import { House, Settings as SettingsIcon } from "lucide-react"
+import { House, Inbox, Settings as SettingsIcon } from "lucide-react"
 import { Link } from "react-router"
 import { store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
@@ -138,6 +138,10 @@ export function StatusRow() {
           The rail is hidden under 800px and off by default, so THIS was the door most operators used. */}
       <Link to="/" title="All projects" aria-label="All projects" className={`${STATUS_ROW_ACTION} -ml-px`}>
         <House size={STATUS_ROW_ICON} aria-hidden="true" />
+      </Link>
+      {/* The other door out, one level down from the grid: every project's queue on one page. */}
+      <Link to="/queues" title="All queues" aria-label="All queues" className={STATUS_ROW_ACTION}>
+        <Inbox size={STATUS_ROW_ICON} aria-hidden="true" />
       </Link>
       <Divider />
       <button

@@ -56,6 +56,25 @@ export function githubRepoForLinks(): string | null {
   return repo
 }
 
+/**
+ * Run a SYNCHRONOUS render with the autolinker pointed at `value` instead of the page's repo, then put
+ * the page's back — without notifying, because nothing about the page changed.
+ *
+ * For the one surface that renders several projects' prose on one page (the All queues page): the
+ * module value is the PAGE's project, set from its board, and on a page that names no project it is
+ * whichever board the feed last carried — so `#123` in project B's handoff linked into project A's
+ * repo. Marked parses synchronously, so the override can never leak into another render.
+ */
+export function withGithubRepo<T>(value: string | null, run: () => T): T {
+  const previous = repo
+  repo = value
+  try {
+    return run()
+  } finally {
+    repo = previous
+  }
+}
+
 export function subscribeGithubRepo(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)

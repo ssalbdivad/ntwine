@@ -1,8 +1,8 @@
 import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent as DragEvent_, type KeyboardEvent as KeyboardEvent_, type MouseEvent as MouseEvent_, type PointerEvent as PointerEvent_, type ReactNode } from "react"
-import { House, Plus } from "lucide-react"
-import { Link, useNavigate } from "react-router"
+import { House, Inbox, Plus } from "lucide-react"
+import { Link, useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import type { ProjectCard } from "@frizz/shared"
 import { PROJECT_ICON_EXTENSIONS } from "@frizz/shared"
@@ -435,10 +435,14 @@ function useQueueCounts(currentSlug: string | undefined, projects: readonly Proj
   return (project) => (project.id === currentId && live !== undefined ? live : polled.data?.[project.id])
 }
 
+const RAIL_DOOR_CLASS =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-70 outline-none transition-colors hover:bg-elevated hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
+
 export function ProjectRail() {
   const queryClient = useQueryClient()
   const { data } = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
   const current = projectSlug()
+  const onQueues = useLocation().pathname === "/queues"
   const [adding, setAdding] = useState(false)
   const navigate = useNavigate()
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -601,10 +605,18 @@ export function ProjectRail() {
         <Link
           to="/"
           aria-label="All projects"
-          aria-current={current ? undefined : "page"}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-70 outline-none transition-colors hover:bg-elevated hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
+          aria-current={current || onQueues ? undefined : "page"}
+          className={RAIL_DOOR_CLASS}
         >
           <House size={17} />
+        </Link>
+      </Tooltip>
+      {/* The level between the two: every project's queue on one page (AllQueues.tsx). No count of its
+          own — each square below already wears its project's, and a sum over them would be a second
+          yellow number saying the same thing. */}
+      <Tooltip side="right" label="All queues">
+        <Link to="/queues" aria-label="All queues" aria-current={onQueues ? "page" : undefined} className={`${RAIL_DOOR_CLASS} ${onQueues ? "bg-elevated text-fg" : ""}`}>
+          <Inbox size={17} />
         </Link>
       </Tooltip>
       <hr className="my-2.5 w-6 shrink-0 border-0 border-t border-border" />

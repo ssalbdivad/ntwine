@@ -25,13 +25,13 @@ import { basename } from "../lib/paths.ts"
 // message text: workers open it with their Read/file tool; the chat renders images via /local-image and
 // non-image files as an openable chip. The shared extension allowlist (images, docs/text/code, office,
 // data and archive formats) is enforced server-side too — the /attach route is the trust gate.
-async function uploadAttachment(file: File, name: string): Promise<string | null> {
+async function uploadAttachment(file: File, name: string, base: string): Promise<string | null> {
   // The project this upload is FOR, resolved before the file is read rather than after. `apiBase()`
   // answers for whatever the address bar says at the instant it is called, and reading a large file is
   // long enough for the operator to switch projects: the attachment then landed in the state directory
   // of a project the message was never going to, while the message itself went to the thread they
-  // started from. Anything read across an await has to be captured on THIS side of it.
-  const base = apiBase()
+  // started from. Anything read across an await has to be captured on THIS side of it — which is why
+  // the caller resolves `base` and hands it in.
   const buf = await file.arrayBuffer()
   let bin = ""
   const bytes = new Uint8Array(buf)
@@ -90,6 +90,7 @@ export function Composer({
   contextTokens,
   slashSuggest,
   onInterruptSubmit,
+  attachBase,
 }: {
   value: string
   onChange: (v: string) => void
@@ -136,6 +137,10 @@ export function Composer({
   // needs no message payload because the send is already in the provider's queue. The shortcut stays
   // because it is a real send path with muscle memory behind it — only the picture was wrong.
   onInterruptSubmit?: () => void
+  // WHICH PROJECT AN ATTACHMENT IS UPLOADED TO, when it is not the page's. Omitted, `apiBase()` — the
+  // project the address bar names, which on a board is the thread's own. The All queues page shows
+  // every project's threads on a page that names none, so it passes the thread's project explicitly.
+  attachBase?: string
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null)
   const contextRef = useRef<HTMLDivElement>(null)
@@ -213,7 +218,7 @@ export function Composer({
     const paths: string[] = []
     try {
       for (const { file, name } of allowed) {
-        const path = await uploadAttachment(file, name)
+        const path = await uploadAttachment(file, name, attachBase ?? apiBase())
         // A null means /attach rejected it (decode/write failure — the type allowlist already ran
         // client-side above). Don't leave the user guessing why nothing appeared.
         if (path) paths.push(path)

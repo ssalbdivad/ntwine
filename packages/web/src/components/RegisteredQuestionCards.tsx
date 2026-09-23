@@ -22,7 +22,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import { useMutation } from "@tanstack/react-query"
 import { X } from "lucide-react"
 import type { QuestionAnswer, RegisteredQuestionView, ThreadView } from "@frizz/shared"
-import { rpc } from "../api/rpc.ts"
+import { rpc, type Api } from "../api/rpc.ts"
 import { draftKey, draftStore, useDraftValues, useProjectDir } from "../lib/drafts.ts"
 import type { BlockAnswer } from "../lib/questionBlocks.ts"
 import type { PairedAnswer } from "../lib/answersMessage.ts"
@@ -59,12 +59,27 @@ export interface RegisteredAnswering {
 
 export const RegisteredAnsweringContext = createContext<RegisteredAnswering | null>(null)
 
+/**
+ * Which project a surface's answers go to, for a surface showing a project OTHER than the page's own.
+ *
+ * Absent — every board and drawer — the answers go where the page's `rpc` goes and the drafts key on the
+ * page's board. The All queues page shows every project on a page that names none, where both of those
+ * mean the LAUNCHING project: it passes the thread's own project-bound client and directory, so an
+ * answer lands on the thread that asked and a half-typed one shares its draft with that project's board.
+ */
+export interface RegisteredAnsweringScope {
+  api: Pick<Api, "answerQuestions" | "dismissQuestions">
+  projectDir: string | undefined
+}
+
 /** The state behind every registered card on a surface. `thread` undefined (a stack that found a
  *  provider above it) yields an inert state nobody reads — hooks cannot be conditional. */
-export function useRegisteredAnswering(thread: ThreadView | undefined): RegisteredAnswering {
+export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: RegisteredAnsweringScope): RegisteredAnswering {
   const slug = thread?.id
   const questions = thread?.questions ?? []
-  const projectDir = useProjectDir()
+  const pageProjectDir = useProjectDir()
+  const projectDir = scope ? scope.projectDir : pageProjectDir
+  const api = scope?.api ?? rpc
   const [picks, setPicks] = useState<Picks>(() => new Map())
   const [error, setError] = useState<string>()
   // THE QUEUE CARD DISSOLVES ON SEND, like every other action on it. Answering is the same commitment as
@@ -101,7 +116,7 @@ export function useRegisteredAnswering(thread: ThreadView | undefined): Register
   })
 
   const send = useMutation({
-    mutationFn: async (answers: QuestionAnswer[]) => rpc.answerQuestions({ slug: slug!, answers }),
+    mutationFn: async (answers: QuestionAnswer[]) => api.answerQuestions({ slug: slug!, answers }),
     onSuccess: (result) => {
       // The rows are gone from the board push that follows, so the staged state for them is dead weight;
       // dropping the drafts too keeps a re-asked question from opening pre-filled with a stale answer.
@@ -124,7 +139,7 @@ export function useRegisteredAnswering(thread: ThreadView | undefined): Register
     },
   })
   const dismiss = useMutation({
-    mutationFn: async (id: string) => rpc.dismissQuestions({ slug: slug!, ids: [id] }),
+    mutationFn: async (id: string) => api.dismissQuestions({ slug: slug!, ids: [id] }),
     onError: (cause) => setError(errorText(cause)),
   })
 
@@ -185,8 +200,8 @@ export function useRegisteredAnswering(thread: ThreadView | undefined): Register
 
 /** Mount ONCE per surface that draws registered cards in more than one place. Must sit INSIDE the
  *  surface's QueueDismissContext, which the send reads. */
-export function RegisteredAnsweringProvider({ thread, children }: { thread: ThreadView | undefined; children: ReactNode }) {
-  const answering = useRegisteredAnswering(thread)
+export function RegisteredAnsweringProvider({ thread, scope, children }: { thread: ThreadView | undefined; scope?: RegisteredAnsweringScope; children: ReactNode }) {
+  const answering = useRegisteredAnswering(thread, scope)
   return <RegisteredAnsweringContext.Provider value={answering}>{children}</RegisteredAnsweringContext.Provider>
 }
 

@@ -35,8 +35,13 @@ import { projectSlug } from "./base-path.ts"
  * `supervisorStatus` is the LAUNCHER's own state — one supervisor per machine, sitting above every
  * project it serves (api/supervisorStatus.ts) — so scoping it would mint a second poll of one answer on
  * every project switch.
+ * `projectsQueues` is the All queues page's read — every open project at once, on a page that names none.
+ * `ofProject` is the head of a key that CARRIES its project — `["ofProject", projectId, …]` — for data the
+ * All queues page reads about one project from a page that names none. Folding the page's scope in on top
+ * would be wrong twice over: that page's scope is `project:`, the very scope the unprefixed LAUNCHING
+ * project's own entries live in, and the key already says whose it is.
  */
-const MACHINE_WIDE = new Set(["projectsList", "projectsQueueCounts", "threadLocate", "dispatchPreferencesGet", "supervisorStatus"])
+const MACHINE_WIDE = new Set(["projectsList", "projectsQueueCounts", "projectsQueues", "ofProject", "threadLocate", "dispatchPreferencesGet", "supervisorStatus"])
 
 /** The `queryKeyHashFn` for this app's QueryClient. Nothing else should need to call it. */
 export function projectScopedQueryKeyHash(key: readonly unknown[]): string {

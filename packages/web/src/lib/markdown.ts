@@ -3,7 +3,7 @@ import type { Token, Tokens, TokenizerAndRendererExtension } from "marked"
 import { CODE_BLOCK_CLASS, renderHighlightedCode } from "./syntaxHighlight.ts"
 import { isLocalMarkdownFile, localImageUrlForTarget, localMarkdownTarget, resolveRelativeLocalPath } from "./markdownTargets.ts"
 import { prefixedAppRoute } from "./base-path.ts"
-import { githubRefFromUrl, linkifyGithubRefs } from "./githubAutolink.ts"
+import { githubRefFromUrl, linkifyGithubRefs, withGithubRepo } from "./githubAutolink.ts"
 import { FRAMED_IMAGE, IMAGE_FRAME, IMAGE_FRAME_MAT } from "../components/ImageFrame.tsx"
 
 // marked's GFM strikethrough opener is `~~?` — ONE tilde is enough. That misreads the tilde agents
@@ -273,12 +273,28 @@ const documentMarkdown = new Marked({ ...MARKDOWN_OPTIONS, breaks: false })
 // `baseDir` is the directory a relative link resolves against — the document's own directory from the
 // built-in file reader, the project root from every other surface (see lib/localPathBase.ts). `homeDir`
 // expands a `~`-anchored one. `document` is the file reader's alone: soft wraps stay soft.
-export function mdToHtml(md: string, opts?: { baseDir?: string; homeDir?: string; document?: boolean }): string {
+export function mdToHtml(md: string, opts?: MarkdownScopeOptions & { document?: boolean }): string {
   if (!md.trim()) return ""
   // breaks: single newlines are HARD breaks (chat convention — Slack/GitHub-comment style);
   // CommonMark default silently glued "item ✅\nitem ✅" lists onto one line.
   const parser = opts?.document ? documentMarkdown : markdown
-  return sanitize(parser.parse(md, { async: false }) as string, { block: true, baseDir: opts?.baseDir, homeDir: opts?.homeDir })
+  const parse = () => parser.parse(md, { async: false }) as string
+  const html = opts?.repo === undefined ? parse() : withGithubRepo(opts.repo, parse)
+  return sanitize(html, { block: true, baseDir: opts?.baseDir, homeDir: opts?.homeDir, appPath: opts?.appPath })
+}
+
+/**
+ * Whose prose this is, for a caller rendering a project OTHER than the page's own.
+ *
+ * `baseDir`/`homeDir` resolve a relative or `~` path; `repo` is what a `#123` autolinks into — `null`
+ * means "no GitHub repo", and leaving it `undefined` means the page's own (githubAutolink.ts module
+ * state); `appPath` is the page an in-app `/thread/<slug>` link is pointed at.
+ */
+export interface MarkdownScopeOptions {
+  baseDir?: string
+  homeDir?: string
+  repo?: string | null
+  appPath?: string
 }
 
 // INLINE-only render: emphasis/strong/code/del/links but NO block wrapping (`<p>`, headings, lists).
@@ -290,10 +306,11 @@ export function mdToHtml(md: string, opts?: { baseDir?: string; homeDir?: string
 // flattened (`inertInteractive`), because the chip was a `<button>` around its text and an anchor
 // inside one is invalid HTML; the chip now lays its hit area BESIDE the text instead
 // (components/QuestionBlockCard.tsx), so a file named in an option opens like one named in a paragraph.
-export function mdInlineToHtml(md: string, opts?: { baseDir?: string; homeDir?: string }): string {
+export function mdInlineToHtml(md: string, opts?: MarkdownScopeOptions): string {
   if (!md.trim()) return ""
-  const { baseDir, homeDir } = opts ?? {}
-  return sanitize(markdown.parseInline(md, { async: false }) as string, { baseDir, homeDir })
+  const parse = () => markdown.parseInline(md, { async: false }) as string
+  const html = opts?.repo === undefined ? parse() : withGithubRepo(opts.repo, parse)
+  return sanitize(html, { baseDir: opts?.baseDir, homeDir: opts?.homeDir, appPath: opts?.appPath })
 }
 
 export function stripFrontmatter(md: string): string {
@@ -339,12 +356,15 @@ const DROP_WITH_CONTENT = new Set([
 // built-in reader, and the PROJECT ROOT everywhere else, which is the base the server already uses for
 // a bare path in inline code. `homeDir` — the expansion of a leading `~`. Both come from the caller;
 // see lib/localPathBase.ts for where the non-reader surfaces get them.
-type WalkContext = { block: boolean; baseDir?: string; homeDir?: string }
+// `appPath` — the page an in-app `/thread/<slug>` link is re-pointed at. Absent means THIS page, which is
+// right everywhere a page shows one project; the All queues page renders several projects' prose on a
+// page that names none, and passes each one's own `/project/<slug>` so the link opens THAT thread.
+type WalkContext = { block: boolean; baseDir?: string; homeDir?: string; appPath?: string }
 
-function sanitize(dirty: string, { block = false, baseDir, homeDir }: Partial<WalkContext> = {}): string {
+function sanitize(dirty: string, { block = false, baseDir, homeDir, appPath }: Partial<WalkContext> = {}): string {
   const tpl = document.createElement("template")
   tpl.innerHTML = dirty
-  walk(tpl.content, { block, baseDir, homeDir })
+  walk(tpl.content, { block, baseDir, homeDir, appPath })
   return tpl.innerHTML
 }
 
@@ -363,7 +383,7 @@ function walk(node: ParentNode, ctx: WalkContext) {
     }
     if (tag === "a" || tag === "img") rebaseRelative(el, tag === "a" ? "href" : "src", ctx)
     if (tag === "a") {
-      const inApp = prefixedAppRoute(el.getAttribute("href"))
+      const inApp = prefixedAppRoute(el.getAttribute("href"), ctx.appPath)
       if (inApp) el.setAttribute("href", inApp)
       const target = localMarkdownTarget(el.getAttribute("href"))
       if (target) {

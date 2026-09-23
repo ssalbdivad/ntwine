@@ -1,7 +1,7 @@
 import { useRef, useState } from "react"
 import { AlarmClock, Check, Loader2 } from "lucide-react"
 import type { CompletionHold, ThreadView } from "@frizz/shared"
-import { rpc } from "../api/rpc.ts"
+import { useThreadApi, useThreadIsForeignToPage } from "../api/threadApi.tsx"
 import { showToast } from "../store.ts"
 import { threadLifecycleAvailability, completionArchivesImmediately, completionHoldSummary } from "../lib/threadLifecycle.ts"
 import { markArchived, clearArchived } from "../lib/optimisticArchive.ts"
@@ -211,6 +211,10 @@ export function StateButton({
   // button stays disabled (still reading "Mark as done", no spinner) for the whole fade-out rather
   // than flickering back to enabled under the animation. Only a live-session confirmation prompt
   // (re-enables under the dialog) or a failure (re-enables in place) clears it.
+  const api = useThreadApi()
+  // The rail overlay below is keyed by bare slug and read by THIS page's rail, so it is written only
+  // for a thread of this page's project (see api/threadApi.tsx).
+  const overlayRail = !useThreadIsForeignToPage()
   const [pending, setPending] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   // The server's own evidence for declining, held for as long as the dialog is up. Never derived from
@@ -238,12 +242,12 @@ export function StateButton({
     // completing it is the plain lifecycle write. Always immediate, so always optimistic.
     if (thread.kind === "command") {
       onArchived?.()
-      markArchived(thread.id)
-      rpc
+      if (overlayRail) markArchived(thread.id)
+      api
         .setThreadState({ slug: thread.id, state: "archived" })
         .then(() => showToast("Done"))
         .catch((error) => {
-          clearArchived(thread.id)
+          if (overlayRail) clearArchived(thread.id)
           onDismissCancel?.()
           showToast(`Couldn’t finish: ${(error as Error).message.slice(0, 80)}`)
           setPending(false)
@@ -256,12 +260,12 @@ export function StateButton({
     // button has no queue card to dismiss and its rail row was left waiting on the round-trip too.
     // `terminateLive` is the confirmed path: the operator has answered the dialog, so it archives.
     const expectsArchive = terminateLive || completionArchivesImmediately(thread)
-    if (expectsArchive) markArchived(thread.id)
-    rpc
+    if (expectsArchive && overlayRail) markArchived(thread.id)
+    api
       .completeThread({ slug: thread.id, sessionId: thread.sessionId ?? "", terminateLive })
       .then((result) => {
         if (result.needsConfirmation) {
-          clearArchived(thread.id) // mispredicted: the server wants the dialog, so the row stays put
+          if (overlayRail) clearArchived(thread.id) // mispredicted: the server wants the dialog, so the row stays put
           // The server wants confirmation after all (an executing/ambiguous turn, or a rare mispredict).
           // Reinstate the optimistically-dismissed card (onDismissCancel cancels its pending unmount too),
           // then open the dialog over it. The server returns needsConfirmation from a cheap liveness/telemetry
@@ -281,7 +285,7 @@ export function StateButton({
         if (!optimistic) onArchived?.() // non-optimistic path dismisses now; optimistic already did
       })
       .catch((error) => {
-        clearArchived(thread.id) // …and the rail row back out of Done
+        if (overlayRail) clearArchived(thread.id) // …and the rail row back out of Done
         if (optimistic) onDismissCancel?.() // roll the card back into the queue on failure
         showToast(`Couldn’t finish: ${(error as Error).message.slice(0, 80)}`)
         setPending(false)
