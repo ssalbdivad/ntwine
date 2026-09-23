@@ -82,6 +82,10 @@ if (!flag("reaper")) process.env.FRIZZ_ORPHAN_REAPER_OFF = "1"
 // on every one of the maintainer's live boards. Off by default for the same reason the reaper is; pass
 // --prime when what you are verifying is the priming (a sandbox HOME, where it costs nothing).
 if (!flag("prime")) process.env.FRIZZ_TENANT_PRIME_OFF = "1"
+// Its own Vite dependency cache: re-optimizing into the shared node_modules/.vite rewrote the deps
+// under the maintainer's running `npm run dev`, and their open tab then loaded a second React (see
+// packages/web/vite.config.ts). Relative to packages/web; shared by every throwaway stack.
+process.env.FRIZZ_VITE_CACHE_DIR ||= "node_modules/.vite-scratch"
 process.chdir(projectDir)
 
 // Optional: drop a tiny fixture note so the board isn't stone empty when eyeballing the shell. Off by

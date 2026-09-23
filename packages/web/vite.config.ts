@@ -42,6 +42,14 @@ function devRenderScanScript(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), devRenderScanScript()],
   build: { outDir: "dist", emptyOutDir: true },
+  // The dependency cache is per SERVER, never shared with a throwaway one. Every dev Vite rooted here
+  // defaults to node_modules/.vite, and a disposable stack booted beside the maintainer's `npm run dev`
+  // hashes its config differently, re-optimizes, and rewrites that directory under the live server. The
+  // open tab still holds the old React chunk, so the next lazily loaded module (the terminal drawer's
+  // TerminalPane) pulls in the rewritten one: two Reacts, and the drawer dies on "resolveDispatcher()
+  // is null" (2026-09-23). Throwaway servers (scripts/adhoc-stack.mjs, dev-test.mjs, e2e-web.mjs) set
+  // FRIZZ_VITE_CACHE_DIR to a scratch cache of their own.
+  cacheDir: process.env.FRIZZ_VITE_CACHE_DIR || "node_modules/.vite",
   // The browser e2e suite (scripts/e2e-web.mjs) boots this vite over a working tree other agents are
   // often editing mid-run. With the watcher on, each of those edits becomes an HMR update or full
   // reload in the middle of a test — a fixture that mounts its root at module top level re-evaluates

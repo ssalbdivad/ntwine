@@ -148,7 +148,8 @@ if (!url) {
     stdio: ["ignore", "pipe", "pipe"],
     // No watcher, no HMR (see vite.config.ts): a concurrent agent editing the tree mid-run must not
     // reload a fixture page in the middle of a test.
-    env: { ...process.env, FRIZZ_E2E_STATIC_VITE: "1" },
+    // A scratch dep cache too, so this Vite never rewrites the one a running dev server serves from.
+    env: { ...process.env, FRIZZ_E2E_STATIC_VITE: "1", FRIZZ_VITE_CACHE_DIR: process.env.FRIZZ_VITE_CACHE_DIR || "node_modules/.vite-scratch" },
   });
   const viteLog = [];
   vite.stdout.on("data", (d) => viteLog.push(String(d)));
