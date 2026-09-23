@@ -605,7 +605,7 @@ export function MobileBoard() {
               !board
                 ? "Loading…"
                 : tab === "queue"
-                  ? "Nothing in the queue. Tap + to start a thread."
+                  ? "Nothing to do. Tap + to start a thread."
                   : tab === "snoozed"
                     ? "Nothing held."
                     : "Nothing finished yet."
@@ -614,7 +614,7 @@ export function MobileBoard() {
         ) : (
           <div className="border-b border-border/70 bg-panel/60">
             {/* Terminal command threads share the lists (groups.ts sectionOf): running and finished in
-                the Queue tab, marked done in Done. They have no swipe verbs, so they get their own row. */}
+                the To do tab, marked done in Done. They have no swipe verbs, so they get their own row. */}
             {rows.map((t, i) =>
               t.kind === "command" ? (
                 <MobileCommandRow key={t.id} t={t} last={i === rows.length - 1} />
@@ -650,7 +650,7 @@ export function MobileBoard() {
         <div className="flex h-[49px] items-stretch">
           <TabButton
             active={tab === "queue"}
-            label="Queue"
+            label="To do"
             count={askCount > 0 ? askCount : queue.length}
             asks={askCount > 0}
             onClick={() => setTab("queue")}

@@ -261,8 +261,9 @@ export function Sidebar() {
               work). Two rule-separated bands (see groups.ts orderActive/partitionActive), each under a
               static label since 2026-09-19 (maintainer: "sidebar labels for pinned, queue, and running
               … should not be collapsible"). The labels use the maintainer's own words for the bands —
-              QUEUE for the cue, RUNNING for the spinning rows — rather than the code's Rested/Active
-              keys, because the label is copy the human reads, and "the queue" is what they call it.
+              TO DO for the cue (it read QUEUE until 2026-09-23; maintainer: "change the name of queue to
+              'to do'"), RUNNING for the spinning rows — rather than the code's Rested/Active keys,
+              because the label is copy the human reads.
               RESTED — the cue — sits FIRST, right under the prompt box (maintainer 2026-08-08), in the
               EXACT queue order, so the rail's top row is opposite the queue's top card and scrolling
               the queue walks the scroll marker straight down this rail. ACTIVE — live work that isn't
@@ -270,7 +271,7 @@ export function Sidebar() {
               ask: they don't render in the queue), so it stays glanceable without pushing the cue down.
               Only the cue's rows carry the rest-time column: it dates a HANDOFF, and a row that is
               still spinning has not made one. An empty band draws no label, the same as Snoozed and
-              Done: a "Queue 0" header over nothing is a count nobody needs. */}
+              Done: a "To do 0" header over nothing is a count nobody needs. */}
           {activeThreads.length > 0 ? (
             (() => {
               const { running, rested } = partitionActive(activeThreads)
@@ -281,7 +282,7 @@ export function Sidebar() {
               )
               return (
                 <>
-                  {rested.length > 0 && <SectionHeader label="Queue" count={rested.length} />}
+                  {rested.length > 0 && <SectionHeader label="To do" count={rested.length} />}
                   {rested.map(renderRow(true))}
                   {running.length > 0 && rested.length > 0 && <hr className="my-3 border-border/50" />}
                   {running.length > 0 && <SectionHeader label="Running" count={running.length} />}
