@@ -1,5 +1,8 @@
-import type { ProjectCard, ProjectQueue, ThreadView } from "@frizz/shared"
+import type { ProjectCard, ProjectQueue, RegisteredQuestionView, ThreadView } from "@frizz/shared"
 import { orderByInteraction, orderQueue, queued, sectionOf, type QueueDirection } from "../groups.ts"
+import { splitFenceBlocks } from "./fenceBlocks.ts"
+import { splitQuestionBlocks, type QuestionKind } from "./questionBlocks.ts"
+import { fenceStandsFor } from "./questionShadow.ts"
 
 // THE ALL QUEUES PAGE'S MODEL — every project on the machine, each with its threads already banded.
 //
@@ -55,7 +58,9 @@ export function queuesProjects(
       queued: orderQueue(threads.filter(queued), direction),
       running: orderByInteraction(threads.filter((t) => !queued(t) && sectionOf(t) === "active")),
       snoozed: orderByInteraction(threads.filter((t) => !queued(t) && sectionOf(t) === "snoozed")),
-      doneCount: queue?.doneCount ?? 0,
+      // The server sends an archived row it thinks MAY still be working, and the rail's own rule decides
+      // (see ProjectQueue): the ones it puts in Done count as done.
+      doneCount: (queue?.doneCount ?? 0) + threads.filter((t) => sectionOf(t) === "inactive").length,
     }
   }
   for (const card of cards ?? []) {
@@ -101,4 +106,42 @@ export function laneSummary(project: Pick<QueuesProject, "queued" | "running" | 
   if (project.running.length > 0) parts.push(`${project.running.length} running`)
   if (project.snoozed.length > 0) parts.push(`${project.snoozed.length} snoozed`)
   return parts.join(" · ")
+}
+
+export interface HandoffParts {
+  prose: string
+  /** ```question fences with a body that no registered card draws — drawn read-only. */
+  questions: { raw: string; questionKind: QuestionKind; danger: boolean }[]
+  fences: { kind: "done" | "awaiting"; body: string }[]
+}
+
+/**
+ * A handoff, split the way the board's card draws it: the prose, the ```question fences, and each
+ * ```done / ```awaiting fence as its own card.
+ *
+ * A ```question fence goes one of three ways. An EMPTY `qst_…` marker only PLACES a registered card, and
+ * this card draws every open question at its tail, so the marker is dropped (left in, it renders as an
+ * empty code block mid-prose). A fence that STANDS FOR a registered question — names its id, or restates
+ * it — is dropped for the same reason: its registered card is the one that can be answered. Anything else
+ * is a question the worker wrote as a fence, which on a legacy thread is its live ask, so it is KEPT, and
+ * drawn read-only — answering it is one level down, on the thread's own board.
+ */
+export function handoffParts(text: string, registered: readonly Pick<RegisteredQuestionView, "id" | "spec">[] = []): HandoffParts {
+  const questions: HandoffParts["questions"] = []
+  let unquestioned = text
+  if (text.includes("```question")) {
+    const prose: string[] = []
+    for (const seg of splitQuestionBlocks(text)) {
+      if (seg.kind === "prose") prose.push(seg.text)
+      else if (seg.text.trim() && !fenceStandsFor(seg, registered)) questions.push({ raw: seg.text, questionKind: seg.questionKind, danger: seg.danger })
+    }
+    unquestioned = prose.join("\n")
+  }
+  let prose = ""
+  const fences: HandoffParts["fences"] = []
+  for (const segment of splitFenceBlocks(unquestioned)) {
+    if (segment.kind === "prose") prose += segment.text
+    else fences.push({ kind: segment.fenceKind, body: segment.body })
+  }
+  return { prose: prose.trim(), questions, fences }
 }

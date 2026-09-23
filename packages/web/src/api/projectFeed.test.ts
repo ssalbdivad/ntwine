@@ -145,6 +145,23 @@ test("nothing from the project the page has left reaches the UI", async () => {
     alphaSocket.message(frame("alpha"))
     assert.equal(store.board, null, "alpha's keyframe must not land on beta's page")
 
+    // 2b. …AND A DROPPED FRAME IS NEWS THE BOARD NEVER GOT. Leaving a board for a page that names no
+    //     project (the grid, All queues) keeps the feed so that coming straight back is free — but a
+    //     frame that arrives meanwhile is dropped, and the board in the store is then stale. All queues
+    //     acts on the project's threads while its deltas are being dropped, so the return must rebind.
+    here.pathname = "/project/alpha"
+    const away = await fresh("away")
+    away.connectSync(queryClient as never)
+    const awaySocket = FakeWebSocket.instances[0]!
+    awaySocket.open()
+    here.pathname = "/queues"
+    assert.equal(away.feedIsBoundTo("alpha"), true, "leaving alone is not news: straight back stays free")
+    awaySocket.message(frame("alpha"))
+    here.pathname = "/project/alpha"
+    assert.equal(away.feedIsBoundTo("alpha"), false, "a frame dropped while away leaves alpha's board stale")
+    store.board = null
+    here.pathname = "/project/beta" // where assertion 3 below stands
+
     // 3. …AND THE SAME PAYLOAD IS REFUSED AT THE STORE ITSELF, on its own evidence rather than on the
     //    transport's bookkeeping. This is the backstop for every path not yet imagined: an rpc.board()
     //    seed in flight across the switch lands into the just-emptied store, where `seedBoard`'s

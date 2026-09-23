@@ -169,7 +169,7 @@ import { projectRetiredBackgroundOps, retiredOpsFor } from "./transcript.ts"
 import { clearProjectIcon, customIconPath, findById, forgetProject, ICON_SCAN_VERSION, listProjects, moveProjectDirectory, renameProject, reorderProjects, setProjectIcon, type RegistryEntry } from "./project-registry.ts"
 import { basename, dirname } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff } from "@frizz/shared"
+import { BURIED_ANSWERS_HEADER, ProjectCard, ProjectQueue, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff } from "@frizz/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
 import { chosenProjectRoot, ensureProjectIdFile, existingProjectId, isHomeDirectory, writeProjectIdFile } from "./project-root.ts"
@@ -755,34 +755,58 @@ function mergeSubAgentSteers(messages: TranscriptMessage[], steers: SubAgentStee
 const HANDOFF_ASKED_MAX = 1200
 
 /**
- * The two messages a queue card is built from, out of a transcript window: the LAST assistant message
- * that says anything, and the last message the HUMAN wrote before it.
+ * The two messages a queue card is built from, out of a transcript window: the human's LAST TURN, and
+ * the last assistant message AFTER it that says anything — the board card's own anchor
+ * (web lib/messagePresentation.ts `lastHumanTurnIndex`), so the card on All queues and the card on the
+ * board open on the same exchange.
+ *
+ * "The human" skips everything Frizz or another agent put in the worker's composer — a wake, a
+ * sub-agent steer, a peer's report, a queued send not yet delivered — because a card that answered
+ * "what did you ask for?" with a PR-watcher status line would be quoting the wrong author. EXCEPT the one
+ * wake the human wrote: the answer to a registered question, which Frizz delivers as a wake because the
+ * worker may have been down when it was given. Skipping it anchored the card on the message BEFORE the
+ * answer, so a card answered on All queues came back quoting the original task.
  *
  * "Says anything" skips a tools-only step and the transcript's own punctuation (sub-agent events,
- * reasoning summaries). "The human" skips everything Frizz put in the worker's composer on its own —
- * a wake, a sub-agent steer — because a card that answered "what did you ask for?" with a PR-watcher
- * status line would be quoting the wrong author.
+ * reasoning summaries). No reply after the human's turn — a worker that stalled on it — is a handoff
+ * with an ask and no text, never the reply to an earlier turn.
  */
 export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff {
-  let last = -1
+  let anchor = -1
   for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]!
-    if (m.role === "assistant" && !m.kind && m.text.trim()) { last = i; break }
+    if (isHumanTurn(messages[i]!)) { anchor = i; break }
   }
-  if (last === -1) return {}
-  const reply = messages[last]!
-  let asked: TranscriptMessage | undefined
-  for (let i = last - 1; i >= 0; i--) {
+  let reply: TranscriptMessage | undefined
+  for (let i = messages.length - 1; i > anchor; i--) {
     const m = messages[i]!
-    if (m.role === "user" && !m.kind && !m.wake && !m.agentInstruction && !m.peerFrom && (m.displayText ?? m.text).trim()) { asked = m; break }
+    if (m.role === "assistant" && !m.kind && m.text.trim()) { reply = m; break }
   }
+  const asked = anchor === -1 ? undefined : messages[anchor]!
   const askedText = asked ? (asked.displayText ?? asked.text).trim() : undefined
   return {
-    text: reply.text,
-    at: reply.at,
-    asked: askedText && askedText.length > HANDOFF_ASKED_MAX ? `${askedText.slice(0, HANDOFF_ASKED_MAX - 1)}…` : askedText,
-    askedAt: asked?.at,
+    ...(reply ? { text: reply.text, at: reply.at } : {}),
+    ...(askedText ? { asked: askedText.length > HANDOFF_ASKED_MAX ? `${askedText.slice(0, HANDOFF_ASKED_MAX - 1)}…` : askedText, askedAt: asked!.at } : {}),
   }
+}
+
+/**
+ * An ARCHIVED thread the rail may still draw outside Done: one whose own turn is in flight, or that is
+ * idle with live work behind it (a running sub-agent, a background wait). A SUPERSET of the rail's rule
+ * (web groups.ts `isActivelyRunning`, which Done excludes), on purpose — `projectsQueues` sends these and
+ * the client's own `sectionOf` decides, so the rule lives in one place and this only has to be generous.
+ * Everything else archived is Done, and Done is a count.
+ */
+function mayStillBeWorking(thread: ThreadView): boolean {
+  if (thread.runtime === "running" || thread.runtime === "spawning") return true
+  return thread.runtime === "turn-idle" && (thread.awaitingBackground === true || (thread.subAgents ?? []).some((agent) => agent.state === "running"))
+}
+
+function isHumanTurn(m: TranscriptMessage): boolean {
+  if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.agentInstruction) return false
+  const said = (m.displayText ?? m.text).trim()
+  if (!said) return false
+  // questionAnswerMessage's form; the wake token rides outside `displayText`.
+  return !m.wake || said.startsWith(BURIED_ANSWERS_HEADER)
 }
 
 export function createRouter(ctx: AppContext) {
@@ -3563,7 +3587,7 @@ export function createRouter(ctx: AppContext) {
             let doneCount = 0
             const threads = snapshot.threads.filter((thread) => {
               if (thread.kind !== "session" || thread.foreign) return false
-              if (thread.state === "archived" && thread.runtime !== "running" && thread.runtime !== "spawning") {
+              if (thread.state === "archived" && !mayStillBeWorking(thread)) {
                 doneCount++
                 return false
               }

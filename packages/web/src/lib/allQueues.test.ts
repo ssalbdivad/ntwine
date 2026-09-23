@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ProjectCard, ProjectQueue, ThreadView } from "@frizz/shared"
-import { isBusy, laneSummary, queuesProjects, queuesTotals, threadKey } from "./allQueues.ts"
+import { handoffParts, isBusy, laneSummary, queuesProjects, queuesTotals, threadKey } from "./allQueues.ts"
 
 function thread(id: string, over: Partial<ThreadView> = {}): ThreadView {
   return {
@@ -84,4 +84,54 @@ test("totals count the queue and the running rows across every project", () => {
 
 test("the same slug in two projects is two threads", () => {
   assert.notEqual(threadKey("a", "fix-auth"), threadKey("b", "fix-auth"))
+})
+
+const REGISTERED = [{ id: "qst_ab12cd34", spec: { question: "Which hero headline should the launch page ship with?", kind: "question" as const, options: [] } }]
+
+test("a handoff splits into prose, its signal fences, and the question fences no registered card draws", () => {
+  const parts = handoffParts(
+    [
+      "**Needs you** — three variants are drafted.",
+      "",
+      "```question qst_ab12cd34",
+      "```",
+      "",
+      "```question",
+      "Which hero headline should the launch page ship with?",
+      "A. Ship the queue",
+      "```",
+      "",
+      "```question",
+      "Should the old headline stay up until launch day?",
+      "A. Yes",
+      "B. No",
+      "```",
+      "",
+      "```done",
+      "- Drafted three variants",
+      "```",
+    ].join("\n"),
+    REGISTERED as never,
+  )
+  assert.equal(parts.prose, "**Needs you** — three variants are drafted.")
+  // The empty marker and the fence restating the registered question are its card's; the third is not.
+  assert.deepEqual(parts.questions.map((q) => q.raw.split("\n")[0]), ["Should the old headline stay up until launch day?"])
+  assert.deepEqual(parts.fences, [{ kind: "done", body: "- Drafted three variants" }])
+})
+
+test("with nothing registered, a question fence with a body is KEPT — on a legacy thread it is the live ask", () => {
+  const parts = handoffParts("Pick one.\n\n```question\nSeconds or epoch?\nA. Seconds\nB. Epoch\n```")
+  assert.equal(parts.questions.length, 1)
+  assert.equal(parts.prose, "Pick one.")
+})
+
+test("an archived row the server sent as possibly-working is banded by the rail's own rule, and counted done if it is", () => {
+  const [project] = queuesProjects([card("a")], [queue("a", [
+    // A direct sub-agent still running keeps the archived thread out of Done, in Running…
+    thread("sub-agent-out", { state: "archived", archived: true, subAgents: [{ id: "s1", state: "running", depth: 1 } as never] }),
+    // …and a background wait parked on nothing but a timer is not live work, so this one is Done.
+    thread("parked", { state: "archived", archived: true, awaitingBackground: true, watches: [{ kind: "timer", state: "armed" }] as never }),
+  ], { doneCount: 5 })])
+  assert.deepEqual(project!.running.map((t) => t.id), ["sub-agent-out"])
+  assert.equal(project!.doneCount, 6)
 })

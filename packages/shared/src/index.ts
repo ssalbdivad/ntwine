@@ -4829,8 +4829,10 @@ export type DirectoryPickResult = z.infer<typeof DirectoryPickResult>
  * it is. The page addresses each action through `/_frizz/<projectId>/rpc`, never through its own URL.
  *
  * `threads` is every OPEN session thread — the Queue, Running, Snoozed and Pinned rows the project's own
- * rail draws — and never a Done one: Done grows without bound (553 rows on one real board), so it is a
- * count here. Foreign sessions (a project's own terminals) are left out; they are read-only and never
+ * rail draws — plus any ARCHIVED one that may still be working (the rail keeps those out of Done while
+ * they are); every other archived thread is Done, which grows without bound (553 rows on one real
+ * board), so it is `doneCount` here. The client's `sectionOf` has the last word on the archived rows it
+ * is sent, and counts the ones it puts in Done. Foreign sessions (a project's own terminals) are left out; they are read-only and never
  * queue. The client bands them with the same pure `groups.ts` functions the rail uses.
  */
 export const ProjectQueue = z.object({

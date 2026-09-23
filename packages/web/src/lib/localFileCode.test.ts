@@ -63,3 +63,25 @@ test("isPathCandidate accepts a Windows path and rejects a backslash escape (Win
     "a\\\\b", // a doubled separator mid-path is an escaped backslash, not a directory
   ]) assert.equal(isPathCandidate(v), false, v)
 })
+
+// The All queues page puts every project's prose on one page, and the server resolves a bare
+// `README.md` against the ASKING project's directory — so an answer is only an answer for the project
+// that asked. Keyed by text alone, the first project to ask answered for every other one.
+test("a resolution is cached per project, and asked of that project's own client", async () => {
+  const { resolveUnknown, cachedResolution } = await import("./localFileCode.ts")
+  const asked: string[] = []
+  const client = (dir: string) => ({
+    resolveLocalPaths: async ({ paths }: { paths: string[] }) => {
+      asked.push(dir)
+      return { resolved: paths.map((input) => ({ input, path: `${dir}/${input}` })) }
+    },
+  })
+  await resolveUnknown(["README.md"], "project-a", client("/work/a") as never)
+  await resolveUnknown(["README.md"], "project-b", client("/work/b") as never)
+  assert.equal(cachedResolution("project-a", "README.md"), "/work/a/README.md")
+  assert.equal(cachedResolution("project-b", "README.md"), "/work/b/README.md", "b must not inherit a's answer")
+  assert.deepEqual(asked, ["/work/a", "/work/b"], "each project's client is asked for its own files")
+  // …and a project that has already asked is not asked again.
+  await resolveUnknown(["README.md"], "project-a", client("/work/a") as never)
+  assert.deepEqual(asked, ["/work/a", "/work/b"])
+})

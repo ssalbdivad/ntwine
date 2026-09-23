@@ -57,7 +57,6 @@ export function AllQueuesPage() {
   })
   const direction = useSnapshot(prefs).queueOrder
   const projects = useMemo(() => queuesProjects(cards.data, queues.data, direction), [cards.data, queues.data, direction])
-  const totals = queuesTotals(projects)
 
   useEffect(() => {
     const standalone = window.matchMedia?.("(display-mode: standalone)").matches
@@ -65,6 +64,12 @@ export function AllQueuesPage() {
   }, [])
 
   const leaving = useLeavingCards(projects)
+  // Counted from what the page SHOWS: a card the operator just finished is gone from its lane at once, and
+  // a header still counting it read "1 in the queue" over an empty page until the next poll.
+  const totals = queuesTotals(projects.map((project) => ({ ...project, queued: project.queued.filter((t) => !leaving.hidden(threadKey(project.id, t.id))) })))
+  // Registered projects this server has not opened (still being opened after a boot, served by another
+  // Frizz, or failed to open): their queues are unknown, so "nothing in any queue" would be a claim.
+  const unopened = projects.filter((project) => !project.open && !project.stale).length
   const scrollToCard = useScrollToCard()
   const activeKey = useScrollspy(projects, leaving.hidden)
   const loading = (cards.isPending || queues.isPending) && !queues.data
@@ -75,7 +80,7 @@ export function AllQueuesPage() {
       <aside aria-label="Projects" className={`${SIDEBAR_COLUMN_CLASS} max-[800px]:!pt-5`}>
         <div className="flex max-h-[calc(100vh-32px)] min-h-0 min-w-0 w-full flex-col max-[800px]:max-h-none">
           <div className="mb-5 shrink-0 px-0.5">
-            <HeaderRow totals={totals} projectCount={projects.length} />
+            <HeaderRow totals={totals} projectCount={projects.length} unopened={unopened} />
           </div>
           <div data-xq-rail className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden max-[800px]:hidden">
             <MachineRail projects={projects} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={scrollToCard} />
@@ -101,7 +106,7 @@ export function AllQueuesPage() {
                 <Lane project={project} leaving={leaving} />
               </div>
             ))}
-            {lanes.length === 0 && <EmptyQueues running={totals.running} runningProjects={projects.filter((p) => p.running.length > 0).length} />}
+            {lanes.length === 0 && <EmptyQueues running={totals.running} runningProjects={projects.filter((p) => p.running.length > 0).length} unopened={unopened} />}
           </div>
         )}
       </main>
@@ -115,7 +120,7 @@ export function AllQueuesPage() {
  * The column's top row — the board's StatusRow, one level up: the door out on the left, and in the name's
  * slot the name of THIS level. Its line under it is the whole page at a glance.
  */
-function HeaderRow({ totals, projectCount }: { totals: ReturnType<typeof queuesTotals>; projectCount: number }) {
+function HeaderRow({ totals, projectCount, unopened }: { totals: ReturnType<typeof queuesTotals>; projectCount: number; unopened: number }) {
   return (
     <>
       <div className="mb-2.5 flex min-w-0 items-center gap-3 text-[12px]">
@@ -127,10 +132,11 @@ function HeaderRow({ totals, projectCount }: { totals: ReturnType<typeof queuesT
       <p data-xq-summary className="text-[11.5px] leading-snug text-muted-70">
         {totals.queued > 0
           ? `${totals.queued} in the queue across ${totals.projectsWithQueue} ${totals.projectsWithQueue === 1 ? "project" : "projects"}`
-          : projectCount > 0
-            ? "Nothing in any queue"
-            : "No projects yet"}
+          : projectCount > unopened
+            ? unopened > 0 ? "Nothing in any open project's queue" : "Nothing in any queue"
+            : projectCount > 0 ? "No project is open yet" : "No projects yet"}
         {totals.running > 0 ? ` · ${totals.running} running` : ""}
+        {unopened > 0 ? ` · ${unopened} not open` : ""}
       </p>
     </>
   )
@@ -351,12 +357,13 @@ function QueueBadge({ count }: { count: number }) {
 function Lane({ project, leaving }: { project: QueuesProject; leaving: LeavingCards }) {
   const scope = useMemo(
     () => ({
+      projectId: project.id,
       repo: project.githubRepo ?? null,
       appPath: `/project/${encodeURIComponent(project.slug)}`,
       baseDir: project.projectDir,
       homeDir: project.homeDir,
     }),
-    [project.githubRepo, project.slug, project.projectDir, project.homeDir],
+    [project.id, project.githubRepo, project.slug, project.projectDir, project.homeDir],
   )
   const boardHref = `/project/${encodeURIComponent(project.slug)}`
   return (
@@ -399,11 +406,18 @@ function Lane({ project, leaving }: { project: QueuesProject; leaving: LeavingCa
 }
 
 /** Inbox zero — the board's own empty queue, with what is still running across the machine. */
-function EmptyQueues({ running, runningProjects }: { running: number; runningProjects: number }) {
+function EmptyQueues({ running, runningProjects, unopened }: { running: number; runningProjects: number; unopened: number }) {
   return (
     <div data-xq-empty className="flex flex-col items-center gap-2 pt-2">
       <Inbox size={40} strokeWidth={1.25} className="text-muted-30" />
-      <div className="text-[13px] text-muted-80">No threads awaiting human input in any project</div>
+      <div className="text-[13px] text-muted-80">
+        {unopened > 0 ? "No threads awaiting human input in any open project" : "No threads awaiting human input in any project"}
+      </div>
+      {unopened > 0 && (
+        <div className="text-[11.5px] text-muted-60">
+          {unopened} {unopened === 1 ? "project is" : "projects are"} not open on this server — see Quiet
+        </div>
+      )}
       {running > 0 && (
         <div className="text-[11.5px] text-muted-60">
           {running} running across {runningProjects} {runningProjects === 1 ? "project" : "projects"}

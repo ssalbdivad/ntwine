@@ -210,6 +210,16 @@ const SCRIPTS = {
 for (const project of projects) {
   for (const thread of SCRIPTS[project.slug] ?? []) seed(project, thread)
 }
+
+// FILES THE HANDOFFS NAME, in the projects that name them — and the same relative path in the LAUNCHER
+// too. billing-worker's handoff says `jobs/enqueue.ts`; the server resolves a relative path against the
+// ASKING project's directory, so on a page that names no project a card that asked through the page's
+// own client would link the launcher's copy. The twin is what makes that mistake visible.
+for (const project of projects) {
+  if (project.slug !== "billing-worker" && project.id !== stack.launcher.id) continue
+  mkdirSync(join(project.dir, "jobs"), { recursive: true })
+  writeFileSync(join(project.dir, "jobs", "enqueue.ts"), `// ${project.slug}'s job runner\nexport {}\n`)
+}
 // OPEN every board. adhoc-stack registers its `--also-project` tenants after the server is up, which is
 // after the boot-time priming pass has already walked the registry (server/tenant-prime.ts), so without a
 // visit they stay closed and the page draws them as "Not open". One read each is the visit.

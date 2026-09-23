@@ -105,6 +105,15 @@ try {
 
   await page.screenshot({ path: join(shots, "aq-verify-top.png") })
 
+  await step("a relative file path in a card links the card's own project's file", async () => {
+    // billing-worker's handoff names `jobs/enqueue.ts`, which the seed plants in billing-worker AND the
+    // launcher: resolved through the page's client it would link the launcher's.
+    const scope = card("billing-worker", "dunning-retry-schedule")
+    const linked = await waitFor("the path to resolve", () => page.$eval(scope, (el) => [...el.querySelectorAll("code[data-local-path]")].map((c) => c.getAttribute("data-local-path"))).then((paths) => (paths.length ? paths : null)))
+    const billingDir = stack.tenants.find((t) => t.slug === "billing-worker").dir
+    check("a relative file path in a card links the card's own project's file", linked.some((p) => p.startsWith(billingDir) && p.endsWith("jobs/enqueue.ts")) && !linked.some((p) => p.startsWith(stack.launcher.dir)), linked.join(", "))
+  })
+
   await step("Show more opens a long handoff in place", async () => {
     const scope = card("acme-api", "fix-flaky-login-test")
     const before = await page.$eval(scope, (el) => el.getBoundingClientRect().height)
@@ -203,6 +212,29 @@ try {
     await page.click("[data-standalone-return]")
     await page.waitForFunction(() => location.pathname === "/queues", { timeout: 5000 })
     check("fullscreen's way out leads back to All queues", href === "/queues", `exit href ${href}`)
+  })
+
+  await step("a board left for All queues and returned to shows what was done there", async () => {
+    // The feed stays on a board's project while All queues is open (coming straight back is free), and
+    // drops that project's frames meanwhile — including the ones saying a thread was finished HERE.
+    await page.goto(`${origin}/project/acme-api`, { waitUntil: "networkidle2" })
+    await page.waitForSelector('[data-queue-card="fix-pagination-cursor"]', { timeout: 10_000 })
+    await page.click('[data-status-row] a[aria-label="All queues"]')
+    await page.waitForFunction(() => location.pathname === "/queues", { timeout: 5000 })
+    const scope = card("acme-api", "fix-pagination-cursor")
+    await page.waitForSelector(scope)
+    await (await buttonIn(scope, "Mark as done")).click()
+    await waitFor("the thread to archive", async () => { const t = await threadOf("acme-api", "fix-pagination-cursor"); return t && (t.archived || t.state === "archived") ? t : null })
+    await sleep(1500) // the board's delta is out, and dropped, while this page is still up
+    await page.click(`[data-xq-lane="${ids["acme-api"]}"] header a`)
+    await page.waitForFunction(() => location.pathname === "/project/acme-api", { timeout: 5000 })
+    // Judged at the board's FIRST paint of its queue — the moment another, still-queued card appears. A
+    // stale board paints the finished card at once; any later delta on the project would resync it a
+    // moment after, and waiting for that is how a check of this passes on the bug (it did, here: the
+    // seeded stack's busy threads resynced it within a second).
+    await page.waitForSelector('[data-queue-card="upgrade-postgres-driver"]', { timeout: 10_000 })
+    const stale = (await page.$('[data-queue-card="fix-pagination-cursor"]')) !== null
+    check("a board left for All queues and returned to shows what was done there", !stale, stale ? "the finished card painted on return" : "")
   })
 
   await step("the page raised no errors", async () => {

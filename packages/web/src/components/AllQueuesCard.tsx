@@ -20,15 +20,14 @@ import type { ThreadView } from "@frizz/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { displayTitle, lastActiveLabelAt, offersRetry } from "../groups.ts"
-import { threadKey, type QueuesProject } from "../lib/allQueues.ts"
+import { handoffParts, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { copyTextToClipboard } from "../lib/clipboard.ts"
 import { draftKey, draftStore, useDraftValues } from "../lib/drafts.ts"
-import { splitFenceBlocks } from "../lib/fenceBlocks.ts"
 import { rememberFullscreenOrigin } from "../lib/fullscreenHandoff.ts"
+import { DELIVERY_SEND_TIMEOUT_MS, withDeliveryRetry } from "../lib/eagerComposerSubmission.ts"
 import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/transcriptMetaLabels.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
-import { splitQuestionBlocks } from "../lib/questionBlocks.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { showToast } from "../store.ts"
@@ -36,6 +35,7 @@ import { QueueDismissContext } from "./ChatView.tsx"
 import { Composer } from "./Composer.tsx"
 import { LastActive } from "./LastActive.tsx"
 import { LinkedHtml } from "./LinkedHtml.tsx"
+import { QuestionBlockCard } from "./QuestionBlockCard.tsx"
 import { RegisteredAnsweringProvider, RegisteredQuestionStack } from "./RegisteredQuestionCards.tsx"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
 import { SnoozeButton } from "./SnoozeButton.tsx"
@@ -49,22 +49,22 @@ export function threadBoardHref(project: Pick<QueuesProject, "slug">, slug: stri
 }
 
 /**
- * A handoff, split the way the board's card draws it: the prose, then each ```done / ```awaiting fence
- * as its own card. The EMPTY ```question qst_… markers a worker writes to PLACE its registered cards are
- * dropped — this card draws every open question at its tail, so a marker left in would render as an
- * empty code block in the middle of the prose.
+ * A follow-up into another project's thread, delivered the way the board's composer delivers one: a
+ * refusal the server PROVED took no effect (runtime contention, a permission or model change mid-flight,
+ * a control-plane restart) is waited out and retried under the same delivery id, which the server's
+ * ledger dedupes; each attempt is bounded, so a hung request cannot hold the card.
  */
-export function handoffParts(text: string): { prose: string; fences: { kind: "done" | "awaiting"; body: string }[] } {
-  const unmarked = text.includes("```question")
-    ? splitQuestionBlocks(text).map((seg) => (seg.kind === "question" && seg.registeredId && seg.text.trim() === "" ? "" : seg.kind === "prose" ? seg.text : null)).filter((part): part is string => part !== null).join("\n")
-    : text
-  let prose = ""
-  const fences: { kind: "done" | "awaiting"; body: string }[] = []
-  for (const segment of splitFenceBlocks(unmarked)) {
-    if (segment.kind === "prose") prose += segment.text
-    else fences.push({ kind: segment.fenceKind, body: segment.body })
-  }
-  return { prose: prose.trim(), fences }
+function deliverFollowUp(project: QueuesProject, thread: ThreadView, message: string): Promise<void> {
+  const deliveryId = crypto.randomUUID()
+  return withDeliveryRetry(async () => {
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), DELIVERY_SEND_TIMEOUT_MS)
+    try {
+      await projectRpc(project.id).followUp({ slug: thread.id, sessionId: thread.sessionId ?? "", message, deliveryId }, { signal: abort.signal })
+    } finally {
+      clearTimeout(timer)
+    }
+  }, () => {})
 }
 
 /** The collapsed body's height: enough for a verdict line and the paragraph under it, never a wall. */
@@ -98,7 +98,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
     placeholderData: (previous) => previous,
   })
   const text = handoff.data?.text
-  const parts = useMemo(() => (text ? handoffParts(text) : null), [text])
+  const parts = useMemo(() => (text ? handoffParts(text, thread.questions) : null), [text, thread.questions])
   const boardHref = threadBoardHref(project, thread.id)
   const fullHref = `${boardHref}/full`
   const dismiss = useMemo(() => ({ dismiss: onLeave, cancel: onReturn }), [onLeave, onReturn])
@@ -144,7 +144,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
             </div>
           </header>
 
-          <ProjectLinkScope project={project} threadSlug={thread.id}>
+          <ProjectLinkScope project={project}>
             <div className="flex min-w-0 flex-col gap-4 px-5 pt-5 pb-4">
               {handoff.data?.asked && <AskedBubble text={handoff.data.asked} />}
               {/* Only the PROSE clamps. The fence card under it is the handoff's ledger — what shipped, or
@@ -155,11 +155,16 @@ export const AllQueuesCard = memo(function AllQueuesCard({
                     <Prose md={parts.prose} />
                   </ClampedBody>
                 )
-              ) : thread.lastAssistant || handoff.isError ? (
+              ) : !handoff.data && (thread.lastAssistant || handoff.isError) ? (
                 // The board's own 200-character preview, until the whole message lands: a card that shows
-                // the gist at once beats one that is blank for a round trip.
+                // the gist at once beats one that is blank for a round trip. Only UNTIL it lands: a handoff
+                // with no text is a worker that has not answered the human's last turn, and the preview is
+                // then the reply to an earlier one.
                 <p className="text-[13px] leading-5 text-muted-80">{thread.lastAssistant ?? "The handoff could not be read."}</p>
               ) : null}
+              {parts?.questions.map((question, index) => (
+                <QuestionBlockCard key={index} raw={question.raw} questionKind={question.questionKind} danger={question.danger} />
+              ))}
               {parts?.fences.map((fence, index) => <FenceBody key={index} kind={fence.kind} body={fence.body} />)}
               {/* Not gated on the handoff: a STALL's last record is often a tool call with no prose at
                   all, and its notice is about the process, not the message (showsRestedCard). */}
@@ -196,8 +201,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
 function RetryButton({ project, thread, onSent, onFailed }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onFailed: () => void }) {
   const queryClient = useQueryClient()
   const retry = useMutation({
-    mutationFn: () =>
-      projectRpc(project.id).followUp({ slug: thread.id, sessionId: thread.sessionId ?? "", message: STALLED_RETRY_MESSAGE, deliveryId: crypto.randomUUID() }),
+    mutationFn: () => deliverFollowUp(project, thread, STALLED_RETRY_MESSAGE),
     onMutate: onSent,
     onSuccess: () => {
       showToast("Retrying…")
@@ -237,7 +241,7 @@ function RetryButton({ project, thread, onSent, onFailed }: { project: QueuesPro
  * capture phase, and sends them to the thread's own project — a file through that project's opener, a
  * thread link to that project's board.
  */
-function ProjectLinkScope({ project, threadSlug, children }: { project: QueuesProject; threadSlug: string; children: ReactNode }) {
+function ProjectLinkScope({ project, children }: { project: QueuesProject; children: ReactNode }) {
   const navigate = useNavigate()
   const onClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
@@ -267,7 +271,10 @@ function ProjectLinkScope({ project, threadSlug, children }: { project: QueuesPr
     if (href.startsWith(`/project/${encodeURIComponent(project.slug)}/`)) {
       event.preventDefault()
       event.stopPropagation()
-      if (href.endsWith("/full")) rememberFullscreenOrigin(threadSlug, "/queues")
+      // Keyed by the thread the link OPENS, which is not always this card's: a handoff can link another
+      // thread's /full, and the way out of that page looks its origin up by its own slug.
+      const full = href.match(/\/thread\/([^/?#]+)\/full\/?$/)
+      if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), "/queues")
       navigate(href)
     }
   }
@@ -337,6 +344,14 @@ function ClampedBody({ resetKey, children }: { resetKey: string; children: React
       <div
         className="relative min-w-0 overflow-hidden"
         style={clipped ? { maxHeight: CLAMP_PX, maskImage: "linear-gradient(to bottom, black 62%, transparent)" } : undefined}
+        // KEYBOARD FOCUS OPENS IT. The clipped half still holds links, and tabbing onto one scrolled this
+        // overflow box to show it — an overflow:hidden box is still a scroll container — leaving the
+        // collapsed card showing the middle of the message. A reader who tabbed in wants the rest.
+        onFocus={(event) => {
+          if (!clipped || !(event.target instanceof Element) || !event.target.matches(":focus-visible")) return
+          event.currentTarget.scrollTop = 0
+          setOpen(true)
+        }}
       >
         <div ref={inner} className="flex min-w-0 flex-col gap-4">{children}</div>
       </div>
@@ -375,15 +390,18 @@ function ReplyBox({ project, thread, onSent, onFailed }: { project: QueuesProjec
   const text = useDraftValues([key]).get(key) ?? ""
   const [error, setError] = useState<string>()
   const send = useMutation({
-    mutationFn: (message: string) =>
-      projectRpc(project.id).followUp({ slug: thread.id, sessionId: thread.sessionId ?? "", message, deliveryId: crypto.randomUUID() }),
+    mutationFn: (message: string) => deliverFollowUp(project, thread, message),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] }),
     onError: (cause, message) => {
       // The card faded on send; the message did not land, so bring it back with the text still in it —
       // unless something new was typed meanwhile, which is not ours to overwrite.
       if (!draftStore.get(key)) draftStore.set(key, message)
       onFailed()
-      setError(cause instanceof Error ? cause.message : "The reply could not be sent.")
+      const reason = cause instanceof Error ? cause.message : "The reply could not be sent."
+      // A TOAST as well as the inline line: by the time a failure lands the card has usually finished its
+      // exit, and the one that comes back is a fresh mount that never saw this error.
+      showToast(`Reply failed: ${reason.slice(0, 80)}`)
+      setError(reason)
     },
   })
   const submit = () => {

@@ -1,5 +1,7 @@
-import { useLayoutEffect, useSyncExternalStore, type RefObject } from "react"
-import { rpc } from "../api/rpc.ts"
+import { useContext, useLayoutEffect, useSyncExternalStore, type RefObject } from "react"
+import { projectRpc, rpc, type Api } from "../api/rpc.ts"
+import { apiBase } from "./base-path.ts"
+import { MarkdownScopeContext } from "./useMarkdown.ts"
 
 // Clickable inline-code file paths. Agent prose often mentions files in backticks (`~/.claude/CLAUDE.md`,
 // `packages/web/src/App.tsx`). When the text of an inline `<code>` resolves to a real file on disk under
@@ -44,12 +46,28 @@ export function isPathCandidate(raw: string): boolean {
 // Session cache: candidate text → canonical openable path, or null when it doesn't resolve to a real
 // file under the gate. `undefined` = not yet asked. Module-scoped so every prose surface shares it and a
 // given path is resolved once. Files rarely appear/vanish mid-session, so stale-none is acceptable.
+//
+// KEYED BY PROJECT AS WELL AS TEXT (`cacheKey`). The server resolves a relative or bare candidate against
+// the ASKING project's directory, so `README.md` names a different file in every project. Keyed by text
+// alone, the first board to ask answered for every board after it for the rest of the session, and on
+// the All queues page — every project's prose on one page — every card's `package.json` would have
+// linked the launching project's.
 const cache = new Map<string, string | null>()
 
 // Candidates a batch is out for right now. A second surface that finds the same path while the first
 // surface's batch is in flight must not send it again — a question card's context, its options and its
 // footnote each decorate their own element, and one path routinely appears in two of them.
 const inflight = new Set<string>()
+
+/** Whose files a candidate is resolved among: a project id when the prose names one, else the page's API. */
+export function cacheKey(space: string, raw: string): string {
+  return `${space}\0${raw}`
+}
+
+/** A cached resolution: the path, null for "not a file", undefined for "not asked yet". */
+export function cachedResolution(space: string, raw: string): string | null | undefined {
+  return cache.get(cacheKey(space, raw))
+}
 
 // The re-tag signal every mounted hook subscribes to: bumped whenever a batch lands with new answers,
 // so EVERY surface re-runs its decoration — not only the one whose batch it was. A hook that waited
@@ -71,24 +89,30 @@ const RESOLVE_BATCH = 128
 // Resolve the not-yet-known candidates via batched queries; bumps `version` if any new answer landed. A
 // chunk that fails its round-trip (e.g. an older server without the route) caches its own candidates as
 // unresolved so they stay plain code until the next reload — without dropping the chunks that succeeded.
-async function resolveUnknown(paths: string[]): Promise<void> {
-  const wanted = [...new Set(paths)].filter((p) => !cache.has(p) && !inflight.has(p))
+//
+// `space` and `api` travel together and are resolved by the CALLER, before any await: `api` is the client
+// of the project whose files these are, and `space` is the cache partition for that project.
+export async function resolveUnknown(paths: string[], space: string, api: Pick<Api, "resolveLocalPaths"> = rpc): Promise<void> {
+  const wanted = [...new Set(paths)].filter((p) => !cache.has(cacheKey(space, p)) && !inflight.has(cacheKey(space, p)))
   if (!wanted.length) return
-  for (const p of wanted) inflight.add(p)
+  for (const p of wanted) inflight.add(cacheKey(space, p))
   const chunks: string[][] = []
   for (let i = 0; i < wanted.length; i += RESOLVE_BATCH) chunks.push(wanted.slice(i, i + RESOLVE_BATCH))
   const batches = await Promise.all(chunks.map(async (chunk) => {
     try {
-      return (await rpc.resolveLocalPaths({ paths: chunk })).resolved
+      return (await api.resolveLocalPaths({ paths: chunk })).resolved
     } catch {
       return chunk.map((input) => ({ input, path: null }))
     }
   }))
   let changed = false
   for (const resolved of batches) {
-    for (const r of resolved) if (!cache.has(r.input)) { cache.set(r.input, r.path); changed = true }
+    for (const r of resolved) {
+      const key = cacheKey(space, r.input)
+      if (!cache.has(key)) { cache.set(key, r.path); changed = true }
+    }
   }
-  for (const p of wanted) inflight.delete(p)
+  for (const p of wanted) inflight.delete(cacheKey(space, p))
   if (!changed) return
   version += 1
   for (const listener of listeners) listener()
@@ -104,11 +128,16 @@ function decorate(code: Element, openPath: string): void {
 // resolve to real files. Runs in a LAYOUT effect so cached hits re-tag before paint (no flicker) when
 // `html` changes — React replaced the innerHTML, wiping prior tags. Also re-runs after any batch
 // resolves (via the shared `version`). Block code (inside `<pre>`) is left alone.
+//
+// WHOSE files: the project a MarkdownScopeContext names (the All queues page, which shows every
+// project's prose on a page that names none), else the page's own.
 export function useLocalFileCodeLinks(ref: RefObject<HTMLElement | null>, html: string): void {
   const seen = useSyncExternalStore(subscribe, readVersion, readVersion)
+  const projectId = useContext(MarkdownScopeContext)?.projectId
   useLayoutEffect(() => {
     const root = ref.current
     if (!root) return
+    const space = projectId ?? apiBase()
     const unknown: string[] = []
     for (const code of root.querySelectorAll("code")) {
       if (code.closest("pre")) continue // block code, not an inline reference
@@ -120,10 +149,10 @@ export function useLocalFileCodeLinks(ref: RefObject<HTMLElement | null>, html: 
       if (code.closest("a, [data-local-path]")) continue
       const raw = (code.textContent ?? "").trim()
       if (!isPathCandidate(raw)) continue
-      const resolved = cache.get(raw)
+      const resolved = cachedResolution(space, raw)
       if (resolved === undefined) unknown.push(raw)
       else if (resolved) decorate(code, resolved)
     }
-    if (unknown.length) void resolveUnknown(unknown)
-  }, [ref, html, seen])
+    if (unknown.length) void resolveUnknown(unknown, space, projectId ? projectRpc(projectId) : rpc)
+  }, [ref, html, seen, projectId])
 }

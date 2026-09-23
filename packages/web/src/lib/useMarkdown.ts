@@ -25,7 +25,11 @@ import { localPathBase, subscribeLocalPathBase, type LocalPathBase } from "./loc
  * cards in one of these, and every markdown surface inside — its own prose AND the shared question
  * cards it reuses — renders against that project without knowing the page is different.
  */
-export const MarkdownScopeContext = createContext<Required<Pick<MarkdownScopeOptions, "repo" | "appPath">> & Pick<MarkdownScopeOptions, "baseDir" | "homeDir"> | null>(null)
+export const MarkdownScopeContext = createContext<MarkdownScope | null>(null)
+
+/** A project named explicitly, for its prose: `projectId` is also whose files an inline-code path is
+ *  looked up among (localFileCode.ts). */
+export type MarkdownScope = Required<Pick<MarkdownScopeOptions, "repo" | "appPath">> & Pick<MarkdownScopeOptions, "baseDir" | "homeDir"> & { projectId: string }
 
 /** The repo GitHub-style references link to, as a render input. */
 export function useGithubRepoForLinks(): string | null {

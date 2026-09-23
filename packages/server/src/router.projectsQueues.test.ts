@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { tmpdir } from "node:os"
 import test from "node:test"
-import type { BoardSnapshot, ThreadView, TranscriptMessage } from "@frizz/shared"
+import { questionAnswerMessage, type BoardSnapshot, type ThreadView, type TranscriptMessage } from "@frizz/shared"
 import { createRouter, handoffOf } from "./router.ts"
 import type { AppContext } from "./context.ts"
 import type { BoardManager } from "./board.ts"
@@ -39,6 +39,10 @@ test("answers every open project with its open threads, its Done count and the i
           session("finished-2", { state: "archived" }),
           // Archived but its turn is still going: the project's own rail keeps it in Active, not Done.
           session("wrapping-up", { state: "archived", runtime: "running" }),
+          // …and so is one whose turn is over while a sub-agent it dispatched still runs. A finished one
+          // is not live work, so that thread is Done.
+          session("sub-agent-out", { state: "archived", subAgents: [{ state: "running" } as never] }),
+          session("sub-agent-back", { state: "archived", subAgents: [{ state: "completed" } as never] }),
           // A project's own terminal is read-only and never queues; a legacy row is not a session.
           session("terminal", { foreign: true, needsYou: true }),
           { id: "legacy", kind: "legacy" },
@@ -58,8 +62,8 @@ test("answers every open project with its open threads, its Done count and the i
     { projectSlug: alpha!.projectSlug, projectName: alpha!.projectName, projectDir: alpha!.projectDir, homeDir: alpha!.homeDir, githubRepo: alpha!.githubRepo },
     { projectSlug: "alpha", projectName: "Alpha", projectDir: "/work/alpha", homeDir: "/home/me", githubRepo: "me/alpha" },
   )
-  assert.deepEqual(alpha!.threads.map((t) => t.id), ["queued", "running", "snoozed", "wrapping-up"])
-  assert.equal(alpha!.doneCount, 2)
+  assert.deepEqual(alpha!.threads.map((t) => t.id), ["queued", "running", "snoozed", "wrapping-up", "sub-agent-out"])
+  assert.equal(alpha!.doneCount, 3)
   assert.deepEqual(
     { projectSlug: beta!.projectSlug, projectName: beta!.projectName, projectDir: beta!.projectDir, threads: beta!.threads, doneCount: beta!.doneCount },
     { projectSlug: "b", projectName: "b", projectDir: "/work/b", threads: [], doneCount: 0 },
@@ -93,8 +97,35 @@ test("a handoff is the last assistant message that says something, and the human
   assert.equal(handoff.asked, "Also check the tie-break.")
 })
 
-test("a thread that has not spoken has no handoff, and a very long ask is clipped", () => {
-  assert.deepEqual(handoffOf([msg("user", "TASK:\nGo.")]), {})
+test("an ANSWER to a registered question is the human's turn, though Frizz delivered it as a wake", () => {
+  const answered = questionAnswerMessage([{ questionId: "qst_1", question: "Seconds or epoch?", chosen: ["Seconds"] }])
+  const handoff = handoffOf([
+    msg("user", "TASK:\nAdd the rate-limit headers."),
+    msg("assistant", "**Needs you** — seconds or epoch?"),
+    msg("user", `${answered}\n\n<!-- frizz-wake:abc -->`, { wake: true, displayText: answered }),
+    msg("assistant", "**Fixed** — seconds it is."),
+  ])
+  assert.equal(handoff.asked, answered, "the card quotes the answer, not the task before it")
+  assert.equal(handoff.text, "**Fixed** — seconds it is.")
+})
+
+test("a reply belongs to the human's LAST turn: a turn with no reply yet has an ask and no text", () => {
+  const handoff = handoffOf([
+    msg("user", "TASK:\nFix the cursor."),
+    msg("assistant", "**Fixed** — ties no longer skip rows."),
+    msg("user", "Also backfill the old cursors."),
+  ])
+  assert.equal(handoff.asked, "Also backfill the old cursors.")
+  assert.equal(handoff.text, undefined, "the earlier reply answered an earlier turn")
+  // A QUEUED send has not been delivered, so it is not a turn yet.
+  const queued = handoffOf([msg("user", "TASK:\nGo."), msg("assistant", "Done."), msg("user", "One more thing", { queued: true })])
+  assert.equal(queued.asked, "TASK:\nGo.")
+  assert.equal(queued.text, "Done.")
+})
+
+test("an empty window has no handoff, a thread that has not spoken has only its ask, and a very long ask is clipped", () => {
+  assert.deepEqual(handoffOf([]), {})
+  assert.deepEqual(handoffOf([msg("user", "TASK:\nGo.")]), { asked: "TASK:\nGo.", askedAt: "2026-09-23T10:00:00.000Z" })
   const long = "x".repeat(5000)
   const handoff = handoffOf([msg("user", long), msg("assistant", "Done.")])
   assert.equal(handoff.asked?.length, 1200)
