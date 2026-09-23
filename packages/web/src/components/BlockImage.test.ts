@@ -63,8 +63,13 @@ test("a Markdown image is framed from the same constants, in spans, only in bloc
   // a caption) that a block frame would burst.
   assert.match(markdown, /if \(block\) frameImage\(el\)/)
   // `parser` since the built-in `.md` reader added a second Marked instance (soft breaks for a FILE);
-  // both go through this one call, so the block flag is still asserted on the single block path.
-  assert.match(markdown, /parser\.parse\(md, \{ async: false \}\) as string, \{ block: true[,}]/)
+  // both go through this one call, so the block flag is still asserted on the single block path. The
+  // parse is a thunk since a caller can name the GitHub repo to render as (`withGithubRepo`), so the
+  // flag is asserted on mdToHtml's own sanitize rather than on one expression.
+  const mdToHtml = markdown.match(/export function mdToHtml[\s\S]*?\n}\n/)?.[0]
+  assert.ok(mdToHtml, "mdToHtml source should remain discoverable")
+  assert.match(mdToHtml, /parser\.parse\(md, \{ async: false \}\) as string/)
+  assert.match(mdToHtml, /sanitize\(html, \{ block: true[,}]/)
   assert.equal(/parseInline\([^)]*\)[^)]*\{[^}]*block: true/.test(markdown), false, "the inline path must not frame")
 })
 
