@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, Github, Hourglass, Inbox, Loader2, Pin, PinOff, RotateCcw, TerminalSquare, Timer } from "lucide-react"
+import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, ExternalLink, Github, Hourglass, Loader2, Pin, PinOff, RotateCcw, SquareCheck, TerminalSquare, Timer, UserRound } from "lucide-react"
 import type { BoardSnapshot, ThreadView } from "@frizz/shared"
 import { store, openThread, scrollToQueueCard, queueCardTargetY, pushSubAgentDrawer, showToast, QUEUE_CARD_VIEWPORT_TOP } from "../store.ts"
 import { rpc } from "../api/rpc.ts"
@@ -244,7 +244,7 @@ export function Sidebar() {
               form of SectionHeader, so it lines up with the collapsible Snoozed/Done headers. */}
           {sections.pinned.length > 0 && (
             <section aria-label="Pinned">
-              <SectionHeader label="Pinned" count={sections.pinned.length} />
+              <SectionHeader label="Pinned" icon={<Pin size={11} />} count={sections.pinned.length} />
               {sections.pinned.map((t) => (
                 <div key={t.id}>
                   <ThreadRow t={t} active={activeId === t.id} onQueueNavigate={navigateToQueueCard} />
@@ -263,9 +263,8 @@ export function Sidebar() {
               … should not be collapsible"). The labels use the maintainer's own words for the bands —
               READY for the cue and WORKING for the spinning rows (QUEUE and RUNNING until 2026-09-23),
               rather than the code's Rested/Active keys, because the label is copy the human reads. Each
-              wears an icon naming WHOSE move it is — an inbox (yours) and a bot (the agent's) — since
-              "Working" alone does not say who is working. The bot is static: the rows under it already
-              spin, and a header is permanent chrome.
+              wears an icon naming WHOSE move it is — a person (yours) and a bot (the agent's) — since
+              "Working" alone does not say who is working (see SectionHeader).
               RESTED — the cue — sits FIRST, right under the prompt box (maintainer 2026-08-08), in the
               EXACT queue order, so the rail's top row is opposite the queue's top card and scrolling
               the queue walks the scroll marker straight down this rail. ACTIVE — live work that isn't
@@ -284,7 +283,7 @@ export function Sidebar() {
               )
               return (
                 <>
-                  {rested.length > 0 && <SectionHeader label="Ready" icon={<Inbox size={11} />} count={rested.length} />}
+                  {rested.length > 0 && <SectionHeader label="Ready" icon={<UserRound size={11} />} count={rested.length} />}
                   {rested.map(renderRow(true))}
                   {running.length > 0 && rested.length > 0 && <hr className="my-3 border-border/50" />}
                   {running.length > 0 && <SectionHeader label="Working" icon={<Bot size={11} />} count={running.length} />}
@@ -313,6 +312,7 @@ export function Sidebar() {
               {/* Same header component as Done so the bands can never visually drift. */}
               <SectionHeader
                 label="Snoozed"
+                icon={<SnoozeMark size={11} />}
                 count={heldThreads.length}
                 collapsed={collapsed.snoozed}
                 onToggle={() => (store.sidebarCollapsed.snoozed = !store.sidebarCollapsed.snoozed)}
@@ -335,6 +335,7 @@ export function Sidebar() {
               <hr className="my-3 border-border/50" />
               <SectionHeader
                 label="Done"
+                icon={<SquareCheck size={11} />}
                 count={inactiveThreads.length}
                 collapsed={collapsed.inactive}
                 onToggle={() => (store.sidebarCollapsed.inactive = !store.sidebarCollapsed.inactive)}
@@ -357,6 +358,7 @@ export function Sidebar() {
               <hr className="my-3 border-border/50" />
               <SectionHeader
                 label="External"
+                icon={<ExternalLink size={11} />}
                 count={externalSessions.length}
                 collapsed={collapsed.external}
                 onToggle={() => (store.sidebarCollapsed.external = !store.sidebarCollapsed.external)}
@@ -445,24 +447,29 @@ const CommandRow = memo(function CommandRow({ t, active, onQueueNavigate }: { t:
   )
 })
 
-// A section header: an optional collapse caret, the label, and the count. ONE source of truth for
-// every band header so they can never visually drift apart again. Snoozed, Done and External are
-// collapsible; Pinned, Ready and Working (since 2026-09-19) omit onToggle and render as a static div
-// with a caret-width slot, so a non-collapsible label still aligns with the collapsible ones. `icon`
-// fills that slot (Ready, Working); without one it is an empty spacer.
+// A section header: an optional collapse caret, the band's icon, the label, and the count. ONE source
+// of truth for every band header so they can never visually drift apart again. Snoozed, Done and
+// External are collapsible; Pinned, Ready and Working (since 2026-09-19) omit onToggle and render as a
+// static div with a caret-width spacer, so every icon and label sits in the same column.
+//
+// Every band wears an icon (maintainer 2026-09-23), and above all the two whose names alone do not say
+// whose move it is: Ready is a person (yours) and Working a bot (the agent's). The bot is static — the
+// rows under it already spin, and a header is permanent chrome.
 export function SectionHeader({ label, icon, count, collapsed, onToggle }: { label: string; icon?: ReactNode; count: number; collapsed?: boolean; onToggle?: () => void }) {
   const inner = (
     <>
       {onToggle ? (
         <ChevronRight size={11} className={`transition-transform ${collapsed ? "" : "rotate-90"}`} />
       ) : (
-        // Reserve the caret's width so a non-collapsible label lines up with the collapsible ones.
-        // The lift puts the icon's ink on the uppercase label's cap band: Inbox and Bot both measured
-        // 1.75px low at 11px sans (0.16em) when box-centred; residual ~0 after.
-        <span className="flex w-[11px] shrink-0 -translate-y-[0.16em] justify-center" aria-hidden>
-          {icon}
-        </span>
+        // Reserve the caret's width so a non-collapsible header lines up with the collapsible ones.
+        <span className="w-[11px] shrink-0" aria-hidden />
       )}
+      {/* The lift puts each icon's ink on the uppercase label's cap band. Box-centred at 11px sans,
+          every one of them measured 1.75px low (0.16em) — they all fill their viewBox symmetrically
+          — and the residual after the lift is ~0. Re-measure if an icon with off-centre ink joins. */}
+      <span className="flex w-[11px] shrink-0 -translate-y-[0.16em] justify-center" aria-hidden>
+        {icon}
+      </span>
       <span>{label}</span>
       {/* Count rides right next to its label (not floated to the far edge) — it's meaningful data,
           not a margin ornament; raised contrast so it actually reads. */}
@@ -476,6 +483,17 @@ export function SectionHeader({ label, icon, count, collapsed, onToggle }: { lab
     </button>
   ) : (
     <div className={cls}>{inner}</div>
+  )
+}
+
+// Snoozed's header icon: "zzz", which lucide does not draw. Lucide's grid and pen (24 viewBox, stroke
+// 2, round caps and joins) so it sits beside the lucide icons on the other headers as one family.
+function SnoozeMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12h8l-8 9h8" />
+      <path d="M14 3h7l-7 7h7" />
+    </svg>
   )
 }
 
