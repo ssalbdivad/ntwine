@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, ExternalLink, Github, Hourglass, Loader2, Pin, PinOff, RotateCcw, SquareCheck, TerminalSquare, Timer, UserRound } from "lucide-react"
+import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, ExternalLink, Github, Hourglass, Loader2, Pin, PinOff, RotateCcw, SquareCheck, TerminalSquare, Timer } from "lucide-react"
 import type { BoardSnapshot, ThreadView } from "@frizz/shared"
 import { store, openThread, scrollToQueueCard, queueCardTargetY, pushSubAgentDrawer, showToast, QUEUE_CARD_VIEWPORT_TOP } from "../store.ts"
 import { rpc } from "../api/rpc.ts"
@@ -263,7 +263,7 @@ export function Sidebar() {
               … should not be collapsible"). The labels use the maintainer's own words for the bands —
               READY for the cue and WORKING for the spinning rows (QUEUE and RUNNING until 2026-09-23),
               rather than the code's Rested/Active keys, because the label is copy the human reads. Each
-              wears an icon naming WHOSE move it is — a person (yours) and a bot (the agent's) — since
+              wears an icon naming WHOSE move it is — a developer (yours) and a bot (the agent's) — since
               "Working" alone does not say who is working (see SectionHeader).
               RESTED — the cue — sits FIRST, right under the prompt box (maintainer 2026-08-08), in the
               EXACT queue order, so the rail's top row is opposite the queue's top card and scrolling
@@ -283,7 +283,7 @@ export function Sidebar() {
               )
               return (
                 <>
-                  {rested.length > 0 && <SectionHeader label="Ready" icon={<UserRound size={11} />} count={rested.length} />}
+                  {rested.length > 0 && <SectionHeader label="Ready" icon={<DevMark size={11} />} count={rested.length} />}
                   {rested.map(renderRow(true))}
                   {running.length > 0 && rested.length > 0 && <hr className="my-3 border-border/50" />}
                   {running.length > 0 && <SectionHeader label="Working" icon={<Bot size={11} />} count={running.length} />}
@@ -453,7 +453,7 @@ const CommandRow = memo(function CommandRow({ t, active, onQueueNavigate }: { t:
 // static div with a caret-width spacer, so every icon and label sits in the same column.
 //
 // Every band wears an icon (maintainer 2026-09-23), and above all the two whose names alone do not say
-// whose move it is: Ready is a person (yours) and Working a bot (the agent's). The bot is static — the
+// whose move it is: Ready is a developer (yours) and Working a bot (the agent's). The bot is static — the
 // rows under it already spin, and a header is permanent chrome.
 export function SectionHeader({ label, icon, count, collapsed, onToggle }: { label: string; icon?: ReactNode; count: number; collapsed?: boolean; onToggle?: () => void }) {
   const inner = (
@@ -483,6 +483,24 @@ export function SectionHeader({ label, icon, count, collapsed, onToggle }: { lab
     </button>
   ) : (
     <div className={cls}>{inner}</div>
+  )
+}
+
+// Ready's header icon: a developer — a swept fringe, round glasses — posed as the counterpart of
+// lucide's Bot on Working, down to the same ear ticks either side, so the pair reads as "you" beside
+// "the agent" (maintainer 2026-09-23: "a cute developer face that mirrors the robot face", then "give
+// it some normal hair and glasses"). Lucide has no such face; this is drawn on its grid and pen.
+function DevMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 11.5v2a7.5 7.5 0 0 0 15 0v-2" />
+      <path d="M4.5 11.5C4.5 7 7.8 4 12 4s7.5 3 7.5 7.5C15.5 11.5 12 10.5 10 8.5 9 10 7 11.2 4.5 11.5z" />
+      <circle cx="9" cy="15.5" r="1.8" />
+      <circle cx="15" cy="15.5" r="1.8" />
+      <path d="M10.8 15.5h2.4" />
+      <path d="M2.5 14h2" />
+      <path d="M19.5 14h2" />
+    </svg>
   )
 }
 
