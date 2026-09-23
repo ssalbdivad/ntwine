@@ -363,8 +363,9 @@ export function Sidebar() {
               frizz's work at all, so it must never compete with the queue for the reader's eye. Only
               RESTED sessions are in it — the server drops a spinning one, because a session that is
               working is one the human already has open in its own window (maintainer 2026-08-19).
-              Rows are read-only: ThreadActionBar swaps the composer for a plain "running in an external
-              terminal" line, and there is no queue card, no verb and no Snoozed/Done to fall into. */}
+              There is no queue card, no verb and no Snoozed/Done to fall into. The composer is the
+              ordinary one, and sending from it TAKES THE SESSION OVER: the router's
+              promoteExternalSession registers it, and the row leaves this band as an ordinary thread. */}
           {externalSessions.length > 0 && (
             <section aria-label="External">
               <hr className="my-3 border-border/50" />
@@ -728,7 +729,7 @@ export const ThreadRow = memo(function ThreadRow({
                 {foreign && (
                   <span
                     className="petite-caps ml-1.5 inline-block rounded border border-border/60 px-1 align-[2px] text-[9.5px] leading-[14px] text-muted-55"
-                    title="Read-only — running in an external terminal"
+                    title="Started in a terminal outside Frizz — sending a message takes it over"
                   >
                     terminal
                   </span>
