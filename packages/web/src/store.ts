@@ -296,9 +296,9 @@ export function pushBackgroundShellDrawer(slug: string, id: string, opts: { labe
 // seeing) opens the chat drawer. The doc drawer carries the adopt ("Start a session") affordance.
 export function openThread(slug: string): void {
   const t = store.board?.threads.find((x) => x.id === slug)
+  if (t?.needsYou && scrollToQueueCard(slug)) return
   // A terminal command thread has no chat and no document: its drawer IS the live terminal.
   if (t?.kind === "command") return pushDrawer("terminal", slug)
-  if (t?.needsYou && scrollToQueueCard(slug)) return
   pushDrawer(t && t.runtime === "none" ? "doc" : "thread", slug)
 }
 
