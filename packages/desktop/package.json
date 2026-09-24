@@ -1,0 +1,28 @@
+{
+  "name": "@frizz/desktop",
+  "productName": "Frizz",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frizz as a desktop app: a window onto the Frizz server on this machine",
+  "homepage": "https://github.com/colinhacks/frizz",
+  "license": "MIT",
+  "author": {
+    "name": "Colin McDonnell",
+    "email": "3084745+colinhacks@users.noreply.github.com"
+  },
+  "type": "module",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "build": "nub scripts/build.mjs",
+    "start": "nub scripts/build.mjs && electron .",
+    "dist": "nub scripts/build.mjs && nub x -p electron-builder@26.15.3 electron-builder --publish never"
+  },
+  "devDependencies": {
+    "@frizz/server": "workspace:*",
+    "@frizz/shared": "workspace:*",
+    "@types/node": "^24",
+    "electron": "^44.4.5",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7"
+  }
+}

@@ -1,0 +1,33 @@
+# Packaging for the desktop shell. electron-builder is fetched on demand by `nub run desktop:dist`
+# rather than installed with the workspace: it is ~94 MB of tooling nobody but a packager needs.
+appId: dev.frizz.app
+productName: Frizz
+directories:
+  output: out
+# The app is two bundled files and an icon. No server and no node_modules ship inside it — the server
+# is the one `npx frizz` installs and keeps updated, so this binary never goes stale with it.
+files:
+  - dist/**
+  - package.json
+asar: true
+electronLanguages: [en-US]
+icon: dist/icon.png
+publish: null
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+mac:
+  target: [dmg, zip]
+  category: public.app-category.developer-tools
+  # Ad-hoc: an arm64 app with no signature at all is reported as "damaged" and cannot be opened.
+  # This is not notarization — a browser-downloaded build still needs Open Anyway once.
+  identity: "-"
+  hardenedRuntime: false
+linux:
+  # deb first: electron-builder 26's AppImage needs libfuse2, which Ubuntu 24.04 no longer installs.
+  target: [deb, AppImage]
+  category: Development
+win:
+  target: [nsis]

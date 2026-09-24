@@ -88,6 +88,10 @@ export function notify(event: Extract<ServerEvent, { type: "notify" }>): void {
   const project = projectSlug() ?? store.board?.projectSlug
   n.onclick = () => {
     window.focus()
+    // The desktop app (packages/desktop): `window.focus()` does not raise an Electron window the way it
+    // raises a browser tab, so its preload offers the one call that does.
+    const desktop = (window as { frizzDesktop?: { focusWindow(): void } }).frizzDesktop
+    desktop?.focusWindow()
     // Same project (the overwhelmingly common case): the in-app drawer, no reload. Otherwise a real
     // navigation, because the destination is another project's page — one document load, which is
     // what switching projects by URL has always been.
