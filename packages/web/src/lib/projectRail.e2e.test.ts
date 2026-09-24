@@ -12,12 +12,12 @@ const baseUrl = process.env.FRIZZ_PROJECT_RAIL_E2E_URL
 // THE RAIL FOLLOWS THE SETTING WITHOUT A RELOAD, after a client-side project switch. `["settingsGet"]`
 // hashes under the project the URL names at render time (lib/queryKeyScope.ts), and the layout that
 // hosts the rail is mounted once and never re-rendered by a navigation — so the rail's query stayed
-// bound to the project it was cold-loaded on (the grid's "" scope), while the drawer wrote its save
-// under the board's scope. The select flipped to "Always shown" and the rail did not appear until a
+// bound to the project it was cold-loaded on (the project grid's "" scope, when this broke; Everything's
+// focus project now), while the drawer wrote its save under the board's scope. The select flipped to "Always shown" and the rail did not appear until a
 // reload happened to land on a board (maintainer 2026-08-24: "it literally only shows up when I'm in
 // the home page"). Every piece is fine in isolation; only a real navigation followed by a real save
 // reaches the seam, so this drives exactly that sequence.
-test("flipping 'Project sidebar' on a board reached from the grid shows the rail without a reload", {
+test("flipping 'Project sidebar' on a board reached from Everything shows the rail without a reload", {
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
@@ -38,28 +38,40 @@ test("flipping 'Project sidebar' on a board reached from the grid shows the rail
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 })
     const rail = () => page.evaluate(() => document.querySelector('nav[aria-label="Projects"]') !== null)
 
-    await page.goto(`${baseUrl}/projects`, { waitUntil: "networkidle2" })
-    assert.equal(await rail(), false, "the rail starts hidden on the grid")
+    await page.goto(`${baseUrl}/`, { waitUntil: "networkidle2" })
+    await page.waitForSelector("[data-xq-project-row]", { timeout: 15_000 })
+    assert.equal(await rail(), false, "the rail starts hidden on Everything")
 
-    // Into a board CLIENT-SIDE, through the grid's own tile — a document load would rebind the cache.
-    const slug = await page.evaluate(() => {
-      const a = document.querySelector<HTMLAnchorElement>('a[href^="/project/"]')
-      a?.click()
-      return a?.getAttribute("href")?.split("/")[2]
+    // Into a board CLIENT-SIDE, through a project's own "…" menu — a document load would rebind the
+    // cache. A project OTHER than the page's focus, so the board's scope differs from the cold load's.
+    const target = await page.evaluate(() => {
+      const focus = location.pathname.split("/")[2]
+      return [...document.querySelectorAll<HTMLElement>("[data-xq-project-row]")]
+        .map((row) => ({ id: row.dataset.xqProjectRow!, slug: row.querySelector("a")!.getAttribute("href")!.split("/")[2]! }))
+        .find((row) => row.slug !== focus)
     })
-    assert.ok(slug, "the grid lists at least one project")
+    assert.ok(target, "Everything lists a project besides its focus")
+    const slug = target.slug
+    await page.hover(`[data-xq-project-row="${target.id}"] a`)
+    await page.click(`[data-xq-project-row="${target.id}"] button[aria-label^="More actions"]`)
+    await page.waitForSelector(`[role="menu"] a[href="/project/${slug}"]`, { timeout: 10_000 })
+    await page.click(`[role="menu"] a[href="/project/${slug}"]`)
     await page.waitForFunction((s) => location.pathname === `/project/${s}`, {}, slug)
     await page.waitForSelector('[aria-label="Settings"]', { timeout: 15_000 })
     assert.equal(await rail(), false, "still hidden after the switch")
 
     await page.click('[aria-label="Settings"]')
-    await page.waitForSelector('button[aria-label="Project sidebar"]', { timeout: 10_000 })
-    await page.click('button[aria-label="Project sidebar"]')
-    await page.waitForSelector('[role="menuitemradio"]', { timeout: 10_000 })
-    await page.evaluate(() => {
-      const item = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((el) => /Always shown/.test(el.textContent ?? ""))
-      item?.click()
-    })
+    // The setting is an Off/On pair under its label (SettingsDrawer.tsx OnOffToggle), with no name of
+    // its own — so the field is found by its label and "On" pressed inside it.
+    const flipped = await page.waitForFunction(() => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+      let label: Node | null = null
+      while (!label && walker.nextNode()) if (walker.currentNode.textContent === "Project sidebar") label = walker.currentNode
+      const on = [...(label?.parentElement?.closest("div.flex-col")?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find((b) => b.textContent === "On")
+      on?.click()
+      return !!on
+    }, { timeout: 10_000 }).then(() => true, () => false)
+    assert.ok(flipped, "the settings drawer shows the Project sidebar setting")
 
     // The save is one round trip; the rail must follow it on THIS page, not on the next load.
     await page.waitForFunction(() => document.querySelector('nav[aria-label="Projects"]') !== null, { timeout: 10_000 })
@@ -102,7 +114,7 @@ test("reloading with the rail on renders it before settingsGet answers, from the
     const rail = () => page.evaluate(() => document.querySelector('nav[aria-label="Projects"]') !== null)
 
     // One ordinary load with the rail on: the server answers, the hook writes the mirror.
-    await page.goto(`${baseUrl}/projects`, { waitUntil: "networkidle2" })
+    await page.goto(`${baseUrl}/`, { waitUntil: "networkidle2" })
     assert.equal(await rail(), true, "the rail shows once settings have loaded")
     assert.equal(await page.evaluate(() => localStorage.getItem("frizz-project-rail")), "shown", "the mirror recorded the answer")
 

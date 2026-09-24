@@ -13,15 +13,15 @@ const baseUrl = process.env.FRIZZ_PROJECT_SWITCH_E2E_URL
 // the right base from the path, `wsUrl()` derives from `apiBase()`, `rebindProject()` drops and
 // re-opens correctly, and `<App/>` is keyed by slug so it genuinely remounts. The bug lived in the
 // seam — routes.tsx guarded the rebind with a `useRef` seeded from the slug it was looking at, so any
-// switch that changed which ROUTE matched (the grid to a board, which is what the grid's tiles do)
-// mounted a FRESH component whose ref already said "bound", skipped the rebind entirely, and left the
+// switch that changed which ROUTE matched (the cross-project page to a board, which is what a
+// project's "Open board" does; it was the project grid's tiles when this broke) mounted a FRESH component whose ref already said "bound", skipped the rebind entirely, and left the
 // socket on the previous project. Every board then rendered the launching project's threads under
 // another project's URL, and nothing but a document load recovered it (reported 2026-08-11).
 //
 // So this asserts the socket URL, not the render: it is the one artifact that says which project the
 // board data is actually coming from, and it is recorded from `evaluateOnNewDocument` so the module-load
 // connection is captured too.
-test("switching projects from the grid re-points the live feed at the project the URL names", {
+test("opening a board from Everything re-points the live feed at the project the URL names", {
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
@@ -41,14 +41,16 @@ test("switching projects from the grid re-points the live feed at the project th
         },
       })
     })
-    // The project grid (`/` is the cross-project page now, focused on one project and bound to it).
-    await page.goto(`${baseUrl}/projects`, { waitUntil: "networkidle2" })
+    // Everything — the cross-project page `/` redirects to, focused on one project and bound to it.
+    await page.goto(`${baseUrl}/`, { waitUntil: "networkidle2" })
+    await page.waitForSelector("[data-xq-project-row]", { timeout: 15_000 })
 
-    const slugs = await page.evaluate(() =>
-      [...document.querySelectorAll('a[href^="/project/"]')]
-        .map((a) => a.getAttribute("href")!.split("/")[2]!)
-        .filter((s, i, all) => all.indexOf(s) === i))
-    assert.ok(slugs.length >= 2, `needs a stack serving ≥2 projects, saw: ${slugs.join(", ") || "none"}`)
+    const rows = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>("[data-xq-project-row]")].map((row) => ({
+        id: row.dataset.xqProjectRow!,
+        slug: row.querySelector("a")!.getAttribute("href")!.split("/")[2]!,
+      })))
+    assert.ok(rows.length >= 2, `needs a stack serving ≥2 projects, saw: ${rows.map((r) => r.slug).join(", ") || "none"}`)
 
     // The BOARD socket for a project, ignoring the per-thread terminal sockets (/term/:slug). Matched
     // with a regex rather than `endsWith("…")`, which frizzRouteUrls.test.ts reads as a hand-built
@@ -58,10 +60,14 @@ test("switching projects from the grid re-points the live feed at the project th
       (window as unknown as { __wsUrls: string[] }).__wsUrls))
       .filter((u) => isBoard.test(u)).at(-1)
 
-    for (const slug of slugs.slice(0, 2)) {
-      await page.evaluate((s) => {
-        (document.querySelector(`a[href="/project/${s}"]`) as HTMLAnchorElement).click()
-      }, slug)
+    for (const { id, slug } of rows.slice(0, 2)) {
+      // CLIENT-SIDE, through the project's own menu — a document load would rebind the feed and hide
+      // the bug. The "…" shows on hover; the menu opens on pointerdown, so these are real clicks.
+      const row = `[data-xq-project-row="${id}"]`
+      await page.hover(`${row} a`)
+      await page.click(`${row} button[aria-label^="More actions"]`)
+      await page.waitForSelector(`[role="menu"] a[href="/project/${slug}"]`, { timeout: 10_000 })
+      await page.click(`[role="menu"] a[href="/project/${slug}"]`)
       await page.waitForFunction((s) => location.pathname === `/project/${s}`, {}, slug)
       // The rebind is an effect + a socket open, so give the new one a moment to be constructed.
       await page.waitForFunction((s) =>
@@ -80,7 +86,8 @@ test("switching projects from the grid re-points the live feed at the project th
           ?.getAttribute("data-project-identity-state") !== "loading", { timeout: 15_000 })
         .catch(() => assert.fail(`the board for ${slug} never resolved an identity`))
       await page.goBack({ waitUntil: "networkidle2" })
-      await page.waitForFunction(() => location.pathname === "/projects")
+      await page.waitForFunction(() => location.pathname.startsWith("/all/"))
+      await page.waitForSelector("[data-xq-project-row]", { timeout: 15_000 })
     }
   } finally {
     await browser.close()
