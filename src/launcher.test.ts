@@ -2411,7 +2411,7 @@ test("launch intent: $HOME is never a project, marker or not", () => {
     registerProject({ dir: hosted.root, id: hosted.id }, home);
 
     const intent = resolveLaunchIntent(home, home, {});
-    assert.ok(intent.kind === "grid");
+    assert.ok(intent.kind === "everything");
     assert.equal(intent.workspace.root, hosted.root);
     assert.equal(existsSync(join(home, ".frizz", ".id")), false);
   } finally {
@@ -2419,10 +2419,10 @@ test("launch intent: $HOME is never a project, marker or not", () => {
   }
 });
 
-test("boardAddress: a bare origin gains a slash, a grid or an offer does not", () => {
+test("boardAddress: a bare origin gains a slash, `/` or an offer does not", () => {
   assert.equal(boardAddress("http://127.0.0.1:9494"), "http://127.0.0.1:9494/");
   assert.equal(boardAddress("http://127.0.0.1:9494/project/frizz"), "http://127.0.0.1:9494/project/frizz/");
-  // The grid is already `/`, and `//` reads as a typo in the one line the operator clicks.
+  // Everything is already `/`, and `//` reads as a typo in the one line the operator clicks.
   assert.equal(boardAddress("http://127.0.0.1:9494/"), "http://127.0.0.1:9494/");
   // A slash here lands INSIDE the query, changing the directory the page is asked about.
   assert.equal(boardAddress("http://127.0.0.1:9494/?add=%2Ftmp%2Fx"), "http://127.0.0.1:9494/?add=%2Ftmp%2Fx");

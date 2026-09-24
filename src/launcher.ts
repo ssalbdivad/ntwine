@@ -291,7 +291,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
  * The board address as it should READ in the terminal.
  *
  * A bare origin gets its trailing slash, because `http://127.0.0.1:9494` alone looks truncated. The
- * two cases that slash is wrong for are the ones a launch outside a project produces: the grid is
+ * two cases that slash is wrong for are the ones a launch outside a project produces: Everything is
  * already `/` and would print `//`, and an `?add=<dir>` offer would grow a slash INSIDE the query,
  * changing the directory the page is being asked about.
  */
@@ -442,7 +442,7 @@ An immutable artifact is the default. --dev is the only explicit unsafe source w
  * RUNNING FRIZZ IN A REPOSITORY OPENS THAT REPOSITORY, minting `.frizz/.id` on the spot if it has
  * none. That is the whole command: `cd` somewhere and run it, and the board you get is the board for
  * where you are. Making adoption a confirmation step instead broke exactly that — running it in a new
- * checkout hosted on some OTHER project and landed on the grid, so the maintainer's `frizz-dev` in
+ * checkout hosted on some OTHER project and landed on the project grid, so the maintainer's `frizz-dev` in
  * `ccbroker` opened `frizz` (2026-08-11).
  *
  * What that confirmation step was actually protecting against is narrower, and both halves survive
@@ -452,9 +452,10 @@ An immutable artifact is the default. --dev is the only explicit unsafe source w
  * wrong terminal, not a project, so it is still only OFFERED. A repository is neither of those.
  *
  *  - `open`  — a directory Frizz knows, or one that IS a project (hasProjectMarker): its own board.
- *  - `offer` — an unmarked, unadopted directory: open the grid and let it ask. Nothing is written.
- *  - `grid`  — $HOME, which is never offered at all, because there is no version of this the
- *               operator wants.
+ *  - `offer` — an unmarked, unadopted directory: open `/` and let the add-project dialog ask. Nothing
+ *                is written.
+ *  - `everything` — $HOME, which is never offered at all, because there is no version of this the
+ *                operator wants: it opens Everything, `/`, and nothing more.
  *
  * The last two still need a project to LAUNCH with, because a server is a process that has to serve
  * something; the most recently opened registered project is that host. With an empty registry there
@@ -463,7 +464,7 @@ An immutable artifact is the default. --dev is the only explicit unsafe source w
 export type LaunchIntent =
   | { kind: "open"; workspace: Workspace }
   | { kind: "offer"; workspace: Workspace; directory: string }
-  | { kind: "grid"; workspace: Workspace }
+  | { kind: "everything"; workspace: Workspace }
   | { kind: "empty"; directory: string; reason: "home" | "unadopted" }
 
 export function resolveLaunchIntent(
@@ -483,7 +484,7 @@ export function resolveLaunchIntent(
   const reason = isHomeDirectory(candidate, home) ? "home" : "unadopted"
   if (!host) return { kind: "empty", directory: candidate, reason }
   return reason === "home"
-    ? { kind: "grid", workspace: host }
+    ? { kind: "everything", workspace: host }
     : { kind: "offer", workspace: host, directory: candidate }
 }
 

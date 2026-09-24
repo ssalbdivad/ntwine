@@ -204,8 +204,8 @@ try {
     else assertRequiredExecutables();
   }
   // Running the command no longer ADOPTS the directory it was run in — see resolveLaunchIntent. An
-  // unknown directory hosts the server on the most recent real project and asks about itself on the
-  // grid; $HOME is never asked about at all.
+  // unknown directory hosts the server on the most recent real project and asks about itself on `/`
+  // (the add-project dialog); $HOME is never asked about at all.
   let hosted: Workspace | undefined;
   if (!internal) {
     const intent = resolveLaunchIntent();
@@ -673,8 +673,8 @@ async function claimProjectLaunch(): Promise<
 /**
  * This project's URL segment, registering it with the machine if it has not been seen before.
  *
- * `/` is the project grid now, so a board lives at `/<slug>` — including the board we are about to
- * launch. Registration is idempotent: an id already in the registry keeps the slug it was given.
+ * `/` is not a board (it is the cross-project page), so a board lives under its own slug — including
+ * the board we are about to launch. Registration is idempotent: an id already in the registry keeps the slug it was given.
  */
 function ownSlug(): string | undefined {
   try {
@@ -768,7 +768,7 @@ let cachedSlugPath: string | undefined;
 /**
  * Where to land: the cross-project page focused on this project (the default mode — its prompt box
  * dispatches here, and every other project's queue is beside it), the cross-project page with no
- * particular project, or the project grid with a directory to ask about (`/?add=` is forwarded there).
+ * particular project, or the add-project dialog asking about a directory (`/?add=` opens it on `/`).
  *
  * `/?focus=<slug>` rather than the page's own `/all/<slug>`: this launcher may be JOINING an older
  * server, whose page has no `/all` route and would draw the launching project's board there. An older
@@ -780,7 +780,7 @@ let cachedSlugPath: string | undefined;
  */
 function slugPath(): string {
   if (cachedSlugPath === undefined) {
-    if (launchIntent?.kind === "grid") cachedSlugPath = "/";
+    if (launchIntent?.kind === "everything") cachedSlugPath = "/";
     else if (launchIntent?.kind === "offer")
       cachedSlugPath = `/?add=${encodeURIComponent(launchIntent.directory)}`;
     else {
@@ -1071,8 +1071,8 @@ if (options.link) {
     const joined = await joinRunningFrizz();
     if (joined) {
       // slugPath(), not the joined slug: the slug names the project this launch is HOSTED on, which
-      // is only the project to open when the intent is `open`. A `grid`/`offer` launch is hosted on
-      // the most recent project and must still land on the grid — hard-coding the host's board here
+      // is only the project to open when the intent is `open`. An `everything`/`offer` launch is hosted on
+      // the most recent project and must still land on `/` — hard-coding the host's board here
       // is what made `frizz-dev` in an unadopted directory open somebody else's board outright.
       await openOrPrint(joined.port, true, slugPath());
       process.exit(0);
