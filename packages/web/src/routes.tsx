@@ -24,7 +24,7 @@ import { useProjectRailVisible } from "./lib/projectRail.ts"
 // <App/> and once inside <ProjectGrid/> — because `main.tsx` chose ONE of three root shells from
 // `location.pathname` at module load, which made every project switch a full document load. A layout
 // route is the direct expression of "this part does not change": <RootLayout/> holds the rail and the
-// tooltip provider, and the <Outlet/> below it swaps between the grid and a board.
+// tooltip provider, and the <Outlet/> below it swaps between the cross-project page, the grid and a board.
 //
 // WHAT A PROJECT SWITCH ACTUALLY COSTS, and why the router alone was never the whole job. Four things
 // are bound to one project, and only the first two are this hook's business:
@@ -311,7 +311,7 @@ export const router = createBrowserRouter([
       // `/queues` was the cross-project page's address before it became the default at `/`.
       { path: "/queues", element: <Navigate to="/" replace /> },
       { path: "/all", element: <Navigate to="/" replace /> },
-      // The launching project, unprefixed. `/` itself belongs to the grid, so this project reaches its
+      // The launching project, unprefixed. `/` itself belongs to the cross-project page, so this project reaches its
       // board through a thread or status path — see base-path.ts on why an empty base is supported.
       { path: "/thread/:thread", element: <BoardRoute /> },
       { path: "/status/:status", element: <BoardRoute /> },
