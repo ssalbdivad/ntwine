@@ -176,9 +176,10 @@ test("the row's gap is 12px of INK: one flex gap, and every icon square trimmed 
   // button takes its trim from STATUS_ROW_ACTION, so a new row action inherits the rhythm instead of
   // re-deriving it — and a glyph that paints something other than 12px needs a fresh measurement.
   assert.match(html, /class="-mx-1\.5 inline-flex h-6 w-6/)
-  // The home square gets ONE more pixel back: its own `-mx-1.5` leaves the house glyph's ink a pixel
-  // outside the composer's border, and the row's left edge is where that overhang shows.
-  assert.match(html, /class="-mx-1\.5 inline-flex h-6 w-6[^"]*-ml-px"/)
+  // The door home takes the shared trim and NOTHING more. The house it replaced (2026-09-24) needed a
+  // `-ml-px` of its own to put its ink on the composer's border; the infinity's stroke reaches one unit
+  // further out in lucide's 24-unit box (x=1 against the house's x=2), which is that pixel already.
+  assert.doesNotMatch(html, /-ml-px/)
   // The quota chips are IN this row, so they keep the row's distance rather than one of their own.
   assert.match(html, /data-quota-bar="true" class="flex shrink-0 items-center gap-3/)
 })
