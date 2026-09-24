@@ -15,6 +15,7 @@ import { createStorage, isBrokerClaudeRow, isHeadlessRow, type Storage } from ".
 import type Database from "./sqlite.ts"
 import { getSettings, setSettings, resetSettings } from "./settings.ts"
 import { getDispatchPreferences, setDispatchPreference } from "./dispatch-preferences.ts"
+import { readCodexModels } from "./backend/codex-models.ts"
 import { readQuota } from "./quota.ts"
 import { refreshClaudeQuotaInBackground } from "./backend/claude-quota.ts"
 import { createBoard, type BoardManager } from "./board.ts"
@@ -927,6 +928,9 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     storage,
     board,
     getSettings: () => getSettings(storage, home),
+    // The prompt box's machine-wide profile, read fresh per dispatch so the most recent pick anywhere —
+    // any project, any tab, a thread's own profile control — is what a model-less dispatch launches on.
+    dispatchProfile: (kind) => getDispatchPreferences(storage, getSettings(storage, home), home, readCodexModels())[kind] ?? {},
     claudeBin: opts.claudeBin,
     backendFor,
     codexAppServer,
