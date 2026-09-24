@@ -30,6 +30,7 @@ import { hintGloss } from "../lib/awaitingPresentation.ts"
 import { projectIdentity } from "./Sidebar.tsx"
 import { QuotaChips } from "./QuotaBar.tsx"
 import { StatusListView } from "./StatusListView.tsx"
+import { crossProjectHref } from "../lib/base-path.ts"
 
 // THE PHONE'S BOARD — a nav bar, ONE list, a tab bar and a floating +.
 //
@@ -568,12 +569,11 @@ export function MobileBoard() {
           shot — so this is a defect no screenshot here can show and every real device would. */}
       <div className="fixed inset-x-0 top-0 z-30 border-b border-border/70 bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="flex h-[48px] items-center gap-1 px-2">
-          {/* A real navigation to the grid, not a router link: `/` is a different project binding (its
-              own socket, board store and API base), which is exactly why the desktop grid is reached by
-              a document load too. */}
-          <a href="/" className="-ml-1 flex h-[44px] items-center gap-0.5 pl-1 pr-2 text-[16px] text-fg/85">
+          {/* Back to the cross-project page — the default mode — focused on this board's project, so its
+              prompt box still dispatches here. A document load, as this link has always been. */}
+          <a href={board?.projectSlug ? crossProjectHref(board.projectSlug) : "/"} className="-ml-1 flex h-[44px] items-center gap-0.5 pl-1 pr-2 text-[16px] text-fg/85">
             <ChevronLeft size={20} strokeWidth={2.2} />
-            <span className="truncate">Projects</span>
+            <span className="truncate">Everything</span>
           </a>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-[48px] items-center justify-center px-[86px]">
             <span className="truncate font-mono-keep text-[15px] font-semibold tracking-[-0.01em] text-fg">

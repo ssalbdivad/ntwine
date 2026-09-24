@@ -215,8 +215,9 @@ test("the home crumb is a ROUTER link, not a raw anchor that reloads the documen
     /basename|Router/,
     "a raw <a href=\"/\"> would render happily here; a router Link cannot",
   )
-  // …and inside a router it renders, still pointing at the project grid.
-  assert.match(render(), /href="\/"[^>]*aria-label="All projects"|aria-label="All projects"[^>]*href="\/"/)
+  // …and inside a router it renders, still pointing at the project grid (at `/projects` since the
+  // cross-project page took `/`).
+  assert.match(render(), /href="\/projects"[^>]*aria-label="All projects"|aria-label="All projects"[^>]*href="\/projects"/)
 })
 
 test("a provider with NO DATA renders nothing at all — and takes the divider with it", () => {

@@ -712,20 +712,26 @@ function hasParkedPrWatch(tele: SessionTelemetry | undefined, registered: Readon
   })
 }
 
-/** Is this thread PARKED on a GitHub watch — an ```awaiting fence naming at least one registered PR or
- *  issue, every item it names accounted for (parkIsHonoured, the scheduler's own check), and its `for:`
- *  not yet run out?
+/** Is this thread PARKED — an ```awaiting fence whose every item is accounted for (parkIsHonoured, the
+ *  scheduler's own check) and whose `for:` has not run out?
  *
- *  THIS PARKS, where a bare registered watch only cards (hasParkedPrWatch). Until 2026-09-24 a PR park
- *  was ALWAYS a visible queue handoff (maintainer 2026-07-22: a PR whose reviews may never arrive must
- *  not silently vanish), so every watcher wake the worker answered with "nothing new, still waiting" was
- *  a fresh rest that re-queued the thread and cleared any snooze on it — a thread with nothing for the
- *  human to do, marked ready (maintainer 2026-09-24: "ensure updates like this don't result in a working
- *  thread being marked as ready and requiring interaction"). The vanishing worry is answered by the two
- *  clocks the 07-22 rule predates: the watch row's own required `expires_at`, and the fence's `for:`,
- *  whose expiry the scheduler turns into a wake. A park that expires, names an unregistered PR, or sits
- *  beside a dead shell is not honoured here and queues exactly as before. */
-function hasHonouredGithubPark(
+ *  AN HONOURED PARK NEVER QUEUES, WHATEVER IT NAMES (maintainer 2026-09-24: "it should never be the case
+ *  that something is marked ready unless it is explicitly waiting for human input or followup"). The
+ *  queue is for threads the human owes something; a park the scheduler will wake on its own owes nothing.
+ *  Until then two kinds still queued behind an honoured park:
+ *
+ *  - A PR or ISSUE, always a visible handoff (maintainer 2026-07-22: a PR whose reviews may never arrive
+ *    must not silently vanish), so every watcher wake the worker answered with "nothing new, still
+ *    waiting" re-queued the thread and cleared any snooze on it. Excused earlier the same day.
+ *  - A TIMER, "a visible handoff, never an auto-park" since 2026-08-24 — so a worker parked on its own
+ *    fallback wake sat in the queue with a Snooze button and nothing for the human to do.
+ *
+ *  The vanishing worry is answered by the clocks the 07-22 rule predates: the fence's required `for:`,
+ *  whose expiry the scheduler turns into a wake, the watch row's own `expires_at`, and a timer's
+ *  `fire_at`. A park that expires, names anything unregistered, or sits beside a dead shell is not
+ *  honoured here and queues exactly as before. (Shells and sub-agents alone were already excused by
+ *  hasDeclaredBackgroundPark; this reads them too, so a mixed park is judged as one sentence.) */
+function hasHonouredPark(
   tele: SessionTelemetry | undefined,
   nowMs: number,
   registered: ReadonlySet<string>,
@@ -733,7 +739,6 @@ function hasHonouredGithubPark(
 ): boolean {
   if (tele?.lastFence?.kind !== "awaiting") return false
   const park = readAwaitingPark(tele.lastFence.hints)
-  if (!park.items.some((i) => i.kind === "pr" || i.kind === "issue")) return false
   const handles = liveWaitHandles(tele)
   // `registered` carries both kinds' refs (armedPrWatches), so it answers for `issues:` too.
   if (!parkIsHonoured(park, { shells: handles, agents: handles, timers: armedTimerIds, prs: registered, issues: registered })) return false
@@ -1067,11 +1072,11 @@ export function deriveNeedsYou(
   // for the reason that flag exists: the CARD must still state the wait (deriveAwaitingBackground opts
   // out), or the drawer blanks at rest and reads as "the agent died".
   if (excuseLiveOwnWork && runtime !== "exited" && heldByRunningChecks(github, registeredPrWatches)) return false
-  // AN HONOURED GITHUB PARK. The worker fenced on a PR or issue it registered, and nothing it named has
-  // settled — so a watcher wake it answers with the same park is not a handoff. See hasHonouredGithubPark.
-  if (excuseLiveOwnWork && runtime !== "exited" && hasHonouredGithubPark(tele, nowMs, registeredPrWatches, armedTimerIds)) return false
-  // A TIMER PARK TAKES THE SAME SNOOZE (2026-08-25). It queues like a PR park — a visible handoff, never
-  // an auto-park — and since 2026-08-24 it cards like one too, with the resting card's event-Snooze as
+  // AN HONOURED PARK. The worker fenced on waits frizz can see, and nothing it named has settled — so
+  // there is nothing for the human to do until one of them wakes it. See hasHonouredPark.
+  if (excuseLiveOwnWork && runtime !== "exited" && hasHonouredPark(tele, nowMs, registeredPrWatches, armedTimerIds)) return false
+  // A TIMER PARK TAKES THE SAME SNOOZE (2026-08-25). A timer park that is NOT honoured (no `for:`, or
+  // run out) — or a bare armed timer with no fence — still queues, and since 2026-08-24 it cards like a PR, with the resting card's event-Snooze as
   // its one control. But it is not "live own work" (nothing of the thread's is running; the clock is),
   // so it fell straight past this line to the bare-rest handoff below, which never reads the snooze:
   // the click was recorded (bg_snooze_rested_at set), the card stayed in the queue, and the client —

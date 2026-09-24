@@ -37,10 +37,8 @@ test("answers every open project with its open threads, its Done count and the i
           session("snoozed", { snoozedUntil: "2099-01-01T00:00:00.000Z" }),
           session("finished", { state: "archived" }),
           session("finished-2", { state: "archived" }),
-          // Archived but its turn is still going: the project's own rail keeps it in Active, not Done.
+          // Archived is Done even while its worker is still moving — only the human reopens a thread.
           session("wrapping-up", { state: "archived", runtime: "running" }),
-          // …and so is one whose turn is over while a sub-agent it dispatched still runs. A finished one
-          // is not live work, so that thread is Done.
           session("sub-agent-out", { state: "archived", subAgents: [{ state: "running" } as never] }),
           session("sub-agent-back", { state: "archived", subAgents: [{ state: "completed" } as never] }),
           // A project's own terminal is read-only and never queues; a legacy row is not a session.
@@ -67,8 +65,8 @@ test("answers every open project with its open threads, its Done count and the i
     { projectSlug: alpha!.projectSlug, projectName: alpha!.projectName, projectDir: alpha!.projectDir, homeDir: alpha!.homeDir, githubRepo: alpha!.githubRepo },
     { projectSlug: "alpha", projectName: "Alpha", projectDir: "/work/alpha", homeDir: "/home/me", githubRepo: "me/alpha" },
   )
-  assert.deepEqual(alpha!.threads.map((t) => t.id), ["queued", "running", "snoozed", "wrapping-up", "sub-agent-out", "term-finished", "term-running"])
-  assert.equal(alpha!.doneCount, 4)
+  assert.deepEqual(alpha!.threads.map((t) => t.id), ["queued", "running", "snoozed", "term-finished", "term-running"])
+  assert.equal(alpha!.doneCount, 6)
   assert.deepEqual(
     { projectSlug: beta!.projectSlug, projectName: beta!.projectName, projectDir: beta!.projectDir, threads: beta!.threads, doneCount: beta!.doneCount },
     { projectSlug: "b", projectName: "b", projectDir: "/work/b", threads: [], doneCount: 0 },

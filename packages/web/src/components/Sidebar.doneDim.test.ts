@@ -12,8 +12,8 @@ import { TooltipProvider } from "./Tooltip.tsx"
 // should always be grayed out, even if it's pinned"). The dim rides the ROW's own state, not the band:
 // the pinned band lifts a row out of Done without changing what it is, so a pinned done row wears the
 // same dim as one in the Done band — and the same dim a Snoozed row wears, so the rail has exactly one
-// way of saying "nothing here is moving". A running-yet-archived thread keeps its full weight: it sits
-// under Active with its spinner, and the dim must agree with the band.
+// way of saying "nothing here is moving". A worker still running after the human marked it done does not
+// lift the dim: Done is the human's to undo.
 
 const base = {
   kind: "session",
@@ -83,8 +83,7 @@ test("a pinned OPEN row keeps its full weight", () => {
   assert.ok(titleClasses(html).includes("text-fg/90"))
 })
 
-test("a running-yet-archived row is NOT dimmed — it spins under Active, and the dim agrees", () => {
+test("a done row whose worker is still running stays dimmed — the worker cannot undo Done", () => {
   const html = row({ ...DONE, runtime: "running" })
-  assert.ok(!rowClasses(html).includes(ROW_DIM))
-  assert.ok(titleClasses(html).includes("text-fg/90"))
+  assert.ok(rowClasses(html).includes(ROW_DIM))
 })

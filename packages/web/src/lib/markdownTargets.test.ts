@@ -110,7 +110,17 @@ test("normal web, relative app, anchor, and mail links remain links", () => {
     "/?filter=active",
     "#details",
     "mailto:dev@example.com",
+    // The machine pages and the cross-project page are in-app too.
+    "/projects",
+    "/queues",
+    "/all/nub",
+    "/all/nub/thread/fix-auth",
   ]) assert.equal(localMarkdownTarget(href), null, href)
+})
+
+test("a machine page's NAME at the root of a filesystem path is still a file", () => {
+  assert.equal(localMarkdownTarget("/projects/acme/README.md")?.filePath, "/projects/acme/README.md")
+  assert.equal(localMarkdownTarget("/queues/today.md")?.filePath, "/queues/today.md")
 })
 
 test("malformed URL encoding cannot throw or become an app navigation", () => {

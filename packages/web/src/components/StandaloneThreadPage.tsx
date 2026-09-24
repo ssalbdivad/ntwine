@@ -5,7 +5,7 @@ import { useBoard } from "../hooks.ts"
 import { rpc } from "../api/rpc.ts"
 import { displayTitle, queued } from "../groups.ts"
 import { resolveThreadRoute } from "../lib/threadRouteState.ts"
-import { projectHref } from "../lib/base-path.ts"
+import { PROJECTS_PATH, modeProjectHref } from "../lib/base-path.ts"
 import { standaloneThreadHref } from "../lib/standaloneThreadRoute.ts"
 import { setFaviconBadge } from "../lib/faviconBadge.ts"
 import { SHEET_BASE_WIDTH, SPLIT_MIN_PX } from "../lib/sheet.ts"
@@ -53,7 +53,9 @@ function standaloneHrefIn(projectSlug: string, slug: string): string {
   // `"/"` forces the UNPREFIXED inner form: this page may itself be prefixed (a `/project/a/…/full`
   // link to a thread that turns out to live in project b), and `standaloneThreadHref` would otherwise
   // stamp THIS page's prefix on before we prepend the other project's.
-  return `${projectHref(projectSlug)}${standaloneThreadHref(slug, "/")}`
+  // In this page's MODE: a thread relocated from the cross-project page collapses back onto that page,
+  // not onto the other project's board.
+  return `${modeProjectHref(projectSlug)}${standaloneThreadHref(slug, "/")}`
 }
 
 export function StandaloneThreadPage({ slug }: { slug: string }) {
@@ -303,7 +305,7 @@ function MissingThread({ slug }: { slug: string }) {
           ))}
         </div>
       ) : (
-        <a href="/" className="rounded-md border border-border px-3 py-1.5 text-[12px] text-fg/90 hover:bg-panel-2">
+        <a href={PROJECTS_PATH} className="rounded-md border border-border px-3 py-1.5 text-[12px] text-fg/90 hover:bg-panel-2">
           All projects
         </a>
       )}

@@ -734,7 +734,7 @@ test("deriveAwaitingBackground: a timer park cards, checked against the armed re
     false,
     "a dead timer is not a wait",
   )
-  // …and the thread still QUEUES — a timer park is a visible handoff, never an auto-park.
+  // …and this fence has no `for:`, so it is not an honoured park and the thread still QUEUES.
   const armed = new Set(["tmr_1"])
   assert.equal(deriveNeedsYou(row({ rested_at: T0 }), timerPark, "turn-idle", false, Date.parse(LATER), undefined, true, false, {}, new Set(), armed), true, "the timer park still queues")
   // …and, queued like a PR park, it takes the resting card's event-Snooze like one: the click used to be
@@ -770,6 +770,25 @@ test("deriveNeedsYou: an honoured park on a registered PR stays out of the queue
   assert.equal(deriveNeedsYou(row({ rested_at: LATER }), park, "turn-idle", false, fenceAt + 60_000, undefined, true, false, {}, registered, new Set(), [], 1), true, "an open question outranks the park")
   // The card still states the wait: deriveAwaitingBackground reads the fact, not the queue.
   assert.equal(deriveAwaitingBackground(row({ rested_at: LATER }), park, "turn-idle", false, fenceAt + 60_000, undefined, false, {}, registered), true)
+})
+
+// NOTHING IS READY UNLESS IT IS WAITING ON THE HUMAN (maintainer 2026-09-24). A worker parked on its own
+// fallback timer, with a `for:`, owes the human nothing until the timer or the park's expiry wakes it.
+test("deriveNeedsYou: an honoured timer park stays out of the queue", () => {
+  const fenceAt = Date.parse(LATER)
+  const fence = (hints: { kind: string; value: string }[]) =>
+    tele({ lastAssistantAt: LATER, lastActivityAt: LATER, lastFence: { kind: "awaiting", body: "Fallback wake.", hints: hints as never } })
+  const armed = new Set(["tmr_1"])
+  const needs = (t: ReturnType<typeof tele>, timers: ReadonlySet<string>, now = fenceAt + 60_000) =>
+    deriveNeedsYou(row({ rested_at: LATER }), t, "turn-idle", false, now, undefined, true, false, {}, new Set(), timers)
+  const park = fence([{ kind: "timer", value: "tmr_1" }, { kind: "for", value: "45m" }])
+  assert.equal(needs(park, armed), false, "armed timer + usable for: → parked")
+  assert.equal(needs(park, new Set()), true, "a fired or cancelled timer wakes nothing → queues")
+  assert.equal(needs(fence([{ kind: "timer", value: "tmr_1" }]), armed), true, "no for: is not a park")
+  assert.equal(needs(park, armed, fenceAt + 46 * 60_000), true, "an expired park queues")
+  assert.equal(needs(fence([{ kind: "timer", value: "tmr_1" }, { kind: "shell", value: "gone" }, { kind: "for", value: "45m" }]), armed), true, "a dead shell beside it breaks the park")
+  assert.equal(deriveNeedsYou(row({ rested_at: LATER }), park, "turn-idle", false, fenceAt + 60_000, undefined, true, false, {}, new Set(), armed, [], 1), true, "an open question outranks the park")
+  assert.equal(deriveAwaitingBackground(row({ rested_at: LATER }), park, "turn-idle", false, fenceAt + 60_000, undefined, false, {}, new Set(), armed), true, "the card still states the wait")
 })
 
 test("deriveAwaitingBackground: the event-snooze hides the QUEUE card, never the fact", () => {

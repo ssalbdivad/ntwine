@@ -2,7 +2,8 @@ import type { ServerEvent } from "@frizz/shared"
 import { deltaAction } from "@frizz/shared"
 import { store, setBoard, applyDelta, openThread } from "../store.ts"
 import { noteServerBootId } from "./boot.ts"
-import { basePath, projectHref, projectSlug } from "../lib/base-path.ts"
+import { modeProjectHref, projectHref, projectSlug } from "../lib/base-path.ts"
+import { spaNavigate } from "../lib/router.ts"
 
 // The transport-agnostic board/notify handler — the stage-1 delta/seq/boot state machine, extracted so
 // BOTH transports drive it identically: SSE (sse.ts, the fallback) and the /ws multiplex (socket.ts).
@@ -76,9 +77,6 @@ export function notify(event: Extract<ServerEvent, { type: "notify" }>): void {
   if (!store.notificationsEnabled) return
   if (!document.hidden) return
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return
-  // The tag is the browser's REPLACE key, so a bare slug collapses two projects' identically-named
-  // threads into one notification — and the click would open whichever tab happened to fire it.
-  const n = new Notification(event.title, { body: event.body, tag: `${basePath()}/${event.slug}` })
   // THE PROJECT THIS NOTIFICATION IS ABOUT, frozen now — the last place in the client where "which
   // project" was resolved at the moment of USE rather than travelling with the thing that needed it.
   // A notification is clicked when the operator gets back to their machine, which can be long after it
@@ -86,15 +84,19 @@ export function notify(event: Extract<ServerEvent, { type: "notify" }>): void {
   // project is showing, and slugs are unique only WITHIN a project (see `rebindProject`), so the click
   // opened a DIFFERENT thread that happened to share the name rather than failing and saying so.
   const project = projectSlug() ?? store.board?.projectSlug
+  // The tag is the browser's REPLACE key, so a bare slug collapses two projects' identically-named
+  // threads into one notification — and the click would open whichever tab happened to fire it. Spelled
+  // by the project's BOARD whatever page raised it, so a board tab and a cross-project tab on the same
+  // project raise one notification between them, not two.
+  const n = new Notification(event.title, { body: event.body, tag: `${project ? projectHref(project) : ""}/${event.slug}` })
   n.onclick = () => {
     window.focus()
-    // Same project (the overwhelmingly common case): the in-app drawer, no reload. Otherwise a real
-    // navigation, because the destination is another project's page — one document load, which is
-    // what switching projects by URL has always been.
+    // Same project (the overwhelmingly common case): the in-app drawer. Otherwise that project's page in
+    // this page's MODE, through the router — the cross-project page opens it in place.
     if (project === undefined || projectSlug() === project) {
       openThread(event.slug) // side drawer: chat, or the frizz doc for a never-spawned thread
     } else {
-      location.assign(`${projectHref(project)}/thread/${encodeURIComponent(event.slug)}`)
+      spaNavigate(`${modeProjectHref(project)}/thread/${encodeURIComponent(event.slug)}`)
     }
     n.close()
   }

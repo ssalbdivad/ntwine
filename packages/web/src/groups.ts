@@ -437,8 +437,8 @@ function hasLiveOps(t: ThreadView): boolean {
 // the server's own verdict and only ever keeps a thread OUT of Snoozed, so a stale shell costs a dimming,
 // never a disappearance — the same argument restingOnLiveBackgroundWork makes below.
 //
-// A FENCED GITHUB PARK JOINS IT (2026-09-24). The server now excuses an honoured ```awaiting park on a
-// registered PR or issue from the queue (board.hasHonouredGithubPark) — a watcher wake the worker answers
+// A FENCED GITHUB PARK JOINS IT (2026-09-24). The server now excuses every honoured ```awaiting park from
+// the queue, a registered PR or issue included (board.hasHonouredPark) — a watcher wake the worker answers
 // with "still waiting" was re-queuing a thread with nothing for the human to do. So `!needsYou` plus an
 // awaiting fence plus an armed GitHub watch is that verdict, and the row parks like a timer. Two
 // exceptions keep their old band: CI still RUNNING stays in Active under the spinning octocat
@@ -735,8 +735,9 @@ export function waitNamesPr(t: Pick<ThreadView, "watches" | "lastFence">): boole
 /** AWAITING A TIMER — parked on the clock, and since 2026-09-07 the hourglass wherever the row lands,
  *  the way the octocat above is GitHub's mark wherever a PR wait lands.
  *
- *  A timer park QUEUES (board.deriveNeedsYou: "a visible handoff, never an auto-park"), so most timer
- *  waits sit in the Rested band rather than in Snoozed — and there the row wore the shell's blue dot,
+ *  A timer park QUEUED until 2026-09-24 (board.deriveNeedsYou: "a visible handoff, never an auto-park"),
+ *  and one that is not honoured — no `for:`, or run out — still does, sitting in the Rested band rather
+ *  than in Snoozed. There the row wore the shell's blue dot,
  *  because restingOnLiveBackgroundWork counted an armed timer as motion. The dot is the rail's word for
  *  "a process it launched is still running", and nothing is running behind a timer; the maintainer read
  *  it as exactly that claim (2026-09-07: "an item in the queue that's awaiting a timer should show up
@@ -780,8 +781,10 @@ export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "bac
 // The footer's RecurringPromptControl carries the state instead, where it is legible and editable.
 
 export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
+  // DONE IS THE HUMAN'S TO UNDO, and nothing a worker does afterwards reads as undoing it — see
+  // `sectionOf`. A worker still finishing a turn after Mark as done keeps the check, not a spinner.
+  if (t.state === "archived") return "archived"
   const activelyRunning = isActivelyRunning(t)
-  if (t.state === "archived" && !activelyRunning) return "archived"
 
   // A PARK THE OPERATOR SET OUTRANKS EVERY ASK MARK BELOW IT — the order the SERVER already derives the
   // queue in (deriveNeedsYou checks futureSnooze before pendingAsk, pendingQuestion and the registered
@@ -917,11 +920,15 @@ export function sectionOf(t: ThreadView): SectionKey | null {
   // sets `needsYou`), marked done → Done. It has no snooze, so the Snoozed band never claims one.
   if (t.kind === "command") return t.state === "archived" ? "inactive" : "active"
   if (t.kind !== "session") return null
-  // Archived → Done, UNLESS it's actively running: a live, in-flight session must never sit under Done
-  // (maintainer, hit 3×). It shows in the Active band with its spinner while it works, and drops back
-  // to Done only once it comes to rest still-archived. (A user BUMP un-archives it for good via
-  // resume; this is the display safety net for a running-yet-archived session.)
-  if (t.state === "archived" && !isActivelyRunning(t)) return "inactive"
+  // Archived → Done, WHATEVER the worker is doing. Marking a thread done is reversible only by the
+  // human (maintainer 2026-09-24: "if something is marked as done ensure that the agent doesn't unmark
+  // it as done that should only be reversible by human"). Until then a running-yet-archived session
+  // was lifted back into Active as a safety net (maintainer 2026-07-10, hit 3×) — but that net was for a
+  // human BUMP, which now un-archives the row for real (server resume.ts
+  // `reopenArchivedThreadForFollowUp`). Everything that still reached it was the WORKER moving on its
+  // own after the human filed it: a sub-agent returning, a background shell finishing, a turn still
+  // draining. None of those is the human reopening it, so none of them moves the row.
+  if (t.state === "archived") return "inactive"
   // Only truthful human/future-timer waiters split into the labeled, dimmed Snoozed band. Everything else
   // open — running, needs-you, bare rest, done-fenced, awaiting-its-own-subs, or an awaiting
   // `session`/hintless wait — belongs to the Active/Rested section, which band decided downstream.

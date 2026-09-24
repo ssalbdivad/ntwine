@@ -12,8 +12,16 @@ import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
 // `/thread/<slug>` and `/status/<name>`, which is what lets the server land slug routing without a
 // lockstep rewrite of this file, and what keeps every pre-singleton bookmark resolving. It is a legacy
 // INBOUND alias, not a shape to MINT — see `outerPath`/`projectHref`. Note it does NOT include `/`,
-// which is the all-projects GRID; the launching project's queue reaches its board through
+// which is the cross-project page; the launching project's queue reaches its board through
 // `queueDestination` (lib/router.ts) instead.
+//
+// TWO PREFIXES NAME A PROJECT, and they differ only in MODE. `/project/<slug>` is that project's BOARD
+// (single-project mode). `/all/<slug>` is the CROSS-PROJECT page — every project's queue on one page —
+// FOCUSED on `<slug>`: the project its prompt box dispatches into and whose thread drawer is open. The
+// focused project IS the page project, so every helper below answers the same for both prefixes (the
+// same API base, the same live feed, the same cache scope), which is what lets the board's whole drawer
+// stack and composer work on the cross-project page unchanged. Only `basePath` keeps the mode, so a URL
+// built on one page stays in that page's mode.
 
 /**
  * The SPA's own top-level route names.
@@ -24,6 +32,15 @@ import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
  * sanitizer, and renders as a disabled local-file chip.
  */
 export const APP_ROUTE_SEGMENTS = new Set(["thread", "status"])
+
+/**
+ * Machine-level pages: they are in-app, but they name no project and are never re-pointed under one.
+ * `/` itself is one too (the cross-project page); `queues` is its legacy address, kept as a redirect.
+ */
+export const MACHINE_ROUTE_SEGMENTS = new Set(["all", "projects", "queues"])
+
+/** The project grid — every registered project, one card each, and the way to add another. */
+export const PROJECTS_PATH = "/projects"
 
 /**
  * This page’s path, or `/` where there is no page.
@@ -49,22 +66,46 @@ function here(pathname?: string): string {
  */
 const PROJECT_SEGMENT = "project"
 export const PROJECT_PREFIX = `/${PROJECT_SEGMENT}`
+const CROSS_PROJECT_SEGMENT = "all"
+export const CROSS_PROJECT_PREFIX = `/${CROSS_PROJECT_SEGMENT}`
 
 /** The slug this page is showing, or `undefined` for the unprefixed launching project. */
 export function projectSlug(pathname?: string): string | undefined {
   const [, first, second] = here(pathname).split("/")
-  return first === PROJECT_SEGMENT && second ? second : undefined
+  return (first === PROJECT_SEGMENT || first === CROSS_PROJECT_SEGMENT) && second ? second : undefined
 }
 
-/** The page URL for a project — the one place that knows the shape. */
+/** Is this the cross-project page (`/all/<slug>…`) rather than a project's board? */
+export function isCrossProjectPath(pathname?: string): boolean {
+  const [, first, second] = here(pathname).split("/")
+  return first === CROSS_PROJECT_SEGMENT && Boolean(second)
+}
+
+/** A project's BOARD — the one place that knows the shape. */
 export function projectHref(slug: string): string {
   return `${PROJECT_PREFIX}/${slug}`
 }
 
-/** `/project/nub`, or `""` when this page is the unprefixed launching project. */
+/** The cross-project page focused on a project. */
+export function crossProjectHref(slug: string): string {
+  return `${CROSS_PROJECT_PREFIX}/${slug}`
+}
+
+/**
+ * A project's page in the MODE this page is in: its focus on the cross-project page, its board on a
+ * board. For the doors that mean "go to that project" rather than "go to that project's board" — the
+ * rail's squares — so choosing a project never throws the operator out of the mode they are working in.
+ */
+export function modeProjectHref(slug: string, pathname?: string): string {
+  return isCrossProjectPath(pathname) ? crossProjectHref(slug) : projectHref(slug)
+}
+
+/** `/project/nub` or `/all/nub`, or `""` when this page is the unprefixed launching project. */
 export function basePath(pathname?: string): string {
-  const slug = projectSlug(pathname)
-  return slug ? projectHref(slug) : ""
+  const path = here(pathname)
+  const slug = projectSlug(path)
+  if (!slug) return ""
+  return isCrossProjectPath(path) ? crossProjectHref(slug) : projectHref(slug)
 }
 
 /** The path with the project prefix removed — what the router reasons about. */
@@ -92,7 +133,7 @@ export function outerPath(inner: string, pathname?: string): string {
  * to the browser and land on a stranger's board (or on <MissingThread>). Rewriting the href at
  * sanitize time fixes every one of those without the author having to know which project they are in.
  *
- * `/` is deliberately NOT rewritten: it is the all-projects grid, which is the same page everywhere.
+ * `/` is deliberately NOT rewritten: it is the cross-project page, which is the same page everywhere.
  */
 export function prefixedAppRoute(href: string | null | undefined, pathname?: string): string | null {
   if (!href || !href.startsWith("/") || href.startsWith("//")) return null

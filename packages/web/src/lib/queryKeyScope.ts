@@ -42,8 +42,11 @@ import { projectSlug } from "./base-path.ts"
  * All queues page reads about one project from a page that names none. Folding the page's scope in on top
  * would be wrong twice over: that page's scope is `project:`, the very scope the unprefixed LAUNCHING
  * project's own entries live in, and the key already says whose it is.
+ * `quota` and `authStatus` are the provider ACCOUNT's — the server reads both through its one Claude
+ * binary and the machine's credentials, whichever project asks. Scoped, the status row's quota chips
+ * started empty every time the cross-project page's focus moved to a project not yet asked.
  */
-const MACHINE_WIDE = new Set(["projectsList", "projectsQueueCounts", "projectsQueues", "ofProject", "threadLocate", "dispatchPreferencesGet", "codexModels", "supervisorStatus"])
+const MACHINE_WIDE = new Set(["projectsList", "projectsQueueCounts", "projectsQueues", "ofProject", "threadLocate", "dispatchPreferencesGet", "codexModels", "supervisorStatus", "quota", "authStatus"])
 
 /** The `queryKeyHashFn` for this app's QueryClient. Nothing else should need to call it. */
 export function projectScopedQueryKeyHash(key: readonly unknown[]): string {
