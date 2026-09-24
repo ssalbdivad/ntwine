@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
-import { Link } from "react-router"
 import { AlarmClock, Check, ChevronLeft, ChevronRight, Clock, Ellipsis, Hourglass, Plus, Settings as SettingsIcon, TerminalSquare } from "lucide-react"
 import type { ThreadView } from "@frizz/shared"
 import { openThread, pushSubAgentDrawer, store, type ConnectionState } from "../store.ts"
@@ -31,6 +30,7 @@ import { hintGloss } from "../lib/awaitingPresentation.ts"
 import { projectIdentity } from "./Sidebar.tsx"
 import { QuotaChips } from "./QuotaBar.tsx"
 import { StatusListView } from "./StatusListView.tsx"
+import { crossProjectHref } from "../lib/base-path.ts"
 
 // THE PHONE'S BOARD — a nav bar, ONE list, a tab bar and a floating +.
 //
@@ -562,20 +562,19 @@ export function MobileBoard() {
 
   return (
     <div data-mobile-board className="relative min-h-dvh bg-bg">
-      {/* The nav bar: back to Everything, this project's identity, and the board's own actions. No
+      {/* The nav bar: back to every project, this project's identity, and the board's own actions. No
           switcher — the way to another project is the way you came in. */}
       {/* `env(safe-area-inset-*)` on BOTH bars: on a notched phone the status bar sits over the top of
           the viewport and the home indicator over the bottom, and neither inset exists in a headless
           shot — so this is a defect no screenshot here can show and every real device would. */}
       <div className="fixed inset-x-0 top-0 z-30 border-b border-border/70 bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="flex h-[48px] items-center gap-1 px-2">
-          {/* Back to Everything, the home page — named for where it goes, as a phone's back button is.
-              A ROUTER link, like the desktop status row's door: a document load here threw away the
-              socket and the whole query cache to reach a page that is already in the bundle. */}
-          <Link to="/" className="-ml-1 flex h-[44px] items-center gap-0.5 pl-1 pr-2 text-[16px] text-fg/85">
+          {/* Back to the cross-project page — the default mode — focused on this board's project, so its
+              prompt box still dispatches here. A document load, as this link has always been. */}
+          <a href={board?.projectSlug ? crossProjectHref(board.projectSlug) : "/"} className="-ml-1 flex h-[44px] items-center gap-0.5 pl-1 pr-2 text-[16px] text-fg/85">
             <ChevronLeft size={20} strokeWidth={2.2} />
             <span className="truncate">Everything</span>
-          </Link>
+          </a>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-[48px] items-center justify-center px-[86px]">
             <span className="truncate font-mono-keep text-[15px] font-semibold tracking-[-0.01em] text-fg">
               {identity.state === "verified" ? identity.label : "Frizz"}

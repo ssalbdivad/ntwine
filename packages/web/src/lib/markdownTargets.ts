@@ -1,5 +1,5 @@
 import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
-import { apiBase, innerPath, projectSlug, APP_ROUTE_SEGMENTS } from "./base-path.ts"
+import { apiBase, innerPath, projectSlug, APP_ROUTE_SEGMENTS, MACHINE_ROUTE_SEGMENTS } from "./base-path.ts"
 import { dirnameLike, isRooted, joinLike } from "./paths.ts"
 // Markdown is often written by tools that report local artifacts as links. A browser interprets a
 // POSIX absolute path as a same-origin URL path, which both navigates away from Frizz and produces a
@@ -52,7 +52,9 @@ function isFrizzRoute(href: string): boolean {
   if (projectSlug(bare)) return true
   const inner = innerPath(bare)
   const first = inner.split("/")[1] ?? ""
-  return APP_ROUTE_SEGMENTS.has(first)
+  // `/projects` and the cross-project page's other machine routes name no project of their own. EXACTLY
+  // those paths: `/projects/acme/README.md` is somebody's directory, not a page.
+  return APP_ROUTE_SEGMENTS.has(first) || (MACHINE_ROUTE_SEGMENTS.has(first) && inner.replace(/\/$/u, "") === `/${first}`)
 }
 
 /**

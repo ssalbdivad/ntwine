@@ -41,7 +41,8 @@ test("switching projects from the grid re-points the live feed at the project th
         },
       })
     })
-    await page.goto(`${baseUrl}/`, { waitUntil: "networkidle2" })
+    // The project grid (`/` is the cross-project page now, focused on one project and bound to it).
+    await page.goto(`${baseUrl}/projects`, { waitUntil: "networkidle2" })
 
     const slugs = await page.evaluate(() =>
       [...document.querySelectorAll('a[href^="/project/"]')]
@@ -79,7 +80,7 @@ test("switching projects from the grid re-points the live feed at the project th
           ?.getAttribute("data-project-identity-state") !== "loading", { timeout: 15_000 })
         .catch(() => assert.fail(`the board for ${slug} never resolved an identity`))
       await page.goBack({ waitUntil: "networkidle2" })
-      await page.waitForFunction(() => location.pathname === "/")
+      await page.waitForFunction(() => location.pathname === "/projects")
     }
   } finally {
     await browser.close()

@@ -1,5 +1,6 @@
 import { openThread } from "../store.ts"
-import { innerPath, projectSlug } from "./base-path.ts"
+import { innerPath, modeProjectHref, projectSlug } from "./base-path.ts"
+import { spaNavigate } from "./router.ts"
 
 // A worker can emit a markdown link to another frizz thread — `[label](/thread/<slug>)` — e.g. after
 // spawning one via the mcp__frizz__spawn_thread tool. `/thread/<slug>` is a RESERVED SPA route
@@ -13,8 +14,9 @@ import { innerPath, projectSlug } from "./base-path.ts"
 // Matched against the INNER path, because markdown.ts now stamps this page's project prefix onto an
 // unprefixed in-app link (see prefixedAppRoute — the raw href had to become navigable in its own
 // right, for the modified clicks this handler deliberately does not take). Opening in the drawer is
-// only right for a thread of the project already on screen, so a link naming a DIFFERENT project is
-// left to the browser.
+// only right for a thread of the project already on screen; a link naming a DIFFERENT project goes to
+// that thread through the router, in this page's MODE — on the cross-project page that opens it in place
+// (the focus moves), where leaving it to the browser loaded that project's board from scratch.
 const THREAD_HREF = /^\/thread\/([a-z0-9][a-z0-9-]*)\/?$/
 
 export function installThreadLinkInterceptor(): () => void {
@@ -25,11 +27,15 @@ export function installThreadLinkInterceptor(): () => void {
     const href = anchor?.getAttribute("href")
     if (!anchor || !href || !href.startsWith("/")) return
     const linked = projectSlug(href)
-    if (linked && linked !== projectSlug()) return // another project's board — let the browser go there
-    const match = THREAD_HREF.exec(innerPath(href))
+    const inner = innerPath(href)
+    const match = THREAD_HREF.exec(inner)
     if (!match) return
     event.preventDefault()
     event.stopPropagation()
+    if (linked && linked !== projectSlug()) {
+      spaNavigate(`${modeProjectHref(linked)}${inner}`)
+      return
+    }
     openThread(match[1])
   }
   document.addEventListener("click", handler)

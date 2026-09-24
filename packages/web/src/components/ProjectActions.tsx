@@ -9,36 +9,58 @@
 import * as RadixDialog from "@radix-ui/react-dialog"
 import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Loader2 } from "lucide-react"
-import { useNavigate } from "react-router"
+import { useRef, useState, type ReactNode } from "react"
+import { Ellipsis, Loader2 } from "lucide-react"
+import { Link, useNavigate } from "react-router"
+import { useSnapshot } from "valtio"
 import { PROJECT_ICON_EXTENSIONS, slugify, type ProjectCard } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
-import { projectHref } from "../lib/base-path.ts"
-import { showToast } from "../store.ts"
+import { crossProjectHref, projectHref, projectSlug } from "../lib/base-path.ts"
+import { CROSS_PROJECT_PICK_STATE, crossProjectNarrow, narrowCrossProject } from "../lib/crossProject.ts"
+import { showToast, store } from "../store.ts"
 import { Dialog } from "./ui/Dialog.tsx"
+import { ProjectSquare } from "./ProjectRail.tsx"
+import { ROW_ACTION_CLASS } from "./Sidebar.tsx"
 
 /** `/Users/me/code/nub` → `~/code/nub`. The home prefix is noise on every row. */
 export function shortPath(path: string, home: string | undefined): string {
   return home && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
 }
 
-const MENU_ITEM = "cursor-default rounded px-2 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-panel-2"
+const MENU_ITEM = "block cursor-default rounded px-2 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-panel-2"
 
 /**
- * Everything you can do to a project besides open it: change its picture, rename it, delete it.
+ * Everything you can do to a project besides work in it: open its board, change its picture, rename it,
+ * delete it.
  *
- * ONE MENU. The grid split these between an image overlay on the square ("change the picture") and an
- * ellipsis ("rename, delete"), because a 34px square had room for a control of its own. A 16px one does
- * not, and two menus on one row is exactly the clutter the merge was for. Delete is last and red — the
- * one irreversible act here, kept away from the two that only change what Frizz calls a project.
+ * ONE MENU, on the project's row on the cross-project page. The grid split these between an image
+ * overlay on the square ("change the picture") and an ellipsis ("rename, delete"), because a 34px square
+ * had room for a control of its own; a 16px one does not, and two menus on one row is the clutter the
+ * merge was for. Clicking the row itself NARROWS the page to the project, so the board — single-project
+ * mode — is the menu's first item: a door that says where it goes, rather than every click. Delete is
+ * last and red, the one irreversible act here, kept apart from those that only change what Frizz calls
+ * a project.
+ *
+ * The short path heads the menu: it is the one place a project's directory is still shown, and it is
+ * what tells two projects with the same folder name apart.
  *
  * THE ICON: the NATIVE picker, opened standing in the project's own directory — a browser file input
  * cannot be aimed anywhere, and an icon almost always lives inside the project. The hidden input stays
- * as the fallback for a platform with no native dialog, so the item never becomes a dead end. Failures
- * are toasts: the trigger is a row's ellipsis, and a paragraph beside it has nowhere to go.
+ * as the fallback for a platform with no native dialog, so the item never becomes a dead end. A project
+ * whose directory is gone gets neither icon item: there is nowhere to pick from. Failures are toasts —
+ * the trigger is a row's ellipsis, and a paragraph beside it has nowhere to go.
  */
-export function ProjectMenu({ project, home, children }: { project: ProjectCard; home: string | undefined; children: ReactNode }) {
+export function ProjectMenu({
+  project,
+  home,
+  onOpenChange,
+  children,
+}: {
+  project: ProjectCard
+  home: string | undefined
+  onOpenChange?: (open: boolean) => void
+  children: ReactNode
+}) {
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const input = useRef<HTMLInputElement>(null)
@@ -86,7 +108,7 @@ export function ProjectMenu({ project, home, children }: { project: ProjectCard;
           if (file) upload.mutate(file)
         }}
       />
-      <RadixDropdown.Root>
+      <RadixDropdown.Root onOpenChange={onOpenChange}>
         <RadixDropdown.Trigger asChild>{children}</RadixDropdown.Trigger>
         <RadixDropdown.Portal>
           {/* The items do NOT name the project: a name is a directory basename of any length, and this
@@ -95,15 +117,25 @@ export function ProjectMenu({ project, home, children }: { project: ProjectCard;
           <RadixDropdown.Content
             align="end"
             sideOffset={6}
-            className="z-[220] min-w-[190px] rounded-lg border border-border bg-panel p-1 shadow-xl shadow-shadow-ink/40"
+            className="z-[220] min-w-[190px] max-w-[280px] rounded-lg border border-border bg-panel p-1 shadow-xl shadow-shadow-ink/40"
           >
-            <RadixDropdown.Item className={MENU_ITEM} onSelect={() => pick.mutate()}>
-              {upload.isPending ? "Uploading…" : "Choose an icon…"}
-            </RadixDropdown.Item>
-            <RadixDropdown.Item className={MENU_ITEM} onSelect={() => clear.mutate()}>
-              {project.iconIsCustom ? "Use the detected icon" : "Look for an icon again"}
+            <RadixDropdown.Label title={project.path} className="truncate px-2 pb-1.5 pt-1 font-mono text-[11px] text-muted-70">
+              {shortPath(project.path, home)}
+            </RadixDropdown.Label>
+            <RadixDropdown.Item asChild className={MENU_ITEM}>
+              <Link to={projectHref(encodeURIComponent(project.slug))}>Open board</Link>
             </RadixDropdown.Item>
             <RadixDropdown.Separator className="mx-1 my-1 h-px bg-border" />
+            {!project.stale && (
+              <>
+                <RadixDropdown.Item className={MENU_ITEM} onSelect={() => pick.mutate()}>
+                  {upload.isPending ? "Uploading…" : "Choose an icon…"}
+                </RadixDropdown.Item>
+                <RadixDropdown.Item className={MENU_ITEM} onSelect={() => clear.mutate()}>
+                  {project.iconIsCustom ? "Use the detected icon" : "Look for an icon again"}
+                </RadixDropdown.Item>
+              </>
+            )}
             <RadixDropdown.Item className={MENU_ITEM} onSelect={() => setRenaming(true)}>
               Rename…
             </RadixDropdown.Item>
@@ -152,12 +184,18 @@ function RenameProjectDialog({
   const [renameDirectory, setRenameDirectory] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const rename = useMutation({
     mutationFn: () => rpc.projectRename({ id: project.id, name: name.trim(), renameDirectory }),
     onSuccess: (updated) => {
       void queryClient.invalidateQueries({ queryKey: ["projectsList"] })
+      void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
       showToast(`Renamed ${project.name} to ${updated.name}`)
       onClose()
+      // The page it was renamed from is addressed by the OLD slug, which no longer names anything.
+      if (projectSlug() === project.slug && updated.slug !== project.slug) {
+        navigate(crossProjectHref(encodeURIComponent(updated.slug)), { replace: true, state: CROSS_PROJECT_PICK_STATE })
+      }
     },
   })
   const error = rename.error instanceof Error ? rename.error.message : rename.error ? String(rename.error) : null
@@ -270,10 +308,12 @@ function DeleteProjectDialog({
 }) {
   const [deleteData, setDeleteData] = useState(false)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const remove = useMutation({
     mutationFn: () => rpc.projectRemove({ id: project.id, deleteData }),
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["projectsList"] })
+      // Every machine-wide read that still names it, so its row, its lane and its rail badge go at once.
+      for (const queryKey of [["projectsList"], ["projectsQueues"], ["projectsQueueCounts"]]) void queryClient.invalidateQueries({ queryKey })
       // The worker count is the part the operator could not have known they were asking for, so it is
       // reported rather than folded into a generic success.
       showToast(
@@ -282,6 +322,9 @@ function DeleteProjectDialog({
           : `Deleted ${project.name}`,
       )
       onClose()
+      if (crossProjectNarrow() === project.id) narrowCrossProject(null)
+      // Deleting the project the page is focused on leaves it addressed to nothing; `/` picks another.
+      if (projectSlug() === project.slug) navigate("/", { replace: true })
     },
   })
   const error = remove.error instanceof Error ? remove.error.message : remove.error ? String(remove.error) : null
@@ -364,9 +407,10 @@ function AddProjectDialog({
     mutationFn: (input: string) => rpc.projectAdd({ path: input }),
     onSuccess: (project) => {
       void queryClient.invalidateQueries({ queryKey: ["projectsList"] })
-      // Adding a project is only ever a step towards opening it. `navigate`, not location.assign:
-      // the rail is already showing and must not be torn down to open what was just added.
-      navigate(projectHref(project.slug))
+      // Adding a project is only ever a step towards working in it: the cross-project page, aimed at the
+      // new project. `navigate`, not location.assign — the rail must not be torn down on the way.
+      onClose()
+      navigate(crossProjectHref(encodeURIComponent(project.slug)), { state: CROSS_PROJECT_PICK_STATE })
     },
   })
   const error = add.error instanceof Error ? add.error.message : add.error ? String(add.error) : null
@@ -433,13 +477,11 @@ function AddProjectDialog({
 
 /**
  * Adding a project: the native folder picker first, the typed-path dialog as the FALLBACK — it opens
- * only when the machine has no picker, or the picker failed to open and said why.
- *
- * `proposed` is the LAUNCHER asking (`/?add=<dir>`): running `frizz` in an unknown folder does not adopt
- * it, it sends the operator home to say yes, so the dialog opens at once, pre-filled.
+ * only when the machine has no picker, or the picker failed to open and said why. Every door that adds a
+ * project (the list's last row, the rail's +, the empty machine's box) calls this, and the fallback is
+ * the ONE dialog the layout hosts (AddProjectHost), so none of them grows a copy of it.
  */
-export function useAddProject(proposed?: string): { start: () => void; pending: boolean; dialog: ReactNode } {
-  const [fallback, setFallback] = useState<{ reason?: string } | null>(proposed ? {} : null)
+export function useAddProject(): { start: () => void; pending: boolean } {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const pick = useMutation({
@@ -447,20 +489,23 @@ export function useAddProject(proposed?: string): { start: () => void; pending: 
     onSuccess: (result) => {
       if (result.kind === "cancelled") return
       if (result.kind === "unavailable") {
-        setFallback({ reason: result.reason })
+        store.addProject = { reason: result.reason }
         return
       }
       void queryClient.invalidateQueries({ queryKey: ["projectsList"] })
-      navigate(projectHref(result.project.slug))
+      navigate(crossProjectHref(encodeURIComponent(result.project.slug)), { state: CROSS_PROJECT_PICK_STATE })
     },
     // A picker that throws is still a machine without a working picker.
-    onError: (error) => setFallback({ reason: error instanceof Error ? error.message : String(error) }),
+    onError: (error) => { store.addProject = { reason: error instanceof Error ? error.message : String(error) } },
   })
-  return {
-    start: () => { if (!pick.isPending) pick.mutate() },
-    pending: pick.isPending,
-    dialog: fallback ? <AddProjectDialog reason={fallback.reason} proposed={proposed} onClose={() => setFallback(null)} /> : null,
-  }
+  return { start: () => { if (!pick.isPending) pick.mutate() }, pending: pick.isPending }
+}
+
+/** The typed-path dialog, whenever something asked for it (`store.addProject`). Mounted once, by the layout. */
+export function AddProjectHost() {
+  const request = useSnapshot(store).addProject
+  if (!request) return null
+  return <AddProjectDialog reason={request.reason} proposed={request.proposed} onClose={() => (store.addProject = null)} />
 }
 
 /** The home directory, from the registry's own paths — only ever used to shorten a path for display. */
@@ -478,59 +523,64 @@ export function homeOf(projects: readonly { path: string }[] | undefined): strin
 const MARK_PX = 76
 
 /**
- * A machine with no projects — the one time the home page has nothing to list, so it says what a project
- * is and offers the one thing to do. The add button is dashed and never filled: an affordance, not a
- * project.
+ * `/` with no project to land on — the one time the home page has nothing to show, so it says what a
+ * project is and offers the one thing to do. The add button is dashed and never filled: an affordance,
+ * not a project.
+ *
+ * "Nothing to land on" is usually an empty machine, but it is also a machine whose every project's
+ * directory is gone. Those are listed under the button with their menus, since deleting them (or finding
+ * the folder again) is the way out, and a page that pretended they did not exist would strand them.
  */
-export function Welcome({ add }: { add: { start: () => void; pending: boolean } }) {
+export function Welcome({ projects }: { projects: readonly ProjectCard[] }) {
+  const add = useAddProject()
+  const home = homeOf(projects)
   return (
     // m-auto rather than justify-center: a centred flex column clips its overflow at the top once the
     // content is taller than the viewport, and auto margins centre while still scrolling from the top.
-    <div data-home-welcome className="m-auto flex w-full max-w-[420px] flex-col items-center gap-2.5 px-6 py-14 text-center">
-      <img src="/favicon.svg" width={MARK_PX} height={MARK_PX} alt="" className="rounded-[17px]" />
-      <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">Welcome to Frizz</h1>
-      <p className="text-[13px] leading-relaxed text-muted">
-        A project is a folder on this machine. Frizz keeps one board of threads per project.
-      </p>
-      <button
-        type="button"
-        onClick={add.start}
-        disabled={add.pending}
-        className="mt-4 flex min-h-[96px] w-full max-w-[360px] flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-muted outline-none transition-colors hover:border-accent hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-60"
-      >
-        <span className="text-[17px] leading-none text-muted-70">+</span>
-        <span className="text-[12.5px]">{add.pending ? "Choosing a folder…" : "Add a project"}</span>
-      </button>
-      {/* Not "it registers itself": since the launcher stopped adopting unknown folders, running it in
-          one sends you here with the folder proposed (`/?add=<dir>`), and nothing is written until yes. */}
-      <p className="mt-4 text-[11.5px] text-muted-70">
-        Or run{" "}
-        <code className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-muted">frizz</code>{" "}
-        in any folder.
-      </p>
+    <div className="flex min-h-dvh w-full">
+      <div data-home-welcome className="m-auto flex w-full max-w-[420px] flex-col items-center gap-2.5 px-6 py-14 text-center">
+        <img src="/favicon.svg" width={MARK_PX} height={MARK_PX} alt="" className="rounded-[17px]" />
+        <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">
+          {projects.length === 0 ? "Welcome to Frizz" : "No project folder can be found"}
+        </h1>
+        <p className="text-[13px] leading-relaxed text-muted">
+          {projects.length === 0
+            ? "A project is a folder on this machine. Frizz keeps one board of threads per project."
+            : "Every registered project's folder is missing. Add a folder, or delete the projects that are gone."}
+        </p>
+        <button
+          type="button"
+          onClick={add.start}
+          disabled={add.pending}
+          className="mt-4 flex min-h-[96px] w-full max-w-[360px] flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-muted outline-none transition-colors hover:border-fg/40 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-60"
+        >
+          <span className="text-[17px] leading-none text-muted-70">+</span>
+          <span className="text-[12.5px]">{add.pending ? "Choosing a folder…" : "Add a project"}</span>
+        </button>
+        {projects.length > 0 && (
+          <ul className="mt-2 flex w-full max-w-[360px] flex-col text-left">
+            {projects.map((project) => (
+              <li key={project.id} className="group relative flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] hover:bg-hover">
+                <span className="shrink-0 opacity-60 grayscale"><ProjectSquare project={project} size={16} /></span>
+                <span className="min-w-0 flex-1 truncate text-fg/75" title={project.path}>{project.name}</span>
+                <span className="shrink-0 text-[10.5px] text-muted-55">Directory is missing</span>
+                <ProjectMenu project={project} home={home}>
+                  <button type="button" aria-label={`More actions for ${project.name}`} className={ROW_ACTION_CLASS}>
+                    <Ellipsis size={13} />
+                  </button>
+                </ProjectMenu>
+              </li>
+            ))}
+          </ul>
+        )}
+        {/* Not "it registers itself": since the launcher stopped adopting unknown folders, running it in
+            one sends you here with the folder proposed (`/?add=<dir>`), and nothing is written until yes. */}
+        <p className="mt-4 text-[11.5px] text-muted-70">
+          Or run{" "}
+          <code className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-muted">frizz</code>{" "}
+          in any folder.
+        </p>
+      </div>
     </div>
   )
-}
-
-/**
- * What the address bar brought with it to the home page, read ONCE and stripped — each belongs to this
- * arrival, and left in the URL it would re-ask on every reload.
- *
- *  - `?add=<dir>` is the LAUNCHER asking: running `frizz` in an unknown folder does not adopt it, it
- *    sends the operator here to say yes. Returned, for `useAddProject` to open pre-filled.
- *  - `?unknown=<slug>` is the SERVER saying it sent a page here rather than let it hang: a
- *    `/project/<x>` nobody has would otherwise render the app, 404 every call, and sit on its boot
- *    spinner forever (index.ts `unknownProjectPage`). A URL that silently turns into the home page reads
- *    as Frizz having swallowed it, so it says what happened.
- */
-export function useHomeArrival(): string | undefined {
-  const [proposed] = useState(() => new URLSearchParams(location.search).get("add") ?? undefined)
-  useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const unknown = params.get("unknown")
-    if (!params.has("add") && !unknown) return
-    history.replaceState(history.state, "", location.pathname)
-    if (unknown) showToast(`No project named ${unknown}`, { duration: 7000 })
-  }, [])
-  return proposed
 }

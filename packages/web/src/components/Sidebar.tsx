@@ -692,8 +692,8 @@ export const ThreadRow = memo(function ThreadRow({
   // (maintainer 2026-09-11: "a thread that's marked as done should always be grayed out, even if it's
   // pinned"). The pin freezes a row's PLACE, never its state, so the dim has to ride the ROW rather than
   // the band it happens to sit in; the two dims share one treatment so the rail has exactly one way of
-  // saying "nothing here is moving". Read off the indicator's own predicate, so a running-yet-archived
-  // thread — which sectionOf files under Active with its spinner — keeps its full weight there too.
+  // saying "nothing here is moving". Read off the indicator's own predicate, so the dim and the check
+  // can never disagree — an archived row is Done even while its worker drains a last turn.
   const done = !legacy && sessionIndicatorKind(t) === "archived"
   const dim = snoozed || done
   // The done CHECK is a real checkbox on a row frizz owns: unchecking it reopens the thread. A foreign

@@ -8,7 +8,9 @@ import { rpc } from "../api/rpc.ts"
 import { queued } from "../groups.ts"
 import { asThreads } from "../hooks.ts"
 import { store } from "../store.ts"
-import { projectHref, projectSlug } from "../lib/base-path.ts"
+import { crossProjectHref, isCrossProjectPath, modeProjectHref, projectSlug } from "../lib/base-path.ts"
+import { CROSS_PROJECT_PICK_STATE, narrowCrossProject, useCrossProjectNarrow } from "../lib/crossProject.ts"
+import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { dropIndex, edgeScrollVelocity, moveItem, shiftFor } from "../lib/railReorder.ts"
 import { Tooltip } from "./Tooltip.tsx"
 import { useAddProject } from "./ProjectActions.tsx"
@@ -18,7 +20,7 @@ import { useAddProject } from "./ProjectActions.tsx"
 // Slack's and Discord's rail, and for their reason: once a person is working across a dozen
 // workspaces, "which one am I in" and "take me to another" are constant questions, and a home page
 // answers neither without a round trip. Frizz reached the same point when one server started serving
-// every project — the grid at `/` is a fine front door and a poor switcher.
+// every project — the project grid that was `/` then was a fine front door and a poor switcher.
 //
 // It is FIXED to the viewport's left edge, outside App's centered sidebar+workpane pair, so it holds
 // still while the page scrolls and never enters the measure of anything else. App reserves its width
@@ -26,7 +28,7 @@ import { useAddProject } from "./ProjectActions.tsx"
 // whatever space is left.
 //
 // HIDDEN BELOW 800px, where the sidebar already stacks above the workpane and a permanent 56px column
-// would be a tenth of the viewport spent on navigation. The grid at `/` is the switcher there.
+// would be a tenth of the viewport spent on navigation. Everything's own project list is the switcher there.
 
 /**
  * The column's total painted width, and the inset every surface beside it reserves.
@@ -214,7 +216,12 @@ function RailLink({
       }
     >
       <Link
-        to={projectHref(project.slug)}
+        // In the mode the page is in: on the cross-project page a square NARROWS the page to its project
+        // and aims the prompt box there (lib/crossProject.ts) — a project's name on the page does the
+        // same — and on a board it opens that project's board.
+        to={modeProjectHref(project.slug)}
+        // A CHOICE of project there (lib/crossProject.ts), which the page keeps to once drawers close.
+        state={isCrossProjectPath() ? CROSS_PROJECT_PICK_STATE : undefined}
         aria-current={current ? "page" : undefined}
         // The rail is a reorderable list, and a link is not one. `listitem` + `aria-grabbed` is the
         // most a native anchor can say about it; the keyboard path below is what makes it true.
@@ -225,7 +232,8 @@ function RailLink({
           // A drag ENDS over a link, so the browser fires a click on release. Without this, every
           // reorder also navigated to whatever square you dropped on — and under a real router that
           // navigation is instant, so the wrong board would already be mounting.
-          if (drag || justDragged()) event.preventDefault()
+          if (drag || justDragged()) { event.preventDefault(); return }
+          if (isCrossProjectPath()) narrowCrossProject(project.id)
         }}
         // Native image-drag would fight the pointer drag.
         onDragStart={(event: DragEvent_<HTMLAnchorElement>) => event.preventDefault()}
@@ -335,7 +343,8 @@ function useQueueCounts(currentSlug: string | undefined, projects: readonly Proj
   })
   // valtio tracks the property read, so this re-renders on board changes and nothing else.
   const board = useSnapshot(store).board
-  const live = currentSlug !== undefined && board ? asThreads(board.threads).filter(queued).length : undefined
+  // Only a board that IS the current project's: during a switch the store still holds the one being left.
+  const live = currentSlug !== undefined && board && board.projectSlug === currentSlug ? asThreads(board.threads).filter(queued).length : undefined
   const currentId = currentSlug === undefined ? undefined : projects.find((project) => project.slug === currentSlug)?.id
   return (project) => (project.id === currentId && live !== undefined ? live : polled.data?.[project.id])
 }
@@ -346,9 +355,13 @@ const RAIL_DOOR_CLASS =
 export function ProjectRail() {
   const queryClient = useQueryClient()
   const { data } = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
-  const current = projectSlug()
-  // Home is Everything, at `/` — the one machine-level page since the project grid folded into it.
-  const home = useLocation().pathname === "/"
+  const { pathname } = useLocation()
+  const onQueues = isCrossProjectPath(pathname)
+  // The square that wears the current-page pill is the project the page SHOWS: a board's own project,
+  // or on the cross-project page the one it is narrowed to — none while it shows everything. (The page's
+  // focus only aims its prompt box, which says so itself.)
+  const narrowed = useCrossProjectNarrow()
+  const current = onQueues ? data?.find((project) => project.id === narrowed)?.slug : projectSlug()
   const add = useAddProject()
   const [drag, setDrag] = useState<DragState | null>(null)
   /** The order the operator is looking at, which leads the server for the whole round trip. */
@@ -367,7 +380,9 @@ export function ProjectRail() {
   })
 
   const projects = optimistic ?? data ?? []
-  const countFor = useQueueCounts(current, projects)
+  // The LIVE count belongs to the project whose board the store holds — the page project, which on the
+  // cross-project page is its focus, not the project it shows.
+  const countFor = useQueueCounts(projectSlug(), projects)
 
   /**
    * Fade the band's bottom edge ONLY while something is actually below it.
@@ -491,16 +506,28 @@ export function ProjectRail() {
       aria-label="Projects"
       className={`fixed inset-y-0 left-0 z-[60] flex flex-col items-center border-r border-border bg-panel/60 py-3 max-[800px]:hidden ${RAIL_WIDTH_CLASS}`}
     >
-      {/* THE DOOR HOME — Everything, every project's queue on one page (AllQueues.tsx). ONE door since
-          2026-09-24: a house for the project grid and an infinity for Everything stood here one above the
-          other until the grid folded into Everything, and two doors "up" asked the reader to choose
-          between pages that were never meant to be different places. The infinity is the maintainer's
-          glyph for Everything. A stroke glyph rather than the Frizz mark, because `favicon.svg` carries
-          an feDropShadow that at this size cast a soft shadow DOWN onto the first project square. No
-          count of its own — each square below already wears its project's, and a sum over them would be
-          a second yellow number saying the same thing. */}
+      {/* THE DOOR TO EVERYTHING — the cross-project page (AllQueues.tsx), every project's queue on one
+          page. ONE door since 2026-09-24: a house for the project grid stood above it until the grid folded
+          into Everything, and two doors "up" asked the reader to choose between pages that were never meant
+          to be different places. A stroke glyph rather than the Frizz mark, because `favicon.svg` carries
+          an feDropShadow that at this size cast a soft shadow DOWN onto the first project square. No count
+          of its own — each square below already wears its project's, and a sum over them would be a second
+          yellow number saying the same thing.
+          From a board it opens the page focused on that board's project, the prompt box aimed where the
+          operator already was; on the page it widens a narrowed view back to everything, in place. */}
       <Tooltip side="right" label="Everything">
-        <Link to="/" aria-label="Everything" aria-current={home ? "page" : undefined} className={`${RAIL_DOOR_CLASS} ${home ? "bg-elevated text-fg" : ""}`}>
+        <Link
+          to={current && !onQueues ? crossProjectHref(current) : "/"}
+          aria-label="Everything"
+          aria-current={onQueues && !narrowed ? "page" : undefined}
+          className={`${RAIL_DOOR_CLASS} ${onQueues && !narrowed ? "bg-elevated text-fg" : ""}`}
+          onClick={(event) => {
+            narrowCrossProject(null)
+            if (!onQueues || !isPlainLeftClick(event)) return
+            event.preventDefault()
+            window.scrollTo({ top: 0, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
+          }}
+        >
           <InfinityIcon size={17} />
         </Link>
       </Tooltip>
@@ -543,14 +570,11 @@ export function ProjectRail() {
           // slot in the same list rather than a control bolted under it. Dotted and not dashed: at 40px
           // a dashed border resolves into four long strokes that read as a frame, where dots read as
           // "nothing here yet" — which is what it is.
-          className="mt-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-[30%] border-[1.5px] border-dotted border-border-strong text-muted-80 outline-none transition-colors hover:border-accent hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-50"
+          className="mt-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-[30%] border-[1.5px] border-dotted border-border-strong text-muted-80 outline-none transition-colors hover:border-fg/40 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-50"
         >
           <Plus size={16} />
         </button>
       </Tooltip>
-      {/* The typed-path fallback, for a machine with no folder picker — portalled, so the 57px column
-          is not where it draws. */}
-      {add.dialog}
     </nav>
   )
 }

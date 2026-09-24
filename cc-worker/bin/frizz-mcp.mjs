@@ -590,9 +590,12 @@ const ASK = {
     "direction that is genuinely the human's taste to set. And ask when you KNOW the answer but cannot " +
     "ACT on it: a merge, a publish, a spend, a comment that goes out under their name. Then the " +
     "recommendation is the point, and it goes first.\n\n" +
-    "ASKING DOES NOT END YOUR TURN. A question waits on a person, so it carries no timeout and expires " +
-    "never — but you keep working. Do everything that does NOT depend on the answer first, and register " +
-    "the question at the moment you find it rather than saving it for the end.\n\n" +
+    "ASK LAST, THEN REST. The card reaches the human's queue only when you come to REST: while you are " +
+    "still working your thread spins in the Active band and nobody is prompted to answer it, so a " +
+    "question asked mid-work sits unseen for as long as you keep going. Finish everything that does NOT " +
+    "depend on the answer FIRST, then ask, then stop. If what is left is substantial work you would do " +
+    "on your recommended option anyway, the call was yours: take it, say which way you went, and do not " +
+    "ask at all.\n\n" +
     "AND WHEN YOU DO STOP, THE OPEN QUESTION IS YOUR SIGN-OFF — rest normally. Frizz draws every open " +
     "question at the rest you stopped at whether you mention it or not, so nothing you write can hide " +
     "one. The card draws itself at the tail of the rest the question was asked — never write the " +
@@ -1511,14 +1514,16 @@ async function ask(args) {
   const registered = Array.isArray(result?.registered) ? result.registered : []
   const lines = registered.map((q) => `  ${q.id}  ${(q.spec?.question ?? "").split("\n")[0]}`)
   const head = registered.length === 1
-    ? `Registered 1 question. It is on the human's board now and it will stay there until they answer it.`
-    : `Registered ${registered.length} questions. They are on the human's board now and they will stay ` +
-      "there until answered — the card sends every answer as one batch."
+    ? "Registered 1 question. It stays open until the human answers it."
+    : `Registered ${registered.length} questions. They stay open until answered — the card sends every ` +
+      "answer as one batch."
   return (
     `${head}\n${lines.join("\n")}\n\n` +
-    "KEEP WORKING. A question waits on a person, carries no timeout and does not end your turn — do " +
-    "everything that does not depend on the answer while it sits there. The answer arrives as its own " +
-    "wake, restating what was asked.\n\n" +
+    "NOW REST. The human is not prompted until you do: while your turn runs the thread spins in the " +
+    "Active band, not the queue, and the card waits unseen. Wrap up only what is quick and does not " +
+    "depend on the answer, then stop — the open question is your sign-off. If you are about to keep " +
+    "going for long on your own best guess, `unask` it and decide instead. The answer arrives as its " +
+    "own wake, restating what was asked.\n\n" +
     "WITHDRAW ONE THE MOMENT IT STOPS MATTERING (`unask`), above all if you work the answer out " +
     `yourself.\n\n${openQuestionList(result)}`
   )

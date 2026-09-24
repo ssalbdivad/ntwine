@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react"
+import { useProjectDir } from "../lib/drafts.ts"
 import { projectApiBase, projectRpc, rpc, type Api } from "./rpc.ts"
 import { apiBase } from "../lib/base-path.ts"
 
@@ -17,12 +18,25 @@ import { apiBase } from "../lib/base-path.ts"
 interface ThreadScope {
   api: Api
   projectId: string
+  projectDir: string | undefined
 }
 
 const ThreadScopeContext = createContext<ThreadScope | null>(null)
 
-export function ThreadProjectScope({ projectId, children }: { projectId: string; children: ReactNode }) {
-  return <ThreadScopeContext.Provider value={{ api: projectRpc(projectId), projectId }}>{children}</ThreadScopeContext.Provider>
+export function ThreadProjectScope({ projectId, projectDir, children }: { projectId: string; projectDir: string | undefined; children: ReactNode }) {
+  return <ThreadScopeContext.Provider value={{ api: projectRpc(projectId), projectId, projectDir }}>{children}</ThreadScopeContext.Provider>
+}
+
+/**
+ * The directory a thread control files its DRAFTS under (lib/drafts.ts keys them by project directory):
+ * its thread's project's, or the page's. The page's is the board in the store, which on the cross-project
+ * page is the FOCUS — so a line typed into another project's card was filed under whichever project was
+ * focused, and vanished from the box the moment the focus moved.
+ */
+export function useThreadProjectDir(): string | undefined {
+  const scope = useContext(ThreadScopeContext)
+  const pageDir = useProjectDir()
+  return scope ? scope.projectDir : pageDir
 }
 
 /** The client a thread control must use: its thread's own project's, or the page's. */
