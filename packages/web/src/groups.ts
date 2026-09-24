@@ -967,6 +967,25 @@ export function partitionActive(active: readonly ThreadView[]): { running: Threa
   }
 }
 
+// THE BAND A THREAD'S STATE PUTS IT IN, by the names the rail's headers print rather than the section
+// keys above: READY is the cue (it has a queue card), WORKING the band below the rule, then SNOOZED,
+// DONE, and EXTERNAL for a terminal session Frizz does not own. The same derivation the rail's bands
+// run, so a surface that names the band — the drawer header's stamp — can never disagree with the band
+// the row actually sits in.
+//
+// It IGNORES THE PIN on purpose. A pin moves the row, never the state (see isPinned): a pinned thread
+// that is spinning is still Working, and the stamp says what the thread is doing, not where the human
+// shelved it. Legacy `.frizz` rows have no band (null), as they have no row.
+export type Band = "ready" | "working" | "snoozed" | "done" | "external"
+export function bandOf(t: ThreadView): Band | null {
+  if (t.kind === "session" && t.foreign === true) return "external"
+  const section = sectionOf(t)
+  if (section === "inactive") return "done"
+  if (section === "snoozed") return "snoozed"
+  if (section === "active") return inActiveBand(t) ? "working" : "ready"
+  return null
+}
+
 // Partition threads into the thread-derived sidebar sections. `active` is the Active+Rested section and
 // is banded by orderActive (spinning rows first, then the queue's own order); Snoozed and Done are plain
 // interaction recency.

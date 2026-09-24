@@ -17,9 +17,9 @@ const thread = {
   subAgents: [],
 } as unknown as ThreadView
 
-function row(active: boolean) {
+function row(active: boolean, open = false) {
   return renderToStaticMarkup(
-    createElement(TooltipProvider, null, createElement(ThreadRow, { t: thread, active })),
+    createElement(TooltipProvider, null, createElement(ThreadRow, { t: thread, active, open })),
   )
 }
 
@@ -43,3 +43,18 @@ test("inactive sidebar rows reserve the same rail without rendering a false curr
   assert.match(html, /data-sidebar-marker-rail/)
   assert.doesNotMatch(html, /data-sidebar-scroll-marker/)
 })
+
+
+// The drawer's row is LIT, not marked: the scroll marker stays the queue's reading position (the
+// keyboard steps from it), and the row whose thread is up in the side drawer holds its wash instead —
+// one step stronger than hover, so pointing at a neighbour never reads as opening it.
+test("a row whose thread is open in the drawer holds a stronger wash and no scroll marker", () => {
+  const open = row(false, true)
+  assert.match(open, /data-sidebar-open="true"/)
+  assert.match(open, /after:bg-hover-strong after:opacity-100/)
+  assert.doesNotMatch(open, /data-sidebar-scroll-marker/, "opening a thread does not move the reading marker")
+  const closed = row(false)
+  assert.doesNotMatch(closed, /data-sidebar-open/)
+  assert.match(closed, /after:bg-hover after:opacity-0 hover:after:opacity-100/)
+})
+

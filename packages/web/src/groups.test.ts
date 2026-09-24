@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ThreadView } from "@frizz/shared"
-import { needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
+import { bandOf, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
 
 // Minimal ThreadView fixture — the same shape board-delta.test.ts uses, defaulting to a live/active
 // thread; each case overrides only the fields under test.
@@ -1132,4 +1132,43 @@ test("isSnoozed: the event-snooze yields to a live sub-agent, a queue reason, an
   // And it never dims a turn that is actually in flight.
   assert.equal(isSnoozed(thread({ ...base, runtime: "running" })), false)
   assert.equal(sessionIndicatorKind(thread({ ...base, runtime: "running" })), "working")
+})
+
+// ---- bandOf: the band a surface names must be the band the row sits in ----
+
+// The drawer header's stamp and the rail read one derivation, and the check is the rail itself: over the
+// same shapes the partition test walks, bandOf says READY for exactly the rows sectionThreads + partitionActive
+// put in the cue and WORKING for exactly the rows below the rule — the stamp can never name a band the
+// row is not in.
+test("bandOf: READY and WORKING are exactly the rail's cue and the rows below its rule", () => {
+  const base = { kind: "session" as const, state: "open" as const, lastUserAt: "2026-07-09T00:00:00.000Z" }
+  const shapes = [
+    thread({ ...base, id: "own-turn", runtime: "running", needsYou: false }),
+    thread({ ...base, id: "rested-on-child", runtime: "turn-idle", needsYou: false, awaitingBackground: true, subAgents: [{ id: "a", label: "child", state: "running" }] as ThreadView["subAgents"] }),
+    thread({ ...base, id: "excused-at-rest", runtime: "turn-idle", needsYou: false }),
+    thread({ ...base, id: "bare-rest", runtime: "turn-idle", needsYou: true }),
+    thread({ ...base, id: "stalled", runtime: "exited", needsYou: true }),
+    thread({ ...base, id: "spin-ask", runtime: "running", needsYou: true }),
+  ]
+  const { running, rested } = partitionActive(sectionThreads(shapes).active)
+  assert.deepEqual(shapes.filter((t) => bandOf(t) === "working").map((t) => t.id).sort(), running.map((t) => t.id).sort())
+  assert.deepEqual(shapes.filter((t) => bandOf(t) === "ready").map((t) => t.id).sort(), rested.map((t) => t.id).sort())
+})
+
+test("bandOf: Snoozed, Done, External, and no band for a legacy row", () => {
+  const future = new Date(Date.now() + 3_600_000).toISOString()
+  assert.equal(bandOf(thread({ kind: "session", state: "open", runtime: "turn-idle", snoozedUntil: future })), "snoozed")
+  assert.equal(bandOf(thread({ kind: "session", state: "archived", archived: true, runtime: "turn-idle" })), "done")
+  // A running-yet-archived thread sits in the Working band with its spinner, and says so.
+  assert.equal(bandOf(thread({ kind: "session", state: "archived", archived: true, runtime: "running" })), "working")
+  assert.equal(bandOf(thread({ kind: "session", foreign: true, runtime: "turn-idle" })), "external")
+  assert.equal(bandOf(thread({ kind: "command", state: "archived" })), "done")
+  assert.equal(bandOf(thread({ kind: "command", state: "open", needsYou: true })), "ready")
+  assert.equal(bandOf(thread({})), null, "a legacy .frizz row has no row, so no band")
+})
+
+test("bandOf: a pin moves the row, never the band — a pinned thread still says what it is doing", () => {
+  const pinnedAt = "2026-09-02T00:00:00.000Z"
+  assert.equal(bandOf(thread({ kind: "session", state: "open", runtime: "running", needsYou: false, pinnedAt })), "working")
+  assert.equal(bandOf(thread({ kind: "session", state: "open", runtime: "turn-idle", needsYou: true, pinnedAt })), "ready")
 })

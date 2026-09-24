@@ -96,6 +96,7 @@ import { SnoozeCard, showsSnoozeCard } from "./SnoozeCard.tsx"
 export { CARD_BODY, CARD_PRIMARY_BUTTON, CardActions, TranscriptCard } from "./TranscriptCard.tsx"
 export { QuestionBlockCard } from "./QuestionBlockCard.tsx"
 import { LastActive } from "./LastActive.tsx"
+import { ThreadBandStamp } from "./BandLabel.tsx"
 import { CopyTerminalCommandButton, useCopyTerminalCommand } from "./ExternalTerminalCommand.tsx"
 import { SignInModal } from "./SignInModal.tsx"
 import { PROVIDER_LABEL } from "../lib/signIn.ts"
@@ -1536,7 +1537,19 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
           {/* The name and both rename verbs — click to type, hover for the Claude refresh — are the
               shared ThreadTitle, the same element the queue card's header renders. */}
           <ThreadTitle thread={thread} />
-          <LastActive at={lastActiveLabelAt(thread)} fallbackAt={thread.spawnedAt} className="mt-0.5 block truncate text-[11px] leading-tight text-muted-75" />
+          {/* The second line opens on the thread's BAND — WORKING with the bot for a running thread,
+              the rail header's own name and glyph (BandLabel.tsx) — so a drawer says which band it was
+              opened from, and says READY when its thread rests into the inbox behind it. The queue card
+              carries no stamp: the whole middle column is headed READY. */}
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-muted-75">
+            <ThreadBandStamp thread={thread} />
+            <LastActive
+              at={lastActiveLabelAt(thread)}
+              fallbackAt={thread.spawnedAt}
+              lead={<span aria-hidden className="shrink-0 opacity-60">·</span>}
+              className="min-w-0 truncate"
+            />
+          </div>
         </div>
       </div>
       {/* At constrained drawer widths, controls get their own deliberate row. This keeps the

@@ -276,6 +276,20 @@ export function slugsInThreadDrawers(drawers: readonly Pick<Drawer, "kind" | "sl
   return new Set(drawers.filter((d) => !d.closing && (d.kind === "thread" || d.kind === "terminal")).map((d) => d.slug))
 }
 
+// The THREAD the drawer stack is showing: the topmost live layer that belongs to one — its chat, its
+// doc, its terminal, or a sub-agent / shell drill-in (whose slug is the parent thread's). A markdown
+// layer names a FILE, so the walk passes under it to the thread it was opened from. A closing layer
+// does not count: its row lets go the moment the slide-out starts, as the URL does. The rail lights
+// this thread's row (Sidebar rowWashClass).
+export function drawerThreadSlug(drawers: readonly Pick<Drawer, "kind" | "slug" | "closing">[]): string | null {
+  for (let i = drawers.length - 1; i >= 0; i--) {
+    const d = drawers[i]
+    if (d.closing || d.kind === "markdown") continue
+    return d.slug
+  }
+  return null
+}
+
 export function pushDrawer(kind: "thread" | "doc" | "terminal", slug: string, opts?: { routed?: boolean }): void {
   openOrRaiseDrawer({ kind, slug, routed: opts?.routed })
 }
