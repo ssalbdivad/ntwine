@@ -15,6 +15,7 @@ import { installLocalFileLinkInterceptor } from "./lib/local-file-links.ts"
 import { installCodeCopyInterceptor } from "./lib/copy-code.ts"
 import { installThreadLinkInterceptor } from "./lib/thread-links.ts"
 import { primeRoute } from "./lib/router.ts"
+import { PENDING_SEND_REPLAY_DELAY_MS, replayPendingSends } from "./lib/eagerComposerSubmission.ts"
 import { innerPath } from "./lib/base-path.ts"
 import { projectScopedQueryKeyHash } from "./lib/queryKeyScope.ts"
 import { parseStandaloneThreadPath } from "./lib/standaloneThreadRoute.ts"
@@ -61,6 +62,8 @@ if (!settingsFixture) {
   installLocalFileLinkInterceptor()
   installCodeCopyInterceptor()
   installThreadLinkInterceptor()
+  // A reply still on the wire when the last page in this tab went away — see lib/pendingSends.ts.
+  setTimeout(() => void replayPendingSends(), PENDING_SEND_REPLAY_DELAY_MS)
 }
 
 // No StrictMode: it double-mounts effects, which would open the terminal

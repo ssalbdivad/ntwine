@@ -765,6 +765,11 @@ export interface DispatchDeps {
   // board at click time, after the selected file has passed the direct-file containment check.
   readBoard?: typeof readBoard
   getSettings: () => Settings
+  // The operator's CURRENT profile for one backend: the machine-wide record the prompt box and every
+  // thread's profile control write (dispatch-preferences.ts). It fills in a dispatch or an adoption that
+  // names no model. Absent (tests) ⇒ the per-project Settings pair, which no surface has written since
+  // the prompt box got its own record — so in production it would be a months-old value, or nothing.
+  dispatchProfile?: (kind: BackendKind) => { model?: string; effort?: Settings["effort"] }
   claudeBin?: string // injectable (tests / a stand-in command)
   // Inert since the broker became the only transport: dispatch spawns through the bridge, and the
   // rollback these seams performed — killing the terminal a worker had been claimed in — has nothing
@@ -812,6 +817,10 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
   const readBoardSource = deps.readBoard ?? readBoard
   const frizzDir = join(deps.project.dir, ".frizz")
   const adoptionRuntime: AdoptionRecoveryRuntime = deps.adoptionRuntime ?? productionAdoptionRuntime
+
+  function savedProfile(kind: BackendKind, settings: Settings): { model?: string; effort?: Settings["effort"] } {
+    return deps.dispatchProfile ? deps.dispatchProfile(kind) : { model: settings.model, effort: settings.effort }
+  }
 
   // Build the detached-spawn command through the backend seam for the chosen `kind` (falling back to
   // the local Claude builder when no resolver is injected — identical argv). Returns argv + prewrites.
@@ -882,8 +891,12 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // Resolve the profile ONCE for this session. It feeds both the CLI argv and the persisted row,
       // so the thread UI describes what this dispatch actually launched with rather than whatever the
       // mutable global defaults happen to be when the drawer is opened later.
-      const model = input.model ?? settings.model
-      const effort = input.effort ?? settings.effort
+      // A caller that names neither takes the operator's saved profile for this backend. A caller that
+      // names only a model borrows the saved effort only when it IS the saved model: another model's
+      // effort can name a level this one lacks (ultracode on Haiku), so it launches on the CLI default.
+      const saved = input.model === undefined || input.effort === undefined ? savedProfile(kind, settings) : {}
+      const model = input.model ?? saved.model
+      const effort = input.effort ?? (model === saved.model ? saved.effort : undefined)
 
       // Session-first: provision the thread's scratch DIRECTORY (empty; the worker fills it or does
       // not) — NO .frizz/<slug>.md file. It keys on the frizz-minted sessionId, which stays the row's
@@ -1222,6 +1235,8 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       if (!recheckedSource || !sameFileStat(source, recheckedSource)) throw unavailable()
 
       const settings = deps.getSettings()
+      // Adoption always starts a Claude session, on the operator's current Claude profile.
+      const adoptProfile = savedProfile("claude", settings)
       const sessionId = randomUUID()
       const attemptToken = deps.adoptionAttemptToken?.() ?? randomUUID()
       const now = deps.adoptionNow ?? Date.now
@@ -1309,8 +1324,8 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
             frizzConfigBlock(deps.project.dir),
             adoption,
           ].filter(Boolean).join("\n\n"),
-          model: settings.model,
-          effort: settings.effort,
+          model: adoptProfile.model,
+          effort: adoptProfile.effort,
         })
       } catch {
         try { bridge.releaseSession(slug, sessionId, "session-deleted") } catch { /* best-effort */ }
@@ -1337,8 +1352,8 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         transcript_id: null,
         // Adoption starts a NEW session using the dispatch defaults in force at that moment. Pin those
         // values now; a later settings change must not relabel this adopted conversation.
-        model: settings.model ?? null,
-        effort: settings.effort ?? null,
+        model: adoptProfile.model ?? null,
+        effort: adoptProfile.effort ?? null,
         permission_mode: permissionMode,
         // Adoption always starts a fresh Claude session. Keep both identity columns in the SAME atomic
         // insert so a prior/competing Codex owner can never leak its native id into this row.

@@ -139,6 +139,15 @@ async function waitForServer(url, child) {
 }
 
 let vite;
+// The whole process group, never `vite` alone: see `detached` below. Tried unconditionally, because the
+// group outlives its leader — `vite.exitCode` says nothing about whether anything in it still serves.
+const killVite = () => {
+  try {
+    process.kill(-vite.pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+};
 let url = urlFlag;
 if (!url) {
   const port = await freePort();
@@ -146,6 +155,10 @@ if (!url) {
   vite = spawn("nubx", ["vite", "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
     cwd: path.join(root, "packages", "web"),
     stdio: ["ignore", "pipe", "pipe"],
+    // Its own process group, so one signal reaches all of it. `nubx` is not vite: it starts `node vite.js`,
+    // which re-execs node with its flags, and a SIGKILL cannot be forwarded — killing `nubx` alone left
+    // those two orphaned and still listening after every run.
+    detached: true,
     // No watcher, no HMR (see vite.config.ts): a concurrent agent editing the tree mid-run must not
     // reload a fixture page in the middle of a test.
     // A scratch dep cache too, so this Vite never rewrites the one a running dev server serves from.
@@ -157,7 +170,7 @@ if (!url) {
   try {
     await waitForServer(`${url}/index.html`, vite);
   } catch (err) {
-    vite.kill("SIGKILL");
+    killVite();
     console.error(`✖ ${err.message}`);
     console.error(viteLog.join(""));
     process.exit(1);
@@ -179,7 +192,7 @@ const runner = spawn(
   { cwd: root, stdio: "inherit", env },
 );
 
-const shutdown = () => { if (vite && vite.exitCode === null) vite.kill("SIGKILL"); };
+const shutdown = () => { if (vite) killVite(); };
 process.on("SIGINT", () => { shutdown(); process.exit(130); });
 process.on("SIGTERM", () => { shutdown(); process.exit(143); });
 
