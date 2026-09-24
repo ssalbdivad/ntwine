@@ -460,7 +460,9 @@ export function ProjectRail() {
   const pick = useMutation({
     mutationFn: () => rpc.projectPick({}),
     onSuccess: (result) => {
-      if (result.kind === "picked") navigate(modeProjectHref(result.project.slug))
+      // Adding a project is choosing it: on the cross-project page it becomes the pick, or the page would
+      // hand the focus straight back to the previous one (AllQueues.tsx useReturnToPick).
+      if (result.kind === "picked") navigate(modeProjectHref(result.project.slug), { state: isCrossProjectPath() ? CROSS_PROJECT_PICK_STATE : undefined })
       // No picker on this machine, or it failed: the grid owns the typed-path fallback dialog, and
       // sending someone there is better than growing a second copy of it in a 57px column.
       else if (result.kind === "unavailable") navigate(PROJECTS_PATH)

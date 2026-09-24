@@ -43,8 +43,9 @@ export function useDispatchProfile(): {
   saveProfile: (update: SetDispatchPreferenceInput) => void
 } {
   const queryClient = useQueryClient()
-  // The MOST RECENT pick wins, wherever it was made: another tab, another device, another project, or
-  // a thread's own profile control (the server writes that one through). So this read re-runs whenever
+  // The MOST RECENT pick wins, wherever it was made: another tab, another device, another project. A
+  // thread's own profile control is NOT one of those places — its pick stays on that thread, and a new
+  // thread starts from this record (maintainer 2026-09-24). So this read re-runs whenever
   // the page comes back into view — the app-wide default is not to — and on another tab's broadcast.
   const preferences = useQuery({
     queryKey: PREFERENCES_KEY,

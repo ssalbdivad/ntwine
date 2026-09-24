@@ -37,17 +37,19 @@ test("a folded fence leaves no Send button behind it", () => {
 
 // ---- PER-QUESTION PLACEMENT (2026-09-11) ----
 
-test("every Message site hands the message its placed questions, and the tail stack carries the Send for them", () => {
+test("every Message site hands the message its placed questions, and every question stack takes its Send from questionStacks", () => {
   assert.equal((chat.match(/placed=\{placement\.placed\.get\(messageIndex\)\}/g) ?? []).length, 1, "plain transcript path")
   assert.equal((chat.match(/placed=\{placement\.placed\.get\(row\.messageIndex\)\}/g) ?? []).length, 1, "virtualized transcript path")
   assert.equal((queue.match(/placed=\{placement\.placed\.get\(globalIdx\)\}/g) ?? []).length, 2, "both queue-card message sites")
-  assert.equal((chat.match(/showSend=\{placement\.placedIds\.size > 0\}/g) ?? []).length, 1, "the thread page's tail stack")
-  assert.equal((queue.match(/showSend=\{placement\.placedIds\.size > 0\}/g) ?? []).length, 1, "the queue card's tail stack")
+  // The Send rides the rest the placing marker sits in (lib/questionShadow questionStacks), so both the
+  // tail mount and the anchored mount take it from the stack rather than from "anything placed anywhere".
+  assert.equal((chat.match(/showSend=\{(questionGroups\.tail|row)\.showSend\}/g) ?? []).length, 2, "the thread page's tail and anchored stacks")
+  assert.equal((queue.match(/showSend=\{(questionAnchors\.tail|stack)\.showSend\}/g) ?? []).length, 2, "the queue card's tail and anchored stacks")
 })
 
 test("a placed question leaves its anchor group on both surfaces, and each surface mounts ONE answering provider", () => {
-  assert.match(chat, /filter\(\(q\) => !placement\.placedIds\.has\(q\.id\)\)/)
-  assert.match(queue, /filter\(\(q\) => !placement\.placedIds\.has\(q\.id\)\)/)
+  assert.match(chat, /questionStacks\(messages, thread\?\.questions \?\? \[\], placement\)/)
+  assert.match(queue, /questionStacks\(messages, thread\?\.questions \?\? \[\], placement\)/)
   assert.equal((chat.match(/<RegisteredAnsweringProvider thread=\{thread\}>/g) ?? []).length, 1)
   assert.equal((queue.match(/<RegisteredAnsweringProvider thread=\{thread\}>/g) ?? []).length, 1)
 })

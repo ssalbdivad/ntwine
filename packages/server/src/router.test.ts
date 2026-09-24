@@ -486,30 +486,6 @@ test("setThreadPermission/setThreadProfile RPC: every row persists intent and re
   h.storage.close()
 })
 
-// The most recent pick wins wherever it was made: a thread's own profile control is also the next
-// thread's profile, so the prompt box never opens on a choice older than the one just made.
-test("setThreadProfile RPC: the picked pair becomes the new-thread profile, for every backend", async () => {
-  const h = harness()
-  const remembered: unknown[] = []
-  Object.assign(h.ctx, { setDispatchPreference: (update: unknown) => void remembered.push(update) })
-  for (const [slug, backend] of [["claude-row", "claude"], ["codex-row", "codex"]] as const) {
-    h.storage.upsertSession(row(slug))
-    h.storage.setBackend(slug, backend)
-    h.addExitedThread(slug)
-  }
-  await h.router.setThreadProfile.handler({ input: { slug: "claude-row", model: "sonnet", effort: "medium" } })
-  await h.router.setThreadProfile.handler({ input: { slug: "codex-row", model: "gpt-5.6-sol", effort: "high" } })
-  assert.deepEqual(remembered, [
-    { field: "profile", backend: "claude", model: "sonnet", effort: "medium" },
-    { field: "profile", backend: "codex", model: "gpt-5.6-sol", effort: "high" },
-  ])
-
-  // A pair the thread refuses is not remembered either.
-  await assert.rejects(h.router.setThreadProfile.handler({ input: { slug: "claude-row", model: "sonnet", effort: "ultra" } }))
-  assert.equal(remembered.length, 2)
-  h.storage.close()
-})
-
 test("setThreadPermission RPC: rowless/foreign-style threads are read-only", async () => {
   const h = harness()
   await assert.rejects(

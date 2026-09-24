@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { BoardSnapshot, ThreadView } from "@frizz/shared"
 import { markDrawerClosing, resolveRoutedThread, store } from "../store.ts"
-import { primeRoute, queueDestination, startRouter } from "./router.ts"
+import { applyLocation, primeRoute, queueDestination, startRouter } from "./router.ts"
 
 function resetStore(): void {
   store.drawers = []
@@ -255,6 +255,46 @@ test("the store→URL sync never writes over the fullscreen page", async () => {
     assert.deepEqual(navigated, ["/thread/focus"])
   } finally {
     globals.location = previous
+    resetStore()
+  }
+})
+
+// The cross-project page opens another project's thread URL-FIRST: history already names
+// `/all/c/thread/u` while the store still holds the previous focus's state (here: a thread parked for
+// project b, whose board never landed). A notification in that window must not write the old state over
+// the new URL — that put b's `t` under c's prefix. Once the route has applied the URL, the store agrees
+// with it and nothing is written at all.
+test("the store→URL sync waits until the route has applied a URL-first navigation", async () => {
+  resetStore()
+  const globals = globalThis as typeof globalThis & { location?: Location }
+  const previous = globals.location
+  const navigated: string[] = []
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  try {
+    globals.location = { pathname: "/all/b/thread/t" } as unknown as Location
+    const stop = startRouter((path) => navigated.push(path))
+    // The operator clicks c's card before b's board lands: history moves first.
+    globals.location = { pathname: "/all/c/thread/u" } as unknown as Location
+    store.connection = "open" // an unrelated notification, in the window
+    await settle()
+    assert.deepEqual(navigated, [], "nothing written over the URL the store has not absorbed")
+
+    // The route applies it (routes.tsx useRouteToStore) — the store now parks c's `u`, and the address
+    // bar already says so.
+    store.routeThreadSlug = null
+    applyLocation("/all/c/thread/u")
+    await settle()
+    assert.equal(store.routeThreadSlug, "u")
+    assert.deepEqual(navigated, [], "the store agrees with the URL")
+
+    // CONTROL: a store-first change once absorbed IS written — the guard only holds a moving URL.
+    store.routeThreadSlug = "v"
+    await settle()
+    stop()
+    assert.deepEqual(navigated, ["/all/c/thread/v"])
+  } finally {
+    globals.location = previous
+    store.connection = "connecting"
     resetStore()
   }
 })
