@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ProjectCard, ProjectQueue, ThreadView } from "@frizz/shared"
-import { handoffParts, isBusy, laneSummary, queuesProjects, queuesTotals, threadKey, withLiveBoard } from "./allQueues.ts"
+import { handoffParts, isBusy, laneSummary, queuesProjects, queuesTotals, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
 
 function thread(id: string, over: Partial<ThreadView> = {}): ThreadView {
   return {
@@ -155,21 +155,21 @@ test("the focused project is drawn from its live board, never another project's"
     queue("beta", [thread("fix-auth", { needsYou: true })]),
   ]
   const live = { projectSlug: "alpha", threads: [thread("fix-auth", { state: "archived", archived: true }), thread("new-one", { runtime: "turn-running" })] }
-  const merged = withLiveBoard(polled, live, "alpha")!
-  const alpha = merged.find((q) => q.projectId === "alpha")!
-  assert.deepEqual(alpha.threads.map((t) => t.id), ["fix-auth", "new-one"])
-  assert.equal(alpha.doneCount, 0, "the rail counts the live Done rows itself")
-  assert.equal(merged.find((q) => q.projectId === "beta"), polled[1], "beta's same-slug thread is untouched")
-  const projects = queuesProjects(undefined, merged)
+  const alphaLive = liveQueue(polled, live, "alpha")!
+  assert.deepEqual(alphaLive.threads.map((t) => t.id), ["fix-auth", "new-one"])
+  assert.equal(alphaLive.doneCount, 0, "the rail counts the live Done rows itself")
+  const base = queuesProjects([card("alpha"), card("beta")], polled)
+  const projects = overlayQueues(base, [alphaLive])
   assert.equal(projects.find((p) => p.id === "alpha")!.queued.length, 0, "the finished card leaves at once")
-  assert.equal(projects.find((p) => p.id === "beta")!.queued.length, 1)
+  assert.equal(projects.find((p) => p.id === "alpha")!.card, base[0]!.card, "keeps its registry card")
+  assert.equal(projects.find((p) => p.id === "beta"), base[1], "beta's same-slug thread is untouched, and so is beta")
+  assert.equal(overlayQueues(base, [undefined]), base, "nothing live, nothing rebuilt")
 
   // NEGATIVE: a board that is not provably the focus — mid focus change, the store still holds the old
   // project's — is never drawn under the focus's name.
-  assert.equal(withLiveBoard(polled, { projectSlug: "beta", threads: [] }, "alpha"), polled)
-  assert.equal(withLiveBoard(polled, { projectSlug: undefined, threads: [] }, "alpha"), polled)
-  assert.equal(withLiveBoard(polled, null, "alpha"), polled)
+  assert.equal(liveQueue(polled, { projectSlug: "beta", threads: [] }, "alpha"), undefined)
+  assert.equal(liveQueue(polled, { projectSlug: undefined, threads: [] }, "alpha"), undefined)
+  assert.equal(liveQueue(polled, null, "alpha"), undefined)
   // Foreign rows never reach the page, as the server's poll never sends them.
-  const withForeign = withLiveBoard(polled, { projectSlug: "alpha", threads: [thread("ext", { foreign: true })] }, "alpha")!
-  assert.equal(withForeign.find((q) => q.projectId === "alpha")!.threads.length, 0)
+  assert.equal(liveQueue(polled, { projectSlug: "alpha", threads: [thread("ext", { foreign: true })] }, "alpha")!.threads.length, 0)
 })

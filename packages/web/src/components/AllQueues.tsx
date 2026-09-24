@@ -25,16 +25,19 @@
 // (`projectsList`, `projectsQueues`) or carries its project explicitly, and every action goes through
 // that project's own client (`projectRpc`). See AllQueuesCard.tsx for the card's half of the same rule.
 // The prompt box and the drawers are the page project's, which is exactly what they should be.
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowUpRight, Check, ChevronDown, Inbox, TerminalSquare } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
-import type { ThreadView } from "@frizz/shared"
+import type { ProjectQueue, ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { displayTitle } from "../groups.ts"
-import { isBusy, laneSummary, queuesProjects, queuesTotals, threadKey, withLiveBoard, type QueuesProject } from "../lib/allQueues.ts"
-import { crossProjectHref, projectHref, projectSlug } from "../lib/base-path.ts"
+import { isBusy, laneSummary, liveQueue, overlayQueues, queuesProjects, queuesTotals, threadKey, type QueuesProject } from "../lib/allQueues.ts"
+import { crossProjectHref, innerPath, projectHref, projectSlug } from "../lib/base-path.ts"
+import { CROSS_PROJECT_PICK_STATE, rememberedCrossProjectFocus, useCrossProjectPick } from "../lib/crossProject.ts"
+import { draftKey, draftStore } from "../lib/drafts.ts"
+import { slugsInThreadDrawers, store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
 import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
 import { prefs } from "../lib/prefs.ts"
@@ -62,6 +65,8 @@ const EXIT_MS = 200
  * a click. The board's queue keeps the same guard.
  */
 const REAPPEAR_MS = 8_000
+/** How long the prompt box's stand-in waits for the focused project's board before saying so. */
+const COMPOSER_WAIT_MS = 6_000
 
 export function AllQueuesPage() {
   const cards = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
@@ -72,13 +77,27 @@ export function AllQueuesPage() {
   })
   const direction = useSnapshot(prefs).queueOrder
   // The FOCUS — the page project (routes.tsx CrossProjectRoute). Its board is live in the store, so it
-  // is drawn from that rather than from the poll (lib/allQueues.ts withLiveBoard).
+  // is drawn from that rather than from the poll, and so is the project the focus just LEFT, until the
+  // poll has caught up with what was done there (useDepartedQueue).
   const focus = projectSlug(useLocation().pathname)
   const board = useBoard()
-  const liveQueues = useMemo(() => withLiveBoard(queues.data, board, focus), [queues.data, board, focus])
-  const projects = useMemo(() => queuesProjects(cards.data, liveQueues, direction), [cards.data, liveQueues, direction])
+  const snap = useSnapshot(store)
+  const live = useMemo(() => liveQueue(queues.data, board, focus), [queues.data, board, focus])
+  const departed = useDepartedQueue(live, queues.dataUpdatedAt)
+  const base = useMemo(() => queuesProjects(cards.data, queues.data, direction), [cards.data, queues.data, direction])
+  const projects = useMemo(() => overlayQueues(base, [live, departed], direction), [base, live, departed, direction])
+  useReturnToPick(projects, focus)
+  const pickProject = usePickProject()
+  // Set by a choice in the picker, so the prompt box it just re-aimed takes the keyboard when it lands.
+  const [focusComposerFor, setFocusComposerFor] = useState<string | null>(null)
 
   const leaving = useLeavingCards(projects)
+  // A thread whose drawer is open is read THERE: its card would be a second copy of the same questions
+  // and reply box under the sheet (the board's rule, store.ts slugsInThreadDrawers). Drawers belong to
+  // the page project, so only the focus's cards can be hidden this way.
+  const focusId = projects.find((project) => project.slug === focus)?.id
+  const inDrawer = new Set(focusId === undefined ? [] : [...slugsInThreadDrawers(snap.drawers)].map((slug) => threadKey(focusId, slug)))
+  const hidden = (key: string) => leaving.hidden(key) || inDrawer.has(key)
   // Counted from what the page SHOWS: a card the operator just finished is gone from its lane at once, and
   // a header still counting it read "1 in the queue" over an empty page until the next poll.
   const totals = queuesTotals(projects.map((project) => ({ ...project, queued: project.queued.filter((t) => !leaving.hidden(threadKey(project.id, t.id))) })))
@@ -86,24 +105,45 @@ export function AllQueuesPage() {
   // Frizz, or failed to open): their queues are unknown, so "nothing in any queue" would be a claim.
   const unopened = projects.filter((project) => !project.open && !project.stale).length
   const scrollToCard = useScrollToCard()
-  const activeKey = useScrollspy(projects, leaving.hidden)
+  const activeKey = useScrollspy(projects, hidden)
   const loading = (cards.isPending || queues.isPending) && !queues.data
-  const lanes = projects.filter((project) => project.queued.some((t) => !leaving.hidden(threadKey(project.id, t.id))))
+  const lanes = projects.filter((project) => project.queued.some((t) => !hidden(threadKey(project.id, t.id))))
+  // Below the page's stacking point the columns are one above the other, so the rail follows the lanes
+  // rather than sitting between the prompt box and the queue it indexes.
+  const stacked = useStacked()
+  const rail = <MachineRail projects={projects} focus={focus} activeKey={activeKey} hidden={hidden} onQueuedRow={scrollToCard} onPick={pickProject} />
 
   return (
     <div className="flex min-h-screen justify-center gap-[clamp(28px,3.4vw,52px)] bg-bg px-5 text-sm text-fg max-[800px]:flex-col max-[800px]:justify-start max-[800px]:gap-0 max-[800px]:px-3">
       <aside aria-label="Projects" className={`${SIDEBAR_COLUMN_CLASS} max-[800px]:!pt-5`}>
         <div className="flex max-h-[calc(100vh-32px)] min-h-0 min-w-0 w-full flex-col max-[800px]:max-h-none">
-          {/* The board's own column head, one level up: the status row (its project slot is the choice of
-              project here), and the prompt box under it — a new thread in any project without leaving. */}
+          {/* The board's own column head, one level up: the status row, and the prompt box under it — a new
+              thread in any project without leaving, the project chosen in the box's own tab row. */}
           <div className="mb-5 shrink-0 px-0.5">
-            <StatusRow picker={<ProjectPicker projects={projects} focus={focus} />} />
-            <FocusedComposer focus={focus} />
+            <StatusRow crossProject />
+            <FocusedComposer
+              focus={focus}
+              project={projects.find((project) => project.slug === focus)}
+              autoFocus={focusComposerFor !== null && focusComposerFor === focus}
+              onFocused={() => setFocusComposerFor(null)}
+              target={
+                <ProjectPicker
+                  projects={projects}
+                  focus={focus}
+                  onPick={(project) => {
+                    setFocusComposerFor(project.slug)
+                    pickProject(project)
+                  }}
+                />
+              }
+            />
             <Summary totals={totals} projectCount={projects.length} unopened={unopened} />
           </div>
-          <div data-xq-rail className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden max-[800px]:hidden">
-            <MachineRail projects={projects} focus={focus} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={scrollToCard} />
-          </div>
+          {!stacked && (
+            <div data-xq-rail className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+              {rail}
+            </div>
+          )}
         </div>
       </aside>
       <main
@@ -122,10 +162,15 @@ export function AllQueuesPage() {
             {lanes.map((project, index) => (
               <div key={project.id} className="min-w-0">
                 {index > 0 && <hr className="my-10 border-0 border-t border-border/60" />}
-                <Lane project={project} leaving={leaving} />
+                <Lane project={project} leaving={leaving} hidden={hidden} />
               </div>
             ))}
             {lanes.length === 0 && <EmptyQueues running={totals.running} runningProjects={projects.filter((p) => p.running.length > 0).length} unopened={unopened} />}
+          </div>
+        )}
+        {stacked && (
+          <div data-xq-rail="stacked" className="min-w-0 border-t border-border/60 pt-5">
+            {rail}
           </div>
         )}
       </main>
@@ -136,13 +181,10 @@ export function AllQueuesPage() {
 // ---- The column head --------------------------------------------------------------------------------
 
 /**
- * WHICH PROJECT A NEW THREAD GOES TO — the status row's project slot, on this page a choice rather than
- * a name. Choosing one moves the page's focus there (`/all/<slug>`), which is what the prompt box below
- * dispatches into; opening a thread of another project moves it the same way, so the slot always names
- * the project the page is working in.
+ * WHICH PROJECT A NEW THREAD GOES TO — the prompt box's "To:" field, at the right end of its tab row.
+ * Choosing one moves the page's focus there (`/all/<slug>`), which is what the box dispatches into.
  */
-function ProjectPicker({ projects, focus }: { projects: QueuesProject[]; focus: string | undefined }) {
-  const navigate = useNavigate()
+function ProjectPicker({ projects, focus, onPick }: { projects: QueuesProject[]; focus: string | undefined; onPick: (project: QueuesProject) => void }) {
   const current = projects.find((project) => project.slug === focus)
   const name = current?.name ?? focus ?? "a project"
   // A project whose directory is gone cannot take a thread; it stays on the rail, saying why.
@@ -155,7 +197,7 @@ function ProjectPicker({ projects, focus }: { projects: QueuesProject[]; focus: 
           data-xq-project-picker
           title={`New threads start in ${name}`}
           aria-label={`New threads start in ${name}. Choose a project`}
-          className="-mr-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 font-semibold text-fg/90 outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:bg-hover data-[state=open]:text-fg"
+          className="-mr-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-fg/90 outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:bg-hover data-[state=open]:text-fg"
         >
           {current && <ProjectSquare project={current.card ?? fallbackCard(current)} size={14} />}
           <span className="min-w-0 truncate">{name}</span>
@@ -165,12 +207,10 @@ function ProjectPicker({ projects, focus }: { projects: QueuesProject[]; focus: 
       <MenuContent align="end">
         <div className="max-h-[min(60vh,420px)] overflow-y-auto">
           {choices.map((project) => (
-            <MenuItem
-              key={project.id}
-              onSelect={() => navigate(crossProjectHref(encodeURIComponent(project.slug)))}
-              icon={<ProjectSquare project={project.card ?? fallbackCard(project)} size={14} />}
-            >
+            <MenuItem key={project.id} onSelect={() => onPick(project)} icon={<ProjectSquare project={project.card ?? fallbackCard(project)} size={14} />}>
               <span className={`min-w-0 flex-1 truncate ${project.slug === focus ? "text-fg" : ""}`}>{project.name}</span>
+              {/* Choosable — opening its board may be exactly what brings it up — but not a surprise. */}
+              {!project.open && <span className="shrink-0 text-[10.5px] text-muted-55">Not open</span>}
               {project.slug === focus && <Check size={12} aria-label="Current" className="shrink-0 text-fg" />}
             </MenuItem>
           ))}
@@ -181,20 +221,138 @@ function ProjectPicker({ projects, focus }: { projects: QueuesProject[]; focus: 
 }
 
 /**
+ * CHOOSE a project to work in: the picker, a project's name in the rail, a quiet row. Remembered as the
+ * pick (lib/crossProject.ts) by the route, which the navigation's state tells it was a choice.
+ *
+ * What was typed in the prompt box goes WITH the choice. The box is one box whose target just changed,
+ * and the commonest reason to change it is noticing, mid-prompt, that it pointed at the wrong project —
+ * a draft left filed under the old one looked like the text had been lost. It moves only into an empty
+ * box, so a draft already waiting in the chosen project is never overwritten.
+ */
+function usePickProject(): (project: QueuesProject) => void {
+  const navigate = useNavigate()
+  return useCallback(
+    (project: QueuesProject) => {
+      carryDraft(draftKey.dispatch, store.board?.projectDir, project.projectDir)
+      carryDraft(draftKey.command, store.board?.projectDir, project.projectDir)
+      navigate(crossProjectHref(encodeURIComponent(project.slug)), { replace: true, state: CROSS_PROJECT_PICK_STATE })
+    },
+    [navigate],
+  )
+}
+
+function carryDraft(key: (projectDir: string | undefined) => string, from: string | undefined, to: string | undefined) {
+  if (!from || !to || from === to) return
+  const text = draftStore.get(key(from))
+  if (!text || draftStore.get(key(to))) return
+  draftStore.set(key(to), text)
+  draftStore.clear(key(from))
+}
+
+/**
+ * Back to the PICK once nothing of another project is open.
+ *
+ * Opening another project's thread moves the focus to it — its drawer needs that project bound — and the
+ * prompt box follows the focus. Left there, closing the drawer left the box aimed at a project the
+ * operator only READ, and the next prompt went there. So when the last drawer is gone (all the way
+ * gone: a sheet still sliding out is still open) the focus returns to the project they chose.
+ *
+ * The pick is read FRESH, not from this render: the route records a pick in a layout effect
+ * (routes.tsx useRememberPick), which runs after this render and before this effect.
+ */
+function useReturnToPick(projects: QueuesProject[], focus: string | undefined) {
+  const pickId = useCrossProjectPick()
+  const snap = useSnapshot(store)
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const settled = snap.drawers.length === 0 && snap.routeThreadSlug === null && innerPath(pathname) === "/"
+  useEffect(() => {
+    if (!settled) return
+    const id = rememberedCrossProjectFocus()
+    const pick = projects.find((project) => project.id === id && !project.stale)
+    if (!pick || pick.slug === focus) return
+    navigate(crossProjectHref(encodeURIComponent(pick.slug)), { replace: true })
+  }, [settled, pickId, projects, focus, navigate])
+}
+
+/**
+ * The project the focus just LEFT, drawn from its last live board until the poll has caught up.
+ *
+ * Its live board goes with the focus, and the poll behind it can be a few seconds old — so a card
+ * marked done in its drawer a moment ago came back, from the poll, the instant the operator opened
+ * something in another project. Held only until a read that STARTED after the departure lands, and
+ * that read is asked for at once rather than left to the next tick.
+ */
+function useDepartedQueue(live: ProjectQueue | undefined, polledAt: number): ProjectQueue | undefined {
+  const queryClient = useQueryClient()
+  const last = useRef<ProjectQueue | undefined>(undefined)
+  const [departed, setDeparted] = useState<{ queue: ProjectQueue; at: number } | null>(null)
+  useEffect(() => {
+    const previous = last.current
+    last.current = live
+    if (!previous || previous.projectId === live?.projectId) return
+    setDeparted({ queue: previous, at: Date.now() })
+    void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
+  }, [live, queryClient])
+  if (!departed || departed.queue.projectId === live?.projectId || polledAt > departed.at) return undefined
+  return departed.queue
+}
+
+/**
  * The board's own prompt box, bound to the focused project — the page project, so it is exactly the
  * board's DispatchForm, drafts, GitHub picker and agent settings included.
  *
  * Only once the store's board IS the focus's. A focus change clears the store and refills it from the
  * new project's feed; in between, the form would key its draft on no project (lib/drafts.ts files that
  * under a shared "unresolved" bucket) and what was typed would jump to another box when the board
- * landed. The stand-in holds the box's place so the column does not jump either.
+ * landed. The stand-in holds the box's place so the column does not jump either — and says so if the
+ * board never comes, which is what a project this server cannot open looks like from here.
  */
-function FocusedComposer({ focus }: { focus: string | undefined }) {
+function FocusedComposer({
+  focus,
+  project,
+  target,
+  autoFocus,
+  onFocused,
+}: {
+  focus: string | undefined
+  project: QueuesProject | undefined
+  target: ReactNode
+  autoFocus: boolean
+  onFocused: () => void
+}) {
   const board = useBoard()
-  if (!focus || board?.projectSlug !== focus) {
-    return <div data-xq-composer-pending aria-hidden className="h-[118px] rounded-xl border border-border/60 bg-bg" />
+  const ready = Boolean(focus) && board?.projectSlug === focus
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    setSlow(false)
+    if (ready) return
+    const timer = window.setTimeout(() => setSlow(true), COMPOSER_WAIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [ready, focus])
+  useEffect(() => {
+    if (ready && autoFocus) onFocused()
+  }, [ready, autoFocus, onFocused])
+  if (!ready) {
+    // The form's own two rows — the tab row, with the picker at its end so the operator can always aim
+    // somewhere else, and the box — at the form's heights (measured, the prompt tab at rest).
+    return (
+      <div data-xq-composer-pending className="flex w-full flex-col gap-1.5">
+        <div className="flex h-[22px] min-w-0 items-center justify-end">{target}</div>
+        <div className="flex h-[90px] items-center justify-center rounded-xl border border-border/60 bg-bg px-6 text-center text-[12px] leading-snug text-muted-70">
+          {slow && (
+            <span>
+              {project && !project.open ? `${project.name} is not open on this server. ` : `${project?.name ?? focus ?? "This project"} has not answered yet. `}
+              <Link to={projectHref(encodeURIComponent(focus ?? ""))} className="text-fg/90 underline decoration-muted/40 underline-offset-2 hover:decoration-fg">
+                Open its board
+              </Link>
+            </span>
+          )}
+        </div>
+      </div>
+    )
   }
-  return <DispatchForm key={focus} />
+  return <DispatchForm key={focus} autoFocus={autoFocus} target={target} />
 }
 
 /** The whole page at a glance, under the prompt box. */
@@ -227,12 +385,14 @@ function MachineRail({
   activeKey,
   hidden,
   onQueuedRow,
+  onPick,
 }: {
   projects: QueuesProject[]
   focus: string | undefined
   activeKey: string | null
   hidden: (key: string) => boolean
   onQueuedRow: (key: string) => void
+  onPick: (project: QueuesProject) => void
 }) {
   const busy = projects.filter(isBusy)
   const quiet = projects.filter((project) => !isBusy(project))
@@ -241,7 +401,7 @@ function MachineRail({
       {busy.map((project, index) => (
         <div key={project.id}>
           {index > 0 && <hr className="my-3 border-border/50" />}
-          <ProjectGroup project={project} focused={project.slug === focus} activeKey={activeKey} hidden={hidden} onQueuedRow={onQueuedRow} />
+          <ProjectGroup project={project} focused={project.slug === focus} activeKey={activeKey} hidden={hidden} onQueuedRow={onQueuedRow} onPick={onPick} />
         </div>
       ))}
       {/* Always listed, one line each, under the busy ones. They sat behind a collapsed "Quiet" fold until
@@ -250,7 +410,7 @@ function MachineRail({
       {quiet.length > 0 && (
         <section aria-label="Quiet projects">
           {busy.length > 0 && <hr className="my-3 border-border/50" />}
-          {quiet.map((project) => <QuietRow key={project.id} project={project} focused={project.slug === focus} />)}
+          {quiet.map((project) => <QuietRow key={project.id} project={project} focused={project.slug === focus} onPick={onPick} />)}
         </section>
       )}
     </>
@@ -276,19 +436,21 @@ function ProjectGroup({
   activeKey,
   hidden,
   onQueuedRow,
+  onPick,
 }: {
   project: QueuesProject
   focused: boolean
   activeKey: string | null
   hidden: (key: string) => boolean
   onQueuedRow: (key: string) => void
+  onPick: (project: QueuesProject) => void
 }) {
-  const navigate = useNavigate()
   const openInPlace = useOpenThreadInPlace()
   const [snoozedOpen, setSnoozedOpen] = useState(false)
   const queued = project.queued.filter((t) => !hidden(threadKey(project.id, t.id)))
   const select = () => {
-    if (!focused) navigate(crossProjectHref(encodeURIComponent(project.slug)))
+    // A stale project cannot take a thread, so its name only brings its lane into view.
+    if (!project.stale) onPick(project)
     const lane = document.querySelector<HTMLElement>(`[data-xq-lane="${CSS.escape(project.id)}"]`)
     if (lane) lane.scrollIntoView({ behavior: prefersSmooth(), block: "start" })
   }
@@ -450,7 +612,7 @@ function RowDoor({ href, label, onOpen }: { href: string; label: string; onOpen?
 }
 
 /** A project with nothing to show: its name and why. Clicking it FOCUSES it; its ↗ is its board. */
-function QuietRow({ project, focused }: { project: QueuesProject; focused: boolean }) {
+function QuietRow({ project, focused, onPick }: { project: QueuesProject; focused: boolean; onPick: (project: QueuesProject) => void }) {
   const note = project.stale
     ? "Directory is missing"
     : !project.open
@@ -477,6 +639,11 @@ function QuietRow({ project, focused }: { project: QueuesProject; focused: boole
         to={project.stale ? projectHref(encodeURIComponent(project.slug)) : crossProjectHref(encodeURIComponent(project.slug))}
         aria-current={focused || undefined}
         className={`${ROW_BUTTON_CLASS} items-center`}
+        onClick={project.stale ? undefined : (event) => {
+          if (!isPlainLeftClick(event)) return
+          event.preventDefault()
+          onPick(project)
+        }}
       >
         {label}
       </Link>
@@ -512,7 +679,7 @@ function QueueBadge({ count }: { count: number }) {
  * relative path at its directory and a `/thread/<slug>` link at that thread on THIS page (`/all/<slug>`,
  * opened in place) — never at the page's focus, which is usually another project.
  */
-function Lane({ project, leaving }: { project: QueuesProject; leaving: LeavingCards }) {
+function Lane({ project, leaving, hidden }: { project: QueuesProject; leaving: LeavingCards; hidden: (key: string) => boolean }) {
   const openInPlace = useOpenThreadInPlace()
   const scope = useMemo(
     () => ({
@@ -547,7 +714,7 @@ function Lane({ project, leaving }: { project: QueuesProject; leaving: LeavingCa
       <MarkdownScopeContext.Provider value={scope}>
         {project.queued.map((t) => {
           const key = threadKey(project.id, t.id)
-          if (leaving.hidden(key)) return null
+          if (hidden(key)) return null
           // A finished terminal command takes the board's own command card, scoped to its project: its
           // pty, its Restart and its Mark as done all belong to this lane's project, not the page's.
           if (t.kind === "command") {
@@ -679,6 +846,20 @@ function useLeavingCards(projects: QueuesProject[]): LeavingCards {
     leave: (key) => handles(key).leave,
     restore: (key) => handles(key).restore,
   }
+}
+
+/** Below the page's stacking point (`max-[800px]`, the board's own), where the columns stack. */
+const STACKED_QUERY = "(max-width: 800px)"
+function useStacked(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const media = window.matchMedia?.(STACKED_QUERY)
+      media?.addEventListener("change", onChange)
+      return () => media?.removeEventListener("change", onChange)
+    },
+    () => Boolean(window.matchMedia?.(STACKED_QUERY).matches),
+    () => false,
+  )
 }
 
 function prefersSmooth(): ScrollBehavior {

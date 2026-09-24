@@ -23,3 +23,12 @@ test("a project whose directory is gone is never the focus", () => {
   assert.equal(defaultCrossProjectFocus([card("a", "2026-09-24T10:00:00Z", true)], null), undefined)
   assert.equal(defaultCrossProjectFocus([], null), undefined)
 })
+
+test("a project this server has not opened is not landed on while an open one exists", () => {
+  const cards = [card("a", "2026-09-24T10:00:00Z"), card("b", "2026-09-20T10:00:00Z")]
+  assert.equal(defaultCrossProjectFocus(cards, "a", new Set(["b"])), "b-slug", "remembered but not open")
+  assert.equal(defaultCrossProjectFocus(cards, null, new Set(["b"])), "b-slug", "most recent but not open")
+  // Nothing open yet (a boot still opening them): land as if the list were unknown.
+  assert.equal(defaultCrossProjectFocus(cards, "b", new Set()), "b-slug")
+  assert.equal(defaultCrossProjectFocus(cards, null, new Set()), "a-slug")
+})

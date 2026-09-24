@@ -74,7 +74,7 @@ export function queuesProjects(
 }
 
 /**
- * The FOCUSED project's live board in place of its polled threads.
+ * The FOCUSED project's queue, drawn from its live board instead of the poll.
  *
  * The page polls every project every few seconds, but the focused one is also the page project, so its
  * board is already live in the store — and it is the project the operator is acting on: the one whose
@@ -87,17 +87,37 @@ export function queuesProjects(
  * terminal commands of this project, nothing foreign); Done is left to the rail's own banding, which
  * counts what it files there, so the server's Done count is dropped rather than added to.
  */
-export function withLiveBoard(
+export function liveQueue(
   queues: readonly ProjectQueue[] | undefined,
   board: Pick<BoardSnapshot, "projectSlug" | "threads"> | null,
   focusSlug: string | undefined,
-): readonly ProjectQueue[] | undefined {
-  if (!queues || !board || !focusSlug || board.projectSlug !== focusSlug) return queues
-  const index = queues.findIndex((queue) => queue.projectSlug === focusSlug)
-  if (index < 0) return queues
+): ProjectQueue | undefined {
+  if (!queues || !board || !focusSlug || board.projectSlug !== focusSlug) return undefined
+  const polled = queues.find((queue) => queue.projectSlug === focusSlug)
+  if (!polled) return undefined
   const threads = board.threads.filter((thread) => (thread.kind === "session" || thread.kind === "command") && !thread.foreign)
-  const out = [...queues]
-  out[index] = { ...queues[index]!, threads, doneCount: 0 }
+  return { ...polled, threads, doneCount: 0 }
+}
+
+/**
+ * `projects` with the given queues rebuilt in place. Every other project keeps its IDENTITY, so a live
+ * board ticking — which it does on every delta — re-derives one project, not the page.
+ */
+export function overlayQueues(
+  projects: QueuesProject[],
+  overlays: readonly (ProjectQueue | undefined)[],
+  direction: QueueDirection = "fifo",
+): QueuesProject[] {
+  let out = projects
+  for (const queue of overlays) {
+    if (!queue) continue
+    const index = out.findIndex((project) => project.id === queue.projectId)
+    if (index < 0) continue
+    const card = out[index]!.card
+    const [rebuilt] = queuesProjects(card ? [card] : [], [queue], direction)
+    if (out === projects) out = [...projects]
+    out[index] = rebuilt!
+  }
   return out
 }
 

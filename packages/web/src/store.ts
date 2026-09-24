@@ -174,7 +174,7 @@ export const store = proxy({
   vtReturnTarget: null as string | null,
   // Transient bottom-center toast (e.g. "Steer failed …" when an eager reply is rejected). `id` bumps per call so
   // repeat toasts re-trigger the fade. Rendered by <Toaster>; null when nothing is showing.
-  toast: null as { id: number; text: string; spinner?: boolean; sticky?: boolean; duration?: number; link?: { label: string; slug: string; drawer?: "thread" | "terminal" } } | null,
+  toast: null as { id: number; text: string; spinner?: boolean; sticky?: boolean; duration?: number; link?: ToastLink } | null,
   // The /full page's SPLIT file viewer. True only while StandaloneThreadPage is mounted; while it is,
   // a `.md` click renders BESIDE the thread (the thread column slides left) instead of as an overlay
   // drawer — the whole point of /full is seeing the transcript, and a sheet over it defeated that.
@@ -205,7 +205,12 @@ export function closeGithubPicker(): void {
 }
 
 let toastSeq = 0
-export function showToast(text: string, opts?: { spinner?: boolean; sticky?: boolean; duration?: number; link?: { label: string; slug: string; drawer?: "thread" | "terminal" } }) {
+// A toast's "Open thread". `project` is the slug of the project the thread was started IN, captured when
+// it was started: a slug names a thread only within its project, and by the time the toast is clicked
+// the page may be another project's — on the cross-project page, one dispatch and one click on another
+// project's card apart.
+export type ToastLink = { label: string; slug: string; drawer?: "thread" | "terminal"; project?: string }
+export function showToast(text: string, opts?: { spinner?: boolean; sticky?: boolean; duration?: number; link?: ToastLink }) {
   store.toast = { id: ++toastSeq, text, ...opts }
 }
 
@@ -541,6 +546,19 @@ export function topThreadSlug(): string | null {
   for (let i = store.drawers.length - 1; i >= 0; i--) {
     const d = store.drawers[i]
     if (d.kind === "thread" && !d.closing) return d.slug
+  }
+  return null
+}
+
+// The slug the ADDRESS BAR names: the topmost thread layer, or a command thread's terminal layer. A
+// command thread has no chat, so its terminal IS its thread surface, and `/thread/<slug>` already opens
+// it (resolveRoutedThread). Left out of the URL, a routed terminal opened, found the URL naming no
+// thread, and was closed by the very sync that had opened it — every deep link to a command thread, and
+// every command thread of another project opened from the cross-project page.
+export function topRoutedSlug(): string | null {
+  for (let i = store.drawers.length - 1; i >= 0; i--) {
+    const d = store.drawers[i]
+    if ((d.kind === "thread" || d.kind === "terminal") && !d.closing) return d.slug
   }
   return null
 }

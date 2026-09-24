@@ -18,6 +18,7 @@ import { dispatchProfileGroups } from "../lib/dispatchPreferences.ts"
 import { useDispatchProfile } from "../hooks/useDispatchProfile.ts"
 import { handleDialogEscape } from "../lib/selectOverlay.ts"
 import { draftKey, draftStore, useDraft, useProjectDir } from "../lib/drafts.ts"
+import { projectSlug } from "../lib/base-path.ts"
 import { parseAccountAlias } from "../lib/signIn.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 
@@ -33,9 +34,16 @@ type DispatchMode = "prompt" | "terminal"
 export function DispatchForm({
   autoFocus,
   onDispatched,
+  target,
 }: {
   autoFocus?: boolean
   onDispatched?: () => void
+  /**
+   * WHERE the thread goes, when that is a choice — the cross-project page's project picker. It rides the
+   * tab row's right end, the composer's own "To:" field, directly over the box it addresses. A board has
+   * no choice to make and passes nothing.
+   */
+  target?: ReactNode
 }) {
   const [mode, setModeState] = useState<DispatchMode>(lastDispatchMode)
   const setMode = (next: DispatchMode) => {
@@ -44,7 +52,10 @@ export function DispatchForm({
   }
   return (
     <div className="w-full flex flex-col gap-1.5">
-      <DispatchTabs mode={mode} onChange={setMode} />
+      <div className="flex min-w-0 items-center gap-2">
+        <DispatchTabs mode={mode} onChange={setMode} />
+        {target && <div className="ml-auto flex min-w-0 items-center">{target}</div>}
+      </div>
       {mode === "prompt" ? (
         <PromptForm autoFocus={autoFocus} onDispatched={onDispatched} />
       ) : (
@@ -87,10 +98,14 @@ function CommandForm({ autoFocus, onDispatched }: { autoFocus?: boolean; onDispa
   const homeDir = useSnapshot(store).board?.homeDir
   const [command, setCommand, clearCommand] = useDraft(draftKey.command(projectDir))
   const start = useMutation({
-    mutationFn: (input: string) => rpc.commandStart({ command: input }),
+    // The project is read when the request goes out — the one it was sent to (see ToastLink).
+    mutationFn: (input: string) => {
+      const project = projectSlug()
+      return rpc.commandStart({ command: input }).then((res) => ({ ...res, project }))
+    },
     onSuccess: (res) => {
       onDispatched?.()
-      showToast("Thread started", { link: { label: "Open thread", slug: res.slug, drawer: "terminal" } })
+      showToast("Thread started", { link: { label: "Open thread", slug: res.slug, drawer: "terminal", project: res.project } })
     },
     onError: (e, input) => {
       if (!draftStore.get(draftKey.command(projectDir))) setCommand(input)
@@ -197,14 +212,17 @@ function PromptForm({
   // sidebar, and the toast walks through the lifecycle — an immediate spinner while the server
   // waits out session startup, then a link that opens the thread in the side drawer.
   const dispatch = useMutation({
-    mutationFn: (input: DispatchInput) => rpc.dispatch(input),
+    mutationFn: (input: DispatchInput) => {
+      const project = projectSlug()
+      return rpc.dispatch(input).then((res) => ({ ...res, project }))
+    },
     onMutate: () => showToast("Starting thread…", { spinner: true, sticky: true }),
     onSuccess: (res) => {
       // The board stream now owns the durable thread row. Drop our local bridge as soon as the
       // server acknowledges it, preventing an optimistic card + server card duplicate.
       setPendingDispatch(null)
       onDispatched?.()
-      showToast("Thread started", { link: { label: "Open thread", slug: res.slug } })
+      showToast("Thread started", { link: { label: "Open thread", slug: res.slug, project: res.project } })
     },
     onError: (e, input) => {
       // A submit clears before the RPC starts. Restore only into a still-empty field so retry is

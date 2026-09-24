@@ -1,5 +1,6 @@
 import { subscribe } from "valtio"
-import { store, topThreadSlug, closeDrawersById } from "../store.ts"
+import { store, topRoutedSlug, closeDrawersById } from "../store.ts"
+import { ownedByThisPage } from "./projectOwnership.ts"
 import { innerPath, outerPath, projectHref } from "./base-path.ts"
 import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 
@@ -13,7 +14,7 @@ import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 // (The focus machine this used to route through was deleted — the router writes store.view directly.)
 
 function currentPath(): string {
-  const top = topThreadSlug()
+  const top = topRoutedSlug()
   if (top) return `/thread/${encodeURIComponent(top)}`
   // A parked route still IS that thread's URL. Without this the address bar would flip to "/" for the
   // frame or two before the board settles the destination, and settling it into a drawer would then
@@ -63,7 +64,7 @@ export function applyPath(path: string): void {
     store.view = "todos"
     // Back/forward landed on a thread path: if that thread is somewhere in the stack, unwind ABOVE
     // it and we're done — the surface it asks for is already up.
-    const idx = store.drawers.findIndex((d) => d.kind === "thread" && d.slug === slug && !d.closing)
+    const idx = store.drawers.findIndex((d) => (d.kind === "thread" || d.kind === "terminal") && d.slug === slug && !d.closing)
     // Unwind the layers ABOVE the matched thread through their animated closers (slide-out), not an
     // instant splice — Back/forward must play the same exit animation as backdrop/Esc.
     if (idx !== -1) {
@@ -153,6 +154,12 @@ export function startRouter(navigate: (path: string, options: { replace: boolean
     // "unwind" below navigated straight back to the board (caught live, 2026-08-28: a plain click
     // on the door left the URL exactly where it was).
     if (parseStandaloneThreadPath(innerPath()) !== null) return
+    // The store still holds the project the page is LEAVING. react-router writes history before the new
+    // route's effects reset the store (routes.tsx useProjectBinding), so a notification in between would
+    // put the old project's drawer under the new project's prefix — on the cross-project page, where
+    // opening another project's thread is exactly such a switch, that URL named a thread the new project
+    // does not have. The reset that follows notifies again, and this runs then.
+    if (store.board && !ownedByThisPage(store.board.projectSlug)) return
     const path = queueDestination(currentPath())
     if (path === location.pathname) return
     // A NEW topmost thread pushes history; unwinding or non-thread transitions replace. `startsWith`

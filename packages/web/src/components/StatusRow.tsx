@@ -1,5 +1,4 @@
 import { House, Infinity as InfinityIcon, Settings as SettingsIcon } from "lucide-react"
-import type { ReactNode } from "react"
 import { Link } from "react-router"
 import { store } from "../store.ts"
 import { PROJECTS_PATH, crossProjectHref } from "../lib/base-path.ts"
@@ -96,13 +95,12 @@ function StartTruncated({ text, title, className }: { text: string; title?: stri
  * actually READ, so this re-renders on a board change and on nothing else.
  */
 /**
- * `picker` is the cross-project page's: there the right edge is not one project's identity but the
- * choice of WHICH project the prompt box under it dispatches into (AllQueues.tsx ProjectPicker), and the
- * ∞ door is the page you are on.
+ * `crossProject`: the row atop the cross-project page. Its right edge names THAT page rather than one
+ * project — the project a new thread goes to is chosen in the prompt box's own tab row, directly over
+ * the box (AllQueues.tsx ProjectPicker) — and its ∞ door is the page you are on.
  */
-export function StatusRow({ picker }: { picker?: ReactNode } = {}) {
+export function StatusRow({ crossProject = false }: { crossProject?: boolean } = {}) {
   const board = useBoard()
-  const crossProject = picker !== undefined
   // A missing board is not evidence that this project is named "frizz". Keep the row neutral until a
   // board keyframe supplies an actual name; reconnects retain their adopted board.
   const identity = projectIdentity(board)
@@ -180,7 +178,7 @@ export function StatusRow({ picker }: { picker?: ReactNode } = {}) {
           so a long name gives way before anything to its left does; every mark before it is shrink-0 and
           therefore always reachable. */}
       {crossProject ? (
-        <span className="ml-auto flex min-w-0 items-center">{picker}</span>
+        <span data-status-row-page className="ml-auto min-w-0 truncate font-semibold text-fg/90">Everything</span>
       ) : (
         <span
           className="ml-auto flex min-w-0 items-center"

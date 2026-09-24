@@ -33,7 +33,7 @@ import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { openThread, showToast, store } from "../store.ts"
-import { crossProjectHref, projectSlug } from "../lib/base-path.ts"
+import { crossProjectHref, innerPath, projectSlug } from "../lib/base-path.ts"
 import { QueueDismissContext } from "./ChatView.tsx"
 import { Composer } from "./Composer.tsx"
 import { LastActive } from "./LastActive.tsx"
@@ -306,18 +306,20 @@ function ProjectLinkScope({ project, children }: { project: QueuesProject; child
     const anchor = target?.closest<HTMLAnchorElement>("a[href^='/']")
     const href = anchor?.getAttribute("href")
     if (!anchor || !href || href.startsWith("//") || !isPlainLeftClick(event)) return
-    // The markdown scope already pointed every in-app link at this project on this page
-    // (`/all/<slug>/…`), so this is a same-app navigation — done by the router rather than a document
-    // load, and it opens the linked thread in place.
-    if (href.startsWith(`${crossProjectHref(encodeURIComponent(project.slug))}/`)) {
-      event.preventDefault()
-      event.stopPropagation()
-      // Keyed by the thread the link OPENS, which is not always this card's: a handoff can link another
-      // thread's /full, and the way out of that page looks its origin up by its own slug.
-      const full = href.match(/\/thread\/([^/?#]+)\/full\/?$/)
-      if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), pathname)
-      navigate(href)
-    }
+    // The markdown scope already pointed every in-app link at this project on this page (`/all/<slug>/…`),
+    // and a worker may have spelled one out itself (`/project/<slug>/thread/…`). Either way it is a
+    // same-app navigation — done by the router rather than a document load — and a thread link opens
+    // the thread in place, on this page, whichever prefix it was written with.
+    const linked = projectSlug(href)
+    if (!linked) return
+    event.preventDefault()
+    event.stopPropagation()
+    const inner = innerPath(href)
+    // Keyed by the thread the link OPENS, which is not always this card's: a handoff can link another
+    // thread's /full, and the way out of that page looks its origin up by its own slug.
+    const full = inner.match(/^\/thread\/([^/?#]+)\/full\/?$/)
+    if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), pathname)
+    navigate(inner.startsWith("/thread/") ? `${crossProjectHref(linked)}${inner}` : href)
   }
   return <div className="contents" onClickCapture={onClickCapture}>{children}</div>
 }
