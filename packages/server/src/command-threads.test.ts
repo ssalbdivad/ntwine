@@ -5,14 +5,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ThreadSlug } from "@frizz/shared"
 import { createStorage, type Storage } from "./storage.ts"
-import { commandEnvironment, createCommandRunner, followUpScreen, type CommandRunner } from "./command-threads.ts"
+import { commandEnvironment, createCommandRunner, endsOnPrompt, followUpScreen, type CommandRunner } from "./command-threads.ts"
 
 // REAL ptys and a real SQLite file: the runner's whole job is the seam between a shell, its process
 // group and the rows the board renders, and a fake pty would only prove the fake.
 
 const posix = process.platform !== "win32"
 
-function harness(storage?: Storage, dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-cmd-")))) {
+function harness(storage?: Storage, dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-cmd-"))), inputQuietMs?: number) {
   const store = storage ?? createStorage(join(dir, "ui.db"), "p")
   let changes = 0
   const runner = createCommandRunner({
@@ -22,6 +22,7 @@ function harness(storage?: Storage, dir = realpathSync(mkdtempSync(join(tmpdir()
     // `sh`, not the operator's login shell: a test must not depend on what ~/.profile prints.
     env: { ...process.env, SHELL: "/bin/sh", FRIZZ_LOG_FILE: "/must/not/leak" },
     stopGraceMs: 1_000,
+    ...(inputQuietMs === undefined ? {} : { inputQuietMs }),
   })
   return { runner, storage: store, dir, changes: () => changes }
 }
@@ -192,4 +193,49 @@ test("a finished run queues until it is marked done, and a restart reopens it", 
   assert.equal(row(runner, slug)?.needsYou, false)
   await runner.remove(slug)
   assert.equal(storage.setCommandThreadState(slug, "archived"), false)
+})
+
+// THE 2FA CASE (2026-09-24). `npm publish` stopping at its OTP prompt left a live process the board had
+// no word for: it spun in the running band forever while the human had no idea it was asking them.
+test("a run sitting at a prompt queues as waiting for input, and answering it takes it back out", { skip: !posix }, async () => {
+  const { runner, changes } = harness(undefined, undefined, 300)
+  const { slug } = runner.start("printf 'Enter one-time password: '; read otp; echo \"got $otp\"; sleep 30")
+  const waiting = await until(() => (row(runner, slug)?.command?.awaitingInput ? row(runner, slug) : undefined), "the prompt")
+  assert.equal(waiting.command?.state, "running")
+  assert.equal(waiting.runtime, "running")
+  assert.equal(waiting.needsYou, true)
+  const before = changes()
+
+  // Typing the answer is output (the echo) — the prompt clears and the run is live work again.
+  runner.attach(slug)!.write("123456\r")
+  const answered = await until(() => {
+    const r = row(runner, slug)
+    return r && !r.command?.awaitingInput && /got 123456/.test(runner.attach(slug)!.replay()) ? r : undefined
+  }, "the answer")
+  assert.equal(answered.needsYou, false)
+  assert.ok(changes() > before, "the board is told the prompt cleared")
+  await runner.stop(slug)
+})
+
+test("a quiet run that ended its last line — a dev server after its banner — is not waiting for input", { skip: !posix }, async () => {
+  const { runner } = harness(undefined, undefined, 200)
+  const { slug } = runner.start("printf 'ready on http://localhost:3000\\n'; sleep 30")
+  await until(() => (/ready on/.test(runner.attach(slug)!.replay()) ? true : undefined), "the banner")
+  await new Promise((resolve) => setTimeout(resolve, 800))
+  assert.equal(row(runner, slug)?.command?.awaitingInput, undefined)
+  assert.equal(row(runner, slug)?.needsYou, false)
+  await runner.stop(slug)
+})
+
+test("a prompt is text left on an unterminated line, past any escapes painted after it", () => {
+  assert.equal(endsOnPrompt("Password: "), true)
+  assert.equal(endsOnPrompt("building\r\nContinue? [y/N] \x1b[?25h"), true)
+  assert.equal(endsOnPrompt("\x1b[32m?\x1b[39m Enter OTP: \x1b[0m"), true)
+  assert.equal(endsOnPrompt("50%\rEnter code: "), true)
+  // A finished line, however quiet the program is afterwards.
+  assert.equal(endsOnPrompt("ready on :3000\r\n"), false)
+  assert.equal(endsOnPrompt("ready\r\n\x1b[?25l"), false)
+  // A cursor returned to column 0 is a spinner between frames, not a question.
+  assert.equal(endsOnPrompt("⠹ fetching\r"), false)
+  assert.equal(endsOnPrompt(""), false)
 })

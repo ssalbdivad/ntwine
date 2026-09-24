@@ -11,7 +11,7 @@ import { prefs } from "../lib/prefs.ts"
 import { sectionThreads, externalThreads, orderByInteraction, partitionActive, needsAction, displayTitle, titleIsProvisional, isPinned, isSnoozed, parkedAwaitingHint, sessionIndicatorKind, offersRetry, futureSnoozedUntil, lastActiveLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents } from "../groups.ts"
 import { ageSpan, relativeAge, limitResumeClock } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
-import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
+import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
 import { BoxSpinner, STATUS_BOX } from "./BoxSpinner.tsx"
 import { ChildOpRow } from "./ChildOpRow.tsx"
 import { ExpandThreadLink } from "./ExpandThreadLink.tsx"
@@ -400,7 +400,7 @@ function RailRow({ t, active, onQueueNavigate, restedAge = false }: { t: ThreadV
 const CommandRow = memo(function CommandRow({ t, active, onQueueNavigate }: { t: ThreadView; active: boolean; onQueueNavigate?: (id: string) => void }) {
   const command = t.command
   if (!command) return null
-  const running = command.state === "running"
+  const running = commandLive(command)
   const failed = commandFailed(command)
   const done = t.state === "archived"
   return (

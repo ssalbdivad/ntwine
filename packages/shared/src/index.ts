@@ -2509,6 +2509,9 @@ export const CommandThreadState = z.object({
   exitCode: z.number().int().optional(),
   // The human pressed Stop — the signal's code is theirs, not a failure.
   stopped: z.boolean().optional(),
+  // A LIVE run that has gone quiet on an unterminated line — a password, OTP or [y/N] prompt. It queues
+  // like a finished run (the process is waiting on the human), and clears the moment it writes again.
+  awaitingInput: z.boolean().optional(),
 })
 export type CommandThreadState = z.infer<typeof CommandThreadState>
 
@@ -2692,6 +2695,10 @@ export const ThreadView = z.object({
   // Once every ordinary rest also queues, runtime=exited + needsYou is no longer enough for clients
   // to distinguish a failed worker from a clean completed process.
   crashed: z.boolean().optional(),
+  // A turn still in flight that has written nothing for a long stretch (board.ts quietTurnSince) — a
+  // foreground call blocked on a prompt or a 2FA approval nobody can see. It queues the thread with its
+  // runtime left `running`, so the card's interrupt-and-send stays offered. ISO time of the last activity.
+  quietTurnSince: z.string().optional(),
   // The queued reason is "resting while its OWN background work (sub-agents / shells) is still live,
   // with no human ask": the agent came to rest awaiting results it dispatched, not awaiting the human.
   // The card renders the informational awaiting-background banner + an event-Snooze that hides it until

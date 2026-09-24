@@ -14,6 +14,7 @@ import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import { hasQuestionBlock } from "../lib/questionBlocks.ts"
 import { showsRegisteredDoneCard } from "../lib/registeredDone.ts"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
+import { QuietTurnCard, showsQuietTurnCard } from "./QuietTurnCard.tsx"
 import { carriesDoneRegistration, collapseMiddleRuns, opensQueueSegment, queueCollapseSegments, segmentFolds, supersededAskIndices, survivesQueueCollapse } from "../lib/queueCollapse.ts"
 import { pairAllAnswers, unrenderedAnswers } from "../lib/answersMessage.ts"
 import { lastHumanTurnIndex } from "../lib/messagePresentation.ts"
@@ -1660,6 +1661,12 @@ const QueueCard = memo(function QueueCard({ thread, leaving, frozen, onResolve, 
         {!q.isLoading && thread.limitPause && thread.foreign !== true && (
           <div className="mt-4">
             <LimitPauseCard slug={thread.id} sessionId={thread.sessionId} pause={thread.limitPause} />
+          </div>
+        )}
+        {/* Queued while still running: the turn went silent on one call (board.ts quietTurnSince). */}
+        {!q.isLoading && showsQuietTurnCard(thread) && (
+          <div className="mt-4">
+            <QuietTurnCard thread={thread} />
           </div>
         )}
         {/* The residual rung, same as the thread view: a rest with no other card still states itself. */}

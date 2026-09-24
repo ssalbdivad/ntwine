@@ -27,7 +27,7 @@ import type { ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { displayTitle } from "../groups.ts"
 import { isBusy, laneSummary, queuesProjects, queuesTotals, threadKey, type QueuesProject } from "../lib/allQueues.ts"
-import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
+import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
 import { prefs } from "../lib/prefs.ts"
 import { STATUS_ROW_ACTION, STATUS_ROW_ICON } from "../lib/statusRow.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
@@ -295,7 +295,7 @@ function RailRow({ t, door, active = false, restedAge = false, dim = false, onCl
  * the live dot, the command in mono, and how the run stands where an agent row keeps its rest time.
  */
 function CommandRowBody({ command }: { command: NonNullable<ThreadView["command"]> }) {
-  const running = command.state === "running"
+  const running = commandLive(command)
   const failed = commandFailed(command)
   return (
     <>

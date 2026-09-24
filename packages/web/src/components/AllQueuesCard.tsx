@@ -38,6 +38,7 @@ import { LinkedHtml } from "./LinkedHtml.tsx"
 import { QuestionBlockCard } from "./QuestionBlockCard.tsx"
 import { RegisteredAnsweringProvider, RegisteredQuestionStack } from "./RegisteredQuestionCards.tsx"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
+import { QuietTurnCard, showsQuietTurnCard } from "./QuietTurnCard.tsx"
 import { SnoozeButton } from "./SnoozeButton.tsx"
 import { StateButton } from "./ThreadLifecycleFooter.tsx"
 import { Tooltip } from "./Tooltip.tsx"
@@ -169,6 +170,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
               {/* Not gated on the handoff: a STALL's last record is often a tool call with no prose at
                   all, and its notice is about the process, not the message (showsRestedCard). */}
               {showsRestedCard(thread, text) && <RestedCard thread={thread} />}
+              {showsQuietTurnCard(thread) && <QuietTurnCard thread={thread} />}
             </div>
 
             {thread.questions && thread.questions.length > 0 && (

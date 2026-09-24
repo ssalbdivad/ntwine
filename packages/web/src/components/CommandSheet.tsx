@@ -5,7 +5,7 @@ import { rpc } from "../api/rpc.ts"
 import { showToast, threadBySlug } from "../store.ts"
 import { useBoard } from "../hooks.ts"
 import { abbreviateHome } from "../lib/paths.ts"
-import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
+import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
 import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 import { StateButton } from "./ThreadLifecycleFooter.tsx"
@@ -107,7 +107,7 @@ function CommandStateMeta({ thread }: { thread: ThreadView | undefined }) {
   const failed = commandFailed(command)
   return (
     <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11.5px] text-muted-60">
-      {command.state === "running" && <span aria-hidden className="frizz-live-dot frizz-live-dot--shell" />}
+      {commandLive(command) && <span aria-hidden className="frizz-live-dot frizz-live-dot--shell" />}
       <span className={failed ? "text-danger-soft" : undefined}>{label}</span>
     </span>
   )

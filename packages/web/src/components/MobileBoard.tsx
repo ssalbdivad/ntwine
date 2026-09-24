@@ -16,7 +16,7 @@ import {
 } from "../groups.ts"
 import { ageSpan } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
-import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
+import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
 import { visibleChildOps } from "../lib/childOps.ts"
 import { childOpDismisser } from "../lib/dismissChildOp.ts"
 import { ChildOpRow } from "./ChildOpRow.tsx"
@@ -387,7 +387,7 @@ function MobileThreadRow({
 function MobileCommandRow({ t, last }: { t: ThreadView; last: boolean }) {
   const command = t.command
   if (!command) return null
-  const running = command.state === "running"
+  const running = commandLive(command)
   return (
     <div>
       <button

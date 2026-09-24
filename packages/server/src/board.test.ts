@@ -4,7 +4,7 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, w
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { questionAnswerMessage, questionsCancelledWakeMessage, type InteractionRequest } from "@frizz/shared"
-import { answersInFlight, appServerTurnStalled, createBoard, deriveAwaitingBackground, deriveNeedsYou, degradeIfAwaitingAnswer, degradeIfNoTranscript, fenceWatchViews, hasDeclaredWait, hasParkedTimerWatch, hasRegisteredBackgroundPark, isBoardRelevantFrizzPath, registeredDoneFence, resolveLimitPause, resolveSessionPermission, resolveSessionProfile, resolveSessionTitle, type RegisteredWatch } from "./board.ts"
+import { answersInFlight, appServerTurnStalled, createBoard, deriveAwaitingBackground, deriveNeedsYou, degradeIfAwaitingAnswer, degradeIfNoTranscript, fenceWatchViews, hasDeclaredWait, hasParkedTimerWatch, hasRegisteredBackgroundPark, isBoardRelevantFrizzPath, QUIET_TURN_MS, quietTurnSince, registeredDoneFence, resolveLimitPause, resolveSessionPermission, resolveSessionProfile, resolveSessionTitle, type RegisteredWatch } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createStorage, type ThreadQuestionRow } from "./storage.ts"
 import type { Project } from "./project.ts"
@@ -2281,4 +2281,56 @@ test("a registered issue watcher gets a github row with subject issue, read from
     ["github:t:issue:acme/app#7", "issue", "Crash on start", undefined],
     ["github:t:acme/app#7", "pull", undefined, undefined],
   ])
+})
+
+// THE 2FA WEDGE (2026-09-24). A foreground call blocked on a prompt nobody can see writes nothing, so its
+// turn reads in-flight forever and the thread spun in the Active band. Past QUIET_TURN_MS of silence it
+// queues — with its runtime still `running`, so the card keeps interrupt-and-send.
+test("quietTurnSince: a long-silent turn is flagged; recent activity or a working sub-agent is not", () => {
+  const now = Date.parse(LATER)
+  const stale = new Date(now - QUIET_TURN_MS - 1_000).toISOString()
+  const fresh = new Date(now - 60_000).toISOString()
+  assert.equal(quietTurnSince("running", tele({ turn: "in-flight", lastActivityAt: stale }), now), stale)
+  assert.equal(quietTurnSince("running", tele({ turn: "in-flight", lastActivityAt: fresh }), now), undefined)
+  // Only a turn in flight, only a thread that reads running (a permission prompt has its own card).
+  assert.equal(quietTurnSince("running", tele({ turn: "idle", lastActivityAt: stale }), now), undefined)
+  assert.equal(quietTurnSince("perm-prompt", tele({ turn: "in-flight", lastActivityAt: stale }), now), undefined)
+  // A foreground sub-agent writes its own transcript while the parent's sits still.
+  const child = (lastActivityAt?: string) => ({ id: "a", state: "running", lastActivityAt }) as unknown as SessionTelemetry["subAgents"][number]
+  assert.equal(quietTurnSince("running", tele({ turn: "in-flight", lastActivityAt: stale, subAgents: [child(fresh)] }), now), undefined)
+  assert.equal(quietTurnSince("running", tele({ turn: "in-flight", lastActivityAt: stale, subAgents: [child()] }), now), undefined)
+  assert.equal(quietTurnSince("running", tele({ turn: "in-flight", lastActivityAt: stale, subAgents: [child(stale)] }), now), stale)
+})
+
+test("board: a silent in-flight turn queues while still running, and a snooze or fresh activity takes it out", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "frizz-board-quiet-turn-"))
+  const project: Project = { dir, id: "p", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
+  const storage = createStorage(join(dir, "ui.db"), "p")
+  storage.upsertSession(row({ slug: "wedged", session_id: "sid", thread_name: "frizz-wedged", seen_at: LATER }))
+  storage.setBackend("wedged", "codex")
+  storage.setCodexRuntime("wedged", "app-server")
+  const now = Date.now()
+  let current = tele({ turn: "in-flight", lastActivityAt: new Date(now - QUIET_TURN_MS - 60_000).toISOString() })
+  const tailer = { get: () => current, foreignIds: () => [], subAgent: () => undefined, forget: () => {}, start: () => {}, stop: () => {}, tick: () => {} } satisfies Tailer
+  const board = createBoard(project, storage, new Bus(), tailer, "quiet-turn", { codexTurnLiveness: () => ({ bridgeTurn: true, ownedSince: T0 }) })
+  try {
+    let thread = (await board.snapshot()).threads[0]!
+    assert.equal(thread.runtime, "running")
+    assert.equal(thread.needsYou, true)
+    assert.equal(thread.quietTurnSince, current.lastActivityAt)
+
+    current = tele({ turn: "in-flight", lastActivityAt: new Date(now - 30_000).toISOString() })
+    thread = board.refresh().threads[0]!
+    assert.equal(thread.needsYou, false)
+    assert.equal(thread.quietTurnSince, undefined)
+
+    current = tele({ turn: "in-flight", lastActivityAt: new Date(now - QUIET_TURN_MS - 60_000).toISOString() })
+    storage.setSnoozedUntil("wedged", new Date(now + 3_600_000).toISOString())
+    thread = board.refresh().threads[0]!
+    assert.equal(thread.needsYou, false, "the human's snooze parks a deliberate long wait")
+  } finally {
+    await board.stop()
+    storage.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
