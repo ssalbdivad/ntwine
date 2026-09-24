@@ -91,6 +91,10 @@ export function notify(event: Extract<ServerEvent, { type: "notify" }>): void {
   const n = new Notification(event.title, { body: event.body, tag: `${project ? projectHref(project) : ""}/${event.slug}` })
   n.onclick = () => {
     window.focus()
+    // The desktop app (packages/desktop): `window.focus()` does not raise an Electron window the way it
+    // raises a browser tab, so its preload offers the one call that does.
+    const desktop = (window as { frizzDesktop?: { focusWindow(): void } }).frizzDesktop
+    desktop?.focusWindow()
     // Same project (the overwhelmingly common case): the in-app drawer. Otherwise that project's page in
     // this page's MODE, through the router — the cross-project page opens it in place.
     if (project === undefined || projectSlug() === project) {

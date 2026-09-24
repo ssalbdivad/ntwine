@@ -317,7 +317,7 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
   try {
     // A repository is adopted on sight (resolveLaunchIntent), so a git repo is the cheapest way to be
     // a project without touching any real registry.
-    execFileSync("git", ["init", "-q"], { cwd: project, stdio: "ignore" });
+    execFileSync("git", ["init", "-q"], { cwd: project, stdio: "ignore", windowsHide: true });
   } catch {
     throw new Error("--sandbox mints a throwaway git repository and git is not available — install git, or play in a repo of your own with a temp HOME");
   }
@@ -512,6 +512,7 @@ export function resolveWorkspace(
   try {
     gitRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
       cwd,
+      windowsHide: true,
       encoding: "utf8",
       // stderr is CAPTURED, not ignored: it is the only thing that distinguishes "no worktree here"
       // from "this repository is broken", and those two must not be handled the same way.

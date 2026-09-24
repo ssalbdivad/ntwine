@@ -19,7 +19,7 @@ Full procedure in [plans/runtime-pin-bumps.md](plans/runtime-pin-bumps.md).
 | Path | What it is |
 | --- | --- |
 | [`src/`](src/) | The `frizz` launcher itself — artifact build/promote/verify, port + lock, browser launch. |
-| [`packages/`](packages/) | The app workspace — `shared`, `rpc`, `server`, `web` (see **Packages** below). |
+| [`packages/`](packages/) | The app workspace — `shared`, `rpc`, `server`, `web`, `desktop` (see **Packages** below). |
 | [`board/`](board/) | The zero-dep `.frizz/` board parser + thread writer. The server SHELLS OUT to it; never re-implement it. |
 | [`cc-worker/`](cc-worker/) | The Claude Code plugin every dispatched agent loads: worker contract seed, sub-agent profiles, hooks. |
 | [`monitors/`](monitors/) | Portable CI/PR/review watchers, synced into `cc-worker/skills/gh/scripts/`. |
@@ -156,6 +156,8 @@ Neither name is worth a rename sweep — but every new comment says Active / Res
   `tailer.ts` (JSONL), `dispatch.ts` (thread file create + prompt compose + spawn),
   `settings.ts`.
 - `web` — React 19 + Vite 8 + Tailwind v4 + valtio + TanStack Query + xterm.js.
+- `desktop` — the Electron app: a window onto the one server, never a server of its own (see
+  **Desktop app** below). Private; nothing it adds reaches the published packages.
 
 Plus root `src/` — the `frizz` launcher (NOT a workspace package): canonicalize cwd's Git root,
 health-check/reuse its detached supervisor, atomically allocate/persist an isolated port, then open the
@@ -288,6 +290,25 @@ regenerates its six tracked PNG derivatives (`--check` detects drift, `--refresh
 ICNS in idle shims). *Windows/Linux Dock branding is an unwired TODO:* Windows would set an
 `AppUserModelID` on a generated `.lnk`; Linux (X11) would pass `--class=frizz` + a `.desktop` file whose
 `StartupWMClass` matches.
+
+### Desktop app
+
+[`packages/desktop`](packages/desktop/README.md) is Electron, used as a thin client — the one thing it
+must never be is a second place the server runs. The server loads `node-pty` built for the SYSTEM Node,
+which Electron's embedded Node cannot load, and the launcher already owns starting it (lease, port,
+self-update, recovery). So the app joins the server the owner record names, or a well-known port's
+server that proves this user's launch token (`ownedFrizz` — loopback answers for every account and
+for `--sandbox`), and otherwise runs `node <launcher> --no-app` exactly as a terminal would:
+**detached, output to a file**, because the launcher supervises the server and would die with the app
+on its pipes. It resolves the launcher with `npx -y frizz --_frizz-print-launcher`, under a login
+shell's environment, since a Dock-launched app gets launchd's bare PATH and the server hands its
+environment to every agent. Quitting leaves the server running.
+
+What it adds over a tab is only what a browser gives a tab free — external links to the OS browser, an
+Edit menu, back/forward, a context menu, window state — plus one preload bridge (`frizzDesktop`), whose
+only web-side caller is the notification click in `board-stream.ts`, since `window.focus()` cannot
+raise an Electron window. `electron` is its one dependency; electron-builder is fetched per
+`desktop:dist` run, never installed.
 
 ### Running against a repo outside this monorepo
 

@@ -572,15 +572,19 @@ test("generated outputs and artifact evidence do not invalidate a reusable dirty
     join(tmpdir(), "frizz-artifacts-fingerprint-ignore-")
   );
   const source = sourceFixture(root);
+  mkdirSync(join(source, "packages", "desktop"), { recursive: true });
+  writeFileSync(join(source, "packages", "desktop", "package.json"), "{}\n");
   let digest = fixture(root, "shared");
   digest = markReusableArtifact(root, digest, source);
   const before = relevantSourceFingerprint(source);
   mkdirSync(join(source, "packages", "web", "dist"), { recursive: true });
   mkdirSync(join(source, "artifacts", "evidence"), { recursive: true });
+  mkdirSync(join(source, "packages", "desktop", "out", "linux-unpacked"), { recursive: true });
   writeFileSync(
     join(source, "packages", "web", "dist", "generated.js"),
     "generated"
   );
+  writeFileSync(join(source, "packages", "desktop", "out", "linux-unpacked", "frizz-desktop"), "packaged app");
   writeFileSync(
     join(source, "artifacts", "evidence", "report.json"),
     "generated"
