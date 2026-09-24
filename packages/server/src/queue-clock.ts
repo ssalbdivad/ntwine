@@ -22,11 +22,11 @@ import type { ThreadView } from "@frizz/shared"
 //     while it waits — a sub-agent finishing, a label moving, a reader opening it — can move it.
 //   • Leaving the queue (the human answers it, snoozes it, marks it done; a wait takes it back) forgets
 //     the stamp, so its next entry joins the BACK of the line like any other arrival.
-//   • The stamp is the best bound on the edge the clock has: no earlier than the thread's own rest (it
-//     cannot have been waiting on the human before its agent stopped) and no earlier than the last
-//     assembly that saw it outside the queue. For a plain rest that IS the rest time, so ordinary
-//     arrivals keep the exact order they always had; for a wait that let go it is within one assembly
-//     of the moment it did.
+//   • A plain rest — the agent stopped AFTER the last assembly that saw it outside the queue — enters at
+//     its rest time, so ordinary arrivals keep the exact order they always had. A thread that rested
+//     BEFORE that sighting was held, and entered somewhere between the sighting and now; it is stamped
+//     NOW, the late end of that window, because the early end would let it slip ahead of a thread that
+//     arrived inside the window and is already on screen — the original bug in miniature.
 //
 // DURABLE, because the server restarts constantly and the alternative is re-deriving the key from the
 // rest time at every boot — which puts every thread that entered off a wait back at the front of the
@@ -80,7 +80,8 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
   let stamps: Map<string, number> | undefined
   // Stored stamps not yet checked against their thread's rest (see the header): slugs loaded at boot.
   const unchecked = new Set<string>()
-  // The last KNOWN assembly that saw each thread outside the queue — the lower bound on when it entered.
+  // The last KNOWN assembly that saw each thread outside the queue: a rest before it means the thread
+  // was held, and a rest after it is a plain rest.
   const lastSeenOut = new Map<string, number>()
 
   return {
@@ -120,7 +121,8 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           t.queuedAt = new Date(held).toISOString()
           continue
         }
-        let at = Math.max(rest, lastSeenOut.get(t.id) ?? -Infinity)
+        const out = lastSeenOut.get(t.id)
+        let at = out === undefined || rest > out ? rest : nowMs
         if (!Number.isFinite(at) || at > nowMs) at = nowMs
         stamps.set(t.id, at)
         t.queuedAt = new Date(at).toISOString()

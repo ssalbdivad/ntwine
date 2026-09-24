@@ -7,7 +7,8 @@ import { createQueueClock } from "./queue-clock.ts"
 // that instant for as long as it stays queued. These pin the four rules that make it a queue rather than
 // a stack, plus the boot rules that keep a restart from reshuffling the line.
 
-const at = (hhmm: string) => `2026-09-24T${hhmm}:00.000Z`
+// "HH:MM", or "HH:MM:SS" where a test needs an instant between two assemblies.
+const at = (time: string) => `2026-09-24T${time.length === 5 ? `${time}:00` : time}.000Z`
 const ms = (hhmm: string) => Date.parse(at(hhmm))
 
 function thread(id: string, needsYou: boolean, rested: string): ThreadView {
@@ -37,12 +38,13 @@ test("a plain rest enters the queue at its rest time, so ordinary arrivals keep 
 })
 
 test("a thread that rested behind a wait enters when the wait lets go, not at its old rest time", () => {
-  // The reported shape: rested at 09:00, held out of the queue (CI, a sub-agent, a snooze), let in at
-  // 12:30. Its stamp is bounded below by the last assembly that saw it OUT — never the 09:00 rest that
-  // would sort it ahead of everything already waiting.
+  // The reported shape: rested at 09:00, held out of the queue (CI, a sub-agent, a snooze), let in
+  // between the 12:29 sighting and the 12:30 one. It is stamped at the LATE end of that window — never
+  // the 09:00 rest that sorted it ahead of everything already waiting, and not 12:29 either, which would
+  // put it ahead of `quick`, a plain rest that landed inside the window and is already on screen.
   const { run } = harness()
-  run("12:29", thread("held", false, "09:00"))
-  assert.deepEqual(run("12:30", thread("held", true, "09:00")), { held: at("12:29") })
+  run("12:29", thread("held", false, "09:00"), thread("quick", false, "12:00"))
+  assert.deepEqual(run("12:30", thread("held", true, "09:00"), thread("quick", true, "12:29:30")), { held: at("12:30"), quick: at("12:29:30") })
 })
 
 test("a queued thread keeps its place however long it waits, and saves only on the edge", () => {
@@ -61,8 +63,8 @@ test("leaving the queue forgets the stamp, so the next entry joins the back of t
   // The human snoozes it (no new output — the rest time never moves), then the snooze ends.
   assert.deepEqual(run("10:10", thread("a", false, "10:05")), { a: undefined })
   run("11:59", thread("a", false, "10:05"))
-  assert.deepEqual(run("12:00", thread("a", true, "10:05")), { a: at("11:59") })
-  assert.deepEqual(saves, [["a", at("10:05")], ["a", null], ["a", at("11:59")]])
+  assert.deepEqual(run("12:00", thread("a", true, "10:05")), { a: at("12:00") })
+  assert.deepEqual(saves, [["a", at("10:05")], ["a", null], ["a", at("12:00")]])
 })
 
 test("a boot keeps every place in line while the tailer is still priming rows", () => {

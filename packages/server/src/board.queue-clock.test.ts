@@ -65,8 +65,8 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     assert.deepEqual(readAt("10:00"), { plain: at("09:50"), held: undefined, "term-abc": at("09:55") })
     readAt("12:29")
     // The snooze elapses. Keyed on its 09:00 rest it would sort ABOVE `plain`; it entered at the back.
-    assert.equal(readAt("12:31").held, at("12:29"))
-    assert.equal(storage.getSession("held")?.queued_at, at("12:29"))
+    assert.equal(readAt("12:31").held, at("12:31"))
+    assert.equal(storage.getSession("held")?.queued_at, at("12:31"))
     // Only session rows persist: a command thread's rest time is already exact.
     assert.equal(storage.getSession("plain")?.queued_at, at("09:50"))
 
@@ -78,9 +78,9 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     for (const hhmm of ["12:38", "12:39"]) {
       assert.deepEqual(readAt(hhmm), { plain: undefined, held: undefined, "term-abc": at("09:55") }, "unprimed rows read as running")
     }
-    assert.equal(storage.getSession("held")?.queued_at, at("12:29"), "an unprimed reading is not a departure")
+    assert.equal(storage.getSession("held")?.queued_at, at("12:31"), "an unprimed reading is not a departure")
     primed = true
-    assert.deepEqual(readAt("12:40"), { plain: at("09:50"), held: at("12:29"), "term-abc": at("09:55") }, "a restart keeps every place in line")
+    assert.deepEqual(readAt("12:40"), { plain: at("09:50"), held: at("12:31"), "term-abc": at("09:55") }, "a restart keeps every place in line")
 
     // Marked done: out of the queue, and the stored stamp goes with it.
     storage.setState("plain", "archived")
