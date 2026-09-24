@@ -13,11 +13,15 @@
 // entered the queue (queue-clock.ts), it joins the bottom. scripts/verify-queue-arrival.mjs checks which.
 //
 // Simulated BROKER rows (claude_runtime='broker'), so board.deriveRuntime reads the tailer's turn state —
-// the same reason seed-resting-thread.mjs gives. A plain rest has no background work, so no stand-in
-// daemon is needed.
+// the same reason seed-resting-thread.mjs gives — each with a broker record naming ONE live stand-in
+// daemon (a `sleep`). The daemon is what makes a restart honest: with it, a row the tailer has not primed
+// yet reads RUNNING, out of the queue, exactly as a resting production worker does in the seconds after a
+// boot; without it the row reads exited and stays queued, and the boot window the queue clock guards
+// never opens. Kill the printed pid when the stack comes down.
 //
 // Usage: node scripts/seed-queue-arrival.mjs --home=/abs/temp-home [--cwd=/abs/project] [--snooze-s=45]
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawn } from "node:child_process"
+import { createHash } from "node:crypto"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
@@ -37,6 +41,11 @@ const { db } = sandbox
 const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
 const jsonlDir = join(home, ".claude", "projects", cwd.replace(/[/.]/g, "-"))
 mkdirSync(jsonlDir, { recursive: true })
+mkdirSync(join(sandbox.stateDir, "claude-broker"), { recursive: true })
+const daemon = spawn("sleep", ["7200"], { detached: true, stdio: "ignore" })
+daemon.unref()
+const brokerRecordPath = (sessionId) =>
+  join(sandbox.stateDir, "claude-broker", `${createHash("sha256").update(sessionId).digest("hex").slice(0, 16)}.json`)
 
 const now = Date.now()
 const ago = (m) => new Date(now - m * 60_000).toISOString()
@@ -58,6 +67,7 @@ function seed({ slug, sessionId, title, restedMinutesAgo, snoozedUntil = null })
     },
   ]
   writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stringify(r)).join("\n") + "\n")
+  writeFileSync(brokerRecordPath(sessionId), JSON.stringify({ sessionId, daemonPid: daemon.pid, socketPath: join(sandbox.stateDir, "claude-broker", `${slug}.sock`) }))
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at, snoozed_until)
@@ -75,3 +85,4 @@ seed({
   restedMinutesAgo: 60,
   snoozedUntil: new Date(now + snoozeS * 1000).toISOString(),
 })
+console.log(`stand-in broker daemon pid ${daemon.pid} — kill it when the stack comes down`)

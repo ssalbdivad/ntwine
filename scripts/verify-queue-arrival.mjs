@@ -116,8 +116,11 @@ if (phase === "arrival") {
     check("the rail draws the arrival LAST in the cue",
       idx("Fix the flaky login test") < idx("Tidy the settings drawer") && idx("Tidy the settings drawer") < idx("Bump the release pin"),
       titles.join(" → "))
-    const minutes = rail.map((r) => (r.age === "just now" ? 0 : Number.parseInt(r.age, 10)))
-    check("the rest-time column reads monotonically down the cue", minutes.every((m, i) => i === 0 || m <= minutes[i - 1]), rail.map((r) => r.age).join(", "))
+    // The house duration grammar (`40m`, `2h 35m`, `3d`), summed to seconds so `6s` never compares to `20m`.
+    const UNIT = { s: 1, m: 60, h: 3600, d: 86_400, w: 604_800, mo: 2_592_000, y: 31_536_000 }
+    const seconds = (span) => (span === "just now" ? 0 : [...span.matchAll(/(\d+)(mo|[smhdwy])/g)].reduce((sum, [, n, unit]) => sum + Number(n) * UNIT[unit], 0))
+    const ages = rail.map((r) => seconds(r.age))
+    check("the rest-time column reads monotonically down the cue", ages.every((age, i) => i === 0 || age <= ages[i - 1]), rail.map((r) => r.age).join(", "))
     check("no page errors", errors.length === 0, errors.join("; "))
     await page.screenshot({ path: join(shots, "queue-arrival-rail.png"), clip: { x: 0, y: 0, width: 620, height: 900 } })
     console.log(`shot: ${join(shots, "queue-arrival-rail.png")}`)
