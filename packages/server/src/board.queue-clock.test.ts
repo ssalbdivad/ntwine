@@ -31,6 +31,7 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
   const telemetry = new Map<string, SessionTelemetry>([
     ["plain", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:50") }],
     ["held", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") }],
+    ["overnight", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("08:00") }],
   ])
   // False after the restart below until the test says otherwise: an unprimed row has no telemetry, and
   // a broker row with none reads as RUNNING — out of the queue — which is what a real boot looks like.
@@ -53,8 +54,11 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
   // Rested at 09:00, parked by the human's snooze until 12:30 — the wait that used to hand it the 09:00.
   storage.upsertSession(row("held"))
   storage.setSnoozedUntil("held", at("12:30"))
+  // Rested at 08:00 and snoozed past the restart below: its snooze runs out while no server is watching.
+  storage.upsertSession(row("overnight"))
+  storage.setSnoozedUntil("overnight", at("12:35"))
   // Broker rows, as every live Claude row is: with no telemetry one reads as RUNNING, not exited.
-  for (const slug of ["plain", "held"]) storage.setClaudeRuntime(slug, "broker")
+  for (const slug of ["plain", "held", "overnight"]) storage.setClaudeRuntime(slug, "broker")
   let board = createBoard(project, storage, new Bus(), tailer, "queue-boot-1", deps)
   const readAt = (hhmm: string) => {
     nowMs = Date.parse(at(hhmm))
@@ -62,7 +66,7 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
   }
 
   try {
-    assert.deepEqual(readAt("10:00"), { plain: at("09:50"), held: undefined, "term-abc": at("09:55") })
+    assert.deepEqual(readAt("10:00"), { plain: at("09:50"), held: undefined, overnight: undefined, "term-abc": at("09:55") })
     readAt("12:29")
     // The snooze elapses. Keyed on its 09:00 rest it would sort ABOVE `plain`; it entered at the back.
     assert.equal(readAt("12:31").held, at("12:31"))
@@ -76,11 +80,13 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     board = createBoard(project, storage, new Bus(), tailer, "queue-boot-2", deps)
     primed = false
     for (const hhmm of ["12:38", "12:39"]) {
-      assert.deepEqual(readAt(hhmm), { plain: undefined, held: undefined, "term-abc": at("09:55") }, "unprimed rows read as running")
+      assert.deepEqual(readAt(hhmm), { plain: undefined, held: undefined, overnight: undefined, "term-abc": at("09:55") }, "unprimed rows read as running")
     }
     assert.equal(storage.getSession("held")?.queued_at, at("12:31"), "an unprimed reading is not a departure")
     primed = true
-    assert.deepEqual(readAt("12:40"), { plain: at("09:50"), held: at("12:31"), "term-abc": at("09:55") }, "a restart keeps every place in line")
+    // `overnight` has no stamp and no sighting since the boot, but the old server last watched at 12:31
+    // and its rest is older than that: it was let go in the gap, so it joins the back — not 08:00's front.
+    assert.deepEqual(readAt("12:40"), { plain: at("09:50"), held: at("12:31"), overnight: at("12:40"), "term-abc": at("09:55") }, "a restart keeps every place in line")
 
     // Marked done: out of the queue, and the stored stamp goes with it.
     storage.setState("plain", "archived")

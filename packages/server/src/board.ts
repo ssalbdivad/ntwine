@@ -40,6 +40,8 @@ const DEBOUNCE_MS = 150
 // own heartbeat watchdog fires and reconnects — real worst case ≈45-60s (sse.ts HEARTBEAT_TIMEOUT 35s
 // + the 10s health tick). See sse.ts.
 const RECONCILE_MS = 15_000
+// When this project's queue clock was last watching — see queue-clock.ts "A RESTART IS A GAP".
+const QUEUE_CLOCK_ALIVE_SETTING = "queue.clock.alive.v1"
 
 // A codex app-server turn that reads in-flight but is driven by NOBODY. The rollout is a lagging log:
 // when the app-server process dies mid-turn it simply stops, so the folded turn stays "in-flight"
@@ -1889,10 +1891,16 @@ export function createBoard(
   // When each queued thread entered the queue — the queue's order key (queue-clock.ts). Session rows
   // persist it; a command thread's rest time is already exact, so it rides in memory alone.
   const queueClock = createQueueClock({
-    load: () => new Map(storage.allSessions().flatMap((row) => (row.queued_at ? [[row.slug, row.queued_at] as const] : []))),
-    save: (thread, at) => {
-      if (thread.kind === "session") storage.setQueuedAt(thread.id, at)
+    load: () => {
+      const alive = storage.getSetting(QUEUE_CLOCK_ALIVE_SETTING)
+      return {
+        stamps: new Map(storage.allSessions().flatMap((row) => (row.queued_at ? [[row.slug, row.queued_at] as const] : []))),
+        ...(typeof alive === "string" ? { alive } : {}),
+      }
     },
+    persists: (thread) => thread.kind === "session",
+    save: (thread, at) => storage.setQueuedAt(thread.id, at),
+    saveAlive: (at) => storage.setSetting(QUEUE_CLOCK_ALIVE_SETTING, at),
   })
 
   // Fire a needs-decision notify for every registered session that newly enters the queue.

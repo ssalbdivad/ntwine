@@ -15,11 +15,14 @@ function thread(id: string, needsYou: boolean, rested: string): ThreadView {
   return { id, kind: "session", needsYou, lastAssistantAt: at(rested) } as unknown as ThreadView
 }
 
-function harness(stored: Record<string, string> = {}) {
+function harness(stored: Record<string, string> = {}, alive?: string) {
   const saves: [string, string | null][] = []
+  const alives: string[] = []
   const clock = createQueueClock({
-    load: () => new Map(Object.entries(stored)),
+    load: () => ({ stamps: new Map(Object.entries(stored)), ...(alive ? { alive } : {}) }),
+    persists: (t) => t.kind === "session",
     save: (t, value) => void saves.push([t.id, value]),
+    saveAlive: (value) => void alives.push(value),
   })
   // Every reading is vouched for unless its slug is in `unknown` — a row the tailer has not primed yet.
   const unknown = new Set<string>()
@@ -27,7 +30,7 @@ function harness(stored: Record<string, string> = {}) {
     clock.stamp(threads, ms(nowHHMM), (t) => !unknown.has(t.id))
     return Object.fromEntries(threads.map((t) => [t.id, t.queuedAt]))
   }
-  return { run, saves, unknown }
+  return { run, saves, unknown, alives }
 }
 
 test("a plain rest enters the queue at its rest time, so ordinary arrivals keep the order they always had", () => {
@@ -94,6 +97,33 @@ test("a stored stamp the agent has since spoken past is refused at boot — it l
   const { run, saves } = harness({ a: at("10:00") })
   assert.deepEqual(run("13:00", thread("a", true, "12:45")), { a: at("12:45") })
   assert.deepEqual(saves, [["a", at("12:45")]])
+})
+
+test("a restart bridges its gap with the last instant the old server was watching", () => {
+  // The old server last wrote `alive` at 12:00, then went down. Neither thread had a stamp: both were
+  // out of the queue as of 12:00. `snoozed` rested at 09:00 and its snooze ran out while nobody watched —
+  // a release, so it joins the BACK. `fresh` rested at 12:30, after the old server's last sighting — a
+  // plain rest, so it keeps its rest time and stays ahead of `snoozed`.
+  const { run } = harness({}, at("12:00"))
+  assert.deepEqual(run("13:00", thread("snoozed", true, "09:00"), thread("fresh", true, "12:30")), { snoozed: at("13:00"), fresh: at("12:30") })
+})
+
+test("a thread whose stamp is not durable ignores the bridge — a command's exit time is exact", () => {
+  const { run, saves } = harness({}, at("12:00"))
+  const command = { id: "term-1", kind: "command", needsYou: true, lastActivityAt: at("11:40") } as unknown as ThreadView
+  assert.deepEqual(run("13:00", command), { "term-1": at("11:40") })
+  assert.deepEqual(saves, [], "and nothing is written for it")
+})
+
+test("the first boot after the clock landed has no such instant, and keeps the order the queue always had", () => {
+  const { run } = harness()
+  assert.deepEqual(run("13:00", thread("snoozed", true, "09:00"), thread("fresh", true, "12:30")), { snoozed: at("09:00"), fresh: at("12:30") })
+})
+
+test("the clock records that it is watching at most every 15s, starting with its first assembly", () => {
+  const { run, alives } = harness()
+  for (const now of ["10:00:00", "10:00:05", "10:00:14", "10:00:15", "10:00:29", "10:00:31"]) run(now, thread("a", false, "09:00"))
+  assert.deepEqual(alives, [at("10:00:00"), at("10:00:15"), at("10:00:31")])
 })
 
 test("a thread with no usable time at all enters now, never at the epoch", () => {

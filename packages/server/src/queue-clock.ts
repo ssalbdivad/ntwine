@@ -47,16 +47,30 @@ import type { ThreadView } from "@frizz/shared"
 // can be queued MID-TURN (a permission prompt, a silent turn, a command at a prompt), and whatever its
 // agent or process writes while it waits must not move it.
 //
-// A thread with no stored stamp and no sighting outside the queue — the first boot after this landed, or
-// one that entered while the server was down — falls back to its rest time, which is exactly the order
-// the queue had before the clock existed.
+// A RESTART IS A GAP IN THE SIGHTINGS, and the clock bridges it with one durable instant: when the last
+// server was still watching (`alive`, written at most every ALIVE_EVERY_MS). A thread with no stored
+// stamp was outside the queue as of then, so after a boot that instant is its last sighting out: one that
+// rested since is a plain rest and keeps its rest time, and one that rested before it was held and let go
+// while nobody was watching — a snooze that ran out overnight — joins the back like any other release
+// instead of the front. The first boot after this landed has no such instant, and falls back to the rest
+// time for every thread, which is exactly the order the queue had before the clock existed.
 
 export interface QueueClockStore {
-  /** Stamps a previous server persisted, by slug. Read once, at the first assembly. */
-  load(): ReadonlyMap<string, string>
+  /** Stamps a previous server persisted, by slug, and when it was last watching. Read once, at the first
+   *  assembly, before anything is written. */
+  load(): { stamps: ReadonlyMap<string, string>; alive?: string }
+  /** Whether this thread's stamp is durable. Only a durable stamp's ABSENCE says anything after a boot,
+   *  so only these threads inherit the old server's last sighting; the rest never reach `save`. */
+  persists(thread: ThreadView): boolean
   /** Persist (ISO) or clear (null) one thread's stamp. Called only on an edge, never per assembly. */
   save(thread: ThreadView, at: string | null): void
+  /** Record that the clock is watching as of `at` (ISO). Throttled to ALIVE_EVERY_MS. */
+  saveAlive(at: string): void
 }
+
+// How stale the durable "still watching" instant may run. It only has to be recent enough that a hold
+// ending in the gap before it is vanishingly rare; the cost is one settings write per period.
+export const ALIVE_EVERY_MS = 15_000
 
 export interface QueueClock {
   /** Set `queuedAt` on every queued thread in `threads`, in place, and record the edges it crossed.
@@ -78,6 +92,9 @@ function restMs(t: ThreadView): number {
 
 export function createQueueClock(store: QueueClockStore): QueueClock {
   let stamps: Map<string, number> | undefined
+  // When the previous server was last watching: the sighting-out every unstamped thread inherits at boot.
+  let aliveBefore: number | undefined
+  let aliveSavedAt = -Infinity
   // Stored stamps not yet checked against their thread's rest (see the header): slugs loaded at boot.
   const unchecked = new Set<string>()
   // The last KNOWN assembly that saw each thread outside the queue: a rest before it means the thread
@@ -88,12 +105,19 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
     stamp(threads, nowMs, known) {
       if (!stamps) {
         stamps = new Map()
-        for (const [slug, at] of store.load()) {
+        const loaded = store.load()
+        for (const [slug, at] of loaded.stamps) {
           const ms = Date.parse(at)
           if (!Number.isFinite(ms)) continue
           stamps.set(slug, ms)
           unchecked.add(slug)
         }
+        const alive = Date.parse(loaded.alive ?? "")
+        if (Number.isFinite(alive)) aliveBefore = alive
+      }
+      if (nowMs - aliveSavedAt >= ALIVE_EVERY_MS) {
+        aliveSavedAt = nowMs
+        store.saveAlive(new Date(nowMs).toISOString())
       }
       const seen = new Set<string>()
       for (const t of threads) {
@@ -106,7 +130,7 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           unchecked.delete(t.id)
           if (held !== undefined) {
             stamps.delete(t.id)
-            store.save(t, null)
+            if (store.persists(t)) store.save(t, null)
           }
           continue
         }
@@ -121,12 +145,13 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           t.queuedAt = new Date(held).toISOString()
           continue
         }
-        const out = lastSeenOut.get(t.id)
+        const durable = store.persists(t)
+        const out = lastSeenOut.get(t.id) ?? (durable ? aliveBefore : undefined)
         let at = out === undefined || rest > out ? rest : nowMs
         if (!Number.isFinite(at) || at > nowMs) at = nowMs
         stamps.set(t.id, at)
         t.queuedAt = new Date(at).toISOString()
-        store.save(t, t.queuedAt)
+        if (durable) store.save(t, t.queuedAt)
       }
       // A thread that is gone (purged, removed) takes its clock with it, so a slug reused later starts
       // fresh rather than inheriting a place in line.
