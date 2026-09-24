@@ -1011,7 +1011,13 @@ const QueueCard = memo(function QueueCard({ thread, leaving, frozen, onResolve, 
   // Where the worker PLACED its registered questions — the message whose empty ```question qst_… marker
   // names each one (lib/questionShadow) — the card renders inside that message and leaves its anchor
   // group, and that rest's stack carries the one "Send answers" for it (questionStacks).
-  const placement = useMemo(() => placeQuestions(messages, thread?.questions ?? []), [messages, thread?.questions])
+  // A marker ABOVE this card's window places nothing here: its message is not drawn, so the card would
+  // vanish and its rest's stack would draw a bare Send. Unplaced, it renders at its anchor like any other.
+  const placement = useMemo(() => {
+    const full = placeQuestions(messages, thread?.questions ?? [])
+    const placed = new Map([...full.placed].filter(([at]) => at >= visibleStart))
+    return { placed, placedIds: new Set([...placed.values()].flat().map((q) => q.id)) }
+  }, [messages, thread?.questions, visibleStart])
   const questionAnchors = useMemo(() => {
     let tail: { questions: RegisteredQuestionView[]; showSend: boolean } = { questions: [], showSend: false }
     const byAnchor = new Map<number, { questions: RegisteredQuestionView[]; showSend: boolean }>()
@@ -1404,6 +1410,11 @@ const QueueCard = memo(function QueueCard({ thread, leaving, frozen, onResolve, 
               let middleEmitted = false
               coalescedVisible.forEach(({ message: m, messageIndex: globalIdx }, i) => {
                 if (m.queued) return
+                // A group anchored BEFORE this row belongs above it. The flush after each drawn row
+                // does not cover that: a rest's last message often draws nothing here (a rest record,
+                // a collapsed run), and the group then waited for the NEXT drawn row — the human's own
+                // reply — and landed under it.
+                flushQuestions(globalIdx - 1)
                 if (messageRendersNothing(m, hidesAwaiting(globalIdx))) return
                 // "Agent rested" is the queue card's own PREMISE, not news: every card here is a rested
                 // thread, the row states how long ago it rested, and the window is already cut at the
