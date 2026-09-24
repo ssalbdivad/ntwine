@@ -2408,11 +2408,13 @@ export function createRouter(ctx: AppContext) {
     setThreadState: mutation({
       input: z.object({ slug: ThreadSlug, state: z.enum(["open", "archived"]) }).strict(),
       handler: async ({ input }) => {
-        // A terminal command thread shares the lifecycle (command-threads.ts). Only a FINISHED run can
-        // be marked done: one still running is live work, and filing it under Done would hide it.
+        // A terminal command thread shares the lifecycle (command-threads.ts). Marking a RUNNING one done
+        // stops it first, so nothing live is filed under Done. It used to refuse instead, which left a
+        // run parked at a 2FA prompt — queued as waiting for input, card showing Mark as done — with a
+        // button that only answered "Stop the command before marking it done" (maintainer 2026-09-24).
         const command = ctx.commandRunner.threads().find((t) => t.id === input.slug)
         if (command) {
-          if (input.state === "archived" && command.command?.state === "running") throw new Error("Stop the command before marking it done")
+          if (input.state === "archived" && command.command?.state === "running") await ctx.commandRunner.stop(input.slug)
           ctx.storage.setCommandThreadState(input.slug, input.state)
           ctx.board.refresh()
           return
