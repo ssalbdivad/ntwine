@@ -3006,11 +3006,10 @@ function SentContextBody({ body, items }: { body: string; items: SentContextItem
               setOpen(isOpen ? null : item.token)
             }}
             onKeyDown={(e) => e.stopPropagation()}
-            // Baseline-aligned so the chip reads as part of the sentence; the dark-on-light tints are
-            // this bubble's own (the bubble is the one LIGHT surface in the transcript, so the
-            // panel/border tokens the dark chips use elsewhere would vanish here).
+            // Baseline-aligned so the chip reads as part of the sentence; tinted from the bubble's own
+            // ink so it reads on the bubble in either theme, whatever surface the bubble sits on.
             className={`inline-flex max-w-56 items-baseline rounded border px-1 align-baseline font-mono-keep text-[11px] leading-snug transition-colors ${
-              isOpen ? "border-bg/40 bg-bg/15" : "border-bg/25 bg-bg/[0.08] hover:bg-bg/15"
+              isOpen ? "border-user-bubble-fg/35 bg-user-bubble-fg/15" : "border-user-bubble-fg/20 bg-user-bubble-fg/[0.07] hover:bg-user-bubble-fg/15"
             }`}
           >
             <span className="truncate">{tokenLabel(item.token)}</span>
@@ -3018,7 +3017,7 @@ function SentContextBody({ body, items }: { body: string; items: SentContextItem
         )
       })}
       {openItem && (
-        <span className="mt-2 block cursor-auto rounded-md border border-bg/20 bg-bg/[0.06] px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+        <span className="mt-2 block cursor-auto rounded-md border border-user-bubble-fg/15 bg-user-bubble-fg/[0.05] px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
           <span className="block truncate font-mono-keep text-[11px] text-user-bubble-fg/60">{openItem.display}{openItem.startLine !== undefined ? ` · ${openItem.startLine === openItem.endLine ? `line ${openItem.startLine}` : `lines ${openItem.startLine}-${openItem.endLine}`}` : ""}</span>
           <span className="mt-1 block max-h-40 overflow-y-auto whitespace-pre-wrap break-words font-mono-keep text-[11.5px] leading-4 text-user-bubble-fg/80">{openItem.text}</span>
         </span>
@@ -3072,8 +3071,9 @@ function UserBubble({ text, rawText, queued, deliveryUnconfirmed, deliveryId, so
     // right-justification depends on being its direct child (see the group-container note above the
     // queued-message stack).
     <div data-frizz-msg={sourceId} className="self-end flex flex-col items-end gap-0.5 max-w-[85%]">
-      {/* OFF-WHITE bubble, BLACK text — the human's words POP against the dark page + agent prose. bg-user-bubble
-          is a tick less white than bg-fg so it reads as a card. whitespace-pre-wrap is load-bearing: user text
+      {/* A quiet raised surface in the page's own ink — set apart from agent prose by its fill and its
+          right alignment, not by contrast (an off-white bubble here read as a foreign object on the dark
+          page, maintainer 2026-09-24). whitespace-pre-wrap is load-bearing: user text
           is verbatim, so its line breaks must survive. Skipped entirely for an attachment-only send, so the
           picture stands on its own instead of hanging under an empty gray pill. */}
       {prose.trim() !== "" && (
@@ -3100,9 +3100,9 @@ function UserBubble({ text, rawText, queued, deliveryUnconfirmed, deliveryId, so
           // transcript that is still yours to change says so on hover instead of needing a permanent
           // control that would clutter every send. Opacity alone carries it, because opacity is already
           // the channel encoding "queued" and coming back to solid is exactly the state being offered.
-          // NO hover ring: an accent outline laid directly on this warm off-white card read as a muddy
-          // olive (accent yellow at 60% blending into #d5d7da), and a hover ring is a shape nothing else
-          // in the app uses. A KEYBOARD focus ring still has to exist, so it keeps the accent — but
+          // NO hover ring: an accent outline laid directly on the card read as a muddy olive when the
+          // bubble was off-white, and a hover ring is a shape nothing else in the app uses. A KEYBOARD
+          // focus ring still has to exist, so it keeps the accent — but
           // OFFSET onto the near-black page, which is the only place this yellow reads clean and is how
           // every other focus ring in the app is drawn.
           className={`relative ${BLOCK_RADIUS} rounded-br-sm bg-user-bubble px-3.5 py-3 text-[14px] whitespace-pre-wrap [overflow-wrap:anywhere] text-user-bubble-fg ${queued ? "opacity-50" : ""} ${unqueueable ? "cursor-pointer transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg" : ""} ${unqueuePending ? "!opacity-30" : ""}`}
@@ -3243,7 +3243,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, text
     const answers = paired !== undefined ? paired : parseAnswersCard(text)
     if (answers) return <AnswersCard answers={answers} queued={m.queued} sourceId={m.sourceId} />
     // A scheduler wake is recorded as a user turn because it is pasted into the worker's composer —
-    // but FRIZZ wrote it, not the human, so it must not wear the human's off-white right-justified
+    // but FRIZZ wrote it, not the human, so it must not wear the human's right-justified
     // bubble. `m.wake` is the server's own tell (the delivery token it stripped), never a text guess.
     // A recurring prompt (either trigger) is a wake too, but it REPEATS by design — the same
     // paragraph every few minutes on a thread being driven by one — so it collapses to a single line

@@ -35,7 +35,7 @@ export function LinkifiedText({ text }: { text: string }) {
             rel="noopener noreferrer"
             title={s.title}
             data-gh-ref={s.ghRef ?? undefined}
-            // Inherit the host's text colour (this renders on BOTH the off-white bubble and the dark
+            // Inherit the host's text colour (this renders on BOTH the user bubble and the dark
             // answers chip; md-body's accent yellow is illegible on the former) — the underline alone
             // carries "clickable", the same treatment .md-inline links get.
             className="underline underline-offset-2"

@@ -34,8 +34,6 @@
      while a file click still fell back to the overlay drawer. */
   --breakpoint-split: 1200px;
 
-  /* User chat bubble fill — a tick less white than --color-fg so the human's words read as a warm
-     off-white card rather than a stark white block, while text (text-bg) stays high-contrast. */
   /* A parked PR watcher's mark. Fitted to the accent-yellow/shell-blue pair in OKLCH rather than picked
      — see the .frizz-live-dot--github rule below for the numbers and for why it is violet and not the
      green that fits the same numbers. */

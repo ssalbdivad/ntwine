@@ -281,7 +281,7 @@ function ProjectLinkScope({ project, children }: { project: QueuesProject; child
   return <div className="contents" onClickCapture={onClickCapture}>{children}</div>
 }
 
-/** The human's last message, as the board draws it — their off-white bubble — clipped to a few lines. */
+/** The human's last message, as the board draws it — their own bubble — clipped to a few lines. */
 function AskedBubble({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
   return (

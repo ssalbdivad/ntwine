@@ -6,7 +6,7 @@ import { WakeDivider } from "./WakeDivider.tsx"
 // child event in this app wears.
 //
 // It arrives as an ordinary user turn (frizz pastes it into the worker's composer), so left alone it
-// rendered as the human's own off-white bubble — claiming the operator had typed a paragraph the
+// rendered as the human's own bubble — claiming the operator had typed a paragraph the
 // scheduler composed, and repeating that paragraph in full every few minutes on any thread actually
 // being driven by one.
 //

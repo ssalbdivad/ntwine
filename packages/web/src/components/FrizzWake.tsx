@@ -13,7 +13,7 @@
 // instructs the worker about its own registrations, and the human reading the transcript has none.
 //
 // The wake is recorded as an ordinary user turn (it is pasted into the worker's composer), so the chat
-// rendered it in the off-white right-justified bubble the human's messages wear — which claimed the
+// rendered it in the right-justified bubble the human's messages wear — which claimed the
 // operator had typed a message the PR watcher composed. This is the correction.
 //
 // It is a WAKE DIVIDER, not a card (maintainer 2026-07-31, after a gallery of ten alternatives: "I hate

@@ -56,7 +56,7 @@ import type { StampHost } from "../lib/stampHost.ts"
  */
 /**
  * What the reading hangs below. `prose` is agent text, whose ink ends inside its line box; `bubble` is
- * the user's off-white bubble, whose BOX ends exactly where the row ends. The offset below is a
+ * the user's bubble, whose BOX ends exactly where the row ends. The offset below is a
  * measurement against the host's ink edge, and the two hosts do not share one.
  *
  * REQUIRED, with no default — the 7px between the two is the difference between air and a collision,
