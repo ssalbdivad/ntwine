@@ -105,11 +105,15 @@ try {
     }
   }
   const picker = () => page.$eval("[data-xq-picker-name]", (el) => el.textContent?.trim() ?? "").catch(() => "")
+  // The page re-renders a beat after the address bar moves (history is written first), so a check of
+  // what it SAYS waits for it to say it rather than reading once.
+  const pickerSays = (name, timeout = 8000) =>
+    page.waitForFunction((n) => document.querySelector("[data-xq-picker-name]")?.textContent?.trim() === n, { timeout }, name).then(() => true, () => false)
 
   await step("/ lands on the page focused on the named project, with its prompt box", async () => {
     await page.waitForSelector('[data-surface="newComposer"]', { timeout: 10_000 })
     const path = await page.evaluate(() => location.pathname)
-    check("/ lands on the page focused on the named project, with its prompt box", path === "/all/acme-api" && (await picker()) === "acme-api", `${path}, picker "${await picker()}"`)
+    check("/ lands on the page focused on the named project, with its prompt box", path === "/all/acme-api" && (await pickerSays("acme-api")), `${path}, picker "${await picker()}"`)
   })
 
   await step("lanes follow the rail order, one per project with a queue", async () => {
@@ -304,14 +308,14 @@ try {
     const lanes = await page.$$eval("[data-xq-lane]", (els) => els.length)
     const stillHere = (await page.$(scope)) !== null
     await page.screenshot({ path: join(shots, "xp-verify-drawer.png") })
-    check("a tenant's thread opens in place, in its drawer", drawer.includes(expected) && lanes > 0 && stillHere && (await picker()) === "marketing-site", `${slug}: ${lanes} lanes behind it, picker "${await picker()}"`)
+    check("a tenant's thread opens in place, in its drawer", drawer.includes(expected) && lanes > 0 && stillHere && (await pickerSays("marketing-site")), `${slug}: ${lanes} lanes behind it, picker "${await picker()}"`)
   })
 
   await step("closing it hands the prompt box back to the project that was chosen", async () => {
     await closeDrawer()
     await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 8000 })
-    await page.waitForSelector('[data-surface="newComposer"]', { timeout: 10_000 })
-    check("closing it hands the prompt box back to the project that was chosen", (await picker()) === "acme-api", `picker "${await picker()}"`)
+    const back = await pickerSays("acme-api")
+    check("closing it hands the prompt box back to the project that was chosen", back, `picker "${await picker()}"`)
   })
 
   await step("a follow-up typed in a tenant's drawer goes to the tenant, not the focus's namesake", async () => {
@@ -336,10 +340,20 @@ try {
   })
 
   await step("a terminal command started from the page runs in the project chosen for it", async () => {
+    await pickerSays("acme-api")
     await page.click("[data-xq-project-picker]")
-    await (await page.waitForFunction(() => [...document.querySelectorAll("[role=menuitem]")].find((el) => el.textContent?.includes("billing-worker")) ?? null, { timeout: 5000 })).asElement().click()
+    // Found and clicked in one go: a handle held across the page's next render can be detached.
+    await page.waitForSelector("[role=menuitem]", { timeout: 5000 })
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const item = (await page.evaluateHandle(() => [...document.querySelectorAll("[role=menuitem]")].find((el) => el.textContent?.includes("billing-worker")) ?? null)).asElement()
+      if (item && (await item.click().then(() => true, () => false))) break
+      await sleep(200)
+    }
     await page.waitForFunction(() => location.pathname === "/all/billing-worker", { timeout: 8000 })
-    await page.waitForSelector("[data-dispatch-tab=terminal]", { timeout: 10_000 })
+    // The PREVIOUS project's form stays up for the render after the address bar moves; wait for this
+    // project's own form (the picker names it, and the stand-in is gone) before typing into it.
+    await pickerSays("billing-worker")
+    await page.waitForFunction(() => !document.querySelector("[data-xq-composer-pending]") && document.querySelector("[data-dispatch-form]"), { timeout: 10_000 })
     await page.click("[data-dispatch-tab=terminal]")
     await page.waitForSelector('[data-surface="commandComposer"]')
     await page.type('[data-surface="commandComposer"]', "echo started-from-everything")
@@ -349,8 +363,13 @@ try {
     check("a terminal command started from the page runs in the project chosen for it", Boolean(started) && !elsewhere, started ? `billing-worker/${started.id}` : "")
 
     // Its toast opens its TERMINAL, in place — a routed terminal layer that stays open.
-    const open = await waitFor("the toast's link", async () => (await page.evaluateHandle(() => [...document.querySelectorAll("[data-toast] button")].find((b) => b.textContent?.trim() === "Open thread") ?? null)).asElement(), 8000)
-    await open.click()
+    // Clicked in the page, in the same task that finds it: the toast re-renders as it rises, and a
+    // handle held across that is detached.
+    await waitFor("the toast's link", () => page.evaluate(() => {
+      const button = [...document.querySelectorAll("[data-toast] button")].find((b) => b.textContent?.trim() === "Open thread")
+      button?.click()
+      return Boolean(button)
+    }), 8000)
     await page.waitForFunction((slug) => location.pathname === `/all/billing-worker/thread/${slug}`, { timeout: 8000 }, started.id)
     await sleep(1500)
     const terminal = await page.evaluate(() => Boolean(document.querySelector(".xterm")) && location.pathname.includes("/thread/"))
@@ -359,6 +378,28 @@ try {
     await closeDrawer()
     // The picker CHOSE billing-worker, so that is where the page settles.
     await page.waitForFunction(() => location.pathname === "/all/billing-worker", { timeout: 8000 })
+  })
+
+  await step("Back to a project the operator was focused on stays there", async () => {
+    // Through the rail's squares, which PUSH an entry per project (the prompt box's picker replaces
+    // one). Going Back to an entry is choosing it again; the page used to bounce off it to the pick.
+    const settings = await api("acme-api").query("settingsGet")
+    await api("acme-api").mutate("settingsSet", { ...settings, projectRail: true })
+    try {
+      await page.goto(`${origin}/all/acme-api`, { waitUntil: "networkidle2" })
+      const square = 'nav[aria-label="Projects"] a[href="/all/marketing-site"]'
+      await page.waitForSelector(square, { timeout: 10_000 })
+      await page.click(square)
+      await page.waitForFunction(() => location.pathname === "/all/marketing-site", { timeout: 8000 })
+      await sleep(1000)
+      await page.goBack()
+      await sleep(2000)
+      const says = await pickerSays("acme-api")
+      const path = await page.evaluate(() => location.pathname)
+      check("Back to a project the operator was focused on stays there", path === "/all/acme-api" && says, `${path}, picker "${await picker()}"`)
+    } finally {
+      await api("acme-api").mutate("settingsSet", settings)
+    }
   })
 
   await step("the page raised no errors", async () => {
