@@ -224,3 +224,15 @@ test("only an entry off a park is withheld: an ordinary rest, or a park the work
   run("10:00:00", thread("spoke", false, "09:00"))
   assert.deepEqual(run("10:00:06", thread("spoke", true, "10:00:05")), { spoke: at("10:00:05") })
 })
+
+test("a snooze lifted before its deadline goes in at once — only one that ran out is waiting on its bump", () => {
+  const { run, parked } = harness()
+  const snoozed = (id: string, until: string) => ({ ...thread(id, false, "09:00"), snoozedUntil: at(until) }) as ThreadView
+  // Both snoozes carry a prompt to deliver at 10:05, so both are parks.
+  parked.add("woken").add("ran-out")
+  run("10:00", snoozed("woken", "10:05"), snoozed("ran-out", "10:05"))
+  // The human presses Wake now on `woken` at 10:02: its card comes straight back.
+  assert.deepEqual(run("10:02", thread("woken", true, "09:00"), snoozed("ran-out", "10:05")), { woken: at("10:02"), "ran-out": undefined })
+  // `ran-out` reaches its deadline, and its bump is about to land: withheld.
+  assert.deepEqual(run("10:05", thread("woken", true, "09:00"), thread("ran-out", true, "09:00")), { woken: at("10:02"), "ran-out": undefined })
+})

@@ -71,8 +71,10 @@ import type { ThreadView } from "@frizz/shared"
 // so it neither notifies nor draws the card. Only an entry off a PARK counts — the last known sighting out
 // of the queue found the thread at rest, with the same rest it has now, behind a hold something wakes it
 // from (the board's `parked`) — so an ordinary rest, whose last sighting out was its own running turn, is
-// never delayed. And an URGENT reading enters at once whatever held it: a permission prompt, a question,
-// a crash, a limit pause.
+// never delayed. Nor is a snooze lifted BEFORE its deadline: that was a person (Wake now), and nothing is
+// coming to wake the thread — the bump a snooze may carry fires at the deadline, not when it is lifted.
+// And an URGENT reading enters at once whatever held it: a permission prompt, a question, a crash, a
+// limit pause.
 
 // How long an entry off a park is withheld (see the header): one scheduler tick (10s) for a wake to be
 // sent, plus delivery.
@@ -134,8 +136,9 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
   // Stored stamps not yet checked against their thread's rest (see the header): slugs loaded at boot.
   const unchecked = new Set<string>()
   // The last KNOWN assembly that saw each thread outside the queue (`at`: a rest before it means the
-  // thread was held, and a rest after it is a plain rest), and what that sighting found.
-  const lastSeenOut = new Map<string, { at: number; rest: number; parked: boolean }>()
+  // thread was held, and a rest after it is a plain rest), and what that sighting found — including the
+  // deadline of any snooze holding it, so a snooze lifted early can be told from one that ran out.
+  const lastSeenOut = new Map<string, { at: number; rest: number; parked: boolean; snoozedUntil: number }>()
   // Entries withheld off a park, and when each is due to go in.
   const settling = new Map<string, number>()
 
@@ -167,7 +170,7 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
         if (durable && !vouched) allVouched = false
         if (t.needsYou !== true) {
           if (!vouched) continue
-          lastSeenOut.set(t.id, { at: nowMs, rest: restMs(t), parked: reading.parked(t) })
+          lastSeenOut.set(t.id, { at: nowMs, rest: restMs(t), parked: reading.parked(t), snoozedUntil: Date.parse(t.snoozedUntil ?? "") })
           settling.delete(t.id)
           unchecked.delete(t.id)
           if (held !== undefined) {
@@ -191,7 +194,9 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           continue
         }
         const sighting = lastSeenOut.get(t.id)
-        if (sighting?.parked && sighting.rest === rest && !reading.urgent(t)) {
+        // `nowMs < NaN` is false, so a sighting with no snooze never reads as lifted early.
+        const liftedEarly = sighting !== undefined && nowMs < sighting.snoozedUntil
+        if (sighting?.parked && sighting.rest === rest && !liftedEarly && !reading.urgent(t)) {
           const due = settling.get(t.id) ?? nowMs + SETTLE_MS
           if (nowMs < due) {
             settling.set(t.id, due)
