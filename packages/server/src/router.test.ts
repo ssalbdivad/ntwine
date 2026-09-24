@@ -486,6 +486,30 @@ test("setThreadPermission/setThreadProfile RPC: every row persists intent and re
   h.storage.close()
 })
 
+// The most recent pick wins wherever it was made: a thread's own profile control is also the next
+// thread's profile, so the prompt box never opens on a choice older than the one just made.
+test("setThreadProfile RPC: the picked pair becomes the new-thread profile, for every backend", async () => {
+  const h = harness()
+  const remembered: unknown[] = []
+  Object.assign(h.ctx, { setDispatchPreference: (update: unknown) => void remembered.push(update) })
+  for (const [slug, backend] of [["claude-row", "claude"], ["codex-row", "codex"]] as const) {
+    h.storage.upsertSession(row(slug))
+    h.storage.setBackend(slug, backend)
+    h.addExitedThread(slug)
+  }
+  await h.router.setThreadProfile.handler({ input: { slug: "claude-row", model: "sonnet", effort: "medium" } })
+  await h.router.setThreadProfile.handler({ input: { slug: "codex-row", model: "gpt-5.6-sol", effort: "high" } })
+  assert.deepEqual(remembered, [
+    { field: "profile", backend: "claude", model: "sonnet", effort: "medium" },
+    { field: "profile", backend: "codex", model: "gpt-5.6-sol", effort: "high" },
+  ])
+
+  // A pair the thread refuses is not remembered either.
+  await assert.rejects(h.router.setThreadProfile.handler({ input: { slug: "claude-row", model: "sonnet", effort: "ultra" } }))
+  assert.equal(remembered.length, 2)
+  h.storage.close()
+})
+
 test("setThreadPermission RPC: rowless/foreign-style threads are read-only", async () => {
   const h = harness()
   await assert.rejects(
@@ -1829,4 +1853,40 @@ test("projectAdd: the home directory itself is refused, and nothing is written",
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
+})
+
+// A page-reload replay (web lib/pendingSends.ts) re-sends a follow-up under its ORIGINAL deliveryId, and
+// it can arrive while the first request is still inside `bridge.followUp` — a broker cold resume holds
+// it open for seconds after the text has reached the worker. The ledger guard cannot see a send until
+// it returns, so the repeat must JOIN the one in flight: two copies of one SDK input uuid made the
+// daemon refuse the second, and that refusal tombstoned the delivery the agent had already read.
+test("a repeat of a deliveryId still in flight joins it instead of reaching the worker twice", async () => {
+  const { h, slug, calls } = restartHarness()
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = {
+    followUp: async (input: { text: string }) => { calls.push(input); await gate },
+  }
+  const input = { slug, sessionId: `sid-${slug}`, message: "ship it", deliveryId: "d-reload" }
+  const first = h.router.followUp.handler({ input })
+  await new Promise((resolve) => setImmediate(resolve))
+  const replay = h.router.followUp.handler({ input })
+  release()
+  await Promise.all([first, replay])
+  assert.equal(calls.length, 1, "the worker got the message once")
+  await h.router.followUp.handler({ input })
+  assert.equal(calls.length, 1, "and a later replay is deduped by the ledger")
+  h.storage.close()
+})
+
+// …and once the first send has returned, the tailer prunes its ledger item as soon as the JSONL record
+// lands, so the ledger alone would let a later replay through to the daemon a second time.
+test("a repeat of a deliveryId already delivered is a no-op even after the ledger forgot it", async () => {
+  const { h, slug, calls } = restartHarness()
+  const input = { slug, sessionId: `sid-${slug}`, message: "ship it", deliveryId: "d-landed" }
+  await h.router.followUp.handler({ input })
+  h.storage.setDeliveryLedger(slug, null)
+  await h.router.followUp.handler({ input })
+  assert.equal(calls.length, 1, "the worker got the message once")
+  h.storage.close()
 })
