@@ -304,7 +304,7 @@ function MissingThread({ slug }: { slug: string }) {
         </div>
       ) : (
         <a href="/" className="rounded-md border border-border px-3 py-1.5 text-[12px] text-fg/90 hover:bg-panel-2">
-          All projects
+          Everything
         </a>
       )}
     </div>

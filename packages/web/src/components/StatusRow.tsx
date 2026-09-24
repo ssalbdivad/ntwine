@@ -1,4 +1,4 @@
-import { House, Infinity as InfinityIcon, Settings as SettingsIcon } from "lucide-react"
+import { Infinity as InfinityIcon, Settings as SettingsIcon } from "lucide-react"
 import { Link } from "react-router"
 import { store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
@@ -128,22 +128,17 @@ export function StatusRow() {
       // block rather than a strip parked above a box.
       className="mb-2.5 flex min-w-0 items-center gap-3 text-[12px]"
     >
-      {/* THE DOOR OUT. A 24px target like its neighbours rather than the bare 12px glyph it was inside
-          the old identity cluster: at the head of a run of buttons it reads as one of them, and a 12px
-          hit area beside two 24px ones is a target you miss. `-ml-px` is the ink trim — the square's
-          own `-mx-1.5` leaves the house glyph's ink 1px OUTSIDE the composer's border (measured), and
-          the left edge is the one place in this row where a pixel of overhang is visible. */}
-      {/* A ROUTER Link, like the rail's identical door at ProjectRail.tsx. It was a raw `<a href="/">`
-          from 2026-08-19 until 2026-09-04, which hard-loaded the document: measured at 116-411ms with a
-          0.15 CLS, and it threw away the app socket and the whole query cache on the way out. That was
-          an oversight rather than a decision — the router refactor that made the rail outlive a
-          navigation predates this row by a fortnight, and `/` has had its own SPA route the whole time.
-          The rail is hidden under 800px and off by default, so THIS was the door most operators used. */}
-      <Link to="/" title="All projects" aria-label="All projects" className={`${STATUS_ROW_ACTION} -ml-px`}>
-        <House size={STATUS_ROW_ICON} aria-hidden="true" />
-      </Link>
-      {/* The other door out, one level down from the grid: every project's queue on one page. */}
-      <Link to="/queues" title="Everything" aria-label="Everything" className={STATUS_ROW_ACTION}>
+      {/* THE DOOR OUT — home, which is Everything: every project's queue on one page. ONE door since
+          2026-09-24; a house (the project grid) and an infinity (Everything) stood here side by side
+          until the grid was folded into Everything, and two ways "up" from one board made the reader
+          choose between destinations that were never meant to be different places. The infinity is the
+          maintainer's glyph for that page (over layers and the inbox).
+          A 24px target like its neighbours, and a ROUTER Link like the rail's identical door
+          (ProjectRail.tsx): it was a raw `<a href="/">` from 2026-08-19 until 2026-09-04, which
+          hard-loaded the document — measured at 116-411ms with a 0.15 CLS, and it threw away the app
+          socket and the whole query cache on the way out. The rail is hidden under 800px and off by
+          default, so THIS is the door most operators use. */}
+      <Link to="/" title="Everything" aria-label="Everything" className={STATUS_ROW_ACTION}>
         <InfinityIcon size={STATUS_ROW_ICON} aria-hidden="true" />
       </Link>
       <Divider />

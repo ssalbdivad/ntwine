@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react"
-import { Outlet, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
+import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
 import { App } from "./App.tsx"
 import { AllQueuesPage } from "./components/AllQueues.tsx"
-import { ProjectGrid } from "./components/ProjectGrid.tsx"
 import { ProjectRail, RAIL_INSET_CLASS } from "./components/ProjectRail.tsx"
 import { StandaloneThreadPage } from "./components/StandaloneThreadPage.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -19,10 +18,10 @@ import { useProjectRailVisible } from "./lib/projectRail.ts"
 //
 // The rail is chrome: it draws every project on the machine and is identical on every page, so it
 // must not be torn down and rebuilt when you use it. Before this it was mounted twice — once inside
-// <App/> and once inside <ProjectGrid/> — because `main.tsx` chose ONE of three root shells from
+// <App/> and once inside the old project grid — because `main.tsx` chose ONE of three root shells from
 // `location.pathname` at module load, which made every project switch a full document load. A layout
 // route is the direct expression of "this part does not change": <RootLayout/> holds the rail and the
-// tooltip provider, and the <Outlet/> below it swaps between the grid and a board.
+// tooltip provider, and the <Outlet/> below it swaps between the home page and a board.
 //
 // WHAT A PROJECT SWITCH ACTUALLY COSTS, and why the router alone was never the whole job. Four things
 // are bound to one project, and only the first two are this hook's business:
@@ -62,16 +61,16 @@ function RootLayout() {
       </div>
       {/* HOSTED BY THE LAYOUT, not by the board. It lived inside <App/>, so `showToast` from anywhere
           else raised a toast with nowhere to render — silently, since the store field is set either
-          way. The grid is the page that needed one (it is where a bad project URL now lands), and it
-          is exactly the page that could never show one. Fixed-positioned, so it is inert until a
+          way. The home page is one that needs one (it is where a bad project URL lands), and it was
+          exactly the kind of page that could never show one. Fixed-positioned, so it is inert until a
           toast exists. */}
       <Toaster />
       {/* ALSO hosted by the layout, and for the same reason: prose carrying `#123` renders on the
           board, in a drawer and on the standalone `/thread/<slug>/full` page alike, and one delegated
           listener at the root covers all three. Inert until a pointer rests on a reference. */}
       <GithubHovercards />
-      {/* The keyboard shortcuts and their sheet (`?`), for every page under the layout — the grid and
-          Everything as much as a board. /full mounts its own copy, since it sits outside this layout. */}
+      {/* The keyboard shortcuts and their sheet (`?`), for every page under the layout — the home page
+          as much as a board. /full mounts its own copy, since it sits outside this layout. */}
       <KeyboardLayer />
     </TooltipProvider>
   )
@@ -82,7 +81,7 @@ function RootLayout() {
  *
  * THE CONDITION IS ASKED OF THE FEED, and that is the whole point. This hook used to keep its own note
  * of the project it had bound, in a `useRef` — a second copy of a fact it did not own. Every switch
- * that changes which ROUTE matched (the grid to a board, a board to a thread page) unmounts one element
+ * that changes which ROUTE matched (the home page to a board, a board to a thread page) unmounts one element
  * and mounts another, so the ref was born fresh, initialised to the slug it was looking at, and
  * therefore always answered "already bound". The feed stayed on the previous project while the URL, the
  * `<App/>` key and the board header all said the new one, and nothing short of a document load recovered
@@ -121,24 +120,15 @@ function BoardRoute() {
 }
 
 /**
- * The all-projects grid, which shows no project's feed and therefore must not disturb the binding.
+ * THE HOME PAGE: every project's queue on one page — Everything (AllQueues.tsx). It is the level above a
+ * board and the page Frizz opens on; a project's name there narrows to that project's board.
  *
- * It reads only the machine-wide project list, so leaving the feed where it is costs nothing and buys
- * something: going home and back into the SAME project is free, instead of a teardown plus a
- * reconnect. (It used to call `useProjectBinding(undefined)`, which meant "the launching project" —
- * never "no project" — so the grid would have swapped one live feed for another. With the ref bug it
- * was a no-op in every case, so removing it changes nothing that ever ran.)
+ * It names no project, so it leaves the feed wherever it was: nothing on it reads the feed, and every read
+ * and action it makes names its project explicitly (see AllQueues.tsx). Leaving the feed alone also buys
+ * something: going home and back into the SAME project is free, instead of a teardown plus a reconnect.
+ * (The project grid that held `/` until 2026-09-24 made the same choice for the same reason.)
  */
-function GridRoute() {
-  return <ProjectGrid />
-}
-
-/**
- * Every project's queue on one page — the level above a board. Like the grid it names no project, so it
- * leaves the feed wherever it was: nothing on it reads the feed, and every read and action it makes
- * names its project explicitly (see AllQueues.tsx).
- */
-function QueuesRoute() {
+function HomeRoute() {
   return <AllQueuesPage />
 }
 
@@ -214,10 +204,12 @@ export const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
-      { path: "/", element: <GridRoute /> },
-      // Declared, not left to the catch-all below — which would draw the launching project's board.
-      { path: "/queues", element: <QueuesRoute /> },
-      // The launching project, unprefixed. `/` itself belongs to the grid, so this project reaches its
+      { path: "/", element: <HomeRoute /> },
+      // Everything's address until it became the home page (2026-09-24). Kept as a redirect so a bookmark
+      // or an open tab lands where it always did, and declared rather than left to the catch-all below —
+      // which would draw the launching project's board.
+      { path: "/queues", element: <Navigate to="/" replace /> },
+      // The launching project, unprefixed. `/` itself belongs to the home page, so this project reaches its
       // board through a thread or status path — see base-path.ts on why an empty base is supported.
       { path: "/thread/:thread", element: <BoardRoute /> },
       { path: "/status/:status", element: <BoardRoute /> },

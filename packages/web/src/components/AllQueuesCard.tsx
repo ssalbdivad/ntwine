@@ -112,7 +112,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
     if (!isPlainLeftClick(event)) return
     event.preventDefault()
     // The way OUT of /full leads back here rather than to the thread's board (fullscreenHandoff.ts).
-    if (full) rememberFullscreenOrigin(thread.id, "/queues")
+    if (full) rememberFullscreenOrigin(thread.id, "/")
     navigate(href)
   }
 
@@ -279,7 +279,7 @@ function ProjectLinkScope({ project, children }: { project: QueuesProject; child
       // Keyed by the thread the link OPENS, which is not always this card's: a handoff can link another
       // thread's /full, and the way out of that page looks its origin up by its own slug.
       const full = href.match(/\/thread\/([^/?#]+)\/full\/?$/)
-      if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), "/queues")
+      if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), "/")
       navigate(href)
     }
   }

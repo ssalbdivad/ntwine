@@ -54,21 +54,23 @@ function render(
 test("controls run along the left; the project anchors the right", () => {
   const html = render()
 
-  const home = html.indexOf('aria-label="All projects"')
-  const queues = html.indexOf('aria-label="Everything"')
+  const home = html.indexOf('aria-label="Everything"')
   const settings = html.indexOf('aria-label="Settings"')
   const quota = html.indexOf("data-quota-bar")
   const project = html.indexOf("data-project-identity-state")
 
-  assert.ok(home >= 0 && queues >= 0 && settings >= 0 && quota >= 0 && project >= 0, "every segment renders")
-  assert.ok(home < queues && queues < settings, "the ways out of the project lead, the grid first")
+  assert.ok(home >= 0 && settings >= 0 && quota >= 0 && project >= 0, "every segment renders")
+  assert.ok(home < settings, "the way out of the project leads")
+  // ONE way out: the project grid was folded into Everything on 2026-09-24, and `/` is that page.
+  assert.equal(html.match(/href="\/"/g)?.length, 1, "exactly one door home")
+  assert.doesNotMatch(html, /All projects/)
   assert.ok(settings < quota, "the buttons precede the readouts")
   assert.ok(quota < project, "the project is last, at the far edge")
   // `ml-auto` on the identity IS the split. Without it the name packs left with everything else.
   assert.match(html, /class="ml-auto flex min-w-0 items-center"/)
 })
 
-test("TWO dividers: home and all queues are doors OUT, settings and reload act on the app you are in", () => {
+test("TWO dividers: home is the door OUT, settings and reload act on the app you are in", () => {
   const html = render()
   // One divider would group all three as "buttons". The first one is the whole distinction.
   assert.equal(html.split('class="h-3 w-px shrink-0 bg-border"').length - 1, 2)
@@ -162,7 +164,7 @@ test("a cold board still reserves the name's measure, and says it is loading", (
   assert.match(html, /identity-placeholder/)
   // The controls do not wait on a board — they are reachable from the first paint.
   assert.match(html, /aria-label="Settings"/)
-  assert.match(html, /aria-label="All projects"/)
+  assert.match(html, /aria-label="Everything"/)
 })
 
 test("the row's gap is 12px of INK: one flex gap, and every icon square trimmed onto its glyph", () => {
@@ -215,8 +217,8 @@ test("the home crumb is a ROUTER link, not a raw anchor that reloads the documen
     /basename|Router/,
     "a raw <a href=\"/\"> would render happily here; a router Link cannot",
   )
-  // …and inside a router it renders, still pointing at the project grid.
-  assert.match(render(), /href="\/"[^>]*aria-label="All projects"|aria-label="All projects"[^>]*href="\/"/)
+  // …and inside a router it renders, still pointing home — Everything, at `/`.
+  assert.match(render(), /href="\/"[^>]*aria-label="Everything"|aria-label="Everything"[^>]*href="\/"/)
 })
 
 test("a provider with NO DATA renders nothing at all — and takes the divider with it", () => {
