@@ -16,6 +16,10 @@ const SAVE_KEY = ["dispatchPreferenceSet"] as const
 // caches its read and the prompt box stays mounted for the tab's whole life, so without a nudge a
 // window left open beside the one you changed it in kept dispatching on the old profile.
 const channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel("frizz:dispatch-preferences")
+// Node's BroadcastChannel holds the event loop open until closed, so under the unit tests every file that
+// imports the prompt box (Sidebar.tsx, for one) finished its tests and then never exited, wedging the run.
+// Browsers have no `unref`; a page's channel lives as long as the page, which is what it is for.
+;(channel as { unref?: () => void } | undefined)?.unref?.()
 
 /** The durable new-thread profile changed server-side: re-read it here and in every other tab. */
 export function dispatchPreferencesChanged(queryClient: QueryClient): void {
@@ -39,8 +43,9 @@ export function useDispatchProfile(): {
   saveProfile: (update: SetDispatchPreferenceInput) => void
 } {
   const queryClient = useQueryClient()
-  // The MOST RECENT pick wins, wherever it was made: another tab, another device, another project, or
-  // a thread's own profile control (the server writes that one through). So this read re-runs whenever
+  // The MOST RECENT pick wins, wherever it was made: another tab, another device, another project. A
+  // thread's own profile control is NOT one of those places — its pick stays on that thread, and a new
+  // thread starts from this record (maintainer 2026-09-24). So this read re-runs whenever
   // the page comes back into view — the app-wide default is not to — and on another tab's broadcast.
   const preferences = useQuery({
     queryKey: PREFERENCES_KEY,

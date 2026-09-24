@@ -1,7 +1,9 @@
-// THE MACHINE'S HOME PAGE: every project Frizz knows about, one card each, and a way to add another.
+// EVERY PROJECT FRIZZ KNOWS ABOUT, one card each, and a way to add another.
 //
-// It renders at `/` and nothing else; a project's own board lives at `/project/<slug>`, which is what
-// freed the root. The RAIL and the tooltip provider are NOT here — they belong to the layout route
+// It renders at `/projects` and nothing else. It was the machine's home page at `/` until 2026-09-24,
+// when the cross-project page took the root as the default mode; the launcher's `?add=<dir>` offer and
+// the server's `?unknown=<slug>` notice still arrive here (routes.tsx HomeRoute forwards them). A
+// project's own board lives at `/project/<slug>`. The RAIL and the tooltip provider are NOT here — they belong to the layout route
 // that stays mounted across a navigation (routes.tsx), which is what stops the rail rebuilding itself
 // every time you use it.
 //
@@ -549,15 +551,16 @@ function AddProjectDialog({
 }
 
 /**
- * The door to every project's queue on one page (`/queues`), with how many threads are waiting across
- * them. The count is the rail badges' own poll (`projectsQueueCounts`, one cache entry for both), summed.
+ * The door to the cross-project page (`/`) — every project's queue on one page — with how many threads
+ * are waiting across them. The count is the rail badges' own poll (`projectsQueueCounts`, one cache
+ * entry for both), summed.
  */
 function AllQueuesLink() {
   const counts = useQuery({ queryKey: ["projectsQueueCounts"], queryFn: () => rpc.projectsQueueCounts(), refetchInterval: 5_000 })
   const total = Object.values(counts.data ?? {}).reduce((sum, count) => sum + count, 0)
   return (
     <Link
-      to="/queues"
+      to="/"
       data-grid-all-queues
       className="inline-flex items-center gap-1.5 rounded-full border border-border py-1 pl-2.5 pr-3 text-[12px] text-muted outline-none transition-colors hover:border-border-strong hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
     >

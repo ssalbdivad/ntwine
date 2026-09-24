@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { apiBase, basePath, innerPath, outerPath, prefixedAppRoute, projectHref, projectSlug } from "./base-path.ts"
+import { apiBase, basePath, crossProjectHref, innerPath, isCrossProjectPath, modeProjectHref, outerPath, prefixedAppRoute, projectHref, projectSlug } from "./base-path.ts"
 
 // The launching project is still served unprefixed, so an empty base is a supported state.
 test("an unprefixed page has no base and addresses the unprefixed API", () => {
@@ -34,7 +34,7 @@ test("inner and outer paths round-trip", () => {
 })
 
 // THE POINT of moving projects under a segment of their own: the root namespace stays Frizz's.
-test("only /project/<slug> is a project, so the root is free for other pages", () => {
+test("only /project/<slug> and /all/<slug> are projects, so the root is free for other pages", () => {
   assert.equal(basePath("/thread/nub"), "", "a thread called `nub` is not a project")
   assert.equal(basePath("/status/blocked"), "")
   // A future top-level page cannot be shadowed by a directory somebody happens to have.
@@ -44,6 +44,38 @@ test("only /project/<slug> is a project, so the root is free for other pages", (
   // …and `/project` with nothing after it is not a project either.
   assert.equal(basePath("/project"), "")
   assert.equal(projectSlug("/project"), undefined)
+  // The machine pages name no project.
+  for (const path of ["/", "/projects", "/queues", "/all"]) {
+    assert.equal(projectSlug(path), undefined, path)
+    assert.equal(isCrossProjectPath(path), false, path)
+  }
+})
+
+// THE CROSS-PROJECT PAGE'S FOCUS IS THE PAGE PROJECT. `/all/nub` must answer every "which project"
+// question exactly as `/project/nub` does — the same API, the same feed, the same cache scope — so the
+// board's drawer stack and composer work there unchanged. What differs is the MODE, and a URL built on
+// the page has to stay in it: closing a drawer on `/all/nub/thread/x` lands on `/all/nub`, never on the
+// board, which is the whole complaint this page exists to fix.
+test("the cross-project page is focused on a project, and keeps its mode", () => {
+  const page = "/all/nub/thread/fix-auth"
+  assert.equal(projectSlug(page), "nub")
+  assert.equal(apiBase(page), "/_frizz/nub")
+  assert.equal(basePath(page), "/all/nub")
+  assert.equal(innerPath(page), "/thread/fix-auth")
+  assert.equal(innerPath("/all/nub"), "/")
+  assert.equal(outerPath("/thread/other", page), "/all/nub/thread/other")
+  assert.equal(outerPath("/", page), "/all/nub")
+  assert.equal(isCrossProjectPath(page), true)
+  assert.equal(isCrossProjectPath("/project/nub/thread/fix-auth"), false)
+  assert.equal(crossProjectHref("nub"), "/all/nub")
+  // A door to "that project" follows the mode; a door to "that project's board" is always the board.
+  assert.equal(modeProjectHref("zod", page), "/all/zod")
+  assert.equal(modeProjectHref("zod", "/project/nub"), "/project/zod")
+  assert.equal(modeProjectHref("zod", "/projects"), "/project/zod")
+  assert.equal(projectHref("zod"), "/project/zod")
+  // An agent's `/thread/<slug>` link opens in place, on this page.
+  assert.equal(prefixedAppRoute("/thread/other", page), "/all/nub/thread/other")
+  assert.equal(prefixedAppRoute("/all/zod/thread/x", page), null, "already names its project")
 })
 
 // A worker writes `[label](/thread/<slug>)` — the shape from when one server meant one project. Under
@@ -59,7 +91,7 @@ test("an agent's unprefixed in-app link is re-pointed at the project the page is
 
   // Everything that must be left exactly as written.
   assert.equal(prefixedAppRoute("/project/other/thread/x", page), null, "already names its project")
-  assert.equal(prefixedAppRoute("/", page), null, "the all-projects grid is the same page everywhere")
+  assert.equal(prefixedAppRoute("/", page), null, "the cross-project page is the same page everywhere")
   assert.equal(prefixedAppRoute("/Users/me/notes.md", page), null, "a filesystem path is not a route")
   assert.equal(prefixedAppRoute("//cdn.example/a", page), null, "protocol-relative is a web URL")
   assert.equal(prefixedAppRoute("docs/x", page), null)

@@ -7,6 +7,7 @@ import { closeDrawerAnimated, focusDrawer } from "./lib/overlays.ts"
 import { isPageScrollLocked, pageScrollY, requestScrollAfterUnlock } from "./lib/pageScrollLock.ts"
 import { resolveThreadRoute } from "./lib/threadRouteState.ts"
 import { standaloneThreadHref } from "./lib/standaloneThreadRoute.ts"
+import { isCrossProjectPath } from "./lib/base-path.ts"
 import { ownedByThisPage } from "./lib/projectOwnership.ts"
 import { setGithubRepo } from "./lib/githubAutolink.ts"
 import { resetGithubCards } from "./lib/githubHovercards.ts"
@@ -177,7 +178,7 @@ export const store = proxy({
   vtReturnTarget: null as string | null,
   // Transient bottom-center toast (e.g. "Steer failed …" when an eager reply is rejected). `id` bumps per call so
   // repeat toasts re-trigger the fade. Rendered by <Toaster>; null when nothing is showing.
-  toast: null as { id: number; text: string; spinner?: boolean; sticky?: boolean; duration?: number; link?: { label: string; slug: string; drawer?: "thread" | "terminal" } } | null,
+  toast: null as { id: number; text: string; spinner?: boolean; sticky?: boolean; duration?: number; link?: ToastLink } | null,
   // The /full page's SPLIT file viewer. True only while StandaloneThreadPage is mounted; while it is,
   // a `.md` click renders BESIDE the thread (the thread column slides left) instead of as an overlay
   // drawer — the whole point of /full is seeing the transcript, and a sheet over it defeated that.
@@ -208,7 +209,12 @@ export function closeGithubPicker(): void {
 }
 
 let toastSeq = 0
-export function showToast(text: string, opts?: { spinner?: boolean; sticky?: boolean; duration?: number; link?: { label: string; slug: string; drawer?: "thread" | "terminal" } }) {
+// A toast's "Open thread". `project` is the slug of the project the thread was started IN, captured when
+// it was started: a slug names a thread only within its project, and by the time the toast is clicked
+// the page may be another project's — on the cross-project page, one dispatch and one click on another
+// project's card apart.
+export type ToastLink = { label: string; slug: string; drawer?: "thread" | "terminal"; project?: string }
+export function showToast(text: string, opts?: { spinner?: boolean; sticky?: boolean; duration?: number; link?: ToastLink }) {
   store.toast = { id: ++toastSeq, text, ...opts }
 }
 
@@ -314,7 +320,7 @@ export function pushBackgroundShellDrawer(slug: string, id: string, opts: { labe
 // seeing) opens the chat drawer. The doc drawer carries the adopt ("Start a session") affordance.
 export function openThread(slug: string): void {
   const t = store.board?.threads.find((x) => x.id === slug)
-  if (t?.needsYou && scrollToQueueCard(slug)) return
+  if (t?.needsYou && queueCardIsTheDetail() && scrollToQueueCard(slug)) return
   // A terminal command thread has no chat and no document: its drawer IS the live terminal.
   if (t?.kind === "command") return pushDrawer("terminal", slug)
   pushDrawer(t && t.runtime === "none" ? "doc" : "thread", slug)
@@ -341,8 +347,27 @@ export function resolveRoutedThread(): void {
     if (typeof location !== "undefined") location.replace(standaloneThreadHref(slug))
     return
   }
-  if (route.kind === "found" && route.thread.needsYou && scrollToQueueCard(slug)) return
-  pushDrawer(route.kind === "found" && route.thread.kind === "command" ? "terminal" : "thread", slug, { routed: true })
+  if (route.kind === "found" && route.thread.needsYou && queueCardIsTheDetail() && scrollToQueueCard(slug)) return
+  pushDrawer(route.kind === "found" && route.thread.kind === "command" ? "terminal" : "thread", slug, { routed: !openedInPlace() })
+}
+
+// Navigation state for a thread opened IN PLACE by a click on the page — the cross-project page opening
+// another project's thread, which has to change the URL (the focus moves) where a board's own open does
+// not. Its drawer slides in like any clicked one; `routed` is for a URL that ARRIVED (a cold deep link,
+// Back), where the sheet must already be open on the first paint.
+export const IN_PLACE_OPEN_STATE = { inPlace: true } as const
+
+function openedInPlace(): boolean {
+  if (typeof history === "undefined") return false
+  const usr = (history.state as { usr?: unknown } | null)?.usr
+  return typeof usr === "object" && usr !== null && (usr as { inPlace?: unknown }).inPlace === true
+}
+
+// Whether a queued thread's card on this page IS its whole panel, so "show me this thread" means "scroll
+// to the card". True on a board. On the cross-project page a card is a SUMMARY — the handoff's opening,
+// the questions, a reply box — and the thread itself is one level down, so there it is always the drawer.
+function queueCardIsTheDetail(): boolean {
+  return typeof location === "undefined" || !isCrossProjectPath()
 }
 
 // THE FULLSCREEN DOOR, PLAYED BACKWARDS. react-router re-arms the door's view transition for the POP
@@ -551,6 +576,19 @@ export function topThreadSlug(): string | null {
   for (let i = store.drawers.length - 1; i >= 0; i--) {
     const d = store.drawers[i]
     if (d.kind === "thread" && !d.closing) return d.slug
+  }
+  return null
+}
+
+// The slug the ADDRESS BAR names: the topmost thread layer, or a command thread's terminal layer. A
+// command thread has no chat, so its terminal IS its thread surface, and `/thread/<slug>` already opens
+// it (resolveRoutedThread). Left out of the URL, a routed terminal opened, found the URL naming no
+// thread, and was closed by the very sync that had opened it — every deep link to a command thread, and
+// every command thread of another project opened from the cross-project page.
+export function topRoutedSlug(): string | null {
+  for (let i = store.drawers.length - 1; i >= 0; i--) {
+    const d = store.drawers[i]
+    if ((d.kind === "thread" || d.kind === "terminal") && !d.closing) return d.slug
   }
   return null
 }

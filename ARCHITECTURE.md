@@ -170,23 +170,37 @@ Frizz used to run ONE SERVER PER PROJECT, each on its own port, so every URL was
 
 **Frizz's own routes are under `/_frizz`, so the top level is free.** That is what lets a first path segment be a project slug at all. Anything outside `/_frizz` is either an SPA route name (`APP_ROUTE_SEGMENTS` — `thread`, `status`) or a project.
 
-**Projects live under `/project/<slug>`, not at `/<slug>`.** One segment buys back the whole root namespace, so a future page can never be shadowed by a directory somebody happens to have. `/` is the ALL-PROJECTS GRID, and `/queues` is ALL QUEUES — every project's queue on one page (`components/AllQueues.tsx`). Both are machine-level: they name no project and bind no project's feed.
+**Projects live under `/project/<slug>`, not at `/<slug>`.** One segment buys back the whole root namespace, so a future page can never be shadowed by a directory somebody happens to have.
+
+**Two modes, and the prefix says which** (since 2026-09-24). The official names: **cross-project** mode — every project's queue on one page, labelled **Everything** in the UI (`components/AllQueues.tsx`), and the DEFAULT — and a project's **board** (single-project mode). Say "cross-project" in code, comments and copy about the mode; "Everything" is only its visible label; never "All queues" (its name until then) or "the home page".
+
+| URL | renders |
+| --- | --- |
+| `/` | picks a project and redirects to `/all/<slug>`: `?focus=<slug>` (the launcher's landing URL), else the operator's last pick in this browser, else the most recently opened open project (`lib/crossProject.ts`); `/projects` when there is none |
+| `/all/<slug>` | the cross-project page, FOCUSED on `<slug>` |
+| `/all/<slug>/thread/<t>` | the same page with `<t>`'s drawer open IN PLACE |
+| `/project/<slug>/…` | that project's board |
+| `/projects` | the project grid (machine-level: names no project, binds no feed) |
+| `/queues`, `/all` | legacy / bare — redirect to `/` |
+
+**The cross-project page's FOCUS is the page project.** `base-path.ts` answers `/all/<slug>` exactly as it answers `/project/<slug>` — same API base, same live feed, same cache scope — so the board's whole drawer stack, prompt box, router sync and notifications work there unchanged for the focused project, and only `basePath` keeps the mode (a URL built on one page stays in that page's mode). Opening ANOTHER project's thread moves the focus: it navigates to `/all/<other>/thread/<t>`, the route resets the store and rebinds the feed, and `<App/>` is keyed by a constant so the page itself survives. The prompt box follows the focus, so the page tells the operator's PICK (a project they chose: the prompt box's picker, a project in the rail) from a focus a drawer caused, and returns to the pick when the last drawer closes (`useReturnToPick`). Nothing on the page leaves it for a board except a door that says so (a lane's "Open board", a card's or project's ↗).
 
 `packages/web/src/lib/base-path.ts` is the single definition, and every URL a client builds or parses goes through it:
 
 | helper | answers |
 | --- | --- |
 | `projectSlug(path)` | the slug this page is showing, or `undefined` for the launching project |
-| `basePath(path)` | `/project/<slug>`, or `""` when unprefixed |
+| `basePath(path)` | `/project/<slug>` or `/all/<slug>` (the MODE is kept), or `""` when unprefixed |
 | `innerPath(path)` | the path with the prefix removed — what the ROUTER reasons about |
 | `outerPath(inner)` | an inner path put back in ADDRESS-BAR terms |
 | `apiBase(path)` | `/_frizz/<slug>`, or `/_frizz` unprefixed |
-| `projectHref(slug)` | another project's page — the one place that knows the shape |
+| `projectHref(slug)` | another project's BOARD — the one place that knows the shape |
+| `crossProjectHref(slug)` / `modeProjectHref(slug)` | the cross-project page focused on a project / a project's page in this page's mode |
 | `prefixedAppRoute(href)` | an agent-written `/thread/<slug>` re-pointed at this page's project |
 
 **AN EMPTY BASE IS A SUPPORTED STATE.** The LAUNCHING project is still served unprefixed at `/thread/<slug>` and `/status/<name>`, so every pre-singleton bookmark still resolves. It is a legacy INBOUND alias, not a shape to MINT: a link built without the prefix silently addresses whichever project started the server, which is how the drawer's ↗ button came to open a stranger's board (2026-08-07). Build outward-facing URLs with `outerPath`/`projectHref`; parse with `innerPath`.
 
-One consequence worth knowing because it is not symmetric: the launching project's board has NO unprefixed queue URL, because `/` is the grid. `queueDestination` (`lib/router.ts`) uses the board snapshot's `projectSlug` to send it to `/project/<slug>` instead — without which closing the last drawer navigated to the project picker.
+One consequence worth knowing because it is not symmetric: the launching project's board has NO unprefixed queue URL, because `/` is the cross-project page. `queueDestination` (`lib/router.ts`) uses the board snapshot's `projectSlug` to send it to `/project/<slug>` instead — without which closing the last drawer navigated to the project picker.
 
 ## Switching projects without a document load (the invariants that keep one project's data off another's page)
 
@@ -202,9 +216,9 @@ The singleton's characteristic bug is not a crash: it is **another project's boa
 
 **Anything that outlives the moment it was started captures its project BEFORE it — an `await`, and a callback that fires later.** `apiBase()`/`projectSlug()` answer for whatever the address bar says at the instant they are called, which is correct at send time and wrong in a continuation. Reading a large file is long enough to switch projects, which is how an attachment came to be filed in a project the message was never going to (`Composer.uploadAttachment`). A desktop notification is worse, because it is raised only while the window is HIDDEN and clicked whenever the operator comes back: its click handler now carries the project it was raised for (`notify` in `api/board-stream.ts`), instead of opening that slug in whatever project is on screen — which did not fail, it opened a different thread that happened to share the name.
 
-**A page that names NO project must name one on every call.** On `/queues` every "which project" helper above answers the LAUNCHING project, so each card carries its own: reads and writes go through `projectRpc(projectId)` (`api/rpc.ts`, addressed by id), cache keys start `["ofProject", projectId, …]`, prose renders under `MarkdownScopeContext` (the project's repo, directory and app path — never the module-global repo), the shared Snooze and Mark-as-done buttons take their client from `ThreadProjectScope` (`api/threadApi.tsx`) and skip the page-level overlays keyed by bare slug, a terminal command card's Restart and its `/term/<slug>` socket go through the same scope (`useThreadApiBase`), and the reply box uploads to `projectApiBase(projectId)`. A same-slug thread in two projects is the case that proves it; `scripts/verify-all-queues.mjs` drives it in a real browser.
+**A surface showing ANOTHER project's thread must name that project on every call.** On the cross-project page every "which project" helper above answers the FOCUS, and every other project's card is somebody else's, so each card carries its own: reads and writes go through `projectRpc(projectId)` (`api/rpc.ts`, addressed by id), cache keys start `["ofProject", projectId, …]`, prose renders under `MarkdownScopeContext` (the project's repo, directory and app path — never the module-global repo), the shared Snooze and Mark-as-done buttons take their client from `ThreadProjectScope` (`api/threadApi.tsx`) and skip the page-level overlays keyed by bare slug, a terminal command card's Restart and its `/term/<slug>` socket go through the same scope (`useThreadApiBase`), and the reply box uploads to `projectApiBase(projectId)`. A same-slug thread in two projects is the case that proves it; `scripts/verify-all-queues.mjs` drives it in a real browser, along with the mode itself (opening in place, returning to the pick, a follow-up from a tenant's drawer, a command started from the page). And anything WAITING to be sent captures its project when it is committed, not when it goes out — a follow-up queued behind another (`SendTarget`, `lib/eagerComposerSubmission.ts`) or a toast's "Open thread" (`ToastLink.project`) — because on this page the focus moves whenever a drawer of another project opens.
 
-**A URL naming a project that does not exist is answered by the SERVER.** `/project/<slug>` is an SPA route, so the client used to be handed the app for a slug nobody has, whereupon every call 404s, the board never lands, and the page retries forever on its boot spinner. `unknownProjectPage` (`packages/server/src/index.ts`) redirects to the grid with `?unknown=<slug>`, and the grid says what happened.
+**A URL naming a project that does not exist is answered by the SERVER.** `/project/<slug>` (and `/all/<slug>`) is an SPA route, so the client used to be handed the app for a slug nobody has, whereupon every call 404s, the board never lands, and the page retries forever on its boot spinner. `unknownProjectPage` (`packages/server/src/index.ts`) redirects to the grid with `?unknown=<slug>`, and the grid says what happened.
 
 Two browser-level checks live in `packages/web/src/lib/projectSwitch.e2e.test.ts` (opt-in — see its header for the `adhoc-stack.mjs` invocation and the `FRIZZ_PROJECT_SWITCH_E2E_URL` env). The unit-level pins are `api/projectFeed.test.ts`, `lib/projectOwnership.test.ts` and `lib/queryKeyScope.test.ts`; each has a negative control, which is the bar to keep when adding to them.
 

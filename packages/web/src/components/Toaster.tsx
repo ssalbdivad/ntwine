@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react"
 import { useSnapshot } from "valtio"
 import { Loader2 } from "lucide-react"
-import { store, pushDrawer } from "../store.ts"
+import { store, pushDrawer, type ToastLink } from "../store.ts"
+import { modeProjectHref, projectSlug } from "../lib/base-path.ts"
+import { spaNavigate } from "../lib/router.ts"
 
 // Minimal toast (no dep): rises in at the BOTTOM RIGHT, holds, then sinks back down and fades.
 // Each showToast bumps the id, which re-arms the timer so a repeat message (the same failure twice
@@ -50,7 +52,7 @@ export function Toaster() {
         {toast.link && (
           <button
             onClick={() => {
-              pushDrawer(toast.link!.drawer ?? "thread", toast.link!.slug)
+              openToastLink(toast.link!)
               store.toast = null
             }}
             className="pointer-events-auto shrink-0 rounded-md border border-border px-2 py-0.5 text-[12px] text-fg/90 transition-colors hover:bg-panel-2"
@@ -61,4 +63,14 @@ export function Toaster() {
       </div>
     </div>
   )
+}
+
+function openToastLink(link: ToastLink) {
+  // Its own project's page, in this page's mode, when that is not the page any more; the thread route
+  // opens the right surface for it (a command thread's terminal included).
+  if (link.project !== undefined && link.project !== projectSlug()) {
+    spaNavigate(`${modeProjectHref(encodeURIComponent(link.project))}/thread/${encodeURIComponent(link.slug)}`)
+    return
+  }
+  pushDrawer(link.drawer ?? "thread", link.slug)
 }

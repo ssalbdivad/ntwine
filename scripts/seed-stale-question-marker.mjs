@@ -1,3 +1,6 @@
+// NOTE 2026-09-24: the expectation below is REVERSED. An open question now stays at the rest that asked
+// it (lib/questionAnchor), so the card belongs ABOVE the human's reply, not at the tail; a marker in the
+// older handoff keeps placing there, with its Send right after that rest.
 // Seed a disposable adhoc stack with ONE simulated worker in the shape that made a rest read as a bare
 // stop: the worker registered a question and wrote its ```question qst_… PLACEMENT MARKER into that
 // handoff, the human replied past it without answering, and the worker worked on and rested AGAIN with

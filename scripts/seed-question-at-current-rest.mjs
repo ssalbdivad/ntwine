@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// NOTE 2026-09-24: the expectation below is REVERSED. An open question now stays at the rest that asked
+// it (lib/questionAnchor), so the card belongs ABOVE the human's reply, not at the tail; a marker in the
+// older handoff keeps placing there, with its Send right after that rest.
 // Seed an adhoc stack with the shape that decides WHERE an open REGISTERED question renders once the
 // human has replied past it and the worker has rested again (maintainer 2026-08-31, on
 // `evaluate-critically-never-assume`: "Why was this able to come to rest without a proper handoff?").

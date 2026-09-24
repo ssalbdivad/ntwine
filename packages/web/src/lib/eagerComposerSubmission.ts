@@ -64,15 +64,38 @@ export function beginEagerSubmission({
 // keyed at module scope because the same thread is steerable from several mounted composers at once
 // (queue card + drawer + a second tab's board). Each link runs regardless of its predecessor's
 // outcome — a failed send rolls back only its own bubble and must not strand the sends behind it.
+//
+// Keyed by PROJECT and slug: a slug names a thread only within its project, and the cross-project page
+// holds several projects' threads at once — two same-named threads in different projects are two queues.
 const sendChains = new Map<string, Promise<void>>()
 
-export function enqueueThreadSend(slug: string, run: () => Promise<void>): Promise<void> {
-  const tail = sendChains.get(slug) ?? Promise.resolve()
+export function enqueueThreadSend(slug: string, run: () => Promise<void>, base: string = apiBase()): Promise<void> {
+  const chain = `${base} ${slug}`
+  const tail = sendChains.get(chain) ?? Promise.resolve()
   const next = tail.then(run, run)
   // The stored tail must never reject, or every later `.then(run, run)` would still run but leave an
   // unhandled rejection behind it. The RETURNED promise keeps its rejection for the caller's failure path.
-  sendChains.set(slug, next.then(() => {}, () => {}))
+  sendChains.set(chain, next.then(() => {}, () => {}))
   return next
+}
+
+// ── where a send goes ────────────────────────────────────────────────────────────────────────────
+// Captured when the operator COMMITS the send, never when it goes out. A send can wait — behind the
+// FIFO, through a retry's backoff — and on the cross-project page the page project changes whenever a
+// thread of another project is opened, so resolving the project at send time delivered a message typed
+// into project A's drawer to project B's thread of the same name.
+export type SendTarget = { base: string; project: string | undefined; sessionId: string }
+
+export function sendTarget(slug: string): SendTarget {
+  return { base: apiBase(), project: store.board?.projectSlug, sessionId: threadBySlug(store.board, slug)?.sessionId ?? "" }
+}
+
+// The session to bind a send to. The live board's, when the store still holds the send's project — a
+// thread re-dispatched mid-retry must bind to its CURRENT session — and otherwise the one it had when it
+// was committed: another project's board saying nothing about this thread's session.
+function sessionIdFor(target: SendTarget, slug: string): string {
+  const live = store.board && apiBase() === target.base && store.board.projectSlug === target.project
+  return live ? threadBySlug(store.board, slug)?.sessionId ?? target.sessionId : target.sessionId
 }
 
 // ── delivery retry ───────────────────────────────────────────────────────────────────────────────
@@ -152,22 +175,24 @@ export function sendFollowUpAttempt(
   freshProcess?: boolean,
   interrupt?: boolean,
   timeoutMs: number = DELIVERY_SEND_TIMEOUT_MS,
+  target: SendTarget = sendTarget(slug),
 ): Promise<void> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(new Error("Frizz did not answer this send")), timeoutMs)
-  // Resolve the session id per ATTEMPT from the live board rather than once up front: a thread
-  // re-dispatched mid-retry must bind to its CURRENT session, and the guarded followUp is what turns
-  // a stale id into a clean refusal instead of a misdelivery.
-  return (rpc.followUp(
-    { slug, sessionId: threadBySlug(store.board, slug)?.sessionId ?? "", message, deliveryId, freshProcess, interrupt },
+  // Resolve the session id per ATTEMPT (sessionIdFor): a thread re-dispatched mid-retry must bind to
+  // its CURRENT session, and the guarded followUp is what turns a stale id into a clean refusal instead
+  // of a misdelivery. The PROJECT is the one the send was committed in (see SendTarget).
+  return (rpcAtBase(target.base).followUp(
+    { slug, sessionId: sessionIdFor(target, slug), message, deliveryId, freshProcess, interrupt },
     { signal: controller.signal },
   ) as Promise<void>).finally(() => clearTimeout(timer))
 }
 
-function deliverFollowUp(slug: string, message: string, deliveryId: string, freshProcess?: boolean, interrupt?: boolean): Promise<void> {
+function deliverFollowUp(target: SendTarget, slug: string, message: string, deliveryId: string, freshProcess?: boolean, interrupt?: boolean): Promise<void> {
   return withDeliveryRetry(
-    () => sendFollowUpAttempt(slug, message, deliveryId, freshProcess, interrupt),
-    () => markSteered(slug),
+    () => sendFollowUpAttempt(slug, message, deliveryId, freshProcess, interrupt, DELIVERY_SEND_TIMEOUT_MS, target),
+    // The steering hint is the page's, keyed by slug: only while the page is still the send's project.
+    () => { if (apiBase() === target.base) markSteered(slug) },
   )
 }
 
@@ -192,11 +217,12 @@ export function sendEagerFollowUp(
   const message = text.trim()
   if (!message) return false
   const deliveryId = newDeliveryId()
+  const target = sendTarget(slug)
   beginEagerSubmission({
     optimistic: () => {
       pendingSends.add({
-        deliveryId, apiBase: apiBase(), projectDir: store.board?.projectDir, slug,
-        sessionId: threadBySlug(store.board, slug)?.sessionId ?? "", message,
+        deliveryId, apiBase: target.base, projectDir: store.board?.projectDir, slug,
+        sessionId: target.sessionId, message,
         freshProcess: callbacks.freshProcess, interrupt: callbacks.interrupt, at: Date.now(),
       })
       callbacks.onOptimistic?.()
@@ -209,7 +235,7 @@ export function sendEagerFollowUp(
     // Resolve the session id at SEND time from the live board (not render time), so a re-dispatch
     // between mount and send still binds the guarded followUp to the current session. Contention
     // refusals are retried in place — the composer only gets the message back once they are exhausted.
-    request: () => enqueueThreadSend(slug, () => deliverFollowUp(slug, message, deliveryId, callbacks.freshProcess, callbacks.interrupt)),
+    request: () => enqueueThreadSend(slug, () => deliverFollowUp(target, slug, message, deliveryId, callbacks.freshProcess, callbacks.interrupt), target.base),
     success: () => { pendingSends.remove(deliveryId); callbacks.onSuccess?.() },
     failure: (error) => {
       // A reload aborting the request is not a failure: the entry stays for the next page to replay.
@@ -280,7 +306,7 @@ export function replayPendingSends(now: number = Date.now(), attempt: (send: Pen
       restorePendingSend(send, "was not confirmed before the page reloaded")
       return Promise.resolve()
     }
-    return enqueueThreadSend(send.slug, () => withDeliveryRetry(() => attempt(send), () => {})).then(
+    return enqueueThreadSend(send.slug, () => withDeliveryRetry(() => attempt(send), () => {}), send.apiBase).then(
       () => pendingSends.remove(send.deliveryId),
       (error: unknown) => restorePendingSend(send, `could not be re-sent: ${error instanceof Error ? error.message : String(error)}`),
     )

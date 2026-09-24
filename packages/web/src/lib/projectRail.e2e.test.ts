@@ -38,7 +38,7 @@ test("flipping 'Project sidebar' on a board reached from the grid shows the rail
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 })
     const rail = () => page.evaluate(() => document.querySelector('nav[aria-label="Projects"]') !== null)
 
-    await page.goto(`${baseUrl}/`, { waitUntil: "networkidle2" })
+    await page.goto(`${baseUrl}/projects`, { waitUntil: "networkidle2" })
     assert.equal(await rail(), false, "the rail starts hidden on the grid")
 
     // Into a board CLIENT-SIDE, through the grid's own tile — a document load would rebind the cache.
@@ -102,7 +102,7 @@ test("reloading with the rail on renders it before settingsGet answers, from the
     const rail = () => page.evaluate(() => document.querySelector('nav[aria-label="Projects"]') !== null)
 
     // One ordinary load with the rail on: the server answers, the hook writes the mirror.
-    await page.goto(`${baseUrl}/`, { waitUntil: "networkidle2" })
+    await page.goto(`${baseUrl}/projects`, { waitUntil: "networkidle2" })
     assert.equal(await rail(), true, "the rail shows once settings have loaded")
     assert.equal(await page.evaluate(() => localStorage.getItem("frizz-project-rail")), "shown", "the mirror recorded the answer")
 

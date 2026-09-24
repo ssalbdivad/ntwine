@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Drive the All queues page (`/queues`) in a real headless browser against a seeded multi-project stack,
-// and check that every action taken on a card lands on the card's OWN project.
+// Drive the cross-project page ("Everything", `/all/<slug>`) in a real headless browser against a seeded
+// multi-project stack, and check that every action taken on a card lands on the card's OWN project — and
+// that the page works as a MODE: threads open in place, and new ones start in any project from it.
 //
-// That is the page's one hard problem. It names no project, so the page-level client (`rpc`) means the
-// LAUNCHING project there, and a slug is unique only within a project — an action wired to the wrong
-// client either fails against the launcher or, worse, succeeds on the launcher's namesake. So every write
-// here is taken on a TENANT's card (where the page client would be wrong), and the same-slug pair the
-// seed plants (`fix-flaky-login-test`, in the launcher AND a tenant) is checked from both sides.
+// Its one hard problem: the page shows every project but is FOCUSED on one (the page project), so the
+// page-level client (`rpc`) means the focus there, and a slug is unique only within a project — an action
+// wired to the wrong client either fails against the focus or, worse, succeeds on the focus's namesake.
+// So the page is focused on the launcher, every write is taken on a TENANT's card (where the page client
+// would be wrong), and the same-slug pair the seed plants (`fix-flaky-login-test`, in the launcher AND a
+// tenant) is checked from both sides — from the cards, and from a tenant's drawer opened in place.
 //
 // Usage: node scripts/verify-all-queues.mjs --stack=/abs/stack.log [--shots=/abs/dir]
 //   against a stack booted by adhoc-stack.mjs (with --also-project for marketing-site, billing-worker and
@@ -88,13 +90,35 @@ try {
     return element
   }
 
-  await page.goto(`${origin}/queues`, { waitUntil: "networkidle2" })
+  // The launcher's own landing URL (src/index.ts slugPath): `/` focused on the project it was run in.
+  await page.goto(`${origin}/?focus=acme-api`, { waitUntil: "networkidle2" })
   await page.evaluate(() => { document.documentElement.dataset.theme = "dark" })
   await page.waitForSelector("[data-xq-card]")
   await sleep(800)
+  // Escape leaves a focused composer first and closes the drawer on the next press; a terminal keeps its
+  // Escape (it belongs to the program in the pty), so that one is closed by a click outside the sheet.
+  const closeDrawer = async () => {
+    for (let i = 0; i < 3 && (await page.$("[data-drawer-layer]")); i++) {
+      if (i === 2) await page.mouse.click(6, 6)
+      else await page.keyboard.press("Escape")
+      await sleep(450)
+    }
+  }
+  const picker = () => page.$eval("[data-xq-picker-name]", (el) => el.textContent?.trim() ?? "").catch(() => "")
+  // The page re-renders a beat after the address bar moves (history is written first), so a check of
+  // what it SAYS waits for it to say it rather than reading once.
+  const pickerSays = (name, timeout = 8000) =>
+    page.waitForFunction((n) => document.querySelector("[data-xq-picker-name]")?.textContent?.trim() === n, { timeout }, name).then(() => true, () => false)
+
+  await step("/ lands on the page focused on the named project, with its prompt box", async () => {
+    await page.waitForSelector('[data-surface="newComposer"]', { timeout: 10_000 })
+    const path = await page.evaluate(() => location.pathname)
+    check("/ lands on the page focused on the named project, with its prompt box", path === "/all/acme-api" && (await pickerSays("acme-api")), `${path}, picker "${await picker()}"`)
+  })
 
   await step("lanes follow the rail order, one per project with a queue", async () => {
-    const order = (await api("acme-api").query("projectsList")).map((p) => p.slug).filter((slug) => slug !== "docs-portal")
+    // docs-portal (only archived threads) and design-tokens (none) have nothing queued, so no lane.
+    const order = (await api("acme-api").query("projectsList")).map((p) => p.slug).filter((slug) => slug !== "docs-portal" && slug !== "design-tokens")
     const lanes = await page.$$eval("[data-xq-lane]", (els) => els.map((el) => el.getAttribute("data-xq-lane")))
     check("lanes follow the rail order, one per project with a queue", JSON.stringify(lanes) === JSON.stringify(order.map((slug) => ids[slug])), `${lanes.length} lanes`)
     const cards = await page.$$eval("[data-xq-card]", (els) => els.length)
@@ -217,35 +241,35 @@ try {
 
   await step("↗ opens the thread on its own board, and Back returns here", async () => {
     const scope = card("acme-api", "upgrade-postgres-driver")
-    await page.click(`${scope} a[aria-label="Open in acme-api"]`)
+    await page.click(`${scope} a[aria-label="Open on acme-api's board"]`)
     await page.waitForFunction(() => location.pathname === "/project/acme-api/thread/upgrade-postgres-driver", { timeout: 5000 })
     await sleep(1500)
     const shows = await page.evaluate(() => document.body.innerText.includes("Upgrade the Postgres driver to v9"))
     await page.screenshot({ path: join(shots, "aq-verify-drilldown.png") })
     await page.goBack()
-    await page.waitForFunction(() => location.pathname === "/queues", { timeout: 5000 })
+    await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 5000 })
     await page.waitForSelector("[data-xq-card]")
     check("↗ opens the thread on its own board, and Back returns here", shows)
   })
 
-  await step("fullscreen's way out leads back to All queues", async () => {
+  await step("fullscreen's way out leads back to the page", async () => {
     const scope = card("acme-api", "upgrade-postgres-driver")
     await page.click(`${scope} a[aria-label="Open fullscreen"]`)
     await page.waitForFunction(() => location.pathname.endsWith("/upgrade-postgres-driver/full"), { timeout: 5000 })
     await page.waitForSelector("[data-standalone-return]", { timeout: 8000 })
     const href = await page.$eval("[data-standalone-return]", (el) => el.getAttribute("href"))
     await page.click("[data-standalone-return]")
-    await page.waitForFunction(() => location.pathname === "/queues", { timeout: 5000 })
-    check("fullscreen's way out leads back to All queues", href === "/queues", `exit href ${href}`)
+    await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 5000 })
+    check("fullscreen's way out leads back to the page", href === "/all/acme-api", `exit href ${href}`)
   })
 
-  await step("a board left for All queues and returned to shows what was done there", async () => {
-    // The feed stays on a board's project while All queues is open (coming straight back is free), and
-    // drops that project's frames meanwhile — including the ones saying a thread was finished HERE.
+  await step("a board left for the page and returned to shows what was done there", async () => {
+    // The board's Everything door focuses the page on the board's own project, and whatever is finished
+    // there must not paint again on the way back.
     await page.goto(`${origin}/project/acme-api`, { waitUntil: "networkidle2" })
     await page.waitForSelector('[data-queue-card="fix-pagination-cursor"]', { timeout: 10_000 })
     await page.click('[data-status-row] a[aria-label="Everything"]')
-    await page.waitForFunction(() => location.pathname === "/queues", { timeout: 5000 })
+    await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 5000 })
     const scope = card("acme-api", "fix-pagination-cursor")
     await page.waitForSelector(scope)
     await (await buttonIn(scope, "Mark as done")).click()
@@ -259,7 +283,123 @@ try {
     // seeded stack's busy threads resynced it within a second).
     await page.waitForSelector('[data-queue-card="upgrade-postgres-driver"]', { timeout: 10_000 })
     const stale = (await page.$('[data-queue-card="fix-pagination-cursor"]')) !== null
-    check("a board left for All queues and returned to shows what was done there", !stale, stale ? "the finished card painted on return" : "")
+    check("a board left for the page and returned to shows what was done there", !stale, stale ? "the finished card painted on return" : "")
+  })
+
+  // ---- The page as a MODE: nothing here leaves it -------------------------------------------------------
+  // The last step ended on the launcher's board; its Everything door is the way back, focused on it.
+  await page.click('[data-status-row] a[aria-label="Everything"]').catch(() => {})
+  await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 8000 }).catch(() => {})
+
+  await step("a tenant's thread opens in place, in its drawer", async () => {
+    await page.waitForSelector("[data-xq-card]")
+    const scope = card("acme-api", "upgrade-postgres-driver")
+    // A marketing-site thread, by its card's title if one is still queued, else by its rail row: the seed's
+    // in-flight rows rest on their own, so which of the two is on the page depends on how long this took.
+    const title = await page.$(`[data-xq-lane="${ids["marketing-site"]}"] article h3 a`)
+    if (title) await title.click()
+    else await (await buttonIn(`[data-xq-rail-project="${ids["marketing-site"]}"]`, "Generate OG images at build time")).click()
+    await page.waitForFunction(() => location.pathname.startsWith("/all/marketing-site/thread/"), { timeout: 8000 })
+    await page.waitForSelector("[role=dialog]", { timeout: 8000 })
+    await sleep(1500)
+    const slug = await page.evaluate(() => location.pathname.split("/").pop())
+    const expected = (await threadOf("marketing-site", slug))?.title ?? "?"
+    const drawer = await page.$eval("[role=dialog]", (el) => el.textContent ?? "")
+    const lanes = await page.$$eval("[data-xq-lane]", (els) => els.length)
+    const stillHere = (await page.$(scope)) !== null
+    await page.screenshot({ path: join(shots, "xp-verify-drawer.png") })
+    check("a tenant's thread opens in place, in its drawer", drawer.includes(expected) && lanes > 0 && stillHere && (await pickerSays("marketing-site")), `${slug}: ${lanes} lanes behind it, picker "${await picker()}"`)
+  })
+
+  await step("closing it hands the prompt box back to the project that was chosen", async () => {
+    await closeDrawer()
+    await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 8000 })
+    const back = await pickerSays("acme-api")
+    check("closing it hands the prompt box back to the project that was chosen", back, `picker "${await picker()}"`)
+  })
+
+  await step("a follow-up typed in a tenant's drawer goes to the tenant, not the focus's namesake", async () => {
+    // marketing-site's `fix-flaky-login-test` — snoozed above, so reached through the rail's fold — shares
+    // its slug with the launcher's, which the page was focused on a moment ago.
+    const group = `[data-xq-rail-project="${ids["marketing-site"]}"]`
+    await (await buttonIn(group, "snoozed")).click()
+    await (await buttonIn(group, "Fix the flaky login test")).click()
+    await page.waitForFunction(() => location.pathname === "/all/marketing-site/thread/fix-flaky-login-test", { timeout: 8000 })
+    await page.waitForSelector('[role=dialog] textarea[data-surface="chatComposer"]', { timeout: 10_000 })
+    await sleep(800)
+    const before = writes.length
+    await page.click('[role=dialog] textarea[data-surface="chatComposer"]')
+    await page.keyboard.type("Is the flake the same on CI?")
+    await page.keyboard.press("Enter")
+    await waitFor("the follow-up to go out", async () => writes.slice(before).some((w) => w.endsWith("/rpc/followUp")) || null, 8000)
+    const sent = writes.slice(before).filter((w) => w.endsWith("/rpc/followUp"))
+    // The drawer is the PAGE's, so it addresses the tenant by the page's own prefix — its slug.
+    check("a follow-up typed in a tenant's drawer goes to the tenant, not the focus's namesake", sent.length === 1 && sent[0] === "/_frizz/marketing-site/rpc/followUp", sent.join(", ") || "none")
+    await closeDrawer()
+    await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 8000 })
+  })
+
+  await step("a terminal command started from the page runs in the project chosen for it", async () => {
+    await pickerSays("acme-api")
+    await page.click("[data-xq-project-picker]")
+    // Found and clicked in one go: a handle held across the page's next render can be detached.
+    await page.waitForSelector("[role=menuitem]", { timeout: 5000 })
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const item = (await page.evaluateHandle(() => [...document.querySelectorAll("[role=menuitem]")].find((el) => el.textContent?.includes("billing-worker")) ?? null)).asElement()
+      if (item && (await item.click().then(() => true, () => false))) break
+      await sleep(200)
+    }
+    await page.waitForFunction(() => location.pathname === "/all/billing-worker", { timeout: 8000 })
+    // The PREVIOUS project's form stays up for the render after the address bar moves; wait for this
+    // project's own form (the picker names it, and the stand-in is gone) before typing into it.
+    await pickerSays("billing-worker")
+    await page.waitForFunction(() => !document.querySelector("[data-xq-composer-pending]") && document.querySelector("[data-dispatch-form]"), { timeout: 10_000 })
+    await page.click("[data-dispatch-tab=terminal]")
+    await page.waitForSelector('[data-surface="commandComposer"]')
+    await page.type('[data-surface="commandComposer"]', "echo started-from-everything")
+    await page.keyboard.press("Enter")
+    const started = await waitFor("the command thread", async () => (await api("billing-worker").query("board")).threads.find((t) => t.command?.command === "echo started-from-everything") ?? null)
+    const elsewhere = (await api("acme-api").query("board")).threads.some((t) => t.command?.command === "echo started-from-everything")
+    check("a terminal command started from the page runs in the project chosen for it", Boolean(started) && !elsewhere, started ? `billing-worker/${started.id}` : "")
+
+    // Its toast opens its TERMINAL, in place — a routed terminal layer that stays open.
+    // Clicked in the page, in the same task that finds it: the toast re-renders as it rises, and a
+    // handle held across that is detached.
+    await waitFor("the toast's link", () => page.evaluate(() => {
+      const button = [...document.querySelectorAll("[data-toast] button")].find((b) => b.textContent?.trim() === "Open thread")
+      button?.click()
+      return Boolean(button)
+    }), 8000)
+    await page.waitForFunction((slug) => location.pathname === `/all/billing-worker/thread/${slug}`, { timeout: 8000 }, started.id)
+    await sleep(1500)
+    const terminal = await page.evaluate(() => Boolean(document.querySelector(".xterm")) && location.pathname.includes("/thread/"))
+    await page.screenshot({ path: join(shots, "xp-verify-terminal.png") })
+    check("its toast opens its terminal in place, and it stays open", terminal, await page.evaluate(() => location.pathname))
+    await closeDrawer()
+    // The picker CHOSE billing-worker, so that is where the page settles.
+    await page.waitForFunction(() => location.pathname === "/all/billing-worker", { timeout: 8000 })
+  })
+
+  await step("Back to a project the operator was focused on stays there", async () => {
+    // Through the rail's squares, which PUSH an entry per project (the prompt box's picker replaces
+    // one). Going Back to an entry is choosing it again; the page used to bounce off it to the pick.
+    const settings = await api("acme-api").query("settingsGet")
+    await api("acme-api").mutate("settingsSet", { ...settings, projectRail: true })
+    try {
+      await page.goto(`${origin}/all/acme-api`, { waitUntil: "networkidle2" })
+      const square = 'nav[aria-label="Projects"] a[href="/all/marketing-site"]'
+      await page.waitForSelector(square, { timeout: 10_000 })
+      await page.click(square)
+      await page.waitForFunction(() => location.pathname === "/all/marketing-site", { timeout: 8000 })
+      await sleep(1000)
+      await page.goBack()
+      await sleep(2000)
+      const says = await pickerSays("acme-api")
+      const path = await page.evaluate(() => location.pathname)
+      check("Back to a project the operator was focused on stays there", path === "/all/acme-api" && says, `${path}, picker "${await picker()}"`)
+    } finally {
+      await api("acme-api").mutate("settingsSet", settings)
+    }
   })
 
   await step("the page raised no errors", async () => {

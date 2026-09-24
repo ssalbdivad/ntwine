@@ -316,7 +316,8 @@ export function unknownProjectPage(
   pathname: string,
   isKnownSlug: (slug: string) => boolean,
 ): string | undefined {
-  const match = /^\/project\/([^/?#]+)/u.exec(pathname)
+  // `/all/<slug>` too: the cross-project page FOCUSED on a project names it exactly as a board does.
+  const match = /^\/(?:project|all)\/([^/?#]+)/u.exec(pathname)
   if (!match) return undefined
   const slug = decodeURIComponent(match[1] ?? "")
   return slug && !isKnownSlug(slug) ? slug : undefined
@@ -1133,7 +1134,9 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       // what happened rather than appearing to have swallowed the URL.
       const missing = unknownProjectPage(url.split("?")[0] ?? "", (slug) => findProjectBySegment(slug) !== undefined)
       if (missing !== undefined) {
-        res.writeHead(302, { location: `/?unknown=${encodeURIComponent(missing)}` })
+        // The project grid, which says what happened — it moved off `/` when the cross-project page
+        // became the default there.
+        res.writeHead(302, { location: `/projects?unknown=${encodeURIComponent(missing)}` })
         res.end()
         return
       }

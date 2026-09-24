@@ -415,8 +415,8 @@ function hasLiveOps(t: ThreadView): boolean {
 // the server's own verdict and only ever keeps a thread OUT of Snoozed, so a stale shell costs a dimming,
 // never a disappearance — the same argument restingOnLiveBackgroundWork makes below.
 //
-// A FENCED GITHUB PARK JOINS IT (2026-09-24). The server now excuses an honoured ```awaiting park on a
-// registered PR or issue from the queue (board.hasHonouredGithubPark) — a watcher wake the worker answers
+// A FENCED GITHUB PARK JOINS IT (2026-09-24). The server now excuses every honoured ```awaiting park from
+// the queue, a registered PR or issue included (board.hasHonouredPark) — a watcher wake the worker answers
 // with "still waiting" was re-queuing a thread with nothing for the human to do. So `!needsYou` plus an
 // awaiting fence plus an armed GitHub watch is that verdict, and the row parks like a timer. Two
 // exceptions keep their old band: CI still RUNNING stays in Active under the spinning octocat
@@ -713,8 +713,9 @@ export function waitNamesPr(t: Pick<ThreadView, "watches" | "lastFence">): boole
 /** AWAITING A TIMER — parked on the clock, and since 2026-09-07 the hourglass wherever the row lands,
  *  the way the octocat above is GitHub's mark wherever a PR wait lands.
  *
- *  A timer park QUEUES (board.deriveNeedsYou: "a visible handoff, never an auto-park"), so most timer
- *  waits sit in the Rested band rather than in Snoozed — and there the row wore the shell's blue dot,
+ *  A timer park QUEUED until 2026-09-24 (board.deriveNeedsYou: "a visible handoff, never an auto-park"),
+ *  and one that is not honoured — no `for:`, or run out — still does, sitting in the Rested band rather
+ *  than in Snoozed. There the row wore the shell's blue dot,
  *  because restingOnLiveBackgroundWork counted an armed timer as motion. The dot is the rail's word for
  *  "a process it launched is still running", and nothing is running behind a timer; the maintainer read
  *  it as exactly that claim (2026-09-07: "an item in the queue that's awaiting a timer should show up
