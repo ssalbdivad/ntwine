@@ -26,7 +26,8 @@ import { handoffParts, threadKey, type QueuesProject } from "../lib/allQueues.ts
 import { copyTextToClipboard } from "../lib/clipboard.ts"
 import { draftKey, draftStore, useDraftValues } from "../lib/drafts.ts"
 import { rememberFullscreenOrigin } from "../lib/fullscreenHandoff.ts"
-import { DELIVERY_SEND_TIMEOUT_MS, withDeliveryRetry } from "../lib/eagerComposerSubmission.ts"
+import { pageUnloading } from "../lib/pendingSends.ts"
+import { DELIVERY_SEND_TIMEOUT_MS, trackPendingSend, withDeliveryRetry } from "../lib/eagerComposerSubmission.ts"
 import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/transcriptMetaLabels.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
@@ -41,6 +42,7 @@ import { LinkedHtml } from "./LinkedHtml.tsx"
 import { QuestionBlockCard } from "./QuestionBlockCard.tsx"
 import { RegisteredAnsweringProvider, RegisteredQuestionStack } from "./RegisteredQuestionCards.tsx"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
+import { QuietTurnCard, showsQuietTurnCard } from "./QuietTurnCard.tsx"
 import { SnoozeButton } from "./SnoozeButton.tsx"
 import { StateButton } from "./ThreadLifecycleFooter.tsx"
 import { Tooltip } from "./Tooltip.tsx"
@@ -84,15 +86,17 @@ export function useOpenThreadInPlace(): (project: Pick<QueuesProject, "slug">, s
  */
 function deliverFollowUp(project: QueuesProject, thread: ThreadView, message: string): Promise<void> {
   const deliveryId = crypto.randomUUID()
-  return withDeliveryRetry(async () => {
+  const sessionId = thread.sessionId ?? ""
+  const pending = { deliveryId, apiBase: projectApiBase(project.id), projectDir: project.projectDir, slug: thread.id, sessionId, message, at: Date.now() }
+  return trackPendingSend(pending, () => withDeliveryRetry(async () => {
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), DELIVERY_SEND_TIMEOUT_MS)
     try {
-      await projectRpc(project.id).followUp({ slug: thread.id, sessionId: thread.sessionId ?? "", message, deliveryId }, { signal: abort.signal })
+      await projectRpc(project.id).followUp({ slug: thread.id, sessionId, message, deliveryId }, { signal: abort.signal })
     } finally {
       clearTimeout(timer)
     }
-  }, () => {})
+  }, () => {}))
 }
 
 /** The collapsed body's height: enough for a verdict line and the paragraph under it, never a wall. */
@@ -176,7 +180,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
                 </a>
               </Tooltip>
               <Tooltip label="Open fullscreen">
-                <a href={fullHref} aria-label="Open fullscreen" onClick={(event) => openBoard(event, fullHref, true)} className={HEADER_ICON_CLASS}>
+                <a href={fullHref} aria-label="Open fullscreen" data-command="fullscreen" onClick={(event) => openBoard(event, fullHref, true)} className={HEADER_ICON_CLASS}>
                   <Maximize2 size={14} />
                 </a>
               </Tooltip>
@@ -208,6 +212,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
               {/* Not gated on the handoff: a STALL's last record is often a tool call with no prose at
                   all, and its notice is about the process, not the message (showsRestedCard). */}
               {showsRestedCard(thread, text) && <RestedCard thread={thread} />}
+              {showsQuietTurnCard(thread) && <QuietTurnCard thread={thread} />}
             </div>
 
             {thread.questions && thread.questions.length > 0 && (
@@ -224,7 +229,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
           <ThreadProjectScope projectId={project.id}>
             <footer className={`${BLOCK_RADIUS_INNER_BOTTOM} flex min-h-10 flex-wrap items-center justify-end gap-3 border-t border-border/70 bg-panel/95 px-3 py-2 text-[12px]`}>
               <SnoozeButton thread={thread} onSnoozed={onLeave} />
-              <StateButton thread={thread} onArchived={onLeave} onDismissCancel={onReturn} />
+              <StateButton thread={thread} onArchived={onLeave} onDismissCancel={onReturn} command />
             </footer>
           </ThreadProjectScope>
         </article>
@@ -436,6 +441,8 @@ function ReplyBox({ project, thread, onSent, onFailed }: { project: QueuesProjec
     mutationFn: (message: string) => deliverFollowUp(project, thread, message),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] }),
     onError: (cause, message) => {
+      // A reload aborting the send: the next page replays it (lib/pendingSends.ts), so no rollback.
+      if (pageUnloading()) return
       // The card faded on send; the message did not land, so bring it back with the text still in it —
       // unless something new was typed meanwhile, which is not ours to overwrite.
       if (!draftStore.get(key)) draftStore.set(key, message)

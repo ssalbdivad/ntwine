@@ -122,7 +122,7 @@ store.board = { threads: [timerThread, snoozeThread, watchThread, limitThread, r
 function ActiveBand() {
   return (
     <section aria-label="Active">
-      <SectionHeader label="Active" count={2} />
+      <SectionHeader band="working" count={2} />
       <ThreadRow t={runningSnoozed} />
       <ThreadRow t={bumpingSnoozed} />
     </section>
@@ -136,7 +136,7 @@ function HeldBand() {
   return (
     <section aria-label="Snoozed">
       <hr className="my-3 border-border/50" />
-      <SectionHeader label="Snoozed" count={3} />
+      <SectionHeader band="snoozed" count={3} />
       <ThreadRow t={timerThread} />
       <ThreadRow t={snoozeThread} />
       <ThreadRow t={watchThread} />
@@ -151,7 +151,7 @@ function RestedBand() {
   // told apart at a glance.
   return (
     <section aria-label="Rested">
-      <SectionHeader label="Rested" count={1} />
+      <SectionHeader band="ready" count={1} />
       <ThreadRow t={limitThread} restedAge />
       <hr className="my-3 border-border/50" />
     </section>

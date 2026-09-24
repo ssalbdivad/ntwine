@@ -122,6 +122,19 @@ export function projectRpc(projectId: string): Api {
   return client
 }
 
+const baseClients = new Map<string, Api>()
+
+/** A client pinned to an API base captured earlier — how a follow-up replayed after a reload reaches
+ *  the project it was first sent to (lib/pendingSends.ts), whichever page the reload landed on. */
+export function rpcAtBase(base: string): Api {
+  let client = baseClients.get(base)
+  if (!client) {
+    client = createRpc(() => base)
+    baseClients.set(base, client)
+  }
+  return client
+}
+
 /** `apiBase()` for a project named explicitly — its `/_frizz/<id>` routes (`/rpc`, `/attach`, …). */
 export function projectApiBase(projectId: string): string {
   return `${FRIZZ_ROUTE_PREFIX}/${encodeURIComponent(projectId)}`

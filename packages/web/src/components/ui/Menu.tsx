@@ -39,15 +39,20 @@ export function MenuItem({
   onSelect,
   icon,
   danger,
+  value,
 }: {
   children: ReactNode
   onSelect: () => void
   icon?: ReactNode
   danger?: boolean
+  /** Rendered as `data-value`, so a caller can find and focus one item (SnoozeButton opens its menu
+   *  on the remembered preset rather than the first row). */
+  value?: string
 }) {
   return (
     <RadixMenu.Item
       onSelect={onSelect}
+      data-value={value}
       className={`flex cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] outline-none transition-colors data-[highlighted]:bg-panel-2 ${
         danger
           ? "text-danger data-[highlighted]:text-danger-soft"

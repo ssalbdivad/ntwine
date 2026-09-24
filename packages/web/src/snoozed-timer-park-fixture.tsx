@@ -24,7 +24,7 @@ import "./styles.css"
 //     C  registered PR watcher, CI green        → octocat     (unchanged — a handoff must stay visible)
 //
 // A is the row that MOVED. B and C are the two OTHER parks the same flag describes, and they are the
-// controls: the carve-out is `parkedOnArmedTimerAlone`, so anything else behind the fence keeps the row
+// controls: the carve-out is `parkedOnRegistrationAlone`, so anything else behind the fence keeps the row
 // out of Snoozed exactly as before.
 //
 // D joined on 2026-09-07 and is the row the maintainer actually sees most: a timer park QUEUES

@@ -6,6 +6,7 @@ import { prefersReducedMotion } from "../lib/sheet.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { Tooltip } from "./Tooltip.tsx"
+import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 
 // THE FULLSCREEN DOOR, CLOSING — ExpandThreadLink's exact counterpart, and it stands in the exact
 // place: HeaderActions' `expand` slot, so the icon that took the reader to /full and the icon that
@@ -22,6 +23,7 @@ import { Tooltip } from "./Tooltip.tsx"
 // registered navigator. `data-standalone-return` is kept from the arrow — it names the FUNCTION, which
 // has not changed.
 export function CollapseThreadLink({ slug, label = "Exit fullscreen" }: { slug: string; label?: string }) {
+  const keys = useShortcutLabel("thread.fullscreen")
   // BACK TO THE SURFACE THE DOOR WAS PRESSED IN, when the door noted one (lib/fullscreenHandoff).
   // A thread read through a DRAWER has no surface on the board root, so landing there both stranded
   // the reader and left the reverse morph with nothing named to shrink into — it cross-faded at every
@@ -43,11 +45,13 @@ export function CollapseThreadLink({ slug, label = "Exit fullscreen" }: { slug: 
     spaNavigate(href, { viewTransition: !prefersReducedMotion() })
   }
   return (
-    <Tooltip label={label}>
+    <Tooltip label={withShortcut(label, keys)}>
       <a
         href={href}
         aria-label={label}
         data-standalone-return
+        // The `f` shortcut toggles: the same key that opened /full presses this to leave it.
+        data-command="fullscreen"
         // The strip's shared focus behaviour: a click on any icon here must not take the keyboard
         // away from the composer below it.
         onMouseDown={(event) => event.preventDefault()}

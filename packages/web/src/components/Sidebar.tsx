@@ -2,16 +2,18 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, ExternalLink, Github, Hourglass, Inbox, Loader2, Pin, PinOff, RotateCcw, SquareCheck, TerminalSquare, Timer } from "lucide-react"
+import { AlarmClock, Check, ChevronRight, CircleDashed, Ellipsis, Github, Hourglass, Loader2, Pin, PinOff, RotateCcw, TerminalSquare, Timer } from "lucide-react"
 import type { BoardSnapshot, ThreadView } from "@frizz/shared"
-import { store, openThread, scrollToQueueCard, queueCardTargetY, pushSubAgentDrawer, showToast, QUEUE_CARD_VIEWPORT_TOP } from "../store.ts"
+import { store, openThread, scrollToQueueCard, queueCardRoot, queueCardTargetY, pushSubAgentDrawer, showToast, drawerThreadSlug, QUEUE_CARD_VIEWPORT_TOP } from "../store.ts"
+import { registerQueueCursor } from "../lib/keyboardRuntime.ts"
 import { rpc } from "../api/rpc.ts"
 import { useBoard, asThreads } from "../hooks.ts"
 import { prefs } from "../lib/prefs.ts"
 import { sectionThreads, externalThreads, orderByInteraction, partitionActive, needsAction, displayTitle, titleIsProvisional, isPinned, isSnoozed, parkedAwaitingHint, sessionIndicatorKind, offersRetry, futureSnoozedUntil, lastActiveLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents } from "../groups.ts"
 import { ageSpan, relativeAge, limitResumeClock } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
-import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
+import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
+import { BANDS, BAND_LABEL_TYPE, BandCount, BandGlyph, type BandKey } from "./BandLabel.tsx"
 import { BoxSpinner, STATUS_BOX } from "./BoxSpinner.tsx"
 import { ChildOpRow } from "./ChildOpRow.tsx"
 import { ExpandThreadLink } from "./ExpandThreadLink.tsx"
@@ -75,6 +77,19 @@ import type { ReactElement, ReactNode, RefObject } from "react"
 // body. Identical for the stroke-only door and Retry; `disabled:opacity-50` still wins, as a variant
 // utility over a bare one.
 export const ROW_ACTION_CLASS = "flex h-[19px] w-[19px] items-center justify-center rounded text-muted opacity-70 outline-none transition-[color,opacity] hover:bg-panel-2 hover:text-fg hover:opacity-100"
+
+// A row's wash, painted by its `after:` pseudo ABOVE the row (see ThreadRow for why above). Lit on
+// hover — and held lit, one step stronger, while the row's thread is up in the side drawer, the way a
+// list keeps its selected row lit beside the detail pane it opened. That hold is the rail's half of
+// saying where a thread opens: a Working row lights and the drawer beside it names the same band
+// (BandLabel.tsx), while a Ready row lights nothing here because its thread is a card in the middle
+// column, which the scroll marker already tracks. Stronger than hover so pointing at a neighbour
+// cannot be mistaken for opening it.
+function rowWashClass(open: boolean): string {
+  return `after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:transition-opacity ${
+    open ? "after:bg-hover-strong after:opacity-100" : "after:bg-hover after:opacity-0 hover:after:opacity-100"
+  }`
+}
 
 export const SIDEBAR_COLUMN_CLASS =
   "sticky top-0 self-start h-screen w-[clamp(272px,34vw,680px)] shrink-0 flex flex-col justify-center max-[800px]:static max-[800px]:h-auto max-[800px]:w-full max-[800px]:justify-start max-[800px]:pt-16"
@@ -171,18 +186,26 @@ export function Sidebar() {
     }
   }, [syncActiveSection, snap.view, snap.drawers.length])
 
-  // Reveal a newly active row inside the rail itself. Direct scrollTop adjustment is intentionally
-  // local: Element.scrollIntoView could scroll the main document and steal the reader's position.
-  useLayoutEffect(() => {
+  // The thread up in the side drawer, if any: its row holds its wash lit (rowWashClass), so the row and
+  // the drawer beside it read as one thing. The scroll marker stays the QUEUE's reading position.
+  const openId = drawerThreadSlug(snap.drawers)
+
+  // Reveal a newly active — or newly opened — row inside the rail itself. Direct scrollTop adjustment
+  // is intentionally local: Element.scrollIntoView could scroll the main document and steal the
+  // reader's position. A drawer opened from anywhere but its own row (the palette, a link, a toast)
+  // otherwise lit a row the rail had scrolled out of sight.
+  const revealRow = useCallback((id: string | null) => {
     const rail = railRef.current
-    if (!rail || !activeId || window.matchMedia?.("(max-width: 800px)").matches) return
-    const item = rail.querySelector<HTMLElement>(`[data-sidebar-item="${CSS.escape(activeId)}"]`)
+    if (!rail || !id || window.matchMedia?.("(max-width: 800px)").matches) return
+    const item = rail.querySelector<HTMLElement>(`[data-sidebar-item="${CSS.escape(id)}"]`)
     if (!item) return
     const railBox = rail.getBoundingClientRect()
     const itemBox = item.getBoundingClientRect()
     const delta = railRevealDelta(railBox.top, railBox.bottom, itemBox.top, itemBox.bottom)
     if (Math.abs(delta) > 0.5) rail.scrollTop += delta
-  }, [activeId])
+  }, [])
+  useLayoutEffect(() => revealRow(activeId), [activeId, revealRow])
+  useLayoutEffect(() => revealRow(openId), [openId, revealRow])
 
   // Called AFTER scrollToQueueCard, which has either scrolled or (with a drawer dismissing over the
   // still-locked page) parked the landing for the unlock ~210ms out. So the landing is read off the
@@ -192,6 +215,26 @@ export function Sidebar() {
     pendingNavigation.current = { id, landedY: queueCardTargetY(id) ?? window.scrollY }
     setActiveId(id)
   }, [])
+
+  // THE KEYBOARD READS THIS SAME MARKER. `j` / `k` step from the card this rail says is being read and
+  // land exactly as a row click does (scroll, ring, pin), and `e` / `h` / `r` / `f` act on that card —
+  // so the highlighted row is always the card a key will touch. The ref is written synchronously on a
+  // key's own landing because the state above only settles a frame later, and a quick `j j` must step
+  // from where the first press went, not from where the page was.
+  const readingRef = useRef(activeId)
+  readingRef.current = activeId
+  useEffect(() => registerQueueCursor({
+    keys: () => [...document.querySelectorAll<HTMLElement>('[data-queue-card][data-queue-leaving="false"]')]
+      .map((element) => element.dataset.queueCard ?? "")
+      .filter(Boolean),
+    current: () => readingRef.current,
+    root: (id) => queueCardRoot(id),
+    go: (id) => {
+      if (!scrollToQueueCard(id)) return
+      readingRef.current = id
+      navigateToQueueCard(id)
+    },
+  }), [navigateToQueueCard])
 
   return (
     // HEIGHT MODEL: a sticky, exactly viewport-height wrapper that CENTERS the inner column, which
@@ -244,10 +287,10 @@ export function Sidebar() {
               form of SectionHeader, so it lines up with the collapsible Snoozed/Done headers. */}
           {sections.pinned.length > 0 && (
             <section aria-label="Pinned">
-              <SectionHeader label="Pinned" icon={<Pin size={11} />} count={sections.pinned.length} />
+              <SectionHeader band="pinned" count={sections.pinned.length} />
               {sections.pinned.map((t) => (
                 <div key={t.id}>
-                  <ThreadRow t={t} active={activeId === t.id} onQueueNavigate={navigateToQueueCard} />
+                  <ThreadRow t={t} active={activeId === t.id} open={openId === t.id} onQueueNavigate={navigateToQueueCard} />
                   <SubAgentRows t={t} />
                 </div>
               ))}
@@ -278,15 +321,15 @@ export function Sidebar() {
               const { running, rested } = partitionActive(activeThreads)
               const renderRow = (restedAge: boolean) => (t: ThreadView) => (
                 <div key={t.id}>
-                  <RailRow t={t} active={activeId === t.id} onQueueNavigate={navigateToQueueCard} restedAge={restedAge} />
+                  <RailRow t={t} active={activeId === t.id} open={openId === t.id} onQueueNavigate={navigateToQueueCard} restedAge={restedAge} />
                 </div>
               )
               return (
                 <>
-                  {rested.length > 0 && <SectionHeader label="Ready" icon={<Inbox size={11} />} count={rested.length} />}
+                  {rested.length > 0 && <SectionHeader band="ready" count={rested.length} />}
                   {rested.map(renderRow(true))}
                   {running.length > 0 && rested.length > 0 && <hr className="my-3 border-border/50" />}
-                  {running.length > 0 && <SectionHeader label="Working" icon={<Bot size={11} />} count={running.length} />}
+                  {running.length > 0 && <SectionHeader band="working" count={running.length} />}
                   {running.map(renderRow(false))}
                 </>
               )
@@ -311,8 +354,7 @@ export function Sidebar() {
               <hr className="my-3 border-border/50" />
               {/* Same header component as Done so the bands can never visually drift. */}
               <SectionHeader
-                label="Snoozed"
-                icon={<SnoozeMark size={11} />}
+                band="snoozed"
                 count={heldThreads.length}
                 collapsed={collapsed.snoozed}
                 onToggle={() => (store.sidebarCollapsed.snoozed = !store.sidebarCollapsed.snoozed)}
@@ -320,7 +362,7 @@ export function Sidebar() {
               {!collapsed.snoozed &&
                 heldThreads.map((t) => (
                   <div key={t.id}>
-                    <ThreadRow t={t} active={activeId === t.id} onQueueNavigate={navigateToQueueCard} />
+                    <ThreadRow t={t} active={activeId === t.id} open={openId === t.id} onQueueNavigate={navigateToQueueCard} />
                     <SubAgentRows t={t} />
                   </div>
                 ))}
@@ -334,14 +376,13 @@ export function Sidebar() {
             <div>
               <hr className="my-3 border-border/50" />
               <SectionHeader
-                label="Done"
-                icon={<SquareCheck size={11} />}
+                band="done"
                 count={inactiveThreads.length}
                 collapsed={collapsed.inactive}
                 onToggle={() => (store.sidebarCollapsed.inactive = !store.sidebarCollapsed.inactive)}
               />
               {!collapsed.inactive && (
-                <DoneBand threads={inactiveThreads} railRef={railRef} activeId={activeId} onQueueNavigate={navigateToQueueCard} />
+                <DoneBand threads={inactiveThreads} railRef={railRef} activeId={activeId} openId={openId} onQueueNavigate={navigateToQueueCard} />
               )}
             </div>
           )}
@@ -357,8 +398,7 @@ export function Sidebar() {
             <section aria-label="External">
               <hr className="my-3 border-border/50" />
               <SectionHeader
-                label="External"
-                icon={<ExternalLink size={11} />}
+                band="external"
                 count={externalSessions.length}
                 collapsed={collapsed.external}
                 onToggle={() => (store.sidebarCollapsed.external = !store.sidebarCollapsed.external)}
@@ -370,7 +410,7 @@ export function Sidebar() {
                   that problem. */}
               {!collapsed.external &&
                 externalSessions.map((t) => (
-                  <ThreadRow key={t.id} t={t} active={activeId === t.id} onQueueNavigate={navigateToQueueCard} restedAge />
+                  <ThreadRow key={t.id} t={t} active={activeId === t.id} open={openId === t.id} onQueueNavigate={navigateToQueueCard} restedAge />
                 ))}
             </section>
           )}
@@ -382,11 +422,11 @@ export function Sidebar() {
 
 // One row of a band, whichever kind of thread it is. Terminal command threads share the bands with
 // agent threads (groups.ts sectionOf) but not the agent row's verbs, so they get their own row.
-function RailRow({ t, active, onQueueNavigate, restedAge = false }: { t: ThreadView; active: boolean; onQueueNavigate?: (id: string) => void; restedAge?: boolean }) {
-  if (t.kind === "command") return <CommandRow t={t} active={active} onQueueNavigate={onQueueNavigate} />
+function RailRow({ t, active, open = false, onQueueNavigate, restedAge = false }: { t: ThreadView; active: boolean; open?: boolean; onQueueNavigate?: (id: string) => void; restedAge?: boolean }) {
+  if (t.kind === "command") return <CommandRow t={t} active={active} open={open} onQueueNavigate={onQueueNavigate} />
   return (
     <>
-      <ThreadRow t={t} active={active} onQueueNavigate={onQueueNavigate} restedAge={restedAge} />
+      <ThreadRow t={t} active={active} open={open} onQueueNavigate={onQueueNavigate} restedAge={restedAge} />
       <SubAgentRows t={t} />
     </>
   )
@@ -397,17 +437,18 @@ function RailRow({ t, active, onQueueNavigate, restedAge = false }: { t: ThreadV
 // with Running, finished it queues with a card (a click scrolls to it), and marked done it moves to
 // Done, where its check unchecks to reopen. None of an agent row's verbs: the drawer holds Stop /
 // Restart / Remove.
-const CommandRow = memo(function CommandRow({ t, active, onQueueNavigate }: { t: ThreadView; active: boolean; onQueueNavigate?: (id: string) => void }) {
+const CommandRow = memo(function CommandRow({ t, active, open = false, onQueueNavigate }: { t: ThreadView; active: boolean; open?: boolean; onQueueNavigate?: (id: string) => void }) {
   const command = t.command
   if (!command) return null
-  const running = command.state === "running"
+  const running = commandLive(command)
   const failed = commandFailed(command)
   const done = t.state === "archived"
   return (
     <div
       data-sidebar-item={t.id}
       data-command-row={command.state}
-      className={`group relative flex min-w-0 items-start rounded-md transition-[color,opacity] after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:bg-hover after:opacity-0 after:transition-opacity hover:after:opacity-100 ${done ? "sidebar-row-dim" : ""}`}
+      data-sidebar-open={open || undefined}
+      className={`group relative flex min-w-0 items-start rounded-md transition-[color,opacity] ${rowWashClass(open)} ${done ? "sidebar-row-dim" : ""}`}
     >
       <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-5">
         {active && <span className="absolute inset-y-0 left-1 w-[2px] rounded-full bg-accent" />}
@@ -447,17 +488,14 @@ const CommandRow = memo(function CommandRow({ t, active, onQueueNavigate }: { t:
   )
 })
 
-// A section header: an optional collapse caret, the band's icon, the label, and the count. ONE source
+// A section header: an optional collapse caret, the band's icon, its name, and the count. ONE source
 // of truth for every band header so they can never visually drift apart again. Snoozed, Done and
 // External are collapsible; Pinned, Ready and Working (since 2026-09-19) omit onToggle and render as a
 // static div with a caret-width spacer, so every icon and label sits in the same column.
 //
-// Every band wears an icon (maintainer 2026-09-23), and above all the two whose names alone do not say
-// whose move it is: Ready is an inbox (yours) and Working a bot (the agent's). A developer's face
-// mirroring the bot was tried and dropped: at 11px a round head reads as an emoji, and every feature
-// added to make it human (hair, glasses, pupils) fused with the next. The bot is static — the
-// rows under it already spin, and a header is permanent chrome.
-export function SectionHeader({ label, icon, count, collapsed, onToggle }: { label: string; icon?: ReactNode; count: number; collapsed?: boolean; onToggle?: () => void }) {
+// The name and icon come from the band table (BandLabel.tsx), which the inbox's header and a thread
+// header's stamp read too — so the rail's headers are the legend for the rest of the screen.
+export function SectionHeader({ band, count, collapsed, onToggle }: { band: BandKey; count: number; collapsed?: boolean; onToggle?: () => void }) {
   const inner = (
     <>
       {onToggle ? (
@@ -466,36 +504,18 @@ export function SectionHeader({ label, icon, count, collapsed, onToggle }: { lab
         // Reserve the caret's width so a non-collapsible header lines up with the collapsible ones.
         <span className="w-[11px] shrink-0" aria-hidden />
       )}
-      {/* The lift puts each icon's ink on the uppercase label's cap band. Box-centred at 11px sans,
-          every one of them measured 1.75px low (0.16em) — they all fill their viewBox symmetrically
-          — and the residual after the lift is ~0. Re-measure if an icon with off-centre ink joins. */}
-      <span className="flex w-[11px] shrink-0 -translate-y-[0.16em] justify-center" aria-hidden>
-        {icon}
-      </span>
-      <span>{label}</span>
-      {/* Count rides right next to its label (not floated to the far edge) — it's meaningful data,
-          not a margin ornament; raised contrast so it actually reads. */}
-      <span className="ml-1.5 tabular-nums text-muted-60">{count}</span>
+      <BandGlyph band={band} />
+      <span>{BANDS[band].label}</span>
+      <BandCount count={count} />
     </>
   )
-  const cls = "flex w-full items-center gap-1 px-1.5 py-1 text-[11px] uppercase tracking-wide text-muted-70"
+  const cls = `flex w-full items-center gap-1 px-1.5 py-1 ${BAND_LABEL_TYPE}`
   return onToggle ? (
     <button onClick={onToggle} className={`${cls} transition-colors hover:text-fg`}>
       {inner}
     </button>
   ) : (
     <div className={cls}>{inner}</div>
-  )
-}
-
-// Snoozed's header icon: "zzz", which lucide does not draw. Lucide's grid and pen (24 viewBox, stroke
-// 2, round caps and joins) so it sits beside the lucide icons on the other headers as one family.
-function SnoozeMark({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12h8l-8 9h8" />
-      <path d="M14 3h7l-7 7h7" />
-    </svg>
   )
 }
 
@@ -544,11 +564,13 @@ function DoneBand({
   threads,
   railRef,
   activeId,
+  openId,
   onQueueNavigate,
 }: {
   threads: ThreadView[]
   railRef: RefObject<HTMLDivElement | null>
   activeId: string | null
+  openId: string | null
   onQueueNavigate: (id: string) => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
@@ -602,7 +624,7 @@ function DoneBand({
             // inside the band, so the offset comes back off.
             style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
           >
-            <RailRow t={t} active={activeId === t.id} onQueueNavigate={onQueueNavigate} />
+            <RailRow t={t} active={activeId === t.id} open={openId === t.id} onQueueNavigate={onQueueNavigate} />
           </div>
         )
       })}
@@ -649,12 +671,15 @@ export const ThreadRow = memo(function ThreadRow({
   t,
   legacy,
   active = false,
+  open = false,
   onQueueNavigate,
   restedAge = false,
 }: {
   t: ThreadView
   legacy?: boolean
   active?: boolean
+  /** This thread is up in the side drawer right now — see rowWashClass. */
+  open?: boolean
   onQueueNavigate?: (id: string) => void
   /** Show the right-justified rest-time column. The CUE's rows only — see RestedAge. */
   restedAge?: boolean
@@ -705,7 +730,8 @@ export const ThreadRow = memo(function ThreadRow({
   return (
     <div
       data-sidebar-item={t.id}
-      className={`group relative flex min-w-0 items-start rounded-md transition-[color,opacity] after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:bg-hover after:opacity-0 after:transition-opacity hover:after:opacity-100 ${legacy ? "opacity-80" : dim ? "sidebar-row-dim" : ""}`}
+      data-sidebar-open={open || undefined}
+      className={`group relative flex min-w-0 items-start rounded-md transition-[color,opacity] ${rowWashClass(open)} ${legacy ? "opacity-80" : dim ? "sidebar-row-dim" : ""}`}
     >
       {/* The reading position owns a real, in-row rail rather than borrowing the status-icon column.
           The marker spans the row's complete visual height, including wrapped titles and subtitles,
@@ -824,7 +850,7 @@ export const ThreadRow = memo(function ThreadRow({
               is the strip's last mark and its 11px ink already sits 10.5px from Retry. RE-MEASURE rather
               than re-guess if a glyph, its size or the gap changes. */}
           {!foreign && !pinned && <RowPinButton t={t} className="-mr-0.5" />}
-          <ExpandThreadLink slug={t.id} size={12} className={ROW_ACTION_CLASS} />
+          <ExpandThreadLink slug={t.id} size={12} className={ROW_ACTION_CLASS} keyHint={false} />
           {canRestart && <RowRetryButton slug={t.id} />}
           {!foreign && pinned && <RowPinButton t={t} />}
         </div>

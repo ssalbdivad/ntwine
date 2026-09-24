@@ -29,3 +29,13 @@ test("the rail's edited-files fold is open by default and only a boolean folds i
   assert.equal(parseStoredPrefs(JSON.stringify({ railFilesCollapsed: true, diffsRedefaulted: true })).railFilesCollapsed, true)
   assert.equal(parseStoredPrefs(JSON.stringify({ railFilesCollapsed: "yes", diffsRedefaulted: true })).railFilesCollapsed, false)
 })
+
+test("keyboard-shortcut overrides persist, and a bad entry falls back to its default alone", () => {
+  assert.deepEqual(parseStoredPrefs(null).keybindings, {})
+  assert.deepEqual(parseStoredPrefs("not-json").keybindings, {})
+  assert.deepEqual(
+    parseStoredPrefs(JSON.stringify({ keybindings: { "thread.snooze": "s", "thread.done": "mod+w", "nope": "x" }, diffsRedefaulted: true })).keybindings,
+    { "thread.snooze": "s" },
+  )
+  assert.deepEqual(parseStoredPrefs(JSON.stringify({ keybindings: "garbage", diffsRedefaulted: true })).keybindings, {})
+})

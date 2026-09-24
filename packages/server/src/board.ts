@@ -18,7 +18,7 @@ import { normalizeObservedThreadModel } from "./backend/thread-profiles.ts"
 import type { Tailer, SessionTelemetry, FenceView } from "./tailer.ts"
 import type { InteractionChange } from "./interaction-store.ts"
 import { frizzDirExists } from "./frizz.ts"
-import { githubStatusKey, parseIssueRef, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
+import { githubStatusKey, parkExpiresAt, parkIsHonoured, parseIssueRef, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
 import { findByPath } from "./project-registry.ts"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
 import { effectivePermissionMode, fallbackTitle, resolveLegacyThreadFile } from "./dispatch.ts"
@@ -69,6 +69,43 @@ export function appServerTurnStalled(
   const advanced = lastActivityAt ? Date.parse(lastActivityAt) : NaN
   if (Number.isFinite(advanced) && advanced >= ownedSince) return false
   return nowMs - ownedSince > STALL_GRACE_MS
+}
+
+// A TURN THAT HAS GONE SILENT. The worker is mid-call and nothing has been written for a long time: no
+// transcript record, no word from a sub-agent it is waiting on. Frizz lifts Claude Code's Bash ceiling to
+// 24 hours (backend/types.ts BASH_MAX_TIMEOUT_MS) and an MCP call has no ceiling at all, so a foreground
+// `npm publish` stopped at a 2FA prompt nobody can see, or a wedged browser call, spun in the Active band
+// for as long as it liked — "running", never at rest, so never queued (maintainer 2026-09-24: a thread
+// "stuck in running after some 2fa call", clogging the board).
+//
+// It QUEUES the thread and leaves its runtime alone. `running` is what the composer reads to offer
+// interrupt-and-send (ThreadComposerBox canInterrupt), and interrupting is exactly the verb this card
+// exists to put in front of the human; degrading to turn-idle the way degradeIfAwaitingAnswer does would
+// take it away. The next record the worker writes clears it.
+//
+// Fifteen minutes: well past the 60-second default a foreground Bash bounces at, past the ~5-minute test
+// gate, and short enough that a turn blocked on a human is in front of one before they wonder where it
+// went. A deliberate long foreground wait does queue — the maintainer's standing trade applies: "a
+// spurious queue card costs one click, while a wrongly-held thread is invisible for hours" — and the
+// card's own Snooze parks it.
+export const QUIET_TURN_MS = 15 * 60_000
+export function quietTurnSince(
+  runtime: RuntimeState,
+  tele: Pick<SessionTelemetry, "turn" | "lastActivityAt" | "subAgents"> | undefined,
+  nowMs: number,
+): string | undefined {
+  if (runtime !== "running" || tele?.turn !== "in-flight" || !tele.lastActivityAt) return undefined
+  let latest = Date.parse(tele.lastActivityAt)
+  if (!Number.isFinite(latest)) return undefined
+  // A foreground sub-agent writes to its OWN transcript while the parent's sits still — that is work.
+  for (const agent of tele.subAgents ?? []) {
+    if (!isDirectSubAgent(agent) || agent.state !== "running") continue
+    const at = agent.lastActivityAt ? Date.parse(agent.lastActivityAt) : NaN
+    // A running child with no reading at all is not evidence of silence.
+    if (!Number.isFinite(at)) return undefined
+    latest = Math.max(latest, at)
+  }
+  return nowMs - latest >= QUIET_TURN_MS ? new Date(latest).toISOString() : undefined
 }
 
 // Runtime derivation: no session row → never spawned (none); a row whose worker is dead/absent →
@@ -672,6 +709,35 @@ function hasParkedPrWatch(tele: SessionTelemetry | undefined, registered: Readon
   })
 }
 
+/** Is this thread PARKED on a GitHub watch — an ```awaiting fence naming at least one registered PR or
+ *  issue, every item it names accounted for (parkIsHonoured, the scheduler's own check), and its `for:`
+ *  not yet run out?
+ *
+ *  THIS PARKS, where a bare registered watch only cards (hasParkedPrWatch). Until 2026-09-24 a PR park
+ *  was ALWAYS a visible queue handoff (maintainer 2026-07-22: a PR whose reviews may never arrive must
+ *  not silently vanish), so every watcher wake the worker answered with "nothing new, still waiting" was
+ *  a fresh rest that re-queued the thread and cleared any snooze on it — a thread with nothing for the
+ *  human to do, marked ready (maintainer 2026-09-24: "ensure updates like this don't result in a working
+ *  thread being marked as ready and requiring interaction"). The vanishing worry is answered by the two
+ *  clocks the 07-22 rule predates: the watch row's own required `expires_at`, and the fence's `for:`,
+ *  whose expiry the scheduler turns into a wake. A park that expires, names an unregistered PR, or sits
+ *  beside a dead shell is not honoured here and queues exactly as before. */
+function hasHonouredGithubPark(
+  tele: SessionTelemetry | undefined,
+  nowMs: number,
+  registered: ReadonlySet<string>,
+  armedTimerIds: ReadonlySet<string>,
+): boolean {
+  if (tele?.lastFence?.kind !== "awaiting") return false
+  const park = readAwaitingPark(tele.lastFence.hints)
+  if (!park.items.some((i) => i.kind === "pr" || i.kind === "issue")) return false
+  const handles = liveWaitHandles(tele)
+  // `registered` carries both kinds' refs (armedPrWatches), so it answers for `issues:` too.
+  if (!parkIsHonoured(park, { shells: handles, agents: handles, timers: armedTimerIds, prs: registered, issues: registered })) return false
+  const expiresAt = parkExpiresAt(park, Date.parse(tele.lastAssistantAt ?? ""))
+  return expiresAt !== null && nowMs < expiresAt
+}
+
 // The awaiting-background event-snooze is armed for the CURRENT rest iff the captured rested_at still
 // equals the row's rested_at. rested_at only advances when the top-level turn comes to a NEW rest, so
 // any advance — the exact event of a sub-agent/shell returning and the worker acting on it — auto-clears
@@ -998,6 +1064,9 @@ export function deriveNeedsYou(
   // for the reason that flag exists: the CARD must still state the wait (deriveAwaitingBackground opts
   // out), or the drawer blanks at rest and reads as "the agent died".
   if (excuseLiveOwnWork && runtime !== "exited" && heldByRunningChecks(github, registeredPrWatches)) return false
+  // AN HONOURED GITHUB PARK. The worker fenced on a PR or issue it registered, and nothing it named has
+  // settled — so a watcher wake it answers with the same park is not a handoff. See hasHonouredGithubPark.
+  if (excuseLiveOwnWork && runtime !== "exited" && hasHonouredGithubPark(tele, nowMs, registeredPrWatches, armedTimerIds)) return false
   // A TIMER PARK TAKES THE SAME SNOOZE (2026-08-25). It queues like a PR park — a visible handoff, never
   // an auto-park — and since 2026-08-24 it cards like one too, with the resting card's event-Snooze as
   // its one control. But it is not "live own work" (nothing of the thread's is running; the clock is),
@@ -1528,7 +1597,10 @@ function sessionThreadView(
   const state = effectiveSessionState(row, registeredLegacyTerminal)
   const archived = state === "archived"
   const limitPause = resolveLimitPause(row, tele, nowMs)
-  const needsYou = archived ? false : deriveNeedsYou(row, tele, runtime, interactionPresence.needsUser, nowMs, limitPause, true, deliveryProcessGone, github, registeredPrWatches, armedTimerIds, armedWatches, questions.length)
+  const quietSince = archived ? undefined : quietTurnSince(runtime, tele, nowMs)
+  // A silent turn queues past every rest gate in deriveNeedsYou (it is not at rest), except the human's
+  // own wall-clock snooze, which is how a deliberate long wait is parked.
+  const needsYou = archived ? false : deriveNeedsYou(row, tele, runtime, interactionPresence.needsUser, nowMs, limitPause, true, deliveryProcessGone, github, registeredPrWatches, armedTimerIds, armedWatches, questions.length) || (quietSince !== undefined && !futureSnooze(row, nowMs))
   const awaitingBackground = archived ? false : deriveAwaitingBackground(row, tele, runtime, interactionPresence.needsUser, nowMs, limitPause, deliveryProcessGone, github, registeredPrWatches, armedTimerIds, armedWatches, questions.length)
   // A worker that exited with work still outstanding — a turn in flight, OR a sub-agent still reading
   // "running" (its parent is gone, so it cannot actually be live) — is a crash/stall, not a clean
@@ -1611,6 +1683,7 @@ function sessionThreadView(
     needsYou,
     awaitingBackground,
     crashed,
+    quietTurnSince: quietSince,
     pendingInteraction: interactionPresence.pending,
     actionableInteraction: interactionPresence.needsUser,
     // Preserve only a durable, canonical backend identity. In particular, Claude is not inferred

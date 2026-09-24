@@ -1,6 +1,7 @@
 import { proxy, subscribe } from "valtio"
 import type { QueueDirection } from "../groups.ts"
 import { DEFAULT_SNOOZE_PRESET, isSnoozePreset, type SnoozePreset } from "./snooze.ts"
+import { sanitizeOverrides, type Overrides } from "./keybindings.ts"
 
 // Client-only VIEW preferences — persisted in localStorage, never in the server Settings schema
 // (that's operator dispatch config; this is how one browser likes to render). Seeded synchronously
@@ -23,6 +24,10 @@ export interface Prefs {
   // reason the page has a rail at all — and remembered here rather than in the store because a
   // 22-file list a human folded once should stay folded on the next thread and the next reload.
   railFilesCollapsed: boolean
+  // The operator's keyboard-shortcut CHANGES from the defaults (lib/keybindings.ts), not the whole
+  // map: an action still on its default has no entry, so a default that changes in a later release
+  // reaches everyone who never touched it. Per browser on purpose — a keyboard belongs to a machine.
+  keybindings: Overrides
 }
 
 function coerceQueueOrder(v: unknown, fallback: QueueDirection): QueueDirection {
@@ -44,6 +49,7 @@ export function parseStoredPrefs(raw: string | null): Prefs {
     snoozePreset: DEFAULT_SNOOZE_PRESET,
     queueOrder: "fifo",
     railFilesCollapsed: false,
+    keybindings: {},
     diffsRedefaulted: true,
   }
   try {
@@ -63,6 +69,7 @@ export function parseStoredPrefs(raw: string | null): Prefs {
       snoozePreset: isSnoozePreset(stored.snoozePreset) ? stored.snoozePreset : fallback.snoozePreset,
       queueOrder: coerceQueueOrder(stored.queueOrder, fallback.queueOrder),
       railFilesCollapsed: typeof stored.railFilesCollapsed === "boolean" ? stored.railFilesCollapsed : fallback.railFilesCollapsed,
+      keybindings: sanitizeOverrides(stored.keybindings),
     }
   } catch {
     return fallback

@@ -145,6 +145,9 @@ export function Sheet({
     >
       <div
         ref={panelRef}
+        // The keyboard runtime's handle on the TOP layer: thread commands (`r` to reply, …) press the
+        // controls inside whichever layer store.drawers says is on top.
+        data-drawer-layer={id}
         className={`${SHEET_PANEL_CLASS} pointer-events-auto ${shown ? "translate-x-0" : "translate-x-full"}`}
         style={{ width: sheetWidth(widthDepth, widthOffset) }}
       >

@@ -1,8 +1,11 @@
 import { useCallback, useState } from "react"
 import { useQueryClient, type QueryClient } from "@tanstack/react-query"
-import { isRetryableRpcError, rpc } from "../api/rpc.ts"
+import { isRetryableRpcError, rpc, rpcAtBase } from "../api/rpc.ts"
 import { appendQueuedMessage, removeQueuedMessage } from "../hooks.ts"
 import { showToast, store, threadBySlug } from "../store.ts"
+import { apiBase } from "./base-path.ts"
+import { draftKey, draftStore } from "./drafts.ts"
+import { PENDING_SEND_MAX_AGE_MS, pageUnloading, pendingSends, type PendingSend } from "./pendingSends.ts"
 import { markSteered, clearSteered } from "./steering.ts"
 
 let fallbackDeliverySequence = 0
@@ -191,6 +194,11 @@ export function sendEagerFollowUp(
   const deliveryId = newDeliveryId()
   beginEagerSubmission({
     optimistic: () => {
+      pendingSends.add({
+        deliveryId, apiBase: apiBase(), projectDir: store.board?.projectDir, slug,
+        sessionId: threadBySlug(store.board, slug)?.sessionId ?? "", message,
+        freshProcess: callbacks.freshProcess, interrupt: callbacks.interrupt, at: Date.now(),
+      })
       callbacks.onOptimistic?.()
       appendQueuedMessage(queryClient, slug, message, { scrollToBottom: callbacks.scrollToBottom, deliveryId })
       // The row is working again the instant the operator commits, not when the injection
@@ -202,8 +210,12 @@ export function sendEagerFollowUp(
     // between mount and send still binds the guarded followUp to the current session. Contention
     // refusals are retried in place — the composer only gets the message back once they are exhausted.
     request: () => enqueueThreadSend(slug, () => deliverFollowUp(slug, message, deliveryId, callbacks.freshProcess, callbacks.interrupt)),
-    success: () => callbacks.onSuccess?.(),
+    success: () => { pendingSends.remove(deliveryId); callbacks.onSuccess?.() },
     failure: (error) => {
+      // A reload aborting the request is not a failure: the entry stays for the next page to replay.
+      if (pageUnloading()) return
+      // The draft rollback below (drafts persist) is what carries a failed send across a reload.
+      pendingSends.remove(deliveryId)
       removeQueuedMessage(queryClient, slug, message, deliveryId)
       clearSteered(slug)
       callbacks.onRollback?.()
@@ -237,4 +249,58 @@ export function useEagerFollowUp(slug: string): {
     }), [queryClient, slug])
 
   return { submit, pending: pending > 0 }
+}
+
+/** Record a send in the in-flight ledger (lib/pendingSends.ts) for exactly as long as `run` is
+ *  unsettled — for a send path that is not `sendEagerFollowUp` (the All queues reply box). */
+export function trackPendingSend(send: PendingSend, run: () => Promise<void>): Promise<void> {
+  pendingSends.add(send)
+  return run().then(
+    () => pendingSends.remove(send.deliveryId),
+    (error: unknown) => {
+      if (!pageUnloading()) pendingSends.remove(send.deliveryId)
+      throw error
+    },
+  )
+}
+
+// ── replay after a reload ────────────────────────────────────────────────────────────────────────
+// Whatever lib/pendingSends.ts still holds at boot was on the wire when the last page went away, so
+// nobody knows whether it landed. Replay it under its ORIGINAL deliveryId, to the project it was sent
+// to: the server's delivery ledger turns an already-delivered id into a no-op. The delay lets a request
+// the reload orphaned finish server-side (and write its ledger row) before the replay asks.
+//
+// A replay that fails — or an entry too old to send unannounced — goes back into its thread's
+// composer draft, the same place a failed live send lands, rather than being dropped.
+export const PENDING_SEND_REPLAY_DELAY_MS = 2_000
+
+export function replayPendingSends(now: number = Date.now(), attempt: (send: PendingSend) => Promise<void> = replayAttempt): Promise<void> {
+  return Promise.all(pendingSends.list().map((send) => {
+    if (now - send.at > PENDING_SEND_MAX_AGE_MS) {
+      restorePendingSend(send, "was not confirmed before the page reloaded")
+      return Promise.resolve()
+    }
+    return enqueueThreadSend(send.slug, () => withDeliveryRetry(() => attempt(send), () => {})).then(
+      () => pendingSends.remove(send.deliveryId),
+      (error: unknown) => restorePendingSend(send, `could not be re-sent: ${error instanceof Error ? error.message : String(error)}`),
+    )
+  })).then(() => {})
+}
+
+function replayAttempt(send: PendingSend): Promise<void> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new Error("Frizz did not answer this send")), DELIVERY_SEND_TIMEOUT_MS)
+  const { slug, sessionId, message, deliveryId, freshProcess, interrupt } = send
+  return (rpcAtBase(send.apiBase).followUp(
+    { slug, sessionId, message, deliveryId, freshProcess, interrupt },
+    { signal: controller.signal },
+  ) as Promise<void>).finally(() => clearTimeout(timer))
+}
+
+function restorePendingSend(send: PendingSend, reason: string): void {
+  pendingSends.remove(send.deliveryId)
+  const key = draftKey.followUp(send.projectDir, send.slug, send.sessionId)
+  const existing = draftStore.get(key)
+  if (!existing.includes(send.message)) draftStore.set(key, existing ? `${send.message}\n\n${existing}` : send.message)
+  showToast(`A reply to ${send.slug} ${reason.slice(0, 160)} — it is back in that thread's prompt box`)
 }

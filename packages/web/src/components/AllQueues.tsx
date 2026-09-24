@@ -39,10 +39,11 @@ import { CROSS_PROJECT_PICK_STATE, rememberedCrossProjectFocus, useCrossProjectP
 import { draftKey, draftStore } from "../lib/drafts.ts"
 import { slugsInThreadDrawers, store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
-import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
+import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
 import { prefs } from "../lib/prefs.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
+import { registerQueueCursor } from "../lib/keyboardRuntime.ts"
 import { AllQueuesCard, crossProjectThreadHref, useOpenThreadInPlace } from "./AllQueuesCard.tsx"
 import { CommandQueueCard } from "./CommandQueueCard.tsx"
 import { ProjectSquare } from "./ProjectRail.tsx"
@@ -106,6 +107,7 @@ export function AllQueuesPage() {
   const unopened = projects.filter((project) => !project.open && !project.stale).length
   const scrollToCard = useScrollToCard()
   const activeKey = useScrollspy(projects, hidden)
+  useQueueKeys(activeKey, scrollToCard)
   const loading = (cards.isPending || queues.isPending) && !queues.data
   const lanes = projects.filter((project) => project.queued.some((t) => !hidden(threadKey(project.id, t.id))))
   // Below the page's stacking point the columns are one above the other, so the rail follows the lanes
@@ -559,7 +561,7 @@ function RailRow({
  * the live dot, the command in mono, and how the run stands where an agent row keeps its rest time.
  */
 function CommandRowBody({ command }: { command: NonNullable<ThreadView["command"]> }) {
-  const running = command.state === "running"
+  const running = commandLive(command)
   const failed = commandFailed(command)
   return (
     <>
@@ -868,24 +870,62 @@ function prefersSmooth(): ScrollBehavior {
 
 /**
  * A queue row's click: bring its card to the top of the lane and ring it — the board's own
- * scroll-to-card (store.ts scrollToQueueCard), for a page whose cards are keyed by project.
+ * scroll-to-card (store.ts scrollToQueueCard), for a page whose cards are keyed by project. Returns
+ * the scroll offset it landed on (null when the card is gone), which the keyboard's cursor holds on to.
  */
-function useScrollToCard(): (key: string) => void {
+function useScrollToCard(): (key: string) => number | null {
   return useCallback((key: string) => {
     const slot = document.querySelector<HTMLElement>(`[data-xq-card="${CSS.escape(key)}"]`)
-    if (!slot) return
+    if (!slot) return null
     // Below the lane's sticky header, which is ~44px tall.
-    const top = slot.getBoundingClientRect().top + window.scrollY - 56
-    window.scrollTo({ top: Math.max(0, top), behavior: prefersSmooth() })
+    const top = Math.max(0, slot.getBoundingClientRect().top + window.scrollY - 56)
+    window.scrollTo({ top, behavior: prefersSmooth() })
     const root = slot.querySelector<HTMLElement>("[data-xq-card-root]")
-    if (!root) return
+    if (!root) return top
     root.removeAttribute("data-queue-flash")
     // Re-arm on the next frame so a second click on the same row replays the ring.
     requestAnimationFrame(() => {
       root.setAttribute("data-queue-flash", "")
       window.setTimeout(() => root.removeAttribute("data-queue-flash"), 1100)
     })
+    return top
   }, [])
+}
+
+/**
+ * `j` / `k` and the card commands on this page (lib/keyboardRuntime.ts): the card being read is the one
+ * the rail marks, and a key lands on a card exactly as a rail row does. The landing is SMOOTH here, so
+ * for the length of the glide — and for as long as the page then stays where it put it — the target is
+ * held as the card being read; otherwise a quick `j j` would step twice from the card the glide was
+ * leaving and land on the same card again.
+ */
+function useQueueKeys(activeKey: string | null, scrollToCard: (key: string) => number | null): void {
+  const reading = useRef(activeKey)
+  reading.current = activeKey
+  const landing = useRef<{ key: string; y: number; until: number } | null>(null)
+  useEffect(() => registerQueueCursor({
+    keys: () => [...document.querySelectorAll<HTMLElement>('[data-xq-card][data-queue-leaving="false"]')]
+      .map((slot) => slot.dataset.xqCard ?? "")
+      .filter(Boolean),
+    current: () => {
+      const held = landing.current
+      // A held card that has since been finished or snoozed is not being read any more.
+      if (held && document.querySelector(`[data-xq-card="${CSS.escape(held.key)}"][data-queue-leaving="false"]`)) {
+        const reachable = Math.min(held.y, Math.max(0, document.documentElement.scrollHeight - window.innerHeight))
+        if (performance.now() < held.until || Math.abs(window.scrollY - reachable) <= 2) return held.key
+      }
+      landing.current = null
+      return reading.current
+    },
+    root: (key) => {
+      const slot = document.querySelector<HTMLElement>(`[data-xq-card="${CSS.escape(key)}"]`)
+      return slot?.querySelector<HTMLElement>("[data-xq-card-root], [data-queue-card-root]") ?? slot
+    },
+    go: (key) => {
+      const y = scrollToCard(key)
+      if (y !== null) landing.current = { key, y, until: performance.now() + 700 }
+    },
+  }), [scrollToCard])
 }
 
 /**

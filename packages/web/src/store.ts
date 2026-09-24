@@ -34,7 +34,7 @@ function queueCardSlot(slug: string): HTMLElement | null {
   if (typeof document === "undefined") return null
   return document.querySelector<HTMLElement>(`[data-queue-card="${CSS.escape(slug)}"]`)
 }
-function queueCardRoot(slug: string): HTMLElement | null {
+export function queueCardRoot(slug: string): HTMLElement | null {
   const el = queueCardSlot(slug)
   if (!el) return null
   return el.querySelector<HTMLElement>(`[data-queue-card-root="${CSS.escape(slug)}"]`) ?? el
@@ -108,6 +108,10 @@ export const store = proxy({
   controlPlaneRestartAttempt: null as RestartAttempt | null,
   showSettings: false,
   showPalette: false,
+  // The keyboard-shortcuts sheet (`?`, or the keyboard icon in the status row). Rendered by
+  // <KeyboardLayer/>, which every page shell mounts — so it opens on the board, Everything, the grid
+  // and /full alike.
+  showShortcuts: false,
   // The anywhere-modal behind the "New thread" pill (Gmail-compose style).
   showNewThread: false,
   // The GitHub picker modal (Issues/PRs tabs → multi-select → batch dispatch). Its trigger appears
@@ -276,6 +280,20 @@ function openOrRaiseDrawer(next: Omit<Drawer, "id" | "closing" | "openedAt">): v
 // place as the drawer slides off it. A doc drawer shows different content and does not hide the card.
 export function slugsInThreadDrawers(drawers: readonly Pick<Drawer, "kind" | "slug" | "closing">[]): Set<string> {
   return new Set(drawers.filter((d) => !d.closing && (d.kind === "thread" || d.kind === "terminal")).map((d) => d.slug))
+}
+
+// The THREAD the drawer stack is showing: the topmost live layer that belongs to one — its chat, its
+// doc, its terminal, or a sub-agent / shell drill-in (whose slug is the parent thread's). A markdown
+// layer names a FILE, so the walk passes under it to the thread it was opened from. A closing layer
+// does not count: its row lets go the moment the slide-out starts, as the URL does. The rail lights
+// this thread's row (Sidebar rowWashClass).
+export function drawerThreadSlug(drawers: readonly Pick<Drawer, "kind" | "slug" | "closing">[]): string | null {
+  for (let i = drawers.length - 1; i >= 0; i--) {
+    const d = drawers[i]
+    if (d.closing || d.kind === "markdown") continue
+    return d.slug
+  }
+  return null
 }
 
 export function pushDrawer(kind: "thread" | "doc" | "terminal", slug: string, opts?: { routed?: boolean }): void {

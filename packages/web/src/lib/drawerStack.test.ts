@@ -6,6 +6,7 @@ import {
   pushMarkdownDrawer,
   pushSubAgentDrawer,
   removeDrawerAfterExit,
+  drawerThreadSlug,
   slugsInThreadDrawers,
   store,
 } from "../store.ts"
@@ -120,4 +121,15 @@ test("slugsInThreadDrawers names live chat and terminal layers, not docs or clos
     { kind: "thread", slug: "sliding-out", closing: true },
   ])
   assert.deepEqual([...slugs].sort(), ["chat", "term"])
+})
+
+test("drawerThreadSlug names the thread the topmost live layer belongs to, passing under files and closing layers", () => {
+  assert.equal(drawerThreadSlug([]), null)
+  assert.equal(drawerThreadSlug([{ kind: "thread", slug: "chat" }]), "chat")
+  // A sub-agent drill-in belongs to its parent thread; a file opened from it names no thread at all.
+  assert.equal(drawerThreadSlug([{ kind: "thread", slug: "parent" }, { kind: "subagent", slug: "parent" }, { kind: "markdown", slug: "/repo/README.md" }]), "parent")
+  assert.equal(drawerThreadSlug([{ kind: "markdown", slug: "/repo/README.md" }]), null)
+  // A layer sliding out lets go at once, so its row does not stay lit under the next one.
+  assert.equal(drawerThreadSlug([{ kind: "thread", slug: "below" }, { kind: "terminal", slug: "leaving", closing: true }]), "below")
+  assert.equal(drawerThreadSlug([{ kind: "doc", slug: "plan-only" }]), "plan-only")
 })

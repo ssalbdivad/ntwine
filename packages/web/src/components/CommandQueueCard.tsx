@@ -19,8 +19,10 @@ const TerminalPane = lazy(() => import("./TerminalPane.tsx").then((m) => ({ defa
 // replay) instead of a transcript, and the terminal mark + mono command in the header, which is how a
 // command reads apart from an agent thread everywhere it appears.
 //
-// Only a finished run ever cards (the server's `needsYou`), so the pane never drives a live process
-// here and never fights the drawer over the pty's size.
+// A finished run cards, and so does a LIVE one sitting at a prompt (`awaitingInput` — an OTP, a
+// password, a [y/N]). That one's pane is the live pty, so the answer can be typed straight into the card,
+// and its verb is Stop rather than Restart; the follow-up box is withheld, since running a next command
+// would kill the one that is asking.
 //
 // PROJECT-SCOPED through api/threadApi.tsx: on a board it acts on the page's project, and under the All
 // queues page's `ThreadProjectScope` its Restart, its pty and its Mark as done all go to the card's own
@@ -35,16 +37,17 @@ export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve, onOp
   const command = thread.command
   const api = useThreadApi()
   const termBase = useThreadApiBase()
-  const [restarting, setRestarting] = useState(false)
+  const [pending, setPending] = useState<"restart" | "stop" | null>(null)
   if (!command) return null
   const failed = commandFailed(command)
-  const restart = () => {
-    if (restarting) return
-    setRestarting(true)
-    api
-      .commandRestart({ slug: thread.id })
-      .catch((error: unknown) => showToast(error instanceof Error ? error.message : "Could not restart this command"))
-      .finally(() => setRestarting(false))
+  const prompting = command.state === "running"
+  const act = (kind: "restart" | "stop") => {
+    if (pending) return
+    setPending(kind)
+    const call = kind === "stop" ? api.commandStop({ slug: thread.id }) : api.commandRestart({ slug: thread.id })
+    call
+      .catch((error: unknown) => showToast(error instanceof Error ? error.message : `Could not ${kind} this command`))
+      .finally(() => setPending(null))
   }
   return (
     <div
@@ -61,7 +64,7 @@ export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve, onOp
             <span className="mt-0.5 flex items-baseline gap-1.5 text-[11px] leading-tight text-muted-75">
               <span className={failed ? "text-danger-soft" : undefined}>{commandStateLabel(command)}</span>
               <span aria-hidden>·</span>
-              <LastActive at={command.exitedAt ?? command.startedAt} className="truncate" />
+              <LastActive at={command.exitedAt ?? thread.lastActivityAt ?? command.startedAt} className="truncate" />
             </span>
           </span>
         </button>
@@ -75,24 +78,26 @@ export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve, onOp
       </div>
       {/* The next command, as a rested agent's card takes its next prompt. Running it takes the thread out
           of the queue, so the drawer opens on the new run rather than leaving the human nowhere. */}
-      <div className="border-t border-border/70 bg-panel px-3 pt-2.5">
-        <CommandFollowUp slug={thread.id} lastCommand={command.command} onRan={onOpen ?? (() => openThread(thread.id))} />
-      </div>
+      {prompting ? null : (
+        <div className="border-t border-border/70 bg-panel px-3 pt-2.5">
+          <CommandFollowUp slug={thread.id} lastCommand={command.command} onRan={onOpen ?? (() => openThread(thread.id))} />
+        </div>
+      )}
       <footer
         aria-label="Thread lifecycle actions"
         className={`${BLOCK_RADIUS_INNER_BOTTOM} flex min-h-10 shrink-0 items-center justify-end ${STRIP_INK_GAP} bg-panel/95 px-3 py-2 text-[12px]`}
       >
         <button
           type="button"
-          data-command-restart
-          disabled={restarting}
-          onClick={restart}
+          {...(prompting ? { "data-command-stop": true } : { "data-command-restart": true })}
+          disabled={pending !== null}
+          onClick={() => act(prompting ? "stop" : "restart")}
           onMouseDown={(event) => event.preventDefault()}
           className="rounded-md border border-border-strong bg-panel-2/60 px-2.5 py-1 font-medium text-fg/80 transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-45"
         >
-          {restarting ? "Restarting…" : "Restart"}
+          {prompting ? (pending === "stop" ? "Stopping…" : "Stop") : pending === "restart" ? "Restarting…" : "Restart"}
         </button>
-        <StateButton thread={thread} onArchived={() => onResolve(thread.id)} onDismissCancel={() => onUnresolve(thread.id)} />
+        <StateButton thread={thread} onArchived={() => onResolve(thread.id)} onDismissCancel={() => onUnresolve(thread.id)} command />
       </footer>
     </div>
   )

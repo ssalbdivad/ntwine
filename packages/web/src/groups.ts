@@ -392,10 +392,10 @@ function hasLiveSubAgents(t: ThreadView): boolean {
 // that made that safe — deriveAwaitingBackground drops any fenced thread — stopped being true in three
 // steps: a parked PR watch (2026-08-13), a declared background park, and an ARMED TIMER (2026-08-24,
 // f50f9e60). The flag now means "at rest behind a declared wait the resting card should state", which
-// includes a park with NOTHING running behind it at all. See parkedOnArmedTimerAlone.
+// includes a park with NOTHING running behind it at all. See parkedOnRegistrationAlone.
 function hasLiveOps(t: ThreadView): boolean {
   if (hasLiveSubAgents(t)) return true
-  return t.awaitingBackground === true && !parkedOnArmedTimerAlone(t)
+  return t.awaitingBackground === true && !parkedOnRegistrationAlone(t)
 }
 
 // AN ARMED TIMER IS A PARK, NOT LIVE WORK — it is the archetypal Snoozed row, and it was the one park that
@@ -414,12 +414,27 @@ function hasLiveOps(t: ThreadView): boolean {
 // raw `bgShells` is safe in that direction where it would not be in hasLiveOps: this is already gated on
 // the server's own verdict and only ever keeps a thread OUT of Snoozed, so a stale shell costs a dimming,
 // never a disappearance — the same argument restingOnLiveBackgroundWork makes below.
-function parkedOnArmedTimerAlone(t: ThreadView): boolean {
+//
+// A FENCED GITHUB PARK JOINS IT (2026-09-24). The server now excuses an honoured ```awaiting park on a
+// registered PR or issue from the queue (board.hasHonouredGithubPark) — a watcher wake the worker answers
+// with "still waiting" was re-queuing a thread with nothing for the human to do. So `!needsYou` plus an
+// awaiting fence plus an armed GitHub watch is that verdict, and the row parks like a timer. Two
+// exceptions keep their old band: CI still RUNNING stays in Active under the spinning octocat
+// (prChecksRunning, maintainer 2026-09-20), and a registered watch with NO fence still queues server-side,
+// so `needsYou` keeps it out of here anyway.
+function parkedOnRegistrationAlone(t: ThreadView): boolean {
   if (t.awaitingBackground !== true) return false
   const watches = t.watches ?? []
-  if (!watches.some((w) => w.kind === "timer" && w.state === "armed")) return false
   if (hasLiveSubAgents(t) || (t.bgShells ?? []).some((s) => s.state === "running")) return false
-  return !watches.some((w) => w.kind === "github" && w.state === "armed")
+  const github = watches.some((w) => w.kind === "github" && w.state === "armed")
+  if (github) return !t.needsYou && fenceNamesGithub(t) && !prChecksRunning(t)
+  return watches.some((w) => w.kind === "timer" && w.state === "armed")
+}
+
+// The FENCE, not the registry: the server parks only on a `prs:`/`issues:` line it could honour, so a
+// timer-only fence beside a registered watch is not the GitHub park.
+function fenceNamesGithub(t: ThreadView): boolean {
+  return t.lastFence?.kind === "awaiting" && t.lastFence.hints.some((h) => (h.kind === "pr" || h.kind === "issue") && h.value.trim() !== "")
 }
 
 // The wait kinds that truthfully earn the parked/hourglass presentation. A timer is only a park while
@@ -950,6 +965,25 @@ export function partitionActive(active: readonly ThreadView[]): { running: Threa
     running: active.filter(inActiveBand),
     rested: active.filter((t) => !inActiveBand(t)),
   }
+}
+
+// THE BAND A THREAD'S STATE PUTS IT IN, by the names the rail's headers print rather than the section
+// keys above: READY is the cue (it has a queue card), WORKING the band below the rule, then SNOOZED,
+// DONE, and EXTERNAL for a terminal session Frizz does not own. The same derivation the rail's bands
+// run, so a surface that names the band — the drawer header's stamp — can never disagree with the band
+// the row actually sits in.
+//
+// It IGNORES THE PIN on purpose. A pin moves the row, never the state (see isPinned): a pinned thread
+// that is spinning is still Working, and the stamp says what the thread is doing, not where the human
+// shelved it. Legacy `.frizz` rows have no band (null), as they have no row.
+export type Band = "ready" | "working" | "snoozed" | "done" | "external"
+export function bandOf(t: ThreadView): Band | null {
+  if (t.kind === "session" && t.foreign === true) return "external"
+  const section = sectionOf(t)
+  if (section === "inactive") return "done"
+  if (section === "snoozed") return "snoozed"
+  if (section === "active") return inActiveBand(t) ? "working" : "ready"
+  return null
 }
 
 // Partition threads into the thread-derived sidebar sections. `active` is the Active+Rested section and

@@ -76,6 +76,7 @@ import {
   SetThreadProfileResult,
   DispatchPreferences,
   SetDispatchPreferenceInput,
+  type Backend,
   ListInteractionsInput,
   ListInteractionsResult,
   GetInteractionInput,
@@ -815,6 +816,39 @@ function isHumanTurn(m: TranscriptMessage): boolean {
 }
 
 export function createRouter(ctx: AppContext) {
+  // ONE DELIVERY PER deliveryId. The ledger guard inside `followUp` (`hasDelivery`) is not enough for a
+  // broker thread, on two counts, both measured 2026-09-24 against a real broker worker with the
+  // page-reload replay (web lib/pendingSends.ts) as the repeat:
+  //
+  //   · it only sees a send once the handler has RETURNED, and a cold resume holds the handler open for
+  //     seconds after the text is already in the worker;
+  //   · the tailer PRUNES a delivered item from the ledger as soon as its JSONL record lands, so a
+  //     repeat after that finds nothing either.
+  //
+  // Either way the daemon got the same SDK input uuid twice, refused the second as "already
+  // outstanding", and that refusal came back as a "dropped" diagnostic that TOMBSTONED the delivery —
+  // the agent had read the message and the transcript hid it. So a repeat of an id still in flight
+  // joins the first attempt, and one this process already delivered is a no-op. The memory is bounded
+  // and dies with the process; a repeat across a server restart still has the ledger's own guard.
+  const inflightFollowUps = new Map<string, Promise<void>>()
+  const deliveredFollowUps = new Set<string>()
+  const DELIVERED_FOLLOW_UP_MEMORY = 1_000
+  function joinInflightFollowUp(slug: string, deliveryId: string | undefined, run: () => Promise<void>): Promise<void> {
+    if (!deliveryId) return run()
+    const key = `${slug}\u0000${deliveryId}`
+    if (deliveredFollowUps.has(key)) return Promise.resolve()
+    const inflight = inflightFollowUps.get(key)
+    if (inflight) return inflight
+    const attempt = run()
+      .then(() => {
+        deliveredFollowUps.add(key)
+        if (deliveredFollowUps.size > DELIVERED_FOLLOW_UP_MEMORY) deliveredFollowUps.delete(deliveredFollowUps.values().next().value!)
+      })
+      .finally(() => inflightFollowUps.delete(key))
+    inflightFollowUps.set(key, attempt)
+    return attempt
+  }
+
   const frizzDir = join(ctx.project.dir, ".frizz")
   // Roots for the file-OPEN action + the inline-code path classifier (see openableFileRoots): shared so
   // a path the resolver blesses is exactly a path the open action will accept.
@@ -824,6 +858,23 @@ export function createRouter(ctx: AppContext) {
   // been planted independently and is never a readable or writable extension of that session.
   function isAutoTitledSession(slug: string): boolean {
     return ctx.storage.getSession(slug)?.title_auto === 1
+  }
+
+  // A profile the operator picks on one thread is also the NEXT thread's profile: one control, one
+  // memory, and the most recent pick wins wherever it was made (the prompt box, the GitHub picker, or
+  // here). Only this RPC — the operator's own control — writes through; a worker choosing a model for
+  // `spawn_thread` never touches the record. Best-effort: the thread's own change has already landed,
+  // and a record that refuses the pair must not turn that success into an error.
+  function rememberThreadProfile(backend: Backend, model: string, effort?: string): void {
+    try {
+      ctx.setDispatchPreference(
+        SetDispatchPreferenceInput.parse({ field: "profile", backend, model, ...(effort ? { effort } : {}) }),
+        readCodexModels(),
+      )
+    } catch {
+      // The pair already passed the thread's own validation; a refusal here leaves the prompt box on its
+      // previous profile, which is still a valid one.
+    }
   }
 
   function assertLegacyMutationAllowed(slug: string): void {
@@ -1782,7 +1833,7 @@ export function createRouter(ctx: AppContext) {
 
     followUp: mutation({
       input: FollowUpInput,
-      handler: async ({ input }) => {
+      handler: ({ input }) => joinInflightFollowUp(input.slug, input.deliveryId, async () => {
         // Every follow-up crosses a TYPED CONTROL CHANNEL now, never a terminal: a codex row goes to the
         // app-server bridge and a claude row to the session broker, each of which owns its own
         // steer-vs-start decision and reconnects or cold-resumes a dead session itself. Nothing types
@@ -2105,7 +2156,7 @@ export function createRouter(ctx: AppContext) {
           appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message })
         }
         ctx.board.refresh()
-      },
+      }),
     }),
 
     // Take a queued follow-up BACK — the operator clicked their own gray bubble to unqueue it and get
@@ -2339,12 +2390,14 @@ export function createRouter(ctx: AppContext) {
           }
           ctx.storage.setProfile(input.slug, input.model, "")
           const live = ctx.acpBridge ? await ctx.acpBridge.setModel(input.slug, profRow.session_id, acpModelIdFromModel(input.model)) : { applied: false }
+          rememberThreadProfile("acp", input.model)
           ctx.board.refresh()
           return { effect: live.applied ? "applied" as const : "next-resume" as const }
         }
         if (!input.effort) throw new Error(`effort is required for a ${profRow?.backend ?? "claude"} thread`)
         if (profRow?.backend === "codex") {
           ctx.storage.setProfile(input.slug, input.model, input.effort)
+          rememberThreadProfile("codex", input.model, input.effort)
           ctx.board.refresh()
           return { effect: "next-resume" as const }
         }
@@ -2355,6 +2408,7 @@ export function createRouter(ctx: AppContext) {
         // transport it served.
         validateThreadProfile("claude", input.model, input.effort)
         ctx.storage.setProfile(input.slug, input.model, input.effort)
+        rememberThreadProfile("claude", input.model, input.effort)
         ctx.board.refresh()
         return { effect: "next-resume" as const }
       },
@@ -2408,11 +2462,13 @@ export function createRouter(ctx: AppContext) {
     setThreadState: mutation({
       input: z.object({ slug: ThreadSlug, state: z.enum(["open", "archived"]) }).strict(),
       handler: async ({ input }) => {
-        // A terminal command thread shares the lifecycle (command-threads.ts). Only a FINISHED run can
-        // be marked done: one still running is live work, and filing it under Done would hide it.
+        // A terminal command thread shares the lifecycle (command-threads.ts). Marking a RUNNING one done
+        // stops it first, so nothing live is filed under Done. It used to refuse instead, which left a
+        // run parked at a 2FA prompt — queued as waiting for input, card showing Mark as done — with a
+        // button that only answered "Stop the command before marking it done" (maintainer 2026-09-24).
         const command = ctx.commandRunner.threads().find((t) => t.id === input.slug)
         if (command) {
-          if (input.state === "archived" && command.command?.state === "running") throw new Error("Stop the command before marking it done")
+          if (input.state === "archived" && command.command?.state === "running") await ctx.commandRunner.stop(input.slug)
           ctx.storage.setCommandThreadState(input.slug, input.state)
           ctx.board.refresh()
           return
