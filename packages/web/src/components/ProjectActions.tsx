@@ -9,7 +9,7 @@
 import * as RadixDialog from "@radix-ui/react-dialog"
 import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Loader2 } from "lucide-react"
 import { useNavigate } from "react-router"
 import { PROJECT_ICON_EXTENSIONS, slugify, type ProjectCard } from "@frizz/shared"
@@ -466,4 +466,71 @@ export function useAddProject(proposed?: string): { start: () => void; pending: 
 /** The home directory, from the registry's own paths — only ever used to shorten a path for display. */
 export function homeOf(projects: readonly { path: string }[] | undefined): string | undefined {
   return projects?.[0]?.path.match(/^(\/(?:Users|home)\/[^/]+)\//u)?.[1]
+}
+
+/**
+ * The mark, at the size where it is legible AS a mark.
+ *
+ * Measured against the shipped favicon at 40 / 56 / 76 / 96: it is five fibers pulling loose from a
+ * wrapped bundle, and below ~70px the strands collapse into a silhouette that reads as a HAND. 76 is
+ * the first size where the bundle's wrap and the gaps between strands both survive.
+ */
+const MARK_PX = 76
+
+/**
+ * A machine with no projects — the one time the home page has nothing to list, so it says what a project
+ * is and offers the one thing to do. The add button is dashed and never filled: an affordance, not a
+ * project.
+ */
+export function Welcome({ add }: { add: { start: () => void; pending: boolean } }) {
+  return (
+    // m-auto rather than justify-center: a centred flex column clips its overflow at the top once the
+    // content is taller than the viewport, and auto margins centre while still scrolling from the top.
+    <div data-home-welcome className="m-auto flex w-full max-w-[420px] flex-col items-center gap-2.5 px-6 py-14 text-center">
+      <img src="/favicon.svg" width={MARK_PX} height={MARK_PX} alt="" className="rounded-[17px]" />
+      <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">Welcome to Frizz</h1>
+      <p className="text-[13px] leading-relaxed text-muted">
+        A project is a folder on this machine. Frizz keeps one board of threads per project.
+      </p>
+      <button
+        type="button"
+        onClick={add.start}
+        disabled={add.pending}
+        className="mt-4 flex min-h-[96px] w-full max-w-[360px] flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-muted outline-none transition-colors hover:border-accent hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-60"
+      >
+        <span className="text-[17px] leading-none text-muted-70">+</span>
+        <span className="text-[12.5px]">{add.pending ? "Choosing a folder…" : "Add a project"}</span>
+      </button>
+      {/* Not "it registers itself": since the launcher stopped adopting unknown folders, running it in
+          one sends you here with the folder proposed (`/?add=<dir>`), and nothing is written until yes. */}
+      <p className="mt-4 text-[11.5px] text-muted-70">
+        Or run{" "}
+        <code className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-muted">frizz</code>{" "}
+        in any folder.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * What the address bar brought with it to the home page, read ONCE and stripped — each belongs to this
+ * arrival, and left in the URL it would re-ask on every reload.
+ *
+ *  - `?add=<dir>` is the LAUNCHER asking: running `frizz` in an unknown folder does not adopt it, it
+ *    sends the operator here to say yes. Returned, for `useAddProject` to open pre-filled.
+ *  - `?unknown=<slug>` is the SERVER saying it sent a page here rather than let it hang: a
+ *    `/project/<x>` nobody has would otherwise render the app, 404 every call, and sit on its boot
+ *    spinner forever (index.ts `unknownProjectPage`). A URL that silently turns into the home page reads
+ *    as Frizz having swallowed it, so it says what happened.
+ */
+export function useHomeArrival(): string | undefined {
+  const [proposed] = useState(() => new URLSearchParams(location.search).get("add") ?? undefined)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const unknown = params.get("unknown")
+    if (!params.has("add") && !unknown) return
+    history.replaceState(history.state, "", location.pathname)
+    if (unknown) showToast(`No project named ${unknown}`, { duration: 7000 })
+  }, [])
+  return proposed
 }
