@@ -199,11 +199,22 @@ function ProjectPicker({ projects, focus, onPick }: { projects: QueuesProject[];
           data-xq-project-picker
           title={`New threads start in ${name}`}
           aria-label={`New threads start in ${name}. Choose a project`}
-          className="-mr-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-fg/90 outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:bg-hover data-[state=open]:text-fg"
+          className="-mr-1.5 flex min-w-0 items-baseline gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-fg/90 outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:bg-hover data-[state=open]:text-fg"
         >
-          {current && <ProjectSquare project={current.card ?? fallbackCard(current)} size={14} />}
+          {/* ON THE NAME'S CAP BAND, not the line box's centre: centred as boxes, the square and the chevron
+              both sat 1.06px below the name's ink (sans). Neither has a baseline of its own (the square's
+              monogram is absolutely placed), so each sits ON the baseline and is lowered by half its height
+              less half a cap — computed by the browser, so it holds in any font at any size. */}
+          {current && (
+            <span className="flex shrink-0 self-baseline translate-y-[calc(7px_-_0.5cap)]">
+              <ProjectSquare project={current.card ?? fallbackCard(current)} size={14} />
+            </span>
+          )}
           <span data-xq-picker-name className="min-w-0 truncate">{name}</span>
-          <ChevronDown size={12} aria-hidden className="shrink-0 text-muted" />
+          {/* -3.5px: the 12px chevron is half dead box, so the flex gap alone drew 9.84px of ink after the
+              name against 6.16px before it (sans, measured with scripts/ink-gaps.mjs). Now ~6.3px, the
+              model picker's own label-to-chevron rhythm (ProfileGridSelector, 6.69px). */}
+          <ChevronDown size={12} aria-hidden className="-ml-[3.5px] shrink-0 self-baseline translate-y-[calc(0.5em_-_0.5cap)] text-muted" />
         </button>
       </MenuTrigger>
       <MenuContent align="end">
@@ -337,11 +348,12 @@ function FocusedComposer({
   }, [ready, autoFocus, onFocused])
   if (!ready) {
     // The form's own two rows — the tab row, with the picker at its end so the operator can always aim
-    // somewhere else, and the box — at the form's heights (measured, the prompt tab at rest).
+    // somewhere else, and the box — at the form's heights (measured in sans, the prompt tab at rest:
+    // 23.42 + 6 + 130 = 159.42px), so nothing below moves when the real form replaces it.
     return (
       <div data-xq-composer-pending className="flex w-full flex-col gap-1.5">
-        <div className="flex h-[22px] min-w-0 items-center justify-end">{target}</div>
-        <div className="flex h-[90px] items-center justify-center rounded-xl border border-border/60 bg-bg px-6 text-center text-[12px] leading-snug text-muted-70">
+        <div className="flex h-[23.42px] min-w-0 items-baseline justify-end">{target}</div>
+        <div className="flex h-[130px] items-center justify-center rounded-xl border border-border/60 bg-bg px-6 text-center text-[12px] leading-snug text-muted-70">
           {slow && (
             <span>
               {project && !project.open ? `${project.name} is not open on this server. ` : `${project?.name ?? focus ?? "This project"} has not answered yet. `}

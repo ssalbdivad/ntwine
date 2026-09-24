@@ -67,9 +67,11 @@ export function DispatchForm({
   }
   return (
     <div data-dispatch-form className="w-full flex flex-col gap-1.5">
-      <div className="flex min-w-0 items-center gap-2">
+      {/* BASELINE, not centre: the tabs are bordered chips and the picker a bare label, so centring their
+          boxes left the two texts 0.64px apart; the eye reads the words, and the words share a line. */}
+      <div className="flex min-w-0 items-baseline gap-2">
         <DispatchTabs mode={mode} onChange={(next) => { setSwitchedByKey(false); setMode(next) }} />
-        {target && <div className="ml-auto flex min-w-0 items-center">{target}</div>}
+        {target && <div className="ml-auto flex min-w-0 items-baseline">{target}</div>}
       </div>
       {mode === "prompt" ? (
         <PromptForm autoFocus={autoFocus || switchedByKey} onDispatched={onDispatched} onTerminal={() => switchByKey("terminal")} />
