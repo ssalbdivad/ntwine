@@ -4317,3 +4317,25 @@ test("tailer: an ACP row past the discovery grace with no transcript yet is NOT 
   assert.equal(t.get("t")?.turn, "idle")
   assert.equal(t.get("t")?.lastAssistant, "DONE")
 })
+
+// A registered done outlives the human's next word only while the worker has not RUN anything since
+// (board.registeredDoneFence), so both backends have to fold the instant of the newest tool call — and
+// only a tool call: prose must never move it, or a chat reply would read as new work.
+test("lastToolCallAt: advanced by a tool call on either backend, never by prose", () => {
+  const s = newTailState("t", "sid", "/x")
+  applyRecord(s, {
+    type: "assistant",
+    timestamp: "2026-07-01T00:00:01.000Z",
+    message: { stop_reason: "tool_use", content: [{ type: "text", text: "checking" }, { type: "tool_use", id: "tu_1", name: "Bash", input: {} }] },
+  })
+  applyRecord(s, {
+    type: "assistant",
+    timestamp: "2026-07-01T00:00:05.000Z",
+    message: { stop_reason: "end_turn", content: [{ type: "text", text: "just talking" }] },
+  })
+  assert.equal(s.lastToolCallAt, "2026-07-01T00:00:01.000Z")
+  const c = newTailState("t", "sid", "/x")
+  applyEvent(c, { kind: "tool-call", at: "2026-07-01T00:00:02.000Z", id: "c1", name: "shell", input: {} })
+  applyEvent(c, { kind: "assistant-text", at: "2026-07-01T00:00:03.000Z", text: "just talking", final: true })
+  assert.equal(c.lastToolCallAt, "2026-07-01T00:00:02.000Z")
+})

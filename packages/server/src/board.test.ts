@@ -2204,9 +2204,23 @@ test("the human SENDING MORE WORK spends it — that is when a completion stops 
   const done = { body: "done", doneAt: Date.parse("2026-08-27T01:00:00.000Z") }
   // Their last word came BEFORE the sign-off: the completion is the newer statement and it stands.
   assert.equal(registeredDoneFence(done, "2026-08-27T00:59:00.000Z")?.kind, "done")
-  // Their last word came AFTER it: there is new work, so the thread is not finished any more. No sweep
-  // clears the row — it simply stops being honoured, which is also what makes reopening one free.
-  assert.equal(registeredDoneFence(done, "2026-08-27T01:00:01.000Z"), undefined)
+  // Their last word came AFTER it and the worker RAN SOMETHING for it: there is new work, so the thread is
+  // not finished any more. No sweep clears the row — it simply stops being honoured, which is also what
+  // makes reopening one free.
+  assert.equal(registeredDoneFence(done, "2026-08-27T01:00:01.000Z", "2026-08-27T01:00:03.000Z"), undefined)
+})
+
+test("a reply that only TALKS keeps the done standing; the first tool call spends it", () => {
+  // "what the fuck are tipup and trapline lol" after a finished effort: the worker answers in prose, and
+  // that is conversation about finished work — not a bare rest to card or nudge (maintainer 2026-09-24).
+  const done = { body: "done", doneAt: Date.parse("2026-08-27T01:00:00.000Z") }
+  const asked = "2026-08-27T01:05:00.000Z"
+  // No tool call at all, or only the ones that led up to the sign-off (the `done` call itself among them).
+  assert.equal(registeredDoneFence(done, asked)?.kind, "done")
+  assert.equal(registeredDoneFence(done, asked, "2026-08-27T00:59:59.000Z")?.kind, "done")
+  // The reply ran a tool: the message was work, and the completion stops being true mid-turn, before the
+  // worker has rested — so a bare rest after it is a real one and still draws the card and the nudge.
+  assert.equal(registeredDoneFence(done, asked, "2026-08-27T01:05:02.000Z"), undefined)
 })
 
 test("a same-instant tie stands, because the two instants come off DIFFERENT clocks", () => {

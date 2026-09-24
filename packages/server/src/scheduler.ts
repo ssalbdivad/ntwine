@@ -596,10 +596,10 @@ function saidDone(tele: Pick<SessionTelemetry, "lastFence" | "lastAssistantAllDo
 function threadSaidDone(
   storage: Storage,
   slug: string,
-  tele: Pick<SessionTelemetry, "lastFence" | "lastAssistantAllDone" | "lastUserAt" | "lastAssistantAt">,
+  tele: Pick<SessionTelemetry, "lastFence" | "lastAssistantAllDone" | "lastUserAt" | "lastToolCallAt" | "lastAssistantAt">,
   armedAt?: string | null,
 ): boolean {
-  const registered = registeredDoneFence(storage.getThreadDone(slug), tele.lastUserAt) !== undefined
+  const registered = registeredDoneFence(storage.getThreadDone(slug), tele.lastUserAt, tele.lastToolCallAt) !== undefined
   const fenced = saidDone(tele)
   if (!registered && !fenced) return false
   return !armReopenedTheLoop(storage, slug, tele, registered, fenced, armedAt)
@@ -1960,7 +1960,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       if (
         tele.lastFence ||
         tele.pendingQuestion ||
-        registeredDoneFence(deps.storage.getThreadDone(row.slug), tele.lastUserAt) !== undefined ||
+        registeredDoneFence(deps.storage.getThreadDone(row.slug), tele.lastUserAt, tele.lastToolCallAt) !== undefined ||
         questionRows.some((q) => q.state === "open") ||
         answersInFlight(questionRows, tele.lastUserAt, row.recurring_on_rest === 1 && Boolean(row.recurring_prompt?.trim())) !== undefined ||
         deps.storage.listThreadWatches(row.slug, { armedOnly: true }).length > 0

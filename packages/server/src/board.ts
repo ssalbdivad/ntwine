@@ -1314,10 +1314,21 @@ export function resolveSessionTitle(
 export function registeredDoneFence(
   done: { body: string; doneAt: number } | undefined,
   lastUserAt: string | undefined,
+  lastToolCallAt?: string,
 ): FenceView | undefined {
   if (!done) return undefined
   const userAt = lastUserAt ? Date.parse(lastUserAt) : Number.NaN
-  if (Number.isFinite(userAt) && userAt > done.doneAt) return undefined
+  // THE HUMAN'S NEXT WORD REOPENS THE THREAD ONLY IF THE WORKER DID SOMETHING WITH IT. A question about
+  // finished work ("what the fuck are tipup and trapline lol") answered in prose is conversation, and
+  // withdrawing the done over it drew "Rested without a sign-off" under a perfectly good reply and armed
+  // the nudge to make the worker file a second done card for a chat answer (maintainer 2026-09-24: "is
+  // there a reason this should ever happen?"). A tool call after the done is the line: running anything
+  // means the message was new work, and the done stops standing the moment the tailer sees it — so a
+  // worker that starts a new task and rests bare is still nudged, which is what the nudge exists for.
+  if (Number.isFinite(userAt) && userAt > done.doneAt) {
+    const toolAt = lastToolCallAt ? Date.parse(lastToolCallAt) : Number.NaN
+    if (Number.isFinite(toolAt) && toolAt > done.doneAt) return undefined
+  }
   // `registered` is the one thing the transcript needs that the fence it replaces never carried: a fenced
   // done is drawn from the message that holds it, and this one is in no message, so the client draws it
   // at the bottom of the thread itself (ChatView, showsRegisteredDoneCard). Every predicate ignores it.
@@ -1467,7 +1478,7 @@ function sessionThreadView(
     lastAssistant: providerError?.message, lastAssistantAt: providerError?.at,
     lastFence: undefined, lastAssistantAllDone: false,
   } : rawTele
-  const done = supersededDone || providerError ? undefined : registeredDoneFence(registries.done.get(row.slug), rawTele?.lastUserAt)
+  const done = supersededDone || providerError ? undefined : registeredDoneFence(registries.done.get(row.slug), rawTele?.lastUserAt, rawTele?.lastToolCallAt)
   const tele: SessionTelemetry | undefined = done && failedTele ? { ...failedTele, lastFence: done } : failedTele
   // A headless thread mid-turn with nobody driving it is a crash/stall, not a rest. For codex that is
   // an app-server that stopped advancing the rollout; for the broker it is a dead ownerless daemon (its

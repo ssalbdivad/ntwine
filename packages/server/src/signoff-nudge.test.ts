@@ -266,6 +266,25 @@ for (const [what, arrange] of [
   })
 }
 
+// A CHAT REPLY AFTER A DONE IS NOT A BARE REST (maintainer 2026-09-24, on "what the fuck are tipup and
+// trapline lol" drawing "Rested without a sign-off" under the answer). The human spoke after the done, but
+// the worker only talked back — so the done still stands. The control is the same rest with a tool call
+// after the done: that reply was work, and it is nudged as ever.
+test("a prose-only reply to the human after a registered done is not nudged; one that ran a tool is", async () => {
+  const doneAt = Date.parse("2026-08-12T00:00:00.000Z")
+  const chat = { lastUserAt: "2026-08-12T00:05:00.000Z", lastAssistantAt: "2026-08-12T00:05:04.000Z" }
+  const talked = nudger({ ...chat, lastToolCallAt: "2026-08-11T23:59:59.000Z" })
+  const worked = nudger({ ...chat, lastToolCallAt: "2026-08-12T00:05:02.000Z" })
+  try {
+    for (const h of [talked, worked]) {
+      h.storage.markThreadDone(h.slug, "- **Shipped** it", doneAt)
+      await h.s.tick()
+    }
+    assert.deepEqual(talked.nudges(), [])
+    assert.equal(worked.nudges().length, 1)
+  } finally { talked.close(); worked.close() }
+})
+
 // AND THE MOMENT THE HUMAN ANSWERS, EVERY GUARD ABOVE OPENS. The row leaves `open`, the done row is
 // still absent, no watch was ever armed — so on the next tick this thread looked exactly like one that
 // had rested saying nothing, and the nudge went out while the answer was still in the outbox. The

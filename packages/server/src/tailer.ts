@@ -1873,6 +1873,10 @@ export function applyRecord(state: TailState, rec: Record): void {
       // question flag: set per assistant text, cleared by any user record below.
       state.lastFence = parseSignalFence(raw)
     }
+    if (typeof rec.timestamp === "string" && Array.isArray(rec.message?.content)
+      && rec.message.content.some((b: unknown) => (b as { type?: unknown } | null)?.type === "tool_use")) {
+      state.lastToolCallAt = rec.timestamp
+    }
     trackDispatches(state, rec) // register any background Agent dispatches + background shells
     trackAsk(state, rec) // capture a pending native AskUserQuestion (frozen at a TUI dialog)
   } else if (type === "user" && !metaUserRec) {
@@ -2064,6 +2068,7 @@ export function applyEvent(state: FoldState, ev: NormalizedEvent): void {
       // tool activity is mid-turn (a user-message re-open already cleared any prior-turn fence, and the
       // final message recomputes it), so a normalized backend must not let tool motion excuse a fence.
       state.sawRecords = true
+      if (ev.kind === "tool-call" && typeof ev.at === "string") state.lastToolCallAt = ev.at
       break
     case "agent-report":
     case "agent-instruction":
@@ -5052,7 +5057,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // thread has no row and reads as legacy, which is what `questionFencesLive` does with unknown.
       const pendingQuestion = s.lastAssistantHasQuestion && questionFencesLive(row?.spawned_at)
       const nowMs = now()
-      return { turn: s.turn, permPrompt: s.permPrompt, permPolicy: s.permPolicy, permDenies: s.permDenies, model: s.model, effort: s.effort, profileAt: s.profileAt, profileRevision: s.profileRevision, permissionMode: s.permissionMode, permissionModeAt: s.permissionModeAt, permissionModeRevision: s.permissionModeRevision, lastActivityAt: s.lastActivityAt, lastAssistantAt: s.lastAssistantAt, lastAssistant: s.lastAssistant, aiTitle: s.aiTitle, customTitle: s.customTitle, customTitleRevision: s.customTitleRevision, subAgents: subAgentViews(s, nowMs), droppedReports: [...s.queuedReports.values()], bgShells: [...bgShellViews(s), ...codexBgShellViews(s)], retiredShells: retiredShellViews(s), pendingAsk: s.pendingAsk, pendingQuestion, lastAssistantAllDone: s.lastAssistantAllDone, lastUserAt: s.lastUserAt, lastUserText: s.lastUserText, firstUserText: s.firstUserText, lastFence: s.lastFence, noTranscript: s.noTranscript, authFault: s.authFault, apiFault: s.apiFault, providerError: s.providerError, limitFault: s.limitFault, contextTokens: s.contextTokens, contextWindow: s.contextWindow, lastCompactionAt: s.lastCompactionAt }
+      return { turn: s.turn, permPrompt: s.permPrompt, permPolicy: s.permPolicy, permDenies: s.permDenies, model: s.model, effort: s.effort, profileAt: s.profileAt, profileRevision: s.profileRevision, permissionMode: s.permissionMode, permissionModeAt: s.permissionModeAt, permissionModeRevision: s.permissionModeRevision, lastActivityAt: s.lastActivityAt, lastAssistantAt: s.lastAssistantAt, lastAssistant: s.lastAssistant, aiTitle: s.aiTitle, customTitle: s.customTitle, customTitleRevision: s.customTitleRevision, subAgents: subAgentViews(s, nowMs), droppedReports: [...s.queuedReports.values()], bgShells: [...bgShellViews(s), ...codexBgShellViews(s)], retiredShells: retiredShellViews(s), pendingAsk: s.pendingAsk, pendingQuestion, lastAssistantAllDone: s.lastAssistantAllDone, lastUserAt: s.lastUserAt, lastToolCallAt: s.lastToolCallAt, lastUserText: s.lastUserText, firstUserText: s.firstUserText, lastFence: s.lastFence, noTranscript: s.noTranscript, authFault: s.authFault, apiFault: s.apiFault, providerError: s.providerError, limitFault: s.limitFault, contextTokens: s.contextTokens, contextWindow: s.contextWindow, lastCompactionAt: s.lastCompactionAt }
     },
     // The CURRENT fresh foreign session ids (mtime within FOREIGN_FRESH_MS, capped), mtime-desc. Kept
     // as the last scan's result — recomputed at most every FOREIGN_SCAN_EVERY ticks.

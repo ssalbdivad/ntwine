@@ -101,6 +101,7 @@ export interface NormalizedTail {
   lastAssistant?: string
   aiTitle?: string
   lastUserAt?: string
+  lastToolCallAt?: string // ISO8601 of the agent's newest tool call — what tells a reply that did WORK from one that only talked
   lastUserText?: string // latest genuine human message (used to confirm wake-token delivery)
   // The FIRST genuine human turn. Read by the board to NAME an external session whose harness has not
   // named it — see foreignThreadView. Optional everywhere: a transcript with no human turn has none.
@@ -164,6 +165,10 @@ export interface FoldState {
   // guarded separately by storage's title_auto CAS).
   autoTitleSource?: "fallback" | "frizz" | "native"
   lastUserAt?: string // ISO8601 of the newest GENUINE (non-synthetic) human turn — the listing sort key
+  // ISO8601 of the agent's newest TOOL CALL. A registered done outlives the human's next word only while
+  // nothing newer than it is a tool call — a reply that only talked is conversation about finished work,
+  // one that ran a tool is new work (board.registeredDoneFence).
+  lastToolCallAt?: string
   lastUserText?: string // exact text of that genuine human turn when the backend records it
   // The FIRST genuine human turn, kept forever — set once and never overwritten. It is what names an
   // EXTERNAL session (one of the human's own terminals) when its harness has not named it: both
