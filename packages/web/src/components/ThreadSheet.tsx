@@ -266,6 +266,9 @@ export function ThreadSheet({ id, slug, depth, widthDepth, initiallyOpen }: { id
           // return target (store.primeFullscreenReturn), the panel wears the name in its first
           // commit, so the /full column has somewhere to morph back into.
           data-vt-chat
+          // The keyboard runtime's handle on this layer (see ui/Sheet.tsx) — `e` / `h` / `r` / `f`
+          // press the controls inside the top one.
+          data-drawer-layer={id}
           className={`fixed right-0 top-0 overflow-hidden outline-none ${SHEET_PANEL_CLASS} ${shown ? "translate-x-0" : "translate-x-full"}`}
           style={{ zIndex: 51 + depth * 2, width: sheetWidth(widthDepth), viewTransitionName: drawerSnap.vtReturnTarget === slug ? "thread-chat" : undefined }}
         >

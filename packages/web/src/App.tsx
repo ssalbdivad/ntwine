@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { useQuery } from "@tanstack/react-query"
-import { closeGithubPicker, store, seedBoard, pushDrawer, resolveRoutedThread, topDrawer, topThreadSlug, showToast } from "./store.ts"
+import { closeGithubPicker, store, seedBoard, openNewThread, pushDrawer, resolveRoutedThread, topDrawer, topThreadSlug, showToast } from "./store.ts"
 import { useBoard } from "./hooks.ts"
 import { closeDrawerAnimated } from "./lib/overlays.ts"
+import { useShortcut } from "./lib/keyboardRuntime.ts"
 import { takeScrollAfterUnlock } from "./lib/pageScrollLock.ts"
 import { startRouter } from "./lib/router.ts"
 import { nextSidebarPresence, readSidebarMirror, writeSidebarMirror, type SidebarPresence } from "./lib/sidebarPresence.ts"
@@ -15,7 +16,7 @@ import { MobileBoard } from "./components/MobileBoard.tsx"
 import { useIsMobile } from "./lib/mobile.ts"
 import { DrawerStack } from "./components/DrawerStack.tsx"
 import { TodosView } from "./components/TodosView.tsx"
-import { NewThreadDialog } from "./components/NewThreadModal.tsx"
+import { NewThreadDialog, preferDispatchMode, type DispatchMode } from "./components/NewThreadModal.tsx"
 import { GithubPickerModal } from "./components/GithubPickerModal.tsx"
 import { useGithubStatus } from "./components/GithubTrigger.tsx"
 import { SettingsDrawer } from "./components/SettingsDrawer.tsx"
@@ -46,6 +47,28 @@ function maybeShowSignInHint() {
   if (signInHintShown) return
   signInHintShown = true
   showToast("Sign in to the GitHub CLI (`gh auth login`) to dispatch from issues/PRs.", { duration: 6000 })
+}
+
+// The new-thread keys: `c` for a prompt, `t` for a terminal command. With the page in front of you the
+// prompt box at the top of the rail IS the new-thread door (on a fresh board, the same box centered), so
+// the key presses that box's own tab and puts the caret in it. With a drawer over the page the rail sits
+// behind its scrim, so the anywhere-modal opens on that tab instead and the drawer stays where it was —
+// Gmail's compose window over the conversation you were reading.
+function openDispatch(mode: DispatchMode): void {
+  if (!store.drawers.some((drawer) => !drawer.closing)) {
+    const form = [...document.querySelectorAll<HTMLElement>("[data-dispatch-form]")].find((el) => !el.closest('[role="dialog"]'))
+    if (form) {
+      const tab = form.querySelector<HTMLElement>(`[data-dispatch-tab="${mode}"]`)
+      if (tab?.getAttribute("aria-selected") !== "true") tab?.click()
+      // After the tab's own render: switching tabs mounts the other box.
+      requestAnimationFrame(() => {
+        form.querySelector<HTMLElement>(mode === "prompt" ? '[data-surface="newComposer"]' : '[data-surface="commandComposer"]')?.focus()
+      })
+      return
+    }
+  }
+  preferDispatchMode(mode)
+  openNewThread()
 }
 
 export function App() {
@@ -147,7 +170,7 @@ export function App() {
 
   // While ANY overlay is open (thread sheet, doc drawer, settings, new-thread modal, palette), the
   // PAGE must not scroll — only the overlay's own pane does.
-  const overlayOpen = snap.drawers.length > 0 || snap.showSettings || snap.showNewThread || snap.showGithubPicker || snap.showPalette
+  const overlayOpen = snap.drawers.length > 0 || snap.showSettings || snap.showNewThread || snap.showGithubPicker || snap.showPalette || snap.showShortcuts
   useEffect(() => {
     // Scroll lock via the body-fixed dance, NOT overflow:hidden on the root — hiding root overflow
     // dropped the scrollbar (and with it the layout width) every time a drawer opened. With the
@@ -194,46 +217,43 @@ export function App() {
     if (github.data?.inRepo && !github.data.authed) maybeShowSignInHint()
   }, [github.data?.inRepo, github.data?.authed])
 
-  // THE KEYBOARD MODEL (post-machine): the sidebar is mouse-driven and text surfaces own their own
-  // keys, so the app-level keyboard reduces to global chords + Esc unwinding:
-  //   ⌘K palette (its "New thread" item opens the modal) · ⌘I frizz-doc drawer for the topmost thread
-  //   NOTE: no ⌘N binding. ⌘N is the BROWSER's new-window shortcut — reserved, and ours to leave
-  //   alone. Hijacking it either loses to the browser outright (a plain tab never delivers the event)
-  //   or, in a standalone/PWA window, steals a system shortcut the user expects. New-thread keeps
-  //   three doors that cost us nothing: ⌘K → "New thread", the sidebar pill, and the visible composer.
+  // THE KEYBOARD MODEL. The sidebar is mouse-driven and text surfaces own their own keys; on top of
+  // that sits ONE rebindable shortcut layer (lib/keybindings.ts for the defaults and why each one,
+  // lib/keyboardRuntime.ts for how a key reaches its act, `?` for the sheet). This board registers the
+  // actions only it can serve — the palette, settings, thread details and the new-thread door — and
+  // the runtime handles the card keys (j/k, e, h, r, f) against whatever the reader is looking at.
+  //   NOTE: no ⌘N. It is the BROWSER's new-window shortcut — reserved, and ours to leave alone.
+  //   Hijacking it either loses to the browser outright (a plain tab never delivers the event) or, in
+  //   a standalone/PWA window, steals a system shortcut the user expects. New thread is `c` instead
+  //   (Gmail's compose), plus ⌘K → "New thread", and the always-visible prompt box.
   //   Esc — overlays first (palette/modal/settings), then the drawer stack topmost-first. That chain
-  //   belongs to <DrawerStack> (the standalone /full page needs the identical unwinding), so only the
-  //   chords are handled here.
-  //   ⌘/Ctrl-Enter submits in a composer; every other Enter newlines (Composer's own handler)
+  //   belongs to <DrawerStack> (the standalone /full page needs the identical unwinding), and it is
+  //   deliberately NOT rebindable: Esc is how every layer in the app is left.
+  //   Enter / Shift-Enter / ⌘-Enter belong to the composer (lib/composerKeyboard.ts).
   // (The xstate focus machine — nav selection, arrow-walk, chevron, step-in/out, focus registry — was
-  // DELETED when the sidebar went mouse-only: the queue is always visible, clicking a row opens its
-  // drawer, and a composer's Esc simply blurs it. No virtual focus, no zombie states.)
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      // The terminal is a native TUI surface. Its Escape/arrows/control keys and slash-menu input
-      // belong to xterm, never to Frizz's drawer/global shortcut layer.
-      if (e.target instanceof Element && e.target.closest(".xterm")) return
-      if (!(e.metaKey || e.ctrlKey)) return
-      const key = e.key.toLowerCase()
-      if (key === "k") {
-        e.preventDefault()
-        store.showPalette = !store.showPalette
-      } else if (key === "i") {
-        // ⌘I: frizz document for the topmost open thread (stacks another layer / pops its own).
-        const top = topDrawer()
-        const target = topThreadSlug()
-        if (top?.kind === "doc") {
-          e.preventDefault()
-          if (!closeDrawerAnimated(top.id)) store.drawers.pop()
-        } else if (target) {
-          e.preventDefault()
-          pushDrawer("doc", target)
-        }
-      }
+  // DELETED when the sidebar went mouse-only. The card keys do not bring it back: there is no virtual
+  // focus, only the card the rail's reading marker already points at.)
+  useShortcut("app.palette", () => {
+    store.showPalette = !store.showPalette
+  })
+  useShortcut("app.details", () => {
+    // The frizz document for the topmost open thread (stacks another layer / pops its own).
+    const top = topDrawer()
+    const target = topThreadSlug()
+    if (top?.kind === "doc") {
+      if (!closeDrawerAnimated(top.id)) store.drawers.pop()
+      return
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
+    if (!target) return false
+    pushDrawer("doc", target)
+  })
+  // ⌘, OPENS settings and leaves closing to Esc, the way it brings a Mac app's preferences forward
+  // rather than toggling them — and so that DrawerStack stays the one place a layer is closed from.
+  useShortcut("app.settings", () => {
+    store.showSettings = true
+  })
+  useShortcut("app.newThread", () => openDispatch("prompt"))
+  useShortcut("app.newTerminal", () => openDispatch("terminal"))
 
   const board = useBoard()
   // The phone gets its own shell. Everything BELOW the layout — the drawer stack, the modals, the

@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
 import { AlarmClock, ChevronDown, Loader2 } from "lucide-react"
 import { SNOOZE_PROMPT_MAX, type ThreadView } from "@frizz/shared"
@@ -17,6 +17,7 @@ import {
 import { showToast } from "../store.ts"
 import { prefs } from "../lib/prefs.ts"
 import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
+import { useCommandHandler, useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 import { Dialog } from "./ui/Dialog.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 
@@ -35,6 +36,30 @@ export function SnoozeButton({ thread, onSnoozed }: { thread: ThreadView; onSnoo
   const selectedLabel = snoozePresetLabel(selectedPreset)
   const selectedAction = snoozePresetAction(selectedPreset)
   const minCustom = useMemo(() => localDateTimeInputValue(new Date(Date.now() + 60_000)), [customOpen])
+  // THE `h` SHORTCUT OPENS THE PRESET MENU, not the one-click snooze beside it: how long to put a
+  // thread off is a choice, and Superhuman's H and Linear's H — the keys this one is copied from — both
+  // open a picker too. The menu opens on the REMEMBERED preset, so `h` then Enter is the same act as
+  // clicking the quick button, and ↑/↓ (or typing its first character) picks another.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const openedByKey = useRef(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const snoozeKeys = useShortcutLabel("thread.snooze")
+  useCommandHandler(triggerRef, () => {
+    if (busy) return
+    openedByKey.current = true
+    setMenuOpen(true)
+  })
+  useEffect(() => {
+    if (!menuOpen || !openedByKey.current) return
+    openedByKey.current = false
+    // One frame: Radix mounts the content and moves focus to its first item on open; this then moves
+    // it to the remembered preset. Only one menu can be open when a plain key fires (the runtime
+    // ignores them while any menu is up), so the lookup cannot land in another card's menu.
+    const frame = requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[role="menu"] [data-value="${selectedPreset}"]`)?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [menuOpen, selectedPreset])
 
   // `prompt` is what upgrades a park into a scheduled BUMP: the server arms a durable wake that resumes
   // this thread with exactly that text at `until`. null keeps the historical reminder behavior.
@@ -103,13 +128,15 @@ export function SnoozeButton({ thread, onSnoozed }: { thread: ThreadView; onSnoo
           {snoozedUntil ? "Wake now" : selectedAction}
         </button>
         <span aria-hidden className="my-1 w-px bg-border" />
-        <Menu>
+        <Menu open={menuOpen} onOpenChange={setMenuOpen}>
           <MenuTrigger asChild>
             <button
+              ref={triggerRef}
               type="button"
               disabled={busy}
+              data-command="snooze"
               aria-label="Snooze options"
-              title={`Selected snooze: ${selectedLabel}`}
+              title={withShortcut(`Selected snooze: ${selectedLabel}`, snoozeKeys)}
               className="flex min-w-0 items-center justify-center gap-1 rounded-r-md px-2 text-fg/75 outline-none transition-colors hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:cursor-not-allowed disabled:opacity-45"
             >
               <ChevronDown size={12} />
@@ -117,7 +144,7 @@ export function SnoozeButton({ thread, onSnoozed }: { thread: ThreadView; onSnoo
           </MenuTrigger>
           <MenuContent align="end">
             {SNOOZE_PRESETS.map((preset) => (
-              <MenuItem key={preset.value} onSelect={() => applyPreset(preset.value)} icon={<AlarmClock size={12} />}>
+              <MenuItem key={preset.value} value={preset.value} onSelect={() => applyPreset(preset.value)} icon={<AlarmClock size={12} />}>
                 <span className="flex min-w-0 flex-1 items-center justify-between gap-4">
                   <span>{preset.label}</span>
                   <span className="text-[10px] text-muted-55">{preset.detail}</span>

@@ -5,6 +5,7 @@ import { useThreadApi, useThreadIsForeignToPage } from "../api/threadApi.tsx"
 import { showToast } from "../store.ts"
 import { threadLifecycleAvailability, completionArchivesImmediately, completionHoldSummary } from "../lib/threadLifecycle.ts"
 import { markArchived, clearArchived } from "../lib/optimisticArchive.ts"
+import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 import { futureSnoozedUntil } from "../groups.ts"
 import { formatAgo } from "../lib/durationLabels.ts"
 import { formatSnoozeWake } from "../lib/snooze.ts"
@@ -86,7 +87,7 @@ export function ThreadLifecycleFooter({
       ) : (
         <>
           {available.snooze && <SnoozeButton thread={thread} onSnoozed={onSnoozed} />}
-          <StateButton thread={thread} onArchived={onArchived} onDismissCancel={onDismissCancel} />
+          <StateButton thread={thread} onArchived={onArchived} onDismissCancel={onDismissCancel} command />
         </>
       )}
     </footer>
@@ -190,6 +191,7 @@ export function StateButton({
   onDismissCancel,
   className = "rounded-md border border-border-strong bg-panel-2/60 px-2.5 py-1 text-[12px] text-fg/80 hover:bg-panel-2 hover:text-fg",
   iconClassName = "",
+  command = false,
 }: {
   thread: ThreadView
   onArchived?: () => void
@@ -206,6 +208,9 @@ export function StateButton({
   // keeps its own 12px scale and needs none; the in-card copy runs at the shared 11px card-action
   // scale and passes ICON_LABEL_NUDGE. Neither surface should guess on the other's behalf.
   iconClassName?: string
+  // THE copy the `e` shortcut presses (lib/keyboardRuntime.ts). Only a footer's copy sets it: the
+  // in-chat ```done card renders a second one, and the key must find exactly one per surface.
+  command?: boolean
 }) {
   // Disables the instant it's clicked. On success we DON'T reset it: the card is dissolving, so the
   // button stays disabled (still reading "Mark as done", no spinner) for the whole fade-out rather
@@ -292,6 +297,7 @@ export function StateButton({
       })
   }
   const canOptimistic = !!onArchived && !!onDismissCancel && completionArchivesImmediately(thread)
+  const doneKeys = useShortcutLabel("thread.done")
   return (
     <>
       <button
@@ -301,7 +307,8 @@ export function StateButton({
         onClick={() => complete(false, canOptimistic)}
         disabled={pending}
         aria-label="Mark as done"
-        title="Mark as done"
+        title={command ? withShortcut("Mark as done", doneKeys) : "Mark as done"}
+        data-command={command ? "done" : undefined}
         onMouseDown={(event) => event.preventDefault()}
         className={`flex items-center gap-1 font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-45 ${className}`}
       >

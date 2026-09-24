@@ -1566,3 +1566,39 @@ html[data-vt-door="expand"]::view-transition-old(thread-chat) {
     animation: none !important;
   }
 }
+
+/* THE KEYBOARD SHORTCUTS SHEET (components/KeyboardShortcuts.tsx). A key being recorded BREATHES — an
+   accent ring swelling and settling, the way a field waiting for input does — so the row plainly says
+   "press something"; a refused key SHAKES (no, and the reason sits beside it); a key that lands
+   POPS, overshooting a touch and settling, with its row washing accent and fading. A swap pops both
+   rows, which is how the operator sees that a second action moved. Reduced motion keeps the static
+   ring and drops the rest: the status line at the foot says the same thing in words. */
+@keyframes kbd-listen {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent); }
+}
+@keyframes kbd-pop {
+  0% { transform: scale(0.82); opacity: 0.4; }
+  55% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes kbd-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+@keyframes kbd-row-flash {
+  from { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+  to { background: transparent; }
+}
+.kbd-listening { animation: kbd-listen 1.3s ease-in-out infinite; }
+.kbd-pop { animation: kbd-pop 280ms cubic-bezier(0.2, 0.9, 0.3, 1.25); }
+.kbd-shake { animation: kbd-shake 300ms ease-in-out; }
+.kbd-row-flash { animation: kbd-row-flash 1.1s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .kbd-listening { animation: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 22%, transparent); }
+  .kbd-pop, .kbd-shake { animation: none; }
+  .kbd-row-flash { animation: none; }
+}

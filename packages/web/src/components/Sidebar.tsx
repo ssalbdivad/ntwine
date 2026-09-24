@@ -4,7 +4,8 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
 import { AlarmClock, Bot, Check, ChevronRight, CircleDashed, Ellipsis, ExternalLink, Github, Hourglass, Inbox, Loader2, Pin, PinOff, RotateCcw, SquareCheck, TerminalSquare, Timer } from "lucide-react"
 import type { BoardSnapshot, ThreadView } from "@frizz/shared"
-import { store, openThread, scrollToQueueCard, queueCardTargetY, pushSubAgentDrawer, showToast, QUEUE_CARD_VIEWPORT_TOP } from "../store.ts"
+import { store, openThread, scrollToQueueCard, queueCardRoot, queueCardTargetY, pushSubAgentDrawer, showToast, QUEUE_CARD_VIEWPORT_TOP } from "../store.ts"
+import { registerQueueCursor } from "../lib/keyboardRuntime.ts"
 import { rpc } from "../api/rpc.ts"
 import { useBoard, asThreads } from "../hooks.ts"
 import { prefs } from "../lib/prefs.ts"
@@ -192,6 +193,26 @@ export function Sidebar() {
     pendingNavigation.current = { id, landedY: queueCardTargetY(id) ?? window.scrollY }
     setActiveId(id)
   }, [])
+
+  // THE KEYBOARD READS THIS SAME MARKER. `j` / `k` step from the card this rail says is being read and
+  // land exactly as a row click does (scroll, ring, pin), and `e` / `h` / `r` / `f` act on that card —
+  // so the highlighted row is always the card a key will touch. The ref is written synchronously on a
+  // key's own landing because the state above only settles a frame later, and a quick `j j` must step
+  // from where the first press went, not from where the page was.
+  const readingRef = useRef(activeId)
+  readingRef.current = activeId
+  useEffect(() => registerQueueCursor({
+    keys: () => [...document.querySelectorAll<HTMLElement>('[data-queue-card][data-queue-leaving="false"]')]
+      .map((element) => element.dataset.queueCard ?? "")
+      .filter(Boolean),
+    current: () => readingRef.current,
+    root: (id) => queueCardRoot(id),
+    go: (id) => {
+      if (!scrollToQueueCard(id)) return
+      readingRef.current = id
+      navigateToQueueCard(id)
+    },
+  }), [navigateToQueueCard])
 
   return (
     // HEIGHT MODEL: a sticky, exactly viewport-height wrapper that CENTERS the inner column, which
@@ -824,7 +845,7 @@ export const ThreadRow = memo(function ThreadRow({
               is the strip's last mark and its 11px ink already sits 10.5px from Retry. RE-MEASURE rather
               than re-guess if a glyph, its size or the gap changes. */}
           {!foreign && !pinned && <RowPinButton t={t} className="-mr-0.5" />}
-          <ExpandThreadLink slug={t.id} size={12} className={ROW_ACTION_CLASS} />
+          <ExpandThreadLink slug={t.id} size={12} className={ROW_ACTION_CLASS} keyHint={false} />
           {canRestart && <RowRetryButton slug={t.id} />}
           {!foreign && pinned && <RowPinButton t={t} />}
         </div>

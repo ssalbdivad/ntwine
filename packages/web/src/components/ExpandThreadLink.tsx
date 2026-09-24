@@ -7,6 +7,7 @@ import { prefersReducedMotion } from "../lib/sheet.ts"
 import { isPlainLeftClick, standaloneThreadHref } from "../lib/standaloneThreadRoute.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { Tooltip } from "./Tooltip.tsx"
+import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 
 // THE FULLSCREEN DOOR — one affordance, three surfaces (the sidebar row on hover, the queue card's
 // action strip, the drawer header), all opening the thread's `/full` page. It replaced the ↗
@@ -22,8 +23,17 @@ import { Tooltip } from "./Tooltip.tsx"
 // clear that used to sit here (the fullscreen page mounts the same DrawerStack and would paint the
 // thread's own sheet over itself) moved to StandaloneRoute: the old page is snapshotted two renders
 // AFTER this click, so a click-time clear removed the very sheet the transition slides.
-export function ExpandThreadLink({ slug, size = 14, className, label = "Open fullscreen" }: { slug: string; size?: number; className?: string; label?: string }) {
+export function ExpandThreadLink({ slug, size = 14, className, label = "Open fullscreen", keyHint = true }: {
+  slug: string
+  size?: number
+  className?: string
+  label?: string
+  /** Name the `f` key in the tooltip. Off on the rail's row door: the key opens the card being READ,
+   *  and a rail row's thread is not necessarily that one. */
+  keyHint?: boolean
+}) {
   const href = standaloneThreadHref(slug)
+  const keys = useShortcutLabel("thread.fullscreen")
   function onClick(event: MouseEvent<HTMLAnchorElement>) {
     // Never let the click reach the row/card underneath: the sidebar row would ALSO open its drawer.
     event.stopPropagation()
@@ -54,11 +64,14 @@ export function ExpandThreadLink({ slug, size = 14, className, label = "Open ful
     spaNavigate(href, { viewTransition: animate })
   }
   return (
-    <Tooltip label={label}>
+    <Tooltip label={keyHint ? withShortcut(label, keys) : label}>
       <a
         href={href}
         aria-label={label}
         data-expand-thread={slug}
+        // The `f` shortcut presses this (lib/keyboardRuntime.ts) — the same click, view transition
+        // and all. Only the copy inside the surface you are reading is found; a rail row's is not.
+        data-command="fullscreen"
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
         onClick={onClick}
         className={className ?? HEADER_ICON_CLASS}

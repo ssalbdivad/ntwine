@@ -24,7 +24,13 @@ import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.
 // Which tab the prompt box was last on. Module-level so every mount of the box (the rail, the empty
 // board, the anywhere-modal) opens where the human left it for the rest of the tab's life.
 let lastDispatchMode: DispatchMode = "prompt"
-type DispatchMode = "prompt" | "terminal"
+export type DispatchMode = "prompt" | "terminal"
+
+/** The tab the NEXT prompt box mounts on — how the `t` key opens the anywhere-modal straight onto
+ *  Terminal (a mounted box is switched by pressing its tab instead; see App's new-thread keys). */
+export function preferDispatchMode(mode: DispatchMode): void {
+  lastDispatchMode = mode
+}
 
 // THE prompt box, in two tabs: PROMPT starts an agent thread, TERMINAL runs a shell command in the
 // project directory as a thread of its own whose drawer is the live terminal (`npm run dev`, a test
@@ -42,13 +48,22 @@ export function DispatchForm({
     lastDispatchMode = next
     setModeState(next)
   }
+  // SWITCHING FROM THE KEYBOARD keeps the caret in the box. Claude Code's own convention, which is the
+  // one every operator of this app already has in their fingers: `!` as the first character turns the
+  // prompt into a shell command (its "bash mode"), and Backspace in the empty command box turns it back.
+  // The tab that mounts then takes focus; a tab CLICKED with the mouse leaves focus where it was.
+  const [switchedByKey, setSwitchedByKey] = useState(false)
+  const switchByKey = (next: DispatchMode) => {
+    setMode(next)
+    setSwitchedByKey(true)
+  }
   return (
-    <div className="w-full flex flex-col gap-1.5">
-      <DispatchTabs mode={mode} onChange={setMode} />
+    <div data-dispatch-form className="w-full flex flex-col gap-1.5">
+      <DispatchTabs mode={mode} onChange={(next) => { setSwitchedByKey(false); setMode(next) }} />
       {mode === "prompt" ? (
-        <PromptForm autoFocus={autoFocus} onDispatched={onDispatched} />
+        <PromptForm autoFocus={autoFocus || switchedByKey} onDispatched={onDispatched} onTerminal={() => switchByKey("terminal")} />
       ) : (
-        <CommandForm autoFocus={autoFocus} onDispatched={onDispatched} />
+        <CommandForm autoFocus={autoFocus || switchedByKey} onDispatched={onDispatched} onPrompt={() => switchByKey("prompt")} />
       )}
     </div>
   )
@@ -82,7 +97,7 @@ function DispatchTabs({ mode, onChange }: { mode: DispatchMode; onChange: (mode:
 // The TERMINAL tab: one shell command, run by the server in a pty in the project directory. A command
 // thread is a thread like any other, so starting one behaves exactly like dispatching a prompt: you
 // stay where you are, the row appears in Running, and the toast's link opens its terminal drawer.
-function CommandForm({ autoFocus, onDispatched }: { autoFocus?: boolean; onDispatched?: () => void }) {
+function CommandForm({ autoFocus, onDispatched, onPrompt }: { autoFocus?: boolean; onDispatched?: () => void; onPrompt?: () => void }) {
   const projectDir = useProjectDir()
   const homeDir = useSnapshot(store).board?.homeDir
   const [command, setCommand, clearCommand] = useDraft(draftKey.command(projectDir))
@@ -120,6 +135,13 @@ function CommandForm({ autoFocus, onDispatched }: { autoFocus?: boolean; onDispa
             if (e.key === "Escape") {
               e.stopPropagation()
               e.currentTarget.blur()
+              return
+            }
+            // Backspace in an EMPTY command box leaves Terminal for Prompt — how Claude Code leaves bash
+            // mode (DispatchForm has the whole convention).
+            if (e.key === "Backspace" && !command && onPrompt) {
+              e.preventDefault()
+              onPrompt()
               return
             }
             // A command is one line: Enter runs it, and Shift-Enter is not a newline worth offering.
@@ -164,9 +186,12 @@ function CommandForm({ autoFocus, onDispatched }: { autoFocus?: boolean; onDispa
 function PromptForm({
   autoFocus,
   onDispatched,
+  onTerminal,
 }: {
   autoFocus?: boolean
   onDispatched?: () => void
+  /** `!` typed into the EMPTY box: switch to Terminal instead of writing it (see DispatchForm). */
+  onTerminal?: () => void
 }) {
   // The one durable new-thread profile, shared with the GitHub picker's own selector.
   const { resolved, codexList, acpList, loadError: profileLoadError, saveProfile } = useDispatchProfile()
@@ -353,7 +378,12 @@ function PromptForm({
         surface="newComposer"
         autoFocus={autoFocus}
         value={prompt}
-        onChange={setPrompt}
+        // Read off the value rather than a keydown so every way of producing the `!` — a layout that
+        // shifts for it, an IME, a paste of the one character — switches alike.
+        onChange={(next) => {
+          if (onTerminal && !prompt && next === "!") onTerminal()
+          else setPrompt(next)
+        }}
         onSubmit={submit}
         placeholder="Describe the task…"
         minHeight={96}

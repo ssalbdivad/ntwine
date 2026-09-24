@@ -6,6 +6,8 @@ import { STATUS_ROW_ACTION, STATUS_ROW_ICON } from "../lib/statusRow.ts"
 import { projectIdentity } from "./Sidebar.tsx"
 import { QuotaChips, useQuotaChipsVisible } from "./QuotaBar.tsx"
 import { RestartFrizzButton } from "./RestartFrizzButton.tsx"
+import { KeyboardShortcutsButton } from "./KeyboardShortcuts.tsx"
+import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 
 // THE STATUS ROW — one loose line along the TOP OF THE PROMPT BOX, controls at the left edge and the
 // project at the right:
@@ -106,6 +108,7 @@ export function StatusRow() {
   // BoardSnapshot), which is exactly the case where a link to github.com is a right destination. The
   // display label alone cannot decide this — a GitLab origin yields an owner/repo there too.
   const githubRepo = board?.githubRepo ?? null
+  const settingsKeys = useShortcutLabel("app.settings")
 
   const name = identity.state === "verified" ? identity.label : identity.state === "local" ? identity.name : null
   const accessibleName =
@@ -147,12 +150,14 @@ export function StatusRow() {
       <button
         type="button"
         aria-label="Settings"
-        title="Settings"
+        title={withShortcut("Settings", settingsKeys)}
         className={STATUS_ROW_ACTION}
         onClick={() => (store.showSettings = true)}
       >
         <SettingsIcon size={STATUS_ROW_ICON} aria-hidden="true" />
       </button>
+      {/* The keyboard shortcuts sheet — also `?` from anywhere, which its title names. */}
+      <KeyboardShortcutsButton />
       {/* Renders null on a supervisor that can't restart — the gap collapses and the row stays even. */}
       <RestartFrizzButton />
       {quotaVisible && (

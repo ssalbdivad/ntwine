@@ -8,6 +8,7 @@ import { StandaloneThreadPage } from "./components/StandaloneThreadPage.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { GithubHovercards } from "./components/GithubHovercards.tsx"
 import { Toaster } from "./components/Toaster.tsx"
+import { KeyboardLayer } from "./components/KeyboardShortcuts.tsx"
 import { applyPath, registerNavigate } from "./lib/router.ts"
 import { innerPath } from "./lib/base-path.ts"
 import { feedIsBoundTo, rebindProject } from "./api/socket.ts"
@@ -69,6 +70,9 @@ function RootLayout() {
           board, in a drawer and on the standalone `/thread/<slug>/full` page alike, and one delegated
           listener at the root covers all three. Inert until a pointer rests on a reference. */}
       <GithubHovercards />
+      {/* The keyboard shortcuts and their sheet (`?`), for every page under the layout — the grid and
+          Everything as much as a board. /full mounts its own copy, since it sits outside this layout. */}
+      <KeyboardLayer />
     </TooltipProvider>
   )
 }
@@ -189,6 +193,8 @@ function StandaloneRoute() {
           copy-a-code-block control — whose only feedback is a toast, which until now had nowhere to
           go here. Skipping the rail does not mean skipping the feedback. */}
       <Toaster />
+      {/* Its own for the same reason: `e`, `h`, `r` and `f` (which leaves) work on this thread too. */}
+      <KeyboardLayer />
     </>
   )
 }

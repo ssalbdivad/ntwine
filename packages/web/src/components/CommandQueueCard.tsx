@@ -97,7 +97,7 @@ export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve, onOp
         >
           {prompting ? (pending === "stop" ? "Stopping…" : "Stop") : pending === "restart" ? "Restarting…" : "Restart"}
         </button>
-        <StateButton thread={thread} onArchived={() => onResolve(thread.id)} onDismissCancel={() => onUnresolve(thread.id)} />
+        <StateButton thread={thread} onArchived={() => onResolve(thread.id)} onDismissCancel={() => onUnresolve(thread.id)} command />
       </footer>
     </div>
   )

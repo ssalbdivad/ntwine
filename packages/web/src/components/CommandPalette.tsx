@@ -71,6 +71,9 @@ export function CommandPalette() {
             <Item value="open settings preferences" onSelect={() => run(() => (store.showSettings = true))}>
               Open settings
             </Item>
+            <Item value="keyboard shortcuts keys hotkeys keybindings rebind" onSelect={() => run(() => (store.showShortcuts = true))}>
+              Keyboard shortcuts
+            </Item>
             {selected && (
               <>
                 <Item

@@ -33,7 +33,7 @@ function queueCardSlot(slug: string): HTMLElement | null {
   if (typeof document === "undefined") return null
   return document.querySelector<HTMLElement>(`[data-queue-card="${CSS.escape(slug)}"]`)
 }
-function queueCardRoot(slug: string): HTMLElement | null {
+export function queueCardRoot(slug: string): HTMLElement | null {
   const el = queueCardSlot(slug)
   if (!el) return null
   return el.querySelector<HTMLElement>(`[data-queue-card-root="${CSS.escape(slug)}"]`) ?? el
@@ -107,6 +107,10 @@ export const store = proxy({
   controlPlaneRestartAttempt: null as RestartAttempt | null,
   showSettings: false,
   showPalette: false,
+  // The keyboard-shortcuts sheet (`?`, or the keyboard icon in the status row). Rendered by
+  // <KeyboardLayer/>, which every page shell mounts — so it opens on the board, Everything, the grid
+  // and /full alike.
+  showShortcuts: false,
   // The anywhere-modal behind the "New thread" pill (Gmail-compose style).
   showNewThread: false,
   // The GitHub picker modal (Issues/PRs tabs → multi-select → batch dispatch). Its trigger appears
