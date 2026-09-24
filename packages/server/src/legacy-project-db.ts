@@ -419,7 +419,7 @@ export function migrateLegacyProjectDatabase(db: Database): void {
   // `fray-<slug>` is a row whose next write is rejected. The one-time migration that fixed this was
   // deleted once the projects in use had been converted — but ten project databases had simply not
   // been opened since, carrying fourteen threads between them, and a project nobody opened for a week
-  // is exactly what a machine-wide project grid now invites you to open.
+  // is exactly what a machine-wide project list now invites you to open.
   //
   // It lives here rather than in a migration module because it is idempotent and self-limiting: the
   // LIKE matches nothing once a database has been through it, so it costs one no-op scan per boot and

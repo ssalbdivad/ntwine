@@ -227,8 +227,8 @@ export function projectFromRegistryEntry(
   const name = entry.name ?? basename(entry.path) ?? entry.path
   const stateDir = projectStateDir(entry.id, home)
   // CREATE IT, exactly as resolveProject does for the launching project. A registry entry is not
-  // proof that this project has ever been opened: `projectAdd` (the grid's "Add a project", and the
-  // rail's) registers an id and writes the index without opening anything, and backfill can register
+  // proof that this project has ever been opened: `projectAdd` (the cross-project page's "Add a project",
+  // and the rail's) registers an id and writes the index without opening anything, and backfill can register
   // from a checkout too. SQLite will not create `ui.db` under a directory that does not exist, so
   // without this the tenant fails to activate with "unable to open database file" — and because
   // tenants.ts reports activation failures rather than throwing, the whole thing surfaced as a bare

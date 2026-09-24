@@ -68,8 +68,8 @@ export function useCrossProjectPick(): string | null {
 
 /**
  * The project `/` focuses: the remembered one if it is still registered and its directory still exists,
- * else the most recently opened such project, else none (no usable project — the grid is the only page
- * that can help, since it is where a project is added).
+ * else the most recently opened such project, else none (no usable project — `/` then shows the welcome
+ * page, where one is added).
  *
  * `openIds`, when known, narrows that to projects whose board this server has open: a project another
  * Frizz serves, or one that failed to open, can be focused but never takes a thread, and landing on it

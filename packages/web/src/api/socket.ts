@@ -79,7 +79,8 @@ let feedProject: string | undefined
 let feedBound = false
 
 // A FRAME DROPPED BECAUSE THE PAGE HAS LEFT IS NEWS THE PROJECT'S BOARD NEVER GOT, so the feed stops
-// vouching for that board. Leaving a board for a page that names no project — the grid, All queues —
+// vouching for that board. Leaving a board for a page that names no project — All queues and the project
+// grid, when this was written; `/`'s welcome page now —
 // keeps the connection on purpose (coming straight back is then free), but every frame that arrives
 // meanwhile is discarded below, and the board in the store stays exactly as it was when the page left.
 // All queues is where that bites: the operator marks the project's threads done THERE, the deltas that

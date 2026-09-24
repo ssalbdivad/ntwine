@@ -146,7 +146,7 @@ test("nothing from the project the page has left reaches the UI", async () => {
     assert.equal(store.board, null, "alpha's keyframe must not land on beta's page")
 
     // 2b. …AND A DROPPED FRAME IS NEWS THE BOARD NEVER GOT. Leaving a board for a page that names no
-    //     project (the grid, All queues) keeps the feed so that coming straight back is free — but a
+    //     project (All queues and the grid, when this was written) keeps the feed so that coming straight back is free — but a
     //     frame that arrives meanwhile is dropped, and the board in the store is then stale. All queues
     //     acts on the project's threads while its deltas are being dropped, so the return must rebind.
     here.pathname = "/project/alpha"

@@ -37,7 +37,7 @@ export interface RegistryEntry {
   /** Operator's display override, if they renamed it. */
   name?: string
   lastOpenedAt: string
-  /** Hidden from the grid without forgetting it — throwaway repos should not be permanent fixtures. */
+  /** Hidden from the project list without forgetting it — throwaway repos should not be permanent fixtures. */
   archived?: boolean
   /**
    * Absolute path to this project's icon — inside the project when detected, inside its state dir
@@ -253,12 +253,12 @@ export function registerProject(
   return { entry, action: "created" }
 }
 
-/** Most recently opened first — the order a grid wants. `stale` marks a path that is gone. */
+/** Most recently opened first — the order a project list wants. `stale` marks a path that is gone. */
 /**
  * Seed the registry from state directories that predate it.
  *
  * WHY THIS EXISTS. The registry only learns about a project when something opens it, so a machine
- * that has been running Frizz for months arrives at its first grid with one card — and the operator's
+ * that has been running Frizz for months arrives at its first project list with one project — and the operator's
  * only way to fill it is to visit every repository in a terminal, which is precisely the chore one
  * server for the machine was supposed to end. Everything needed is already on disk: each state dir is
  * named for its project id and records the directory it was opened from.
@@ -334,11 +334,11 @@ function recordedProjectDir(stateDir: string): string | undefined {
 }
 
 /**
- * Every project, in the order the rail and the grid draw them.
+ * Every project, in the order the rail and the cross-project page's list draw them.
  *
  * The operator's ARRANGEMENT wins where one exists, and recency is the default until it does. Both
  * surfaces read this one function on purpose: they are on screen together at `/`, and a rail the
- * operator has arranged sitting beside a grid that has re-sorted itself by recency is two answers to
+ * operator has arranged sitting beside a list that has re-sorted itself by recency is two answers to
  * the same question.
  *
  * Recency as the default is not merely a fallback, it is the better cold start — a machine nobody has
@@ -479,7 +479,7 @@ export function clearProjectIcon(id: string, home = homedir()): RegistryEntry | 
  *
  * RESOLVED LAZILY, which is the whole design. Scanning at registration would leave every project
  * registered before this feature shipped without an icon forever, and scanning inside `listProjects`
- * would turn the grid's one file read into forty directory walks. Instead the icon ROUTE calls this,
+ * would turn the project list's one file read into forty directory walks. Instead the icon ROUTE calls this,
  * once per project, and the answer is cached from then on.
  *
  * A remembered path that has since been deleted — someone reorganised `public/` — triggers a rescan

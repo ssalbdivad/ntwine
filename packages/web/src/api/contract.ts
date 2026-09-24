@@ -308,13 +308,13 @@ export interface Api {
   commandRestart(input: CommandThreadInput): Promise<Record<never, never>>
   commandRun(input: RunCommandInput): Promise<Record<never, never>>
   commandRemove(input: CommandThreadInput): Promise<Record<never, never>>
-  // Machine-scoped: the registry is one file, so the grid reads the same from every project.
+  // Machine-scoped: the registry is one file, so the project list reads the same from every project.
   // Which project owns a thread slug. Every URL from the per-project era is unprefixed, so a
   // bookmark that named its project by PORT now resolves against whichever project launched the
   // server — this is how the page finds the thread instead of reporting it missing.
   threadLocate(input: { slug: string }): Promise<ThreadLocation[]>
   projectsList(): Promise<ProjectCard[]>
-  // Registering a folder as a project — the grid phantom card. Same authority as running `frizz`
+  // Registering a folder as a project — the add-project dialog. Same authority as running `frizz`
   // there and strictly less: it resolves an id and writes the index, and dispatches nothing.
   // Opens the machine NATIVE folder picker, server-side, and adds what comes back. The browser API
   // withholds absolute paths on purpose, and a project is a path — so the picker cannot live here.

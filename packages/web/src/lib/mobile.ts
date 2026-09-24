@@ -22,7 +22,7 @@ function subscribe(callback: () => void): () => void {
   if (!media) {
     media = window.matchMedia(MOBILE_QUERY)
     // ONE MediaQueryList for the whole app, with the components subscribed to it — not one listener per
-    // caller. Several surfaces ask this question (the shell, the grid, the status bar), and a query that
+    // caller. Several surfaces ask this question (the shell, the cross-project page, the status bar), and a query that
     // every one of them re-creates answers the same thing while costing a listener each.
     media.addEventListener("change", () => listeners.forEach((l) => l()))
   }

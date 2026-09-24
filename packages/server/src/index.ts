@@ -986,7 +986,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     )
     tenants.adopt(project, ctx)
     // Recover the projects this machine already has state for. Without it a machine that has been
-    // running Frizz for months reaches its first grid with ONE card, and the only way to fill it is
+    // running Frizz for months reaches its first project list with ONE project, and the only way to fill it is
     // to visit every repository in a terminal — the chore one server per machine exists to end.
     try {
       const recovered = backfillRegistry()
@@ -1073,7 +1073,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       if (!entry) return undefined
       const existing = tenants.appFor(entry.id)
       // The open app is only the answer while it was built at the path the registry NOW records: a
-      // renamed checkout is re-registered at its new path by the next `frizz` run or grid add, and the
+      // renamed checkout is re-registered at its new path by the next `frizz` run or add from the page, and the
       // tenant that opened at the old one has to be reopened there (tenants.activate does that). The
       // launching project is exempt — its context is owned by the boot phases, not the map, and it is
       // the one directory this process is standing in.

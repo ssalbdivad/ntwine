@@ -607,7 +607,7 @@ export async function stopAndForgetRegisteredRuntime(
  * root: an explicit choice resolves through chosenProjectRoot, not the launcher's cwd walk-up.
  */
 /**
- * A registry entry as the grid and the rail see it.
+ * A registry entry as the project list and the rail see it.
  *
  * One mapper for all four routes that return a card (`projectsList`, `projectAdd`, `projectPick`, and
  * both icon mutations): they went out of sync the moment the icon fields arrived, and a card whose
@@ -657,10 +657,10 @@ export function addProjectAtPath(input: string, home = homedir()): ProjectCard {
   // the project itself — an adopted plain-directory ancestor does not capture it (chosenProjectRoot).
   const root = chosenProjectRoot(absolute, home)
   // Minting an id in $HOME writes a project into ~/.frizz — Frizz's own state root — and every
-  // unmarked directory under home then resolves to it. The launcher refuses this; so does the grid.
+  // unmarked directory under home then resolves to it. The launcher refuses this; so does the add-project dialog.
   if (isHomeDirectory(root, home)) throw new Error("The home folder cannot be a project — choose a folder inside it.")
   // SEEDED, exactly as the launcher seeds it: an established repository whose id lives only in
-  // `git config frizz.id` keeps that id, so adding it from the grid finds its existing board instead
+  // `git config frizz.id` keeps that id, so adding it from the page finds its existing board instead
   // of minting a fresh one and orphaning every thread on it.
   const id = ensureProjectIdFile(root, home, existingProjectId(root))
   const remoteOwner = resolveProjectLabel(root)?.split("/")[0]
@@ -3601,7 +3601,7 @@ export function createRouter(ctx: AppContext) {
      * Every project this machine knows about, most recently opened first.
      *
      * Machine-scoped, so which project's app answers it does not matter — the registry is one file
-     * and the grid is the same grid from every board.
+     * and the list is the same list from every board.
      */
     projectsList: query({
       output: z.array(ProjectCard),
@@ -3719,7 +3719,7 @@ export function createRouter(ctx: AppContext) {
      * Delete a project — Frizz's record of it, never the folder it names.
      *
      * TWO LEVELS, and the difference is the whole design. The default forgets the registry entry and
-     * closes the tenant: the project leaves the grid and the rail, and everything it ever held is
+     * closes the tenant: the project leaves the project list and the rail, and everything it ever held is
      * still sitting in `~/.frizz/projects/<id>/`, so adding the folder back restores the same board
      * under the same id. `deleteData` is the irreversible one — it stops that project's live workers
      * and removes that directory.
@@ -3733,7 +3733,7 @@ export function createRouter(ctx: AppContext) {
      * (see AppContext.launchProjectId). Deleting it is not one card disappearing; it is every live
      * worker losing the server. Forgetting it without deleting anything is refused for a smaller but
      * still real reason: the tenant cannot be closed independently of the boot phases that own it, so
-     * the project would keep tailing, keep firing its timers and keep serving its board while the grid
+     * the project would keep tailing, keep firing its timers and keep serving its board while the list
      * insisted it did not exist.
      *
      * Idempotent: an id the registry has already forgotten reports `removed: false` rather than
@@ -3894,7 +3894,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     /**
-     * Register a directory as a project, from the grid's phantom card.
+     * Register a directory as a project, from the add-project dialog (a typed path).
      *
      * The same authority as running `frizz` in that directory, and strictly less: this registers and
      * resolves an id, it dispatches nothing. The root comes from chosenProjectRoot — a folder inside
