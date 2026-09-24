@@ -55,7 +55,7 @@ test("controls run along the left; the project anchors the right", () => {
   const html = render()
 
   const home = html.indexOf('aria-label="All projects"')
-  const queues = html.indexOf('aria-label="All queues"')
+  const queues = html.indexOf('aria-label="Everything"')
   const settings = html.indexOf('aria-label="Settings"')
   const quota = html.indexOf("data-quota-bar")
   const project = html.indexOf("data-project-identity-state")

@@ -614,8 +614,8 @@ export function ProjectRail() {
       {/* The level between the two: every project's queue on one page (AllQueues.tsx). No count of its
           own — each square below already wears its project's, and a sum over them would be a second
           yellow number saying the same thing. */}
-      <Tooltip side="right" label="All queues">
-        <Link to="/queues" aria-label="All queues" aria-current={onQueues ? "page" : undefined} className={`${RAIL_DOOR_CLASS} ${onQueues ? "bg-elevated text-fg" : ""}`}>
+      <Tooltip side="right" label="Everything">
+        <Link to="/queues" aria-label="Everything" aria-current={onQueues ? "page" : undefined} className={`${RAIL_DOOR_CLASS} ${onQueues ? "bg-elevated text-fg" : ""}`}>
           <Inbox size={17} />
         </Link>
       </Tooltip>

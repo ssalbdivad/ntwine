@@ -140,7 +140,7 @@ export function StatusRow() {
         <House size={STATUS_ROW_ICON} aria-hidden="true" />
       </Link>
       {/* The other door out, one level down from the grid: every project's queue on one page. */}
-      <Link to="/queues" title="All queues" aria-label="All queues" className={STATUS_ROW_ACTION}>
+      <Link to="/queues" title="Everything" aria-label="Everything" className={STATUS_ROW_ACTION}>
         <Inbox size={STATUS_ROW_ICON} aria-hidden="true" />
       </Link>
       <Divider />

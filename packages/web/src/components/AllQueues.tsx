@@ -63,7 +63,7 @@ export function AllQueuesPage() {
 
   useEffect(() => {
     const standalone = window.matchMedia?.("(display-mode: standalone)").matches
-    document.title = standalone ? "All queues" : "All queues — Frizz"
+    document.title = standalone ? "Everything" : "Everything — Frizz"
   }, [])
 
   const leaving = useLeavingCards(projects)
@@ -92,7 +92,7 @@ export function AllQueuesPage() {
       </aside>
       <main
         id="workpane"
-        aria-label="All queues"
+        aria-label="Everything"
         className="flex min-h-screen w-[720px] max-w-[62vw] min-w-0 flex-col py-5 max-[800px]:min-h-0 max-[800px]:w-full max-[800px]:max-w-none"
       >
         {loading ? (
@@ -130,7 +130,7 @@ function HeaderRow({ totals, projectCount, unopened }: { totals: ReturnType<type
         <Link to="/" title="All projects" aria-label="All projects" className={`${STATUS_ROW_ACTION} -ml-px`}>
           <House size={STATUS_ROW_ICON} aria-hidden="true" />
         </Link>
-        <span className="ml-auto min-w-0 truncate font-semibold text-fg/90">All queues</span>
+        <span className="ml-auto min-w-0 truncate font-semibold text-fg/90">Everything</span>
       </div>
       <p data-xq-summary className="text-[11.5px] leading-snug text-muted-70">
         {totals.queued > 0

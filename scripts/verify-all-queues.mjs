@@ -244,7 +244,7 @@ try {
     // drops that project's frames meanwhile — including the ones saying a thread was finished HERE.
     await page.goto(`${origin}/project/acme-api`, { waitUntil: "networkidle2" })
     await page.waitForSelector('[data-queue-card="fix-pagination-cursor"]', { timeout: 10_000 })
-    await page.click('[data-status-row] a[aria-label="All queues"]')
+    await page.click('[data-status-row] a[aria-label="Everything"]')
     await page.waitForFunction(() => location.pathname === "/queues", { timeout: 5000 })
     const scope = card("acme-api", "fix-pagination-cursor")
     await page.waitForSelector(scope)
