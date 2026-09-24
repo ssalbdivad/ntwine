@@ -748,6 +748,30 @@ test("deriveAwaitingBackground: a timer park cards, checked against the armed re
   assert.equal(deriveNeedsYou(snoozed, timerPark, "turn-idle", false, Date.parse(LATER), undefined, true, false, {}, new Set(), new Set()), true, "a dead timer is a bare rest — not snoozable")
 })
 
+// A WATCHER WAKE ANSWERED WITH THE SAME PARK IS NOT A HANDOFF (maintainer 2026-09-24: "ensure updates
+// like this don't result in a working thread being marked as ready and requiring interaction"). An
+// honoured ```awaiting park on a registered PR leaves the queue; every way it stops being honoured
+// brings the thread back.
+test("deriveNeedsYou: an honoured park on a registered PR stays out of the queue", () => {
+  const fenceAt = Date.parse(LATER)
+  const fence = (hints: { kind: string; value: string }[]) =>
+    tele({ lastAssistantAt: LATER, lastActivityAt: LATER, lastFence: { kind: "awaiting", body: "Waiting on review.", hints: hints as never } })
+  const registered = new Set(["acme/app#1"])
+  const needs = (t: ReturnType<typeof tele>, reg: ReadonlySet<string>, now = fenceAt + 60_000, r = row({ rested_at: LATER })) =>
+    deriveNeedsYou(r, t, "turn-idle", false, now, undefined, true, false, {}, reg)
+  const park = fence([{ kind: "pr", value: "acme/app#1" }, { kind: "for", value: "3d" }])
+  assert.equal(needs(park, registered), false, "registered PR + usable for: → parked")
+  assert.equal(needs(fence([{ kind: "pr", value: "https://github.com/acme/app/pull/1" }, { kind: "for", value: "3d" }]), registered), false, "a URL names the same watch")
+  assert.equal(needs(park, new Set()), true, "an unregistered PR wakes nothing → queues")
+  assert.equal(needs(fence([{ kind: "pr", value: "acme/app#1" }]), registered), true, "no for: is not a park")
+  assert.equal(needs(park, registered, fenceAt + 4 * 86_400_000), true, "an expired park queues")
+  assert.equal(needs(fence([{ kind: "pr", value: "acme/app#1" }, { kind: "shell", value: "gone" }, { kind: "for", value: "3d" }]), registered), true, "a dead shell beside it breaks the park")
+  assert.equal(deriveNeedsYou(row({ rested_at: LATER }), park, "exited", false, fenceAt + 60_000, undefined, true, false, {}, registered), true, "an exited worker is not parked")
+  assert.equal(deriveNeedsYou(row({ rested_at: LATER }), park, "turn-idle", false, fenceAt + 60_000, undefined, true, false, {}, registered, new Set(), [], 1), true, "an open question outranks the park")
+  // The card still states the wait: deriveAwaitingBackground reads the fact, not the queue.
+  assert.equal(deriveAwaitingBackground(row({ rested_at: LATER }), park, "turn-idle", false, fenceAt + 60_000, undefined, false, {}, registered), true)
+})
+
 test("deriveAwaitingBackground: the event-snooze hides the QUEUE card, never the fact", () => {
   const child = tele({ subAgents: [{ label: "c", startedAt: T0, state: "running", id: "a1" }], lastActivityAt: LATER })
   const shell = tele({ bgShells: [{ label: "Poll CI to terminal", startedAt: T0, state: "running" }], lastActivityAt: LATER })

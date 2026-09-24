@@ -18,7 +18,7 @@ import { normalizeObservedThreadModel } from "./backend/thread-profiles.ts"
 import type { Tailer, SessionTelemetry, FenceView } from "./tailer.ts"
 import type { InteractionChange } from "./interaction-store.ts"
 import { frizzDirExists } from "./frizz.ts"
-import { githubStatusKey, parseIssueRef, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
+import { githubStatusKey, parkExpiresAt, parkIsHonoured, parseIssueRef, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
 import { findByPath } from "./project-registry.ts"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
 import { effectivePermissionMode, fallbackTitle, resolveLegacyThreadFile } from "./dispatch.ts"
@@ -709,6 +709,35 @@ function hasParkedPrWatch(tele: SessionTelemetry | undefined, registered: Readon
   })
 }
 
+/** Is this thread PARKED on a GitHub watch — an ```awaiting fence naming at least one registered PR or
+ *  issue, every item it names accounted for (parkIsHonoured, the scheduler's own check), and its `for:`
+ *  not yet run out?
+ *
+ *  THIS PARKS, where a bare registered watch only cards (hasParkedPrWatch). Until 2026-09-24 a PR park
+ *  was ALWAYS a visible queue handoff (maintainer 2026-07-22: a PR whose reviews may never arrive must
+ *  not silently vanish), so every watcher wake the worker answered with "nothing new, still waiting" was
+ *  a fresh rest that re-queued the thread and cleared any snooze on it — a thread with nothing for the
+ *  human to do, marked ready (maintainer 2026-09-24: "ensure updates like this don't result in a working
+ *  thread being marked as ready and requiring interaction"). The vanishing worry is answered by the two
+ *  clocks the 07-22 rule predates: the watch row's own required `expires_at`, and the fence's `for:`,
+ *  whose expiry the scheduler turns into a wake. A park that expires, names an unregistered PR, or sits
+ *  beside a dead shell is not honoured here and queues exactly as before. */
+function hasHonouredGithubPark(
+  tele: SessionTelemetry | undefined,
+  nowMs: number,
+  registered: ReadonlySet<string>,
+  armedTimerIds: ReadonlySet<string>,
+): boolean {
+  if (tele?.lastFence?.kind !== "awaiting") return false
+  const park = readAwaitingPark(tele.lastFence.hints)
+  if (!park.items.some((i) => i.kind === "pr" || i.kind === "issue")) return false
+  const handles = liveWaitHandles(tele)
+  // `registered` carries both kinds' refs (armedPrWatches), so it answers for `issues:` too.
+  if (!parkIsHonoured(park, { shells: handles, agents: handles, timers: armedTimerIds, prs: registered, issues: registered })) return false
+  const expiresAt = parkExpiresAt(park, Date.parse(tele.lastAssistantAt ?? ""))
+  return expiresAt !== null && nowMs < expiresAt
+}
+
 // The awaiting-background event-snooze is armed for the CURRENT rest iff the captured rested_at still
 // equals the row's rested_at. rested_at only advances when the top-level turn comes to a NEW rest, so
 // any advance — the exact event of a sub-agent/shell returning and the worker acting on it — auto-clears
@@ -1035,6 +1064,9 @@ export function deriveNeedsYou(
   // for the reason that flag exists: the CARD must still state the wait (deriveAwaitingBackground opts
   // out), or the drawer blanks at rest and reads as "the agent died".
   if (excuseLiveOwnWork && runtime !== "exited" && heldByRunningChecks(github, registeredPrWatches)) return false
+  // AN HONOURED GITHUB PARK. The worker fenced on a PR or issue it registered, and nothing it named has
+  // settled — so a watcher wake it answers with the same park is not a handoff. See hasHonouredGithubPark.
+  if (excuseLiveOwnWork && runtime !== "exited" && hasHonouredGithubPark(tele, nowMs, registeredPrWatches, armedTimerIds)) return false
   // A TIMER PARK TAKES THE SAME SNOOZE (2026-08-25). It queues like a PR park — a visible handoff, never
   // an auto-park — and since 2026-08-24 it cards like one too, with the resting card's event-Snooze as
   // its one control. But it is not "live own work" (nothing of the thread's is running; the clock is),

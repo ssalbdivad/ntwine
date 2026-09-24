@@ -715,7 +715,7 @@ test("isSnoozed: an armed-timer park is Snoozed even though the server flags it 
   // ALONE is the predicate: anything else behind the same fence keeps the row visible and undimmed.
   assert.equal(isSnoozed({ ...timerPark, subAgents: liveSub }), false, "a live child is own work in flight")
   assert.equal(isSnoozed({ ...timerPark, bgShells: liveShell }), false, "so is a running shell")
-  assert.equal(isSnoozed({ ...timerPark, watches: [armedTimerRow, armedPrRow] }), false, "a PR watcher stays a visible handoff")
+  assert.equal(isSnoozed({ ...timerPark, watches: [armedTimerRow, armedPrRow] }), false, "a PR watcher its fence does not name is not the GitHub park")
   // And the two OTHER parks the same flag describes are unmoved by this carve-out.
   const shellPark = thread({
     kind: "session", state: "open", runtime: "turn-idle", needsYou: false,
@@ -726,7 +726,14 @@ test("isSnoozed: an armed-timer park is Snoozed even though the server flags it 
     kind: "session", state: "open", runtime: "turn-idle", needsYou: false,
     awaitingBackground: true, lastFence: awaitingPr, watches: [armedPrRow],
   })
-  assert.equal(isSnoozed(prPark), false, "a PR wait must never vanish into the dimmed band")
+  // An HONOURED PR park (the server excused it: needsYou false) parks like the timer (2026-09-24) — a
+  // watcher wake answered with "still waiting" must not re-queue a thread with nothing for the human.
+  assert.equal(isSnoozed(prPark), true, "an honoured PR park is Snoozed")
+  assert.equal(sectionOf(prPark), "snoozed")
+  assert.equal(isSnoozed({ ...prPark, needsYou: true }), false, "a PR park the server queued stays a handoff")
+  const ciRunning = { ...armedPrRow, github: { checks: "running", state: "open", running: 1 } } as typeof armedPrRow
+  assert.equal(isSnoozed({ ...prPark, watches: [ciRunning] }), false, "CI still running keeps the spinning octocat in Active")
+  assert.equal(isSnoozed({ ...prPark, bgShells: liveShell }), false, "a running shell beside it is own work in flight")
 })
 
 test("manual snooze: every parked queue reason is Snoozed until the exact deadline", () => {
