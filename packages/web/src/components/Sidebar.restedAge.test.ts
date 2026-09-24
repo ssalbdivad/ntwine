@@ -68,3 +68,12 @@ test("a thread that has never produced output falls back rather than printing no
   const html = row({ lastAssistantAt: undefined, lastActivityAt: undefined, spawnedAt: ago(3 * 60 * 60_000) })
   assert.match(html, />3h</)
 })
+
+test("a thread that entered the queue off a wait dates from its ENTRY, so the column stays monotonic", () => {
+  // Rested 3h ago behind a wait that let it into the queue 12m ago: the cue orders it by the entry
+  // (orderQueue), so the column prints the entry too — "3h" at the bottom of a line of "12m"s would read
+  // as the order being wrong.
+  const html = row({ lastAssistantAt: ago(3 * 60 * 60_000), queuedAt: ago(12 * 60_000) })
+  assert.match(html, />12m</)
+  assert.match(html, /aria-label="Queued 12m ago"/)
+})

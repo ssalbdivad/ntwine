@@ -161,8 +161,9 @@ function AwaitingBackgroundBanner({ thread, onSnooze, onSnoozeFailed }: {
 export function TodosView() {
   const board = useBoard()
   // The queue is EXACTLY the server-derived Needs-you session threads (t.needsYou) — legacy .frizz rows
-  // never card anymore. One strictly time-ordered list (no priority band): every card orders by
-  // last-active alone, FIFO (oldest-first) by default or LIFO per the queueOrder preference.
+  // never card anymore. One strictly time-ordered list (no priority band): every card orders by when it
+  // entered the queue alone, FIFO (a new arrival joins the bottom) by default or LIFO per the queueOrder
+  // preference.
   const items = orderQueue(asThreads(board?.threads ?? []).filter(queued), useSnapshot(prefs).queueOrder)
   const itemKey = items.map((i) => i.id).join(",")
 

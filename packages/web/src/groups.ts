@@ -186,7 +186,9 @@ function interactionAt(t: ThreadView): number {
   return Number.isFinite(max) ? max : 0
 }
 
-// THE at-rest listing sort key: "last active" = when the thread's OWN agent last came to REST — its
+// The at-rest LISTING key — every list but the queue, which orders by when a thread ENTERED it
+// (orderQueue) and falls back to this only for a row that predates that stamp. "Last active" = when the
+// thread's OWN agent last came to REST — its
 // `lastAssistantAt` (last assistant output). NOT `lastActivityAt`: that is bumped by a background
 // sub-agent's completion notification (a promptSource:system record) and by tool_results, so keying on
 // it let a CHILD finishing reshuffle the parent (maintainer 2026-07-16: "it should just be based on
