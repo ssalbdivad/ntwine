@@ -176,7 +176,9 @@ export async function startServer(options: StartOptions): Promise<StartOutcome> 
       // answers on no port this app probes, such as one started with `--port`. Its ready row names it.
       const local = readoutValue(log, "local")
       if (exit === 0 && local) return { kind: "ready", origin: new URL(local).origin }
-      const failure = readoutValue(log, "failed") ?? (log.trim().split("\n").pop() || `frizz exited with code ${exit}`)
+      // A refusal before the readout starts (no project to show, a Node too old) is a bare
+      // `frizz: <reason>` line from the launcher's own fail(), not a `frizz: failed:` row.
+      const failure = readoutValue(log, "failed") ?? (log.trim().split("\n").pop()?.replace(/^frizz: /u, "") || `frizz exited with code ${exit}`)
       return { kind: "failed", message: failure, needsProject: needsProjectDirectory(failure) }
     }
     await delay(300)

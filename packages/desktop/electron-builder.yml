@@ -2,6 +2,8 @@
 # rather than installed with the workspace: it is ~94 MB of tooling nobody but a packager needs.
 appId: dev.frizz.app
 productName: Frizz
+# Not "frizz": a .deb links its executable onto the PATH, where it would shadow the `frizz` CLI.
+executableName: frizz-desktop
 directories:
   output: out
 # The app is two bundled files and an icon. No server and no node_modules ship inside it — the server
@@ -9,6 +11,9 @@ directories:
 files:
   - dist/**
   - package.json
+  # This package has no runtime dependencies, and finding none, electron-builder falls back to the
+  # WORKSPACE root and bundles its dependencies (@parcel/watcher, native binary and all).
+  - "!**/node_modules/**"
 asar: true
 electronLanguages: [en-US]
 icon: dist/icon.png
@@ -29,5 +34,12 @@ linux:
   # deb first: electron-builder 26's AppImage needs libfuse2, which Ubuntu 24.04 no longer installs.
   target: [deb, AppImage]
   category: Development
+  # Ties the running window to the installed .desktop entry (its WM_CLASS), so the taskbar shows one
+  # Frizz rather than an anonymous Electron window beside a launcher icon.
+  syncDesktopName: true
+deb:
+  # The npm name (@frizz/desktop) is not a Debian package name, and its slash would become a directory.
+  packageName: frizz-desktop
+  artifactName: frizz-desktop_${version}_${arch}.${ext}
 win:
   target: [nsis]

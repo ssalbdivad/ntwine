@@ -1,6 +1,7 @@
 {
   "name": "@frizz/desktop",
   "productName": "Frizz",
+  "desktopName": "frizz-desktop.desktop",
   "version": "0.1.0",
   "private": true,
   "description": "Frizz as a desktop app: a window onto the Frizz server on this machine",

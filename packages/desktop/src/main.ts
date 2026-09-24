@@ -20,7 +20,7 @@ import { dirname, join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { appPath, classifyNavigation, startAddress } from "./navigation.ts"
-import { errorPage, loadingPage } from "./pages.ts"
+import { errorPage, loadingPage, projectPickerPage } from "./pages.ts"
 import { locateServer, startServer } from "./server.ts"
 import { loginShellEnvironment } from "./shell-env.ts"
 
@@ -42,9 +42,6 @@ const isMac = process.platform === "darwin"
 // One userData directory whether this runs from the checkout or as the packaged Frizz.app.
 app.setName("Frizz")
 if (process.platform === "win32") app.setAppUserModelId(APP_ID)
-// WSLg: Electron prefers Wayland whenever WAYLAND_DISPLAY is set, and its Wayland windows can come
-// up blank there. XWayland is the path WSLg is known to render.
-if (process.env.WSL_DISTRO_NAME) app.commandLine.appendSwitch("ozone-platform", "x11")
 
 /** The server this app is showing — the one origin its windows may navigate within. */
 let origin: string | undefined
@@ -181,7 +178,8 @@ async function connect(win: BrowserWindow, cwd = homedir()): Promise<void> {
         onProgress: progress,
       })
       if (outcome.kind === "failed") {
-        await show(errorPage({ message: outcome.message, logPath: launcherLogPath(), needsProject: outcome.needsProject }))
+        // The launcher's own wording for the first-run case tells a terminal user to cd somewhere.
+        await show(outcome.needsProject ? projectPickerPage() : errorPage({ message: outcome.message, logPath: launcherLogPath() }))
         return
       }
       found = outcome.origin
@@ -189,7 +187,7 @@ async function connect(win: BrowserWindow, cwd = homedir()): Promise<void> {
     origin = found
     await show(startAddress(readWindowState().path, found))
   } catch (error) {
-    await show(errorPage({ message: error instanceof Error ? error.message : String(error), needsProject: false }))
+    await show(errorPage({ message: error instanceof Error ? error.message : String(error) }))
   } finally {
     connecting = false
   }

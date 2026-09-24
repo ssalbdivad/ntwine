@@ -103,7 +103,8 @@ test("a launcher that exits refusing $HOME comes back as a request for a project
       `import { writeFileSync } from "node:fs"`,
       `writeFileSync(${JSON.stringify(join(dir, "argv.json"))}, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() }))`,
       `console.log("frizz: ··· workspace — resolving")`,
-      `console.log("frizz: failed: frizz cannot open your home directory as a project, and there is no other project to show yet. cd into a repository and run frizz there.")`,
+      // Exactly how the real one refuses: its own fail(), before any readout row (src/production.ts).
+      `console.error("frizz: frizz cannot open your home directory as a project, and there is no other project to show yet. cd into a repository and run frizz there.")`,
       `process.exit(1)`,
     ].join("\n"))
     const progress: string[] = []
@@ -116,6 +117,7 @@ test("a launcher that exits refusing $HOME comes back as a request for a project
     })
     assert.equal(outcome.kind, "failed")
     assert.equal(outcome.kind === "failed" && outcome.needsProject, true)
+    assert.match(outcome.kind === "failed" ? outcome.message : "", /^frizz cannot open your home directory/u)
     const launched = JSON.parse(readFileSync(join(dir, "argv.json"), "utf8"))
     assert.deepEqual(launched.argv, ["--no-app"])
     assert.equal(launched.cwd, dir)

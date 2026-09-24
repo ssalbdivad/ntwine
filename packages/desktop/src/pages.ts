@@ -31,14 +31,20 @@ export function loadingPage(detail: string): string {
   return page("Frizz", `<h1>Starting Frizz…</h1><p id="detail">${escapeHtml(detail)}</p>`)
 }
 
-export function errorPage(options: { message: string; logPath?: string; needsProject: boolean }): string {
+export function errorPage(options: { message: string; logPath?: string }): string {
   const log = options.logPath ? `<p>Launcher log: <code>${escapeHtml(options.logPath)}</code></p>` : ""
-  const choose = options.needsProject
-    ? `<button class="primary" onclick="frizzDesktop.chooseProject()">Choose a project folder…</button>`
-    : ""
   return page(
     "Frizz",
     `<h1>Frizz could not start</h1><p>${escapeHtml(options.message)}</p>${log}` +
-      `<div class="actions">${choose}<button${options.needsProject ? "" : ' class="primary"'} onclick="frizzDesktop.retry()">Try again</button></div>`,
+      `<div class="actions"><button class="primary" onclick="frizzDesktop.retry()">Try again</button></div>`,
+  )
+}
+
+/** First run: nothing is registered, so there is no board to show until a project is chosen. */
+export function projectPickerPage(): string {
+  return page(
+    "Frizz",
+    `<h1>Frizz has no projects yet</h1><p>Choose a project folder to open — usually a Git repository.</p>` +
+      `<div class="actions"><button class="primary" onclick="frizzDesktop.chooseProject()">Choose a project folder…</button></div>`,
   )
 }
