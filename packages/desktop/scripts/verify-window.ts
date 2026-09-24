@@ -6,7 +6,8 @@
 //       Joins the server a sandbox HOME's owner record names — run verify-start.ts --keep first. Asserts:
 //       the board loads from the record (never a well-known port); http(s) links and navigations go to
 //       the OS opener and open no window; worker links of other schemes go nowhere; a same-origin
-//       window.open opens an app window; the preload bridge is present; the last path survives a quit.
+//       window.open opens an app window; the preload bridge is present and raises its window (a
+//       notification click); the last path survives a quit.
 //
 //   unshare -rn sh -c 'ip link set lo up && exec nub packages/desktop/scripts/verify-window.ts --fake-start'
 //       The START path, in a private network namespace so this machine's own board on 9393 cannot
@@ -222,6 +223,17 @@ try {
     check("a same-origin window.open opens a window of the app", child?.url() === `${origin}${projectPath}`, child?.url())
     const childBridge = child ? await child.evaluate(() => typeof (window as unknown as { frizzDesktop?: unknown }).frizzDesktop) : "none"
     check("…which carries the same preload", childBridge === "object", childBridge)
+
+    // What a notification click calls (board-stream.ts): the window that raised it comes back to the
+    // front. The new window holds focus first, or this proves nothing.
+    const focused = async () => [await page.evaluate(() => document.hasFocus()), child ? await child.evaluate(() => document.hasFocus()) : null]
+    const beforeRaise = await focused()
+    await page.evaluate(() => (window as unknown as { frizzDesktop: { focusWindow(): void } }).frizzDesktop.focusWindow())
+    await delay(750)
+    const afterRaise = await focused()
+    check("the bridge raises the window that calls it — what a notification click does",
+      beforeRaise.join() === "false,true" && afterRaise.join() === "true,false",
+      `focus (main, new window) before ${beforeRaise.join()}, after ${afterRaise.join()}`)
     await child?.close()
 
     // Remember-where-I-was: go somewhere, quit the way the OS would, relaunch.
