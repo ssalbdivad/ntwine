@@ -33,7 +33,7 @@ import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
-import { openThread, showToast, store } from "../store.ts"
+import { IN_PLACE_OPEN_STATE, openThread, showToast, store } from "../store.ts"
 import { crossProjectHref, innerPath, projectSlug } from "../lib/base-path.ts"
 import { QueueDismissContext } from "./ChatView.tsx"
 import { Composer } from "./Composer.tsx"
@@ -72,7 +72,7 @@ export function useOpenThreadInPlace(): (project: Pick<QueuesProject, "slug">, s
   return useCallback(
     (project, slug) => {
       if (project.slug === focus && store.board?.projectSlug === focus) openThread(slug)
-      else navigate(crossProjectThreadHref(project, slug))
+      else navigate(crossProjectThreadHref(project, slug), { state: IN_PLACE_OPEN_STATE })
     },
     [focus, navigate],
   )

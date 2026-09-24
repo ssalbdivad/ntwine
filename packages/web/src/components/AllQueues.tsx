@@ -202,7 +202,7 @@ function ProjectPicker({ projects, focus, onPick }: { projects: QueuesProject[];
           className="-mr-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-fg/90 outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:bg-hover data-[state=open]:text-fg"
         >
           {current && <ProjectSquare project={current.card ?? fallbackCard(current)} size={14} />}
-          <span className="min-w-0 truncate">{name}</span>
+          <span data-xq-picker-name className="min-w-0 truncate">{name}</span>
           <ChevronDown size={12} aria-hidden className="shrink-0 text-muted" />
         </button>
       </MenuTrigger>

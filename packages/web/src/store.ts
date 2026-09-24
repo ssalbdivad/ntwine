@@ -348,7 +348,19 @@ export function resolveRoutedThread(): void {
     return
   }
   if (route.kind === "found" && route.thread.needsYou && queueCardIsTheDetail() && scrollToQueueCard(slug)) return
-  pushDrawer(route.kind === "found" && route.thread.kind === "command" ? "terminal" : "thread", slug, { routed: true })
+  pushDrawer(route.kind === "found" && route.thread.kind === "command" ? "terminal" : "thread", slug, { routed: !openedInPlace() })
+}
+
+// Navigation state for a thread opened IN PLACE by a click on the page — the cross-project page opening
+// another project's thread, which has to change the URL (the focus moves) where a board's own open does
+// not. Its drawer slides in like any clicked one; `routed` is for a URL that ARRIVED (a cold deep link,
+// Back), where the sheet must already be open on the first paint.
+export const IN_PLACE_OPEN_STATE = { inPlace: true } as const
+
+function openedInPlace(): boolean {
+  if (typeof history === "undefined") return false
+  const usr = (history.state as { usr?: unknown } | null)?.usr
+  return typeof usr === "object" && usr !== null && (usr as { inPlace?: unknown }).inPlace === true
 }
 
 // Whether a queued thread's card on this page IS its whole panel, so "show me this thread" means "scroll
