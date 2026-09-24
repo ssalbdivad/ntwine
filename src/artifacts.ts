@@ -393,6 +393,8 @@ const SOURCE_FINGERPRINT_IGNORED_DIRECTORIES = new Set([
   "coverage",
   "dist",
   "node_modules",
+  // packages/desktop's packaged apps (`nub run desktop:dist`): ~500 MB per platform, none of it source.
+  "out",
 ]);
 
 const SOURCE_SNAPSHOT_PREFIX = ".source-snapshot-";

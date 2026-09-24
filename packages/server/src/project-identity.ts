@@ -365,6 +365,7 @@ function revParsePath(dir: string, flag: "--show-toplevel" | "--git-dir" | "--gi
   try {
     raw = execFileSync("git", ["rev-parse", flag], {
       cwd: dir,
+      windowsHide: true,
       encoding: "utf8",
       env: { ...process.env, LC_ALL: "C" },
       stdio: ["ignore", "pipe", "pipe"],
@@ -402,6 +403,7 @@ function readProjectIdConfig(dir: string, args: string[], description: string): 
   try {
     output = execFileSync("git", ["config", ...args, "--get-all", "frizz.id"], {
       cwd: dir,
+      windowsHide: true,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     })
@@ -451,6 +453,7 @@ function syncGitConfig(dir: string): void {
   try {
     raw = execFileSync("git", ["rev-parse", "--git-path", "config"], {
       cwd: dir,
+      windowsHide: true,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim()
@@ -468,6 +471,7 @@ function createGitProjectId(dir: string): string {
     // external value; the mandatory reread below rejects duplicates or any unexpected winner.
     execFileSync("git", ["config", "--local", "--add", "frizz.id", proposed], {
       cwd: dir,
+      windowsHide: true,
       stdio: ["ignore", "ignore", "ignore"],
     })
     syncGitConfig(dir)
@@ -487,6 +491,7 @@ function createGitWorktreeProjectId(worktree: GitWorktree, repositoryId: string)
   try {
     execFileSync("git", ["config", "--file", config, "--add", "frizz.id", proposed], {
       cwd: worktree.root,
+      windowsHide: true,
       stdio: ["ignore", "ignore", "ignore"],
     })
     syncGitConfigPath(config)
@@ -578,6 +583,7 @@ export function originRemoteUrl(dir: string): string | null {
   try {
     return execFileSync("git", ["remote", "get-url", "origin"], {
       cwd: dir,
+      windowsHide: true,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim() || null

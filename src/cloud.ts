@@ -450,7 +450,7 @@ export function startTunnel(
         "run",
         config.tunnel!,
       ];
-  const child = spawn("cloudflared", args, { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn("cloudflared", args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
   // ENOENT arrives as an 'error' event, and an unhandled one on a ChildProcess THROWS — so without
   // this, `frizz up` on a machine without cloudflared crashed with a stack trace instead of saying
   // which program to install. That is the first thing a new user hits, so it is the last thing that
