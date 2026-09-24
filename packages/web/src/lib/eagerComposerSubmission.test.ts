@@ -1,6 +1,8 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { DELIVERY_RETRY_BACKOFF_MS, beginEagerSubmission, enqueueThreadSend, sendFollowUpAttempt, withDeliveryRetry } from "./eagerComposerSubmission.ts"
+import { DELIVERY_RETRY_BACKOFF_MS, DELIVERY_SEND_TIMEOUT_MS, beginEagerSubmission, enqueueThreadSend, sendFollowUpAttempt, withDeliveryRetry } from "./eagerComposerSubmission.ts"
+import { store } from "../store.ts"
+import type { BoardSnapshot } from "@frizz/shared"
 
 test("eager composer submission clears and paints before its request settles", async () => {
   const order: string[] = []
@@ -185,5 +187,38 @@ test("a send that answers within the deadline is untouched by it", async () => {
     await sendFollowUpAttempt("deadline", "a healthy steer", "delivery-2", undefined, undefined, 60_000)
   } finally {
     globalThis.fetch = originalFetch
+  }
+})
+
+// On the cross-project page the page project changes whenever a thread of another project opens, so a
+// send still waiting (behind the FIFO, or in a retry's backoff) must go where it was COMMITTED — not to
+// whichever project owns the page, and never bound to a same-named thread's session there.
+test("a send goes to the project it was committed in, even after the page moved to another", async () => {
+  const originalFetch = globalThis.fetch
+  const originalBoard = store.board
+  const calls: { url: string; body: string }[] = []
+  globalThis.fetch = ((input: unknown, init?: { body?: unknown }) => {
+    calls.push({ url: String(input), body: String(init?.body ?? "") })
+    return Promise.resolve(new Response(JSON.stringify({ result: null }), { status: 200, headers: { "content-type": "application/json" } }))
+  }) as typeof fetch
+  try {
+    const target = { base: "/_frizz/alpha", project: "alpha", sessionId: "alpha-session" }
+    // The page is now BETA's, and beta has a thread of the same name with its own session.
+    store.board = { projectSlug: "beta", threads: [{ id: "fix-auth", sessionId: "beta-session" }] } as unknown as BoardSnapshot
+    await sendFollowUpAttempt("fix-auth", "for alpha", "delivery-3", undefined, undefined, DELIVERY_SEND_TIMEOUT_MS, target)
+    assert.equal(calls.length, 1)
+    assert.match(calls[0]!.url, /^\/_frizz\/alpha\//, "alpha's API, not the page's")
+    assert.match(calls[0]!.body, /alpha-session/)
+    assert.doesNotMatch(calls[0]!.body, /beta-session/, "never beta's same-named thread")
+
+    // NEGATIVE CONTROL: while the page still holds the send's project, the live session wins — a thread
+    // re-dispatched mid-retry binds to its current session.
+    store.board = { projectSlug: "alpha", threads: [{ id: "fix-auth", sessionId: "alpha-redispatched" }] } as unknown as BoardSnapshot
+    const here = { ...target, base: "/_frizz" }
+    await sendFollowUpAttempt("fix-auth", "for alpha", "delivery-4", undefined, undefined, DELIVERY_SEND_TIMEOUT_MS, here)
+    assert.match(calls[1]!.body, /alpha-redispatched/)
+  } finally {
+    globalThis.fetch = originalFetch
+    store.board = originalBoard
   }
 })
