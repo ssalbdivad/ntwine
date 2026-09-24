@@ -360,7 +360,9 @@ function ownSlug(): string | undefined {
 
 let cachedSlugPath: string | undefined;
 /**
- * Where to land: this project's board, the grid, or the grid with a directory to ask about.
+ * Where to land: the cross-project page focused on this project (the default mode — its prompt box
+ * dispatches here, and every other project's queue is beside it), the cross-project page with no
+ * particular project, or the project grid with a directory to ask about (`/?add=` is forwarded there).
  *
  * `?add=` is a REQUEST, not a registration — nothing on disk changes until the operator confirms on
  * the page, which is the only reason an unmarked directory is safe to point the launcher at at all.
@@ -371,7 +373,7 @@ function slugPath(): string {
     else if (launchIntent?.kind === "offer") cachedSlugPath = `/?add=${encodeURIComponent(launchIntent.directory)}`;
     else {
       const slug = ownSlug();
-      cachedSlugPath = slug ? `/project/${slug}` : "";
+      cachedSlugPath = slug ? `/all/${slug}` : "";
     }
   }
   return cachedSlugPath;

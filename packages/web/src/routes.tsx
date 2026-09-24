@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
-import { Outlet, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
+import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
+import { useQuery } from "@tanstack/react-query"
 import { App } from "./App.tsx"
-import { AllQueuesPage } from "./components/AllQueues.tsx"
 import { ProjectGrid } from "./components/ProjectGrid.tsx"
 import { ProjectRail, RAIL_INSET_CLASS } from "./components/ProjectRail.tsx"
 import { StandaloneThreadPage } from "./components/StandaloneThreadPage.tsx"
@@ -9,7 +9,9 @@ import { TooltipProvider } from "./components/Tooltip.tsx"
 import { GithubHovercards } from "./components/GithubHovercards.tsx"
 import { Toaster } from "./components/Toaster.tsx"
 import { applyPath, registerNavigate } from "./lib/router.ts"
-import { innerPath } from "./lib/base-path.ts"
+import { PROJECTS_PATH, crossProjectHref, innerPath } from "./lib/base-path.ts"
+import { defaultCrossProjectFocus, rememberCrossProjectFocus, rememberedCrossProjectFocus } from "./lib/crossProject.ts"
+import { rpc } from "./api/rpc.ts"
 import { feedIsBoundTo, rebindProject } from "./api/socket.ts"
 import { noteStandaloneThreadRender, primeFullscreenReturn, resetProjectState, store } from "./store.ts"
 import { useProjectRailVisible } from "./lib/projectRail.ts"
@@ -41,6 +43,8 @@ import { useProjectRailVisible } from "./lib/projectRail.ts"
 
 /** The one place that knows the URL shapes, so a route and a link cannot disagree. */
 export const PROJECT_PATH = "/project/:slug"
+/** The cross-project page, focused on one project (base-path.ts `crossProjectHref`). */
+export const CROSS_PROJECT_PATH = "/all/:slug"
 
 function RootLayout() {
   useRegisterNavigate()
@@ -130,12 +134,53 @@ function GridRoute() {
 }
 
 /**
- * Every project's queue on one page — the level above a board. Like the grid it names no project, so it
- * leaves the feed wherever it was: nothing on it reads the feed, and every read and action it makes
- * names its project explicitly (see AllQueues.tsx).
+ * THE CROSS-PROJECT PAGE — every project's queue on one page, and the default mode — FOCUSED on the
+ * project the URL names (`/all/<slug>`).
+ *
+ * The focus IS the page project: it binds the live feed, the store and every page-relative helper
+ * exactly as a board does (base-path.ts answers `/all/<slug>` like `/project/<slug>`), so the prompt box
+ * dispatches into it and a thread drawer of it opens in place with the board's whole drawer stack. The
+ * page's rail and lanes are the other projects' — they read machine-wide data and name their project on
+ * every call, as they always have (AllQueues.tsx).
+ *
+ * `<App/>` is keyed by a CONSTANT here, not by slug as a board is: moving the focus — opening another
+ * project's thread, choosing another project for a new one — must not remount the page under the
+ * operator. What is per-project (the store's board and drawer stack) is reset by the binding instead.
  */
-function QueuesRoute() {
-  return <AllQueuesPage />
+function CrossProjectRoute() {
+  const { slug, thread } = useParams()
+  useProjectBinding(slug)
+  useRouteToStore()
+  useState(() => primeFullscreenReturn(thread))
+  const cards = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
+  const focusId = cards.data?.find((card) => card.slug === slug)?.id
+  useEffect(() => {
+    if (focusId) rememberCrossProjectFocus(focusId)
+  }, [focusId])
+  return <App mode="cross-project" key="cross-project" />
+}
+
+/**
+ * `/` — the cross-project page, which is always focused on SOME project, so this only picks one and
+ * goes there (lib/crossProject.ts). The grid's own query parameters are the grid's: the launcher's
+ * `?add=<dir>` offer and the server's `?unknown=<slug>` notice were both minted when `/` was the grid,
+ * and a launcher that predates the move still mints them.
+ */
+function HomeRoute() {
+  const { search } = useLocation()
+  const cards = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
+  const params = new URLSearchParams(search)
+  if (params.has("add") || params.has("unknown")) return <Navigate to={`${PROJECTS_PATH}${search}`} replace />
+  if (cards.error) return <Navigate to={PROJECTS_PATH} replace />
+  if (!cards.data) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <span className="block h-5 w-5 animate-spin rounded-full border-2 border-muted/50 border-t-transparent" />
+      </div>
+    )
+  }
+  const focus = defaultCrossProjectFocus(cards.data, rememberedCrossProjectFocus())
+  return <Navigate to={focus ? crossProjectHref(focus) : PROJECTS_PATH} replace />
 }
 
 /**
@@ -199,18 +244,30 @@ const boardChildren = [
   { path: "status/:status", element: <BoardRoute /> },
 ]
 
+// The SAME element at the same depth for every cross-project URL, so react-router keeps the one
+// instance mounted across a focus change or a drawer opening — the page must not remount under you.
+const crossProjectChildren = [
+  { index: true, element: <CrossProjectRoute /> },
+  { path: "thread/:thread", element: <CrossProjectRoute /> },
+]
+
 export const router = createBrowserRouter([
   // The focused single-thread pages sit OUTSIDE the layout — they have no rail, and should not. They
   // are listed first for readability only; react-router ranks by specificity, so `/thread/x/full`
   // beats `/thread/:thread` regardless of order.
   { path: "/thread/:thread/full", element: <StandaloneRoute /> },
   { path: `${PROJECT_PATH}/thread/:thread/full`, element: <StandaloneRoute /> },
+  { path: `${CROSS_PROJECT_PATH}/thread/:thread/full`, element: <StandaloneRoute /> },
   {
     element: <RootLayout />,
     children: [
-      { path: "/", element: <GridRoute /> },
+      { path: "/", element: <HomeRoute /> },
+      { path: PROJECTS_PATH, element: <GridRoute /> },
+      { path: CROSS_PROJECT_PATH, children: crossProjectChildren },
       // Declared, not left to the catch-all below — which would draw the launching project's board.
-      { path: "/queues", element: <QueuesRoute /> },
+      // `/queues` was the cross-project page's address before it became the default at `/`.
+      { path: "/queues", element: <Navigate to="/" replace /> },
+      { path: "/all", element: <Navigate to="/" replace /> },
       // The launching project, unprefixed. `/` itself belongs to the grid, so this project reaches its
       // board through a thread or status path — see base-path.ts on why an empty base is supported.
       { path: "/thread/:thread", element: <BoardRoute /> },

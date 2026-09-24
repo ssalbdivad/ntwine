@@ -1,21 +1,23 @@
-// ONE QUEUE CARD ON THE ALL QUEUES PAGE — a thread of ANY project, on a page that names none.
+// ONE QUEUE CARD ON THE CROSS-PROJECT PAGE — a thread of ANY project, whichever project the page is
+// focused on.
 //
 // It wears the board's queue card (TodosView QueueCard): the same bordered, shadowed shell, the same
 // header with the title and its rest time, the human's last message as their bubble, the handoff as
 // prose with its ```done card, the thread's registered questions, a reply box, and the lifecycle footer's
 // Snooze and Mark as done. What it deliberately does NOT carry is the transcript — the tool calls, the
-// earlier rounds, the sub-agent rows. That is the next level down, one click away on the thread's own
-// board (the header's ↗), and it is what makes a page of every project's queue readable at all.
+// earlier rounds, the sub-agent rows. That is the next level down, one click away IN PLACE — the title
+// opens the thread's own drawer on this page (useOpenThreadInPlace) — and it is what makes a page of
+// every project's queue readable at all. The header's ↗ is the one door into single-project mode.
 //
 // THE CARD NEVER ASKS THE PAGE WHICH PROJECT IT IS. Everything that could — the RPC client, the query
 // cache, the markdown's repo and paths, the lifecycle buttons, the question drafts — is handed the
 // card's own project explicitly (see the provider stack at the bottom). The board's queue card cannot be
 // reused here for exactly that reason: it reads its project from the address bar, the store and the
-// page's socket, and on this page all three name the LAUNCHING project.
-import { memo, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+// page's socket, and on this page all three name the FOCUSED project, which is usually not the card's.
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowUpRight, Check, ChevronRight, Hourglass, Maximize2, RotateCcw } from "lucide-react"
-import { useNavigate } from "react-router"
+import { useLocation, useNavigate } from "react-router"
 import type { ThreadView } from "@frizz/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
@@ -30,7 +32,8 @@ import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
-import { showToast } from "../store.ts"
+import { openThread, showToast, store } from "../store.ts"
+import { crossProjectHref, projectSlug } from "../lib/base-path.ts"
 import { QueueDismissContext } from "./ChatView.tsx"
 import { Composer } from "./Composer.tsx"
 import { LastActive } from "./LastActive.tsx"
@@ -43,9 +46,34 @@ import { StateButton } from "./ThreadLifecycleFooter.tsx"
 import { Tooltip } from "./Tooltip.tsx"
 import { BLOCK_RADIUS, BLOCK_RADIUS_INNER_BOTTOM, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 
-/** Where a thread lives on its own board — the next level down from this card. */
+/** Where a thread lives on its own board — single-project mode, through an explicit door only. */
 export function threadBoardHref(project: Pick<QueuesProject, "slug">, slug: string): string {
   return `/project/${encodeURIComponent(project.slug)}/thread/${encodeURIComponent(slug)}`
+}
+
+/** A thread opened IN PLACE on the cross-project page: the page focused on its project, its drawer open. */
+export function crossProjectThreadHref(project: Pick<QueuesProject, "slug">, slug: string): string {
+  return `${crossProjectHref(encodeURIComponent(project.slug))}/thread/${encodeURIComponent(slug)}`
+}
+
+/**
+ * Open a thread of ANY project in place — the cross-project page's one verb for "show me this thread".
+ *
+ * A thread of the focused project whose board is already in the store opens the way a board's rail row
+ * opens one (`openThread`: the drawer animates in and the store writes the URL). Any other thread moves
+ * the focus there by URL, which rebinds the page project and opens the drawer once its board lands
+ * (routes.tsx CrossProjectRoute → store.resolveRoutedThread).
+ */
+export function useOpenThreadInPlace(): (project: Pick<QueuesProject, "slug">, slug: string) => void {
+  const navigate = useNavigate()
+  const focus = projectSlug(useLocation().pathname)
+  return useCallback(
+    (project, slug) => {
+      if (project.slug === focus && store.board?.projectSlug === focus) openThread(slug)
+      else navigate(crossProjectThreadHref(project, slug))
+    },
+    [focus, navigate],
+  )
 }
 
 /**
@@ -88,6 +116,8 @@ export const AllQueuesCard = memo(function AllQueuesCard({
   const api = projectRpc(project.id)
   const key = threadKey(project.id, thread.id)
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const openInPlace = useOpenThreadInPlace()
   // KEYED ON THE REST, so a thread that rests again fetches its new handoff, and one that has not moved
   // is read exactly once however often the page polls. The previous handoff stays on screen while the
   // next one loads rather than blanking the card.
@@ -100,16 +130,23 @@ export const AllQueuesCard = memo(function AllQueuesCard({
   const text = handoff.data?.text
   const parts = useMemo(() => (text ? handoffParts(text, thread.questions) : null), [text, thread.questions])
   const boardHref = threadBoardHref(project, thread.id)
-  const fullHref = `${boardHref}/full`
+  const placeHref = crossProjectThreadHref(project, thread.id)
+  const fullHref = `${placeHref}/full`
   const dismiss = useMemo(() => ({ dismiss: onLeave, cancel: onReturn }), [onLeave, onReturn])
   const answeringScope = useMemo(() => ({ api, projectDir: project.projectDir }), [api, project.projectDir])
 
   const openBoard = (event: ReactMouseEvent<HTMLAnchorElement>, href: string, full: boolean) => {
     if (!isPlainLeftClick(event)) return
     event.preventDefault()
-    // The way OUT of /full leads back here rather than to the thread's board (fullscreenHandoff.ts).
-    if (full) rememberFullscreenOrigin(thread.id, "/queues")
+    // The way OUT of /full leads back to this page, as it stood, rather than to the thread's board
+    // (fullscreenHandoff.ts).
+    if (full) rememberFullscreenOrigin(thread.id, pathname)
     navigate(href)
+  }
+  const openHere = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!isPlainLeftClick(event)) return
+    event.preventDefault()
+    openInPlace(project, thread.id)
   }
 
   return (
@@ -123,7 +160,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
           <header className="flex items-center gap-2 rounded-t-xl border-b border-border/60 px-5 py-3.5">
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-[15px] font-semibold leading-snug" title={displayTitle(thread)}>
-                <a href={boardHref} onClick={(event) => openBoard(event, boardHref, false)} className="rounded-sm outline-none hover:underline hover:underline-offset-2 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
+                <a href={placeHref} onClick={openHere} className="rounded-sm outline-none hover:underline hover:underline-offset-2 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
                   {displayTitle(thread)}
                 </a>
               </h3>
@@ -131,8 +168,10 @@ export const AllQueuesCard = memo(function AllQueuesCard({
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
               {offersRetry(thread) && <RetryButton project={project} thread={thread} onSent={onLeave} onFailed={onReturn} />}
-              <Tooltip label={`Open in ${project.name}`}>
-                <a href={boardHref} aria-label={`Open in ${project.name}`} onClick={(event) => openBoard(event, boardHref, false)} className={HEADER_ICON_CLASS}>
+              {/* The one door on the card into SINGLE-project mode, and it says so. The title opens the
+                  thread here, in place. */}
+              <Tooltip label={`Open on ${project.name}'s board`}>
+                <a href={boardHref} aria-label={`Open on ${project.name}'s board`} onClick={(event) => openBoard(event, boardHref, false)} className={HEADER_ICON_CLASS}>
                   <ArrowUpRight size={15} />
                 </a>
               </Tooltip>
@@ -239,10 +278,11 @@ function RetryButton({ project, thread, onSent, onFailed }: { project: QueuesPro
  * lib/thread-links.ts), and both act on the PAGE's project: a file link opens through the page's `rpc`,
  * a `/thread/<slug>` link opens a drawer this page does not have. This intercepts both first, in the
  * capture phase, and sends them to the thread's own project — a file through that project's opener, a
- * thread link to that project's board.
+ * thread link to that thread's drawer, opened in place.
  */
 function ProjectLinkScope({ project, children }: { project: QueuesProject; children: ReactNode }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const onClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
     const target = event.target instanceof Element ? event.target : null
@@ -266,15 +306,16 @@ function ProjectLinkScope({ project, children }: { project: QueuesProject; child
     const anchor = target?.closest<HTMLAnchorElement>("a[href^='/']")
     const href = anchor?.getAttribute("href")
     if (!anchor || !href || href.startsWith("//") || !isPlainLeftClick(event)) return
-    // The markdown scope already pointed every in-app link at this project's `/project/<slug>`, so this
-    // is a same-app navigation — done by the router rather than a document load.
-    if (href.startsWith(`/project/${encodeURIComponent(project.slug)}/`)) {
+    // The markdown scope already pointed every in-app link at this project on this page
+    // (`/all/<slug>/…`), so this is a same-app navigation — done by the router rather than a document
+    // load, and it opens the linked thread in place.
+    if (href.startsWith(`${crossProjectHref(encodeURIComponent(project.slug))}/`)) {
       event.preventDefault()
       event.stopPropagation()
       // Keyed by the thread the link OPENS, which is not always this card's: a handoff can link another
       // thread's /full, and the way out of that page looks its origin up by its own slug.
       const full = href.match(/\/thread\/([^/?#]+)\/full\/?$/)
-      if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), "/queues")
+      if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), pathname)
       navigate(href)
     }
   }

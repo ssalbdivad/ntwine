@@ -5,7 +5,7 @@ import { useBoard } from "../hooks.ts"
 import { rpc } from "../api/rpc.ts"
 import { displayTitle, queued } from "../groups.ts"
 import { resolveThreadRoute } from "../lib/threadRouteState.ts"
-import { projectHref } from "../lib/base-path.ts"
+import { PROJECTS_PATH, projectHref } from "../lib/base-path.ts"
 import { standaloneThreadHref } from "../lib/standaloneThreadRoute.ts"
 import { setFaviconBadge } from "../lib/faviconBadge.ts"
 import { SHEET_BASE_WIDTH, SPLIT_MIN_PX } from "../lib/sheet.ts"
@@ -303,7 +303,7 @@ function MissingThread({ slug }: { slug: string }) {
           ))}
         </div>
       ) : (
-        <a href="/" className="rounded-md border border-border px-3 py-1.5 text-[12px] text-fg/90 hover:bg-panel-2">
+        <a href={PROJECTS_PATH} className="rounded-md border border-border px-3 py-1.5 text-[12px] text-fg/90 hover:bg-panel-2">
           All projects
         </a>
       )}

@@ -1,4 +1,4 @@
-import type { ProjectCard, ProjectQueue, RegisteredQuestionView, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ProjectCard, ProjectQueue, RegisteredQuestionView, ThreadView } from "@frizz/shared"
 import { orderByInteraction, orderQueue, queued, sectionOf, type QueueDirection } from "../groups.ts"
 import { splitFenceBlocks } from "./fenceBlocks.ts"
 import { splitQuestionBlocks, type QuestionKind } from "./questionBlocks.ts"
@@ -70,6 +70,34 @@ export function queuesProjects(
   // Open but not (yet) in the list the page holds — registered a moment ago, before the list refetched.
   // Drawn last rather than dropped: its threads are real, and they are addressable by id.
   for (const queue of byId.values()) out.push(build(undefined, queue))
+  return out
+}
+
+/**
+ * The FOCUSED project's live board in place of its polled threads.
+ *
+ * The page polls every project every few seconds, but the focused one is also the page project, so its
+ * board is already live in the store — and it is the project the operator is acting on: the one whose
+ * drawer they just marked done, the one their prompt box just dispatched into. Drawing it from the poll
+ * left a finished card standing, or a new thread missing from Running, for up to a poll after the act.
+ *
+ * Only when the store's board is PROVABLY the focused project's (its own `projectSlug` says so): during a
+ * focus change the store is cleared and refilled, and a board that is not yet the new focus must not be
+ * drawn under its name. The rows are filtered as the server filters them for the poll (sessions and
+ * terminal commands of this project, nothing foreign); Done is left to the rail's own banding, which
+ * counts what it files there, so the server's Done count is dropped rather than added to.
+ */
+export function withLiveBoard(
+  queues: readonly ProjectQueue[] | undefined,
+  board: Pick<BoardSnapshot, "projectSlug" | "threads"> | null,
+  focusSlug: string | undefined,
+): readonly ProjectQueue[] | undefined {
+  if (!queues || !board || !focusSlug || board.projectSlug !== focusSlug) return queues
+  const index = queues.findIndex((queue) => queue.projectSlug === focusSlug)
+  if (index < 0) return queues
+  const threads = board.threads.filter((thread) => (thread.kind === "session" || thread.kind === "command") && !thread.foreign)
+  const out = [...queues]
+  out[index] = { ...queues[index]!, threads, doneCount: 0 }
   return out
 }
 

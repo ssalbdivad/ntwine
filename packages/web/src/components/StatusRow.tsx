@@ -1,6 +1,8 @@
 import { House, Infinity as InfinityIcon, Settings as SettingsIcon } from "lucide-react"
+import type { ReactNode } from "react"
 import { Link } from "react-router"
 import { store } from "../store.ts"
+import { PROJECTS_PATH, crossProjectHref } from "../lib/base-path.ts"
 import { useBoard } from "../hooks.ts"
 import { STATUS_ROW_ACTION, STATUS_ROW_ICON } from "../lib/statusRow.ts"
 import { projectIdentity } from "./Sidebar.tsx"
@@ -93,8 +95,14 @@ function StartTruncated({ text, title, className }: { text: string; title?: stri
  * whole queue column to the store to feed a 24px strip. valtio's useSnapshot tracks the properties
  * actually READ, so this re-renders on a board change and on nothing else.
  */
-export function StatusRow() {
+/**
+ * `picker` is the cross-project page's: there the right edge is not one project's identity but the
+ * choice of WHICH project the prompt box under it dispatches into (AllQueues.tsx ProjectPicker), and the
+ * ∞ door is the page you are on.
+ */
+export function StatusRow({ picker }: { picker?: ReactNode } = {}) {
   const board = useBoard()
+  const crossProject = picker !== undefined
   // A missing board is not evidence that this project is named "frizz". Keep the row neutral until a
   // board keyframe supplies an actual name; reconnects retain their adopted board.
   const identity = projectIdentity(board)
@@ -136,11 +144,18 @@ export function StatusRow() {
           an oversight rather than a decision — the router refactor that made the rail outlive a
           navigation predates this row by a fortnight, and `/` has had its own SPA route the whole time.
           The rail is hidden under 800px and off by default, so THIS was the door most operators used. */}
-      <Link to="/" title="All projects" aria-label="All projects" className={`${STATUS_ROW_ACTION} -ml-px`}>
+      <Link to={PROJECTS_PATH} title="All projects" aria-label="All projects" className={`${STATUS_ROW_ACTION} -ml-px`}>
         <House size={STATUS_ROW_ICON} aria-hidden="true" />
       </Link>
-      {/* The other door out, one level down from the grid: every project's queue on one page. */}
-      <Link to="/queues" title="Everything" aria-label="Everything" className={STATUS_ROW_ACTION}>
+      {/* The cross-project page — every project's queue on one page. From a board it opens FOCUSED on
+          this board's project, so the prompt box there still dispatches where you were working. */}
+      <Link
+        to={crossProject ? "/" : board?.projectSlug ? crossProjectHref(board.projectSlug) : "/"}
+        title="Everything"
+        aria-label="Everything"
+        aria-current={crossProject ? "page" : undefined}
+        className={`${STATUS_ROW_ACTION} ${crossProject ? "bg-elevated text-fg" : ""}`}
+      >
         <InfinityIcon size={STATUS_ROW_ICON} aria-hidden="true" />
       </Link>
       <Divider />
@@ -161,40 +176,45 @@ export function StatusRow() {
           <QuotaChips />
         </>
       )}
-      {/* THE PROJECT, pinned to the right edge. min-w-0 so a long name gives way before anything to its
-          left does; every mark before it is shrink-0 and therefore always reachable. */}
-      <span
-        className="ml-auto flex min-w-0 items-center"
-        data-project-identity-state={identity.state}
-        aria-label={accessibleName}
-        aria-busy={identity.state === "loading" || undefined}
-      >
-        {name && githubRepo ? (
-          // The name IS the anchor: the same hover every other text link in the app wears
-          // (GithubPickerModal's rows, ChildOpRow's labels) — full fg plus an underline — is what tells
-          // a reader this one is a control, and the title says where it goes. `text-fg/90` at rest is
-          // the weight and tone the name always had, so a linked and an unlinked project read alike
-          // until you reach for one.
-          <a
-            href={`https://github.com/${githubRepo}`}
-            target="_blank"
-            rel="noopener"
-            title={`Open ${name} on GitHub`}
-            aria-label={`Open ${name} on GitHub`}
-            className="block min-w-0 rounded-sm font-semibold text-fg/90 underline-offset-2 outline-none transition-colors hover:text-fg hover:underline focus-visible:ring-1 focus-visible:ring-border-strong"
-          >
-            <StartTruncated text={name} />
-          </a>
-        ) : name ? (
-          // A verified NON-GitHub origin (owner/repo from GitLab, say) or a remote-less directory: the
-          // name is prose, not a control, so nothing to hover.
-          <StartTruncated text={name} title={name} className="font-semibold text-fg/90" />
-        ) : (
-          // Only before the first board keyframe, or on a keyframe with nothing nameable in it. A repo
-          // with no git remote is NOT this case — it has a name (its directory) and shows it.
-          <span className="identity-placeholder w-24" aria-hidden="true" />
-        )}
-      </span>
+      {/* THE PROJECT, pinned to the right edge — or, on the cross-project page, the choice of one. min-w-0
+          so a long name gives way before anything to its left does; every mark before it is shrink-0 and
+          therefore always reachable. */}
+      {crossProject ? (
+        <span className="ml-auto flex min-w-0 items-center">{picker}</span>
+      ) : (
+        <span
+          className="ml-auto flex min-w-0 items-center"
+          data-project-identity-state={identity.state}
+          aria-label={accessibleName}
+          aria-busy={identity.state === "loading" || undefined}
+        >
+          {name && githubRepo ? (
+            // The name IS the anchor: the same hover every other text link in the app wears
+            // (GithubPickerModal's rows, ChildOpRow's labels) — full fg plus an underline — is what tells
+            // a reader this one is a control, and the title says where it goes. `text-fg/90` at rest is
+            // the weight and tone the name always had, so a linked and an unlinked project read alike
+            // until you reach for one.
+            <a
+              href={`https://github.com/${githubRepo}`}
+              target="_blank"
+              rel="noopener"
+              title={`Open ${name} on GitHub`}
+              aria-label={`Open ${name} on GitHub`}
+              className="block min-w-0 rounded-sm font-semibold text-fg/90 underline-offset-2 outline-none transition-colors hover:text-fg hover:underline focus-visible:ring-1 focus-visible:ring-border-strong"
+            >
+              <StartTruncated text={name} />
+            </a>
+          ) : name ? (
+            // A verified NON-GitHub origin (owner/repo from GitLab, say) or a remote-less directory: the
+            // name is prose, not a control, so nothing to hover.
+            <StartTruncated text={name} title={name} className="font-semibold text-fg/90" />
+          ) : (
+            // Only before the first board keyframe, or on a keyframe with nothing nameable in it. A repo
+            // with no git remote is NOT this case — it has a name (its directory) and shows it.
+            <span className="identity-placeholder w-24" aria-hidden="true" />
+          )}
+        </span>
+      )}
     </div>
   )
 }

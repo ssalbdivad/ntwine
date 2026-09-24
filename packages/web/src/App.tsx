@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { useNavigate } from "react-router"
+import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { useQuery } from "@tanstack/react-query"
 import { closeGithubPicker, store, seedBoard, pushDrawer, resolveRoutedThread, topDrawer, topThreadSlug, showToast } from "./store.ts"
@@ -9,6 +9,7 @@ import { takeScrollAfterUnlock } from "./lib/pageScrollLock.ts"
 import { startRouter } from "./lib/router.ts"
 import { nextSidebarPresence, readSidebarMirror, writeSidebarMirror, type SidebarPresence } from "./lib/sidebarPresence.ts"
 import { projectSlug } from "./lib/base-path.ts"
+import { AllQueuesPage } from "./components/AllQueues.tsx"
 import { rpc } from "./api/rpc.ts"
 import { SIDEBAR_COLUMN_CLASS, Sidebar } from "./components/Sidebar.tsx"
 import { MobileBoard } from "./components/MobileBoard.tsx"
@@ -48,16 +49,30 @@ function maybeShowSignInHint() {
   showToast("Sign in to the GitHub CLI (`gh auth login`) to dispatch from issues/PRs.", { duration: 6000 })
 }
 
-export function App() {
+/**
+ * WHICH PAGE THIS SHELL IS HOSTING. A project's BOARD (single-project mode) and the CROSS-PROJECT page
+ * share everything here except the standing surfaces: the drawer stack, the modals, the palette, the
+ * restart overlay, the keyboard, the router sync and the board seed are the page project's either way —
+ * on the cross-project page the page project is its FOCUS (routes.tsx CrossProjectRoute), which is what
+ * lets a thread of any project open in place there with the board's own drawers.
+ */
+export type AppMode = "board" | "cross-project"
+
+export function App({ mode = "board" }: { mode?: AppMode }) {
+  const crossProject = mode === "cross-project"
   const snap = useSnapshot(store)
   const sidebarPresence = useRef<SidebarPresence>({ projectDir: null, hasBeenVisible: false })
+  // The page project. A board is keyed by it and remounts when it changes; the cross-project shell is
+  // not (the page must survive a focus change), so anything that has to follow the project names it.
+  const pageSlug = projectSlug(useLocation().pathname)
 
   // Seed the board once at startup so the first paint doesn't wait on the SSE connect; SSE keeps it
   // fresh afterward. seedBoard (not setBoard) so a late-resolving seed can't clobber a board the SSE
-  // stream has already established + advanced with deltas.
+  // stream has already established + advanced with deltas. Per page project: a focus change on the
+  // cross-project page resets the store (routes.tsx useProjectBinding) and wants the new board as fast.
   useEffect(() => {
     rpc.board().then(seedBoard).catch(() => {})
-  }, [])
+  }, [pageSlug])
 
   // STORE → URL (opening a drawer writes the address bar). The other direction is the route tree's —
   // see routes.tsx useRouteToStore. Navigation goes through the router so its history stack and its
@@ -256,15 +271,16 @@ export function App() {
   const reserveSidebar = board === null && readSidebarMirror(projectSlug())
   const hasBeenVisible = sidebarPresence.current.hasBeenVisible
   useEffect(() => {
-    if (board !== null) writeSidebarMirror(projectSlug(), hasBeenVisible)
-  }, [board, hasBeenVisible])
+    // The mirror describes the BOARD's layout; the cross-project page has its own column either way.
+    if (board !== null && !crossProject) writeSidebarMirror(projectSlug(), hasBeenVisible)
+  }, [board, hasBeenVisible, crossProject])
   // Window title carries the project identity. In the INSTALLED APP window (display-mode:
   // standalone) Chrome prefixes the title bar with the app name itself ("Frizz - <title>"), so the
   // page title must NOT repeat the wordmark — just the repo label ("Frizz - nubjs/nub"). In an
   // ordinary browser tab there's no prefix, so the title carries it as a trailing mark
   // ("nubjs/nub — Frizz") — the repo LEADS because a tab truncates from the end, and it is the repo
   // that tells two open boards apart. StandaloneThreadPage uses the same trailing mark.
-  const projectLabel = board?.projectLabel ?? board?.projectName
+  const projectLabel = crossProject ? "Everything" : (board?.projectLabel ?? board?.projectName)
   useEffect(() => {
     const standalone = window.matchMedia?.("(display-mode: standalone)").matches
     document.title = standalone ? (projectLabel ?? "Frizz") : projectLabel ? `${projectLabel} — Frizz` : "Frizz"
@@ -299,7 +315,13 @@ export function App() {
           flow; the ⌘K palette's "New thread" item and the always-visible dispatch box are the
           other doors — deliberately NOT ⌘N, which belongs to the browser.) */}
 
-      {isMobile ? (
+      {crossProject ? (
+        // The cross-project page at every width: it lays itself out for a phone (a single column), and
+        // MobileBoard is a BOARD's phone shell — one project's queue, nothing of the others.
+        <ErrorBoundary label="the cross-project page">
+          <AllQueuesPage />
+        </ErrorBoundary>
+      ) : isMobile ? (
         <MobileBoard />
       ) : (
         <>

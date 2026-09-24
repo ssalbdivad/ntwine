@@ -766,7 +766,9 @@ async function warnAboutStartingASecondFrizz(): Promise<void> {
 
 let cachedSlugPath: string | undefined;
 /**
- * Where to land: this project's board, the grid, or the grid with a directory to ask about.
+ * Where to land: the cross-project page focused on this project (the default mode — its prompt box
+ * dispatches here, and every other project's queue is beside it), the cross-project page with no
+ * particular project, or the project grid with a directory to ask about (`/?add=` is forwarded there).
  *
  * `?add=` is a REQUEST, not a registration — nothing on disk changes until the operator confirms on
  * the page. That is the whole point of the change: a command typed in the wrong terminal must not
@@ -779,7 +781,7 @@ function slugPath(): string {
       cachedSlugPath = `/?add=${encodeURIComponent(launchIntent.directory)}`;
     else {
       const slug = ownSlug();
-      cachedSlugPath = slug ? `/project/${slug}` : "";
+      cachedSlugPath = slug ? `/all/${slug}` : "";
     }
   }
   return cachedSlugPath;
@@ -1050,7 +1052,7 @@ if (options.link) {
       // is the one the join path already knows how to get.
       const joined = await joinRunningFrizz();
       if (joined) {
-        console.log(`running: http://127.0.0.1:${joined.port}/project/${joined.slug}`);
+        console.log(`running: http://127.0.0.1:${joined.port}/all/${joined.slug}`);
         console.log(`workspace: ${workspace.root}`);
         console.log(`served by the frizz running on this machine, which this project did not start`);
       } else console.log(`stopped: ${workspace.root}`);

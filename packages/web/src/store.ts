@@ -7,6 +7,7 @@ import { closeDrawerAnimated, focusDrawer } from "./lib/overlays.ts"
 import { isPageScrollLocked, pageScrollY, requestScrollAfterUnlock } from "./lib/pageScrollLock.ts"
 import { resolveThreadRoute } from "./lib/threadRouteState.ts"
 import { standaloneThreadHref } from "./lib/standaloneThreadRoute.ts"
+import { isCrossProjectPath } from "./lib/base-path.ts"
 import { ownedByThisPage } from "./lib/projectOwnership.ts"
 import { setGithubRepo } from "./lib/githubAutolink.ts"
 import { resetGithubCards } from "./lib/githubHovercards.ts"
@@ -296,7 +297,7 @@ export function pushBackgroundShellDrawer(slug: string, id: string, opts: { labe
 // seeing) opens the chat drawer. The doc drawer carries the adopt ("Start a session") affordance.
 export function openThread(slug: string): void {
   const t = store.board?.threads.find((x) => x.id === slug)
-  if (t?.needsYou && scrollToQueueCard(slug)) return
+  if (t?.needsYou && queueCardIsTheDetail() && scrollToQueueCard(slug)) return
   // A terminal command thread has no chat and no document: its drawer IS the live terminal.
   if (t?.kind === "command") return pushDrawer("terminal", slug)
   pushDrawer(t && t.runtime === "none" ? "doc" : "thread", slug)
@@ -323,8 +324,15 @@ export function resolveRoutedThread(): void {
     if (typeof location !== "undefined") location.replace(standaloneThreadHref(slug))
     return
   }
-  if (route.kind === "found" && route.thread.needsYou && scrollToQueueCard(slug)) return
+  if (route.kind === "found" && route.thread.needsYou && queueCardIsTheDetail() && scrollToQueueCard(slug)) return
   pushDrawer(route.kind === "found" && route.thread.kind === "command" ? "terminal" : "thread", slug, { routed: true })
+}
+
+// Whether a queued thread's card on this page IS its whole panel, so "show me this thread" means "scroll
+// to the card". True on a board. On the cross-project page a card is a SUMMARY — the handoff's opening,
+// the questions, a reply box — and the thread itself is one level down, so there it is always the drawer.
+function queueCardIsTheDetail(): boolean {
+  return typeof location === "undefined" || !isCrossProjectPath()
 }
 
 // THE FULLSCREEN DOOR, PLAYED BACKWARDS. react-router re-arms the door's view transition for the POP
