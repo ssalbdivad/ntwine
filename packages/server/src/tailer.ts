@@ -2301,6 +2301,10 @@ export interface TailerDeps {
   // test fixtures) → always undefined, which now simply means no permission-block signal: the regex
   // fallback that used to cover it read a screen no runtime renders any more (see sniffPane).
   readPermMarker?: (slug: string) => PermMarker | undefined
+  // Fired once per LIVE in-flight → idle edge, after `rested_at` is stamped — never for a rest observed
+  // at prime, which is a fact about the past rather than a turn that just ended. The periodic retitler
+  // (periodic-retitle.ts) rides it. Optional: unset = nothing extra happens at a rest.
+  onTurnDone?: (row: SessionRow) => void
   // Durable prime cache (see tail-cache.ts). Defaults to a table in the project's own SQLite DB;
   // pass `null` to disable it entirely, which restores the historical "fold every transcript from
   // byte 0 on every boot" behaviour exactly (that is what the cache-off tests assert against).
@@ -4805,6 +4809,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       title: row.slug,
       body: state.lastAssistant,
     })
+    deps.onTurnDone?.(row)
   }
 
   // THE SAME REST, OBSERVED AT PRIME INSTEAD OF ON THE EDGE.

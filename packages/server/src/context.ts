@@ -18,6 +18,8 @@ import { getDispatchPreferences, setDispatchPreference } from "./dispatch-prefer
 import { readQuota } from "./quota.ts"
 import { refreshClaudeQuotaInBackground } from "./backend/claude-quota.ts"
 import { createBoard, type BoardManager } from "./board.ts"
+import { createPeriodicRetitler } from "./periodic-retitle.ts"
+import { readTranscript } from "./transcript.ts"
 import { createTailer, defaultLogDir, type Tailer } from "./tailer.ts"
 import { createDispatcher, loadWorkerPrompt, scratchpadOrientation, frizzConfigBlock, claudeMcpConfig, resolveFrizzMcp, workerPluginDir, coldResumePermission, type Dispatcher, type FrizzMcpTarget } from "./dispatch.ts"
 import { createScheduler, type Scheduler, probeIssueReadable, probePrReadable, type PrRef, type PrProbe } from "./scheduler.ts"
@@ -859,12 +861,21 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // here was the source of multi-second RPC stalls). Late-bound `board` breaks the cycle.
   // It ALSO reports, per tick, which sessions' JSONL advanced → fanned out on transcriptChange so the
   // /ws transcript producer can push (no board dependency; the two signals are independent).
+  // Every 5th operator message, re-name the thread after the recent conversation (periodic-retitle.ts).
+  const retitler = createPeriodicRetitler({
+    storage,
+    generateTitle: claudeBroker ? (input) => claudeBroker.renameSession(input) : undefined,
+    readMessages: (sessionId) => readTranscript(project, sessionId),
+    onTitled: () => board.refresh(),
+    onError: (slug, error) => process.stderr.write(`[frizz] periodic retitle of ${slug} failed: ${error instanceof Error ? error.message : String(error)}\n`),
+  })
   const tailer = createTailer({
     project,
     storage,
     bus,
     backendFor,
     onChange: () => board.refresh(),
+    onTurnDone: (row) => retitler.onTurnDone(row),
     onTranscriptChange: (slugs) => transcriptChange.emit(slugs),
     // The SDK's own reading of a headless broker session: its turn (so the fold's 5s unknown-stop_reason
     // guess need not run out before a finished turn reaches the queue) and its event count (so a tick
