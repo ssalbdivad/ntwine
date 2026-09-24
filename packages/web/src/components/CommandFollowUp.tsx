@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { ArrowUp, Loader2 } from "lucide-react"
-import { useThreadApi } from "../api/threadApi.tsx"
+import { useThreadApi, useThreadProjectDir } from "../api/threadApi.tsx"
 import { showToast } from "../store.ts"
-import { draftKey, draftStore, useDraft, useProjectDir } from "../lib/drafts.ts"
+import { draftKey, draftStore, useDraft } from "../lib/drafts.ts"
 import { RAIL_SEND_OFFSET } from "../lib/iconRhythm.ts"
 
 // A FINISHED command thread's next line — the terminal's answer to an agent thread's follow-up prompt.
@@ -21,7 +21,7 @@ export function CommandFollowUp({ slug, lastCommand, autoFocus, onRan }: {
   onRan?: () => void
 }) {
   const api = useThreadApi()
-  const projectDir = useProjectDir()
+  const projectDir = useThreadProjectDir()
   const key = draftKey.commandNext(projectDir, slug)
   const [value, setValue, clear] = useDraft(key)
   const [pending, setPending] = useState(false)

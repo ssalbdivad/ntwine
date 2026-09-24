@@ -52,8 +52,9 @@ function isFrizzRoute(href: string): boolean {
   if (projectSlug(bare)) return true
   const inner = innerPath(bare)
   const first = inner.split("/")[1] ?? ""
-  // `/projects` and the cross-project page's other machine routes name no project of their own.
-  return APP_ROUTE_SEGMENTS.has(first) || MACHINE_ROUTE_SEGMENTS.has(first)
+  // `/projects` and the cross-project page's other machine routes name no project of their own. EXACTLY
+  // those paths: `/projects/acme/README.md` is somebody's directory, not a page.
+  return APP_ROUTE_SEGMENTS.has(first) || (MACHINE_ROUTE_SEGMENTS.has(first) && inner.replace(/\/$/u, "") === `/${first}`)
 }
 
 /**

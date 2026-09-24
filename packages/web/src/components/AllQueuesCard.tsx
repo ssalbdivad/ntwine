@@ -226,7 +226,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
 
           <ReplyBox project={project} thread={thread} onSent={onLeave} onFailed={onReturn} />
 
-          <ThreadProjectScope projectId={project.id}>
+          <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
             <footer className={`${BLOCK_RADIUS_INNER_BOTTOM} flex min-h-10 flex-wrap items-center justify-end gap-3 border-t border-border/70 bg-panel/95 px-3 py-2 text-[12px]`}>
               <SnoozeButton thread={thread} onSnoozed={onLeave} />
               <StateButton thread={thread} onArchived={onLeave} onDismissCancel={onReturn} command />

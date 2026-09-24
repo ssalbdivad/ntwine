@@ -724,7 +724,7 @@ function Lane({ project, leaving, hidden }: { project: QueuesProject; leaving: L
               <div key={key} data-xq-card={key} data-queue-leaving={leaving.isLeaving(key)} className="frizz-card-slot min-w-0">
                 <div className="frizz-card-clip min-h-0 min-w-0">
                   <div className="frizz-card-body min-w-0">
-                    <ThreadProjectScope projectId={project.id}>
+                    <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
                       <CommandQueueCard
                         thread={t}
                         leaving={leaving.isLeaving(key)}
