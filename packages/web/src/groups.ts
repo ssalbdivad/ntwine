@@ -261,11 +261,12 @@ export function orderByInteraction(threads: readonly ThreadView[]): ThreadView[]
 // is ready, it moves to the top of the *stack* … make it work like an actual queue"). A new arrival now
 // always joins the back, and nothing moves a thread while it waits. `queueKeyAt` falls back to the rest
 // time only for a row from a server that predates the stamp.
-// id-tiebroken for a stable order among equal-age rows.
+// Equal entries (several snoozes elapsing in one assembly) fall back to rest order, then id, so a tie
+// holds a stable order.
 export function orderQueue(threads: readonly ThreadView[], direction: QueueDirection = "fifo"): ThreadView[] {
   const dir = direction === "lifo" ? -1 : 1
   return [...threads].sort((a, b) => {
-    const age = (queueKeyAt(a) - queueKeyAt(b)) * dir
+    const age = (queueKeyAt(a) - queueKeyAt(b)) * dir || (lastActiveAt(a) - lastActiveAt(b)) * dir
     return age !== 0 ? age : a.id.localeCompare(b.id)
   })
 }

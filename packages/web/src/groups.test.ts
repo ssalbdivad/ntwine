@@ -478,6 +478,12 @@ test("orderQueue: a thread keys on when it ENTERED the queue, so a wait that let
   const ciHeld = rows()[0]!
   assert.equal(queueLabelAt(ciHeld), "2026-09-24T12:30:00.000Z")
   assert.equal(lastActiveLabelAt(ciHeld), "2026-09-24T09:00:00.000Z")
+  // Two snoozes elapsing in one assembly share an entry instant: rest order breaks the tie, before id.
+  const tied = [
+    thread({ id: "a-rested-later", lastAssistantAt: "2026-09-24T10:00:00.000Z", queuedAt: "2026-09-24T13:00:00.000Z" }),
+    thread({ id: "b-rested-earlier", lastAssistantAt: "2026-09-24T08:00:00.000Z", queuedAt: "2026-09-24T13:00:00.000Z" }),
+  ]
+  assert.deepEqual(orderQueue(tied).map((item) => item.id), ["b-rested-earlier", "a-rested-later"])
   // A row without the stamp (a server predating it) falls back to the rest time, as before.
   assert.equal(queueLabelAt(thread({ id: "legacy", lastAssistantAt: "2026-09-24T08:00:00.000Z" })), "2026-09-24T08:00:00.000Z")
 })

@@ -1159,6 +1159,36 @@ test("pinned_at: a pre-pin unified file gains the column, the pin persists, and 
   }
 })
 
+test("queued_at: a pre-clock unified file gains the column, and the stamp survives a restart", () => {
+  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-queued-"))
+  const path = join(dir, "ui.db")
+  // Every live install's file predates the column; the ALTER in ensureStorageSchema must add it back.
+  const preClock = new Database(path)
+  const stripped = STORAGE_SCHEMA.replace(/^\s*queued_at\s+TEXT,\n/m, "")
+  assert.notEqual(stripped, STORAGE_SCHEMA, "the strip found the column line (keep this regex with the DDL)")
+  preClock.exec(stripped)
+  preClock.close()
+
+  const at = "2026-09-24T12:29:00.000Z"
+  let s = createStorage(path, "p")
+  try {
+    s.upsertSession(row({ slug: "queued", state: "open" }))
+    assert.equal(s.getSession("queued")?.queued_at, null, "a new row is out of the queue until the board says otherwise")
+    s.setQueuedAt("queued", at)
+    s.close()
+    s = createStorage(path, "p")
+    assert.equal(s.getSession("queued")?.queued_at, at, "the place in line survives a server restart byte-for-byte")
+    // A re-dispatch upserts the row; only the board's clock writes the stamp, so the upsert leaves it.
+    s.upsertSession(row({ slug: "queued", state: "open", session_id: "second" }))
+    assert.equal(s.getSession("queued")?.queued_at, at)
+    s.setQueuedAt("queued", null)
+    assert.equal(s.getSession("queued")?.queued_at, null)
+  } finally {
+    s.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 // ── the batched registry reads ──────────────────────────────────────────────────────────────────────
 // The board reads five per-thread tables for EVERY row it assembles, and it used to ask each of them
 // one thread at a time: 2,790 statements per rebuild on the maintainer's 558-thread board, all of it

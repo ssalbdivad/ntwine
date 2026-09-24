@@ -32,8 +32,11 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     ["plain", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:50") }],
     ["held", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") }],
   ])
+  // False after the restart below until the test says otherwise: an unprimed row has no telemetry, and
+  // a broker row with none reads as RUNNING — out of the queue — which is what a real boot looks like.
+  let primed = true
   const tailer = {
-    get: (slug: string) => telemetry.get(slug),
+    get: (slug: string) => (primed ? telemetry.get(slug) : undefined),
     foreignIds: () => [],
     subAgent: () => undefined,
     forget: () => {},
@@ -50,6 +53,8 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
   // Rested at 09:00, parked by the human's snooze until 12:30 — the wait that used to hand it the 09:00.
   storage.upsertSession(row("held"))
   storage.setSnoozedUntil("held", at("12:30"))
+  // Broker rows, as every live Claude row is: with no telemetry one reads as RUNNING, not exited.
+  for (const slug of ["plain", "held"]) storage.setClaudeRuntime(slug, "broker")
   let board = createBoard(project, storage, new Bus(), tailer, "queue-boot-1", deps)
   const readAt = (hhmm: string) => {
     nowMs = Date.parse(at(hhmm))
@@ -69,6 +74,12 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     storage.close()
     storage = createStorage(dbPath, "p")
     board = createBoard(project, storage, new Bus(), tailer, "queue-boot-2", deps)
+    primed = false
+    for (const hhmm of ["12:38", "12:39"]) {
+      assert.deepEqual(readAt(hhmm), { plain: undefined, held: undefined, "term-abc": at("09:55") }, "unprimed rows read as running")
+    }
+    assert.equal(storage.getSession("held")?.queued_at, at("12:29"), "an unprimed reading is not a departure")
+    primed = true
     assert.deepEqual(readAt("12:40"), { plain: at("09:50"), held: at("12:29"), "term-abc": at("09:55") }, "a restart keeps every place in line")
 
     // Marked done: out of the queue, and the stored stamp goes with it.

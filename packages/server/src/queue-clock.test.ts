@@ -5,7 +5,7 @@ import { createQueueClock } from "./queue-clock.ts"
 
 // THE QUEUE CLOCK (queue-clock.ts): the queue orders by when a thread ENTERED it, and a thread keeps
 // that instant for as long as it stays queued. These pin the four rules that make it a queue rather than
-// a stack, plus the boot baseline that keeps a restart from reshuffling the line.
+// a stack, plus the boot rules that keep a restart from reshuffling the line.
 
 const at = (hhmm: string) => `2026-09-24T${hhmm}:00.000Z`
 const ms = (hhmm: string) => Date.parse(at(hhmm))
@@ -20,11 +20,13 @@ function harness(stored: Record<string, string> = {}) {
     load: () => new Map(Object.entries(stored)),
     save: (t, value) => void saves.push([t.id, value]),
   })
+  // Every reading is vouched for unless its slug is in `unknown` — a row the tailer has not primed yet.
+  const unknown = new Set<string>()
   const run = (nowHHMM: string, ...threads: ThreadView[]) => {
-    clock.stamp(threads, ms(nowHHMM))
+    clock.stamp(threads, ms(nowHHMM), (t) => !unknown.has(t.id))
     return Object.fromEntries(threads.map((t) => [t.id, t.queuedAt]))
   }
-  return { run, saves }
+  return { run, saves, unknown }
 }
 
 test("a plain rest enters the queue at its rest time, so ordinary arrivals keep the order they always had", () => {
@@ -63,15 +65,27 @@ test("leaving the queue forgets the stamp, so the next entry joins the back of t
   assert.deepEqual(saves, [["a", at("10:05")], ["a", null], ["a", at("11:59")]])
 })
 
-test("the first assembly after boot is a baseline: stored stamps hold and none are cleared", () => {
-  // `waiting` entered at 12:30 off a wait (its rest was 09:00) — the restart must not hand it back its
-  // 09:00. `left` was stamped but is out of the queue on the first reading: a baseline clears nothing,
-  // so a board still warming up cannot throw a thread's place away. The SECOND reading clears it.
-  const { run, saves } = harness({ waiting: at("12:30"), left: at("11:00") })
-  assert.deepEqual(run("13:00", thread("waiting", true, "09:00"), thread("left", false, "11:00")), { waiting: at("12:30"), left: undefined })
+test("a boot keeps every place in line while the tailer is still priming rows", () => {
+  // `waiting` entered at 12:30 off a wait (its rest was 09:00). After a restart the board runs before
+  // the tailer has primed it, and an unprimed headless row reads as RUNNING — out of the queue. That
+  // reading is unknown, so it clears nothing; the first real reading finds the stamp where it was.
+  const { run, saves, unknown } = harness({ waiting: at("12:30"), left: at("11:00") })
+  unknown.add("waiting").add("left")
+  for (const now of ["13:00", "13:00", "13:01"]) {
+    assert.deepEqual(run(now, thread("waiting", false, "09:00"), thread("left", false, "11:00")), { waiting: undefined, left: undefined })
+  }
   assert.deepEqual(saves, [])
-  run("13:01", thread("waiting", true, "09:00"), thread("left", false, "11:00"))
+  unknown.clear()
+  // `left` left the queue while the server was down: its first KNOWN reading out of the queue clears it.
+  assert.deepEqual(run("13:02", thread("waiting", true, "09:00"), thread("left", false, "11:00")), { waiting: at("12:30"), left: undefined })
   assert.deepEqual(saves, [["left", null]])
+})
+
+test("an unknown reading that happens to be queued shows the stamp it has and decides nothing", () => {
+  const { run, saves, unknown } = harness({ a: at("10:00") })
+  unknown.add("a").add("b")
+  assert.deepEqual(run("13:00", thread("a", true, "12:45"), thread("b", true, "12:50")), { a: at("10:00"), b: undefined })
+  assert.deepEqual(saves, [])
 })
 
 test("a stored stamp the agent has since spoken past is refused at boot — it left and re-entered while the server was down", () => {

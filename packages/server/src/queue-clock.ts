@@ -33,10 +33,23 @@ import type { ThreadView } from "@frizz/shared"
 // line. Session rows persist it (`session.queued_at`); command threads need not, because their rest
 // time is exact (the run's exit, or the output that left it at a prompt).
 //
-// THE FIRST ASSEMBLY AFTER BOOT IS A BASELINE. It adopts every stored stamp a queued thread still has
-// and clears none, the way the needs-decision notifier primes instead of firing: the board's first
-// reading must not be able to reshuffle the line. The one stored stamp it refuses is one the agent has
-// since spoken past — the thread rested again while this server was down, so it left and re-entered.
+// AN UNKNOWN READING IS NOT A DEPARTURE. The board starts before the tailer, and the tailer primes at
+// most 25 rows a tick, so for the first seconds after a boot every row it has not reached yet has no
+// telemetry — and a headless row with no telemetry reads as `running`, out of the queue. Taking that at
+// face value would clear every stored stamp and send the whole queue to the back in prime-batch order on
+// every restart. So the board says which readings it can vouch for (`known`), and only a KNOWN reading
+// outside the queue clears a stamp or counts as having seen the thread out. An unknown one changes
+// nothing: the stamp waits for the thread's first real reading.
+//
+// A STORED STAMP IS CHECKED ONCE, the first time its thread reads as queued after a boot: if the agent
+// has spoken since it (a rest newer than the stamp), the thread left and re-entered while this server was
+// not watching, and the stamp is refused for a fresh one. After that the stamp simply holds — a thread
+// can be queued MID-TURN (a permission prompt, a silent turn, a command at a prompt), and whatever its
+// agent or process writes while it waits must not move it.
+//
+// A thread with no stored stamp and no sighting outside the queue — the first boot after this landed, or
+// one that entered while the server was down — falls back to its rest time, which is exactly the order
+// the queue had before the clock existed.
 
 export interface QueueClockStore {
   /** Stamps a previous server persisted, by slug. Read once, at the first assembly. */
@@ -46,8 +59,10 @@ export interface QueueClockStore {
 }
 
 export interface QueueClock {
-  /** Set `queuedAt` on every queued thread in `threads`, in place, and record the edges it crossed. */
-  stamp(threads: readonly ThreadView[], nowMs: number): void
+  /** Set `queuedAt` on every queued thread in `threads`, in place, and record the edges it crossed.
+   *  `known` says whether a thread's `needsYou` reading is real rather than a default standing in for
+   *  telemetry the server does not have yet. */
+  stamp(threads: readonly ThreadView[], nowMs: number, known: (thread: ThreadView) => boolean): void
 }
 
 // The latest instant the thread itself can vouch for having stopped: the agent's own last output, or —
@@ -63,33 +78,45 @@ function restMs(t: ThreadView): number {
 
 export function createQueueClock(store: QueueClockStore): QueueClock {
   let stamps: Map<string, number> | undefined
-  // The last assembly that saw each thread OUTSIDE the queue — the lower bound on when it entered.
+  // Stored stamps not yet checked against their thread's rest (see the header): slugs loaded at boot.
+  const unchecked = new Set<string>()
+  // The last KNOWN assembly that saw each thread outside the queue — the lower bound on when it entered.
   const lastSeenOut = new Map<string, number>()
-  let primed = false
 
   return {
-    stamp(threads, nowMs) {
+    stamp(threads, nowMs, known) {
       if (!stamps) {
         stamps = new Map()
         for (const [slug, at] of store.load()) {
           const ms = Date.parse(at)
-          if (Number.isFinite(ms)) stamps.set(slug, ms)
+          if (!Number.isFinite(ms)) continue
+          stamps.set(slug, ms)
+          unchecked.add(slug)
         }
       }
       const seen = new Set<string>()
       for (const t of threads) {
         seen.add(t.id)
         const held = stamps.get(t.id)
+        const vouched = known(t)
         if (t.needsYou !== true) {
+          if (!vouched) continue
           lastSeenOut.set(t.id, nowMs)
-          if (held !== undefined && primed) {
+          unchecked.delete(t.id)
+          if (held !== undefined) {
             stamps.delete(t.id)
             store.save(t, null)
           }
           continue
         }
+        // Queued on a reading the board cannot vouch for yet: show the stamp it has, decide nothing.
+        if (!vouched) {
+          if (held !== undefined) t.queuedAt = new Date(held).toISOString()
+          continue
+        }
         const rest = restMs(t)
-        if (held !== undefined && (primed || !(rest > held))) {
+        const stale = unchecked.delete(t.id) && held !== undefined && rest > held
+        if (held !== undefined && !stale) {
           t.queuedAt = new Date(held).toISOString()
           continue
         }
@@ -103,7 +130,7 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
       // fresh rather than inheriting a place in line.
       for (const id of [...stamps.keys()]) if (!seen.has(id)) stamps.delete(id)
       for (const id of [...lastSeenOut.keys()]) if (!seen.has(id)) lastSeenOut.delete(id)
-      primed = true
+      for (const id of [...unchecked]) if (!seen.has(id)) unchecked.delete(id)
     },
   }
 }

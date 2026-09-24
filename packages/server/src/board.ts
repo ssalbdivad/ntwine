@@ -2040,8 +2040,11 @@ export function createBoard(
     armSnoozeWake(sessionThreads, assembledAtMs)
     notifyNeedsYou(sessionThreads)
     const commandThreads = deps.commandThreads?.() ?? []
-    // Foreign rows never queue (queuedThread), so they have no place in line to keep.
-    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs)
+    // Foreign rows never queue (queuedThread), so they have no place in line to keep. A session reading
+    // is only vouched for once the tailer has primed the row, or when durable row state alone decided it
+    // (archived, snoozed): an unprimed headless row reads `running` by default, which is not a departure.
+    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs, (t) =>
+      t.kind !== "session" || tailer.get(t.id) !== undefined || t.archived || t.snoozedUntil !== undefined)
     return {
       ...base,
       threads: [...sessionThreads, ...buildForeignThreads(), ...commandThreads],
