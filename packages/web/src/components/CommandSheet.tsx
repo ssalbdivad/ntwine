@@ -9,6 +9,7 @@ import { commandFailed, commandStateLabel } from "../lib/commandThreads.ts"
 import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 import { StateButton } from "./ThreadLifecycleFooter.tsx"
+import { CommandFollowUp } from "./CommandFollowUp.tsx"
 
 // LAZY for the same reason as the sign-in modal's: @xterm/xterm is browser-only, and node (tests)
 // imports the drawer stack transitively.
@@ -17,8 +18,9 @@ const TerminalPane = lazy(() => import("./TerminalPane.tsx").then((m) => ({ defa
 const actionClass = "rounded-md border border-border-strong bg-panel-2/60 px-2.5 py-1 text-[12px] text-fg/80 transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-50"
 
 // A TERMINAL COMMAND THREAD's drawer: the live pty, full height, under a header naming the command and
-// how its run stands. There is no chat and no composer — the terminal takes keystrokes itself, so
-// answering a prompt or pressing Ctrl-C happens right in it.
+// how its run stands. While the run is live there is no composer — the terminal takes keystrokes itself,
+// so answering a prompt or pressing Ctrl-C happens right in it. Once it has finished, the drawer's foot is
+// the next command line (CommandFollowUp), the way a rested agent thread's is its next prompt.
 //
 // The pane is keyed on the RUN, not the slug: Restart starts a fresh process, and the browser should
 // see a fresh screen rather than the new process's output appended under the old one's.
@@ -73,20 +75,20 @@ export function CommandSheet({ id, slug, depth, widthDepth }: { id: number; slug
             onClose={close}
           />
           {command ? (
-            <Suspense fallback={<div className="flex-1 bg-bg" />}>
-              <TerminalPane
-                key={`${slug}:${command.runId}`}
-                slug={slug}
-                exitedStatus={() => (
-                  <>
-                    <span className="text-muted">{commandStateLabel(command) || "Process exited"}</span>
-                    <button type="button" className="text-fg hover:underline" onClick={() => act("restart", close)}>
-                      Restart →
-                    </button>
-                  </>
-                )}
-              />
-            </Suspense>
+            <>
+              <Suspense fallback={<div className="flex-1 bg-bg" />}>
+                {/* No exited bar: the header states how the run ended and carries Restart, and the foot
+                    below is where the next command goes. */}
+                <TerminalPane key={`${slug}:${command.runId}`} slug={slug} focusOnMount={command.state === "running"} exitedStatus={() => null} />
+              </Suspense>
+              {command.state === "exited" ? (
+                <div className="shrink-0 border-t border-border/70 bg-panel px-3 py-2.5">
+                  {/* Keyed on the run, so each finished run takes focus afresh — straight from the terminal
+                      the human was just typing into, or on opening a finished thread. */}
+                  <CommandFollowUp key={command.runId} slug={slug} lastCommand={command.command} autoFocus />
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="flex flex-1 items-center justify-center px-8 text-center text-[13px] text-muted">
               {seen.current ? "This command was removed." : "Starting…"}

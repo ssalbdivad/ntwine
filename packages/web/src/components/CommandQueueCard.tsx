@@ -8,6 +8,7 @@ import { STRIP_INK_GAP } from "../lib/iconRhythm.ts"
 import { BLOCK_RADIUS, BLOCK_RADIUS_INNER_BOTTOM, BLOCK_RADIUS_TOP } from "./TranscriptCard.tsx"
 import { LastActive } from "./LastActive.tsx"
 import { StateButton } from "./ThreadLifecycleFooter.tsx"
+import { CommandFollowUp } from "./CommandFollowUp.tsx"
 
 // LAZY for the same reason as CommandSheet's: @xterm/xterm is browser-only.
 const TerminalPane = lazy(() => import("./TerminalPane.tsx").then((m) => ({ default: m.TerminalPane })))
@@ -69,12 +70,17 @@ export function CommandQueueCard({ thread, leaving, onResolve, onUnresolve, onOp
           fit, which painted a strip over the footer's top edge. */}
       <div className="flex h-[240px] min-h-0 flex-col overflow-hidden">
         <Suspense fallback={<div className="flex-1 bg-bg" />}>
-          <TerminalPane key={`${thread.id}:${command.runId}`} slug={thread.id} base={termBase} exitedStatus={() => null} />
+          <TerminalPane key={`${thread.id}:${command.runId}`} slug={thread.id} base={termBase} focusOnMount={false} exitedStatus={() => null} />
         </Suspense>
+      </div>
+      {/* The next command, as a rested agent's card takes its next prompt. Running it takes the thread out
+          of the queue, so the drawer opens on the new run rather than leaving the human nowhere. */}
+      <div className="border-t border-border/70 bg-panel px-3 pt-2.5">
+        <CommandFollowUp slug={thread.id} lastCommand={command.command} onRan={onOpen ?? (() => openThread(thread.id))} />
       </div>
       <footer
         aria-label="Thread lifecycle actions"
-        className={`${BLOCK_RADIUS_INNER_BOTTOM} flex min-h-10 shrink-0 items-center justify-end ${STRIP_INK_GAP} border-t border-border/70 bg-panel/95 px-3 py-2 text-[12px]`}
+        className={`${BLOCK_RADIUS_INNER_BOTTOM} flex min-h-10 shrink-0 items-center justify-end ${STRIP_INK_GAP} bg-panel/95 px-3 py-2 text-[12px]`}
       >
         <button
           type="button"

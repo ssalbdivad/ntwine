@@ -88,6 +88,8 @@ export const draftKey = {
   dispatch: (projectDir: string | undefined) => `dispatch:${projectDraftScope(projectDir)}:new`,
   // The prompt box's Terminal tab: the shell command about to be run, kept apart from the prompt draft.
   command: (projectDir: string | undefined) => `command:${projectDraftScope(projectDir)}:new`,
+  // A finished command thread's next line (CommandFollowUp) — one per thread, shared by its drawer and queue card.
+  commandNext: (projectDir: string | undefined, slug: string) => `command-next:${projectDraftScope(projectDir)}:${encodeURIComponent(slug)}`,
   followUp: (projectDir: string | undefined, slug: string, sessionId?: string) => `followup:${projectDraftScope(projectDir)}:${encodeURIComponent(slug)}:${encodeURIComponent(sessionId ?? "unowned")}`,
   adopt: (projectDir: string | undefined, slug: string) => `adopt:${projectDraftScope(projectDir)}:${encodeURIComponent(slug)}`,
   answer: (projectDir: string | undefined, slug: string, sessionId: string | undefined, messageId: string, block: number) => `answer:${projectDraftScope(projectDir)}:${encodeURIComponent(slug)}:${encodeURIComponent(sessionId ?? "unowned")}:${encodeURIComponent(messageId)}:${block}`,

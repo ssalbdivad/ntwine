@@ -16,6 +16,7 @@
 import type {
   StartCommandInput,
   CommandThreadInput,
+  RunCommandInput,
   CommandThreadResult,
   ProjectQueue,
   ThreadHandoff,
@@ -305,6 +306,7 @@ export interface Api {
   commandStart(input: StartCommandInput): Promise<CommandThreadResult>
   commandStop(input: CommandThreadInput): Promise<Record<never, never>>
   commandRestart(input: CommandThreadInput): Promise<Record<never, never>>
+  commandRun(input: RunCommandInput): Promise<Record<never, never>>
   commandRemove(input: CommandThreadInput): Promise<Record<never, never>>
   // Machine-scoped: the registry is one file, so the grid reads the same from every project.
   // Which project owns a thread slug. Every URL from the per-project era is unprefixed, so a
@@ -459,6 +461,7 @@ export const PROCEDURES = {
   commandStart: "mutation",
   commandStop: "mutation",
   commandRestart: "mutation",
+  commandRun: "mutation",
   commandRemove: "mutation",
   threadLocate: "query",
   projectsList: "query",

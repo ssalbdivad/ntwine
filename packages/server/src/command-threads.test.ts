@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ThreadSlug } from "@frizz/shared"
 import { createStorage, type Storage } from "./storage.ts"
-import { commandEnvironment, createCommandRunner, type CommandRunner } from "./command-threads.ts"
+import { commandEnvironment, createCommandRunner, followUpScreen, type CommandRunner } from "./command-threads.ts"
 
 // REAL ptys and a real SQLite file: the runner's whole job is the seam between a shell, its process
 // group and the rows the board renders, and a fake pty would only prove the fake.
@@ -107,6 +107,44 @@ test("restart is a fresh run of the same command; remove forgets the thread", { 
   assert.equal(row(runner, slug), undefined)
   assert.equal(runner.attach(slug), null)
   runner.shutdown()
+})
+
+test("a follow-up run is the thread's next command, on a screen that carries the last one's output", { skip: !posix }, async () => {
+  const { runner, storage } = harness()
+  const { slug } = runner.start("printf 'first-out\\n'")
+  await until(() => (row(runner, slug)?.command?.state === "exited" ? true : undefined), "the first run")
+  // Marked done, then followed up: the next command reopens it, exactly as a restart does.
+  storage.setCommandThreadState(slug, "archived")
+  await runner.run(slug, "printf 'second-out\\n'; exit 4")
+  const next = row(runner, slug)!
+  assert.equal(next.command?.command, "printf 'second-out\\n'; exit 4")
+  assert.equal(next.title, next.command?.command)
+  assert.equal(next.command?.runId, 2)
+  assert.equal(next.state, "open")
+
+  const attachment = runner.attach(slug)!
+  attachment.onData(() => {})
+  const code = await new Promise<number | undefined>((resolve) => attachment.onExit(resolve))
+  assert.equal(code, 4)
+  // One session, in order: the first command's line and output, then the second's.
+  const screen = attachment.replay().replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
+  const order = ["$ printf 'first-out\\n'", "first-out", "$ printf 'second-out\\n'; exit 4", "second-out"].map((part) => screen.indexOf(part))
+  assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1]!)), `out of order: ${JSON.stringify(screen)}`)
+
+  // A third run does not repeat the lines the second already carries.
+  await runner.run(slug, "true")
+  const third = runner.attach(slug)!.replay()
+  assert.equal(third.split("first-out\r\n").length - 1, 1)
+  assert.equal(third.split("$\x1b[22m printf 'first-out").length - 1, 1)
+  runner.shutdown()
+})
+
+test("a follow-up after the server lost the last run's screen opens on just its own line", () => {
+  assert.equal(followUpScreen(undefined, "ls"), "\x1b[2m$\x1b[22m ls\r\n")
+  // An unterminated last line (a prompt, `printf` without \n) is closed before the next command's.
+  assert.match(followUpScreen({ command: "a", buffer: "no-newline", echoed: true }, "b"), /no-newline\x1b\[0m\x1b\[\?25h\r\n\x1b\[2m\$/)
+  // …and a terminated one is not given a second, blank line.
+  assert.equal(followUpScreen({ command: "a", buffer: "out\r\n", echoed: true }, "b"), "out\r\n\x1b[0m\x1b[?25h\x1b[2m$\x1b[22m b\r\n")
 })
 
 test("a run the previous server never saw finish reads as interrupted after a restart", { skip: !posix }, async () => {

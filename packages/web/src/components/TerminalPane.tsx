@@ -40,10 +40,13 @@ function terminalTheme() {
 // finishing is the whole story (with a code worth showing), and "Resume" — which focuses an agent's
 // composer — has nothing to resume there.
 //
+// `focusOnMount: false` leaves focus where it is: a finished run has nothing to type into (a command
+// thread's drawer focuses its follow-up line instead), and a queue card is one of many on the page.
+//
 // `base` names the project whose pty this is. It defaults to the page's (`apiBase()`), which is right on
 // a board; the All queues page draws other projects' command cards and passes theirs, since a bare
 // `/term/<slug>` there reaches the LAUNCHING project's terminal server.
-export function TerminalPane({ slug, exitedStatus, base }: { slug: string; exitedStatus?: (exitCode: number | null) => ReactNode; base?: string }) {
+export function TerminalPane({ slug, exitedStatus, base, focusOnMount = true }: { slug: string; exitedStatus?: (exitCode: number | null) => ReactNode; base?: string; focusOnMount?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const [connection, setConnection] = useState<"connecting" | "open" | "reconnecting" | "exited">("connecting")
@@ -77,7 +80,7 @@ export function TerminalPane({ slug, exitedStatus, base }: { slug: string; exite
     term.open(host)
     // Mounting TerminalPane is explicit user intent (or a persisted explicit choice after a server
     // reload). Focus immediately; input typed before the socket opens is queued below, never dropped.
-    term.focus()
+    if (focusOnMount) term.focus()
     // NEVER fit against a degenerate host (a mid-layout zero-height mount produced NaN grid state
     // that corrupted xterm internals and crashed dispose, unmounting the whole workpane).
     const initialDims = fit.proposeDimensions()

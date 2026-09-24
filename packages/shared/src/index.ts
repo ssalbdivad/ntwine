@@ -2520,6 +2520,9 @@ export const StartCommandInput = z.object({
 export type StartCommandInput = z.infer<typeof StartCommandInput>
 export const CommandThreadInput = z.object({ slug: ThreadSlug }).strict()
 export type CommandThreadInput = z.infer<typeof CommandThreadInput>
+// A follow-up command in a finished command thread's drawer: the thread's next run, of a new line.
+export const RunCommandInput = z.object({ slug: ThreadSlug, command: StartCommandInput.shape.command }).strict()
+export type RunCommandInput = z.infer<typeof RunCommandInput>
 export const CommandThreadResult = z.object({ slug: ThreadSlug }).strict()
 export type CommandThreadResult = z.infer<typeof CommandThreadResult>
 

@@ -34,6 +34,9 @@ export interface CommandRunner {
   start(command: string): { slug: string }
   /** A fresh run of an existing thread's command: stops the current run first if it is alive. */
   restart(slug: string): Promise<void>
+  /** The thread's NEXT command, typed into its drawer once a run finished — the terminal's follow-up
+   *  prompt. Stops a live run first, like restart; unlike restart the screen carries on (see `followUpScreen`). */
+  run(slug: string, command: string): Promise<void>
   /** SIGTERM the run's whole process group, SIGKILL it if it outlives the grace. */
   stop(slug: string): Promise<void>
   /** Stop, then forget the thread entirely. */
@@ -56,6 +59,9 @@ interface Run {
   dataListeners: Set<(chunk: string) => void>
   exitListeners: Set<(exitCode?: number) => void>
   exitedPromise: Promise<void>
+  /** The replay already opens with this run's own `$ command` line — a follow-up run, whose screen
+   *  carries its predecessors' (followUpScreen). A first run's command is the drawer's title instead. */
+  echoed: boolean
 }
 
 export interface CommandRunnerDeps {
@@ -92,6 +98,24 @@ export function commandEnvironment(env: NodeJS.ProcessEnv): Record<string, strin
   return out
 }
 
+/** A `$ command` line in the shell's own shape, dim, so a carried-forward screen reads like a terminal
+ *  session: each run's output under the line that started it. */
+function echoLine(command: string): string {
+  return `\x1b[2m$\x1b[22m ${command.replace(/\r?\n/g, "\r\n")}\r\n`
+}
+
+/** The opening screen of a FOLLOW-UP run: what the thread's last run left, then the new command's line.
+ *  Restart deliberately starts blank (the same command again is a fresh attempt, not the next step);
+ *  a follow-up is the next line of one session — `whoami`, then `ls` — and should read as one. When the
+ *  previous run was a first run, its own line is added above its output so the history starts cleanly.
+ *  No previous run in memory (the server restarted since) ⇒ only the new line. */
+export function followUpScreen(previous: { command: string; buffer: string; echoed: boolean } | undefined, command: string): string {
+  if (!previous) return echoLine(command)
+  const screen = previous.echoed ? previous.buffer : echoLine(previous.command) + previous.buffer
+  // Reset any colour or hidden cursor the last program left, and start on a fresh line.
+  return screen + "\x1b[0m\x1b[?25h" + (screen.endsWith("\n") ? "" : "\r\n") + echoLine(command)
+}
+
 function trimReplay(run: Run): void {
   if (run.bufferBytes <= REPLAY_CAP_BYTES) return
   // Cut roughly a quarter, then advance to the next newline so the replay opens on a whole line.
@@ -118,7 +142,7 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
     return new Map(deps.storage.listCommandThreads().map((row) => [row.slug, row]))
   }
 
-  function spawn(slug: string, command: string): void {
+  function spawn(slug: string, command: string, screen?: string): void {
     const { file, args } = commandShell(command, env)
     let term: pty.IPty
     try {
@@ -139,13 +163,15 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
       term,
       exited: false,
       stopRequested: false,
-      buffer: "",
-      bufferBytes: 0,
+      buffer: screen ?? "",
+      bufferBytes: screen ? Buffer.byteLength(screen) : 0,
+      echoed: screen !== undefined,
       dataListeners: new Set(),
       exitListeners: new Set(),
       exitedPromise: new Promise<void>((resolve) => { settle = resolve }),
     }
     runs.set(slug, run)
+    trimReplay(run)
     term.onData((chunk) => {
       run.buffer += chunk
       run.bufferBytes += Buffer.byteLength(chunk)
@@ -264,6 +290,20 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
       deps.storage.restartCommandThread(slug, now())
       try {
         spawn(slug, row.command)
+      } finally {
+        deps.onChange()
+      }
+    },
+    async run(slug, command) {
+      const row = rows().get(slug)
+      if (!row) throw new Error(`no terminal command ${slug}`)
+      const previous = runs.get(slug)
+      runs.delete(slug) // before the stop, for the same reason as restart
+      await stopRun(previous)
+      const screen = followUpScreen(previous && { command: row.command, buffer: previous.buffer, echoed: previous.echoed }, command)
+      deps.storage.restartCommandThread(slug, now(), command)
+      try {
+        spawn(slug, command, screen)
       } finally {
         deps.onChange()
       }

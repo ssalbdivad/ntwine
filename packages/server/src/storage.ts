@@ -723,7 +723,8 @@ export interface Storage {
   insertCommandThread(row: { slug: string; command: string; createdAtMs: number }): void
   listCommandThreads(): CommandThreadRow[]
   /** A fresh run of an existing command: bumps `runs` and clears the previous outcome. */
-  restartCommandThread(slug: string, startedAtMs: number): void
+  /** A new run of the thread; `command` replaces the thread's command (a follow-up run), else it reruns it. */
+  restartCommandThread(slug: string, startedAtMs: number, command?: string): void
   recordCommandExit(slug: string, exit: { exitedAtMs: number; exitCode: number | null; stopped: boolean }): void
   /** Boot: every run with no recorded exit died with the previous server. */
   interruptRunningCommandThreads(exitedAtMs: number): void
@@ -1836,7 +1837,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     "SELECT slug, command, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM command_thread WHERE project_id = @project_id ORDER BY created_at, slug",
   )
   const restartCommandThreadStmt = scope.prepare(`
-    UPDATE command_thread SET started_at = ?, runs = runs + 1, exited_at = NULL, exit_code = NULL, stopped = 0, state = 'open'
+    UPDATE command_thread SET command = COALESCE(?, command), started_at = ?, runs = runs + 1, exited_at = NULL, exit_code = NULL, stopped = 0, state = 'open'
     WHERE project_id = @project_id AND slug = ?
   `)
   const recordCommandExitStmt = scope.prepare(`
@@ -2635,7 +2636,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     dropThreadLink: (slug, id) => dropThreadLinkStmt.run(slug, id).changes === 1,
     insertCommandThread: (row) => void insertCommandThreadStmt.run(row),
     listCommandThreads: () => listCommandThreadsStmt.all(),
-    restartCommandThread: (slug, startedAtMs) => void restartCommandThreadStmt.run(startedAtMs, slug),
+    restartCommandThread: (slug, startedAtMs, command) => void restartCommandThreadStmt.run(command ?? null, startedAtMs, slug),
     recordCommandExit: (slug, exit) => void recordCommandExitStmt.run(exit.exitedAtMs, exit.exitCode, exit.stopped ? 1 : 0, slug),
     interruptRunningCommandThreads: (exitedAtMs) => void interruptCommandThreadsStmt.run(exitedAtMs),
     dropCommandThread: (slug) => dropCommandThreadStmt.run(slug).changes === 1,
