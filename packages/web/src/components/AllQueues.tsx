@@ -35,7 +35,7 @@ import { AllQueuesCard, threadBoardHref } from "./AllQueuesCard.tsx"
 import { CommandQueueCard } from "./CommandQueueCard.tsx"
 import { ProjectSquare } from "./ProjectRail.tsx"
 import { ProviderMark } from "./ProviderMark.tsx"
-import { ROW_ACTION_CLASS, RestedAge, SIDEBAR_COLUMN_CLASS, SectionHeader, ThreadIndicator, TitleWithTrailers } from "./Sidebar.tsx"
+import { ROW_ACTION_CLASS, RestedAge, SIDEBAR_COLUMN_CLASS, ThreadIndicator, TitleWithTrailers } from "./Sidebar.tsx"
 import { Tooltip } from "./Tooltip.tsx"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 
@@ -167,7 +167,6 @@ function MachineRail({
 }) {
   const busy = projects.filter(isBusy)
   const quiet = projects.filter((project) => !isBusy(project))
-  const [quietOpen, setQuietOpen] = useState(false)
   return (
     <>
       {busy.map((project, index) => (
@@ -176,18 +175,13 @@ function MachineRail({
           <ProjectGroup project={project} activeKey={activeKey} hidden={hidden} onQueuedRow={onQueuedRow} />
         </div>
       ))}
+      {/* Always listed, one line each, under the busy ones. They sat behind a collapsed "Quiet" fold until
+          2026-09-24, which cost a click to reach a project whose row is already about as quiet as a row
+          can be (maintainer: "if I want to navigate to them I shouldn't have to expand"). */}
       {quiet.length > 0 && (
         <section aria-label="Quiet projects">
           {busy.length > 0 && <hr className="my-3 border-border/50" />}
-          {/* Collapsed by default when anything else has work — a quiet project is a name, not news. On a
-              machine where EVERY project is quiet it opens, or the column would be a lone header. */}
-          <SectionHeader
-            label="Quiet"
-            count={quiet.length}
-            collapsed={busy.length > 0 ? !quietOpen : false}
-            onToggle={busy.length > 0 ? () => setQuietOpen((open) => !open) : undefined}
-          />
-          {(busy.length === 0 || quietOpen) && quiet.map((project) => <QuietRow key={project.id} project={project} />)}
+          {quiet.map((project) => <QuietRow key={project.id} project={project} />)}
         </section>
       )}
     </>
@@ -476,7 +470,7 @@ function EmptyQueues({ running, runningProjects, unopened }: { running: number; 
       </div>
       {unopened > 0 && (
         <div className="text-[11.5px] text-muted-60">
-          {unopened} {unopened === 1 ? "project is" : "projects are"} not open on this server — see Quiet
+          {unopened} {unopened === 1 ? "project is" : "projects are"} not open on this server
         </div>
       )}
       {running > 0 && (
