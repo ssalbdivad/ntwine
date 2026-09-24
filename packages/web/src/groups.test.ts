@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ThreadView } from "@frizz/shared"
-import { bandOf, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, queueLabelAt, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
+import { bandOf, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, queueLabelAt, queueLabelWord, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
 
 // Minimal ThreadView fixture — the same shape board-delta.test.ts uses, defaulting to a live/active
 // thread; each case overrides only the fields under test.
@@ -484,6 +484,10 @@ test("orderQueue: a thread keys on when it ENTERED the queue, so a wait that let
     thread({ id: "b-rested-earlier", lastAssistantAt: "2026-09-24T08:00:00.000Z", queuedAt: "2026-09-24T13:00:00.000Z" }),
   ]
   assert.deepEqual(orderQueue(tied).map((item) => item.id), ["b-rested-earlier", "a-rested-later"])
+  // The queue CARD names the reading for what it is: how long the thread has been ready, not when its
+  // agent last spoke — which for `ci-held` was 09:00.
+  assert.equal(queueLabelWord(ciHeld), "Ready")
+  assert.equal(queueLabelWord(thread({ id: "unstamped" })), "Last active")
   // A row without the stamp (a server predating it) falls back to the rest time, as before.
   assert.equal(queueLabelAt(thread({ id: "legacy", lastAssistantAt: "2026-09-24T08:00:00.000Z" })), "2026-09-24T08:00:00.000Z")
 })

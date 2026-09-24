@@ -1164,8 +1164,9 @@ test("queued_at: a pre-clock unified file gains the column, and the stamp surviv
   const path = join(dir, "ui.db")
   // Every live install's file predates the column; the ALTER in ensureStorageSchema must add it back.
   const preClock = new Database(path)
-  const stripped = STORAGE_SCHEMA.replace(/^\s*queued_at\s+TEXT,\n/m, "")
-  assert.notEqual(stripped, STORAGE_SCHEMA, "the strip found the column line (keep this regex with the DDL)")
+  // Both tables carry it — `session` and `command_thread` — and both must come back.
+  const stripped = STORAGE_SCHEMA.replace(/^\s*queued_at\s+TEXT,\n/gm, "")
+  assert.equal((STORAGE_SCHEMA.match(/^\s*queued_at\s+TEXT,$/gm) ?? []).length, 2, "the strip finds both column lines (keep this regex with the DDL)")
   preClock.exec(stripped)
   preClock.close()
 
@@ -1183,6 +1184,9 @@ test("queued_at: a pre-clock unified file gains the column, and the stamp surviv
     assert.equal(s.getSession("queued")?.queued_at, at)
     s.setQueuedAt("queued", null)
     assert.equal(s.getSession("queued")?.queued_at, null)
+    s.insertCommandThread({ slug: "term-1", command: "npm publish", createdAtMs: Date.parse(at) })
+    s.setCommandQueuedAt("term-1", at)
+    assert.equal(s.listCommandThreads().find((c) => c.slug === "term-1")?.queued_at, at, "a command thread's place in line persists too")
   } finally {
     s.close()
     rmSync(dir, { recursive: true, force: true })

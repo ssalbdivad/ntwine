@@ -33,11 +33,13 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     ["held", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") }],
     ["overnight", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("08:00") }],
   ])
-  // False after the restart below until the test says otherwise: an unprimed row has no telemetry, and
-  // a broker row with none reads as RUNNING — out of the queue — which is what a real boot looks like.
+  // False after the restart below until the test says otherwise. A real boot has BOTH unprimed shapes:
+  // a row the tailer has not reached (no telemetry at all) and one it has set up but not folded yet (a
+  // fresh state, `turn: "in-flight"`, `primed: false`). A broker row read off either is RUNNING.
   let primed = true
+  const halfBuilt: SessionTelemetry = { turn: "in-flight", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, primed: false }
   const tailer = {
-    get: (slug: string) => (primed ? telemetry.get(slug) : undefined),
+    get: (slug: string) => (primed ? telemetry.get(slug) : slug === "held" ? halfBuilt : undefined),
     foreignIds: () => [],
     subAgent: () => undefined,
     forget: () => {},
@@ -46,11 +48,13 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     tick: () => {},
   } satisfies Tailer
   let nowMs = Date.parse(at("10:00"))
-  const command = { id: "term-abc", kind: "command", needsYou: true, spawnedAt: at("08:00"), lastUserAt: at("09:30"), lastActivityAt: at("09:55"), runtime: "exited" } as unknown as ThreadView
+  // A terminal command sitting at a prompt since 09:55 — queued before the restart and after it.
+  let command = { id: "term-abc", kind: "command", needsYou: true, spawnedAt: at("08:00"), lastUserAt: at("09:30"), lastActivityAt: at("09:55"), runtime: "running" } as unknown as ThreadView
   const deps = { now: () => nowMs, commandThreads: () => [{ ...command }] }
   const dbPath = join(dir, "ui.db")
   let storage = createStorage(dbPath, "p")
   storage.upsertSession(row("plain"))
+  storage.insertCommandThread({ slug: "term-abc", command: "npm publish", createdAtMs: Date.parse(at("09:30")) })
   // Rested at 09:00, parked by the human's snooze until 12:30 — the wait that used to hand it the 09:00.
   storage.upsertSession(row("held"))
   storage.setSnoozedUntil("held", at("12:30"))
@@ -71,13 +75,16 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     // The snooze elapses. Keyed on its 09:00 rest it would sort ABOVE `plain`; it entered at the back.
     assert.equal(readAt("12:31").held, at("12:31"))
     assert.equal(storage.getSession("held")?.queued_at, at("12:31"))
-    // Only session rows persist: a command thread's rest time is already exact.
     assert.equal(storage.getSession("plain")?.queued_at, at("09:50"))
+    assert.equal(storage.listCommandThreads().find((c) => c.slug === "term-abc")?.queued_at, at("09:55"))
 
     await board.stop()
     storage.close()
     storage = createStorage(dbPath, "p")
     board = createBoard(project, storage, new Bus(), tailer, "queue-boot-2", deps)
+    // The boot marks the run at the prompt interrupted, which re-dates its activity to the boot. It was
+    // queued before and is queued now, so its place in line must not move with it.
+    command = { ...command, runtime: "exited", lastActivityAt: at("12:38") } as ThreadView
     primed = false
     for (const hhmm of ["12:38", "12:39"]) {
       assert.deepEqual(readAt(hhmm), { plain: undefined, held: undefined, overnight: undefined, "term-abc": at("09:55") }, "unprimed rows read as running")

@@ -890,7 +890,7 @@ export function RestedAge({ t, yieldsToRetry }: { t: ThreadView; yieldsToRetry?:
       // The row's accessible name concatenates its parts, and a bare "2 days" arriving after the title
       // says nothing about WHAT took two days. The label names the reading for that reader; the visible
       // text stays bare, because sighted readers have the column to tell them.
-      aria-label={`Queued ${relativeAge(at, now) ?? span}`}
+      aria-label={`${t.queuedAt ? "Queued" : "Rested"} ${relativeAge(at, now) ?? span}`}
       // shrink-0 + tabular-nums: the column must not compress under a long title, and the digits must
       // not jitter horizontally when the clock ticks. The title takes the remaining width and wraps.
       className={`shrink-0 tabular-nums text-[10.5px] leading-[19px] text-muted-55 ${

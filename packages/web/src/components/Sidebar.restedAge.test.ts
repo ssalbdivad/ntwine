@@ -55,6 +55,8 @@ test("a cue row dates its rest from the agent's own last output, without the wor
   assert.doesNotMatch(html, />12m ago</)
   // The full phrase survives on the hover title, which has the room the column does not.
   assert.match(html, /title="12m ago"/)
+  // No queue stamp (an External terminal row, or an older server): it is named for its rest, not a queue.
+  assert.match(html, /aria-label="Rested 12m ago"/)
 })
 
 test("the column is the CUE's alone — a running row carries no rest time", () => {

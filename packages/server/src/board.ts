@@ -1893,18 +1893,19 @@ export function createBoard(
   // PRIME GUARD: the first assemble after boot records the baseline WITHOUT notifying, so a post-bounce
   // server doesn't fire a storm for every historical resting thread already in the queue.
   let notifyPrimed = false
-  // When each queued thread entered the queue — the queue's order key (queue-clock.ts). Session rows
-  // persist it; a command thread's rest time is already exact, so it rides in memory alone.
+  // When each queued thread entered the queue — the queue's order key (queue-clock.ts), persisted on the
+  // session row or the command thread's row.
   const queueClock = createQueueClock({
     load: () => {
       const alive = storage.getSetting(QUEUE_CLOCK_ALIVE_SETTING)
+      const rows = [...storage.allSessions(), ...storage.listCommandThreads()]
       return {
-        stamps: new Map(storage.allSessions().flatMap((row) => (row.queued_at ? [[row.slug, row.queued_at] as const] : []))),
+        stamps: new Map(rows.flatMap((row) => (row.queued_at ? [[row.slug, row.queued_at] as const] : []))),
         ...(typeof alive === "string" ? { alive } : {}),
       }
     },
-    persists: (thread) => thread.kind === "session",
-    save: (thread, at) => storage.setQueuedAt(thread.id, at),
+    persists: (thread) => thread.kind === "session" || thread.kind === "command",
+    save: (thread, at) => (thread.kind === "command" ? storage.setCommandQueuedAt(thread.id, at) : storage.setQueuedAt(thread.id, at)),
     saveAlive: (at) => storage.setSetting(QUEUE_CLOCK_ALIVE_SETTING, at),
   })
 
@@ -2054,10 +2055,15 @@ export function createBoard(
     notifyNeedsYou(sessionThreads)
     const commandThreads = deps.commandThreads?.() ?? []
     // Foreign rows never queue (queuedThread), so they have no place in line to keep. A session reading
-    // is only vouched for once the tailer has primed the row, or when durable row state alone decided it
-    // (archived, snoozed): an unprimed headless row reads `running` by default, which is not a departure.
-    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs, (t) =>
-      t.kind !== "session" || tailer.get(t.id) !== undefined || t.archived || t.snoozedUntil !== undefined)
+    // is only vouched for once the tailer has PRIMED the row — folded its transcript, or given up on one
+    // and flagged it missing — or when durable row state alone decided it (archived, snoozed). A row the
+    // tailer has not reached, or has set up but not yet folded, reads `running` by default, and that is
+    // not a departure.
+    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs, (t) => {
+      if (t.kind !== "session" || t.archived || t.snoozedUntil !== undefined) return true
+      const tele = tailer.get(t.id)
+      return tele !== undefined && (tele.primed !== false || tele.noTranscript === true)
+    })
     return {
       ...base,
       threads: [...sessionThreads, ...buildForeignThreads(), ...commandThreads],

@@ -3,11 +3,11 @@ import { activityTimestamp, formatLastActive } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 
 /** `lead` renders just before the time and only with it — a separator that must not dangle when there
- *  is no time to show. */
-export function LastActive({ at, fallbackAt, className = "", lead }: { at: string | undefined; fallbackAt?: string; className?: string; lead?: ReactNode }) {
+ *  is no time to show. `label` names the reading ("Last active" unless the caller dates something else). */
+export function LastActive({ at, fallbackAt, className = "", lead, label: reading }: { at: string | undefined; fallbackAt?: string; className?: string; lead?: ReactNode; label?: string }) {
   const now = useNowMs()
   const timestamp = activityTimestamp(at, fallbackAt)
-  const label = formatLastActive(timestamp, now)
+  const label = formatLastActive(timestamp, now, reading)
   if (!label || !timestamp) return null
   return (
     <>

@@ -30,12 +30,14 @@ import type { ThreadView } from "@frizz/shared"
 //
 // DURABLE, because the server restarts constantly and the alternative is re-deriving the key from the
 // rest time at every boot — which puts every thread that entered off a wait back at the front of the
-// line. Session rows persist it (`session.queued_at`); command threads need not, because their rest
-// time is exact (the run's exit, or the output that left it at a prompt).
+// line. Session rows persist it (`session.queued_at`), and so do terminal command threads
+// (`command_thread.queued_at`): a run sitting at a prompt is queued before a restart and after it, and
+// the boot's "interrupted" exit time must not re-date it.
 //
 // AN UNKNOWN READING IS NOT A DEPARTURE. The board starts before the tailer, and the tailer primes at
 // most 25 rows a tick, so for the first seconds after a boot every row it has not reached yet has no
-// telemetry — and a headless row with no telemetry reads as `running`, out of the queue. Taking that at
+// telemetry, or a half-built state it has not folded a transcript into — and a headless row read off
+// either is `running`, out of the queue. Taking that at
 // face value would clear every stored stamp and send the whole queue to the back in prime-batch order on
 // every restart. So the board says which readings it can vouch for (`known`), and only a KNOWN reading
 // outside the queue clears a stamp or counts as having seen the thread out. An unknown one changes
@@ -48,12 +50,16 @@ import type { ThreadView } from "@frizz/shared"
 // agent or process writes while it waits must not move it.
 //
 // A RESTART IS A GAP IN THE SIGHTINGS, and the clock bridges it with one durable instant: when the last
-// server was still watching (`alive`, written at most every ALIVE_EVERY_MS). A thread with no stored
-// stamp was outside the queue as of then, so after a boot that instant is its last sighting out: one that
-// rested since is a plain rest and keeps its rest time, and one that rested before it was held and let go
-// while nobody was watching — a snooze that ran out overnight — joins the back like any other release
-// instead of the front. The first boot after this landed has no such instant, and falls back to the rest
-// time for every thread, which is exactly the order the queue had before the clock existed.
+// server was still watching (`alive`). It is written only after an assembly in which EVERY durable
+// thread had a known reading — so each was either queued (and stamped) or seen outside the queue — and at
+// most every ALIVE_EVERY_MS. A durable thread with no stored stamp was therefore outside the queue as of
+// that instant, and after a boot it is the thread's last sighting out: one that rested since is a plain
+// rest and keeps its rest time, and one that rested before it was held and let go while nobody was
+// watching — a snooze that ran out overnight — joins the back like any other release instead of the
+// front. A boot that dies before it has read every thread writes nothing, so the instant the next boot
+// reads is never one that vouched for rows it had not seen. A row that never gets a known reading holds
+// the instant where it was, which errs toward the rest time; so does the first boot after this landed,
+// which has no instant at all and keeps exactly the order the queue had before the clock existed.
 
 export interface QueueClockStore {
   /** Stamps a previous server persisted, by slug, and when it was last watching. Read once, at the first
@@ -115,22 +121,22 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
         const alive = Date.parse(loaded.alive ?? "")
         if (Number.isFinite(alive)) aliveBefore = alive
       }
-      if (nowMs - aliveSavedAt >= ALIVE_EVERY_MS) {
-        aliveSavedAt = nowMs
-        store.saveAlive(new Date(nowMs).toISOString())
-      }
       const seen = new Set<string>()
+      // Whether every durable thread this assembly had a known reading — the condition for `alive`.
+      let allVouched = true
       for (const t of threads) {
         seen.add(t.id)
         const held = stamps.get(t.id)
         const vouched = known(t)
+        const durable = store.persists(t)
+        if (durable && !vouched) allVouched = false
         if (t.needsYou !== true) {
           if (!vouched) continue
           lastSeenOut.set(t.id, nowMs)
           unchecked.delete(t.id)
           if (held !== undefined) {
             stamps.delete(t.id)
-            if (store.persists(t)) store.save(t, null)
+            if (durable) store.save(t, null)
           }
           continue
         }
@@ -140,13 +146,17 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           continue
         }
         const rest = restMs(t)
-        const stale = unchecked.delete(t.id) && held !== undefined && rest > held
+        // "Spoken since" means the AGENT's own output, never the activity fallback: a terminal command has
+        // none, and the boot that marks a run at a prompt interrupted re-dates its activity to the boot.
+        const spoke = Date.parse(t.lastAssistantAt ?? "")
+        const stale = unchecked.delete(t.id) && held !== undefined && spoke > held
         if (held !== undefined && !stale) {
           t.queuedAt = new Date(held).toISOString()
           continue
         }
-        const durable = store.persists(t)
-        const out = lastSeenOut.get(t.id) ?? (durable ? aliveBefore : undefined)
+        // The bridge speaks only for a durable thread with NO stamp: one whose stamp was refused as stale
+        // was queued as of the old server, not outside it, so its own rest is the best it has.
+        const out = lastSeenOut.get(t.id) ?? (durable && held === undefined ? aliveBefore : undefined)
         let at = out === undefined || rest > out ? rest : nowMs
         if (!Number.isFinite(at) || at > nowMs) at = nowMs
         stamps.set(t.id, at)
@@ -158,6 +168,10 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
       for (const id of [...stamps.keys()]) if (!seen.has(id)) stamps.delete(id)
       for (const id of [...lastSeenOut.keys()]) if (!seen.has(id)) lastSeenOut.delete(id)
       for (const id of [...unchecked]) if (!seen.has(id)) unchecked.delete(id)
+      if (allVouched && nowMs - aliveSavedAt >= ALIVE_EVERY_MS) {
+        aliveSavedAt = nowMs
+        store.saveAlive(new Date(nowMs).toISOString())
+      }
     },
   }
 }

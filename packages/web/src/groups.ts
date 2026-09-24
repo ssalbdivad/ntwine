@@ -285,6 +285,14 @@ export function queueLabelAt(t: Pick<ThreadView, "queuedAt" | "runtime" | "lastA
   return t.queuedAt ?? lastActiveLabelAt(t)
 }
 
+// The word a queue CARD puts in front of that time. "Last active" would be false for a thread that
+// entered off a wait — its agent may last have spoken hours before it came to the human — so a queued
+// card says how long it has been READY, the name its band wears (7f840a59). A card for a thread that is
+// not queued (none on the queue surfaces today) keeps saying what its time is.
+export function queueLabelWord(t: Pick<ThreadView, "queuedAt">): string {
+  return t.queuedAt ? "Ready" : "Last active"
+}
+
 // ── SESSION-FIRST QUEUE ──────────────────────────────────────────────────────────────────────────
 // The Needs-you queue (the cards surface) is EXACTLY the session threads the SERVER derived as needing
 // the human (t.needsYou — explicit questions, checked/done handoffs, and process-level blocks a view
