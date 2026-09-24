@@ -11,8 +11,9 @@ is, and needs what `npx frizz` needs: Node 22.13 or newer on the PATH.
 ## What it does on launch
 
 1. **Joins the running server.** The owner record the published launcher writes names its port; failing
-   that, a Frizz answering `/_frizz/health` on a well-known port (9393, 19393, 9494, 19494) — which is
-   how it finds a `frizz-dev` board, since that writes no record.
+   that, a Frizz on a well-known port (9393, 19393, 9494, 19494) — which is how it finds a `frizz-dev`
+   board, since that writes no record — but only one that proves it holds this user's launch token.
+   Loopback is shared with every other account on the machine and with a `frizz --sandbox`.
 2. **Otherwise starts one.** `npx -y frizz --_frizz-print-launcher` resolves the launcher (installing it
    on first use), and `node <launcher> --no-app` runs from `$HOME`, **detached**, with its output in the
    app's log directory (`launcher.log`). Detached is load-bearing: the launcher supervises the server,

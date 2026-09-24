@@ -31,11 +31,11 @@ export function loadingPage(detail: string): string {
   return page("Frizz", `<h1>Starting Frizz…</h1><p id="detail">${escapeHtml(detail)}</p>`)
 }
 
-export function errorPage(options: { message: string; logPath?: string }): string {
+export function errorPage(options: { title?: string; message: string; logPath?: string }): string {
   const log = options.logPath ? `<p>Launcher log: <code>${escapeHtml(options.logPath)}</code></p>` : ""
   return page(
     "Frizz",
-    `<h1>Frizz could not start</h1><p>${escapeHtml(options.message)}</p>${log}` +
+    `<h1>${escapeHtml(options.title ?? "Frizz could not start")}</h1><p>${escapeHtml(options.message)}</p>${log}` +
       `<div class="actions"><button class="primary" onclick="frizzDesktop.retry()">Try again</button></div>`,
   )
 }

@@ -1,14 +1,22 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { randomUUID } from "node:crypto"
+import { createServer } from "node:http"
+import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { DEFAULT_DEV_PORT, DEFAULT_PORT, fallbackPort } from "@frizz/shared"
+import { frizzPaths } from "@frizz/server/frizz-paths"
+import { acquireProjectLaunchOwner, projectLaunchTokenProof } from "@frizz/server/project-launch"
 import {
   findExecutable,
+  frizzAnswers,
   latestProgress,
   locateServer,
   needsProjectDirectory,
+  ownedFrizz,
   readoutValue,
   startServer,
 } from "./server.ts"
@@ -25,11 +33,12 @@ test("the published launcher's owner record wins over any port probe", async () 
   assert.deepEqual(probed, [4321])
 })
 
-test("with no record, a server on a well-known port is joined — frizz-dev writes none", async () => {
+test("with no record, a server of ours on a well-known port is joined — frizz-dev writes none", async () => {
   const probed: number[] = []
   const found = await locateServer({
     readOwner: () => ({ kind: "idle" }),
-    healthy: async (port) => { probed.push(port); return port === DEFAULT_DEV_PORT },
+    healthy: async () => assert.fail("only the record's port is taken on its health alone"),
+    owned: async (port) => { probed.push(port); return port === DEFAULT_DEV_PORT },
   })
   assert.equal(found, `http://127.0.0.1:${DEFAULT_DEV_PORT}`)
   assert.deepEqual(probed, [DEFAULT_PORT, fallbackPort(DEFAULT_PORT), DEFAULT_DEV_PORT])
@@ -37,10 +46,41 @@ test("with no record, a server on a well-known port is joined — frizz-dev writ
 
 test("nothing running is undefined; a lease with no listener yet is a launch to wait for", async () => {
   const none = async () => false
-  assert.equal(await locateServer({ readOwner: () => ({ kind: "idle" }), healthy: none }), undefined)
-  assert.equal(await locateServer({ readOwner: () => ({ kind: "busy", owner: null }), healthy: none }), "starting")
+  assert.equal(await locateServer({ readOwner: () => ({ kind: "idle" }), healthy: none, owned: none }), undefined)
+  assert.equal(await locateServer({ readOwner: () => ({ kind: "busy", owner: null }), healthy: none, owned: none }), "starting")
   // A record whose listener does not answer is not "nothing": a second launcher would only queue.
-  assert.equal(await locateServer({ readOwner: () => running(4321), healthy: none }), "starting")
+  assert.equal(await locateServer({ readOwner: () => running(4321), healthy: none, owned: none }), "starting")
+})
+
+test("a Frizz on a well-known port is ours only if it proves this user's launch token", async () => {
+  const home = mkdtempSync(join(tmpdir(), "frizz-desktop-owned-"))
+  const project = join(home, "repo")
+  mkdirSync(project)
+  const roots = frizzPaths({ home, env: {} })
+  const projectId = randomUUID()
+  const stateDir = join(roots.data, "projects", projectId)
+  mkdirSync(stateDir, { recursive: true })
+  const lease = acquireProjectLaunchOwner({ projectId, projectDir: project, stateDir }, "launcher")
+  let ownerProof = projectLaunchTokenProof({ projectId, projectDir: project, stateDir }, lease.token)
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "application/json")
+    response.end(JSON.stringify({ ok: true, projectId, projectDir: project, bootId: "boot", ownerProof }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const port = (server.address() as AddressInfo).port
+  try {
+    assert.equal(await ownedFrizz(port, roots), true)
+    // Another account's server, or a `--sandbox` one: the same health, a token we do not hold.
+    ownerProof = projectLaunchTokenProof({ projectId, projectDir: project, stateDir }, randomUUID())
+    assert.equal(await ownedFrizz(port, roots), false)
+    assert.equal(await frizzAnswers(port), true, "it still answers — answering is not owning")
+    // And one whose project has no record in OUR data root at all.
+    assert.equal(await ownedFrizz(port, frizzPaths({ home: join(home, "elsewhere"), env: {} })), false)
+  } finally {
+    server.close()
+    lease.release()
+    rmSync(home, { recursive: true, force: true })
+  }
 })
 
 test("executables are found the way a shell finds them, .cmd shims included on Windows", () => {
@@ -48,7 +88,7 @@ test("executables are found the way a shell finds them, .cmd shims included on W
   try {
     writeFileSync(join(dir, "npx"), "")
     writeFileSync(join(dir, "npx.cmd"), "")
-    assert.equal(findExecutable("npx", { PATH: `/nonexistent:${dir}` }, "linux"), join(dir, "npx"))
+    if (process.platform !== "win32") assert.equal(findExecutable("npx", { PATH: `/nonexistent:${dir}` }, "linux"), join(dir, "npx"))
     assert.equal(findExecutable("npx", { Path: `C:\\missing;${dir}`, PATHEXT: ".COM;.EXE;.CMD" }, "win32"), join(dir, "npx.cmd"))
     assert.equal(findExecutable("node", { PATH: dir }, "linux"), undefined)
   } finally {
@@ -165,6 +205,31 @@ test("a launcher that stays up is detached: it outlives the wait and is found by
     process.kill(-pid, "SIGKILL")
     assert.ok(polls >= 1)
   } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("a launcher that stays up is found by its own ready row, wherever it settled", { skip: !posix }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "frizz-desktop-start-"))
+  let pid = 0
+  try {
+    // A real listener on an arbitrary port, announced the way the real launcher's non-TTY readout
+    // does — the case where the record lives where this app did not look (a login shell's XDG root).
+    const env = fakeToolchain(dir, [
+      `import { createServer } from "node:http"`,
+      `const server = createServer((req, res) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ ok: true, bootId: "b" })) })`,
+      `server.listen(0, "127.0.0.1", () => {`,
+      `  console.log("frizz: ready in 1.2s")`,
+      `  console.log("frizz: local: http://127.0.0.1:" + server.address().port + "/")`,
+      `})`,
+    ].join("\n"))
+    const outcome = await startServer({ env, cwd: dir, logPath: join(dir, "launcher.log"), locate: async () => undefined })
+    assert.equal(outcome.kind, "ready")
+    const port = outcome.kind === "ready" ? Number(new URL(outcome.origin).port) : 0
+    assert.ok(port > 0)
+    pid = Number(execFileSync("sh", ["-c", `ps -eo pid,args | grep "${join(dir, "launcher.mjs")}" | grep -v grep | awk '{print $1}'`], { encoding: "utf8" }).trim().split("\n")[0])
+  } finally {
+    if (pid) try { process.kill(-pid, "SIGKILL") } catch {}
     rmSync(dir, { recursive: true, force: true })
   }
 })

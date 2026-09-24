@@ -21,7 +21,8 @@ import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { appPath, classifyNavigation, startAddress } from "./navigation.ts"
 import { errorPage, loadingPage, projectPickerPage } from "./pages.ts"
-import { locateServer, startServer } from "./server.ts"
+import { frizzPaths, type FrizzPaths } from "@frizz/server/frizz-paths"
+import { locateServer, startServer, type StartOutcome } from "./server.ts"
 import { loginShellEnvironment } from "./shell-env.ts"
 
 /**
@@ -39,14 +40,21 @@ const APP_ID = "dev.frizz.app"
 const here = dirname(fileURLToPath(import.meta.url))
 const isMac = process.platform === "darwin"
 
-// One userData directory whether this runs from the checkout or as the packaged Frizz.app.
 app.setName("Frizz")
+// NOT Electron's default for an app named Frizz: on macOS that is ~/Library/Application Support/Frizz,
+// which is Frizz's own data and state root (frizz-paths.ts), and Chromium would fill it with a browser
+// profile. One directory of its own, whether this runs from the checkout or packaged.
+// setPath throws for a directory that does not exist yet, which on a first launch this one does not.
+const userData = join(app.getPath("appData"), "Frizz Desktop")
+mkdirSync(userData, { recursive: true })
+app.setPath("userData", userData)
 if (process.platform === "win32") app.setAppUserModelId(APP_ID)
 
 /** The server this app is showing — the one origin its windows may navigate within. */
 let origin: string | undefined
 let mainWindow: BrowserWindow | undefined
-let connecting = false
+/** One search-or-start at a time, shared by every window that is waiting on it. */
+let pending: Promise<StartOutcome> | undefined
 
 const statePath = () => join(app.getPath("userData"), "window-state.json")
 const launcherLogPath = () => join(app.getPath("logs"), "launcher.log")
@@ -138,59 +146,74 @@ function focusApp(): void {
   win.focus()
 }
 
-async function waitForRunningServer(): Promise<string | undefined> {
-  const deadline = Date.now() + 60_000
+/** A launch already in progress — someone else's lease with no listener yet — is waited for, not raced. */
+async function waitForRunningServer(roots?: FrizzPaths): Promise<string | "starting" | undefined> {
+  const deadline = Date.now() + 10 * 60_000
   for (;;) {
-    const found = await locateServer()
-    if (found !== "starting") return found
-    if (Date.now() > deadline) return undefined
-    await delay(500)
+    const found = await locateServer({ roots })
+    if (found !== "starting" || Date.now() > deadline) return found
+    progress("waiting for the Frizz launch already in progress")
+    // Every other second: on Windows, each read of a live owner record runs PowerShell synchronously.
+    await delay(2_000)
   }
 }
 
-/**
- * Point `win` at the Frizz server: the one running, or one started now from `cwd`.
- *
- * FRIZZ_DESKTOP_URL skips the search and shows that origin — a board on a non-default port, or a
- * disposable one somebody is testing against.
- */
-async function connect(win: BrowserWindow, cwd = homedir()): Promise<void> {
-  if (connecting) return
-  connecting = true
-  const show = async (url: string) => {
-    if (!win.isDestroyed()) await win.loadURL(url).catch(() => {})
-  }
-  const progress = (line: string) => {
-    if (win.isDestroyed() || !win.webContents.getURL().startsWith("data:")) return
+/** A progress line for every window still showing this app's loading screen. */
+function progress(line: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.webContents.getURL().startsWith("data:")) continue
     win.webContents
       .executeJavaScript(`document.getElementById("detail")?.replaceChildren(${JSON.stringify(line)})`)
       .catch(() => {})
   }
-  try {
-    await show(loadingPage("looking for a running server"))
-    let found = process.env.FRIZZ_DESKTOP_URL ? new URL(process.env.FRIZZ_DESKTOP_URL).origin : await waitForRunningServer()
-    if (!found) {
-      progress("starting the server")
-      const outcome = await startServer({
-        env: await loginShellEnvironment(),
-        cwd,
-        logPath: launcherLogPath(),
-        onProgress: progress,
-      })
-      if (outcome.kind === "failed") {
-        // The launcher's own wording for the first-run case tells a terminal user to cd somewhere.
-        await show(outcome.needsProject ? projectPickerPage() : errorPage({ message: outcome.message, logPath: launcherLogPath() }))
-        return
-      }
-      found = outcome.origin
-    }
-    origin = found
-    await show(startAddress(readWindowState().path, found))
-  } catch (error) {
-    await show(errorPage({ message: error instanceof Error ? error.message : String(error) }))
-  } finally {
-    connecting = false
+}
+
+/**
+ * The Frizz server: the one running, or one started now from `cwd`.
+ *
+ * FRIZZ_DESKTOP_URL skips the search and shows that origin — a board on a non-default port, or a
+ * disposable one somebody is testing against.
+ */
+async function resolveServer(cwd: string): Promise<StartOutcome> {
+  if (process.env.FRIZZ_DESKTOP_URL) return { kind: "ready", origin: new URL(process.env.FRIZZ_DESKTOP_URL).origin }
+  const inProgress = { kind: "failed", message: "A Frizz launch has been starting for 10 minutes and has not come up.", needsProject: false } as const
+  let found = await waitForRunningServer()
+  if (found === "starting") return inProgress
+  if (found) return { kind: "ready", origin: found }
+  progress("starting the server")
+  const env = await loginShellEnvironment()
+  // The launcher resolves Frizz's roots from THIS environment, and a login shell can move them (an
+  // XDG_STATE_HOME exported in an rc file), so look there too before starting a second server.
+  const roots = frizzPaths({ env })
+  found = await waitForRunningServer(roots)
+  if (found === "starting") return inProgress
+  if (found) return { kind: "ready", origin: found }
+  return startServer({ env, cwd, roots, logPath: launcherLogPath(), onProgress: progress })
+}
+
+/**
+ * Point `win` at the Frizz server, at `path` if given and otherwise where the last session ended.
+ * Every window shows its own loading screen but shares the one search-or-start in flight.
+ */
+async function connect(win: BrowserWindow, options: { cwd?: string; path?: string } = {}): Promise<void> {
+  const show = async (url: string) => {
+    if (!win.isDestroyed()) await win.loadURL(url).catch(() => {})
   }
+  await show(loadingPage("looking for a running server"))
+  pending ??= resolveServer(options.cwd ?? homedir())
+    .catch((error: unknown): StartOutcome => ({ kind: "failed", message: error instanceof Error ? error.message : String(error), needsProject: false }))
+    .finally(() => { pending = undefined })
+  const outcome = await pending
+  if (win.isDestroyed()) return
+  if (outcome.kind === "failed") {
+    // The launcher's own wording for the first-run case tells a terminal user to cd somewhere.
+    await show(outcome.needsProject ? projectPickerPage() : errorPage({ message: outcome.message, logPath: launcherLogPath() }))
+    return
+  }
+  origin = outcome.origin
+  await show(startAddress(options.path ?? readWindowState().path, outcome.origin))
+  // The loading screen was this app's, not a page anybody visited: Back must not return to it.
+  if (!win.isDestroyed()) win.webContents.navigationHistory.clear()
 }
 
 function goBack(win: BrowserWindow | null | undefined): void {
@@ -207,12 +230,25 @@ function openInNewWindow(url: string): void {
   void win.loadURL(url)
 }
 
+const lastReconnect = new WeakMap<WebContents, number>()
+const lastCrash = new WeakMap<WebContents, number>()
+
+/** Records now, and answers whether the previous record is under 30 seconds old. */
+function tooSoon(log: WeakMap<WebContents, number>, contents: WebContents): boolean {
+  const previous = log.get(contents)
+  log.set(contents, Date.now())
+  return previous !== undefined && Date.now() - previous < 30_000
+}
+
 /** Everything a page could ask to open, routed by where it belongs (see navigation.ts). */
 function guardNavigation(contents: WebContents): void {
   contents.setWindowOpenHandler(({ url }) => {
     const target = classifyNavigation(url, origin)
     // The board's own pages open as windows of this app — ⌘-click on a thread opens its full page.
-    if (target === "app") return { action: "allow", overrideBrowserWindowOptions: { ...windowOptions(), show: true, width: 1100, height: 800 } }
+    // Such a window is the operator's, not its opener's: closing the board must not close it too.
+    if (target === "app") {
+      return { action: "allow", outlivesOpener: true, overrideBrowserWindowOptions: { ...windowOptions(), show: true, width: 1100, height: 800 } }
+    }
     if (target === "external") void shell.openExternal(url)
     return { action: "deny" }
   })
@@ -224,14 +260,28 @@ function guardNavigation(contents: WebContents): void {
     event.preventDefault()
     if (target === "external") void shell.openExternal(url)
   })
-  contents.on("did-fail-load", (_event, code, _description, url, isMainFrame) => {
+  contents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
     // -3 is ERR_ABORTED: another navigation replaced this one, which is not a failure.
-    if (!isMainFrame || code === -3 || classifyNavigation(url, origin) !== "app") return
+    if (!isMainFrame || code === -3 || !origin || classifyNavigation(url, origin) !== "app") return
     const win = BrowserWindow.fromWebContents(contents)
-    if (win) void connect(win)
+    if (!win) return
+    // The server went away: find or start it again, and come back to the page that failed. Once per
+    // half-minute per window — a server that answers the search but not the page would loop.
+    if (tooSoon(lastReconnect, contents)) {
+      void contents.loadURL(errorPage({ title: "Lost the connection to Frizz", message: `${description} — ${url}` }))
+      return
+    }
+    void connect(win, { path: appPath(url, origin) })
   })
   contents.on("render-process-gone", (_event, details) => {
-    if (details.reason !== "clean-exit") contents.reload()
+    if (details.reason === "clean-exit") return
+    // A reload cures a one-off crash. A page that crashes as it loads would reload forever, and a
+    // launch or integrity failure is not the page's fault at all, so those show the error instead.
+    if (tooSoon(lastCrash, contents) || details.reason === "launch-failed" || details.reason === "integrity-failure") {
+      void contents.loadURL(errorPage({ title: "The page crashed", message: `Chromium reported: ${details.reason}.` }))
+      return
+    }
+    contents.reload()
   })
   contents.on("context-menu", (_event, params) => {
     const items: MenuItemConstructorOptions[] = []
@@ -268,7 +318,7 @@ function buildMenu(): Menu {
         {
           label: "New window",
           accelerator: "CmdOrCtrl+N",
-          click: () => { if (origin) openInNewWindow(`${origin}/`) },
+          click: () => (origin ? openInNewWindow(`${origin}/`) : focusApp()),
         },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
@@ -310,11 +360,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", focusApp)
   app.on("web-contents-created", (_event, contents) => guardNavigation(contents))
   app.on("browser-window-created", (_event, win) => {
-    // Mouse back/forward buttons on Windows, and the trackpad swipe on macOS.
-    win.on("app-command", (_e, command) => {
-      if (command === "browser-backward") goBack(win)
-      if (command === "browser-forward") goForward(win)
-    })
+    // The trackpad swipe on macOS. (Mouse back/forward buttons need nothing: Chromium already
+    // navigates on them, and handling their app-command too went back two pages per click.)
     win.on("swipe", (_e, direction) => {
       if (direction === "left") goBack(win)
       if (direction === "right") goForward(win)
@@ -341,7 +388,7 @@ if (!app.requestSingleInstanceLock()) {
       buttonLabel: "Open in Frizz",
       properties: ["openDirectory"],
     })
-    if (!choice.canceled && choice.filePaths[0]) void connect(win, choice.filePaths[0])
+    if (!choice.canceled && choice.filePaths[0]) void connect(win, { cwd: choice.filePaths[0] })
   })
 
   app.on("window-all-closed", () => {

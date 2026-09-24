@@ -59,7 +59,7 @@ console.log("frizz: ··· server — starting on 9393")
 setTimeout(() => createServer((req, res) => {
   if (req.url === "/_frizz/health") { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ ok: true, bootId: "fake", projectId: "p", projectDir: "/" })); return }
   res.setHeader("content-type", "text/html"); res.end('<!doctype html><title>fake board</title><div id="root">fake board</div>')
-}).listen(9393, "127.0.0.1"), 1500)
+}).listen(9393, "127.0.0.1", () => console.log("frizz: local: http://127.0.0.1:9393/")), 1500)
 `)
   symlinkSync(process.execPath, join(bin, "node"))
   writeFileSync(join(bin, "npx"), `#!/bin/sh\n[ "$3" = "--_frizz-print-launcher" ] && echo "${launcher}"\n`)
@@ -230,7 +230,7 @@ try {
     await running.browser.close().catch(() => {})
     for (let i = 0; i < 50 && running.child.exitCode === null; i++) await delay(200)
     stop(running)
-    const state = JSON.parse(readFileSync(join(home, ".config", "Frizz", "window-state.json"), "utf8"))
+    const state = JSON.parse(readFileSync(join(home, ".config", "Frizz Desktop", "window-state.json"), "utf8"))
     check("quitting saves the window's place", state.path === projectPath && state.bounds?.width > 0, JSON.stringify(state))
     running = await launch()
     const again = await boardPage(running.browser, origin)

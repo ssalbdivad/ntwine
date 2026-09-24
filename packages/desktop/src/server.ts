@@ -3,6 +3,8 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync } fr
 import { delimiter, dirname, join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { DEFAULT_DEV_PORT, DEFAULT_PORT, fallbackPort } from "@frizz/shared"
+import { frizzPaths, type FrizzPaths } from "@frizz/server/frizz-paths"
+import { projectLaunchTokenProof, readProjectLaunchOwner } from "@frizz/server/project-launch"
 import { readStableServerOwner, type ServerOwnerRead } from "../../../src/server-owner.ts"
 import { PRODUCTION_PRINT_LAUNCHER_FLAG } from "../../../src/production-update.ts"
 
@@ -17,20 +19,54 @@ import { PRODUCTION_PRINT_LAUNCHER_FLAG } from "../../../src/production-update.t
  */
 
 export interface LocateOptions {
+  /** Frizz's roots as the LAUNCHER will resolve them — a login shell can move them (XDG_STATE_HOME). */
+  roots?: FrizzPaths
   readOwner?: () => ServerOwnerRead
   healthy?: (port: number) => Promise<boolean>
+  owned?: (port: number) => Promise<boolean>
+}
+
+interface FrizzHealth {
+  ok?: unknown
+  bootId?: unknown
+  projectId?: unknown
+  projectDir?: unknown
+  ownerProof?: unknown
+}
+
+async function readHealth(port: number, timeoutMs: number): Promise<FrizzHealth | undefined> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/_frizz/health`, { signal: AbortSignal.timeout(timeoutMs) })
+    if (!response.ok) return undefined
+    const health = (await response.json()) as FrizzHealth
+    return health.ok === true && typeof health.bootId === "string" ? health : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** A Frizz answering on this loopback port, by the launcher's own health handshake. */
 export async function frizzAnswers(port: number, timeoutMs = 1_500): Promise<boolean> {
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/_frizz/health`, { signal: AbortSignal.timeout(timeoutMs) })
-    if (!response.ok) return false
-    const health = (await response.json()) as { ok?: unknown; bootId?: unknown }
-    return health.ok === true && typeof health.bootId === "string"
-  } catch {
-    return false
-  }
+  return (await readHealth(port, timeoutMs)) !== undefined
+}
+
+/**
+ * A Frizz on this port that THIS USER launched, from these roots.
+ *
+ * Loopback is shared by every account on the machine, and by a `frizz --sandbox`, which takes the next
+ * free well-known port with a throwaway home. Answering the health handshake proves only that some
+ * Frizz is there. What proves it is ours is the launch token: the server's health carries a hash of
+ * the token in its project's owner record, and that record lives in our own data root, readable by
+ * nobody else — the same proof `frizz --stop` checks before it signals anything.
+ */
+export async function ownedFrizz(port: number, roots: FrizzPaths = frizzPaths(), timeoutMs = 1_500): Promise<boolean> {
+  const health = await readHealth(port, timeoutMs)
+  if (!health || typeof health.projectId !== "string" || typeof health.projectDir !== "string") return false
+  if (typeof health.ownerProof !== "string" || !/^[0-9a-f-]{36}$/iu.test(health.projectId)) return false
+  const stateDir = join(roots.data, "projects", health.projectId)
+  const owner = readProjectLaunchOwner(stateDir)
+  if (!owner || owner.projectId !== health.projectId || owner.projectDir !== health.projectDir) return false
+  return projectLaunchTokenProof({ projectId: health.projectId, projectDir: health.projectDir, stateDir }, owner.token) === health.ownerProof
 }
 
 /**
@@ -39,16 +75,17 @@ export async function frizzAnswers(port: number, timeoutMs = 1_500): Promise<boo
  *
  * The owner record is what the published launcher writes, and it is authoritative. The well-known
  * ports are the fallback for a server that writes no record: `frizz-dev` (the source launcher, on the
- * dev port) and launchers from before the record existed — the same probe the launcher itself makes
- * before it decides to start a second one.
+ * dev port) and launchers from before the record existed. A server found that way is joined only if it
+ * proves it is ours (`ownedFrizz`), since a port answers for whoever holds it.
  */
 export async function locateServer(options: LocateOptions = {}): Promise<string | "starting" | undefined> {
-  const readOwner = options.readOwner ?? (() => readStableServerOwner())
+  const readOwner = options.readOwner ?? (() => readStableServerOwner(options.roots))
   const healthy = options.healthy ?? ((port: number) => frizzAnswers(port))
+  const owned = options.owned ?? ((port: number) => ownedFrizz(port, options.roots))
   const owner = readOwner()
   if (owner.kind === "running" && await healthy(owner.port)) return loopbackOrigin(owner.port)
   for (const port of new Set([DEFAULT_PORT, fallbackPort(DEFAULT_PORT), DEFAULT_DEV_PORT, fallbackPort(DEFAULT_DEV_PORT)])) {
-    if (await healthy(port)) return loopbackOrigin(port)
+    if (await owned(port)) return loopbackOrigin(port)
   }
   // A live owner whose listener is not up (or not answering yet) is a launch in progress. Starting a
   // second launcher would only queue behind its lease, so wait for this one instead.
@@ -109,6 +146,7 @@ export interface StartOptions {
   logPath: string
   onProgress?: (line: string) => void
   timeoutMs?: number
+  roots?: FrizzPaths
   locate?: () => Promise<string | "starting" | undefined>
 }
 
@@ -162,13 +200,25 @@ export async function startServer(options: StartOptions): Promise<StartOutcome> 
     closeSync(out)
   }
 
-  const locate = options.locate ?? (() => locateServer())
+  const locate = options.locate ?? (() => locateServer({ roots: options.roots }))
   const deadline = Date.now() + (options.timeoutMs ?? 10 * 60_000)
   let reported: string | undefined
+  let lastLocate = 0
   while (Date.now() < deadline) {
-    const found = await locate()
-    if (found && found !== "starting") return { kind: "ready", origin: found }
     const log = existsSync(logPath) ? readFileSync(logPath, "utf8") : ""
+    // The launcher's own ready row names the address it serves, whatever port it settled on — the
+    // cheapest and most direct answer, so it is asked every time.
+    const local = readoutValue(log, "local")
+    if (local && exit === undefined && (await frizzAnswers(Number(new URL(local).port)))) {
+      return { kind: "ready", origin: new URL(local).origin }
+    }
+    // The owner record and the port probes are the fallback, asked every couple of seconds: on
+    // Windows each read of a live owner runs PowerShell synchronously on this app's main thread.
+    if (Date.now() - lastLocate >= 2_000) {
+      lastLocate = Date.now()
+      const found = await locate()
+      if (found && found !== "starting") return { kind: "ready", origin: found }
+    }
     const progress = latestProgress(log)
     if (progress && progress !== reported) options.onProgress?.((reported = progress))
     if (exit !== undefined) {
