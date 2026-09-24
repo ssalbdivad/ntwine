@@ -985,9 +985,11 @@ test("`ask` and `unask` register and withdraw the CALLING thread's questions, tr
     assert.deepEqual(seen[0], { url: "/_frizz/rpc/ask", body: { slug: "asking-thread", questions: [spec] } })
     assert.match(asked.result.content[0].text, /Registered 1 question/)
     assert.match(asked.result.content[0].text, /qst_aaa111 {2}Land the parser refactor on `main`\?/)
-    // THE STANDING INSTRUCTION, at the moment of temptation: asking does not end the turn. A worker
-    // that registers a question and then rests has stopped for an answer it was told not to wait for.
-    assert.match(asked.result.content[0].text, /KEEP WORKING/)
+    // THE STANDING INSTRUCTION, at the moment of temptation: a question queues only once the worker
+    // rests (deriveNeedsYou), so one asked and then worked past sits unseen in the Active band while the
+    // thread spins (maintainer 2026-09-24: "decide and go with it, or mark as ready and ask").
+    assert.match(asked.result.content[0].text, /NOW REST/)
+    assert.doesNotMatch(asked.result.content[0].text, /on the human's board now/)
 
     rpc.send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "unask", arguments: { id: "qst_aaa111" } } })
     const withdrawn = await rpc.next(3)
