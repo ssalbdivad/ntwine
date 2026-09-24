@@ -39,6 +39,7 @@ import { RegisteredAnsweringProvider, RegisteredQuestionStack } from "./Register
 import { QueueSubAgentLines, hasQueueSubAgentLines } from "./QueueSubAgentLines.tsx"
 import { WakeDivider } from "./WakeDivider.tsx"
 import { LastActive } from "./LastActive.tsx"
+import { BandLabel } from "./BandLabel.tsx"
 import { CopyTerminalCommandButton, useCopyTerminalCommand } from "./ExternalTerminalCommand.tsx"
 import {
   captureTranscriptViewportAnchor,
@@ -510,6 +511,18 @@ export function TodosView() {
 
       {visibleItems.length > 0 && (
         <div className="flex flex-col">
+          {/* THE INBOX, NAMED — READY with the inbox, the name, glyph and count of the rail band whose
+              rows ARE these cards (maintainer 2026-09-24: make it obvious the middle of the screen is
+              the inbox). With the drawer header's band stamp it turns the rail's headers into a legend:
+              Ready is a card here, anything else opens on the side. The count is the cards still in
+              the inbox — one the reader just dismissed leaves it at once, and one hidden behind its
+              own open drawer still counts, since it has not left. `pl-[21px]` is the card's 1px border
+              plus its header's px-5, so the glyph stands over the titles the way the rail's header
+              glyphs stand over its rows. It shows as long as a card is on screen — the last one's
+              fade included — so nothing under it ever shifts while a card is leaving. */}
+          <h2 data-inbox-header className="mb-3 flex pl-[21px]">
+            <BandLabel band="ready" count={items.filter((it) => !leaving.has(it.id)).length} />
+          </h2>
           {visibleItems.map((item, i) => (
             <Fragment key={item.id}>
               <CardSlot slug={item.id} leaving={isLeaving(item.id)}>
