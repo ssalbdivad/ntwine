@@ -360,6 +360,15 @@ export interface Api {
   // The shipped GitHub batch-dispatch prompt template — the Settings UI prefills its editor from this
   // and resets to it (an empty githubPrompt setting = the server default). One template, issues and PRs.
   githubPromptDefaults(): Promise<{ prompt: string }>
+  // The project's FRIZZ.md, edited from the agent settings panel. A write carries the revision it was
+  // based on; `ok: false` hands back the file as it now is (a worker edited it, or it is not writable).
+  projectInstructionsGet(): Promise<{ content: string; revision: string; editable: boolean }>
+  projectInstructionsSet(input: { content: string; baseRevision: string }): Promise<{
+    ok: boolean
+    reason?: "conflict" | "tooLarge" | "notAFile"
+    content: string
+    revision: string
+  }>
   // GitHub-first batch dispatch. Detection (installed/inRepo/nameWithOwner) is cached server-side;
   // `authed` is re-checked live per call. githubList reads the repo's issues/PRs; githubDispatchBatch
   // hydrates each selected item fresh + spins up one thread per item (sequential, reuses dispatch).
@@ -481,6 +490,8 @@ export const PROCEDURES = {
   dispatchPreferencesGet: "query",
   dispatchPreferenceSet: "mutation",
   githubPromptDefaults: "query",
+  projectInstructionsGet: "query",
+  projectInstructionsSet: "mutation",
   githubStatus: "query",
   githubList: "query",
   githubDispatchBatch: "mutation",

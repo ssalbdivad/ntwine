@@ -22,14 +22,18 @@ const writes: SetDispatchPreferenceInput[] = []
 // object — and `?settingsDelay=N` holds each write for N ms, which is how the dispatch gate is driven.
 let settings: Record<string, unknown> = { permissionMode: "bypassPermissions", notifications: true, autoCompactWindow: 500000, promptCacheTtl: "auto" }
 const settingsWrites: Record<string, unknown>[] = []
+// The project's FRIZZ.md, as the "Project instructions" field sees it. `instructions.disk` stands in
+// for the file: a test rewrites it to play a worker editing FRIZZ.md behind the open panel, and a
+// write whose base revision no longer matches is refused the way the server refuses it.
+const instructions = { disk: "Run the tests before committing.", revision: 1, writes: [] as { content: string; baseRevision: string }[] }
 const settingsDelay = Number(new URL(window.location.href).searchParams.get("settingsDelay") ?? 0)
 const outcome = new URL(window.location.href).searchParams.get("outcome") === "failure" ? "failure" : "success"
 
 declare global {
-  interface Window { dispatchComposerProfileFixture?: { preferences: DispatchPreferences; writes: SetDispatchPreferenceInput[]; settingsWrites: Record<string, unknown>[] } }
+  interface Window { dispatchComposerProfileFixture?: { preferences: DispatchPreferences; writes: SetDispatchPreferenceInput[]; settingsWrites: Record<string, unknown>[]; instructions?: typeof instructions } }
 }
 
-window.dispatchComposerProfileFixture = { preferences, writes, settingsWrites }
+window.dispatchComposerProfileFixture = { preferences, writes, settingsWrites, instructions }
 
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
@@ -48,10 +52,19 @@ window.fetch = async (input, init) => {
         [update.backend]: { ...preferences[update.backend], model: update.model, effort: update.effort },
       }
     }
-    window.dispatchComposerProfileFixture = { preferences, writes, settingsWrites }
+    window.dispatchComposerProfileFixture = { preferences, writes, settingsWrites, instructions }
     return json(preferences)
   }
   if (url.pathname === "/_frizz/rpc/settingsGet") return json(settings)
+  if (url.pathname === "/_frizz/rpc/projectInstructionsGet") return json({ content: instructions.disk, revision: String(instructions.revision), editable: true })
+  if (url.pathname === "/_frizz/rpc/projectInstructionsSet") {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { content: string; baseRevision: string }
+    instructions.writes.push(body)
+    if (body.baseRevision !== String(instructions.revision)) return json({ ok: false, reason: "conflict", content: instructions.disk, revision: String(instructions.revision) })
+    instructions.disk = body.content
+    instructions.revision += 1
+    return json({ ok: true, content: instructions.disk, revision: String(instructions.revision) })
+  }
   if (url.pathname === "/_frizz/rpc/settingsSet") {
     const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
     if (settingsDelay > 0) await new Promise((resolve) => window.setTimeout(resolve, settingsDelay))

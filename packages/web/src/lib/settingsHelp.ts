@@ -10,5 +10,6 @@ export const SETTINGS_HELP = {
   queueOrder: "Orders the Needs-you queue and the sidebar's rested threads by when each was last active. Oldest first (FIFO, default) surfaces the longest-waiting item first so you cycle through everything; Newest first (LIFO) keeps the most recently active on top. Applies immediately in this browser.",
   notifications: "Shows a desktop notification when work needs attention while this window is hidden.",
   projectRail: "Shows a permanent column of every project on this machine down the left edge. Off by default: Frizz's home is one board, and a standing list of the others is an easy way to leave the thread you were in. With it off, the home crumb in the status bar is the way back to the projects page.",
+  projectInstructions: "Instructions every agent in this project follows, Claude Code and Codex alike. They are the project's FRIZZ.md: saved to the repo root, where they can be committed and reviewed, and injected into each worker's system prompt. Takes effect on the next thread you dispatch and on any thread when it next resumes.",
   githubPrompt: "The prompt for every item dispatched from the GitHub picker, issues and PRs alike. The default has the worker read the whole thread, classify it, and branch — reproduce + fix-plan for a bug, a plan for a feature, an adversarial review for a PR.",
 } as const

@@ -148,3 +148,42 @@ test("a settings write still in flight holds the composer until it lands", { ski
     await browser.close()
   }
 })
+
+test("project instructions save to FRIZZ.md and never overwrite a change a worker made meanwhile", { skip: !baseUrl, timeout: 60_000 }, async () => {
+  type Instructions = { disk: string; revision: number; writes: { content: string; baseRevision: string }[] }
+  const read = (page: import("puppeteer").Page) =>
+    page.evaluate(() => structuredClone((window as unknown as { dispatchComposerProfileFixture: { instructions: Instructions } }).dispatchComposerProfileFixture.instructions))
+  const FIELD = `${PANEL} textarea[aria-label="Project instructions"]`
+  const { browser, page, errors } = await launch()
+  try {
+    await openPanel(page)
+    await page.waitForFunction((f) => document.querySelector<HTMLTextAreaElement>(f)?.value === "Run the tests before committing.", {}, FIELD)
+    await page.click(FIELD)
+    await page.keyboard.press("End")
+    await page.keyboard.type(" Never push.")
+    await page.waitForFunction(() => (window as unknown as { dispatchComposerProfileFixture: { instructions: Instructions } }).dispatchComposerProfileFixture.instructions.writes.length === 1, { timeout: 3000 })
+    let state = await read(page)
+    assert.deepEqual(state.writes[0], { content: "Run the tests before committing. Never push.", baseRevision: "1" }, "one debounced write, based on the revision it loaded")
+    assert.ok(await page.$(PANEL), "typing leaves the panel open")
+
+    // A worker rewrites FRIZZ.md behind the open panel; the next edit is refused, not saved over it.
+    await page.evaluate(() => {
+      const i = (window as unknown as { dispatchComposerProfileFixture: { instructions: Instructions } }).dispatchComposerProfileFixture.instructions
+      i.disk = "Edited by a worker."
+      i.revision += 1
+    })
+    await page.keyboard.type("!")
+    await page.waitForFunction((p) => /changed on disk/.test(document.querySelector(p)?.textContent ?? ""), { timeout: 3000 }, PANEL)
+    state = await read(page)
+    assert.equal(state.disk, "Edited by a worker.", "the worker's edit survives")
+    await page.click(`${PANEL} button::-p-text(Load latest)`)
+    assert.equal(await page.$eval(FIELD, (el) => (el as HTMLTextAreaElement).value), "Edited by a worker.")
+    await page.click(FIELD)
+    await page.keyboard.press("End")
+    await page.keyboard.type(" Mine.")
+    await page.waitForFunction(() => (window as unknown as { dispatchComposerProfileFixture: { instructions: Instructions } }).dispatchComposerProfileFixture.instructions.disk === "Edited by a worker. Mine.", { timeout: 3000 })
+    assert.deepEqual(errors, [])
+  } finally {
+    await browser.close()
+  }
+})

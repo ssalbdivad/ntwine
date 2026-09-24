@@ -10,6 +10,7 @@ import { AUTO_COMPACT_WINDOW_OPTIONS, CONTEXT_WINDOW_HELP, DEFAULT_AUTO_COMPACT_
 import { CLAUDE_DISPATCH_PERMISSION_OPTIONS } from "../lib/options.ts"
 import { OPAQUE_PORTAL_SURFACE_ABOVE_POPOVER_Z } from "../lib/overlaySurface.ts"
 import { SETTINGS_HELP } from "../lib/settingsHelp.ts"
+import { ProjectInstructionsField } from "./ProjectInstructionsField.tsx"
 import { SettingsField } from "./SettingsField.tsx"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/Popover.tsx"
 import { Select } from "./ui/Select.tsx"
@@ -80,7 +81,7 @@ export function AgentSettingsPopover({ backend, open, onOpenChange }: {
         side="bottom"
         align="end"
         sideOffset={6}
-        className="w-[272px] max-w-[calc(100vw-1rem)] p-4"
+        className="w-[400px] max-w-[calc(100vw-1rem)] p-4"
         style={{ fontVariantCaps: "normal", letterSpacing: "normal" }}
         data-agent-settings-menu={backend}
         // The panel is a React descendant of the picker's menu (portals keep the React tree), so its
@@ -150,6 +151,8 @@ function AgentSettingsForm({ backend }: { backend: "claude" | "codex" }) {
           />
         </SettingsField>
       )}
+      {/* Shared by both runtimes, so it sits below the runtime's own fields on either band. */}
+      <ProjectInstructionsField />
     </div>
   )
 }
