@@ -1,4 +1,4 @@
-import { House, Layers, Settings as SettingsIcon } from "lucide-react"
+import { House, Infinity as InfinityIcon, Settings as SettingsIcon } from "lucide-react"
 import { Link } from "react-router"
 import { store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
@@ -141,7 +141,7 @@ export function StatusRow() {
       </Link>
       {/* The other door out, one level down from the grid: every project's queue on one page. */}
       <Link to="/queues" title="Everything" aria-label="Everything" className={STATUS_ROW_ACTION}>
-        <Layers size={STATUS_ROW_ICON} aria-hidden="true" />
+        <InfinityIcon size={STATUS_ROW_ICON} aria-hidden="true" />
       </Link>
       <Divider />
       <button
