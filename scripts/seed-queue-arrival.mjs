@@ -12,6 +12,10 @@
 // Keyed on rest time, `snoozed-oldest` lands ABOVE both the moment its snooze ends. Keyed on when it
 // entered the queue (queue-clock.ts), it joins the bottom. scripts/verify-queue-arrival.mjs checks which.
 //
+// `--snooze-prompt=<text>` gives that snooze a prompt to deliver when it ends: a hold with a wake behind
+// it, so the clock withholds the entry for its settle window before letting it in (the stack's wakers are
+// off, so no wake ever comes and the window runs out).
+//
 // Simulated BROKER rows (claude_runtime='broker'), so board.deriveRuntime reads the tailer's turn state —
 // the same reason seed-resting-thread.mjs gives — each with a broker record naming ONE live stand-in
 // daemon (a `sleep`). The daemon is what makes a restart honest: with it, a row the tailer has not primed
@@ -19,7 +23,7 @@
 // boot; without it the row reads exited and stays queued, and the boot window the queue clock guards
 // never opens. Kill the printed pid when the stack comes down.
 //
-// Usage: node scripts/seed-queue-arrival.mjs --home=/abs/temp-home [--cwd=/abs/project] [--snooze-s=45]
+// Usage: node scripts/seed-queue-arrival.mjs --home=/abs/temp-home [--cwd=/abs/project] [--snooze-s=45] [--snooze-prompt=text]
 import { execFileSync, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -31,8 +35,9 @@ const flags = Object.fromEntries(
 )
 const { home, cwd = process.cwd() } = flags
 const snoozeS = Number(flags["snooze-s"] ?? 45)
+const snoozePrompt = flags["snooze-prompt"]
 if (!home) {
-  console.error("usage: node scripts/seed-queue-arrival.mjs --home=/abs/temp-home [--cwd=/abs/project] [--snooze-s=45]")
+  console.error("usage: node scripts/seed-queue-arrival.mjs --home=/abs/temp-home [--cwd=/abs/project] [--snooze-s=45] [--snooze-prompt=text]")
   process.exit(1)
 }
 
@@ -52,7 +57,7 @@ const ago = (m) => new Date(now - m * 60_000).toISOString()
 let n = 0
 const uuid = () => `00000000-0000-4000-9000-${String(++n).padStart(12, "0")}`
 
-function seed({ slug, sessionId, title, restedMinutesAgo, snoozedUntil = null }) {
+function seed({ slug, sessionId, title, restedMinutesAgo, snoozedUntil = null, prompt = null }) {
   const records = [
     {
       parentUuid: null, isSidechain: false, type: "user", uuid: uuid(), timestamp: ago(restedMinutesAgo + 5), session_id: sessionId, cwd,
@@ -70,10 +75,10 @@ function seed({ slug, sessionId, title, restedMinutesAgo, snoozedUntil = null })
   writeFileSync(brokerRecordPath(sessionId), JSON.stringify({ sessionId, daemonPid: daemon.pid, socketPath: join(sandbox.stateDir, "claude-broker", `${slug}.sock`) }))
   execFileSync("sqlite3", [
     db,
-    `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at, snoozed_until)
-     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${ago(restedMinutesAgo + 5)}', '${title}', 'claude', 'broker', 'opus', 'high', 'default', '${ago(restedMinutesAgo)}', ${snoozedUntil ? `'${snoozedUntil}'` : "NULL"})`,
+    `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at, snoozed_until, snooze_prompt)
+     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${ago(restedMinutesAgo + 5)}', '${title}', 'claude', 'broker', 'opus', 'high', 'default', '${ago(restedMinutesAgo)}', ${snoozedUntil ? `'${snoozedUntil}'` : "NULL"}, ${prompt ? `'${prompt.replaceAll("'", "''")}'` : "NULL"})`,
   ])
-  console.log(`seeded ${slug} → rested ${restedMinutesAgo}m ago${snoozedUntil ? `, snoozed until ${snoozedUntil}` : ""}`)
+  console.log(`seeded ${slug} → rested ${restedMinutesAgo}m ago${snoozedUntil ? `, snoozed until ${snoozedUntil}` : ""}${prompt ? " with a prompt" : ""}`)
 }
 
 seed({ slug: "rested-first", sessionId: "9a3e0000-0000-4000-9000-00000000000a", title: "Fix the flaky login test", restedMinutesAgo: 30 })
@@ -84,5 +89,6 @@ seed({
   title: "Bump the release pin",
   restedMinutesAgo: 60,
   snoozedUntil: new Date(now + snoozeS * 1000).toISOString(),
+  prompt: snoozePrompt,
 })
 console.log(`stand-in broker daemon pid ${daemon.pid} — kill it when the stack comes down`)

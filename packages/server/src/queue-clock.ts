@@ -60,6 +60,23 @@ import type { ThreadView } from "@frizz/shared"
 // reads is never one that vouched for rows it had not seen. A row that never gets a known reading holds
 // the instant where it was, which errs toward the rest time; so does the first boot after this landed,
 // which has no instant at all and keeps exactly the order the queue had before the clock existed.
+//
+// A RELEASE WAITS ITS TURN TO BE WOKEN. Most holds end in a wake: a sub-agent's return re-invokes its
+// parent, CI settling fires the PR watcher, a timer or a park's deadline delivers its prompt. The hold
+// lets go first and the wake lands seconds later, so for that gap the thread sat in the queue — a card
+// flashing in at the bottom and a desktop notification for a thread nobody needed to touch. So an entry
+// off a hold is WITHHELD for SETTLE_MS (maintainer 2026-09-24, choosing it: "Hold a released thread out
+// for ~12s"): a worker that wakes inside it never reaches the queue, and one that does not enters at the
+// back when the window closes, stamped at that instant. The board reads `needsYou` as false meanwhile,
+// so it neither notifies nor draws the card. Only an entry off a PARK counts — the last known sighting out
+// of the queue found the thread at rest, with the same rest it has now, behind a hold something wakes it
+// from (the board's `parked`) — so an ordinary rest, whose last sighting out was its own running turn, is
+// never delayed. And an URGENT reading enters at once whatever held it: a permission prompt, a question,
+// a crash, a limit pause.
+
+// How long an entry off a park is withheld (see the header): one scheduler tick (10s) for a wake to be
+// sent, plus delivery.
+export const SETTLE_MS = 12_000
 
 export interface QueueClockStore {
   /** Stamps a previous server persisted, by slug, and when it was last watching. Read once, at the first
@@ -78,11 +95,24 @@ export interface QueueClockStore {
 // ending in the gap before it is vanishingly rare; the cost is one settings write per period.
 export const ALIVE_EVERY_MS = 15_000
 
+// What the board can say about one thread's reading that the view alone does not.
+export interface QueueReading {
+  /** Whether its `needsYou` is real, rather than a default standing in for telemetry the server does not
+   *  have yet. */
+  known(thread: ThreadView): boolean
+  /** Out of the queue at rest behind a hold that usually ends in a wake — so its entry is withheld. */
+  parked(thread: ThreadView): boolean
+  /** A reason the human must see at once, never withheld. */
+  urgent(thread: ThreadView): boolean
+}
+
 export interface QueueClock {
-  /** Set `queuedAt` on every queued thread in `threads`, in place, and record the edges it crossed.
-   *  `known` says whether a thread's `needsYou` reading is real rather than a default standing in for
-   *  telemetry the server does not have yet. */
-  stamp(threads: readonly ThreadView[], nowMs: number, known: (thread: ThreadView) => boolean): void
+  /** Set `queuedAt` on every queued thread in `threads`, in place, and record the edges it crossed. A
+   *  withheld entry has its `needsYou` set to false, in place. */
+  stamp(threads: readonly ThreadView[], nowMs: number, reading: QueueReading): void
+  /** When the earliest withheld entry is due to go in, so the board can assemble then rather than on
+   *  its next unrelated refresh. */
+  nextEntryAt(): number | undefined
 }
 
 // The latest instant the thread itself can vouch for having stopped: the agent's own last output, or —
@@ -103,12 +133,17 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
   let aliveSavedAt = -Infinity
   // Stored stamps not yet checked against their thread's rest (see the header): slugs loaded at boot.
   const unchecked = new Set<string>()
-  // The last KNOWN assembly that saw each thread outside the queue: a rest before it means the thread
-  // was held, and a rest after it is a plain rest.
-  const lastSeenOut = new Map<string, number>()
+  // The last KNOWN assembly that saw each thread outside the queue (`at`: a rest before it means the
+  // thread was held, and a rest after it is a plain rest), and what that sighting found.
+  const lastSeenOut = new Map<string, { at: number; rest: number; parked: boolean }>()
+  // Entries withheld off a park, and when each is due to go in.
+  const settling = new Map<string, number>()
 
   return {
-    stamp(threads, nowMs, known) {
+    nextEntryAt() {
+      return settling.size > 0 ? Math.min(...settling.values()) : undefined
+    },
+    stamp(threads, nowMs, reading) {
       if (!stamps) {
         stamps = new Map()
         const loaded = store.load()
@@ -127,12 +162,13 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
       for (const t of threads) {
         seen.add(t.id)
         const held = stamps.get(t.id)
-        const vouched = known(t)
+        const vouched = reading.known(t)
         const durable = store.persists(t)
         if (durable && !vouched) allVouched = false
         if (t.needsYou !== true) {
           if (!vouched) continue
-          lastSeenOut.set(t.id, nowMs)
+          lastSeenOut.set(t.id, { at: nowMs, rest: restMs(t), parked: reading.parked(t) })
+          settling.delete(t.id)
           unchecked.delete(t.id)
           if (held !== undefined) {
             stamps.delete(t.id)
@@ -154,9 +190,19 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           t.queuedAt = new Date(held).toISOString()
           continue
         }
+        const sighting = lastSeenOut.get(t.id)
+        if (sighting?.parked && sighting.rest === rest && !reading.urgent(t)) {
+          const due = settling.get(t.id) ?? nowMs + SETTLE_MS
+          if (nowMs < due) {
+            settling.set(t.id, due)
+            t.needsYou = false
+            continue
+          }
+        }
+        settling.delete(t.id)
         // The bridge speaks only for a durable thread with NO stamp: one whose stamp was refused as stale
         // was queued as of the old server, not outside it, so its own rest is the best it has.
-        const out = lastSeenOut.get(t.id) ?? (durable && held === undefined ? aliveBefore : undefined)
+        const out = sighting?.at ?? (durable && held === undefined ? aliveBefore : undefined)
         let at = out === undefined || rest > out ? rest : nowMs
         if (!Number.isFinite(at) || at > nowMs) at = nowMs
         stamps.set(t.id, at)
@@ -168,6 +214,7 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
       for (const id of [...stamps.keys()]) if (!seen.has(id)) stamps.delete(id)
       for (const id of [...lastSeenOut.keys()]) if (!seen.has(id)) lastSeenOut.delete(id)
       for (const id of [...unchecked]) if (!seen.has(id)) unchecked.delete(id)
+      for (const id of [...settling.keys()]) if (!seen.has(id)) settling.delete(id)
       if (allVouched && nowMs - aliveSavedAt >= ALIVE_EVERY_MS) {
         aliveSavedAt = nowMs
         store.saveAlive(new Date(nowMs).toISOString())

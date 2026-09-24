@@ -27,11 +27,14 @@ function harness(stored: Record<string, string> = {}, alive?: string) {
   })
   // Every reading is vouched for unless its slug is in `unknown` — a row the tailer has not primed yet.
   const unknown = new Set<string>()
+  // Out of the queue behind a hold a wake follows (`parked`), and a reading that must surface at once.
+  const parked = new Set<string>()
+  const urgent = new Set<string>()
   const run = (nowHHMM: string, ...threads: ThreadView[]) => {
-    clock.stamp(threads, ms(nowHHMM), (t) => !unknown.has(t.id))
+    clock.stamp(threads, ms(nowHHMM), { known: (t) => !unknown.has(t.id), parked: (t) => parked.has(t.id), urgent: (t) => urgent.has(t.id) })
     return Object.fromEntries(threads.map((t) => [t.id, t.queuedAt]))
   }
-  return { run, saves, unknown, alives }
+  return { run, saves, unknown, alives, parked, urgent, clock }
 }
 
 test("a plain rest enters the queue at its rest time, so ordinary arrivals keep the order they always had", () => {
@@ -167,4 +170,57 @@ test("a thread with no usable time at all enters now, never at the epoch", () =>
   const { run } = harness()
   const bare = { id: "bare", kind: "command", needsYou: true } as unknown as ThreadView
   assert.deepEqual(run("10:00", bare), { bare: at("10:00") })
+})
+
+test("an entry off a park is withheld for 12s, then joins the back at the instant it goes in", () => {
+  // `parked` rested at 09:00 behind a sub-agent; the child returns at 10:00:01, and the parent's wake is
+  // due any second. Meanwhile `quick` rests plainly at 10:00:05 and enters at once, as it always has.
+  const { run, parked, saves, clock } = harness()
+  parked.add("parked")
+  run("10:00:00", thread("parked", false, "09:00"), thread("quick", false, "09:30"))
+  const released = thread("parked", true, "09:00")
+  assert.deepEqual(run("10:00:01", released), { parked: undefined })
+  assert.equal(released.needsYou, false, "withheld: the board neither queues nor notifies it")
+  assert.equal(clock.nextEntryAt(), ms("10:00:13"))
+  assert.deepEqual(run("10:00:06", thread("parked", true, "09:00"), thread("quick", true, "10:00:05")), { parked: undefined, quick: at("10:00:05") })
+  // No wake came. It goes in when the window closes — behind `quick`, not at its 09:00 rest.
+  const entered = thread("parked", true, "09:00")
+  assert.deepEqual(run("10:00:13", entered, thread("quick", true, "10:00:05")), { parked: at("10:00:13"), quick: at("10:00:05") })
+  assert.equal(entered.needsYou, true)
+  assert.equal(clock.nextEntryAt(), undefined)
+  assert.deepEqual(saves, [["quick", at("10:00:05")], ["parked", at("10:00:13")]])
+})
+
+test("a worker woken inside the window never reaches the queue, and its next rest is an ordinary one", () => {
+  const { run, parked, saves, clock } = harness()
+  parked.add("p")
+  run("10:00:00", thread("p", false, "09:00"))
+  run("10:00:01", thread("p", true, "09:00"))
+  // The wake lands: running, out of the queue on a reading that is not a park.
+  parked.delete("p")
+  assert.deepEqual(run("10:00:04", thread("p", false, "09:00")), { p: undefined })
+  assert.equal(clock.nextEntryAt(), undefined)
+  assert.deepEqual(run("10:00:31", thread("p", true, "10:00:30")), { p: at("10:00:30") })
+  assert.deepEqual(saves, [["p", at("10:00:30")]])
+})
+
+test("an urgent entry off a park goes in at once", () => {
+  // A permission prompt, a question, a crash, a limit pause: nothing about it is a flash.
+  const { run, parked, urgent } = harness()
+  parked.add("p")
+  run("10:00:00", thread("p", false, "09:00"))
+  urgent.add("p")
+  assert.deepEqual(run("10:00:01", thread("p", true, "09:00")), { p: at("10:00:01") })
+})
+
+test("only an entry off a park is withheld: an ordinary rest, or a park the worker has since spoken past, goes in at once", () => {
+  const { run, parked } = harness()
+  // `turn` was last seen out RUNNING, so its rest is its own turn ending.
+  run("10:00:00", thread("turn", false, "09:00"))
+  assert.deepEqual(run("10:00:06", thread("turn", true, "10:00:05")), { turn: at("10:00:05") })
+  // `spoke` was last seen parked at its 09:00 rest, but the rest it enters with is a new one: it was woken
+  // and rested again between two assemblies.
+  parked.add("spoke")
+  run("10:00:00", thread("spoke", false, "09:00"))
+  assert.deepEqual(run("10:00:06", thread("spoke", true, "10:00:05")), { spoke: at("10:00:05") })
 })

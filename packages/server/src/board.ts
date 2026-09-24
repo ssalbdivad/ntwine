@@ -2051,19 +2051,34 @@ export function createBoard(
     // is frizz telling you a WORKER is waiting on you — a terminal session is waiting on you in the
     // window you opened it in, and pushing a notification for it would be frizz claiming an ask it
     // neither received nor can answer.
-    armSnoozeWake(sessionThreads, assembledAtMs)
-    notifyNeedsYou(sessionThreads)
     const commandThreads = deps.commandThreads?.() ?? []
-    // Foreign rows never queue (queuedThread), so they have no place in line to keep. A session reading
-    // is only vouched for once the tailer has PRIMED the row — folded its transcript, or given up on one
-    // and flagged it missing — or when durable row state alone decided it (archived, snoozed). A row the
-    // tailer has not reached, or has set up but not yet folded, reads `running` by default, and that is
-    // not a departure.
-    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs, (t) => {
-      if (t.kind !== "session" || t.archived || t.snoozedUntil !== undefined) return true
-      const tele = tailer.get(t.id)
-      return tele !== undefined && (tele.primed !== false || tele.noTranscript === true)
+    // Foreign rows never queue (queuedThread), so they have no place in line to keep. Ahead of the notify
+    // on purpose: the clock withholds an entry off a park (queue-clock.ts), and a withheld entry must not
+    // notify either.
+    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs, {
+      // A session reading is only vouched for once the tailer has PRIMED the row — folded its transcript,
+      // or given up on one and flagged it missing — or when durable row state alone decided it (archived,
+      // snoozed). A row the tailer has not reached, or has set up but not yet folded, reads `running` by
+      // default, and that is not a departure.
+      known: (t) => {
+        if (t.kind !== "session" || t.archived || t.snoozedUntil !== undefined) return true
+        const tele = tailer.get(t.id)
+        return tele !== undefined && (tele.primed !== false || tele.noTranscript === true)
+      },
+      // At rest and out of the queue anyway: a live sub-agent or shell, CI, a park, a timer, a pending
+      // delivery. The human's own snooze is the one hold with no wake behind it, unless it carries a
+      // prompt to deliver when it ends.
+      parked: (t) =>
+        t.kind === "session" && !t.archived && (t.runtime === "turn-idle" || t.runtime === "exited") &&
+        (t.snoozedUntil === undefined || t.snoozePrompt !== undefined),
+      // deriveNeedsYou's hard gates: a request the human must answer, a question, a crash, a limit pause.
+      urgent: (t) =>
+        t.actionableInteraction === true || t.runtime === "perm-prompt" || t.pendingAsk !== undefined ||
+        t.pendingQuestion === true || (t.questions?.length ?? 0) > 0 || t.crashed === true ||
+        t.limitPause !== undefined || (t.providerError !== undefined && t.providerError.retrying !== true),
     })
+    armSnoozeWake(sessionThreads, assembledAtMs, queueClock.nextEntryAt())
+    notifyNeedsYou(sessionThreads)
     return {
       ...base,
       threads: [...sessionThreads, ...buildForeignThreads(), ...commandThreads],
@@ -2085,11 +2100,12 @@ export function createBoard(
     })
   }
 
-  function armSnoozeWake(threads: readonly ThreadView[], assembledAtMs: number): void {
+  // Also the queue clock's next withheld entry (`entryAt`), which is due at an exact instant the same way.
+  function armSnoozeWake(threads: readonly ThreadView[], assembledAtMs: number, entryAt = Infinity): void {
     if (snoozeTimer) clearTimeout(snoozeTimer)
     snoozeTimer = null
     if (stopped) return
-    let next = Infinity
+    let next = entryAt > assembledAtMs ? entryAt : Infinity
     for (const thread of threads) {
       const at = Date.parse(thread.snoozedUntil ?? "")
       if (Number.isFinite(at) && at > assembledAtMs) next = Math.min(next, at)

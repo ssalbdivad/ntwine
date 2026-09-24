@@ -8,7 +8,10 @@
 // from what the rail and the cards draw), and then the rendered rail.
 //
 //   --phase=arrival  (default) wait for the snooze to end, then check the order, the stamps, the DB
-//                    column and the rendered rail. Leaves the stack as it found it, bar the snooze.
+//                    column and the rendered rail. Leaves the stack as it found it, bar the snooze. A
+//                    snooze seeded with a prompt (--snooze-prompt) is a hold with a wake behind it, so
+//                    its entry must also be WITHHELD for the clock's settle window and then go in on
+//                    time — on the board's armed refresh, not its 15s reconcile.
 //   --phase=restart  run against the SAME sandbox after a restart (adhoc-stack --home=<that home>):
 //                    every stamp must survive, including through the boot window where the tailer has
 //                    not primed a row yet and it reads as running. Pass --expect=<json> from the
@@ -75,12 +78,28 @@ if (phase === "arrival") {
     before.map((t) => `${t.id}: queuedAt=${t.queuedAt} rest=${t.lastAssistantAt}`).join("; "))
 
   const snoozedUntil = Date.parse(held.snoozedUntil)
-  console.log(`…waiting ${Math.max(0, Math.round((snoozedUntil - Date.now()) / 1000))}s for the snooze to end`)
+  const settles = held.snoozePrompt !== undefined
+  console.log(`…waiting ${Math.max(0, Math.round((snoozedUntil - Date.now()) / 1000))}s for the snooze to end${settles ? " (it carries a prompt: expect a 12s settle)" : ""}`)
+  // Every reading from here on, so the settle window can be read off what the wire actually said.
+  const readings = []
   const after = await waitFor("the snooze to end", async () => {
     const t = seeded(await api.query("board"))
-    return t.find((x) => x.id === "snoozed-oldest")?.needsYou === true && t
-  }, snoozedUntil - Date.now() + 30_000)
+    const x = t.find((y) => y.id === "snoozed-oldest")
+    readings.push({ at: Date.now(), needsYou: x?.needsYou === true, snoozed: x?.snoozedUntil !== undefined })
+    return x?.needsYou === true && t
+  }, snoozedUntil - Date.now() + 45_000)
   const arrival = after.find((t) => t.id === "snoozed-oldest")
+  if (settles) {
+    const released = readings.find((r) => !r.snoozed)?.at
+    const entered = readings.at(-1).at
+    const unsnoozedOut = readings.filter((r) => !r.snoozed && !r.needsYou).length
+    check("the prompted snooze's entry was WITHHELD after it ended, not flashed in",
+      released !== undefined && unsnoozedOut > 0 && entered - snoozedUntil >= 11_000,
+      `snooze ended ${held.snoozedUntil}; ${unsnoozedOut} readings unsnoozed but held out; entered +${((entered - snoozedUntil) / 1000).toFixed(1)}s`)
+    check("…and went in when the window closed, on the armed refresh rather than the 15s reconcile",
+      Date.parse(arrival.queuedAt) - snoozedUntil >= 12_000 && Date.parse(arrival.queuedAt) - snoozedUntil < 14_000,
+      `queuedAt=${arrival.queuedAt} (+${((Date.parse(arrival.queuedAt) - snoozedUntil) / 1000).toFixed(1)}s)`)
+  }
   const order = orderQueue(after.filter(queued)).map((t) => t.id)
   check("the arrival joins the BACK of the queue (FIFO)", order.join() === "rested-first,rested-second,snoozed-oldest", order.join(" → "))
   // The negative control: the key the queue used to sort by, on the same live rows.

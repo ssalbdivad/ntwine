@@ -105,3 +105,64 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test("a parent let go by its sub-agent is withheld while its wake lands, and neither queues nor notifies", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "frizz-queue-settle-"))
+  const project: Project = { dir, id: "project-settle", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
+  const child = { id: "toolu_child", label: "Review the diff", startedAt: at("09:00"), state: "running" as const }
+  const resting = (over: Partial<SessionTelemetry> = {}): SessionTelemetry =>
+    ({ turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00"), ...over })
+  // Both rested at 09:00 with a sub-agent still running: out of the queue, at rest — parked. `ending` is
+  // mid-turn, and its final message is already folded while its turn still reads in flight (a Stop hook
+  // running): the same rest before and after, but it was last seen out RUNNING, not parked.
+  const telemetry = new Map<string, SessionTelemetry>([
+    ["parent", resting({ subAgents: [child] })],
+    ["failing", resting({ subAgents: [child] })],
+    ["ending", resting({ turn: "in-flight", lastAssistantAt: "2026-09-24T09:59:59.000Z" })],
+  ])
+  const tailer = {
+    get: (slug: string) => telemetry.get(slug),
+    foreignIds: () => [],
+    subAgent: () => undefined,
+    forget: () => {},
+    start: () => {},
+    stop: () => {},
+    tick: () => {},
+  } satisfies Tailer
+  let nowMs = Date.parse(at("10:00"))
+  const storage = createStorage(join(dir, "ui.db"), "p")
+  for (const slug of ["parent", "failing", "ending"]) {
+    storage.upsertSession(row(slug))
+    storage.setClaudeRuntime(slug, "broker")
+  }
+  const bus = new Bus()
+  const notified: string[] = []
+  bus.subscribe((event) => { if (event.type === "notify" && event.kind === "needs-decision") notified.push(event.slug) })
+  const board = createBoard(project, storage, bus, tailer, "queue-settle", { now: () => nowMs })
+  const read = (time: string) => {
+    nowMs = Date.parse(`2026-09-24T${time}.000Z`)
+    return Object.fromEntries(board.refresh().threads.map((t) => [t.id, { needsYou: t.needsYou, queuedAt: t.queuedAt }]))
+  }
+
+  try {
+    const before = read("10:00:00")
+    assert.deepEqual([before.parent, before.ending], [{ needsYou: false, queuedAt: undefined }, { needsYou: false, queuedAt: undefined }])
+    // The child returns. `failing` comes back with a hard provider error — urgent, so it goes in at once.
+    // `ending`'s turn reads idle: an ordinary rest, never withheld.
+    telemetry.set("parent", resting())
+    telemetry.set("failing", resting({ providerError: { message: "Overloaded" } }))
+    telemetry.set("ending", resting({ lastAssistantAt: "2026-09-24T09:59:59.000Z" }))
+    const released = read("10:00:02")
+    assert.deepEqual(released.parent, { needsYou: false, queuedAt: undefined }, "withheld while its wake lands")
+    assert.deepEqual(released.failing, { needsYou: true, queuedAt: "2026-09-24T10:00:02.000Z" })
+    assert.deepEqual(released.ending, { needsYou: true, queuedAt: "2026-09-24T10:00:02.000Z" })
+    assert.deepEqual(notified, ["failing", "ending"])
+    // No wake came: it goes in when the window closes, at the back, and only now notifies.
+    assert.deepEqual(read("10:00:14").parent, { needsYou: true, queuedAt: "2026-09-24T10:00:14.000Z" })
+    assert.deepEqual(notified, ["failing", "ending", "parent"])
+  } finally {
+    await board.stop()
+    storage.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
