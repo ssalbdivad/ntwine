@@ -41,8 +41,11 @@ test("an archived row's check is a checked checkbox outside the row button", () 
   assert.equal(html.match(/data-rail-glyph="archived"/g)?.length, 1, "the check is drawn exactly once")
 })
 
-test("open, foreign and running-yet-archived rows carry no uncheck control", () => {
+test("open and foreign rows carry no uncheck control", () => {
   assert.doesNotMatch(row({}), /data-sidebar-uncheck-done/)
   assert.doesNotMatch(row({ ...DONE, foreign: true }), /data-sidebar-uncheck-done/)
-  assert.doesNotMatch(row({ ...DONE, runtime: "running" }), /data-sidebar-uncheck-done/)
+})
+
+test("a done row whose worker is still running keeps its check — only the human unchecks it", () => {
+  assert.match(row({ ...DONE, runtime: "running" }), /data-sidebar-uncheck-done/)
 })

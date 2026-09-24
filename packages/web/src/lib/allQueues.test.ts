@@ -125,15 +125,15 @@ test("with nothing registered, a question fence with a body is KEPT — on a leg
   assert.equal(parts.prose, "Pick one.")
 })
 
-test("an archived row the server sent as possibly-working is banded by the rail's own rule, and counted done if it is", () => {
+test("an archived row an older server still sends is counted Done, working or not", () => {
   const [project] = queuesProjects([card("a")], [queue("a", [
-    // A direct sub-agent still running keeps the archived thread out of Done, in Running…
+    // A sub-agent still running does not lift an archived thread out of Done — only the human reopens it…
     thread("sub-agent-out", { state: "archived", archived: true, subAgents: [{ id: "s1", state: "running", depth: 1 } as never] }),
-    // …and a background wait parked on nothing but a timer is not live work, so this one is Done.
+    // …and neither does a background wait.
     thread("parked", { state: "archived", archived: true, awaitingBackground: true, watches: [{ kind: "timer", state: "armed" }] as never }),
   ], { doneCount: 5 })])
-  assert.deepEqual(project!.running.map((t) => t.id), ["sub-agent-out"])
-  assert.equal(project!.doneCount, 6)
+  assert.deepEqual(project!.running.map((t) => t.id), [])
+  assert.equal(project!.doneCount, 7)
 })
 
 test("a terminal command thread takes the band its own rail gives it: a finished run queues, a running one runs", () => {
