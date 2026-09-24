@@ -109,6 +109,19 @@ try {
   // what it SAYS waits for it to say it rather than reading once.
   const pickerSays = (name, timeout = 8000) =>
     page.waitForFunction((n) => document.querySelector("[data-xq-picker-name]")?.textContent?.trim() === n, { timeout }, name).then(() => true, () => false)
+  // What the page SHOWS: the status row's right end names the narrowed project, or "Everything".
+  const pageTitle = () => page.$eval("[data-status-row-page]", (el) => el.textContent?.trim() ?? "").catch(() => "")
+  const lanes = () => page.$$eval("[data-xq-lane]", (els) => els.map((el) => el.getAttribute("data-xq-lane")))
+  const statusTop = () => page.$eval("[data-status-row]", (el) => Math.round(el.getBoundingClientRect().top))
+  // A project's board, from Everything: its row's "…" (shown on hover; the menu opens on pointerdown,
+  // so these are real clicks) → Open board.
+  const openBoardFromMenu = async (slug) => {
+    const row = `[data-xq-project-row="${ids[slug]}"]`
+    await page.hover(`${row} a`)
+    await page.click(`${row} button[aria-label^="More actions"]`)
+    await page.waitForSelector(`[role="menu"] a[href="/project/${slug}"]`, { timeout: 5000 })
+    await page.click(`[role="menu"] a[href="/project/${slug}"]`)
+  }
 
   await step("/ lands on the page focused on the named project, with its prompt box", async () => {
     await page.waitForSelector('[data-surface="newComposer"]', { timeout: 10_000 })
@@ -117,8 +130,11 @@ try {
   })
 
   await step("lanes follow the rail order, one per project with a queue", async () => {
-    // docs-portal (only archived threads) and design-tokens (none) have nothing queued, so no lane.
-    const order = (await api("acme-api").query("projectsList")).map((p) => p.slug).filter((slug) => slug !== "docs-portal" && slug !== "design-tokens")
+    // The seed queues work in these three; docs-portal (only archived threads) and any other project on
+    // the stack (nothing seeded) have nothing queued, so no lane. Named rather than excluded, so a fifth
+    // quiet project — whatever it is called — does not read as a missing lane.
+    const queued = new Set(["acme-api", "marketing-site", "billing-worker"])
+    const order = (await api("acme-api").query("projectsList")).map((p) => p.slug).filter((slug) => queued.has(slug))
     const lanes = await page.$$eval("[data-xq-lane]", (els) => els.map((el) => el.getAttribute("data-xq-lane")))
     check("lanes follow the rail order, one per project with a queue", JSON.stringify(lanes) === JSON.stringify(order.map((slug) => ids[slug])), `${lanes.length} lanes`)
     const cards = await page.$$eval("[data-xq-card]", (els) => els.length)
@@ -275,7 +291,7 @@ try {
     await (await buttonIn(scope, "Mark as done")).click()
     await waitFor("the thread to archive", async () => { const t = await threadOf("acme-api", "fix-pagination-cursor"); return t && (t.archived || t.state === "archived") ? t : null })
     await sleep(1500) // the board's delta is out, and dropped, while this page is still up
-    await page.click(`[data-xq-lane="${ids["acme-api"]}"] header a`)
+    await openBoardFromMenu("acme-api")
     await page.waitForFunction(() => location.pathname === "/project/acme-api", { timeout: 5000 })
     // Judged at the board's FIRST paint of its queue — the moment another, still-queued card appears. A
     // stale board paints the finished card at once; any later delta on the project would resync it a
@@ -319,11 +335,14 @@ try {
   })
 
   await step("a follow-up typed in a tenant's drawer goes to the tenant, not the focus's namesake", async () => {
-    // marketing-site's `fix-flaky-login-test` — snoozed above, so reached through the rail's fold — shares
-    // its slug with the launcher's, which the page was focused on a moment ago.
-    const group = `[data-xq-rail-project="${ids["marketing-site"]}"]`
-    await (await buttonIn(group, "snoozed")).click()
-    await (await buttonIn(group, "Fix the flaky login test")).click()
+    // marketing-site's `fix-flaky-login-test` shares its slug with the launcher's, which the page was
+    // focused on a moment ago. It was snoozed above, and the page lists no snoozed work, so it is woken
+    // here (the board's Wake now) and opened from its card like any queued thread.
+    const sleeping = await threadOf("marketing-site", "fix-flaky-login-test")
+    if (sleeping?.snoozedUntil) await api("marketing-site").mutate("setThreadSnooze", { slug: "fix-flaky-login-test", sessionId: sleeping.sessionId, until: null })
+    const title = `${card("marketing-site", "fix-flaky-login-test")} h3 a`
+    await page.waitForSelector(title, { timeout: 10_000 })
+    await page.click(title)
     await page.waitForFunction(() => location.pathname === "/all/marketing-site/thread/fix-flaky-login-test", { timeout: 8000 })
     await page.waitForSelector('[role=dialog] textarea[data-surface="chatComposer"]', { timeout: 10_000 })
     await sleep(800)
@@ -397,9 +416,51 @@ try {
       const says = await pickerSays("acme-api")
       const path = await page.evaluate(() => location.pathname)
       check("Back to a project the operator was focused on stays there", path === "/all/acme-api" && says, `${path}, picker "${await picker()}"`)
+      // The square NARROWED to marketing-site as well; Back to another project's entry leaves that too,
+      // or the lanes would show marketing-site under a prompt box aimed at acme-api.
+      const shows = await pageTitle()
+      check("…and leaves the narrowing the square made", shows === "Everything", `the page shows "${shows}"`)
     } finally {
       await api("acme-api").mutate("settingsSet", settings)
     }
+  })
+
+  await step("choosing a project narrows the page to it, in place", async () => {
+    // From a document load (nothing narrowed) focused elsewhere, so the choice moves the pick too.
+    await page.goto(`${origin}/all/billing-worker`, { waitUntil: "networkidle2" })
+    await page.waitForSelector("[data-xq-project-row]")
+    await sleep(800)
+    const everything = await lanes()
+    const top = await statusTop()
+    await page.click(`[data-xq-project-row="${ids["acme-api"]}"] a`)
+    await page.waitForFunction(() => location.pathname === "/all/acme-api", { timeout: 8000 })
+    const says = await pickerSays("acme-api")
+    const narrowed = await lanes()
+    const others = await page.$$eval("[data-xq-rail-project]", (groups, id) => groups
+      .filter((group) => group.getAttribute("data-xq-rail-project") !== id)
+      .reduce((sum, group) => sum + group.querySelectorAll('button:not([aria-label^="More actions"])').length, 0), ids["acme-api"])
+    await page.screenshot({ path: join(shots, "xp-verify-narrowed.png") })
+    check(
+      "choosing a project narrows the page to it, in place",
+      says && JSON.stringify(narrowed) === JSON.stringify([ids["acme-api"]]) && (await pageTitle()) === "acme-api" && others === 0 && (await statusTop()) === top,
+      `lanes ${narrowed.length}/${everything.length}, title "${await pageTitle()}", ${others} rows of other projects, status row ${top} → ${await statusTop()}px`,
+    )
+
+    // Its name again is the way back, and so is the ∞ door; a lane's header narrows like its row.
+    await page.click(`[data-xq-project-row="${ids["acme-api"]}"] a`)
+    await page.waitForFunction(() => document.querySelector("[data-status-row-page]")?.textContent === "Everything", { timeout: 5000 }).catch(() => {})
+    const widened = await lanes()
+    await page.click(`[data-xq-lane="${ids["acme-api"]}"] header a`)
+    await page.waitForFunction(() => document.querySelector("[data-status-row-page]")?.textContent === "acme-api", { timeout: 5000 }).catch(() => {})
+    const byHeader = await lanes()
+    await page.click('[data-status-row] a[aria-label="Everything"]')
+    await page.waitForFunction(() => document.querySelector("[data-status-row-page]")?.textContent === "Everything", { timeout: 5000 }).catch(() => {})
+    const byDoor = await lanes()
+    check(
+      "the name again, and the ∞ door, widen it back; a lane's header narrows too",
+      JSON.stringify(widened) === JSON.stringify(everything) && JSON.stringify(byHeader) === JSON.stringify([ids["acme-api"]]) && JSON.stringify(byDoor) === JSON.stringify(everything) && (await page.evaluate(() => location.pathname)) === "/all/acme-api",
+      `${widened.length} → ${byHeader.length} → ${byDoor.length} lanes of ${everything.length}`,
+    )
   })
 
   await step("the page raised no errors", async () => {

@@ -18,7 +18,7 @@
 //   1. the card — the handoff's opening lines, the questions, a reply box, Snooze and Mark as done;
 //   2. "Show more" — the whole handoff, in place;
 //   3. the card's title (or a rail row) — the thread's drawer, with its whole transcript and composer.
-// The lane header's "Open board", a card's ↗ and a project's ↗ are the explicit doors to a board.
+// A card's ↗ and a project's "…" → Open board are the explicit doors to a board.
 //
 // WHAT THE RAIL AND THE LANES MUST NEVER DO is ask the page which project anything belongs to. The page
 // project is the FOCUS, and they show every project. Every read they make is either machine-wide
@@ -28,7 +28,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, ChevronDown, Ellipsis, Inbox, Plus, TerminalSquare } from "lucide-react"
-import { Link, useLocation, useNavigate } from "react-router"
+import { Link, useLocation, useNavigate, useNavigationType } from "react-router"
 import { useSnapshot } from "valtio"
 import type { ProjectQueue, ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
@@ -98,6 +98,7 @@ export function AllQueuesPage() {
   const narrowedId = useCrossProjectNarrow()
   const narrowed = projects.find((project) => project.id === narrowedId)
   const choose = useChooseProject(pickProject)
+  useNarrowingFollowsHistory(narrowed, focus)
 
   const leaving = useLeavingCards(projects)
   // A thread whose drawer is open is read THERE: its card would be a second copy of the same questions
@@ -229,6 +230,23 @@ function useChooseProject(pickProject: (project: QueuesProject) => void): (proje
     },
     [pickProject],
   )
+}
+
+/**
+ * Back and Forward carry the narrowing only as far as its project. The narrowing is not in the history
+ * (lib/crossProject.ts) but the focus is, and a rail square narrows AND pushes: Back from it returned to
+ * the previous project's entry with the page still narrowed to the one just left — the lanes showing one
+ * project, the prompt box aimed at another. Travelling to another project's entry is leaving the
+ * narrowing; travelling within the narrowed project (a drawer's own entries) keeps it.
+ */
+function useNarrowingFollowsHistory(narrowed: QueuesProject | undefined, focus: string | undefined) {
+  const travelled = useNavigationType() === "POP"
+  const { key } = useLocation()
+  useEffect(() => {
+    if (travelled && narrowed && narrowed.slug !== focus) narrowCrossProject(null)
+    // Once per history entry: the projects poll must not re-run it against an entry already judged.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
 }
 
 // ---- The column head --------------------------------------------------------------------------------
