@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Check, ChevronLeft, ChevronRight, Clock, Ellipsis, Hourglass, Plus, Settings as SettingsIcon, TerminalSquare } from "lucide-react"
+import { AlarmClock, Check, ChevronLeft, ChevronRight, Clock, Ellipsis, Hourglass, Infinity as InfinityIcon, Plus, Settings as SettingsIcon, TerminalSquare } from "lucide-react"
 import type { ThreadView } from "@frizz/shared"
 import { openThread, pushSubAgentDrawer, store, type ConnectionState } from "../store.ts"
 import { asThreads, useBoard } from "../hooks.ts"
@@ -570,10 +570,18 @@ export function MobileBoard() {
       <div className="fixed inset-x-0 top-0 z-30 border-b border-border/70 bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="flex h-[48px] items-center gap-1 px-2">
           {/* Back to the cross-project page — the default mode — focused on this board's project, so its
-              prompt box still dispatches here. A document load, as this link has always been. */}
-          <a href={board?.projectSlug ? crossProjectHref(board.projectSlug) : "/"} className="-ml-1 flex h-[44px] items-center gap-0.5 pl-1 pr-2 text-[16px] text-fg/85">
+              prompt box still dispatches here. A document load, as this link has always been. The ∞ is
+              Everything's mark on every other surface (StatusRow, the rail), and it is also the only
+              label that fits: the title is centred inside an 86px inset, and "‹ Everything" ran 125px —
+              a verified title like `colinhacks/frizz` (~144px of mono) rode over it at 320-390px. */}
+          <a
+            href={board?.projectSlug ? crossProjectHref(board.projectSlug) : "/"}
+            aria-label="Everything"
+            title="Everything"
+            className="-ml-1 flex h-[44px] items-center gap-0.5 pl-1 pr-2 text-fg/85"
+          >
             <ChevronLeft size={20} strokeWidth={2.2} />
-            <span className="truncate">Everything</span>
+            <InfinityIcon size={20} strokeWidth={2} aria-hidden="true" />
           </a>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-[48px] items-center justify-center px-[86px]">
             <span className="truncate font-mono-keep text-[15px] font-semibold tracking-[-0.01em] text-fg">
