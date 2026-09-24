@@ -795,18 +795,6 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   }
 }
 
-/**
- * An ARCHIVED thread the rail may still draw outside Done: one whose own turn is in flight, or that is
- * idle with live work behind it (a running sub-agent, a background wait). A SUPERSET of the rail's rule
- * (web groups.ts `isActivelyRunning`, which Done excludes), on purpose — `projectsQueues` sends these and
- * the client's own `sectionOf` decides, so the rule lives in one place and this only has to be generous.
- * Everything else archived is Done, and Done is a count.
- */
-function mayStillBeWorking(thread: ThreadView): boolean {
-  if (thread.runtime === "running" || thread.runtime === "spawning") return true
-  return thread.runtime === "turn-idle" && (thread.awaitingBackground === true || (thread.subAgents ?? []).some((agent) => agent.state === "running"))
-}
-
 function isHumanTurn(m: TranscriptMessage): boolean {
   if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.agentInstruction) return false
   const said = (m.displayText ?? m.text).trim()
@@ -3706,7 +3694,8 @@ export function createRouter(ctx: AppContext) {
               // A terminal command thread queues like a session once its run ends (queuedThread), and
               // the rail badge counts it — so the page that lists the queue must carry it too.
               if ((thread.kind !== "session" && thread.kind !== "command") || thread.foreign) return false
-              if (thread.state === "archived" && !mayStillBeWorking(thread)) {
+              // Archived is Done, running or not — only the human reopens it (web groups.ts `sectionOf`).
+              if (thread.state === "archived") {
                 doneCount++
                 return false
               }

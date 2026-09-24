@@ -528,18 +528,21 @@ test("sectionOf: running/needs-you land in the Active+Rested section; only truth
   assert.equal(sectionOf(thread({ kind: "session", foreign: true, runtime: "running" })), "active")
 })
 
-test("sectionOf: an ARCHIVED thread that's ACTIVELY RUNNING goes to Active (never a spinner under Inactive)", () => {
-  // Idle-archived stays Inactive — the user hid it and it's at rest.
-  assert.equal(sectionOf(thread({ kind: "session", state: "archived", runtime: "turn-idle" })), "inactive")
-  assert.equal(sectionOf(thread({ kind: "session", state: "archived", runtime: "exited" })), "inactive")
-  // Running / spawning archived → Active (a live, in-flight session must NEVER sit in Inactive; maintainer hit 3×).
-  assert.equal(sectionOf(thread({ kind: "session", state: "archived", runtime: "running" })), "active")
-  assert.equal(sectionOf(thread({ kind: "session", state: "archived", runtime: "spawning" })), "active")
-  // turn-idle but a dispatched sub-agent is still going (the sidebar shows a spinner) → Active too.
-  assert.equal(sectionOf(thread({ kind: "session", state: "archived", runtime: "turn-idle", subAgents: [{ label: "x", startedAt: "2026-07-10T00:00:00.000Z", state: "running", id: "a1" }] })), "active")
-  // A live background Bash/Monitor is NOT live work (2026-07-22): an idle-archived thread with only a
-  // background shell stays Inactive — the shell can't be told apart from an endless dev server.
-  assert.equal(sectionOf(thread({ kind: "session", state: "archived", runtime: "turn-idle", bgShells: [{ label: "watch CI", startedAt: "2026-07-10T00:00:00.000Z", state: "running" }] })), "inactive")
+test("sectionOf: an ARCHIVED thread is Done whatever its worker is doing — only the human reopens it", () => {
+  const sub = [{ label: "x", startedAt: "2026-07-10T00:00:00.000Z", state: "running" as const, id: "a1" }]
+  const shell = [{ label: "watch CI", startedAt: "2026-07-10T00:00:00.000Z", state: "running" as const }]
+  for (const extra of [
+    { runtime: "turn-idle" as const },
+    { runtime: "exited" as const },
+    { runtime: "running" as const },
+    { runtime: "spawning" as const },
+    { runtime: "turn-idle" as const, subAgents: sub },
+    { runtime: "turn-idle" as const, bgShells: shell },
+  ]) {
+    const t = thread({ kind: "session", state: "archived", archived: true, ...extra })
+    assert.equal(sectionOf(t), "inactive", JSON.stringify(extra))
+    assert.equal(sessionIndicatorKind(t), "archived", JSON.stringify(extra))
+  }
 })
 
 test("sectionThreads v2: Active bands rested-on-top (queue order) then running; foreign + legacy excluded", () => {
@@ -1159,8 +1162,8 @@ test("bandOf: Snoozed, Done, External, and no band for a legacy row", () => {
   const future = new Date(Date.now() + 3_600_000).toISOString()
   assert.equal(bandOf(thread({ kind: "session", state: "open", runtime: "turn-idle", snoozedUntil: future })), "snoozed")
   assert.equal(bandOf(thread({ kind: "session", state: "archived", archived: true, runtime: "turn-idle" })), "done")
-  // A running-yet-archived thread sits in the Working band with its spinner, and says so.
-  assert.equal(bandOf(thread({ kind: "session", state: "archived", archived: true, runtime: "running" })), "working")
+  // A worker still running after Mark as done does not lift its row out of Done.
+  assert.equal(bandOf(thread({ kind: "session", state: "archived", archived: true, runtime: "running" })), "done")
   assert.equal(bandOf(thread({ kind: "session", foreign: true, runtime: "turn-idle" })), "external")
   assert.equal(bandOf(thread({ kind: "command", state: "archived" })), "done")
   assert.equal(bandOf(thread({ kind: "command", state: "open", needsYou: true })), "ready")

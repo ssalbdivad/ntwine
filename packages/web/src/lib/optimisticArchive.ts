@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { proxy, useSnapshot } from "valtio"
 import type { ThreadView } from "@frizz/shared"
+import { isActivelyRunning } from "../groups.ts"
 
 // OPTIMISTIC ARCHIVE STATE — "this thread is done", rendered on the rail the instant the operator
 // clicks rather than when the server can prove it. The exact twin of lib/steering.ts, for the other
@@ -58,6 +59,9 @@ export function optimisticallyArchived(t: ThreadView, at: number | undefined, no
   if (at === undefined || nowMs - at > ARCHIVE_OPTIMISM_MS) return t
   // Server truth has landed — return BY IDENTITY so memoized rows skip the re-render.
   if (t.state === "archived") return t
+  // A thread still working is not predicted: completeThread asks before it stops one, and Done is no
+  // longer lifted for a running row, so predicting here would flash it under Done ahead of that ask.
+  if (isActivelyRunning(t)) return t
   return {
     ...t,
     state: "archived",

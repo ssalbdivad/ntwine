@@ -58,8 +58,7 @@ export function queuesProjects(
       queued: orderQueue(threads.filter(queued), direction),
       running: orderByInteraction(threads.filter((t) => !queued(t) && sectionOf(t) === "active")),
       snoozed: orderByInteraction(threads.filter((t) => !queued(t) && sectionOf(t) === "snoozed")),
-      // The server sends an archived row it thinks MAY still be working, and the rail's own rule decides
-      // (see ProjectQueue): the ones it puts in Done count as done.
+      // The server counts archived rows itself; any that still arrive (an older server) are Done too.
       doneCount: (queue?.doneCount ?? 0) + threads.filter((t) => sectionOf(t) === "inactive").length,
     }
   }

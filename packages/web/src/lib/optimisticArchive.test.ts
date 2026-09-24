@@ -30,9 +30,10 @@ test("a clicked Mark-as-done lands the row under Done immediately, not after the
 
 test("a still-running thread is left where it is — that completion asks first", () => {
   const clicked = 1_000_000
-  // sectionOf refuses to file a live session under Done however it is flagged, so the overlay cannot
-  // hide a thread that is still working even if the prediction is wrong.
+  // The overlay does not predict a live session: the server asks before completing one, so the row
+  // stays where it is until the human's answer lands.
   const running = resting({ runtime: "running" })
+  assert.equal(optimisticallyArchived(running, clicked, clicked + 5), running)
   assert.equal(sectionOf(optimisticallyArchived(running, clicked, clicked + 5)), "active")
 })
 
