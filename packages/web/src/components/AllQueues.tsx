@@ -131,8 +131,12 @@ export function AllQueuesPage() {
 
   return (
     <div className="flex min-h-screen justify-center gap-[clamp(28px,3.4vw,52px)] bg-bg px-5 text-sm text-fg max-[800px]:flex-col max-[800px]:justify-start max-[800px]:gap-0 max-[800px]:px-3">
-      <aside aria-label="Projects" className={`${SIDEBAR_COLUMN_CLASS} max-[800px]:!pt-5`}>
-        <div className="flex max-h-[calc(100vh-32px)] min-h-0 min-w-0 w-full flex-col max-[800px]:max-h-none">
+      {/* TOP-anchored, where the board centres its column: a click here changes the list's height (narrowing
+          folds every other project to one line), and a centred column moved the prompt box and the row just
+          clicked out from under the pointer — by 110-200px with five projects. 48px sets the status row's middle
+          level with the READY header's across the gutter (64 vs 59.85px at 52px). */}
+      <aside aria-label="Projects" className={`${SIDEBAR_COLUMN_CLASS} !justify-start pt-[48px] max-[800px]:!pt-5`}>
+        <div className="flex max-h-[calc(100vh-68px)] min-h-0 min-w-0 w-full flex-col max-[800px]:max-h-none">
           {/* The board's own column head, one level up: the status row — naming what the page shows —
               and the prompt box under it: a new thread in any project without leaving, the project chosen
               in the box's own tab row. */}
@@ -177,7 +181,7 @@ export function AllQueuesPage() {
         ) : queues.error && !queues.data ? (
           <p className="my-auto text-center text-[13px] text-muted">Could not read the queues: {String(queues.error)}</p>
         ) : (
-          <div className="my-auto flex w-full min-w-0 flex-col py-8 max-[800px]:pt-2">
+          <div className={`${lanes.length > 0 ? "" : "my-auto "}flex w-full min-w-0 flex-col py-8 max-[800px]:pt-2`}>
             {lanes.length > 0 ? (
               <>
                 {/* THE INBOX, NAMED — the board's own header over its cards (TodosView), one level up: every
@@ -585,14 +589,14 @@ function ProjectRow({
         </span>
         {/* The rest-time column's spot, and the rest time's manners: it gives way to the menu on hover. */}
         {(count > 0 || note) && (
-          <span className={`flex shrink-0 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 ${menuOpen ? "opacity-0" : ""} [@media(hover:none)]:opacity-100`}>
+          <span className={`flex shrink-0 transition-opacity group-hover:opacity-0 group-has-[:focus-visible]:opacity-0 ${menuOpen ? "opacity-0" : ""} [@media(hover:none)]:opacity-100`}>
             {count > 0 ? <QueueBadge count={count} /> : <span className="text-[10.5px] leading-[19px] text-muted-55">{note}</span>}
           </span>
         )}
       </Link>
       {project.card && (
         <div
-          className={`absolute right-1.5 top-1 items-center bg-bg group-hover:flex group-focus-within:flex [@media(hover:none)]:flex before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-bg ${menuOpen ? "flex" : "hidden"}`}
+          className={`absolute right-1.5 top-1 items-center bg-bg group-hover:flex group-has-[:focus-visible]:flex [@media(hover:none)]:flex before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-bg ${menuOpen ? "flex" : "hidden"}`}
         >
           <ProjectMenu project={project.card} home={home} onOpenChange={setMenuOpen}>
             <button type="button" aria-label={`More actions for ${project.name}`} className={`${ROW_ACTION_CLASS} data-[state=open]:bg-panel-2 data-[state=open]:text-fg data-[state=open]:opacity-100`}>
