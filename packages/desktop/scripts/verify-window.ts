@@ -55,7 +55,7 @@ if (fakeStart) {
   writeFileSync(launcher, `
 import { createServer } from "node:http"
 import { writeFileSync } from "node:fs"
-writeFileSync(${JSON.stringify(join(home, "launcher-argv.json"))}, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), path: process.env.PATH }))
+writeFileSync(${JSON.stringify(join(home, "launcher-argv.json"))}, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), path: process.env.PATH, pid: process.pid }))
 console.log("frizz: ··· server — starting on 9393")
 setTimeout(() => createServer((req, res) => {
   if (req.url === "/_frizz/health") { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ ok: true, bootId: "fake", projectId: "p", projectDir: "/" })); return }
@@ -255,7 +255,11 @@ try {
   check("harness", false, error instanceof Error ? error.message : String(error))
 } finally {
   if (running) stop(running)
-  if (fakeStart) rmSync(home, { recursive: true, force: true })
+  if (fakeStart) {
+    // The app starts its launcher DETACHED — the point of it — so killing the app leaves this one up.
+    try { process.kill(JSON.parse(readFileSync(join(home, "launcher-argv.json"), "utf8")).pid, "SIGKILL") } catch {}
+    rmSync(home, { recursive: true, force: true })
+  }
   exitCode = results.every((r) => r.ok) ? 0 : 1
   console.log(JSON.stringify({ ok: exitCode === 0, checks: results.length, failed: results.filter((r) => !r.ok).map((r) => r.check) }))
   process.exit(exitCode)
