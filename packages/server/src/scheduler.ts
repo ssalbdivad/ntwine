@@ -3049,7 +3049,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         }, nowMs).delivery
         log(`waker: queued ${row.slug} — ${item.reason}`)
         checkpoint("after-enqueue", item)
-        return // one durable wake per thread per pass; the next tick takes the next shell
+        break // one durable wake per thread per pass; the next tick takes the next shell
       }
     }
   }

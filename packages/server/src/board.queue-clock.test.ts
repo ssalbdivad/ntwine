@@ -119,6 +119,8 @@ test("a parent let go by its sub-agent is withheld while its wake lands, and nei
     ["parent", resting({ subAgents: [child] })],
     ["failing", resting({ subAgents: [child] })],
     ["ending", resting({ turn: "in-flight", lastAssistantAt: "2026-09-24T09:59:59.000Z" })],
+    // A plain rest in the queue that the human answers below.
+    ["sent", resting({ lastAssistantAt: "2026-09-24T09:30:00.000Z" })],
   ])
   const tailer = {
     get: (slug: string) => telemetry.get(slug),
@@ -131,7 +133,7 @@ test("a parent let go by its sub-agent is withheld while its wake lands, and nei
   } satisfies Tailer
   let nowMs = Date.parse(at("10:00"))
   const storage = createStorage(join(dir, "ui.db"), "p")
-  for (const slug of ["parent", "failing", "ending"]) {
+  for (const slug of ["parent", "failing", "ending", "sent"]) {
     storage.upsertSession(row(slug))
     storage.setClaudeRuntime(slug, "broker")
   }
@@ -141,25 +143,33 @@ test("a parent let go by its sub-agent is withheld while its wake lands, and nei
   const board = createBoard(project, storage, bus, tailer, "queue-settle", { now: () => nowMs })
   const read = (time: string) => {
     nowMs = Date.parse(`2026-09-24T${time}.000Z`)
-    return Object.fromEntries(board.refresh().threads.map((t) => [t.id, { needsYou: t.needsYou, queuedAt: t.queuedAt }]))
+    return Object.fromEntries(board.refresh().threads.map((t) => [t.id, { needsYou: t.needsYou, queuedAt: t.queuedAt, settling: t.queueSettling }]))
   }
 
   try {
     const before = read("10:00:00")
-    assert.deepEqual([before.parent, before.ending], [{ needsYou: false, queuedAt: undefined }, { needsYou: false, queuedAt: undefined }])
+    assert.deepEqual([before.parent, before.ending], [{ needsYou: false, queuedAt: undefined, settling: undefined }, { needsYou: false, queuedAt: undefined, settling: undefined }])
+    // The human sends `sent` a follow-up: the delivery holds it out of the queue, at rest.
+    const item = { id: "d1", text: "Rebase it", state: "delivered", at: "2026-09-24T10:00:01.000Z", updatedAt: "2026-09-24T10:00:01.000Z" }
+    storage.setDeliveryLedger("sent", JSON.stringify([item]))
+    assert.equal(read("10:00:01").sent.needsYou, false)
     // The child returns. `failing` comes back with a hard provider error — urgent, so it goes in at once.
     // `ending`'s turn reads idle: an ordinary rest, never withheld.
     telemetry.set("parent", resting())
     telemetry.set("failing", resting({ providerError: { message: "Overloaded" } }))
     telemetry.set("ending", resting({ lastAssistantAt: "2026-09-24T09:59:59.000Z" }))
+    // …and the send is lost (the daemon refused it): no wake follows a lost message, so it comes straight
+    // back rather than being withheld like a release.
+    storage.setDeliveryLedger("sent", null)
     const released = read("10:00:02")
-    assert.deepEqual(released.parent, { needsYou: false, queuedAt: undefined }, "withheld while its wake lands")
-    assert.deepEqual(released.failing, { needsYou: true, queuedAt: "2026-09-24T10:00:02.000Z" })
-    assert.deepEqual(released.ending, { needsYou: true, queuedAt: "2026-09-24T10:00:02.000Z" })
-    assert.deepEqual(notified, ["failing", "ending"])
+    assert.deepEqual(released.parent, { needsYou: false, queuedAt: undefined, settling: true }, "withheld while its wake lands")
+    assert.deepEqual(released.failing, { needsYou: true, queuedAt: "2026-09-24T10:00:02.000Z", settling: undefined })
+    assert.deepEqual(released.ending, { needsYou: true, queuedAt: "2026-09-24T10:00:02.000Z", settling: undefined })
+    assert.deepEqual(released.sent, { needsYou: true, queuedAt: "2026-09-24T10:00:02.000Z", settling: undefined })
+    assert.deepEqual([...notified].sort(), ["ending", "failing", "sent"])
     // No wake came: it goes in when the window closes, at the back, and only now notifies.
-    assert.deepEqual(read("10:00:14").parent, { needsYou: true, queuedAt: "2026-09-24T10:00:14.000Z" })
-    assert.deepEqual(notified, ["failing", "ending", "parent"])
+    assert.deepEqual(read("10:00:14").parent, { needsYou: true, queuedAt: "2026-09-24T10:00:14.000Z", settling: undefined })
+    assert.deepEqual(notified.slice(3), ["parent"])
   } finally {
     await board.stop()
     storage.close()

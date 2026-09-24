@@ -181,13 +181,15 @@ test("an entry off a park is withheld for 12s, then joins the back at the instan
   const released = thread("parked", true, "09:00")
   assert.deepEqual(run("10:00:01", released), { parked: undefined })
   assert.equal(released.needsYou, false, "withheld: the board neither queues nor notifies it")
-  assert.equal(clock.nextEntryAt(), ms("10:00:13"))
+  assert.equal(released.queueSettling, true, "…and the client is told no park stands")
+  assert.equal(clock.nextEntryAt(ms("10:00:01")), ms("10:00:13"))
   assert.deepEqual(run("10:00:06", thread("parked", true, "09:00"), thread("quick", true, "10:00:05")), { parked: undefined, quick: at("10:00:05") })
   // No wake came. It goes in when the window closes — behind `quick`, not at its 09:00 rest.
   const entered = thread("parked", true, "09:00")
   assert.deepEqual(run("10:00:13", entered, thread("quick", true, "10:00:05")), { parked: at("10:00:13"), quick: at("10:00:05") })
   assert.equal(entered.needsYou, true)
-  assert.equal(clock.nextEntryAt(), undefined)
+  assert.equal(entered.queueSettling, undefined)
+  assert.equal(clock.nextEntryAt(ms("10:00:13")), undefined)
   assert.deepEqual(saves, [["quick", at("10:00:05")], ["parked", at("10:00:13")]])
 })
 
@@ -199,7 +201,7 @@ test("a worker woken inside the window never reaches the queue, and its next res
   // The wake lands: running, out of the queue on a reading that is not a park.
   parked.delete("p")
   assert.deepEqual(run("10:00:04", thread("p", false, "09:00")), { p: undefined })
-  assert.equal(clock.nextEntryAt(), undefined)
+  assert.equal(clock.nextEntryAt(ms("10:00:04")), undefined)
   assert.deepEqual(run("10:00:31", thread("p", true, "10:00:30")), { p: at("10:00:30") })
   assert.deepEqual(saves, [["p", at("10:00:30")]])
 })
@@ -235,4 +237,19 @@ test("a snooze lifted before its deadline goes in at once — only one that ran 
   assert.deepEqual(run("10:02", thread("woken", true, "09:00"), snoozed("ran-out", "10:05")), { woken: at("10:02"), "ran-out": undefined })
   // `ran-out` reaches its deadline, and its bump is about to land: withheld.
   assert.deepEqual(run("10:05", thread("woken", true, "09:00"), thread("ran-out", true, "09:00")), { woken: at("10:02"), "ran-out": undefined })
+})
+
+test("a withheld entry whose reading turns unknown stays withheld, and its passed deadline never masks the next", () => {
+  // The tailer can re-prime a row (a relocated transcript) and read it unknown for a moment.
+  const { run, parked, unknown, clock } = harness()
+  parked.add("a").add("b")
+  run("10:00:00", thread("a", false, "09:00"), thread("b", false, "09:00"))
+  run("10:00:01", thread("a", true, "09:00"), thread("b", false, "09:00"))
+  unknown.add("a")
+  const unknownQueued = thread("a", true, "09:00")
+  run("10:00:05", unknownQueued, thread("b", true, "09:00"))
+  assert.equal(unknownQueued.needsYou, false, "still inside its window")
+  // `a`'s 10:00:13 passes while it reads unknown; `b`'s 10:00:17 must still be the next thing to wake for.
+  run("10:00:14", thread("a", true, "09:00"), thread("b", true, "09:00"))
+  assert.equal(clock.nextEntryAt(ms("10:00:14")), ms("10:00:17"))
 })

@@ -1935,6 +1935,10 @@ export function createBoard(
   // Build exactly the session-backed threads recorded by Frizz. The registry is the provenance
   // boundary: historical rows remain valid after migration/restart, and both Claude and Codex use the
   // same durable shape. Raw tailer discoveries never confer ownership.
+  // Rows the human's own follow-up holds out of the queue (hasFreshDelivery, before any process check),
+  // as of the last build — for the queue clock, which must not take that hold for a park: no wake follows
+  // a send that failed, only the send itself, and the thread it lost has to come straight back.
+  let heldByDelivery = new Set<string>()
   function buildSessionThreads(nowMs: number): ThreadView[] {
     // Old/corrupt databases predate the canonical storage guard. Keep such rows inert instead of
     // emitting an invalid board id or allowing it to reach tailer/dispatch consumers.
@@ -1949,7 +1953,9 @@ export function createBoard(
     const registries = readThreadRegistries(storage)
     const currentInteractionKeys = new Set<string>()
     const out: ThreadView[] = []
+    heldByDelivery = new Set()
     for (const row of rows) {
+      if (row.delivery_ledger && hasFreshDelivery(row, false)) heldByDelivery.add(row.slug)
       const key = interactionKey(row.slug, row.session_id)
       currentInteractionKeys.add(key)
       let interactionPresence = pendingInteractionCache.get(key)
@@ -2065,19 +2071,19 @@ export function createBoard(
         const tele = tailer.get(t.id)
         return tele !== undefined && (tele.primed !== false || tele.noTranscript === true)
       },
-      // At rest and out of the queue anyway: a live sub-agent or shell, CI, a park, a timer, a pending
-      // delivery. The human's own snooze is the one hold with no wake behind it, unless it carries a
-      // prompt to deliver when it ends.
+      // At rest and out of the queue anyway: a live sub-agent, CI, a park, a timer, an event-snooze on a
+      // shell. Two holds have no wake behind them: the human's own snooze, unless it carries a prompt to
+      // deliver when it ends, and the human's own follow-up, which either starts a turn or was lost.
       parked: (t) =>
         t.kind === "session" && !t.archived && (t.runtime === "turn-idle" || t.runtime === "exited") &&
-        (t.snoozedUntil === undefined || t.snoozePrompt !== undefined),
+        (t.snoozedUntil === undefined || t.snoozePrompt !== undefined) && !heldByDelivery.has(t.id),
       // deriveNeedsYou's hard gates: a request the human must answer, a question, a crash, a limit pause.
       urgent: (t) =>
         t.actionableInteraction === true || t.runtime === "perm-prompt" || t.pendingAsk !== undefined ||
         t.pendingQuestion === true || (t.questions?.length ?? 0) > 0 || t.crashed === true ||
         t.limitPause !== undefined || (t.providerError !== undefined && t.providerError.retrying !== true),
     })
-    armSnoozeWake(sessionThreads, assembledAtMs, queueClock.nextEntryAt())
+    armSnoozeWake(sessionThreads, assembledAtMs, queueClock.nextEntryAt(assembledAtMs))
     notifyNeedsYou(sessionThreads)
     return {
       ...base,
@@ -2105,7 +2111,7 @@ export function createBoard(
     if (snoozeTimer) clearTimeout(snoozeTimer)
     snoozeTimer = null
     if (stopped) return
-    let next = entryAt > assembledAtMs ? entryAt : Infinity
+    let next = entryAt
     for (const thread of threads) {
       const at = Date.parse(thread.snoozedUntil ?? "")
       if (Number.isFinite(at) && at > assembledAtMs) next = Math.min(next, at)

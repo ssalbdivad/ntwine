@@ -85,17 +85,20 @@ if (phase === "arrival") {
   const after = await waitFor("the snooze to end", async () => {
     const t = seeded(await api.query("board"))
     const x = t.find((y) => y.id === "snoozed-oldest")
-    readings.push({ at: Date.now(), needsYou: x?.needsYou === true, snoozed: x?.snoozedUntil !== undefined })
+    readings.push({ at: Date.now(), needsYou: x?.needsYou === true, snoozed: x?.snoozedUntil !== undefined, settling: x?.queueSettling === true })
     return x?.needsYou === true && t
   }, snoozedUntil - Date.now() + 45_000)
   const arrival = after.find((t) => t.id === "snoozed-oldest")
   if (settles) {
     const released = readings.find((r) => !r.snoozed)?.at
     const entered = readings.at(-1).at
-    const unsnoozedOut = readings.filter((r) => !r.snoozed && !r.needsYou).length
+    const heldOut = readings.filter((r) => !r.snoozed && !r.needsYou)
+    const unsnoozedOut = heldOut.length
     check("the prompted snooze's entry was WITHHELD after it ended, not flashed in",
       released !== undefined && unsnoozedOut > 0 && entered - snoozedUntil >= 11_000,
       `snooze ended ${held.snoozedUntil}; ${unsnoozedOut} readings unsnoozed but held out; entered +${((entered - snoozedUntil) / 1000).toFixed(1)}s`)
+    check("…every one of them flagged as settling, so the client reads no park into it",
+      heldOut.every((r) => r.settling), `${heldOut.filter((r) => r.settling).length}/${unsnoozedOut}`)
     check("…and went in when the window closed, on the armed refresh rather than the 15s reconcile",
       Date.parse(arrival.queuedAt) - snoozedUntil >= 12_000 && Date.parse(arrival.queuedAt) - snoozedUntil < 14_000,
       `queuedAt=${arrival.queuedAt} (+${((Date.parse(arrival.queuedAt) - snoozedUntil) / 1000).toFixed(1)}s)`)

@@ -63,12 +63,14 @@ import type { ThreadView } from "@frizz/shared"
 //
 // A RELEASE WAITS ITS TURN TO BE WOKEN. Most holds end in a wake: a sub-agent's return re-invokes its
 // parent, CI settling fires the PR watcher, a timer or a park's deadline delivers its prompt. The hold
-// lets go first and the wake lands seconds later, so for that gap the thread sat in the queue — a card
-// flashing in at the bottom and a desktop notification for a thread nobody needed to touch. So an entry
+// lets go first and the wake usually lands seconds later, so for that gap the thread sat in the queue — a
+// card flashing in at the bottom and a desktop notification for a thread nobody needed to touch. So an entry
 // off a hold is WITHHELD for SETTLE_MS (maintainer 2026-09-24, choosing it: "Hold a released thread out
 // for ~12s"): a worker that wakes inside it never reaches the queue, and one that does not enters at the
 // back when the window closes, stamped at that instant. The board reads `needsYou` as false meanwhile,
-// so it neither notifies nor draws the card. Only an entry off a PARK counts — the last known sighting out
+// so it neither notifies nor draws the card, and `queueSettling` tells the client no park stands. A wake
+// the scheduler DEFERS (its quiet window after a recent handoff holds one for minutes) is not waited for:
+// the thread goes in when the window closes, exactly as it did before there was a window. Only an entry off a PARK counts — the last known sighting out
 // of the queue found the thread at rest, with the same rest it has now, behind a hold something wakes it
 // from (the board's `parked`) — so an ordinary rest, whose last sighting out was its own running turn, is
 // never delayed. Nor is a snooze lifted BEFORE its deadline: that was a person (Wake now), and nothing is
@@ -112,14 +114,19 @@ export interface QueueClock {
   /** Set `queuedAt` on every queued thread in `threads`, in place, and record the edges it crossed. A
    *  withheld entry has its `needsYou` set to false, in place. */
   stamp(threads: readonly ThreadView[], nowMs: number, reading: QueueReading): void
-  /** When the earliest withheld entry is due to go in, so the board can assemble then rather than on
-   *  its next unrelated refresh. */
-  nextEntryAt(): number | undefined
+  /** When the earliest withheld entry still ahead of `afterMs` is due to go in, so the board can
+   *  assemble then rather than on its next unrelated refresh. */
+  nextEntryAt(afterMs: number): number | undefined
 }
 
 // The latest instant the thread itself can vouch for having stopped: the agent's own last output, or —
 // for a thread with no agent output (a terminal command, a worker that died before speaking) — its last
 // activity, then its spawn.
+function withhold(t: ThreadView): void {
+  t.needsYou = false
+  t.queueSettling = true
+}
+
 function restMs(t: ThreadView): number {
   for (const at of [t.lastAssistantAt, t.lastActivityAt, t.spawnedAt]) {
     const ms = Date.parse(at ?? "")
@@ -143,8 +150,11 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
   const settling = new Map<string, number>()
 
   return {
-    nextEntryAt() {
-      return settling.size > 0 ? Math.min(...settling.values()) : undefined
+    nextEntryAt(afterMs) {
+      // Only deadlines still ahead: one that passed while its thread read unknown is settled at its next
+      // known reading, and must not mask the deadlines behind it.
+      const ahead = [...settling.values()].filter((due) => due > afterMs)
+      return ahead.length > 0 ? Math.min(...ahead) : undefined
     },
     stamp(threads, nowMs, reading) {
       if (!stamps) {
@@ -179,9 +189,11 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           }
           continue
         }
-        // Queued on a reading the board cannot vouch for yet: show the stamp it has, decide nothing.
+        // Queued on a reading the board cannot vouch for yet: show the stamp it has, keep withholding an
+        // entry already withheld, and decide nothing.
         if (!vouched) {
           if (held !== undefined) t.queuedAt = new Date(held).toISOString()
+          else if ((settling.get(t.id) ?? -Infinity) > nowMs) withhold(t)
           continue
         }
         const rest = restMs(t)
@@ -200,7 +212,7 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
           const due = settling.get(t.id) ?? nowMs + SETTLE_MS
           if (nowMs < due) {
             settling.set(t.id, due)
-            t.needsYou = false
+            withhold(t)
             continue
           }
         }

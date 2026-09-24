@@ -2698,6 +2698,11 @@ export const ThreadView = z.object({
   // rested behind a wait (CI, a sub-agent, a park, a snooze) enters when the wait lets go. See the
   // server's queue-clock.ts.
   queuedAt: z.string().optional(),
+  // True while the server WITHHOLDS this thread's entry into the queue: a hold (a sub-agent, CI, a park)
+  // has just let go and the wake that usually follows gets a few seconds to land (queue-clock.ts). The
+  // thread reads `needsYou: false` meanwhile, but no hold stands any more — so nothing may read a park
+  // into it (groups.isSnoozed), and its page keeps its handoff card.
+  queueSettling: z.boolean().optional(),
   // True only for the crash/stall branch (pane exited while the transcript still says in-flight).
   // Once every ordinary rest also queues, runtime=exited + needsYou is no longer enough for clients
   // to distinguish a failed worker from a clean completed process.

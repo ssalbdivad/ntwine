@@ -537,6 +537,11 @@ export function isSnoozed(t: ThreadView, nowMs = Date.now()): boolean {
   // Without an explicit user snooze, higher-priority attention states render ?, !, or a native
   // prompt—not a wait glyph—so a stale awaiting fence cannot demote them out of Queue.
   if (t.needsYou || t.pendingAsk || t.runtime === "perm-prompt") return false
+  // A WITHHELD ENTRY IS NOT A PARK. The server holds a thread out of the queue for a few seconds after a
+  // hold lets go, while its wake lands (queue-clock.ts), and it reads `!needsYou` meanwhile — but the hold
+  // has ENDED, so the inference below (an awaiting fence plus `!needsYou` means the park stood) would be
+  // false, and the row would drop into Snoozed for those seconds on the way to Ready or back to Active.
+  if (t.queueSettling) return false
   if (!atRest(t)) return false
   // (A limit pause used to return true here — "parked on the clock with a wake already armed" — until
   // 2026-08-31. It is now the hard NON-snooze gate above, and the queue's problem: see deriveNeedsYou.)

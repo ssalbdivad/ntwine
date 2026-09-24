@@ -19,7 +19,7 @@ import { CARD_BODY, TranscriptCard } from "./TranscriptCard.tsx"
 
 export type RestedCardThread = Pick<
   ThreadView,
-  "kind" | "foreign" | "runtime" | "needsYou" | "crashed" | "lastFence" | "questions" | "answersInFlight" | "pendingQuestion" | "pendingAsk" | "pendingInteraction" | "awaitingBackground" | "limitPause" | "providerFault" | "providerError" | "lastAssistantAt"
+  "kind" | "foreign" | "runtime" | "needsYou" | "queueSettling" | "crashed" | "lastFence" | "questions" | "answersInFlight" | "pendingQuestion" | "pendingAsk" | "pendingInteraction" | "awaitingBackground" | "limitPause" | "providerFault" | "providerError" | "lastAssistantAt"
 >
 
 /** Does the chat show the residual card at the bottom of this thread? True only when the thread is at
@@ -33,7 +33,9 @@ export type RestedCardThread = Pick<
 export function showsRestedCard(thread: RestedCardThread | undefined, lastAssistantText: string | undefined): boolean {
   if (!thread || thread.kind !== "session" || thread.foreign) return false
   if (thread.runtime !== "turn-idle" && thread.runtime !== "exited") return false
-  if (thread.needsYou !== true) return false
+  // Withheld from the queue for the seconds its wake gets to land (queue-clock.ts) is still a rest: its
+  // page keeps the handoff it is about to queue with, rather than ending on a bare transcript.
+  if (thread.needsYou !== true && thread.queueSettling !== true) return false
   if (thread.providerError) return false
   // A stall is the exception to every text check below: the final record is often a tool call with no
   // prose at all, and the card is about the process, not the message.

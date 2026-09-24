@@ -552,6 +552,11 @@ test("sectionOf: running/needs-you land in the Active+Rested section; only truth
   // verdict rather than re-deriving it from hints it can no longer check (2026-08-15).
   assert.equal(sectionOf(thread({ kind: "session", state: "open", runtime: "turn-idle", lastFence: { kind: "awaiting", body: "", hints: [] } })), "snoozed")
   assert.equal(sectionOf(thread({ kind: "session", state: "open", needsYou: true, runtime: "turn-idle", lastFence: { kind: "awaiting", body: "", hints: [] } })), "active", "…and a queued one stays queued")
+  // The server withholding an entry for the seconds its wake gets to land (queue-clock.ts): the park has
+  // ENDED, so the row waits in Active — never Snoozed on its way to Ready or back to work.
+  const settling = thread({ kind: "session", state: "open", runtime: "turn-idle", queueSettling: true, lastFence: { kind: "awaiting", body: "", hints: [{ kind: "agent", value: "a1" }] } })
+  assert.equal(sectionOf(settling), "active", "…but not one the server is only withholding from the queue")
+  assert.equal(bandOf(settling), "working")
   // Archive wins over a lingering needsYou.
   assert.equal(sectionOf(thread({ kind: "session", state: "archived" })), "inactive")
   assert.equal(sectionOf(thread({ kind: "session", needsYou: true, state: "archived" })), "inactive")
