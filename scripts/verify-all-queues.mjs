@@ -361,6 +361,27 @@ try {
     await page.waitForFunction(() => location.pathname === "/all/billing-worker", { timeout: 8000 })
   })
 
+  await step("Back to a project the operator was focused on stays there", async () => {
+    // Through the rail's squares, which PUSH an entry per project (the prompt box's picker replaces
+    // one). Going Back to an entry is choosing it again; the page used to bounce off it to the pick.
+    const settings = await api("acme-api").query("settingsGet")
+    await api("acme-api").mutate("settingsSet", { ...settings, projectRail: true })
+    try {
+      await page.goto(`${origin}/all/acme-api`, { waitUntil: "networkidle2" })
+      const square = 'nav[aria-label="Projects"] a[href="/all/marketing-site"]'
+      await page.waitForSelector(square, { timeout: 10_000 })
+      await page.click(square)
+      await page.waitForFunction(() => location.pathname === "/all/marketing-site", { timeout: 8000 })
+      await sleep(1000)
+      await page.goBack()
+      await sleep(2000)
+      const path = await page.evaluate(() => location.pathname)
+      check("Back to a project the operator was focused on stays there", path === "/all/acme-api" && (await picker()) === "acme-api", `${path}, picker "${await picker()}"`)
+    } finally {
+      await api("acme-api").mutate("settingsSet", settings)
+    }
+  })
+
   await step("the page raised no errors", async () => {
     // Two 404s that are answers, not faults, and happen on every page that draws them: the board's
     // supervisor probe on a stack with no supervisor, and a project square's icon request, which is
