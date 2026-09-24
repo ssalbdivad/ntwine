@@ -1,15 +1,18 @@
-// THE PROJECT DIALOGS — add, rename, delete — and the one hook that starts an add.
+// THE MACHINE'S PROJECT MANAGEMENT — one project's menu (its icon, rename, delete), the dialogs behind
+// it, and the one hook that adds a project.
 //
-// They lived on the project grid until 2026-09-24, when the grid was folded into Everything and `/`
-// became that page (AllQueues.tsx). Nothing about them changed in the move: they are the machine's
-// project management wherever it is reached from, and they name the project they act on in full because
-// the row that opened them may be a 16px square and a truncated name.
+// All of it lived on the project grid until 2026-09-24, when the grid was folded into Everything and `/`
+// became that page (AllQueues.tsx). The grid spread it over three controls per card — an image overlay
+// on the square, an ellipsis menu, and the card itself; on a list row that is 16px tall there is room for
+// one, so everything that is not "open this project" is behind the row's ellipsis now. The dialogs name
+// the project they act on in full, because the row that opened them may be a truncated name.
 import * as RadixDialog from "@radix-ui/react-dialog"
+import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useRef, useState, type ReactNode } from "react"
 import { Loader2 } from "lucide-react"
 import { useNavigate } from "react-router"
-import { slugify, type ProjectCard } from "@frizz/shared"
+import { PROJECT_ICON_EXTENSIONS, slugify, type ProjectCard } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { projectHref } from "../lib/base-path.ts"
 import { showToast } from "../store.ts"
@@ -18,6 +21,105 @@ import { Dialog } from "./ui/Dialog.tsx"
 /** `/Users/me/code/nub` → `~/code/nub`. The home prefix is noise on every row. */
 export function shortPath(path: string, home: string | undefined): string {
   return home && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
+}
+
+const MENU_ITEM = "cursor-default rounded px-2 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-panel-2"
+
+/**
+ * Everything you can do to a project besides open it: change its picture, rename it, delete it.
+ *
+ * ONE MENU. The grid split these between an image overlay on the square ("change the picture") and an
+ * ellipsis ("rename, delete"), because a 34px square had room for a control of its own. A 16px one does
+ * not, and two menus on one row is exactly the clutter the merge was for. Delete is last and red — the
+ * one irreversible act here, kept away from the two that only change what Frizz calls a project.
+ *
+ * THE ICON: the NATIVE picker, opened standing in the project's own directory — a browser file input
+ * cannot be aimed anywhere, and an icon almost always lives inside the project. The hidden input stays
+ * as the fallback for a platform with no native dialog, so the item never becomes a dead end. Failures
+ * are toasts: the trigger is a row's ellipsis, and a paragraph beside it has nowhere to go.
+ */
+export function ProjectMenu({ project, home, children }: { project: ProjectCard; home: string | undefined; children: ReactNode }) {
+  const [renaming, setRenaming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  const queryClient = useQueryClient()
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["projectsList"] })
+  const report = (cause: unknown) => showToast(cause instanceof Error ? cause.message : String(cause), { duration: 7000 })
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      // Chunked: `String.fromCharCode(...bytes)` on a 4 MB icon blows the argument limit and throws
+      // a RangeError that reads like a network failure.
+      let binary = ""
+      for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192))
+      return rpc.projectIconSet({ id: project.id, name: file.name, data: btoa(binary) })
+    },
+    onSuccess: () => void invalidate(),
+    onError: report,
+  })
+  const clear = useMutation({
+    mutationFn: () => rpc.projectIconClear({ id: project.id }),
+    onSuccess: () => void invalidate(),
+    onError: report,
+  })
+  const pick = useMutation({
+    mutationFn: () => rpc.projectIconPick({ id: project.id }),
+    onSuccess: (result) => {
+      if (result.kind === "cancelled") return
+      if (result.kind === "unavailable") { input.current?.click(); return }
+      void invalidate()
+    },
+    onError: () => input.current?.click(),
+  })
+  return (
+    <>
+      <input
+        ref={input}
+        type="file"
+        accept={PROJECT_ICON_EXTENSIONS.map((extension) => `.${extension}`).join(",")}
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          // Reset first: picking the same file twice in a row fires no change event otherwise, so a
+          // failed upload could not be retried with the same file.
+          event.target.value = ""
+          if (file) upload.mutate(file)
+        }}
+      />
+      <RadixDropdown.Root>
+        <RadixDropdown.Trigger asChild>{children}</RadixDropdown.Trigger>
+        <RadixDropdown.Portal>
+          {/* The items do NOT name the project: a name is a directory basename of any length, and this
+              content has a min width and no max, so a long one would stretch the menu past its row. The
+              row is the subject and each dialog names it in full. */}
+          <RadixDropdown.Content
+            align="end"
+            sideOffset={6}
+            className="z-[220] min-w-[190px] rounded-lg border border-border bg-panel p-1 shadow-xl shadow-shadow-ink/40"
+          >
+            <RadixDropdown.Item className={MENU_ITEM} onSelect={() => pick.mutate()}>
+              {upload.isPending ? "Uploading…" : "Choose an icon…"}
+            </RadixDropdown.Item>
+            <RadixDropdown.Item className={MENU_ITEM} onSelect={() => clear.mutate()}>
+              {project.iconIsCustom ? "Use the detected icon" : "Look for an icon again"}
+            </RadixDropdown.Item>
+            <RadixDropdown.Separator className="mx-1 my-1 h-px bg-border" />
+            <RadixDropdown.Item className={MENU_ITEM} onSelect={() => setRenaming(true)}>
+              Rename…
+            </RadixDropdown.Item>
+            <RadixDropdown.Item
+              className="cursor-default rounded px-2 py-1.5 text-[12.5px] text-danger outline-none data-[highlighted]:bg-danger-fill/10 data-[highlighted]:text-danger-soft"
+              onSelect={() => setDeleting(true)}
+            >
+              Delete project…
+            </RadixDropdown.Item>
+          </RadixDropdown.Content>
+        </RadixDropdown.Portal>
+      </RadixDropdown.Root>
+      {renaming ? <RenameProjectDialog project={project} home={home} onClose={() => setRenaming(false)} /> : null}
+      {deleting ? <DeleteProjectDialog project={project} home={home} onClose={() => setDeleting(false)} /> : null}
+    </>
+  )
 }
 
 /** The last path segment, on either separator: the registry stores native paths and Windows uses `\\`. */
@@ -37,7 +139,7 @@ function folderName(path: string): string {
  * after the project, so the offer reads "keep these in step" and never "move your directory": a folder
  * called something else was named deliberately, and this is not the place to second-guess it.
  */
-export function RenameProjectDialog({
+function RenameProjectDialog({
   project,
   home,
   onClose,
@@ -157,7 +259,7 @@ export function RenameProjectDialog({
  * checkbox, which is the whole difference between an act that is undone by adding the folder again and
  * one that is not undone at all.
  */
-export function DeleteProjectDialog({
+function DeleteProjectDialog({
   project,
   home,
   onClose,

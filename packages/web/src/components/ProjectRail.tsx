@@ -1,18 +1,17 @@
-import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent as DragEvent_, type KeyboardEvent as KeyboardEvent_, type MouseEvent as MouseEvent_, type PointerEvent as PointerEvent_, type ReactNode } from "react"
-import { House, Infinity as InfinityIcon, Plus } from "lucide-react"
-import { Link, useLocation, useNavigate } from "react-router"
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent as DragEvent_, type KeyboardEvent as KeyboardEvent_, type MouseEvent as MouseEvent_, type PointerEvent as PointerEvent_ } from "react"
+import { Infinity as InfinityIcon, Plus } from "lucide-react"
+import { Link, useLocation } from "react-router"
 import { useSnapshot } from "valtio"
 import type { ProjectCard } from "@frizz/shared"
-import { PROJECT_ICON_EXTENSIONS } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { queued } from "../groups.ts"
 import { asThreads } from "../hooks.ts"
-import { showToast, store } from "../store.ts"
+import { store } from "../store.ts"
 import { projectHref, projectSlug } from "../lib/base-path.ts"
 import { dropIndex, edgeScrollVelocity, moveItem, shiftFor } from "../lib/railReorder.ts"
 import { Tooltip } from "./Tooltip.tsx"
+import { useAddProject } from "./ProjectActions.tsx"
 
 // THE PROJECT RAIL — every project on this machine as one icon square, always on screen.
 //
@@ -288,100 +287,6 @@ function RailLink({
   )
 }
 
-/**
- * Choose, or stop choosing, this project's picture.
- *
- * A browser file input rather than the server's native picker: the picker exists because a PROJECT is
- * an absolute path the browser withholds, and an icon is bytes — which the browser hands over
- * happily. One fewer round trip and it works over a forwarded port.
- */
-export function ProjectIconMenu({
-  project,
-  children,
-}: {
-  project: ProjectCard
-  children: ReactNode
-}) {
-  const input = useRef<HTMLInputElement>(null)
-  const queryClient = useQueryClient()
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["projectsList"] })
-  // A toast, not an inline line: the trigger this wraps is a 38px overlay on the project's square
-  // (ProjectGrid), and a paragraph rendered beside it has nowhere to go.
-  const report = (cause: unknown) => showToast(cause instanceof Error ? cause.message : String(cause), { duration: 7000 })
-  const set = useMutation({
-    mutationFn: async (file: File) => {
-      const bytes = new Uint8Array(await file.arrayBuffer())
-      // Chunked: `String.fromCharCode(...bytes)` on a 4 MB icon blows the argument limit and throws
-      // a RangeError that reads like a network failure.
-      let binary = ""
-      for (let i = 0; i < bytes.length; i += 8192) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + 8192))
-      }
-      return rpc.projectIconSet({ id: project.id, name: file.name, data: btoa(binary) })
-    },
-    onSuccess: () => void invalidate(),
-    onError: report,
-  })
-  const clear = useMutation({
-    mutationFn: () => rpc.projectIconClear({ id: project.id }),
-    onSuccess: () => void invalidate(),
-    onError: report,
-  })
-  /**
-   * The NATIVE picker, opened standing in the project's own directory.
-   *
-   * A browser file input cannot be aimed anywhere — the OS decides, and it lands wherever you last
-   * were, which for an icon that almost always lives inside the project means navigating back to a
-   * path Frizz already knows. The hidden input below stays as the fallback for a platform with no
-   * native dialog, so the menu item never becomes a dead end.
-   */
-  const pick = useMutation({
-    mutationFn: () => rpc.projectIconPick({ id: project.id }),
-    onSuccess: (result) => {
-      if (result.kind === "cancelled") return
-      if (result.kind === "unavailable") { input.current?.click(); return }
-      void invalidate()
-    },
-    onError: () => input.current?.click(),
-  })
-
-  const item = "cursor-default rounded px-2 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-panel-2"
-  return (
-    <>
-      <input
-        ref={input}
-        type="file"
-        accept={PROJECT_ICON_EXTENSIONS.map((extension) => `.${extension}`).join(",")}
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          // Reset first: picking the same file twice in a row fires no change event otherwise, so a
-          // failed upload could not be retried with the same file.
-          event.target.value = ""
-          if (file) set.mutate(file)
-        }}
-      />
-      <RadixDropdown.Root>
-        <RadixDropdown.Trigger asChild>{children}</RadixDropdown.Trigger>
-        <RadixDropdown.Portal>
-          <RadixDropdown.Content
-            align="start"
-            sideOffset={6}
-            className="z-[220] min-w-[190px] rounded-lg border border-border bg-panel p-1 shadow-xl shadow-shadow-ink/40"
-          >
-            <RadixDropdown.Item className={item} onSelect={() => pick.mutate()}>
-              {set.isPending ? "Uploading…" : "Choose an icon…"}
-            </RadixDropdown.Item>
-            <RadixDropdown.Item className={item} onSelect={() => clear.mutate()}>
-              {project.iconIsCustom ? "Use the detected icon" : "Look for an icon again"}
-            </RadixDropdown.Item>
-          </RadixDropdown.Content>
-        </RadixDropdown.Portal>
-      </RadixDropdown.Root>
-    </>
-  )
-}
-
 /** A drag in flight. `toIndex` is derived from `deltaY` every move — see lib/railReorder.ts. */
 interface DragState {
   id: string
@@ -442,23 +347,13 @@ export function ProjectRail() {
   const queryClient = useQueryClient()
   const { data } = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
   const current = projectSlug()
-  const onQueues = useLocation().pathname === "/queues"
-  const [adding, setAdding] = useState(false)
-  const navigate = useNavigate()
+  // Home is Everything, at `/` — the one machine-level page since the project grid folded into it.
+  const home = useLocation().pathname === "/"
+  const add = useAddProject()
   const [drag, setDrag] = useState<DragState | null>(null)
   /** The order the operator is looking at, which leads the server for the whole round trip. */
   const [optimistic, setOptimistic] = useState<ProjectCard[] | null>(null)
   const bandRef = useRef<HTMLDivElement>(null)
-  const pick = useMutation({
-    mutationFn: () => rpc.projectPick({}),
-    onSuccess: (result) => {
-      if (result.kind === "picked") navigate(projectHref(result.project.slug))
-      // No picker on this machine, or it failed: the grid owns the typed-path fallback dialog, and
-      // sending someone there is better than growing a second copy of it in a 57px column.
-      else if (result.kind === "unavailable") navigate("/")
-    },
-    onSettled: () => setAdding(false),
-  })
   const reorder = useMutation({
     mutationFn: (ids: string[]) => rpc.projectsReorder({ ids }),
     // Hold the operator's arrangement on screen until the refetch that CONFIRMS it has landed.
@@ -596,26 +491,16 @@ export function ProjectRail() {
       aria-label="Projects"
       className={`fixed inset-y-0 left-0 z-[60] flex flex-col items-center border-r border-border bg-panel/60 py-3 max-[800px]:hidden ${RAIL_WIDTH_CLASS}`}
     >
-      {/* A HOME GLYPH, not the Frizz mark. Two reasons, and the second is why it stopped being the
-          mark: this slot is a destination ("all projects"), and the wordmark said whose app you are
-          in — which the rail's own presence already says. And `favicon.svg` carries an feDropShadow
-          inside a 512 viewBox with 16px of bleed around a 480 tile, so at 26px it cast a soft shadow
-          DOWN onto the first project square. A stroke glyph paints only its own strokes. */}
-      <Tooltip side="right" label="All projects">
-        <Link
-          to="/"
-          aria-label="All projects"
-          aria-current={current || onQueues ? undefined : "page"}
-          className={RAIL_DOOR_CLASS}
-        >
-          <House size={17} />
-        </Link>
-      </Tooltip>
-      {/* The level between the two: every project's queue on one page (AllQueues.tsx). No count of its
-          own — each square below already wears its project's, and a sum over them would be a second
-          yellow number saying the same thing. */}
+      {/* THE DOOR HOME — Everything, every project's queue on one page (AllQueues.tsx). ONE door since
+          2026-09-24: a house for the project grid and an infinity for Everything stood here one above the
+          other until the grid folded into Everything, and two doors "up" asked the reader to choose
+          between pages that were never meant to be different places. The infinity is the maintainer's
+          glyph for Everything. A stroke glyph rather than the Frizz mark, because `favicon.svg` carries
+          an feDropShadow that at this size cast a soft shadow DOWN onto the first project square. No
+          count of its own — each square below already wears its project's, and a sum over them would be
+          a second yellow number saying the same thing. */}
       <Tooltip side="right" label="Everything">
-        <Link to="/queues" aria-label="Everything" aria-current={onQueues ? "page" : undefined} className={`${RAIL_DOOR_CLASS} ${onQueues ? "bg-elevated text-fg" : ""}`}>
+        <Link to="/" aria-label="Everything" aria-current={home ? "page" : undefined} className={`${RAIL_DOOR_CLASS} ${home ? "bg-elevated text-fg" : ""}`}>
           <InfinityIcon size={17} />
         </Link>
       </Tooltip>
@@ -651,8 +536,8 @@ export function ProjectRail() {
       <Tooltip side="right" label="Add a project">
         <button
           type="button"
-          disabled={adding}
-          onClick={() => { setAdding(true); pick.mutate() }}
+          disabled={add.pending}
+          onClick={add.start}
           aria-label="Add a project"
           // A DOTTED squircle, matching the project squares' own `rounded-[30%]` so it reads as an empty
           // slot in the same list rather than a control bolted under it. Dotted and not dashed: at 40px
@@ -663,6 +548,9 @@ export function ProjectRail() {
           <Plus size={16} />
         </button>
       </Tooltip>
+      {/* The typed-path fallback, for a machine with no folder picker — portalled, so the 57px column
+          is not where it draws. */}
+      {add.dialog}
     </nav>
   )
 }
