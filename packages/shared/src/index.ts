@@ -2691,6 +2691,12 @@ export const ThreadView = z.object({
   // blocks (perm-prompt / pendingAsk / crash) that a view can't clear. The client renders the
   // queue off this bit alone for session threads (legacy rows keep needsAction()).
   needsYou: z.boolean().optional(),
+  // When this thread most recently ENTERED the queue (ISO), present exactly while `needsYou` is. The
+  // queue's order key: a thread keeps it for as long as it stays queued and gets a fresh one each time
+  // it re-enters, so a new arrival joins the BACK of the line. It is not the rest time — a thread that
+  // rested behind a wait (CI, a sub-agent, a park, a snooze) enters when the wait lets go. See the
+  // server's queue-clock.ts.
+  queuedAt: z.string().optional(),
   // True only for the crash/stall branch (pane exited while the transcript still says in-flight).
   // Once every ordinary rest also queues, runtime=exited + needsYou is no longer enough for clients
   // to distinguish a failed worker from a clean completed process.

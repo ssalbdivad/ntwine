@@ -201,11 +201,11 @@ function lastActiveAt(t: ThreadView): number {
   return Number.isFinite(rest) ? rest : interactionAt(t)
 }
 
-// The timestamp the "Last active" label should DISPLAY, kept in lockstep with the order key so the
-// queue's labels read monotonically and never lie. A RUNNING row shows its live activity
+// The timestamp the "Last active" label should DISPLAY. A RUNNING row shows its live activity
 // (`lastActivityAt` — "just now" while it works); an AT-REST row shows its rest time (`lastAssistantAt`),
 // so a background sub-agent completing can never flip a rested row's label to "just now". Falls back to
-// lastActivityAt then spawn when a backend never recorded the rest instant (legacy/foreign rows).
+// lastActivityAt then spawn when a backend never recorded the rest instant (legacy/foreign rows). The
+// queue's own column prints `queueLabelAt` instead, which is this for every plain rest.
 export function lastActiveLabelAt(t: Pick<ThreadView, "runtime" | "lastActivityAt" | "lastAssistantAt" | "spawnedAt" | "subAgents" | "bgShells">): string | undefined {
   if (isActivelyRunning(t as ThreadView)) return t.lastActivityAt ?? t.spawnedAt
   return t.lastAssistantAt ?? t.lastActivityAt ?? t.spawnedAt
@@ -213,7 +213,7 @@ export function lastActiveLabelAt(t: Pick<ThreadView, "runtime" | "lastActivityA
 
 // The listing DIRECTION the queue/rested band orders by (a per-browser view preference — see
 // lib/prefs.ts). FIFO (default) surfaces the longest-waiting item first so the human cycles through
-// all work; LIFO surfaces the most-recently-active first.
+// all work; LIFO surfaces the most recent arrival first.
 export type QueueDirection = "fifo" | "lifo"
 
 // Attention first (needsAction), then most-recent LAST-ACTIVE first within each band (see
@@ -246,21 +246,40 @@ export function orderByInteraction(threads: readonly ThreadView[]): ThreadView[]
 // rule is literally true across every card, attention and passive alike (maintainer 2026-07-21:
 // removed the hidden hard-attention band — "too confusing"; a fresh crash/permission-prompt no longer
 // floats above an older done card):
-//   • FIFO (default): the thread gone LONGEST without activity surfaces first (oldest lastActiveAt =
-//     ascending), so answering it sends it to the BACK of the line and the next-oldest rises — the
-//     human cycles through every waiting item instead of endlessly re-triaging whatever rested most
-//     recently (maintainer 2026-07-15: "first in first out is a better system… you are not constantly
-//     cycling through all of the tasks").
-//   • LIFO: the most-recently-active first (descending) — the older last-in-first-out feel.
-// lastActiveAt keys off when an AT-REST thread came to rest (matching its "Last active" label) and off
-// the stable user-interaction time for a running row, so agent tool churn never reorders a card.
+//   • FIFO (default): the thread that has been IN THE QUEUE longest surfaces first, so answering it
+//     sends it to the BACK of the line and the next-oldest rises — the human cycles through every
+//     waiting item instead of endlessly re-triaging whatever rested most recently (maintainer
+//     2026-07-15: "first in first out is a better system… you are not constantly cycling through all
+//     of the tasks").
+//   • LIFO: the most recent arrival first (descending) — the older last-in-first-out feel.
+// THE KEY IS WHEN IT ENTERED THE QUEUE (`queuedAt`, stamped by the server's queue clock), not when its
+// agent last spoke. The two agree for a plain rest and nothing else: a thread that rested behind a wait
+// — CI, a sub-agent, a park, a snooze — enters when the wait lets go, and keyed on its old rest time it
+// cut in at the FRONT, above the card the human was reading (maintainer 2026-09-24: "when a new thread
+// is ready, it moves to the top of the *stack* … make it work like an actual queue"). A new arrival now
+// always joins the back, and nothing moves a thread while it waits. `queueKeyAt` falls back to the rest
+// time only for a row from a server that predates the stamp.
 // id-tiebroken for a stable order among equal-age rows.
 export function orderQueue(threads: readonly ThreadView[], direction: QueueDirection = "fifo"): ThreadView[] {
   const dir = direction === "lifo" ? -1 : 1
   return [...threads].sort((a, b) => {
-    const age = (lastActiveAt(a) - lastActiveAt(b)) * dir
+    const age = (queueKeyAt(a) - queueKeyAt(b)) * dir
     return age !== 0 ? age : a.id.localeCompare(b.id)
   })
+}
+
+function queueKeyAt(t: ThreadView): number {
+  const queued = Date.parse(t.queuedAt ?? "")
+  return Number.isFinite(queued) ? queued : lastActiveAt(t)
+}
+
+// The timestamp a QUEUE surface prints beside a waiting thread — the cue's right-hand column, the queue
+// card's time line — kept in lockstep with `orderQueue`'s key so the column reads monotonically down
+// the line it is printed in (maintainer 2026-08-08). For a plain rest it is the rest time exactly; for
+// a thread that entered off a wait it is how long it has been waiting on the human. Surfaces that are
+// not the queue (the conversation header) keep `lastActiveLabelAt`, the agent's own rest.
+export function queueLabelAt(t: Pick<ThreadView, "queuedAt" | "runtime" | "lastActivityAt" | "lastAssistantAt" | "spawnedAt" | "subAgents" | "bgShells">): string | undefined {
+  return t.queuedAt ?? lastActiveLabelAt(t)
 }
 
 // ── SESSION-FIRST QUEUE ──────────────────────────────────────────────────────────────────────────

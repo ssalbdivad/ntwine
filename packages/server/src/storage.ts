@@ -89,6 +89,11 @@ export interface SessionRow {
   // and the instant doubles as the pinned band's order. It survives every state change (a pinned thread
   // that finishes stays pinned); only the unpin verb clears it.
   pinned_at?: string | null
+  // The instant this thread most recently ENTERED the queue — the queue's order key, owned by the board's
+  // queue clock (queue-clock.ts), which writes it on the enter edge and clears it on the leave edge. It is
+  // durable so a restart does not re-derive it from the rest time, which would pull every thread that
+  // rested behind a wait back to the front of the line.
+  queued_at?: string | null
   // The thread's RECURRING PROMPT — one piece of text with up to three independent triggers
   // (scheduler.ts SOURCES 4, 5 and 7). `recurring_armed_at` is the GENERATION: editing the text or the
   // cadence mints a new one, so a delivery already queued under the old settings reads as superseded.
@@ -648,6 +653,9 @@ export interface Storage {
   // Pin/unpin: the instant is the pinned band's order, null clears it. Unguarded like setSnoozedUntil —
   // the RPC resolves the owning session first.
   setPinnedAt(slug: string, at: string | null): void
+  // The queue clock's write (queue-clock.ts): when the thread entered the queue, null once it has left.
+  // Unguarded — the board writes it for the row it just read, on the edge it just observed.
+  setQueuedAt(slug: string, at: string | null): void
   // Arm/clear the awaiting-background event-snooze. Session-guarded like the park above. `restedAt` is
   // the rest instant the card is snoozed FOR; the board re-surfaces it once rested_at moves past this.
   setBgSnoozeRestedAtIfCurrent(slug: string, sessionId: string, generation: number, restedAt: string | null): boolean
@@ -1015,6 +1023,8 @@ export const STORAGE_SCHEMA = `
       claude_runtime TEXT,
       -- ACP agent id (backend/acp-agents.ts) for backend='acp' rows; also in the ALTER list below.
       acp_agent TEXT,
+      -- When the thread last entered the queue (queue-clock.ts); also in the ALTER list below.
+      queued_at TEXT,
       -- THE RECURRING PROMPT (scheduler.ts SOURCES 4, 5 and 7): one text, three independent triggers —
       -- every time the thread rests, every N ms on a clock, and/or every time its context is compacted.
       -- All flags 0 = off; there is no separate enable column, because another flag could only ever
@@ -1315,7 +1325,7 @@ export function ensureStorageSchema(db: Database): void {
   // a file that already exists, and every live install predates any column below — so each rides one
   // additive ALTER here, exactly the stack the schema comment above says the unified file was born
   // without. Keep the list append-only; the try/catch is the "already there" case.
-  for (const column of ["pinned_at TEXT", "acp_agent TEXT"]) {
+  for (const column of ["pinned_at TEXT", "acp_agent TEXT", "queued_at TEXT"]) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${column}`)
     } catch {
@@ -1651,6 +1661,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
   `)
   const snoozedUntilStmt = scope.prepare("UPDATE session SET snoozed_until = ?, snooze_prompt = ? WHERE project_id = @project_id AND slug = ?")
   const pinnedAtStmt = scope.prepare("UPDATE session SET pinned_at = ? WHERE project_id = @project_id AND slug = ?")
+  const queuedAtStmt = scope.prepare("UPDATE session SET queued_at = ? WHERE project_id = @project_id AND slug = ?")
   // The session-guarded park. Deliberately leaves snooze_prompt alone: it parks an instant without
   // arming a scheduled bump, so a caller that wants both writes both.
   const snoozedUntilIfCurrentStmt = scope.prepare(`
@@ -2608,6 +2619,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     setSnoozedUntilIfCurrent: (slug, sessionId, generation, until) =>
       snoozedUntilIfCurrentStmt.run(until, slug, sessionId, generation).changes === 1,
     setPinnedAt: (slug, at) => void pinnedAtStmt.run(at, slug),
+    setQueuedAt: (slug, at) => void queuedAtStmt.run(at, slug),
     setBgSnoozeRestedAtIfCurrent: (slug, sessionId, generation, restedAt) =>
       bgSnoozeRestedAtIfCurrentStmt.run(restedAt, slug, sessionId, generation).changes === 1,
     setRecurringPromptIfCurrent: (slug, sessionId, generation, write) =>

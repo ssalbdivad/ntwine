@@ -23,6 +23,7 @@ import { findByPath } from "./project-registry.ts"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
 import { effectivePermissionMode, fallbackTitle, resolveLegacyThreadFile } from "./dispatch.ts"
 import { ProducerStoppedError } from "./shutdown.ts"
+import { createQueueClock } from "./queue-clock.ts"
 import { adoptionRuntimeBinding } from "./adoption-recovery.ts"
 import { limitPauseIsStale, textResetInstant } from "./backend/usage-limit.ts"
 import { getSettings } from "./settings.ts"
@@ -1885,6 +1886,14 @@ export function createBoard(
   // PRIME GUARD: the first assemble after boot records the baseline WITHOUT notifying, so a post-bounce
   // server doesn't fire a storm for every historical resting thread already in the queue.
   let notifyPrimed = false
+  // When each queued thread entered the queue — the queue's order key (queue-clock.ts). Session rows
+  // persist it; a command thread's rest time is already exact, so it rides in memory alone.
+  const queueClock = createQueueClock({
+    load: () => new Map(storage.allSessions().flatMap((row) => (row.queued_at ? [[row.slug, row.queued_at] as const] : []))),
+    save: (thread, at) => {
+      if (thread.kind === "session") storage.setQueuedAt(thread.id, at)
+    },
+  })
 
   // Fire a needs-decision notify for every registered session that newly enters the queue.
   // Edge-triggered + deduped; primed on the first build.
@@ -2030,9 +2039,12 @@ export function createBoard(
     // neither received nor can answer.
     armSnoozeWake(sessionThreads, assembledAtMs)
     notifyNeedsYou(sessionThreads)
+    const commandThreads = deps.commandThreads?.() ?? []
+    // Foreign rows never queue (queuedThread), so they have no place in line to keep.
+    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs)
     return {
       ...base,
-      threads: [...sessionThreads, ...buildForeignThreads(), ...(deps.commandThreads?.() ?? [])],
+      threads: [...sessionThreads, ...buildForeignThreads(), ...commandThreads],
       errors: [],
       warnings: [],
       errorItems: [],

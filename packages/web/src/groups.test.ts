@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ThreadView } from "@frizz/shared"
-import { bandOf, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
+import { bandOf, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, queueLabelAt, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
 
 // Minimal ThreadView fixture — the same shape board-delta.test.ts uses, defaulting to a live/active
 // thread; each case overrides only the fields under test.
@@ -459,6 +459,27 @@ test("orderQueue: AT-REST rows key on REST TIME (lastAssistantAt), not lastActiv
   assert.deepEqual(orderQueue(rows()).map((item) => item.id), ["rested-earlier", "rested-later"])
   // LIFO surfaces the most recently rested first.
   assert.deepEqual(orderQueue(rows(), "lifo").map((item) => item.id), ["rested-later", "rested-earlier"])
+})
+
+test("orderQueue: a thread keys on when it ENTERED the queue, so a wait that lets go joins the BACK", () => {
+  // The 2026-09-24 report: "when a new thread is ready, it moves to the top of the *stack*". `ci-held`
+  // rested at 09:00 behind running CI and entered the queue only when CI settled at 12:30; keyed on its
+  // rest time it cut in ahead of `reading`, the card the human had been waiting on since 12:00. Keyed on
+  // queuedAt it is the newest arrival, so FIFO puts it LAST and LIFO FIRST.
+  const rows = () => [
+    thread({ id: "ci-held", lastAssistantAt: "2026-09-24T09:00:00.000Z", queuedAt: "2026-09-24T12:30:00.000Z" }),
+    thread({ id: "reading", lastAssistantAt: "2026-09-24T12:00:00.000Z", queuedAt: "2026-09-24T12:00:00.000Z" }),
+    thread({ id: "older", lastAssistantAt: "2026-09-24T11:00:00.000Z", queuedAt: "2026-09-24T11:00:00.000Z" }),
+  ]
+  assert.deepEqual(orderQueue(rows()).map((item) => item.id), ["older", "reading", "ci-held"])
+  assert.deepEqual(orderQueue(rows(), "lifo").map((item) => item.id), ["ci-held", "reading", "older"])
+  // The cue's column prints the same key, so it reads monotonically down the line it is printed in; the
+  // conversation's "Last active" keeps the agent's own rest.
+  const ciHeld = rows()[0]!
+  assert.equal(queueLabelAt(ciHeld), "2026-09-24T12:30:00.000Z")
+  assert.equal(lastActiveLabelAt(ciHeld), "2026-09-24T09:00:00.000Z")
+  // A row without the stamp (a server predating it) falls back to the rest time, as before.
+  assert.equal(queueLabelAt(thread({ id: "legacy", lastAssistantAt: "2026-09-24T08:00:00.000Z" })), "2026-09-24T08:00:00.000Z")
 })
 
 test("orderQueue: a background sub-agent completing (lastActivityAt bump) does NOT reorder an at-rest row", () => {

@@ -16,8 +16,8 @@ export interface Prefs {
   // A custom date is deliberately one-off and never overwrites this reusable preset.
   snoozePreset: SnoozePreset
   // Direction the Needs-you queue + the sidebar's rested band order by. FIFO (default) surfaces the
-  // longest-waiting item first so the human cycles through everything; LIFO surfaces the most recently
-  // active first. See groups.ts orderQueue.
+  // longest-waiting item first so the human cycles through everything; LIFO surfaces the most recent
+  // arrival first. See groups.ts orderQueue.
   queueOrder: QueueDirection
   // The fullscreen rail's "Edited files" group folded to its heading (maintainer 2026-09-03: "make
   // Edited Files collapsible"). Open by default — the list is the rail's one non-wait group and the
