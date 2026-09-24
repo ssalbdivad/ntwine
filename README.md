@@ -67,10 +67,10 @@ Frizz is a browser tab, a queue, and the agent CLIs you already pay for. It brin
 
 ### Projects
 
-Every directory you run `npx frizz` in becomes a project with its own board, all served by the one Frizz on your machine. The home page at `http://127.0.0.1:9393/` lists them.
+Every directory you run `npx frizz` in becomes a project with its own board, all served by the one Frizz on your machine. The home page at `http://127.0.0.1:9393/`, **Everything**, puts every project's queue on one page: your projects down the left with their threads, and every card waiting on you beside them. Choose a project to see only that one; ∞ goes back to everything, and a project's … menu opens its board.
 
 <p align="center">
-  <img src="assets/projects.png" alt="The Frizz home page: a rail of project icons down the left, and four project cards — design-system, acme-web, acme-api, frizz — each with its home-relative path and when it was last opened, plus an Add a project card." width="100%">
+  <img src="assets/projects.png" alt="Frizz's home page, Everything: a prompt box above a list of projects — marketing-site, acme-api, billing-worker — each with its threads beneath it, and beside the list every project's ready cards in one column, the first asking a question with lettered options." width="100%">
 </p>
 
 The project rail keeps every project one click away, with each queue's count on its icon. It is off by default; switch it on under **Settings → Project sidebar**.
