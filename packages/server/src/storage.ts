@@ -89,6 +89,11 @@ export interface SessionRow {
   // and the instant doubles as the pinned band's order. It survives every state change (a pinned thread
   // that finishes stays pinned); only the unpin verb clears it.
   pinned_at?: string | null
+  // The instant this thread most recently ENTERED the queue — the queue's order key, owned by the board's
+  // queue clock (queue-clock.ts), which writes it on the enter edge and clears it on the leave edge. It is
+  // durable so a restart does not re-derive it from the rest time, which would pull every thread that
+  // rested behind a wait back to the front of the line.
+  queued_at?: string | null
   // The thread's RECURRING PROMPT — one piece of text with up to three independent triggers
   // (scheduler.ts SOURCES 4, 5 and 7). `recurring_armed_at` is the GENERATION: editing the text or the
   // cadence mints a new one, so a delivery already queued under the old settings reads as superseded.
@@ -433,6 +438,8 @@ export interface CommandThreadRow {
   stopped: number
   /** 'archived' once the human marks the finished run done; a restart reopens it. */
   state: "open" | "archived"
+  /** When the thread last entered the queue — the board's queue clock, exactly as `session.queued_at`. */
+  queued_at?: string | null
 }
 
 /** A saved destination, independent of running work and completion. */
@@ -648,6 +655,9 @@ export interface Storage {
   // Pin/unpin: the instant is the pinned band's order, null clears it. Unguarded like setSnoozedUntil —
   // the RPC resolves the owning session first.
   setPinnedAt(slug: string, at: string | null): void
+  // The queue clock's write (queue-clock.ts): when the thread entered the queue, null once it has left.
+  // Unguarded — the board writes it for the row it just read, on the edge it just observed.
+  setQueuedAt(slug: string, at: string | null): void
   // Arm/clear the awaiting-background event-snooze. Session-guarded like the park above. `restedAt` is
   // the rest instant the card is snoozed FOR; the board re-surfaces it once rested_at moves past this.
   setBgSnoozeRestedAtIfCurrent(slug: string, sessionId: string, generation: number, restedAt: string | null): boolean
@@ -731,6 +741,8 @@ export interface Storage {
   dropCommandThread(slug: string): boolean
   /** Mark as done / reopen. False when no such command thread exists. */
   setCommandThreadState(slug: string, state: "open" | "archived"): boolean
+  /** The queue clock's write for a command thread — see `setQueuedAt`. */
+  setCommandQueuedAt(slug: string, at: string | null): void
   /** Register a watch, or return the armed one already covering this (thread, kind, target). Idempotent
    *  by that triple, so a worker re-registering the same wait after a wake gets one row, not two. */
   armThreadWatch(watch: { id: string; slug: string; kind: "shell" | "agent"; target: string; createdAtMs: number; expiresAtMs: number }): ThreadWatchRow
@@ -1015,6 +1027,8 @@ export const STORAGE_SCHEMA = `
       claude_runtime TEXT,
       -- ACP agent id (backend/acp-agents.ts) for backend='acp' rows; also in the ALTER list below.
       acp_agent TEXT,
+      -- When the thread last entered the queue (queue-clock.ts); also in the ALTER list below.
+      queued_at TEXT,
       -- THE RECURRING PROMPT (scheduler.ts SOURCES 4, 5 and 7): one text, three independent triggers —
       -- every time the thread rests, every N ms on a clock, and/or every time its context is compacted.
       -- All flags 0 = off; there is no separate enable column, because another flag could only ever
@@ -1297,6 +1311,8 @@ export const STORAGE_SCHEMA = `
       stopped     INTEGER NOT NULL DEFAULT 0,
       -- 'archived' once the human marks a finished run done (it leaves the threads band for Done).
       state       TEXT NOT NULL DEFAULT 'open',
+      -- When the thread last entered the queue (queue-clock.ts); also in the ALTER list below.
+      queued_at   TEXT,
       PRIMARY KEY (project_id, slug)
     );
 `
@@ -1315,7 +1331,7 @@ export function ensureStorageSchema(db: Database): void {
   // a file that already exists, and every live install predates any column below — so each rides one
   // additive ALTER here, exactly the stack the schema comment above says the unified file was born
   // without. Keep the list append-only; the try/catch is the "already there" case.
-  for (const column of ["pinned_at TEXT", "acp_agent TEXT"]) {
+  for (const column of ["pinned_at TEXT", "acp_agent TEXT", "queued_at TEXT"]) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${column}`)
     } catch {
@@ -1329,6 +1345,9 @@ export function ensureStorageSchema(db: Database): void {
     // `command_thread.state` (2026-09-23): a finished command queues like a rested thread and is
     // marked done the same way; the table shipped the same day without it.
     ["command_thread", "state TEXT NOT NULL DEFAULT 'open'"],
+    // `command_thread.queued_at` (2026-09-24): the queue clock's stamp, as on `session` — a run at a
+    // prompt stays queued across a restart, and the boot's interrupted exit must not re-date it.
+    ["command_thread", "queued_at TEXT"],
   ] as const) {
     try {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column}`)
@@ -1651,6 +1670,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
   `)
   const snoozedUntilStmt = scope.prepare("UPDATE session SET snoozed_until = ?, snooze_prompt = ? WHERE project_id = @project_id AND slug = ?")
   const pinnedAtStmt = scope.prepare("UPDATE session SET pinned_at = ? WHERE project_id = @project_id AND slug = ?")
+  const queuedAtStmt = scope.prepare("UPDATE session SET queued_at = ? WHERE project_id = @project_id AND slug = ?")
   // The session-guarded park. Deliberately leaves snooze_prompt alone: it parks an instant without
   // arming a scheduled bump, so a caller that wants both writes both.
   const snoozedUntilIfCurrentStmt = scope.prepare(`
@@ -1834,7 +1854,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     VALUES (@project_id, @slug, @command, @createdAtMs, @createdAtMs)
   `)
   const listCommandThreadsStmt = scope.prepare<[], CommandThreadRow>(
-    "SELECT slug, command, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM command_thread WHERE project_id = @project_id ORDER BY created_at, slug",
+    "SELECT slug, command, created_at, started_at, runs, exited_at, exit_code, stopped, state, queued_at FROM command_thread WHERE project_id = @project_id ORDER BY created_at, slug",
   )
   const restartCommandThreadStmt = scope.prepare(`
     UPDATE command_thread SET command = COALESCE(?, command), started_at = ?, runs = runs + 1, exited_at = NULL, exit_code = NULL, stopped = 0, state = 'open'
@@ -1849,6 +1869,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
   )
   const dropCommandThreadStmt = scope.prepare("DELETE FROM command_thread WHERE project_id = @project_id AND slug = ?")
   const setCommandThreadStateStmt = scope.prepare("UPDATE command_thread SET state = ? WHERE project_id = @project_id AND slug = ?")
+  const setCommandQueuedAtStmt = scope.prepare("UPDATE command_thread SET queued_at = ? WHERE project_id = @project_id AND slug = ?")
   const armThreadWatchStmt = scope.prepare(`
     INSERT INTO thread_watch (project_id, id, thread_slug, kind, target, state, created_at, expires_at, settled_at)
     VALUES (@project_id, @id, @slug, @kind, @target, 'armed', @createdAtMs, @expiresAtMs, NULL)
@@ -2608,6 +2629,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     setSnoozedUntilIfCurrent: (slug, sessionId, generation, until) =>
       snoozedUntilIfCurrentStmt.run(until, slug, sessionId, generation).changes === 1,
     setPinnedAt: (slug, at) => void pinnedAtStmt.run(at, slug),
+    setQueuedAt: (slug, at) => void queuedAtStmt.run(at, slug),
     setBgSnoozeRestedAtIfCurrent: (slug, sessionId, generation, restedAt) =>
       bgSnoozeRestedAtIfCurrentStmt.run(restedAt, slug, sessionId, generation).changes === 1,
     setRecurringPromptIfCurrent: (slug, sessionId, generation, write) =>
@@ -2641,6 +2663,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     interruptRunningCommandThreads: (exitedAtMs) => void interruptCommandThreadsStmt.run(exitedAtMs),
     dropCommandThread: (slug) => dropCommandThreadStmt.run(slug).changes === 1,
     setCommandThreadState: (slug, state) => setCommandThreadStateStmt.run(state, slug).changes === 1,
+    setCommandQueuedAt: (slug, at) => void setCommandQueuedAtStmt.run(at, slug),
     // IDEMPOTENT BY (thread, kind, target), which is what the partial unique index enforces. A worker
     // woken by an expiry re-registers the same wait, and a worker that simply calls twice must not end
     // up with two rows to drop — so an existing armed row is RETURNED rather than replaced. Replacing

@@ -16,6 +16,9 @@ test("a bare rest in the queue draws the card; a stall draws it whatever the mes
   assert.equal(showsRestedCard({ ...bare, runtime: "exited" }, "**Fixed** — landed."), true)
   assert.equal(showsRestedCard({ ...bare, runtime: "exited", crashed: true }, undefined), true)
   assert.equal(showsRestedCard({ ...bare, runtime: "exited", crashed: true, lastFence: { kind: "done", body: "x", hints: [] } }, "```done\nx\n```"), true)
+  // Withheld from the queue while its wake gets a few seconds to land: still the rest it will queue with.
+  assert.equal(showsRestedCard({ ...bare, needsYou: false, queueSettling: true }, "**Fixed** — landed."), true)
+  assert.equal(showsRestedCard({ ...bare, needsYou: false }, "**Fixed** — landed."), false, "…where a thread merely out of the queue draws nothing")
 })
 
 test("every ending with a card of its own keeps this one off", () => {

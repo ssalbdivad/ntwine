@@ -205,7 +205,7 @@ function DensityToggle() {
 }
 
 // Queue/rested-band direction: client-only (localStorage prefs proxy), applies live to the Needs-you
-// queue and the sidebar's rested rows the instant it flips. FIFO by default (oldest-active first).
+// queue and the sidebar's rested rows the instant it flips. FIFO by default (longest in the queue first).
 function QueueOrderControl() {
   const { queueOrder } = useSnapshot(prefs)
   const opts: { v: "fifo" | "lifo"; label: string }[] = [

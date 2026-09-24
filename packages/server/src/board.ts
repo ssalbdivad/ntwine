@@ -23,6 +23,7 @@ import { findByPath } from "./project-registry.ts"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
 import { effectivePermissionMode, fallbackTitle, resolveLegacyThreadFile } from "./dispatch.ts"
 import { ProducerStoppedError } from "./shutdown.ts"
+import { createQueueClock } from "./queue-clock.ts"
 import { adoptionRuntimeBinding } from "./adoption-recovery.ts"
 import { limitPauseIsStale, textResetInstant } from "./backend/usage-limit.ts"
 import { getSettings } from "./settings.ts"
@@ -39,6 +40,8 @@ const DEBOUNCE_MS = 150
 // own heartbeat watchdog fires and reconnects — real worst case ≈45-60s (sse.ts HEARTBEAT_TIMEOUT 35s
 // + the 10s health tick). See sse.ts.
 const RECONCILE_MS = 15_000
+// When this project's queue clock was last watching — see queue-clock.ts "A RESTART IS A GAP".
+const QUEUE_CLOCK_ALIVE_SETTING = "queue.clock.alive.v1"
 
 // A codex app-server turn that reads in-flight but is driven by NOBODY. The rollout is a lagging log:
 // when the app-server process dies mid-turn it simply stops, so the folded turn stays "in-flight"
@@ -1890,6 +1893,21 @@ export function createBoard(
   // PRIME GUARD: the first assemble after boot records the baseline WITHOUT notifying, so a post-bounce
   // server doesn't fire a storm for every historical resting thread already in the queue.
   let notifyPrimed = false
+  // When each queued thread entered the queue — the queue's order key (queue-clock.ts), persisted on the
+  // session row or the command thread's row.
+  const queueClock = createQueueClock({
+    load: () => {
+      const alive = storage.getSetting(QUEUE_CLOCK_ALIVE_SETTING)
+      const rows = [...storage.allSessions(), ...storage.listCommandThreads()]
+      return {
+        stamps: new Map(rows.flatMap((row) => (row.queued_at ? [[row.slug, row.queued_at] as const] : []))),
+        ...(typeof alive === "string" ? { alive } : {}),
+      }
+    },
+    persists: (thread) => thread.kind === "session" || thread.kind === "command",
+    save: (thread, at) => (thread.kind === "command" ? storage.setCommandQueuedAt(thread.id, at) : storage.setQueuedAt(thread.id, at)),
+    saveAlive: (at) => storage.setSetting(QUEUE_CLOCK_ALIVE_SETTING, at),
+  })
 
   // Fire a needs-decision notify for every registered session that newly enters the queue.
   // Edge-triggered + deduped; primed on the first build.
@@ -1917,6 +1935,10 @@ export function createBoard(
   // Build exactly the session-backed threads recorded by Frizz. The registry is the provenance
   // boundary: historical rows remain valid after migration/restart, and both Claude and Codex use the
   // same durable shape. Raw tailer discoveries never confer ownership.
+  // Rows the human's own follow-up holds out of the queue (hasFreshDelivery, before any process check),
+  // as of the last build — for the queue clock, which must not take that hold for a park: no wake follows
+  // a send that failed, only the send itself, and the thread it lost has to come straight back.
+  let heldByDelivery = new Set<string>()
   function buildSessionThreads(nowMs: number): ThreadView[] {
     // Old/corrupt databases predate the canonical storage guard. Keep such rows inert instead of
     // emitting an invalid board id or allowing it to reach tailer/dispatch consumers.
@@ -1931,7 +1953,9 @@ export function createBoard(
     const registries = readThreadRegistries(storage)
     const currentInteractionKeys = new Set<string>()
     const out: ThreadView[] = []
+    heldByDelivery = new Set()
     for (const row of rows) {
+      if (row.delivery_ledger && hasFreshDelivery(row, false)) heldByDelivery.add(row.slug)
       const key = interactionKey(row.slug, row.session_id)
       currentInteractionKeys.add(key)
       let interactionPresence = pendingInteractionCache.get(key)
@@ -2033,11 +2057,37 @@ export function createBoard(
     // is frizz telling you a WORKER is waiting on you — a terminal session is waiting on you in the
     // window you opened it in, and pushing a notification for it would be frizz claiming an ask it
     // neither received nor can answer.
-    armSnoozeWake(sessionThreads, assembledAtMs)
+    const commandThreads = deps.commandThreads?.() ?? []
+    // Foreign rows never queue (queuedThread), so they have no place in line to keep. Ahead of the notify
+    // on purpose: the clock withholds an entry off a park (queue-clock.ts), and a withheld entry must not
+    // notify either.
+    queueClock.stamp([...sessionThreads, ...commandThreads], assembledAtMs, {
+      // A session reading is only vouched for once the tailer has PRIMED the row — folded its transcript,
+      // or given up on one and flagged it missing — or when durable row state alone decided it (archived,
+      // snoozed). A row the tailer has not reached, or has set up but not yet folded, reads `running` by
+      // default, and that is not a departure.
+      known: (t) => {
+        if (t.kind !== "session" || t.archived || t.snoozedUntil !== undefined) return true
+        const tele = tailer.get(t.id)
+        return tele !== undefined && (tele.primed !== false || tele.noTranscript === true)
+      },
+      // At rest and out of the queue anyway: a live sub-agent, CI, a park, a timer, an event-snooze on a
+      // shell. Two holds have no wake behind them: the human's own snooze, unless it carries a prompt to
+      // deliver when it ends, and the human's own follow-up, which either starts a turn or was lost.
+      parked: (t) =>
+        t.kind === "session" && !t.archived && (t.runtime === "turn-idle" || t.runtime === "exited") &&
+        (t.snoozedUntil === undefined || t.snoozePrompt !== undefined) && !heldByDelivery.has(t.id),
+      // deriveNeedsYou's hard gates: a request the human must answer, a question, a crash, a limit pause.
+      urgent: (t) =>
+        t.actionableInteraction === true || t.runtime === "perm-prompt" || t.pendingAsk !== undefined ||
+        t.pendingQuestion === true || (t.questions?.length ?? 0) > 0 || t.crashed === true ||
+        t.limitPause !== undefined || (t.providerError !== undefined && t.providerError.retrying !== true),
+    })
+    armSnoozeWake(sessionThreads, assembledAtMs, queueClock.nextEntryAt(assembledAtMs))
     notifyNeedsYou(sessionThreads)
     return {
       ...base,
-      threads: [...sessionThreads, ...buildForeignThreads(), ...(deps.commandThreads?.() ?? [])],
+      threads: [...sessionThreads, ...buildForeignThreads(), ...commandThreads],
       errors: [],
       warnings: [],
       errorItems: [],
@@ -2056,11 +2106,12 @@ export function createBoard(
     })
   }
 
-  function armSnoozeWake(threads: readonly ThreadView[], assembledAtMs: number): void {
+  // Also the queue clock's next withheld entry (`entryAt`), which is due at an exact instant the same way.
+  function armSnoozeWake(threads: readonly ThreadView[], assembledAtMs: number, entryAt = Infinity): void {
     if (snoozeTimer) clearTimeout(snoozeTimer)
     snoozeTimer = null
     if (stopped) return
-    let next = Infinity
+    let next = entryAt
     for (const thread of threads) {
       const at = Date.parse(thread.snoozedUntil ?? "")
       if (Number.isFinite(at) && at > assembledAtMs) next = Math.min(next, at)

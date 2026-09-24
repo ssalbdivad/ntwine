@@ -55,6 +55,8 @@ test("a cue row dates its rest from the agent's own last output, without the wor
   assert.doesNotMatch(html, />12m ago</)
   // The full phrase survives on the hover title, which has the room the column does not.
   assert.match(html, /title="12m ago"/)
+  // No queue stamp (an External terminal row, or an older server): it is named for its rest, not a queue.
+  assert.match(html, /aria-label="Rested 12m ago"/)
 })
 
 test("the column is the CUE's alone — a running row carries no rest time", () => {
@@ -67,4 +69,13 @@ test("a thread that has never produced output falls back rather than printing no
   // the tailer's activity, then to spawn — the column stays populated instead of leaving a hole in it.
   const html = row({ lastAssistantAt: undefined, lastActivityAt: undefined, spawnedAt: ago(3 * 60 * 60_000) })
   assert.match(html, />3h</)
+})
+
+test("a thread that entered the queue off a wait dates from its ENTRY, so the column stays monotonic", () => {
+  // Rested 3h ago behind a wait that let it into the queue 12m ago: the cue orders it by the entry
+  // (orderQueue), so the column prints the entry too — "3h" at the bottom of a line of "12m"s would read
+  // as the order being wrong.
+  const html = row({ lastAssistantAt: ago(3 * 60 * 60_000), queuedAt: ago(12 * 60_000) })
+  assert.match(html, />12m</)
+  assert.match(html, /aria-label="Queued 12m ago"/)
 })

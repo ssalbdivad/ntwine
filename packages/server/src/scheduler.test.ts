@@ -2435,6 +2435,20 @@ test("shell: …unless the worker REGISTERED a wait on that shell — a registra
   assert.notEqual(h.storage.getThreadWatch("wch_1")?.state, "armed", "and the row was settled first, as ever")
 })
 
+test("shell: every thread whose shell finished is woken in the SAME pass — one wake per thread, not per tick", async () => {
+  // The cap is per THREAD. A pass that stopped at its first wake left every other thread's to the next
+  // tick, 10s on — past the few seconds the board withholds a released thread from the queue
+  // (queue-clock.ts), so the second thread flashed into the queue before its wake came.
+  const h = harness()
+  for (const slug of ["a", "b"]) h.storage.upsertSession(row(slug))
+  const rested = iso(h.clock.ms)
+  const retired = retiredShell(iso(h.clock.ms + 5_000))
+  h.clock.ms += 10_000
+  for (const slug of ["a", "b"]) h.tele.set(slug, { ...tele(), lastAssistantAt: rested, retiredShells: [retired] })
+  await h.make().tick()
+  assert.deepEqual(h.resumes.filter((r) => /dev server|bzvtnt3ig/.test(r.message)).map((r) => r.slug).sort(), ["a", "b"])
+})
+
 // ---- COALESCING: the quiet window and the merge ------------------------------------------------------
 //
 // A wake is a turn, and a turn re-reads a 150k–450k context on each of its 10–40 calls — $2–3 before

@@ -7,6 +7,8 @@ const at = (offsetMs: number) => new Date(now - offsetMs).toISOString()
 
 test("formatLastActive uses the house duration grammar with the required label", () => {
   assert.equal(formatLastActive(at(0), now), "Last active just now")
+  // A reading that dates something else names itself in front of the same phrase.
+  assert.equal(formatLastActive(at(5 * 60_000), now, "Ready"), "Ready 5m ago")
   assert.equal(formatLastActive(at(1_000), now), "Last active 1s ago")
   assert.equal(formatLastActive(at(32_000), now), "Last active 32s ago")
   assert.equal(formatLastActive(at(60_000), now), "Last active 1m ago")

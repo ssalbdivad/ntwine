@@ -8,8 +8,8 @@ import { prefs } from "../lib/prefs.ts"
 import {
   displayTitle,
   futureSnoozedUntil,
-  lastActiveLabelAt,
   needsAction,
+  queueLabelAt,
   sectionThreads,
   sessionIndicatorKind,
   type SessionIndicatorKind,
@@ -39,7 +39,7 @@ import { crossProjectHref } from "../lib/base-path.ts"
 // once; 390pt cannot, so the phone gets a two-level drill-down instead: a list of threads, and a thread.
 //
 // WHAT IS THE SAME, deliberately: the data. Every reading on a row comes from the same helpers the rail
-// uses — `sectionThreads` for the bands, `sessionIndicatorKind` for the mark, `lastActiveLabelAt` for
+// uses — `sectionThreads` for the bands, `sessionIndicatorKind` for the mark, `queueLabelAt` for
 // the rest time, `visibleChildOps` for the ⤷ lines. A phone that derived its own answers would drift
 // from the desktop the first time one of those rules changed.
 //
@@ -287,7 +287,7 @@ function MobileThreadRow({
   const snoozePreset = useSnapshot(prefs).snoozePreset
   const now = useNowMs()
   const kind = sessionIndicatorKind(t)
-  const at = lastActiveLabelAt(t)
+  const at = queueLabelAt(t)
   // A rest time dates a HANDOFF, so a row that is still going has nothing to date — the rail's own rule.
   // "Still going" is the MARK's answer, not `isActivelyRunning`'s. The two part company on one shape: a
   // thread parked on a PR whose CI has already settled counts as live work to the server flag behind

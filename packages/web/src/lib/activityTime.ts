@@ -5,9 +5,10 @@ export function activityTimestamp(lastActivityAt: string | undefined, spawnedAt?
   return undefined
 }
 
-export function formatLastActive(at: string | undefined, nowMs = Date.now()): string | null {
+/** `Last active 5m ago`, or another reading's own word in front of the same phrase (`Ready 5m ago`). */
+export function formatLastActive(at: string | undefined, nowMs = Date.now(), label = "Last active"): string | null {
   const age = relativeAge(at, nowMs)
-  return age && `Last active ${age}`
+  return age && `${label} ${age}`
 }
 
 /** `just now` / `3d ago` — the phrase without a label, so a caller can supply its own. */

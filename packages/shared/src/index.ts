@@ -2567,8 +2567,9 @@ export const ThreadView = z.object({
   // ISO8601 of the agent's OWN last output (Claude: last assistant record; Codex: turn-end/final text).
   // This is the "rest time" — when the thread's own turn last came to rest — and UNLIKE lastActivityAt
   // it is NOT bumped by a background sub-agent's completion notification (a promptSource:system record).
-  // The queue/rested-band order key and the at-rest "Last active" label both key off this. Optional so
-  // old snapshots parse; the client falls back to lastActivityAt/spawnedAt when absent.
+  // The at-rest "Last active" label keys off this; the QUEUE orders by `queuedAt` instead, which equals
+  // this for a plain rest. Optional so old snapshots parse; the client falls back to
+  // lastActivityAt/spawnedAt when absent.
   lastAssistantAt: z.string().optional(),
   aiTitle: z.string().optional(), // Claude's own auto-generated session title (latest ai-title record)
   // True when `title` is a machine-guessed dispatch slug (title_auto=1), NOT a real name — the display
@@ -2691,6 +2692,17 @@ export const ThreadView = z.object({
   // blocks (perm-prompt / pendingAsk / crash) that a view can't clear. The client renders the
   // queue off this bit alone for session threads (legacy rows keep needsAction()).
   needsYou: z.boolean().optional(),
+  // When this thread most recently ENTERED the queue (ISO), present exactly while `needsYou` is. The
+  // queue's order key: a thread keeps it for as long as it stays queued and gets a fresh one each time
+  // it re-enters, so a new arrival joins the BACK of the line. It is not the rest time — a thread that
+  // rested behind a wait (CI, a sub-agent, a park, a snooze) enters when the wait lets go. See the
+  // server's queue-clock.ts.
+  queuedAt: z.string().optional(),
+  // True while the server WITHHOLDS this thread's entry into the queue: a hold (a sub-agent, CI, a park)
+  // has just let go and the wake that usually follows gets a few seconds to land (queue-clock.ts). The
+  // thread reads `needsYou: false` meanwhile, but no hold stands any more — so nothing may read a park
+  // into it (groups.isSnoozed), and its page keeps its handoff card.
+  queueSettling: z.boolean().optional(),
   // True only for the crash/stall branch (pane exited while the transcript still says in-flight).
   // Once every ordinary rest also queues, runtime=exited + needsYou is no longer enough for clients
   // to distinguish a failed worker from a clean completed process.

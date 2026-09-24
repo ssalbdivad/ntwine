@@ -21,7 +21,7 @@ import { useLocation, useNavigate } from "react-router"
 import type { ThreadView } from "@frizz/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
-import { displayTitle, lastActiveLabelAt, offersRetry } from "../groups.ts"
+import { displayTitle, offersRetry, queueLabelAt, queueLabelWord } from "../groups.ts"
 import { handoffParts, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { copyTextToClipboard } from "../lib/clipboard.ts"
 import { draftKey, draftStore, useDraftValues } from "../lib/drafts.ts"
@@ -168,7 +168,7 @@ export const AllQueuesCard = memo(function AllQueuesCard({
                   {displayTitle(thread)}
                 </a>
               </h3>
-              <LastActive at={lastActiveLabelAt(thread)} fallbackAt={thread.spawnedAt} className="mt-0.5 block truncate text-[11px] leading-tight text-muted-75" />
+              <LastActive at={queueLabelAt(thread)} label={queueLabelWord(thread)} fallbackAt={thread.spawnedAt} className="mt-0.5 block truncate text-[11px] leading-tight text-muted-75" />
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
               {offersRetry(thread) && <RetryButton project={project} thread={thread} onSent={onLeave} onFailed={onReturn} />}

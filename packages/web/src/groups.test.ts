@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ThreadView } from "@frizz/shared"
-import { bandOf, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
+import { bandOf, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, titleIsProvisional, displayTitle, lastActiveLabelAt, queueLabelAt, queueLabelWord, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
 
 // Minimal ThreadView fixture — the same shape board-delta.test.ts uses, defaulting to a live/active
 // thread; each case overrides only the fields under test.
@@ -461,6 +461,37 @@ test("orderQueue: AT-REST rows key on REST TIME (lastAssistantAt), not lastActiv
   assert.deepEqual(orderQueue(rows(), "lifo").map((item) => item.id), ["rested-later", "rested-earlier"])
 })
 
+test("orderQueue: a thread keys on when it ENTERED the queue, so a wait that lets go joins the BACK", () => {
+  // The 2026-09-24 report: "when a new thread is ready, it moves to the top of the *stack*". `ci-held`
+  // rested at 09:00 behind running CI and entered the queue only when CI settled at 12:30; keyed on its
+  // rest time it cut in ahead of `reading`, the card the human had been waiting on since 12:00. Keyed on
+  // queuedAt it is the newest arrival, so FIFO puts it LAST and LIFO FIRST.
+  const rows = () => [
+    thread({ id: "ci-held", lastAssistantAt: "2026-09-24T09:00:00.000Z", queuedAt: "2026-09-24T12:30:00.000Z" }),
+    thread({ id: "reading", lastAssistantAt: "2026-09-24T12:00:00.000Z", queuedAt: "2026-09-24T12:00:00.000Z" }),
+    thread({ id: "older", lastAssistantAt: "2026-09-24T11:00:00.000Z", queuedAt: "2026-09-24T11:00:00.000Z" }),
+  ]
+  assert.deepEqual(orderQueue(rows()).map((item) => item.id), ["older", "reading", "ci-held"])
+  assert.deepEqual(orderQueue(rows(), "lifo").map((item) => item.id), ["ci-held", "reading", "older"])
+  // The cue's column prints the same key, so it reads monotonically down the line it is printed in; the
+  // conversation's "Last active" keeps the agent's own rest.
+  const ciHeld = rows()[0]!
+  assert.equal(queueLabelAt(ciHeld), "2026-09-24T12:30:00.000Z")
+  assert.equal(lastActiveLabelAt(ciHeld), "2026-09-24T09:00:00.000Z")
+  // Two snoozes elapsing in one assembly share an entry instant: rest order breaks the tie, before id.
+  const tied = [
+    thread({ id: "a-rested-later", lastAssistantAt: "2026-09-24T10:00:00.000Z", queuedAt: "2026-09-24T13:00:00.000Z" }),
+    thread({ id: "b-rested-earlier", lastAssistantAt: "2026-09-24T08:00:00.000Z", queuedAt: "2026-09-24T13:00:00.000Z" }),
+  ]
+  assert.deepEqual(orderQueue(tied).map((item) => item.id), ["b-rested-earlier", "a-rested-later"])
+  // The queue CARD names the reading for what it is: how long the thread has been ready, not when its
+  // agent last spoke — which for `ci-held` was 09:00.
+  assert.equal(queueLabelWord(ciHeld), "Ready")
+  assert.equal(queueLabelWord(thread({ id: "unstamped" })), "Last active")
+  // A row without the stamp (a server predating it) falls back to the rest time, as before.
+  assert.equal(queueLabelAt(thread({ id: "legacy", lastAssistantAt: "2026-09-24T08:00:00.000Z" })), "2026-09-24T08:00:00.000Z")
+})
+
 test("orderQueue: a background sub-agent completing (lastActivityAt bump) does NOT reorder an at-rest row", () => {
   // The exact regression: a completed sub-agent posts a promptSource:system record that bumps the
   // parent's lastActivityAt but NOT its lastAssistantAt (rest time). Since ordering keys on rest time,
@@ -521,6 +552,11 @@ test("sectionOf: running/needs-you land in the Active+Rested section; only truth
   // verdict rather than re-deriving it from hints it can no longer check (2026-08-15).
   assert.equal(sectionOf(thread({ kind: "session", state: "open", runtime: "turn-idle", lastFence: { kind: "awaiting", body: "", hints: [] } })), "snoozed")
   assert.equal(sectionOf(thread({ kind: "session", state: "open", needsYou: true, runtime: "turn-idle", lastFence: { kind: "awaiting", body: "", hints: [] } })), "active", "…and a queued one stays queued")
+  // The server withholding an entry for the seconds its wake gets to land (queue-clock.ts): the park has
+  // ENDED, so the row waits in Active — never Snoozed on its way to Ready or back to work.
+  const settling = thread({ kind: "session", state: "open", runtime: "turn-idle", queueSettling: true, lastFence: { kind: "awaiting", body: "", hints: [{ kind: "agent", value: "a1" }] } })
+  assert.equal(sectionOf(settling), "active", "…but not one the server is only withholding from the queue")
+  assert.equal(bandOf(settling), "working")
   // Archive wins over a lingering needsYou.
   assert.equal(sectionOf(thread({ kind: "session", state: "archived" })), "inactive")
   assert.equal(sectionOf(thread({ kind: "session", needsYou: true, state: "archived" })), "inactive")

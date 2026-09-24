@@ -9,7 +9,7 @@ import { registerQueueCursor } from "../lib/keyboardRuntime.ts"
 import { rpc } from "../api/rpc.ts"
 import { useBoard, asThreads } from "../hooks.ts"
 import { prefs } from "../lib/prefs.ts"
-import { sectionThreads, externalThreads, orderByInteraction, partitionActive, needsAction, displayTitle, titleIsProvisional, isPinned, isSnoozed, parkedAwaitingHint, sessionIndicatorKind, offersRetry, futureSnoozedUntil, lastActiveLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents } from "../groups.ts"
+import { sectionThreads, externalThreads, orderByInteraction, partitionActive, needsAction, displayTitle, titleIsProvisional, isPinned, isSnoozed, parkedAwaitingHint, sessionIndicatorKind, offersRetry, futureSnoozedUntil, queueLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents } from "../groups.ts"
 import { ageSpan, relativeAge, limitResumeClock } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
@@ -866,11 +866,12 @@ export const ThreadRow = memo(function ThreadRow({
 // THE CUE'S RIGHT-HAND COLUMN — how long ago this thread came to REST (maintainer 2026-08-08: "a
 // right-justified label on each item in the cue indicating when the thread came to rest").
 //
-// The instant is `lastActiveLabelAt`, the SAME one the queue card's "Last active" line renders and the
-// same one the band is ORDERED by — so the column reads monotonically down the cue instead of
-// disagreeing with the order it is printed in. That helper is what keeps a completed background
-// sub-agent from bumping a rested row's reading to "just now": at rest it reads the agent's own last
-// output (`lastAssistantAt`), never the tailer's last record of any kind.
+// The instant is `queueLabelAt`, the same one the band is ORDERED by — so the column reads monotonically
+// down the cue instead of disagreeing with the order it is printed in. For a plain rest that is the
+// agent's own last output (`lastAssistantAt`), never the tailer's last record of any kind, so a completed
+// background sub-agent cannot bump a rested row's reading to "just now". For a thread that rested behind
+// a wait it is when the wait let it into the queue (2026-09-24, when the cue became a real queue): its
+// old rest time would print "2h" below a row reading "5m".
 //
 // It carries the SPAN without "ago" (lib/activityTime ageSpan) because the column position is the
 // "ago", and it is right-justified rather than trailing the title so the whole cue reads as one column
@@ -878,7 +879,7 @@ export const ThreadRow = memo(function ThreadRow({
 // 30s wall clock, so a screenful of these ticks on one timer.
 export function RestedAge({ t, yieldsToRetry }: { t: ThreadView; yieldsToRetry?: boolean }) {
   const now = useNowMs()
-  const at = lastActiveLabelAt(t)
+  const at = queueLabelAt(t)
   const span = ageSpan(at, now)
   if (!at || !span) return null
   return (
@@ -889,7 +890,7 @@ export function RestedAge({ t, yieldsToRetry }: { t: ThreadView; yieldsToRetry?:
       // The row's accessible name concatenates its parts, and a bare "2 days" arriving after the title
       // says nothing about WHAT took two days. The label names the reading for that reader; the visible
       // text stays bare, because sighted readers have the column to tell them.
-      aria-label={`Rested ${relativeAge(at, now) ?? span}`}
+      aria-label={`${t.queuedAt ? "Queued" : "Rested"} ${relativeAge(at, now) ?? span}`}
       // shrink-0 + tabular-nums: the column must not compress under a long title, and the digits must
       // not jitter horizontally when the clock ticks. The title takes the remaining width and wraps.
       className={`shrink-0 tabular-nums text-[10.5px] leading-[19px] text-muted-55 ${

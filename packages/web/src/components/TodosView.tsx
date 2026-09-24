@@ -8,7 +8,7 @@ import { queueCardTargetY, showToast, slugsInThreadDrawers, store } from "../sto
 import { pageScrollY } from "../lib/pageScrollLock.ts"
 import { rpc } from "../api/rpc.ts"
 import { useBoard, asThreads, useTranscript } from "../hooks.ts"
-import { orderQueue, queued, lastActiveLabelAt } from "../groups.ts"
+import { orderQueue, queued, queueLabelAt, queueLabelWord } from "../groups.ts"
 import { tailAskIdx, useLiveAnswering } from "../lib/answering.ts"
 import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import { hasQuestionBlock } from "../lib/questionBlocks.ts"
@@ -160,8 +160,9 @@ function AwaitingBackgroundBanner({ thread, onSnooze, onSnoozeFailed }: {
 export function TodosView() {
   const board = useBoard()
   // The queue is EXACTLY the server-derived Needs-you session threads (t.needsYou) — legacy .frizz rows
-  // never card anymore. One strictly time-ordered list (no priority band): every card orders by
-  // last-active alone, FIFO (oldest-first) by default or LIFO per the queueOrder preference.
+  // never card anymore. One strictly time-ordered list (no priority band): every card orders by when it
+  // entered the queue alone, FIFO (a new arrival joins the bottom) by default or LIFO per the queueOrder
+  // preference.
   const items = orderQueue(asThreads(board?.threads ?? []).filter(queued), useSnapshot(prefs).queueOrder)
   const itemKey = items.map((i) => i.id).join(",")
 
@@ -1295,7 +1296,7 @@ const QueueCard = memo(function QueueCard({ thread, leaving, frozen, onResolve, 
               hover it for the Claude refresh mark. It was a plain div with only the refresh mark until
               2026-09-13 ("I should be able to click on it to retitle it"). */}
           <ThreadTitle thread={thread} className="leading-snug" />
-          <LastActive at={lastActiveLabelAt(thread)} fallbackAt={thread.spawnedAt} className="mt-0.5 block truncate text-[11px] leading-tight text-muted-75" />
+          <LastActive at={queueLabelAt(thread)} label={queueLabelWord(thread)} fallbackAt={thread.spawnedAt} className="mt-0.5 block truncate text-[11px] leading-tight text-muted-75" />
           {/* status_text is worker-authored frontmatter prose — only decision-relevant when the
               thread is actually waiting on the human, so it renders ONLY for needs-human threads (the
               declared awaiting-you state; blocked is now a pure machine-wait and never cards). */}
