@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
+import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate, useNavigationType, useParams } from "react-router"
 import { useQuery } from "@tanstack/react-query"
 import { App } from "./App.tsx"
 import { ProjectRail, RAIL_INSET_CLASS } from "./components/ProjectRail.tsx"
@@ -9,8 +9,8 @@ import { TooltipProvider } from "./components/Tooltip.tsx"
 import { GithubHovercards } from "./components/GithubHovercards.tsx"
 import { Toaster } from "./components/Toaster.tsx"
 import { KeyboardLayer } from "./components/KeyboardShortcuts.tsx"
-import { applyPath, registerNavigate } from "./lib/router.ts"
-import { crossProjectHref, innerPath } from "./lib/base-path.ts"
+import { applyLocation, registerNavigate } from "./lib/router.ts"
+import { crossProjectHref } from "./lib/base-path.ts"
 import { CROSS_PROJECT_PICK_STATE, defaultCrossProjectFocus, isCrossProjectPick, rememberCrossProjectFocus, rememberedCrossProjectFocus } from "./lib/crossProject.ts"
 import { rpc } from "./api/rpc.ts"
 import { feedIsBoundTo, rebindProject } from "./api/socket.ts"
@@ -154,8 +154,10 @@ function CrossProjectRoute() {
 
 /**
  * Remember the focus as the operator's PICK (lib/crossProject.ts) — only when they chose it: arriving on
- * the page focused there with no thread open, or a navigation that says it was a choice. Opening another
- * project's thread moves the focus too, and must not be remembered as one.
+ * the page focused there with no thread open, a navigation that says it was a choice, or Back/Forward to
+ * an entry with no thread open (whatever put that entry there, going back to it IS the choice — and not
+ * remembering it had the page bounce straight off it to the previous pick). Opening another project's
+ * thread moves the focus too, and must not be remembered as one.
  *
  * A LAYOUT effect so it lands before the page's own effects in the same commit: the page returns the
  * focus to the pick when nothing is open (AllQueues.tsx useReturnToPick), and on a landing that asked
@@ -165,9 +167,10 @@ function useRememberPick(slug: string | undefined, thread: string | undefined, s
   const cards = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
   const focusId = cards.data?.find((card) => card.slug === slug)?.id
   const landing = useRef(thread ? null : slug)
+  const travelled = useNavigationType() === "POP" && !thread
   useLayoutEffect(() => {
     if (!focusId) return
-    if (landing.current !== slug && !isCrossProjectPick(state)) return
+    if (landing.current !== slug && !isCrossProjectPick(state) && !travelled) return
     landing.current = null
     rememberCrossProjectFocus(focusId)
     // `key`, not `state`: a second pick of the same project is a new navigation with an equal state.
@@ -255,7 +258,7 @@ function CrossProjectFallback() {
 function useRouteToStore() {
   const location = useLocation()
   useEffect(() => {
-    applyPath(innerPath(location.pathname))
+    applyLocation(location.pathname)
   }, [location.pathname])
 }
 

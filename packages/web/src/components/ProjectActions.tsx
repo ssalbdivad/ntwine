@@ -15,7 +15,7 @@ import { Link, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { PROJECT_ICON_EXTENSIONS, slugify, type ProjectCard } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
-import { crossProjectHref, projectHref, projectSlug } from "../lib/base-path.ts"
+import { crossProjectHref, isCrossProjectPath, projectHref, projectSlug } from "../lib/base-path.ts"
 import { CROSS_PROJECT_PICK_STATE, crossProjectNarrow, narrowCrossProject } from "../lib/crossProject.ts"
 import { showToast, store } from "../store.ts"
 import { Dialog } from "./ui/Dialog.tsx"
@@ -401,16 +401,12 @@ function AddProjectDialog({
   onClose: () => void
 }) {
   const [path, setPath] = useState(proposed ?? "")
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const openAdded = useOpenAddedProject()
   const add = useMutation({
     mutationFn: (input: string) => rpc.projectAdd({ path: input }),
     onSuccess: (project) => {
-      void queryClient.invalidateQueries({ queryKey: ["projectsList"] })
-      // Adding a project is only ever a step towards working in it: the cross-project page, aimed at the
-      // new project. `navigate`, not location.assign — the rail must not be torn down on the way.
       onClose()
-      navigate(crossProjectHref(encodeURIComponent(project.slug)), { state: CROSS_PROJECT_PICK_STATE })
+      openAdded(project)
     },
   })
   const error = add.error instanceof Error ? add.error.message : add.error ? String(add.error) : null
@@ -482,8 +478,7 @@ function AddProjectDialog({
  * the ONE dialog the layout hosts (AddProjectHost), so none of them grows a copy of it.
  */
 export function useAddProject(): { start: () => void; pending: boolean } {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const openAdded = useOpenAddedProject()
   const pick = useMutation({
     mutationFn: () => rpc.projectPick({}),
     onSuccess: (result) => {
@@ -492,13 +487,31 @@ export function useAddProject(): { start: () => void; pending: boolean } {
         store.addProject = { reason: result.reason }
         return
       }
-      void queryClient.invalidateQueries({ queryKey: ["projectsList"] })
-      navigate(crossProjectHref(encodeURIComponent(result.project.slug)), { state: CROSS_PROJECT_PICK_STATE })
+      openAdded(result.project)
     },
     // A picker that throws is still a machine without a working picker.
     onError: (error) => { store.addProject = { reason: error instanceof Error ? error.message : String(error) } },
   })
   return { start: () => { if (!pick.isPending) pick.mutate() }, pending: pick.isPending }
+}
+
+/**
+ * Adding a project is only ever a step towards working in it, so it lands there — in the mode the operator
+ * is in. On a board, that project's board. Anywhere else (Everything, or the welcome page of a machine
+ * with nothing on it), Everything aimed at it: a PICK, or the page hands the focus straight back to the
+ * previous one (AllQueues.tsx useReturnToPick) — and a narrowed page, which is about one project, follows
+ * it there. `navigate`, not location.assign: the rail must not be torn down on the way.
+ */
+function useOpenAddedProject(): (project: { id: string; slug: string }) => void {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  return (project) => {
+    void queryClient.invalidateQueries({ queryKey: ["projectsList"] })
+    const slug = encodeURIComponent(project.slug)
+    if (projectSlug() && !isCrossProjectPath()) return void navigate(projectHref(slug))
+    if (crossProjectNarrow()) narrowCrossProject(project.id)
+    navigate(crossProjectHref(slug), { state: CROSS_PROJECT_PICK_STATE })
+  }
 }
 
 /** The typed-path dialog, whenever something asked for it (`store.addProject`). Mounted once, by the layout. */

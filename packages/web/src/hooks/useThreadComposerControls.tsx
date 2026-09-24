@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useSnapshot } from "valtio"
 import { acpAgentIdFromModel, acpModelIdFromModel, acpModelSlug, type PermissionMode } from "@frizz/shared"
@@ -10,7 +10,6 @@ import { AcpModelSelect } from "../components/AcpModelSelect.tsx"
 import { Select } from "../components/ui/Select.tsx"
 import { CLAUDE_DISPATCH_PERMISSION_OPTIONS, claudePermValue } from "../lib/options.ts"
 import { threadProfileControlState } from "../lib/threadProfile.ts"
-import { dispatchPreferencesChanged } from "./useDispatchProfile.ts"
 
 // One control strip for every place a registered thread can be steered: the model/effort selector, and
 // — for a Claude thread — the Auto/Bypass permission picker beside it. This lives outside the component
@@ -31,7 +30,6 @@ import { dispatchPreferencesChanged } from "./useDispatchProfile.ts"
 // end is the one that caused the 2026-07-23 removal, and the ask was Claude-specific.
 export function useThreadComposerControls(slug: string): { busy: boolean; footer: ReactNode; status: ReactNode } {
   const snap = useSnapshot(store)
-  const queryClient = useQueryClient()
   const thread = snap.board?.threads.find((candidate) => candidate.id === slug)
   const profiles = useQuery({
     queryKey: ["threadProfileOptions", slug],
@@ -116,15 +114,11 @@ export function useThreadComposerControls(slug: string): { busy: boolean; footer
 
   function changeProfile(target: { model: string; effort: string }) {
     profile.mutate(target, {
-      onSuccess: (result) => {
-        // The server also made this pair the next thread's profile (rememberThreadProfile).
-        dispatchPreferencesChanged(queryClient)
-        showToast(backend === "acp"
-          ? result.effect === "next-resume" ? "Model saved for the next resume" : "Model applied"
-          : result.effect === "next-resume"
-            ? "Model and effort saved for the next resume"
-            : "Model and effort applied")
-      },
+      onSuccess: (result) => showToast(backend === "acp"
+        ? result.effect === "next-resume" ? "Model saved for the next resume" : "Model applied"
+        : result.effect === "next-resume"
+          ? "Model and effort saved for the next resume"
+          : "Model and effort applied"),
       onError: (e) => showToast(`Profile change failed: ${(e as Error).message.slice(0, 120)}`),
     })
   }

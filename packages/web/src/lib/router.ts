@@ -104,7 +104,29 @@ export function applyPath(path: string): void {
 // and it fires on the very render the board lands — the same render that replaces App's boot spinner
 // with the queue, so the sheet and the page behind it appear together.
 export function primeRoute(path = location.pathname): void {
-  applyPath(innerPath(path))
+  applyLocation(path)
+}
+
+// THE ADDRESS THE STORE LAST TOOK ITS STATE FROM. react-router writes history BEFORE the new route's
+// effects run, and the store only learns the new URL in those effects (routes.tsx useRouteToStore). In
+// between, the store still describes the PREVIOUS URL — and any notification in that window (a socket
+// status, a toast timer) ran the store → URL writer, which "corrected" the address bar back to the old
+// state. On a board that window is empty, because a board opens its drawers store-first; the
+// cross-project page opens another project's thread URL-first, so there it put the previous project's
+// parked thread under the new project's prefix, or wrote the new project's bare page over the thread
+// just clicked. So the writer only writes a URL the store has absorbed, and runs once more when it has.
+let absorbed: string | null = null
+let skippedWrite = false
+let activeWriter: (() => void) | null = null
+
+/** URL → store for the page's current address (routes.tsx useRouteToStore, and boot). */
+export function applyLocation(pathname: string): void {
+  absorbed = typeof location !== "undefined" && typeof location.pathname === "string" ? location.pathname : pathname
+  applyPath(innerPath(pathname))
+  if (skippedWrite) {
+    skippedWrite = false
+    queueMicrotask(() => activeWriter?.())
+  }
 }
 
 /**
@@ -145,7 +167,7 @@ export function startRouter(navigate: (path: string, options: { replace: boolean
   // Boot: adopt whatever the address bar says (deep link / reload restores the state).
   primeRoute()
 
-  return subscribe(store, () => {
+  const write = () => {
     // The fullscreen page is NOT the board's URL to write. Its route lives outside RootLayout, but
     // valtio delivers this notification a microtask late: StandaloneRoute clears the drawer stack on
     // its first render (it moved there from the fullscreen door's click handler for the view
@@ -160,11 +182,22 @@ export function startRouter(navigate: (path: string, options: { replace: boolean
     // opening another project's thread is exactly such a switch, that URL named a thread the new project
     // does not have. The reset that follows notifies again, and this runs then.
     if (store.board && !ownedByThisPage(store.board.projectSlug)) return
+    // The address bar has moved on and the store has not caught up yet (see `absorbed`).
+    if (location.pathname !== absorbed) {
+      skippedWrite = true
+      return
+    }
     const path = queueDestination(currentPath())
     if (path === location.pathname) return
     // A NEW topmost thread pushes history; unwinding or non-thread transitions replace. `startsWith`
     // is checked against the INNER path: under a project prefix every path starts with `/project/`.
     const openingThread = currentPath().startsWith("/thread/")
     navigate(path, { replace: !openingThread })
-  })
+  }
+  activeWriter = write
+  const unsubscribe = subscribe(store, write)
+  return () => {
+    unsubscribe()
+    if (activeWriter === write) activeWriter = null
+  }
 }

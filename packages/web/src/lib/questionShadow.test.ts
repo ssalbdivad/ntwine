@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { allFencesShadowed, fenceRestatesRegistered, fenceStandsFor, markerIdsIn, placeQuestions, registeredStandingAt } from "./questionShadow.ts"
+import { allFencesShadowed, fenceRestatesRegistered, fenceStandsFor, markerIdsIn, placeQuestions, questionStacks, registeredStandingAt } from "./questionShadow.ts"
 import { type MessageSegment, splitQuestionBlocks } from "./questionBlocks.ts"
 
 // The pair from the 2026-08-28 report, verbatim: the registration (a plain string — the `ask` schema
@@ -170,12 +170,11 @@ test("a marker in a HUMAN turn places nothing", () => {
   assert.equal(placeQuestions(messages, [QUESTION]).placed.size, 0)
 })
 
-// ---- THE STALE MARKER (2026-09-13) ----
+// ---- THE OLDER REST'S MARKER (2026-09-13, reversed 2026-09-24) ----
 // The worker asked, wrote its marker into THAT handoff, the human replied past the question without
-// answering, and the worker worked on and rested again — with the question still open and no marker in
-// the new handoff. The card stayed at the old rest, thousands of pixels up, and the tail drew the
-// group's bare disabled "Send answers" with nothing above it: "How did this thread pause without a
-// sign-off?". At rest the placement is scoped to the CURRENT rest, so the card falls back to the tail.
+// answering, and the worker worked on and rested again with the question still open. The card stays in
+// the handoff that asked it — the later rest is about something else — and a worker that still owes the
+// ask in its new handoff re-writes the marker there.
 
 const STALE = [
   { role: "user", at: at(0), text: "Do the thing." },
@@ -184,19 +183,28 @@ const STALE = [
   { role: "assistant", at: at(25), text: "Done. The first question is still open." },
 ]
 
-test("a marker from an older rest stops placing once the thread rests again — the card returns to the tail", () => {
-  const { placed, placedIds } = placeQuestions(STALE, [QUESTION], { atRest: true })
-  assert.equal(placed.size, 0, "the stale marker no longer owns the card")
-  assert.equal(placedIds.size, 0, "so the anchor path draws it, and at rest that is the tail")
-})
-
-test("the same stale marker still places while the thread is MID-FLIGHT — the ask belongs to its own rest", () => {
+test("a marker from an older rest keeps placing after the thread rests again", () => {
   const { placed } = placeQuestions(STALE, [QUESTION])
   assert.deepEqual([...placed.keys()], [1])
 })
 
-test("a marker the worker re-wrote into the NEW handoff places there at rest", () => {
+test("a marker the worker re-wrote into the NEW handoff places there", () => {
   const rewritten = STALE.map((m, i) => (i === 3 ? { ...m, text: MARKER(QUESTION.id) } : m))
-  const { placed } = placeQuestions(rewritten, [QUESTION], { atRest: true })
+  const { placed } = placeQuestions(rewritten, [QUESTION])
   assert.deepEqual([...placed.keys()], [3])
+})
+
+// THE SEND FOLLOWS THE MARKER. A rest whose every card a marker placed still mounts a Send-only stack,
+// and it mounts at the rest the marker sits in — never at the tail, where it would be a bare button
+// under a handoff with nothing to answer.
+test("questionStacks mounts the Send at the placing marker's rest, not the tail", () => {
+  const stacks = questionStacks(STALE, [QUESTION], placeQuestions(STALE, [QUESTION]))
+  assert.deepEqual([...stacks.entries()], [[1, { questions: [], showSend: true }]])
+})
+
+test("questionStacks folds a placed card's Send into its rest's unplaced stack", () => {
+  const later = { ...QUESTION, id: "qst_later000", askedAt: at(25) }
+  const messages = STALE.map((m, i) => (i === 3 ? { ...m, text: MARKER(QUESTION.id) } : m))
+  const stacks = questionStacks(messages, [QUESTION, later], placeQuestions(messages, [QUESTION, later]))
+  assert.deepEqual([...stacks.entries()], [[3, { questions: [later], showSend: true }]])
 })
