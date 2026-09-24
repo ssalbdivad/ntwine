@@ -98,7 +98,7 @@ test("unknownProjectPage names the slug of a project page that does not exist", 
   assert.equal(unknownProjectPage("/all/deleted-last-week/thread/fix-auth", known), "deleted-last-week")
   assert.equal(unknownProjectPage("/all/nub/thread/fix-auth", known), undefined)
   assert.equal(unknownProjectPage("/", known), undefined, "the cross-project page")
-  assert.equal(unknownProjectPage("/projects", known), undefined, "the grid")
+  assert.equal(unknownProjectPage("/projects", known), undefined, "the project grid's old address, now a redirect home")
   assert.equal(unknownProjectPage("/thread/fix-auth", known), undefined, "the launching project, unprefixed")
   assert.equal(unknownProjectPage("/project", known), undefined, "no slug to be missing")
   assert.equal(unknownProjectPage("/project/", known), undefined)

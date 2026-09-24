@@ -120,21 +120,12 @@ export function overlayQueues(
   return out
 }
 
-/** Anything to show beyond a name: a queue, live work, or a snoozed thread. */
+/**
+ * Anything to show beyond a name: a queue, or live work. Parked work does not count — a project whose only
+ * threads are snoozed is waiting on nobody, and its board is where they are kept.
+ */
 export function isBusy(project: QueuesProject): boolean {
-  return project.queued.length + project.running.length + project.snoozed.length > 0
-}
-
-export function queuesTotals(projects: readonly QueuesProject[]): { queued: number; running: number; projectsWithQueue: number } {
-  let queuedTotal = 0
-  let running = 0
-  let projectsWithQueue = 0
-  for (const project of projects) {
-    queuedTotal += project.queued.length
-    running += project.running.length
-    if (project.queued.length > 0) projectsWithQueue++
-  }
-  return { queued: queuedTotal, running, projectsWithQueue }
+  return project.queued.length + project.running.length > 0
 }
 
 /**
@@ -144,15 +135,6 @@ export function queuesTotals(projects: readonly QueuesProject[]): { queued: numb
  */
 export function threadKey(projectId: string, slug: string): string {
   return `${projectId}/${slug}`
-}
-
-/** "3 in the queue · 1 running" — the lane's count line, in the board's own words for its bands. */
-export function laneSummary(project: Pick<QueuesProject, "queued" | "running" | "snoozed">): string {
-  const parts: string[] = []
-  if (project.queued.length > 0) parts.push(`${project.queued.length} in the queue`)
-  if (project.running.length > 0) parts.push(`${project.running.length} running`)
-  if (project.snoozed.length > 0) parts.push(`${project.snoozed.length} snoozed`)
-  return parts.join(" · ")
 }
 
 export interface HandoffParts {

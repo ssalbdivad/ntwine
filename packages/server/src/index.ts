@@ -1129,14 +1129,12 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         requestTasks.add(task)
         return
       }
-      // A page for a project that does not exist goes to the picker, which is both the answer to
-      // "which projects are there" and the way to open one. The slug rides along so the grid can say
-      // what happened rather than appearing to have swallowed the URL.
+      // A page for a project that does not exist goes home — Everything, which lists every project
+      // there is and is where one is added. The slug rides along so the page can say what happened
+      // rather than appearing to have swallowed the URL (web routes.tsx HomeRoute).
       const missing = unknownProjectPage(url.split("?")[0] ?? "", (slug) => findProjectBySegment(slug) !== undefined)
       if (missing !== undefined) {
-        // The project grid, which says what happened — it moved off `/` when the cross-project page
-        // became the default there.
-        res.writeHead(302, { location: `/projects?unknown=${encodeURIComponent(missing)}` })
+        res.writeHead(302, { location: `/?unknown=${encodeURIComponent(missing)}` })
         res.end()
         return
       }

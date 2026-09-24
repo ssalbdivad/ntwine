@@ -51,27 +51,54 @@ function render(
   )
 }
 
+/** The row with props — the cross-project page's own — under the same fixtures as `render()`. */
+function renderWith(props: { crossProject?: boolean; narrowedTo?: string }): string {
+  render()
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["authStatus"], { claude: "authed", codex: "authed", emails: {} })
+  return renderToStaticMarkup(
+    createElement(QueryClientProvider, { client }, createElement(MemoryRouter, null, createElement(StatusRow, props))),
+  )
+}
+
 test("controls run along the left; the project anchors the right", () => {
   const html = render()
 
-  const home = html.indexOf('aria-label="All projects"')
-  const queues = html.indexOf('aria-label="Everything"')
+  const home = html.indexOf('aria-label="Everything"')
   const settings = html.indexOf('aria-label="Settings"')
   const quota = html.indexOf("data-quota-bar")
   const project = html.indexOf("data-project-identity-state")
 
-  assert.ok(home >= 0 && queues >= 0 && settings >= 0 && quota >= 0 && project >= 0, "every segment renders")
-  assert.ok(home < queues && queues < settings, "the ways out of the project lead, the grid first")
+  assert.ok(home >= 0 && settings >= 0 && quota >= 0 && project >= 0, "every segment renders")
+  assert.ok(home < settings, "the way out of the project leads")
   assert.ok(settings < quota, "the buttons precede the readouts")
   assert.ok(quota < project, "the project is last, at the far edge")
   // `ml-auto` on the identity IS the split. Without it the name packs left with everything else.
   assert.match(html, /class="ml-auto flex min-w-0 items-center"/)
 })
 
-test("TWO dividers: home and all queues are doors OUT, settings and reload act on the app you are in", () => {
+test("ONE door out: the project grid folded into Everything, and its house went with it", () => {
+  const html = render()
+  // A house (the grid) and an infinity (Everything) stood side by side until 2026-09-24 — two ways "up"
+  // to pages that were never meant to be different places.
+  assert.doesNotMatch(html, /All projects/)
+  assert.equal(html.match(/href="\//g)?.length, 1, "the ∞ is the row's only in-app link")
+})
+
+test("TWO dividers: home is the door OUT, settings and reload act on the app you are in", () => {
   const html = render()
   // One divider would group all three as "buttons". The first one is the whole distinction.
   assert.equal(html.split('class="h-3 w-px shrink-0 bg-border"').length - 1, 2)
+})
+
+test("on the cross-project page the row names what the page SHOWS, and ∞ is current only showing everything", () => {
+  const everything = renderWith({ crossProject: true })
+  assert.match(everything, /data-status-row-page[^>]*>Everything</)
+  assert.match(everything, /aria-label="Everything" aria-current="page"/)
+  // Narrowed to one project: the page is about that project, and ∞ is the way back to everything.
+  const narrowed = renderWith({ crossProject: true, narrowedTo: "marketing-site" })
+  assert.match(narrowed, /data-status-row-page[^>]*>marketing-site</)
+  assert.doesNotMatch(narrowed, /aria-current="page"/)
 })
 
 test("the row is LOOSE on the page — no fill, no border, no shadow, nothing fixed", () => {
@@ -162,7 +189,7 @@ test("a cold board still reserves the name's measure, and says it is loading", (
   assert.match(html, /identity-placeholder/)
   // The controls do not wait on a board — they are reachable from the first paint.
   assert.match(html, /aria-label="Settings"/)
-  assert.match(html, /aria-label="All projects"/)
+  assert.match(html, /aria-label="Everything"/)
 })
 
 test("the row's gap is 12px of INK: one flex gap, and every icon square trimmed onto its glyph", () => {
@@ -174,9 +201,10 @@ test("the row's gap is 12px of INK: one flex gap, and every icon square trimmed 
   // button takes its trim from STATUS_ROW_ACTION, so a new row action inherits the rhythm instead of
   // re-deriving it — and a glyph that paints something other than 12px needs a fresh measurement.
   assert.match(html, /class="-mx-1\.5 inline-flex h-6 w-6/)
-  // The home square gets ONE more pixel back: its own `-mx-1.5` leaves the house glyph's ink a pixel
-  // outside the composer's border, and the row's left edge is where that overhang shows.
-  assert.match(html, /class="-mx-1\.5 inline-flex h-6 w-6[^"]*-ml-px"/)
+  // The door out takes the shared trim and NOTHING more. The house it replaced (2026-09-24) needed a
+  // `-ml-px` of its own to put its ink on the composer's border; the infinity's stroke reaches one unit
+  // further out in lucide's 24-unit box (x=1 against the house's x=2), which is that pixel already.
+  assert.doesNotMatch(html, /-ml-px/)
   // The quota chips are IN this row, so they keep the row's distance rather than one of their own.
   assert.match(html, /data-quota-bar="true" class="flex shrink-0 items-center gap-3/)
 })
@@ -215,9 +243,8 @@ test("the home crumb is a ROUTER link, not a raw anchor that reloads the documen
     /basename|Router/,
     "a raw <a href=\"/\"> would render happily here; a router Link cannot",
   )
-  // …and inside a router it renders, still pointing at the project grid (at `/projects` since the
-  // cross-project page took `/`).
-  assert.match(render(), /href="\/projects"[^>]*aria-label="All projects"|aria-label="All projects"[^>]*href="\/projects"/)
+  // …and inside a router it renders, pointing at Everything (`/` here: this board names no slug).
+  assert.match(render(), /href="\/"[^>]*aria-label="Everything"|aria-label="Everything"[^>]*href="\/"/)
 })
 
 test("a provider with NO DATA renders nothing at all — and takes the divider with it", () => {

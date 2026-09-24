@@ -25,31 +25,32 @@
 // (`projectsList`, `projectsQueues`) or carries its project explicitly, and every action goes through
 // that project's own client (`projectRpc`). See AllQueuesCard.tsx for the card's half of the same rule.
 // The prompt box and the drawers are the page project's, which is exactly what they should be.
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowUpRight, Check, ChevronDown, Inbox, TerminalSquare } from "lucide-react"
+import { Check, ChevronDown, Ellipsis, Inbox, Plus, TerminalSquare } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import type { ProjectQueue, ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { displayTitle } from "../groups.ts"
-import { isBusy, laneSummary, liveQueue, overlayQueues, queuesProjects, queuesTotals, threadKey, type QueuesProject } from "../lib/allQueues.ts"
+import { isBusy, liveQueue, overlayQueues, queuesProjects, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { crossProjectHref, innerPath, projectHref, projectSlug } from "../lib/base-path.ts"
-import { CROSS_PROJECT_PICK_STATE, rememberedCrossProjectFocus, useCrossProjectPick } from "../lib/crossProject.ts"
+import { CROSS_PROJECT_PICK_STATE, crossProjectNarrow, narrowCrossProject, rememberedCrossProjectFocus, useCrossProjectNarrow, useCrossProjectPick } from "../lib/crossProject.ts"
 import { draftKey, draftStore } from "../lib/drafts.ts"
-import { slugsInThreadDrawers, store } from "../store.ts"
+import { QUEUE_CARD_VIEWPORT_TOP, slugsInThreadDrawers, store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
 import { commandFailed, commandLive, commandStateLabel } from "../lib/commandThreads.ts"
 import { prefs } from "../lib/prefs.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { registerQueueCursor } from "../lib/keyboardRuntime.ts"
-import { AllQueuesCard, crossProjectThreadHref, useOpenThreadInPlace } from "./AllQueuesCard.tsx"
+import { AllQueuesCard, useOpenThreadInPlace } from "./AllQueuesCard.tsx"
 import { CommandQueueCard } from "./CommandQueueCard.tsx"
 import { ProjectSquare } from "./ProjectRail.tsx"
 import { ProviderMark } from "./ProviderMark.tsx"
 import { ROW_ACTION_CLASS, RestedAge, SIDEBAR_COLUMN_CLASS, ThreadIndicator, TitleWithTrailers } from "./Sidebar.tsx"
-import { Tooltip } from "./Tooltip.tsx"
+import { BandLabel } from "./BandLabel.tsx"
+import { ProjectMenu, homeOf, useAddProject } from "./ProjectActions.tsx"
 import { StatusRow } from "./StatusRow.tsx"
 import { DispatchForm } from "./NewThreadModal.tsx"
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "./ui/Menu.tsx"
@@ -92,6 +93,12 @@ export function AllQueuesPage() {
   // Set by a choice in the picker, so the prompt box it just re-aimed takes the keyboard when it lands.
   const [focusComposerFor, setFocusComposerFor] = useState<string | null>(null)
 
+  // THE NARROWING (lib/crossProject.ts): a project the operator clicked, shown alone — or everything.
+  // A narrowed project that has since gone (deleted, forgotten) is no narrowing at all.
+  const narrowedId = useCrossProjectNarrow()
+  const narrowed = projects.find((project) => project.id === narrowedId)
+  const choose = useChooseProject(pickProject)
+
   const leaving = useLeavingCards(projects)
   // A thread whose drawer is open is read THERE: its card would be a second copy of the same questions
   // and reply box under the sheet (the board's rule, store.ts slugsInThreadDrawers). Drawers belong to
@@ -99,30 +106,38 @@ export function AllQueuesPage() {
   const focusId = projects.find((project) => project.slug === focus)?.id
   const inDrawer = new Set(focusId === undefined ? [] : [...slugsInThreadDrawers(snap.drawers)].map((slug) => threadKey(focusId, slug)))
   const hidden = (key: string) => leaving.hidden(key) || inDrawer.has(key)
-  // Counted from what the page SHOWS: a card the operator just finished is gone from its lane at once, and
-  // a header still counting it read "1 in the queue" over an empty page until the next poll.
-  const totals = queuesTotals(projects.map((project) => ({ ...project, queued: project.queued.filter((t) => !leaving.hidden(threadKey(project.id, t.id))) })))
   // Registered projects this server has not opened (still being opened after a boot, served by another
   // Frizz, or failed to open): their queues are unknown, so "nothing in any queue" would be a claim.
   const unopened = projects.filter((project) => !project.open && !project.stale).length
+  const shown = narrowed ? [narrowed] : projects
+  const lanes = shown.filter((project) => project.queued.some((t) => !hidden(threadKey(project.id, t.id))))
+  // Counted from what the page SHOWS: a card the operator just finished is gone from its lane at once, and
+  // a header still counting it read "1 in the queue" over an empty page until the next poll.
+  const ready = lanes.reduce((sum, project) => sum + project.queued.filter((t) => !hidden(threadKey(project.id, t.id))).length, 0)
   const scrollToCard = useScrollToCard()
-  const activeKey = useScrollspy(projects, hidden)
+  const activeKey = useScrollspy(lanes, hidden)
   useQueueKeys(activeKey, scrollToCard)
   const loading = (cards.isPending || queues.isPending) && !queues.data
-  const lanes = projects.filter((project) => project.queued.some((t) => !hidden(threadKey(project.id, t.id))))
-  // Below the page's stacking point the columns are one above the other, so the rail follows the lanes
+  // Below the page's stacking point the columns are one above the other, so the list follows the lanes
   // rather than sitting between the prompt box and the queue it indexes.
   const stacked = useStacked()
-  const rail = <MachineRail projects={projects} focus={focus} activeKey={activeKey} hidden={hidden} onQueuedRow={scrollToCard} onPick={pickProject} />
+  const home = homeOf(cards.data)
+  const list = (
+    <>
+      <ProjectList projects={projects} narrowed={narrowed} home={home} activeKey={activeKey} hidden={hidden} onQueuedRow={scrollToCard} onChoose={choose} />
+      <AddProjectRow />
+    </>
+  )
 
   return (
     <div className="flex min-h-screen justify-center gap-[clamp(28px,3.4vw,52px)] bg-bg px-5 text-sm text-fg max-[800px]:flex-col max-[800px]:justify-start max-[800px]:gap-0 max-[800px]:px-3">
       <aside aria-label="Projects" className={`${SIDEBAR_COLUMN_CLASS} max-[800px]:!pt-5`}>
         <div className="flex max-h-[calc(100vh-32px)] min-h-0 min-w-0 w-full flex-col max-[800px]:max-h-none">
-          {/* The board's own column head, one level up: the status row, and the prompt box under it — a new
-              thread in any project without leaving, the project chosen in the box's own tab row. */}
+          {/* The board's own column head, one level up: the status row — naming what the page shows —
+              and the prompt box under it: a new thread in any project without leaving, the project chosen
+              in the box's own tab row. */}
           <div className="mb-5 shrink-0 px-0.5">
-            <StatusRow crossProject />
+            <StatusRow crossProject narrowedTo={narrowed?.name} />
             <FocusedComposer
               focus={focus}
               project={projects.find((project) => project.slug === focus)}
@@ -135,22 +150,24 @@ export function AllQueuesPage() {
                   onPick={(project) => {
                     setFocusComposerFor(project.slug)
                     pickProject(project)
+                    // A narrowed page is ABOUT one project, so aiming its prompt box at another takes the
+                    // view along; showing everything, the box only changes where a thread goes.
+                    if (narrowed) narrowCrossProject(project.id)
                   }}
                 />
               }
             />
-            <Summary totals={totals} projectCount={projects.length} unopened={unopened} />
           </div>
           {!stacked && (
             <div data-xq-rail className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
-              {rail}
+              {list}
             </div>
           )}
         </div>
       </aside>
       <main
         id="workpane"
-        aria-label="Everything"
+        aria-label={narrowed ? narrowed.name : "Everything"}
         className="flex min-h-screen w-[720px] max-w-[62vw] min-w-0 flex-col py-5 max-[800px]:min-h-0 max-[800px]:w-full max-[800px]:max-w-none"
       >
         {loading ? (
@@ -161,22 +178,52 @@ export function AllQueuesPage() {
           <p className="my-auto text-center text-[13px] text-muted">Could not read the queues: {String(queues.error)}</p>
         ) : (
           <div className="my-auto flex w-full min-w-0 flex-col py-8 max-[800px]:pt-2">
-            {lanes.map((project, index) => (
-              <div key={project.id} className="min-w-0">
-                {index > 0 && <hr className="my-10 border-0 border-t border-border/60" />}
-                <Lane project={project} leaving={leaving} hidden={hidden} />
-              </div>
-            ))}
-            {lanes.length === 0 && <EmptyQueues running={totals.running} runningProjects={projects.filter((p) => p.running.length > 0).length} unopened={unopened} />}
+            {lanes.length > 0 ? (
+              <>
+                {/* THE INBOX, NAMED — the board's own header over its cards (TodosView), one level up: every
+                    card below is a Ready thread, whichever project it is from. `pl-[21px]` stands the glyph
+                    over the card titles, as the lane headers' squares do. */}
+                <h2 data-inbox-header className="mb-3 flex pl-[21px]">
+                  <BandLabel band="ready" count={ready} />
+                </h2>
+                {lanes.map((project, index) => (
+                  <Lane key={project.id} project={project} first={index === 0} headed={!narrowed} leaving={leaving} hidden={hidden} onChoose={choose} />
+                ))}
+              </>
+            ) : (
+              <EmptyQueues narrowed={narrowed} unopened={narrowed ? 0 : unopened} />
+            )}
           </div>
         )}
         {stacked && (
           <div data-xq-rail="stacked" className="min-w-0 border-t border-border/60 pt-5">
-            {rail}
+            {list}
           </div>
         )}
       </main>
     </div>
+  )
+}
+
+/**
+ * CHOOSE a project to look at: a project's name in the list, or in a lane's header. The page NARROWS to
+ * it, in place (lib/crossProject.ts), and — unless its directory is gone — the prompt box turns to it,
+ * since a project the operator chose to look at is the likeliest one they are about to write to.
+ * Choosing the project the page is already narrowed to widens it back to everything: the name is a
+ * toggle, beside the ∞ door that does the same from anywhere.
+ */
+function useChooseProject(pickProject: (project: QueuesProject) => void): (project: QueuesProject) => void {
+  return useCallback(
+    (project: QueuesProject) => {
+      if (crossProjectNarrow() === project.id) {
+        narrowCrossProject(null)
+        return
+      }
+      if (!project.stale) pickProject(project)
+      narrowCrossProject(project.id)
+      window.scrollTo({ top: 0, behavior: prefersSmooth() })
+    },
+    [pickProject],
   )
 }
 
@@ -369,21 +416,6 @@ function FocusedComposer({
   return <DispatchForm key={focus} autoFocus={autoFocus} target={target} />
 }
 
-/** The whole page at a glance, under the prompt box. */
-function Summary({ totals, projectCount, unopened }: { totals: ReturnType<typeof queuesTotals>; projectCount: number; unopened: number }) {
-  return (
-    <p data-xq-summary className="mt-3 px-0.5 text-[11.5px] leading-snug text-muted-70">
-      {totals.queued > 0
-        ? `${totals.queued} in the queue across ${totals.projectsWithQueue} ${totals.projectsWithQueue === 1 ? "project" : "projects"}`
-        : projectCount > unopened
-          ? unopened > 0 ? "Nothing in any open project's queue" : "Nothing in any queue"
-          : projectCount > 0 ? "No project is open yet" : "No projects yet"}
-      {totals.running > 0 ? ` · ${totals.running} running` : ""}
-      {unopened > 0 ? ` · ${unopened} not open` : ""}
-    </p>
-  )
-}
-
 // ---- The machine rail (left column) -----------------------------------------------------------------
 
 // The board sidebar's row geometry, verbatim (Sidebar.tsx ThreadRow), so a row here and a row there are
@@ -393,38 +425,61 @@ const ROW_CLASS =
 const ROW_BUTTON_CLASS = "flex min-w-0 flex-1 items-start gap-2 pb-1 pl-5 pr-1.5 pt-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-focus-ink-60 rounded-md"
 const INDICATOR_SLOT = "flex h-[19px] w-4 shrink-0 items-center justify-center"
 
-function MachineRail({
+/**
+ * Every project on the machine — the page's navigator, and the only place a project is managed from.
+ *
+ * Projects with something the operator can see — a Ready card, or live work — come first, in the rail's
+ * order, each followed by its threads; every other project is one line under them. They are separated
+ * by space, not rules: the project's own square already starts each group, and a rule would say it twice.
+ *
+ * NARROWED to one project, every other project folds to its one line, so the list reads the way the
+ * page does: that project open, the rest a click away. The order does not change, so nothing moves under
+ * the pointer that just clicked.
+ */
+function ProjectList({
   projects,
-  focus,
+  narrowed,
+  home,
   activeKey,
   hidden,
   onQueuedRow,
-  onPick,
+  onChoose,
 }: {
   projects: QueuesProject[]
-  focus: string | undefined
+  narrowed: QueuesProject | undefined
+  home: string | undefined
   activeKey: string | null
   hidden: (key: string) => boolean
   onQueuedRow: (key: string) => void
-  onPick: (project: QueuesProject) => void
+  onChoose: (project: QueuesProject) => void
 }) {
   const busy = projects.filter(isBusy)
   const quiet = projects.filter((project) => !isBusy(project))
+  const open = (project: QueuesProject) => !narrowed || narrowed.id === project.id
   return (
     <>
       {busy.map((project, index) => (
-        <div key={project.id}>
-          {index > 0 && <hr className="my-3 border-border/50" />}
-          <ProjectGroup project={project} focused={project.slug === focus} activeKey={activeKey} hidden={hidden} onQueuedRow={onQueuedRow} onPick={onPick} />
-        </div>
+        <ProjectGroup
+          key={project.id}
+          project={project}
+          spaced={index > 0 && (open(project) || open(busy[index - 1]!))}
+          expanded={open(project)}
+          selected={narrowed?.id === project.id}
+          home={home}
+          activeKey={activeKey}
+          hidden={hidden}
+          onQueuedRow={onQueuedRow}
+          onChoose={onChoose}
+        />
       ))}
       {/* Always listed, one line each, under the busy ones. They sat behind a collapsed "Quiet" fold until
           2026-09-24, which cost a click to reach a project whose row is already about as quiet as a row
           can be (maintainer: "if I want to navigate to them I shouldn't have to expand"). */}
       {quiet.length > 0 && (
-        <section aria-label="Quiet projects">
-          {busy.length > 0 && <hr className="my-3 border-border/50" />}
-          {quiet.map((project) => <QuietRow key={project.id} project={project} focused={project.slug === focus} onPick={onPick} />)}
+        <section aria-label="Quiet projects" className={busy.length > 0 && (!narrowed || open(busy[busy.length - 1]!)) ? "mt-3" : ""}>
+          {quiet.map((project) => (
+            <ProjectRow key={project.id} project={project} busy={false} selected={narrowed?.id === project.id} home={home} onChoose={onChoose} />
+          ))}
         </section>
       )}
     </>
@@ -432,116 +487,165 @@ function MachineRail({
 }
 
 /**
- * The FOCUS mark on a project's own row: the rail's hover wash, held. It is the project the prompt box
- * dispatches into and whose drawer opens, so it reads as the rail's selection — the same way a board's
- * rail holds its open thread.
- */
-const FOCUSED_ROW = "after:!opacity-100"
-
-/**
- * One project in the rail: its square and name, then its queue rows — each opposite its card, the way a
- * board's cue row faces its queue card — then the rows still spinning, then a folded count of what is
- * snoozed. The name FOCUSES the project (the prompt box turns to it) and brings its lane into view; the
- * ↗ beside it is the project's own board, the one way from here into single-project mode.
+ * One busy project: its row, then — unless the page is narrowed to another project — its Ready rows, each
+ * opposite its card the way a board's cue row faces its queue card, then its Working rows. Parked work
+ * (Snoozed) is not listed here: it is waiting on nobody, and its board keeps it.
  */
 function ProjectGroup({
   project,
-  focused,
+  spaced,
+  expanded,
+  selected,
+  home,
   activeKey,
   hidden,
   onQueuedRow,
-  onPick,
+  onChoose,
 }: {
   project: QueuesProject
-  focused: boolean
+  spaced: boolean
+  expanded: boolean
+  selected: boolean
+  home: string | undefined
   activeKey: string | null
   hidden: (key: string) => boolean
   onQueuedRow: (key: string) => void
-  onPick: (project: QueuesProject) => void
+  onChoose: (project: QueuesProject) => void
 }) {
   const openInPlace = useOpenThreadInPlace()
-  const [snoozedOpen, setSnoozedOpen] = useState(false)
   const queued = project.queued.filter((t) => !hidden(threadKey(project.id, t.id)))
-  const select = () => {
-    // A stale project cannot take a thread, so its name only brings its lane into view.
-    if (!project.stale) onPick(project)
-    const lane = document.querySelector<HTMLElement>(`[data-xq-lane="${CSS.escape(project.id)}"]`)
-    if (lane) lane.scrollIntoView({ behavior: prefersSmooth(), block: "start" })
-  }
   return (
-    <section aria-label={project.name} data-xq-rail-project={project.id} data-xq-focused={focused || undefined}>
-      <div className={`${ROW_CLASS} ${focused ? FOCUSED_ROW : ""}`}>
-        <button
-          type="button"
-          onClick={select}
-          aria-current={focused || undefined}
-          className={`${ROW_BUTTON_CLASS} items-center`}
-          title={focused ? `New threads start in ${project.name}` : `Work in ${project.name}`}
-        >
-          <span className={INDICATOR_SLOT}>
-            <ProjectSquare project={project.card ?? fallbackCard(project)} size={16} />
-          </span>
-          <span className={`min-w-0 flex-1 truncate text-[12.5px] leading-[19px] ${focused ? "font-semibold text-fg" : "font-medium text-fg/90"}`}>{project.name}</span>
-          {/* The rest-time column's spot, and the rest time's manners: it gives way to the door on hover. */}
-          {queued.length > 0 && (
-            <span className="flex shrink-0 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
-              <QueueBadge count={queued.length} />
-            </span>
-          )}
-        </button>
-        <RowDoor href={projectHref(encodeURIComponent(project.slug))} label={`Open ${project.name}'s board`} />
-      </div>
-      {queued.map((t) => {
+    <section aria-label={project.name} data-xq-rail-project={project.id} className={spaced ? "mt-3" : ""}>
+      <ProjectRow project={project} busy count={queued.length} selected={selected} home={home} onChoose={onChoose} />
+      {expanded && queued.map((t) => {
         const key = threadKey(project.id, t.id)
-        return <RailRow key={key} t={t} door={crossProjectThreadHref(project, t.id)} onDoor={() => openInPlace(project, t.id)} active={activeKey === key} restedAge onClick={() => onQueuedRow(key)} />
+        return <RailRow key={key} t={t} active={activeKey === key} restedAge onClick={() => onQueuedRow(key)} />
       })}
-      {project.running.map((t) => (
+      {expanded && project.running.map((t) => (
         <RailRow key={t.id} t={t} onClick={() => openInPlace(project, t.id)} />
       ))}
-      {project.snoozed.length > 0 && (
-        <>
-          <button
-            type="button"
-            onClick={() => setSnoozedOpen((open) => !open)}
-            aria-expanded={snoozedOpen}
-            className="flex w-full min-w-0 items-center gap-2 rounded-md pb-1 pl-5 pr-1.5 pt-1 text-left text-[11.5px] leading-[19px] text-muted-60 outline-none transition-colors hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
-          >
-            <span className={INDICATOR_SLOT} aria-hidden />
-            {project.snoozed.length} snoozed
-          </button>
-          {snoozedOpen && project.snoozed.map((t) => (
-            <RailRow key={t.id} t={t} dim onClick={() => openInPlace(project, t.id)} />
-          ))}
-        </>
-      )}
     </section>
   )
 }
 
 /**
- * A thread row — the board sidebar's ThreadRow anatomy, with this page's own click. A queue row's click
- * scrolls to its card, so it also wears a door that opens the thread itself, in place; a running row's
- * click IS that, so it needs no second one.
+ * The SELECTION on this list: the project the page is narrowed to wears the rail's hover wash, held — the
+ * way a board's rail holds the thread open beside it.
+ */
+const SELECTED_ROW = "after:!opacity-100"
+
+/**
+ * A project's own row — the same for a busy project heading its threads and a quiet one alone.
+ *
+ * Its click NARROWS the page to it (useChooseProject); a real link underneath, so a modified click opens
+ * the page focused there in a new tab. Its right edge is its count — the accent badge, when anything is
+ * Ready — or a note, only when something is wrong: its directory is gone, or this server has not opened
+ * it. Nothing else: "3 done" and "no threads" were words about nothing to do. On hover the count gives
+ * way to the "…" (ProjectActions.tsx ProjectMenu): its board, its icon, rename and delete.
+ */
+function ProjectRow({
+  project,
+  busy,
+  count = 0,
+  selected,
+  home,
+  onChoose,
+}: {
+  project: QueuesProject
+  busy: boolean
+  count?: number
+  selected: boolean
+  home: string | undefined
+  onChoose: (project: QueuesProject) => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const note = project.stale ? "Directory is missing" : !project.open ? "Not open" : null
+  return (
+    <div
+      data-xq-project-row={project.id}
+      className={`${ROW_CLASS} ${project.stale ? "opacity-60" : ""} ${selected || menuOpen ? SELECTED_ROW : ""}`}
+    >
+      <Link
+        to={crossProjectHref(encodeURIComponent(project.slug))}
+        aria-current={selected || undefined}
+        title={selected ? "Show everything" : `Show only ${project.name}`}
+        // On a touch screen the "…" never hides, so the count steps left of it rather than under it.
+        className={`${ROW_BUTTON_CLASS} items-center [@media(hover:none)]:pr-7`}
+        onClick={(event) => {
+          if (!isPlainLeftClick(event)) return
+          event.preventDefault()
+          onChoose(project)
+        }}
+      >
+        <span className={`${INDICATOR_SLOT} ${project.stale ? "grayscale" : ""}`}>
+          <ProjectSquare project={project.card ?? fallbackCard(project)} size={16} />
+        </span>
+        <span className={`min-w-0 flex-1 truncate text-[12.5px] leading-[19px] ${selected ? "font-semibold text-fg" : busy ? "font-medium text-fg/90" : "text-fg/75"}`}>
+          {project.name}
+        </span>
+        {/* The rest-time column's spot, and the rest time's manners: it gives way to the menu on hover. */}
+        {(count > 0 || note) && (
+          <span className={`flex shrink-0 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 ${menuOpen ? "opacity-0" : ""} [@media(hover:none)]:opacity-100`}>
+            {count > 0 ? <QueueBadge count={count} /> : <span className="text-[10.5px] leading-[19px] text-muted-55">{note}</span>}
+          </span>
+        )}
+      </Link>
+      {project.card && (
+        <div
+          className={`absolute right-1.5 top-1 items-center bg-bg group-hover:flex group-focus-within:flex [@media(hover:none)]:flex before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-bg ${menuOpen ? "flex" : "hidden"}`}
+        >
+          <ProjectMenu project={project.card} home={home} onOpenChange={setMenuOpen}>
+            <button type="button" aria-label={`More actions for ${project.name}`} className={`${ROW_ACTION_CLASS} data-[state=open]:bg-panel-2 data-[state=open]:text-fg data-[state=open]:opacity-100`}>
+              <Ellipsis size={13} />
+            </button>
+          </ProjectMenu>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The last row of the list: a project the machine does not have yet. The rail's own add slot — a dotted
+ * squircle, "nothing here yet" — at the row's scale, so it reads as an empty place in the same list
+ * rather than a button bolted under it. Muted, and never accent: accent means only "this many want you".
+ */
+function AddProjectRow() {
+  const add = useAddProject()
+  return (
+    <div className={`${ROW_CLASS} mt-3`}>
+      <button type="button" onClick={add.start} disabled={add.pending} className={`${ROW_BUTTON_CLASS} group/add items-center disabled:opacity-60`}>
+        <span className={INDICATOR_SLOT}>
+          <span className="flex h-4 w-4 items-center justify-center rounded-[30%] border border-dotted border-border-strong text-muted-70 transition-colors group-hover/add:border-fg/40 group-hover/add:text-fg">
+            <Plus size={10} strokeWidth={2.25} />
+          </span>
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] leading-[19px] text-muted-70 transition-colors group-hover/add:text-fg">
+          {add.pending ? "Choosing a folder…" : "Add a project"}
+        </span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A thread row — the board sidebar's ThreadRow anatomy, with this page's own click. A Ready row's click
+ * brings its card into view and rings it (the card's own title opens the thread); a Working row has no
+ * card, so its click opens the thread itself, in place.
  */
 function RailRow({
   t,
-  door,
-  onDoor,
   active = false,
   restedAge = false,
-  dim = false,
   onClick,
 }: {
   t: ThreadView
-  door?: string
-  onDoor?: () => void
   active?: boolean
   restedAge?: boolean
-  dim?: boolean
   onClick: () => void
 }) {
   return (
-    <div className={`${ROW_CLASS} ${dim ? "sidebar-row-dim" : ""}`}>
+    <div className={ROW_CLASS}>
       {/* The board's scroll marker: the card this row faces is the one being read. */}
       {active && <span aria-hidden className="absolute inset-y-0 left-1 w-[2px] rounded-full bg-accent" />}
       <button type="button" onClick={onClick} className={ROW_BUTTON_CLASS} aria-current={active || undefined}>
@@ -553,7 +657,7 @@ function RailRow({
               <ThreadIndicator t={t} />
             </span>
             <span className="flex min-w-0 flex-1 items-baseline gap-3">
-              <span className={`min-w-0 flex-1 break-words text-[13px] leading-[19px] ${dim ? "text-fg/75" : "text-fg/90"}`}>
+              <span className="min-w-0 flex-1 break-words text-[13px] leading-[19px] text-fg/90">
                 <TitleWithTrailers title={displayTitle(t)}>
                   <ProviderMark backend={t.backend} model={t.model} className="ml-1" />
                 </TitleWithTrailers>
@@ -563,7 +667,6 @@ function RailRow({
           </>
         )}
       </button>
-      {door && <RowDoor href={door} label="Open thread" onOpen={onDoor} />}
     </div>
   )
 }
@@ -599,74 +702,6 @@ function CommandRowBody({ command }: { command: NonNullable<ThreadView["command"
 }
 
 /**
- * The row's hover door, where the board's rail puts its own (Sidebar.tsx, the hover strip): pinned to
- * the right edge over the title's first line, backed by the rail's colour so a long title's last words
- * do not show through the glyph, and revealed on hover or keyboard focus. `onOpen` takes a plain click
- * in place (a thread's drawer); a modified click still follows the href.
- */
-function RowDoor({ href, label, onOpen }: { href: string; label: string; onOpen?: () => void }) {
-  return (
-    <div className="absolute right-1.5 top-1 hidden items-center bg-bg group-hover:flex group-focus-within:flex before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-bg">
-      <Tooltip label={label} side="right">
-        <Link
-          to={href}
-          aria-label={label}
-          className={ROW_ACTION_CLASS}
-          onClick={onOpen ? (event) => {
-            if (!isPlainLeftClick(event)) return
-            event.preventDefault()
-            onOpen()
-          } : undefined}
-        >
-          <ArrowUpRight size={13} />
-        </Link>
-      </Tooltip>
-    </div>
-  )
-}
-
-/** A project with nothing to show: its name and why. Clicking it FOCUSES it; its ↗ is its board. */
-function QuietRow({ project, focused, onPick }: { project: QueuesProject; focused: boolean; onPick: (project: QueuesProject) => void }) {
-  const note = project.stale
-    ? "Directory is missing"
-    : !project.open
-      ? "Not open"
-      : project.doneCount > 0
-        ? `${project.doneCount} done`
-        : "No threads"
-  const label = (
-    <>
-      <span className={`${INDICATOR_SLOT} ${project.stale ? "grayscale" : ""}`}>
-        <ProjectSquare project={project.card ?? fallbackCard(project)} size={16} />
-      </span>
-      <span className="flex min-w-0 flex-1 items-baseline gap-3">
-        <span className={`min-w-0 flex-1 truncate text-[12.5px] leading-[19px] ${focused ? "font-semibold text-fg" : "text-fg/75"}`}>{project.name}</span>
-        <span className="shrink-0 text-[10.5px] leading-[19px] text-muted-55 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">{note}</span>
-      </span>
-    </>
-  )
-  return (
-    <div className={`${ROW_CLASS} ${project.stale ? "opacity-60" : ""} ${focused ? FOCUSED_ROW : ""}`}>
-      {/* A project whose directory is gone cannot be worked in, so it cannot be the focus: its board is
-          where it can be repaired or forgotten. */}
-      <Link
-        to={project.stale ? projectHref(encodeURIComponent(project.slug)) : crossProjectHref(encodeURIComponent(project.slug))}
-        aria-current={focused || undefined}
-        className={`${ROW_BUTTON_CLASS} items-center`}
-        onClick={project.stale ? undefined : (event) => {
-          if (!isPlainLeftClick(event)) return
-          event.preventDefault()
-          onPick(project)
-        }}
-      >
-        {label}
-      </Link>
-      {!project.stale && <RowDoor href={projectHref(encodeURIComponent(project.slug))} label={`Open ${project.name}'s board`} />}
-    </div>
-  )
-}
-
-/**
  * The rail badge's count (ProjectRail.tsx), laid inline. Accent, and only accent, because the accent
  * means exactly one thing in this product: this many want you.
  */
@@ -686,14 +721,32 @@ function QueueBadge({ count }: { count: number }) {
 // ---- The lanes (the workpane) -----------------------------------------------------------------------
 
 /**
- * One project's queue: its header — sticky, so a long lane never loses whose cards these are — and its
- * cards in its board's queue order.
+ * One project's cards, in its board's queue order, under a sticky header — so a long lane never loses
+ * whose cards these are — that is just the project: its square and its name, and the name narrows the
+ * page to it. Every card after the page's first follows the board's own rule, within a lane and across
+ * lanes alike, so the column has the board's one rhythm and a new project announces itself with its
+ * header rather than a heavier line. Narrowed to one project the header goes: the page is already
+ * named for it, and the column is then exactly that project's board queue.
  *
  * EVERYTHING INSIDE RENDERS AS THIS PROJECT. The markdown scope points a `#123` at this project's repo, a
  * relative path at its directory and a `/thread/<slug>` link at that thread on THIS page (`/all/<slug>`,
  * opened in place) — never at the page's focus, which is usually another project.
  */
-function Lane({ project, leaving, hidden }: { project: QueuesProject; leaving: LeavingCards; hidden: (key: string) => boolean }) {
+function Lane({
+  project,
+  first,
+  headed,
+  leaving,
+  hidden,
+  onChoose,
+}: {
+  project: QueuesProject
+  first: boolean
+  headed: boolean
+  leaving: LeavingCards
+  hidden: (key: string) => boolean
+  onChoose: (project: QueuesProject) => void
+}) {
   const openInPlace = useOpenThreadInPlace()
   const scope = useMemo(
     () => ({
@@ -705,60 +758,73 @@ function Lane({ project, leaving, hidden }: { project: QueuesProject; leaving: L
     }),
     [project.id, project.githubRepo, project.slug, project.projectDir, project.homeDir],
   )
-  const boardHref = projectHref(encodeURIComponent(project.slug))
+  const cards = project.queued.filter((t) => !hidden(threadKey(project.id, t.id)))
   return (
-    <section data-xq-lane={project.id} aria-label={`${project.name} queue`} className="flex min-w-0 scroll-mt-4 flex-col gap-6">
-      <header className="sticky top-0 z-10 -mx-1 flex min-w-0 items-center gap-2.5 bg-bg/90 px-1 py-2.5 backdrop-blur-sm">
-        <ProjectSquare project={project.card ?? fallbackCard(project)} size={22} />
-        {/* The NAME keeps its room and the count line gives way: on a phone "marketing-site" beside
-            "4 in the queue · 1 snoozed" truncated the name to "marketin…", the one word that says whose
-            cards these are. */}
-        <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <h2 className="max-w-full shrink-0 truncate text-[14px] font-semibold text-fg">{project.name}</h2>
-          <span className="min-w-0 truncate text-[11.5px] text-muted-70">{laneSummary(project)}</span>
-        </div>
-        <Link
-          to={boardHref}
-          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted outline-none transition-colors hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
-        >
-          Open board
-          <ArrowUpRight size={13} />
-        </Link>
-      </header>
+    <section data-xq-lane={project.id} aria-label={`${project.name} queue`} className="flex min-w-0 scroll-mt-4 flex-col">
+      {!first && <hr className="my-10 border-0 border-t border-border/60" />}
+      {headed && (
+        // `pl-[21px]` — the card's 1px border plus its header's px-5 — stands the square over the card
+        // titles, where the Ready glyph above stands too.
+        <header className="sticky top-0 z-10 mb-3 flex min-w-0 bg-bg/90 py-2 pl-[21px] backdrop-blur-sm">
+          <Link
+            to={crossProjectHref(encodeURIComponent(project.slug))}
+            title={`Show only ${project.name}`}
+            onClick={(event) => {
+              if (!isPlainLeftClick(event)) return
+              event.preventDefault()
+              onChoose(project)
+            }}
+            className="flex min-w-0 items-baseline gap-2 rounded-sm text-[13px] font-medium text-fg/90 underline-offset-2 outline-none transition-colors hover:text-fg hover:underline focus-visible:ring-1 focus-visible:ring-border-strong"
+          >
+            {/* ON THE NAME'S CAP BAND: a filled square has no baseline of its own, so it sits ON the name's
+                and is lowered by half its height less half a cap — computed by the browser, right in any
+                font at any size (the prompt box's project picker does the same). */}
+            <span className="flex shrink-0 self-baseline translate-y-[calc(8px_-_0.5cap)]">
+              <ProjectSquare project={project.card ?? fallbackCard(project)} size={16} />
+            </span>
+            <h2 className="min-w-0 truncate">{project.name}</h2>
+          </Link>
+        </header>
+      )}
       <MarkdownScopeContext.Provider value={scope}>
-        {project.queued.map((t) => {
+        {cards.map((t, index) => {
           const key = threadKey(project.id, t.id)
-          if (hidden(key)) return null
+          const rule = index > 0 && <hr className="my-10 border-0 border-t border-border/60" />
           // A finished terminal command takes the board's own command card, scoped to its project: its
           // pty, its Restart and its Mark as done all belong to this lane's project, not the page's.
           if (t.kind === "command") {
             return (
-              <div key={key} data-xq-card={key} data-queue-leaving={leaving.isLeaving(key)} className="frizz-card-slot min-w-0">
-                <div className="frizz-card-clip min-h-0 min-w-0">
-                  <div className="frizz-card-body min-w-0">
-                    <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
-                      <CommandQueueCard
-                        thread={t}
-                        leaving={leaving.isLeaving(key)}
-                        onResolve={leaving.leave(key)}
-                        onUnresolve={leaving.restore(key)}
-                        onOpen={() => openInPlace(project, t.id)}
-                      />
-                    </ThreadProjectScope>
+              <Fragment key={key}>
+                {rule}
+                <div data-xq-card={key} data-queue-leaving={leaving.isLeaving(key)} className="frizz-card-slot min-w-0">
+                  <div className="frizz-card-clip min-h-0 min-w-0">
+                    <div className="frizz-card-body min-w-0">
+                      <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
+                        <CommandQueueCard
+                          thread={t}
+                          leaving={leaving.isLeaving(key)}
+                          onResolve={leaving.leave(key)}
+                          onUnresolve={leaving.restore(key)}
+                          onOpen={() => openInPlace(project, t.id)}
+                        />
+                      </ThreadProjectScope>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Fragment>
             )
           }
           return (
-            <AllQueuesCard
-              key={key}
-              project={project}
-              thread={t}
-              leaving={leaving.isLeaving(key)}
-              onLeave={leaving.leave(key)}
-              onReturn={leaving.restore(key)}
-            />
+            <Fragment key={key}>
+              {rule}
+              <AllQueuesCard
+                project={project}
+                thread={t}
+                leaving={leaving.isLeaving(key)}
+                onLeave={leaving.leave(key)}
+                onReturn={leaving.restore(key)}
+              />
+            </Fragment>
           )
         })}
       </MarkdownScopeContext.Provider>
@@ -766,24 +832,20 @@ function Lane({ project, leaving, hidden }: { project: QueuesProject; leaving: L
   )
 }
 
-/** Inbox zero — the board's own empty queue, with what is still running across the machine. */
-function EmptyQueues({ running, runningProjects, unopened }: { running: number; runningProjects: number; unopened: number }) {
+/**
+ * Inbox zero — the board's own empty queue. On the whole page it says so of every project, and admits
+ * the ones this server has not opened, whose queues it cannot see; narrowed, it says what the board would,
+ * and why when the project cannot have a queue at all.
+ */
+function EmptyQueues({ narrowed, unopened }: { narrowed: QueuesProject | undefined; unopened: number }) {
+  const why = narrowed?.stale ? "Its directory is missing" : narrowed && !narrowed.open ? "It is not open on this server" : null
   return (
     <div data-xq-empty className="flex flex-col items-center gap-2 pt-2">
       <Inbox size={40} strokeWidth={1.25} className="text-muted-30" />
       <div className="text-[13px] text-muted-80">
-        {unopened > 0 ? "No threads awaiting human input in any open project" : "No threads awaiting human input in any project"}
+        {unopened > 0 ? "No threads awaiting human input in any open project" : "No threads awaiting human input"}
       </div>
-      {unopened > 0 && (
-        <div className="text-[11.5px] text-muted-60">
-          {unopened} {unopened === 1 ? "project is" : "projects are"} not open on this server
-        </div>
-      )}
-      {running > 0 && (
-        <div className="text-[11.5px] text-muted-60">
-          {running} running across {runningProjects} {runningProjects === 1 ? "project" : "projects"}
-        </div>
-      )}
+      {why && <div className="text-[11.5px] text-muted-60">{why}</div>}
     </div>
   )
 }
@@ -889,8 +951,12 @@ function useScrollToCard(): (key: string) => number | null {
   return useCallback((key: string) => {
     const slot = document.querySelector<HTMLElement>(`[data-xq-card="${CSS.escape(key)}"]`)
     if (!slot) return null
-    // Below the lane's sticky header, which is ~44px tall.
-    const top = Math.max(0, slot.getBoundingClientRect().top + window.scrollY - 56)
+    // Just below the lane's sticky header, which will be stuck there when the card lands — measured, not
+    // assumed, since its height is the font's. Narrowed, there is no header and the board's own landing
+    // line applies.
+    const header = slot.closest("[data-xq-lane]")?.querySelector<HTMLElement>(":scope > header")
+    const clearance = header ? header.getBoundingClientRect().height + 12 : QUEUE_CARD_VIEWPORT_TOP
+    const top = Math.max(0, slot.getBoundingClientRect().top + window.scrollY - clearance)
     window.scrollTo({ top, behavior: prefersSmooth() })
     const root = slot.querySelector<HTMLElement>("[data-xq-card-root]")
     if (!root) return top

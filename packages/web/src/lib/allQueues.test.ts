@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ProjectCard, ProjectQueue, ThreadView } from "@frizz/shared"
-import { handoffParts, isBusy, laneSummary, queuesProjects, queuesTotals, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
+import { handoffParts, isBusy, queuesProjects, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
 
 function thread(id: string, over: Partial<ThreadView> = {}): ThreadView {
   return {
@@ -61,7 +61,6 @@ test("each project is banded the way its own rail bands it", () => {
   assert.deepEqual(project!.running.map((t) => t.id), ["spinning"])
   assert.deepEqual(project!.snoozed.map((t) => t.id), ["parked"])
   assert.equal(project!.doneCount, 4)
-  assert.equal(laneSummary(project!), "3 in the queue · 1 running · 1 snoozed")
 })
 
 test("the queue direction preference is honoured, newest first under lifo", () => {
@@ -72,14 +71,14 @@ test("the queue direction preference is honoured, newest first under lifo", () =
   assert.deepEqual(project!.queued.map((t) => t.id), ["newer", "older"])
 })
 
-test("totals count the queue and the running rows across every project", () => {
-  const projects = queuesProjects([card("a"), card("b"), card("c")], [
-    queue("a", [thread("q1", { needsYou: true }), thread("r1", { runtime: "running" })]),
-    queue("b", [thread("q2", { needsYou: true }), thread("q3", { needsYou: true })]),
-    queue("c", []),
+test("a project is busy with a queue or live work — never with parked work alone", () => {
+  const projects = queuesProjects([card("a"), card("b"), card("c"), card("d")], [
+    queue("a", [thread("q1", { needsYou: true })]),
+    queue("b", [thread("r1", { runtime: "running" })]),
+    queue("c", [thread("parked", { snoozedUntil: "2099-01-01T00:00:00.000Z" })]),
+    queue("d", []),
   ])
-  assert.deepEqual(queuesTotals(projects), { queued: 3, running: 1, projectsWithQueue: 2 })
-  assert.deepEqual(projects.map(isBusy), [true, true, false])
+  assert.deepEqual(projects.map(isBusy), [true, true, false, false])
 })
 
 test("the same slug in two projects is two threads", () => {
@@ -144,7 +143,6 @@ test("a terminal command thread takes the band its own rail gives it: a finished
   ])])
   assert.deepEqual(project!.queued.map((t) => t.id), ["term-finished"])
   assert.deepEqual(project!.running.map((t) => t.id), ["term-running"])
-  assert.deepEqual(queuesTotals([project!]), { queued: 1, running: 1, projectsWithQueue: 1 })
 })
 
 // The focused project is the page project, so its board is live in the store; the poll lags it by up to
