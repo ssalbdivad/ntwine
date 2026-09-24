@@ -50,7 +50,7 @@ export function Toaster() {
         {toast.link && (
           <button
             onClick={() => {
-              pushDrawer("thread", toast.link!.slug)
+              pushDrawer(toast.link!.drawer ?? "thread", toast.link!.slug)
               store.toast = null
             }}
             className="pointer-events-auto shrink-0 rounded-md border border-border px-2 py-0.5 text-[12px] text-fg/90 transition-colors hover:bg-panel-2"

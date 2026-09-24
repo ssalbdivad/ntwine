@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query"
 import { acpModelSlug, type AccountBackend, type DispatchInput } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
-import { pushDrawer, showToast, store } from "../store.ts"
+import { showToast, store } from "../store.ts"
 import { useSnapshot } from "valtio"
 import { ArrowUp, Loader2 } from "lucide-react"
 import { abbreviateHome } from "../lib/paths.ts"
@@ -79,8 +79,9 @@ function DispatchTabs({ mode, onChange }: { mode: DispatchMode; onChange: (mode:
   )
 }
 
-// The TERMINAL tab: one shell command, run by the server in a pty in the project directory. The
-// thread's drawer opens straight onto the running terminal — seeing it run is why the human is here.
+// The TERMINAL tab: one shell command, run by the server in a pty in the project directory. A command
+// thread is a thread like any other, so starting one behaves exactly like dispatching a prompt: you
+// stay where you are, the row appears in Running, and the toast's link opens its terminal drawer.
 function CommandForm({ autoFocus, onDispatched }: { autoFocus?: boolean; onDispatched?: () => void }) {
   const projectDir = useProjectDir()
   const homeDir = useSnapshot(store).board?.homeDir
@@ -89,7 +90,7 @@ function CommandForm({ autoFocus, onDispatched }: { autoFocus?: boolean; onDispa
     mutationFn: (input: string) => rpc.commandStart({ command: input }),
     onSuccess: (res) => {
       onDispatched?.()
-      pushDrawer("terminal", res.slug)
+      showToast("Thread started", { link: { label: "Open thread", slug: res.slug, drawer: "terminal" } })
     },
     onError: (e, input) => {
       if (!draftStore.get(draftKey.command(projectDir))) setCommand(input)
