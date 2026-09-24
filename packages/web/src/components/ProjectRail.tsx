@@ -1,7 +1,7 @@
 import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent as DragEvent_, type KeyboardEvent as KeyboardEvent_, type MouseEvent as MouseEvent_, type PointerEvent as PointerEvent_, type ReactNode } from "react"
-import { House, Inbox, Plus } from "lucide-react"
+import { House, Layers, Plus } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import type { ProjectCard } from "@frizz/shared"
@@ -616,7 +616,7 @@ export function ProjectRail() {
           yellow number saying the same thing. */}
       <Tooltip side="right" label="Everything">
         <Link to="/queues" aria-label="Everything" aria-current={onQueues ? "page" : undefined} className={`${RAIL_DOOR_CLASS} ${onQueues ? "bg-elevated text-fg" : ""}`}>
-          <Inbox size={17} />
+          <Layers size={17} />
         </Link>
       </Tooltip>
       <hr className="my-2.5 w-6 shrink-0 border-0 border-t border-border" />

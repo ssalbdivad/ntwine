@@ -13,7 +13,7 @@ import * as RadixDialog from "@radix-ui/react-dialog"
 import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
-import { Ellipsis, ImagePlus, Inbox, Loader2 } from "lucide-react"
+import { Ellipsis, ImagePlus, Layers, Loader2 } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { slugify, type ProjectCard } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
@@ -561,7 +561,7 @@ function AllQueuesLink() {
       data-grid-all-queues
       className="inline-flex items-center gap-1.5 rounded-full border border-border py-1 pl-2.5 pr-3 text-[12px] text-muted outline-none transition-colors hover:border-border-strong hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
     >
-      <Inbox size={14} aria-hidden="true" />
+      <Layers size={14} aria-hidden="true" />
       <span>Everything</span>
       {total > 0 && (
         <span
