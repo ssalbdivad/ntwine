@@ -396,22 +396,39 @@ try {
     findings.ctrlShiftPFromFrame = { paletteOpened: await paletteOpen(), composer: await readComposer() }
     log(`Ctrl+Shift+P inside the frame: ${JSON.stringify(findings.ctrlShiftPFromFrame)}`)
     await shot("05-ctrl-shift-p-from-frame")
-    await workbench.keyboard.press("Escape")
-    await sleep(300)
+    // No Escape here: with the palette shut it would land in the frame and close the new-thread sheet,
+    // which is what run 2 did (its 06 shot). That is a finding in itself — Escape belongs to the page.
 
     // "Add to Frizz prompt" from the editor while the sidebar shows the composer but does not have focus.
     await command("__openSample")
-    await sleep(500)
+    await sleep(800)
+    const sheetAfterEditorFocus = !!(await frame.$(composerSel))
+    // Negative control for the shortcut probe: the same keys with the EDITOR focused must open the palette.
+    await workbench.keyboard.down("Control")
+    await workbench.keyboard.down("Shift")
+    await workbench.keyboard.press("KeyP")
+    await workbench.keyboard.up("Shift")
+    await workbench.keyboard.up("Control")
+    await sleep(800)
+    findings.ctrlShiftPFromEditor = { paletteOpened: await paletteOpen() }
+    await shot("05b-ctrl-shift-p-from-editor-control")
+    await workbench.keyboard.press("Escape")
+    await sleep(300)
+    await command("__openSample")
     const added = await command("frizz.addToPrompt")
     await sleep(3_000)
     const unfocused = await readComposer()
     await shot("06-add-to-prompt-sidebar-unfocused")
+    // Click into the sidebar's composer and WAIT, typing nothing: does the focus claim the insert?
     await clickIn(await frame.$(composerSel), "composer")
     await sleep(3_000)
-    const focused = await readComposer()
-    findings.addToPrompt = { result: added, composerWhileUnfocused: unfocused, composerAfterClickingIntoSidebar: focused }
-    log(`add to prompt: ${JSON.stringify(findings.addToPrompt)}`)
+    const claimed = await readComposer()
     await shot("07-add-to-prompt-after-focus")
+    await workbench.keyboard.press("End")
+    await workbench.keyboard.type(" and then more typing", { delay: 15 })
+    await sleep(500)
+    findings.addToPrompt = { result: added, sheetStillOpenAfterEditorFocus: sheetAfterEditorFocus, composerWhileUnfocused: unfocused, composerAfterClickingIntoSidebar: claimed, afterTypingMore: await readComposer() }
+    log(`add to prompt: ${JSON.stringify(findings.addToPrompt)}`)
 
     // Submit: Enter dispatches. No credentials in this sandbox, so no worker can start — what matters is
     // that the POST from inside the frame passes the origin gate and the server acts on it.
