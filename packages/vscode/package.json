@@ -72,6 +72,11 @@
         "command": "frizz.reconnect",
         "title": "Reconnect",
         "category": "Frizz"
+      },
+      {
+        "command": "frizz.sidebar.show",
+        "title": "Show Frizz sidebar",
+        "category": "Frizz"
       }
     ],
     "submenus": [
@@ -136,6 +141,24 @@
           "description": "Open file links from Frizz in this window"
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "frizz",
+          "title": "Frizz",
+          "icon": "media/frizz.svg"
+        }
+      ]
+    },
+    "views": {
+      "frizz": [
+        {
+          "type": "webview",
+          "id": "frizz.sidebar",
+          "name": "Frizz"
+        }
+      ]
     }
   },
   "scripts": {

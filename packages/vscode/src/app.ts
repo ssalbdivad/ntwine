@@ -18,6 +18,7 @@ import { projectForPath, workspaceProjects } from "./projects.ts"
 import { describeRpcError, dispatchProfile, FrizzRpc, withRetry } from "./rpc.ts"
 import { notConnectedMessage, statusView } from "./status.ts"
 import { findThread, pickerThreads, threadHandleOf, threadItem, displayTitle, type PickerThread } from "./threads.ts"
+import { registerSidebar, SIDEBAR_VIEW, type Sidebar } from "./sidebar.ts"
 
 type Vscode = typeof vscode
 
@@ -30,6 +31,8 @@ export interface FrizzExtensionApi {
   /** Where the last discovery found Frizz, and how — set even when the editor connection was refused. */
   discovered(): FoundFrizz | undefined
   projects(): EditorProject[]
+  /** SPIKE: the sidebar frame. */
+  sidebar: Sidebar
 }
 
 /** A file the command is about, with what was selected in it. */
@@ -471,6 +474,16 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     }),
   )
 
+  // SPIKE: the sidebar frame, on the window's project once the connection knows it.
+  const sidebar = registerSidebar(api, context, () => {
+    const origin = connection.origin ?? found?.origin
+    return origin ? projectUrl(origin, windowProject()) : undefined
+  }, (line) => log.info(line))
+  context.subscriptions.push(
+    api.commands.registerCommand("frizz.sidebar.navigate", (url: string) => sidebar.navigate(url)),
+    api.commands.registerCommand("frizz.sidebar.show", () => api.commands.executeCommand(`${SIDEBAR_VIEW}.focus`)),
+  )
+
   log.info(`Frizz extension ${extensionVersion} in ${api.env.appName}, window ${windowId}.`)
   connection.start()
 
@@ -481,5 +494,6 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     origin: () => connection.origin,
     discovered: () => found,
     projects: () => projects,
+    sidebar,
   }
 }

@@ -35,6 +35,9 @@ const built = ["extension.cjs", "icon.png"]
 if (process.argv.includes("--e2e")) {
   await build({ ...shared, entryPoints: ["e2e/suite.ts"], outfile: join(dist, "e2e", "suite.cjs") })
   built.push("e2e/suite.cjs")
+  // SPIKE: the sidebar spike's command-loop suite (scripts/sidebar-spike.ts).
+  await build({ ...shared, entryPoints: ["e2e/sidebar-suite.ts"], outfile: join(dist, "e2e", "sidebar-suite.cjs") })
+  built.push("e2e/sidebar-suite.cjs")
 }
 
 console.log(`built packages/vscode/dist: ${built.join(", ")}`)
