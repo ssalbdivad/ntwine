@@ -292,112 +292,186 @@ try {
     return chain
   })()
   const composerSel = '[data-surface="newComposer"]'
-  try {
-    await frame.waitForSelector(composerSel, { timeout: 150_000 })
-    findings.composerRendered = true
-  } catch (error) {
-    findings.composerRendered = `NO: ${(error as Error).message}`
+  const text = () => frame.evaluate(() => document.body.innerText)
+  await waitFor("the board in the frame", async () => (await text()).includes("plain-question") || undefined, 150_000)
+  await sleep(2_000)
+
+  // Where the workbench sits on the Xvfb screen, so a crop of the sidebar can be cut from a full shot.
+  const sidebarRect = async () => workbench.evaluate(() => {
+    const part = document.querySelector(".part.sidebar")!.getBoundingClientRect()
+    return { x: Math.round(window.screenX + part.left), y: Math.round(window.screenY + part.top), w: Math.round(part.width), h: Math.round(part.height) }
+  })
+  const shot = async (name: string) => {
+    const full = shoot(name)
+    const r = await sidebarRect()
+    const crop = join(out, `${name}.sidebar.png`)
+    execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-i", full, "-vf", `crop=${r.w}:${r.h}:${r.x}:${r.y},scale=iw*2:ih*2:flags=neighbor`, crop])
   }
-  await sleep(4_000)
+
   const state = await frame.evaluate(() => ({
     title: document.title,
     width: window.innerWidth,
     height: window.innerHeight,
-    bodyText: document.body.innerText.slice(0, 1500),
     scrollWidth: document.documentElement.scrollWidth,
-    resources: performance.getEntriesByType("resource").map((entry) => entry.name).filter((name) => name.includes("/_frizz/")).map((name) => new URL(name).pathname).slice(0, 40),
-    hasFocusApi: document.hasFocus(),
-    storageOk: (() => {
+    bodyText: document.body.innerText.slice(0, 800),
+    hasFocus: document.hasFocus(),
+    prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
+    htmlAttrs: Object.fromEntries([...document.documentElement.attributes].map((attr) => [attr.name, attr.value])),
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    storage: (() => {
       try {
         localStorage.setItem("spike", "1")
-        return localStorage.getItem("spike") === "1"
+        return localStorage.getItem("spike") === "1" ? "localStorage works" : "localStorage read back wrong"
       } catch (error) {
         return String(error)
       }
     })(),
+    serviceWorker: "serviceWorker" in navigator,
   }))
   findings.queueFrame = state
-  log(`frame ${state.width}x${state.height}, scrollWidth ${state.scrollWidth}, ${state.resources.length} /_frizz resources`)
-  const during = connectionsTo(port)
-  findings.connectionsWithSidebar = during
-  log(`connections with the sidebar open: ${JSON.stringify(during.byProcess)}`)
-  shoot("01-queue-default-width")
+  log(`frame ${state.width}x${state.height}, scrollWidth ${state.scrollWidth}, focus ${state.hasFocus}`)
+  findings.connectionsWithSidebar = connectionsTo(port)
+  log(`connections with the sidebar open: ${JSON.stringify((findings.connectionsWithSidebar as { byProcess: unknown }).byProcess)}`)
+  await shot("01-queue-default-width")
 
-  // ── typing: a real click on the workbench at the composer's screen position, then real keys ──────────
-  const box = await (await frame.$(composerSel))?.boundingBox()
-  findings.composerBox = box
-  if (box) {
-    await workbench.mouse.click(box.x + Math.min(40, box.width / 2), box.y + box.height / 2)
-    await sleep(500)
-    await workbench.keyboard.type("typed from the VS Code sidebar", { delay: 20 })
+  // ── live sync: a change made OUTSIDE the sidebar must reach it with no navigation ─────────────────────
+  {
+    const started = Date.now()
+    const response = await fetch(`${origin}/_frizz/${info.slug}/rpc/archiveThread`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin },
+      body: JSON.stringify({ slug: "q-legacy-danger" }),
+    })
+    const urlBefore = frame.url()
+    let gone: number | undefined
+    try {
+      await waitFor("the archived card to leave the sidebar's queue", async () => !(await text()).includes("legacy-approval-danger-gate") || undefined, 20_000)
+      gone = Date.now() - started
+    } catch {}
+    findings.liveSync = { archiveStatus: response.status, removedFromSidebarAfterMs: gone ?? "NOT within 20s", navigated: frame.url() !== urlBefore }
+    log(`live sync: ${JSON.stringify(findings.liveSync)}`)
+    await shot("02-live-sync-archived-one")
+  }
+
+  // ── the new-thread composer: open it, click it, type into it — all REAL input on the workbench ───────
+  const clickIn = async (handle: Awaited<ReturnType<Frame["$"]>>, what: string) => {
+    const box = await handle?.boundingBox()
+    if (!box) throw new Error(`${what}: no box`)
+    await workbench.mouse.click(box.x + Math.min(30, box.width / 2), box.y + box.height / 2)
+    return box
+  }
+  const byText = async (label: string) => (await frame.evaluateHandle((wanted) => [...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === wanted) ?? null, label)).asElement() as Awaited<ReturnType<Frame["$"]>>
+  try {
+    if (!(await frame.$(composerSel))) {
+      await clickIn(await byText("New thread"), "New thread")
+      await frame.waitForSelector(composerSel, { timeout: 20_000 })
+    }
     await sleep(800)
-    const typed = await frame.evaluate((selector) => ({
+    await shot("03-new-thread-open")
+    const box = await clickIn(await frame.$(composerSel), "composer")
+    findings.composerBox = box
+    await sleep(400)
+    await workbench.keyboard.type("typed from the VS Code sidebar", { delay: 15 })
+    await sleep(600)
+    const readComposer = () => frame.evaluate((selector) => ({
       value: (document.querySelector(selector) as HTMLTextAreaElement | null)?.value ?? null,
-      active: document.activeElement?.getAttribute("data-surface") ?? document.activeElement?.tagName ?? null,
+      activeIsComposer: document.activeElement === document.querySelector(selector),
       hasFocus: document.hasFocus(),
     }), composerSel)
-    findings.typing = typed
-    log(`after typing: ${JSON.stringify(typed)}`)
-    shoot("02-composer-typed")
+    findings.typing = await readComposer()
+    log(`after typing: ${JSON.stringify(findings.typing)}`)
+    await shot("04-composer-typed")
 
-    // Does a workbench shortcut still reach VS Code while focus is inside the Frizz frame?
+    // A workbench shortcut while focus is inside the Frizz frame.
     await workbench.keyboard.down("Control")
     await workbench.keyboard.down("Shift")
     await workbench.keyboard.press("KeyP")
     await workbench.keyboard.up("Shift")
     await workbench.keyboard.up("Control")
     await sleep(800)
-    const palette = await workbench.evaluate(() => {
+    const paletteOpen = () => workbench.evaluate(() => {
       const widget = document.querySelector(".quick-input-widget") as HTMLElement | null
       return widget ? getComputedStyle(widget).display !== "none" : false
     })
-    const afterShortcut = await frame.evaluate((selector) => (document.querySelector(selector) as HTMLTextAreaElement | null)?.value ?? null, composerSel)
-    findings.ctrlShiftPFromFrame = { paletteOpened: palette, composerValueAfter: afterShortcut }
-    log(`Ctrl+Shift+P inside the frame: palette opened ${palette}`)
-    shoot("03-ctrl-shift-p-from-frame")
+    findings.ctrlShiftPFromFrame = { paletteOpened: await paletteOpen(), composer: await readComposer() }
+    log(`Ctrl+Shift+P inside the frame: ${JSON.stringify(findings.ctrlShiftPFromFrame)}`)
+    await shot("05-ctrl-shift-p-from-frame")
     await workbench.keyboard.press("Escape")
     await sleep(300)
 
-    // Submit: Enter in the new-thread box dispatches. No credentials in this sandbox, so a worker cannot
-    // start — what matters is that the POST passes the origin gate and the server answers it.
+    // "Add to Frizz prompt" from the editor while the sidebar shows the composer but does not have focus.
+    await command("__openSample")
+    await sleep(500)
+    const added = await command("frizz.addToPrompt")
+    await sleep(3_000)
+    const unfocused = await readComposer()
+    await shot("06-add-to-prompt-sidebar-unfocused")
+    await clickIn(await frame.$(composerSel), "composer")
+    await sleep(3_000)
+    const focused = await readComposer()
+    findings.addToPrompt = { result: added, composerWhileUnfocused: unfocused, composerAfterClickingIntoSidebar: focused }
+    log(`add to prompt: ${JSON.stringify(findings.addToPrompt)}`)
+    await shot("07-add-to-prompt-after-focus")
+
+    // Submit: Enter dispatches. No credentials in this sandbox, so no worker can start — what matters is
+    // that the POST from inside the frame passes the origin gate and the server acts on it.
     const mark = requests.length
-    await workbench.mouse.click(box.x + Math.min(40, box.width / 2), box.y + box.height / 2)
     await workbench.keyboard.press("End")
     await workbench.keyboard.press("Enter")
-    await sleep(6_000)
-    findings.submitRequests = requests.slice(mark).filter((request) => request.method !== "GET" || /dispatch|board/u.test(request.url))
-    const board = await fetch(`${origin}/_frizz/rpc/board`, { headers: { "sec-fetch-site": "same-origin" } }).then((response) => response.json()) as { result?: { threads?: { id?: string; slug?: string; title?: string }[] } }
-    findings.boardAfterSubmit = (board.result?.threads ?? []).map((thread) => `${thread.id ?? thread.slug}: ${thread.title ?? ""}`)
-    log(`board after submit: ${JSON.stringify(findings.boardAfterSubmit)}`)
-    shoot("04-after-submit")
+    await sleep(8_000)
+    findings.submitRequests = requests.slice(mark).filter((request) => request.method !== "GET")
+    const board = await fetch(`${origin}/_frizz/${info.slug}/rpc/board`, { headers: { "sec-fetch-site": "same-origin" } }).then((response) => response.json()) as { result?: { threads?: { id?: string; title?: string; status?: string }[] } }
+    findings.boardAfterSubmit = (board.result?.threads ?? []).map((thread) => `${thread.id}: ${thread.title ?? ""} [${thread.status ?? ""}]`)
+    log(`submit: ${JSON.stringify(findings.submitRequests)}; board ${JSON.stringify(findings.boardAfterSubmit)}`)
+    await shot("08-after-submit")
+  } catch (error) {
+    findings.composerError = String(error)
+    log(`composer steps failed: ${error}`)
+    await shot("08-composer-failure")
   }
 
-  // ── a single thread's route ──────────────────────────────────────────────────────────────────────────
-  for (const [name, path] of [["05-thread-drawer", `/all/${info.slug}/thread/q-plain`], ["06-thread-full", `/all/${info.slug}/thread/q-plain/full`]] as const) {
+  // ── a single thread's routes, and its follow-up box ──────────────────────────────────────────────────
+  for (const [name, path] of [["09-thread-drawer", `/all/${info.slug}/thread/q-plain`], ["10-thread-full", `/all/${info.slug}/thread/q-plain/full`]] as const) {
     await command("frizz.sidebar.navigate", `${origin}${path}`)
     frame = await waitFor(`the frame on ${path}`, async () => workbench.frames().find((candidate) => candidate.url().startsWith(`${origin}${path}`)), 60_000)
-    await sleep(6_000)
-    findings[name] = await frame.evaluate(() => ({
-      url: location.pathname,
-      width: window.innerWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      text: document.body.innerText.slice(0, 1200),
-    }))
-    shoot(name)
+    await waitFor("the thread's question", async () => (await text()).includes("settings store") || undefined, 60_000).catch(() => undefined)
+    await sleep(2_000)
+    const followUp = await frame.$('textarea[placeholder^="Follow up"]')
+    let reply: unknown = "no follow-up box"
+    if (followUp) {
+      await clickIn(followUp, "follow-up box")
+      await sleep(300)
+      await workbench.keyboard.type("a reply typed in the sidebar", { delay: 15 })
+      await sleep(400)
+      reply = await followUp.evaluate((element) => (element as HTMLTextAreaElement).value)
+    }
+    findings[name] = await frame.evaluate(() => ({ url: location.pathname, width: window.innerWidth, scrollWidth: document.documentElement.scrollWidth, text: document.body.innerText.slice(0, 600) }))
+    ;(findings[name] as Record<string, unknown>).followUpTyped = reply
+    await shot(name)
   }
 
-  // ── wider: three steps of View: Increase Current View Size with the sidebar focused ──────────────────
-  await command("frizz.sidebar.show")
-  for (let i = 0; i < 6; i++) await command("workbench.action.increaseViewWidth")
-  await sleep(2_000)
-  frame = (await frizzFrame()) ?? frame
-  findings.widerWidth = await frame.evaluate(() => window.innerWidth)
-  shoot("07-thread-full-wider")
-  await command("frizz.sidebar.navigate", queueUrl)
-  await sleep(6_000)
-  frame = (await frizzFrame()) ?? frame
-  findings.widerQueue = await frame.evaluate(() => ({ width: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }))
-  shoot("08-queue-wider")
+  // ── wider: drag the sidebar's sash with the mouse ────────────────────────────────────────────────────
+  {
+    const part = await workbench.evaluate(() => {
+      const rect = document.querySelector(".part.sidebar")!.getBoundingClientRect()
+      return { right: rect.right, top: rect.top, height: rect.height }
+    })
+    const y = part.top + part.height / 2
+    await workbench.mouse.move(part.right + 1, y)
+    await workbench.mouse.down()
+    for (let step = 1; step <= 10; step++) await workbench.mouse.move(part.right + 1 + step * 30, y)
+    await workbench.mouse.up()
+    await sleep(2_000)
+    frame = (await frizzFrame()) ?? frame
+    findings.widerThreadFull = await frame.evaluate(() => ({ width: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }))
+    await shot("11-thread-full-wider")
+    await command("frizz.sidebar.navigate", queueUrl)
+    frame = await waitFor("the frame back on the queue", async () => workbench.frames().find((candidate) => candidate.url() === queueUrl), 60_000)
+    await waitFor("the board in the frame", async () => (await text()).includes("plain-question") || undefined, 60_000).catch(() => undefined)
+    await sleep(2_000)
+    findings.widerQueue = await frame.evaluate(() => ({ width: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }))
+    await shot("12-queue-wider")
+  }
 
   findings.frameConsole = consoleLines
   findings.workbenchPageErrors = pageErrors

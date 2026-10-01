@@ -30,7 +30,15 @@ export async function run(): Promise<void> {
     const { command, args = [] } = JSON.parse(readFileSync(file, "utf8")) as { command: string; args?: unknown[] }
     if (command === "__done") return
     try {
-      const result = await vscode.commands.executeCommand(command, ...args)
+      // `__openSample` opens src/sample.ts with its first line selected, so `frizz.addToPrompt` has a selection.
+      const result = command === "__openSample"
+        ? await (async () => {
+            const folder = vscode.workspace.workspaceFolders![0]!.uri
+            const editor = await vscode.window.showTextDocument(vscode.Uri.joinPath(folder, "src", "sample.ts"))
+            editor.selection = new vscode.Selection(0, 0, 0, editor.document.lineAt(0).text.length)
+            return editor.document.uri.fsPath
+          })()
+        : await vscode.commands.executeCommand(command, ...args)
       writeFileSync(join(control, `ack-${seq}.json`), JSON.stringify({ ok: true, result: result ?? null }))
     } catch (error) {
       writeFileSync(join(control, `ack-${seq}.json`), JSON.stringify({ ok: false, error: String(error) }))
