@@ -124,6 +124,8 @@ test("a handoff is the last assistant message that says something, and the human
     // A wake, a sub-agent steer and a peer's report are Frizz or another agent speaking, not the human.
     msg("user", "PR #12 has new review activity", { wake: true }),
     msg("user", "<agent-message from=\"Explore\">found it</agent-message>", { peerFrom: "Explore" }),
+    // …and so is another thread messaging this one (it projects as `sessionPeer`, with no `peerFrom`).
+    msg("user", "the audit is in", { sessionPeer: { name: "audit-run" } }),
     msg("assistant", "**Fixed** — ties no longer skip rows.\n\n```done\n- Fixed it\n```"),
     // Trailing tools-only step and transcript punctuation are not the handoff.
     msg("assistant", ""),

@@ -1258,7 +1258,7 @@ function openingRequestOf(messages: readonly TranscriptMessage[]): TranscriptMes
  *  thread, so nothing this thread says afterwards answers it. Anchoring on it would quote the spinoff's
  *  instructions over a reply about something else. */
 function isHumanTurn(m: TranscriptMessage): boolean {
-  if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.agentInstruction || m.spinoff) return false
+  if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.sessionPeer || m.agentInstruction || m.spinoff) return false
   const said = (m.displayText ?? m.text).trim()
   if (!said) return false
   // questionAnswerMessage's form; the wake token rides outside `displayText`.
