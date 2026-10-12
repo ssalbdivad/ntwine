@@ -182,8 +182,14 @@ export interface ClaudeAgentBrokerBridge {
    * instant, because the process latched on its 429 and refuses every input until then (see
    * usage-limit.ts `limitResumeNeedsFreshProcess`). Costs the in-memory sub-agents, which is why it is
    * opt-in per call rather than the default.
+   *
+   * `keepOpenCards` is for a message NOBODY TYPED — a scheduled wake, a notice frizz writes itself. A
+   * follow-up from the operator supersedes an open approval or question card (they typed instead of
+   * clicking, so the card is denied and the turn reads their message). A machine's message must not:
+   * a timer coming due is not the operator declining a command. With it set the cards stay open and the
+   * message waits in the daemon's queue behind the parked turn, to be read once the operator answers.
    */
-  followUp(input: { threadSlug: string; sessionId: string; cwd: string; text: string; deliveryId?: string; permissionMode?: ClaudeBrokerConfig["permissionMode"]; appendSystemPrompt?: string; model?: string; effort?: string; freshProcess?: boolean }): Promise<void>
+  followUp(input: { threadSlug: string; sessionId: string; cwd: string; text: string; deliveryId?: string; permissionMode?: ClaudeBrokerConfig["permissionMode"]; appendSystemPrompt?: string; model?: string; effort?: string; freshProcess?: boolean; keepOpenCards?: boolean }): Promise<void>
   /**
    * Steer ONE running Agent-tool sub-agent: deliver `text` into the child's own conversation rather
    * than the thread's main turn. `subAgentId` is the dispatch tool_use id — the same id the board's
@@ -425,6 +431,21 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
     armDeadline(id, req.expiresAt)
   }
 
+  // The daemon took a request back (a worker hook settled it, or the turn was interrupted): retire its
+  // card. Dropped from `pendingPerms` FIRST, so the observer below does not answer a request that no
+  // longer exists. Before this frame existed nothing retired such a card until the turn's `result`.
+  const withdrawPermission = (slug: string, sessionId: string, requestId: string): void => {
+    if (!deps.interactions) return
+    // By the DAEMON's request id, which is what `pendingPerms` holds and what the frame carries — the
+    // journal's own `providerRequestId` is the SDK's id for the same request, a different string.
+    for (const [interactionId, pending] of pendingPerms) {
+      if (pending.requestId !== requestId || pending.scope.threadSlug !== slug || pending.scope.sessionId !== sessionId) continue
+      pendingPerms.delete(interactionId)
+      // Hygiene, never fatal: the turn-ended sweep still retires a card this could not.
+      try { deps.interactions.withdraw(pending.scope, interactionId) } catch {}
+    }
+  }
+
   // A resolved/cancelled/expired interaction → the decision the daemon applies. The daemon is the durable
   // holder of the canUseTool promise, so this simply relays the answer over the live socket.
   //
@@ -541,6 +562,7 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
           .then((decision) => client.answerPermission(requestId, decision))
           .catch(() => client.answerPermission(requestId, { behavior: "deny", message: "permission decision failed" }))
       },
+      onPermissionWithdrawn: (requestId) => withdrawPermission(slug, sessionId, requestId),
     })
     const session: ActiveSession = { slug, sessionId, cwd, generation: record.generation, client, acksInput: record.capabilities?.includes(CLAUDE_BROKER_CAPABILITY_INPUT_ACK) === true }
     sessions.set(slug, session)
@@ -565,7 +587,7 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
     const we = deps.workerEnv
     const workerEnv: Record<string, string> = {
       FRIZZ_THREAD: slug,
-      // Every Claude worker's environment — the token budget, the bash timeouts, and the lifted
+      // Every Claude worker's environment — the token budget, the bash timeout ceiling, and the lifted
       // web-search / sub-agent caps — as ONE record, so a cap added there cannot miss this path. It
       // used to spread CLAUDE_WORKER_ENV, which carried the first two and not the caps, and since the
       // broker is the only transport that meant no worker ever received a lift (fixed 2026-08-19; see
@@ -760,7 +782,7 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
       // never consume what we send, so the deny has to be in flight first for the frame to land on a turn
       // that can actually read it. Ordering aside, this is also the answer to "they typed instead of
       // clicking" — see retirePendingFor.
-      retirePendingFor(input.threadSlug, input.sessionId, "user-cancelled")
+      if (!input.keepOpenCards) retirePendingFor(input.threadSlug, input.sessionId, "user-cancelled")
       // AWAITED, and that is the fix for the other half of 2026-09-30: this used to be `sendInput`, which
       // buffers the frame while the socket is down and returns — so a follow-up bound to a socket that
       // never came back resolved, the router recorded "GO!!" as delivered, and the client dropped the

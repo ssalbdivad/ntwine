@@ -14,19 +14,20 @@ export function messagePresentationText(message: Pick<TranscriptMessage, "text" 
 // which the transcript also uses for machine-written turns.
 //
 // Excluded: a QUEUED/optimistic follow-up (it has not landed yet), a SUB-AGENT's upward report
-// (`peerFrom`), and a coordinator/peer instruction delivered into a CHILD (`agentInstruction`). None is
+// (`peerFrom`), a coordinator/peer instruction delivered into a CHILD (`agentInstruction`), and another
+// thread messaging this one (`sessionPeer`). None is
 // an ask or anything to retry; a fault retry would resend another agent's words as the human's.
 // -1 when the transcript holds no human turn yet.
-export function lastAskIndex(messages: readonly Pick<TranscriptMessage, "role" | "queued" | "peerFrom" | "agentInstruction">[]): number {
+export function lastAskIndex(messages: readonly Pick<TranscriptMessage, "role" | "queued" | "peerFrom" | "agentInstruction" | "sessionPeer">[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
-    if (m.role === "user" && !m.queued && !m.peerFrom && !m.agentInstruction) return i
+    if (m.role === "user" && !m.queued && !m.peerFrom && !m.agentInstruction && !m.sessionPeer) return i
   }
   return -1
 }
 
 export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
-  Partial<Pick<TranscriptMessage, "displayText" | "kind" | "queued" | "wake" | "peerFrom" | "agentInstruction" | "spinoff">>
+  Partial<Pick<TranscriptMessage, "displayText" | "kind" | "queued" | "wake" | "peerFrom" | "agentInstruction" | "spinoff" | "sessionPeer">>
 
 // THE MOST RECENT INTERACTION — the last turn the human themself put into the thread. The QUEUE CARD
 // opens here: its handoff quotes this message (server router.ts `handoffOf`), and its transcript, opened
@@ -41,6 +42,8 @@ export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
 //   • a SPINOFF request, and a turn with nothing in it, are not the human speaking here;
 //   • an "Ask for update" click IS the human's turn, though it rides in as a park wake: the progress note
 //     under it is the reply to the click (router.ts isUpdateRequest).
+// Upstream's copy has since grown one of its own: a `sessionPeer` record is another thread messaging this
+// one (upstream ed99e01c), not the operator.
 //
 // Anything frizz composed is out, not just anything frizz delivered. A `wake` user record is frizz writing
 // as the user — the Goal delivery, the sign-off reminder, a watcher wake — and cutting there opened the card
@@ -58,7 +61,7 @@ export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
 export function lastHumanTurnIndex(messages: readonly HumanTurnLike[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
-    if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.agentInstruction || m.spinoff) continue
+    if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.agentInstruction || m.spinoff || m.sessionPeer) continue
     const said = (m.displayText ?? m.text).trim()
     if (!said) continue
     if (m.wake && !said.startsWith(BURIED_ANSWERS_HEADER) && parseParkWake(said)?.kind !== "requested") continue

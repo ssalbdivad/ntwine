@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join, dirname, isAbsolute } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { DISPATCH_TASK_BANNER_MARKER } from "@frizz/shared"
-import { buildClaudeCommand, loadWorkerPrompt, composePrompt, monitorScriptsDir, resolveWorkerPluginDir, scratchDirRelPath, scratchpadOrientation, workerPluginDir, workerScratchPath, frizzConfigBlock, workerDispatchPermission, WORKER_DISPATCH_PERMISSION } from "./dispatch.ts"
+import { buildClaudeCommand, launchableWorkerPluginDir, loadWorkerPrompt, composePrompt, monitorScriptsDir, resolveWorkerPluginDir, scratchDirRelPath, scratchpadOrientation, workerPluginDir, workerScratchPath, frizzConfigBlock, workerDispatchPermission, WORKER_DISPATCH_PERMISSION } from "./dispatch.ts"
 import { parseTranscript } from "./transcript.ts"
 import { FRIZZ_MCP } from "./backend/types.ts"
 
@@ -245,6 +245,52 @@ test("artifact worker resolver finds runtime/cc-worker through pnpm's nested mod
   writeFileSync(module, "export {}\n")
   writeFileSync(join(plugin, ".claude-plugin", "plugin.json"), "{}\n")
   assert.equal(resolveWorkerPluginDir(pathToFileURL(module).href, {}), plugin)
+})
+
+// ---- the path a worker is LAUNCHED against (launchableWorkerPluginDir) ----
+
+/** A plugin as an artifact carries it: found at a version-specific path the launcher names. */
+function artifactPlugin(root: string, marker: string): string {
+  const dir = join(root, "runtime", "cc-worker")
+  mkdirSync(join(dir, ".claude-plugin"), { recursive: true })
+  mkdirSync(join(dir, "hooks"), { recursive: true })
+  writeFileSync(join(dir, ".claude-plugin", "plugin.json"), "{}\n")
+  writeFileSync(join(dir, "hooks", "hooks.json"), JSON.stringify({ marker }))
+  return dir
+}
+
+test("an artifact's plugin is launched through the stable path, and a newer artifact's boot moves it", () => {
+  const root = mkdtempSync(join(tmpdir(), "frizz-launchable-plugin-"))
+  const roots = { stageRoot: join(root, "cache", "plugins"), stableRoot: join(root, "cache", "current") }
+  const marker = (path: string) => JSON.parse(readFileSync(join(path, "hooks", "hooks.json"), "utf8")).marker
+
+  const v1 = artifactPlugin(join(root, "generation-1"), "v1")
+  const launched = launchableWorkerPluginDir(v1, { FRIZZ_WORKER_PLUGIN_DIR: v1 }, roots)
+  assert.equal(launched, join(roots.stableRoot, "cc-worker"), "a worker is handed the stable path, not the generation's own")
+  assert.equal(marker(launched), "v1")
+
+  // The next version boots: a different process in production, the same call here.
+  const v2 = artifactPlugin(join(root, "generation-2"), "v2")
+  assert.equal(launchableWorkerPluginDir(v2, { FRIZZ_WORKER_PLUGIN_DIR: v2 }, roots), launched, "the path a running worker holds never changes")
+  assert.equal(marker(launched), "v2", "and what it leads to is now the new version's plugin")
+  assert.equal(marker(v1), "v1", "with the old generation's own directory left exactly as it was")
+})
+
+test("a source checkout's plugin is launched where it stands — it is edited in place, so it is already live", () => {
+  const root = mkdtempSync(join(tmpdir(), "frizz-launchable-plugin-"))
+  const roots = { stageRoot: join(root, "cache", "plugins"), stableRoot: join(root, "cache", "current") }
+  const checkout = artifactPlugin(root, "source")
+  assert.equal(launchableWorkerPluginDir(checkout, {}, roots), checkout)
+  assert.equal(existsSync(join(root, "cache")), false, "nothing was staged")
+})
+
+test("staging that fails costs no dispatch: the worker is launched against the immutable directory", () => {
+  const root = mkdtempSync(join(tmpdir(), "frizz-launchable-plugin-"))
+  const roots = { stageRoot: join(root, "cache", "plugins"), stableRoot: join(root, "cache", "current") }
+  // Something real already sits where the link belongs, which ensureSymlink refuses to replace.
+  mkdirSync(join(roots.stableRoot, "cc-worker"), { recursive: true })
+  const artifact = artifactPlugin(join(root, "generation"), "v1")
+  assert.equal(launchableWorkerPluginDir(artifact, { FRIZZ_WORKER_PLUGIN_DIR: artifact }, roots), artifact)
 })
 
 test("loadWorkerPrompt(claude) is BYTE-IDENTICAL to the pre-split contract (the regression bar)", () => {
@@ -615,8 +661,8 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     // carrying the same demotion, because a worker that reads only that section must not come away
     // thinking a spawned card is how it tidies up a barred `done`.
     assert.match(c, /It is the LAST resort among the exits, never the tidy one/)
-    assert.match(c, /nothing it learns returns to you or to its siblings/)
-    assert.match(c, /When the work is finished but the thread found\s+more/)
+    assert.match(c, /nothing it learns returns to you or to its siblings unless someone messages it across/)
+    assert.match(c, /When the work is\s+finished but the thread found\s+more/)
     assert.doesNotMatch(c, /Its most valuable use is the one that unblocks/)
     // The stop criterion's "you marked it (recommended), so you already knew — implement it instead"
     // is the counter-pull that pushed zod #6022 away from a question. It only holds where the worker
@@ -714,6 +760,21 @@ test("showing pictures: both contracts say tool output is collapsed and the ligh
     // The retired ways are not taught: no second syntax to choose between, no tool a worker lacks.
     assert.doesNotMatch(c, /!\[descriptive alt\]/)
     assert.doesNotMatch(c, /SendUserFile/)
+  }
+})
+
+// The web autolinker resolves a bare `#123` against the checkout's `origin`, so in a fork (origin is the
+// fork, the PRs live upstream) or a private repo with a public mirror, a bare ref links the wrong repo's
+// #123. Only the worker knows which repo it meant, so the contract has it write the repo every time.
+test("github refs: both contracts require owner/repo#123 and no longer teach the bare form", () => {
+  for (const raw of [loadWorkerPrompt("claude"), loadWorkerPrompt("codex")]) {
+    const c = raw.replace(/\s+/g, " ")
+    assert.match(c, /WRITE EVERY ISSUE AND PR AS `owner\/repo#123`, NEVER A BARE `#123`/)
+    assert.match(c, /in a fork, a mirror or a sibling repo is a DIFFERENT repo's #123/)
+    assert.match(c, /plain prose, not a code span, so it links/)
+    assert.match(c, /one `owner\/repo#123` in the first line or two/)
+    assert.doesNotMatch(c, /write the bare form/)
+    assert.doesNotMatch(c, /issue numbers and commit hashes link themselves/)
   }
 })
 

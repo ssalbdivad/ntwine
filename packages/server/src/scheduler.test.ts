@@ -439,7 +439,8 @@ test("question: a rested thread's unanswered question takes its recommended opti
   assert.equal(h.storage.getThreadQuestion("qst_rec")?.state, "answered")
   for (const id of ["qst_free", "qst_none", "qst_multi"]) assert.equal(h.storage.getThreadQuestion(id)?.state, "open", id)
   assert.equal(h.resumes.length, 1, "delivered in the same tick")
-  assert.match(h.resumes[0].message, /^1\. “Narrow the error rule\?” → Narrow — No reply in 10m, so Frizz took the recommended option$/m)
+  // The pick and the note travel as upstream's checked-list answer (shared answerPicksText).
+  assert.match(h.resumes[0].message, /^1\. “Narrow the error rule\?” → - \[x\] Narrow\n {2}\n {2}No reply in 10m, so Frizz took the recommended option$/m)
   assert.match(h.resumes[0].message, /“Rewrite the brief\?” → Yes$/m)
   h.storage.close()
 })
@@ -480,7 +481,7 @@ test("question: the default never takes an external option", async () => {
   await s.tick()
   assert.equal(h.storage.getThreadQuestion("qst_ext")?.state, "answered")
   assert.equal(h.storage.getThreadQuestion("qst_all_ext")?.state, "open", "nothing local to take")
-  assert.match(h.resumes[0].message, /“File the TS5088 repro\?” → Keep the repro local — No reply in 10m\. The recommended option acts outside this machine/)
+  assert.match(h.resumes[0].message, /“File the TS5088 repro\?” → - \[x\] Keep the repro local\n {2}\n {2}No reply in 10m\. The recommended option acts outside this machine/)
   assert.doesNotMatch(h.resumes[0].message, /→ File the issue upstream/)
   h.storage.close()
 })

@@ -1,5 +1,5 @@
-import { ListChecks } from "lucide-react"
-import { answersForDisplay, type PairedAnswer } from "../lib/answersMessage.ts"
+import { Check, ListChecks } from "lucide-react"
+import { answersForDisplay, splitAnswerPicks, type PairedAnswer } from "../lib/answersMessage.ts"
 import { LinkifiedText } from "./LinkifiedText.tsx"
 import { BLOCK_RADIUS, CardContent, CardHead } from "./TranscriptCard.tsx"
 
@@ -37,13 +37,7 @@ export function AnswersCard({ answers, queued, sourceId }: { answers: PairedAnsw
                   {!a.question && (
                     <span className="mt-1.5 shrink-0 text-[10px] uppercase tabular-nums tracking-wide text-muted-70">{a.n}</span>
                   )}
-                  {/* Neutral recessed chip — a SETTLED answer, not "awaiting you". The bright yellow accent
-                      is reserved solely for the awaiting-you motif (see styles.css); a past choice reads
-                      quiet: a darker inset panel with a soft left rule to still mark it as the reply. The
-                      12px is the family's CHIP scale (the question card's options), not its 13px body. */}
-                  <span className="min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md border border-border-strong border-l-2 border-l-accent/40 bg-bg/50 px-2.5 py-1.5 text-[12px] leading-snug text-fg">
-                    <LinkifiedText text={a.answer} />
-                  </span>
+                  <AnswerChips answer={a.answer} />
                 </div>
               </div>
             ))}
@@ -54,3 +48,47 @@ export function AnswersCard({ answers, queued, sourceId }: { answers: PairedAnsw
   )
 }
 
+
+// Neutral recessed chip — a SETTLED answer, not "awaiting you". The bright yellow accent is reserved
+// solely for the awaiting-you motif (see styles.css); a past choice reads quiet: a darker inset panel
+// with a soft left rule to still mark it as the reply. The 12px is the family's CHIP scale (the question
+// card's options), not its 13px body.
+const CHIP = "min-w-0 [overflow-wrap:anywhere] rounded-md border border-border-strong border-l-2 border-l-accent/40 bg-bg/50 px-2.5 py-1.5 text-[12px] leading-snug text-fg"
+
+// A multi-select's answer is SEVERAL picks and maybe a note, so its chip is a checked list — each pick
+// on its own line, boxed the way the settled question card checks it (QuestionBlockCard's settled multi
+// chip: same box, same classes) — with the note under a hairline. Still ONE chip, because it is one
+// question's one answer, like every other row of this card. It was one comma-joined line until
+// 2026-10-08, which ran five long labels and the human's note together into a paragraph (see
+// answerPicksText).
+function AnswerChips({ answer }: { answer: string }) {
+  const { picks, note } = splitAnswerPicks(answer)
+  if (picks.length === 0) {
+    return (
+      <span className={`${CHIP} flex-1 whitespace-pre-wrap`}>
+        <LinkifiedText text={answer} />
+      </span>
+    )
+  }
+  return (
+    <div className={`${CHIP} flex flex-1 flex-col`}>
+      <ul className="flex flex-col gap-1">
+        {picks.map((pick, i) => (
+          <li key={i} className="flex items-baseline gap-2">
+            <span aria-hidden className="mt-px flex h-3.5 w-3.5 shrink-0 self-start items-center justify-center rounded-[3px] border border-control-strong text-fg">
+              <Check size={10} strokeWidth={3} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <LinkifiedText text={pick} />
+            </span>
+          </li>
+        ))}
+      </ul>
+      {note && (
+        <div className="mt-1.5 whitespace-pre-wrap border-t border-border pt-1.5">
+          <LinkifiedText text={note} />
+        </div>
+      )}
+    </div>
+  )
+}

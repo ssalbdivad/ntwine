@@ -16,6 +16,7 @@ import { localImageHeaders, localImageStream, resolveLocalImage } from "./local-
 import { resolveProjectIconResponse } from "./project-icon.ts"
 import { resolveLocalVisualization } from "./local-visualization.ts"
 import { workDirOf } from "./project.ts"
+import { CALLER_HEADER, requestOriginFrom, withRequestOrigin } from "./audit.ts"
 
 export { resolveLocalImage } from "./local-image.ts"
 export { resolveLocalVisualization } from "./local-visualization.ts"
@@ -93,6 +94,20 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
     withDispatchCaller({ origin: c.req.header("origin"), userAgent: c.req.header("user-agent") }, next))
   app.use(frizzRoute("/rpc/setRunningDeadlines"), (c, next) =>
     withDispatchCaller({ origin: c.req.header("origin"), userAgent: c.req.header("user-agent") }, next))
+  // Attribute every procedure this request runs to whoever sent it, for the audit trail (audit.ts). An
+  // AsyncLocalStorage rather than a handler argument: procedures receive only `{ input }`, and only a
+  // handful of them record anything. The launcher's proxy says who called in CALLER_HEADER; a request
+  // without one reached this server directly, and `remoteAddress` is that caller (see pipeToApp).
+  app.use(`${frizzRoute("/rpc")}/*`, (c, next) =>
+    withRequestOrigin(
+      requestOriginFrom({
+        caller: c.req.header(CALLER_HEADER),
+        userAgent: c.req.header("user-agent"),
+        socketRemote: (c.env as { remoteAddress?: string } | undefined)?.remoteAddress,
+      }),
+      next,
+    ),
+  )
 
   // Compress RPC responses. The board payload for a busy project is ~780 KB of JSON and every page
   // load fetches it; the server produces it in ~11 ms and then spends far longer pushing it up a home

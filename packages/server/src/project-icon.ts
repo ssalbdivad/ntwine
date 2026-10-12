@@ -52,6 +52,19 @@ const HOST_DIRECTORIES = [
 ]
 
 /**
+ * A project's BRAND KIT: the directory it keeps its logo in, cut every way it needs it.
+ *
+ * Only a bare `brand/` was searched until 2026-10-11, and the miss was Pullfrog. Its `public/logos/`
+ * holds the frog as a 600px square, a circle, a bordered square and a wordmark, each in two
+ * colourways, and none of it was looked at — so the rail wore `app/apple-icon.png`, a 180px disc,
+ * which draws as a circle inside a square tile.
+ *
+ * Named apart from the other asset directories because the name is EVIDENCE, not just a place: see
+ * `squareCut` in the scoring.
+ */
+const BRAND_KIT_DIRECTORIES = ["logos", "logo", "brand", "branding"]
+
+/**
  * Where icons sit INSIDE a host, including the one nested level real toolchains use.
  *
  * `static/img` is Docusaurus, `public/icons` is most PWA generators — nesting one level is what
@@ -59,11 +72,12 @@ const HOST_DIRECTORIES = [
  */
 const ASSET_DIRECTORIES = [
   "",
-  "public", "static", "assets", "resources", "images", "img", "icons", "media", "brand", "design",
+  "public", "static", "assets", "resources", "images", "img", "icons", "media", "design",
   "public/images", "public/img", "public/icons", "public/assets", "public/static",
   "static/img", "static/images", "static/icons",
   "assets/images", "assets/img", "assets/icons",
   "resources/icons", "src/app", "src/assets",
+  ...["", "public/", "static/", "assets/"].flatMap((parent) => BRAND_KIT_DIRECTORIES.map((kit) => parent + kit)),
 ]
 
 /** Places that are not "a host with assets" and so cannot come out of the cross product. */
@@ -83,7 +97,9 @@ const MANIFEST_NAMES = ["manifest.json", "site.webmanifest", "manifest.webmanife
  * directory bonus below, not by winning outright.
  */
 const NAME_SCORES: [RegExp, number, string][] = [
-  [/^logomark$|^logo-?mark$|^app-?icon$|^icon-?square$/u, 20, "an app icon"],
+  // `icon-square` reaches here as `icon` (the shape is stripped and scored on its own); only the
+  // unseparated `iconsquare` still needs naming.
+  [/^logomark$|^logo-?mark$|^app-?icon$|^iconsquare$/u, 20, "an app icon"],
   [/^logo$|^icon$|^mark$|^brand$|^symbol$/u, 18, "the project logo"],
   [/^apple-?touch-?icon$|^apple-?icon$|^maskable(-?icon)?$/u, 16, "the touch icon"],
   [/^android-?chrome$|^mstile$|^ms-?icon$|^web-?app-?icon$|^pwa-?icon$/u, 14, "the web app icon"],
@@ -137,25 +153,38 @@ export interface ProjectIconCandidate {
 /** Theme and weight suffixes. Stripping them is what lets `mark-light` be recognised as a mark. */
 const VARIANT_SUFFIX = /[-_](light|dark|white|black|inverse|inverted|mono|color|colour|full|solid|outline|small|large|sm|lg|md)$/u
 
+/** The one SHAPE a filename states that matters here: the rail's tile is a square. */
+const SQUARE_SUFFIX = /[-_]square$/u
+
 /**
- * The comparable form of a filename stem, and whether it was a VARIANT of one.
+ * The comparable form of a filename stem, whether it was a VARIANT of one, and whether it says it is
+ * the SQUARE cut.
  *
- * Two kinds of suffix get stripped, for the same reason — they describe a rendition, not a different
- * picture. Sizes (`icon-192x192`, `logo@2x`, `mstile-150`) are how every icon toolchain writes its
- * output, and themes (`mark-light`) are how a project ships one mark twice. Without stripping them
- * none of those names matches anything and a project's entire icon set scores zero.
+ * Three kinds of suffix get stripped, for the same reason — they describe a rendition, not a
+ * different picture. Sizes (`icon-192x192`, `logo@2x`, `mstile-150`) are how every icon toolchain
+ * writes its output, themes (`mark-light`) are how a project ships one mark twice, and `-square` is
+ * how a brand kit tells its square cut from its circle and its wordmark. Without stripping them none
+ * of those names matches anything and a project's entire icon set scores zero.
  *
  * The variant flag exists because stripping alone would then TIE `mark-light.svg` with `mark.svg`,
  * and alphabetical order handed the rail the light-background mark — the wrong one against dark
  * chrome. Where a project ships both, the unqualified file is the one it means.
+ *
+ * A theme can sit on either side of the shape (`logo-square-dark`, `frog-white-square`), so it is
+ * looked for again once the shape comes off — and only then, so a name with no shape in it normalises
+ * exactly as it always did. That second look is what ranks Pullfrog's `frog-green-square` above its
+ * `frog-white-square`: `white` is a rendition, the brand colour is not.
  */
-function normalizeStem(stem: string): { normalized: string; variant: boolean } {
+function normalizeStem(stem: string): { normalized: string; variant: boolean; square: boolean } {
   const sized = stem
     .toLowerCase()
     .replace(/[@-]\d+(\.\d+)?x(\d+)?$/u, "")
     .replace(/[-_]\d{2,4}$/u, "")
-  const normalized = sized.replace(VARIANT_SUFFIX, "")
-  return { normalized, variant: normalized !== sized }
+  const themed = sized.replace(VARIANT_SUFFIX, "")
+  const unshaped = themed.replace(SQUARE_SUFFIX, "")
+  const square = unshaped !== themed
+  const normalized = square && themed === sized ? unshaped.replace(VARIANT_SUFFIX, "") : unshaped
+  return { normalized, variant: themed !== sized || normalized !== unshaped, square }
 }
 
 function nameScore(normalized: string): { score: number; reason: string } | undefined {
@@ -323,15 +352,21 @@ export function projectIconCandidates(root: string): ProjectIconCandidate[] {
     if (seen.has(path)) continue
     seen.add(path)
     const extension = extname(path).toLowerCase()
-    const { normalized, variant } = normalizeStem(basename(path, extname(path)))
+    const { normalized, variant, square } = normalizeStem(basename(path, extname(path)))
     if (NEVER_AN_ICON.test(normalized)) continue
 
     const named = nameScore(normalized)
     const isProjectNamed = normalized === projectStem && projectStem.length > 1
     const viaManifest = fromManifest.has(path)
-    // Something has to vouch for the file: its name, the project's name, or a manifest listing it.
-    // Without this, `public/team-photo.png` is a candidate in every repo that has one.
-    if (!named && !isProjectNamed && !viaManifest) continue
+    // In a brand kit the DIRECTORY says the file is a logo, so all its name has left to say is which
+    // cut — and `-square` is the cut the tile wants. Both halves are needed: `frog-green-square.png`
+    // is unrecognisable by name alone, and outside a kit `-square` is how any image at all gets
+    // cropped (`public/team-square.png`).
+    const squareCut = square && BRAND_KIT_DIRECTORIES.includes(basename(directory))
+    // Something has to vouch for the file: its name, the project's name, a manifest listing it, or a
+    // brand kit holding it as the square cut. Without this, `public/team-photo.png` is a candidate in
+    // every repo that has one.
+    if (!named && !isProjectNamed && !viaManifest && !squareCut) continue
 
     const dimensions = measure(path)
     if (!dimensions) continue
@@ -347,6 +382,10 @@ export function projectIconCandidates(root: string): ProjectIconCandidate[] {
       sizeScore(dimensions)
       + (FORMAT_SCORES[extension] ?? 0)
       + (named?.score ?? 0)
+      // A name that vouches for itself and ALSO says square is worth a little more than the same
+      // name without it (`icon-square` over `icon`). A kit's square cut has no other name score, so
+      // it gets an app icon's — which is what it is.
+      + (!square ? 0 : named || isProjectNamed ? 2 : squareCut ? 20 : 0)
       + (isProjectNamed ? 16 : 0)
       + (viaManifest ? 8 : 0)
       // The wayfinder payoff: everything sharing a directory with a favicon is lifted, so the big
@@ -368,7 +407,9 @@ export function projectIconCandidates(root: string): ProjectIconCandidate[] {
     const size = dimensions.scalable
       ? "scalable"
       : `${Math.round(dimensions.width)}×${Math.round(dimensions.height)}`
-    const why = isProjectNamed && !named ? "named after the project" : named?.reason ?? "listed in the web manifest"
+    const why = isProjectNamed && !named
+      ? "named after the project"
+      : named?.reason ?? (squareCut ? "the square logo" : "listed in the web manifest")
     const colourless = svgDeclaresColour(path) === false ? ", no colour of its own" : ""
     candidates.push({ path, score, dimensions, reason: `${size}, ${why}${colourless}, in ${where}` })
   }

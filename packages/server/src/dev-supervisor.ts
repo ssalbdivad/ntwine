@@ -896,9 +896,26 @@ class Supervisor implements DevSupervisor {
     }
   }
 
+  /**
+   * A restart or an update drains the running child and forks its replacement in the project the
+   * server is hosted on. Once that folder is deleted the fork fails with ENOENT, and a child given
+   * any other cwd refuses to boot without its project — and so does the one that would put the old
+   * child back, so the click meant to refresh the board stops it. The running child is unharmed by
+   * the missing folder, so refuse before draining and leave it serving.
+   *
+   * Measured 2026-10-11 on a board hosted on a folder deleted a day later: its Update failed one
+   * step earlier, on npm dying with `uv_cwd ENOENT`, and that accident was all that kept it up.
+   */
+  private missingLaunchFolder(): string | undefined {
+    if (existsSync(this.cwd)) return undefined
+    return `Frizz is running on ${this.cwd}, which no longer exists, so a new server cannot start there. Stop Frizz and start it again.`
+  }
+
   /** Called only by the public supervisor control endpoint, never by ordinary document reloads. */
   private restartFromBrowser(): Promise<RestartResult> {
     if (this.browserRestart) return this.browserRestart
+    const missing = this.missingLaunchFolder()
+    if (missing) return Promise.resolve({ state: "failed", message: missing })
     const previousBoot = this.boot?.bootId
     const work = (async (): Promise<RestartResult> => {
       this.lastRestartFailure = undefined
@@ -925,6 +942,9 @@ class Supervisor implements DevSupervisor {
 
   private async updateFromBrowser(): Promise<RestartResult> {
     if (!this.updateRestart) return { state: "failed", message: "Update & Restart is unavailable in this launcher mode" }
+    // Before preparing anything: both update modes end in a fork inside the launch folder.
+    const missing = this.missingLaunchFolder()
+    if (missing) return { state: "failed", message: missing }
     if (this.updateMode === "child") return this.updateChildFromBrowser()
     // The candidate is built and validated while the known-good child stays live. Only a successful
     // candidate reaches the controlled restart path, so a failed build never takes the board down.

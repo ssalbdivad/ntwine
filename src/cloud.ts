@@ -28,7 +28,8 @@ import { connectRelay } from "./relay-connection.ts";
  *
  *   (empty)            -> CLAIM a private unguessable name on frizz.sh — no account, no sign-in
  *   colin              -> CLAIM `colin.frizz.sh` from the registrar, bound to your GitHub account
- *                         through a no-permission GitHub sign-in (github-device-flow.ts)
+ *                         through a no-permission GitHub sign-in (github-device-flow.ts). PAUSED
+ *                         while CUSTOM_NAMES_OFFERED is false: the answer is refused up front.
  *   board.example.com  -> a tunnel you made yourself, which Frizz only runs
  *
  * The claimed path exists because creating a tunnel and its DNS record needs a zone-scoped Cloudflare
@@ -92,6 +93,34 @@ export function describeCloudConfig(config: CloudConfig): string {
  */
 export const REGISTRAR_IS_LIVE = true;
 
+/**
+ * Are CUSTOM names (`colin.frizz.sh`, bound to a GitHub account) offered?
+ *
+ * No, as of 2026-10-08, until Frizz's GitHub OAuth app is registered: the client id in
+ * github-device-flow.ts is still the placeholder, so a custom claim could only refuse with
+ * "not-configured" after the person had already picked it. While this is false the R pane does not
+ * list "Custom name", the prompt does not mention it, and a word answer refuses before any GitHub
+ * sign-in or registrar call. Private names, and every bring-your-own setup, are unaffected.
+ *
+ * Flipping it to `true` (with a real client id) brings the whole path back — nothing behind it was
+ * removed. A name already claimed keeps renewing either way: a renewal is signed by the keypair and
+ * never touches GitHub (resolveRunToken).
+ *
+ * `FRIZZ_CUSTOM_NAMES=1` turns the offer on for one process, which is how the tests and
+ * scripts/verify-claim-e2e.mjs keep driving the path while it is withdrawn. Read through
+ * customNamesOffered, never directly.
+ */
+export const CUSTOM_NAMES_OFFERED = false;
+
+/** CUSTOM_NAMES_OFFERED, or the `FRIZZ_CUSTOM_NAMES=1` override. */
+export function customNamesOffered(env: NodeJS.ProcessEnv = process.env): boolean {
+  return CUSTOM_NAMES_OFFERED || env.FRIZZ_CUSTOM_NAMES === "1";
+}
+
+/** Why a word answer is refused while custom names are withdrawn. */
+export const CUSTOM_NAMES_PAUSED =
+  "custom frizz.sh names are paused for now — press enter for a private name (no account needed), or answer with the hostname of a tunnel you run";
+
 /** A claimed name runs a remotely-managed tunnel; a hand-made one runs by name from a config file. */
 export function isClaimedConfig(config: CloudConfig): boolean {
   return typeof config.claim === "string" && config.claim.length > 0;
@@ -138,6 +167,10 @@ export function zoneClaimLabel(hostname: string): string | null {
  * returned as-is, and the caller renews its lease the usual way. Throws when the claim fails — a name
  * somebody else holds, or a registrar that cannot be reached on a first claim — because starting a
  * tunnel that nothing can reach is the failure this exists to end.
+ *
+ * While custom names are withdrawn (CUSTOM_NAMES_OFFERED), a saved custom label that still needs this
+ * move refuses with a message saying so, rather than starting a GitHub sign-in at launch. A relay
+ * claim on a custom name is untouched: it returns above, and the caller renews it by keypair alone.
  */
 export async function reconcileCloudConfig(
   config: CloudConfig,
@@ -152,6 +185,11 @@ export async function reconcileCloudConfig(
   if (isRelayConfig(config)) return config;
   const label = config.claim ?? zoneClaimLabel(config.hostname);
   if (!label) return config;
+  if (!isAnonymousClaimName(label) && !customNamesOffered()) {
+    throw new Error(
+      `${config.hostname} needs moving onto the Frizz relay, which means claiming it again, and custom frizz.sh names are paused for now — press R to pick a private name or another setup`,
+    );
+  }
   onNotice?.(
     isClaimedConfig(config)
       ? `${config.hostname} is served by the Frizz relay now; moving this board off its tunnel`
@@ -264,7 +302,9 @@ export async function promptForCloudName(): Promise<string> {
   try {
     return (
       await rl.question(
-        "Name for this board — press enter for a private unguessable name (no account), a word claims <name>.frizz.sh (needs GitHub), or paste a hostname you already run a tunnel for: ",
+        customNamesOffered()
+          ? "Name for this board — press enter for a private unguessable name (no account), a word claims <name>.frizz.sh (needs GitHub), or paste a hostname you already run a tunnel for: "
+          : "Name for this board — press enter for a private unguessable name (no account), or paste a hostname you already run a tunnel for: ",
       )
     ).trim();
   } finally {
@@ -319,6 +359,9 @@ export async function establishCloudConfig(
   // GitHub account at all — which is the whole point of it. A name that already HAS the
   // anonymous shape rides the same path, so reconciling or re-entering one never demands GitHub.
   const anonymous = answer === "" || isAnonymousClaimName(answer);
+  // Withdrawn custom names refuse HERE: before the name is judged, before a keypair is minted, and
+  // before GitHub or the registrar hears anything (see CUSTOM_NAMES_OFFERED).
+  if (!anonymous && !customNamesOffered()) throw new Error(CUSTOM_NAMES_PAUSED);
   if (!anonymous && !claimNameIsValid(answer)) {
     // Surface the specific reason — reserved, too short, bad character — rather than a generic refusal.
     normalizeClaimName(answer);

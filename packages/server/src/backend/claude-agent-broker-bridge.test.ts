@@ -19,11 +19,18 @@ import { CLAUDE_BROKER_CAPABILITY_INPUT_ACK, CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX
 import { claudeBrokerDiagnosticLogPath } from "./claude-broker-diagnostics.ts"
 import { WORKER_MAX_CONCURRENT_SUBAGENTS, WORKER_MAX_SUBAGENTS, WORKER_MAX_WEB_SEARCHES } from "./types.ts"
 
-/** Did this argv resume a transcript? Either spelling: `--resume <id>` (SDK ≤ 0.3.207) or `--resume=<id>` (0.3.260+). */
-const resumes = (argv: readonly string[] | undefined, sessionId?: string): boolean => {
+/** The value the SDK passed for a CLI flag, in either spelling: `--flag <value>` or `--flag=<value>`. The
+ *  SDK moved `--resume` and `--session-id` to the second in 0.3.260, and every other value flag
+ *  (`--permission-mode`, `--model`, `--effort`…) in 0.3.296; the real CLI accepts both. */
+const flagValue = (argv: readonly string[] | undefined, flag: string): string | undefined => {
   const args = argv ?? []
-  const index = args.indexOf("--resume")
-  const value = index >= 0 ? args[index + 1] : args.find((arg) => arg.startsWith("--resume="))?.slice("--resume=".length)
+  const index = args.indexOf(flag)
+  return index >= 0 ? args[index + 1] : args.find((arg) => arg.startsWith(`${flag}=`))?.slice(flag.length + 1)
+}
+
+/** Did this argv resume a transcript? */
+const resumes = (argv: readonly string[] | undefined, sessionId?: string): boolean => {
+  const value = flagValue(argv, "--resume")
   return value !== undefined && (sessionId === undefined || value === sessionId)
 }
 
@@ -88,6 +95,44 @@ async function runCase(decisionId: string, expectBehavior: "allow" | "deny") {
     await rmEventually(dir)
   }
 }
+
+// A request the worker's own hook settles after the operator was already shown its card: the card must
+// LEAVE, at once and for the right reason — not sit there with dead buttons until the turn's `result`
+// sweeps it as `turn-ended` (measured against real claude 2026-10-10: 23s, and as long as the turn).
+test("a card whose request the CLI settles is withdrawn from the journal before the turn ends", { timeout: 25_000 }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cbrk-perm-"))
+  const exe = join(dir, "fake-claude--permission-settled-late.mjs")
+  copyFileSync(fakeCli, exe); chmodSync(exe, 0o700)
+  const db = new Database(":memory:")
+  const store = createInteractionStore(db)
+  let results = 0
+  const bridge = createClaudeAgentBrokerBridge({
+    stateDir: dir, executablePath: exe,
+    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" },
+    interactions: store, projectId: "proj-1",
+    onEvent: (_slug: string, _sid: string, ev: ClaudeQueryEvent) => { if (ev.kind === "result") results++ },
+  })
+  const sessionId = randomUUID()
+  const slug = "perm-thread"
+  const scope = { projectId: "proj-1", threadSlug: slug, sessionId }
+  const waitFor = async (cond: () => boolean, ms = 10_000) => { const d = Date.now() + ms; while (!cond()) { if (Date.now() > d) throw new Error("timeout"); await sleep(20) } }
+  try {
+    await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: dir, prompt: "do the thing", permissionMode: "default" })
+    await waitFor(() => store.listPending(scope).length > 0)
+    const [rec] = store.listPending(scope)
+    await waitFor(() => store.listPending(scope).length === 0)
+    assert.equal(results, 0, "the card left BEFORE the turn ended, not because it did")
+    const after = store.get(scope, rec.id)
+    assert.equal(after?.lifecycle, "cancelled")
+    assert.equal(after?.cancellationReason, "provider-cancelled", "withdrawn by the daemon, not swept as turn-ended")
+    await waitFor(() => results > 0)
+  } finally {
+    bridge.releaseSession(slug, sessionId, "session-deleted")
+    bridge.close()
+    try { const r = readBrokerRecord(claudeBrokerRecordPath(dir, sessionId)); if (r) process.kill(r.daemonPid, "SIGKILL") } catch {}
+    await rmEventually(dir)
+  }
+})
 
 test("broker routes a permission escalation to the InteractionStore and APPROVES on the human decision", { timeout: 25_000 }, async () => {
   await runCase("grant-turn", "allow")
@@ -323,7 +368,7 @@ test("retireDaemon retires the process without ending the conversation, and the 
     while (startups().length < n && Date.now() < deadline) await sleep(50)
     assert.equal(startups().length, n, `expected ${n} claude process(es) by now`)
   }
-  const modeOf = (argv: string[] | undefined) => argv?.[(argv?.indexOf("--permission-mode") ?? -1) + 1]
+  const modeOf = (argv: string[] | undefined) => flagValue(argv, "--permission-mode")
   try {
     await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: dir, prompt: "start the work", permissionMode: "auto" })
     const first = recordOf()

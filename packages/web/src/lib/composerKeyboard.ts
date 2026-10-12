@@ -72,7 +72,8 @@ export function shouldPushQueuedComposerEnter(event: ComposerKeyboardEvent, isEm
  * turn — Frizz never sends `turn/interrupt` for a message, and a `spawn_agent` child would die with
  * an interrupted turn. An ACP agent has no steer, so a follow-up queues behind the running turn, and
  * `session/cancel` is reserved for ending the thread. On both, ⌘-Enter is a plain send. A
- * `submitOverride` surface (the queue card's staged answers) sends a whole answer set and is excluded.
+ * `submitOverride` surface is excluded: that is the queue card, whose every send — a plain reply as much
+ * as its staged answers — goes through its answering controller, which has no interrupting send.
  */
 export function canInterruptAndSend(
   thread: { runtime?: string; backend?: string } | undefined,

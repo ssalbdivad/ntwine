@@ -214,8 +214,8 @@ body {
   font-family: var(--font-mono);
 }
 
-/* The prompt box frames its composer with 12px on all four sides. When the ⤷ running-ops column is
-   present the last thing above that bottom 12px is a line of TEXT rather than the composer's hard
+/* The sub-agent drawer's steer box frames its composer with 12px on all four sides. When the ⤷
+   running-ops column under it is present the last thing above that bottom 12px is a line of TEXT rather than the composer's hard
    border, so the box measure and the optical one stop agreeing: the row's baseline parks above its own
    box bottom by the line box's half-leading, and the frame reads as that much MORE air. Left
    uncorrected the column sat ~16px off the footer — and it used to add another 8px of its own on top,
@@ -226,8 +226,8 @@ body {
    below is, and measured the same way (a zero-size inline probe inside the row's own label span, on
    the real app via scripts/seed-queue-ops-column.mjs): an 11.5px/17.25px row leaves 4.25px under its
    baseline in the sans stack and 6.25px in mono. One shared value would leave the other mode ~2px out.
-   Applied by ThreadComposerBox (and SubAgentSheet's steer footer) to a wrapper around the column,
-   which stays `empty:hidden` — with no live ops the composer's own 12px must survive intact. */
+   Applied by SubAgentSheet's steer footer, the one surface that still hangs the column under its box:
+   the thread's drawer and the queue card count their ops over the box instead (QueueOpsSummary). */
 :root {
   --ops-column-optical-inset: -4.25px;
 }
@@ -246,9 +246,10 @@ body {
   margin-left: 17.5px;
 }
 
-/* In the queue card's ops panel (QueueOpsSummary) the saved files and links can be the panel's first
-   rows. ThreadLinks rules itself off from the rows above it, which is right in the drawer's strip and
-   a stray line across the panel's top edge here, where nothing is above it. */
+/* In an ops panel (QueueOpsSummary, on the queue card and in the drawer) the saved files or links are
+   the panel's only rows: each count opens a panel of its own kind. ThreadLinks rules itself off from
+   the rows above it, which is right under a strip's live rows and a stray line across the panel's top
+   edge, where nothing is above it. */
 [data-queue-ops-panel] > :is([data-background-ops], [data-queue-card-ops]):first-child > [data-thread-links]:first-child {
   margin-top: 0;
   border-top-width: 0;
@@ -1340,6 +1341,15 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
   position: relative;
   margin: var(--md-step) 0;
 }
+/* The copy button's box and its inset (see `.md-code-copy` below). Declared for the wrapper as well as
+   the button, because a tabbed block's header is sized from them too, so the button sits centred in
+   that row — and for the button in its own right, so one standing outside a wrapper
+   (scripts/verify-md-code-copy-button.mjs lays probes out that way) still resolves them. */
+.md-body .md-code,
+.md-body .md-code-copy {
+  --md-copy-box: 1.7em;
+  --md-copy-inset: 0.35em;
+}
 .md-body .md-code > pre {
   margin: 0;
 }
@@ -1368,9 +1378,8 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    numbers. Inset 0.35em sits the button inside the `pre`'s own 0.75em/1em padding, so it never overhangs
    the border. */
 .md-body .md-code-copy {
-  --md-copy-box: 1.7em;
-  /* One inset, used three times, because the corner depends on it — see the radius below. */
-  --md-copy-inset: 0.35em;
+  /* --md-copy-box and --md-copy-inset are declared just above. ONE inset, used three times, because the
+     corner depends on it — see the radius below. */
   position: absolute;
   top: var(--md-copy-inset);
   right: var(--md-copy-inset);
@@ -1447,6 +1456,288 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    riding high. Correcting it in the glyph's own coordinates costs no unit and cannot drift with size. */
 .md-body .md-code-copy.is-copied::after {
   --md-copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -0.5 24 24' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+/* ── Framed code blocks ─────────────────────────────────────────────────────────────────────────
+   A block with a row above or below its code — a title or tabs (lib/codeTabs.ts), the show-all button
+   under a long block — is drawn by lib/codeBlock.ts as `.md-code.md-code-frame`. The FRAME moves from
+   the `pre` to the wrapper, because the rows and the code are one box now: the wrapper takes the
+   border, the arc and the fill, and clips its children to that arc. */
+.md-body .md-code-frame {
+  /* The size of a label in one of those rows, as a ratio of the prose around it (12px on the
+     transcript's 14). It converts between the two font sizes a header's padding is written in. */
+  --md-tab-size: 0.857;
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
+  background: var(--color-bg);
+  overflow: hidden;
+}
+.md-body .md-code-frame > pre {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+/* ── Code tabs ──────────────────────────────────────────────────────────────────────────────────
+   lib/codeTabs.ts folds a run of LABELLED fences into one `.md-code-tabs` frame: a header row of tab
+   buttons (or, for one fence, a title), then one `<pre>` per tab with only the open one displayed.
+   lib/switch-code-tab.ts moves `is-active`. */
+.md-body .md-code-tabs {
+  /* The side padding of one tab, in PROSE ems. */
+  --md-tab-pad: 0.6em;
+}
+.md-body .md-code-tabs > pre {
+  display: none;
+}
+.md-body .md-code-tabs > pre.is-active {
+  display: block;
+}
+.md-body .md-code-tablist {
+  display: flex;
+  align-items: center;
+  /* The row is exactly the copy button plus its inset above and below, so the button — which keeps the
+     distance from the OUTER edge it has on a plain block (the -1px terms are this wrapper's border) —
+     is centred in it. The last 1px is the rule under the row. */
+  min-height: calc(var(--md-copy-box) + 2 * var(--md-copy-inset) - 1px);
+  /* A label starts on the code's own left edge: the `pre` pads 1em, and a tab pads --md-tab-pad of it. */
+  padding: 0 calc(var(--md-copy-box) + 2 * var(--md-copy-inset)) 0 calc(1em - var(--md-tab-pad));
+  background: var(--color-panel);
+  /* The rule and the open tab's bar are INSET shadows, not borders: the strip scrolls sideways when the
+     tabs outrun it, and a bar hung below the row on a negative margin would be clipped by that scroller. */
+  box-shadow: inset 0 -1px 0 var(--color-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.md-body .md-code-tablist::-webkit-scrollbar {
+  display: none;
+}
+.md-body .md-code-tab,
+.md-body .md-code-title {
+  flex: none;
+  max-width: 24em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 1px under the label: it centres in the row ABOVE the rule, which is the box the copy button is
+     centred in. Without it the cap band sat 0.28px low at 14px and 0.64px low in an answer chip; with
+     it the residual is under 0.3px at every scale a fence renders at (measured in sans, 2026-10-11). */
+  padding: 0 calc(var(--md-tab-pad) / var(--md-tab-size)) 1px;
+  font-family: var(--font-sans);
+  font-size: calc(1em * var(--md-tab-size));
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+.md-body .md-code-tab {
+  position: relative;
+  align-self: stretch;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.md-body .md-code-tab:hover {
+  color: var(--color-fg);
+}
+/* The app's own tab idiom (MobileBoard's band tabs): the open tab takes the foreground and a 2px bar
+   as wide as its LABEL, not its hit area — so the first tab's bar starts on the code's left edge, where
+   its label does. */
+.md-body .md-code-tab.is-active {
+  color: var(--color-fg);
+}
+.md-body .md-code-tab.is-active::after {
+  content: "";
+  position: absolute;
+  inset: auto calc(var(--md-tab-pad) / var(--md-tab-size)) 0;
+  height: 2px;
+  background: currentColor;
+}
+.md-body .md-code-tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+/* The button is placed from the wrapper's PADDING box, which on a frame starts inside its border. */
+.md-body .md-code-frame > .md-code-copy {
+  top: calc(var(--md-copy-inset) - 1px);
+  right: calc(var(--md-copy-inset) - 1px);
+}
+/* Inside an answer chip the block chrome is translucent (see `[data-question-option] .md-body pre`
+   above), and so is this frame. Its rows need no z-index of their own to be clickable there: `.md-code`
+   is positioned and follows the chip's stretched button in the DOM, so the whole block already paints
+   above it (lib/codeTabs.e2e.test.ts hit-tests a tab inside a chip). */
+[data-question-option] .md-body .md-code-frame {
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+  border-color: color-mix(in srgb, var(--color-fg) 9%, transparent);
+}
+[data-question-option] .md-body .md-code-frame > pre {
+  background: none;
+}
+[data-question-option] .md-body .md-code-tablist {
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-fg) 9%, transparent);
+}
+/* ── Code drawn a line at a time ────────────────────────────────────────────────────────────────
+   Marked lines (lib/codeLines.ts) and a rendered diff (lib/codeDiff.ts) both need a band of colour
+   that runs the full width of the block, so each line is its own block-level span and the `pre` gives
+   its side padding to them.
+
+   Two things about the `pre` are needed INSIDE the smaller `code` and are not reachable from there in
+   `em`: its line height and its side padding. Registered as lengths, each is computed where it is
+   declared and inherited as that many pixels. That is what keeps a block drawn this way exactly as
+   tall, line for line, as the plain block beside it — its lines would otherwise be set on the `code`'s
+   own 0.88em leading. The `max()` at each use is the fallback where `@property` or `lh` is missing: the
+   line's own metrics, about a pixel and a half tighter. */
+@property --md-pre-lh {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@property --md-pre-em {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+.md-body pre {
+  --md-pre-lh: 1lh;
+  --md-pre-em: 1em;
+}
+.md-body pre:is(.md-code-lined, .md-diff) {
+  padding-left: 0;
+  padding-right: 0;
+}
+/* As wide as its longest line when the block scrolls sideways, so a band reaches the end of the line it
+   colours and not just the edge of the viewport; never narrower than the block. Where code WRAPS (the
+   Queue's column, TranscriptCard QUEUE_WRAP) the longest line is no wider than the block, so this is
+   simply the block's width. */
+.md-body pre:is(.md-code-lined, .md-diff) > code {
+  display: block;
+  width: fit-content;
+  min-width: 100%;
+}
+.md-body :is(.md-line, .md-diff-row) {
+  display: block;
+  padding: 0 max(var(--md-pre-em), 1em);
+  line-height: max(var(--md-pre-lh), 1lh);
+}
+/* A marked line: the accent as a wash, and as a bar on the block's own left edge. */
+.md-body .md-line.is-marked {
+  background: color-mix(in srgb, var(--color-accent) 13%, transparent);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+/* ── Rendered diffs ─────────────────────────────────────────────────────────────────────────────
+   The Edit card's rows (lib/diff/diff.css) in a Markdown fence: the same fills and sign colours, from
+   the same palette, so a diff an agent writes and one Frizz renders from a tool call read as one thing.
+   A row is the line number (only when the diff has hunk headers to count from), the sign, the code.
+
+   The numbers are drawn by the stylesheet from `data-line`, and the sign column is not selectable: the
+   `code`'s text is the diff as written, which is what Copy takes, while a drag across the rows picks up
+   the code alone. */
+.md-body :is(.md-diff-add, .md-diff-del, .md-diff-ctx) {
+  display: flex;
+  align-items: baseline;
+}
+.md-body .md-diff-add {
+  background: var(--code-add-bg);
+}
+.md-body .md-diff-del {
+  background: var(--code-del-bg);
+}
+.md-body .md-diff-num {
+  flex: none;
+  width: calc(var(--md-diff-digits, 2) * 1ch);
+  margin-right: 1.5ch;
+  text-align: right;
+  color: var(--code-gutter);
+  user-select: none;
+}
+.md-body .md-diff-num::before {
+  content: attr(data-line);
+}
+.md-body .md-diff-n3 { --md-diff-digits: 3; }
+.md-body .md-diff-n4 { --md-diff-digits: 4; }
+.md-body .md-diff-n5 { --md-diff-digits: 5; }
+.md-body .md-diff-n6 { --md-diff-digits: 6; }
+.md-body .md-diff-sign {
+  flex: none;
+  width: 1ch;
+  margin-right: 1ch;
+  color: var(--code-gutter);
+  user-select: none;
+}
+.md-body .md-diff-add > .md-diff-sign {
+  color: var(--code-add-sign);
+}
+.md-body .md-diff-del > .md-diff-sign {
+  color: var(--code-del-sign);
+}
+.md-body .md-diff-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* A hunk header divides the diff; the lines git writes about a file sit back from the code. */
+.md-body .md-diff-hunk {
+  color: var(--color-muted);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+}
+.md-body :is(.md-diff-file, .md-diff-meta) {
+  color: var(--code-com);
+}
+/* A diff titled from its own `+++` line: the title bar says which file, so the header lines do not. */
+.md-body .md-diff-titled .md-diff-file {
+  display: none;
+}
+/* The counts beside a diff's title. Tabular, so `+12 −3` and `+9 −14` end on one edge down a page. */
+.md-body .md-diff-stat {
+  display: flex;
+  flex: none;
+  gap: 0.5em;
+  padding-bottom: 1px;
+  font-family: var(--font-sans);
+  font-size: calc(1em * var(--md-tab-size));
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+.md-body .md-diff-adds {
+  color: var(--code-add-sign);
+}
+.md-body .md-diff-dels {
+  color: var(--code-del-sign);
+}
+/* ── Long code blocks ───────────────────────────────────────────────────────────────────────────
+   A fence over 40 lines is drawn 24 lines tall with a button under it for the rest
+   (lib/codeBlock.ts LONG_BLOCK_SHOWN — the 24 here is that number; lib/expand-code.ts moves
+   `is-clamped`). The clamp is a HEIGHT, not a line count, so it holds where the lines wrap. The last
+   lines fade out under a mask: a block cut mid-line with a hard edge reads as the end of the code. */
+.md-body pre.md-code-long.is-clamped {
+  max-height: calc(24lh + 0.75em);
+  overflow-y: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 3lh), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 3lh), transparent);
+}
+.md-body .md-code-expand {
+  display: block;
+  width: 100%;
+  padding: 0.3em 1em calc(0.3em + 1px);
+  font-size: calc(1em * var(--md-tab-size));
+  line-height: 1.5;
+  text-align: center;
+  color: var(--color-muted);
+  background: var(--color-panel);
+  box-shadow: inset 0 1px 0 var(--color-border);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.md-body .md-code-expand:hover {
+  color: var(--color-fg);
+}
+.md-body .md-code-expand:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+/* One button per long tab; only the open tab's shows. */
+.md-body .md-code-tabs > pre:not(.is-active) + .md-code-expand {
+  display: none;
+}
+[data-question-option] .md-body .md-code-expand {
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-fg) 9%, transparent);
 }
 /* Highlight.js token colours, expressed only through the allowlisted classes our explicit core
    grammars emit and drawn entirely from the shared --code-* palette at the top of this file. Block

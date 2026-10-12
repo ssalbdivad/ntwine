@@ -206,7 +206,7 @@ test("an armed timer gets a row: named by its prompt, counting down, non-interac
   const body = text(t)
   assert.match(body, /Timers/)
   assert.match(body, /Re-check: tip quiet, install green/)
-  assert.match(body, /fires in 3[34]m/)
+  assert.match(render(t), /data-wait-status[^>]*>in 3[34]m</, "the Timers heading carries the verb")
   const rows = renderToStaticMarkup(createElement(AwaitingWaitTable, { thread: t, divider: false }))
   assert.doesNotMatch(rows, /lucide-chevron-right/, "nothing to open, so no chevron")
   assert.doesNotMatch(rows, /<a |<button/, "no dead link and no disabled control either")
@@ -260,12 +260,13 @@ test("a shell watch resolves its label off ANY of the three legal handles", () =
 
 // A declared watch outlives the shell it names: the OS confirms the process gone (tailer `shellIsGone`),
 // no completion ever arrives, and this row is the reason the thread is back in the queue. It read
-// "running · …" in the shell blue until 2026-10-05.
+// "running · …" in the shell blue until 2026-10-05; since 2026-10-08 its status is the elapsed time
+// alone, and the grey mark and the tooltip say it is gone.
 test("a declared shell whose process is gone reads stale, never running", () => {
   const dead = { ...thread([], [{ ...shell("running"), state: "stale" }]), watches: [shellWatch("bzvtnt3ig")] } as Parameters<typeof AwaitingBackgroundCard>[0]["thread"]
   const html = render(dead)
   const row = html.slice(html.indexOf('data-wait-kind="shell"'))
-  assert.match(row, /data-wait-status[^>]*>stale · /)
+  assert.doesNotMatch(row, /data-wait-status[^>]*>[^<]*stale/, "the mark and tooltip carry it, not the status")
   assert.doesNotMatch(row, /running/)
   assert.doesNotMatch(row, /text-shell/, "a dead process does not wear the live shell blue")
   assert.ok(row.includes(CHILD_STALE_SHELL_TITLE), "the tooltip says the process exited")
@@ -278,26 +279,36 @@ test("the rail's row for a stale sub-agent wears the stale dot, never the spinne
   const stale = renderToStaticMarkup(createElement(AgentRow, { agent: agent("stale"), slug: "demo-thread", now }))
   assert.ok(stale.includes(`class="${CHILD_STALE_DOT_CLASS}"`))
   assert.doesNotMatch(stale, /animate-spin/)
-  assert.match(stale, /data-wait-status[^>]*>stale · opus-high · 30m</)
+  assert.match(stale, /data-wait-status[^>]*>30m</, "the dot says stale; the status is the elapsed time")
   assert.ok(stale.includes(CHILD_STALE_TITLE))
   const live = renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now }))
   assert.match(live, /animate-spin/)
   assert.doesNotMatch(live, /stale/)
 })
 
-// On /full the rail REPLACES the ops strip, so its agent and shell rows carry the strip's × — STOP while
-// running, CLEAR once not, with ChildOpRow's own words. The card passes none (the strip sits beneath it).
-test("a rail row given onDismiss carries the strip's stop/clear ×, directly after its name", () => {
+// On /full the rail REPLACES the ops strip, so its agent and shell rows carry the strip's × where nothing
+// else on the page does its job: CLEAR on a settled row, with ChildOpRow's own words, and STOP only on a
+// running row with no drawer — a running row that opens leaves its stop to the drawer (maintainer
+// 2026-10-08). The card passes none (the strip sits beneath it).
+test("a rail row given onDismiss carries the strip's × only where its drawer cannot stand in", () => {
   const now = Date.parse("2026-07-28T09:30:00.000Z")
   const noop = () => {}
-  const stopX = renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now, onDismiss: noop }))
-  assert.match(stopX, /aria-label="Stop sub-agent: Audit the parser"/)
-  assert.ok(stopX.indexOf("Audit the parser</button>") < stopX.indexOf('aria-label="Stop sub-agent'), "the × follows the name")
-  assert.ok(stopX.indexOf('aria-label="Stop sub-agent') < stopX.indexOf("data-wait-status"), "…and precedes the status")
+  const running = renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now, onDismiss: noop }))
+  assert.doesNotMatch(running, /aria-label="Stop/, "a running sub-agent is stopped from its drawer")
+  const clearAgent = renderToStaticMarkup(createElement(AgentRow, { agent: agent("stale"), slug: "demo-thread", now, onDismiss: noop }))
+  assert.match(clearAgent, /aria-label="Clear sub-agent: Audit the parser"/)
+  assert.ok(clearAgent.indexOf("Audit the parser</button>") < clearAgent.indexOf('aria-label="Clear sub-agent'), "the × follows the name")
+  assert.ok(clearAgent.indexOf('aria-label="Clear sub-agent') < clearAgent.indexOf("data-wait-status"), "…and precedes the status")
   const clearX = renderToStaticMarkup(createElement(BgShellRow, { shell: { ...shell("running"), state: "stale" }, slug: "demo-thread", now, onDismiss: noop }))
   assert.match(clearX, /aria-label="Clear agent terminal: vite dev"/)
   assert.match(clearX, /title="Clear — stop tracking this finished operation"/)
-  assert.doesNotMatch(renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now })), /aria-label="Stop/, "no onDismiss, no ×")
+  // A Codex exec's drawer opens even with its output unreadable — its command, folder and Stop are real — so
+  // its row leaves the stop to it. Only a shell with no id has no drawer, and keeps the only stop it has.
+  const codex = renderToStaticMarkup(createElement(BgShellRow, { shell: { ...shell("running"), outputUnavailable: true }, slug: "demo-thread", now, onDismiss: noop }))
+  assert.doesNotMatch(codex, /aria-label="Stop/)
+  const drawerless = renderToStaticMarkup(createElement(BgShellRow, { shell: { ...shell("running"), id: undefined }, slug: "demo-thread", now, onDismiss: noop }))
+  assert.match(drawerless, /aria-label="Stop agent terminal: vite dev"/)
+  assert.doesNotMatch(renderToStaticMarkup(createElement(AgentRow, { agent: agent("stale"), slug: "demo-thread", now })), /aria-label="Clear/, "no onDismiss, no ×")
 })
 
 test("sub-agent rows are DIRECT and RUNNING only", () => {
@@ -319,10 +330,14 @@ test("a row with nothing to open is non-interactive — no chevron, never a disa
   assert.match(text(idless), /audit-the-parser/, "…and the row is still there, named by its handle")
 })
 
-test("the sub-agent row says its profile without the dispatch namespace", () => {
-  const body = text(thread([agent("running")], []))
-  assert.match(body, /opus-high/)
-  assert.doesNotMatch(body, /frizz:opus-high/)
+// The profile is the TOOLTIP's, not the status's (maintainer 2026-10-08): the status keeps the one
+// reading that changes, and the title keeps its width.
+test("the sub-agent row keeps its profile in the tooltip, without the dispatch namespace", () => {
+  const now = Date.parse("2026-07-28T09:30:00.000Z")
+  const row = renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now }))
+  assert.match(row, /title="Open this sub-agent \(opus-high\) — working for 30m"/)
+  assert.doesNotMatch(row, /frizz:opus-high/)
+  assert.match(row, /data-wait-status[^>]*>30m</)
 })
 
 // THE SENTENCE IS THE FALLBACK NOW, not the content. Every kind has a row, so counting the same things in
@@ -524,7 +539,7 @@ test("Stop draws the footer on its own where there is no rest to park", () => {
 
 // ---- STEPS FOR THE HUMAN (2026-10-03) --------------------------------------------------------------
 // A fence carrying `steps:` waits on the READER. The steps themselves render through the markdown
-// sanitizer, which needs a real DOM this runner does not have — the drawn card, its "To do" chip head
+// sanitizer, which needs a real DOM this runner does not have — the drawn card, its "Awaiting human" chip head
 // and its one verb are pinned in a real browser by AwaitingSteps.e2e.test.ts (the chip head's structure
 // is TranscriptCard's, in TranscriptCard.test.ts). What is DOM-free is pinned here: the one test that
 // decides whether the verbs may be offered at all.

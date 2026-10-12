@@ -207,8 +207,10 @@ export function SubAgentSheet({
             stoppable={q.data?.stoppable === true}
             stopNote={q.data?.stopNote ?? null}
             noun={workflowAgents ? "workflow" : "sub-agent"}
-            // The same anchored strip the thread's prompt box carries, scoped to THIS child's own
-            // subtree. Without it a sub-agent that fanned out read as idle in its own drawer while its
+            // The ops strip, scoped to THIS child's own subtree, as rows under its box — the thread's
+            // drawer counts its ops on one line instead (QueueOpsSummary), but a scoped reading has no
+            // counts of its own, and a child's subtree is short. Without it a sub-agent that fanned out
+            // read as idle in its own drawer while its
             // grandchildren were still working — the one surface where that fan-out is the whole story.
             // A workflow's drawer body already IS its live subtree, so the strip would only repeat it.
             ops={workflowAgents ? undefined : (className) => (

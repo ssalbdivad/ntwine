@@ -330,6 +330,10 @@ test("a server that cannot report capabilities keeps every tool listed", async (
 
 // A thread names another by its `@handle` (David 2026-10-06), so the result hands the new thread's
 // back; a thread the server could not name in time has none, and gets the drawer link instead.
+//
+// THE WAY BACK (upstream 06f82a3a): a spawned thread starts with nothing but its prompt, so the shim names
+// the spawner at the end of it — without that the child could not `message_thread` its results back even
+// when asked to. The task comes first, untouched; the footer is the only thing added.
 test("`spawn_thread` POSTs the real dispatch RPC and names the new thread by its @handle, else links it", async () => {
   const seen: Array<{ url: string; body: unknown }> = []
   const handles = ["child", undefined, undefined]
@@ -362,7 +366,11 @@ test("`spawn_thread` POSTs the real dispatch RPC and names the new thread by its
     assert.equal(call.result.isError, undefined)
     assert.match(call.result.content[0].text, /It is @child: name it that way/)
     assert.doesNotMatch(call.result.content[0].text, /\/thread\//, "a named thread is not handed over as a link")
-    assert.deepEqual(seen, [{ url: "/_frizz/rpc/dispatch", body: { prompt: "do the thing", model: "opus", effort: "high", title: "Child", awaitHandle: true, spawnedFrom: "caller" } }])
+    assert.match(call.result.content[0].text, /It knows this thread: if its prompt asked for results back, they arrive as a message that wakes you/)
+    const back = (prompt: string) => prompt.startsWith("do the thing\n\n---\n") && /Spawned by the Frizz thread `caller`/.test(prompt) && /`message_thread` tool \(`handle: "caller"`\)/.test(prompt)
+    const sent = seen as Array<{ url: string; body: { prompt: string } }>
+    assert.ok(back(sent[0].body.prompt), sent[0].body.prompt)
+    assert.deepEqual(seen, [{ url: "/_frizz/rpc/dispatch", body: { prompt: sent[0].body.prompt, model: "opus", effort: "high", title: "Child", awaitHandle: true, spawnedFrom: "caller" } }])
 
     rpc.send({
       jsonrpc: "2.0",
@@ -385,7 +393,8 @@ test("`spawn_thread` POSTs the real dispatch RPC and names the new thread by its
     assert.equal(there.result.isError, undefined)
     assert.match(there.result.content[0].text, /on the `arktype` project's board/)
     assert.match(there.result.content[0].text, /\[Docs\]\(\/project\/arktype\/thread\/spawned-child\)/)
-    assert.deepEqual(seen[2], { url: "/_frizz/rpc/dispatch", body: { prompt: "fix the docs", model: "sonnet", effort: "medium", title: "Docs", project: "arktype", awaitHandle: true, spawnedFrom: "caller" } })
+    assert.match(sent[2].body.prompt, /^fix the docs\n\n---\nSpawned by the Frizz thread `caller`/)
+    assert.deepEqual(seen[2], { url: "/_frizz/rpc/dispatch", body: { prompt: sent[2].body.prompt, model: "sonnet", effort: "medium", title: "Docs", project: "arktype", awaitHandle: true, spawnedFrom: "caller" } })
 
     // model/effort stay REQUIRED server-side, not only in the schema — a lenient client must not be
     // able to skip the deliberate choice.

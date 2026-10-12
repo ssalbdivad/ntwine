@@ -1,5 +1,5 @@
-import type { ThreadView } from "@frizz/shared"
-import { visibleChildOps } from "./childOps.ts"
+import type { BgShellView, ThreadView } from "@frizz/shared"
+import { visibleChildOps, type TranscriptShellRecord } from "./childOps.ts"
 import { cardProcesses } from "./threadProcesses.ts"
 
 export type QueueOpsKind = "agent" | "workflow" | "terminal" | "pr" | "issue" | "file" | "link"
@@ -15,9 +15,11 @@ export interface QueueOpsCount {
   readonly states: readonly (string | undefined)[]
 }
 
-// The counts on the line above a queue card's docked prompt box (QueueOpsSummary), in display order,
-// with the empty kinds dropped. Taken from the same lists the rows in its panel render, by the same
-// filters, so the line and the panel cannot disagree about how many there are.
+// The counts on the line above a thread's prompt box — the queue card's docked one and the drawer's
+// (QueueOpsSummary) — in display order, with the empty kinds dropped. Taken from the same lists the rows
+// in its panel render, by the same filters, so the line and the panel cannot disagree about how many
+// there are. `transcriptShells` are the shells read off the transcript, whose Codex background execs the
+// board reports none of (see mergeBackgroundShells); both surfaces pass them, to the panel too.
 //
 // THE FORK'S ROWS, NOT UPSTREAM'S. Upstream counted `agents` and `shells` (the board's bgShells) because
 // its panel drew QueueSubAgentLines and BackgroundOpsStrip. The cross-project card's panel draws the rows
@@ -32,11 +34,14 @@ export interface QueueOpsCount {
 // ONLY GITHUB WATCHES COUNT. A shell watch is not a second object: the shell it waits on is already a
 // terminal, from the board's own shell list, and counting the watch too would name one process twice — the
 // double-naming the lifecycle footer's watcher readout was removed for (2026-08-14).
-export function queueOpsCounts(thread: ThreadView, { agents: withAgents = true, now = Date.now() }: { agents?: boolean; now?: number } = {}): QueueOpsCount[] {
+export function queueOpsCounts(
+  thread: ThreadView,
+  { agents: withAgents = true, now = Date.now(), transcriptShells = [] }: { agents?: boolean; now?: number; transcriptShells?: readonly (BgShellView & TranscriptShellRecord)[] } = {},
+): QueueOpsCount[] {
   const children = withAgents ? visibleChildOps(thread.subAgents ?? [], "card") : []
   const agents = children.filter((child) => !child.workflow)
   const workflows = children.filter((child) => child.workflow)
-  const processes = cardProcesses(thread, now)
+  const processes = cardProcesses(thread, now, transcriptShells)
   const watches = (thread.watches ?? []).filter((watch) => watch.kind === "github")
   const prs = watches.filter((watch) => watch.subject !== "issue")
   const issues = watches.filter((watch) => watch.subject === "issue")

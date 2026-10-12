@@ -101,6 +101,11 @@ test("Agent dispatch hook keeps the handoff, scratch-file and upward-channel coo
   assert.match(prompt, /write only <path>/)
   assert.match(prompt, /location alone neither permits nor forbids editing/)
   assert.match(prompt, /SendMessage\(\{to: "main"/)
+  // …and the sideways channels: a sibling by its full agent id, another thread by `message_thread`. Measured
+  // 2026-10-09 on Claude Code 2.1.295: a child's SendMessage to a running sibling's id is delivered at
+  // its next tool round, and to a finished sibling's id resumes it.
+  assert.match(prompt, /reaches a SIBLING sub-agent by the full agent id/)
+  assert.match(prompt, /`mcp__frizz__message_thread` reaches another Frizz THREAD by its @handle/)
 })
 
 // A child cannot be re-invoked: Claude notifies the DISPATCHER when a helper "stops with no live

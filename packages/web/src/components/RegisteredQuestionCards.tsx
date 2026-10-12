@@ -21,14 +21,22 @@
 // owed where they are. The questions of one `ask` are independent by contract (a dependent one is a
 // `followUps` entry), which is what makes one answer actionable alone. A half-filled question (typed and
 // not Entered, a multi not confirmed) carries its own Send answer; the group's footer button finishes the
-// group, its label naming what it sends and skips (groupFinish); a typed reply still carries anything
-// staged ahead of itself.
+// group, its label naming what it sends and skips (groupFinish).
+//
+// THE PROMPT BOX'S SEND CARRIES WHATEVER IS STAGED (upstream 59089c92, Colin 2026-10-11). Where a
+// surface mounts its thread's prompt box (lib/sendScope), that box's Send takes every staged answer
+// (`take`) and the typed words as ONE turn — the server settles the answers and sends them above the
+// note — so a reply typed with answers staged carries them rather than replying past them. A surface
+// with no such box (the cross-project queue card) still sends them first and its reply after
+// (`submit(then)`).
 //
 // ONE ANSWERING STATE PER THREAD, however many mounts. The staged picks, what has been sent, and the
-// prompt box that carries staged answers ahead of a reply all have to agree, so the state cannot live
-// in the stack that draws the cards. `useRegisteredAnswering` holds it for the whole thread; the surface
-// mounts it ONCE (RegisteredAnsweringProvider) and every stack on that surface reads it through context.
-// A stack mounted with no provider above it (a surface that draws one stack) owns a state of its own.
+// prompt box that carries staged answers all have to agree, so the state cannot live in the stack that
+// draws the cards. `useRegisteredAnswering` holds it for the whole thread; the surface mounts it ONCE
+// (RegisteredAnsweringProvider) and every stack on that surface reads it through context. Picks and text
+// live in the tab's draft store, so every provider and remount sees the same staged answer; secrets,
+// errors and send state stay per hook instance. A stack mounted with no provider above it (a surface that
+// draws one stack) owns a state of its own.
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { X } from "lucide-react"
@@ -36,9 +44,11 @@ import { type QuestionAnswer, type RegisteredQuestionView, type SettledQuestionV
 import { rpc, type Api } from "../api/rpc.ts"
 import { draftKey, draftStore, useDraftValues, useProjectDir } from "../lib/drafts.ts"
 import { clearSteered, clearSteeredIn, markSteered, markSteeredIn } from "../lib/steering.ts"
+import { SendScopeContext, usePromptBoxSends } from "../lib/sendScope.tsx"
 import type { BlockAnswer } from "../lib/questionBlocks.ts"
 import type { PairedAnswer } from "../lib/answersMessage.ts"
 import { ROOT_PATH, liveQuestionNodes, nodeAnswered, questionComplete, registeredAnswer, settledQuestionNodes } from "../lib/registeredQuestion.ts"
+import { decodeQuestionPick, encodeQuestionPick, questionSpecAt, type QuestionPick } from "../lib/registeredPicks.ts"
 import { AnswersCard } from "./AnswersCard.tsx"
 import { QueueDismissContext } from "./ChatView.tsx"
 import { QuestionBlockCard, focusQuestionNode } from "./QuestionBlockCard.tsx"
@@ -52,22 +62,11 @@ function errorText(error: unknown): string {
 }
 
 /** The chip/toggle half of a staged answer. It lives in the draft store beside the free-text half
- *  (draftKey.questionPick), so a staged answer survives a remount, a worker restart and the reload a
- *  dev-server restart forces — held in React state until 2026-10-08, every restart reset it. */
-type StagedPick = { chosen: number | null; chosenSet: number[] }
-const NO_PICK: StagedPick = { chosen: null, chosenSet: [] }
-function parsePick(raw: string | undefined): StagedPick {
-  if (!raw) return NO_PICK
-  try {
-    const value = JSON.parse(raw) as { chosen?: unknown; chosenSet?: unknown }
-    return {
-      chosen: typeof value.chosen === "number" ? value.chosen : null,
-      chosenSet: Array.isArray(value.chosenSet) ? value.chosenSet.filter((v): v is number => typeof v === "number") : [],
-    }
-  } catch { return NO_PICK }
-}
-/** "" when nothing is picked, which the draft store reads as a delete. */
-const serializePick = (pick: StagedPick) => (pick.chosen === null && pick.chosenSet.length === 0 ? "" : JSON.stringify(pick))
+ *  (draftKey.questionPick), so a staged answer survives a remount, a navigation, a worker restart and the
+ *  reload a dev-server restart forces — held in React state until 2026-10-08, every restart reset it.
+ *  Encoded by lib/registeredPicks (upstream bd4f96b7): each option's slot AND label, so a pick never
+ *  lands on a different option, and two options sharing a label stay apart. */
+const NO_PICK: QuestionPick = { chosen: null, chosenSet: [] }
 
 /** The thread's whole answering state: what is staged on every open question, and the one send. */
 export interface RegisteredAnswering {
@@ -87,11 +86,15 @@ export interface RegisteredAnswering {
   defaultCountdown: { ownerId: string; count: number } | undefined
   /** Send ONE question's staged answer — what completing a question does. Nothing staged: nothing sent. */
   commit: (q: RegisteredQuestionView) => void
-  /** Send EVERY staged answer on the thread: the on-purpose Send answers, and a typed reply carrying what
-   *  is staged ahead of itself. `then` runs once they have LANDED, never on a failure: the prompt box
-   *  passes its own send here, so a reply typed with answers staged goes out after them rather than
+  /** Send EVERY staged answer on the thread. With no `then`, through the surface's prompt box when it has
+   *  one (lib/sendScope), so whatever is typed there goes with them in one turn; on their own otherwise.
+   *  With `then` — a reply box that cannot carry answers itself (AllQueuesCard) — they go on their own and
+   *  `then` runs once they have LANDED, never on a failure, so the reply goes out after them rather than
    *  instead of them. */
   submit: (then?: () => void) => void
+  /** Hand every staged answer to the prompt box's send, which carries them in its own follow-up. Null
+   *  when nothing is staged. */
+  take: () => RegisteredTake | null
   /** The group footer's button, over `ids` — the questions of the stack it sits under, never another
    *  rest's: what is staged, plus every blank question as skipped. */
   submitGroup: (ids: ReadonlySet<string>) => void
@@ -121,6 +124,18 @@ export interface RegisteredAnswering {
   staged: number
   sending: boolean
   error: string | undefined
+}
+
+/** The staged answers as the prompt box's send needs them, with the three edges of that send. */
+export interface RegisteredTake {
+  answers: QuestionAnswer[]
+  /** The same answers as the human may read them back — a secret's value never reaches a bubble. */
+  display: QuestionAnswer[]
+  /** The send has committed locally: the cards grey in place. */
+  onOptimistic: () => void
+  onSuccess: () => void
+  /** The send was refused. `kept`: the server holds it as a failed send, answers settled and all. */
+  onRollback: (kept: boolean) => void
 }
 
 export const RegisteredAnsweringContext = createContext<RegisteredAnswering | null>(null)
@@ -176,11 +191,14 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
   // card still asks something: then it HOLDS its place (see `sendPairs`). Null on the thread page, where
   // there is no card to dismiss.
   const queueDismiss = useContext(QueueDismissContext)
+  const sendScope = useContext(SendScopeContext)
 
-  // Every free-text box of every question, subscribed as one batch — the draft store's own hook takes a
-  // key list, and the set only changes when a question is registered or settled.
+  // Picks and text share the tab's draft store, so queue, drawer, fullscreen and project remounts
+  // all see the same staged answer. Secrets stay strictly in memory outside this subscription.
   const textKeys = useMemo(
-    () => (slug ? questions.flatMap((q) => (q.spec.secret ? [] : allPaths(q).map((path) => draftKey.question(projectDir, slug, q.id, path)))) : []),
+    () => (slug ? questions.flatMap((q) => (q.spec.secret ? [] : allPaths(q).flatMap((path) => [
+      draftKey.question(projectDir, slug, q.id, path), draftKey.questionPick(projectDir, slug, q.id, path),
+    ]))) : []),
     [projectDir, slug, questions],
   )
   const persistedText = useDraftValues(textKeys)
@@ -190,9 +208,17 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
   )
   const persistedPicks = useDraftValues(pickKeys)
   // Writes read the STORE, not this render's snapshot: two updates in one event must not drop the first.
-  const readPick = (id: string, path: string): StagedPick => (slug ? parsePick(draftStore.get(draftKey.questionPick(projectDir, slug, id, path))) : NO_PICK)
-  const writePick = (id: string, path: string, pick: StagedPick) => {
-    if (slug) draftStore.set(draftKey.questionPick(projectDir, slug, id, path), serializePick(pick))
+  // Writes read the STORE (no `from`), not this render's snapshot: two updates in one event must not drop
+  // the first. A node with no spec at its path (a stale path) holds no pick.
+  const readPick = (q: RegisteredQuestionView, path: string, from?: ReadonlyMap<string, string>): QuestionPick => {
+    const spec = questionSpecAt(q.spec, path)
+    if (!slug || !spec) return NO_PICK
+    const key = draftKey.questionPick(projectDir, slug, q.id, path)
+    return decodeQuestionPick(spec, (from ? from.get(key) : draftStore.get(key)) ?? "")
+  }
+  const writePick = (q: RegisteredQuestionView, path: string, pick: QuestionPick) => {
+    const spec = questionSpecAt(q.spec, path)
+    if (slug && spec) draftStore.set(draftKey.questionPick(projectDir, slug, q.id, path), encodeQuestionPick(spec, pick))
   }
   /** Drop a question's whole staged answer, picks and text, in one commit. */
   const clearStaged = (q: RegisteredQuestionView) => {
@@ -201,7 +227,7 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
   }
   const answerFor = (q: RegisteredQuestionView, path: string): BlockAnswer => {
     if (q.spec.secret) return { chosen: null, chosenSet: [], text: secrets.get(q.id) ?? "" }
-    const pick = slug ? parsePick(persistedPicks.get(draftKey.questionPick(projectDir, slug, q.id, path))) : NO_PICK
+    const pick = readPick(q, path, persistedPicks)
     return {
       chosen: pick.chosen,
       chosenSet: pick.chosenSet,
@@ -220,25 +246,28 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
   const queryClient = useQueryClient()
 
   const send = useMutation({
-    mutationFn: async (answers: QuestionAnswer[]) => api.answerQuestions({ slug: slug!, answers }),
-    onSuccess: (result) => {
-      // The rows are gone from the board push that follows, so the staged state for them is dead weight;
-      // dropping the drafts too keeps a re-asked question from opening pre-filled with a stale answer.
+    // The draft keys are captured AT SEND (upstream bd4f96b7): the board push may drop the question
+    // before the reply lands, and the current board's questions are then no way to find them.
+    mutationFn: async (submission: { answers: QuestionAnswer[]; drafts: Array<{ id: string; keys: string[] }> }) =>
+      api.answerQuestions({ slug: slug!, answers: submission.answers }),
+    onSuccess: (result, submission) => {
+      // The board push removes these rows, so the staged state for them is dead weight. Left behind, it
+      // would sit in the tab's draft store, whose reload snapshot keeps only the most recent entries
+      // (lib/drafts MAX_ENTRIES), and could push an older, still-live draft out of it.
       for (const id of result.answered) {
-        const q = questions.find((entry) => entry.id === id)
-        if (q?.spec.secret) setSecrets((prev) => {
+        setSecrets((prev) => {
           if (!prev.has(id)) return prev
           const next = new Map(prev)
           next.delete(id)
           return next
         })
-        else if (q) clearStaged(q)
+        draftStore.clearMany(submission.drafts.find((entry) => entry.id === id)?.keys ?? [])
       }
       // A changed answer has landed: its slot draws the settled card again, with the new answer.
       const landed = new Set(result.answered)
       setEditing((prev) => ([...prev.keys()].some((id) => landed.has(id)) ? new Map([...prev].filter(([id]) => !landed.has(id))) : prev))
     },
-    onError: (cause, answers) => {
+    onError: (cause, { answers }) => {
       // The card faded (or greyed) on click; the answer did not land, so put it back rather than leaving
       // the human looking at a queue that quietly swallowed their reply. Same reversal an optimistic
       // Mark-as-done makes when the server declines it.
@@ -314,6 +343,30 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     hold.mutate({ id: q.id, action: "engage" })
   }
 
+  // A secret's settled card never draws the value, not even for the beat before the server's own
+  // stored text (where the file went) replaces this.
+  const displayed = (pairs: typeof stagedPairs): QuestionAnswer[] =>
+    pairs.map(({ q, answer }) => (q.spec.secret ? { ...answer, text: "(secret sent)" } : answer))
+  const draftKeysOf = (owner: string, pairs: typeof stagedPairs) =>
+    pairs.map(({ q }) => ({ id: q.id, keys: q.spec.secret ? [] : allPaths(q).flatMap((path) => [
+      draftKey.question(projectDir, owner, q.id, path), draftKey.questionPick(projectDir, owner, q.id, path),
+    ]) }))
+  // THE CARD GREYS IN PLACE ON SEND, before the round-trip: the answered question joins the settled
+  // list now, and the surface stops drawing the open card for any id that list holds (see
+  // withoutSettledQuestions). Waiting for the server instead left a beat where the open card had gone
+  // with the board push and the settled one had not arrived — the card blinking out and back. Both
+  // sends take it: this state's own (`sendPairs`) and the prompt box's (`take`).
+  const settleOptimistically = (owner: string, pairs: typeof stagedPairs) => {
+    const key = settledQuestionsKey(owner, scope?.projectId)
+    void queryClient.cancelQueries({ queryKey: key })
+    const settledAt = new Date().toISOString()
+    const ids = new Set(pairs.map((pair) => pair.q.id))
+    const shown = displayed(pairs)
+    const settled = pairs.map(({ q }, i): SettledQuestion => ({ id: q.id, spec: q.spec, askedAt: q.askedAt, settledAt, pending: true, answer: shown[i]! }))
+    queryClient.setQueryData<SettledQuestion[]>(key, (prev) => [...(prev ?? []).filter((s) => !ids.has(s.id)), ...settled])
+    setSent((prev) => new Map([...prev, ...settled.map((s) => [s.id, s] as const)]))
+  }
+
   const sendPairs = (pairs: typeof stagedPairs, then?: () => void) => {
     if (!slug || pairs.length === 0) return
     setError(undefined)
@@ -334,28 +387,57 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     // set the page project's thread of the same name to work.
     if (scope) markSteeredIn(scope.projectId, slug)
     else markSteered(slug)
-    // THE CARD GREYS IN PLACE ON SEND, before the round-trip: the answered question joins the settled
-    // list now, and the surface stops drawing the open card for any id that list holds (see
-    // withoutSettledQuestions). Waiting for the server instead left a beat where the open card had gone
-    // with the board push and the settled one had not arrived — the card blinking out and back.
-    const key = settledQuestionsKey(slug, scope?.projectId)
-    void queryClient.cancelQueries({ queryKey: key })
-    const settledAt = new Date().toISOString()
-    // A secret's settled card never draws the value, not even for the beat before the server's own
-    // stored text (where the file went) replaces this.
-    const settled = pairs.map(({ q, answer }): SettledQuestion => ({
-      id: q.id, spec: q.spec, askedAt: q.askedAt, settledAt, pending: true,
-      answer: q.spec.secret ? { ...answer, text: "(secret sent)" } : answer,
-    }))
-    queryClient.setQueryData<SettledQuestion[]>(key, (prev) => [...(prev ?? []).filter((s) => !ids.has(s.id)), ...settled])
-    setSent((prev) => new Map([...prev, ...settled.map((s) => [s.id, s] as const)]))
+    settleOptimistically(slug, pairs)
     setInFlight((n) => n + 1)
     // `mutateAsync`, not per-call callbacks: the queue card dissolves on this very click and unmounts,
     // and a mutate()-scoped onSuccess is dropped with the observer — the reply riding `then` with it.
-    send.mutateAsync(pairs.map((pair) => pair.answer)).then(() => then?.(), () => {})
+    send.mutateAsync({ answers: pairs.map((pair) => pair.answer), drafts: draftKeysOf(slug, pairs) }).then(() => then?.(), () => {})
   }
   const commit = (q: RegisteredQuestionView) => sendPairs(stagedPairs.filter((pair) => pair.q.id === q.id))
-  const submit = (then?: () => void) => sendPairs(stagedPairs, then)
+  // THE PROMPT BOX'S SEND TAKES THEM (lib/sendScope, upstream 59089c92). The same local truth as
+  // `sendPairs` — the cards grey in place and are never staged twice — minus what that send already does
+  // for itself: it dissolves the queue card, marks the row steered, and its own failure says why a refused
+  // send came back. The server settles these answers and sends them above the typed note, as one turn.
+  const take = (): RegisteredTake | null => {
+    if (!slug) return null
+    // Never a reopened answer still standing as it was: sending it would re-send the answer it had.
+    const pairs = stagedPairs.filter((pair) => !editing.has(pair.q.id) || answerKey(pair.answer) !== changedFrom.current.get(pair.q.id))
+    if (pairs.length === 0) return null
+    const drafts = draftKeysOf(slug, pairs)
+    const ids = new Set(pairs.map((pair) => pair.q.id))
+    const settle = () => void queryClient.invalidateQueries({ queryKey: settledQuestionsKey(slug, scope?.projectId) })
+    const forget = () => {
+      setSecrets((prev) => {
+        if (!pairs.some(({ q }) => prev.has(q.id))) return prev
+        const next = new Map(prev)
+        for (const { q } of pairs) next.delete(q.id)
+        return next
+      })
+      draftStore.clearMany(drafts.flatMap((entry) => entry.keys))
+      setEditing((prev) => ([...prev.keys()].some((id) => ids.has(id)) ? new Map([...prev].filter(([id]) => !ids.has(id))) : prev))
+    }
+    return {
+      answers: pairs.map((pair) => pair.answer),
+      display: displayed(pairs),
+      onOptimistic: () => {
+        setError(undefined)
+        settleOptimistically(slug, pairs)
+      },
+      onSuccess: () => { forget(); settle() },
+      // Server truth replaces the optimistic settled cards either way. Refused outright, the questions
+      // are still open there and the cards come back with their staged answers intact; kept as a
+      // failed send, the questions ARE settled and the failed bubble carries the words.
+      onRollback: (kept) => {
+        if (kept) forget()
+        else setSent((prev) => new Map([...prev].filter(([id]) => !ids.has(id) || editing.has(id))))
+        settle()
+      },
+    }
+  }
+  const submit = (then?: () => void) => {
+    if (!then && sendScope?.composer.run()) return
+    sendPairs(stagedPairs, then)
+  }
   // THE GROUP FOOTER IS "DONE WITH THIS GROUP" (David 2026-10-08: blank questions kept the card waiting
   // after it). What is staged goes as answered, and every question still blank goes beside it as
   // `skipped`, so the worker hears everything at once and asks again whatever still matters. A typed
@@ -448,7 +530,10 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     clearStaged(view)
     draftStore.setMany(Object.fromEntries([...staged].flatMap(([path, pick]) => [
       [draftKey.question(projectDir, slug, s.id, path), pick.text],
-      [draftKey.questionPick(projectDir, slug, s.id, path), serializePick({ chosen: pick.chosen, chosenSet: pick.chosenSet ?? [] })],
+      [draftKey.questionPick(projectDir, slug, s.id, path), (() => {
+        const spec = questionSpecAt(s.spec, path)
+        return spec ? encodeQuestionPick(spec, { chosen: pick.chosen, chosenSet: pick.chosenSet ?? [] }) : ""
+      })()],
     ])))
     setEditing((prev) => new Map(prev).set(s.id, view))
     changedFrom.current.set(s.id, answerKey(s.answer))
@@ -468,15 +553,19 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
       // producers. The typed draft is never cleared (maintainer 2026-09-02): it stays in the box as an
       // unselected draft, and registeredAnswer submits the chip while one is chosen (the box taking
       // focus clears it via onText below).
-      const pick = readPick(q.id, path)
+      const spec = questionSpecAt(q.spec, path)
+      if (!spec || q.spec.secret || !spec.options?.[optIdx]) return
+      // Read the store at the event, not the last render: rapid toggles must compose, including when
+      // another mounted copy of this question just staged a pick.
+      const pick = readPick(q, path)
       if (isMulti) {
         const set = pick.chosenSet.includes(optIdx)
           ? pick.chosenSet.filter((v) => v !== optIdx)
           : [...pick.chosenSet, optIdx]
-        writePick(q.id, path, { ...pick, chosenSet: set })
+        writePick(q, path, { ...pick, chosenSet: set })
       } else {
         if (pick.chosen !== optIdx) autoSend.current = q.id
-        writePick(q.id, path, { ...pick, chosen: pick.chosen === optIdx ? null : optIdx })
+        writePick(q, path, { ...pick, chosen: pick.chosen === optIdx ? null : optIdx })
       }
     },
     onText: (q, path, isMulti, text) => {
@@ -491,8 +580,8 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
       // as the fence producer does. The card's onFocus calls this with the text unchanged for exactly
       // that reason, so writing the draft alone left the chip lit beside a focused box (2026-08-28).
       if (!isMulti) {
-        const pick = readPick(q.id, path)
-        if (pick.chosen !== null) writePick(q.id, path, { ...pick, chosen: null })
+        const pick = readPick(q, path)
+        if (pick.chosen !== null) writePick(q, path, { ...pick, chosen: null })
       }
     },
     dismiss: (id) => dismiss.mutate(id),
@@ -507,6 +596,7 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     defaultCountdown: !defaulting.some((q) => defaultCancelled.has(q.id)) && defaulting.length > 0 ? { ownerId: defaulting[defaulting.length - 1]!.id, count: defaulting.length } : undefined,
     commit,
     submit,
+    take,
     submitGroup,
     // A REOPENED answer is unsent only once it differs from the one it replaces: opened on that answer,
     // "Send new answer" beside it would offer to send the same thing again.
@@ -901,7 +991,10 @@ export function RegisteredQuestionStack({
     drawn.current = questions
   }
   const phone = usePhoneQuestions()
-  const finish = groupFinish(questions, a)
+  // The surface's prompt box sends what is staged (lib/sendScope, upstream 59089c92), so the group's
+  // footer stands down there unless it would do what that Send cannot: skip the blank questions.
+  const promptBoxSends = usePromptBoxSends()
+  const finish = groupFinish(questions, a, promptBoxSends)
 
   // THE ANSWER, ALREADY SENT AND NOT YET IN THE WORKER'S HANDS. Answering stores the row; a wake hands
   // it over a moment later (deliberately — an answer given while the worker's process is down has to
@@ -1000,7 +1093,7 @@ export function RegisteredQuestionStack({
  * and only while it would do something a question's own Send does not: skip what is blank, or send two
  * or more at once. A lone half-filled question has its own Send and needs no second one beside it.
  */
-function groupFinish(questions: readonly RegisteredQuestionView[], a: RegisteredAnswering): { label: string; send: number; skip: number } | undefined {
+function groupFinish(questions: readonly RegisteredQuestionView[], a: RegisteredAnswering, promptBoxSends = false): { label: string; send: number; skip: number } | undefined {
   // A reopened answer is none of the group's business (submitGroup leaves it out): left alone, it
   // keeps the answer it has, and its own Send or Cancel finishes it.
   const remaining = questions.filter((q) => !a.sent.has(q.id) && !a.dismissed.has(q.id))
@@ -1011,6 +1104,9 @@ function groupFinish(questions: readonly RegisteredQuestionView[], a: Registered
   const asked = new Set(questions.map((q) => q.askedAt))
   const started = send > 0 || questions.some((q) => a.sent.has(q.id)) || a.settled.some((s) => asked.has(s.askedAt))
   if (!started || (skip === 0 && send < 2)) return undefined
+  // Under a prompt box whose Send carries every staged answer, the footer is only for what that Send
+  // does not do: answering the blank questions as skipped.
+  if (promptBoxSends && skip === 0) return undefined
   const label = send > 0 && skip > 0 ? `Send ${send}, skip ${skip}` : send > 0 ? `Send ${send} answers` : "Skip the rest"
   return { label, send, skip }
 }

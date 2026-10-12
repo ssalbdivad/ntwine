@@ -232,6 +232,49 @@ test("warmUp leaves the interactions of a session whose daemon is still alive al
 //
 // The `ask` scenario is the right driver here (unlike the turn-ended test above): the whole point is a
 // card that is genuinely holding a live turn open, which is the only state this sweep exists for.
+// The other half of that rule: a message NOBODY TYPED supersedes nothing. A scheduled wake reaches the
+// same `followUp`, and until 2026-10-10 it retired the card the same way — so a timer coming due, a
+// schedule beat or a report held past the scheduler's mid-turn ceiling answered an open approval `deny`
+// on the operator's behalf, and told a question-blocked model to "read their next message", which was
+// the wake's own text.
+test("an automatic follow-up leaves the open card open, and the turn parked, until the operator answers", { timeout: 30_000 }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cbrk-sweep-wake-"))
+  const exe = fakeExe(dir, "permission")
+  const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" }
+  const sessionId = randomUUID()
+  const slug = "sweep-wake"
+  const projectId = "proj-sweep-wake"
+  const scope = { projectId, threadSlug: slug, sessionId }
+  const store = createInteractionStore(new Database(":memory:"))
+  let results = 0
+  const bridge = createClaudeAgentBrokerBridge({
+    stateDir: dir, executablePath: exe, env, interactions: store, projectId,
+    onEvent: (_slug, _sid, ev) => { if (ev.kind === "result") results++ },
+  })
+  try {
+    await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: dir, prompt: "do the thing", permissionMode: "default" })
+    await waitFor(() => store.listPending(scope).length > 0)
+    const [card] = store.listPending(scope)
+
+    await bridge.followUp({ threadSlug: slug, sessionId, cwd: dir, text: "[timer] check the deploy", keepOpenCards: true })
+    await sleep(600)
+    assert.deepEqual(store.listPending(scope).map((r) => r.id), [card.id], "the approval is still the operator's to give")
+    assert.equal(results, 0, "and the turn is still parked on it")
+
+    store.resolve(scope, {
+      slug, sessionId, interactionId: card.id, sessionEpoch: card.owner.sessionEpoch, capabilityRevision: card.owner.capabilityRevision,
+      expectedRecordRevision: card.recordRevision, responseId: `r-${card.id}`, decisionId: "grant-turn",
+    })
+    await waitFor(() => results > 0)
+    assert.equal(store.get(scope, card.id)?.lifecycle, "resolved", "answered by the operator, not cancelled by the wake")
+  } finally {
+    bridge.releaseSession(slug, sessionId, "session-deleted")
+    bridge.close()
+    try { const r = readBrokerRecord(claudeBrokerRecordPath(dir, sessionId)); if (r) process.kill(r.daemonPid, "SIGKILL") } catch {}
+    await rmEventually(dir)
+  }
+})
+
 test("a follow-up sent instead of an answer retires the open card and UNBLOCKS the turn", { timeout: 30_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), "cbrk-sweep-steer-"))
   const exe = fakeExe(dir, "ask")

@@ -31,7 +31,7 @@ npx frizz
   press ctrl-c to stop · run with --debug for the full event feed
 ```
 
-A browser tab opens on acme's board. Frizz listens on port 9393 (19393 if something else holds it). A repository, or anything with a `package.json`, `Cargo.toml` and the like, becomes a [project](/docs/projects) at once; a plain folder is added after you confirm.
+A browser tab opens on acme's board. Frizz listens on port 9393 (19393 if something else holds it). The first time, Frizz asks whether to add the repository as a [project](/docs/projects); running the command never adds one by itself.
 
 The first time a browser opens Frizz, a short tour points out the project switcher, the prompt box, the queue and the thread list. A browser that opens a bare `http://127.0.0.1:9393/` first asks which project to start in, listing every project Frizz knows. **Take the tour** in <kbd>⌘</kbd><kbd>K</kbd> replays it.
 
@@ -57,7 +57,7 @@ The agent works on its own until it reaches something only you can settle. Then 
 
 ### Add another project
 
-Run `npx frizz` in a second repo. It joins the server already running and opens the new project's board. The switcher above the prompt box moves between projects, and its first choice, **All projects**, shows every project at once.
+Run `npx frizz` in a second repo. It joins the server already running and asks whether to add the repo; once you confirm, its board opens. The switcher above the prompt box moves between projects, and its first choice, **All projects**, shows every project at once.
 
 </Step>
 

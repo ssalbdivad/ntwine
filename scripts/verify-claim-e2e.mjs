@@ -271,6 +271,9 @@ try {
   // 7. A CUSTOM NAME THROUGH THE DEVICE FLOW, with the real verifier as the gate. The CLI side is the
   // launcher's own establishCloudConfig, signing in through the real runDeviceFlow; the registrar side
   // is the real githubVerifier, asking the fake GitHub what the token is and what scopes it holds.
+  // Custom names are withdrawn for now (CUSTOM_NAMES_OFFERED in src/cloud.ts), and establishCloudConfig
+  // refuses a word up front while they are; the override turns the kept path back on for this process.
+  process.env.FRIZZ_CUSTOM_NAMES = "1";
   github.listen(0, "127.0.0.1");
   await once(github, "listening");
   const githubOrigin = `http://127.0.0.1:${github.address().port}`;

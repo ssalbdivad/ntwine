@@ -4,6 +4,7 @@ import {
   closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync,
   renameSync, rmSync, statSync, writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { frizzPaths } from "@frizz/server/frizz-paths";
 
@@ -137,17 +138,43 @@ export interface ServerPackageInstaller {
   latestVersion(packageName: string): Promise<string>;
 }
 
-export function npmServerPackageInstaller(env: NodeJS.ProcessEnv = process.env): ServerPackageInstaller {
+/** How long one npm operation may run: the registry probe, or installing a server release. */
+export const NPM_OPERATION_TIMEOUT_MS = 180_000;
+
+/**
+ * What a failed npm child said, for the operator who clicked Update.
+ *
+ * The last lines of stderr are right for npm's own errors, which end in their summary. A child that
+ * dies BEFORE npm starts ends in a stack and a property dump instead, and the tail alone cut off the
+ * one line that named the fault: the board that could not update on 2026-10-11 reported
+ * `at Module._compile (node:internal/modules/cjs/loader:1968:14)` and nothing of the
+ * `Error: ENOENT: process.cwd failed … the current working directory was likely removed` six lines
+ * above it. So the first uncaught-error line leads whenever the tail does not already hold it.
+ */
+export function npmFailureSummary(stderr: string): string {
+  const lines = stderr.trim().split("\n");
+  const tail = lines.slice(-8);
+  const cause = lines.find((line) => /^(?:[A-Z]\w*)?Error(?: \[\w+\])?: /u.test(line));
+  return (cause && !tail.includes(cause) ? [cause, ...tail] : tail).join("\n");
+}
+
+export function npmServerPackageInstaller(
+  env: NodeJS.ProcessEnv = process.env,
+  options: { timeoutMs?: number } = {},
+): ServerPackageInstaller {
+  const timeoutMs = options.timeoutMs ?? NPM_OPERATION_TIMEOUT_MS;
   const run = (args: string[], cwd?: string): Promise<string> => new Promise((resolveOutput, reject) => {
     let cli: string;
     try { cli = resolveNpmCli(env); } catch (error) { reject(error); return; }
     execFile(process.execPath, [cli, ...args], {
-      env, cwd, encoding: "utf8", windowsHide: true, timeout: 180_000, killSignal: "SIGKILL", maxBuffer: 4 * 1024 * 1024,
+      env, cwd, encoding: "utf8", windowsHide: true, timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 4 * 1024 * 1024,
     }, (error, stdout, stderr) => {
-      if (error) {
-        const tail = stderr.trim().split("\n").slice(-8).join("\n");
-        reject(new Error(`Frizz server npm operation failed: ${tail || error.message}`));
-      } else resolveOutput(stdout);
+      if (!error) { resolveOutput(stdout); return; }
+      // execFile reports its own kill as `killed`, with nothing on stderr and a message that is only
+      // the command line. Say what happened instead.
+      const limit = timeoutMs >= 60_000 ? `${Math.ceil(timeoutMs / 60_000)}m` : `${Math.ceil(timeoutMs / 1000)}s`;
+      const why = error.killed ? `npm ${args[0]} did not finish within ${limit} and was stopped` : npmFailureSummary(stderr) || error.message;
+      reject(new Error(`Frizz server npm operation failed: ${why}`));
     });
   });
   return {
@@ -167,7 +194,12 @@ export function npmServerPackageInstaller(env: NodeJS.ProcessEnv = process.env):
       // string. Reading only the string made every probe throw, and the throw reads as "no update": a
       // launcher on npm 12 never offered a newer server and failed every click (measured 2026-09-25,
       // npm 11.20.0 `"0.15.2"` against npm 12.1.0 `["0.15.2"]`). More than one element is still refused.
-      const parsed: unknown = JSON.parse(await run(["view", `${packageName}@latest`, "version", "--json"]));
+      //
+      // In the temp directory, not the inherited cwd. The launcher's cwd is the folder it was started
+      // from, and once that folder is deleted every child that inherits it dies before npm's first
+      // line (`uv_cwd ENOENT`), so the probe could never answer again (measured 2026-10-11). It also
+      // keeps a project's own `.npmrc` out of a question about Frizz's package, as `install` does.
+      const parsed: unknown = JSON.parse(await run(["view", `${packageName}@latest`, "version", "--json"], tmpdir()));
       const version = Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
       if (typeof version !== "string" || !VERSION.test(version)) throw new Error("npm returned an invalid Frizz server version");
       return version;

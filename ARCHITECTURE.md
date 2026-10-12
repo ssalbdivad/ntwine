@@ -64,6 +64,8 @@ stay silent on a terminal the launcher is repainting without losing anything it 
 Retention keeps 20 runs and nothing older than 14 days; a single file stops at 32 MB.
 `FRIZZ_LOG_PATH` overrides the location (a directory or an exact `.log` file).
 
+High-impact board actions also go to a machine-wide AUDIT log, `<data>/logs/audit.jsonl` (`~/.frizz/logs/audit.jsonl` on a legacy layout), one JSON line each at mode 0600 and never pruned: every project add (typed or picked) and remove, every dispatch (including each thread a GitHub batch starts and an adopted thread), every follow-up and sub-agent steer, and every question answer and interaction decision, refused or not. Each line names the project and thread, the outcome, and the request origin: `public` (the declared public origin — a frizz.sh relay or a tunnel), `network` (an exposed `--host` bind), `loopback`, or `direct` (past the launcher's proxy, as a worker's frizz MCP server calls), plus the peer address, the client address a public origin claims, the board session's RECORD id (the one `frizz --sessions` lists and `--sign-out` takes, never the cookie) and the device label. Typed text is a character count and a SHA-256; a secret answer is not recorded at all. The child cannot tell who called once the proxy rewrites Host and Origin, so the proxy stamps `x-frizz-caller` on every request it forwards, replacing any copy the client sent (`restart-supervisor.ts`, `audit.ts`). It exists because a session stolen through a backdoored relay added `/private/tmp`, dispatched workers into it and removed it on 2026-10-08, and nothing recorded which device did it.
+
 `--debug` streams that same feed to the terminal instead of the compact readout, in every process at
 once — the launcher sets `FRIZZ_DEBUG` in the child environment, since the child never sees the
 command line. Ctrl-C and a failed boot both print the log path.
@@ -151,7 +153,17 @@ shows less without scrolling than upstream's board does, with the project rail o
   + `stop_reason:"tool_use"`), so the cc-worker hook writes a marker into `FRIZZ_PERM_DIR` naming what
   is waiting and the tailer reads that. A broker thread's approvals arrive as typed permission
   requests over the control channel. The `perm-prompt` runtime rides the board snapshot
-  with no notify and no unread — the sidebar's attention sort surfaces it.
+  with no notify and no unread — the sidebar's attention sort surfaces it. A deferred marker stops
+  blocking when the transcript advances past it OR when the interaction journal says the session's
+  request was answered (`InteractionStore.settledSince`): an approved tool call writes nothing until
+  it returns, so the transcript alone kept a thread on `perm-prompt` for the whole run of the command
+  the operator had just approved, with the external-terminal net drawn where the card had been.
+  And a request is not always the operator's to answer: the SDK asks the daemon's `canUseTool` and runs
+  the worker's PermissionRequest hook side by side, and takes the daemon's copy back when the hook
+  settles it first (~70ms, nearly every request). The daemon therefore HOLDS a request 250ms before
+  showing it to Frizz, and sends `permission-withdrawn` for one it had already shown, which the bridge
+  turns into a `provider-cancelled` card (`InteractionStore.withdraw`). Before 2026-10-10 neither
+  existed, and a hook-approved request left a dead approval card on screen until the turn ended.
 - **A Claude agent's FIRST escalation goes back to it, not to the operator (2026-10-06).** In an `auto` or
   `bypassPermissions` thread the bridge denies it once with a note — approval stalls the thread, here is
   Claude Code's own reason (`decision_reason`/`decision_reason_type`, e.g. "Dangerous rm operation on
@@ -195,8 +207,8 @@ The fence's other keys name what it waits on:
   day, at a year on a park naming only PRs and issues, and at 30 minutes on any park naming `agents:`
   (`awaiting.parkForMaxMs`).
 - `steps:` — acts only the human can perform, read verbatim (`awaitingSteps`). Steps name the human, so
-  the fence needs no other item and no `for:`, and it always queues. The card (`AwaitingSteps.tsx`) draws
-  them over one Done button, which sends the ordinary follow-up `Done`. Nothing is registered.
+  the fence needs no other item and no `for:`, and it always queues. The card (`AwaitingSteps.tsx`), headed
+  by an "Awaiting human" chip ("To do" until 2026-10-10), draws them over one Done button, which sends the ordinary follow-up `Done`. Nothing is registered.
 - `questions:` — the open questions a later rest still needs (`awaitingQuestions`). They name the human
   too.
 - `threads:` — threads asked with `message_thread` and `await_reply: true`, read verbatim because YAML
@@ -232,7 +244,9 @@ registered question draws nothing.
 **Other threads, by handle.** `read_thread` returns another thread's request, status, newest messages
 and edited files, and reaches a sub-agent at `@thread.agent`, returned ones included; it wakes nobody.
 `message_thread` puts a signed message into another open thread's conversation, joining its turn or
-waking it; it never reaches the human, and messages between two threads are capped per hour.
+waking it; it never reaches the human, and messages between two threads are capped per hour. A thread
+`spawn_thread` starts carries its spawner's slug at the end of its prompt (the shim adds it), so it can
+message results back; upstream's `steer` verb for the same delivery is not taken (2026-10-12).
 
 The contract that teaches all of this is `packages/server/src/workerPrompt.ts`, the tool descriptions in
 `cc-worker/bin/frizz-mcp.mjs`, and `cc-worker/hooks/deny-ask.mjs`; keep them aligned.
@@ -490,6 +504,8 @@ whole identity — there is no multiplexer and nothing else to key.
 The registry launcher owns the public proxy and recovery listener for its entire lifetime. It installs an exact `frizz-server` version with npm's JavaScript entry under the current Node executable, with lifecycle scripts disabled and a private prefix. No shell startup hooks, global provider upgrades or project permission changes are part of this operation. The server needs no lifecycle script on any platform: its only native addon, `@parcel/watcher`, ships each platform's binary as an optional package. Sign-in ran on node-pty until 2026-09-24, which publishes no Linux prebuild, so every Linux and WSL generation died at boot ([#42](https://github.com/colinhacks/frizz/pull/42)); it runs the provider CLI over pipes now.
 
 An update stages and validates the candidate while the old server continues serving, drains the old child, then starts the candidate. After authenticated readiness and a short stability interval, it atomically commits the active generation. Candidate failures restore the previous same-epoch selection. Frontend assets, provider daemons and worker plugin files come from that same immutable server generation; retained generations protect detached workers still using their files.
+
+**A worker that is already running follows the update; nobody reloads it.** A worker's daemon is detached and outlives the server that started it, so an update used to leave every live thread on the previous generation's hooks, skills and sub-agent profiles until it happened to restart. Now the server stages the generation's `runtime/cc-worker` under `<cache>/plugins/<content digest>/` and launches every worker against one stable link, `<cache>/current/cc-worker` ([`stable-plugin-path.ts`](packages/server/src/stable-plugin-path.ts), `workerPluginDir()` in [`dispatch.ts`](packages/server/src/dispatch.ts)). Booting the next generation repoints that link, by rename, and two things follow. Hook SCRIPTS move at once, because `${CLAUDE_PLUGIN_ROOT}/hooks/…` is resolved through the link on every run; the hook paths and monitor directory a Codex thread is given go through the same link. Hook REGISTRATIONS, skills and sub-agent profiles move when each Claude worker's daemon next reaches a turn boundary: it fingerprints its plugin closure when a turn ends and when an input arrives for an idle session, and re-reads it in place when it changed ([`claude-plugin-sync.ts`](packages/server/src/backend/claude-plugin-sync.ts)) — same process, same conversation. A source checkout is launched against its own `cc-worker/`, which is edited in place, and the same fingerprint picks those edits up. The closure is wider than Frizz's plugin: it also covers the project's and the operator's own `.claude` skills, agents, commands and installed plugins, because a live session notices none of those by itself either, so a skill added to a repo reaches the threads already running in it at their next turn. Two things do not move: a worker's MCP servers, which a reload reports and does not re-spawn (so the Frizz MCP shim re-resolves its server on every call instead), and a daemon forked before 2026-10-11, which was launched against its generation's own directory and catches up when it next cold-starts. `FRIZZ_PLUGIN_SYNC_OFF=1` switches the reload off for newly started workers.
 
 A global generation-checked lease in the Frizz state root keeps stable launchers from starting separate schedulers across repositories or custom ports. Each server child registers as a delegate before opening application state. After a launcher crash, a replacement cannot acquire that lease until its live delegates have exited. A second launch joins the recorded public listener even while the application child is unavailable.
 

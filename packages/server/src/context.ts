@@ -7,9 +7,12 @@ import {
   type DispatchPreferences,
   type SetDispatchPreferenceInput,
   type Settings,
+  type TranscriptMessage,
   acpModelIdFromModel,
 } from "@frizz/shared"
 import { Bus, Emitter } from "./bus.ts"
+import { frizzRoots } from "./frizz-paths.ts"
+import { findById as findProjectById } from "./project-registry.ts"
 import { resolveProject, permRequestDir, workDirOf, type Project } from "./project.ts"
 import { isHomeWorkspace } from "./home-workspace.ts"
 import { createStorage, isBrokerClaudeRow, isHeadlessRow, type Storage } from "./storage.ts"
@@ -21,7 +24,9 @@ import { readCodexModels } from "./backend/codex-models.ts"
 import { readQuota } from "./quota.ts"
 import { refreshClaudeQuotaInBackground } from "./backend/claude-quota.ts"
 import { z } from "zod"
-import { createBoard, telemetryVouched, type BoardManager } from "./board.ts"
+import { createBoard, resolveSessionTitle, telemetryVouched, type BoardManager } from "./board.ts"
+import { createSessionPeerResolver, type SessionPeerThread } from "./session-peer.ts"
+import { auditLogPathForStateDir, fileAuditLog, type AuditLog } from "./audit.ts"
 import { createHeldThreadStarter } from "./held-start.ts"
 import { createScheduleService, type ScheduleService } from "./schedules.ts"
 import { createScheduleInterpreter, SCHEDULE_INTERPRETER_MODEL, type ScheduleInterpreter } from "./schedule-interpreter.ts"
@@ -221,7 +226,7 @@ export interface AppContext {
    * `ctx` is that project's whole context, for a read that needs more than its board — another
    * project's thread named by handle (router `readThread` / `messageThread`).
    */
-  activeTenants?: () => ReadonlyArray<{ project: Project; board: BoardManager; ctx?: AppContext }>
+  activeTenants?: () => ReadonlyArray<{ project: Project; board: BoardManager; storage?: Storage; ctx?: AppContext }>
   /**
    * Open ONE registered project (or the Home workspace) by id and answer its context — the same activation
    * its first request would trigger. For `spawn_thread` naming a project this process has not opened
@@ -229,6 +234,12 @@ export interface AppContext {
    * test context or a one-project server.
    */
   openProject?: (projectId: string) => Promise<AppContext | undefined>
+  /**
+   * The Frizz thread that sent a cross-session message into one of THIS project's threads, for the
+   * chat line that names the sender (see session-peer.ts). Absent under a test context, and then the
+   * line names the sender's session without a link.
+   */
+  sessionPeerThread?: (peer: NonNullable<TranscriptMessage["sessionPeer"]>) => SessionPeerThread | undefined
   /**
    * Take ONE project apart while every other project keeps serving — the resource half of deleting a
    * project (router `projectRemove`). The registry half is a machine-level index file the router
@@ -250,12 +261,15 @@ export interface AppContext {
     options?: { stopWorkers?: boolean; deleteState?: boolean },
   ) => Promise<{ closed: boolean; stoppedWorkers: number }>
   /**
-   * The project this server was LAUNCHED from, which is the one project it cannot let go of.
+   * The project this server is HOSTED on — the one whose state dir and tenant it cannot let go of.
+   * The project the command was typed in, or Frizz's own stand-in folder for a launch from `$HOME`
+   * or an unadopted folder (it borrowed the most recently opened project until 2026-10-11).
    *
    * Its `<stateDir>/server.lock` is the only status file this process publishes, and every worker on
-   * the machine resolves the port out of it (`serverLockPathFor`, index.ts) — so removing that project
-   * is not one card disappearing, it is every live worker losing the server. Undefined under a test
-   * context, where there is no launcher to protect.
+   * the machine resolves the port out of it (`serverLockPathFor`, index.ts) — so removing that state
+   * dir is not one card disappearing, it is every live worker losing the server. Its registry entry
+   * is not held the same way: `projectRemove` forgets it and leaves the rest standing. Undefined
+   * under a test context, where there is no launcher to protect.
    */
   launchProjectId?: string
   /**
@@ -264,6 +278,12 @@ export interface AppContext {
    * Supplied by the server, which owns it; absent under a test context, where every opener spawns.
    */
   editors?: EditorBridge
+  /**
+   * Where high-impact board actions are recorded (audit.ts): project add and remove, dispatch,
+   * follow-ups and answers, each with the request origin and board session behind it. The real
+   * context writes the machine's `audit.jsonl`; a test context leaves it out and records nothing.
+   */
+  audit?: AuditLog
   // GitHub detection (installed/inRepo/nameWithOwner) resolved ONCE at boot via initGithub() — stable
   // for the process lifetime. `authed` is NOT cached here; the githubStatus query re-checks it live so
   // a mid-session `gh auth login` reflects immediately. Undefined until initGithub() resolves (the
@@ -526,6 +546,10 @@ export function deliverClaudeBrokerWake(deps: {
     model: row.model ?? undefined,
     effort: row.effort ?? undefined,
     freshProcess,
+    // A wake is not the operator answering: an approval or question card open on this thread stays open,
+    // and the wake is read once they have answered it. Without this a timer coming due, a schedule beat
+    // or a report held past the mid-turn ceiling DENIED the open approval on the operator's behalf.
+    keepOpenCards: true,
   })
 }
 
@@ -634,6 +658,9 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // Late-bound for the journal observer and tailer callbacks; boot expiry runs before assignment and
   // needs no board edge because the first build reads authoritative pending state directly.
   let board!: BoardManager
+  // The same late binding for the tailer's half of that observer: boot expiry answers nothing a tailer
+  // that has not primed yet could be holding a permission block for.
+  let permissionAnswered: ((slug: string) => void) | undefined
   const contextUnsubscribers: (() => void)[] = []
   let subscriptionsStopped = false
   const stopSubscriptions = () => {
@@ -671,6 +698,9 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       lifecycle: change.lifecycle,
       recordRevision: change.recordRevision,
     })
+    // BEFORE the board hears it: the refresh below must not pair "nothing pending" with a permission
+    // block the tailer has not re-read yet (see Tailer.permissionAnswered).
+    if (change.lifecycle !== "pending") permissionAnswered?.(change.threadSlug)
     board?.interactionChanged?.(change)
   }))
   storage.interactions.expireDue()
@@ -1013,10 +1043,34 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     onError: (slug, error) => process.stderr.write(`[frizz] working status of ${slug} failed: ${error instanceof Error ? error.message : String(error)}\n`),
     ...(Number.isInteger(liveStatusMs) && liveStatusMs > 0 ? { intervalMs: liveStatusMs, firstMs: Math.min(liveStatusMs, 20_000) } : {}),
   })
+  // The thread behind a cross-session message's sender socket (session-peer.ts), searched across every
+  // project this process has open — a coordinator in one repo can steer a thread in another.
+  const sessionPeerResolver = createSessionPeerResolver({
+    findThread: (sessionId) => {
+      // This project first and always: the launching project's context is built before the tenant map
+      // holds anything, so the map alone would not list it.
+      const open = [{ project, storage }, ...(opts.activeTenants?.() ?? []).filter((t) => t.project.id !== project.id)]
+      for (const tenant of open) {
+        const rows = tenant.storage?.allSessions() ?? []
+        const row = rows.find((r) => r.session_id === sessionId || r.agent_session_id === sessionId || r.transcript_id === sessionId)
+        if (!row) continue
+        const shown = resolveSessionTitle(row, undefined)
+        return {
+          projectId: tenant.project.id,
+          project: findProjectById(tenant.project.id, home)?.slug,
+          slug: row.slug,
+          title: shown.aiTitle || shown.title || row.slug,
+        }
+      }
+      return undefined
+    },
+    memoryFile: join(frizzRoots().state, "session-peers.json"),
+  })
   const tailer = createTailer({
     project,
     storage,
     bus,
+    onCrossSessionMessage: (peer) => void sessionPeerResolver(peer, project.id),
     backendFor,
     codexModels: () => readCodexModels(undefined, opts.codexVersion),
     onChange: () => board.refresh(),
@@ -1027,6 +1081,10 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     // uniqueness rule before it persists (thread-names.ts).
     distinctTitle: (slug, title, source) => threadNamer.distinct(title, source ?? "", slug),
     onTranscriptChange: (slugs) => transcriptChange.emit(slugs),
+    // The journal's word on whether a deferred permission request has been answered — the transcript
+    // only says so once the approved tool call returns.
+    permissionSettled: (slug, sessionId, markerAt) =>
+      storage.interactions.settledSince({ projectId: project.id, threadSlug: slug, sessionId }, markerAt),
     // The SDK's own reading of a headless broker session: its turn (so the fold's 5s unknown-stop_reason
     // guess need not run out before a finished turn reaches the queue) and its event count (so a tick
     // can tell the provider has reported activity its own disk write has not caught up with yet).
@@ -1048,6 +1106,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   })
   resources.tailer = tailer
   opts.startup?.afterPhase?.("tailer")
+  permissionAnswered = (slug) => tailer.permissionAnswered?.(slug)
   // The bridge is the authority on whether a codex app-server TURN is actually running — a rollout
   // frozen by a dead app-server reads "in-flight" forever on its own. Without this the board spins
   // such a thread on `running` and never queues it (live stall 2026-07-22).
@@ -1342,9 +1401,13 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       setDispatchPreference(storage, getSettings(storage, home), home, update, codexModels),
     activeTenants: opts.activeTenants,
     openProject: opts.openProject,
+    sessionPeerThread: (peer) => sessionPeerResolver(peer, project.id),
     teardownProject: opts.teardownProject,
     launchProjectId: opts.launchProjectId,
     editors: opts.editors,
+    // Derived from the state dir, never from `homedir()`, so a sandboxed server audits into its own
+    // sandbox (the reason serverAddressPathForStateDir exists).
+    audit: fileAuditLog(auditLogPathForStateDir(project.stateDir)),
     claudeBin: opts.claudeBin,
     codexBin: opts.codexBin,
     terminalRunner,

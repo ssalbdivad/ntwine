@@ -243,6 +243,64 @@ test("the npm adapter executes a real JS child with isolated prefix and scripts 
   assert.equal(await installer.latestVersion("frizz-server"), "1.1.0");
 });
 
+// The launcher's cwd is the folder it was started from. Once that is deleted, a child that inherits
+// it throws `uv_cwd ENOENT` on its first `process.cwd()`, which npm calls before anything else
+// (2026-10-11: every Update click on such a board failed with that stack).
+test("the latest-version probe answers after the folder the launcher was started from is deleted", async (t) => {
+  const { root } = setup(t);
+  const cli = join(root, "npm-cli.js");
+  writeFileSync(cli, `process.cwd(); console.log('"1.1.0"')`);
+  const installer = npmServerPackageInstaller({ ...process.env, npm_execpath: cli });
+  const launchFolder = mkdtempSync(join(tmpdir(), "frizz-launch-folder-"));
+  const original = process.cwd();
+  process.chdir(launchFolder);
+  try {
+    rmSync(launchFolder, { recursive: true });
+    assert.throws(() => process.cwd(), /uv_cwd/, "this process now has the deleted cwd a child would inherit");
+    assert.equal(await installer.latestVersion("frizz-server"), "1.1.0");
+  } finally {
+    process.chdir(original);
+  }
+});
+
+// A child that dies before npm starts ends in a stack and a property dump, so the last eight lines
+// of stderr never held the line naming the fault (2026-10-11: an Update failed with
+// `at Module._compile (node:internal/modules/cjs/loader:1968:14)` and nothing else an operator could read).
+test("a failed npm operation reports the error that caused it, not only the end of its stack", async (t) => {
+  const { root } = setup(t);
+  const failing = (name: string, stderr: string[]) => {
+    const cli = join(root, name, "npm-cli.js");
+    mkdirSync(dirname(cli), { recursive: true });
+    writeFileSync(cli, `process.stderr.write(${JSON.stringify(stderr.join("\n"))}); process.exit(7)`);
+    return npmServerPackageInstaller({ ...process.env, npm_execpath: cli });
+  };
+  const crash = [
+    "node:internal/bootstrap/switches/does_own_process_state:142", "    cachedCwd = rawMethods.cwd();", "                           ^", "",
+    "Error: ENOENT: process.cwd failed with error no such file or directory, uv_cwd",
+    ...Array.from({ length: 9 }, (_, frame) => `    at frame${frame} (node:internal/modules/cjs/loader:${frame}:1)`),
+    "  errno: -2,", "  code: 'ENOENT',", "  syscall: 'uv_cwd'", "}", "", "Node.js v26.11.1",
+  ];
+  await assert.rejects(() => failing("crash", crash).latestVersion("frizz-server"), (error: Error) => {
+    assert.match(error.message, /^Frizz server npm operation failed: Error: ENOENT: process\.cwd failed/);
+    assert.match(error.message, /Node\.js v26\.11\.1$/, "the tail is still there under the cause");
+    return true;
+  });
+  // npm's own failures already end in their summary; nothing is added or repeated.
+  const npmError = ["npm error code E404", "npm error 404 Not Found - GET https://registry.npmjs.org/frizz-server - Not found"];
+  await assert.rejects(() => failing("e404", npmError).latestVersion("frizz-server"), (error: Error) => {
+    assert.equal(error.message, `Frizz server npm operation failed: ${npmError.join("\n")}`);
+    return true;
+  });
+});
+
+test("an npm operation that never finishes is stopped and says how long it was given", async (t) => {
+  const { root } = setup(t);
+  const cli = join(root, "npm-cli.js");
+  writeFileSync(cli, "setInterval(() => {}, 1000)");
+  const installer = npmServerPackageInstaller({ ...process.env, npm_execpath: cli }, { timeoutMs: 300 });
+  await assert.rejects(() => installer.latestVersion("frizz-server"), /npm view did not finish within 1s and was stopped/);
+});
+
 // npm 12 answers `view <spec> version --json` with a one-element array; npm 11 answered the bare
 // string. Reading only the string left every launcher on npm 12 reporting "no update" (2026-09-25).
 test("the latest-version probe reads npm 12's one-element array and still refuses anything wider", async (t) => {

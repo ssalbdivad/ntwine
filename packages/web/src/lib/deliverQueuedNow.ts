@@ -39,6 +39,7 @@ export function useDeliverQueuedNowSupported(slug: string | null): boolean {
 
 export function useDeliverQueuedNow(slug: string | null): {
   deliverNow: () => void
+  releaseHeld: () => void
   pending: boolean
 } {
   const [pending, setPending] = useState(false)
@@ -58,7 +59,9 @@ export function useDeliverQueuedNow(slug: string | null): {
         // bubbles un-gray on this round trip rather than on the tailer. Keeping the claim server-side
         // is what makes it survive a reload and reach every other open tab. A refusal is spoken, since
         // the operator asked for something and did not get it.
-        if (!result.interrupted) showToast(result.reason ?? "That message could not be pushed through")
+        // `released`: messages Frizz was holding for the rest went to the runtime. On a runtime with
+        // no interrupt that is the whole of "send now", and it is not a refusal.
+        if (!result.interrupted && !result.released) showToast(result.reason ?? "That message could not be pushed through")
       },
       (error: unknown) => {
         setPending(false)
@@ -67,5 +70,24 @@ export function useDeliverQueuedNow(slug: string | null): {
     )
   }, [pending, slug])
 
-  return { deliverNow, pending }
+  // SEND WHAT FRIZZ IS HOLDING, WITHOUT INTERRUPTING — the "Send now" under a message sent to the queue.
+  // The operator stopped waiting for the rest; the message goes in as the steer it would have been.
+  const releaseHeld = useCallback(() => {
+    if (!slug || pending) return
+    const sessionId = threadBySlug(store.board, slug)?.sessionId
+    if (!sessionId) { showToast("This thread has no live session to send to"); return }
+    setPending(true)
+    void rpc.deliverQueuedNow({ slug, sessionId, releaseOnly: true }).then(
+      (result) => {
+        setPending(false)
+        if (!result.released) showToast(result.reason ?? "That message could not be sent now")
+      },
+      (error: unknown) => {
+        setPending(false)
+        showToast(`Couldn't send it now — ${(error instanceof Error ? error.message : String(error)).slice(0, 160)}`)
+      },
+    )
+  }, [pending, slug])
+
+  return { deliverNow, releaseHeld, pending }
 }

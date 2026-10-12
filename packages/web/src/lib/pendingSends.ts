@@ -1,3 +1,5 @@
+import type { QuestionAnswer } from "@frizz/shared"
+
 // ── follow-ups that were still on the wire when the page went away ───────────────────────────────
 // A reply is optimistic: the composer clears and the bubble paints before the request settles (see
 // eagerComposerSubmission.ts). A FAILED send hands its text back to the draft, and drafts persist to
@@ -27,6 +29,10 @@ export type PendingSend = {
   message: string
   freshProcess?: boolean
   interrupt?: boolean
+  /** Staged answers to registered questions the send carried (FollowUpInput.answers), and "Send to
+   *  queue"'s hold — so a replay delivers the same turn the operator committed. */
+  answers?: QuestionAnswer[]
+  hold?: boolean
   at: number
 }
 

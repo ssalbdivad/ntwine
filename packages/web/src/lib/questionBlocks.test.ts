@@ -169,7 +169,7 @@ test("a LETTER-numbered question line is context, not the first option", () => {
   const p = parseQuestionBlock(body, "question")
   assert.equal(p.contextMd, "C. Does `brokerTo` imply net access to the host?")
   assert.deepEqual(p.options, ["A. No — the host must also be in `net`", "B. Yes — listing a host auto-allows it"])
-  assert.equal(p.recommendedIdx, 0) // the recommendation follows the option, not the old off-by-one index
+  assert.deepEqual(p.recommendedIdxs, [0]) // the recommendation follows the option, not the old off-by-one index
 })
 
 test("a question numbered with the SAME letter its options start at is still context", () => {
@@ -412,68 +412,75 @@ test("recommendedIndex: no match → null (keeps the muted caption fallback)", (
 
 test("inline (recommended) marker → flags the option, strips the marker, no leftover text", () => {
   const p = parseQuestionBlock("How to proceed?\n\n- A. SQLite — transactional (recommended)\n- B. JSON — zero deps", "question")
-  assert.equal(p.recommendedIdx, 0)
+  assert.deepEqual(p.recommendedIdxs, [0])
   assert.deepEqual(p.options, ["A. SQLite — transactional", "B. JSON — zero deps"])
   assert.equal(p.recommendedNote, undefined)
 })
 
 test("inline (recommended: why) → rationale captured as the note", () => {
   const p = parseQuestionBlock("Pick one:\n\n- A. one\n- B. two (recommended: cheaper and simpler)", "question")
-  assert.equal(p.recommendedIdx, 1)
+  assert.deepEqual(p.recommendedIdxs, [1])
   assert.deepEqual(p.options, ["A. one", "B. two"])
   assert.equal(p.recommendedNote, "cheaper and simpler")
 })
 
 test("inline marker variants: **Recommended** — lead, trailing — recommended, no dangling separators", () => {
   const lead = parseQuestionBlock("Q?\n\n- A. keep it\n- B. **Recommended** — switch to pnpm", "question")
-  assert.equal(lead.recommendedIdx, 1)
+  assert.deepEqual(lead.recommendedIdxs, [1])
   assert.deepEqual(lead.options, ["A. keep it", "B. switch to pnpm"])
   const trail = parseQuestionBlock("Q?\n\n- A. Hold — recommended\n- B. Ship now", "question")
-  assert.equal(trail.recommendedIdx, 0)
+  assert.deepEqual(trail.recommendedIdxs, [0])
   assert.deepEqual(trail.options, ["A. Hold", "B. Ship now"])
 })
 
 test("inline marker preserves the option's own backticks/emphasis when stripping", () => {
   const p = parseQuestionBlock("Flag?\n\n- A. Use `--strict` (recommended)\n- B. Use `--safe`", "question")
   assert.deepEqual(p.options, ["A. Use `--strict`", "B. Use `--safe`"])
-  assert.equal(p.recommendedIdx, 0)
+  assert.deepEqual(p.recommendedIdxs, [0])
 })
 
 test("'recommendation' (the noun) in option prose does NOT flag it — only the word 'recommended'", () => {
   const p = parseQuestionBlock("Q?\n\n- A. Merge as-is — my recommendation stands\n- B. Hold", "question")
-  assert.equal(p.recommendedIdx, null)
+  assert.deepEqual(p.recommendedIdxs, [])
   assert.deepEqual(p.options, ["A. Merge as-is — my recommendation stands", "B. Hold"])
 })
 
 test("first flagged option wins when several carry the marker", () => {
   const p = parseQuestionBlock("Q?\n\n- A. one\n- B. two (recommended)\n- C. three (recommended)", "question")
-  assert.equal(p.recommendedIdx, 1)
+  assert.deepEqual(p.recommendedIdxs, [1])
 })
 
-test("no marker + no rec line → recommendedIdx null, no caption", () => {
+test("a `multi` flags EVERY marked option — its recommendation is the set worth ticking", () => {
+  const p = parseQuestionBlock("Q?\n\n- A. one (recommended: fast)\n- B. two\n- C. three (recommended)", "multi")
+  assert.deepEqual(p.recommendedIdxs, [0, 2])
+  assert.deepEqual(p.options, ["A. one", "B. two", "C. three"])
+  assert.equal(p.recommendedNote, "fast")
+})
+
+test("no marker + no rec line → recommendedIdxs empty, no caption", () => {
   const p = parseQuestionBlock("Q?\n\n- A. one\n- B. two", "question")
-  assert.equal(p.recommendedIdx, null)
+  assert.deepEqual(p.recommendedIdxs, [])
   assert.equal(p.recommendation, undefined)
 })
 
 // ---- legacy "Recommendation: X" line still works as a fallback ----
 
-test("legacy rec line: matches an option by letter → recommendedIdx + note, chip (no inline marker)", () => {
+test("legacy rec line: matches an option by letter → recommendedIdxs + note, chip (no inline marker)", () => {
   const p = parseQuestionBlock("Pick:\n\n- A. one\n- B. two\n\nRecommendation: B — cheaper", "question")
-  assert.equal(p.recommendedIdx, 1)
+  assert.deepEqual(p.recommendedIdxs, [1])
   assert.equal(p.recommendedNote, "Recommendation: B — cheaper")
   assert.equal(p.recommendation, "Recommendation: B — cheaper")
 })
 
-test("legacy rec line that names no option → recommendedIdx null but recommendation kept (muted caption)", () => {
+test("legacy rec line that names no option → recommendedIdxs empty but recommendation kept (muted caption)", () => {
   const p = parseQuestionBlock("Pick:\n\n- A. one\n- B. two\n\nRecommendation: whichever you like", "question")
-  assert.equal(p.recommendedIdx, null)
+  assert.deepEqual(p.recommendedIdxs, [])
   assert.equal(p.recommendation, "Recommendation: whichever you like")
 })
 
 test("inline marker WINS over a legacy rec line if both are present", () => {
   const p = parseQuestionBlock("Pick:\n\n- A. one (recommended)\n- B. two\n\nRecommendation: B", "question")
-  assert.equal(p.recommendedIdx, 0)
+  assert.deepEqual(p.recommendedIdxs, [0])
 })
 
 // ---- inline marker: rationale separators + content-vs-marker (round-2 review fixes) ----
@@ -481,7 +488,7 @@ test("inline marker WINS over a legacy rec line if both are present", () => {
 test("inline note accepts comma/semicolon separators, not just colon/dash", () => {
   const comma = parseQuestionBlock("Q?\n\n- A. Foo (recommended, because it's faster)\n- B. Bar", "question")
   assert.deepEqual(comma.options, ["A. Foo", "B. Bar"])
-  assert.equal(comma.recommendedIdx, 0)
+  assert.deepEqual(comma.recommendedIdxs, [0])
   assert.equal(comma.recommendedNote, "because it's faster")
   const semi = parseQuestionBlock("Q?\n\n- A. Foo (recommended; also cheapest)\n- B. Bar", "question")
   assert.equal(semi.recommendedNote, "also cheapest")
@@ -489,18 +496,18 @@ test("inline note accepts comma/semicolon separators, not just colon/dash", () =
 
 test("a bare interior 'recommended' is CONTENT, not a marker — never flagged, never rewritten", () => {
   const p = parseQuestionBlock("Q?\n\n- A. Use the recommended settings\n- B. Use custom settings", "question")
-  assert.equal(p.recommendedIdx, null)
+  assert.deepEqual(p.recommendedIdxs, [])
   assert.deepEqual(p.options, ["A. Use the recommended settings", "B. Use custom settings"])
   // A hyphenated neighbor ("recommended-only") is likewise left as content.
   const q = parseQuestionBlock("Q?\n\n- A. Enable recommended-only mode\n- B. Enable all", "question")
-  assert.equal(q.recommendedIdx, null)
+  assert.deepEqual(q.recommendedIdxs, [])
   assert.deepEqual(q.options, ["A. Enable recommended-only mode", "B. Enable all"])
 })
 
 test("inline marker with no space before the paren, preserving the label's own backticks", () => {
   const p = parseQuestionBlock("Flag?\n\n- A. Use `--strict`(recommended)\n- B. Use `--safe`", "question")
   assert.deepEqual(p.options, ["A. Use `--strict`", "B. Use `--safe`"])
-  assert.equal(p.recommendedIdx, 0)
+  assert.deepEqual(p.recommendedIdxs, [0])
 })
 
 // ---- hasQuestionBlock ----
@@ -540,7 +547,7 @@ test("heal: an option-less fence adopts the A-led list immediately after it (pul
   const parsed = parseQuestionBlock(q.text, "question")
   assert.equal(parsed.options.length, 4)
   assert.equal(parsed.contextMd, "Pullfrog runs stop for 85 active orgs on Sep 8. What should happen?")
-  assert.equal(parsed.recommendedIdx, 0)
+  assert.deepEqual(parsed.recommendedIdxs, [0])
   assert.equal(parsed.recommendedNote, "gets the conversion")
 })
 
@@ -629,7 +636,7 @@ test("heal: an adopted run carries its Recommendation line along", () => {
   assert.equal(segs.length, 2)
   const parsed = parseQuestionBlock(segs[0].kind === "question" ? segs[0].text : "", "question")
   assert.deepEqual(parsed.options, ["A. one", "B. two"])
-  assert.equal(parsed.recommendedIdx, 1)
+  assert.deepEqual(parsed.recommendedIdxs, [1])
   assert.equal(segs[1].kind === "prose" && segs[1].text.trim(), "Afterword.")
 })
 

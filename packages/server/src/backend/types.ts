@@ -386,19 +386,16 @@ export function frizzMcpEnv(mcp: FrizzMcp): Record<string, string> {
 // is a worker that quits at 60% of its window.
 //
 // ── BASH_DEFAULT_TIMEOUT_MS ────────────────────────────────────────────────────────────────────
-// How long a FOREGROUND Bash call runs before Claude Code moves it to the background. Claude Code's
-// default is 120_000 (2 min) with a ceiling of 600_000 (10 min); we sit BELOW both at 60_000, which
-// the maintainer chose on 2026-08-01 — reversing the same-day call to take the ceiling.
+// How long a FOREGROUND Bash call that names no `timeout` runs before Claude Code moves it to the
+// background. DELIBERATELY NOT SET: a worker runs on Claude Code's own default, 120_000 (2 min) in cli
+// 2.1.293, and follows it if Claude Code moves it (maintainer 2026-10-10: "we should just let the
+// agent follow its own best practices here as much as possible").
 //
-// WHY: the earlier reasoning optimized for the long gate (`nub run test` is ~5 min) and paid for it
-// with a turn that can sit blocked for ten minutes on one call. A blocked turn is the worse failure:
-// the worker is doing nothing recoverable, the board shows a card that cannot be steered, and the
-// operator cannot tell a slow gate from a wedged one. Bouncing at a minute costs a poll cycle to
-// recover the result and keeps the turn moving in the meantime.
-//
-// THAT REASONING STILL GOVERNS THE DEFAULT, and only the default. It is about the call the worker did
-// NOT think about: a hung `curl` should bounce in a minute, not sit on the turn. It says nothing about
-// a call the worker sized deliberately, which is the case the CEILING below governs.
+// Frizz pinned it at 60_000 from 2026-08-01 until then, so that a call the worker had not thought
+// about — a hung `curl` — bounced in a minute rather than sitting on the turn. Do not bring the pin
+// back to shorten a blocked turn: two minutes is the harness's own answer to that, and the ceiling
+// below governs the call a worker sized deliberately. With nothing set here, a value the operator
+// exported before launching Frizz reaches the worker like any other variable (see worker-env.ts).
 //
 // ── BASH_MAX_TIMEOUT_MS ────────────────────────────────────────────────────────────────────────
 // The ceiling on an EXPLICIT `timeout`, lifted from Claude Code's 600_000 to 24 hours on 2026-08-11
@@ -414,18 +411,15 @@ export function frizzMcpEnv(mcp: FrizzMcp): Record<string, string> {
 // 24 HOURS rather than "no limit", because that is already frizz's word for the longest thing a worker
 // may ask for anywhere else (RECURRING_MAX_INTERVAL_SECONDS). One ceiling vocabulary, not two.
 //
-// The Bash tool's own description interpolates both (`` `timeout` is in milliseconds: default ${...},
-// max ${...}``), so the worker is told these numbers rather than a stale pair.
+// The Bash tool's own description interpolates the default and this ceiling (`` `timeout` is in
+// milliseconds: default ${...}, max ${...}``), so the worker is told these numbers rather than a stale
+// pair.
 //
 // This does NOT relax the escaping-background-job rule that hooks/bash-background.mjs enforces. That
 // hook is about lifecycle identity (`cmd &` leaves a child frizz and Claude cannot wake on); this is
 // only about how long a tracked foreground call is allowed to take before the harness backgrounds it
 // ITSELF, which keeps the task id and the wake. The two are independent.
-//
-// Do not "verify" this value from a stand-in harness: neither `claude -p` nor a raw SDK session
-// reproduces the auto-background bounce that real dispatched workers get, so a behavioral check
-// there passes identically with and without the variable. See the NOT ASSERTED note in
-// _live_sdk_worker_env.mts.
+
 // Claude Code caps WebSearch at 200 calls per SESSION (verified in the 2.1.220 bundle:
 // `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION ?? 200`, enforced in the WebSearch tool against a
 // `taskRegistry` counter). A frizz worker is long-lived and research-heavy — it burns that budget on
@@ -483,7 +477,6 @@ function workerCap(name: string, lifted: number, env: NodeJS.ProcessEnv): string
 
 export const CLAUDE_WORKER_ENV = {
   CLAUDE_CODE_TOTAL_TOKENS_REMINDER: "infinite",
-  BASH_DEFAULT_TIMEOUT_MS: "60000",
   BASH_MAX_TIMEOUT_MS: String(24 * 60 * 60 * 1000),
   // A background worker never attaches to the human's editor. Stripping the editor's address from the
   // inherited environment (worker-env.ts isEditorAttachEnvKey) removes what Claude Code would find it by;

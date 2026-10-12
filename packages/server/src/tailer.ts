@@ -5,7 +5,7 @@ import { promisify } from "node:util"
 import { basename, dirname, isAbsolute, join, resolve, win32 } from "node:path"
 import { homedir, tmpdir } from "node:os"
 import type { AskQuestion, AwaitingHint, CodexModel, LiveTool, SubAgentDirectoryEntry, WorkCheckout } from "@frizz/shared"
-import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, PermissionMode, questionFencesLive, saysAllDone, splitAwaitingFrontmatter } from "@frizz/shared"
+import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, parseCrossSessionMessage, PermissionMode, questionFencesLive, saysAllDone, splitAwaitingFrontmatter } from "@frizz/shared"
 import type { Bus } from "./bus.ts"
 import { permMarkerPath, workDirOf, type Project } from "./project.ts"
 import { isBrokerClaudeRow, isHeadlessRow, isHeldRow } from "./storage.ts"
@@ -126,12 +126,12 @@ const MAX_POLL_MS = 10_000
 //
 // The window MUST exceed the longest a LIVE child can legitimately stay silent. A child writes its
 // tool_use record, then blocks, and a foreground Bash call that names no `timeout` is moved to the
-// background at BASH_DEFAULT_TIMEOUT_MS (60 s in a frizz worker) — so a call the child did not size
-// buys at most a minute of silence. The old 5-minute window sat UNDER the 10-minute ceiling any Bash
-// call had then (Claude's own BASH_MAX_TIMEOUT_MS) and therefore declared healthy children dead: a
-// child dispatched to own a CI wait (the contract's prescribed way to wait) flipped to "stale" at 312s
-// while blocked in its watcher, dropping hasLiveBackgroundWork and queueing its parent mid-wait —
-// measured on the live board 2026-07-22.
+// background at Claude Code's default timeout (120 s; frizz pinned 60 s until 2026-10-10) — so a call
+// the child did not size buys at most two minutes of silence. The old 5-minute window sat UNDER the
+// 10-minute ceiling any Bash call had then (Claude's own BASH_MAX_TIMEOUT_MS) and therefore declared
+// healthy children dead: a child dispatched to own a CI wait (the contract's prescribed way to wait)
+// flipped to "stale" at 312s while blocked in its watcher, dropping hasLiveBackgroundWork and queueing
+// its parent mid-wait — measured on the live board 2026-07-22.
 // 15 minutes clears that with headroom and still clears a genuinely dead child promptly; across 1366
 // real child transcripts (176k inter-record gaps) only 0.04% exceed it, while the p99 gap is 95s.
 //
@@ -163,7 +163,7 @@ const SUBAGENT_STALE_MS = 15 * 60_000
 //
 // So when a child's transcript ENDS in such a call, the staleness window opens at that call's deadline
 // instead of at the last append. A child quiet for any other reason keeps the plain clock, and a call
-// that names no `timeout` changes nothing (it bounces at BASH_DEFAULT_TIMEOUT_MS, well inside the
+// that names no `timeout` changes nothing (it bounces at Claude Code's default, well inside the
 // window). The returned deadline is clamped to the worker's own ceiling, so no record can buy more.
 const BASH_TIMEOUT_CEILING_MS = Number(CLAUDE_WORKER_ENV.BASH_MAX_TIMEOUT_MS)
 
@@ -3055,6 +3055,13 @@ export interface Tailer {
   // during the handoff. Any later backend record remains authoritative (for example a model/version
   // that rejects or coerces a requested mode).
   notePermissionMode?(slug: string, permissionMode: PermissionMode): void
+  // An interaction for this thread just reached a terminal lifecycle: re-read its permission block NOW
+  // rather than at the next tick. The board rebuilds on the same change a microtask later, and a
+  // snapshot carrying "nothing pending" beside a perm-prompt the tick has not yet cleared is exactly
+  // the frame that draws the external-terminal net under an approval the operator just gave. It only
+  // ever CLEARS a block (a new one is the tick's to find) and publishes nothing itself — the caller
+  // may be inside the store's transaction, and the board refresh it has already queued carries this.
+  permissionAnswered?(slug: string): void
   /**
    * Derive current state immediately, then poll every POLL_MS. `onPrimeProgress` observes the FIRST
    * pass only, once per PRIME_PROGRESS_EVERY rows — a cold board of thousands of threads spends real
@@ -3081,6 +3088,10 @@ export interface TailerDeps {
   // thread's rendered transcript may have changed. The /ws transcript producer uses it to push updates
   // to subscribed clients (replacing the client's 1.5s poll). Optional: unset = no transcript push.
   onTranscriptChange?: (slugs: string[]) => void
+  // A message from ANOTHER Claude session landed in one of this project's threads. Called on the
+  // record the moment it is tailed, while the sender is still running — the only time its socket can
+  // be traced to a thread (see session-peer.ts). Optional: unset = resolved only when a reader asks.
+  onCrossSessionMessage?: (peer: { socket?: string; name?: string }) => void
   now?: () => number // injectable clock (tests)
   // Injectable MONOTONIC clock, distinct from `now` because it measures ELAPSED work rather than
   // naming an instant — it is what PRIME_BUDGET_MS is spent against. Defaults to `performance.now`.
@@ -3144,6 +3155,17 @@ export interface TailerDeps {
   // `source` is the thread's opening request, for the distinguishing word. Optional: unset = persisted
   // as written.
   distinctTitle?: (slug: string, title: string, source?: string) => string
+  // "Has the human already answered what this marker asked?" — the half of a permission block the
+  // marker cannot say. A deferred marker reads as a block until the TRANSCRIPT advances past it, and
+  // an approved tool call writes nothing until it FINISHES, so without this an approved five-minute
+  // command kept its thread on perm-prompt for five minutes: the answered card left the chat and the
+  // "respond in your external terminal" net drew in its place (maintainer 2026-10-10: "every time
+  // after I approve a command … it changes the render to this"). On the broker path every deferred
+  // request is ALSO journaled as an interaction, so the journal knows the moment it is answered:
+  // true iff nothing is pending for the session and something reached a terminal lifecycle at or
+  // after `markerAt` (InteractionStore.settledSince). Absent (tests, a store-less server) or a session
+  // that journals nothing (pre-broker, foreign) ⇒ the marker decides alone, exactly as before.
+  permissionSettled?: (slug: string, sessionId: string, markerAt: string) => boolean
   // Durable prime cache (see tail-cache.ts). Defaults to a table in the project's own SQLite DB;
   // pass `null` to disable it entirely, which restores the historical "fold every transcript from
   // byte 0 on every boot" behaviour exactly (that is what the cache-off tests assert against).
@@ -4913,7 +4935,15 @@ export function createTailer(deps: TailerDeps): Tailer {
     // transcript (lastActivityAt < at) would flash "Needs you" until the resume record lands.
     if (priorGeneration(at)) return false
     const last = state.lastActivityAt ? Date.parse(state.lastActivityAt) : Number.NEGATIVE_INFINITY
-    return at > last
+    if (at <= last) return false
+    // ANSWERED IS NOT BLOCKED. The transcript is the slow witness: it advances only when the approved
+    // tool call RETURNS. The interaction journal is the fast one — see TailerDeps.permissionSettled.
+    // A store that throws leaves the marker's own verdict standing (never hide a live block on an
+    // error); the ISO round-trip gives the journal the exact text form it compares against.
+    try {
+      if (deps.permissionSettled?.(row.slug, row.session_id, new Date(at).toISOString())) return false
+    } catch { /* the marker decides alone */ }
+    return true
   }
 
   // Perm-blocked verdict for a session, and the structured PermissionRequest marker is now the ONLY
@@ -4940,7 +4970,11 @@ export function createTailer(deps: TailerDeps): Tailer {
     backend: TailBackend,
   ): PaneSniff {
     void nowMs; void backend
-    if (state.foreign) return { permPrompt: false }
+    return { permPrompt: permBlocked(state, row, turn) }
+  }
+
+  function permBlocked(state: TailState, row: SessionRow, turn: TurnState): boolean {
+    if (state.foreign) return false
     // The MARKER path is all that is left, and it is the one that always worked headlessly: the
     // cc-worker hook writes a marker into FRIZZ_PERM_DIR when a tool call is waiting on the operator.
     // Below this there used to be a fallback that captured the worker's rendered terminal and matched
@@ -4948,10 +4982,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     // now, and a broker thread's approvals arrive as typed permission requests over the control channel
     // anyway.
     // Codex and ACP approvals are typed interaction cards, never a marker file.
-    if (turn === "in-flight" && row.backend !== "codex" && row.backend !== "acp" && permMarkerBlocks(state, row)) {
-      return { permPrompt: true }
-    }
-    return { permPrompt: false }
+    return turn === "in-flight" && row.backend !== "codex" && row.backend !== "acp" && permMarkerBlocks(state, row)
   }
 
   // Write out the un-retirements the FOLD queued: an op the agent restarted under an id the operator
@@ -5131,6 +5162,23 @@ export function createTailer(deps: TailerDeps): Tailer {
   // The delivery-ledger fold and the codex sub-agent tracker were mutually exclusive while the ledger
   // was claude-only; a codex row now runs BOTH, so the single per-line hook `consume` accepts has to
   // carry them together. Returns undefined when neither applies, so the common path is unchanged.
+  // The enqueue is the first record either delivery shape writes (session-peer.ts), so it is the one
+  // watched; the substring test keeps every other line to one `includes`.
+  const crossSessionOnLine = deps.onCrossSessionMessage
+    ? (line: string) => {
+        if (!line.includes("cross-session-message")) return
+        let rec: { type?: unknown; operation?: unknown; content?: unknown }
+        try {
+          rec = JSON.parse(line)
+        } catch {
+          return
+        }
+        if (rec.type !== "queue-operation" || rec.operation !== "enqueue" || typeof rec.content !== "string") return
+        const peer = parseCrossSessionMessage(rec.content)
+        if (peer) deps.onCrossSessionMessage!(peer)
+      }
+    : undefined
+
   function chainOnLine(
     a: ((line: string) => void) | undefined,
     b: ((line: string) => void) | undefined,
@@ -6031,7 +6079,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       const rowLedger = row.delivery_ledger ?? null
       const ledgerDrifted = rowLedger !== (state.deliveryLedgerSeen ?? null) // a router write with no JSONL advance
       const ledger = ledgerFold(row, nowMs, state)
-      consume(state, backend, chainOnLine(ledger.onLine, codexSubAgentOnLine(row, state)))
+      consume(state, backend, chainOnLine(chainOnLine(ledger.onLine, codexSubAgentOnLine(row, state)), crossSessionOnLine))
       // Child rollouts advance on their OWN clock, so poll every tick — not only when the parent
       // appended. This is what flips a finished codex child out of the live set (and, once every
       // child is done, releases the thread from Active into the queue).
@@ -6597,6 +6645,12 @@ export function createTailer(deps: TailerDeps): Tailer {
       if (state) {
         state.permissionMode = permissionMode
       }
+    },
+    permissionAnswered(slug) {
+      const state = states.get(slug)
+      if (!state?.primed || !state.permPrompt) return
+      const row = currentRowFor(state)
+      if (row) state.permPrompt = permBlocked(state, row, state.turn)
     },
     start(onPrimeProgress) {
       if (timer) return

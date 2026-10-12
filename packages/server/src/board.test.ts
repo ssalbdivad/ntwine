@@ -1394,6 +1394,30 @@ test("deriveNeedsYou: a degraded ask-row cards — the pair is what puts it in t
 // Neither queued nor carded: a worker whose children can never return, waiting forever for a wake that
 // cannot come. This is the sub-agent twin of the background-shell phantom fixed in a24d5ec, and it is
 // the worse of the two — a shell does not excuse a rest on its own, a sub-agent does.
+// A permission marker is a file; it outlives the daemon that was parked on it.
+test("a broker thread whose daemon died while parked on a permission request is a stall, not a live approval", () => {
+  const dir = mkdtempSync(join(tmpdir(), "frizz-board-deadperm-"))
+  const project: Project = { dir, id: "project-dp", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
+  const storage = createStorage(join(dir, "ui.db"), "p")
+  storage.upsertSession(row({ slug: "parked", session_id: "sess-parked", thread_name: "frizz-parked" }))
+  storage.setBackend("parked", "claude")
+  storage.setClaudeRuntime("parked", "broker")
+  const tailer = {
+    get: () => tele({ turn: "in-flight", permPrompt: true }),
+    foreignIds: () => [], subAgent: () => undefined, forget: () => {},
+    start: () => {}, stop: () => {}, tick: () => {},
+  } satisfies Tailer
+
+  const live = createBoard(project, storage, new Bus(), tailer, "dp-live", { claudeBrokerDaemonAlive: () => true })
+  assert.equal(live.refresh().threads.find((t) => t.id === "parked")!.runtime, "perm-prompt", "control: a live daemon is waiting on the operator")
+
+  const dead = createBoard(project, storage, new Bus(), tailer, "dp-dead", { claudeBrokerDaemonAlive: () => false })
+  const stalled = dead.refresh().threads.find((t) => t.id === "parked")!
+  assert.equal(stalled.runtime, "exited", "nothing is left to answer")
+  assert.equal(stalled.crashed, true, "so it cards as stalled")
+  rmSync(dir, { recursive: true, force: true })
+})
+
 test("a rested broker thread whose daemon died holding live sub-agents surfaces instead of vanishing", () => {
   const dir = mkdtempSync(join(tmpdir(), "frizz-board-deaddaemon-"))
   const project: Project = { dir, id: "project-dd", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }

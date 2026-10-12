@@ -27,6 +27,9 @@ if curl -sf "https://registry.npmjs.org/$name/$version" > /dev/null; then
   exit 0
 fi
 
+# Never past a version npm still holds in review: see npm-refuse-overtake.sh.
+bash "$(dirname "${BASH_SOURCE[0]}")/npm-refuse-overtake.sh" "$name" "$version"
+
 echo "→ publishing $name@$version"
 out="$(mktemp)"
 if npm publish "$dir" "$@" >"$out" 2>&1; then

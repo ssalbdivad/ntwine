@@ -137,6 +137,13 @@ export interface InteractionStore {
   createProviderRequest(request: InteractionRequestType, binding: ProviderRequestBinding): CreateProviderInteractionResult
   get(scope: InteractionSessionScope, interactionId: string): InteractionRecordType | undefined
   listPending(scope: InteractionSessionScope): InteractionRecordType[]
+  /** "Has everything this session asked since `since` been dealt with?" — nothing is pending for it AND
+   *  at least one interaction reached a terminal lifecycle at or after `since` (an ISO instant in
+   *  `toISOString` form, compared as text against `completed_at`). Both halves matter: a session that
+   *  never journaled anything has settled nothing, and one answered card does not settle a session that
+   *  still has another open. A pure read — it expires nothing and notifies nobody, so it is safe to call
+   *  from inside a store observer. */
+  settledSince(scope: InteractionSessionScope, since: string): boolean
   resolve(scope: InteractionSessionScope, input: ResolveInteractionInputType): ResolveStoredInteractionResult
   providerDelivery(scope: InteractionSessionScope, interactionId: string): ProviderDelivery | undefined
   queueProviderResponse(
@@ -158,6 +165,11 @@ export interface InteractionStore {
     reason: "provider-cancelled" | "turn-ended",
   ): InvalidateProviderRequestResult
   cancel(scope: InteractionSessionScope, input: CancelInteractionInputType): CancelStoredInteractionResult
+  /** Terminalize ONE pending interaction its PROVIDER took back — the request no longer exists, so no
+   *  answer can reach anything (`provider-cancelled`). For an interaction journaled with `create`, which
+   *  carries no delivery row; a delivery-bound one goes through `invalidateProviderRequest`. Returns the
+   *  cancelled record, or undefined when it was not there or already terminal. */
+  withdraw(scope: InteractionSessionScope, interactionId: string): InteractionRecordType | undefined
   cancelForSession(threadSlug: string, sessionId: string, reason: Exclude<InteractionCancellationReasonType, "expired">): InteractionRecordType[]
   expireDue(at?: string): InteractionRecordType[]
   subscribe(listener: (change: InteractionChange) => void): () => void
@@ -691,6 +703,12 @@ export function createInteractionStore(db: Database, options: InteractionStoreOp
   const pendingCount = db.prepare<[string, string, string], { count: number }>(`
     SELECT COUNT(*) AS count FROM interaction_journal
     WHERE project_id = ? AND thread_slug = ? AND session_id = ? AND lifecycle = 'pending'
+  `)
+  const terminalSince = db.prepare<[string, string, string, string], { found: number }>(`
+    SELECT EXISTS (
+      SELECT 1 FROM interaction_journal
+      WHERE project_id = ? AND thread_slug = ? AND session_id = ? AND lifecycle != 'pending' AND completed_at >= ?
+    ) AS found
   `)
   const insert = db.prepare(`
     INSERT INTO interaction_journal (
@@ -1384,6 +1402,14 @@ export function createInteractionStore(db: Database, options: InteractionStoreOp
     return before.map((row) => rowToRecord(byId.get(row.id)!))
   })
 
+  const withdrawTxn = db.transaction((scope: InteractionSessionScope, interactionId: string): InteractionRecordType | undefined => {
+    const row = byScopedId.get(interactionId, scope.projectId, scope.threadSlug, scope.sessionId)
+    if (!row || row.lifecycle !== "pending") return undefined
+    if (deliveryByInteraction.get(row.id)) throw new InteractionStoreError("invalid-response", "a provider-delivered interaction is withdrawn through invalidateProviderRequest")
+    if (providerCancelStmt.run({ id: row.id, at: iso(now) }).changes !== 1) return undefined
+    return rowToRecord(byId.get(row.id)!)
+  })
+
   const expireTxn = db.transaction((at: string) => {
     const before = dueStmt.all(at)
     if (before.length === 0) return []
@@ -1423,6 +1449,10 @@ export function createInteractionStore(db: Database, options: InteractionStoreOp
       const expired = expireTxn(iso(now))
       emit(expired)
       return listPendingStmt.all(scope.projectId, scope.threadSlug, scope.sessionId, INTERACTION_LIST_MAX).map(rowToRecord)
+    },
+    settledSince(scope, since) {
+      if ((pendingCount.get(scope.projectId, scope.threadSlug, scope.sessionId)?.count ?? 0) > 0) return false
+      return terminalSince.get(scope.projectId, scope.threadSlug, scope.sessionId, since)?.found === 1
     },
     resolve(scope, input) {
       const expired = expireTxn(iso(now))
@@ -1477,6 +1507,11 @@ export function createInteractionStore(db: Database, options: InteractionStoreOp
       const result = cancelTxn(scope, input)
       if (result.effect === "cancelled") emit([result.interaction])
       return result
+    },
+    withdraw(scope, interactionId) {
+      const record = withdrawTxn.immediate(scope, interactionId)
+      if (record) emit([record])
+      return record
     },
     cancelForSession(threadSlug, sessionId, reason) {
       const parsedReason = InteractionCancellationReason.safeParse(reason)

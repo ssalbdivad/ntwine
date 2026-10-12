@@ -215,13 +215,15 @@ export interface ParsedQuestion {
   contextMd: string
   // Option labels with any inline "recommended" marker stripped out (the badge conveys it instead).
   options: string[]
-  // The recommended option's index, or null if none. Primary signal: the word "recommended" ON an
-  // option line (`recommendedIdx` points at it). Legacy fallback: a "Recommendation: X" line whose
-  // leading letter matches an option. Null → no chip; the free-form `recommendation` line (if any)
-  // renders as a muted caption instead.
-  recommendedIdx: number | null
-  // The rationale shown on the recommended chip's tooltip — the inline marker's `(recommended: why)`
-  // text, or the legacy "Recommendation: …" line when we fell back to letter-matching.
+  // The recommended options' indices, ascending; empty if none. A pick-ONE question carries at most
+  // one. A `multi` may carry several — the set worth ticking — because one chip in a list the human
+  // ticks several of reads as "pick only this" (maintainer 2026-10-10). Primary signal: the word
+  // "recommended" ON an option line. Legacy fallback: a "Recommendation: X" line whose leading letter
+  // matches an option. Empty → no chip; the free-form `recommendation` line (if any) renders as a
+  // muted caption instead.
+  recommendedIdxs: number[]
+  // The rationale shown on the FIRST recommended chip's tooltip — the inline marker's
+  // `(recommended: why)` text, or the legacy "Recommendation: …" line when we fell back to letter-matching.
   recommendedNote?: string
   // A legacy "Recommendation: …" line, kept ONLY to drive the muted-caption fallback when it names no
   // matching option. New-style questions mark the option inline and carry no such line.
@@ -382,23 +384,24 @@ export function parseQuestionBlock(body: string, kind: QuestionKind, danger = fa
     from = run[0] + 1
   }
 
-  if (optLines.length === 0) return { kind, danger, contextMd: body, options: [], recommendedIdx: null }
+  if (optLines.length === 0) return { kind, danger, contextMd: body, options: [], recommendedIdxs: [] }
   const runStart = optLines[0]
   const runEnd = optLines[optLines.length - 1]
 
   // PRIMARY recommendation signal: the word "recommended" on an option line. Strip the marker from each
-  // label (the badge conveys it) and remember the FIRST flagged option + its inline rationale.
+  // label (the badge conveys it) and remember the FIRST flagged option + its inline rationale — or, on
+  // a `multi`, every flagged option, since several can be ticked.
   const options: string[] = []
-  let recommendedIdx: number | null = null
+  let recommendedIdxs: number[] = []
   let recommendedNote: string | undefined
   // Prose the run absorbed (a group heading) belongs to the option it introduces, so the chips can carry
   // it as a caption instead of it vanishing between them.
   const optionHeadings: (string | undefined)[] = []
   for (const [k, i] of optLines.entries()) {
     const { label, recommended, note } = stripRecommendedMarker(optionText(lines[i]))
-    if (recommended && recommendedIdx === null) {
-      recommendedIdx = options.length
-      recommendedNote = note
+    if (recommended && (kind === "multi" || recommendedIdxs.length === 0)) {
+      if (recommendedIdxs.length === 0) recommendedNote = note
+      recommendedIdxs.push(options.length)
     }
     options.push(label)
     const between = k === 0 ? [] : lines.slice(optLines[k - 1] + 1, i).filter((l) => l.trim())
@@ -424,15 +427,18 @@ export function parseQuestionBlock(body: string, kind: QuestionKind, danger = fa
   const trailingMd = trim(trailing).join("\n") || undefined
 
   // LEGACY FALLBACK: no inline marker but an old-style "Recommendation: X" line → match it to an option
-  // by leading letter. If it names no option, `recommendedIdx` stays null and the line renders as the
+  // by leading letter. If it names no option, `recommendedIdxs` stays empty and the line renders as the
   // muted caption. New-style questions never reach this branch.
-  if (recommendedIdx === null && recommendation) {
-    recommendedIdx = recommendedIndex(recommendation, options)
-    if (recommendedIdx !== null) recommendedNote = recommendation
+  if (recommendedIdxs.length === 0 && recommendation) {
+    const named = recommendedIndex(recommendation, options)
+    if (named !== null) {
+      recommendedIdxs = [named]
+      recommendedNote = recommendation
+    }
   }
 
   return {
-    kind, danger, contextMd, options, recommendedIdx, recommendedNote, recommendation, trailingMd,
+    kind, danger, contextMd, options, recommendedIdxs, recommendedNote, recommendation, trailingMd,
     ...(optionHeadings.some(Boolean) ? { optionHeadings } : {}),
   }
 }

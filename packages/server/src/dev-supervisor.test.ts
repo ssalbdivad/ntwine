@@ -785,6 +785,66 @@ test("child-only Update & Restart commits one stable child without replacing its
   }
 })
 
+// Both actions drain the running child and fork its replacement in the launch folder. With the
+// folder gone that fork fails, and so does the one that would restore the old child (2026-10-11).
+test("Restart and Update & Restart refuse, and leave the child serving, once the launch folder is deleted", { timeout: 15_000 }, async () => {
+  const base = mkdtempSync(join(tmpdir(), "frizz-launch-folder-gone-"))
+  const workspace = join(base, "project")
+  const stateDir = join(base, "state")
+  const childEntry = join(base, "child.mjs")
+  const events = join(base, "events")
+  mkdirSync(workspace)
+  mkdirSync(stateDir)
+  writeFileSync(childEntry, `
+    import { appendFileSync } from "node:fs"
+    import { registerProjectLaunchDelegate, projectLaunchOwnerTokenFromEnvironment, projectLaunchTargetFromEnvironment } from ${JSON.stringify(projectLaunchUrl)}
+    const delegate = registerProjectLaunchDelegate(projectLaunchTargetFromEnvironment(process.env), projectLaunchOwnerTokenFromEnvironment(process.env))
+    appendFileSync(process.env.EVENTS, \`start:\${process.pid}\\n\`)
+    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: \`boot-\${process.pid}\` })
+    const stop = () => { appendFileSync(process.env.EVENTS, \`stop:\${process.pid}\\n\`); delegate.release(); process.exit(0) }
+    process.once("SIGTERM", stop); process.once("disconnect", stop); setInterval(() => {}, 1000)
+  `)
+  const target = { projectId: randomUUID(), projectDir: workspace, stateDir }
+  const owner = acquireProjectLaunchOwner(target, "supervisor")
+  const port = await freeSupervisorPort()
+  const control = (path: string, method = "GET") =>
+    fetch(`http://127.0.0.1:${port}/_frizz/control/${path}`, { method, headers: { origin: `http://127.0.0.1:${port}` } })
+  let prepares = 0
+  let supervisor: DevSupervisor | undefined
+  try {
+    supervisor = await startDevSupervisor({
+      port, cwd: workspace, stateDir, launchTarget: target, launchOwnerToken: owner.token, watch: false,
+      childLaunchProvider: () => ({ entry: childEntry, environment: { FRIZZ_STABLE_ARTIFACT: "old", EVENTS: events } }),
+      updateMode: "child",
+      updateRestart: async () => { prepares++; return { state: "ready" } },
+      commitUpdate: () => {},
+      rollbackUpdate: () => {},
+      log: () => {}, error: () => {},
+    })
+    const first = await supervisor.firstBoot
+    rmSync(workspace, { recursive: true })
+    const refusal = /is running on .*project, which no longer exists/
+    // Restart answers with its own result; an update acknowledges and reports through /status.
+    const restart = await control("restart", "POST")
+    assert.equal(restart.status, 503)
+    assert.match((await restart.json() as { message?: string }).message ?? "", refusal)
+    assert.equal((await control("update-restart", "POST")).status, 202)
+    const update = await eventually(async () => {
+      const body = await (await control("status")).json() as { state: string; message?: string }
+      return body.state === "failed" ? body : undefined
+    }, "the refused update")
+    assert.match(update.message ?? "", refusal)
+    assert.equal(prepares, 0, "an update that cannot finish is never prepared")
+    assert.equal(supervisor.currentBoot()?.pid, first.pid)
+    assert.equal(processIsAlive(first.pid), true, "the running child is never drained")
+    assert.equal(readFileSync(events, "utf8"), `start:${first.pid}\n`)
+  } finally {
+    await supervisor?.close()
+    owner.release()
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
 test("child updates wait for advancing candidate boot progress, but bound stalls and endless progress", { timeout: 20_000 }, async () => {
   for (const mode of ["slow", "stalled", "foreign", "endless"] as const) {
     const workspace = mkdtempSync(join(tmpdir(), `frizz-update-progress-${mode}-`))

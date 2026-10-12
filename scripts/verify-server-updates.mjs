@@ -15,6 +15,7 @@ import { setTimeout as delay } from "node:timers/promises"
 import puppeteer from "puppeteer"
 import { resolveNpmCli } from "../src/server-release.ts"
 import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
+import { ensureProjectIdFile } from "../packages/server/src/project-root.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
 const workspace = resolve(import.meta.dirname, "..")
@@ -24,6 +25,8 @@ mkdirSync(out, { recursive: true })
 const root = mkdtempSync(join(tmpdir(), "frizz-server-e2e-"))
 const home = join(root, "home"), repo = join(root, "project"), eventFile = join(root, "children.jsonl")
 mkdirSync(home); mkdirSync(repo)
+// Resolved now: the last scenario deletes the folder, and cleanup still needs both spellings.
+const repoPaths = new Set([repo, realpathSync(repo)])
 writeFileSync(eventFile, "")
 const runtime = argument("node") ?? process.execPath
 const npmCli = resolveNpmCli(process.env, runtime)
@@ -48,12 +51,18 @@ Object.assign(env, {
 })
 writeFileSync(env.npm_config_userconfig, "")
 execFileSync("git", ["init", "-q"], { cwd: repo })
+// A launch opens the folder it is run in only when Frizz already knows it as a project. Anywhere
+// else it lands on the dashboard, hosted on a folder of Frizz's own (49000c91), and no project is
+// registered at all. Every scenario below is about the project the launcher was started in.
+ensureProjectIdFile(repo, home)
 const events = [], failures = [], consoleErrors = [], processes = []
 const probes = new Set()
 const workerPids = new Set()
 const packages = new Map()
 let browser, page, registry, base, shellPid, listenerMonitor, monitorEnabled = false
 let downloadGate
+// While set, the registry cannot say which frizz-server is latest: the launcher's probe fails.
+let probeOutage = false
 function record(event, data = {}) {
   const row = { at: new Date().toISOString(), event, ...data }
   events.push(row); console.log(JSON.stringify(row))
@@ -87,7 +96,9 @@ async function freePort() {
 function pack(directory, manifest) {
   writeFileSync(join(directory, "package.json"), JSON.stringify(manifest))
   const output = JSON.parse(execFileSync(process.execPath, [npmCli, "pack", "--ignore-scripts", "--json", "--pack-destination", out, "--cache", join(root, "packing-cache")], { cwd: directory, encoding: "utf8", env, maxBuffer: 4e6 }))
-  const tarball = readFileSync(join(out, output[0].filename))
+  // npm 12 answers `pack --json` with an object keyed by package name; npm 11 answered an array.
+  const packed = Array.isArray(output) ? output[0] : Object.values(output)[0]
+  const tarball = readFileSync(join(out, packed.filename))
   const release = { manifest, tarball, integrity: `sha512-${createHash("sha512").update(tarball).digest("base64")}` }
   if (!packages.has(manifest.name)) packages.set(manifest.name, { latest: manifest.version, releases: new Map() })
   packages.get(manifest.name).releases.set(manifest.version, release)
@@ -147,6 +158,20 @@ async function healthy(version) {
     return value.state === "ready" && value.version === version && value
   })
 }
+/** Everything every launcher has logged so far, whichever root this platform keeps a project's logs under. */
+function launcherLogs() {
+  let text = ""
+  for (const base of ["data", "state"]) {
+    const projects = join(home, base, "frizz/projects")
+    if (!existsSync(projects)) continue
+    for (const project of readdirSync(projects)) {
+      const logs = join(projects, project, "logs")
+      if (!existsSync(logs)) continue
+      for (const name of readdirSync(logs).filter((file) => /^frizz-.*\.log$/.test(file))) text += readFileSync(join(logs, name), "utf8")
+    }
+  }
+  return text
+}
 function selected() {
   const directory = join(home, "state/frizz/server-releases")
   const key = readdirSync(directory).find((name) => /^[0-9a-f]{16}$/.test(name))
@@ -173,9 +198,15 @@ async function stopShell(signal = "SIGTERM") {
   if (shellPid && alive(shellPid)) process.kill(shellPid, signal)
   if (shellPid) await until(`shell ${shellPid} stopped`, () => !alive(shellPid), 30_000)
 }
-async function launch(version = "0.13.0") {
+/** The folder a live process is standing in, where this platform lets another process read it. */
+function cwdOf(pid) {
+  if (process.platform === "linux") return realpathSync(`/proc/${pid}/cwd`)
+  if (process.platform !== "darwin") return undefined
+  return execFileSync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8" }).split("\n").find((line) => line.startsWith("n"))?.slice(1)
+}
+async function launch(version = "0.13.0", cwd = repo) {
   const before = children().length
-  const child = start(`launcher-${processes.length}`, [npmCli, "exec", "--yes", `--package=frizz@${version}`, "--", "frizz", "--no-app", "--port", new URL(base).port])
+  const child = start(`launcher-${processes.length}`, [npmCli, "exec", "--yes", `--package=frizz@${version}`, "--", "frizz", "--no-app", "--port", new URL(base).port], cwd)
   const entry = await until("server process", () => {
     if (child.exitCode !== null) throw new Error(`npm launcher exited ${child.exitCode}`)
     return children().slice(before).find((event) => event.event === "start")
@@ -224,6 +255,7 @@ try {
   serverFixture("0.13.9")
   serverFixture("0.13.10")
   serverFixture("0.13.11", "protocol")
+  serverFixture("0.13.12")
   registry = createServer(async (request, response) => {
     try {
       const path = decodeURIComponent(new URL(request.url, "http://registry").pathname)
@@ -242,6 +274,7 @@ try {
         const release = entry.releases.get(version)
         response.writeHead(release ? 200 : 404); response.end(release?.tarball); return
       }
+      if (packageName === "frizz-server" && probeOutage) { response.writeHead(503); response.end("INJECTED_REGISTRY_OUTAGE"); return }
       const versions = Object.fromEntries([...entry.releases].map(([version, release]) => [version, {
         ...release.manifest, dist: { tarball: `${env.npm_config_registry}${packageName}/-/${version}.tgz`, integrity: release.integrity },
       }]))
@@ -348,7 +381,9 @@ try {
     writeFileSync(join(out, `${worker.backend}-transcript.json`), JSON.stringify(transcript, null, 2))
     record("worker-survived-and-answered-followup", { backend: worker.backend, thread: worker.thread, daemon: worker.daemon })
   }
-  await until("browser recovered", () => page.evaluate(() => !!document.querySelector('button[aria-label="Restart Frizz"]')))
+  // The recovered board's control reads "Frizz is up to date" once the launcher has confirmed there
+  // is nothing newer (greyed rather than hidden since 1ea81aa1), and "Restart Frizz" until then.
+  await until("browser recovered", () => page.evaluate(() => !!document.querySelector('button[aria-label="Restart Frizz"], button[aria-label="Frizz is up to date"]')))
   if (argument("visual")) {
     for (const font of ["sans", "mono"]) {
       await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 6 })
@@ -451,6 +486,75 @@ try {
   assert.equal(selected().version, "0.13.7")
   assert.notEqual(selected().id, saved.id)
   record("cache-eviction-restored-exact-version")
+  // A probe the registry cannot answer changes nothing about the board, but it has to leave a
+  // record. Every failure used to be swallowed, so a probe that could NEVER answer was invisible:
+  // on 2026-10-11 a board had failed one every half hour for twenty hours, never offered an update,
+  // and the first anyone knew was a failed click.
+  await stopShell()
+  assert.doesNotMatch(launcherLogs(), /could not check npm for a newer Frizz server/, "no probe has failed yet")
+  probeOutage = true
+  await launch(); await healthy("0.13.7")
+  await until("the failed probe is logged", () => /could not check npm for a newer Frizz server: .*INJECTED_REGISTRY_OUTAGE|could not check npm for a newer Frizz server: .*503/su.test(launcherLogs()), 60_000)
+  probeOutage = false
+  await api.query("board")
+  record("failed-probe-logged")
+  // The folder Frizz was started from is deleted while it runs, which leaves the launcher with a
+  // dead working directory (2026-10-11: a board started in a scratch folder removed a day later;
+  // its Update failed on npm dying with `uv_cwd ENOENT`). A restart or an update forks the next
+  // server in that folder, and so does the fork that would put the old one back — so both must
+  // refuse BEFORE draining the server that is up, say why, and leave it serving.
+  const serving = children().filter((event) => event.event === "ready").at(-1).pid
+  rmSync(repo, { recursive: true, force: true })
+  packages.get("frizz-server").latest = "0.13.12"
+  const refusedAndServing = async (control, refused) => {
+    assert.equal(refused.state, "failed")
+    assert.match(refused.message ?? "", /no longer exists/, `${control} must name the missing folder, not: ${refused.message}`)
+    // A drain that was NOT refused has stopped the serving child by now.
+    await delay(3000)
+    assert.equal(selected().version, "0.13.7")
+    assert.equal(alive(shellPid), true)
+    assert.equal(alive(serving), true, `${control} drained the server it could not replace`)
+    assert.equal((await status()).version, "0.13.7")
+    await api.query("board")
+    record("refused-without-launch-folder", { control, message: refused.message })
+  }
+  // Update acknowledges at once and reports through /status; Restart answers with its own result.
+  await action()
+  await refusedAndServing("update-restart", await until("update refused", async () => { const value = await status(); return value.state === "failed" && value }, 30_000))
+  const restart = await fetch(`${base}/_frizz/control/restart`, { method: "POST", headers: { origin: base }, signal: AbortSignal.timeout(90_000) })
+  assert.equal(restart.status, 503)
+  await refusedAndServing("restart", await restart.json())
+  // A launch typed OUTSIDE a project depends on no project at all. Until 2026-10-11 it borrowed the
+  // most recently opened one as its host and moved into it — `npx frizz` in $HOME ran from
+  // `~/Documents/scratch` — so deleting a folder nobody had launched from left exactly the refusal
+  // above. Now the launcher stays where the command was typed, the server is hosted on Frizz's own
+  // folder, and the board restarts and updates with that project gone.
+  await stopShell()
+  const known = join(root, "known-project"), outside = join(root, "outside")
+  mkdirSync(known); mkdirSync(outside)
+  execFileSync("git", ["init", "-q"], { cwd: known }); ensureProjectIdFile(known, home)
+  await launch("0.13.0", known); await healthy("0.13.7")
+  const registered = () => JSON.parse(readFileSync(join(home, "data/frizz/registry.json"), "utf8")).projects.map((project) => project.path)
+  assert.ok(registered().includes(realpathSync(known)), "the project a launch opened is the most recently opened one")
+  await stopShell()
+  await launch("0.13.0", outside); await healthy("0.13.7")
+  const hosted = children().filter((event) => event.event === "ready").at(-1).pid
+  if (cwdOf(shellPid) !== undefined) {
+    assert.equal(cwdOf(shellPid), realpathSync(outside), "the launcher stays in the folder the command was typed in")
+    assert.equal(cwdOf(hosted), realpathSync(join(home, "data/frizz/host")), "the server is hosted on Frizz's own folder")
+  }
+  rmSync(known, { recursive: true, force: true })
+  await action("restart")
+  const restarted = await until("a restart after the project is gone", async () => {
+    const pid = children().filter((event) => event.event === "ready").at(-1).pid
+    return pid !== hosted && (await status()).state === "ready" && pid
+  })
+  assert.equal(alive(hosted), false)
+  await action(); await healthy("0.13.12")
+  assert.equal(selected().version, "0.13.12")
+  assert.equal(alive(restarted), false)
+  await api.query("board")
+  record("outside-launch-survives-a-deleted-project", { launcher: cwdOf(shellPid), host: cwdOf(children().filter((event) => event.event === "ready").at(-1).pid) })
   assert.equal(children().some((event) => event.event === "overlapping-server"), false, "no server process may overlap its predecessor")
   assert.ok(children().every((event) => event.node === runtimeVersion), "npm bin shebang and all server forks must use the requested Node version")
   assert.equal(existsSync(`${eventFile}.postinstall`), false, "dependency postinstall must never run")
@@ -487,7 +591,7 @@ try {
   assert.deepEqual(remaining, [])
   if (workerBackends.includes("claude")) {
     // Claude's real credential directory was linked, but only this unique project's transcripts are ours.
-    for (const path of new Set([repo, realpathSync(repo)])) rmSync(join(process.env.HOME, ".claude/projects", path.replace(/[^a-zA-Z0-9]/g, "-")), { recursive: true, force: true })
+    for (const path of repoPaths) rmSync(join(process.env.HOME, ".claude/projects", path.replace(/[^a-zA-Z0-9]/g, "-")), { recursive: true, force: true })
   }
   if (!argument("keep")) rmSync(root, { recursive: true, force: true })
 }

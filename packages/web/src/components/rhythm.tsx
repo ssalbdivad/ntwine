@@ -48,6 +48,13 @@ export const PICTURE_STEP = 22
 // exists to set off.
 export const USER_TAIL_EXTRA = 3
 
+// The air around a TIME BREAK (lib/timeBreaks), which takes the place of the gap between two messages.
+// Above: PICTURE_STEP's 22, because the reading marks a seam in TIME — a pause, a new day — and it has
+// to read as a boundary, not as a caption for the message it follows. Below: META_CARD_STEP's 6, so
+// proximity says plainly that the reading dates the message under it.
+export const TIME_BREAK_ABOVE = 22
+export const TIME_BREAK_BELOW = 6
+
 export function VSpace({ h = STEP }: { h?: number }) {
   return <div aria-hidden className="shrink-0" style={{ height: h }} />
 }

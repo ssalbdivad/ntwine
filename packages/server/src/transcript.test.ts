@@ -1613,6 +1613,23 @@ test("real Claude Code 2.1.207 SDK lifecycle dedupes its prompt and back-fills c
   assert.equal(cancelled.output, "Interrupted by user")
 })
 
+// A dispatched prompt that ends in a newline — a programmatic caller building it from a template. The
+// delivered record is read trimmed, so a raw enqueue key never matched it: the prompt rendered once as
+// the real first message and again as a gray "queued" bubble stuck at the tail of the thread.
+test("a dispatched prompt with surrounding whitespace still resolves its enqueue", () => {
+  const prompt = "Work the following ticket.\n\n> started from a ticket comment\n"
+  const raw = [
+    JSON.stringify({ type: "queue-operation", operation: "enqueue", timestamp: "2026-10-08T23:25:35.804Z", content: prompt }),
+    JSON.stringify({ type: "queue-operation", operation: "dequeue", timestamp: "2026-10-08T23:25:35.805Z" }),
+    JSON.stringify({ type: "user", timestamp: "2026-10-08T23:25:35.927Z", message: { role: "user", content: prompt }, promptSource: "sdk" }),
+    JSON.stringify({ type: "assistant", timestamp: "2026-10-08T23:25:40.000Z", message: { id: "m1", content: [{ type: "text", text: "On it." }] } }),
+    JSON.stringify({ type: "queue-operation", operation: "enqueue", timestamp: "2026-10-08T23:26:00.000Z", content: "  and the follow-up\n" }),
+    JSON.stringify({ type: "attachment", timestamp: "2026-10-08T23:26:01.000Z", attachment: { type: "queued_command", commandMode: "prompt", prompt: "  and the follow-up\n", source_uuid: "u-1" } }),
+  ].join("\n")
+  const users = parseTranscript(raw).filter((m) => m.role === "user")
+  assert.deepEqual(users.map((m) => m.queued ?? false), [false, false], "each prompt renders once, delivered")
+})
+
 test("a recorded Claude call without its result remains visibly pending", () => {
   const call = parseTranscript(
     JSON.stringify({
@@ -2403,6 +2420,43 @@ test("the SDK path coalesces two queued messages into one record — both resolv
   assert.equal(users[0].at, "2026-07-01T00:00:05.000Z", "each keeps the moment the human sent it")
 })
 
+// The coalesced record keeps each message's own whitespace in its INTERIOR — only its outer ends are
+// trimmed — so the walk needs the queued keys byte-exact even though a single delivery is matched trimmed.
+test("a coalesced delivery whose earlier message ends in a newline still resolves both", () => {
+  const a = "first message\n"
+  const b = "second message"
+  const drain = JSON.stringify({ type: "queue-operation", timestamp: "2026-07-01T00:00:09.000Z", operation: "dequeue", content: "" })
+  const msgs = parseTranscript(
+    [enqueueLine(a, "2026-07-01T00:00:05.000Z"), enqueueLine(b, "2026-07-01T00:00:07.000Z"), drain, drain, userLine(`${a}\n${b}`)].join("\n"),
+  )
+  const users = msgs.filter((m) => m.role === "user")
+  assert.deepEqual(users.map((m) => m.queued), [false, false], "both resolve, and no merged third copy")
+})
+
+// The coalesced record is read trimmed, so the run's OUTER ends lose their whitespace: the first
+// message's leading space and the last one's trailing newline. Only those two edges are forgiven.
+test("a coalesced delivery resolves when the run's outer ends carry whitespace", () => {
+  const drain = JSON.stringify({ type: "queue-operation", timestamp: "2026-07-01T00:00:09.000Z", operation: "dequeue", content: "" })
+  for (const [a, b] of [["first", "second\n"], ["  first", "second"]]) {
+    const msgs = parseTranscript(
+      [enqueueLine(a, "2026-07-01T00:00:05.000Z"), enqueueLine(b, "2026-07-01T00:00:07.000Z"), drain, drain, userLine(`${a}\n${b}`)].join("\n"),
+    )
+    const users = msgs.filter((m) => m.role === "user")
+    assert.deepEqual(users.map((m) => m.queued), [false, false], `${JSON.stringify([a, b])}: both resolve, and no merged third copy`)
+  }
+  assert.deepEqual(coalescedQueuedKeys("a\nb", ["a", "b\n"]), ["a", "b\n"])
+  assert.deepEqual(coalescedQueuedKeys("a\nb", [" a", "b"]), [" a", "b"])
+  assert.deepEqual(coalescedQueuedKeys("a\nb", ["a\n", "b"]), [], "interior whitespace stays byte-exact")
+})
+
+test("a user record echoing an attachment that ended in a newline renders once", () => {
+  const raw = [
+    JSON.stringify({ type: "attachment", timestamp: "2026-07-01T00:00:05.000Z", attachment: { type: "queued_command", commandMode: "prompt", prompt: "hello\n", source_uuid: "u-1" } }),
+    userLine("hello\n"),
+  ].join("\n")
+  assert.equal(parseTranscript(raw).filter((m) => m.role === "user").length, 1)
+})
+
 // The broker/SDK path writes NO `origin` on its queued_command attachments — measured over this
 // machine's corpus, all 78 sdk prompt attachments carry none while 1664 pre-broker CLI ones carry
 // origin.kind "human", and every sdk one carries `source_uuid` instead. Requiring origin made the
@@ -2934,8 +2988,8 @@ test("a message from another session absorbed mid-turn is that session's line, n
     .filter((m) => m.role === "user")
   assert.equal(users.length, 1, "one line: the delivery and the removal resolve the enqueue, never a second copy")
   const m = users[0]
-  assert.equal(m.peerSession, true)
-  assert.equal(m.peerFrom, "standard-schema-7c", "titled by the name its peers address it by, not the socket path")
+  assert.deepEqual(m.sessionPeer, { name: "standard-schema-7c", socket: "uds:/run/user/1000/cc-socks/209858.sock" }, "titled by the name its peers address it by")
+  assert.equal(m.peerFrom, undefined, "not a sub-agent's report")
   assert.equal(m.peerUnnamed, undefined, "a session name is a name — the sub-agent relabel must not mark it unnamed")
   assert.equal(m.peerDispatchId, undefined, "there is no child and no drawer")
   assert.equal(m.displayText, body, "the BODY is what a reader sees")
@@ -2950,8 +3004,7 @@ test("a message from another session delivered AT REST keeps its line instead of
   const users = parseTranscript([enqueueLine(raw), emptyDequeue, atRest, assistantLine("A teammate session says main was rebased.")].join("\n"))
     .filter((m) => m.role === "user")
   assert.equal(users.length, 1)
-  assert.equal(users[0].peerSession, true)
-  assert.equal(users[0].peerFrom, "frizz-1a")
+  assert.equal(users[0].sessionPeer?.name, "frizz-1a")
   assert.equal(users[0].displayText, body, "neither the preamble nor the guidance to the model reaches the reader")
   assert.equal(users[0].queued, false, "the delivery un-grays it where it was enqueued")
 })
@@ -2963,13 +3016,12 @@ test("a message from another session still renders once when its enqueue scrolle
   const atRest = parseTranscript(userLine(crossAtRest(raw), undefined, { isMeta: true, promptSource: "system" })).filter((m) => m.role === "user")
   for (const [shape, users] of [["mid-turn", midTurn], ["at rest", atRest]] as const) {
     assert.equal(users.length, 1, shape)
-    assert.equal(users[0].peerSession, true, shape)
-    assert.equal(users[0].peerFrom, "standard-schema-01", shape)
+    assert.equal(users[0].sessionPeer?.name, "standard-schema-01", shape)
     assert.equal(users[0].displayText, body, shape)
   }
   // A plain user record carrying either form (no shape observed yet, but the projection is shared) is
   // still the session speaking.
-  for (const text of [raw, crossAtRest(raw)]) assert.equal(parseTranscript(userLine(text))[0].peerSession, true)
+  for (const text of [raw, crossAtRest(raw)]) assert.equal(parseTranscript(userLine(text))[0].sessionPeer?.name, "standard-schema-01")
 })
 
 test("a message from another session whose ENQUEUE carries routing attributes its delivery drops still draws once", () => {
@@ -2990,35 +3042,32 @@ test("a message from another session whose ENQUEUE carries routing attributes it
   // …and only the same SENDER's same words: another session saying the identical thing is its own line.
   const other = crossWrap("frizz-b2", body)
   const two = parseTranscript([enqueueLine(queued), enqueueLine(other), crossDeliverLine("frizz-a1", body)].join("\n")).filter((m) => m.role === "user")
-  assert.deepEqual(two.map((m) => [m.peerFrom, m.queued]), [["frizz-a1", false], ["frizz-b2", true]])
+  assert.deepEqual(two.map((m) => [m.sessionPeer?.name, m.queued]), [["frizz-a1", false], ["frizz-b2", true]])
 })
 
 test("a message from another session is that session's line while still queued, not a gray human bubble", () => {
   const raw = crossWrap("standard-schema-7c", "Please don't write to tool.md again.")
   const [m] = parseTranscript(enqueueLine(raw))
   assert.equal(m.queued, true)
-  assert.equal(m.peerSession, true)
-  assert.equal(m.peerFrom, "standard-schema-7c")
+  assert.equal(m.sessionPeer?.name, "standard-schema-7c")
 })
 
 test("the cross-session wrapper parses its attributes by name and refuses what is not a delivery", () => {
   assert.deepEqual(
     parseCrossSessionMessage('<cross-session-message from-mode="default" from-name="api-3f" from="uds:/tmp/s.sock">\nhi\n</cross-session-message>'),
-    { from: "uds:/tmp/s.sock", name: "api-3f", body: "hi" },
+    { socket: "uds:/tmp/s.sock", name: "api-3f", body: "hi" },
     "attribute order is not the grammar",
   )
-  // No name leaves only the reply ADDRESS, which is not a name: rendered, but flagged unnamed.
+  // No name leaves only the reply ADDRESS, which is not a name: rendered, with no name to show.
   const [unnamed] = parseTranscript(enqueueLine('<cross-session-message from="uds:/tmp/s.sock">\nhi\n</cross-session-message>'))
-  assert.equal(unnamed.peerSession, true)
-  assert.equal(unnamed.peerFrom, "uds:/tmp/s.sock")
-  assert.equal(unnamed.peerUnnamed, true)
+  assert.deepEqual(unnamed.sessionPeer, { socket: "uds:/tmp/s.sock" })
   // Nothing to attribute, or nothing said → the ordinary path, exactly like the sub-agent wrapper.
   assert.equal(parseCrossSessionMessage('<cross-session-message from-mode="bypass">\nhi\n</cross-session-message>'), undefined)
   assert.equal(parseCrossSessionMessage('<cross-session-message from-name="a">\n\n</cross-session-message>'), undefined)
   // Prose that QUOTES a wrapper is the human talking — this repo's own docs and tests contain one.
   const quoting = `it arrives as ${crossWrap("a", "hi")} in the queue`
   const [human] = parseTranscript(enqueueLine(quoting))
-  assert.equal(human.peerFrom, undefined, "a mention is not a delivery")
+  assert.equal(human.sessionPeer, undefined, "a mention is not a delivery")
 })
 
 test("Claude Code's cross-session NOTICES are plumbing, never the operator's words", () => {

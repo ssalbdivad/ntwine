@@ -55,7 +55,7 @@ function questionFor(optionField: InteractionField | undefined, notesField: Inte
       options: options.map((option, index) => `${optionNumber(index)} ${option.label}`),
       // A tool call has no notion of a recommended option — that is a frizz fence convention — so the
       // badge simply does not appear rather than being faked.
-      recommendedIdx: null,
+      recommendedIdxs: [],
     },
     ...(optionField ? { optionFieldId: optionField.id } : {}),
     optionValues: options.map((option) => option.value),
@@ -129,7 +129,7 @@ export function settledAskView(q: AskQuestion, answer: string | null | undefined
       danger: false,
       contextMd: q.question,
       options: q.options.map((option, index) => `${optionNumber(index)} ${option.label}${option.description ? ` — ${option.description}` : ""}`),
-      recommendedIdx: null,
+      recommendedIdxs: [],
     },
     chosenIdxs,
     text,

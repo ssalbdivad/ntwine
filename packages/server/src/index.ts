@@ -386,6 +386,9 @@ export async function pipeToApp(
       duplex: "half",
       signal: controller.signal,
     }),
+    // The peer this server actually accepted, for a request the launcher's proxy did not stamp — the
+    // only place it is known once the request becomes a Web Request (app.ts, the audit attribution).
+    { remoteAddress: req.socket?.remoteAddress },
   )
   res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
   if (response.body) {
@@ -640,7 +643,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   // What every context answers "which projects are open here" with — the map below, read lazily so
   // the launching project's own context (built before the map is populated) sees the same live list.
   const activeTenants: NonNullable<AppContext["activeTenants"]> = () =>
-    tenants.active().map(({ project: open, ctx: openCtx }) => ({ project: open, board: openCtx.board, ctx: openCtx }))
+    tenants.active().map(({ project: open, ctx: openCtx }) => ({ project: open, board: openCtx.board, storage: openCtx.storage, ctx: openCtx }))
   // Open one registered project by id, the way its first request would (routeToTenant below) — for a
   // `spawn_thread` aimed at a project nothing has opened yet (router spawnTarget).
   const openProject: NonNullable<AppContext["openProject"]> = async (projectId) => {
@@ -670,7 +673,8 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
    *
    * It refuses the launching project for the reason AppContext.launchProjectId spells out: this
    * process publishes exactly one `server.lock`, that project's, and the boot phases below own its
-   * teardown. The router refuses it first with a message the operator can act on; this is the backstop.
+   * teardown. The router never asks — it refuses deleting that project's data and forgets its card
+   * without a teardown; this is the backstop.
    */
   const teardownProject: NonNullable<AppContext["teardownProject"]> = async (projectId, options) => {
     if (projectId === project.id) return { closed: false, stoppedWorkers: 0 }
@@ -759,6 +763,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       // The /ws producer is the one the live UI actually renders, so a dead owner has to reach it
       // too — projecting only the RPC is the exact half-fix the × already had to correct once.
       (slug) => c.tailer.ownerGone?.(slug) ?? false,
+      c.sessionPeerThread,
     ),
     // A reader's live watch on the file it shows. Gated as the read is (one set of openable roots for
     // both readers, plus the Markdown reader's canonical-extension check) and watched by CANONICAL

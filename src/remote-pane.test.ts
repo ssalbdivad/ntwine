@@ -3,6 +3,12 @@ import { test } from "node:test";
 import type { CloudConfig } from "./cloud.ts";
 import { createRemotePane } from "./remote-pane.ts";
 
+// The menu lists "Custom name" only while custom names are offered. They are withdrawn for now, but the
+// form behind the row is kept, and several cases below drive it — so this file runs with the override
+// on, for the whole file because `nub --test` runs a file's tests concurrently. The withdrawn menu is
+// pinned in custom-names-paused.test.ts.
+process.env.FRIZZ_CUSTOM_NAMES = "1";
+
 function fakeOutput() {
   const chunks: string[] = [];
   return {

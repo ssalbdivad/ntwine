@@ -6,7 +6,7 @@ import test from "node:test"
 // eight had ever reached the card. Options were lettered until 2026-10-07, which ran past `Z.` into `AA.`;
 // they are numbered now, and only 1–9 are keys, so rows 10 and on carry a plain `10.` rather than a
 // keycap. The fixture's `?wide=1` is thirty options; this drives the real card end
-// to end — every chip toggled, Send answers, the payload the worker would receive — so the answer that
+// to end — every chip toggled, the question's own Send answer, the payload the worker would receive — so the answer that
 // picks the whole list is OBSERVED rather than inferred from the schema alone. Skipped unless a Vite
 // URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts here): start `vite` in
 // packages/web and set FRIZZ_REGISTERED_QUESTION_WIDE_E2E_URL to its origin.
@@ -60,6 +60,8 @@ test("a registered multi over thirty options numbers every row past the 1–9 ke
     const calls = await page.evaluate(() => (window as unknown as {
       __rpc: Array<{ rpc: string; body: { answers?: Array<{ questionId: string; question: string; chosen: string[] }> } }>
     }).__rpc)
+    // The fixture's card is the cross-project queue card, which mounts no prompt box Send of the thread's
+    // own (lib/sendScope), so the question's own Send answer sends it.
     assert.equal(calls[0].rpc, "answerQuestions")
     const answer = calls[0].body.answers?.[0]
     assert.equal(answer?.questionId, "qst_0006ffff")

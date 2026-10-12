@@ -8,9 +8,6 @@
 // (buildEnvironment's EXPLICIT_CLAUDE_ENV_KEYS allowlist was the second gate until 2026-08-02; a
 // worker now inherits frizz's environment minus frizz's own control plane — see worker-env.ts.)
 //
-// It asserts only what it can actually demonstrate — see the NOT ASSERTED note below for the
-// Bash-timeout half, which no harness on this machine reproduces.
-//
 // Each check is paired with the same run WITHOUT the variable. A green result with no failing control
 // is not evidence.
 import { execFileSync } from "node:child_process"
@@ -26,7 +23,7 @@ const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const cwd = mkdtempSync(join(tmpdir(), "frizz-sdk-worker-env-"))
 execFileSync("git", ["init", "-q", cwd])
 const BLOCK = "<total_tokens>Infinite tokens left</total_tokens>"
-const BASH_TIMEOUT_KEY = "BASH_DEFAULT_TIMEOUT_MS"
+const BUDGET_KEY = "CLAUDE_CODE_TOTAL_TOKENS_REMINDER"
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -79,12 +76,13 @@ try {
   // still drop a variable here is the bridge's workerEnv map, which is what the cases below exercise.
 
   // ---- A. The token budget reaches the model ----------------------------------------------------
-  // The reminder rides a tool-result batch, so the turn must force a tool call. Each control drops
-  // ONLY the variable under test, keeping the other one, so the two checks stay independent.
+  // The reminder rides a tool-result batch, so the turn must force a tool call. The control drops
+  // ONLY the variable under test and keeps every other entry.
   const budgetPrompt = "Run exactly one Bash command: echo hello. Then reply DONE and stop."
+  const withoutBudget = Object.fromEntries(Object.entries(CLAUDE_WORKER_ENV).filter(([key]) => key !== BUDGET_KEY))
   for (const run of [
     { name: "budget-with", label: "a broker-path worker SEES the token budget", env: { ...ambient, ...CLAUDE_WORKER_ENV }, want: true },
-    { name: "budget-without", label: "the control WITHOUT the variable sees no block", env: { ...ambient, [BASH_TIMEOUT_KEY]: CLAUDE_WORKER_ENV[BASH_TIMEOUT_KEY] }, want: false },
+    { name: "budget-without", label: "the control WITHOUT the variable sees no block", env: { ...ambient, ...withoutBudget }, want: false },
   ]) {
     const { path, records } = recordsFor(await runTurn(run.env, budgetPrompt, 180_000))
     const blocks = reminderBlocks(records)
@@ -92,26 +90,6 @@ try {
     ok(run.label, run.want ? blocks.includes(BLOCK) : blocks.length === 0, `blocks=${blocks.length ? [...new Set(blocks)].join(" ") : "<none>"}`)
     if (path) console.log(`   transcript: ${path}`)
   }
-
-  // NOT ASSERTED HERE: that BASH_DEFAULT_TIMEOUT_MS changes behavior — not because it doesn't, but
-  // because NO harness on this machine reproduces the trigger. Measured, not assumed: a 150s command
-  // completes in the turn at the 120s default under both `claude -p` (the spawned-CLI harness) and a raw SDK
-  // session here, so a check on either surface would pass identically with and without the variable.
-  // Nothing is gained by a check whose control cannot fail.
-  //
-  // It IS verified, on the surface that actually exhibits it — a real dispatched worker. On the
-  // promoted artifact a worker ran `sleep 150 && echo LONGRUN-OK` with no explicit timeout and no
-  // run_in_background, and the output came back IN the turn. The control is a worker spawned before
-  // this change (no BASH_DEFAULT_TIMEOUT_MS in its environment, confirmed by reading the live process),
-  // which the harness bounced at 120s with "Command did not complete within its 120s timeout and was
-  // moved to the background". Before/after on one surface rather than a simultaneous A/B, because
-  // the variable is fixed at spawn for the whole session.
-  //
-  // The mechanism is still not fully characterized: no CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS is set
-  // anywhere on this machine, which is what the binary's auto-background path reads. If you go to add
-  // a check here, first find the input these harnesses are missing — do not add one without a control
-  // that actually fails.
-
 } finally {
   rmSync(cwd, { recursive: true, force: true })
 }

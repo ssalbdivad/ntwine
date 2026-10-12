@@ -72,7 +72,7 @@ test("every bin target resolves inside a published directory", () => {
 test("the shell bootstraps the versioned public server contract", () => {
   assert.deepEqual(manifest.frizzServer, {
     package: "frizz-server",
-    version: "0.15.17",
+    version: "0.15.22",
     protocol: 1,
     dataEpoch: 1,
   });

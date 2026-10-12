@@ -25,6 +25,7 @@ import {
 } from "./local-origin.ts"
 import { localImageHeaders, localImageStream, resolveLocalImage } from "./local-image.ts"
 import { recoveryPage, unauthorizedPage, unlistedHostPage } from "./supervisor-pages.ts"
+import { CALLER_HEADER, encodeCallerStamp, type CallerVia } from "./audit.ts"
 import { FRIZZ_ROUTE_PREFIX, frizzRoute } from "@frizz/shared"
 
 export const SUPERVISOR_CONTROL_PREFIX = "/_frizz/control"
@@ -177,9 +178,13 @@ function responseJson(res: ServerResponse, status: number, value: unknown): void
 function proxyHeaders(
   req: IncomingMessage,
   childPort: number,
+  callerStamp: string,
   vouchSameOrigin = false,
 ): Record<string, string | string[] | undefined> {
   const headers = { ...req.headers }
+  // Who called, as judged HERE — the child cannot tell once Host and Origin are rewritten below. Any
+  // copy the client sent is replaced, never forwarded, so a visitor cannot forge their own attribution.
+  headers[CALLER_HEADER] = callerStamp
   // The child retains Frizz's strict local-origin policy. Translate public browser authority to the
   // private child authority; no external proxy authority is ever trusted.
   headers.host = `127.0.0.1:${childPort}`
@@ -209,6 +214,18 @@ function readCookie(header: string | undefined, name: string): string | undefine
     if (pair.slice(0, eq).trim() === name) return pair.slice(eq + 1).trim()
   }
   return undefined
+}
+
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  const first = Array.isArray(value) ? value[0] : value
+  return first?.trim() || undefined
+}
+
+/** A peer on this machine: IPv4 loopback, IPv6 loopback, or IPv4 loopback mapped into IPv6. */
+function isLoopbackAddress(address: string | null): boolean {
+  if (!address) return false
+  const v4 = address.startsWith("::ffff:") ? address.slice("::ffff:".length) : address
+  return v4.startsWith("127.") || address === "::1"
 }
 
 function isControlRequest(req: IncomingMessage): boolean {
@@ -731,6 +748,31 @@ export class RestartSupervisorProxy {
     return this.access.verifySession(readCookie(req.headers.cookie, SESSION_COOKIE))
   }
 
+  /**
+   * What this proxy knows about who sent a request, for the application server's audit trail
+   * (audit.ts). The session is named by its record id, never its value, and only once it verifies.
+   *
+   * `clientIp` is only ever taken from a request that arrived as the public origin, and it is that
+   * origin's CLAIM: a relay or tunnel reaches this port from loopback, so the real visitor address
+   * exists only in what the relay chose to forward (`cf-connecting-ip` from Cloudflare).
+   */
+  private callerStamp(req: IncomingMessage): string {
+    const remote = req.socket.remoteAddress ?? null
+    const via: CallerVia = this.arrivedPublicly(req) ? "public" : isLoopbackAddress(remote) ? "loopback" : "network"
+    const host = via === "loopback" ? undefined : firstHeader(req.headers.host)
+    const forwarded = firstHeader(req.headers["x-forwarded-for"])?.split(",")[0]?.trim()
+    const clientIp = via === "public"
+      ? firstHeader(req.headers["cf-connecting-ip"]) ?? firstHeader(req.headers["x-real-ip"]) ?? forwarded
+      : undefined
+    return encodeCallerStamp({
+      via,
+      remote,
+      ...(host ? { host: host.slice(0, 200) } : {}),
+      ...(clientIp ? { clientIp: clientIp.slice(0, 200) } : {}),
+      session: this.access.sessionIdOf(readCookie(req.headers.cookie, SESSION_COOKIE)),
+    })
+  }
+
   /** Did this request arrive through the public origin carrying a live session? Loopback never does. */
   private carriesRemoteSession(req: IncomingMessage): boolean {
     return this.arrivedPublicly(req) && this.access.verifySession(readCookie(req.headers.cookie, SESSION_COOKIE))
@@ -848,7 +890,7 @@ export class RestartSupervisorProxy {
       port: childPort,
       method: req.method,
       path: req.url,
-      headers: proxyHeaders(req, childPort, this.vouchesSameOrigin(req)),
+      headers: proxyHeaders(req, childPort, this.callerStamp(req), this.vouchesSameOrigin(req)),
     }, (upstreamResponse) => {
       res.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers)
       upstreamResponse.pipe(res)
@@ -886,7 +928,7 @@ export class RestartSupervisorProxy {
       half.once("close", () => this.upgradedSockets.delete(half))
     }
     upstream.once("connect", () => {
-      const headers = proxyHeaders(req, childPort)
+      const headers = proxyHeaders(req, childPort, this.callerStamp(req))
       // proxyHeaders drops the hop-by-hop `connection` header (right for the plain-HTTP handle()
       // path). But a WebSocket upgrade REQUIRES it: without `Connection: Upgrade` the child's HTTP
       // parser never emits 'upgrade', answers the SPA with 200, and the handshake fails — silently

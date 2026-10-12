@@ -106,7 +106,7 @@ export function resolveFenceLanguage(infoString?: string): FenceLanguage {
   return ALIAS_TO_LANGUAGE.get(declared) ?? "plaintext"
 }
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => {
     if (char === "&") return "&amp;"
     if (char === "<") return "&lt;"
@@ -157,6 +157,18 @@ export function highlightToHtml(text: string, language: FenceLanguage): string {
   }
 }
 
+// One fenced body as its `<code>` element: the plain block below and a tab panel (lib/codeTabs.ts) are
+// the same code inside different chrome, so they mint it in one place. Match Marked's stock code
+// renderer: exactly one trailing LF is present in the resulting <code>, preserving selection/copy
+// behavior for both complete and still-streaming (unclosed) fences.
+export function renderCodeElement(text: string, language: FenceLanguage, name: string = language): string {
+  const code = `${text.replace(/\n$/, "")}\n`
+  return `<code class="hljs language-${name}">${highlightToHtml(code, language)}</code>`
+}
+
+// `title` is the accessible name — `aria-label` is not in the render allowlist.
+export const CODE_COPY_BUTTON = `<button type="button" class="${CODE_COPY_CLASS}" title="${COPY_CODE_LABEL}"></button>`
+
 export function renderHighlightedCode(text: string, infoString?: string): string {
   const language = resolveFenceLanguage(infoString)
   // A ```lightbox fence is a list of picture paths (lib/lightbox.ts), not code. It is escaped as plain
@@ -165,13 +177,8 @@ export function renderHighlightedCode(text: string, infoString?: string): string
   // the fence and draws a gallery in its place (components/Lightbox.tsx useLightboxIslands). Anywhere
   // that pass does not run, it stays a readable code block.
   const name = (infoString ?? "").trim().toLowerCase() === "lightbox" ? "lightbox" : language
-  // Match Marked's stock code renderer: exactly one trailing LF is present in the resulting <code>,
-  // preserving selection/copy behavior for both complete and still-streaming (unclosed) fences.
-  const code = `${text.replace(/\n$/, "")}\n`
-  const value = highlightToHtml(code, language)
   // No whitespace anywhere inside the <pre>: it preserves it, so a newline before the <code> would print
   // as a blank first line. The button follows the block in DOM order so a keyboard walk reaches the code
-  // before its affordance, and `title` is the accessible name — `aria-label` is not in the render allowlist.
-  return `<span class="${CODE_BLOCK_CLASS}"><pre><code class="hljs language-${name}">${value}</code></pre>`
-    + `<button type="button" class="${CODE_COPY_CLASS}" title="${COPY_CODE_LABEL}"></button></span>\n`
+  // before its affordance.
+  return `<span class="${CODE_BLOCK_CLASS}"><pre>${renderCodeElement(text, language, name)}</pre>${CODE_COPY_BUTTON}</span>\n`
 }

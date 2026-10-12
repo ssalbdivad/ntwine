@@ -7,17 +7,31 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import type { ProviderQuota, QuotaWindow } from "@frizz/shared"
 import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
+import { log as frizzLog } from "../logging.ts"
 
 const execFileAsync = promisify(execFile)
 
-// Subscription quota is read from the OAuth usage endpoint FIRST — the same call Claude Code's own
-// /usage command makes — authorized by the credential already on this machine (the on-disk
+// Subscription quota is read from the OAuth usage endpoint — the same call Claude Code's own /usage
+// command makes — authorized by the credential already on this machine (the on-disk
 // ~/.claude/.credentials.json, or the macOS login Keychain). That is one ~200ms HTTPS GET, immune to
-// local CPU load. The `claude -p /usage` CLI is only the FALLBACK for what the raw token cannot do:
-// it owns OAuth refresh/rotation, so it covers the no-token and expired-token (401/403) cases.
-// Spawning a whole Claude Code process was previously the primary path, and under heavy machine load
-// (worker fleets pushing load-80+) it reliably exceeded any sane exec timeout — every refresh died
-// and the chip served the same stale reading for hours.
+// local CPU load.
+//
+// `claude -p /usage` IS A WHOLE CLAUDE CODE PROCESS, AND IT STARTS FOR EXACTLY ONE REASON: a
+// credential exists and the endpoint rejected it (401/403). Claude Code owns OAuth refresh and
+// rotation, so it is the only thing that can turn an expired token back into a working one. Every
+// other failure — no credential at all, the network down, a timeout, a 5xx, a malformed body — fails
+// the refresh and starts nothing, because the CLI makes this same request with this same credential
+// and fails the same way. Until 2026-10-11 all of those fell through to the CLI and nothing
+// remembered that it had failed, so a machine that was not signed in to Claude started a Claude Code
+// process on every refresh attempt, for as long as Frizz ran (maintainer: "That's fucking nuts. We
+// can't do that."). Measured that day: a real signed-out server with an empty board started one every
+// 30s off the heartbeat alone, and with a chip polling every 15s beside it the same reader started
+// 362 in a simulated hour — six a minute. Offline and a dead credential cost the same. The one start
+// that remains is bounded by a persisted backoff — see CLI_BACKOFF_BASE_MS.
+//
+// (Spawning Claude Code was once the PRIMARY path, and under heavy machine load — worker fleets
+// pushing load-80+ — it reliably exceeded any sane exec timeout: every refresh died and the chip
+// served the same stale reading for hours.)
 //
 //   GET https://api.anthropic.com/api/oauth/usage
 //     Authorization: Bearer <oauth access token>
@@ -38,6 +52,16 @@ const STALE_MAX_AGE_MS = 24 * 60 * 60_000
 // The CLI fallback boots a full Claude Code process; under load-80 a cold boot alone can blow well
 // past 12s, and a too-tight bound here is indistinguishable from a broken credential.
 const CLI_TIMEOUT_MS = 30_000
+// HOW OFTEN THAT PROCESS MAY START: once, then no sooner than 15m later, then 30m, 1h … doubling to
+// one a day. The count is persisted beside the reading (`cli`), so it holds across every Frizz
+// process on the machine and across a restart, it binds the heartbeat, a stale read and a forced
+// recheck alike, and ONLY THE ENDPOINT ACCEPTING THE TOKEN resets it — a usage reading the CLI printed
+// proves nothing about the token this reader holds. A refresh that worked buys hours of valid token,
+// so the healthy case is one start per expiry. The doubling is for the credential Claude Code cannot
+// repair (a revoked sign-in, a token without the usage scope), which would otherwise be retried at the
+// base interval for ever.
+const CLI_BACKOFF_BASE_MS = 15 * 60_000
+const CLI_BACKOFF_MAX_MS = 24 * 60 * 60_000
 // The lock must outlive the slowest refresh (the 30s CLI fallback), and followers must be willing to
 // wait through most of that bound. Otherwise a merely slow first process would make every other Frizz
 // window give up early.
@@ -197,6 +221,24 @@ function retryAtFrom(res: Response, now: number): number {
   return now + Math.min(backoff, RATE_LIMIT_MAX_BACKOFF_MS)
 }
 
+/** Claude Code's starts since the endpoint last accepted the token, and the instant (ms) before which
+ *  nothing starts it again. See CLI_BACKOFF_BASE_MS. */
+interface CliRuns {
+  runs: number
+  retryAt: number
+}
+
+// With no cache directory there is nowhere to record that Claude Code ran, so nothing could bound it.
+const CLI_NEVER: CliRuns = { runs: 0, retryAt: Infinity }
+
+/** Claude Code was started to refresh a rejected credential and reported no quota. `cli` is the
+ *  record of that start, which the caller must persist whatever else it does with the failure. */
+class ClaudeCodeRefreshFailed extends Error {
+  constructor(readonly cli: CliRuns, cause: unknown) {
+    super("Claude Code could not refresh the rejected credential", { cause })
+  }
+}
+
 export interface ClaudeQuotaDeps {
   now?: () => number
   execUsage?: UsageExec
@@ -210,6 +252,8 @@ interface SharedQuota {
   quota: ProviderQuota
   /** Set by a 429: no caller touches the endpoint before this instant (ms). A success clears it. */
   retryAt?: number
+  /** Set by every start of Claude Code. Carried through every failure; an endpoint success clears it. */
+  cli?: CliRuns
 }
 
 function cachePaths(cacheDir: string, configDir: string) {
@@ -224,6 +268,8 @@ async function readShared(path: string): Promise<SharedQuota | undefined> {
   try {
     const parsed = JSON.parse(await readFile(path, "utf8")) as SharedQuota
     if (!Number.isFinite(parsed.at) || !parsed.quota || !Array.isArray(parsed.quota.windows)) return undefined
+    // A malformed record must read as "never ran", not as NaN arithmetic that no deadline ever beats.
+    if (!Number.isFinite(parsed.cli?.runs) || !Number.isFinite(parsed.cli?.retryAt)) delete parsed.cli
     return parsed
   } catch {
     return undefined
@@ -279,55 +325,77 @@ async function runClaudeUsage(claudeBin: string): Promise<string> {
   return String(stdout)
 }
 
-// One live refresh: the endpoint first, the CLI only for what the raw token can't do. Returns ONLY a
-// healthy quota; every failure shape throws so the callers' stale-serving catch handles them uniformly.
+// One live refresh: the endpoint, and Claude Code only for a credential the endpoint rejected. Returns
+// ONLY a healthy quota; every failure shape throws so the callers' stale-serving catch handles them
+// uniformly. `cli` is the persisted record of Claude Code's last start, read under the refresh lock; a
+// result or a ClaudeCodeRefreshFailed that carries one means it was started again, and the caller
+// persists it.
 //
-// `endpoint: false` skips straight to the CLI: the manual recheck's path while the endpoint's refusal
-// stands (see readClaudeQuota).
+// `endpoint: false` is the human's refresh button while the endpoint's 429 window stands (see
+// readClaudeQuota): it skips the refusing endpoint and reads through Claude Code — a deliberate start the
+// operator asked for, still only with a credential on the machine and still inside Claude Code's backoff.
 async function refreshQuota(
   claudeBin: string,
   deps: ClaudeQuotaDeps,
   now: number,
+  cli: CliRuns | undefined,
   { endpoint = true }: { endpoint?: boolean } = {},
-): Promise<ProviderQuota> {
+): Promise<{ quota: ProviderQuota; cli?: CliRuns }> {
   const doFetch = deps.fetchImpl ?? fetch
   const readToken = deps.readToken ?? readAccessToken
   let token: string | undefined
   try {
-    token = endpoint ? await readToken(claudeConfigDir()) : undefined
+    token = await readToken(claudeConfigDir())
   } catch {
     token = undefined
   }
-  if (token) {
-    try {
-      const res = await doFetch(USAGE_URL, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "anthropic-beta": OAUTH_BETA,
-          "User-Agent": USER_AGENT,
-          "Content-Type": "application/json",
-        },
-        signal: AbortSignal.timeout(ENDPOINT_TIMEOUT_MS),
-      })
-      if (res.ok) {
-        const body = (await res.json()) as Record<string, unknown>
-        const planType = typeof body.plan_type === "string" ? body.plan_type : undefined
-        const quota = parseClaudeUsage(body, planType)
-        if (quota.status === "ok") return quota
-      } else if (res.status === 429 || res.status === 529) {
-        // The endpoint asked us to back off. Automatic refreshes honor that and let the cached reading
-        // ride; only a manual recheck spends a CLI process on it (readClaudeQuota).
-        throw new UsageRateLimited(res.status, retryAtFrom(res, now))
-      }
-      // 401/403 (stale token the CLI can refresh), 5xx, or a malformed body → try the CLI below.
-    } catch (err) {
-      if (err instanceof UsageRateLimited) throw err
-      // Network/timeout failures fall through to the CLI, which retries with its own transport.
-    }
+  // Signed out. Claude Code reads these same two sources, so it has no quota to report either.
+  if (!token) throw new Error("Not signed in to Claude")
+  if (!endpoint) {
+    // A rejected credential Claude Code has already failed to repair is not worth another start, even
+    // on a click. The record rides through untouched: only the endpoint accepting the token resets it,
+    // and this start is not a repair of a rejection, so it does not count toward the backoff either.
+    if (cli && now < cli.retryAt) throw new Error("Claude credential rejected")
+    frizzLog.warn("quota", "a manual quota refresh inside the usage endpoint's rate-limit window; starting Claude Code to read it")
+    const quota = parseClaudeUsageOutput(await (deps.execUsage ?? runClaudeUsage)(claudeBin), now)
+    if (quota.status !== "ok") throw new Error(quota.detail)
+    return { quota, ...(cli ? { cli } : {}) }
   }
-  const quota = parseClaudeUsageOutput(await (deps.execUsage ?? runClaudeUsage)(claudeBin), now)
-  if (quota.status !== "ok") throw new Error(quota.detail)
-  return quota
+  let res: Response
+  try {
+    res = await doFetch(USAGE_URL, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "anthropic-beta": OAUTH_BETA,
+        "User-Agent": USER_AGENT,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(ENDPOINT_TIMEOUT_MS),
+    })
+  } catch {
+    throw new Error("Usage endpoint unreachable")
+  }
+  if (res.ok) {
+    const body = (await res.json().catch(() => undefined)) as Record<string, unknown> | undefined
+    const quota = parseClaudeUsage(body, typeof body?.plan_type === "string" ? body.plan_type : undefined)
+    if (quota.status !== "ok") throw new Error(quota.detail)
+    return { quota }
+  }
+  // The endpoint asked us to back off: fail this refresh and let the cached reading ride.
+  if (res.status === 429 || res.status === 529) throw new UsageRateLimited(res.status, retryAtFrom(res, now))
+  if (res.status !== 401 && res.status !== 403) throw new Error(`Usage endpoint ${res.status}`)
+  if (cli && now < cli.retryAt) throw new Error("Claude credential rejected")
+  const runs = (cli?.runs ?? 0) + 1
+  const started: CliRuns = { runs, retryAt: now + Math.min(CLI_BACKOFF_BASE_MS * 2 ** (runs - 1), CLI_BACKOFF_MAX_MS) }
+  // The only place a quota read costs a process, and rare by construction — so it always says so.
+  frizzLog.warn("quota", `the usage endpoint rejected the Claude credential (${res.status}); starting Claude Code to refresh it (start ${runs} since the endpoint last accepted one)`)
+  try {
+    const quota = parseClaudeUsageOutput(await (deps.execUsage ?? runClaudeUsage)(claudeBin), now)
+    if (quota.status !== "ok") throw new Error(quota.detail)
+    return { quota, cli: started }
+  } catch (err) {
+    throw new ClaudeCodeRefreshFailed(started, err)
+  }
 }
 
 const LINE_WINDOWS: Array<[RegExp, string, string]> = [
@@ -470,13 +538,16 @@ function refreshSharedInBackground(paths: { data: string; lock: string }, claude
     const release = await tryAcquireLock(paths.lock)
     if (!release) return
     try {
-      const quota = await refreshQuota(claudeBin, deps, now)
-      await writeShared(paths.data, { at: now, quota })
+      const refreshed = await refreshQuota(claudeBin, deps, now, (await readShared(paths.data))?.cli)
+      await writeShared(paths.data, { at: now, ...refreshed })
     } catch (err) {
-      if (!(err instanceof UsageRateLimited)) throw err
-      // Keep the reading and its age; record only the deadline, so the next tick does not ask again.
+      // Keep the reading and its age; record only the deadline the failure set, so the next tick does
+      // not ask the endpoint (or start Claude Code) again before it.
+      const deadline =
+        err instanceof UsageRateLimited ? { retryAt: err.retryAt } : err instanceof ClaudeCodeRefreshFailed ? { cli: err.cli } : undefined
+      if (!deadline) throw err
       const current = await readShared(paths.data)
-      await writeShared(paths.data, { ...(current ?? { at: now, quota: UNAVAILABLE }), retryAt: err.retryAt })
+      await writeShared(paths.data, { ...(current ?? { at: now, quota: UNAVAILABLE }), ...deadline })
     } finally {
       await release().catch(() => {})
     }
@@ -498,10 +569,11 @@ export async function claudeQuotaRefreshSettled(): Promise<void> {
 // keeps the cache as warm as the endpoint allows: a tick is a no-op while the reading is inside its
 // TTL or the endpoint's `retryAt` has not passed.
 //
-// It uses the SAME non-blocking background path a stale read kicks — endpoint-first, one in-flight
-// refresh per process, cross-process lock so N Frizz processes make one request per window per account,
-// and the CLI fallback only for the 401/403 token-refresh case it already owned. It NEVER blocks the
-// caller and swallows every failure (the last known-good reading rides until the next success).
+// It uses the SAME non-blocking background path a stale read kicks — one in-flight refresh per process,
+// a cross-process lock so N Frizz processes make one request per window per account, and Claude Code
+// started only for a rejected credential, inside its own backoff. It NEVER blocks the caller and
+// swallows every failure (the last known-good reading rides until the next success). On a machine that
+// is not signed in to Claude a tick is one credential lookup and nothing else.
 export async function refreshClaudeQuotaInBackground(claudeBin = "claude", deps: ClaudeQuotaDeps = {}): Promise<void> {
   const now = (deps.now ?? Date.now)()
   const configDir = claudeConfigDir()
@@ -519,8 +591,8 @@ export async function refreshClaudeQuotaInBackground(claudeBin = "claude", deps:
   refreshSharedInBackground(paths, claudeBin, deps, now)
 }
 
-// The healthy cache is shared under ~/.frizz so three project windows make one Claude Code request,
-// not three simultaneous requests to the same account. A failed refresh serves the last known-good
+// The healthy cache is shared under ~/.frizz so three project windows make one usage request, not
+// three simultaneous requests to the same account. A failed refresh serves the last known-good
 // reading (clearly labeled in the popover) for at most one day instead of erasing useful data.
 //
 // Ordinary (non-force) reads are STALE-WHILE-REVALIDATE: any known-good reading newer than a day is
@@ -541,7 +613,7 @@ export async function readClaudeQuota(
     await mkdir(cacheDir, { recursive: true, mode: 0o700 })
   } catch {
     try {
-      return await refreshQuota(claudeBin, deps, now)
+      return (await refreshQuota(claudeBin, deps, now, CLI_NEVER)).quota
     } catch {
       return { status: "unavailable", windows: [], detail: "Claude usage unavailable" }
     }
@@ -574,16 +646,16 @@ export async function readClaudeQuota(
     // Another Frizz process may have completed the requested refresh while this process waited.
     if (afterLock && afterLock.at !== initial?.at && now - afterLock.at < OK_TTL_MS) return afterLock.quota
 
-    let quota: ProviderQuota
+    let refreshed: { quota: ProviderQuota; cli?: CliRuns }
     try {
-      quota = await refreshQuota(claudeBin, deps, now, { endpoint: retryAt === undefined })
+      refreshed = await refreshQuota(claudeBin, deps, now, afterLock?.cli, { endpoint: retryAt === undefined })
     } catch (err) {
       if (!(err instanceof UsageRateLimited)) throw err
       retryAt = err.retryAt
-      quota = await refreshQuota(claudeBin, deps, now, { endpoint: false })
+      refreshed = await refreshQuota(claudeBin, deps, now, afterLock?.cli, { endpoint: false })
     }
-    await writeShared(paths.data, { at: now, quota, ...(retryAt === undefined ? {} : { retryAt }) }).catch(() => {})
-    return quota
+    await writeShared(paths.data, { at: now, ...refreshed, ...(retryAt === undefined ? {} : { retryAt }) }).catch(() => {})
+    return refreshed.quota
   } catch (err) {
     const fallback = await readShared(paths.data)
     if (retryAt !== undefined) {
@@ -591,13 +663,17 @@ export async function readClaudeQuota(
       await writeShared(paths.data, refused).catch(() => {})
       return serveRateLimited(refused, now)
     }
+    // Claude Code's backoff outlives every failure, this one's write included: only an endpoint
+    // success clears it, or the next rejected read would start the CLI all over again.
+    const cli = err instanceof ClaudeCodeRefreshFailed ? err.cli : fallback?.cli
     if (fallback?.quota.status === "ok" && now - fallback.at < STALE_MAX_AGE_MS) {
+      if (err instanceof ClaudeCodeRefreshFailed) await writeShared(paths.data, { ...fallback, cli }).catch(() => {})
       return {
         ...fallback.quota,
         detail: `Could not refresh · last updated ${Math.max(1, Math.round((now - fallback.at) / 60_000))}m ago`,
       }
     }
-    await writeShared(paths.data, { at: now, quota: UNAVAILABLE }).catch(() => {})
+    await writeShared(paths.data, { at: now, quota: UNAVAILABLE, ...(cli ? { cli } : {}) }).catch(() => {})
     return UNAVAILABLE
   } finally {
     await release?.().catch(() => {})

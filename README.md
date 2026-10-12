@@ -31,10 +31,9 @@ Frizz is a browser tab, a queue, and the agent CLIs you already pay for. Every a
 
 **Requirements.** Node 22.13+, and a [Claude Code](https://claude.com/claude-code) or [Codex](https://developers.openai.com/codex) subscription you are signed in to. Frizz brings its own pinned copy of each CLI (downloaded once, on first start), so the version on your PATH never changes what a thread runs. Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) — OpenCode, Gemini CLI, GitHub Copilot CLI, Cursor's agent, goose, Qwen Code and more — runs too, from your PATH.
 
-Run it in any directory: a repo, a jj checkout, or a folder of scripts. Frizz has no opinion about version control and does not require Git.
+Run it from anywhere. A project is any folder you add: a repo, a jj checkout, or a folder of scripts. Frizz has no opinion about version control and does not require Git.
 
 ```sh
-$ cd path/to/acme
 $ npx frizz
 
   FRIZZ v0.4.0  ready in 4.0s
@@ -45,7 +44,7 @@ $ npx frizz
   press ctrl-c to stop · run with --debug for the full event feed
 ```
 
-A browser tab opens on acme's board. The first time, a short tour points out the four things on it. Frizz listens on port 9393 (19393 if something else holds it), and one server serves every project on the machine: running `npx frizz` in a second repo adds that project to the server already running. Runs on macOS, Linux and Windows.
+A browser tab opens on acme's board, because acme is already a project. In a repository Frizz has not seen it asks whether to add it, and anywhere else it opens **All projects**; running the command never makes a project by itself. The first time, a short tour points out the four things on the board. Frizz listens on port 9393 (19393 if something else holds it), and one server serves every project on the machine, so a second run joins the server already running. Runs on macOS, Linux and Windows.
 
 <p align="center">
   <img src="assets/board.png" alt="Frizz focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick." width="100%">
@@ -95,7 +94,7 @@ Colin designed Frizz around a few commitments. Every feature, this fork's includ
 <h2 align="center">Features</h2>
 
 - 🗂️ **A task queue, not a sidebar.** Every agent that comes to rest needing you becomes a card. Work the queue top to bottom.
-- 📁 **Projects.** Every directory you run it in gets its own board at `/project/<name>`, all on one server.
+- 📁 **Projects.** Every folder you add gets its own board at `/project/<name>`, all on one server.
 - 🔌 **Headless.** Every agent runs in its own detached background process. Close the tab, ctrl-c the server, reboot: your threads are still there, and Frizz reconnects to the ones still running.
 - 🤖 **Claude Code, Codex and any ACP agent.** Pick the agent per thread and run several against the same repo at once, on your sign-in, your settings and your skills.
 - ❓ **Answerable questions.** An agent hands back numbered options with its own recommendation, so the common answer is one keystroke.
@@ -139,7 +138,7 @@ The queue is strict about what earns a card, which is what keeps it a real to-do
 **Threads are built to run without you.** A worker keeps going until it reaches something only you can settle — a product call, a fork where guessing wrong is expensive, an irreversible action — and then hands back an answerable question rather than a wall of text.
 
 <p align="center">
-  <img src="assets/question.png" alt="A question card asking whether the settings store should use SQLite or a JSON file, with option 1 marked recommended, a row for typing something else, and below it a countdown to the recommended pick." width="100%">
+  <img src="assets/question.png" alt="A question card asking whether the settings store should use SQLite or a JSON file, with option 1 marked recommended, a row for typing something else, and below it the prompt box." width="100%">
 </p>
 
 Options are numbered — press a number or click to pick, Enter to send — and a worker marks the one it recommends. There is always a row for writing something else, and a typed reply leaves the question open. When the answer isn't one thing, the card takes several: check any combination and add a note. When the agent needs you to *do* something it can't — sign in, press a button — the card lists the steps over one **Done** button.
@@ -257,7 +256,7 @@ In the terminal running Frizz, **R** sets up remote access and **L** shows a fre
 <details>
 <summary><b>Can I reach it from my phone, or from anywhere?</b></summary>
 
-> Yes. Press **R** in the terminal running Frizz and pick a private frizz.sh name (unguessable, no account), a custom one, a Cloudflare Tunnel, Tailscale, or a proxy of your own. Frizz stays on `127.0.0.1` in every case, the first visit from each device needs a single-use sign-in link, and `npx frizz --sessions` / `--sign-out` manage the devices. Remote access exposes every project on the server. See [Remote access](docs/remote-access.md); try it first with `npx frizz --sandbox`.
+> Yes. Press **R** in the terminal running Frizz and pick a private frizz.sh name (unguessable, no account), a Cloudflare Tunnel, Tailscale, or a proxy of your own. Frizz stays on `127.0.0.1` in every case, the first visit from each device needs a single-use sign-in link, and `npx frizz --sessions` / `--sign-out` manage the devices. (Custom frizz.sh names are paused for now; a board that already holds one keeps it.) Every project added or removed, thread started, message sent and question answered is recorded in `logs/audit.jsonl` under Frizz's data folder, with the device that did it. Remote access exposes every project on the server. See [Remote access](docs/remote-access.md); try it first with `npx frizz --sandbox`.
 
 </details>
 
@@ -274,7 +273,7 @@ In the terminal running Frizz, **R** sets up remote access and **L** shows a fre
 
 | Term | What it means |
 | --- | --- |
-| **Project** | A directory you ran Frizz in, with its own board at `/project/<name>`. **All projects**, at `/all`, shows every one. |
+| **Project** | A folder you added, with its own board at `/project/<name>`. **All projects**, at `/all`, shows every one. |
 | **Thread** | One effort, start to finish. The agent's session *is* the thread. |
 | **Worker** | The agent driving a thread: a real Claude Code, Codex or ACP process, running as you. |
 | **Sub-agent** | A helper a worker dispatches for one prong of its task, listed under its parent as `@parent.child`. |
@@ -299,7 +298,7 @@ In the terminal running Frizz, **R** sets up remote access and **L** shows a fre
 
 <h2 align="center">Contributing</h2>
 
-Issues and pull requests are welcome. Fork the repo, branch off `main`, and open the PR against `main`; CI runs on every pull request. Three checks run there, and they need no install:
+Issues and pull requests are welcome. Fork the repo, branch off `main`, and open the PR against `main`; CI runs on every pull request. Keep **Allow edits by maintainers** checked (GitHub offers it only on forks in a personal account, not an organization), so a follow-up commit from the maintainer can land in your PR rather than separately on `main`. Three checks run there, and they need no install:
 
 ```sh
 $ node --test board/*.test.mjs

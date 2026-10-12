@@ -9,7 +9,6 @@ import {
   LimitPauseCard,
   PendingAskCard,
   PermPolicyDenialCard,
-  PermPromptBanner,
   ProviderFaultCard,
   QuestionBlockCard,
   ThreadSlugContext,
@@ -317,9 +316,6 @@ function Fixture() {
           <QuestionSection key={q.label} q={q} />
         ))}
         <p className="petite-caps mt-4 text-[10px] text-accent">Runtime banners</p>
-        <Section label="permission prompt">
-          <PermPromptBanner onTerminal={() => {}} />
-        </Section>
         {/* Denials only. The approval line this used to sit beside is gone — see PermPolicyDenialCard. */}
         <Section label="permission policy — denied">
           <PermPolicyDenialCard

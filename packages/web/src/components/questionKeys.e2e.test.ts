@@ -23,6 +23,9 @@ async function launch() {
   const { default: puppeteer } = await import("puppeteer")
   const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--use-mock-keychain", "--force-color-profile=srgb"] })
   const page = await browser.newPage()
+  // These are independent keyboard cases, not navigation persistence cases. A fresh document now
+  // restores staged picks, so explicitly clear their tab cache before each fixture load.
+  await page.evaluateOnNewDocument(() => sessionStorage.removeItem("frizz-drafts:v1"))
   await page.setViewport({ width: 900, height: 800 })
   const errors: string[] = []
   page.on("console", (m) => { if (m.type() === "error" && !/404|favicon/i.test(m.text())) errors.push(m.text()) })
@@ -116,11 +119,17 @@ test("with nothing focused a digit answers only a question on screen, preferring
     // Card A's tree question sits at the very top, its settings question scrolled away above; card B
     // holds most of the screen and the rail marks it. Until 2026-10-08 this `2` was staged on card A's
     // settings question, which nobody could see.
-    await fresh(page)
+    await fresh(page, 1000)
     const treeTop = await docTop(page, `${TREE} [data-question-grid]`)
     await scrollToY(page, treeTop + 20)
     await blur(page)
     assert.equal(await page.$eval(`${SETTINGS} [data-question-grid]`, (g) => g.getBoundingClientRect().bottom < 0), true, "card A's first question is off-screen above")
+    // The docked composer covers the second option in an 800px window. This case needs that row
+    // genuinely visible, not just its layout box inside the viewport: the hit-test gate is the contract.
+    assert.equal(await page.$$eval(`${GATES} [data-question-option]`, (rows) => {
+      const row = rows[1], r = row.getBoundingClientRect()
+      return row.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+    }), true, "card B's second option is uncovered")
     await page.keyboard.press("2")
     await settle(page)
     assert.deepEqual(await picks(page), { ...NONE, qst_0004dddd: [1] })

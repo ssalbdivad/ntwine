@@ -3,7 +3,7 @@ import test from "node:test"
 
 const baseUrl = process.env.FRIZZ_DRAWER_COMPOSER_INSET_E2E_URL
 
-test("thread drawer keeps the prompt box inset evenly, with the device inset the column's last padding", {
+test("thread drawer counts its ops over the prompt box and keeps the box inset evenly", {
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
@@ -23,54 +23,52 @@ test("thread drawer keeps the prompt box inset evenly, with the device inset the
     const measure = () => page.$eval("[data-thread-action-bar]", (actionBar) => {
       const composer = actionBar.querySelector<HTMLElement>("[data-surface=drawerFooterFixture]")?.closest<HTMLElement>(".group")
       const chatFooter = document.querySelector<HTMLElement>("[data-thread-chat-footer]")
-      const ops = actionBar.querySelector<HTMLElement>("[data-background-ops]")
-      if (!composer || !chatFooter || !ops) throw new Error("drawer footer fixture is incomplete")
+      const summary = actionBar.querySelector<HTMLElement>("[data-queue-ops-summary]")
+      if (!composer || !chatFooter || !summary) throw new Error("drawer footer fixture is incomplete")
       const bar = actionBar.getBoundingClientRect()
       const box = composer.getBoundingClientRect()
-      const lastRow = ops.lastElementChild as HTMLElement
-      // The BOTTOM inset is optical, not box-equal: the last thing above the footer's hairline is a
-      // line of text, and a row parks its baseline above its own box bottom by the line box's
-      // half-leading, so a box-equal 12px reads as ~16px of air. Measure where the eye reads the row
-      // ENDING — the baseline of its label — and hold THAT 12px off the bar's bottom edge, matching
-      // the 12px above the composer's border. How much leading there is depends on the FONT, which is
-      // why the correction is a custom property measured for the sans stack the app renders.
-      const label = [...lastRow.querySelectorAll<HTMLElement>("span")]
-        .reverse()
-        .find((span) => span.childNodes.length === 1 && span.firstChild?.nodeType === 3 && /\S/.test(span.textContent ?? ""))
-      if (!label) throw new Error("the last ops row has no measurable label")
-      const probe = document.createElement("span")
-      probe.style.cssText = "display:inline-block;width:0;height:0;padding:0;margin:0;border:0"
-      label.appendChild(probe)
-      const baseline = probe.getBoundingClientRect().bottom
-      probe.remove()
-      const chatFooterStyle = getComputedStyle(chatFooter)
+      const line = summary.getBoundingClientRect()
       return {
+        // The line of op counts takes the whole of the bar's 12px top inset (QueueOpsSummary's `-mt-3`),
+        // the way it does on the queue card's dock: its 32px line starts on the rule, then the prompt
+        // box. Where the counts stand INSIDE that line is queueOpsPanels.e2e.test.ts's to pin.
+        lineTop: line.top - bar.top,
         top: box.top - bar.top,
         right: bar.right - box.right,
         left: box.left - bar.left,
-        // Rows hang TIGHT off the prompt box — deliberately less than the frame (see BackgroundOpsStrip
-        // call sites): the column belongs to the composer, so it must not read as a separate block.
-        hang: (ops.firstElementChild as HTMLElement).getBoundingClientRect().top - box.bottom,
-        opticalBottom: bar.bottom - baseline,
-        chatFooterBottom: chatFooterStyle.paddingBottom,
+        // Nothing hangs under the box any more (the rows moved into the counts' hover panel on
+        // 2026-10-09), so its bottom inset is the bar's own 12px, border to edge, like the other three.
+        bottom: bar.bottom - box.bottom,
+        counts: [...summary.querySelectorAll<HTMLElement>("[data-ops-count]")].map((count) => count.innerText.replace(/\s+/g, " ").trim()),
+        hangingRows: actionBar.querySelectorAll("[data-background-ops], [data-queue-subagents]").length,
+        chatFooterBottom: getComputedStyle(chatFooter).paddingBottom,
       }
     })
 
     const inset = await measure()
-    assert.deepEqual([inset.top, inset.right, inset.left], [12, 12, 12])
-    assert.equal(inset.hang, 6, "the ops column hangs tight off the prompt box")
-    assert.ok(
-      Math.abs(inset.opticalBottom - 12) <= 0.5,
-      `the last ops row's baseline sits 12px off the bar's bottom edge, matching the composer's own inset (got ${inset.opticalBottom})`,
-    )
+    assert.deepEqual([inset.lineTop, inset.top, inset.right, inset.bottom, inset.left], [0, 32, 12, 12, 12])
+    assert.deepEqual(inset.counts, ["2 agents", "1 terminal"], "the drawer counts its ops the way the queue card does")
+    assert.equal(inset.hangingRows, 0, "no ops rows are drawn in the footer until the counts are hovered")
     // The chat footer carries the device's bottom inset now that no lifecycle footer sits under it — 0px
     // on a desktop screen, so the bar's own 12px stays the whole inset there.
     assert.equal(inset.chatFooterBottom, "0px")
 
-    // No second font pass. This measured the mono stack too, and required the box gap to MOVE there,
-    // until the mono option was dropped on 2026-09-19 (cbb94225): its override of
-    // --ops-column-optical-inset went with it, so the sheet now carries the sans value alone and the
-    // product renders sans alone (the fixture's html pins it, as index.html does).
+    // Hover opens the rows, the drawer's own, in a panel above the count that names them — the agents'
+    // rows over "2 agents", the shell's over "1 terminal", and neither panel holds the other's.
+    const AGENTS = ["Trace the layout regression in the drawer", "Exercise desktop and narrow viewport behavior"]
+    const SHELLS = ["Watch the production fixture build"]
+    await page.hover('[data-queue-ops-summary] [data-ops-count="agent"]')
+    await page.waitForSelector('[data-queue-ops-panel="agent"] [data-queue-subagents]')
+    const agents = await page.$eval('[data-queue-ops-panel="agent"]', (el) => (el as HTMLElement).innerText)
+    for (const row of AGENTS) assert.ok(agents.includes(row), `the agents panel lists "${row}"`)
+    for (const row of SHELLS) assert.ok(!agents.includes(row), `the agents panel does not list the shell "${row}"`)
+    await page.hover('[data-queue-ops-summary] [data-ops-count="terminal"]')
+    await page.waitForSelector('[data-queue-ops-panel="terminal"] [data-background-ops]')
+    await page.waitForFunction(() => !document.querySelector('[data-queue-ops-panel="agent"]'))
+    const shells = await page.$eval('[data-queue-ops-panel="terminal"]', (el) => (el as HTMLElement).innerText)
+    for (const row of SHELLS) assert.ok(shells.includes(row), `the shells panel lists "${row}"`)
+    for (const row of AGENTS) assert.ok(!shells.includes(row), `the shells panel does not list the agent "${row}"`)
+
     assert.deepEqual(errors, [])
   } finally {
     await browser.close()

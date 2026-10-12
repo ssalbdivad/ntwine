@@ -938,6 +938,52 @@ test("interaction schema migration is additive/idempotent and refuses a newer in
   future.close()
 })
 
+// The tailer's question about a permission marker: "has what this session asked since then been dealt
+// with?" Both halves are load-bearing — see InteractionStore.settledSince.
+test("settledSince: true only when nothing is pending AND something reached a terminal lifecycle at or after the instant", () => {
+  const h = dbHarness()
+  const first = h.store.create(request()).interaction
+  const s = scope(first)
+  assert.equal(h.store.settledSince(s, T0), false, "a pending request is not settled")
+
+  h.setNow("2026-07-13T12:00:10.000Z")
+  h.store.resolve(s, resolutionInput(first))
+  assert.equal(h.store.settledSince(s, "2026-07-13T12:00:05.000Z"), true, "answered after the instant")
+  assert.equal(h.store.settledSince(s, "2026-07-13T12:00:10.000Z"), true, "answered AT the instant")
+  assert.equal(h.store.settledSince(s, "2026-07-13T12:00:10.001Z"), false, "an answer from before the instant settles nothing asked after it")
+  assert.equal(h.store.settledSince({ ...s, sessionId: "another-session" }, T0), false, "a session that journaled nothing has settled nothing")
+
+  // A second request opens (a sub-agent's, say) and the first answer no longer speaks for the session.
+  const second = h.store.create(request(undefined, { providerRequestId: "provider-request-2" })).interaction
+  assert.equal(h.store.settledSince(s, "2026-07-13T12:00:05.000Z"), false, "one answered card does not settle a session with another still open")
+  h.setNow("2026-07-13T12:00:20.000Z")
+  h.store.cancel(s, cancelInput(second))
+  assert.equal(h.store.settledSince(s, "2026-07-13T12:00:15.000Z"), true, "a cancelled request is terminal too")
+  h.close()
+})
+
+test("withdraw terminalizes one provider-withdrawn request, once, and leaves its siblings alone", () => {
+  const h = dbHarness()
+  const first = h.store.create(request()).interaction
+  const second = h.store.create(request(undefined, { providerRequestId: "provider-request-2" })).interaction
+  const changes: string[] = []
+  h.store.subscribe((change) => changes.push(`${change.interactionId}:${change.lifecycle}`))
+
+  const withdrawn = h.store.withdraw(scope(first), first.id)
+  assert.equal(withdrawn?.lifecycle, "cancelled")
+  assert.equal(withdrawn?.cancellationReason, "provider-cancelled")
+  assert.deepEqual(changes, [`${first.id}:cancelled`], "observers hear it, so the card leaves the board")
+  assert.deepEqual(h.store.listPending(scope(first)).map((record) => record.id), [second.id])
+  assert.equal(h.store.withdraw(scope(first), first.id), undefined, "already terminal")
+  assert.equal(h.store.withdraw({ ...scope(first), sessionId: "another-session" }, second.id), undefined, "not this session's to withdraw")
+  expectCode(() => h.store.resolve(scope(first), resolutionInput(first)), "not-pending")
+
+  // A delivery-bound request has a provider response path that must be cancelled with it.
+  const bound = h.store.createProviderRequest(request(undefined, { providerRequestId: "provider-request-3" }), providerBinding()).interaction
+  expectCode(() => h.store.withdraw(scope(bound), bound.id), "invalid-response")
+  h.close()
+})
+
 test("user cancellation is CAS-safe, idempotent, and cannot overwrite a resolution", () => {
   const h = dbHarness()
   const pending = h.store.create(request()).interaction

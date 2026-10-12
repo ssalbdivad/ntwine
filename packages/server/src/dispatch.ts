@@ -30,6 +30,7 @@ import { FRIZZ_MCP, WORKER_DISALLOWED_TOOLS, claudeWorkerEnv, frizzMcpEnv } from
 // Re-exported here because this is where callers have always reached for them.
 export { WORKER_MAX_WEB_SEARCHES, WORKER_MAX_SUBAGENTS, WORKER_MAX_CONCURRENT_SUBAGENTS } from "./backend/types.ts"
 import { resolveWorkerPluginDir } from "./worker-plugin-dir.ts"
+import { pluginContentDigest, stageStablePluginDir } from "./stable-plugin-path.ts"
 import { buildWorkerPrompt, type WorkerCapabilities } from "./workerPrompt.ts"
 import type { EditorBridge } from "./editor-bridge.ts"
 import { codexSandbox, codexFirstOutputTitleInstructions } from "./backend/codex.ts"
@@ -586,6 +587,9 @@ export function resolveFrizzMcp(
   slug?: string,
 ): FrizzMcp | undefined {
   const { stateDir, serverLock, projectId } = typeof target === "string" ? { stateDir: target } : target
+  // The directory the plugin was FOUND in, not the stable path workerPluginDir() launches against. An
+  // MCP server is spawned once per session and a plugin reload does not re-spawn it (measured in
+  // plans/live-worker-updates.md §0), so the shim gains nothing from a path that moves.
   const pluginDir = resolveWorkerPluginDir(moduleUrl, env)
   if (!pluginDir) return undefined
   const scriptPath = join(pluginDir, "bin", FRIZZ_MCP.script)
@@ -765,7 +769,54 @@ export function workerPluginDir(): string | undefined {
         "worker contract hooks, the frizz:* sub-agent profiles, the frizz MCP tools and the portable monitors.",
     )
   }
-  return dir
+  return dir && launchableWorkerPluginDir(dir)
+}
+
+// The content identity of the plugin this process was launched with, memoized by its source: the
+// directory is immutable, so the ~400K digest is worth taking once. The staging itself is re-asserted
+// on every call — a stat and a readlink when nothing moved — so a cache directory wiped under a running
+// server is rebuilt by the next dispatch instead of leaving every later worker a dangling path.
+let pluginIdentity: { source: string; version: string } | undefined
+let stagingFailureReported = false
+
+/**
+ * The path a worker is LAUNCHED against, which is not always where the plugin was found.
+ *
+ * An artifact launch hands this process an immutable, version-specific directory
+ * (`FRIZZ_WORKER_PLUGIN_DIR`: a server release's or a promoted build's `runtime/cc-worker`). A worker
+ * launched against that outlives the version: its daemon is detached, so after an update it keeps
+ * running the old hooks, skills and sub-agent profiles for as long as it lives, and re-reading its
+ * plugin re-reads the same bytes. So that directory is staged and the worker is handed the STABLE path
+ * instead (stable-plugin-path.ts) — booting a newer version repoints it, and every worker already
+ * running follows: hook scripts at once, the rest at its next turn boundary (claude-plugin-sync.ts).
+ *
+ * A SOURCE CHECKOUT is returned as it is. Its `cc-worker/` is edited in place, so a worker launched
+ * against it already sees every change; staging a copy would only put a stale snapshot in between.
+ *
+ * Staging must never cost a dispatch. If the cache cannot be written, or the platform refuses the
+ * link, the worker gets the immutable directory, which is what every worker got until 2026-10-11.
+ */
+export function launchableWorkerPluginDir(
+  source: string,
+  env: NodeJS.ProcessEnv = process.env,
+  roots: { stageRoot?: string; stableRoot?: string } = {},
+): string {
+  if (env.FRIZZ_WORKER_PLUGIN_DIR !== source) return source
+  try {
+    if (pluginIdentity?.source !== source) pluginIdentity = { source, version: pluginContentDigest(source) }
+    return stageStablePluginDir({ source, version: pluginIdentity.version, ...roots }).stablePath
+  } catch (error) {
+    // Once: the condition belongs to the install, and this runs on every dispatch.
+    if (!stagingFailureReported) {
+      stagingFailureReported = true
+      frizzLog.error(
+        "dispatch",
+        `worker plugin could not be staged at a stable path (${error instanceof Error ? error.message : String(error)}); ` +
+          `workers launched now read ${source} directly and will not follow a later update until they restart.`,
+      )
+    }
+    return source
+  }
 }
 
 // The argv builder's own additions on top of that. The two profile masks stay ARGV-ONLY: they exist

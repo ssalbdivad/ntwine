@@ -2,6 +2,7 @@ import { showToast } from "../store.ts"
 import { copyTextToClipboard } from "./clipboard.ts"
 import { COPY_COMMAND_FEEDBACK_MS } from "./copyCommandFeedback.ts"
 import { CODE_BLOCK_CLASS, CODE_COPIED_CLASS, CODE_COPY_CLASS, COPY_CODE_LABEL } from "./syntaxHighlight.ts"
+import { CODE_PANEL_CLASS, CODE_TAB_ACTIVE_CLASS } from "./codeTabs.ts"
 
 // One delegated listener for every fenced code block in every sanitized markdown surface (chat, fence
 // and question cards, the plan and doc drawers), for the same reason lib/local-file-links.ts is
@@ -21,9 +22,13 @@ export function installCodeCopyInterceptor(): () => void {
 }
 
 // The `<code>` the button belongs to — `closest` on the wrapper rather than `previousElementSibling`, so
-// the pairing survives any future change to the order the two are emitted in.
+// the pairing survives any future change to the order the two are emitted in. A tabbed block
+// (lib/codeTabs.ts) holds one `<pre>` per tab behind a single button, which copies the tab that is open.
 function codeOf(button: HTMLElement): HTMLElement | null {
-  return button.closest(`.${CODE_BLOCK_CLASS}`)?.querySelector<HTMLElement>("pre code") ?? null
+  const block = button.closest(`.${CODE_BLOCK_CLASS}`)
+  return block?.querySelector<HTMLElement>(`pre.${CODE_PANEL_CLASS}.${CODE_TAB_ACTIVE_CLASS} code`)
+    ?? block?.querySelector<HTMLElement>("pre code")
+    ?? null
 }
 
 async function copy(button: HTMLElement) {

@@ -30,7 +30,10 @@ function optionParts(index: number, opt: AskedOption): { line: string; body?: st
   // 2026-10-08, when the card lettered); the card's number is the one that counts, so the label's copy of
   // it goes — the option's own number, or its own letter from a worker still lettering by habit. Any
   // other leading enumerator is the worker's text and stays.
-  const enumerator = new RegExp(`^(?:${index + 1}|${String.fromCharCode(65 + index)})[.):]\\s+`)
+  // Letters stop at Z: past it the 27th code point is `[`, which opened an unterminated group in this
+  // pattern and threw on every render of a question with more than 26 options.
+  const letter = index < 26 ? `|${String.fromCharCode(65 + index)}` : ""
+  const enumerator = new RegExp(`^(?:${index + 1}${letter})[.):]\\s+`)
   const label = opt.label.replace(enumerator, "")
   return { line: `${optionNumber(index)} ${label}${inline ? ` — ${inline}` : ""}`, ...(body ? { body } : {}) }
 }
@@ -58,7 +61,6 @@ export function childPath(parent: string, optionIndex: number, followUpIndex: nu
 /** Convert one question node into the neutral model the card renders. */
 export function toParsedQuestion(spec: AskedQuestion): { question: ParsedQuestion; optionLabels: string[] } {
   const options = spec.options ?? []
-  const recommendedIdx = options.findIndex((o) => o.recommended)
   const parts = options.map((o, i) => optionParts(i, o))
   return {
     question: {
@@ -67,7 +69,7 @@ export function toParsedQuestion(spec: AskedQuestion): { question: ParsedQuestio
       ...(spec.secret ? { secret: true } : {}),
       contextMd: spec.question,
       options: parts.map((p) => p.line),
-      recommendedIdx: recommendedIdx === -1 ? null : recommendedIdx,
+      recommendedIdxs: options.flatMap((o, i) => (o.recommended ? [i] : [])),
       ...(parts.some((p) => p.body) ? { optionBodies: parts.map((p) => p.body) } : {}),
     },
     optionLabels: options.map((o) => o.label),
@@ -187,13 +189,12 @@ export function settledQuestionNodes(spec: AskedQuestion, answer: QuestionAnswer
     }
     kept.sort((a, b) => a - b)
     const text = [unmatched.join(", "), said.text?.trim()].filter(Boolean).join(" — ") || (said.skipped ? "Skipped" : undefined)
-    const rec = question.recommendedIdx
     out.push({
       path,
       question: {
         ...question,
         options: kept.map((i) => question.options[i]),
-        recommendedIdx: rec !== null && kept.includes(rec) ? kept.indexOf(rec) : null,
+        recommendedIdxs: kept.flatMap((i, j) => (question.recommendedIdxs.includes(i) ? [j] : [])),
         ...(question.optionBodies ? { optionBodies: kept.map((i) => question.optionBodies![i]) } : {}),
       },
       settled: { chosenIdxs: kept.map((_, j) => j), ...(text ? { text } : {}) },

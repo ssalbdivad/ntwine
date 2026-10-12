@@ -42,26 +42,64 @@
  *  read `deadLeft`/`deadRight` off each mark). */
 
 
-/** Bare composer icons carry dead space; the filled Send button paints its full box.
- *  These offsets leave ~14.5px between resting ink edges (not uniform box gaps).
- *  Hover outlines do not participate in the resting rhythm. */
-export const RAIL_SEND_OFFSET = "right-2"
-export const RAIL_ACTION_OFFSET = "right-[43px]"
-export const RAIL_PAPERCLIP_OFFSET = "right-[71px]"
-export const RAIL_PAPERCLIP_PLAIN_OFFSET = "right-[44px]"
+/** THE RAIL, right to left: send, the microphone (only where on-device dictation exists — see
+ *  lib/dictation.ts), the rail action (the dispatch composer's GitHub picker), the paperclip, and the
+ *  lead (the thread composer's Goal). Each is a 28px square; any of the middle marks may be absent, and
+ *  the marks to its left close up.
+ *
+ *  What is measured is the BOX GAP between each pair of neighbours — the gap that puts their INK
+ *  ~14.5px apart, given the dead space each glyph wears. The Send button is filled, so its ink is its
+ *  box; the bare 15px icons carry 7–9px of empty box per side. Hover outlines do not take part in the
+ *  resting rhythm. A pair missing from the table falls back to the paperclip→send gap; add the
+ *  measurement rather than relying on it. */
+export type RailMark = "lead" | "paperclip" | "action" | "mic" | "send"
+const RAIL_ORDER: readonly RailMark[] = ["lead", "paperclip", "action", "mic", "send"]
+const RAIL_BOX = 28
+const RAIL_SEND_RIGHT = 8
+// Clearance the prose keeps from the leftmost mark.
+const RAIL_PROSE_CLEARANCE = 8
 
-/** The thread composer's Goal, at the rail's LEFT end beyond the paperclip (Composer `railLead`).
- *  Its own constant, not the paperclip's or the action's: GoalMark at 15px paints 7px of dead box on
- *  its right against the paperclip's 8.25px on its left, so a box gap of -1px (the two hover squares
- *  overlap by a pixel of empty padding) draws 14.25px of ink between them, against 14.75px from the
- *  paperclip to send. Measured on a real queue card with scripts/ink-gaps.mjs at dsf 4, 2026-10-05;
- *  the two glyphs also read at one weight there (mean contrast 338.5 against 338.9). */
-export const RAIL_LEAD_OFFSET = "right-[71px]"
-export const RAIL_LEAD_WITH_ACTION_OFFSET = "right-[98px]"
+const RAIL_BOX_GAP: Partial<Record<`${RailMark}>${RailMark}`, number>> = {
+  "paperclip>send": 8,
+  "action>send": 7,
+  // The paperclip paints 1px less dead space on its right than the action does, so it sits flush.
+  "paperclip>action": 0,
+  // GoalMark at 15px paints 7px of dead box on its right against the paperclip's 8.25px on its left, so
+  // the two hover squares overlap by a pixel of empty padding: 14.25px of ink between them, against
+  // 14.75px from the paperclip to send. Measured on a real queue card with scripts/ink-gaps.mjs at dsf 4,
+  // 2026-10-05; the two glyphs also read at one weight there (mean contrast 338.5 against 338.9).
+  "lead>paperclip": -1,
+  "mic>send": 6,
+  "paperclip>mic": -2,
+  "action>mic": -3,
+}
 
-/** Reserve the leftmost button's edge (99px with GitHub or the Goal, 72px with neither, 126px with
- *  both), plus 8px for prose. */
-export const RAIL_RESERVE_WITH_ACTION = "pr-[6.6875rem]"
-export const RAIL_RESERVE_WITH_BOTH = "pr-[8.375rem]"
-export const RAIL_RESERVE_PLAIN = "pr-20"
+/** THE THREAD COMPOSER'S SEND IS A SPLIT BUTTON, not a 28px square: the word "Send", a hairline, and a
+ *  caret that opens the two ways of sending (components/SendSplitButton.tsx, which owns these three
+ *  widths and the readings behind them). It is still filled edge to edge, so its ink is its box and
+ *  every gap in the table above holds unchanged — only the width the marks to its left clear grows. */
+export const SEND_SPLIT_LABEL_WIDTH = 45.5
+export const SEND_SPLIT_SEAM_WIDTH = 1
+export const SEND_SPLIT_CARET_WIDTH = 23
+export const SEND_SPLIT_WIDTH = SEND_SPLIT_LABEL_WIDTH + SEND_SPLIT_SEAM_WIDTH + SEND_SPLIT_CARET_WIDTH
 
+/** Where each present mark sits (its CSS `right`, px) and how much right padding the prose keeps.
+ *  `sendWidth` is the Send control's own width when it is not the 28px square. A fractional one is
+ *  rounded UP for the marks beside it: the button is filled and may end on a half pixel, but a bare
+ *  15px icon placed on one draws soft on a 1x screen. */
+export function composerRail(present: { lead?: boolean; action?: boolean; mic?: boolean; sendWidth?: number }): {
+  right: Partial<Record<RailMark, number>>
+  reserve: number
+} {
+  const shown: Record<RailMark, boolean> = { send: true, paperclip: true, lead: !!present.lead, action: !!present.action, mic: !!present.mic }
+  const marks = RAIL_ORDER.filter((m) => shown[m])
+  const right: Partial<Record<RailMark, number>> = {}
+  let edge = 0
+  let neighbour: RailMark | null = null
+  for (const mark of [...marks].reverse()) {
+    right[mark] = neighbour ? edge + (RAIL_BOX_GAP[`${mark}>${neighbour}`] ?? RAIL_BOX_GAP["paperclip>send"]!) : RAIL_SEND_RIGHT
+    edge = right[mark]! + (mark === "send" ? Math.ceil(present.sendWidth ?? RAIL_BOX) : RAIL_BOX)
+    neighbour = mark
+  }
+  return { right, reserve: edge + RAIL_PROSE_CLEARANCE }
+}

@@ -32,6 +32,7 @@ import {
   parseSpinoffRequest,
   parseSpinoffChildPrompt,
 } from "@frizz/shared"
+import { projectTranscriptSessionPeers, type SessionPeerThread } from "./session-peer.ts"
 import { workDirOf, type Project } from "./project.ts"
 import type { Storage } from "./storage.ts"
 import { isHeldRow } from "./storage.ts"
@@ -235,11 +236,19 @@ function userDisplayText(text: string, first: boolean): string | undefined {
   return projected === text ? undefined : projected
 }
 
+function sessionPeerOf(session: { name?: string; socket?: string }): NonNullable<TranscriptMessage["sessionPeer"]> {
+  return { ...(session.name ? { name: session.name } : {}), ...(session.socket ? { socket: session.socket } : {}) }
+}
+
 // The full presentation projection for one user turn: its display text, plus whether FRIZZ wrote it.
 // Both derive from the same raw record, and every site that pushes a user message needs both — keeping
 // them in one helper is what stops a new push site from shipping the display projection while silently
 // dropping the wake flag (which would put a scheduler steer back in the human's own bubble).
-function userProjection(text: string, first: boolean): { displayText?: string; spinoff?: { id: string; instructions: string }; spinoffOrigin?: { instructions: string; brief: string }; wake?: true; wakeSteer?: GithubWakeSteer; peerFrom?: string; peerSession?: true; peerUnnamed?: true } {
+function userProjection(text: string, first: boolean): { displayText?: string; spinoff?: { id: string; instructions: string }; spinoffOrigin?: { instructions: string; brief: string }; wake?: true; wakeSteer?: GithubWakeSteer; peerFrom?: string; peerUnnamed?: true; sessionPeer?: TranscriptMessage["sessionPeer"] } {
+  // A SIDEWAYS message — another top-level session's SendMessage into this one — is settled first for
+  // the same reason as the upward one below: none of it is the human's, and its wrapper is not prose.
+  const session = parseCrossSessionMessage(text)
+  if (session) return { displayText: session.body, sessionPeer: sessionPeerOf(session) }
   // An UPWARD agent-to-agent message — a background child calling `SendMessage({to:"main"})` — is not
   // the human's text at all, so it is settled FIRST and returns on its own. Its body, not the
   // `<agent-message>` wrapper, is what a reader wants, and none of the projections below apply: the
@@ -247,10 +256,6 @@ function userProjection(text: string, first: boolean): { displayText?: string; s
   // set here — only the delivery record names the sender, so the attachment arm resolves and adds it.
   const peer = parseAgentMessage(text)
   if (peer) return { displayText: peer.body, peerFrom: peer.from }
-  // …and a message from ANOTHER SESSION, for the same reason. Its wrapper already carries the sender's
-  // own name, so unlike a child's report there is nothing left for the delivery record to resolve.
-  const session = parseCrossSessionMessage(crossSessionDeliveryWrapper(text) ?? text)
-  if (session) return crossSessionProjection(session)
   const displayText = userDisplayText(text, first)
   // A SPINOFF REQUEST an older build delivered to the parent's worker (parseSpinoffRequest). It is the
   // human's (they asked for it), but its text was Frizz's errand for the worker, so the chat draws the
@@ -363,8 +368,8 @@ function pushToolPart(m: TranscriptMessage, call: TranscriptToolCall): void {
 }
 
 // ── Queued-follow-up delivery shapes ────────────────────────────────────────────────────────────────
-// A queued human message is matched to its DELIVERY by raw text (see the queue-operation handling in the
-// fold). Three harness paths deliver text that is no longer byte-identical to what was enqueued, so the
+// A queued human message is matched to its DELIVERY by its text, trimmed at the comparison (see findQueued
+// in the fold). Three harness paths deliver text that is no longer byte-identical to what was enqueued, so the
 // exact-key lookup misses and the gray bubble becomes IMMORTAL — the "stuck enqueued" bug. Each shape
 // below reconstructs the enqueued text STRUCTURALLY rather than fuzzy-matching: a plain
 // `deliveredText.includes(queuedText)` was measured against all 681 transcripts on this machine and
@@ -390,6 +395,11 @@ function pushToolPart(m: TranscriptMessage, call: TranscriptToolCall): void {
 // where its cancellation tombstone (or the FIFO backstop) accounts for it. Backtracking, not greedy: a
 // consumed prefix that strands the remainder must be retried as a skip, or key sets like ["a","a\nb"]
 // mis-resolve.
+//
+// The delivered text arrives TRIMMED (it is read through `userText`), while the keys stay raw. So the
+// whitespace of the run's two OUTER ends is gone: the first message's leading whitespace and the last
+// one's trailing whitespace. The walk forgives exactly those two edges and nothing in the interior, where
+// each message keeps its own whitespace byte for byte.
 export function coalescedQueuedKeys(deliveredText: string, pendingKeys: Iterable<string>): string[] {
   if (!deliveredText) return []
   const keys = [...pendingKeys]
@@ -398,10 +408,12 @@ export function coalescedQueuedKeys(deliveredText: string, pendingKeys: Iterable
     if (index >= keys.length) return null
     const state = cursor * (keys.length + 1) + index
     if (dead.has(state)) return null
-    const key = keys[index]
-    if (key && deliveredText.startsWith(key, cursor)) {
-      const next = cursor + key.length
-      if (next === deliveredText.length) return [key]
+    const key = keys[index] ?? ""
+    const body = cursor === 0 ? key.trimStart() : key
+    const last = body.trimEnd()
+    if (last && cursor + last.length === deliveredText.length && deliveredText.startsWith(last, cursor)) return [key]
+    if (body && deliveredText.startsWith(body, cursor)) {
+      const next = cursor + body.length
       if (deliveredText.startsWith("\n", next)) {
         const rest = walk(next + 1, index + 1)
         if (rest) return [key, ...rest]
@@ -460,33 +472,6 @@ export function peerSessionQueuedKey(deliveredText: string, pendingKeys: Iterabl
   if (!deliveredText.startsWith(PEER_SESSION_PREAMBLE)) return undefined
   for (const key of pendingKeys) if (deliveredText.startsWith(key, PEER_SESSION_PREAMBLE.length)) return key
   return undefined
-}
-
-// THE ONE PEER SHAPE THAT IS A MESSAGE, NOT PLUMBING: a `<cross-session-message>` (see
-// parseCrossSessionMessage). Delivered at rest it takes the SHAPE 3 preamble above, followed by the
-// harness's handling guidance for the model ("This came from another Claude session — not typed by your
-// user…"). Only the wrapper between the two is the message, and it is byte-for-byte the text that was
-// enqueued, so it doubles as the queued key. Undefined for anything else, including a record that merely
-// quotes a wrapper somewhere past the preamble.
-const CROSS_SESSION_CLOSE = "</cross-session-message>"
-function crossSessionDeliveryWrapper(deliveredText: string): string | undefined {
-  if (!deliveredText.startsWith(PEER_SESSION_PREAMBLE)) return undefined
-  const end = deliveredText.lastIndexOf(CROSS_SESSION_CLOSE)
-  if (end < PEER_SESSION_PREAMBLE.length) return undefined
-  const wrapper = deliveredText.slice(PEER_SESSION_PREAMBLE.length, end + CROSS_SESSION_CLOSE.length)
-  return parseCrossSessionMessage(wrapper) ? wrapper : undefined
-}
-
-// How a cross-session message presents, wherever the fold meets it. The sender's session name is a real
-// name — the one its peers address it by — so it titles the line. A wrapper without one leaves only the
-// reply ADDRESS (a socket path), which is not a name, and says so rather than promoting it to one.
-function crossSessionProjection(session: { from: string; name?: string; body: string }): { displayText: string; peerFrom: string; peerSession: true; peerUnnamed?: true } {
-  return {
-    displayText: session.body,
-    peerFrom: session.name ?? session.from,
-    peerSession: true,
-    ...(session.name ? {} : { peerUnnamed: true as const }),
-  }
 }
 
 // ---- Instructions delivered INTO a Claude sub-agent ------------------------------------------------
@@ -727,8 +712,27 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
   // drains in order), falling back to the oldest registered one because the remove/attachment pair
   // deliberately leaves an entry registered after un-graying it, so the attachment can re-resolve the
   // SAME object instead of pushing a second copy. For a unique key this is exactly the old Map.get.
+  // The comparison is TRIMMED: an ordinary user record is read through `userText`, which trims, while the
+  // enqueue and the attachment carry the raw text. A dispatched prompt ending in "\n" therefore never
+  // matched its own delivery and rendered twice — once delivered, once stuck gray at the thread's tail.
+  // The stored key stays RAW: coalescedQueuedKeys and peerSessionQueuedKey match keys against the
+  // delivered text's interior, where each message keeps its own whitespace.
   function findQueued(key: string): QueuedEntry | undefined {
-    return queuedPending.find((e) => e.key === key && e.message.queued) ?? queuedPending.find((e) => e.key === key)
+    const k = key.trim()
+    return queuedPending.find((e) => e.key.trim() === k && e.message.queued) ?? queuedPending.find((e) => e.key.trim() === k)
+  }
+  // A cross-session message's enqueue and its delivery do not carry identical text: the enqueue's
+  // wrapper can hold a `hop-chain` attribute the delivered one drops (15 of 48 enqueues in this
+  // machine's corpus, 2026-10-08), so the byte-identical key misses and the message drew twice. Match it
+  // by what it says instead — sender socket, sender name and body.
+  function findCrossSessionQueued(text: string): QueuedEntry | undefined {
+    const sent = parseCrossSessionMessage(text)
+    if (!sent) return undefined
+    const same = (e: QueuedEntry) => {
+      const queued = e.message.sessionPeer ? parseCrossSessionMessage(e.key) : undefined
+      return !!queued && queued.body === sent.body && queued.name === sent.name && queued.socket === sent.socket
+    }
+    return queuedPending.find((e) => e.message.queued && same(e)) ?? queuedPending.find(same)
   }
   function dropQueued(entry: QueuedEntry): void {
     const i = queuedPending.indexOf(entry)
@@ -763,23 +767,6 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
     dropQueued(entry)
     entry.message.queued = false
   }
-  // A cross-session message's enqueue is NOT always byte-identical to its delivery: the harness can stamp
-  // routing attributes on the queued copy that the delivered one drops (`hop-chain="…"`, on a frizz
-  // thread 2026-09-24), so the exact-key lookup missed and the delivery drew a second line under the
-  // first. What identifies the message is its sender and its body, so those are matched — exactly, never
-  // by containment, and only against entries the enqueue itself recognized as a session's message. For
-  // use AFTER `findQueued` has missed; same FIFO preference.
-  function findQueuedCrossSession(delivered: string): QueuedEntry | undefined {
-    const session = parseCrossSessionMessage(delivered)
-    if (!session) return undefined
-    const same = (e: QueuedEntry) => {
-      if (!e.message.peerSession) return false
-      const queued = parseCrossSessionMessage(e.key)
-      return !!queued && queued.from === session.from && queued.name === session.name && queued.body === session.body
-    }
-    return queuedPending.find((e) => e.message.queued && same(e)) ?? queuedPending.find(same)
-  }
-
   // Incremental line framing. `offset` is the byte position of `buffer[0]` in the overall stream (or,
   // when buffer is empty, of the next unprocessed byte). `buffer` holds a trailing line whose newline
   // has NOT yet arrived and which was not optimistically consumed; it is prepended to the next chunk.
@@ -881,7 +868,8 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
         // styling). Do NOT reset lastAssistantId: this bubble is transient (it may be spliced out on
         // delivery), and the assistant-merge tail-role check already blocks merging across a live bubble.
         // `text` stays the RAW queued content — it is the key `queuedPending` matches the delivery
-        // attachment against — so a wake token riding a queued follow-up is dropped only for display.
+        // against (trimmed only at comparison, see findQueued) — so a wake token riding a queued
+        // follow-up is dropped only for display.
         const queuedProjection = userProjection(content, out.length === 0)
         const m: TranscriptMessage = { sourceId, role: "user", text: content, ...queuedProjection, tools: [], parts: [], at: thisTs, queued: true }
         out.push(m)
@@ -906,7 +894,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
         // appear in practice, while the vanish it caused does. An EMPTY-content removal remains ignored:
         // it is the ordinary handshake and matching it by anything but exact text could evict a
         // genuinely-still-pending bubble when an unrelated queue item is dequeued.
-        const entry = findQueued(content) ?? findQueuedCrossSession(content)
+        const entry = findQueued(content) ?? findCrossSessionQueued(content)
         // Deliberately NOT resolveQueued(): the entry stays registered so the attachment that follows
         // re-resolves this same object. The FIFO backstop still applies — this removal proves the queue
         // drained past everything ahead of it.
@@ -967,23 +955,6 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
       const peerOrigin = att.origin?.kind === "peer" ? att.origin : undefined
       if (peerOrigin && att.commandMode === "prompt") {
         const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
-        // A message from ANOTHER SESSION rides this same record (origin.kind "peer", absorbed mid-turn),
-        // but none of the child machinery below applies: there is no senderTaskId, no dispatch and no
-        // drawer, and its wrapper already names the sender. Settled first, so the relabel below cannot
-        // mistake a session's name for an unresolved profile cell and mark it unnamed.
-        const session = prompt.trim() ? parseCrossSessionMessage(prompt) : undefined
-        if (session) {
-          // The enqueue has placed the line; un-gray it where it sits. Attachment-only (the enqueue
-          // scrolled out of the window) renders it here, preferring the record's structured name.
-          const entry = findQueued(prompt) ?? findQueuedCrossSession(prompt)
-          if (entry) resolveEntry(entry)
-          else {
-            const name = str(peerOrigin.name) || session.name
-            out.push({ sourceId, role: "user", text: prompt, ...crossSessionProjection({ ...session, name }), tools: [], parts: [], at: thisTs })
-          }
-          lastAssistantId = null
-          return
-        }
         const senderTaskId = str(peerOrigin.senderTaskId)
         // TRANSLATE the sender's agentId into its DISPATCH tool_use id — the only id a drawer can resolve
         // (see peerDispatchId in shared). Absent when the ack was never seen, in which case the report line
@@ -991,9 +962,9 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
         const dispatchId = senderTaskId ? childDispatchIds.get(senderTaskId) : undefined
         // Take the entry BEFORE resolving: resolveQueued de-registers it, and we still need the message
         // object it points at in order to stamp the id onto the bubble already rendered in `out`.
-        const entry = prompt.trim() ? findQueued(prompt) : undefined
+        const entry = prompt.trim() ? findQueued(prompt) ?? findCrossSessionQueued(prompt) : undefined
         if (entry) {
-          resolveQueued(prompt)
+          resolveQueued(entry.key)
           // Guard on peerFrom: only a bubble the enqueue actually recognized as a child's report gets the
           // child's id. Stamping it on an unattributed bubble would assert an origin nothing established.
           if (dispatchId && entry.message.peerFrom) entry.message.peerDispatchId = dispatchId
@@ -1022,6 +993,13 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
             if (senderTaskId) entry.message.peerSenderTaskId = senderTaskId
           }
           lastAssistantId = null // …so it breaks the assistant-record merge chain too
+        } else if (prompt.trim() && parseCrossSessionMessage(prompt)) {
+          // ATTACHMENT-ONLY delivery of a message from another top-level SESSION (not a child: no
+          // senderTaskId, and `origin.from` is a socket path rather than a label). It takes the same
+          // projection its enqueue would have; the sub-agent fallback below would have titled the line
+          // with the socket path.
+          out.push({ sourceId, role: "user", text: prompt, ...userProjection(prompt, out.length === 0), tools: [], parts: [], at: thisTs })
+          lastAssistantId = null
         } else {
           // ATTACHMENT-ONLY: the enqueue scrolled out of the render window, or an older session never
           // wrote one. Prefer this record's STRUCTURED fields — it carries `from` and `body` already
@@ -1079,25 +1057,24 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
       if (rec.isMeta === true) {
         const metaText = userText(rec)
         if (metaText) {
-          // A message from ANOTHER SESSION delivered at rest. Every other isMeta record is plumbing, and a
-          // peer's wrapped report used to leave with it — but this one woke the worker, so dropping it
-          // left a reply to nothing visible. It keeps its line, exactly as it does when absorbed mid-turn:
-          // the enqueue already placed it, so un-gray it there, or render it here if that scrolled out.
-          const sessionWrapper = rec.isSidechain !== true ? crossSessionDeliveryWrapper(metaText) : undefined
-          const session = sessionWrapper ? parseCrossSessionMessage(sessionWrapper) : undefined
-          if (sessionWrapper && session) {
-            const entry = findQueued(sessionWrapper) ?? findQueuedCrossSession(sessionWrapper)
-            if (entry) resolveEntry(entry)
-            else out.push({ sourceId, role: "user", text: metaText, ...crossSessionProjection(session), tools: [], parts: [], at: rec.timestamp })
-            lastAssistantId = null
-            return
-          }
           // A message from a PEER Claude session is enqueued raw but delivered WRAPPED in a fixed
           // preamble + trailing guidance (SHAPE 3), so the byte-identical key misses. Recover it before
           // the splice, or the bubble sits gray forever — this is the shape that stranded a live thread's
           // <agent-message> follow-up.
           const key = findQueued(metaText) ? metaText : peerSessionQueuedKey(metaText, unresolvedQueuedKeys())
-          const pending = key === undefined ? undefined : findQueued(key)
+          const pending = (key === undefined ? undefined : findQueued(key)) ?? findCrossSessionQueued(metaText)
+          // …but that message is not plumbing: it is another session's instruction to this one, and the
+          // human reading the thread needs it as much as the agent did. So it stays where its enqueue put
+          // it (un-grayed), and an idle delivery with no enqueue in the window renders here instead.
+          if (rec.isSidechain !== true && parseCrossSessionMessage(metaText)) {
+            if (pending) {
+              resolveQueued(pending.key)
+            } else {
+              out.push({ sourceId, role: "user", text: metaText, ...userProjection(metaText, out.length === 0), tools: [], parts: [], at: rec.timestamp })
+            }
+            lastAssistantId = null
+            return
+          }
           if (pending) {
             resolveQueuedThrough(pending)
             dropQueued(pending)
@@ -1176,7 +1153,8 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
         // Belt-and-suspenders: a normal user record that echoes a JUST-delivered queued message would
         // otherwise render it twice. Skip the immediately-following identical text. (Unobserved in the
         // evidence — the queued text only ever arrives via the attachment — but cheap to guard.)
-        if (deliveredDedupe !== null && text === deliveredDedupe) {
+        // `text` is trimmed (userText) and the attachment's prompt is raw, so compare trimmed.
+        if (deliveredDedupe !== null && text === deliveredDedupe.trim()) {
           deliveredDedupe = null
           return
         }
@@ -3150,8 +3128,8 @@ const MAX_PINNED_BACKGROUND_OPERATIONS = 128
 //
 // `role === "user"` alone is not the human — the same trap pageProjectedTranscript documents. Frizz
 // writes as the user (Goal delivery, sign-off reminder, watcher wake), all carrying `wake`; a queued
-// send has not been delivered; and `agentInstruction` is a coordinator/peer speaking into a CHILD's
-// user side. The measured card had 14 user records in its window and 13 of them were Frizz's own; the
+// send has not been delivered; `agentInstruction` is a coordinator/peer speaking into a CHILD's
+// user side; and `sessionPeer` is another thread messaging this one. The measured card had 14 user records in its window and 13 of them were Frizz's own; the
 // human's ask sat 13 messages above the head.
 //
 // THE REACH IS ALL-OR-NOTHING. A partial extension buys no anchor and still ships the extra megabyte, so
@@ -3178,8 +3156,9 @@ function countBoundedStart(messages: readonly TranscriptMessage[]): number {
   let boundary = -1
   for (let i = tail - 1; i >= 0; i--) {
     const m = messages[i]
-    // A spinoff request is the human asking for ANOTHER thread, not what this one's handoff answers.
-    if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff) {
+    // A spinoff request is the human asking for ANOTHER thread, not what this one's handoff answers, and a
+    // `sessionPeer` is another thread messaging this one.
+    if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff && !m.sessionPeer) {
       boundary = i
       break
     }
@@ -4641,12 +4620,13 @@ export function pageProjectedTranscript(
   //
   // A queued send is skipped for a different reason: it has not been delivered, so it is not yet part of
   // the exchange being summarised. An `agentInstruction` is also user-side but belongs to a CHILD's
-  // coordinator/peer conversation, never the operator's turn. A spinoff request asks for another thread,
-  // so the exchange the reader needs goes back past it too.
+  // coordinator/peer conversation, never the operator's turn — and so does a `sessionPeer`, another
+  // thread messaging this one. A spinoff request asks for another thread, so the exchange the reader
+  // needs goes back past it too.
   const turnStart = (before: number): number => {
     for (let i = before - 1; i >= 0; i--) {
       const m = messages[i]
-      if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff) return i
+      if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff && !m.sessionPeer) return i
     }
     return 0
   }
@@ -5128,9 +5108,11 @@ export function projectTranscriptPageAgentLifecycles(
   page: TranscriptPage,
   lookup: (id: string) => AgentLifecycleProjection | undefined,
   peerLookup?: (taskId: string) => { id: string; label: string } | undefined,
+  sessionPeerLookup?: (peer: NonNullable<TranscriptMessage["sessionPeer"]>) => SessionPeerThread | undefined,
 ): TranscriptPage {
   const named = peerLookup ? projectTranscriptPeerNames(page.messages, peerLookup) : page.messages
-  return { ...page, messages: projectTranscriptAgentLifecycles(named, lookup) }
+  const sent = sessionPeerLookup ? projectTranscriptSessionPeers(named, sessionPeerLookup) : named
+  return { ...page, messages: projectTranscriptAgentLifecycles(sent, lookup) }
 }
 
 // Parse a transcript from an ABSOLUTE file path (vs. project+session_id). Used for a sub-agent's own

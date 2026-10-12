@@ -221,19 +221,12 @@ try {
     if (interactiveLaunch) assertLaunchPrerequisites();
     else assertRequiredExecutables();
   }
-  // Running the command no longer ADOPTS the directory it was run in — see resolveLaunchIntent. An
-  // unknown directory hosts the server on the most recent real project and asks about itself on `/`
-  // (the add-project dialog); $HOME is never asked about at all.
+  // Running the command never ADOPTS the directory it was run in — see resolveLaunchIntent. A
+  // directory that is not already a project hosts the server on Frizz's own stand-in folder and
+  // lands on `/all`, or on `/` (the add-project dialog) when it is a repository Frizz has not seen.
   let hosted: Workspace | undefined;
   if (!internal) {
     const intent = resolveLaunchIntent();
-    if (intent.kind === "empty") {
-      throw new Error(
-        intent.reason === "home"
-          ? "frizz cannot open your home directory as a project, and there is no other project to show yet. cd into a repository and run frizz there."
-          : `${intent.directory} is not a Frizz project yet, and there is no other project to show. Run frizz inside a repository, or add this one from the projects page once a board is open.`
-      );
-    }
     launchIntent = intent;
     hosted = intent.workspace;
   }
@@ -256,7 +249,7 @@ try {
   }
   fail(error);
 }
-process.chdir(workspace.root);
+// No `process.chdir(workspace.root)` — see the same line in production.ts.
 // The project is known now, so this run's log belongs in its state directory, beside every other
 // per-project artifact a reader debugging this board already looks at. A forked child inherits the
 // parent's path through the environment instead of opening its own.
@@ -273,7 +266,9 @@ if (!internalLaunch) {
   logger.info("launcher", `${sourceCommand} starting in ${options.dev ? "source" : "artifact"} mode`);
   logger.info("launcher", `workspace ${workspace.name} (${workspace.root})`);
 }
-readout?.settle("workspace", "done", workspace.name);
+// Only an `open` launch is ABOUT its workspace. Any other is hosted on a project the operator did
+// not pick, and naming that one here reads as "this is the project you opened".
+readout?.settle("workspace", "done", launchIntent && launchIntent.kind !== "open" ? "dashboard" : workspace.name);
 const expectedHealth = { projectId: workspace.id, projectDir: workspace.root };
 const launchTarget = workspaceLaunchTarget(workspace);
 /**
@@ -835,9 +830,9 @@ let cachedSlugPath: string | undefined;
  * project's board became the default view on 2026-10-06:
  *
  *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
- *   - run outside one (`everything`, from $HOME): All projects, `/all` — upstream's grid at `/`;
- *   - run in an unmarked directory (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
+ *   - run in a repository Frizz has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
  *     whichever view this browser was on last (web routes.tsx LastViewRedirect);
+ *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
  *   - no intent (a supervisor child, an update re-exec): `/`, the browser's own last view.
  *
  * From 2026-09-30 until then every launch landed on All projects at a bare `/` (maintainer: "by default
@@ -865,8 +860,8 @@ function landingPath(): string {
  * itself lands on this project's board (slugPath), but the stamp outlives it: it is the board a bare `/`
  * opens in a browser with no view on record, and the project All projects' prompt box aims a new thread at
  * when this browser has neither picked nor focused one (web lib/crossProject.ts lastViewHref,
- * defaultCrossProjectFocus). Only an `open` launch is from a project: an `everything` launch
- * from $HOME names none, and an `offer` launch is hosted on a project that is not where it was run.
+ * defaultCrossProjectFocus). Only an `open` launch is from a project: an `everything` or `offer`
+ * launch is hosted on Frizz's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
  * Internal relaunches (a supervisor child, an update re-exec) carry no intent, so a restart never
  * re-stamps the host over a later launch elsewhere.
  */
@@ -929,7 +924,9 @@ async function openOrPrint(
     [
       { label: "Local", value: boardAddress(url), accent: true },
       ...(publicOrigin ? [{ label: "Public", value: accessLink?.url ?? `${publicOrigin}/`, accent: true }] : []),
-      { label: "Project", value: `${workspace.name} — ${tildePath(workspace.root, home)}` },
+      ...(launchIntent && launchIntent.kind !== "open"
+        ? []
+        : [{ label: "Project", value: `${workspace.name} — ${tildePath(workspace.root, home)}` }]),
       { label: "Source", value: tildePath(sourceLabel(), home) },
       ...(logger.file ? [{ label: "Logs", value: tildePath(logger.file, home) }] : []),
     ],
@@ -1158,8 +1155,8 @@ if (options.link) {
     const joined = await joinRunningFrizz();
     if (joined) {
       // slugPath(), not the joined slug: the slug names the project this launch is HOSTED on, which
-      // is only the project to open when the intent is `open`. An `everything`/`offer` launch is hosted on
-      // the most recent project and must still land on `/all` or `/?add=` — hard-coding the host's board here
+      // is only the project to open when the intent is `open`. An `everything`/`offer` launch joins a server
+      // hosted on some other project and must still land on `/all` or `/?add=` — hard-coding the host's board here
       // is what made `frizz-dev` in an unadopted directory open somebody else's board outright.
       await openOrPrint(joined.port, true, slugPath());
       process.exit(0);

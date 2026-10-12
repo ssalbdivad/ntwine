@@ -53,7 +53,7 @@ test("a steps card stays in the transcript after its rest, with no Done", {
       }, CARD)
     }
 
-    const stepsCard = { chip: "To do", title: "Sign in to npm so the acme 4.2.0 release can publish", steps: STEPS }
+    const stepsCard = { chip: "Awaiting human", title: "Sign in to npm so the acme 4.2.0 release can publish", steps: STEPS }
 
     // AT REST on the steps: the tail's resting card states them, WITH Done — and the transcript does not
     // draw them a second time above it.

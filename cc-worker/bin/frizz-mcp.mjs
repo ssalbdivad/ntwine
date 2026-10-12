@@ -58,7 +58,9 @@ const SPAWN_THREAD = {
     "lands on YOUR card under one review), do that instead; if the user should choose, ASK instead. " +
     "Spawn a brand-new, separate top-level frizz thread — its own board card, session, and scratchpad, " +
     "driving INDEPENDENTLY. This is FIRE-AND-FORGET: the new thread reports to the USER on the board via " +
-    "its own final message, and its results NEVER come back to you, the caller. It is NOT an in-session " +
+    "its own final message, and its results come back to you, the caller, only if it sends them with " +
+    "`message_thread` — which its prompt is told it can, and which you must ASK for in that prompt if you " +
+    "need them. Its end never re-invokes you as a sub-agent's does. It is NOT an in-session " +
     "sub-agent. It returns the new thread's `@handle` — name it by that in your handoff, where the board " +
     "links it, exactly as you would name any other thread. " +
     "USE IT ONLY for a distinct, self-contained effort that belongs on the board in its own right and whose " +
@@ -67,9 +69,10 @@ const SPAWN_THREAD = {
     "those are in-session sub-agents (Claude: the Agent tool with `run_in_background`; Codex: native " +
     "delegation), which return their findings to you. Spawning such a helper here STRANDS it — its work lands " +
     "on another card and never reaches you, so you gain nothing. " +
-    "Because nothing it learns ever returns to you OR to its siblings, a chain of spawned threads re-derives " +
-    "the same facts in parallel and nobody notices — measured here: one thread spawned four, three of those " +
-    "spawned more, and three descendants independently rediscovered the same root cause over twenty hours. " +
+    "Because nothing it learns returns to you OR to its siblings unless somebody messages it across, a chain of " +
+    "spawned threads re-derives the same facts in parallel and nobody notices — measured here: one thread " +
+    "spawned four, three of those spawned more, and three descendants independently rediscovered the same " +
+    "root cause over twenty hours. " +
     "Spawn only when the work genuinely cannot ride on your own card: a different repo, a different long-lived " +
     "runtime, an effort that must outlive yours. Never spawn merely to clear your own `done` fence. " +
     "You MUST deliberately choose `model` and `effort` to match the NEW thread's task complexity — they are " +
@@ -586,8 +589,10 @@ function questionSchema(depth) {
       recommended: {
         type: "boolean",
         description:
-          "Mark the ONE option you would take, and put it first. At most one per question — a " +
-          "recommendation on two of three choices says nothing. IF YOU CAN MARK ONE, ASK YOURSELF WHY " +
+          "Mark the ONE option you would take, and put it first. At most one per pick-one question — a " +
+          "recommendation on two of three choices says nothing. ON A `multi`, MARK EVERY OPTION YOU " +
+          "WOULD TICK, or none: the human ticks several there, so one mark alone reads as \"pick only " +
+          "this\". IF YOU CAN MARK ONE, ASK YOURSELF WHY " +
           "YOU ARE ASKING: you already know the answer, so implement it and say which way you went. " +
           "This is for the fork you genuinely cannot take yourself. Under `mayDefault` it is also the 10-minute default " +
           "(see the tool description).",
@@ -936,6 +941,7 @@ const MESSAGE_THREAD = {
     "`await_reply`. The other thread answers only if it has something to say.\n" +
     "- ANSWERING a message you received → message its sender back. When the sender is waiting on you, " +
     "its message says so; answer it promptly, even if only to say you cannot help.\n\n" +
+    "A thread you spawned with `spawn_thread`, or the one that spawned you, is reachable the same way.\n\n" +
     "`read_thread` FIRST — often it already answers the question. Write each message to stand alone: " +
     "the other thread has none of your context. Never reply just to acknowledge. A finished thread cannot " +
     "be messaged (read it instead). A RUNNING sub-agent can, by its address (`@thread.child`, your own " +
@@ -1875,8 +1881,16 @@ async function spawnThread(args) {
   const effort = typeof args.effort === "string" ? args.effort.trim() : ""
   if (!effort) throw new Error("`effort` is required — choose one by complexity (low/medium/high/xhigh/max). There is no default.")
 
+  // THE WAY BACK. A spawned thread starts with nothing but this prompt, so without its spawner's slug it
+  // could not `message_thread` anything back even when asked to — the footer names it, once, at the end.
+  // The slug, because that is what this process knows; `message_thread` resolves a slug as it does a handle.
+  const parent = process.env.FRIZZ_THREAD_SLUG || process.env.FRIZZ_THREAD
+  const footer = parent
+    ? `\n\n---\nSpawned by the Frizz thread \`${parent}\`. If this prompt asks for results back, or you find ` +
+      `something that thread must know, send it there with the frizz \`message_thread\` tool (\`handle: "${parent}"\`).`
+    : ""
   /** @type {Record<string, unknown>} */
-  const body = { prompt, model, effort }
+  const body = { prompt: prompt + footer, model, effort }
   if (typeof args.title === "string" && args.title.trim()) body.title = args.title.trim()
   if (args.backend === "claude" || args.backend === "codex") body.backend = args.backend
   if (typeof args.project === "string" && args.project.trim()) body.project = args.project.trim()
@@ -1896,7 +1910,8 @@ async function spawnThread(args) {
   const project = typeof payload?.result?.project === "string" ? payload.result.project : undefined
   const intro =
     `${spawned} It is now on the ${project ? `\`${project}\` project's ` : ""}board driving independently — it reports ` +
-    `to the user via its own final message, NOT back to you, so do not wait on a result from it.\n\n`
+    `to the user via its own final message, so do not wait on a result from it. It knows this thread: if its ` +
+    `prompt asked for results back, they arrive as a message that wakes you.\n\n`
   // A thread names another by its `@handle`, which the board links. The server hands one back once the
   // new thread has a name; a thread still unnamed when its bounded wait ran out (or one nothing names,
   // with no model wired) has none to give, and the link to its slug is the only reference that opens it.

@@ -65,13 +65,33 @@ test("the release publishes the server, waits for npm to serve it, then publishe
   assert.deepEqual([...order].sort((a, b) => a - b), order, "server, server wait, shell, shell wait, tag, release");
 });
 
-// The two helpers run against fake `npm` and `curl` on PATH, so these exercise the real scripts
-// without touching the registry.
-function runScript(script: string, args: string[], fake: { served: boolean; npmOut?: string; npmExit?: number; deadline?: number }) {
+// The helpers run against fake `npm` and `curl` on PATH, so these exercise the real scripts without
+// touching the registry. The fake `curl` answers the two URLs the scripts read: `<name>/<version>`
+// says whether npm serves that version, and the bare `<name>` packument lists every served one.
+interface FakeRegistry {
+  served: boolean;
+  npmOut?: string;
+  npmExit?: number;
+  deadline?: number;
+  /** The version in the package being published; 9.9.9 unless a test is about the number itself. */
+  version?: string;
+  /** Every version the packument lists; `null` is a registry that cannot be read. */
+  versions?: string[] | null;
+  allowGap?: boolean;
+}
+
+function runScript(script: string, args: string[], fake: FakeRegistry) {
   const dir = mkdtempSync(join(tmpdir(), "frizz-release-script-"));
   const bin = join(dir, "bin");
   mkdirSync(bin);
-  writeFileSync(join(bin, "curl"), `#!/bin/sh\nexit ${fake.served ? 0 : 22}\n`, { mode: 0o755 });
+  const versions = fake.versions === undefined ? ["9.9.8"] : fake.versions;
+  const packument = versions ? JSON.stringify({ versions: Object.fromEntries(versions.map((version) => [version, {}])) }) : "";
+  writeFileSync(join(dir, "packument.json"), packument);
+  writeFileSync(
+    join(bin, "curl"),
+    `#!/bin/sh\nfor url; do :; done\ncase "\${url##*/}" in\n  [0-9]*) exit ${fake.served ? 0 : 22} ;;\n  *) ${versions ? `cat "${join(dir, "packument.json")}"; exit 0` : "exit 22"} ;;\nesac\n`,
+    { mode: 0o755 }
+  );
   writeFileSync(
     join(bin, "npm"),
     `#!/bin/sh\necho "$@" >> "${join(dir, "npm-calls")}"\nprintf '%s\\n' "$FAKE_NPM_OUT"\nexit ${fake.npmExit ?? 0}\n`,
@@ -79,7 +99,7 @@ function runScript(script: string, args: string[], fake: { served: boolean; npmO
   );
   const pkg = join(dir, "pkg");
   mkdirSync(pkg);
-  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "frizz-server", version: "9.9.9" }));
+  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "frizz-server", version: fake.version ?? "9.9.9" }));
   const result = spawnSync("bash", [join(repo, ".github", "scripts", script), ...args.map((a) => (a === "<pkg>" ? pkg : a))], {
     encoding: "utf8",
     env: {
@@ -87,6 +107,7 @@ function runScript(script: string, args: string[], fake: { served: boolean; npmO
       PATH: `${bin}:${process.env.PATH}`,
       FAKE_NPM_OUT: fake.npmOut ?? "",
       RELEASE_DEADLINE: String(fake.deadline ?? 0),
+      ALLOW_VERSION_GAP: fake.allowGap ? "true" : "false",
     },
   });
   const calls = existsSync(join(dir, "npm-calls")) ? readFileSync(join(dir, "npm-calls"), "utf8") : "";
@@ -131,4 +152,53 @@ test("npm-wait-served.sh returns once npm serves the version and fails at the de
   const missing = runScript("npm-wait-served.sh", ["frizz", "9.9.9"], { served: false, deadline: 1 });
   assert.equal(missing.status, 1, missing.out);
   assert.match(missing.out, /npm still does not serve frizz@9\.9\.9/);
+});
+
+test("a publish is refused unless it directly follows the highest version npm serves", () => {
+  const order = (version: string, versions: string[] | null, allowGap = false) =>
+    runScript("npm-refuse-overtake.sh", ["frizz", version], { served: false, versions, allowGap });
+
+  // The next patch, and the first release of the next minor or major, have nothing in between.
+  for (const next of ["0.13.12", "0.14.0", "1.0.0"]) assert.equal(order(next, ["0.13.9", "0.13.11", "0.13.10"]).status, 0, next);
+  assert.equal(order("0.1.0", []).status, 0, "a package npm serves no version of has no order yet");
+  assert.equal(order("0.14.0-beta.1", ["0.13.11"]).status, 0, "a prerelease has no single predecessor");
+
+  // 2026-10-10: 0.13.10 was accepted and still in review when the next run published 0.13.11, and
+  // npm served them the other way round.
+  const overtaking = order("0.13.11", ["0.13.8", "0.13.9"]);
+  assert.equal(overtaking.status, 1, overtaking.out);
+  assert.match(overtaking.out, /npm serves frizz up to 0\.13\.9, and this run would publish 0\.13\.11/);
+  assert.match(overtaking.out, /allow_version_gap=true/, "the refusal names the way past a number that was never published");
+  for (const gap of ["0.13.13", "0.14.1", "2.0.0", "0.13.10"]) assert.equal(order(gap, ["0.13.11"]).status, 1, gap);
+
+  // A number skipped on purpose (frizz-server 0.15.21, whose run was cancelled before it published).
+  assert.equal(order("0.15.22", ["0.15.20"], true).status, 0);
+  // A registry that cannot be read proves nothing about order, so the publish does not go ahead.
+  const unreadable = order("0.13.12", null);
+  assert.equal(unreadable.status, 1, unreadable.out);
+  assert.match(unreadable.out, /could not read frizz from the npm registry/);
+});
+
+test("both packages are checked for order before npm is asked to publish", () => {
+  const refused = runScript("npm-publish.sh", ["<pkg>"], { served: false, versions: ["9.9.7"] });
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.calls, "", "a refused publish never reaches npm");
+
+  const allowed = runScript("npm-publish.sh", ["<pkg>"], { served: false, versions: ["9.9.7"], allowGap: true });
+  assert.equal(allowed.status, 0, allowed.out);
+  assert.match(allowed.calls, /^publish /m);
+
+  // A re-run for a version npm already holds in review is still the immediate successor, and the
+  // refusal npm gives it stays tolerated.
+  const rerun = runScript("npm-publish.sh", ["<pkg>"], {
+    served: false,
+    npmExit: 1,
+    npmOut: "npm error code E409\nnpm error 409 Conflict - Cannot publish over previously staged version",
+  });
+  assert.equal(rerun.status, 0, rerun.out);
+
+  // The flag reaches the script only through the dispatch input, on both publish steps.
+  assert.match(workflow, /^  workflow_dispatch:\n    inputs:\n(?:      #.*\n)*      allow_version_gap:\n/m);
+  for (const name of ["Build and publish frizz-server to npm", "Publish the frizz shell to npm"])
+    assert.match(step(name), /ALLOW_VERSION_GAP: \$\{\{ inputs\.allow_version_gap \}\}/, name);
 });

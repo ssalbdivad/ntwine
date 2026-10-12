@@ -107,8 +107,22 @@ export const SENDING_STALL_ERROR = "No answer after 2m. It may still arrive, so 
 // Left alone the enqueue bubble therefore outlives the cancellation, and the FIFO backstop in transcript.ts eventually
 // UN-GRAYS it when a later message delivers — rendering a message the agent provably never read as a
 // message the human sent it. So frizz has to remember the cancellation itself.
-export type DeliveryState = "sending" | "pending" | "enqueued" | "delivered" | "unconfirmed" | "failed" | "cancelled"
-const DELIVERY_STATES: readonly DeliveryState[] = ["sending", "pending", "enqueued", "delivered", "unconfirmed", "failed", "cancelled"]
+//
+// ── HELD: a message the operator sent TO THE QUEUE ("Send to queue" in the prompt box's Send menu) ──
+// Every state above describes a send some transport has, or was handed. `held` is the one that describes
+// a send NOTHING has been handed yet: the operator asked Frizz to keep the words until the agent comes
+// to rest, so they open its next turn instead of steering the one it is running. The router writes the
+// item instead of delivering (holdDelivery), and releases it through the ordinary follow-up path when
+// the thread rests (releaseHeldFollowUps in router.ts → beginDelivery with `release`), under the SAME
+// id, so the bubble the operator is looking at is the one that turns into the delivered message.
+//
+// Because no transport has it, NOTHING in the transcript can be evidence about it — a record carrying
+// the same words is another send's. So it is inert to the correlator (accountFor, the echoed-id path),
+// to aging (it waits as long as the turn does, which is the whole request), to a worker restart
+// (retireOutstandingDeliveries names its states, and a held send was never the dead process's to lose)
+// and to a forced interrupt's "everything queued is delivered now" (deliverOutstandingDeliveries).
+export type DeliveryState = "sending" | "pending" | "enqueued" | "delivered" | "unconfirmed" | "failed" | "cancelled" | "held"
+const DELIVERY_STATES: readonly DeliveryState[] = ["sending", "pending", "enqueued", "delivered", "unconfirmed", "failed", "cancelled", "held"]
 
 export interface DeliveryLedgerItem {
   id: string
@@ -214,6 +228,8 @@ export function trimLedger(items: DeliveryLedgerItem[]): DeliveryLedgerItem[] {
   for (const item of items) over[bucket(item)]++
   if (over.cancelled <= 0 && over.failed <= 0 && over.live <= 0) return items
   return items.filter((item) => {
+    // A HELD send is never evicted: Frizz is the only place its words exist.
+    if (item.state === "held") return true
     const b = bucket(item)
     if (over[b] > 0) { over[b]--; return false }
     return true
@@ -263,6 +279,10 @@ export function appendDelivery(
  *    standing beside it).
  *  • a `retryable` entry (sending or failed) → re-open it: its last attempt was refused strictly before
  *    any write to the worker, so this replay cannot duplicate anything.
+ *  • a `held` entry, when the caller is RELEASING it (`release`) → re-open it as `sending`, re-stamped to
+ *    now: this is the moment it is first handed to a transport, and `at` is what correlation and aging
+ *    measure a send from. Without `release` a held entry is a duplicate like any other accepted send —
+ *    a replayed "Send to queue" must not deliver early.
  *  • anything else → "duplicate". An accepted state proves the text already crossed (the old
  *    hasDelivery guard); a `sending` one is a call still in flight; a non-retryable `failed` one is an
  *    AMBIGUOUS failure, which is never replayed under the same id — the operator's Retry mints a new one.
@@ -270,7 +290,7 @@ export function appendDelivery(
 export function beginDelivery(
   storage: Storage,
   slug: string,
-  send: { id: string; text: string; supersedes?: string; now?: number },
+  send: { id: string; text: string; supersedes?: string; now?: number; release?: boolean },
 ): "begin" | "duplicate" {
   const row = storage.getSession(slug)
   if (!row) return "begin" // nothing to record against; the caller's own guards decide the rest
@@ -279,6 +299,11 @@ export function beginDelivery(
   const index = items.findIndex((existing) => existing.id === send.id)
   if (index >= 0) {
     const existing = items[index]
+    if (existing.state === "held" && send.release) {
+      items[index] = { ...existing, state: "sending", at: now, updatedAt: now }
+      storage.setDeliveryLedger(slug, serializeDeliveryLedger(items))
+      return "begin"
+    }
     if (!existing.retryable || (existing.state !== "sending" && existing.state !== "failed")) return "duplicate"
     items[index] = { ...existing, state: "sending", updatedAt: now }
     storage.setDeliveryLedger(slug, serializeDeliveryLedger(items))
@@ -389,6 +414,47 @@ export function dismissFailedDelivery(storage: Storage, slug: string, id: string
   return true
 }
 
+/**
+ * HOLD a send instead of delivering it: the operator's "Send to queue" while the agent is mid-turn.
+ * Idempotent on id — a replay of the same call finds its own entry and changes nothing. Returns false
+ * only when there is no session row to hold it on, which the caller must treat as a failed send.
+ */
+export function holdDelivery(storage: Storage, slug: string, send: { id: string; text: string; now?: number }): boolean {
+  const row = storage.getSession(slug)
+  if (!row) return false
+  const items = parseDeliveryLedger(row.delivery_ledger)
+  if (items.some((existing) => existing.id === send.id)) return true
+  const now = new Date(send.now ?? Date.now()).toISOString()
+  items.push({ id: send.id, text: send.text, state: "held", at: now, updatedAt: now })
+  storage.setDeliveryLedger(slug, serializeDeliveryLedger(trimLedger(items)))
+  return true
+}
+
+/** Every send Frizz is holding for this thread's next rest, oldest first — the order they release in. */
+export function heldDeliveries(storage: Storage, slug: string): DeliveryLedgerItem[] {
+  const row = storage.getSession(slug)
+  if (!row?.delivery_ledger) return []
+  return parseDeliveryLedger(row.delivery_ledger).filter((item) => item.state === "held")
+}
+
+/**
+ * The operator took a HELD send back. Returns its text (what goes back into their prompt box), or null
+ * when nothing held carries that id — it was already released, which the caller reports as too late.
+ *
+ * REMOVED, never tombstoned. A `cancelled` tombstone exists to suppress the enqueue record a provider
+ * wrote before the cancel landed; a held send was never handed to a provider, so there is no record to
+ * suppress and nothing a replay of the id could double-send.
+ */
+export function dropHeldDelivery(storage: Storage, slug: string, id: string): string | null {
+  const row = storage.getSession(slug)
+  if (!row) return null
+  const items = parseDeliveryLedger(row.delivery_ledger)
+  const held = items.find((item) => item.id === id && item.state === "held")
+  if (!held) return null
+  storage.setDeliveryLedger(slug, serializeDeliveryLedger(items.filter((item) => item !== held)))
+  return held.text
+}
+
 // Turn an outstanding send into a cancellation TOMBSTONE — called only once the provider has positively
 // confirmed the message left its queue. Returns the item's text (what the operator gets back in their
 // prompt box) or null when there is no such outstanding item.
@@ -402,7 +468,7 @@ export function cancelDelivery(storage: Storage, slug: string, id: string, now?:
   if (!row) return null
   const items = parseDeliveryLedger(row.delivery_ledger)
   const index = items.findIndex((item) => item.id === id)
-  if (index < 0 || items[index].state === "cancelled") return null
+  if (index < 0 || items[index].state === "cancelled" || items[index].state === "held") return null
   const at = new Date(now ?? Date.now()).toISOString()
   const next = items.map((item, i) => (i === index ? { ...item, state: "cancelled" as const, updatedAt: at } : item))
   storage.setDeliveryLedger(slug, serializeDeliveryLedger(next))
@@ -487,7 +553,7 @@ export function deliveryItem(storage: Storage, slug: string, id: string): Delive
 export function hasDelivery(storage: Storage, slug: string, id: string): boolean {
   const row = storage.getSession(slug)
   if (!row) return false
-  return parseDeliveryLedger(row.delivery_ledger).some((item) => item.id === id && item.state !== "sending" && item.state !== "failed")
+  return parseDeliveryLedger(row.delivery_ledger).some((item) => item.id === id && item.state !== "sending" && item.state !== "failed" && item.state !== "held")
 }
 
 // The text of a `queued_command` attachment's prompt. A typed follow-up carries a bare string; one the
@@ -647,7 +713,7 @@ export function correlateDeliveryRecord(
   // id is absent (every pre-broker row, and the coalesced record, which mints a fresh uuid of its own).
   const echoed = echoedInputId(r)
   if (echoed !== null) {
-    const index = items.findIndex((item) => item.id === echoed && item.state !== "cancelled")
+    const index = items.findIndex((item) => item.id === echoed && item.state !== "cancelled" && item.state !== "held")
     if (index >= 0 && contemporaneous(items[index])) return items.filter((_, i) => i !== index)
   }
 
@@ -710,7 +776,7 @@ export function accountFor(
     items.forEach((item, index) => {
       // A tombstone is never evidence of its own delivery, and a DROPPED send never reached the CLI to
       // be evidenced at all (recordDeliveryDropped).
-      if (item.state === "cancelled" || item.dropped) return
+      if (item.state === "cancelled" || item.state === "held" || item.dropped) return
       const tag = deliveryTag(item.id)
       if (wanted.has(tag)) owners.set(tag, [...(owners.get(tag) ?? []), index])
     })
@@ -777,6 +843,9 @@ export function matchComposedText(
     // record can be evidence of its delivery, and matching one would silently retire the very row that
     // keeps its orphaned enqueue bubble suppressed.
     if (item.state === "cancelled") return null
+    // Nor is a HELD one: no transport has been handed it yet, so a record with its words is another
+    // send's — matching would retire the only copy of a message the agent has not been given.
+    if (item.state === "held") return null
     // Nor is a DROPPED send: the daemon refused it before any of it reached the CLI, so a record carrying
     // the same words is another send's (or a boot replay re-folding one), never this one's receipt.
     // Excluded here, the one place every text path runs through, so an `enqueue` cannot upgrade it, a
@@ -856,6 +925,10 @@ export function ageDeliveries(items: DeliveryLedgerItem[], nowMs: number, observ
     // rule below, because that rule's premise — the provider's queue is FIFO, so a later user turn means
     // the queue moved past this send — says nothing about a send that never reached the queue.
     if (item.state === "failed") { next.push(item); continue }
+    // Nor a HELD one. It waits for the agent's rest however long the turn runs — that is the request —
+    // and a user turn landing meanwhile (the operator steering past their own queued message) says
+    // nothing about a send no queue has seen.
+    if (item.state === "held") { next.push(item); continue }
     // A write-ahead item whose transport has not answered. Same exemption from the user-turn rule (a
     // scheduler wake can land while a cold resume is still in flight); it reads as failed once it has
     // waited longer than the browser that sent it would (see SENDING_STALL_MS). A `retryable` one is
@@ -986,7 +1059,9 @@ function dropCancelled(
 //  • otherwise append a bubble at the tail, where a just-sent follow-up belongs — including a `sending`
 //    one (gray, like any send not yet read) and a `failed` one (not gray; it carries `deliveryError`, and
 //    the client draws the failure line and its Retry / Edit / Dismiss actions from it);
-//  • a `dropped` failed item always takes that last branch — see the note in the loop.
+//  • a `dropped` failed item always takes that last branch — see the note in the loop;
+//  • so does a HELD item: no transport has it, so no rendered bubble can be its copy. Gray, like any
+//    send the agent has not read, and the client words it as waiting for the agent's rest.
 export function projectDeliveryLedger(messages: TranscriptMessage[], items: DeliveryLedgerItem[]): TranscriptMessage[] {
   if (!items.length) return messages
   const cancelled = dropCancelled(messages, items)
@@ -1011,7 +1086,7 @@ export function projectDeliveryLedger(messages: TranscriptMessage[], items: Deli
     // hide the failure. It always projects its own failed bubble. Nor does it SUPPRESS a match the way
     // a cancelled tombstone does: there is no orphaned enqueue record of its own to hide, so the only
     // bubble a suppression could ever remove is another send, one that did reach the agent.
-    for (let i = item.dropped ? -1 : messages.length - 1; i >= 0; i--) {
+    for (let i = item.dropped || item.state === "held" ? -1 : messages.length - 1; i >= 0; i--) {
       const m = messages[i]
       if (m.role !== "user" || claimed.has(i)) continue
       // A write-ahead item has no receipt to vouch for it, so only a CONTEMPORANEOUS rendering may stand

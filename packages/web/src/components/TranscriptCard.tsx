@@ -40,7 +40,7 @@ export const QUEUE_WRAP = "[overflow-wrap:anywhere] [&_pre]:whitespace-pre-wrap 
 // same shell — same fill, same border weight, same padding, same body scale, same action row — so a
 // tone is a two-token swap on the border and the title, never a different card:
 //   neutral   — a statement of fact (done, awaiting, a question)
-//   attention — the agent is BLOCKED on you, answerable only in your external terminal
+//   attention — a FOREIGN session is blocked on you, answerable only in the terminal you run it in
 //   caution   — frizz paused itself and will continue on its own (a usage limit)
 //   risk      — the ACTION is irreversible, but nothing is wrong (a destructive gate awaiting a choice)
 //   danger    — something is BROKEN (a sign-in fault)

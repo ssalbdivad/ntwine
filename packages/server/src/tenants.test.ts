@@ -33,6 +33,24 @@ test("activate opens a project once, and a second activate returns the same cont
   assert.equal(tenants.active().length, 1)
 })
 
+// An attempt that fails before its first await has settled before it is recorded as in flight. It must
+// not stay recorded, or every later activate of that project is handed the same failure.
+test("a project that fails to open before anything is awaited can be opened again", async () => {
+  let built = 0
+  const errors: string[] = []
+  const tenants = createTenantMap({
+    createContext: () => {
+      if (++built === 1) throw new Error("state dir is not readable")
+      return Promise.resolve(fakeContext([]))
+    },
+    onError: (_project, error) => errors.push((error as Error).message),
+  })
+  assert.equal(await tenants.activate(project("p1")), undefined)
+  assert.deepEqual(errors, ["state dir is not readable"])
+  assert.ok(await tenants.activate(project("p1")))
+  assert.equal(built, 2)
+})
+
 // Two viewers opening one project at the same instant must not race two contexts onto one database.
 test("concurrent activations of one project build exactly one context", async () => {
   let built = 0

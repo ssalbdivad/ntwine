@@ -19,6 +19,10 @@ export interface ClaudeBrokerClientHandlers {
   onEvent?: (event: ClaudeQueryEvent) => void
   /** A tool-permission request that must be answered with answerPermission(requestId, …). */
   onPermissionRequest?: (requestId: string, request: ClaudePermissionRequest) => void
+  /** The daemon took a request back before it was answered: the SDK settled it another way (a worker
+   *  hook approved or refused it) or the turn was interrupted. Nothing can answer it any more. A daemon
+   *  forked by a build without this frame never sends it, and its cards wait for the turn's end. */
+  onPermissionWithdrawn?: (requestId: string) => void
   onDiagnostic?: (diagnostic: ClaudeDiagnostic) => void
   /** Sent on every (re)connect; carries the broker's session id. */
   onHello?: (sessionId: string) => void
@@ -164,6 +168,7 @@ export function connectClaudeBroker(
         case "hello": handlers.onHello?.(frame.sessionId as string); break
         case "event": handlers.onEvent?.(frame.event as ClaudeQueryEvent); break
         case "permission-request": handlers.onPermissionRequest?.(frame.requestId as string, frame.request as ClaudePermissionRequest); break
+        case "permission-withdrawn": handlers.onPermissionWithdrawn?.(frame.requestId as string); break
         case "diagnostic": handlers.onDiagnostic?.(frame.diagnostic as ClaudeDiagnostic); break
         case "input-result": {
           const entry = pendingInputs.get(frame.requestId as string)

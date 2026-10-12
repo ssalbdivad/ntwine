@@ -127,8 +127,9 @@ if (options.help) {
 
 Usage: npx ${PACKAGE_NAME} [options]
 
-Run it in the directory you want to work in. One server serves EVERY project on this machine,
-each on its own board, so a second run joins the one already going. Runs the
+Run it anywhere. One server serves EVERY project on this machine, each on its own board, so a
+second run joins the one already going. In a folder that is already a project it opens that
+project's board; anywhere else it opens All projects, where projects are added. Runs the
 npm-resolved immutable Frizz package, then opens it in your default browser. Use frizz-dev only
 for a source checkout.
 
@@ -151,7 +152,7 @@ Options:
 
 
 To reach the board from a phone or another machine, press R in the terminal running it: a short
-walkthrough sets up a private frizz.sh name (no account needed), a custom one, a Cloudflare
+walkthrough sets up a private frizz.sh name (no account needed), a Cloudflare
 Tunnel, Tailscale, or a proxy of your own, and
 remembers the choice, so a plain launch serves it from then on. The board stays on loopback and
 shows a single-use sign-in link as a QR; press L for a fresh one, or run --link from another shell.`,
@@ -210,19 +211,15 @@ const workspace: Workspace = (() => {
   // ONE launch policy for both launchers. This called resolveWorkspace directly, which adopts
   // whatever directory it is handed — so `frizz` in $HOME minted a project id inside Frizz's own
   // `~/.frizz` state root, the failure frizz-dev was fixed for in 95d81bd and this file was not.
-  // A repository still opens as itself and is still adopted on sight; see resolveLaunchIntent.
+  // Only a directory Frizz already knows opens as itself now; see resolveLaunchIntent.
   const intent = resolveLaunchIntent();
-  if (intent.kind === "empty")
-    throw new Error(
-      intent.reason === "home"
-        ? "frizz cannot open your home directory as a project, and there is no other project to show yet. cd into a repository and run frizz there."
-        : `${intent.directory} is not a Frizz project yet, and there is no other project to show. Run frizz inside a repository, or add this one from the projects page once a board is open.`,
-    );
   launchIntent = intent;
   return intent.workspace;
   } catch (error) { return fail(error); }
 })();
-process.chdir(workspace.root);
+// No `process.chdir(workspace.root)`: the launcher stays in the folder the command was typed in.
+// It moved into the hosting project until 2026-10-11, a habit from one server per repository, and a
+// host folder deleted later left every child the launcher started without a working directory.
 if (options.stop) {
   // The farewell after a detached update has said "stop it with frizz --stop" since 0.12.10, and
   // `--help` never listed it, because nothing here handled it: the flag fell through to the join
@@ -373,9 +370,9 @@ let cachedSlugPath: string | undefined;
  * project's board became the default view on 2026-10-06:
  *
  *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
- *   - run outside one (`everything`, from $HOME): All projects, `/all` — upstream's grid at `/`;
- *   - run in an unmarked directory (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
+ *   - run in a repository Frizz has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
  *     whichever view this browser was on last (web routes.tsx LastViewRedirect);
+ *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
  *   - no intent (a supervisor child, an update re-exec): `/`, the browser's own last view.
  *
  * From 2026-09-30 until then every launch landed on All projects at a bare `/` (maintainer: "by default
@@ -415,8 +412,8 @@ async function joinRunningFrizz(): Promise<{ port: number; slug: string } | unde
  * itself lands on this project's board (slugPath), but the stamp outlives it: it is the board a bare `/`
  * opens in a browser with no view on record, and the project All projects' prompt box aims a new thread at
  * when this browser has neither picked nor focused one (web lib/crossProject.ts lastViewHref,
- * defaultCrossProjectFocus). Only an `open` launch is from a project: an `everything` launch
- * from $HOME names none, and an `offer` launch is hosted on a project that is not where it was run.
+ * defaultCrossProjectFocus). Only an `open` launch is from a project: an `everything` or `offer`
+ * launch is hosted on Frizz's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
  * Internal relaunches (a supervisor child, an update re-exec) carry no intent, so a restart never
  * re-stamps the host over a later launch elsewhere.
  */
@@ -464,7 +461,7 @@ async function openOrPrint(port: number, reused: boolean, path = ""): Promise<vo
   if (sandbox) warnings.push(`Sandbox: everything here is throwaway (${sandbox.home}) and is deleted when this terminal closes.`);
   if (sessionNotice && !reused) warnings.push(sessionNotice);
   if (!readout) {
-    console.log(`${reused ? "reusing" : "started"} Frizz for ${workspace.root}`);
+    console.log(`${reused ? "reusing" : "started"} Frizz${launchIntent && launchIntent.kind !== "open" ? "" : ` for ${workspace.root}`}`);
     console.log(url);
     if (publicOrigin) console.log(activeAccessLink?.url ?? `${publicOrigin}/`);
     for (const warning of warnings) console.log(warning);
@@ -475,7 +472,11 @@ async function openOrPrint(port: number, reused: boolean, path = ""): Promise<vo
     [
       { label: "Local", value: boardAddress(url), accent: true },
       ...(publicOrigin ? [{ label: "Public", value: activeAccessLink?.url ?? `${publicOrigin}/`, accent: true }] : []),
-      { label: "Project", value: `${workspace.name} — ${tildePath(workspace.root, home)}` },
+      // Only an `open` launch is ABOUT its workspace; any other is hosted on a project the operator
+      // did not pick (launcher.ts resolveLaunchIntent), and naming it here reads as "you opened this".
+      ...(launchIntent && launchIntent.kind !== "open"
+        ? []
+        : [{ label: "Project", value: `${workspace.name} — ${tildePath(workspace.root, home)}` }]),
       ...(logger.file ? [{ label: "Logs", value: tildePath(logger.file, home) }] : []),
     ],
     reused
@@ -537,15 +538,24 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   // advertising. Set together with the boolean: a number we have not observed would be a lie, so
   // until the registry answers the client gets its generic copy.
   let updateVersion: string | undefined;
+  /** The last probe failure written to the log, so a probe that fails every half hour says so once. */
+  let probeFailure: string | undefined;
   const refreshUpdateAvailable = async (): Promise<void> => {
     try {
       const checkedVersion = active.version;
       const plan = await planRegistryUpdate(spec.package, checkedVersion, installer);
+      probeFailure = undefined;
       if (active.version !== checkedVersion) return;
       updateAvailable = plan !== null;
       updateVersion = plan?.latestVersion;
-    } catch {
-      // A registry we cannot reach is not evidence either way. Leave the last known answer.
+    } catch (error) {
+      // A registry we cannot reach is not evidence either way. Leave the last known answer — but
+      // record why. This swallowed every failure, so a probe that could NEVER answer left a board
+      // that simply stopped offering updates with nothing anywhere to say so: on 2026-10-11 one had
+      // failed every half hour for twenty hours, and the first sign of it was a failed Update click.
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== probeFailure) logger.warn("launcher", `could not check npm for a newer Frizz server: ${message}`);
+      probeFailure = message;
     }
   };
   void refreshUpdateAvailable();
@@ -701,8 +711,8 @@ try {
     process.exit(0);
   }
   // slugPath(), not the joined slug: that slug names the project this launch is HOSTED on, which is
-  // the project to open only when the intent is `open`. An `everything`/`offer` launch rides on the most
-  // recent project and must still land on `/all` or `/?add=` rather than opening someone else's board.
+  // the project to open only when the intent is `open`. An `everything`/`offer` launch is hosted on
+  // Frizz's own stand-in folder and must still land on `/all` or `/?add=` rather than opening someone else's board.
   const joined = await joinRunningFrizz();
   if (joined) { await openOrPrint(joined.port, true, slugPath()); process.exit(0); }
   const claim = tryAcquireProjectLaunchOwner(target, "launcher");

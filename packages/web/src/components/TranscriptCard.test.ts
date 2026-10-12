@@ -16,9 +16,9 @@ const at = (out: string, marker: string) => {
 }
 
 test("a chipped card names its kind in a chip, puts the title under it, and rules the body off", () => {
-  const out = html({ icon: ListTodo, chip: "To do", label: "Sign in to npm", children: "Run the login." })
+  const out = html({ icon: ListTodo, chip: "Awaiting human", label: "Sign in to npm", children: "Run the login." })
   // The glyph rides INSIDE the chip, ahead of the kind — not beside the title, as a plain head draws it.
-  assert.match(out, /<span data-card-chip[^>]*><svg[^>]*lucide-list-todo[^>]*>.*?<\/svg>To do<\/span>/)
+  assert.match(out, /<span data-card-chip[^>]*><svg[^>]*lucide-list-todo[^>]*>.*?<\/svg>Awaiting human<\/span>/)
   assert.doesNotMatch(out, /card-icon-offset/, "no title-row glyph beside the chip")
   // Chip, then the title on its own line, then the rule, then the body.
   const chip = at(out, "data-card-chip")
@@ -31,11 +31,11 @@ test("a chipped card names its kind in a chip, puts the title under it, and rule
 
 test("a chip alone can head the card, and a card with no body draws no rule", () => {
   // Untitled: the chip already says what the card is for, so no empty title line is spent.
-  const untitled = html({ icon: ListTodo, chip: "To do", label: null, children: "Run the login." })
+  const untitled = html({ icon: ListTodo, chip: "Awaiting human", label: null, children: "Run the login." })
   assert.doesNotMatch(untitled, /data-card-title/)
   assert.ok(at(untitled, "data-card-chip") < at(untitled, "data-card-rule"))
   // Bodiless: there is nothing to rule off.
-  assert.doesNotMatch(html({ icon: ListTodo, chip: "To do", label: "Sign in to npm" }), /data-card-rule/)
+  assert.doesNotMatch(html({ icon: ListTodo, chip: "Awaiting human", label: "Sign in to npm" }), /data-card-rule/)
 })
 
 test("a card without a chip keeps the glyph-beside-title head", () => {

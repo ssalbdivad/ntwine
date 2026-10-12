@@ -10,6 +10,7 @@
 //                  | {t:"cancel-input", requestId, id} | {t:"stop-task", requestId, taskId}
 //                  | {t:"reload-plugins", requestId} | {t:"rename", requestId, description} | {t:"list-skills", requestId}
 //   broker -> frizz:  {t:"hello", sessionId, generation} | {t:"event", event} | {t:"permission-request", requestId, request} | {t:"diagnostic", diagnostic}
+//                  | {t:"permission-withdrawn", requestId}   (a request frizz was shown that nothing can answer any more)
 //                  | {t:"input-result", requestId, error?}   (only for an input that carried a requestId)
 //                  | {t:"cancel-result", requestId, cancelled, error?} | {t:"stop-result", requestId, error?}
 //                  | {t:"reload-result", requestId, reloaded?, error?} | {t:"rename-result", requestId, title?, error?} | {t:"skills-result", requestId, skills?, error?}
@@ -24,6 +25,7 @@
 // cleanup is exactly the corpse-deletes-successor bug this guards against.
 import net from "node:net"
 import { readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs"
+import { homedir } from "node:os"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 import { fileURLToPath } from "node:url"
@@ -37,6 +39,7 @@ import { frizzRoots } from "../frizz-paths.ts"
 import { WORKER_DISALLOWED_TOOLS, claudeCompactionWindowOf } from "./types.ts"
 import { socketPathOwnership } from "./socket-ownership.ts"
 import { createClaudeBrokerDiagnosticWriter, createClaudeBrokerExitWriter, type ClaudeBrokerExitReason } from "./claude-broker-diagnostics.ts"
+import { claudeClosureFingerprint, claudePluginSyncEnabled, createClaudePluginSync } from "./claude-plugin-sync.ts"
 import { CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_INPUT_ACK, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX } from "./claude-agent-sdk-protocol.ts"
 import type {
   ClaudeDiagnostic,
@@ -126,6 +129,10 @@ export interface BrokerRecord {
 const BROKER_CAPABILITIES = [CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_INPUT_ACK]
 
 const IDLE_EXIT_MS = 6 * 60 * 60 * 1000
+// How long a permission request waits in this process before frizz is shown it — long enough for the
+// worker's PermissionRequest hook to settle it first (see canUseTool below), short enough that a
+// person never notices it on the way to a card.
+const PERMISSION_SHOW_HOLD_MS = 250
 const REACHABILITY_CHECK_MS = 30_000
 const REACHABILITY_STRIKES = 2
 // Consecutive event-stream mapping failures tolerated before the session is treated as genuinely
@@ -160,7 +167,8 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
   const MAX_BACKLOG_BYTES = 64 * 1024 * 1024
   const eventBacklog: string[] = []
   let eventBacklogBytes = 0
-  const pendingPermissions = new Map<string, { request: ClaudePermissionRequest; resolve: (d: ClaudePermissionDecision) => void }>()
+  // `shown` — frizz has been sent this request, so frizz has to be told if it is taken back.
+  const pendingPermissions = new Map<string, { request: ClaudePermissionRequest; resolve: (d: ClaudePermissionDecision) => void; shown: boolean }>()
   // Set while an SDK interrupt is outstanding, and the input count when the last one was issued; see the
   // `interrupt` frame handler for why both exist.
   let interruptInFlight = false
@@ -213,6 +221,24 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
   // frizz worker vars it DOES need (FRIZZ_THREAD, FRIZZ_PERM_DIR) ride workerEnv and are merged on
   // top — which is also what gives them THIS thread's values instead of the server's.
   const env = { ...inheritWorkerEnvironment(config.env), ...(config.workerEnv ?? {}) }
+  // Keeps this session on its plugin closure as it is on disk, re-reading it between turns when it
+  // moves (see claude-plugin-sync.ts): Frizz's plugin, and the project's and the operator's own
+  // skills, agents, commands and installed plugins. Built BEFORE the session starts, because the
+  // fingerprint it takes now is its record of what the session is about to load. PERSISTED ONLY, like
+  // `input received` below: a reload is forensics, not something the operator's thread should narrate.
+  const closure = {
+    pluginDir: config.pluginDir,
+    projectDir: config.cwd,
+    // Where claude itself will look, from the environment it is about to be started with.
+    configDir: env.CLAUDE_CONFIG_DIR?.trim() || join(env.HOME || homedir(), ".claude"),
+  }
+  const pluginSync = claudePluginSyncEnabled()
+    ? createClaudePluginSync({
+        fingerprint: () => claudeClosureFingerprint(closure),
+        reload: () => handle.reloadPlugins(),
+        log: (message) => writeDiagnostic?.({ kind: "stderr", message: `[plugin-sync] ${message}`, truncated: false }),
+      })
+    : undefined
   const handle = factory.start({
     cwd: config.cwd,
     session: config.resume
@@ -259,16 +285,41 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
         // put a card in front of the operator for a tool call that no longer exists. So an abort
         // settles the waiter with a deny and drops it, exactly like an answer would.
         let settled = false
+        let showTimer: NodeJS.Timeout | undefined
+        const entry = { request, shown: false, resolve: (decision: ClaudePermissionDecision) => settle(decision) }
         const settle = (decision: ClaudePermissionDecision) => {
           if (settled) return
           settled = true
+          clearTimeout(showTimer)
           pendingPermissions.delete(requestId)
           resolve(decision)
         }
-        pendingPermissions.set(requestId, { request, resolve: settle })
-        if (context.signal.aborted) settle({ behavior: "deny", message: "The turn was interrupted before this was answered." })
-        else context.signal.addEventListener("abort", () => settle({ behavior: "deny", message: "The turn was interrupted before this was answered." }), { once: true })
-        if (!settled && client) write(client, { t: "permission-request", requestId, request })
+        // THE SDK ASKS THIS CALLBACK AND RUNS THE PermissionRequest HOOKS SIDE BY SIDE, and aborts the
+        // callback when a hook settles the request first. The worker's policy hook does exactly that for
+        // nearly every request (cc-worker/hooks/perm-policy.mjs: approve, ~70ms), so an abort here is
+        // the COMMON case, not just an interrupt. Two things follow, both measured against real claude
+        // on 2026-10-10 (a bypass worker, a command Claude Code still prompts for):
+        //  * frizz must be TOLD. It was not, so the card it had already journaled stayed in front of the
+        //    operator until the turn ended — 23s in the measurement, Grant and Deny both dead.
+        //  * frizz should not be shown the request in the first place. Hence the short hold below: a
+        //    request a hook settles inside it never leaves this process, so no card flashes and nothing
+        //    queues the thread. A request that outlives the hold is one a person has to answer, and
+        //    250ms on the way to a human is nothing.
+        const withdraw = () => {
+          const wasShown = entry.shown
+          settle({ behavior: "deny", message: "The turn was interrupted before this was answered." })
+          if (wasShown && client) write(client, { t: "permission-withdrawn", requestId })
+        }
+        pendingPermissions.set(requestId, entry)
+        if (context.signal.aborted) withdraw()
+        else context.signal.addEventListener("abort", withdraw, { once: true })
+        if (!settled) {
+          showTimer = setTimeout(() => {
+            if (settled || entry.shown || !client) return
+            entry.shown = true
+            write(client, { t: "permission-request", requestId, request })
+          }, PERMISSION_SHOW_HOLD_MS)
+        }
       })
     },
     onDiagnostic: (diagnostic: ClaudeDiagnostic) => {
@@ -352,6 +403,10 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
       consecutiveErrors = 0
       if (next.done) return { reason: "session-stream-ended" }
       emitEvent(next.value)
+      // A `result` is the turn boundary the plugin sync waits for; anything the model or a tool
+      // produced before it means a turn is running, whether an input opened it or the session did.
+      if (next.value.kind === "result") pluginSync?.turnEnded()
+      else if (next.value.kind === "assistant" || next.value.kind === "user") pluginSync?.turnActive()
     }
   })().then(
     (end) => shutdown(0, end.reason, end.detail),
@@ -369,7 +424,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
   const server = net.createServer((sock) => {
     client = sock; clearTimeout(idleTimer)
     write(sock, { t: "hello", sessionId: handle.sessionId, generation })
-    for (const [requestId, { request }] of pendingPermissions) write(sock, { t: "permission-request", requestId, request })
+    for (const [requestId, entry] of pendingPermissions) { entry.shown = true; write(sock, { t: "permission-request", requestId, request: entry.request }) }
     while (eventBacklog.length) sock.write(eventBacklog.shift()!)
     eventBacklogBytes = 0
     let buf = ""
@@ -411,7 +466,12 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
           // session takes the message into its input queue or refuses it (a replayed uuid, a full
           // queue, a closing handle), so this is the one point that can tell the operator which of
           // the two happened. It settles at once — it validates and pushes, it never waits on a turn.
-          void handle.send(message).then(() => {
+          //
+          // HELD ONLY BEHIND A PLUGIN RELOAD, and then only for as long as that takes (bounded well inside
+          // the bridge's acknowledgement deadline): an input that reaches an idle session is the moment
+          // the session catches up with a plugin that moved, and the turn it opens must start after that
+          // reload rather than beside it. Inputs held together are released in the order they arrived.
+          const forward = (): void => void handle.send(message).then(() => {
             if (requestId) write(sock, { t: "input-result", requestId })
           }, (error: unknown) => {
             const detail = error instanceof Error ? error.message : String(error)
@@ -430,6 +490,9 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
             writeDiagnostic?.(diagnostic)
             if (client) write(client, { t: "diagnostic", diagnostic })
           })
+          const reloading = pluginSync?.beforeInput(!message?.parentToolUseId)
+          if (reloading) void reloading.then(forward)
+          else forward()
           seedSessionTitle(message)
         }
         else if (msg.t === "permission") { const e = pendingPermissions.get(msg.requestId as string); if (e) { pendingPermissions.delete(msg.requestId as string); e.resolve(msg.decision as ClaudePermissionDecision) } }
@@ -500,7 +563,9 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
           // Same request/response discipline as reload-plugins: the composer typeahead is blocked on
           // this answer, and a silent drop reads as a wedged daemon rather than an unlistable session.
           const requestId = msg.requestId as string
-          void handle.listSkills().then(
+          // After the plugin sync, so the composer of an idle thread lists the skills its next turn
+          // will actually have, not the ones the session loaded before an update.
+          void (pluginSync?.beforeRead() ?? Promise.resolve()).then(() => handle.listSkills()).then(
             (skills) => write(sock, { t: "skills-result", requestId, skills }),
             (error: unknown) => write(sock, { t: "skills-result", requestId, error: error instanceof Error ? error.message : String(error) }),
           )

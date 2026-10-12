@@ -104,7 +104,11 @@ function deriveRuntime(
   // turn state. Probing for one here would mark every headless thread "exited" (and, mid-turn, trip
   // the crash-net). Never do that.
   if (isHeadlessRow(row)) {
-    if (permPrompt) return "perm-prompt"
+    // ONLY WHILE THE PROCESS IS THERE TO BE ANSWERED. A marker is a file, and it outlives the daemon
+    // that was parked on it: a worker whose daemon died mid-request kept reading as a live approval,
+    // the operator pressed Grant into a dead socket, the block cleared, and the row turned Stalled —
+    // so approving looked like the thing that crashed it. A dead process falls through to the stall.
+    if (permPrompt && !appServerStalled) return "perm-prompt"
     // Checked BEFORE the idle branch, which is the whole point. A worker that came to rest holding live
     // sub-agents and whose daemon then died is NOT at rest: an Agent child runs IN-PROCESS inside that
     // `claude` (orphan-reaper.ts: "a worker's only OS-level agent process is its session root — Agent
@@ -1341,8 +1345,9 @@ export function fenceWatchViews(
 // sub-agent phantom deriveRuntime's `headlessLostWork` fixed, and the same lesson.
 function hasFreshDelivery(row: SessionRow, processGone: boolean): boolean {
   if (processGone) return false
-  return parseDeliveryLedger(row.delivery_ledger).some((d) =>
-    (d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "delivered"))
+  // `held` counts: Frizz is keeping a message of the human's for exactly this rest and is about to
+  // deliver it (releaseHeldFollowUps), so the thread is not waiting on them either.
+  return parseDeliveryLedger(row.delivery_ledger).some((d) => d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "delivered" || d.state === "held")
 }
 
 /** How long a message on its way to the worker keeps its row SPINNING (see deriveDeliveryInFlight). A

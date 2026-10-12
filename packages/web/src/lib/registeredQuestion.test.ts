@@ -25,7 +25,7 @@ test("options letter and join their trade-off exactly as a fence's option lines 
   assert.deepEqual(question.options, ["1. SQLite — transactional", "2. A JSON file — zero deps"])
   // The RAW labels are what an answer submits — the letter and the trade-off are display only.
   assert.deepEqual(optionLabels, ["SQLite", "A JSON file"])
-  assert.equal(question.recommendedIdx, 0)
+  assert.deepEqual(question.recommendedIdxs, [0])
   assert.equal(question.contextMd, "Where should the settings live?")
   assert.equal(question.danger, false)
 })
@@ -44,11 +44,19 @@ test("a label that enumerates itself loses its copy of the card's number, and on
   assert.deepEqual(question.options, ["1. Configured instances", "2. Lazy", "3. 1. Wrong number", "4. Lettered by habit", "5. 5.5 config", "6. A. Wrong letter"])
 })
 
+// Past Z there is no letter to strip: the 27th option's would have been `[`, a regex metacharacter.
+test("a question with more than 26 options renders, and its 27th still loses its own number", () => {
+  const options = Array.from({ length: 30 }, (_, i) => ({ label: i === 26 ? "27. Twenty-seven" : `Finding ${i + 1}` }))
+  const { question } = toParsedQuestion({ question: "Which?", kind: "multi", options })
+  assert.equal(question.options[26], "27. Twenty-seven")
+  assert.equal(question.options[29], "30. Finding 30")
+})
+
 test("a question with no options is free text, and the card renders its box unconditionally", () => {
   const { question, optionLabels } = toParsedQuestion({ question: "What should it be called?", kind: "question" })
   assert.deepEqual(question.options, [])
   assert.deepEqual(optionLabels, [])
-  assert.equal(question.recommendedIdx, null)
+  assert.deepEqual(question.recommendedIdxs, [])
 })
 
 test("bodies ride the options array, and are absent entirely when no option has one", () => {
@@ -218,7 +226,7 @@ test("a settled card keeps ONLY the picked option, numbered as it was, and the b
     [2, ["2. next"], { chosenIdxs: [0] }],
   ])
   // The recommendation follows the kept option to its new index rather than pointing at a dropped one.
-  assert.equal(nodes[0].question.recommendedIdx, 0)
+  assert.deepEqual(nodes[0].question.recommendedIdxs, [0])
 })
 
 test("a settled card whose answer took the other branch drops the recommendation and opens nothing", () => {
@@ -226,7 +234,21 @@ test("a settled card whose answer took the other branch drops the recommendation
   const nodes = settledQuestionNodes(BRANCHED, answer)
   assert.equal(nodes.length, 1)
   assert.deepEqual(nodes[0].question.options, ["1. Hold — nothing moves"])
-  assert.equal(nodes[0].question.recommendedIdx, null)
+  assert.deepEqual(nodes[0].question.recommendedIdxs, [])
+})
+
+test("a multi carries EVERY recommended option, and its settled card keeps the ones that were picked", () => {
+  const gates: AskedQuestion = {
+    question: "Which gates?",
+    kind: "multi",
+    options: [{ label: "Typecheck", recommended: true }, { label: "Lint" }, { label: "Unit tests", recommended: true }],
+  }
+  assert.deepEqual(toParsedQuestion(gates).question.recommendedIdxs, [0, 2])
+  const answer = registeredAnswer({ id: "qst_a", spec: gates }, new Map([[ROOT_PATH, { chosen: null, chosenSet: [1, 2], text: "" }]]))!
+  const [node] = settledQuestionNodes(gates, answer)
+  assert.deepEqual(node.question.options, ["2. Lint", "3. Unit tests"])
+  // Re-indexed against the KEPT options: "Unit tests" is row 1 of the two that remain.
+  assert.deepEqual(node.question.recommendedIdxs, [1])
 })
 
 test("free text settles as text with no option chips, and a multi keeps every toggle plus its note", () => {

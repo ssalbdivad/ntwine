@@ -13,6 +13,7 @@ import { permMarkerPath, type Project } from "./project.ts"
 import { degradeIfAwaitingAnswer, deriveNeedsYou } from "./board.ts"
 import { parseLine, applyRecord, applyEvent, computeTurn, newTailState, createTailer, defaultBrokerDaemonAlive, hasQuestionBlock, isClaudeAuthErrorText, isRealUserMessage, parseSignalFence, markerDecision, pendingCallDeadline, unwrapShellCommand, FOREIGN_FRESH_MS, parseWindowsShellHolderReport, probeShellsAlive, findShellProcesses, windowsShellHolderCommand, type ShellLaunch } from "./tailer.ts"
 import { claudeBrokerRecordPath } from "./backend/claude-broker-host.ts"
+import { buildClaudePermissionInteraction } from "./backend/claude-permission-interactions.ts"
 import type { AgentBackend, NormalizedEvent } from "./backend/types.ts"
 import { createClaudeBackend } from "./backend/claude.ts"
 import { createCodexBackend } from "./backend/codex.ts"
@@ -2574,6 +2575,87 @@ test("tailer: a deferred request produces no policy note", () => {
   t.tick()
   assert.equal(t.get("t")?.permPrompt, true)
   assert.equal(t.get("t")?.permPolicy, undefined)
+})
+
+// ANSWERED IS NOT BLOCKED. The transcript only advances past a marker when the approved tool call
+// RETURNS, so on the marker alone an approved five-minute command held its thread on perm-prompt for
+// five minutes — and with the answered card gone from the chat, the "respond in your external terminal"
+// net drew in its place (maintainer 2026-10-10). The interaction journal knows the moment it is answered.
+test("tailer: a deferred marker the journal says is answered is NOT a block, though the transcript has not moved", () => {
+  const h = harness()
+  h.storage.upsertSession(row())
+  fixture(h.logDir, "sid", [IN_FLIGHT, TOOL])
+  h.clock.ms = Date.parse("2026-07-01T00:00:01.500Z")
+  const asked: unknown[] = []
+  const t = makeTailer(h, {
+    readPermMarker: () => permMarker("2026-07-01T00:00:05.000Z", { decision: "defer" }),
+    permissionSettled: (...args) => { asked.push(args); return true },
+  })
+  t.tick()
+  assert.equal(t.get("t")?.turn, "in-flight", "the approved command is still running")
+  assert.equal(t.get("t")?.permPrompt, false)
+  assert.deepEqual(asked[0], ["t", "sid", "2026-07-01T00:00:05.000Z"], "asked about THIS session, since THIS marker")
+})
+
+test("tailer: a journal that cannot answer leaves the marker's block standing", () => {
+  const h = harness()
+  h.storage.upsertSession(row())
+  fixture(h.logDir, "sid", [IN_FLIGHT, TOOL])
+  h.clock.ms = Date.parse("2026-07-01T00:00:01.500Z")
+  const t = makeTailer(h, {
+    readPermMarker: () => permMarker("2026-07-01T00:00:05.000Z", { decision: "defer" }),
+    permissionSettled: () => { throw new Error("journal unreadable") },
+  })
+  t.tick()
+  assert.equal(t.get("t")?.permPrompt, true, "never hide a live block on a read error")
+})
+
+// THE SEAM, with nothing stubbed: the real journal, the real tailer, and the wiring context.ts gives
+// them. Blocked while the card is open, clear the instant it is answered — WITHOUT a tick, because the
+// board rebuilds on the same journal change and must not catch the stale block (permissionAnswered).
+test("tailer: approving the journaled request clears the block at once, before any tick or transcript record", () => {
+  const h = harness()
+  h.storage.upsertSession(row())
+  fixture(h.logDir, "sid", [IN_FLIGHT, TOOL])
+  h.clock.ms = Date.parse("2026-07-01T00:00:01.500Z")
+  const scope = { projectId: "p", threadSlug: "t", sessionId: "sid" }
+  let markerAt = "2026-07-01T00:00:05.000Z"
+  const t = makeTailer(h, {
+    readPermMarker: () => permMarker(markerAt, { decision: "defer" }),
+    permissionSettled: (slug, sessionId, at) => h.storage.interactions.settledSince({ projectId: "p", threadSlug: slug, sessionId }, at),
+  })
+  const unsubscribe = h.storage.interactions.subscribe((change) => {
+    if (change.lifecycle !== "pending") t.permissionAnswered?.(change.threadSlug)
+  })
+  const journal = (requestId: string) => h.storage.interactions.create(buildClaudePermissionInteraction(
+    { requestId, toolUseId: `tool-${requestId}`, toolName: "Bash", input: { command: "sleep 300" }, suggestions: [] },
+    { ...scope, cwd: "/tmp" },
+  )!).interaction
+  const approve = (record: ReturnType<typeof journal>) => h.storage.interactions.resolve(scope, {
+    slug: "t", sessionId: "sid", interactionId: record.id, sessionEpoch: record.owner.sessionEpoch,
+    capabilityRevision: record.owner.capabilityRevision, expectedRecordRevision: record.recordRevision,
+    responseId: `response-${record.id}`, decisionId: record.allowedDecisions[0].id,
+  })
+
+  const first = journal("req-1")
+  t.tick()
+  assert.equal(t.get("t")?.permPrompt, true, "an open card is a block")
+
+  approve(first)
+  assert.equal(t.get("t")?.permPrompt, false, "answered ⇒ cleared, with no tick and no new transcript record")
+  t.tick()
+  assert.equal(t.get("t")?.turn, "in-flight")
+  assert.equal(t.get("t")?.permPrompt, false, "and it stays cleared while the approved command runs")
+
+  // The NEXT request blocks again: its marker is newer than the answer above, so that answer cannot
+  // speak for it — neither in the instant before its card is journaled, nor once the card is open.
+  markerAt = new Date(Date.now() + 60_000).toISOString()
+  t.tick()
+  assert.equal(t.get("t")?.permPrompt, true, "a marker newer than the last answer is a fresh block")
+  journal("req-2")
+  t.tick()
+  assert.equal(t.get("t")?.permPrompt, true)
+  unsubscribe()
 })
 
 test("markerDecision: unrecognized values degrade to defer, never to allow", () => {

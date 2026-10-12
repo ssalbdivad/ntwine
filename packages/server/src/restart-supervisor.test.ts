@@ -20,6 +20,7 @@ import {
 import { createHmac } from "node:crypto"
 import { fileSessionDirectory, loadOrCreateSessionKey, readSessionEpoch, rotateSessionKey, SESSION_EPOCH } from "./access-codes.ts"
 import { signOutOlderSessionEpoch } from "./session-epoch-child.ts"
+import { CALLER_HEADER, decodeCallerStamp, encodeCallerStamp } from "./audit.ts"
 
 async function listen(handler: RequestListener) {
   const server = createServer(handler)
@@ -800,6 +801,51 @@ test("--public-origin without a session is not a reachable state: the gate cover
     const loopback = { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }
     assert.equal((await proxied(port, "/", loopback)).status, 200)
     assert.equal(await upgrade(port, loopback), "forwarded")
+  } finally {
+    await proxy.close().catch(() => undefined)
+    await current.close().catch(() => undefined)
+  }
+})
+
+test("the proxy tells the child who called: loopback or public, and which session — never the cookie", async () => {
+  // The child sees every request as loopback once Host and Origin are rewritten, so the audit trail
+  // (audit.ts) can only attribute an action through what this proxy stamps. A relayed request arrives
+  // here from loopback too, so the stamp must key on the authority, not the socket.
+  const seen: (string | undefined)[] = []
+  const current = await listen((req, res) => {
+    seen.push(req.headers[CALLER_HEADER] as string | undefined)
+    res.end("ok")
+  })
+  const port = await freePort()
+  const proxy = new RestartSupervisorProxy({
+    port,
+    publicOrigin: "https://colin.frizz.sh",
+    childPort: () => current.port,
+    restart: async () => ({ state: "ready" }),
+  })
+  try {
+    await proxy.listen()
+    const loopback = { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }
+    const forged = encodeCallerStamp({ via: "loopback", remote: "127.0.0.1", session: "forged" })
+
+    // The operator's own tab; a stamp the CLIENT sent is replaced, never forwarded.
+    assert.equal((await proxied(port, "/", { ...loopback, [CALLER_HEADER]: forged })).status, 200)
+    assert.deepEqual(decodeCallerStamp(seen.at(-1)), { via: "loopback", remote: "127.0.0.1", session: null })
+
+    const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
+    const exchange = await proxied(port, `/?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
+    const cookie = String(exchange.headers?.["set-cookie"]).split(";")[0]!
+    const sessions = JSON.parse((await proxied(port, SUPERVISOR_SESSIONS_PATH, loopback)).body) as { sessions: { id: string }[] }
+    const id = sessions.sessions[0]!.id
+
+    // A relayed visitor: the public authority, the device's session RECORD id, the relay's claimed
+    // client address — and a forged stamp of its own, which does not survive.
+    const relayed = { ...publicHeaders, cookie, "cf-connecting-ip": "203.0.113.9", [CALLER_HEADER]: forged }
+    assert.equal((await proxied(port, "/_frizz/rpc/projectsList", relayed)).status, 200)
+    const stamp = decodeCallerStamp(seen.at(-1))
+    assert.deepEqual(stamp, { via: "public", remote: "127.0.0.1", host: "colin.frizz.sh", clientIp: "203.0.113.9", session: id })
+    const raw = Buffer.from(seen.at(-1)!, "base64url").toString("utf8")
+    assert.ok(!raw.includes(cookie.slice("frizz_session=".length)), "the session value never leaves the proxy")
   } finally {
     await proxy.close().catch(() => undefined)
     await current.close().catch(() => undefined)

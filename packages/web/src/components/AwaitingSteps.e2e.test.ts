@@ -13,7 +13,7 @@ const baseUrl = process.env.FRIZZ_AWAITING_STEPS_E2E_URL
 // answers are stubbed, in the fixture; the send itself goes through the composer's own eager follow-up,
 // which is the point:
 //
-//   1. The card states the steps in order, as markdown, under a "To do" chip and the worker's heading
+//   1. The card states the steps in order, as markdown, under a "Awaiting human" chip and the worker's heading
 //      (the chip alone when the worker named none), ruled off from the body — in the paragraph's own
 //      colour, every item on the same line height whether or not it carries a command — with Done as its
 //      only control: no Snooze, no second verb, no text box of its own (anything else the human has to
@@ -45,7 +45,7 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
       chip: (el.querySelector("[data-card-chip]") as HTMLElement | null)?.innerText.trim(),
       title: !!el.querySelector("[data-card-title]"),
     }))
-    assert.deepEqual(untitled, { chip: "To do", title: false }, "the chip already says what the card is for")
+    assert.deepEqual(untitled, { chip: "Awaiting human", title: false }, "the chip already says what the card is for")
 
     // ---- 1. the statement ----
     await page.goto(`${baseUrl}/awaiting-bg-fixture.html?steps=titled`, { waitUntil: "networkidle0" })
@@ -75,7 +75,7 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
         textBoxes: el.querySelectorAll("textarea, input").length,
       }
     })
-    assert.equal(card.chip, "To do", "the card's kind, in its chip")
+    assert.equal(card.chip, "Awaiting human", "the card's kind, in its chip")
     assert.equal(card.title, "Sign in to npm so the acme 4.2.0 release can publish", "the worker's own heading, under the chip")
     assert.match(card.glyph, /lucide-list-todo/, "the to-do glyph rides inside the chip, not the hourglass beside a title")
     assert.ok(card.order.every(Number.isFinite), "the chip, the title, the rule and the body are all drawn")

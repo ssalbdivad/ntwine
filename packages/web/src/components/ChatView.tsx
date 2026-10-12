@@ -29,7 +29,7 @@ import { optimisticallySteered, useSteeredAt } from "../lib/steering.ts"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
 import { DoneWatchButtons, doneWatchable, useDoneWatchRefs } from "./DoneWatchButtons.tsx"
 import { ProviderErrorCard, providerErrorVisible } from "./ProviderErrorCard.tsx"
-import { answersForDisplay, parseAnswersCard, pairAllAnswers, settledAnswerKeys, unrenderedAnswers, withoutSettledAnswers, type PairedAnswer } from "../lib/answersMessage.ts"
+import { answersForDisplay, answersNote, parseAnswersCard, pairAllAnswers, settledAnswerKeys, unrenderedAnswers, withoutSettledAnswers, type PairedAnswer } from "../lib/answersMessage.ts"
 import { questionsByAnchor } from "../lib/questionAnchor.ts"
 import { fenceStandsFor, placedRestEnds, placeQuestions, questionsAtCurrentRest, registeredStandingAt, type QuestionPlacement } from "../lib/questionShadow.ts"
 import { settledQuestionPositions, type SettledPlacement } from "../lib/settledQuestions.ts"
@@ -44,6 +44,7 @@ import { MentionIndexProvider, MentionLink, useMentionSegments } from "./Mention
 import { AgentMessage } from "./AgentMessage.tsx"
 import { WakeDivider } from "./WakeDivider.tsx"
 import { useLiveAnswering, type LiveAnswering } from "../lib/answering.ts"
+import { SendScopeContext, useComposerSendHandle, usePromptBoxSends, useSendScope } from "../lib/sendScope.tsx"
 import { useIsMobile } from "../lib/mobile.ts"
 import { MobileAnswerSheet } from "./MobileAnswerSheet.tsx"
 import { PhoneAnswerBar, PhoneQuestionsContext, usePhoneQuestions, type PhoneQuestions } from "./PhoneQuestionCards.tsx"
@@ -52,13 +53,14 @@ import { RegisteredAnswerSheet } from "./RegisteredAnswerSheet.tsx"
 import { sendEagerFollowUp } from "../lib/eagerComposerSubmission.ts"
 import { limitPauseResume, limitPauseTitle } from "../lib/limitPause.ts"
 import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
+import { timeBreakLabel, timeBreaks, type TimeBreak } from "../lib/timeBreaks.ts"
 import { useUnqueueFollowUp, useUnqueueSupported } from "../lib/unqueueFollowUp.ts"
 import { useFailedDeliveryActions } from "../lib/failedDelivery.ts"
 import { useDeliverQueuedNow, useDeliverQueuedNowSupported } from "../lib/deliverQueuedNow.ts"
 import { useInnerHtml } from "../lib/innerHtml.ts"
+import { SessionMessageLine } from "./SessionMessageLine.tsx"
 import { useLocalFileCodeLinks } from "../lib/localFileCode.ts"
 import { lastAskIndex, messagePresentationText } from "../lib/messagePresentation.ts"
-import { stampHostFor } from "../lib/stampHost.ts"
 import { ICON_LABEL_NUDGE } from "../lib/iconAlign.ts"
 import { getThemeSnapshot, subscribeTheme } from "../lib/theme.ts"
 import { isVisualizationThemeAck, visualizationThemeMessage } from "../lib/visualizationThemeProtocol.ts"
@@ -66,6 +68,8 @@ import { canAdoptThread } from "../lib/adoption.ts"
 import { THREAD_HEADER_CLASS, THREAD_HEADER_CONTAINER_CLASS, THREAD_HEADER_CONTROLS_CLASS, THREAD_HEADER_TITLE_CLASS } from "../lib/threadHeaderLayout.ts"
 import { SheetClose } from "./ui/SheetHeader.tsx"
 import { ThreadActionBar } from "./ThreadActionBar.tsx"
+import { QueueOpsSummary } from "./QueueOpsSummary.tsx"
+import type { QueueOpsKind } from "../lib/queueOpsCounts.ts"
 import { MobileThreadHeader } from "./MobileThreadHeader.tsx"
 import { HeaderActions } from "./HeaderActions.tsx"
 import { ThreadLifecycleActions, StateButton } from "./ThreadLifecycle.tsx"
@@ -87,7 +91,6 @@ import { agentReading } from "../lib/agentReading.ts"
 import { awaitingDefersToQuestions, awaitingProseBlock } from "../lib/awaitingPresentation.ts"
 import { ChildOpRow } from "./ChildOpRow.tsx"
 import { ThreadLinks } from "./ThreadLinks.tsx"
-import { MessageRow } from "./MessageTimestamp.tsx"
 import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/transcriptMetaLabels.ts"
 import { InteractionStack } from "./InteractionCards.tsx"
 import { RegisteredAnsweringProvider, RegisteredQuestionCard, RegisteredQuestionStack, SettledQuestionCard, SettledQuestionStack, openQuestionsOf, useSettledQuestions, type SettledQuestion } from "./RegisteredQuestionCards.tsx"
@@ -106,6 +109,7 @@ import { FRAMED_IMAGE, IMAGE_FRAME_MAT, ImageFrame } from "./ImageFrame.tsx"
 // module header.
 import { AwaitingBackgroundCard, AwaitingWaitTable, issueStatusLine, showsRestingCard, watchStatusLine } from "./AwaitingBackgroundCard.tsx"
 import { SnoozeCard, showsSnoozeCard } from "./SnoozeCard.tsx"
+import { drawsWorking, frozenPendingAsk } from "../lib/operatorBlock.ts"
 // Re-exported from their new homes so existing importers (the fixtures) keep one
 // import path while the definitions live where both question producers can reach them.
 export { CARD_BODY, CARD_PRIMARY_BUTTON, CardActions, TranscriptCard } from "./TranscriptCard.tsx"
@@ -121,10 +125,10 @@ import { takeFullscreenEnterAnchor } from "../lib/fullscreenHandoff.ts"
 import { prependEarlierPage } from "../lib/transcriptPagination.ts"
 import { buildVirtualTranscriptMessageRows, earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
 import { withoutRedundantRestDividers } from "../lib/restDividers.ts"
-import { coalesceToolActivityMessages, editedFileCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, thinkingToolActivityLabel, toolActivityLabel, toolActivityStampAt } from "../lib/toolActivity.ts"
+import { coalesceToolActivityMessages, editedFileCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
 import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
 import { LightboxGallery } from "./Lightbox.tsx"
-import { META_CARD_STEP, PICTURE_STEP, STEP, USER_TAIL_EXTRA, VSpace } from "./rhythm.tsx"
+import { META_CARD_STEP, PICTURE_STEP, STEP, TIME_BREAK_ABOVE, TIME_BREAK_BELOW, USER_TAIL_EXTRA, VSpace } from "./rhythm.tsx"
 import { SpinoffButton, SpinoffCard, SpinoffOf, SpinoffOriginCard } from "./Spinoff.tsx"
 import { ThreadSlugContext } from "./threadSlugContext.ts"
 import { toolSchedule, type ToolSlot } from "../lib/toolQueue.ts"
@@ -362,7 +366,11 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
   // scroll back to a question a sub-agent return / the agent's own continuation buried and answer it in
   // place. answeringForMessage wires each ask's chips AND its own bottom Send button (scoped to just
   // that message's blocks). The queue card runs the identical scope through the same controller.
-  const { answeringForMessage } = useLiveAnswering(slug, messages)
+  // THE PROMPT BOX SENDS THEM (lib/sendScope): with the thread's prompt box mounted under this
+  // transcript, Enter in a block is that box's send, and no message draws a Send answers of its own.
+  const composerSend = useComposerSendHandle()
+  const { answeringForMessage, stagedCount, takeAnswers } = useLiveAnswering(slug, messages, undefined, { composer: composerSend })
+  const sendScope = useSendScope(composerSend, { stagedCount, takeAnswers })
   // The registered questions standing at each message — its rest and every later one — so a fence
   // restating or naming one folds into its card.
   const shadowedByMessage = useMemo(() => registeredStandingAt(messages, openQuestions), [messages, openQuestions])
@@ -432,6 +440,7 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
 
   return (
     <ThreadSlugContext.Provider value={slug}>
+    <SendScopeContext.Provider value={sendScope}>
     <RegisteredAnsweringProvider thread={thread}>
     <PhoneQuestionsContext.Provider value={phoneQuestions}>
     <div
@@ -508,36 +517,7 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
           stack after the rest that claims it (lib/questionAnchor). */}
       <RegisteredQuestionStack thread={thread} inFlight={inFlightAnswers} className="px-6 pt-5" />
       {q.transportFallback && (
-        <div
-          data-transcript-sync-fallback
-          className={`mx-6 mt-3 flex flex-wrap items-center gap-2.5 ${BLOCK_RADIUS} border border-border-strong bg-panel-2 px-4 py-2.5 text-[12px]`}
-          title={q.transportFallback.kind === "payload-too-large"
-            ? `Live payload ${q.transportFallback.actualBytes} bytes; socket limit ${q.transportFallback.maxBytes} bytes`
-            : `Transcript read budget reached (${q.transportFallback.scope}); retry after about ${q.transportFallback.retryAfterMs}ms`}
-        >
-          <AlertTriangle size={13} className="shrink-0 text-muted" />
-          <div className="min-w-[180px] flex-1 leading-snug text-fg/85">
-            <span className="font-medium">Live transcript updates paused.</span>{" "}
-            {q.transportFallback.kind === "payload-too-large"
-              ? "The transcript is too large for push; it refreshes over HTTP each time the thread moves."
-              : "The live read budget was reached; the last complete copy remains visible. Retry in a moment."}
-          </div>
-          <button
-            type="button"
-            disabled={q.isFetching}
-            onClick={() => void q.refetch()}
-            className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-fg/90 transition-colors hover:bg-panel disabled:opacity-40"
-          >
-            {q.isFetching ? "Refreshing…" : "Refresh once"}
-          </button>
-          <button
-            type="button"
-            onClick={q.retryLiveUpdates}
-            className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-fg/90 transition-colors hover:bg-panel"
-          >
-            Retry live
-          </button>
-        </div>
+        <TranscriptSyncFallbackBanner fallback={q.transportFallback} isFetching={q.isFetching} onRefresh={() => void q.refetch()} onRetryLive={q.retryLiveUpdates} className="mx-6 mt-3" />
       )}
       {/* No flex GAP: between-message spacing is adjacency-based explicit spacers (two tool-only
           messages → the tight 6px run; anything involving prose/a bubble/an event → STEP 14px), so a
@@ -689,8 +669,6 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
       />
       </div>
       {/* This entire footer is deliberately non-scrolling: transcript history alone overflows. */}
-      {/* Prompt box FIRST, then the background-ops strip UNDERNEATH it at the very bottom (maintainer
-          2026-07-09): running sub-agents / shells / monitors sit below the composer, not above it. */}
       {/* ONE hairline, at the queue card's weight. `border-border/60` is exactly the rule the queue
           card draws under its header (AllQueuesCard); the chat footer used to draw full-strength
           `border-border` AND have ThreadActionBar draw a second one under it, which stacked into a
@@ -702,14 +680,16 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
       <div data-thread-chat-footer className={`z-10 shrink-0 border-t border-border/60 bg-panel ${phone ? "" : "pb-[env(safe-area-inset-bottom)]"}`}>
         <ThreadActionBar
           slug={slug}
-          onTerminal={copyTerminalCommand}
-          // The phone draws no ops rows under the prompt (mockup v2 §2): a sub-agent is already a row
-          // in the transcript and on the board, and the registered files and links are the ⋯ sheet's.
-          // Nor does /full while its rail stands beside the column (maintainer 2026-10-02: "in the full
-          // screen view we don't need to show … the active shells and subagents and all of that beneath
-          // the prompt box anymore 'cause it's already showing up in the sidebar to the right"). The
-          // rail (FocusRail) lists every row this strip would, its saved links and Codex shells included.
-          ops={phone || railBeside ? undefined : <BackgroundOpsStrip slug={slug} transcriptShells={liveTranscriptShells} className="px-1 pt-1.5" />}
+          // THE LIVE OPS AS ONE LINE OF COUNTS over the prompt box, their rows one hover away — the
+          // queue card's line (QueueOpsSummary), so a thread reads the same in its drawer as on its card
+          // (maintainer 2026-10-09). The rows hung under the prompt box until then (2026-07-09).
+          // The phone draws no ops at all (mockup v2 §2): a sub-agent is already a row in the transcript
+          // and on the board, and the registered files and links are the ⋯ sheet's. Nor does /full while
+          // its rail stands beside the column (maintainer 2026-10-02: "in the full screen view we don't
+          // need to show … the active shells and subagents and all of that beneath the prompt box anymore
+          // 'cause it's already showing up in the sidebar to the right"). The rail (FocusRail) lists every
+          // row the line counts, its saved links and Codex shells included.
+          above={phone || railBeside || !thread ? undefined : <QueueOpsSummary thread={thread} transcriptShells={liveTranscriptShells} />}
           phoneBarOverride={phone && openQuestions.length > 0
             ? (api) => <PhoneAnswerBar count={openQuestions.length} onAnswer={() => setAnswerSheetOpen(true)} onReply={api.editReply} />
             : undefined}
@@ -724,6 +704,7 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
     </div>
     </PhoneQuestionsContext.Provider>
     </RegisteredAnsweringProvider>
+    </SendScopeContext.Provider>
     </ThreadSlugContext.Provider>
   )
 }
@@ -760,6 +741,42 @@ const DEBUG_SCROLL = (() => {
 })()
 
 type TranscriptTransportFallback = ReturnType<typeof useTranscript>["transportFallback"]
+
+// LIVE UPDATES PAUSED — the transcript fell back from push to HTTP, so what is on screen may lag. ONE
+// banner for every surface that draws a transcript: the drawer's two paths and the queue card, which drew
+// none until 2026-10-09 and so went quietly stale with no way to refresh (maintainer: "Queue card gets
+// the 'Live transcript updates paused' banner"). `className` is the caller's placement.
+export function TranscriptSyncFallbackBanner({ fallback, isFetching, onRefresh, onRetryLive, className = "" }: {
+  fallback: NonNullable<TranscriptTransportFallback>
+  isFetching: boolean
+  onRefresh: () => void
+  onRetryLive: () => void
+  className?: string
+}) {
+  return (
+    <div
+      data-transcript-sync-fallback
+      className={`flex flex-wrap items-center gap-2.5 ${BLOCK_RADIUS} border border-border-strong bg-panel-2 px-4 py-2.5 text-[12px] ${className}`}
+      title={fallback.kind === "payload-too-large"
+        ? `Live payload ${fallback.actualBytes} bytes; socket limit ${fallback.maxBytes} bytes`
+        : `Transcript read budget reached (${fallback.scope}); retry after about ${fallback.retryAfterMs}ms`}
+    >
+      <AlertTriangle size={13} className="shrink-0 text-muted" />
+      <div className="min-w-[180px] flex-1 leading-snug text-fg/85">
+        <span className="font-medium">Live transcript updates paused.</span>{" "}
+        {fallback.kind === "payload-too-large"
+          ? "The transcript is too large for push; it refreshes over HTTP each time the thread moves."
+          : "The live read budget was reached; the last complete copy remains visible. Retry in a moment."}
+      </div>
+      <button type="button" disabled={isFetching} onClick={onRefresh} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-fg/90 transition-colors hover:bg-panel disabled:opacity-40">
+        {isFetching ? "Refreshing…" : "Refresh once"}
+      </button>
+      <button type="button" onClick={onRetryLive} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-fg/90 transition-colors hover:bg-panel">
+        Retry live
+      </button>
+    </div>
+  )
+}
 type VirtualThreadRow =
   // A zero-height sentinel that is ALWAYS row 0, so `getItemKey(0)` is a constant for the list's whole
   // life. That is load-bearing, not decoration — see the head-trim realignment below, which is only
@@ -776,7 +793,7 @@ type VirtualThreadRow =
   | { key: string; kind: "settled-questions"; questions: SettledQuestion[] }
   | { key: "transport-fallback"; kind: "transport-fallback" }
   | { key: string; kind: "earlier-history" }
-  | ({ kind: "message"; stampAt: string | undefined } & VirtualTranscriptMessageRow)
+  | ({ kind: "message"; timeBreak: TimeBreak | null; timeBreakAt: string | undefined } & VirtualTranscriptMessageRow)
   | { key: "runtime-status"; kind: "runtime-status" }
   | { key: "goal-pending"; kind: "goal-pending"; gap: number }
   | { key: string; kind: "queued"; message: ChatMessage; messageIndex: number; gap: number }
@@ -786,6 +803,8 @@ type VirtualThreadRow =
 //
 // The transcript draws this slot from two places: the virtualized path's `runtime-status` row, and the
 // eager path in ChatView (reachable at count === 0, where there is no virtualizer to hang a row on).
+// (Upstream's queue card draws it as a third; the fork's cross-project card takes only the terminal net,
+// TerminalNetCard.)
 // Both drew their own copy of the ladder, and each ALSO carried its own copy of two derived facts — is
 // any rung showing (the slot's gate), and is `working` the rung that won (the spacing above it, which is
 // a quiet meta line for that rung and a card's STEP for every other). Six hand-mirrored copies of one
@@ -797,11 +816,11 @@ type VirtualThreadRow =
 // yet — the copies still agreed, rung for rung — but every one of them had to be edited in lockstep
 // forever, and that is not a property to rely on. So the ladder is stated ONCE, here: `runtimeStatusRung`
 // decides which rung wins, and everything else is derived from that answer rather than re-deriving it.
-type RuntimeStatusRung = "provider-fault" | "provider-error" | "limit-pause" | "pending-ask" | "perm-prompt" | "working" | "snooze" | "resting" | "registered-done" | "rested"
+export type RuntimeStatusRung = "provider-fault" | "provider-error" | "limit-pause" | "pending-ask" | "working" | "snooze" | "resting" | "registered-done" | "rested"
 
 /** What each caller knows that the ladder cannot work out for itself. `registeredDone`/`restedCard` are
  *  keyed on the final assistant message, which each path computes off its own list. */
-interface RuntimeStatusState {
+export interface RuntimeStatusState {
   thread: ThreadViewData | undefined
   showWorking: boolean
   registeredDone: boolean
@@ -809,69 +828,38 @@ interface RuntimeStatusState {
   errorVisible?: boolean
 }
 
-/** THE PREMISE BOTH TERMINAL-BOUND SAFETY NETS REST ON: that frizz has nothing answerable to offer, so
- *  the operator's own terminal is the only way through. A pending typed interaction falsifies it — the
- *  broker path journals the same escalation as an answerable interaction, which the transcript's ask row
- *  draws with its real buttons — and pointing someone at a terminal while an answerable copy sits on
- *  screen is worse than saying nothing.
+/** THE TERMINAL NET — the one rung that says a turn is parked on something only the external terminal
+ *  can answer: a FOREIGN session's frozen native ask (lib/operatorBlock `frozenPendingAsk`). One function,
+ *  so the transcript's ladder (runtimeStatusRung) and the cross-project queue card (AllQueuesCard,
+ *  TerminalNetCard) cannot disagree about whether a thread gets it.
  *
- *  `pendingInteraction`, NOT `actionableInteraction`: the question is whether a card is on SCREEN, and an
- *  answered request stays pending-and-readable while its provider delivery drains.
- *
- *  Both nets still cover the sessions they exist for — pre-contract, adopted or foreign threads that
- *  reach the tool with no broker to intercept it, and any escalation buildClaudePermissionInteraction
- *  could not represent — because none of those journals anything. */
-function terminalNetStandsDown(thread: ThreadViewData | undefined): boolean {
-  return thread?.pendingInteraction === true
-}
-
-/** The safety-net readout for a session frozen at a native AskUserQuestion — "answer it in your external
- *  terminal". */
-function frozenPendingAsk(thread: ThreadViewData | undefined): PendingAsk | undefined {
-  return terminalNetStandsDown(thread) ? undefined : thread?.pendingAsk
-}
-
-/** THE TERMINAL NET — the two rungs that say a turn is parked on something only the external terminal
- *  can answer: a frozen native ask, then the generic permission banner. One function, so the transcript's
- *  ladder (runtimeStatusRung) and the cross-project queue card (AllQueuesCard, TerminalNetCard) cannot
- *  disagree about which one a thread gets. The server queues a thread on exactly these two states
- *  (board.ts deriveNeedsYou), so a card that did not draw them was queued for a reason it never showed.
- *
- *  The generic banner stands down on the SAME premise the frozen ask does — see terminalNetStandsDown.
- *  It did not until 2026-09-05, and a broker-path escalation sets `runtime: "perm-prompt"` AND journals
- *  an answerable interaction, so the ask row's "Run a command?" card drew with Grant/Deny and this rung
- *  told the operator to go and answer it in a terminal directly underneath. */
-export function terminalNetRung(thread: ThreadViewData | undefined): "pending-ask" | "perm-prompt" | null {
-  if (frozenPendingAsk(thread)) return "pending-ask"
-  if (thread?.runtime === "perm-prompt" && !terminalNetStandsDown(thread)) return "perm-prompt"
-  return null
+ *  It had a second rung, the generic "respond in your external terminal" permission banner, until
+ *  upstream 511316d3 (2026-10-10): every thread Frizz runs is a broker session with no terminal, so that
+ *  banner could only draw in the gap around an answerable card. A permission block with no card now
+ *  reads as the turn in flight it is (`drawsWorking`). */
+export function terminalNetRung(thread: ThreadViewData | undefined): "pending-ask" | null {
+  return frozenPendingAsk(thread) ? "pending-ask" : null
 }
 
 /** The terminal net's card, for a surface that draws only this part of the ladder (the queue card). The
  *  caller supplies `onTerminal` from a useCopyTerminalCommand scoped to the thread's own project. */
 export function TerminalNetCard({ thread, onTerminal }: { thread: ThreadViewData; onTerminal: () => void }) {
-  switch (terminalNetRung(thread)) {
-    case "pending-ask":
-      return <PendingAskCard ask={frozenPendingAsk(thread)!} onTerminal={onTerminal} />
-    case "perm-prompt":
-      return <PermPromptBanner onTerminal={onTerminal} />
-    default:
-      return null
-  }
+  const ask = frozenPendingAsk(thread)
+  return ask ? <PendingAskCard ask={ask} onTerminal={onTerminal} /> : null
 }
 
 /** WHICH RUNG WINS, or null when the slot draws nothing at all. The order is the ladder: a provider auth
  *  fault outranks everything (nothing in the thread can make progress until the credential is restored),
- *  a frozen ask outranks the generic perm banner and the Working… spinner, the human's own park outranks
- *  the benign resting card, and `rested` is the residual. Background sub-agents and shells are NOT here:
- *  they live in the anchored ops strip, which stays visible mid-turn. */
-function runtimeStatusRung({ thread, showWorking, registeredDone, restedCard, errorVisible }: RuntimeStatusState): RuntimeStatusRung | null {
+ *  a foreign session's frozen ask outranks the Working… spinner, the human's own park outranks the benign
+ *  resting card, and `rested` is the residual. Background sub-agents and shells are NOT here: they live
+ *  in the anchored ops strip, which stays visible mid-turn. There is no permission-prompt rung: a prompt
+ *  is the ask row's own card, and what this slot may say around one is lib/operatorBlock.ts. */
+export function runtimeStatusRung({ thread, showWorking, registeredDone, restedCard, errorVisible }: RuntimeStatusState): RuntimeStatusRung | null {
   if (thread?.providerError?.retrying) return "provider-error"
   if (thread?.providerFault && !thread.foreign) return "provider-fault"
   if (thread?.limitPause && !thread.foreign) return "limit-pause"
-  const net = terminalNetRung(thread)
-  if (net) return net
-  if (showWorking) return "working"
+  if (terminalNetRung(thread)) return "pending-ask"
+  if (drawsWorking(thread, showWorking)) return "working"
   if (thread?.providerError) return errorVisible ? null : "provider-error"
   if (showsSnoozeCard(thread)) return "snooze"
   // showsRestingCard, NOT the raw awaitingBackground flag: gating on the bare flag opened the slot for a
@@ -885,11 +873,11 @@ function runtimeStatusRung({ thread, showWorking, registeredDone, restedCard, er
 
 /** The SPACE above the slot. Only the Working… rung is a quiet meta line rather than a card, so only it
  *  joins the tight run under a meta tail; every card rung keeps STEP. */
-function runtimeStatusGapFor(state: RuntimeStatusState, messages: readonly ChatMessage[]): number {
+export function runtimeStatusGapFor(state: RuntimeStatusState, messages: readonly ChatMessage[]): number {
   return runtimeStatusRung(state) === "working" ? workingIndicatorGap(messages) : STEP
 }
 
-function RuntimeStatusLadder({
+export function RuntimeStatusLadder({
   state,
   slug,
   retryText,
@@ -916,7 +904,6 @@ function RuntimeStatusLadder({
     case "limit-pause":
       return <LimitPauseCard slug={slug} sessionId={thread!.sessionId} pause={thread!.limitPause!} />
     case "pending-ask":
-    case "perm-prompt":
       return <TerminalNetCard thread={thread!} onTerminal={onTerminal} />
     case "working":
       return <WorkingIndicator since={thread?.lastUserAt} startedAt={liveRuntimeStart} activityLabel={liveActivityLabel} run={liveToolRun} />
@@ -1014,19 +1001,26 @@ function VirtualizedThreadTranscript({
     const all = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
     // An answers turn whose every row a greyed settled card already shows has nothing left to draw, so
     // it is not a row at all — a row that rendered null would still spend its spacer.
-    const entries = all.filter((entry) => !answeredBySettledCards(paired[entry.messageIndex]))
+    const entries = all.filter((entry) => !answeredBySettledCards(paired[entry.messageIndex], entry.message))
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
   }, [coalescedActivityMessages, running, awaitingCut, restingShown, paired])
   const showWorking = running
   const messageRows = useMemo(() => {
-    return buildVirtualTranscriptMessageRows(
+    const rows = buildVirtualTranscriptMessageRows(
       activityMessages.map((entry) => entry.message),
       rendersNothingIn(activityMessages, awaitingCut, restingShown),
       messageGap,
-    ).map((row) => {
-      const entry = activityMessages[row.messageIndex]
-      return { ...row, messageIndex: entry.messageIndex, stampAt: toolActivityStampAt(entry) }
-    })
+    )
+    // A coalesced tool run STARTED at `runStartedAt` and last moved at its walked-forward `at` — see
+    // lib/timeBreaks for why the pause is measured between the two.
+    const startAt = (row: VirtualTranscriptMessageRow) => activityMessages[row.messageIndex].runStartedAt ?? row.message.at
+    const breaks = timeBreaks(rows, startAt, (row) => row.message.at)
+    return rows.map((row, i) => ({
+      ...row,
+      messageIndex: activityMessages[row.messageIndex].messageIndex,
+      timeBreak: breaks[i],
+      timeBreakAt: startAt(row),
+    }))
   }, [activityMessages, awaitingCut, restingShown])
   const lastUserIdx = useMemo(() => lastAskIndex(messages), [messages])
   // A completion the worker REGISTERED rather than fenced: the last rung of the ladder below, drawn here
@@ -1044,10 +1038,15 @@ function VirtualizedThreadTranscript({
   const hasRuntimeStatus = runtimeStatusRung(runtimeStatus) !== null
   const workingLast = runtimeStatusRung(runtimeStatus) === "working"
   const goalPending = goalAwaitingFirstRest(thread?.recurringPrompt)
+  // The slot's ROW also carries the policy-denial card, a sibling of the ladder that can stand alone: a
+  // thread whose rest drew no rung (a done fence in its last message, say) still owes the reader what the
+  // policy refused. Gating the row on the ladder alone dropped that card from long transcripts only —
+  // the eager path and the queue card always drew it.
+  const hasRuntimeRow = hasRuntimeStatus || Boolean(thread?.permPolicy)
   // The deps are runtimeStatus's FIELDS, not the object: it is a fresh literal every render.
   // Drawn under a queued send (see typingLast below), the dots sit where a reply under the human's own
   // bubble would; under the goal line, an ordinary step.
-  const queuedShown = messages.some((m, i) => m.queued && !answeredBySettledCards(paired[i]))
+  const queuedShown = messages.some((m, i) => m.queued && !answeredBySettledCards(paired[i], m))
   const runtimeStatusGap = useMemo(
     () => workingLast && queuedShown
       ? STEP + USER_TAIL_EXTRA
@@ -1145,9 +1144,11 @@ function VirtualizedThreadTranscript({
     // behind it, so those sends stay under it; the dots answer the newest message, and a typing indicator
     // drawn ABOVE the message that set it off reads backwards (maintainer 2026-10-08: "thinking like this
     // should never be above the message that triggered it").
+    // `hasRuntimeRow`, not `hasRuntimeStatus`: the row also carries the policy-denial card, which can
+    // stand with no rung at all.
     const typingLast = workingLast
-    if (hasRuntimeStatus && !typingLast) next.push({ key: "runtime-status", kind: "runtime-status" })
-    let queuedGap = (hasRuntimeStatus && !typingLast) || messageRows.length > 0 ? STEP : 0
+    if (hasRuntimeRow && !typingLast) next.push({ key: "runtime-status", kind: "runtime-status" })
+    let queuedGap = (hasRuntimeRow && !typingLast) || messageRows.length > 0 ? STEP : 0
     // A GOAL NOT YET SENT. Set mid-turn, it waits for the agent to stop, and without a line here the
     // save left nothing in the transcript until then — read as ignored (maintainer 2026-10-08). The
     // line goes the moment the first delivery's own divider lands.
@@ -1156,14 +1157,14 @@ function VirtualizedThreadTranscript({
       queuedGap = STEP
     }
     messages.forEach((message, messageIndex) => {
-      if (!message.queued || answeredBySettledCards(paired[messageIndex])) return
+      if (!message.queued || answeredBySettledCards(paired[messageIndex], message)) return
       const key = `queued:${message.deliveryId ?? message.sourceId ?? messageIndex}`
       next.push({ key, kind: "queued", message, messageIndex, gap: queuedGap })
       queuedGap = STEP
     })
     if (hasRuntimeStatus && typingLast) next.push({ key: "runtime-status", kind: "runtime-status" })
     return next
-  }, [beforeCursor, earlierError, goalPending, hasEarlier, hasRuntimeStatus, workingLast, loadingEarlier, messageRows, messages, paired, questionGroups, settledByRow, transportFallback])
+  }, [beforeCursor, earlierError, goalPending, hasEarlier, hasRuntimeRow, hasRuntimeStatus, workingLast, loadingEarlier, messageRows, messages, paired, questionGroups, settledByRow, transportFallback])
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -1644,23 +1645,7 @@ function VirtualizedThreadTranscript({
             data-index={virtualRow.index}
             data-transcript-row-key={row.key}
             data-transcript-source-id={row.kind === "message" ? row.message.sourceId : undefined}
-            // `hover:z-[1]` is what lets a row's hover-revealed timestamp (MessageRow) survive being
-            // drawn past this row's own bottom edge. Every row here is transform-positioned, so each
-            // is its OWN stacking context and a z-index INSIDE one cannot lift anything above the
-            // next row — among siblings at z-auto, the later one always wins. The reveal sits in the
-            // gap below its message, and that gap is as little as META_CARD_STEP (6px) against a
-            // 16px reading, so without this the reading is painted under the following row exactly
-            // on the tight rows where it overflows most.
-            //
-            // ONE, not the 20 this first shipped with. The pinned current-ask row thirty lines up is a
-            // SIBLING in this same container at `z-[9]`, and that 9 is the only thing holding it above
-            // the scrolling transcript. At 20 a hovered row painted OVER the pinned card — and since the
-            // band is click-through everywhere except its bubble, a pointer resting in its transparent
-            // strip hovered the row behind it, which then covered the bubble's own rectangle and
-            // swallowed hover-to-expand. 1 is both sufficient and 9-safe: a transform-positioned sibling
-            // participates in the parent as if `z-index: 0` whatever its DOM order, so any positive
-            // value beats it.
-            className="absolute left-0 top-0 w-full hover:z-[1]"
+            className="absolute left-0 top-0 w-full"
             style={{ transform: `translateY(${virtualRow.start}px)` }}
           >
             {row.kind === "head-anchor" ? null
@@ -1679,27 +1664,11 @@ function VirtualizedThreadTranscript({
             : row.kind === "settled-questions" ? (
               <SettledQuestionStack questions={row.questions} className="px-6 pt-5" />
             ) : row.kind === "transport-fallback" ? (
-              transportFallback ? <div className="px-6 pt-3"><div
-                data-transcript-sync-fallback
-                className={`flex flex-wrap items-center gap-2.5 ${BLOCK_RADIUS} border border-border-strong bg-panel-2 px-4 py-2.5 text-[12px]`}
-                title={transportFallback.kind === "payload-too-large"
-                  ? `Live payload ${transportFallback.actualBytes} bytes; socket limit ${transportFallback.maxBytes} bytes`
-                  : `Transcript read budget reached (${transportFallback.scope}); retry after about ${transportFallback.retryAfterMs}ms`}
-              >
-                <AlertTriangle size={13} className="shrink-0 text-muted" />
-                <div className="min-w-[180px] flex-1 leading-snug text-fg/85">
-                  <span className="font-medium">Live transcript updates paused.</span>{" "}
-                  {transportFallback.kind === "payload-too-large"
-                    ? "The transcript is too large for push; it refreshes over HTTP each time the thread moves."
-                    : "The live read budget was reached; the last complete copy remains visible. Retry in a moment."}
+              transportFallback ? (
+                <div className="px-6 pt-3">
+                  <TranscriptSyncFallbackBanner fallback={transportFallback} isFetching={isFetching} onRefresh={refresh} onRetryLive={retryLiveUpdates} />
                 </div>
-                <button type="button" disabled={isFetching} onClick={refresh} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-fg/90 transition-colors hover:bg-panel disabled:opacity-40">
-                  {isFetching ? "Refreshing…" : "Refresh once"}
-                </button>
-                <button type="button" onClick={retryLiveUpdates} className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-fg/90 transition-colors hover:bg-panel">
-                  Retry live
-                </button>
-              </div></div> : null
+              ) : null
             ) : row.kind === "earlier-history" ? (
               <div className="flex min-h-10 items-center justify-center px-6 text-[11px] text-muted" role="status">
                 {earlierError ? (
@@ -1716,11 +1685,17 @@ function VirtualizedThreadTranscript({
                 )}
               </div>
             ) : row.kind === "message" ? (
-              // `stampHostFor`, NOT `role === "user"`. The role records which SIDE of the conversation
-              // a turn was recorded on, and three shapes recorded as the human's end on text ink
-              // rather than a bubble: a frizz wake, a recurring-prompt line and a sub-agent's report,
-              // all three hairline dividers. See lib/stampHost.ts.
-              <MessageRow at={row.stampAt} host={stampHostFor(row.message, paired[row.messageIndex])} gap={row.gap}>
+              // A time break heads the row it dates, INSIDE it, so the virtualizer measures the two as
+              // one and nothing can ever be drawn over the message below. It replaces the row's gap:
+              // TIME_BREAK_ABOVE is the air above the reading (none at the very top of the transcript,
+              // where the row already starts flush), and TIME_BREAK_BELOW ties it to its own message.
+              <div className="relative flex flex-col px-6" style={{ paddingTop: row.timeBreak && row.timeBreakAt ? (row.gap === 0 ? 0 : TIME_BREAK_ABOVE) : row.gap }}>
+                {row.timeBreak && row.timeBreakAt ? (
+                  <>
+                    <TimeBreakLine at={row.timeBreakAt} kind={row.timeBreak} />
+                    <VSpace h={TIME_BREAK_BELOW} />
+                  </>
+                ) : null}
                 <Message
                   m={row.message}
                   answering={fencesLive ? answeringForMessage(row.message) : undefined}
@@ -1732,7 +1707,7 @@ function VirtualizedThreadTranscript({
                   placed={placement.placed.get(row.messageIndex)}
                   settledPlaced={settledPlacement.placed.get(row.messageIndex)}
                 />
-              </MessageRow>
+              </div>
             ) : row.kind === "runtime-status" ? (
               <div className="px-6" style={{ paddingTop: runtimeStatusGap }}>
                 <RuntimeStatusLadder
@@ -1748,7 +1723,7 @@ function VirtualizedThreadTranscript({
                     describe the ONE thing currently blocking; a policy denial already happened and blocks
                     nobody now, so it can coexist and must not compete for the same slot. */}
                 {thread?.permPolicy ? (
-                  <div className="mt-3">
+                  <div className={hasRuntimeStatus ? "mt-3" : ""}>
                     <PermPolicyDenialCard policy={thread.permPolicy} denies={thread.permDenies} />
                   </div>
                 ) : null}
@@ -1758,19 +1733,10 @@ function VirtualizedThreadTranscript({
                 <RecurringPromptLine pending />
               </div>
             ) : (
-              // The QUEUED branch. Its rows are built straight from `messages`, never through the
-              // tool-activity coalescer, so no run can have walked `at` forward and the message's own
-              // instant is the only reading there is.
-              //
-              // The host went unstated until 2026-08-31, so the reading fell back to the PROSE offset
-              // and its cap tops landed on the device row directly under the bubble's bottom edge —
-              // zero clearance against a hard filled edge, measured off the maintainer's own
-              // screenshot. It takes the same `stampHostFor` as the branch above rather than a flat
-              // "bubble": a queued send is the human's, but answering a question composes one of these
-              // too, and that lands as an answers card.
-              <MessageRow at={row.message.at} host={stampHostFor(row.message, paired[row.messageIndex])} gap={row.gap}>
+              // The QUEUED branch: built straight from `messages`, never through the tool-activity coalescer.
+              <div className="relative flex flex-col px-6" style={{ paddingTop: row.gap }}>
                 <Message m={row.message} paired={paired[row.messageIndex]} />
-              </MessageRow>
+              </div>
             )}
           </div>
         )
@@ -1889,8 +1855,10 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
             thread={thread}
             onDoc={hasDoc ? () => pushDrawer("doc", thread.id) : undefined}
           />
-          {/* The two lifecycle verbs close the strip after a rule (ThreadLifecycle.tsx). */}
-          <ThreadLifecycleActions thread={thread} onArchived={onStatusApplied} />
+          {/* The two lifecycle verbs close the strip after a rule (ThreadLifecycle.tsx). Snooze leaves the
+              drawer the way Mark as done does — both take the thread off the reader's plate (Colin
+              2026-10-09, upstream b206cf97). */}
+          <ThreadLifecycleActions thread={thread} onArchived={onStatusApplied} onSnoozed={onStatusApplied} />
         </div>
       </div>
     </header>
@@ -1987,6 +1955,19 @@ export function messageHeadIsPicture(m: ChatMessage): boolean {
   const tools = messageHeadTools(m)
   return tools !== null && isPictureTool(tools[0])
 }
+// The centred reading a time break draws — see lib/timeBreaks. `<time>` carries the exact instant on
+// `dateTime`; the day word is a step brighter than the clock because it is the part a reader scrolling
+// a long, parked thread is looking for.
+function TimeBreakLine({ at, kind }: { at: string; kind: TimeBreak }) {
+  const { day, time } = timeBreakLabel(at, kind)
+  return (
+    <time dateTime={at} className="block select-none text-center text-[11px] leading-4 [font-variant-numeric:tabular-nums] text-muted-45">
+      {day ? <span className="font-medium text-muted-60">{day} </span> : null}
+      {time}
+    </time>
+  )
+}
+
 // THE between-message gap, in one function. Both spacing implementations (this file's plain column and
 // the virtualized row builder) call it, so neither can drift from the other.
 export function messageGap(previous: ChatMessage, next: ChatMessage): number {
@@ -2007,9 +1988,12 @@ export function messageGap(previous: ChatMessage, next: ChatMessage): number {
   return base + (previous.role === "user" && next.role !== "user" ? USER_TAIL_EXTRA : 0)
 }
 // A composed-answers turn left with no row to show once the settled cards' rows are taken out (see
-// withoutSettledAnswers). Null — not an answers turn — is never this.
-function answeredBySettledCards(paired: PairedAnswer[] | null | undefined): boolean {
-  return Boolean(paired) && answersForDisplay(paired!).length === 0
+// withoutSettledAnswers). Null — not an answers turn — is never this, and neither is one that carries
+// the human's own note (the prompt box's one Send, upstream 59089c92) or waits held for the agent's
+// rest: the note's bubble and the held line still draw (AnswersWithNote) under an empty card.
+function answeredBySettledCards(paired: PairedAnswer[] | null | undefined, m: ChatMessage): boolean {
+  if (!paired || answersForDisplay(paired).length > 0) return false
+  return m.deliveryState !== "held" && !answersNote(messagePresentationText(m).replace(/\r\n?/g, "\n"))
 }
 // Matches exactly when Message returns null (an empty/thinking-only assistant turn) — such a message
 // takes no slot, so the adjacency-spacer walk must SKIP it (else two spacers stack into a double gap).
@@ -3436,7 +3420,59 @@ function ScheduledRunOpening({ scheduleId, header, prompt, sourceId, at }: { sch
   )
 }
 
-function UserBubble({ text, rawText, queued, deliveryUnconfirmed, deliveryFailed, deliveryError, deliveryId, sourceId }: { text: string; rawText?: string; queued?: boolean; deliveryUnconfirmed?: boolean; deliveryFailed?: boolean; deliveryError?: string; deliveryId?: string; sourceId?: string }) {
+// UNDER A MESSAGE SENT TO THE QUEUE — the one line that says why it is still gray, with the two things
+// the operator can do about it. "Send now" hands it over as the steer it would have been (no interrupt:
+// the forced send stays on the ↑ beside the bubble and on ⌘/Ctrl-Enter); "Take back" drops it and puts
+// the words back in the prompt box. `text` is the WHOLE message — for answers sent with a note, both.
+function HeldLine({ deliveryId, text, rawText }: { deliveryId: string; text: string; rawText: string }) {
+  const slug = useContext(ThreadSlugContext)
+  const { unqueue, pending: takingBack } = useUnqueueFollowUp(slug)
+  const { releaseHeld, pending: sending } = useDeliverQueuedNow(slug)
+  const action = "underline decoration-border underline-offset-2 outline-none transition-colors hover:text-fg focus-visible:text-fg disabled:opacity-50"
+  return (
+    <div data-held-line className="mt-1 flex items-baseline justify-end gap-2 text-[11.5px] leading-[16px] text-muted">
+      <span>Queued until the agent rests</span>
+      {slug && (
+        <>
+          <span aria-hidden className="text-muted-60">·</span>
+          <button type="button" data-held-send-now className={action} disabled={sending || takingBack} onMouseDown={(e) => e.preventDefault()} onClick={releaseHeld} title="Send it now — the agent reads it at its next step">
+            Send now
+          </button>
+          <span aria-hidden className="text-muted-60">·</span>
+          <button type="button" data-held-take-back className={action} disabled={sending || takingBack} onClick={(e) => unqueue({ deliveryId, text, rawText, from: e.currentTarget })} title="Put it back in the prompt box">
+            Take back
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ANSWERS SENT WITH A NOTE — the prompt box's one Send (2026-10-11) carries the staged answers and the
+// typed message as one turn, and it reads as one: the Answers card, and the human's words in their own
+// bubble under it. The note of a message that answered both registered and fenced questions is itself
+// an answers message (the fenced ones, composed in the browser), so it draws the same way, recursively.
+function AnswersWithNote({ m, text, answers, note }: { m: ChatMessage; text: string; answers: PairedAnswer[]; note: string }) {
+  const body = (noteText: string, depth: number): ReactNode => {
+    if (!noteText) return null
+    const inner = depth < 2 ? parseAnswersCard(noteText) : null
+    if (inner) return <>{<AnswersCard answers={inner} queued={m.queued} />}{body(answersNote(noteText), depth + 1)}</>
+    // No deliveryId: the bubble is half of a send, and taking back half of it is not a thing. A held
+    // one is taken back whole from the line below.
+    return <UserBubble text={noteText} rawText={m.text} queued={m.queued} />
+  }
+  return (
+    // Full width and a column, so each child's own `self-end` + 85% cap lands exactly where it would
+    // as a direct child of the transcript column.
+    <div data-frizz-msg={m.sourceId} data-answers-with-note className="flex w-full flex-col gap-2 self-end">
+      <AnswersCard answers={answers} queued={m.queued} />
+      {body(note, 0)}
+      {m.deliveryState === "held" && m.deliveryId && <div className="self-end"><HeldLine deliveryId={m.deliveryId} text={text} rawText={m.text} /></div>}
+    </div>
+  )
+}
+
+function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, deliveryFailed, deliveryError, deliveryId, sourceId }: { text: string; rawText?: string; queued?: boolean; held?: boolean; deliveryUnconfirmed?: boolean; deliveryFailed?: boolean; deliveryError?: string; deliveryId?: string; sourceId?: string }) {
   // TAKE IT BACK. A still-queued send is the one bubble in the transcript that isn't history yet, so
   // it alone is clickable: the click unqueues it at the provider and hands the words back to the
   // prompt box (see lib/unqueueFollowUp.ts). Three gates, all of them load-bearing:
@@ -3448,7 +3484,9 @@ function UserBubble({ text, rawText, queued, deliveryUnconfirmed, deliveryFailed
   const unqueueSlug = useContext(ThreadSlugContext)
   const unqueueSupported = useUnqueueSupported(unqueueSlug)
   const { unqueue, pending: unqueuePending } = useUnqueueFollowUp(unqueueSlug)
-  const unqueueable = Boolean(queued && deliveryId && unqueueSlug && unqueueSupported)
+  // A HELD message (sent to the queue) is Frizz's alone to hand back, on every backend: no provider
+  // has it. Its own line below carries the same two verbs in words.
+  const unqueueable = Boolean(queued && deliveryId && unqueueSlug && (unqueueSupported || held))
   // PUSH IT THROUGH. The other half of what you can do to a message that hasn't been read yet: instead
   // of taking it back, stop waiting for it. A ↑ appears left of the bubble on hover and preempts the
   // turn standing in front of the queue (see lib/deliverQueuedNow.ts). It replaces the composer's ⚡,
@@ -3593,6 +3631,7 @@ function UserBubble({ text, rawText, queued, deliveryUnconfirmed, deliveryFailed
       {deliveryFailed && deliveryId && (
         <FailedSendRow deliveryId={deliveryId} text={text} rawText={rawText ?? text} error={deliveryError} />
       )}
+      {held && deliveryId && <HeldLine deliveryId={deliveryId} text={text} rawText={rawText ?? text} />}
       {/* No "click to unqueue" hint: the hover lift above already says the bubble is live, and a
           label spelling that out is noise on every queued send. Only the IN-FLIGHT retraction gets a
           line, because "did my click land?" isn't something the hover state can answer. It reserves no
@@ -3646,6 +3685,9 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
   const isMobile = useIsMobile()
   const [answerSheetOpen, setAnswerSheetOpen] = useState(false)
   const slugForSchedule = useContext(ThreadSlugContext)
+  // The surface's prompt box sends the staged answers (lib/sendScope), so this message draws no Send
+  // of its own. False wherever no prompt box is mounted — a sub-agent's sheet, a phone thread page.
+  const promptBoxSends = usePromptBoxSends()
   // An event line (a sub-agent completion) is transcript PUNCTUATION — a quiet full-width line, not a
   // bubble or a tool band. Rendered before the role branches (its role field is nominal).
   if (m.providerError) return <ProviderErrorCard error={m.providerError} />
@@ -3680,7 +3722,11 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     const answers = paired !== undefined ? paired : parseAnswersCard(text)
     // …unless it FAILED: the answers card has no failure row, and a failed send must always show its
     // Retry / Edit / Dismiss (lib/failedDelivery.ts). The plain bubble carries the same words.
-    if (answers && m.deliveryState !== "failed") return <AnswersCard answers={answers} queued={m.queued} sourceId={m.sourceId} />
+    if (answers && m.deliveryState !== "failed") {
+      const note = answersNote(text)
+      if (!note && m.deliveryState !== "held") return <AnswersCard answers={answers} queued={m.queued} sourceId={m.sourceId} />
+      return <AnswersWithNote m={m} text={text} answers={answers} note={note} />
+    }
     // A scheduler wake is recorded as a user turn because it is pasted into the worker's composer —
     // but FRIZZ wrote it, not the human, so it must not wear the human's right-justified
     // bubble. `m.wake` is the server's own tell (the delivery token it stripped), never a text guess.
@@ -3696,14 +3742,14 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     const threadMessage = m.wake ? parseThreadMessage(text) : undefined
     if (threadMessage) return <AgentMessage direction="in" kind="thread" name={<ThreadHandleName handle={threadMessage.from} />} body={threadMessage.body} status={threadMessage.answersWait ? "replied" : threadMessage.awaitsReply ? "reply requested" : undefined} at={m.at} sourceId={m.sourceId} />
     if (m.wake) return <FrizzWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} />
+    // A SIDEWAYS writer of a user turn the human didn't type: another top-level thread messaging this
+    // one. An expandable hairline naming and linking the sender — see SessionMessageLine.
+    if (m.sessionPeer) return <SessionMessageLine peer={m.sessionPeer} text={text} queued={m.queued} sourceId={m.sourceId} at={m.at} wrap={dense} />
     // …and the same correction for the OTHER writer of a user turn the human didn't type: a background
     // sub-agent pushing a report up to its parent through `SendMessage({to:"main"})`. `m.peerFrom` is the
     // server's own tell (it parsed the <agent-message> wrapper and put the body in displayText, which
     // `text` above already carries), never a text guess made here. It renders as a wake divider rather
     // than any kind of bubble — see SubAgentReportLine.
-    // …and a message from ANOTHER SESSION rides the same `peerFrom` tell, told apart by `peerSession`.
-    // It is settled first because it is not a child: no report verb, no drawer, and a body to keep.
-    if (m.peerSession && m.peerFrom) return <PeerSessionMessageLine from={m.peerFrom} unnamed={m.peerUnnamed} text={text} sourceId={m.sourceId} at={m.at} />
     if (m.peerFrom) return <SubAgentReportLine from={m.peerFrom} unnamed={m.peerUnnamed} dispatchId={m.peerDispatchId} text={text} sourceId={m.sourceId} at={m.at} />
     // A SPINOFF REQUEST: the human's instructions for a new thread, drawn as the card that links to it.
     // `m.spinoff` is the server's tell (transcript.ts withSpinoffCards).
@@ -3714,7 +3760,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // `rawText` rides alongside the presentation text because the two differ: the bubble shows the
     // stripped/normalized copy, while the optimistic cache entry an unqueue has to evict is keyed on
     // the message's own raw text.
-    return <UserBubble text={text} rawText={m.text} queued={m.queued} deliveryUnconfirmed={m.deliveryState === "unconfirmed"} deliveryFailed={m.deliveryState === "failed"} deliveryError={m.deliveryError} deliveryId={m.deliveryId} sourceId={m.sourceId} />
+    return <UserBubble text={text} rawText={m.text} queued={m.queued} held={m.deliveryState === "held"} deliveryUnconfirmed={m.deliveryState === "unconfirmed"} deliveryFailed={m.deliveryState === "failed"} deliveryError={m.deliveryError} deliveryId={m.deliveryId} sourceId={m.sourceId} />
   }
 
   // Build ONE ordered list of block-level children, then interleave with explicit spacers. The
@@ -3937,7 +3983,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
         </button>
       </div>,
     )
-  } else if (showSendButton && answering && askBlocks.length > 0) {
+  } else if (showSendButton && answering && askBlocks.length > 0 && !promptBoxSends) {
     // `askBlocks` can be empty with a controller present: every fence of this message was folded into
     // a registered card, and that card carries its own Send answers.
     push(
@@ -4289,10 +4335,6 @@ export function FenceCard({ fenceKind, body, hints, wrap }: { fenceKind: FenceKi
   return <AwaitingBackgroundCard thread={fenceThread} fence={{ body, hints }} />
 }
 
-// A permission-blocked agent is INVISIBLE in the transcript (the turn is parked mid-tool_use, so no
-// message exists yet) — without this banner the card looks like a quietly-working agent. Rendered by
-// the queue card and the thread view whenever runtime is perm-prompt; the action lands the user in
-// an external terminal, the only place the prompt can be answered.
 // Trusted provider-auth recovery card (claude-auth plan). Rendered ONLY from the server's TYPED
 // providerFault field — never parsed from assistant-authored content — so a model cannot manufacture
 // a sign-in affordance in Chat. "Sign in" opens the same modal as the dispatch gate (copyable
@@ -4425,28 +4467,6 @@ export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: Non
   )
 }
 
-// ATTENTION tone, like the two native-input cards below it: all three mean the same thing — the agent
-// is blocked on you and the only place to answer is your external terminal — and they used to wear
-// three different treatments (neutral / accent+shadow / accent wash) for that one meaning.
-export function PermPromptBanner({ onTerminal }: { onTerminal: () => void }) {
-  return (
-    <TranscriptCard tone="attention" icon={KeyRound} label="Permission approval">
-      <span className={CARD_BODY}>
-        The agent is waiting on your approval — respond in your external terminal.
-      </span>
-      <CardActions>
-        <button
-          onClick={() => onTerminal()}
-          onMouseDown={(e) => e.preventDefault()}
-          className={CARD_PRIMARY_ACTION}
-        >
-          Copy terminal command
-        </button>
-      </CardActions>
-    </TranscriptCard>
-  )
-}
-
 // What frizz's permission policy REFUSED on the worker's behalf (cc-worker/hooks/perm-policy.mjs).
 //
 // Denials only. A refusal is rare, changes what the worker can do, and is worth a card that stays put.
@@ -4472,19 +4492,23 @@ export function PermPolicyDenialCard({ policy, denies }: { policy: NonNullable<T
   )
 }
 
-// The persistent BACKGROUND-OPS strip, anchored below the composer: one quiet row per LIVE op the
-// worker is running across rests — sub-agents (drill-in) and background shells (display-only) — so a
-// worker that "launched a CI watcher then came to rest" never reads as idle, and a final message like
-// "waiting for the watcher to complete" has a visible home. Visible whenever ops are live, INCLUDING
-// mid-turn (it folds in the old at-rest SubAgentBanner — one surface beats two, and the anchored
-// position under the composer reads as ambient status rather than transcript content). A 30s tick keeps
+// The BACKGROUND-OPS strip: one quiet row per LIVE op the worker is running across rests — sub-agents
+// (drill-in) and background shells (display-only) — so a worker that "launched a CI watcher then came
+// to rest" never reads as idle, and a final message like "waiting for the watcher to complete" has a
+// visible home. Visible whenever ops are live, INCLUDING mid-turn (it folds in the old at-rest
+// SubAgentBanner — one surface beats two, and ambient status beside the composer reads as status
+// rather than transcript content). A 30s tick keeps
 // elapsed fresh even when no board push arrives (a steadily-running op changes nothing to re-push).
 // Saved links/files follow their own divider; they keep the strip visible without starting that tick.
-// The /full page draws none of it while its rail is on screen: the rail carries the same rows.
+// Since 2026-10-09 the thread's own rows live in the hover panels of the op counts over its prompt box
+// (QueueOpsSummary), one panel per kind of row (`only`), on the queue card and in the drawer alike; only
+// the sub-agent drawer still hangs a scoped strip under its box. The /full page draws none of it while
+// its rail is on screen.
 export function BackgroundOpsStrip({
   slug,
   className = "px-4 pb-2 pt-1",
   includeAgents = true,
+  only,
   transcriptShells = [],
   parentAgentId,
 }: {
@@ -4493,6 +4517,12 @@ export function BackgroundOpsStrip({
   // Queue cards render live sub-agents as compact child lines directly under their composer. They
   // still use this strip for unrelated background shells/Monitors, so suppress agent duplication.
   includeAgents?: boolean
+  // ONE KIND OF ROW, and nothing else: the counts over a prompt box open a panel each (QueueOpsSummary),
+  // so the terminals' panel must not list the watched PRs and the files' must not list the links. The
+  // kinds are the counts' own (lib/queueOpsCounts.ts — the fork's set, where the agent's shells and the
+  // human's terminals are both `terminal`), split by the same tests, so a count and the panel it opens
+  // cannot disagree. Absent ⇒ every row, the reading the sub-agent drawer's strip wants.
+  only?: QueueOpsKind
   // Codex deliberate background execs are transcript-native; its board telemetry is still empty. A
   // CLAUDE shell shows up here AND in the board's telemetry — `launchId` is what lets the two rows
   // reconcile into one (see mergeBackgroundShells).
@@ -4513,18 +4543,24 @@ export function BackgroundOpsStrip({
   // `displayDepth` rides only the scoped rows (see childOpSubtree); the thread-wide reading indents off
   // `depth` as it always has, so the field is optional here rather than back-filled onto every row.
   const agents: readonly (SubAgentView & { displayDepth?: number })[] =
-    !includeAgents ? [] : parentAgentId ? childOpSubtree(allAgents, parentAgentId) : allAgents
+    (!includeAgents ? [] : parentAgentId ? childOpSubtree(allAgents, parentAgentId) : allAgents)
+      // `only` an agent kind keeps that kind's rows (a workflow run is an agent row with `workflow`);
+      // any other kind keeps none.
+      .filter((a) => !only || (only === "workflow" ? Boolean(a.workflow) : only === "agent" && !a.workflow))
   // EVERY PROCESS on the thread — the agent's shells (board telemetry and transcript projection, reconciled
   // on the launch id: see mergeBackgroundShells) and the human's own terminals — as ONE strip of rows
   // (ThreadTerminals.tsx ThreadProcessStrip). Scoped to a sub-agent, it lists that child's own shells and
-  // none of the human's: nobody opens a terminal on a sub-agent.
+  // none of the human's: nobody opens a terminal on a sub-agent. `only` another kind ⇒ none of them.
   const processThread = thread ?? { id: slug, bgShells: [], watches: [] }
-  const processes = threadProcesses(processThread, transcriptShells, { scopedToSubAgent: Boolean(parentAgentId), now: Date.now() })
+  const showProcesses = !only || only === "terminal"
+  const processes = showProcesses ? threadProcesses(processThread, transcriptShells, { scopedToSubAgent: Boolean(parentAgentId), now: Date.now() }) : []
   // PR WATCHERS the thread has parked on. Thread-wide only: a sub-agent cannot park on a fence, so the
   // drawer's scoped reading ("the ops running underneath THIS child") has none by construction, and
   // listing the parent's here would credit the child with its parent's wait.
-  const watchers = parentAgentId ? [] : (thread?.watches ?? []).filter((w) => w.kind === "github")
-  const links = parentAgentId ? [] : thread?.links ?? []
+  const watchers = parentAgentId || (only && only !== "pr" && only !== "issue")
+    ? []
+    : (thread?.watches ?? []).filter((w) => w.kind === "github" && (!only || (w.subject === "issue") === (only === "issue")))
+  const links = parentAgentId ? [] : (thread?.links ?? []).filter((link) => !only || link.kind === only)
   const total = agents.length + processes.length + watchers.length
   // This is intentionally independent of transcript cards: it sits immediately below the affected
   // prompt box so a resting worker that owns a live shell still reads as active at a glance. Do not
@@ -4559,7 +4595,7 @@ export function BackgroundOpsStrip({
       ))}
       {/* EVERY PROCESS — the agent's terminals and yours, one row shape, one label column, one drawer. The
           line counter on the agent's rows is polled inside (the page's project, which a drawer always is). */}
-      <ThreadProcessStrip thread={processThread} surface="drawer" transcriptShells={transcriptShells} scopedToSubAgent={Boolean(parentAgentId)} />
+      {showProcesses && <ThreadProcessStrip thread={processThread} surface="drawer" transcriptShells={transcriptShells} scopedToSubAgent={Boolean(parentAgentId)} />}
       {/* THE PR WATCHERS, last, because they are the least likely to change while you are looking: a
           sub-agent and a shell are running RIGHT NOW, and a watcher is waiting on somebody else. */}
       <GithubWatchRows watches={watchers} />
@@ -4741,14 +4777,6 @@ function ChildName({ label, subagentType, dispatchId }: { label?: string; subage
 function ThreadHandleName({ handle }: { handle: string }) {
   const segment = useMentionSegments(`@${handle}`).find((s) => s.kind === "mention")
   return segment?.kind === "mention" ? <MentionLink segment={segment} /> : <span>@{handle}</span>
-}
-
-// A MESSAGE FROM ANOTHER SESSION — Claude Code's cross-session `SendMessage` (2.1.280+), which lets a
-// worker message any other local session by the name that session is listed under. The server's tell is
-// `peerSession` (parseCrossSessionMessage). A wrapper with no name carries only a socket path, which is
-// an address rather than a name, so it reads "Another session" with the address on hover.
-function PeerSessionMessageLine({ from, unnamed, text, sourceId, at }: { from: string; unnamed?: boolean; text: string; sourceId?: string; at?: string }) {
-  return <AgentMessage direction="in" kind="session" name={unnamed ? <span title={from}>Another session</span> : from} body={text} at={at} sourceId={sourceId} />
 }
 
 // THE OUTGOING HALF: this turn calling `SendMessage` (a steer to a child it dispatched, a report up to

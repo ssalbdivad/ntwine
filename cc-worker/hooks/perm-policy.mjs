@@ -110,8 +110,17 @@ const RULES = [
     // `default`/`plan` got there because a human moved it there (the live per-thread permission
     // control), and auto-approving would silently overrule that intent. This is what makes a genuine
     // lower-permission mode usable today: switch a thread to `default` and its prompts come back.
+    //
+    // `bypassPermissions` IS NOT ONE OF THEM. It is the one mode MORE permissive than `auto`, and the
+    // operator chose it (Settings, or the same per-thread control) precisely to stop being asked — but
+    // Claude Code still raises a prompt for some commands under bypass, and this rule read "not auto"
+    // as "restrictive", so a bypass thread parked on approval cards an auto thread never showed
+    // (maintainer 2026-10-10: all four markers on the machine that day were bypass-mode defers). It
+    // falls through to `worker-autonomy` now, behind the two refusals above. Any OTHER mode string,
+    // including one this table has never heard of, still defers: unknown must mean ask.
     id: 'restrictive-mode',
-    test: (i) => typeof i.permission_mode === 'string' && i.permission_mode !== 'auto',
+    test: (i) =>
+      typeof i.permission_mode === 'string' && i.permission_mode !== 'auto' && i.permission_mode !== 'bypassPermissions',
     decision: 'defer',
     reason: 'The thread is in a restrictive permission mode, so this request is left for a human to answer.',
   },

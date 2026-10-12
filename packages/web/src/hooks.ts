@@ -510,11 +510,13 @@ export function appendQueuedMessage(
   qc: QueryClient,
   slug: string,
   text: string,
-  opts: { scrollToBottom?: boolean; deliveryId?: string } = {},
+  // `held`: the operator sent it TO THE QUEUE while a turn runs, so the bubble says it is waiting for
+  // the agent's rest from the first frame — the server's own copy (deliveryState "held") says the same.
+  opts: { scrollToBottom?: boolean; deliveryId?: string; held?: boolean } = {},
 ) {
   qc.setQueryData<TranscriptData>(["transcript", slug], (prev) => {
     const messages = prev?.messages ?? []
-    return { ...prev, messages: [...messages, { role: "user", text, tools: [], parts: [], queued: true, deliveryId: opts.deliveryId }] }
+    return { ...prev, messages: [...messages, { role: "user", text, tools: [], parts: [], queued: true, deliveryId: opts.deliveryId, ...(opts.held ? { deliveryState: "held" as const } : {}) }] }
   })
   // Chat replies commit to the conversation tail, so they normally force the page to the bottom even
   // when the reader sent from up-thread. Queue cards opt out: their post-answer destination is the

@@ -43,6 +43,10 @@ export interface Prefs {
   // 2026-10-01 to 2026-10-02; it is now the extension's `frizz.shareEditorState` (lib/editorContext.ts
   // setShareEditor), the one switch that also keeps the agents' tool out of the editor. A stored value is
   // ignored: the eye had not reached anyone's installed extension.)
+  // The prompt box's on-device dictation microphone (lib/dictation.ts). On by default; off for an
+  // operator who dictates with a system-wide tool and does not want a second microphone in the box
+  // (maintainer 2026-10-10, using Wispr Flow).
+  dictation: boolean
 }
 
 function coerceQueueOrder(v: unknown, fallback: QueueDirection): QueueDirection {
@@ -68,6 +72,7 @@ export function parseStoredPrefs(raw: string | null): Prefs {
     keybindings: {},
     alwaysShowStatusLines: false,
     showRecentThreads: false,
+    dictation: true,
     diffsRedefaulted: true,
     snoozeRedefaulted: true,
   }
@@ -105,6 +110,7 @@ export function parseStoredPrefs(raw: string | null): Prefs {
       keybindings: sanitizeOverrides(stored.keybindings),
       alwaysShowStatusLines: stored.alwaysShowStatusLines === true,
       showRecentThreads: stored.showRecentThreads === true,
+      dictation: typeof stored.dictation === "boolean" ? stored.dictation : fallback.dictation,
     }
   } catch {
     return fallback

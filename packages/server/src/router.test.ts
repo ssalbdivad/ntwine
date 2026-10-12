@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, utimesSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, utimesSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { Hono } from "hono"
@@ -10,7 +10,7 @@ import { DISPATCH_TASK_BANNER_MARKER, openQuestionsNote, spinoffChildPrompt, str
 import type { BoardManager } from "./board.ts"
 import { appendDelivery, parseDeliveryLedger, projectDeliveryLedger } from "./delivery-ledger.ts"
 import { createWakeDeliveryStore } from "./wake-store.ts"
-import { Emitter } from "./bus.ts"
+import { Bus, Emitter } from "./bus.ts"
 import { createClaudeBackend } from "./backend/claude.ts"
 import {
   addProjectAtPath,
@@ -30,7 +30,7 @@ import {
 } from "./router.ts"
 import { projectTranscriptPageAgentLifecycles } from "./transcript.ts"
 import { readProjectIdFile, writeProjectIdFile } from "./project-root.ts"
-import { findByPath, registerProject } from "./project-registry.ts"
+import { findByPath, listProjects, registerProject } from "./project-registry.ts"
 import { createThreadNamer } from "./thread-names.ts"
 import { createStorage, type AdoptionClaimRow, type SessionRow } from "./storage.ts"
 import type { AdoptionPaneLookup, PaneIdentity, PaneIdentity as PaneSnapshot } from "./adoption-recovery.ts"
@@ -179,6 +179,8 @@ function harness(tailer: Tailer = noopTailer) {
     // followUp pushes a transcript frame the moment it opens a ledger entry (the ledger is not JSONL
     // bytes, so nothing else would). Tests only need it to exist; assertions read the ledger itself.
     transcriptChange: new Emitter<string[]>(),
+    // The tailer's turn-done notification rides this, and a held ("Send to queue") message is released on it.
+    bus: new Bus(),
     backendFor: () => backend,
     getSettings: () => settings,
     // Every lifecycle write (done, archive, forget) settles the thread's terminals first; these threads
@@ -2256,6 +2258,26 @@ test("projectAdd: the home directory itself is refused, and nothing is written",
   }
 })
 
+// A folder's mode says nothing about whether it may be a project. Such folders were refused from
+// 2026-10-09 to 2026-10-11, after a stolen board session added `/private/tmp`; the refusal did not
+// stop that session, which could add any other folder or dispatch into an existing project. It did
+// refuse every repo on a Windows drive under WSL, where a folder shows one set of bits for user,
+// group and other (Microsoft, "File Permissions for WSL").
+test("projectAdd: a folder every account can write to is an ordinary project", () => {
+  const home = mkdtempSync(join(tmpdir(), "frizz-add-shared-"))
+  try {
+    const shared = join(home, "shared")
+    mkdirSync(shared)
+    chmodSync(shared, 0o777)
+    const added = addProjectAtPath(shared, home)
+    assert.equal(added.kind === "added" ? added.project.path : added.kind, realpathSync(shared))
+    assert.ok(readProjectIdFile(shared))
+    assert.equal(listProjects(home).length, 1)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
 // ── The interrupt's collateral: background sub-agents ─────────────────────────────────────────────
 // The SDK's interrupt aborts every background task the turn owned, and the runtime tells the worker
 // nothing — so the worker goes on believing the child is live and parks on its id (nub thread
@@ -2563,3 +2585,202 @@ test("Compact now asks an app-server codex thread for thread/compact/start", asy
   h.storage.close()
 })
 
+// ── "Send to queue": Frizz HOLDS the message until the agent rests ───────────────────────────────
+// The prompt box's Send menu has two rows (maintainer 2026-10-11): "Send as steer", which is the
+// follow-up above, and "Send to queue" — "Frizz maintains that in memory until the agent comes to rest,
+// and then it pushes it". Held means no transport has been handed anything, so these pin both halves:
+// nothing reaches the runtime while the turn runs, and the same send — same id, same bubble — is what
+// goes out when it ends.
+function holdHarness() {
+  let turn: "in-flight" | "idle" = "in-flight"
+  const tailer = { ...noopTailer, get: () => ({ turn, subAgents: [] }) as never }
+  const h = harness(tailer)
+  const slug = "hold-me"
+  h.storage.upsertSession(row(slug))
+  h.storage.setBackend(slug, "claude")
+  h.storage.setClaudeRuntime(slug, "broker")
+  const sent: { text: string; deliveryId?: string }[] = []
+  const order: string[] = []
+  const cancelled: string[] = []
+  ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = {
+    followUp: async (input: { text: string; deliveryId?: string }) => { sent.push({ text: input.text, deliveryId: input.deliveryId }); order.push("followUp") },
+    interruptTurn: () => { order.push("interruptTurn"); return true },
+    cancelFollowUp: async (input: { deliveryId: string }) => { cancelled.push(input.deliveryId); return true },
+  }
+  const ledger = () => parseDeliveryLedger(h.storage.getSession(slug)!.delivery_ledger)
+  // The tailer's in-flight → idle edge, as the router sees it: the turn-done notification on the bus.
+  // The release is deferred a macrotask behind it and then awaits its delivery, so give it two.
+  const rest = async () => {
+    turn = "idle"
+    ;(h.ctx as unknown as { bus: Bus }).bus.publish({ type: "notify", slug, kind: "turn-done", title: slug, body: "" })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  const sid = `sid-${slug}`
+  return { h, slug, sid, sent, order, cancelled, ledger, rest, setTurn: (next: "in-flight" | "idle") => { turn = next } }
+}
+
+test("a message sent to the queue mid-turn is held, and the rest delivers that same send", async () => {
+  const { h, slug, sid, sent, ledger, rest } = holdHarness()
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "after this, rebase", deliveryId: "d-hold", hold: true } })
+  assert.equal(sent.length, 0, "nothing is handed to the runtime while the turn runs")
+  assert.deepEqual(ledger().map((i) => [i.id, i.state, i.text]), [["d-hold", "held", "after this, rebase"]])
+  // A replayed call (the client's retry) must not deliver early, and must not hold a second copy.
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "after this, rebase", deliveryId: "d-hold", hold: true } })
+  assert.equal(sent.length, 0)
+  assert.equal(ledger().length, 1)
+  await rest()
+  assert.deepEqual(sent.map((s) => s.deliveryId), ["d-hold"], "the same id: the bubble on screen becomes the delivered message")
+  assert.match(sent[0].text, /^after this, rebase/)
+  assert.deepEqual(ledger().map((i) => [i.id, i.state]), [["d-hold", "delivered"]], "it opened the next turn, so it is read, not waiting")
+  h.storage.close()
+})
+
+test("several held messages release in the order they were sent", async () => {
+  const { h, slug, sid, sent, rest } = holdHarness()
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "first", deliveryId: "d-1", hold: true } })
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "second", deliveryId: "d-2", hold: true } })
+  await rest()
+  assert.deepEqual(sent.map((s) => s.deliveryId), ["d-1", "d-2"])
+  h.storage.close()
+})
+
+test("at rest, sending to the queue is an ordinary send: there is nothing to wait for", async () => {
+  const { h, slug, sid, sent, ledger, setTurn } = holdHarness()
+  setTurn("idle")
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "go", deliveryId: "d-now", hold: true } })
+  assert.deepEqual(sent.map((s) => s.deliveryId), ["d-now"])
+  assert.equal(ledger()[0].state, "delivered")
+  h.storage.close()
+})
+
+// A steer sent WHILE a message is held goes straight through, and the user record it produces must not
+// be read as the held message's delivery — the FIFO rule that retires an outstanding send on a later
+// user turn is about sends a provider queue holds, and no queue has seen this one.
+test("steering past a held message leaves it held", async () => {
+  const { h, slug, sid, sent, ledger } = holdHarness()
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "later", deliveryId: "d-hold", hold: true } })
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "now", deliveryId: "d-steer" } })
+  assert.deepEqual(sent.map((s) => s.deliveryId), ["d-steer"])
+  assert.deepEqual(ledger().map((i) => [i.id, i.state]), [["d-hold", "held"], ["d-steer", "enqueued"]])
+  h.storage.close()
+})
+
+test("a held message is taken back without asking the runtime, on any backend", async () => {
+  const { h, slug, sid, cancelled, ledger, sent, rest } = holdHarness()
+  h.storage.setBackend(slug, "codex") // a runtime whose own queue Frizz cannot reach into
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "never mind", deliveryId: "d-hold", hold: true } })
+  const result = await h.router.unqueueFollowUp.handler({ input: { slug, sessionId: sid, deliveryId: "d-hold" } })
+  assert.deepEqual(result, { unqueued: true })
+  assert.deepEqual(cancelled, [], "the runtime never had it")
+  assert.deepEqual(ledger(), [], "dropped outright: there is no provider record to keep a tombstone for")
+  await rest()
+  assert.equal(sent.length, 0, "and the rest delivers nothing")
+  h.storage.close()
+})
+
+test("push-it-now hands over what was held, then preempts the turn", async () => {
+  const { h, slug, sid, order, sent, ledger } = holdHarness()
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "read this now after all", deliveryId: "d-hold", hold: true } })
+  const result = await h.router.deliverQueuedNow.handler({ input: { slug, sessionId: sid } })
+  assert.deepEqual(result, { interrupted: true, released: 1 })
+  assert.deepEqual(order, ["followUp", "interruptTurn"], "queued first, preempted second — the same contract as interrupt and send")
+  assert.deepEqual(sent.map((s) => s.deliveryId), ["d-hold"])
+  assert.equal(ledger()[0].state, "delivered")
+  h.storage.close()
+})
+
+// "Send now" under a held bubble: the operator stopped waiting, and did NOT ask for an interrupt.
+test("releasing a held message on request delivers it as a steer and preempts nothing", async () => {
+  const { h, slug, sid, order, ledger } = holdHarness()
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "actually, now is fine", deliveryId: "d-hold", hold: true } })
+  const result = await h.router.deliverQueuedNow.handler({ input: { slug, sessionId: sid, releaseOnly: true } })
+  assert.deepEqual(result, { interrupted: false, released: 1 })
+  assert.deepEqual(order, ["followUp"], "no interruptTurn")
+  assert.equal(ledger()[0].state, "enqueued", "in the provider's queue now, read at the agent's next step")
+  h.storage.close()
+})
+
+// A release that throws must leave the operator's words as a failed send they can retry, never drop them.
+test("a held message whose release fails is kept as a failed send", async () => {
+  const { h, slug, sid, ledger, rest } = holdHarness()
+  await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "do not lose me", deliveryId: "d-hold", hold: true } })
+  ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = { followUp: async () => { throw new Error("boom") } }
+  await rest()
+  assert.deepEqual(ledger().map((i) => [i.id, i.state, i.text]), [["d-hold", "failed", "do not lose me"]])
+  h.storage.close()
+})
+
+// ── Answers and the typed note leave as ONE turn ─────────────────────────────────────────────────
+// "It's very annoying to me that I can't send my answers and submit an additional steer at the same
+// time, so we need to unify them" (maintainer 2026-10-11). The staged answers ride the follow-up: the
+// questions settle, the scheduler's own answer wake is told not to carry them as well, and the worker
+// reads the answers with the note under them.
+const ask = (h: ReturnType<typeof harness>, slug: string, id: string, question: string) =>
+  h.storage.askThreadQuestion({ id, slug, spec: JSON.stringify({ question, kind: "question", options: [{ label: "SQLite" }, { label: "JSON file" }] }), askedAtMs: Date.now() })
+
+test("answers sent with a follow-up settle their questions and travel in the same message as the note", async () => {
+  const { h, slug, sid, sent, ledger, setTurn } = holdHarness()
+  setTurn("idle")
+  ask(h, slug, "qst_store", "Which store?")
+  const input = {
+    slug, sessionId: sid, deliveryId: "d-answers", message: "and keep the migration small",
+    answers: [{ questionId: "qst_store", question: "Which store?", chosen: ["SQLite"] }],
+  }
+  await h.router.followUp.handler({ input })
+  const wire = "Answers to earlier questions:\n1. “Which store?” → SQLite\n\nSent with these answers:\nand keep the migration small"
+  assert.equal(sent.length, 1, "one turn, not an answer wake and a steer")
+  assert.ok(sent[0].text.startsWith(wire), sent[0].text)
+  assert.equal(ledger()[0].text, wire, "and the bubble shows the same words")
+  assert.equal(h.storage.getThreadQuestion("qst_store")?.state, "answered")
+  assert.deepEqual(h.storage.undeliveredSettlements(), [], "the scheduler's answer wake must not send them a second time")
+  // The client's replay of the same call finds the questions already settled. It must not compose a
+  // different (answerless) message, and it must not deliver twice.
+  await h.router.followUp.handler({ input })
+  assert.equal(sent.length, 1)
+  h.storage.close()
+})
+
+test("answers alone are a message: an empty prompt box still sends them", async () => {
+  const { h, slug, sid, sent, setTurn } = holdHarness()
+  setTurn("idle")
+  ask(h, slug, "qst_store", "Which store?")
+  await h.router.followUp.handler({
+    input: { slug, sessionId: sid, deliveryId: "d-bare", message: "", answers: [{ questionId: "qst_store", question: "Which store?", chosen: ["JSON file"] }] },
+  })
+  assert.ok(sent[0].text.startsWith("Answers to earlier questions:\n1. “Which store?” → JSON file"))
+  assert.ok(!sent[0].text.includes("Sent with these answers:"), "no note header over an empty note")
+  h.storage.close()
+})
+
+test("answers sent to the queue settle at once and wait with the note for the rest", async () => {
+  const { h, slug, sid, sent, ledger, rest } = holdHarness()
+  ask(h, slug, "qst_store", "Which store?")
+  await h.router.followUp.handler({
+    input: { slug, sessionId: sid, deliveryId: "d-held-answers", message: "no rush", hold: true, answers: [{ questionId: "qst_store", question: "Which store?", chosen: ["SQLite"] }] },
+  })
+  assert.equal(sent.length, 0)
+  assert.equal(h.storage.getThreadQuestion("qst_store")?.state, "answered", "the card settles when the human sends, not when the agent rests")
+  assert.deepEqual(h.storage.undeliveredSettlements(), [])
+  assert.equal(ledger()[0].state, "held")
+  await rest()
+  assert.ok(sent[0].text.startsWith("Answers to earlier questions:\n1. “Which store?” → SQLite\n\nSent with these answers:\nno rush"))
+  h.storage.close()
+})
+
+test("a follow-up carrying neither words nor answers is refused", async () => {
+  const { h, slug, sid } = holdHarness()
+  await assert.rejects(h.router.followUp.handler({ input: { slug, sessionId: sid, message: "  " } }), /nothing to send/i)
+  h.storage.close()
+})
+
+// A send the follow-up path refuses outright must not leave the questions answered with nothing on its
+// way to the worker — the refusals run before the rows are touched.
+test("a stale tab's answers settle nothing", async () => {
+  const { h, slug } = holdHarness()
+  ask(h, slug, "qst_store", "Which store?")
+  await assert.rejects(h.router.followUp.handler({
+    input: { slug, sessionId: "sid-someone-else", message: "", deliveryId: "d-stale", answers: [{ questionId: "qst_store", question: "Which store?", chosen: ["SQLite"] }] },
+  }))
+  assert.equal(h.storage.getThreadQuestion("qst_store")?.state, "open")
+  h.storage.close()
+})

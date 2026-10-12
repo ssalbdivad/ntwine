@@ -30,8 +30,14 @@ export const AWAITING_NO_PROSE = "Waiting for an external update."
 
 /** The KIND CHIP over a card handing the human `steps:` — the one fence shape whose wait is on the
  *  READER (TranscriptCard's KindChip). The worker's `title:` goes under it; with none, the chip alone
- *  heads the card. */
-export const STEPS_CHIP = "To do"
+ *  heads the card.
+ *
+ *  "Awaiting human", not "To do" (maintainer 2026-10-10: "lets call this 'Awaiting human'"). "To do"
+ *  named a list, and a worker filled it like one — commands it could have run itself beside the one
+ *  approval it could not. This names the WAIT: the thread is stopped on a person, which is true only of
+ *  an act nobody else can perform. The worker contract tells the worker the card's heading in the same
+ *  words. */
+export const STEPS_CHIP = "Awaiting human"
 
 /** The steps card's one verb, and EXACTLY the message it sends — an ordinary reply from the human, the
  *  same thing typing the word would send. Nothing marks it as frizz's, because nothing about it is: the

@@ -1,9 +1,9 @@
 ---
 title: Projects
-description: Every directory you run Frizz in, each with its own board, served by one server.
+description: Every folder you add, each with its own board, served by one server.
 ---
 
-Every directory you run `npx frizz` in becomes a **project**. Frizz is a single server: one on your machine serves every project, and running it in a second repo adds that project to the server already running rather than starting another.
+Every folder you add becomes a **project**. Frizz is a single server: one on your machine serves every project, and running `npx frizz` again joins the server already running rather than starting another.
 
 ## A board per project
 
@@ -25,7 +25,7 @@ To keep every project in view, switch on **Settings → Project sidebar**: a col
 
 ## What becomes a project
 
-A repository (`.git`, `.jj`, `.hg`, `.svn`), or a folder with a `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml` and the like, becomes a project the moment you run Frizz in it. A plain folder is offered first, and added once you confirm. Your home folder is never a project.
+Running `npx frizz` never makes a project by itself. In a folder that is already one it opens that board. In a repository (`.git`, `.jj`, `.hg`, `.svn`), or a folder with a `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml` and the like, it asks whether to add it, and adds it once you confirm. Anywhere else it opens **All projects**. **Add a project**, under the project switcher's list, takes any folder. Your home folder is never a project.
 
 ## Home
 

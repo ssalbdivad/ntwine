@@ -99,7 +99,7 @@ export const RuntimeState = z.enum([
   "none", // no session ever spawned for this thread
   "spawning",
   "running", // process alive, turn in flight
-  "perm-prompt", // process alive, paused on an interactive permission prompt (answer in the terminal)
+  "perm-prompt", // process alive, parked on a permission request a person has not answered yet
   "turn-idle", // process alive, waiting at the prompt
   "exited", // the worker process that owned this session is gone, or is no longer driving its turn
 ])
@@ -3164,8 +3164,10 @@ export interface AskedOption {
    *  block, the diff the option would produce — visible before the human picks anything, because a
    *  detail that decides a choice is useless once the choice is already made. */
   description?: string
-  /** Marks the one option the worker recommends. At most one per question — a second is refused, since
-   *  "recommended" means nothing if it is on two of three choices. */
+  /** Marks an option the worker recommends. A pick-ONE question takes at most one — a second is
+   *  refused, since "recommended" means nothing if it is on two of three choices. A `multi` takes as
+   *  many as the worker would tick: one chip in a list the human ticks several of reads as "pick only
+   *  this" (maintainer 2026-10-10: "weird that there's a recommended chip on only a single item"). */
   recommended?: boolean
   /** Taking this option acts OUTSIDE this machine — files an issue, posts a comment, merges, pushes,
    *  publishes, spends — usually under the human's name. Frizz's unanswered-question default never takes
@@ -3286,7 +3288,8 @@ export function askedQuestionFaults(q: AskedQuestion): string[] {
     // A MULTI-SELECT WITH NO OPTIONS IS A FREE-TEXT BOX WEARING THE WRONG LABEL, and it renders as one —
     // silently, so the worker never learns its `multi` did nothing.
     if (node.kind === "multi" && options.length === 0) faults.push(`${path}: \`kind: "multi"\` needs options — a question with none is free text`)
-    if (options.filter((o) => o.recommended).length > 1) faults.push(`${path}: only ONE option may be \`recommended\` — a recommendation on two of three choices says nothing`)
+    // A `multi` is exempt: its recommendation is a SET — every option the worker would tick.
+    if (node.kind !== "multi" && options.filter((o) => o.recommended).length > 1) faults.push(`${path}: only ONE option may be \`recommended\` on a pick-one question — a recommendation on two of three choices says nothing (a \`multi\` may mark every option worth ticking)`)
     // FOLLOW-UPS HANG OFF AN OPTION, so a free-text question cannot carry one: there is no answer to
     // branch on. A worker wanting a second question should register a second ROOT.
     for (const [i, option] of options.entries()) {
@@ -3471,12 +3474,23 @@ export function threadQuestionDefaults(
 }
 
 /** What a SECRET answer is stored and delivered as, in place of the value: where to read it, and the
- *  terms it is served on. ONE wording, because the settled card, the in-flight card and the
- *  worker's wake all read this same stored text — which is also why it is SHORT: the human reads it on
- *  the Answers card, often on a phone, and the `secret` tool already handed the worker the recipe. */
+ *  terms it is served on. It is the WORKER's text: the `secret` tool already handed it the recipe, so
+ *  this stays short. Every card the human reads draws `SECRET_ANSWER_MASK` in its place. */
 export function secretAnswerText(path: string): string {
-  return `(secret ready at ${quotePath(path)} — it can be read ONCE, within ${SECRET_TTL_MS / 60_000}m; never print it)`
+  return `${SECRET_ANSWER_PREFIX}${quotePath(path)} — it can be read ONCE, within ${SECRET_TTL_MS / 60_000}m; never print it)`
 }
+
+const SECRET_ANSWER_PREFIX = "(secret ready at "
+
+/** Whether a stored answer is a secret's delivery note rather than something the human typed. The note
+ *  is for the WORKER; a card the human reads draws `SECRET_ANSWER_MASK` in its place. */
+export function isSecretAnswerText(text: string): boolean {
+  return text.startsWith(SECRET_ANSWER_PREFIX)
+}
+
+/** What every card draws for a sent secret: the masked field the human typed into, and nothing about
+ *  where the value went (maintainer 2026-10-09: the path note on the card was "useless" commentary). */
+export const SECRET_ANSWER_MASK = "••••••••••••"
 
 /** How long a secret waits to be read before the server drops it (`secret-files.ts`). Here rather than
  *  beside the server, because the stored answer text names it to the worker. */
@@ -3627,6 +3641,22 @@ export const ANSWER_FOLLOW_UP_MARKER = "⤷"
 export const ANSWER_CONTINUATION_INDENT = "  "
 export const indentAnswerContinuation = (text: string): string => text.replace(/\n/g, `\n${ANSWER_CONTINUATION_INDENT}`)
 
+/** ONE PICKED OPTION PER LINE, as a checked task-list item, when an answer carries several picks or a
+ *  pick and a note. They were joined onto one line until 2026-10-08 (`A, B, C — note`), which the
+ *  Answers card could only print as a run-on paragraph — five long labels and the human's note fused
+ *  into one wall of text, with nothing saying where a label ended (maintainer: "the answers block to a
+ *  multiple selection question look like shit"). A comma cannot be split back out, since a label can
+ *  hold one. The `- [x] ` line can: the card draws each as its own checked chip and the note below
+ *  them (the web's `splitAnswerPicks`), and the worker reads a checked list as plainly as it read the
+ *  commas. A lone pick with no note stays a bare label — a single-select's answer is exactly that. */
+export const ANSWER_PICK_PREFIX = "- [x] "
+export function answerPicksText(chosen: readonly string[], text: string | undefined): string {
+  const note = text?.trim() ?? ""
+  if (chosen.length === 0) return note
+  if (chosen.length === 1 && !note) return chosen[0]
+  return [chosen.map((label) => `${ANSWER_PICK_PREFIX}${label}`).join("\n"), note].filter(Boolean).join("\n\n")
+}
+
 /** What a DISMISSED question carries in place of an answer. One row like any other (see below), so it
  *  cannot be swallowed into the answer above it, and it tells the worker what to do with it. It is the
  *  WORKER's row only: the human's Answers card leaves it out (the web's `answersForDisplay`), because
@@ -3675,7 +3705,7 @@ export function questionAnswerMessage(answers: readonly QuestionAnswer[], dismis
   if (answers.length === 0) return questionsCancelledWakeMessage(dismissed.length)
   const rows: string[] = []
   const push = (a: QuestionAnswer, followUp: boolean): void => {
-    const said = [a.chosen.join(", "), a.text].filter(Boolean).join(" — ")
+    const said = answerPicksText(a.chosen, a.text)
     const shown = said || (a.skipped ? SKIPPED_ANSWER : "(no answer)")
     rows.push(`${followUp ? `${ANSWER_FOLLOW_UP_MARKER} ` : ""}“${a.question}” → ${indentAnswerContinuation(a.changed ? `${CHANGED_ANSWER} ${shown}` : shown)}`)
     for (const child of a.followUps ?? []) push(child, true)
@@ -3699,16 +3729,46 @@ export function questionAnswerMessage(answers: readonly QuestionAnswer[], dismis
  *  own voice and never merges into the human's. */
 export function mergeAnswerMessages(parts: readonly string[]): string | undefined {
   const lines: string[] = []
+  const notes: string[] = []
   let rows = 0
   for (const part of parts) {
-    const [header, ...body] = stripWakeTimeHeader(part).trim().split("\n")
+    // A note sent beside the answers (withAnswersNote) ends that part's rows, so it is lifted out and
+    // every part's note goes under ONE note header after all the rows — left in place, it would sit
+    // between two parts' rows and the next part's rows would read as the note.
+    const { answers, note } = splitAnswersNote(stripWakeTimeHeader(part).trim())
+    if (note) notes.push(note)
+    const [header, ...body] = answers.split("\n")
     if (header !== BURIED_ANSWERS_HEADER) return undefined
     for (const line of body) {
       const row = /^\d+\. /.exec(line)
       lines.push(row ? `${++rows}. ${line.slice(row[0].length)}` : line)
     }
   }
-  return rows === 0 ? undefined : `${BURIED_ANSWERS_HEADER}\n${lines.join("\n")}`
+  return rows === 0 ? undefined : withAnswersNote(`${BURIED_ANSWERS_HEADER}\n${lines.join("\n")}`, notes.join("\n\n"))
+}
+
+/** WHAT THE HUMAN TYPED BESIDE THEIR ANSWERS, in the same message. The prompt box's Send carries the
+ *  staged answers and whatever is in the box as ONE turn (maintainer 2026-10-11: "It's very annoying to
+ *  me that I can't send my answers and submit an additional steer at the same time, so we need to unify
+ *  them"), and the answer wire has no place for free prose: its parsers fold any line after a row into
+ *  that row's answer, so a note appended bare would render inside the last question's chip. This header
+ *  on its own UNINDENTED line ends the rows — an answer's own continuation lines are indented
+ *  (ANSWER_CONTINUATION_INDENT), so a typed answer can never forge it — and everything below it is the
+ *  note, verbatim. One writer and one splitter, here, for the same reason BURIED_ANSWERS_HEADER is here:
+ *  the browser composes the fenced form, the server the registered form, and the chat reads both. */
+export const ANSWERS_NOTE_HEADER = "Sent with these answers:"
+export function withAnswersNote(answersWire: string, note: string): string {
+  const trimmed = note.trim()
+  if (!answersWire) return trimmed
+  return trimmed ? `${answersWire}\n\n${ANSWERS_NOTE_HEADER}\n${trimmed}` : answersWire
+}
+/** Split a user message into its answers wire and the note sent with it. A message with no note header
+ *  comes back whole, as `answers`, whatever it is — the caller's own parser decides if it is one. */
+export function splitAnswersNote(text: string): { answers: string; note: string } {
+  const marker = `\n${ANSWERS_NOTE_HEADER}\n`
+  const at = text.indexOf(marker)
+  if (at < 0) return { answers: text, note: "" }
+  return { answers: text.slice(0, at).trimEnd(), note: text.slice(at + marker.length).trim() }
 }
 
 /** THE ONE WAKE ON THIS PATH FRIZZ WRITES IN ITS OWN VOICE, so it is the one the chat draws as a
@@ -5262,7 +5322,19 @@ export const FollowUpInput = z.object({
   // Binds the call to the session the tab is looking at, so a stale page cannot deliver a follow-up
   // into a thread that has since been re-dispatched (merged from origin/main, 2026-07-21).
   sessionId: z.string().min(1),
-  message: z.string().min(1),
+  // EMPTY only when `answers` ride: the staged answers alone are a message. The server refuses a send
+  // that carries neither.
+  message: z.string(),
+  // REGISTERED-QUESTION ANSWERS SENT WITH THIS MESSAGE — the prompt box's one Send. The server settles
+  // each question exactly as `answerQuestions` does, then delivers ONE turn: the answers in their wire
+  // form (questionAnswerMessage) and `message` under them as the note (withAnswersNote). They ride the
+  // follow-up rather than the scheduler's answer wake so the pair arrives together, in the order the
+  // human wrote it, and as fast as a steer does.
+  answers: z.array(QuestionAnswerSchema).optional(),
+  // SEND TO THE QUEUE: while the agent is mid-turn, Frizz keeps this message and delivers it when the
+  // thread comes to rest, so it opens the next turn instead of steering this one. At rest it is an
+  // ordinary send — there is nothing to wait for. See `held` in the server's delivery-ledger.ts.
+  hold: z.boolean().optional(),
   // Generated once before the optimistic clear so a transport replay can be idempotent.
   deliveryId: z.string().min(1).max(200).optional(),
   // Retire the worker's live process before delivering, so this message lands in a `claude` that has
@@ -5337,6 +5409,10 @@ export const DeliverQueuedNowInput = z.object({
   slug: ThreadSlug,
   // Same staleness guard as unqueueFollowUp: a stale tab must not preempt a re-dispatched session.
   sessionId: z.string().min(1),
+  // Hand over what Frizz is HOLDING for the agent's rest ("Send to queue") and stop there — no
+  // interrupt. The "Send now" under a held bubble: the operator changed their mind about waiting, not
+  // about interrupting, so the message goes in as the steer it would have been.
+  releaseOnly: z.boolean().optional(),
 }).strict()
 export type DeliverQueuedNowInput = z.infer<typeof DeliverQueuedNowInput>
 // `interrupted:false` is an expected outcome, NOT an error: there was no live turn to preempt (the
@@ -5346,6 +5422,10 @@ export type DeliverQueuedNowInput = z.infer<typeof DeliverQueuedNowInput>
 export const DeliverQueuedNowResult = z.object({
   interrupted: z.boolean(),
   reason: z.string().optional(),
+  // How many messages Frizz was HOLDING for the agent's rest ("Send to queue") and has now handed over.
+  // Those were never in a provider queue, so on a runtime that cannot be interrupted this is the whole
+  // of what "send now" did — and it is a success the surface must not report as a refusal.
+  released: z.number().int().nonnegative().optional(),
 }).strict()
 export type DeliverQueuedNowResult = z.infer<typeof DeliverQueuedNowResult>
 
@@ -6341,40 +6421,52 @@ export function parseAgentMessage(text: string): { from: string; body: string } 
   return { from, body }
 }
 
-// ---- A message from ANOTHER top-level Claude session (Claude Code 2.1.280+) ---------------------------
-// `SendMessage` now crosses SESSIONS: any worker can `ListAgents` and message another local session by
-// the name Claude Code gave it, and the receiver's queue gets the text wrapped as
+// ---- A MESSAGE FROM ANOTHER CLAUDE SESSION (a peer thread, not a sub-agent) ----------------------
+// What one top-level session's `SendMessage({to:"frizz-75"})` delivers into ANOTHER session — a
+// coordinator thread steering a thread it spawned, say. Claude Code writes it in two places, and both
+// carry the same wrapper:
 //
-//   <cross-session-message from="uds:/run/user/1000/cc-socks/209858.sock" from-name="standard-schema-7c" from-mode="bypass">
-//   Are you still editing packages/spec/tool.md? …
+//   • the queue enqueue, the `queued_command` attachment and the removal: the bare wrapper;
+//   • the delivery record of an idle session: the wrapper behind a fixed preamble and in front of a
+//     paragraph of handling guidance addressed to the receiving agent.
+//
+//   <cross-session-message from="uds:/tmp/cc-socks/2908.sock" from-name="frizz-11" from-mode="bypass">
+//   …the body…
 //   </cross-session-message>
 //
-// It is enqueued and delivered exactly like a human follow-up (mid-turn as a `queued_command` attachment
-// with `origin.kind:"peer"`, at rest as an isMeta record under the "Another Claude session sent a
-// message:" preamble), so a transcript that does not recognize the wrapper renders another agent's words
-// in the operator's own bubble with the XML showing (reported 2026-09-28: "as a user I shouldn't see
-// this, especially as one of my messages"). The SUB-AGENT wrapper above is a different channel with a
-// different reader, so this is its own parser rather than a second arm of that one.
-//
-// `from` is the reply ADDRESS (a socket path on this machine); `from-name` is the name the sender is
-// listed under and the one peers address it by, so it is what a reader is shown. Attributes are read
-// by name, in any order, so an added one does not stop the parse. Anchored and required to close, for
-// the reason the sub-agent wrapper is: prose that QUOTES one is left alone.
-const CROSS_SESSION_MESSAGE_WRAPPER = /^<cross-session-message((?:\s+[\w-]+="[^"]*")*)\s*>\n?([\s\S]*?)\n?<\/cross-session-message>\s*$/
-const WRAPPER_ATTRIBUTE = /([\w-]+)="([^"]*)"/g
+// Left alone it renders as the operator's own bubble with the XML showing. `from` is the sender's
+// messaging socket, `from-name` its Claude Code session name (`<cwd basename>-<2 hex>`, which is not a
+// Frizz thread name and is not unique). The server turns the socket into the sending THREAD (see
+// session-peer.ts); this parser only takes the wrapper apart. Anchored at both ends, so prose that quotes
+// a wrapper stays prose.
+const CROSS_SESSION_PREAMBLE = /^Another Claude session sent a message(?: while you were working)?:\n/
+const CROSS_SESSION_WRAPPER = /^<cross-session-message\b([^>]*)>\n?([\s\S]*?)\n?<\/cross-session-message>/
+const CROSS_SESSION_GUIDANCE = "This came from another Claude session"
+const XML_ATTRIBUTE = /([a-z][a-z-]*)="([^"]*)"/g
 
-export function parseCrossSessionMessage(text: string): { from: string; name?: string; body: string } | undefined {
-  const m = CROSS_SESSION_MESSAGE_WRAPPER.exec(text.trim())
+function decodeXmlAttribute(value: string): string {
+  return value.replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
+}
+
+export function parseCrossSessionMessage(text: string): { name?: string; socket?: string; body: string } | undefined {
+  let rest = text.trim()
+  const preamble = CROSS_SESSION_PREAMBLE.exec(rest)
+  if (preamble) rest = rest.slice(preamble[0].length)
+  const m = CROSS_SESSION_WRAPPER.exec(rest)
   if (!m) return undefined
-  const attrs = new Map<string, string>()
-  for (const [, key, value] of m[1].matchAll(WRAPPER_ATTRIBUTE)) attrs.set(key, value.trim())
-  const from = attrs.get("from") ?? ""
-  const name = attrs.get("from-name") || undefined
-  const body = m[2]
-  // Same rule as the sub-agent wrapper: no body or no sender is nothing to attribute, and a line naming
-  // nobody would be worse than the ordinary path.
-  if (!body.trim() || !(from || name)) return undefined
-  return { from, ...(name ? { name } : {}), body }
+  // After the wrapper: nothing, or the delivery record's guidance paragraph — never more of the human's
+  // own words, which would mean this is prose that happens to open on a quoted wrapper.
+  const after = rest.slice(m[0].length).trim()
+  if (after && !after.startsWith(CROSS_SESSION_GUIDANCE)) return undefined
+  const attributes = new Map<string, string>()
+  for (const [, key, value] of m[1].matchAll(XML_ATTRIBUTE)) attributes.set(key, decodeXmlAttribute(value).trim())
+  const body = m[2].trim()
+  const name = attributes.get("from-name") || undefined
+  const socket = attributes.get("from") || undefined
+  // No body, or no sender at all, is nothing to attribute: a line naming nobody would be worse than the
+  // ordinary path.
+  if (!body || !(name || socket)) return undefined
+  return { ...(name ? { name } : {}), ...(socket ? { socket } : {}), body }
 }
 
 // ---- A message from ANOTHER FRIZZ THREAD (`mcp__frizz__message_thread`) ------------------------------
@@ -7024,7 +7116,6 @@ export * from "./drainable-worker.ts"
 export * from "./editor-protocol.ts"
 export * from "./file-position.ts"
 export * from "./embed-protocol.ts"
-export * from "./frizz-md.ts"
 export * from "./interactions.ts"
 export * from "./receipt-bus.ts"
 export * from "./relay-protocol.ts"
@@ -7297,7 +7388,8 @@ export const TranscriptMessage = z.object({
   // the server's from the instant it arrives. "failed": the transport threw, or never answered — the
   // text is kept until the operator retries, edits or dismisses it, and nothing retries it on its own.
   // Additive + optional: an older client renders both as a plain bubble (gray for "sending").
-  deliveryState: z.enum(["sending", "pending", "enqueued", "delivered", "unconfirmed", "failed"]).optional(),
+  // "held": the operator sent it TO THE QUEUE — Frizz has it and no transport does, until the agent rests.
+  deliveryState: z.enum(["sending", "pending", "enqueued", "delivered", "unconfirmed", "failed", "held"]).optional(),
   // Why a "failed" send failed, verbatim from the transport. Set only alongside deliveryState "failed".
   deliveryError: z.string().optional(),
   // FRIZZ wrote this user turn, not the human: it is a scheduler wake delivery (isWakeDelivery). The
@@ -7371,15 +7463,20 @@ export const TranscriptMessage = z.object({
   // pairing, and `projectTranscriptPeerNames` uses this id to ask it. Never a drawer key on its own —
   // that is `peerDispatchId`, which the same pass can also supply once this resolves.
   peerSenderTaskId: z.string().optional(),
-  // …and the tell that the peer is ANOTHER TOP-LEVEL SESSION rather than a child of this one: a
-  // `<cross-session-message>` (see parseCrossSessionMessage). `peerFrom` is then the sender's session
-  // name, which IS a name — `peerUnnamed` rides along only when the wrapper named no sender and left just
-  // its reply address, a socket path — and there is no drawer to drill into.
-  // It rides on `peerFrom` rather than beside it so every check that already keeps a peer's words out of
-  // the human's turns (the ask, the queue card's start, the retitle input) covers it with no change.
-  // Additive + optional: an older tab ignores it and draws its sub-agent line, which is still not the
-  // human's bubble.
-  peerSession: z.literal(true).optional(),
+  // ANOTHER TOP-LEVEL SESSION wrote this user turn — a thread messaging this one through Claude Code's
+  // cross-session channel (see parseCrossSessionMessage), most often the coordinator thread that spawned
+  // it. Not the human, and not a sub-agent either: the chat draws it as an expandable hairline naming
+  // the sending thread, with the body one click away. `displayText` carries the unwrapped body.
+  //
+  // `name` is the sender's Claude Code session name, the fallback label. `thread` is the Frizz thread
+  // behind it, filled in by the server from the sender's socket (session-peer.ts) — absent when the
+  // sender is not a Frizz thread or is gone without having been resolved, and then the line names the
+  // session without a link. `project` is the URL slug of the sender's project.
+  sessionPeer: z.object({
+    name: z.string().optional(),
+    socket: z.string().optional(),
+    thread: z.object({ project: z.string().optional(), slug: z.string(), title: z.string() }).optional(),
+  }).optional(),
   // FRIZZ REFUSED the ```awaiting fence this message ends in — it named something that is not running,
   // or named nothing at all, or used a retired line kind (see `isParkCorrection`). The fence is not a
   // park, so the chat draws nothing for it: an hourglass card with a park button asserts a wait that

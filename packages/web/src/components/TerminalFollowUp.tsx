@@ -3,7 +3,7 @@ import { ArrowUp, Loader2 } from "lucide-react"
 import { useThreadApi, useThreadProjectDir } from "../api/threadApi.tsx"
 import { showToast } from "../store.ts"
 import { draftKey, draftStore, useDraft } from "../lib/drafts.ts"
-import { RAIL_SEND_OFFSET } from "../lib/iconRhythm.ts"
+import { composerRail } from "../lib/iconRhythm.ts"
 
 // A FINISHED terminal's next line — the terminal's answer to an agent thread's follow-up prompt. Someone
 // who ran `whoami` wants `ls` next, in the same place and the same folder, not a second terminal. Enter
@@ -84,7 +84,10 @@ export function TerminalFollowUp({ id, lastCommand, autoFocus, onRan }: {
         disabled={!hasContent || pending}
         title="Run (Enter)"
         aria-label="Run command"
-        className={`icon-hover-outline absolute ${RAIL_SEND_OFFSET} flex h-6 w-6 items-center justify-center rounded-md transition-[color,background-color,opacity,scale] ${
+        // The prompt box's own Send position (lib/iconRhythm composerRail), so the run button sits where
+        // a thread's Send does.
+        style={{ right: composerRail({}).right.send }}
+        className={`icon-hover-outline absolute flex h-6 w-6 items-center justify-center rounded-md transition-[color,background-color,opacity,scale] ${
           hasContent && !pending ? "bg-fg text-bg hover:opacity-90 active:scale-95" : "bg-panel-2 text-muted"
         }`}
       >

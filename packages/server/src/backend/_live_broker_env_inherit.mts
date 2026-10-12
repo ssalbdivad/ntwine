@@ -32,7 +32,10 @@ process.env.LIVE_PROBE_TOOLCHAIN = INHERITED_VALUE       // an ordinary operator
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const repo = mkdtempSync(join(tmpdir(), "brk-envinherit-repo-"))
 execFileSync("git", ["init", "-q", repo]); execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"])
-const project = resolveProject(repo)
+// A throwaway home for Frizz's own state. resolveProject REGISTERS the directory it resolves, and
+// under the real home that is the operator's project list: every run left a dead card on their rail.
+const frizzHome = mkdtempSync(join(tmpdir(), "brk-envinherit-home-"))
+const project = resolveProject(repo, frizzHome)
 const reportFile = join(repo, "env.txt")
 
 let failures = 0
@@ -66,7 +69,7 @@ try {
 } finally {
   try { if (daemonPid) process.kill(daemonPid, "SIGKILL") } catch {}
   rmSync(repo, { recursive: true, force: true })
-  try { rmSync(project.stateDir, { recursive: true, force: true }) } catch {}
+  try { rmSync(frizzHome, { recursive: true, force: true }) } catch {}
   try { rmSync(join(process.env.HOME ?? "", ".claude", "projects", project.cwdSlug), { recursive: true, force: true }) } catch {}
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`)
   process.exit(failures === 0 ? 0 : 1)

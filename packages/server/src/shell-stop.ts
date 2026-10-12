@@ -127,6 +127,8 @@ export async function noticeClaudeShellStopped(deps: ShellStopDeps, slug: string
       permissionMode: coldResumePermission(row, deps.getSettings()),
       model: row.model ?? undefined,
       effort: row.effort ?? undefined,
+      // Frizz's own notice, not the operator's reply to anything: an open card stays open.
+      keepOpenCards: true,
     })
     return null
   } catch (error) {

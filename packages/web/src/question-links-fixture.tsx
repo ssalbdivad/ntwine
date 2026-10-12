@@ -106,7 +106,7 @@ const CODE_QUESTION: ParsedQuestion = {
   contextMd: "Which command should the worker run?",
   options: ["A. Rebuild", "B. Leave it"],
   optionBodies: ["```sh\nnub run build && nub run test\n```", undefined],
-  recommendedIdx: 0,
+  recommendedIdxs: [0],
 }
 
 function CodeOption() {

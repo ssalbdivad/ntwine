@@ -277,6 +277,53 @@ test("a colourless glyph is still better than nothing when it is all there is", 
   assert.equal(picked(root), join("public", "icon.svg"))
 })
 
+test("a brand kit's square cut beats the small touch icon the app ships (pullfrog)", (t) => {
+  // Measured wrong: Pullfrog keeps its logo in `public/logos/`, which was never searched, under names
+  // nothing recognised — so the rail wore `app/apple-icon.png`, a 180px disc inside a square tile,
+  // while a 600px square of the same frog sat unread. The sizes and names are the real ones.
+  const root = project(t, "app", {
+    "app/favicon.ico": png(48, 48),
+    "app/apple-icon.png": png(180, 180),
+    "public/favicon.ico": png(48, 48),
+    "public/favicon-96x96.png": png(96, 96),
+    "public/logos/frog-green-square.png": png(600, 600),
+    "public/logos/frog-white-square.png": png(600, 600),
+    "public/logos/frog-green-square-border.png": png(600, 600),
+    "public/logos/frog-green-circle.png": png(600, 600),
+    "public/logos/green-wordmark.png": png(937, 219),
+  })
+  const candidates = projectIconCandidates(root).map((candidate) => relative(root, candidate.path))
+  // The brand colour ahead of its white rendition, and neither the circle nor the bordered square
+  // offered at all: the kit vouches for a file only where its name says which cut it is.
+  assert.deepEqual(candidates.slice(0, 3), [
+    join("public", "logos", "frog-green-square.png"),
+    join("public", "logos", "frog-white-square.png"),
+    join("app", "apple-icon.png"),
+  ])
+  assert.ok(!candidates.some((path) => /circle|border|wordmark/u.test(path)))
+  assert.equal(detectProjectIcon(root)?.reason, "600×600, the square logo, in public/logos")
+})
+
+test("-square outside a brand kit is a crop, not a logo", (t) => {
+  // The directory is half the evidence. `public/` holds any image a site serves, and plenty of them
+  // are cut square.
+  const root = project(t, "app", { "public/team-square.png": png(600, 600) })
+  assert.equal(picked(root), undefined)
+})
+
+test("a name that already vouches for itself keeps its meaning when it says square", (t) => {
+  // `logo-square` used to read as a QUALIFIED logo — the rule for `zod-logo`, somebody else's — and
+  // lost to the favicon's 96px sibling.
+  const root = project(t, "app", {
+    "public/favicon.ico": png(48, 48),
+    "public/favicon-96x96.png": png(96, 96),
+    "assets/logo-square.png": png(96, 96),
+    "assets/logo-square-dark.png": png(96, 96),
+  })
+  assert.equal(picked(root), join("assets", "logo-square.png"))
+  assert.match(detectProjectIcon(root)?.reason ?? "", /the project logo/u)
+})
+
 test("a raster is never penalised for colour, because we cannot read it from the header", (t) => {
   const root = project(t, "app", { "public/icon.png": png(512, 512), "public/logo.svg": svg(24) })
   // Both are legitimate; the SVG wins on format as it always did, and the PNG is not demoted.

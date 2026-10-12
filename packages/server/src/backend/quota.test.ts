@@ -351,12 +351,16 @@ async function withCache(run: (cacheDir: string) => Promise<void>) {
   }
 }
 
-// Pins a test to the CLI fallback path (no credential → the endpoint is never attempted).
-const noToken = async () => undefined
+const signedIn = async () => "tok-live"
+// Neither the credentials file nor the Keychain holds a token.
+const signedOut = async () => undefined
 
 function usageResponse(status: number, body?: unknown): typeof fetch {
   return (async () => new Response(body === undefined ? "" : JSON.stringify(body), { status })) as unknown as typeof fetch
 }
+
+const fiveHour = (percent: number) => ({ plan_type: "max", five_hour: { utilization: percent, reset_at: "2026-07-23T22:00:00Z" } })
+const unreachable = (async () => { throw new TypeError("fetch failed") }) as unknown as typeof fetch
 
 const endpointBody = {
   plan_type: "max",
@@ -379,21 +383,115 @@ test("claude quota: the OAuth endpoint is the primary source — the CLI is neve
   assert.equal(cliCalls, 0)
 }))
 
-test("claude quota: a rejected token (401) falls back to the CLI, which owns refresh", () => withCache(async (cacheDir) => {
+test("claude quota: a rejected token (401) starts Claude Code once, which owns refresh, and the endpoint accepting the token ends its backoff", () => withCache(async (cacheDir) => {
   let cliCalls = 0
-  const q = await readClaudeQuota("claude-test", {
-    cacheDir,
-    now: () => 0,
-    readToken: async () => "tok-expired",
-    fetchImpl: usageResponse(401),
-    execUsage: async () => { cliCalls++; return usageEnvelope },
-  })
+  let status = 401
+  const fetchImpl = (async () => new Response(status === 200 ? JSON.stringify(fiveHour(30)) : "", { status })) as unknown as typeof fetch
+  const deps = { cacheDir, readToken: async () => "tok-expired", fetchImpl, execUsage: async () => { cliCalls++; return usageEnvelope } }
+  const q = await readClaudeQuota("claude-test", { ...deps, now: () => 0 })
   assert.equal(q.status, "ok")
+  assert.equal(q.windows[0]?.usedPercent, 20)
+  assert.equal(cliCalls, 1)
+
+  // Claude Code rotated the token, so the next refresh is the endpoint's and the CLI stays down.
+  status = 200
+  const refreshed = await readClaudeQuota("claude-test", { ...deps, now: () => 3 * 60_000 }, { force: true })
+  assert.equal(refreshed.windows[0]?.usedPercent, 30)
+  assert.equal(cliCalls, 1)
+
+  // That success cleared the backoff: the NEXT expiry, minutes inside what would have been the first
+  // window, is refreshed at once rather than waiting out a deadline a working token already answered.
+  status = 401
+  await readClaudeQuota("claude-test", { ...deps, now: () => 6 * 60_000 }, { force: true })
+  assert.equal(cliCalls, 2)
+}))
+
+test("claude quota: a credential Claude Code cannot refresh costs one start per backoff window, and the window doubles", () => withCache(async (cacheDir) => {
+  let cliCalls = 0
+  const deps = {
+    cacheDir,
+    readToken: async () => "tok-revoked",
+    fetchImpl: usageResponse(401),
+    execUsage: async () => { cliCalls++; throw new Error("Not logged in · Please run /login") },
+  }
+  const MIN = 60_000
+  const recheck = async (at: number) => (await readClaudeQuota("claude-test", { ...deps, now: () => at }, { force: true })).status
+  const heartbeat = async (at: number) => {
+    await refreshClaudeQuotaInBackground("claude-test", { ...deps, now: () => at })
+    await claudeQuotaRefreshSettled()
+  }
+
+  assert.equal(await recheck(0), "unavailable")
+  assert.equal(cliCalls, 1)
+  // Inside the first 15m nothing starts it again — not a forced recheck, a plain read or the heartbeat —
+  // and the "unavailable" each of those writes over the reading does not erase the deadline.
+  await recheck(11_000)
+  await readClaudeQuota("claude-test", { ...deps, now: () => 30_000 })
+  await heartbeat(60_000)
+  await recheck(15 * MIN - 1)
+  assert.equal(cliCalls, 1)
+
+  await recheck(15 * MIN)
+  assert.equal(cliCalls, 2)
+  await recheck(45 * MIN - 1)
+  assert.equal(cliCalls, 2)
+  // The heartbeat's start is recorded like any other: 45m + the third window, 1h.
+  await heartbeat(45 * MIN)
+  assert.equal(cliCalls, 3)
+  await recheck(105 * MIN - 1)
+  await heartbeat(105 * MIN - 1)
+  assert.equal(cliCalls, 3)
+  await recheck(105 * MIN)
+  assert.equal(cliCalls, 4)
+}))
+
+test("claude quota: a failed Claude Code refresh keeps the last good reading and still records its start", () => withCache(async (cacheDir) => {
+  await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 0, fetchImpl: usageResponse(200, fiveHour(20)) })
+  let cliCalls = 0
+  const deps = { cacheDir, readToken: signedIn, fetchImpl: usageResponse(403), execUsage: async () => { cliCalls++; throw new Error("CLI failed") } }
+  const stale = await readClaudeQuota("claude-test", { ...deps, now: () => 3 * 60_000 }, { force: true })
+  assert.equal(stale.windows[0]?.usedPercent, 20)
+  assert.equal(stale.detail, "Could not refresh · last updated 3m ago")
+  const again = await readClaudeQuota("claude-test", { ...deps, now: () => 4 * 60_000 }, { force: true })
+  assert.equal(again.detail, "Could not refresh · last updated 4m ago")
   assert.equal(cliCalls, 1)
 }))
 
+// The REAL exec path against a counting stand-in for the `claude` binary: `execUsage` is never
+// injected, so a start here is a process the production reader would have started. Until 2026-10-11
+// the first three blocks each started one per attempt — six a minute on a signed-out machine.
+test("claude quota: Claude Code is never started for a machine that is signed out, offline, or facing a failing endpoint", { skip: process.platform === "win32" }, () => withCache(async (cacheDir) => {
+  const starts = join(cacheDir, "starts.log")
+  const claude = join(cacheDir, "claude")
+  await writeFile(claude, `#!/bin/sh\necho "$@" >> '${starts}'\necho 'Not logged in · Please run /login'\nexit 1\n`)
+  await chmod(claude, 0o755)
+  const started = async () => (await readFile(starts, "utf8").catch(() => "")).split("\n").filter(Boolean)
+  let clock = 0
+  // One attempt of each kind production makes: the server heartbeat, the chip's poll, the popover's recheck.
+  const everyCaller = async (deps: { readToken: () => Promise<string | undefined>; fetchImpl: typeof fetch }, cache: string) => {
+    for (let i = 0; i < 4; i++) {
+      const at = { cacheDir: join(cacheDir, cache), ...deps, now: () => clock }
+      await refreshClaudeQuotaInBackground(claude, at)
+      await claudeQuotaRefreshSettled()
+      assert.equal((await readClaudeQuota(claude, at)).status, "unavailable")
+      assert.equal((await readClaudeQuota(claude, at, { force: true })).status, "unavailable")
+      clock += 15_000
+    }
+  }
+
+  await everyCaller({ readToken: signedOut, fetchImpl: unreachable }, "signed-out")
+  await everyCaller({ readToken: signedIn, fetchImpl: unreachable }, "offline")
+  await everyCaller({ readToken: signedIn, fetchImpl: usageResponse(500) }, "endpoint-down")
+  assert.deepEqual(await started(), [])
+
+  // The control: the same twelve attempts against a REJECTED token do reach the stand-in, once — so
+  // the empty log above is the reader declining to start it, not a stand-in nothing could reach.
+  await everyCaller({ readToken: signedIn, fetchImpl: usageResponse(401) }, "rejected")
+  assert.deepEqual(await started(), ["-p /usage --safe-mode --output-format json --no-session-persistence --tools "])
+}))
+
 test("claude quota: a 429 backs off — no CLI hammering, last good reading served", () => withCache(async (cacheDir) => {
-  await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 0, execUsage: async () => usageEnvelope })
+  await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 0, fetchImpl: usageResponse(200, fiveHour(20)) })
   let cliCalls = 0
   // The heartbeat's refresh meets the 429: it spends no CLI process and keeps the reading.
   await refreshClaudeQuotaInBackground("claude-test", {
@@ -411,7 +509,7 @@ test("claude quota: a 429 backs off — no CLI hammering, last good reading serv
 }))
 
 test("claude quota: a manual recheck during a 429 reads through the CLI and keeps the endpoint's deadline", () => withCache(async (cacheDir) => {
-  await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 0, execUsage: async () => usageEnvelope })
+  await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 0, fetchImpl: usageResponse(200, fiveHour(20)) })
   let fetches = 0
   let cliCalls = 0
   const deps = {
@@ -445,7 +543,7 @@ test("claude quota: a 429's retry-after is honored by every caller until it pass
   }) as unknown as typeof fetch
   // The CLI fails too, so a manual recheck inside the window can only serve the labeled cached reading.
   const deps = { cacheDir, readToken: async () => "tok-live", fetchImpl, execUsage: async () => { throw new Error("CLI unavailable") } }
-  await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 0, execUsage: async () => usageEnvelope })
+  await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 0, fetchImpl: usageResponse(200, fiveHour(20)) })
 
   // The recheck that learns the deadline: 3m in, the endpoint answers 429 + retry-after 139s.
   const refused = await readClaudeQuota("claude-test", { ...deps, now: () => 3 * 60_000 }, { force: true })
@@ -484,15 +582,16 @@ test("claude quota: the heartbeat leaves a reading inside its TTL alone", () => 
 
 test("claude quota: healthy result is shared, while force performs a real recheck", () => withCache(async (cacheDir) => {
   let calls = 0
-  const execUsage = async () => {
+  const fetchImpl = (async () => {
     calls++
-    return usageEnvelope
-  }
-  assert.equal((await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 0, execUsage })).status, "ok")
-  // A second read comfortably within the 60s healthy TTL is served from the shared cache, no new call.
-  assert.equal((await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 30_000, execUsage })).status, "ok")
+    return new Response(JSON.stringify(fiveHour(20)), { status: 200 })
+  }) as unknown as typeof fetch
+  const deps = { cacheDir, readToken: signedIn, fetchImpl }
+  assert.equal((await readClaudeQuota("claude-test", { ...deps, now: () => 0 })).status, "ok")
+  // A second read comfortably within the 2m healthy TTL is served from the shared cache, no new call.
+  assert.equal((await readClaudeQuota("claude-test", { ...deps, now: () => 30_000 })).status, "ok")
   assert.equal(calls, 1)
-  await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 30_001, execUsage }, { force: true })
+  await readClaudeQuota("claude-test", { ...deps, now: () => 30_001 }, { force: true })
   assert.equal(calls, 2)
 }))
 
@@ -520,17 +619,18 @@ test("claude quota: the proactive heartbeat warms the shared cache off the endpo
   assert.equal(cliCalls, 0)
 }))
 
-test("claude quota: concurrent project windows collapse onto one Claude Code invocation", () => withCache(async (cacheDir) => {
+test("claude quota: concurrent project windows collapse onto one usage request", () => withCache(async (cacheDir) => {
   let calls = 0
-  const execUsage = async () => {
+  const fetchImpl = (async () => {
     calls++
     await new Promise((resolve) => setTimeout(resolve, 100))
-    return usageEnvelope
-  }
+    return new Response(JSON.stringify(fiveHour(20)), { status: 200 })
+  }) as unknown as typeof fetch
+  const deps = { cacheDir, readToken: signedIn, now: () => 1_000, fetchImpl }
   const results = await Promise.all([
-    readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 1_000, execUsage }),
-    readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 1_000, execUsage }),
-    readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 1_000, execUsage }),
+    readClaudeQuota("claude-test", deps),
+    readClaudeQuota("claude-test", deps),
+    readClaudeQuota("claude-test", deps),
   ])
   assert.equal(calls, 1)
   assert.ok(results.every((result) => result.status === "ok"))
@@ -538,41 +638,39 @@ test("claude quota: concurrent project windows collapse onto one Claude Code inv
 
 test("claude quota: an expired reading is served instantly while a background refresh updates the cache", () => withCache(async (cacheDir) => {
   let calls = 0
-  const execUsage = async () => {
+  const fetchImpl = (async () => {
     calls++
-    return JSON.stringify({ type: "result", subtype: "success", result: `Current session: ${calls === 1 ? 20 : 55}% used · resets 4pm` })
-  }
-  await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 0, execUsage })
+    return new Response(JSON.stringify(fiveHour(calls === 1 ? 20 : 55)), { status: 200 })
+  }) as unknown as typeof fetch
+  const deps = { cacheDir, readToken: signedIn, fetchImpl }
+  await readClaudeQuota("claude-test", { ...deps, now: () => 0 })
   assert.equal(calls, 1)
-  // TTL expired: the poll gets the stale-but-recent reading back immediately (no CLI wait on the
-  // request path) and the refresh happens behind it.
-  const swr = await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 4 * 60_000, execUsage })
+  // TTL expired: the poll gets the stale-but-recent reading back immediately (no wait for the
+  // endpoint on the request path) and the refresh happens behind it.
+  const swr = await readClaudeQuota("claude-test", { ...deps, now: () => 4 * 60_000 })
   assert.equal(swr.status, "ok")
   assert.equal(swr.windows[0]?.usedPercent, 20)
   assert.equal(swr.detail, undefined)
   await claudeQuotaRefreshSettled()
   assert.equal(calls, 2)
-  const after = await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 4 * 60_000 + 1, execUsage })
+  const after = await readClaudeQuota("claude-test", { ...deps, now: () => 4 * 60_000 + 1 })
   assert.equal(after.windows[0]?.usedPercent, 55)
   assert.equal(calls, 2)
 }))
 
 test("claude quota: a meaningfully old reading served via stale-while-revalidate says so", () => withCache(async (cacheDir) => {
-  await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 0, execUsage: async () => usageEnvelope })
-  const swr = await readClaudeQuota(
-    "claude-test",
-    { cacheDir, readToken: noToken, now: () => 15 * 60_000, execUsage: async () => { throw new Error("CLI down") } },
-  )
+  await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 0, fetchImpl: usageResponse(200, fiveHour(20)) })
+  const swr = await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 15 * 60_000, fetchImpl: unreachable })
   assert.equal(swr.status, "ok")
   assert.equal(swr.detail, "Refreshing · last updated 15m ago")
   await claudeQuotaRefreshSettled()
 }))
 
 test("claude quota: a failed refresh retains the last good reading with an honest stale label", () => withCache(async (cacheDir) => {
-  await readClaudeQuota("claude-test", { cacheDir, readToken: noToken, now: () => 0, execUsage: async () => usageEnvelope })
+  await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 0, fetchImpl: usageResponse(200, fiveHour(20)) })
   const stale = await readClaudeQuota(
     "claude-test",
-    { cacheDir, readToken: noToken, now: () => 4 * 60_000, execUsage: async () => { throw new Error("CLI failed") } },
+    { cacheDir, readToken: signedIn, now: () => 4 * 60_000, fetchImpl: unreachable, execUsage: async () => { throw new Error("CLI must not run") } },
     { force: true },
   )
   assert.equal(stale.status, "ok")

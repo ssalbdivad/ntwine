@@ -3,6 +3,7 @@ import { BURIED_ANSWERS_HEADER, indentAnswerContinuation } from "@frizz/shared"
 import { type ChatMessage } from "../hooks.ts"
 import { draftKey, draftStore, useDraftValues, useProjectDir, useThreadSessionId } from "./drafts.ts"
 import { useEagerFollowUp, type EagerFollowUpCallbacks } from "./eagerComposerSubmission.ts"
+import type { ComposerSendHandle, FencedTake } from "./sendScope.tsx"
 import {
   splitQuestionBlocks,
   parseQuestionBlock,
@@ -31,6 +32,11 @@ export interface LiveAnswering {
   // deliberately answers one message at a time so its state never bleeds into another open ask.
   sendAnswers: (scopeIdentity?: string) => void
   sendMessage: (text: string, callbacks?: EagerFollowUpCallbacks) => void // freeform eager reply (same path as an answer)
+  // THE PROMPT BOX'S HALF OF THE ONE SEND (lib/sendScope): how many blocks carry an answer — which
+  // turns its button white with the box still empty — and the answers themselves, composed, with the
+  // two edges that clear them on send and put them back on a refusal. Null when nothing is staged.
+  stagedCount: number
+  takeAnswers: () => FencedTake | null
 }
 
 // One question-bearing assistant message that is still OPEN (unanswered) — its parsed blocks, its stable
@@ -185,7 +191,11 @@ export function useLiveAnswering(
   // only reaches its failure path once retries are exhausted or the error is provably non-replayable —
   // the same evidence it deletes the optimistic bubble on — so restoring the card here is exactly as
   // safe as removing that bubble. The thread page passes nothing; it has no card to reinstate.
-  opts: { scrollToBottom?: boolean; onSendFailed?: () => void } = {},
+  // `composer` is the surface's prompt box (lib/sendScope). While one is mounted, every "send these
+  // answers" gesture — Enter in a block's text box, the queue card's card-level Enter — is the prompt
+  // box's send, which carries EVERY staged answer and whatever is typed in the box as one turn. With
+  // none mounted (a phone thread page) `sendAnswers` sends on its own, scoped as it always was.
+  opts: { scrollToBottom?: boolean; onSendFailed?: () => void; composer?: ComposerSendHandle } = {},
 ): LiveAnswering {
   const followUp = useEagerFollowUp(slug)
   const [answers, setAnswers] = useState<Record<string, BlockAnswer>>({})
@@ -282,7 +292,8 @@ export function useLiveAnswering(
     [openByIdentity, keyFor],
   )
 
-  const anyAnswered = openAsks.some((a) => a.blocks.some((blk, i) => composeBlockAnswer(blk, answerFor(a.identity, i)) !== ""))
+  const stagedCount = openAsks.reduce((n, a) => n + a.blocks.filter((blk, i) => composeBlockAnswer(blk, answerFor(a.identity, i)) !== "").length, 0)
+  const anyAnswered = stagedCount > 0
 
   const scrollToBottom = opts.scrollToBottom !== false
   // ONE place both send verbs go through, so the exit and its reversal are wired once: `sendAnswers`
@@ -300,11 +311,9 @@ export function useLiveAnswering(
     },
     [followUp, scrollToBottom],
   )
-  const sendAnswers = useCallback((scopeIdentity?: string) => {
-    // `scopeIdentity` is a message identity when the thread's per-message Send button (or an Enter from
-    // one of its blocks) fires; guard `typeof` because the queue card wires its button as onClick={sendAnswers}
-    // and React would otherwise hand us a MouseEvent. Non-string → gather every open ask (queue path).
-    const scope = typeof scopeIdentity === "string" ? scopeIdentity : undefined
+  // The staged answers, composed, with the edges that clear them and put them back. `scope` narrows it
+  // to one message's blocks (the fallback per-message send); the prompt box takes everything.
+  const takeAnswers = useCallback((scope?: string): FencedTake | null => {
     const scopedAsks = scope ? openAsks.filter((a) => a.identity === scope) : openAsks
     // Only the scoped asks' draft keys are cleared/rolled back — a sibling open ask keeps its draft.
     const scopedKeys = scope ? scopedAsks.flatMap((a) => a.blocks.map((_, block) => keyFor(a.identity, block))) : textKeys
@@ -320,7 +329,7 @@ export function useLiveAnswering(
         .map((blk, bi) => ({ ask: a, bi, question: questionLabel(blk), answer: answerAt(a, bi) }))
         .filter((x) => x.answer !== ""),
     )
-    if (answered.length === 0) return
+    if (answered.length === 0) return null
 
     // The live ask's answered blocks, numbered by ORIGINAL block position (composeAnswerWire picks the
     // "Answers:" form when every answer is live, else a self-describing quoted form).
@@ -338,7 +347,8 @@ export function useLiveAnswering(
     const draftSnapshot = scopedKeys.map((key) => [key, draftStore.get(key)] as const)
     // Keep answers intact until the RPC actually lands. A rejected request must leave the visible
     // question draft available for retry rather than silently discarding the user's work.
-    sendMessage(composed, {
+    return {
+      wire: composed,
       onOptimistic: () => {
         scopedKeys.forEach((key) => draftStore.clear(key))
         // Drop only the scoped message's answer state; a sibling open ask's in-progress selections stay.
@@ -362,8 +372,19 @@ export function useLiveAnswering(
           if (value && !draftStore.get(key)) draftStore.set(key, value)
         })
       },
-    })
-  }, [answers, openAsks, answerFor, sendMessage, textKeys, keyFor])
+    }
+  }, [answers, openAsks, answerFor, textKeys, keyFor])
+  const takeAllAnswers = useCallback(() => takeAnswers(), [takeAnswers])
+  const composer = opts.composer
+  const sendAnswers = useCallback((scopeIdentity?: string) => {
+    // The surface's prompt box sends everything staged, with whatever is typed in it — see `composer`.
+    if (composer?.run()) return
+    // `scopeIdentity` is a message identity when the thread's per-message Send button (or an Enter from
+    // one of its blocks) fires; guard `typeof` because the queue card wires its button as onClick={sendAnswers}
+    // and React would otherwise hand us a MouseEvent. Non-string → gather every open ask (queue path).
+    const taken = takeAnswers(typeof scopeIdentity === "string" ? scopeIdentity : undefined)
+    if (taken) sendMessage(taken.wire, { onOptimistic: taken.onOptimistic, onRollback: taken.onRollback })
+  }, [composer, takeAnswers, sendMessage])
 
   const answeringForMessage = useCallback(
     (m: ChatMessage): MessageAnswering | undefined => {
@@ -385,7 +406,7 @@ export function useLiveAnswering(
     () => (liveMsg ? answeringForMessage(liveMsg) : undefined),
     [liveMsg, answeringForMessage],
   )
-  return { liveMsg, answering, answeringForMessage, answerable, anyAnswered, sending: followUp.pending, sendAnswers, sendMessage }
+  return { liveMsg, answering, answeringForMessage, answerable, anyAnswered, sending: followUp.pending, sendAnswers, sendMessage, stagedCount, takeAnswers: takeAllAnswers }
 }
 
 // The first non-empty line of a question's context prose, trimmed + length-capped — a compact label for

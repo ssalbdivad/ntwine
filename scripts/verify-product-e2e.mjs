@@ -10,8 +10,10 @@
  *
  * WHAT IT COSTS: a 30-day lease on the name. The seeded config is a relay claim, so the launch RENEWS
  * it with the owning key alone — no GitHub sign-in, nothing new consumed. The name must therefore be
- * held by that key already; a custom name nobody holds yet is claimed once through the R pane, which
- * asks for a GitHub device-flow sign-in this harness cannot answer.
+ * held by that key already. A renewal works while custom names are withdrawn (CUSTOM_NAMES_OFFERED in
+ * src/cloud.ts), because it never touches GitHub; a custom name nobody holds yet cannot be claimed at
+ * all until they return, and then only through the R pane's GitHub device-flow sign-in, which this
+ * harness cannot answer.
  *
  * Three things it has to do that a naive harness gets wrong, each of which cost a run:
  *
@@ -24,8 +26,9 @@
  *   writes, and it exercises the path every launch after the first one takes, which is the path that
  *   actually has to keep working.
  *
- *   A GIT REPOSITORY as the project. Frizz refuses a bare directory, which is why --sandbox mints a
- *   throwaway repo rather than a throwaway folder.
+ *   A GIT REPOSITORY as the launch directory, from when Frizz refused a bare one. Neither is adopted
+ *   any more — a launch from a folder that is not already a project lands on the dashboard, hosted
+ *   on Frizz's own folder — and nothing below asks which board is open.
  *
  *   THE OWNING IDENTITY, seeded into the sandbox home. A name belongs to the key that claimed it, so a
  *   fresh key is correctly refused with "that name is already taken" — verified below, because that

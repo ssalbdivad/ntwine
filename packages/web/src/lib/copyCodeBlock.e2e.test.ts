@@ -55,13 +55,19 @@ test("a fenced code block copies its own source, minus the renderer's trailing n
     // relationship is derived (`calc(var(--block-radius) - var(--md-copy-inset))`) and a plausible-looking
     // edit to a fixed radius, or to the inset alone, breaks it silently: the band between the two arcs
     // just pinches through the corner. Checked at BOTH prose scales, since the gap is in `em`.
+    //
+    // The block's rounded box is the `pre` on a plain fence and the WRAPPER on a titled or tabbed one
+    // (lib/codeTabs.ts — the fixture's `title=` fences are titled blocks), where header and code share
+    // one frame. The button must be concentric with whichever it is.
     const arcs = await page.evaluate(() => [...document.querySelectorAll(".md-code")].map((wrap) => {
-      const pre = wrap.querySelector("pre")!, btn = wrap.querySelector(".md-code-copy")!
+      const framed = wrap.classList.contains("md-code-tabs")
+      const frame = framed ? wrap : wrap.querySelector("pre")!, btn = wrap.querySelector(".md-code-copy")!
       const radius = (el: Element) => parseFloat(getComputedStyle(el).borderTopRightRadius)
-      const gap = pre.getBoundingClientRect().right - btn.getBoundingClientRect().right
+      const gap = frame.getBoundingClientRect().right - btn.getBoundingClientRect().right
       // Each arc's centre, measured in from the same edge.
-      return { outer: +radius(pre).toFixed(2), inner: +(gap + radius(btn)).toFixed(2) }
+      return { framed, outer: +radius(frame).toFixed(2), inner: +(gap + radius(btn)).toFixed(2) }
     }))
+    assert.ok(arcs.some((arc) => arc.framed) && arcs.some((arc) => !arc.framed), "the fixture should hold both a plain and a titled block")
     for (const { outer, inner } of arcs) assert.ok(Math.abs(outer - inner) < 0.05, `arc centres differ: ${outer} vs ${inner}`)
 
     // Quiet until hovered, so a transcript full of fences is not a wall of buttons.

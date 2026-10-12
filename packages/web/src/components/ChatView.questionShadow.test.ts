@@ -24,7 +24,9 @@ test("the map is built off the same messages and questions the anchors use, on b
 
 test("a folded fence leaves no Send button behind it", () => {
   // Message's own bottom button needs a block that actually rendered…
-  assert.match(chat, /else if \(showSendButton && answering && askBlocks\.length > 0\)/)
+  // (…and, since 2026-10-11, a surface with no prompt box to send them: where one is mounted its Send
+  // button carries every staged answer, and this one is not drawn — lib/sendScope.)
+  assert.match(chat, /else if \(showSendButton && answering && askBlocks\.length > 0 && !promptBoxSends\)/)
 })
 
 // ---- PER-QUESTION PLACEMENT (2026-09-11) ----

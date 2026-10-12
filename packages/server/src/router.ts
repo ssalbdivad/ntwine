@@ -20,6 +20,9 @@ import {
   childDeadlineMs,
   parseDeadlineInput,
   FollowUpInput,
+  questionAnswerMessage,
+  withAnswersNote,
+  type QuestionAnswer,
   UnqueueFollowUpInput,
   DismissFailedFollowUpInput,
   DismissFailedFollowUpResult,
@@ -200,7 +203,7 @@ import { appServerTurnStalled, registeredDoneFence, resolveLiveWatchTarget, reso
 import { runThreadUpdate } from "./frizz.ts"
 import { repairThreadFile } from "./repair.ts"
 import { reopenArchivedThreadForFollowUp, resumeThread, wakeParkedThreadForFollowUp } from "./resume.ts"
-import { appendDelivery, beginDelivery, cancelDelivery, deliverOutstandingDeliveries, deliveryItem, dismissFailedDelivery, recordDeliveryFailure, retireOutstandingDeliveries } from "./delivery-ledger.ts"
+import { appendDelivery, beginDelivery, cancelDelivery, deliverOutstandingDeliveries, deliveryItem, dismissFailedDelivery, dropHeldDelivery, heldDeliveries, holdDelivery, recordDeliveryFailure, retireOutstandingDeliveries } from "./delivery-ledger.ts"
 import { noteSubAgentsEndedByInterrupt, runningSubAgentsOf } from "./interrupt-ended.ts"
 import {
   readEarlierThreadTranscriptPage,
@@ -234,6 +237,7 @@ import { log as frizzLog } from "./logging.ts"
 import { expiredDoneThreads } from "./thread-retention.ts"
 import type { FolderInUse } from "./worktree-sweep.ts"
 import { readProjectInstructions, writeProjectInstructions } from "./project-instructions.ts"
+import { audited, textDigest, type AuditAction, type AuditFields } from "./audit.ts"
 import { codexSandbox } from "./backend/codex.ts"
 import type { CodexSandboxMode } from "./backend/codex-app-server.ts"
 import { readQuota } from "./quota.ts"
@@ -255,9 +259,8 @@ import { clearProjectIcon, customIconPath, findById, forgetProject, ICON_SCAN_VE
 import { HOME_WORKSPACE_NAME, isHomeWorkspace, listWorkspaces, reorderWorkspaces } from "./home-workspace.ts"
 import { basename, dirname, isAbsolute, relative } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, ProjectRailCounts, activeBandThread, FrizzMdAnswers, FrizzMdStatus, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@frizz/shared"
+import { ProjectCard, ProjectQueue, ProjectRailCounts, activeBandThread, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@frizz/shared"
 import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@frizz/shared"
-import { createFrizzMd, frizzMdStatus, skipFrizzMd } from "./frizz-md.ts"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
 import { chosenProjectRoot, ensureProjectIdFile, existingProjectId, isHomeDirectory, writeProjectIdFile } from "./project-root.ts"
@@ -1022,6 +1025,17 @@ function canonicalDir(dir: string): string {
   }
 }
 
+/** The audit fields for a project the add or the pick registered: the card names the real root. */
+function addedProject(card: ProjectCard): AuditFields {
+  return { project: { id: card.id, dir: card.path } }
+}
+
+// …and for an add that can come back `enclosed` instead (addProjectAtPath): nothing was added then, and
+// the record says so rather than naming a project.
+function addedProjectResult(result: ProjectAddResult): AuditFields {
+  return result.kind === "added" ? addedProject(result.project) : { detail: { outcome: result.kind } }
+}
+
 /**
  * Store an icon's BYTES for a project, whatever chose them.
  *
@@ -1517,6 +1531,17 @@ export function createRouter(ctx: AppContext) {
     })
   }
 
+  // THE AUDIT TRAIL (audit.ts): every procedure that adds or removes a project, starts a worker, or
+  // puts words in front of one records who asked — through this, so each records the same way. This
+  // project is the one whose board answered; an add or a remove names the project it acted on instead.
+  const thisProject = { id: ctx.project.id, dir: ctx.project.dir }
+  const audit = <T>(
+    action: AuditAction,
+    base: AuditFields | (() => AuditFields),
+    run: () => T | Promise<T>,
+    onResult?: (result: T) => AuditFields,
+  ): Promise<T> => audited(ctx.audit, action, base, run, { onResult, servedBy: ctx.project.id })
+
   // An auto-titled registry row is session-first authority. A same-slug `.frizz/<slug>.md` may have
   // been planted independently and is never a readable or writable extension of that session.
   function isAutoTitledSession(slug: string): boolean {
@@ -1614,6 +1639,371 @@ export function createRouter(ctx: AppContext) {
     return row
   }
 
+  // THE FOLLOW-UP DELIVERY, shared by the operator's `followUp` (through sendFollowUp) and the release of a
+  // message held for the thread's rest (releaseHeldFollowUps): both are a message into a thread's next
+  // turn, and a second copy of this path would be a second set of runtime branches to keep in step.
+  function deliverFollowUp(input: z.infer<typeof FollowUpInput>, opts: { release?: boolean } = {}): Promise<void> {
+    return keepFailedFollowUp(input, opts, async (openWriteAhead) => {
+      // Every follow-up crosses a TYPED CONTROL CHANNEL now, never a terminal: a codex row goes to the
+      // app-server bridge and a claude row to the session broker, each of which owns its own
+      // steer-vs-start decision and reconnects or cold-resumes a dead session itself. Nothing types
+      // into a provider TUI any more, so the capture-gated atomic paste-and-key this used to open with
+      // — which existed only because Codex's TUI dropped Enter when it followed literal text in the
+      // same instant — went with the transport that needed it.
+      //
+      // A follow-up DISABLES any snooze on this row — see wakeParkedThreadForFollowUp, which owns the
+      // rule and the reasoning. Short version: re-parking after the turn you just asked for would hide
+      // its own answer from the queue, so the later instruction ("now") wins over the earlier park.
+      //
+      // The row is bound to the CALLER's session id (origin/main's staleness guard): a stale tab must
+      // not deliver a follow-up into a thread that has since been re-dispatched.
+      // PROMOTION. Steering an EXTERNAL session — one of the human's own terminals, listed in the
+      // rail's External band — is what turns it into a frizz thread (maintainer 2026-08-24). It runs
+      // here, inside the follow-up, rather than behind a button of its own: one round trip, so the
+      // message and the row it belongs to can never end up on opposite sides of a failure.
+      //
+      // Below `currentOwnedSession` because that guard is what an ORDINARY follow-up needs and this
+      // is the case where it cannot yet pass — there is no row. `promoteExternalSession` returns
+      // false for every ordinary send, so the guard still runs first for everything else.
+      await promoteExternalSession(input.slug, input.sessionId)
+      const row = currentOwnedSession(input.slug, input.sessionId)
+      // A HELD THREAD HAS NO AGENT TO DELIVER TO: its first message is what starts one, through the dispatch
+      // path (startHeldThreadRow). Every sender lands here — the drawer's prompt box, a snooze carrying a
+      // prompt, another thread's message — so each of them starts the held thread rather than resuming a
+      // session no provider has heard of.
+      if (isHeldRow(row)) {
+        await startHeldThreadRow(row, input.message)
+        return
+      }
+      if (hasPendingPermissionChange(row)) {
+        throw new Error("Wait for the current permission change to finish before sending a follow-up")
+      }
+      // The operator's "Restart worker" verb, enforced HERE and not only in the UI that offers it: a
+      // stale tab holds a button whose preconditions may have expired since it rendered.
+      //
+      // Both refusals THROW rather than degrading to an ordinary follow-up, because a restart that
+      // quietly becomes a plain message is the worst outcome — the operator believes their worker came
+      // back on the new build when it is still the old process.
+      if (input.freshProcess) {
+        if (!(row?.backend === "claude" && row.claude_runtime === "broker")) {
+          throw new Error("Only a broker-backed Claude worker can be restarted in place")
+        }
+        // Running sub-agents do NOT refuse this. They used to: the completion invariant says an agent
+        // runs to its terminal return, and a restart kills the parent's in-memory children. But that
+        // invariant binds frizz's OWN initiative — needsFreshProcessForLimit below still declines to
+        // kill a live child when FRIZZ is the one deciding to restart — and `freshProcess` is not frizz
+        // deciding, it is the operator instructing. Refusing it made the recovery verb unavailable in
+        // precisely the state that motivates it: a worker wedged behind background work that will not
+        // finish (maintainer 2026-08-01: "do not disable the button when there are sub-agents
+        // running"). The children die; that is what the operator asked for and already knows.
+      }
+      // Every refusal above is a send that never started. From here on the server holds the text —
+      // the write-ahead entry opens BEFORE the reopen and un-park below (the reopen's CAS can throw a
+      // RetryableDeliveryError) and before any transport. A deliveryId already accounted for is a
+      // replay: answer success and deliver nothing (see beginDelivery for which states count).
+      if (!openWriteAhead()) return
+      // Reopen an archived thread HERE, above the runtime branches, because only the LEGACY
+      // fall-through reaches resumeThread (where this used to live alone). A broker-backed Claude row
+      // and an app-server Codex row both return from their own branch below, so sending them a
+      // follow-up used to resume the WORKER while leaving the ROW archived: the thread executed away
+      // while the board read Done, and — an archived thread having no lifecycle verbs — offered no
+      // Mark-as-done button to stop it. That is the state the "send a message to reopen it" readout
+      // promises against, so it has to hold for every runtime. Raised 2026-07-31 against a live broker
+      // thread ("showing up as done… but it is actually running actively").
+      // THE GAP THE HUMAN LEFT, appended to what the worker receives — and to that ONLY. A worker has no
+      // clock of its own, so an answer arriving after four hours is indistinguishable from one arriving
+      // after four seconds; it will resume on a stale premise and re-run work whose result went cold.
+      //
+      // The BUBBLE and the delivery LEDGER keep the human's text untouched (see the `input.message`
+      // uses below): what the human typed is what the board shows. Only the copy handed to the worker
+      // carries the note, and the note names frizz as its author because the message it rides on is
+      // not frizz's.
+      const gapNote = humanGapNote(Date.now(), ctx.tailer.get(input.slug)?.lastAssistantAt)
+      // …AND THE QUESTIONS STILL OPEN, the same way and for the same reader. A typed message changes
+      // nothing about them: each stays open until it is answered, dismissed or withdrawn. The worker —
+      // which reads the message, as frizz cannot — decides which it still needs, so it is told, here,
+      // which are open and by what id, and that its next rest names the ones it needs under
+      // `questions:` and `unask`s the rest. Appended AFTER the gap note, so that note's "the message
+      // above" still means the human's words.
+      const questionsNote = openQuestionsNote(heldQuestions(input.slug))
+      const riders = [gapNote, questionsNote].filter((note): note is string => note !== undefined)
+      const messageForWorker = riders.length > 0 ? `${input.message}\n\n${riders.join("\n\n")}` : input.message
+      if (row) reopenArchivedThreadForFollowUp(ctx, row)
+      // Un-park HERE, above the runtime branches, for the same reason the reopen is here: a broker
+      // Claude row and an app-server Codex row both return from their own branch below, so anything
+      // that must hold for every runtime has to run before the split.
+      if (row) wakeParkedThreadForFollowUp(ctx, row)
+      // Every Codex follow-up flows through the app-server bridge — no terminal composer, no queue, no
+      // stale-draft class. The bridge owns the steer-vs-start decision atomically and dedups on
+      // deliveryId. A LEGACY Codex row (dispatched before the cutover) is migrated on its first
+      // follow-up by adopting its rollout; from then on it is an ordinary app-server thread.
+      // An ACP follow-up goes to the bridge, which delivers it now, queues it behind a running turn
+      // (ACP has no steer), or re-opens the session first when the child is gone (a restart). The
+      // ledger entry is `delivered` or `enqueued` accordingly; a fresh ACP session id is re-pinned.
+      if (row?.backend === "acp") {
+        const bridge = ctx.acpBridge
+        if (!bridge) throw new Error("The ACP bridge is unavailable; cannot deliver this follow-up")
+        const result = await bridge.followUp({
+          threadSlug: input.slug, sessionId: row.session_id, cwd: workDir,
+          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), acpSessionId: row.agent_session_id,
+          text: messageForWorker, ...(input.deliveryId ? { deliveryId: input.deliveryId } : {}),
+        })
+        if (result.acpSessionId !== row.agent_session_id) ctx.storage.setAgentSession(input.slug, result.acpSessionId)
+        if (row.exited === 1) ctx.storage.setExitedIfCurrent(input.slug, row.session_id, row.runtime_generation ?? 0, false)
+        if (input.deliveryId) {
+          appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, state: result.state === "queued" ? "enqueued" : "delivered" })
+          ctx.transcriptChange.emit([input.slug])
+        }
+        ctx.board.refresh()
+        return
+      }
+      if (row?.backend === "codex") {
+        const bridge = ctx.codexAppServer
+        if (!bridge) throw new Error("Codex app-server is unavailable; cannot deliver this follow-up")
+        if (row.codex_runtime !== "app-server") {
+          if (!row.agent_session_id) throw new Error("This legacy Codex thread has no resumable rollout id yet")
+          await bridge.adoptExternalRollout({ threadSlug: input.slug, sessionId: row.session_id, codexThreadId: row.agent_session_id, cwd: workDir })
+          ctx.storage.setCodexRuntime(input.slug, "app-server")
+        }
+        const binding = bridge.binding(input.slug, row.session_id)
+        // Writer-yield: if the rollout shows an in-flight turn the bridge does NOT hold (it has no
+        // current turn of its own), someone is driving this thread in their own terminal via
+        // `codex resume`. Frizz keeps MIRRORING that turn (the tailer follows the same rollout), but it
+        // must not start/steer a second turn and race two writers. Yield until the external turn rests.
+        // A turn the app-server opens on its own — a codex thread goal's continuation — is NOT this
+        // case: the bridge adopts it from `turn/started` (codex-app-server.ts), so it holds a current
+        // turn and the follow-up steers it like any other.
+        //
+        // "In flight" must mean the rollout is ACTUALLY ADVANCING, not merely that it stopped
+        // mid-turn: a rollout frozen by a dead app-server looks identical to an external writer from
+        // here, and yielding to it left the operator unable to answer their own stalled thread at all.
+        // appServerTurnStalled tells the two apart — see board.ts.
+        const stalled = appServerTurnStalled(
+          bridge.turnLiveness(input.slug, row.session_id),
+          ctx.tailer.get(input.slug)?.lastActivityAt,
+          Date.now(),
+        )
+        const turnLive = ctx.tailer.get(input.slug)?.turn === "in-flight" && !stalled
+        if (turnLive && (!binding || binding.currentTurnId === null)) {
+          // Under 160 characters: sendEagerFollowUp toasts this after "Steer failed — " and cuts the rest.
+          throw new Error("This thread is being driven outside Frizz. Wait for that turn to end, then resend.")
+        }
+        if (!binding || binding.state !== "active") {
+          await bridge.resumeOwnedSession(input.slug, row.session_id)
+        }
+        await bridge.followUp({
+          threadSlug: input.slug,
+          sessionId: row.session_id,
+          text: messageForWorker,
+          deliveryId: input.deliveryId,
+          model: row.model ?? undefined,
+          effort: row.effort ?? undefined,
+        })
+        // Codex gets a ledger entry too — as SERVER TRUTH for the just-sent bubble, not as a delivery
+        // guess: the bridge already dedups on deliveryId and its return IS the receipt. Without it the
+        // ONLY thing rendering a just-sent codex steer is the client's optimistic bubble, and
+        // mergeOptimistic's ghost floor retires that once the transcript advances 60s past it —
+        // measured against frizz's own delivery records, 8 of 75 codex sends took longer than that to
+        // appear in the rollout (steers at 71s, 212s and 4.6h), so the message could vanish from the
+        // drawer entirely. The tailer drops the item the moment the rollout materialises the message.
+        //
+        // `delivered`, not `enqueued`: the receipt names the turn this message steered or STARTED, so
+        // by the time followUp returns the model is already working on it — codex has no queue for it
+        // to sit in. Rendering it gray for the rollout's whole materialization window (p50 3.3s,
+        // tails past an hour) is exactly the "still looks enqueued while the agent is answering it"
+        // report. `delivered` also never ages into the amber "no receipt" warning, which would be
+        // meaningless on a thread whose transport acknowledges every send.
+        if (input.deliveryId) {
+          appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, state: "delivered" })
+          // The ledger is not JSONL bytes, so nothing else pushes a transcript frame for it — emit one
+          // now so the bubble (and its un-grayed state) reaches subscribed tabs immediately instead of
+          // riding the next byte-driven refresh.
+          ctx.transcriptChange.emit([input.slug])
+        }
+        ctx.board.refresh()
+        return
+      }
+      // Claude session-broker follow-up: a broker-backed claude row owns a DETACHED daemon, so its
+      // follow-up is a message on that daemon's own control channel and nothing else can reach it.
+      // Route through the bridge — it reconnects the live daemon's socket (context intact) or
+      // cold-resumes a dead one. Branch on the ROW's runtime (not the flag): a row dispatched via the
+      // broker must always be served via the broker. The worker system prompt is rebuilt so a cold
+      // resume re-applies it (ignored when the daemon is still alive).
+      if (row?.backend === "claude" && row.claude_runtime === "broker") {
+        const bridge = ctx.claudeBroker
+        if (!bridge) throw new Error("Claude session broker is unavailable; cannot deliver this follow-up")
+        // Replay guard: `openWriteAhead` above already answered success for a deliveryId the ledger
+        // accounts for. This branch once had no guard at all — a replayed deliveryId sent the message
+        // a SECOND time — and it matters more now that the deliveryId IS the SDK input uuid: the SDK
+        // rejects an id that is still outstanding, so a replay would surface as an error on the
+        // operator's send instead of the no-op it should be.
+        const appendSystemPrompt = [
+          loadWorkerPrompt("claude", workerCapabilities(ctx.editors, workDir)),
+          scratchpadOrientation(row.session_id, "claude", workerScratchPath(ctx.project, row.session_id)),
+          frizzConfigBlock(ctx.project.dir),
+          deadlineSection(row),
+        ].filter(Boolean).join("\n\n")
+        // Is this thread MID-TURN right now? Sampled BEFORE the bridge call on purpose: a cold resume
+        // takes seconds, and by the time it returns the turn this very message started reads as
+        // in-flight — which would gray the one send that is provably being read. The tailer's `turn`
+        // already folds in the runtime's own liveness. Unknown telemetry (a row not yet primed after a
+        // server boot) defaults to mid-turn — the conservative direction, since the gray bubble is
+        // honest for a queued send and merely late for a delivered one.
+        const midTurn = (ctx.tailer.get(input.slug)?.turn ?? "in-flight") === "in-flight"
+        // THE UPGRADE AT COMPACTION (claude-model-upgrade.ts): a thread that compacted on an edition its
+        // family has since moved past takes this message in a fresh process, forked from the current pin.
+        // Only at rest — the gate refuses a turn in flight, a sub-agent, a shell, an approval or an
+        // undelivered send, so a steer never restarts anything.
+        const upgradeCandidate = claudeUpgradeCandidate({ stateDir: ctx.project.stateDir, projectId: ctx.project.id, storage: ctx.storage, telemetry: ctx.tailer.get(input.slug) }, row)
+        const upgrade = upgradeCandidate
+          ? claudeModelUpgradeDue(upgradeCandidate, { catalogue: peekClaudeModels(), nowMs: Date.now(), serverStartedAtMs: SERVER_STARTED_AT_MS })
+          : undefined
+        if (upgrade?.due) frizzLog.info("server", `${input.slug}: compacted on ${upgrade.from}; this follow-up starts a fresh worker on ${upgrade.to}`)
+        await bridge.followUp({
+          threadSlug: input.slug,
+          sessionId: row.session_id,
+          cwd: workDir,
+          text: messageForWorker,
+          // Rides through to the SDK as this input's uuid, which the SDK echoes back on the record
+          // that delivers it — the ledger then correlates by identity rather than by text.
+          deliveryId: input.deliveryId,
+          // A persisted per-thread mode, or the dispatch floor for a row that has none — see
+          // coldResumePermission for why a legacy row must not fall through to the bridge's `"default"`.
+          permissionMode: coldResumePermission(row, ctx.getSettings()),
+          appendSystemPrompt,
+          model: row.model ?? undefined,
+          effort: row.effort ?? undefined,
+          // The pause card's "Continue now" is the same act as the scheduler's auto-resume, so it
+          // needs the same treatment: while the process is still latched on its own 429, delivering
+          // into it does nothing at all. Restart it instead — otherwise the button is a no-op and
+          // reads as frizz having ignored the click.
+          //
+          // `input.freshProcess` is the operator asking for it OUTRIGHT (the "Restart worker" verb),
+          // which the server cannot derive: only the human knows they want the worker back on a newer
+          // build. It is OR'd in rather than replacing the derivation, so a restart clicked on a
+          // limit-latched thread still behaves. The live-sub-agent refusal above applies to both.
+          freshProcess: input.freshProcess === true || upgrade?.due === true || needsFreshProcessForLimit(
+            ctx.tailer.get(input.slug)?.limitFault,
+            Date.now(),
+            mayHaveLiveBackgroundWork(ctx.tailer.get(input.slug)),
+          ),
+        })
+        // `exited` records a deliberate stop (a dismiss, a retire, a hibernation). The bridge just
+        // accepted this send — it reconnected the live daemon or cold-resumed a dead one — so the stop
+        // is over, and the column has to say so. Nothing cleared it before: `beginRuntimeGeneration`
+        // is the only other writer of `exited = 0` and no path calls it, so a thread resumed by a
+        // follow-up kept `exited = 1` for as long as it then ran (four of them on 2026-09-03, each
+        // hours into a resumed task). The board derives a broker row's liveness live and never
+        // showed it, but every direct reader of the row — the CLI, a diagnostic, the next
+        // engineer — believed the column. Same CAS as every other row write: a replaced owner
+        // observes zero changes.
+        if (row.exited === 1) ctx.storage.setExitedIfCurrent(input.slug, row.session_id, row.runtime_generation ?? 0, false)
+        // The ledger's RELIABILITY half died with the terminal transport — the stuck-composer flush and
+        // the screen-inspected receipt were the only things it bought, and both were skipped for a
+        // headless row even then; no delivery marker is stamped either, because nothing rewrites bytes
+        // on the way to the SDK. But its RENDERING half applies here exactly as it does to codex:
+        // until the JSONL carries the message, the only thing showing the human their own just-sent
+        // steer is the client's optimistic bubble, and mergeOptimistic's ghost floor retires that once
+        // the transcript advances 60s past it. So the write-ahead entry settles here into a receipted
+        // state; the SDK call returning IS the receipt, which also keeps it out of the amber "no receipt" state that would be meaningless
+        // on a thread whose transport acknowledges every send. The tailer drops it as soon as the
+        // record lands.
+        //
+        // WHICH state depends on whether anything was ahead of it. Mid-turn, the SDK genuinely queues
+        // the message until the next sampling boundary — that is what the gray bubble is FOR, so it
+        // opens `enqueued`. With no turn in flight (a rested thread, above all one whose hibernated
+        // daemon this send just cold-resumed) the message is what STARTS the next turn, and graying
+        // it renders the one send the agent is provably reading as "still enqueued" for the whole
+        // resume-and-first-record window (~3s on a small session, longer on a big one). It opens
+        // `delivered` and renders as an ordinary bubble — which also keeps the daemon-death retire
+        // sweeps from dropping it mid-cold-resume, a race that made a just-sent message vanish from
+        // the chat for the resume's whole duration (observed live: rendered at +0.2s, gone from
+        // +0.3s to +2.3s, back at +2.3s). A `freshProcess` restart is delivered by the same logic:
+        // the old process's turn died with it and this message opens the new one's first turn.
+        // A restart RETIRED the process every earlier outstanding send was handed to, so those sends
+        // are dead and their queued bubbles are now claims about a process that no longer exists.
+        // Clear them here, BEFORE this restart's own entry is opened, so the continuation is the only
+        // thing left queued. Without this they linger the rest of the hour and cannot be dismissed by
+        // hand — the unqueue click asks the NEW daemon about a uuid it never heard of and answers
+        // "Too late — that message has already left the queue", which is exactly backwards.
+        if (input.freshProcess) retireOutstandingDeliveries(ctx.storage, input.slug)
+        // "Interrupt and send": preempt whatever the worker is doing so it reads this NOW. Strictly
+        // AFTER the delivery above, and that order is the whole mechanism — the SDK's interrupt
+        // aborts the turn without discarding queued inputs (its receipt reports `still_queued`), so
+        // a message queued first is what the next turn opens on. Interrupting first would abort into
+        // an empty queue and the message would merely start an ordinary new turn.
+        //
+        // Measured live (_live_broker_interrupt_send.mts) against a real 90s tool call in flight:
+        // 94.4s without it, seconds with it, and the session takes ordinary follow-ups afterwards.
+        //
+        // THE INTERRUPT ALSO ENDS EVERY BACKGROUND SUB-AGENT, and the runtime tells the worker nothing
+        // (interrupt-ended.ts). Snapshot the running children BEFORE the frame goes out, so the note can
+        // name exactly the ones the tailer then sees end — fire-and-forget, after the send succeeded.
+        const childrenBefore = input.interrupt === true ? runningSubAgentsOf(ctx.tailer.get(input.slug)) : []
+        const preempted = input.interrupt === true && bridge.interruptTurn({ threadSlug: input.slug, sessionId: row.session_id })
+        if (preempted) {
+          void noteSubAgentsEndedByInterrupt(
+            { tailer: ctx.tailer, storage: ctx.storage, log: (line) => frizzLog.info("interrupt", line) },
+            { slug: input.slug, sessionId: row.session_id, before: childrenBefore, interruptedAtMs: Date.now() },
+          )
+        }
+        if (input.deliveryId) {
+          appendDelivery(ctx.storage, input.slug, {
+            id: input.deliveryId,
+            text: input.message,
+            state: midTurn && input.freshProcess !== true ? "enqueued" : "delivered",
+          })
+        }
+        // A landed interrupt frees the WHOLE queue — the next turn opens on it — so nothing outstanding
+        // is still waiting to be read, this send included. Flipping it here rather than in the `state`
+        // above is what covers the sends already queued AHEAD of this one, which the same interrupt
+        // also delivers.
+        if (preempted) deliverOutstandingDeliveries(ctx.storage, input.slug)
+        // The ledger is not JSONL bytes, so nothing else pushes a transcript frame for it — emit one
+        // now so the bubble (gray or delivered) reaches subscribed tabs immediately instead of
+        // riding the next byte-driven refresh.
+        if (input.deliveryId || preempted) ctx.transcriptChange.emit([input.slug])
+        ctx.board.refresh()
+        return
+      }
+      // Idempotency for a REPLAYED deliveryId is `openWriteAhead` above: an accepted send answers
+      // success and injects nothing.
+      //
+      // What actually guarantees the retry loop cannot double-send is the CLASSIFICATION, not that
+      // check: the client only replays an error typed RetryableDeliveryError, and every such throw is
+      // raised strictly upstream of the first write to the worker, so a replayed send never had a first
+      // copy to duplicate — which is also the only reason beginDelivery lets a `retryable` entry be
+      // re-opened under the same id. A throw misclassified as retryable AFTER an injection would
+      // therefore double-send on the replay. Keeping every retryable throw pre-injection is
+      // load-bearing, not optional.
+      // The LEGACY fall-through: a claude row that is not broker-backed, i.e. one dispatched before the
+      // cutover. The deliveryId rides along because the old terminal transport stamped each send with
+      // an invisible marker (delivery-marker.ts) — that is what let the tailer confirm delivery by
+      // IDENTITY instead of by comparing prose a paste channel was free to rewrite. Codex never takes
+      // this path, and frizz has no transport left for the rows that do: resumeThread refuses every one
+      // of them by design (see resume.ts), so this is a loud backstop, not a delivery.
+      resumeThread({ project: ctx.project, storage: ctx.storage, board: ctx.board, getSettings: ctx.getSettings, backendFor: ctx.backendFor }, input.slug, messageForWorker,
+        input.deliveryId && row?.backend !== "codex" ? input.deliveryId : undefined,
+        // "Continue now" on a limit-paused legacy thread relaunches it, for the same reason the broker
+        // branch above swaps its process: the running one is not listening.
+        {
+          freshProcess: needsFreshProcessForLimit(
+            ctx.tailer.get(input.slug)?.limitFault,
+            Date.now(),
+            mayHaveLiveBackgroundWork(ctx.tailer.get(input.slug)),
+          ),
+        })
+      // Injection accepted → open a delivery-ledger entry (Claude rows only; Codex has its own durable
+      // queue above). From here the send is a tracked state machine: the tailer correlates the JSONL
+      // evidence and the transcript projection renders the queued bubble as SERVER truth — reload-safe,
+      // consumed by the client's optimistic copy via this deliveryId instead of by text match.
+      if (input.deliveryId && row?.backend !== "codex") {
+        appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message })
+      }
+      ctx.board.refresh()
+    })
+  }
+
   // THE SERVER OWNS A STEER'S TEXT FROM THE MOMENT IT ARRIVES (delivery-ledger.ts, "WRITE-AHEAD").
   //
   // `deliver` runs the whole follow-up. Once its guards have passed it calls `open()`, which writes the
@@ -1630,12 +2020,13 @@ export function createRouter(ctx: AppContext) {
   // the text back to the prompt box as it always has.
   async function keepFailedFollowUp(
     input: z.infer<typeof FollowUpInput>,
+    opts: { release?: boolean },
     deliver: (open: () => boolean) => Promise<void>,
   ): Promise<void> {
     let opened = false
     const open = (): boolean => {
       if (!input.deliveryId) return true
-      if (beginDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, supersedes: input.supersedes }) === "duplicate") return false
+      if (beginDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, supersedes: input.supersedes, release: opts.release }) === "duplicate") return false
       opened = true
       // The ledger is not JSONL bytes: push the frame now, so the server's own bubble (and the removal
       // of a superseded failed one) reaches every tab before the transport is even called.
@@ -1658,6 +2049,174 @@ export function createRouter(ctx: AppContext) {
       throw error
     }
   }
+
+  // SETTLE REGISTERED ANSWERS — the row write `answerQuestions` and the prompt box's Send share. Returns
+  // what was stored for each question that was still open or is being changed, in the order given; a
+  // question that was dismissed or withdrawn, or a write that lost a race, contributes nothing.
+  //
+  // A SECRET'S VALUE STOPS HERE. It is served once, from memory, through its pipe (secret-files.ts), and
+  // the row — which the settled card, the in-flight card and the worker's message all read — keeps only
+  // the path. Nothing below this ever holds the value. A blank one answers nothing: the request stays
+  // open rather than handing the worker an empty read.
+  //
+  // `delivered` says the CALLER is delivering these itself, in the same call (the follow-up path), so
+  // the scheduler's answer wake must not also carry them.
+  function settleQuestionAnswers(slug: string, answers: readonly QuestionAnswer[], now: number, opts: { delivered?: boolean } = {}): QuestionAnswer[] {
+    const settled: QuestionAnswer[] = []
+    for (const answer of answers) {
+      // Scoped by reading the row first: an id belonging to another thread answers nothing here.
+      const q = ctx.storage.getThreadQuestion(answer.questionId)
+      if (!q || q.thread_slug !== slug) continue
+      if (q.state !== "answered" && q.state !== "open") continue
+      // `changed` is the server's to say (below), never the client's.
+      const { changed: _client, ...given } = answer
+      let stored: QuestionAnswer = given
+      if (parseQuestionSpec(q.spec)?.secret) {
+        const value = answer.text?.trim() ?? ""
+        if (!value) continue
+        const path = serveSecret(ctx.project.stateDir, slug, q.id, value)
+        stored = { questionId: answer.questionId, question: answer.question, chosen: [], text: secretAnswerText(path) }
+      }
+      // A CHANGED ANSWER (the card's Change on an answered question). It replaces the stored one and is
+      // delivered again; it says so only when the worker may already have the old one — received, or
+      // riding a delivery already offered — since one it never saw is simply replaced.
+      if (q.state === "answered") {
+        const prior = parseStoredAnswer(q.answer)
+        const changed = q.delivered === 1 || q.delivery_id != null || prior?.changed === true
+        stored = changed ? { ...stored, changed } : stored
+        if (!ctx.storage.reviseThreadQuestionAnswer(answer.questionId, JSON.stringify(stored), now)) continue
+      } else if (!ctx.storage.answerThreadQuestion(answer.questionId, JSON.stringify(stored), now)) continue
+      if (opts.delivered) ctx.storage.markSettlementDelivered(answer.questionId)
+      settled.push(stored)
+    }
+    return settled
+  }
+
+  // THE PROMPT BOX'S ONE SEND (maintainer 2026-10-11). Three things the operator's follow-up can now be,
+  // all of which end in the same deliverFollowUp:
+  //
+  //  • WITH ANSWERS — the staged answers to registered questions travel in this message. They are
+  //    settled first and composed above the typed text, so the worker reads one turn: what was asked,
+  //    what was answered, and the note that came with it.
+  //  • TO THE QUEUE (`hold`) — mid-turn, the message is written to the ledger as `held` and nothing is
+  //    handed to any transport; releaseHeldFollowUps delivers it when the thread rests. At rest there is
+  //    nothing to wait for and it is an ordinary send.
+  //  • neither — exactly the follow-up it always was.
+  //
+  // A REPLAY of the same deliveryId must deliver the SAME words, and by then the questions are settled
+  // and would compose to nothing. The ledger entry the first attempt opened holds the composed text, so
+  // a replay reads it from there instead of composing again.
+  async function sendFollowUp(input: z.infer<typeof FollowUpInput>): Promise<void> {
+    const answers = input.answers ?? []
+    let message = input.message
+    const replay = input.deliveryId ? deliveryItem(ctx.storage, input.slug, input.deliveryId) : null
+    if (replay) {
+      message = replay.text
+      // A held entry is already where a replayed "Send to queue" wanted it.
+      if (replay.state === "held") return
+    } else if (answers.length > 0) {
+      // The refusals deliverFollowUp opens with, run BEFORE the rows are settled: a send it would refuse
+      // must not leave the questions answered with nothing on its way to the worker.
+      const row = currentOwnedSession(input.slug, input.sessionId)
+      if (hasPendingPermissionChange(row)) {
+        throw new Error("Wait for the current permission change to finish before sending a follow-up")
+      }
+      const settled = settleQuestionAnswers(input.slug, answers, Date.now(), { delivered: true })
+      if (settled.length > 0) {
+        message = withAnswersNote(questionAnswerMessage(settled), input.message)
+        ctx.board.refresh()
+      }
+    }
+    // Nothing typed and every question already settled elsewhere (a second tab beat this one): the
+    // answers are with the worker, and there is nothing left to say.
+    if (!message.trim()) {
+      if (answers.length > 0) return
+      throw new Error("There is nothing to send")
+    }
+    const send: z.infer<typeof FollowUpInput> = { ...input, message, answers: undefined, hold: undefined }
+    if (input.hold && !input.interrupt && !input.freshProcess && !replay) {
+      const row = ctx.storage.getSession(input.slug)
+      // Only a turn the tailer can SEE running is worth waiting behind. Unknown telemetry sends now: a
+      // message delivered early is a steer, a message held for a rest that never registers is lost time.
+      if (row && row.session_id === input.sessionId && ctx.tailer.get(input.slug)?.turn === "in-flight") {
+        const id = input.deliveryId ?? randomUUID()
+        if (holdDelivery(ctx.storage, input.slug, { id, text: message })) {
+          watchHeld(input.slug)
+          ctx.transcriptChange.emit([input.slug])
+          ctx.board.refresh()
+          return
+        }
+      }
+    }
+    return deliverFollowUp(send)
+  }
+
+  // RELEASE WHAT FRIZZ IS HOLDING FOR THIS THREAD'S REST, oldest first, through the ordinary follow-up
+  // path and under each message's own id — so the gray bubble the operator has been looking at is the
+  // one that becomes the delivered message. The first one opens the next turn; any after it land in
+  // that turn as it starts, in order.
+  //
+  // `force` is the operator's "send now" on a held bubble: the turn is still running and they want it
+  // read anyway, so it goes in as the steer it would have been.
+  //
+  // A release that throws leaves that message `failed` with its words kept (keepFailedFollowUp), which
+  // is the same Retry / Edit / Dismiss the operator gets for any send that did not land.
+  const releasingHeld = new Set<string>()
+  async function releaseHeldFollowUps(slug: string, opts: { force?: boolean } = {}): Promise<number> {
+    if (releasingHeld.has(slug)) return 0
+    const row = ctx.storage.getSession(slug)
+    if (!row) { heldSlugs.delete(slug); return 0 }
+    const held = heldDeliveries(ctx.storage, slug)
+    if (held.length === 0) { heldSlugs.delete(slug); return 0 }
+    if (!opts.force && ctx.tailer.get(slug)?.turn === "in-flight") return 0
+    if (hasPendingPermissionChange(row)) return 0 // the sweep comes back for it
+    releasingHeld.add(slug)
+    let released = 0
+    try {
+      for (const item of held) {
+        try {
+          await deliverFollowUp({ slug, sessionId: row.session_id, message: item.text, deliveryId: item.id }, { release: true })
+          released++
+        } catch (error) {
+          frizzLog.warn("server", `${slug}: releasing held follow-up ${item.id} failed: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+    } finally {
+      releasingHeld.delete(slug)
+    }
+    return released
+  }
+
+  // WHEN a held message is released. The tailer's in-flight → idle edge is the moment the operator
+  // asked for, and it is published on the bus as the turn-done notification — deferred one macrotask
+  // here because the tailer publishes it BEFORE it writes the new turn state the release reads.
+  //
+  // The edge alone is not enough: a server restart during the hold comes back to a thread that may
+  // already be at rest, with no edge left to fire. So every thread with something held is also swept
+  // on a slow clock — seeded from the rows at boot, and running only while anything is held.
+  const heldSlugs = new Set<string>()
+  let heldSweep: ReturnType<typeof setInterval> | null = null
+  const HELD_SWEEP_MS = 5_000
+  function watchHeld(slug: string): void {
+    heldSlugs.add(slug)
+    if (heldSweep) return
+    heldSweep = setInterval(() => {
+      for (const held of [...heldSlugs]) void releaseHeldFollowUps(held)
+      if (heldSlugs.size === 0 && heldSweep) { clearInterval(heldSweep); heldSweep = null }
+    }, HELD_SWEEP_MS)
+    heldSweep.unref?.()
+  }
+  // createRouter reads its context lazily everywhere else, and a focused test harness builds a partial
+  // one; this is its only eager read, so it tolerates these two pieces being absent or inert (app.test.ts
+  // hands in a stub whose every method answers nothing).
+  const bootRows: unknown = typeof ctx.storage?.allSessions === "function" ? ctx.storage.allSessions() : null
+  for (const row of Array.isArray(bootRows) ? (bootRows as ReturnType<typeof ctx.storage.allSessions>) : []) {
+    if (row.delivery_ledger?.includes('"held"') && heldDeliveries(ctx.storage, row.slug).length > 0) watchHeld(row.slug)
+  }
+  ctx.bus?.subscribe((event) => {
+    if (event.type !== "notify" || event.kind !== "turn-done" || !heldSlugs.has(event.slug)) return
+    setTimeout(() => void releaseHeldFollowUps(event.slug), 0).unref?.()
+  })
 
   // The two checks both recurring-prompt writers owe, shared so the operator's path and the worker's
   // can never disagree about what a valid arming is.
@@ -1796,6 +2355,20 @@ export function createRouter(ctx: AppContext) {
       return parsed.success ? parsed.data : undefined
     } catch {
       return undefined
+    }
+  }
+
+  // One answer as the audit trail records it (audit.ts): what was chosen and typed, as digests. A
+  // SECRET's value is not recorded at all, not even hashed — a short credential's SHA-256 would only
+  // hand whoever reads the log something to brute-force.
+  function answerDigest(slug: string, answer: AnswerQuestionsInput["answers"][number]): Record<string, unknown> {
+    const q = ctx.storage.getThreadQuestion(answer.questionId)
+    if (q?.thread_slug === slug && parseQuestionSpec(q.spec)?.secret) return { questionId: answer.questionId, secret: true }
+    return {
+      questionId: answer.questionId,
+      ...(answer.chosen.length > 0 ? { chosen: textDigest(answer.chosen.join("\n")) } : {}),
+      ...(answer.text ? { text: textDigest(answer.text) } : {}),
+      ...(answer.followUps?.length ? { followUps: answer.followUps.length } : {}),
     }
   }
 
@@ -2438,7 +3011,7 @@ export function createRouter(ctx: AppContext) {
         // Registry row → its session's transcript; foreign slug (a session id) → resolved directly; else [].
         // backendFor routes a codex thread through the codex rollout reader (else it renders empty).
         const page = readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor)
-        return retireOpsInPage(input.slug, projectTranscriptPageAgentLifecycles(page, (id) => ctx.tailer.subAgent(input.slug, id), (taskId) => ctx.tailer.subAgentByTaskId?.(input.slug, taskId)))
+        return retireOpsInPage(input.slug, projectTranscriptPageAgentLifecycles(page, (id) => ctx.tailer.subAgent(input.slug, id), (taskId) => ctx.tailer.subAgentByTaskId?.(input.slug, taskId), ctx.sessionPeerThread))
       },
     }),
 
@@ -2464,7 +3037,7 @@ export function createRouter(ctx: AppContext) {
       output: TranscriptPage,
       handler: async ({ input }) => {
         const page = readEarlierThreadTranscriptPage(ctx.project, ctx.storage, input.slug, input.cursor, ctx.backendFor)
-        return retireOpsInPage(input.slug, projectTranscriptPageAgentLifecycles(page, (id) => ctx.tailer.subAgent(input.slug, id), (taskId) => ctx.tailer.subAgentByTaskId?.(input.slug, taskId)))
+        return retireOpsInPage(input.slug, projectTranscriptPageAgentLifecycles(page, (id) => ctx.tailer.subAgent(input.slug, id), (taskId) => ctx.tailer.subAgentByTaskId?.(input.slug, taskId), ctx.sessionPeerThread))
       },
     }),
 
@@ -2519,36 +3092,47 @@ export function createRouter(ctx: AppContext) {
     interactionResolve: mutation({
       input: ResolveInteractionInput,
       output: ResolveInteractionResult,
-      handler: async ({ input }) => {
-        const scope = interactionScope(input.slug, input.sessionId)
-        const delivery = ctx.interactions.providerDelivery(scope, input.interactionId)
-        let result
-        if (delivery) {
-          if (!ctx.codexAppServer || !ctx.codexAppServer.ownsInteraction(scope, input.interactionId)) {
-            throw new Error("provider-backed interaction is unavailable until its provider bridge reconnects")
+      handler: ({ input }) => audit(
+        "interactionResolve",
+        {
+          project: thisProject,
+          thread: input.slug,
+          // The decision the operator picked and how many values rode with it — never the values, which
+          // can be a secret the interaction asked for.
+          detail: { interactionId: input.interactionId, decisionId: input.decisionId, values: Object.keys(input.values ?? {}).length },
+        },
+        async () => {
+          const scope = interactionScope(input.slug, input.sessionId)
+          const delivery = ctx.interactions.providerDelivery(scope, input.interactionId)
+          let result
+          if (delivery) {
+            if (!ctx.codexAppServer || !ctx.codexAppServer.ownsInteraction(scope, input.interactionId)) {
+              throw new Error("provider-backed interaction is unavailable until its provider bridge reconnects")
+            }
+            const providerResult = await ctx.codexAppServer.resolveInteraction(scope, input)
+            if (!providerResult) throw new Error("provider-backed interaction lost its durable delivery owner")
+            result = {
+              effect: providerResult.effect === "already-sent" ? "already-queued" as const : providerResult.effect,
+              interaction: providerResult.interaction,
+            }
+          } else {
+            result = ctx.interactions.resolve(scope, input)
           }
-          const providerResult = await ctx.codexAppServer.resolveInteraction(scope, input)
-          if (!providerResult) throw new Error("provider-backed interaction lost its durable delivery owner")
-          result = {
-            effect: providerResult.effect === "already-sent" ? "already-queued" as const : providerResult.effect,
-            interaction: providerResult.interaction,
+          // The journal result contains only the persisted/redacted response. Secret input values are
+          // never echoed by this RPC (and are absent from SQLite before this function returns). Re-read
+          // after provider I/O: its acknowledgement may have won the race and terminalized the journal
+          // while the bridge still holds the pending object returned by its earlier queue transaction.
+          const latest = ctx.interactions.get(scope, result.interaction.id) ?? result.interaction
+          return {
+            effect: latest.lifecycle === "resolved" &&
+                (result.effect === "queued" || result.effect === "already-queued")
+              ? "resolved" as const
+              : result.effect,
+            interaction: interactionForRead(scope, latest),
           }
-        } else {
-          result = ctx.interactions.resolve(scope, input)
-        }
-        // The journal result contains only the persisted/redacted response. Secret input values are
-        // never echoed by this RPC (and are absent from SQLite before this function returns). Re-read
-        // after provider I/O: its acknowledgement may have won the race and terminalized the journal
-        // while the bridge still holds the pending object returned by its earlier queue transaction.
-        const latest = ctx.interactions.get(scope, result.interaction.id) ?? result.interaction
-        return {
-          effect: latest.lifecycle === "resolved" &&
-              (result.effect === "queued" || result.effect === "already-queued")
-            ? "resolved" as const
-            : result.effect,
-          interaction: interactionForRead(scope, latest),
-        }
-      },
+        },
+        (result) => ({ detail: { effect: result.effect } }),
+      ),
     }),
 
     interactionCancel: mutation({
@@ -2658,7 +3242,9 @@ export function createRouter(ctx: AppContext) {
     //
     // WHY THE GATE IS STRICT. Measured live: addressing a child that has ALREADY SETTLED does not
     // error and does not vanish — the CLI falls the message back onto the MAIN thread, where the
-    // parent obeys it as if the operator had typed it into the thread composer. A steer sent while
+    // parent obeys it as if the operator had typed it into the thread composer — re-measured on
+    // 2.1.295 by backend/_live_broker_steer_rested.mts, with both the dispatch tool_use id and the
+    // runtime agent id as the address, and neither one resumes the child. A steer sent while
     // the parent's own turn is IN FLIGHT misdelivers the same way (absorbed into that turn — see the
     // predicate). So an ungated steer is not a no-op, it is a misdelivery. `subAgentSteerable` is the
     // single predicate that decides, and the drawer's prompt box is rendered off the same answer.
@@ -2667,39 +3253,43 @@ export function createRouter(ctx: AppContext) {
     subAgentSteer: mutation({
       input: z.object({ slug: ThreadSlug, id: z.string(), message: z.string().min(1), deliveryId: z.string().min(1).max(200).optional() }).strict(),
       output: z.object({ delivered: z.boolean() }),
-      handler: async ({ input }) => {
-        const target = subAgentSteerable(input.slug, input.id)
-        const deliveryId = input.deliveryId ?? randomUUID()
-        const sentAtMs = Date.now()
-        if (target.inbox !== undefined) {
-          postToAgentInbox(target.inbox, target.agentId, { from: "operator", text: input.message })
-        } else {
-          if (target.sessionId === null) {
-            throw new Error(("note" in target ? target.note : null) ?? "This sub-agent is no longer running, so it can't be steered")
+      handler: ({ input }) => audit(
+        "subAgentSteer",
+        { project: thisProject, thread: input.slug, detail: { subAgent: input.id, message: textDigest(input.message) } },
+        async () => {
+          const target = subAgentSteerable(input.slug, input.id)
+          const deliveryId = input.deliveryId ?? randomUUID()
+          const sentAtMs = Date.now()
+          if (target.inbox !== undefined) {
+            postToAgentInbox(target.inbox, target.agentId, { from: "operator", text: input.message })
+          } else {
+            if (target.sessionId === null) {
+              throw new Error(("note" in target ? target.note : null) ?? "This sub-agent is no longer running, so it can't be steered")
+            }
+            const bridge = ctx.claudeBroker
+            if (!bridge) throw new Error("Claude session broker is unavailable; cannot steer this sub-agent")
+            await bridge.steerSubAgent({
+              threadSlug: input.slug,
+              sessionId: target.sessionId,
+              subAgentId: input.id,
+              text: input.message,
+              deliveryId,
+            })
           }
-          const bridge = ctx.claudeBroker
-          if (!bridge) throw new Error("Claude session broker is unavailable; cannot steer this sub-agent")
-          await bridge.steerSubAgent({
-            threadSlug: input.slug,
-            sessionId: target.sessionId,
+          // The provider deliberately does not write addressed input into the child's transcript. Frizz
+          // has the plaintext here, so journal it only after delivery succeeds and merge it into future
+          // drawer reads. INSERT OR IGNORE makes a retried transport id one visible message.
+          ctx.storage.recordSubAgentSteer({
+            slug: input.slug,
             subAgentId: input.id,
-            text: input.message,
             deliveryId,
+            message: input.message,
+            sentAtMs,
           })
-        }
-        // The provider deliberately does not write addressed input into the child's transcript. Frizz
-        // has the plaintext here, so journal it only after delivery succeeds and merge it into future
-        // drawer reads. INSERT OR IGNORE makes a retried transport id one visible message.
-        ctx.storage.recordSubAgentSteer({
-          slug: input.slug,
-          subAgentId: input.id,
-          deliveryId,
-          message: input.message,
-          sentAtMs,
-        })
-        ctx.board.refresh()
-        return { delivered: true }
-      },
+          ctx.board.refresh()
+          return { delivered: true }
+        },
+      ),
     }),
 
     subAgentStop: mutation({
@@ -2865,29 +3455,43 @@ export function createRouter(ctx: AppContext) {
       // Omitted ⇒ the dispatcher defaults to "claude", so an old client (no backend field) is
       // byte-identical. The resume path needs NO analog — resume reads the backend from the row's
       // `backend` column (backendFor(row.backend)), which dispatch already stamped for a codex thread.
-      handler: async ({ input }) => {
-        const { awaitHandle, project, spawnedFrom, ...dispatched } = input
-        // A TIME LIMIT IS THE HUMAN'S TO SET at dispatch (deadline.ts). A worker's `spawn_thread` cannot
-        // pass one — the shim sends none — and one that arrives from a worker's transport anyway is dropped
-        // rather than refused, so the spawn itself still goes through. The spawned thread's own worker may
-        // set a deadline with `mcp__frizz__deadline`.
-        const { deadline: askedDeadline, ...undated } = dispatched
-        const rest = dispatchCaller() === "worker" ? undated : dispatched
-        void askedDeadline
-        // A worker's spawn is checked for another project's checkout. A current shim says so with
-        // `spawnedFrom`; one older than it (a session started before 2026-10-06 16:44 keeps its shim for
-        // life) is known by its request instead, which a browser's never resembles (dispatch-caller.ts).
-        const staleShim = spawnedFrom === undefined && dispatchCaller() === "worker"
-        const target = await spawnTarget(project, spawnedFrom === undefined && !staleShim ? undefined : rest.prompt, staleShim)
-        const on = target?.ctx ?? ctx
-        const started = await on.dispatcher.dispatch(rest, { backend: input.backend })
-        if (target) target.ctx.board.refresh()
-        // Another project's thread is named in the answer, so a caller with no handle to give links
-        // `/project/<slug>/thread/…`: a bare `/thread/…` resolves against the CALLER's project.
-        const placed = target ? { ...started, project: target.slug } : started
-        if (!awaitHandle) return placed
-        const handle = await spawnedHandle(started.slug, on)
-        return handle ? { ...placed, handle } : placed
+      handler: ({ input }) => {
+        // The project ACTED ON is the one the thread lands in — another project's, for a worker's
+        // cross-project spawn (spawnTarget) — so the record names that one, read off the run below.
+        let landedIn: { id: string; dir: string } | undefined
+        return audit(
+          "dispatch",
+          {
+            project: thisProject,
+            detail: { prompt: textDigest(input.prompt), backend: input.backend ?? "claude", model: input.model ?? null, effort: input.effort ?? null },
+          },
+          async () => {
+            const { awaitHandle, project, spawnedFrom, ...dispatched } = input
+            // A TIME LIMIT IS THE HUMAN'S TO SET at dispatch (deadline.ts). A worker's `spawn_thread` cannot
+            // pass one — the shim sends none — and one that arrives from a worker's transport anyway is dropped
+            // rather than refused, so the spawn itself still goes through. The spawned thread's own worker may
+            // set a deadline with `mcp__frizz__deadline`.
+            const { deadline: askedDeadline, ...undated } = dispatched
+            const rest = dispatchCaller() === "worker" ? undated : dispatched
+            void askedDeadline
+            // A worker's spawn is checked for another project's checkout. A current shim says so with
+            // `spawnedFrom`; one older than it (a session started before 2026-10-06 16:44 keeps its shim for
+            // life) is known by its request instead, which a browser's never resembles (dispatch-caller.ts).
+            const staleShim = spawnedFrom === undefined && dispatchCaller() === "worker"
+            const target = await spawnTarget(project, spawnedFrom === undefined && !staleShim ? undefined : rest.prompt, staleShim)
+            const on = target?.ctx ?? ctx
+            if (target) landedIn = { id: target.ctx.project.id, dir: target.ctx.project.dir }
+            const started = await on.dispatcher.dispatch(rest, { backend: input.backend })
+            if (target) target.ctx.board.refresh()
+            // Another project's thread is named in the answer, so a caller with no handle to give links
+            // `/project/<slug>/thread/…`: a bare `/thread/…` resolves against the CALLER's project.
+            const placed = target ? { ...started, project: target.slug } : started
+            if (!awaitHandle) return placed
+            const handle = await spawnedHandle(started.slug, on)
+            return handle ? { ...placed, handle } : placed
+          },
+          (result) => ({ ...(landedIn ? { project: landedIn } : {}), thread: result.slug, detail: { sessionId: result.sessionId } }),
+        )
       },
     }),
 
@@ -2930,372 +3534,30 @@ export function createRouter(ctx: AppContext) {
     adoptThread: mutation({
       input: AdoptThreadInput,
       output: AdoptThreadResult,
-      handler: ({ input }) => ctx.dispatcher.adopt(input.slug, input.message),
+      handler: ({ input }) => audit(
+        "adoptThread",
+        { project: thisProject, thread: input.slug, detail: input.message ? { message: textDigest(input.message) } : undefined },
+        () => ctx.dispatcher.adopt(input.slug, input.message),
+        (result) => ({ detail: { sessionId: result.sessionId } }),
+      ),
     }),
 
     followUp: mutation({
       input: FollowUpInput,
       // Wrapped so a delivery that throws keeps the operator's words — see keepFailedFollowUp — and so a
       // repeat of a deliveryId still in flight joins the first attempt (joinInflightFollowUp).
-      handler: ({ input }) => joinInflightFollowUp(input.slug, input.deliveryId, () => keepFailedFollowUp(input, async (openWriteAhead) => {
-        // Every follow-up crosses a TYPED CONTROL CHANNEL now, never a terminal: a codex row goes to the
-        // app-server bridge and a claude row to the session broker, each of which owns its own
-        // steer-vs-start decision and reconnects or cold-resumes a dead session itself. Nothing types
-        // into a provider TUI any more, so the capture-gated atomic paste-and-key this used to open with
-        // — which existed only because Codex's TUI dropped Enter when it followed literal text in the
-        // same instant — went with the transport that needed it.
-        //
-        // A follow-up DISABLES any snooze on this row — see wakeParkedThreadForFollowUp, which owns the
-        // rule and the reasoning. Short version: re-parking after the turn you just asked for would hide
-        // its own answer from the queue, so the later instruction ("now") wins over the earlier park.
-        //
-        // The row is bound to the CALLER's session id (origin/main's staleness guard): a stale tab must
-        // not deliver a follow-up into a thread that has since been re-dispatched.
-        // PROMOTION. Steering an EXTERNAL session — one of the human's own terminals, listed in the
-        // rail's External band — is what turns it into a frizz thread (maintainer 2026-08-24). It runs
-        // here, inside the follow-up, rather than behind a button of its own: one round trip, so the
-        // message and the row it belongs to can never end up on opposite sides of a failure.
-        //
-        // Below `currentOwnedSession` because that guard is what an ORDINARY follow-up needs and this
-        // is the case where it cannot yet pass — there is no row. `promoteExternalSession` returns
-        // false for every ordinary send, so the guard still runs first for everything else.
-        await promoteExternalSession(input.slug, input.sessionId)
-        const row = currentOwnedSession(input.slug, input.sessionId)
-        // A HELD THREAD HAS NO AGENT TO DELIVER TO: its first message is what starts one, through the dispatch
-        // path (startHeldThreadRow). Every sender lands here — the drawer's prompt box, a snooze carrying a
-        // prompt, another thread's message — so each of them starts the held thread rather than resuming a
-        // session no provider has heard of.
-        if (isHeldRow(row)) {
-          await startHeldThreadRow(row, input.message)
-          return
-        }
-        if (hasPendingPermissionChange(row)) {
-          throw new Error("Wait for the current permission change to finish before sending a follow-up")
-        }
-        // The operator's "Restart worker" verb, enforced HERE and not only in the UI that offers it: a
-        // stale tab holds a button whose preconditions may have expired since it rendered.
-        //
-        // Both refusals THROW rather than degrading to an ordinary follow-up, because a restart that
-        // quietly becomes a plain message is the worst outcome — the operator believes their worker came
-        // back on the new build when it is still the old process.
-        if (input.freshProcess) {
-          if (!(row?.backend === "claude" && row.claude_runtime === "broker")) {
-            throw new Error("Only a broker-backed Claude worker can be restarted in place")
-          }
-          // Running sub-agents do NOT refuse this. They used to: the completion invariant says an agent
-          // runs to its terminal return, and a restart kills the parent's in-memory children. But that
-          // invariant binds frizz's OWN initiative — needsFreshProcessForLimit below still declines to
-          // kill a live child when FRIZZ is the one deciding to restart — and `freshProcess` is not frizz
-          // deciding, it is the operator instructing. Refusing it made the recovery verb unavailable in
-          // precisely the state that motivates it: a worker wedged behind background work that will not
-          // finish (maintainer 2026-08-01: "do not disable the button when there are sub-agents
-          // running"). The children die; that is what the operator asked for and already knows.
-        }
-        // Every refusal above is a send that never started. From here on the server holds the text —
-        // the write-ahead entry opens BEFORE the reopen and un-park below (the reopen's CAS can throw a
-        // RetryableDeliveryError) and before any transport. A deliveryId already accounted for is a
-        // replay: answer success and deliver nothing (see beginDelivery for which states count).
-        if (!openWriteAhead()) return
-        // Reopen an archived thread HERE, above the runtime branches, because only the LEGACY
-        // fall-through reaches resumeThread (where this used to live alone). A broker-backed Claude row
-        // and an app-server Codex row both return from their own branch below, so sending them a
-        // follow-up used to resume the WORKER while leaving the ROW archived: the thread executed away
-        // while the board read Done, and — an archived thread having no lifecycle verbs — offered no
-        // Mark-as-done button to stop it. That is the state the "send a message to reopen it" readout
-        // promises against, so it has to hold for every runtime. Raised 2026-07-31 against a live broker
-        // thread ("showing up as done… but it is actually running actively").
-        // THE GAP THE HUMAN LEFT, appended to what the worker receives — and to that ONLY. A worker has no
-        // clock of its own, so an answer arriving after four hours is indistinguishable from one arriving
-        // after four seconds; it will resume on a stale premise and re-run work whose result went cold.
-        //
-        // The BUBBLE and the delivery LEDGER keep the human's text untouched (see the `input.message`
-        // uses below): what the human typed is what the board shows. Only the copy handed to the worker
-        // carries the note, and the note names frizz as its author because the message it rides on is
-        // not frizz's.
-        const gapNote = humanGapNote(Date.now(), ctx.tailer.get(input.slug)?.lastAssistantAt)
-        // …AND THE QUESTIONS STILL OPEN, the same way and for the same reader. A typed message changes
-        // nothing about them: each stays open until it is answered, dismissed or withdrawn. The worker —
-        // which reads the message, as frizz cannot — decides which it still needs, so it is told, here,
-        // which are open and by what id, and that its next rest names the ones it needs under
-        // `questions:` and `unask`s the rest. Appended AFTER the gap note, so that note's "the message
-        // above" still means the human's words.
-        const questionsNote = openQuestionsNote(heldQuestions(input.slug))
-        const riders = [gapNote, questionsNote].filter((note): note is string => note !== undefined)
-        const messageForWorker = riders.length > 0 ? `${input.message}\n\n${riders.join("\n\n")}` : input.message
-        if (row) reopenArchivedThreadForFollowUp(ctx, row)
-        // Un-park HERE, above the runtime branches, for the same reason the reopen is here: a broker
-        // Claude row and an app-server Codex row both return from their own branch below, so anything
-        // that must hold for every runtime has to run before the split.
-        if (row) wakeParkedThreadForFollowUp(ctx, row)
-        // Every Codex follow-up flows through the app-server bridge — no terminal composer, no queue, no
-        // stale-draft class. The bridge owns the steer-vs-start decision atomically and dedups on
-        // deliveryId. A LEGACY Codex row (dispatched before the cutover) is migrated on its first
-        // follow-up by adopting its rollout; from then on it is an ordinary app-server thread.
-        // An ACP follow-up goes to the bridge, which delivers it now, queues it behind a running turn
-        // (ACP has no steer), or re-opens the session first when the child is gone (a restart). The
-        // ledger entry is `delivered` or `enqueued` accordingly; a fresh ACP session id is re-pinned.
-        if (row?.backend === "acp") {
-          const bridge = ctx.acpBridge
-          if (!bridge) throw new Error("The ACP bridge is unavailable; cannot deliver this follow-up")
-          const result = await bridge.followUp({
-            threadSlug: input.slug, sessionId: row.session_id, cwd: workDir,
-            agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), acpSessionId: row.agent_session_id,
-            text: messageForWorker, ...(input.deliveryId ? { deliveryId: input.deliveryId } : {}),
-          })
-          if (result.acpSessionId !== row.agent_session_id) ctx.storage.setAgentSession(input.slug, result.acpSessionId)
-          if (row.exited === 1) ctx.storage.setExitedIfCurrent(input.slug, row.session_id, row.runtime_generation ?? 0, false)
-          if (input.deliveryId) {
-            appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, state: result.state === "queued" ? "enqueued" : "delivered" })
-            ctx.transcriptChange.emit([input.slug])
-          }
-          ctx.board.refresh()
-          return
-        }
-        if (row?.backend === "codex") {
-          const bridge = ctx.codexAppServer
-          if (!bridge) throw new Error("Codex app-server is unavailable; cannot deliver this follow-up")
-          if (row.codex_runtime !== "app-server") {
-            if (!row.agent_session_id) throw new Error("This legacy Codex thread has no resumable rollout id yet")
-            await bridge.adoptExternalRollout({ threadSlug: input.slug, sessionId: row.session_id, codexThreadId: row.agent_session_id, cwd: workDir })
-            ctx.storage.setCodexRuntime(input.slug, "app-server")
-          }
-          const binding = bridge.binding(input.slug, row.session_id)
-          // Writer-yield: if the rollout shows an in-flight turn the bridge does NOT hold (it has no
-          // current turn of its own), someone is driving this thread in their own terminal via
-          // `codex resume`. Frizz keeps MIRRORING that turn (the tailer follows the same rollout), but it
-          // must not start/steer a second turn and race two writers. Yield until the external turn rests.
-          // A turn the app-server opens on its own — a codex thread goal's continuation — is NOT this
-          // case: the bridge adopts it from `turn/started` (codex-app-server.ts), so it holds a current
-          // turn and the follow-up steers it like any other.
-          //
-          // "In flight" must mean the rollout is ACTUALLY ADVANCING, not merely that it stopped
-          // mid-turn: a rollout frozen by a dead app-server looks identical to an external writer from
-          // here, and yielding to it left the operator unable to answer their own stalled thread at all.
-          // appServerTurnStalled tells the two apart — see board.ts.
-          const stalled = appServerTurnStalled(
-            bridge.turnLiveness(input.slug, row.session_id),
-            ctx.tailer.get(input.slug)?.lastActivityAt,
-            Date.now(),
-          )
-          const turnLive = ctx.tailer.get(input.slug)?.turn === "in-flight" && !stalled
-          if (turnLive && (!binding || binding.currentTurnId === null)) {
-            // Under 160 characters: sendEagerFollowUp toasts this after "Steer failed — " and cuts the rest.
-            throw new Error("This thread is being driven outside Frizz. Wait for that turn to end, then resend.")
-          }
-          if (!binding || binding.state !== "active") {
-            await bridge.resumeOwnedSession(input.slug, row.session_id)
-          }
-          await bridge.followUp({
-            threadSlug: input.slug,
-            sessionId: row.session_id,
-            text: messageForWorker,
-            deliveryId: input.deliveryId,
-            model: row.model ?? undefined,
-            effort: row.effort ?? undefined,
-          })
-          // Codex gets a ledger entry too — as SERVER TRUTH for the just-sent bubble, not as a delivery
-          // guess: the bridge already dedups on deliveryId and its return IS the receipt. Without it the
-          // ONLY thing rendering a just-sent codex steer is the client's optimistic bubble, and
-          // mergeOptimistic's ghost floor retires that once the transcript advances 60s past it —
-          // measured against frizz's own delivery records, 8 of 75 codex sends took longer than that to
-          // appear in the rollout (steers at 71s, 212s and 4.6h), so the message could vanish from the
-          // drawer entirely. The tailer drops the item the moment the rollout materialises the message.
-          //
-          // `delivered`, not `enqueued`: the receipt names the turn this message steered or STARTED, so
-          // by the time followUp returns the model is already working on it — codex has no queue for it
-          // to sit in. Rendering it gray for the rollout's whole materialization window (p50 3.3s,
-          // tails past an hour) is exactly the "still looks enqueued while the agent is answering it"
-          // report. `delivered` also never ages into the amber "no receipt" warning, which would be
-          // meaningless on a thread whose transport acknowledges every send.
-          if (input.deliveryId) {
-            appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, state: "delivered" })
-            // The ledger is not JSONL bytes, so nothing else pushes a transcript frame for it — emit one
-            // now so the bubble (and its un-grayed state) reaches subscribed tabs immediately instead of
-            // riding the next byte-driven refresh.
-            ctx.transcriptChange.emit([input.slug])
-          }
-          ctx.board.refresh()
-          return
-        }
-        // Claude session-broker follow-up: a broker-backed claude row owns a DETACHED daemon, so its
-        // follow-up is a message on that daemon's own control channel and nothing else can reach it.
-        // Route through the bridge — it reconnects the live daemon's socket (context intact) or
-        // cold-resumes a dead one. Branch on the ROW's runtime (not the flag): a row dispatched via the
-        // broker must always be served via the broker. The worker system prompt is rebuilt so a cold
-        // resume re-applies it (ignored when the daemon is still alive).
-        if (row?.backend === "claude" && row.claude_runtime === "broker") {
-          const bridge = ctx.claudeBroker
-          if (!bridge) throw new Error("Claude session broker is unavailable; cannot deliver this follow-up")
-          // Replay guard: `openWriteAhead` above already answered success for a deliveryId the ledger
-          // accounts for. This branch once had no guard at all — a replayed deliveryId sent the message
-          // a SECOND time — and it matters more now that the deliveryId IS the SDK input uuid: the SDK
-          // rejects an id that is still outstanding, so a replay would surface as an error on the
-          // operator's send instead of the no-op it should be.
-          const appendSystemPrompt = [
-            loadWorkerPrompt("claude", workerCapabilities(ctx.editors, workDir)),
-            scratchpadOrientation(row.session_id, "claude", workerScratchPath(ctx.project, row.session_id)),
-            frizzConfigBlock(ctx.project.dir),
-            deadlineSection(row),
-          ].filter(Boolean).join("\n\n")
-          // Is this thread MID-TURN right now? Sampled BEFORE the bridge call on purpose: a cold resume
-          // takes seconds, and by the time it returns the turn this very message started reads as
-          // in-flight — which would gray the one send that is provably being read. The tailer's `turn`
-          // already folds in the runtime's own liveness. Unknown telemetry (a row not yet primed after a
-          // server boot) defaults to mid-turn — the conservative direction, since the gray bubble is
-          // honest for a queued send and merely late for a delivered one.
-          const midTurn = (ctx.tailer.get(input.slug)?.turn ?? "in-flight") === "in-flight"
-          // THE UPGRADE AT COMPACTION (claude-model-upgrade.ts): a thread that compacted on an edition its
-          // family has since moved past takes this message in a fresh process, forked from the current pin.
-          // Only at rest — the gate refuses a turn in flight, a sub-agent, a shell, an approval or an
-          // undelivered send, so a steer never restarts anything.
-          const upgradeCandidate = claudeUpgradeCandidate({ stateDir: ctx.project.stateDir, projectId: ctx.project.id, storage: ctx.storage, telemetry: ctx.tailer.get(input.slug) }, row)
-          const upgrade = upgradeCandidate
-            ? claudeModelUpgradeDue(upgradeCandidate, { catalogue: peekClaudeModels(), nowMs: Date.now(), serverStartedAtMs: SERVER_STARTED_AT_MS })
-            : undefined
-          if (upgrade?.due) frizzLog.info("server", `${input.slug}: compacted on ${upgrade.from}; this follow-up starts a fresh worker on ${upgrade.to}`)
-          await bridge.followUp({
-            threadSlug: input.slug,
-            sessionId: row.session_id,
-            cwd: workDir,
-            text: messageForWorker,
-            // Rides through to the SDK as this input's uuid, which the SDK echoes back on the record
-            // that delivers it — the ledger then correlates by identity rather than by text.
-            deliveryId: input.deliveryId,
-            // A persisted per-thread mode, or the dispatch floor for a row that has none — see
-            // coldResumePermission for why a legacy row must not fall through to the bridge's `"default"`.
-            permissionMode: coldResumePermission(row, ctx.getSettings()),
-            appendSystemPrompt,
-            model: row.model ?? undefined,
-            effort: row.effort ?? undefined,
-            // The pause card's "Continue now" is the same act as the scheduler's auto-resume, so it
-            // needs the same treatment: while the process is still latched on its own 429, delivering
-            // into it does nothing at all. Restart it instead — otherwise the button is a no-op and
-            // reads as frizz having ignored the click.
-            //
-            // `input.freshProcess` is the operator asking for it OUTRIGHT (the "Restart worker" verb),
-            // which the server cannot derive: only the human knows they want the worker back on a newer
-            // build. It is OR'd in rather than replacing the derivation, so a restart clicked on a
-            // limit-latched thread still behaves. The live-sub-agent refusal above applies to both.
-            freshProcess: input.freshProcess === true || upgrade?.due === true || needsFreshProcessForLimit(
-              ctx.tailer.get(input.slug)?.limitFault,
-              Date.now(),
-              mayHaveLiveBackgroundWork(ctx.tailer.get(input.slug)),
-            ),
-          })
-          // `exited` records a deliberate stop (a dismiss, a retire, a hibernation). The bridge just
-          // accepted this send — it reconnected the live daemon or cold-resumed a dead one — so the stop
-          // is over, and the column has to say so. Nothing cleared it before: `beginRuntimeGeneration`
-          // is the only other writer of `exited = 0` and no path calls it, so a thread resumed by a
-          // follow-up kept `exited = 1` for as long as it then ran (four of them on 2026-09-03, each
-          // hours into a resumed task). The board derives a broker row's liveness live and never
-          // showed it, but every direct reader of the row — the CLI, a diagnostic, the next
-          // engineer — believed the column. Same CAS as every other row write: a replaced owner
-          // observes zero changes.
-          if (row.exited === 1) ctx.storage.setExitedIfCurrent(input.slug, row.session_id, row.runtime_generation ?? 0, false)
-          // The ledger's RELIABILITY half died with the terminal transport — the stuck-composer flush and
-          // the screen-inspected receipt were the only things it bought, and both were skipped for a
-          // headless row even then; no delivery marker is stamped either, because nothing rewrites bytes
-          // on the way to the SDK. But its RENDERING half applies here exactly as it does to codex:
-          // until the JSONL carries the message, the only thing showing the human their own just-sent
-          // steer is the client's optimistic bubble, and mergeOptimistic's ghost floor retires that once
-          // the transcript advances 60s past it. So the write-ahead entry settles here into a receipted
-          // state; the SDK call returning IS the receipt, which also keeps it out of the amber "no receipt" state that would be meaningless
-          // on a thread whose transport acknowledges every send. The tailer drops it as soon as the
-          // record lands.
-          //
-          // WHICH state depends on whether anything was ahead of it. Mid-turn, the SDK genuinely queues
-          // the message until the next sampling boundary — that is what the gray bubble is FOR, so it
-          // opens `enqueued`. With no turn in flight (a rested thread, above all one whose hibernated
-          // daemon this send just cold-resumed) the message is what STARTS the next turn, and graying
-          // it renders the one send the agent is provably reading as "still enqueued" for the whole
-          // resume-and-first-record window (~3s on a small session, longer on a big one). It opens
-          // `delivered` and renders as an ordinary bubble — which also keeps the daemon-death retire
-          // sweeps from dropping it mid-cold-resume, a race that made a just-sent message vanish from
-          // the chat for the resume's whole duration (observed live: rendered at +0.2s, gone from
-          // +0.3s to +2.3s, back at +2.3s). A `freshProcess` restart is delivered by the same logic:
-          // the old process's turn died with it and this message opens the new one's first turn.
-          // A restart RETIRED the process every earlier outstanding send was handed to, so those sends
-          // are dead and their queued bubbles are now claims about a process that no longer exists.
-          // Clear them here, BEFORE this restart's own entry is opened, so the continuation is the only
-          // thing left queued. Without this they linger the rest of the hour and cannot be dismissed by
-          // hand — the unqueue click asks the NEW daemon about a uuid it never heard of and answers
-          // "Too late — that message has already left the queue", which is exactly backwards.
-          if (input.freshProcess) retireOutstandingDeliveries(ctx.storage, input.slug)
-          // "Interrupt and send": preempt whatever the worker is doing so it reads this NOW. Strictly
-          // AFTER the delivery above, and that order is the whole mechanism — the SDK's interrupt
-          // aborts the turn without discarding queued inputs (its receipt reports `still_queued`), so
-          // a message queued first is what the next turn opens on. Interrupting first would abort into
-          // an empty queue and the message would merely start an ordinary new turn.
-          //
-          // Measured live (_live_broker_interrupt_send.mts) against a real 90s tool call in flight:
-          // 94.4s without it, seconds with it, and the session takes ordinary follow-ups afterwards.
-          //
-          // THE INTERRUPT ALSO ENDS EVERY BACKGROUND SUB-AGENT, and the runtime tells the worker nothing
-          // (interrupt-ended.ts). Snapshot the running children BEFORE the frame goes out, so the note can
-          // name exactly the ones the tailer then sees end — fire-and-forget, after the send succeeded.
-          const childrenBefore = input.interrupt === true ? runningSubAgentsOf(ctx.tailer.get(input.slug)) : []
-          const preempted = input.interrupt === true && bridge.interruptTurn({ threadSlug: input.slug, sessionId: row.session_id })
-          if (preempted) {
-            void noteSubAgentsEndedByInterrupt(
-              { tailer: ctx.tailer, storage: ctx.storage, log: (line) => frizzLog.info("interrupt", line) },
-              { slug: input.slug, sessionId: row.session_id, before: childrenBefore, interruptedAtMs: Date.now() },
-            )
-          }
-          if (input.deliveryId) {
-            appendDelivery(ctx.storage, input.slug, {
-              id: input.deliveryId,
-              text: input.message,
-              state: midTurn && input.freshProcess !== true ? "enqueued" : "delivered",
-            })
-          }
-          // A landed interrupt frees the WHOLE queue — the next turn opens on it — so nothing outstanding
-          // is still waiting to be read, this send included. Flipping it here rather than in the `state`
-          // above is what covers the sends already queued AHEAD of this one, which the same interrupt
-          // also delivers.
-          if (preempted) deliverOutstandingDeliveries(ctx.storage, input.slug)
-          // The ledger is not JSONL bytes, so nothing else pushes a transcript frame for it — emit one
-          // now so the bubble (gray or delivered) reaches subscribed tabs immediately instead of
-          // riding the next byte-driven refresh.
-          if (input.deliveryId || preempted) ctx.transcriptChange.emit([input.slug])
-          ctx.board.refresh()
-          return
-        }
-        // Idempotency for a REPLAYED deliveryId is `openWriteAhead` above: an accepted send answers
-        // success and injects nothing.
-        //
-        // What actually guarantees the retry loop cannot double-send is the CLASSIFICATION, not that
-        // check: the client only replays an error typed RetryableDeliveryError, and every such throw is
-        // raised strictly upstream of the first write to the worker, so a replayed send never had a first
-        // copy to duplicate — which is also the only reason beginDelivery lets a `retryable` entry be
-        // re-opened under the same id. A throw misclassified as retryable AFTER an injection would
-        // therefore double-send on the replay. Keeping every retryable throw pre-injection is
-        // load-bearing, not optional.
-        // The LEGACY fall-through: a claude row that is not broker-backed, i.e. one dispatched before the
-        // cutover. The deliveryId rides along because the old terminal transport stamped each send with
-        // an invisible marker (delivery-marker.ts) — that is what let the tailer confirm delivery by
-        // IDENTITY instead of by comparing prose a paste channel was free to rewrite. Codex never takes
-        // this path, and frizz has no transport left for the rows that do: resumeThread refuses every one
-        // of them by design (see resume.ts), so this is a loud backstop, not a delivery.
-        resumeThread({ project: ctx.project, storage: ctx.storage, board: ctx.board, getSettings: ctx.getSettings, backendFor: ctx.backendFor }, input.slug, messageForWorker,
-          input.deliveryId && row?.backend !== "codex" ? input.deliveryId : undefined,
-          // "Continue now" on a limit-paused legacy thread relaunches it, for the same reason the broker
-          // branch above swaps its process: the running one is not listening.
-          {
-            freshProcess: needsFreshProcessForLimit(
-              ctx.tailer.get(input.slug)?.limitFault,
-              Date.now(),
-              mayHaveLiveBackgroundWork(ctx.tailer.get(input.slug)),
-            ),
-          })
-        // Injection accepted → open a delivery-ledger entry (Claude rows only; Codex has its own durable
-        // queue above). From here the send is a tracked state machine: the tailer correlates the JSONL
-        // evidence and the transcript projection renders the queued bubble as SERVER truth — reload-safe,
-        // consumed by the client's optimistic copy via this deliveryId instead of by text match.
-        if (input.deliveryId && row?.backend !== "codex") {
-          appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message })
-        }
-        ctx.board.refresh()
-      })),
+      handler: ({ input }) => joinInflightFollowUp(input.slug, input.deliveryId, () => audit("followUp", {
+        project: thisProject,
+        thread: input.slug,
+        detail: {
+          sessionId: input.sessionId,
+          message: textDigest(input.message),
+          ...(input.freshProcess ? { freshProcess: true } : {}),
+          ...(input.interrupt ? { interrupt: true } : {}),
+          ...(input.hold ? { hold: true } : {}),
+          ...(input.answers?.length ? { answers: input.answers.map((answer) => answerDigest(input.slug, answer)) } : {}),
+        },
+      }, () => sendFollowUp(input))),
     }),
 
     // The × on a FAILED send's bubble, and the second half of its Edit (the client has already put the
@@ -3327,6 +3589,15 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
         if (!row) throw new Error("This thread is no longer the session this tab is looking at")
+        // A message Frizz is HOLDING for the agent's rest was never handed to any runtime, so taking it
+        // back is Frizz's alone to do, on every backend: drop the entry and the words go back to the
+        // prompt box. A null here means it was released in the meantime, and the ordinary rules below
+        // decide what can still be done about it.
+        if (dropHeldDelivery(ctx.storage, input.slug, input.deliveryId) !== null) {
+          ctx.transcriptChange.emit([input.slug])
+          ctx.board.refresh()
+          return { unqueued: true }
+        }
         if (row.backend !== "claude" || row.claude_runtime !== "broker") {
           return { unqueued: false, reason: "This thread's runtime can't take a message back once it's been sent" }
         }
@@ -3391,8 +3662,18 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
         if (!row) throw new Error("This thread is no longer the session this tab is looking at")
+        // What Frizz was HOLDING for the rest goes to the runtime first — the operator has just said not
+        // to wait — and then the interrupt below pushes the whole queue through, those included. On a
+        // runtime with no interrupt the release is the entire act, and it is a steer there, read at the
+        // agent's next step.
+        const released = await releaseHeldFollowUps(input.slug, { force: true })
+        if (input.releaseOnly) {
+          return released > 0 ? { interrupted: false, released } : { interrupted: false, reason: "That message has already been sent" }
+        }
         if (row.backend !== "claude" || row.claude_runtime !== "broker") {
-          return { interrupted: false, reason: "This thread's runtime can't be interrupted from frizz" }
+          return released > 0
+            ? { interrupted: false, released }
+            : { interrupted: false, reason: "This thread's runtime can't be interrupted from frizz" }
         }
         const bridge = ctx.claudeBroker
         if (!bridge) throw new Error("Claude session broker is unavailable; cannot interrupt this turn")
@@ -3403,9 +3684,12 @@ export function createRouter(ctx: AppContext) {
         const childrenBefore = runningSubAgentsOf(ctx.tailer.get(input.slug))
         // `onlyIfQueued`: this push has nothing of its own to deliver, so once the queue has been read —
         // above all by the interrupt a ⌘⏎ send fired a moment earlier — it must not abort the turn now
-        // reading it (the daemon decides; it is the only party that knows what is still queued).
+        // reading it (the daemon decides; it is the only party that knows what is still queued). What
+        // was released just above IS queued there now, so it still pushes those through.
         if (!bridge.interruptTurn({ threadSlug: input.slug, sessionId: row.session_id, onlyIfQueued: true })) {
-          return { interrupted: false, reason: "Nothing to interrupt — this thread has no turn running" }
+          return released > 0
+            ? { interrupted: false, released }
+            : { interrupted: false, reason: "Nothing to interrupt — this thread has no turn running" }
         }
         void noteSubAgentsEndedByInterrupt(
           { tailer: ctx.tailer, storage: ctx.storage, log: (line) => frizzLog.info("interrupt", line) },
@@ -3415,7 +3699,7 @@ export function createRouter(ctx: AppContext) {
         // instead of leaving them gray until their delivery records reach disk, which is the entire wait
         // this button exists to end. The ledger is not JSONL bytes, so the frame has to be emitted here.
         if (deliverOutstandingDeliveries(ctx.storage, input.slug)) ctx.transcriptChange.emit([input.slug])
-        return { interrupted: true }
+        return { interrupted: true, ...(released > 0 ? { released } : {}) }
       },
     }),
 
@@ -4655,53 +4939,29 @@ export function createRouter(ctx: AppContext) {
     answerQuestions: mutation({
       input: AnswerQuestionsInput,
       output: AnswerQuestionsResult,
-      handler: async ({ input }) => {
-        const now = Date.now()
-        const answered: string[] = []
-        for (const answer of input.answers) {
-          // Scoped by reading the row first: an id belonging to another thread answers nothing here.
-          const q = ctx.storage.getThreadQuestion(answer.questionId)
-          if (!q || q.thread_slug !== input.slug) continue
-          if (q.state !== "answered" && q.state !== "open") continue
-          const { changed: _client, ...given } = answer
-          let stored: typeof given = given
-          // A SECRET'S VALUE STOPS HERE. It is served once, from memory, through its pipe
-          // (secret-files.ts), and the row — which the settled card, the in-flight card and the worker's
-          // wake all read — keeps only the path. Nothing below this line ever holds the value. A blank one
-          // answers nothing: the request stays open rather than waking the worker to an empty read.
-          if (parseQuestionSpec(q.spec)?.secret) {
-            const value = answer.text?.trim() ?? ""
-            if (!value) continue
-            const path = serveSecret(ctx.project.stateDir, input.slug, q.id, value)
-            stored = { questionId: answer.questionId, question: answer.question, chosen: [], text: secretAnswerText(path) }
+      handler: ({ input }) => audit(
+        "answerQuestions",
+        () => ({ project: thisProject, thread: input.slug, detail: { answers: input.answers.map((answer) => answerDigest(input.slug, answer)) } }),
+        async () => {
+          const answered = settleQuestionAnswers(input.slug, input.answers, Date.now()).map((answer) => answer.questionId)
+          // ANSWERING IS NOT DELIVERING. The row is stored answered-but-undelivered and the scheduler
+          // hands it over (evalQuestionAnswers), so an answer given while the worker's process is down
+          // survives the gap instead of being lost in the same silence the fence lost the question in.
+          //
+          // BUT THE HUMAN IS RIGHT HERE, so the sweep runs NOW rather than up to a whole tick from now.
+          // Waiting for it cost a mean five seconds in which the question card was already gone and the
+          // answer had not arrived, and the thread — at rest, with nothing registered any more — drew the
+          // residual "Rested without a sign-off" card in the hole (maintainer 2026-08-27: "I get a little
+          // card that, for like 5+ seconds, just says that the thread rested without a sign-off before it
+          // shows up my answer"). The durable path is unchanged: this only skips the wait.
+          if (answered.length > 0) {
+            ctx.board.refresh()
+            ctx.scheduler.kick()
           }
-          // A CHANGED ANSWER (the card's Change on an answered question). It replaces the stored one and is
-          // delivered again; it says so only when the worker may already have the old one — received, or
-          // riding a delivery already offered — since one it never saw is simply replaced.
-          if (q.state === "answered") {
-            const prior = parseStoredAnswer(q.answer)
-            const changed = q.delivered === 1 || q.delivery_id != null || prior?.changed === true
-            if (ctx.storage.reviseThreadQuestionAnswer(answer.questionId, JSON.stringify(changed ? { ...stored, changed } : stored), now)) answered.push(answer.questionId)
-            continue
-          }
-          if (ctx.storage.answerThreadQuestion(answer.questionId, JSON.stringify(stored), now)) answered.push(answer.questionId)
-        }
-        // ANSWERING IS NOT DELIVERING. The row is stored answered-but-undelivered and the scheduler
-        // hands it over (evalQuestionAnswers), so an answer given while the worker's process is down
-        // survives the gap instead of being lost in the same silence the fence lost the question in.
-        //
-        // BUT THE HUMAN IS RIGHT HERE, so the sweep runs NOW rather than up to a whole tick from now.
-        // Waiting for it cost a mean five seconds in which the question card was already gone and the
-        // answer had not arrived, and the thread — at rest, with nothing registered any more — drew the
-        // residual "Rested without a sign-off" card in the hole (maintainer 2026-08-27: "I get a little
-        // card that, for like 5+ seconds, just says that the thread rested without a sign-off before it
-        // shows up my answer"). The durable path is unchanged: this only skips the wait.
-        if (answered.length > 0) {
-          ctx.board.refresh()
-          ctx.scheduler.kick()
-        }
-        return { answered, open: openQuestionViews(input.slug) }
-      },
+          return { answered, open: openQuestionViews(input.slug) }
+        },
+        (result) => ({ detail: { answered: result.answered } }),
+      ),
     }),
 
     // The card's report on a question's default: the human is working on it, or pressed the countdown's ×.
@@ -5385,112 +5645,119 @@ export function createRouter(ctx: AppContext) {
     messageThread: mutation({
       input: MessageThreadInput,
       output: MessageThreadResult,
-      handler: async ({ input }) => {
-        const threads = threadNamer().threads()
-        const [threadPart = input.handle, ...childPath] = addressSegments(input.handle)
-        const local = resolveThreadHandle(threadPart, threads)
-        // A handle no thread here carries may name one in another open project; `home` is the
-        // RECIPIENT's project from here on, and `ctx` stays the sender's.
-        const elsewhere = local && ctx.storage.getSession(local.slug) ? undefined : resolveElsewhere(threadPart)
-        const hit = elsewhere?.hit ?? local
-        const home = elsewhere?.tenant ?? ctx
-        const project = elsewhere ? home.project.name : undefined
-        const target = hit ? home.storage.getSession(hit.slug) : undefined
-        // A SUB-AGENT, `@thread.child`: delivered into the child's MAILBOX (agent-inbox.ts), which its own hook
-        // hands it after its next tool call or as it tries to finish — never through the thread's session,
-        // where a message from outside would land on the thread's main turn instead (subAgentSteer). Its own
-        // parent may use this too. Journalled into the child's drawer like a steer, which is its record.
-        if (hit && target && childPath.length > 0) {
-          const threadHandle = handleOf(hit)
-          const address = `${threadHandle}.${childPath.join(".")}`
-          if (elsewhere) return { sent: false, handle: address, refusal: `that is a sub-agent of a thread in ${home.project.name}; a sub-agent can be messaged only from its own project. Message @${threadHandle} instead.` }
-          const { agents } = subAgentDirectoryOf(hit.slug)
-          const child = resolveSubAgent(childPath, agents)
-          if (!child) return { sent: false, handle: address, refusal: `@${threadHandle} has no sub-agent called ${childPath.join(".")}.`, known: subAgentAddresses(threadHandle, agents) }
-          const named = agents.find((a) => a.id === child.id)?.address ?? address
-          if (input.awaitReply) return { sent: false, handle: named, refusal: "a sub-agent answers in its report to its own thread, not to you, so there is no reply to wait for. Send without awaitReply, and read its report later with read_thread." }
-          if (ctx.tailer.subAgent(hit.slug, child.id)?.workflow) {
-            const inRun = agents.filter((a) => a.parentId === child.id && a.state === "running" && a.address).map((a) => `@${a.address}`)
-            return { sent: false, handle: named, refusal: `@${named} is a Workflow run, not an agent; message one of its agents instead${inRun.length ? `: ${inRun.join(", ")}` : ", but none is running now"}.` }
+      // Audited like every other way words reach a worker (audit.ts). A refusal is an answer here, not a
+      // throw, so the record carries whether it went.
+      handler: ({ input }) => audit(
+        "messageThread",
+        { project: thisProject, thread: input.slug, detail: { to: input.handle, message: textDigest(input.message), ...(input.awaitReply ? { awaitReply: true } : {}) } },
+        async () => {
+          const threads = threadNamer().threads()
+          const [threadPart = input.handle, ...childPath] = addressSegments(input.handle)
+          const local = resolveThreadHandle(threadPart, threads)
+          // A handle no thread here carries may name one in another open project; `home` is the
+          // RECIPIENT's project from here on, and `ctx` stays the sender's.
+          const elsewhere = local && ctx.storage.getSession(local.slug) ? undefined : resolveElsewhere(threadPart)
+          const hit = elsewhere?.hit ?? local
+          const home = elsewhere?.tenant ?? ctx
+          const project = elsewhere ? home.project.name : undefined
+          const target = hit ? home.storage.getSession(hit.slug) : undefined
+          // A SUB-AGENT, `@thread.child`: delivered into the child's MAILBOX (agent-inbox.ts), which its own hook
+          // hands it after its next tool call or as it tries to finish — never through the thread's session,
+          // where a message from outside would land on the thread's main turn instead (subAgentSteer). Its own
+          // parent may use this too. Journalled into the child's drawer like a steer, which is its record.
+          if (hit && target && childPath.length > 0) {
+            const threadHandle = handleOf(hit)
+            const address = `${threadHandle}.${childPath.join(".")}`
+            if (elsewhere) return { sent: false, handle: address, refusal: `that is a sub-agent of a thread in ${home.project.name}; a sub-agent can be messaged only from its own project. Message @${threadHandle} instead.` }
+            const { agents } = subAgentDirectoryOf(hit.slug)
+            const child = resolveSubAgent(childPath, agents)
+            if (!child) return { sent: false, handle: address, refusal: `@${threadHandle} has no sub-agent called ${childPath.join(".")}.`, known: subAgentAddresses(threadHandle, agents) }
+            const named = agents.find((a) => a.id === child.id)?.address ?? address
+            if (input.awaitReply) return { sent: false, handle: named, refusal: "a sub-agent answers in its report to its own thread, not to you, so there is no reply to wait for. Send without awaitReply, and read its report later with read_thread." }
+            if (ctx.tailer.subAgent(hit.slug, child.id)?.workflow) {
+              const inRun = agents.filter((a) => a.parentId === child.id && a.state === "running" && a.address).map((a) => `@${a.address}`)
+              return { sent: false, handle: named, refusal: `@${named} is a Workflow run, not an agent; message one of its agents instead${inRun.length ? `: ${inRun.join(", ")}` : ", but none is running now"}.` }
+            }
+            const box = childMailbox(hit.slug, child.id)
+            if (!box) return { sent: false, handle: named, refusal: `@${named} is not running, so there is nobody to deliver to. Read its report with read_thread.` }
+            const nowMs = Date.now()
+            const pair = `${input.slug}\u0000${ctx.project.id}\u0000${hit.slug}\u0000${child.id}`
+            const recent = (threadMessageLog.get(pair) ?? []).filter((at) => nowMs - at < 3_600_000)
+            if (recent.length >= THREAD_MESSAGE_HOURLY_CAP) {
+              return { sent: false, handle: named, refusal: `this thread has sent @${named} ${recent.length} messages in the last hour, which is the cap. Stop the exchange here, or ask the user.` }
+            }
+            const self = threads.find((t) => t.slug === input.slug)
+            const from = self ? handleOf(self) : input.slug
+            postToAgentInbox(box.sessionDir, box.agentId, { from: hit.slug === input.slug ? "parent" : `@${from}`, text: input.message })
+            ctx.storage.recordSubAgentSteer({ slug: hit.slug, subAgentId: child.id, deliveryId: randomUUID(), message: hit.slug === input.slug ? input.message : `From @${from}: ${input.message}`, sentAtMs: nowMs })
+            threadMessageLog.set(pair, [...recent, nowMs])
+            ctx.board.refresh()
+            return { sent: true, handle: named, from, delivery: "mailbox" as const }
           }
-          const box = childMailbox(hit.slug, child.id)
-          if (!box) return { sent: false, handle: named, refusal: `@${named} is not running, so there is nobody to deliver to. Read its report with read_thread.` }
+          if (!hit || !target) {
+            return { sent: false, refusal: `no thread is called ${input.handle}.`, known: knownHandles(threads, input.slug) }
+          }
+          const handle = handleOf(hit)
+          if (!elsewhere && hit.slug === input.slug) return { sent: false, handle, refusal: "that is this thread." }
+          if (target.state === "archived" || target.archived === 1) {
+            return { sent: false, handle, refusal: `@${handle} is done, and a message would reopen it. Read it with read_thread instead; only the user reopens a finished thread.` }
+          }
           const nowMs = Date.now()
-          const pair = `${input.slug}\u0000${ctx.project.id}\u0000${hit.slug}\u0000${child.id}`
+          const pair = `${input.slug}\u0000${home.project.id}\u0000${hit.slug}`
           const recent = (threadMessageLog.get(pair) ?? []).filter((at) => nowMs - at < 3_600_000)
           if (recent.length >= THREAD_MESSAGE_HOURLY_CAP) {
-            return { sent: false, handle: named, refusal: `this thread has sent @${named} ${recent.length} messages in the last hour, which is the cap. Stop the exchange here, or ask the user.` }
+            return { sent: false, handle, refusal: `this thread has sent @${handle} ${recent.length} messages in the last hour, which is the cap. Stop the exchange here, or ask the user.` }
           }
           const self = threads.find((t) => t.slug === input.slug)
           const from = self ? handleOf(self) : input.slug
-          postToAgentInbox(box.sessionDir, box.agentId, { from: hit.slug === input.slug ? "parent" : `@${from}`, text: input.message })
-          ctx.storage.recordSubAgentSteer({ slug: hit.slug, subAgentId: child.id, deliveryId: randomUUID(), message: hit.slug === input.slug ? input.message : `From @${from}: ${input.message}`, sentAtMs: nowMs })
-          threadMessageLog.set(pair, [...recent, nowMs])
-          ctx.board.refresh()
-          return { sent: true, handle: named, from, delivery: "mailbox" as const }
-        }
-        if (!hit || !target) {
-          return { sent: false, refusal: `no thread is called ${input.handle}.`, known: knownHandles(threads, input.slug) }
-        }
-        const handle = handleOf(hit)
-        if (!elsewhere && hit.slug === input.slug) return { sent: false, handle, refusal: "that is this thread." }
-        if (target.state === "archived" || target.archived === 1) {
-          return { sent: false, handle, refusal: `@${handle} is done, and a message would reopen it. Read it with read_thread instead; only the user reopens a finished thread.` }
-        }
-        const nowMs = Date.now()
-        const pair = `${input.slug}\u0000${home.project.id}\u0000${hit.slug}`
-        const recent = (threadMessageLog.get(pair) ?? []).filter((at) => nowMs - at < 3_600_000)
-        if (recent.length >= THREAD_MESSAGE_HOURLY_CAP) {
-          return { sent: false, handle, refusal: `this thread has sent @${handle} ${recent.length} messages in the last hour, which is the cap. Stop the exchange here, or ask the user.` }
-        }
-        const self = threads.find((t) => t.slug === input.slug)
-        const from = self ? handleOf(self) : input.slug
-        // THE WAIT FOR THE ANSWER is REGISTERED as a one-off TIMER on the sender: an armed timer already
-        // blocks `done`, shows on its card and in `activity`, and is what the sender's ```awaiting fence
-        // names under `threads:` (awaiting.ts, thread-mentions.armedTimerKeys). Registering is not parking:
-        // the sender's rest still ends with that fence, and its `for:` is the timeout. The answer CANCELS the
-        // timer (below, on the other side of the same exchange), so the only wake the sender gets is the
-        // answer itself, or the fence's own expiry. The timer lives as long as the longest park on it can
-        // stand (AWAITING_FOR_MAX_MS), so it lapses on its own if nothing ever answers. A `for` from an
-        // older worker's MCP server is ignored: it only duplicated the fence's. Checked before anything is
-        // sent, so a refusal never leaves a message out that nothing is waiting for.
-        let wait: { id: string; fireAtMs: number } | undefined
-        if (input.awaitReply) {
-          if (ctx.storage.listThreadTimers(input.slug, { armedOnly: true }).length >= TIMER_MAX_ARMED) {
-            return { sent: false, handle, refusal: `this thread already has ${TIMER_MAX_ARMED} armed timers, and a reply wait is one — cancel one first.` }
+          // THE WAIT FOR THE ANSWER is REGISTERED as a one-off TIMER on the sender: an armed timer already
+          // blocks `done`, shows on its card and in `activity`, and is what the sender's ```awaiting fence
+          // names under `threads:` (awaiting.ts, thread-mentions.armedTimerKeys). Registering is not parking:
+          // the sender's rest still ends with that fence, and its `for:` is the timeout. The answer CANCELS the
+          // timer (below, on the other side of the same exchange), so the only wake the sender gets is the
+          // answer itself, or the fence's own expiry. The timer lives as long as the longest park on it can
+          // stand (AWAITING_FOR_MAX_MS), so it lapses on its own if nothing ever answers. A `for` from an
+          // older worker's MCP server is ignored: it only duplicated the fence's. Checked before anything is
+          // sent, so a refusal never leaves a message out that nothing is waiting for.
+          let wait: { id: string; fireAtMs: number } | undefined
+          if (input.awaitReply) {
+            if (ctx.storage.listThreadTimers(input.slug, { armedOnly: true }).length >= TIMER_MAX_ARMED) {
+              return { sent: false, handle, refusal: `this thread already has ${TIMER_MAX_ARMED} armed timers, and a reply wait is one — cancel one first.` }
+            }
+            wait = { id: `tmr_${randomUUID().replace(/-/g, "").slice(0, 12)}`, fireAtMs: nowMs + AWAITING_FOR_MAX_MS }
           }
-          wait = { id: `tmr_${randomUUID().replace(/-/g, "").slice(0, 12)}`, fireAtMs: nowMs + AWAITING_FOR_MAX_MS }
-        }
-        // …AND THIS MESSAGE MAY BE THE ANSWER to a wait on the recipient's side: every reply wait it holds
-        // on THIS thread is settled by it, whatever the message says — the recipient reads it and decides.
-        const answered = home.storage.listThreadTimers(hit.slug, { armedOnly: true })
-          .filter((t) => isReplyWaitFor(t.prompt, input.slug, elsewhere ? ctx.project.name : undefined))
-          .map((t) => home.storage.cancelThreadTimer(hit.slug, t.id, nowMs))
-          .some(Boolean)
-        enqueueThreadMessageWake(home.storage, {
-          slug: hit.slug,
-          sessionId: target.session_id,
-          fromSlug: input.slug,
-          message: threadMessageBody({ fromHandle: from, message: input.message, awaitsReply: Boolean(wait), answersWait: answered, ...(elsewhere ? { fromProject: ctx.project.name } : {}) }),
-          nowMs,
-        })
-        threadMessageLog.set(pair, [...recent, nowMs])
-        if (wait) {
-          ctx.storage.clearThreadDone(input.slug)
-          ctx.storage.armThreadTimer({ id: wait.id, slug: input.slug, prompt: replyWaitPrompt(handle, hit.slug, project), fireAtMs: wait.fireAtMs, createdAtMs: nowMs })
-        }
-        ctx.board.refresh()
-        ctx.scheduler?.kick?.()
-        if (elsewhere) {
-          home.board.refresh()
-          home.scheduler?.kick?.()
-        }
-        return {
-          sent: true, handle, from, ...(project ? { project } : {}),
-          ...(wait ? { timerId: wait.id, waitUntil: new Date(wait.fireAtMs).toISOString() } : {}),
-          ...(answered ? { answered } : {}),
-        }
-      },
+          // …AND THIS MESSAGE MAY BE THE ANSWER to a wait on the recipient's side: every reply wait it holds
+          // on THIS thread is settled by it, whatever the message says — the recipient reads it and decides.
+          const answered = home.storage.listThreadTimers(hit.slug, { armedOnly: true })
+            .filter((t) => isReplyWaitFor(t.prompt, input.slug, elsewhere ? ctx.project.name : undefined))
+            .map((t) => home.storage.cancelThreadTimer(hit.slug, t.id, nowMs))
+            .some(Boolean)
+          enqueueThreadMessageWake(home.storage, {
+            slug: hit.slug,
+            sessionId: target.session_id,
+            fromSlug: input.slug,
+            message: threadMessageBody({ fromHandle: from, message: input.message, awaitsReply: Boolean(wait), answersWait: answered, ...(elsewhere ? { fromProject: ctx.project.name } : {}) }),
+            nowMs,
+          })
+          threadMessageLog.set(pair, [...recent, nowMs])
+          if (wait) {
+            ctx.storage.clearThreadDone(input.slug)
+            ctx.storage.armThreadTimer({ id: wait.id, slug: input.slug, prompt: replyWaitPrompt(handle, hit.slug, project), fireAtMs: wait.fireAtMs, createdAtMs: nowMs })
+          }
+          ctx.board.refresh()
+          ctx.scheduler?.kick?.()
+          if (elsewhere) {
+            home.board.refresh()
+            home.scheduler?.kick?.()
+          }
+          return {
+            sent: true, handle, from, ...(project ? { project } : {}),
+            ...(wait ? { timerId: wait.id, waitUntil: new Date(wait.fireAtMs).toISOString() } : {}),
+            ...(answered ? { answered } : {}),
+          }
+        },
+        (result) => ({ detail: { sent: result.sent, ...(result.handle ? { handle: result.handle } : {}), ...(result.refusal ? { refused: true } : {}) } }),
+      ),
     }),
 
     // Ask the provider to name this thread — the "Rename with Claude" verb in the drawer header.
@@ -5593,7 +5860,8 @@ export function createRouter(ctx: AppContext) {
 
     // Provider subscription quota (5h + weekly rate-limit windows) for the sidebar status bar. Codex
     // reads live from the app-server's `account/rateLimits/read`, falling back to the rollout JSONL
-    // frizz already tails; Claude delegates to Claude Code's own non-interactive `/usage` command.
+    // frizz already tails; Claude reads the OAuth usage endpoint with the machine's own credential
+    // (claude-quota.ts — which also says when, and how rarely, it may start Claude Code instead).
     // Never throws — degrades to per-provider "unavailable".
     quota: query({
       input: z.object({ force: z.boolean().optional() }).strict().optional(),
@@ -5868,13 +6136,20 @@ export function createRouter(ctx: AppContext) {
      * Frizz is an index over folders somebody else owns, and a "delete" that reached into a working
      * tree would be a different product.
      *
-     * THE LAUNCHING PROJECT IS REFUSED. This process publishes exactly one `server.lock` — that
-     * project's — and it is the address every worker daemon on the machine resolves the port out of
-     * (see AppContext.launchProjectId). Deleting it is not one card disappearing; it is every live
-     * worker losing the server. Forgetting it without deleting anything is refused for a smaller but
-     * still real reason: the tenant cannot be closed independently of the boot phases that own it, so
-     * the project would keep tailing, keep firing its timers and keep serving its board while the list
-     * insisted it did not exist.
+     * THE LAUNCHING PROJECT CAN BE FORGOTTEN, BUT ITS DATA CANNOT BE DELETED. This process publishes
+     * exactly one `server.lock` — that project's — and it is the address every worker daemon on the
+     * machine resolves the port out of (see AppContext.launchProjectId); the launcher's own lease and
+     * sign-in sessions sit beside it. Removing that directory is not one card disappearing; it is
+     * every live worker losing the server, so `deleteData` is refused there.
+     *
+     * Forgetting it was refused too until 2026-10-10, and the operator could not act on the refusal:
+     * a `frizz` run from `$HOME` or an unadopted folder was then hosted on the most recently opened
+     * project (launcher.ts `resolveLaunchIntent`; Frizz's own folder since 2026-10-11), so "the
+     * launching project" was routinely one nobody chose, and "restart from another folder" picked the
+     * same one again. Forgetting needs none of what the
+     * refusal protects — only the registry entry goes. The tenant itself stays open until the process
+     * ends, because it is also the app every unprefixed request is answered by: its card and its URL
+     * are gone at once, and its tailer and timers stop with the server rather than with the click.
      *
      * Idempotent: an id the registry has already forgotten reports `removed: false` rather than
      * failing, so a double-click and a stale tab both land softly.
@@ -5887,25 +6162,37 @@ export function createRouter(ctx: AppContext) {
         /** Live worker daemons this actually killed — 0 unless `deleteData`. Reported, not guessed at. */
         stoppedWorkers: z.number().int().nonnegative(),
       }),
-      handler: async ({ input }) => {
-        if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Frizz, so it cannot be deleted.`)
-        const entry = findById(input.id)
-        if (!entry) return { removed: false, deletedData: false, stoppedWorkers: 0 }
-        // The message deliberately does NOT name the project: the confirmation's title already does,
-        // and naming it here reads "Frizz is running from frizz" in this very repository.
-        if (ctx.launchProjectId === entry.id) {
-          throw new Error("Frizz is serving from this project, so it cannot be deleted. Restart Frizz from another folder first.")
-        }
-        const deleteData = input.deleteData === true
-        // The resources go FIRST and in one call, because their order matters and the server owns it:
-        // a worker is stopped through its own tenant's broker, and `ui.db` is released before the
-        // directory holding it is unlinked (see AppContext.teardownProject).
-        const { stoppedWorkers } = (await ctx.teardownProject?.(entry.id, { stopWorkers: deleteData, deleteState: deleteData }))
-          ?? { closed: false, stoppedWorkers: 0 }
-        // The registry entry goes LAST, and deliberately: it is how anything finds this project again,
-        // so dropping it first would strand whatever the teardown above missed.
-        return { removed: forgetProject(entry.id), deletedData: deleteData, stoppedWorkers }
-      },
+      handler: async ({ input }) => audit(
+        "projectRemove",
+        // Read BEFORE the removal, which forgets the very entry that names the folder.
+        () => ({ project: { id: input.id, dir: findById(input.id)?.path ?? null }, detail: { deleteData: input.deleteData === true } }),
+        async () => {
+          if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Frizz, so it cannot be deleted.`)
+          const entry = findById(input.id)
+          if (!entry) return { removed: false, deletedData: false, stoppedWorkers: 0 }
+          const deleteData = input.deleteData === true
+          if (ctx.launchProjectId === entry.id) {
+            // The message deliberately does NOT name the project: the confirmation's title already
+            // does, and naming it here reads "Frizz is running from frizz" in this very repository.
+            // It names another PROJECT's folder because any other folder is hosted on the most
+            // recently opened project, which is this one.
+            if (deleteData) {
+              throw new Error("Frizz keeps its own running state with this project, so its threads and history cannot be deleted right now. Delete it without them, or quit Frizz and start it from inside another project's folder.")
+            }
+            // No teardown: the tenant is the server's own (see above), and the state dir is kept.
+            return { removed: forgetProject(entry.id), deletedData: false, stoppedWorkers: 0 }
+          }
+          // The resources go FIRST and in one call, because their order matters and the server owns it:
+          // a worker is stopped through its own tenant's broker, and `ui.db` is released before the
+          // directory holding it is unlinked (see AppContext.teardownProject).
+          const { stoppedWorkers } = (await ctx.teardownProject?.(entry.id, { stopWorkers: deleteData, deleteState: deleteData }))
+            ?? { closed: false, stoppedWorkers: 0 }
+          // The registry entry goes LAST, and deliberately: it is how anything finds this project again,
+          // so dropping it first would strand whatever the teardown above missed.
+          return { removed: forgetProject(entry.id), deletedData: deleteData, stoppedWorkers }
+        },
+        (result) => ({ detail: result }),
+      ),
     }),
 
     /**
@@ -5995,7 +6282,7 @@ export function createRouter(ctx: AppContext) {
      * It moves the folder to a sibling of the same name and re-registers the id there, then closes
      * the tenant so the next request reopens it at the new path — a context built on the old one
      * would spawn every worker into a directory that no longer exists. The launching project is
-     * refused for the same reason `projectRemove` refuses it: this process is standing in it.
+     * refused: this process is standing in it, and its context is pinned to the old path.
      */
     projectRename: mutation({
       input: z.object({
@@ -6012,7 +6299,7 @@ export function createRouter(ctx: AppContext) {
         let path = entry.path
         if (input.renameDirectory && name !== basename(entry.path)) {
           if (ctx.launchProjectId === entry.id) {
-            throw new Error("Frizz is serving from this project, so its folder cannot be renamed. Restart Frizz from another folder first.")
+            throw new Error("Frizz is running from this project's folder, so the folder cannot be renamed right now. Quit Frizz and start it from inside another project's folder first.")
           }
           path = moveProjectDirectory(entry.id, name).path
           // Detached workers keep running through the rename (their cwd follows the inode); only
@@ -6041,7 +6328,12 @@ export function createRouter(ctx: AppContext) {
         // the next panel is built while this one's board loads. One that is never asked for dies idle.
         if (picked.kind !== "unavailable") warmDirectoryPicker()
         if (picked.kind !== "picked") return picked
-        const added = addProjectAtPath(picked.path)
+        const added = await audit(
+          "projectPick",
+          { project: { id: null, dir: picked.path }, detail: { path: picked.path } },
+          () => addProjectAtPath(picked.path),
+          addedProjectResult,
+        )
         return added.kind === "added" ? { kind: "picked" as const, project: added.project } : added
       },
     }),
@@ -6069,7 +6361,13 @@ export function createRouter(ctx: AppContext) {
     projectAdd: mutation({
       input: z.object({ path: z.string().min(1), exact: z.boolean().optional() }),
       output: ProjectAddResult,
-      handler: async ({ input }) => addProjectAtPath(input.path, undefined, { exact: input.exact }),
+      handler: async ({ input }) =>
+        audit(
+          "projectAdd",
+          { project: { id: null, dir: input.path }, detail: { path: input.path, ...(input.exact ? { exact: true } : {}) } },
+          () => addProjectAtPath(input.path, undefined, { exact: input.exact }),
+          addedProjectResult,
+        ),
     }),
 
     /**
@@ -6147,29 +6445,6 @@ export function createRouter(ctx: AppContext) {
       input: z.object({}),
       output: Settings,
       handler: async () => ctx.resetSettings(),
-    }),
-
-    // The first-run questionnaire (shared/frizz-md.ts): a project with no threads and no FRIZZ.md asks
-    // how its workers should land work and how independently they should act, and writes the answers
-    // as FRIZZ.md — which only Frizz workers ever read. Skipping is remembered per project.
-    frizzMdStatus: query({
-      output: FrizzMdStatus,
-      handler: async () => frizzMdStatus(ctx.project.dir, ctx.storage),
-    }),
-
-    frizzMdCreate: mutation({
-      input: FrizzMdAnswers,
-      output: z.object({ path: z.string() }),
-      handler: async ({ input }) => createFrizzMd(ctx.project.dir, input),
-    }),
-
-    frizzMdSkip: mutation({
-      input: z.object({}).strict(),
-      output: z.object({ skipped: z.literal(true) }),
-      handler: async () => {
-        skipFrizzMd(ctx.storage)
-        return { skipped: true as const }
-      },
     }),
 
     dispatchPreferencesGet: query({
@@ -6267,7 +6542,13 @@ export function createRouter(ctx: AppContext) {
             const hydrated = it.kind === "issue" ? await hydrateIssue(repo, it.number) : await hydratePr(repo, it.number)
             const prompt = renderGithubPrompt(template, repo, hydrated, slug, it.kind)
             const request = githubDispatcherRequest(input, { prompt, title, slug })
-            const res = await ctx.dispatcher.dispatch(request.payload, request.options)
+            // One record per thread the batch starts, so each reads like an ordinary dispatch.
+            const res = await audit(
+              "githubDispatch",
+              { project: thisProject, detail: { repo, kind: it.kind, number: it.number, prompt: textDigest(prompt) } },
+              () => ctx.dispatcher.dispatch(request.payload, request.options),
+              (result) => ({ thread: result.slug, detail: { sessionId: result.sessionId } }),
+            )
             dispatched.push({ number: it.number, kind: it.kind, slug: res.slug })
           } catch (e) {
             failed.push({ number: it.number, kind: it.kind, error: (e as Error).message.slice(0, 120) })

@@ -917,12 +917,13 @@ export function Welcome({ projects: cards }: { projects: readonly ProjectCard[] 
             ))}
           </ul>
         )}
-        {/* Not "it registers itself": since the launcher stopped adopting unknown folders, running it in
-            one sends you here with the folder proposed (`/?add=<dir>`), and nothing is written until yes. */}
+        {/* Not "it registers itself": the launcher adopts no folder. Run in a repository it sends you here
+            with that folder proposed (`/?add=<dir>`), and nothing is written until yes; anywhere else it
+            just opens Frizz (upstream 49000c91). */}
         <p className="mt-4 text-[11.5px] text-muted-70">
           Or run{" "}
           <code className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-muted">frizz</code>{" "}
-          in any folder.
+          inside a repository, and this page offers to add it.
         </p>
         {/* Choosing Home focuses the page on it (and makes it All projects' pick too) — the way to clone a
             first repository without adding a project to hold it. */}

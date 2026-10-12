@@ -2,13 +2,12 @@
 
 Frizz binds `127.0.0.1` and has no login of its own. To reach a board from a phone or another machine, something in front of it carries the traffic, and Frizz gates the first visit with a single-use sign-in link.
 
-Press **R** in the terminal running Frizz. A walkthrough offers five ways to reach the board, checks what each needs, prints the commands, and remembers your choice — a plain `npx frizz` serves it from then on. **Off** in the same place goes back to loopback only.
+Press **R** in the terminal running Frizz. A walkthrough offers four ways to reach the board, checks what each needs, prints the commands, and remembers your choice — a plain `npx frizz` serves it from then on. **Off** in the same place goes back to loopback only.
 
 ```
   Reach this board from anywhere
 
   ❯ Private name        an unguessable name on frizz.sh — no account, nothing to install
-    Custom name         <name>.frizz.sh of your choosing; needs a GitHub account
     Cloudflare Tunnel   a domain you own on Cloudflare; cloudflared on this machine
     Tailscale           your tailnet; tailscale serve does the TLS
     Something else      any proxy or tunnel you run — tell Frizz its address
@@ -33,7 +32,7 @@ A second Frizz that shares nothing with the one you run: a throwaway home and pr
 npx frizz --sandbox
 ```
 
-Press **R** in it and walk through any setup. Credentials come along (`gh`, cloudflared's certificate and tunnel files, the agent CLIs, and on macOS the login keychain), so every screen sees what the real board sees; the saved setup, the registry and the session key are throwaway copies. One thing is not throwaway: **a custom-name claim is real** — it binds this machine's one name to your GitHub account, and your real board keeps it.
+Press **R** in it and walk through any setup. Credentials come along (`gh`, cloudflared's certificate and tunnel files, the agent CLIs, and on macOS the login keychain), so every screen sees what the real board sees; the saved setup, the registry and the session key are throwaway copies.
 
 ## A private name on frizz.sh
 
@@ -49,28 +48,19 @@ The done screen shows that link as a QR code. The name is the address, not the l
 
 ## A custom name on frizz.sh
 
-The same transport with a name you choose. Pick a word and Frizz claims `<name>.frizz.sh`:
+Paused. A name you choose, such as `ada.frizz.sh`, is tied to a GitHub account, and the GitHub sign-in it needs is not set up yet. Until it is, the **R** menu does not offer a custom name; use a private name, or a domain of your own below.
 
-```
-  Confirm your GitHub account to claim ada.frizz.sh
-
-  Open      https://github.com/login/device
-  Enter     WDJB-MJHT
-```
-
-Requires a GitHub account. Chosen names can be squatted, so they cost an identity where random ones do not. Frizz shows a code; enter it at [github.com/login/device](https://github.com/login/device) in any browser, on any device. The sign-in grants Frizz no permissions: the token it yields can read only your public profile. The registrar exchanges it for your account id, discards it, and binds the name to that account. Renewals afterwards need neither, because your machine's key proves ownership, so the name keeps working whether or not GitHub does.
-
-Frizz never reads the GitHub CLI's token. Versions before the device flow sent it with a claim; the registrar now refuses any token that carries a permission, and such a version is told to update.
+A board that already holds a custom name keeps it. Every launch renews the name with this machine's key alone, so no GitHub sign-in is involved, and the menu still lists the name as the current setup.
 
 ## How a frizz.sh name behaves
 
-Every launch renews the lease. A name nobody has run for **30 days** is released — a lapsed custom name can be claimed by someone else.
+Every launch renews the lease. A name nobody has run for **30 days** is released.
 
 Your board stays on loopback and **dials out** to `frizz.sh`, which is what removes the inbound port, the tunnel binary and the DNS record all at once — a laptop behind any NAT works with no configuration. The connection comes back by itself after a sleep or a network change, so a board is reachable again when the machine is.
 
 ### What you are agreeing to
 
-- **One name per machine key, and one custom name per GitHub account.** Accounts less than 30 days old cannot claim a custom name.
+- **One name per machine key.**
 - **The name is a lease, not property.** It lapses after 30 days unused, and Frizz can reclaim any name at any time — that is the only enforcement there is, so it has to exist.
 - **No warranty.** This is a free convenience on a domain someone else owns. Anything you cannot afford to lose access to belongs on a domain you control; every other section here shows how.
 - **Your traffic passes through us.** A name on frizz.sh is served by a relay we run: every request and every keystroke goes through it. Frizz's own access gate still runs on your machine, so a visitor meets it whether or not the relay is honest — but if you would rather no third party carried the bytes, use a domain you control.

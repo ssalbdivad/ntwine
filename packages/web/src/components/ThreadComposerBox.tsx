@@ -1,6 +1,6 @@
-import { useContext, useMemo, useState, type ReactElement, type ReactNode } from "react"
+import { useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react"
 import { useSnapshot } from "valtio"
-import { awaitingSteps, expandUserCommandDraft, type AccountBackend, type ThreadSkill, type ThreadView } from "@frizz/shared"
+import { awaitingSteps, expandUserCommandDraft, questionAnswerMessage, withAnswersNote, type AccountBackend, type ThreadSkill, type ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, store } from "../store.ts"
 import { outgoingMessage } from "../lib/editorContext.ts"
@@ -30,6 +30,8 @@ import { PhoneDoneButton } from "./PhoneDoneButton.tsx"
 import { fetchUserCommands, mergeSlashItems, useUserCommands } from "../hooks/useUserCommands.ts"
 import { RecurringPromptControl } from "./RecurringPromptControl.tsx"
 import type { PhoneBarApi } from "./Composer.tsx"
+import { SendScopeContext } from "../lib/sendScope.tsx"
+import { sendPlaceholder, setSendMode, useSendMode } from "../lib/sendMode.ts"
 
 // THE prompt box for a registered thread — the single block every "steer this thread" surface renders.
 // The <Composer> leaf was already shared; the ~14 lines AROUND it were not, and the queue card's copy had
@@ -44,9 +46,8 @@ import type { PhoneBarApi } from "./Composer.tsx"
 //   · the {controls.status} line under the box.
 //
 // The two call sites keep their DELIBERATE differences as props, never as a forked tree: the padding
-// wrapper (`className`), the running-operations reading (`ops` under the box — the drawer passes
-// BackgroundOpsStrip — or `above` it — the queue card's one line of counts), and the send itself
-// (`submitOverride`). Everything else is identical by construction, the Goal in the rail included.
+// wrapper (`className`), whether the running-operations reading (`above` the box, the one line of
+// counts) is drawn at all, and the send itself (`submitOverride`). Everything else is identical by construction, the Goal in the rail included.
 // The skills typeahead's per-thread cache, shared by BOTH composer surfaces (the drawer and the queue
 // card render the same thread) so opening either only ever asks the harness once. A failure is NOT
 // cached: the common failure is "the session is not running yet", and the next `/` should ask again
@@ -69,10 +70,8 @@ function fetchThreadSkills(slug: string): Promise<ThreadSkill[]> {
 export function ThreadComposerBox({
   slug,
   surface,
-  placeholder,
   className,
   id,
-  ops,
   above,
   submitOverride,
   phoneBarOverride,
@@ -82,20 +81,17 @@ export function ThreadComposerBox({
   // Pure data- tag forwarded to the textarea. Also the two surfaces' only behavioral fork inside
   // <Composer> itself (queueComposer owns Option-Enter); see lib/queueComposerKeyboard.ts.
   surface: "queueComposer" | "chatComposer"
-  placeholder: string
   // The ONLY padding/chrome difference between the call sites — the drawer's bordered panel footer vs the
   // queue card's flush bottom block.
   className?: string
   // DOM id for the textarea. The drawer's is "followup-input".
   id?: string
-  // Running background operations, rendered INSIDE the padded box under the prompt so those rows hang
-  // tight off it. Composed by the caller — this component does not decide which ops a surface shows.
-  ops?: ReactNode
-  // Rendered INSIDE the padded box ABOVE the prompt: the queue card's line of live-op counts, which
-  // rides its docked prompt box rather than hanging rows beneath it.
+  // Rendered INSIDE the padded box ABOVE the prompt: the line of live-op counts (QueueOpsSummary) the
+  // queue card's docked box and the drawer's both carry, rather than rows hanging beneath it. Composed
+  // by the caller — this component does not decide which ops a surface shows.
   above?: ReactNode
   // Replaces the default eager follow-up send. The queue card passes its useLiveAnswering `sendMessage`,
-  // so the card's free-form reply and its "Send answers" reply are literally the same send — one
+  // so the card's free-form reply and a reply that carries answers are literally the same send — one
   // controller, one optimistic card dissolve, one scroll policy (the queue suppresses the bottom pin;
   // it fights card exit/reorder). Callers WITHOUT an answering controller (the drawer) omit it and get
   // the plain eager follow-up. Deliberately not split into separate `onSent`/`scrollToBottom` props:
@@ -115,6 +111,25 @@ export function ThreadComposerBox({
 }): ReactElement {
   const snap = useSnapshot(store)
   const thread = snap.board?.threads.find((candidate) => candidate.id === slug)
+  // THE ONE SEND (lib/sendScope). Everything staged on the surface's question cards leaves through
+  // this box: the registered questions' answers (shared through their own context) and the fenced
+  // ones (through the surface's scope). Either context may be absent — a box mounted with no question
+  // surface around it simply has nothing staged.
+  const registered = useContext(RegisteredAnsweringContext)
+  const scope = useContext(SendScopeContext)
+  const staged = (registered && registered.slug === slug ? registered.staged : 0) + (scope?.fencedCount ?? 0)
+  // "A turn is in flight" — the only time sending as a steer and sending to the queue differ.
+  const running = thread?.runtime === "running"
+  const mode = useSendMode(slug, running)
+  // ONE placeholder for both surfaces, decided here from the thread — the queue card said "Reply to the
+  // agent…" and the drawer "Follow up…" until 2026-10-09, and only the card said when the box was the
+  // way AROUND an open question. An external session keeps its own sentence: it says what sending does,
+  // which is to take the session over (see ThreadActionBar). An open question is a registered one or a
+  // fence the worker's last message still asks. With an answer staged the box is a note on it, and
+  // with the menu shut this line is also what says how the button will send (sendPlaceholder).
+  const placeholder = thread?.foreign
+    ? "Send a message to take over this session…"
+    : sendPlaceholder({ staged, openQuestions: Boolean(thread?.pendingQuestion) || (thread?.questions?.length ?? 0) > 0, running, mode })
   const projectDir = useProjectDir()
   const key = draftKey.followUp(projectDir, slug, thread?.sessionId)
   const [message, setMessage, clearMessage] = useDraft(key)
@@ -133,8 +148,6 @@ export function ThreadComposerBox({
   const mentions = useMentionCandidates(slug)
   const ownMention = useOwnMention(slug)
   const [logoutFor, setLogoutFor] = useState<AccountBackend | null>(null)
-  // The thread's registered-question state, when this box sits under the surface that draws the cards.
-  const answering = useContext(RegisteredAnsweringContext)
 
   // The staged selections' tokens, painted as chips; deleting a token's text drops its item
   // (lib/stagedContext.ts). Keyed by this draft, so the queue card's copy of the box shows the same.
@@ -174,7 +187,12 @@ export function ThreadComposerBox({
 
   function send(interrupt = false) {
     const text = message.trim()
-    if (!text) return
+    // The answers staged on the cards ride this send, on the desktop box only: the phone bar's answers
+    // go through its own sheet (PhoneQuestionCards), which this bar never registered a send for.
+    // Only this thread's: the provider above is the surface's, and a box never carries another thread's.
+    const answers = !phoneBar && registered && registered.slug === slug ? registered.take() : null
+    const fenced = phoneBar ? null : scope?.takeFenced() ?? null
+    if (!text && !answers && !fenced) return
     // `/login` / `/logout` are frizz-owned account actions for THIS thread's backend — invoked
     // locally, never delivered to the worker as a prompt (a leading slash is not a stable provider
     // command transport across the live-paste vs dead-resume lifecycles).
@@ -208,15 +226,32 @@ export function ThreadComposerBox({
     // thread's transcript rides along so a selection it already quoted is named, not quoted again.
     // A USER COMMAND (`/commit fix the tests`) goes out as the prompt it names, expanded here so it means
     // the same on every backend; the transcript reads it back as what was typed (messagePresentation.ts).
-    const staged = takeContextItems(key)
     // A thread working in a worktree reads paths against IT, so they are written for it, with a word on
     // whose copy the context is (lib/composerContext.ts worktreeNote).
-    const outgoing = outgoingMessage(expandUserCommandDraft(text, userCommands ?? []) ?? text, staged, projectDir, surface === "chatComposer", {
-      history: qc.getQueryData<TranscriptData>(["transcript", slug])?.messages,
-      checkout: thread?.checkout,
-    })
+    const context = takeContextItems(key)
+    const note = text
+      ? outgoingMessage(expandUserCommandDraft(text, userCommands ?? []) ?? text, context, projectDir, surface === "chatComposer", {
+          history: qc.getQueryData<TranscriptData>(["transcript", slug])?.messages,
+          checkout: thread?.checkout,
+        })
+      : ""
+    // ONE TURN (upstream 59089c92). Fenced answers are composed here and the typed words go under them as
+    // the note; the registered ones are settled and composed by the server, above all of it
+    // (FollowUpInput.answers), so `outgoing` may be empty when only those ride. `shown` is what the
+    // optimistic bubble draws until the server's own copy replaces it.
+    const outgoing = fenced ? withAnswersNote(fenced.wire, note) : note
+    const shown = answers ? withAnswersNote(questionAnswerMessage(answers.display), outgoing) : outgoing
     const callbacks: EagerFollowUpCallbacks = {
-      onOptimistic: clearMessage,
+      onOptimistic: () => {
+        clearMessage()
+        answers?.onOptimistic()
+        fenced?.onOptimistic()
+      },
+      onSuccess: () => answers?.onSuccess(),
+      ...(answers ? { answers: answers.answers, displayText: shown } : {}),
+      // "Send to queue" is the ticked row AND there is a turn to queue behind. The forced send never
+      // queues: ⌘/Ctrl-Enter means now.
+      ...(mode === "queue" && running && !interrupt ? { hold: true } : {}),
       // Re-sending words an earlier failure handed back replaces that failure's bubble — see
       // lib/failedDelivery.ts.
       supersedes: takeSupersededFailure(key, outgoing),
@@ -227,25 +262,33 @@ export function ThreadComposerBox({
       // because this draft is sessionStorage and does not survive a browser restart.
       onRollback: (failure) => {
         mergeIntoDraft(key, message)
-        restoreContextItems(key, staged)
+        restoreContextItems(key, context)
         noteFailedDraftOrigin(key, { ...failure, text: message })
+        answers?.onRollback(failure.kept)
+        fenced?.onRollback()
       },
-    }
-    const deliver = () => {
-      if (submitOverride) submitOverride(outgoing, callbacks)
-      else followUp.submit(outgoing, { ...callbacks, interrupt })
     }
     // PICKED ANSWERS RIDE THE REPLY. A reply typed with a card's chip lit is the human adding a note to
     // that answer, not skipping it — sending the reply alone replied past the question and dropped the
-    // pick (2026-09-29). The answers go first and the reply only once they have landed, so the worker
-    // reads them in that order and a failed answer keeps the note in the box beside the card it belongs to.
-    if (answering?.slug === slug && answering.staged > 0) {
-      if (answering.sending) return
-      answering.submit(deliver)
-      return
-    }
-    deliver()
+    // pick (2026-09-29). Until upstream 59089c92 the answers went first and the reply after they landed;
+    // now both are this one send, which the server delivers as one turn.
+    if (submitOverride) submitOverride(outgoing, callbacks)
+    else followUp.submit(outgoing, { ...callbacks, interrupt })
   }
+
+  // Register this box as its surface's send, so Enter in a question card's own text box — and the
+  // queue card's card-level Enter — is this same send, typed words included. Through a ref: `send`
+  // closes over the current draft and staged answers, and is a new function every render. Above the
+  // held thread's early return below, so the hooks run in one order on every render.
+  const sendRef = useRef(send)
+  sendRef.current = send
+  const composerHandle = phoneBar || thread?.held !== undefined ? undefined : scope?.composer
+  useEffect(() => {
+    if (!composerHandle) return
+    const run = () => sendRef.current()
+    composerHandle.set(run)
+    return () => composerHandle.set(null)
+  }, [composerHandle])
 
   // A HELD THREAD has no agent to steer yet: its box is what it will start with, and sending it starts one
   // (HeldThreadBox.tsx).
@@ -284,7 +327,6 @@ export function ThreadComposerBox({
           }}
         />
         {controls.status}
-        <div className="ops-column-optical-inset empty:hidden">{ops}</div>
         {signInFor && <SignInModal backend={signInFor} onClose={() => setSignInFor(null)} onAuthed={() => setSignInFor(null)} />}
         {logoutFor && <LogoutConfirmModal backend={logoutFor} onClose={() => setLogoutFor(null)} />}
       </div>
@@ -324,7 +366,7 @@ export function ThreadComposerBox({
         // In an editor's sidebar, `@` offers the editor's files too, and a file dragged in from its
         // explorer lands as a reference (lib/editorReach.ts).
         fileMentions={embedFileMentions(projectDir)}
-        placeholder={answering?.slug === slug && answering.staged > 0 ? "Add a note to your answers…" : placeholder}
+        placeholder={placeholder}
         // NOT `|| followUp.pending`. The send is already committed locally (draft cleared, bubble
         // appended, and in the queue the card has already begun dissolving), so gating the textarea on
         // its round-trip only made the box go dead — and, because the browser blurs a disabled element,
@@ -333,13 +375,11 @@ export function ThreadComposerBox({
         busy={controls.busy}
         footer={controls.footer}
         railLead={goal}
+        // An external session keeps the ↑: sending there takes the session over, and there is no turn
+        // of Frizz's to steer or queue behind until it has.
+        send={thread?.foreign ? undefined : { mode, onMode: (next) => setSendMode(slug, next), running, staged }}
       />
       {controls.status}
-      {/* The ops column's OPTICAL bottom inset, in ONE place for every surface that renders one — the
-          amount and the reasoning live beside the font switch in styles.css, because it is
-          font-dependent. `empty:hidden` is load-bearing: with no live ops React renders nothing here,
-          and a bare negative margin would then eat into the composer's own 12px inset. */}
-      <div className="ops-column-optical-inset empty:hidden">{ops}</div>
       {signInFor && <SignInModal backend={signInFor} onClose={() => setSignInFor(null)} onAuthed={() => setSignInFor(null)} />}
       {logoutFor && <LogoutConfirmModal backend={logoutFor} onClose={() => setLogoutFor(null)} />}
     </div>

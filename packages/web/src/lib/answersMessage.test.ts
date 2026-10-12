@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { ANSWER_FOLLOW_UP_MARKER, BURIED_ANSWERS_HEADER, DISMISSED_ANSWER, questionAnswerMessage } from "@frizz/shared"
-import { answersForDisplay, parseAnswersMessage, parseBuriedAnswersMessage, parseAnswersCard, pairAnswersMessage, pairAllAnswers, settledAnswerKeys, unrenderedAnswers, withoutSettledAnswers, type MsgLike } from "./answersMessage.ts"
+import { ANSWER_FOLLOW_UP_MARKER, BURIED_ANSWERS_HEADER, DISMISSED_ANSWER, SECRET_ANSWER_MASK, questionAnswerMessage, secretAnswerText, withAnswersNote } from "@frizz/shared"
+import { answersForDisplay, answersNote, splitAnswerPicks, parseAnswersMessage, parseBuriedAnswersMessage, parseAnswersCard, pairAnswersMessage, pairAllAnswers, settledAnswerKeys, unrenderedAnswers, withoutSettledAnswers, type MsgLike } from "./answersMessage.ts"
 import { composeAnswerWire } from "./answering.ts"
 
 test("parses the multi-block composed-answer format into numbered rows", () => {
@@ -117,6 +117,22 @@ test("a typed answer that is itself a numbered list cannot forge rows — the wr
   assert.deepEqual(parseAnswersMessage("Answers:\n1. because\nof this"), [{ n: 1, answer: "because\nof this" }])
 })
 
+test("a multi-select's picks travel one per line, and the card gets each pick and the note back apart", () => {
+  // 2026-10-08: five picks and a note went out as `A, B, C — note` and the card drew one run-on chip.
+  // A comma cannot be split back out — a label can hold one, as the second pick here does.
+  const wire = questionAnswerMessage([
+    { questionId: "qst_a", question: "Which gates?", chosen: ["lint", "tests, unit and e2e"], text: "skip the flaky one\n1. really" },
+    { questionId: "qst_b", question: "Ship it?", chosen: ["Yes"] },
+  ])
+  assert.equal(wire, `${BURIED_ANSWERS_HEADER}\n1. “Which gates?” → - [x] lint\n  - [x] tests, unit and e2e\n  \n  skip the flaky one\n  1. really\n2. “Ship it?” → Yes`)
+  const [multi, single] = parseAnswersCard(wire)!
+  assert.deepEqual(splitAnswerPicks(multi.answer), { picks: ["lint", "tests, unit and e2e"], note: "skip the flaky one\n1. really" })
+  // A lone pick stays the bare label it always was, and so does every answer written before the change.
+  assert.deepEqual(splitAnswerPicks(single.answer), { picks: [], note: "Yes" })
+  assert.deepEqual(splitAnswerPicks("lint, tests — skip it"), { picks: [], note: "lint, tests — skip it" })
+  assert.deepEqual(splitAnswerPicks(parseAnswersCard(questionAnswerMessage([{ questionId: "q", question: "Q?", chosen: ["a", "b"] }]))![0].answer), { picks: ["a", "b"], note: "" })
+})
+
 test("a question that spans lines still closes at its quote-arrow — the registered path restates it verbatim", () => {
   // 2026-09-23: a registered question walked the human through adding an SSH key and carried the key
   // on its own line, so the row spanned five lines. The single-line row pattern missed it and the whole
@@ -128,7 +144,7 @@ test("a question that spans lines still closes at its quote-arrow — the regist
   ])
   assert.deepEqual(parseAnswersCard(wire), [
     { n: 1, answer: "Yes, added", question },
-    { n: 2, answer: "No — later", question: "And restart?" },
+    { n: 2, answer: "- [x] No\n\nlater", question: "And restart?" },
   ])
 })
 
@@ -168,7 +184,7 @@ test("the SERVER's composed answer round-trips through this reader — the one t
     },
   ], [{ question: "Ship the banner this week?" }])
   assert.deepEqual(parseAnswersCard(wire), [
-    { n: 1, answer: "SQLite — and vacuum on boot", question: "SQLite or a JSON file?" },
+    { n: 1, answer: "- [x] SQLite\n\nand vacuum on boot", question: "SQLite or a JSON file?" },
     { n: 2, answer: "Yes, at boot", question: "Migrate the existing rows?", followUp: true },
     { n: 3, answer: DISMISSED_ANSWER, question: "Ship the banner this week?" },
   ])
@@ -184,6 +200,15 @@ test("the card drops a dismissal row: the worker needs it, the human already sai
   const parsed = parseAnswersCard(wire)
   assert.equal(parsed?.length, 2, "the parse keeps the row — it is the worker's wire")
   assert.deepEqual(answersForDisplay(parsed ?? []), [{ n: 1, answer: "SQLite", question: "SQLite or a JSON file?" }])
+})
+
+test("a secret's row draws the mask, never the delivery note the worker reads", () => {
+  const wire = questionAnswerMessage([
+    { questionId: "qst_s", question: "The npm one-time code", chosen: [], text: secretAnswerText("/state/secrets/t/qst_s") },
+  ])
+  const parsed = parseAnswersCard(wire)
+  assert.ok(parsed?.[0]?.answer.includes("/state/secrets/t/qst_s"), "the wire still carries the path for the worker")
+  assert.deepEqual(answersForDisplay(parsed ?? []), [{ n: 1, answer: SECRET_ANSWER_MASK, question: "The npm one-time code" }])
 })
 
 test("buried detection is strict: wrong header, or rows without the quote-arrow, → null", () => {
@@ -433,4 +458,51 @@ test("an answer no settled card draws keeps its exact rows array", () => {
   assert.equal(withoutSettledAnswers(rows, settledAnswerKeys([{ questionId: "q1", question: "Ship it?", chosen: ["No"] }])), rows)
   assert.equal(withoutSettledAnswers(rows, settledAnswerKeys([])), rows)
   assert.equal(withoutSettledAnswers(null, settledAnswerKeys([])), null)
+})
+
+// ---- ANSWERS SENT WITH A NOTE (the prompt box's one Send, 2026-10-11) ----
+// The typed message rides the same turn as the answers, under its own header line. Both parsers must
+// stop at that line: any line after a row is otherwise a continuation of the row's answer, so the note
+// would print inside the last question's chip.
+test("a note sent with answers is cut off before the rows are read, in both wire forms", () => {
+  const registered = withAnswersNote("Answers to earlier questions:\n1. “Which store?” → SQLite\n2. “Ship it?” → Yes", "and keep the migration small\n\n1. one file\n2. no new deps")
+  assert.deepEqual(parseAnswersCard(registered), [
+    { n: 1, answer: "SQLite", question: "Which store?" },
+    { n: 2, answer: "Yes", question: "Ship it?" },
+  ])
+  assert.equal(answersNote(registered), "and keep the migration small\n\n1. one file\n2. no new deps", "a numbered list in the note forges no rows")
+  const fenced = withAnswersNote("Answers:\n1. B. Yes", "also rename the flag")
+  assert.deepEqual(parseAnswersCard(fenced), [{ n: 1, answer: "B. Yes" }])
+  assert.equal(answersNote(fenced), "also rename the flag")
+})
+
+test("answers with no note, and ordinary messages, have no note", () => {
+  assert.equal(answersNote("Answers:\n1. B. Yes"), "")
+  assert.equal(answersNote("Sent with these answers:\nnot an answers message at all"), "")
+  assert.equal(answersNote("just a steer"), "")
+})
+
+// A typed answer cannot forge the note header: its continuation lines are indented on the wire.
+test("an answer that itself contains the note header stays an answer", () => {
+  const wire = questionAnswerMessage([{ questionId: "q", question: "What should the banner say?", chosen: [], text: "Two lines:\nSent with these answers:\nthank you" }])
+  assert.deepEqual(parseAnswersCard(wire), [{ n: 1, answer: "Two lines:\nSent with these answers:\nthank you", question: "What should the banner say?" }])
+  assert.equal(answersNote(wire), "")
+})
+
+// Registered and fenced answers in one send: the server composes the registered rows above the
+// browser's whole message, so the note is itself an answers message with a note of its own.
+test("a message answering both kinds of question nests, and each layer parses", () => {
+  const fenced = withAnswersNote("Answers:\n1. A", "typed")
+  const both = withAnswersNote("Answers to earlier questions:\n1. “Q?” → Yes", fenced)
+  assert.deepEqual(parseAnswersCard(both), [{ n: 1, answer: "Yes", question: "Q?" }])
+  assert.equal(answersNote(both), fenced)
+  assert.deepEqual(parseAnswersCard(answersNote(both)), [{ n: 1, answer: "A" }])
+  assert.equal(answersNote(answersNote(both)), "typed")
+})
+
+// The in-flight card stands down for rows the transcript already draws — including the rows of a
+// message that carried a note, whether delivered or still held for the agent's rest.
+test("the in-flight card does not repeat answers a noted message is already showing", () => {
+  const wire = "Answers to earlier questions:\n1. “Which store?” → SQLite"
+  assert.equal(unrenderedAnswers([{ role: "user", text: withAnswersNote(wire, "no rush") }], wire), null)
 })

@@ -14,8 +14,8 @@ test("thread permission control: only idle or exited owned threads are editable"
   assert.match(threadPermissionBlockedReason(state({ runtime: "turn-idle", runtimeControlPending: true }))!, /runtime control/)
   assert.match(threadPermissionBlockedReason(state({ runtime: "turn-idle", subAgents: [{ state: "running" }] }))!, /background operation/)
   assert.match(threadPermissionBlockedReason(state({ runtime: "turn-idle", bgShells: [{ state: "stale" }] }))!, /unresolved background operation/)
-  assert.match(threadPermissionBlockedReason(state({ runtime: "perm-prompt" }))!, /terminal approval or question/)
-  assert.match(threadPermissionBlockedReason(state({ runtime: "turn-idle", pendingAsk: { questions: [] } }))!, /terminal approval or question/)
+  assert.match(threadPermissionBlockedReason(state({ runtime: "perm-prompt" }))!, /open approval or question/)
+  assert.match(threadPermissionBlockedReason(state({ runtime: "turn-idle", pendingAsk: { questions: [] } }))!, /open approval or question/)
 })
 
 test("thread permission control: foreign threads remain read-only", () => {
@@ -41,8 +41,8 @@ test("thread permission control: Codex still fails closed on the non-pane guards
   assert.match(threadPermissionBlockedReason(state({ backend: "codex", runtime: "running", permissionPending: "plan" }))!, /already in progress/)
   assert.match(threadPermissionBlockedReason(state({ backend: "codex", runtime: "running", profileChangePending: true }))!, /model and effort change/)
   assert.match(threadPermissionBlockedReason(state({ backend: "codex", runtime: "running", runtimeControlPending: true }))!, /runtime control/)
-  assert.match(threadPermissionBlockedReason(state({ backend: "codex", runtime: "perm-prompt" }))!, /terminal approval or question/)
-  assert.match(threadPermissionBlockedReason(state({ backend: "codex", runtime: "running", pendingAsk: { questions: [] } }))!, /terminal approval or question/)
+  assert.match(threadPermissionBlockedReason(state({ backend: "codex", runtime: "perm-prompt" }))!, /open approval or question/)
+  assert.match(threadPermissionBlockedReason(state({ backend: "codex", runtime: "running", pendingAsk: { questions: [] } }))!, /open approval or question/)
 })
 
 test("any durable runtime-control owner blocks follow-up submission", () => {

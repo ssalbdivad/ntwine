@@ -15,6 +15,9 @@ import { initTheme } from "./lib/theme.ts"
 import { installExternalLinkInterceptor } from "./lib/external-links.ts"
 import { installLocalFileLinkInterceptor } from "./lib/local-file-links.ts"
 import { installCodeCopyInterceptor } from "./lib/copy-code.ts"
+import { installCodeTabInterceptor } from "./lib/switch-code-tab.ts"
+import { installCodeExpandInterceptor } from "./lib/expand-code.ts"
+import { installPasteFallback } from "./lib/paste-fallback.ts"
 import { installThreadLinkInterceptor } from "./lib/thread-links.ts"
 import { setProjectMentions } from "./lib/projectMentions.ts"
 import { rpc } from "./api/rpc.ts"
@@ -87,6 +90,9 @@ if (!settingsFixture) {
   installExternalLinkInterceptor()
   installLocalFileLinkInterceptor()
   installCodeCopyInterceptor()
+  installCodeTabInterceptor()
+  installCodeExpandInterceptor()
+  installPasteFallback()
   installThreadLinkInterceptor(queryClient)
   // The projects a `#slug` names (lib/projectMentions.ts): the machine's project list, the same cached
   // read the switcher draws from, kept current as it is invalidated by an add, rename or removal.

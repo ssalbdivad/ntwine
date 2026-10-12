@@ -85,6 +85,17 @@ try {
   const bypassRm = JSON.parse(runHook(bash("rm -rf ~", { permission_mode: "bypassPermissions" })) || "{}")
   check("deny: bypassPermissions still refuses a catastrophic delete", bypassRm.hookSpecificOutput?.decision?.behavior === "deny" && marker().rule === "catastrophic-delete")
 
+  for (const mode of ["acceptEdits", "plan", "some-future-mode"]) {
+    check(`defer: \`${mode}\` emits NOTHING (unknown must mean ask)`, runHook(bash("touch y", { permission_mode: mode })) === "" && marker().rule === "restrictive-mode")
+  }
+
+  // 4b. BYPASS IS NOT RESTRICTIVE — it is the one mode more permissive than auto, so a prompt Claude
+  // Code still raises under it is approved like auto's, behind the same two refusals.
+  const bypass = JSON.parse(runHook(bash("touch y", { permission_mode: "bypassPermissions" })) || "{}")
+  check("allow: bypassPermissions is approved, not handed to a human", bypass.hookSpecificOutput?.decision?.behavior === "allow" && marker().rule === "worker-autonomy", marker().rule)
+  const bypassRm = JSON.parse(runHook(bash("rm -rf ~", { permission_mode: "bypassPermissions" })) || "{}")
+  check("deny: bypassPermissions still refuses a catastrophic delete", bypassRm.hookSpecificOutput?.decision?.behavior === "deny" && marker().rule === "catastrophic-delete")
+
   // 5. DEFER — the review-policy escape hatch, without changing how workers launch.
   const review = runHook(bash("touch z"), { FRIZZ_PERM_POLICY: "review" })
   check("defer: FRIZZ_PERM_POLICY=review emits NOTHING", review === "")

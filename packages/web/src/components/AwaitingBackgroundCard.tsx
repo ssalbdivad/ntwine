@@ -35,7 +35,7 @@ import { noteGithubRefs } from "../lib/githubHovercards.ts"
 import { AWAITING_FALLBACK_TITLE, AWAITING_NO_PROSE, awaitingDefersToQuestions, awaitingProseBlock, prWatchRefs, STEPS_CHIP } from "../lib/awaitingPresentation.ts"
 import { compactElapsedSince, formatCompactElapsed, liveAgeSince } from "../lib/durationLabels.ts"
 import { shellBudgetLabel } from "../lib/shellBudget.ts"
-import { AGENT_GLYPH_STROKE, CHILD_DISMISS_NOUN, CHILD_DISMISS_TITLE, CHILD_DISMISS_VERB, CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE } from "../lib/childOps.ts"
+import { AGENT_GLYPH_STROKE, CHILD_DISMISS_NOUN, CHILD_DISMISS_TITLE, CHILD_DISMISS_VERB, CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE, checksCounterLabel, issueCounterLabel } from "../lib/childOps.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { pushBackgroundShellDrawer, pushSubAgentDrawer, pushTerminalDrawer, showToast } from "../store.ts"
@@ -388,15 +388,44 @@ export function watchStatusLine(status: GithubWatchStatus | undefined): string {
   return [counts || "No checks", merge].filter((p): p is string => p !== null).join(" · ")
 }
 
+/** THE ROW'S READING: ONE fact, the one that decides what the reader does next — and the whole sentence
+ *  above (watchStatusLine) rides the row's tooltip. The sentence was the status until 2026-10-08, and it
+ *  was the widest thing in the table ("2 failing, 1 in progress, 9 successful · view failures"; maintainer:
+ *  "We need a better way to represent the PR status … We need to be picky about what we include as the
+ *  light gray metadata").
+ *
+ *  The words are the ops strip's counter (checksCounterLabel — "1 failed", "9 held", "14 running", "29
+ *  green", "merged"), so the strip and this table never count one PR in two vocabularies. Two merge facts
+ *  outrank the counts it would otherwise lead with, each the one thing the glyph cannot say: a conflict
+ *  (no amount of waiting fixes it), and a GREEN PR that still cannot merge ("blocked" — a review or a
+ *  required branch holds it, by the same rule mergeClause keeps). Failures outrank both: they are red on
+ *  the glyph already, and the count is the link to them. Unpolled says "Checking…", never nothing — an
+ *  unpolled PR and one with no CI are different facts (the second is simply silent). */
+export function watchCounterLine(status: GithubWatchStatus | undefined): string | undefined {
+  if (!status) return "Checking…"
+  if (status.state === "open" && status.failed === 0) {
+    if (status.merge === "conflicting") return "conflicts"
+    if (status.merge === "blocked" && status.checks === "passing") return "blocked"
+  }
+  return checksCounterLabel(status)
+}
+
 // ---- ONE ROW SHAPE, EVERY KIND -------------------------------------------------------------------
 // Maintainer 2026-08-15, choosing the shape off the mockup sheet: "Definitely group them by kind. They
 // should all consistently use the chevron […] and right justify the status label, the light gray status
 // label."
 //
-// So: mark · name · light-gray status right-justified · chevron. Four tracks shared by every row through
-// `grid-cols-subgrid`, so the statuses line up down ONE edge across the group headings instead of
-// starting wherever each name happened to end. The same right-justified light-gray reading the child-op
-// rows already use under the prompt box (ChildOpRow, maintainer 2026-07-27) — one language, two surfaces.
+// So: mark · name · light-gray status right-justified · chevron. Every status ends against its chevron
+// (or a chevron-wide spacer), so the statuses line up down ONE right edge across the group headings. The
+// same right-justified light-gray reading the child-op rows already use under the prompt box (ChildOpRow,
+// maintainer 2026-07-27) — one language, two surfaces.
+//
+// EACH ROW IS ITS OWN FLEX LINE, not a subgrid row (2026-10-08). The four tracks were shared by every
+// row from 2026-08-15, and a shared status track is as wide as the WIDEST status in the table: one red
+// PR's check summary took half the rail, and every sub-agent and saved file under it got the other half
+// — 107px — for its title, wrapping each one onto three lines. On its own line a row's name gives up only
+// its OWN status's width. Nothing visible was bought by the sharing: the statuses are right-justified, so
+// their one edge is the chevron's, and every mark is a 12px box, so the names start on one column anyway.
 //
 // THE CHEVRON IS THE SAME GLYPH ON EVERY ROW even though the destinations differ (GitHub in a new tab,
 // the shell's output drawer, the sub-agent's transcript). An earlier draft split it — an external arrow
@@ -408,26 +437,54 @@ export function watchStatusLine(status: GithubWatchStatus | undefined): string {
 // disabled control (which announces an affordance that is not there) and never a dropped row (which
 // hides live work). That is ChildOpRow's settled policy for an id-less child, applied here.
 
-// NO `gap-x` ON THE ROW, and that is the whole reason the margins below exist. One grid gap sets ONE
+// NO `gap-x` ON THE ROW, and that is the whole reason the margins below exist. One gap sets ONE
 // distance, and this row's three boundaries want three: the mark belongs to the name (tight), the name
-// and the status are opposite ends of the row (the 1fr owns that space), and the chevron is the status's
-// handle (medium). A gap is also a BOX distance, and two of the four cells are mostly empty box — so the
-// numbers here are INK, measured with the row's own probe at dsf 6, sans and mono.
-const ROW = "group relative col-span-4 grid grid-cols-subgrid items-baseline rounded-sm text-[12px] leading-5"
-// The same row laid out by FLEX, for a row that INDENTS (the rail's edited-files tree). Subgrid could
-// not do it: a subgrid item's padding is folded into the shared edge track, so one deep row would
-// have widened the mark column for every row and none of the names would have moved. In flex the
-// name/status cell is the `1fr` (flex-1), the status keeps its own width, and the chevron sits at the end —
-// the same four marks in the same order, at the same right edge.
-const ROW_FLEX = "group relative col-span-4 flex items-baseline rounded-sm text-[12px] leading-5"
+// and the status are opposite ends of the row (the flex-1 name owns that space), and the chevron is the
+// status's handle (medium). A gap is also a BOX distance, and two of the four cells are mostly empty box
+// — so the numbers here are INK, measured with the row's own probe at dsf 6, sans and mono.
+//
+// `px-2` INSETS every mark from the row's hover fill, and WaitGrid's `-mx-2` gives that inset back, so
+// the ink stays on the content edge it always sat on while the fill reaches 8px past it on both sides.
+// Without it the chevron's ink ran to 1.88px from the fill's right edge and the mark sat flush on its
+// left (maintainer 2026-10-08: "the chevron goes all the way to the very edge"). A row in a TREE (the
+// rail's edited files) indents by setting its left padding inline: its `indent` plus the same 8px.
+const ROW = "group relative flex items-baseline rounded-sm px-2 text-[12px] leading-5"
+/** The inset every row keeps inside its hover fill, in px — ROW's `px-2`, for the tree rows that set
+ *  their left padding inline. */
+export const ROW_INSET = 8
 // ml-1.5 → 6.5px of ink between the mark and the name, which is the figure the old single-row layout was
 // measured and left at (a -1px "safety" trim made it worse). A lucide circle at 12 inks ~10 of its box,
 // so it behaves like a text run and needs no trim of its own.
-const NAME = "ml-1.5 min-w-0 truncate font-medium text-fg/90"
-/** The light-gray status, at the end of its row's one flex cell (see WaitRow's body), so it lands against the
- *  chevron at the card's right edge on every row. Whole up to half the row; the name gives way first. The
- *  name→status floor is the `ml-3` of whatever sits between them (the hint's box, or the spacer). */
-const STATUS = "max-w-[50%] shrink-0 truncate text-right text-muted-70"
+//
+// THE NAME WRAPS rather than truncating (maintainer 2026-10-08, choosing it off a mockup sheet: every
+// title on the /full rail had been cut to two or three words, a one-line name getting 107px of a 308px
+// rail). Wrapped, it keeps its whole width and the row simply grows; `items-baseline` keeps the mark, the
+// status and the chevron on its FIRST line. Two lines at most: a sub-agent or a saved file is named in a
+// handful of words, and a third line read as a paragraph in a column of titles (maintainer 2026-10-08).
+// A TIMER takes one (`oneLine`): its name is the prompt the worker armed it with, which runs to a
+// paragraph and is an instruction rather than a title, so the row reads its opening and the tooltip
+// carries the rest.
+// A tree row (the edited files) still truncates: a basename is one token and wrapping it breaks a word.
+// No `min-w-*` here: each use sets its own, and two in one class list resolve by stylesheet order.
+const NAME = "ml-1.5 font-medium text-fg/90"
+const NAME_WRAP = `${NAME} line-clamp-2 break-words`
+const NAME_TREE = `${NAME} min-w-0 flex-1 truncate`
+/** The light-gray status. It keeps its own width and the name's `flex-1` eats the slack, so the status
+ *  lands against the chevron at the card's right edge; `text-right` matters only once it truncates.
+ *  `ml-3` is only a floor — the distance the reader actually sees is whatever the name leaves.
+ *
+ *  THE NAME KEEPS HALF THE ROW (NAME_FLOOR), and a longer status is the one that truncates: one red
+ *  PR's "2 failing, 1 in progress, 9 successful · view failures" would otherwise take the whole row (it
+ *  took 271px of the 308px rail as a shared grid track, maintainer 2026-09-02). Truncated, it keeps its
+ *  severity-first opening, which is what checkCountLine orders it for. The floor sits on the NAME rather
+ *  than a 50% cap on the status because a cap left the name 112px on the rail, and `colinhacks/frizz#412`
+ *  wrapped mid-token at `#4`. */
+const STATUS = "ml-3 min-w-0 truncate text-right text-muted-70"
+/** The status after a folder hint, which carries its own `ml-3` and `·`: whole up to half the row, and the
+ *  hint's word gives way before it does (ThreadTerminals' WHO GIVES WAY). */
+const STATUS_AFTER_HINT = "max-w-[50%] shrink-0 truncate text-right text-muted-70"
+/** Half the row for the name — or for the name and its ×, which travel together. See STATUS. */
+const NAME_FLOOR = "min-w-1/2 flex-1"
 
 /** The whole row is the target, so the name's link stretches over it (`after:inset-0` against the row's
  *  `relative`). A real <a>/<button> rather than a click handler on the div: right-click, middle-click and
@@ -456,19 +513,15 @@ function Chevron() {
   return <ChevronRight size={13} aria-hidden className={`${ON_CAP} ml-[3px] -mr-[4px] text-muted-35 transition-colors group-hover:text-muted-70`} />
 }
 
-export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, href, ghRef, title, testKind, testId, indent, dismiss }: {
+export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, href, ghRef, title, testKind, testId, indent, dismiss, oneLine }: {
   mark: ReactNode
   name: string
   /** A terminal row's folder hint (ThreadTerminals' FolderHintToken). It leads the STATUS, as the strip's
-   *  hint leads its readings — so the row takes the name and status tracks as ONE flex cell: name, hint,
-   *  status. Not inside the shared status track: that track is one `fit-content` column for the whole grid,
-   *  sized before the `1fr` name gets anything, so a hint counted into it narrowed every label in the group
-   *  and clipped a prompting row's own reading (`📁 root · waiting for i…`, 2026-09-30). Not at the end of the
-   *  name's track either (the round after): that track ends where the widest status in the grid begins, so the
-   *  hint floated ~120px left of its row's `49m` and still clipped the name (`tail -f /dev/…` beside a bare
-   *  folder, with 126px free past it). In one cell, the status keeps its right edge — the grid's, where every
-   *  other row's status ends — the name takes everything else first, and the hint shows whole in what is left
-   *  or not at all. */
+   *  hint leads its readings: name, hint, status on the row's one flex line. The name keeps its natural
+   *  width (one line, truncating last), the hint's zero-based box grows into what is left and shows whole
+   *  or not at all, and the status keeps the right edge every other row's status ends on. (A hint in a
+   *  shared status track narrowed every label in the group, 2026-09-30; that grid went with upstream's
+   *  per-row flex lines, 1ef572bb.) */
   hint?: ReactNode
   /** The name is a COMMAND LINE (a terminal of yours), set in mono as the strip sets the same command —
    *  one process, one typeface, on every surface. An inline run on the row's baseline, a step smaller so
@@ -482,8 +535,10 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
    *  sub-agents and shells (maintainer 2026-07-30: "the X button to stop a sub-agent should show up
    *  everywhere sub-agents are listed"). Absent ⇒ no ×; the card leaves it to the strip beneath it. */
   dismiss?: { onDismiss: () => void; title: string; label: string }
-  /** Left inset in px for a row in a TREE (the rail's edited files). Switches the row from the shared
-   *  subgrid to its own flex line — see ROW_FLEX for why subgrid cannot indent. */
+  /** Truncate the name to one line instead of wrapping it (a timer's prompt — see NAME). */
+  oneLine?: boolean
+  /** Left inset in px for a row in a TREE (the rail's edited files), added to the row's own 8px. A tree
+   *  row's name truncates rather than wraps (see NAME). */
   indent?: number
   /** Fired when a pointer rests on the row, or the row's control takes focus — the row's chance to
    *  fetch what the click is about to need. Must be idempotent and silent: it runs on a HOVER. */
@@ -499,7 +554,12 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
   testId: string
 }) {
   const tree = indent !== undefined
-  const nameClass = NAME
+  // The name is the row's `flex-1` — unless a × follows it, when the pair is, so the × sits directly
+  // after the name rather than at the far end of the slack — and unless a folder HINT follows it: the
+  // hint's zero-based box is then what grows into the slack (ThreadTerminals FolderHintToken), so the
+  // name keeps its natural width on one line, and truncates last.
+  const wrap = oneLine ? `${NAME} truncate` : NAME_WRAP
+  const nameClass = tree ? NAME_TREE : hint ? `${NAME} min-w-0 truncate` : dismiss ? `${wrap} min-w-0` : `${wrap} ${NAME_FLOOR}`
   const label = mono ? <span className="font-mono-keep text-[11.5px] font-normal">{name}</span> : name
   const open = href
     ? (
@@ -535,10 +595,9 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
   // at the far right it read as too subtle to find). `relative` lifts it over the name's stretched
   // overlay, as the PR row's failures link is lifted, so pressing it never opens the row.
   // `ml-0.5`, not the strip's 6px gap, and measured (ink-gaps.mjs, dsf 4, sans): 6.6–7.1px of ink after
-  // an untruncated name, the row's tight mark-to-name figure, because the × is the name's handle. A
-  // TRUNCATED name — the rail's usual case — adds its ellipsis remainder, which no margin removes:
-  // 8.6–13.6px, against 16.75px from the × to the widest status. At 6px the rows read 12.5–15.7px, the
-  // worst all but halfway to the status. Its ink centre is 0.23px under the cap band's: no nudge.
+  // an untruncated name, the row's tight mark-to-name figure, because the × is the name's handle. Its
+  // ink centre is 0.23px under the cap band's: no nudge. (It rides only a SETTLED rail row since
+  // 2026-10-08 — see railDismiss — and those names wrap rather than truncate.)
   const x = dismiss && (
     <button
       type="button"
@@ -546,25 +605,10 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
       onMouseDown={(e) => e.stopPropagation()}
       title={dismiss.title}
       aria-label={dismiss.label}
-      className="relative ml-0.5 shrink-0 self-center rounded-sm p-0.5 text-muted-45 outline-none transition-colors hover:text-fg focus-visible:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
+      className="relative ml-0.5 shrink-0 self-start mt-[2.5px] rounded-sm p-0.5 text-muted-45 outline-none transition-colors hover:text-fg focus-visible:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
     >
       <X size={11} />
     </button>
-  )
-  // EVERY ROW, hint or not: the name and the status tracks as ONE flex line — the name at its natural width (it
-  // truncates, last), then the × (the name's handle), then the hint's zero-based box or a plain spacer growing
-  // into what is left, then the status at the grid's right edge. A row without a hint kept the two subgrid
-  // tracks for one round, so its name ended where the WIDEST status in the grid began while a hinted row's ran
-  // to its own status: two layouts in one group, label widths differing row to row by ~50px of dead space
-  // (1400px rail, 2026-09-30). The statuses still share one right edge — the grid's — which is what the
-  // subgrid was for.
-  const body = (
-    <span className={`${tree ? "flex-1" : "col-span-2"} flex min-w-0 items-baseline`}>
-      {open}
-      {x}
-      {hint ?? <span aria-hidden className="ml-3 flex-1" />}
-      <span data-wait-status className={STATUS}>{status}</span>
-    </span>
   )
   return (
     <div
@@ -572,12 +616,15 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
       data-wait-kind={testKind}
       onMouseEnter={onPrewarm}
       onFocus={onPrewarm}
-      style={tree ? { paddingLeft: indent } : undefined}
-      className={`${tree ? ROW_FLEX : ROW} ${interactive ? "cursor-pointer transition-colors hover:bg-fg/[0.045]" : ""}`}
+      style={tree ? { paddingLeft: ROW_INSET + indent } : undefined}
+      className={`${ROW} ${interactive ? "cursor-pointer transition-colors hover:bg-fg/[0.045]" : ""}`}
     >
       <span className="flex shrink-0">{mark}</span>
-      {body}
-      {interactive ? <Chevron /> : <span />}
+      {hint ? <>{open}{x}{hint}</> : x ? <span className={`flex items-baseline ${NAME_FLOOR}`}>{open}{x}</span> : open}
+      <span data-wait-status className={hint ? STATUS_AFTER_HINT : STATUS}>{status}</span>
+      {/* A row with nothing to open keeps the chevron's footprint (13px box, +3px, −4px = 12px), so its
+          status still ends on the one right edge every other status ends on. */}
+      {interactive ? <Chevron /> : <span aria-hidden className="w-3 shrink-0" />}
     </div>
   )
 }
@@ -606,7 +653,7 @@ export function issueStatusLine(status: GithubIssueStatus | undefined): string {
 }
 
 export function GithubWatchRow({ watch }: { watch: ThreadWatchView }) {
-  // AN ISSUE ROW is the same four tracks with GitHub's issue marks in the first and no CI in the third:
+  // AN ISSUE ROW is the same four cells with GitHub's issue marks in the first and no CI in the third:
   // its subject has no checks, and a "No checks" reading off it would be a PR fact stated about a thing
   // that has none.
   if (watch.subject === "issue") return <GithubIssueWatchRow watch={watch} />
@@ -626,31 +673,27 @@ export function GithubWatchRow({ watch }: { watch: ThreadWatchView }) {
       name={watch.target}
       href={url ?? undefined}
       ghRef={url ? watch.target : undefined}
-      title={url ? `Open ${watch.target} on GitHub` : watch.target}
+      title={url ? `Open ${watch.target} on GitHub — ${watchStatusLine(status)}` : watch.target}
       status={
-        <>
-          {watchStatusLine(status)}
-          {/* THE FAILING JOBS ARE NOT LISTED ANY MORE (maintainer 2026-08-15: "I don't think we should
-              list out the failed checks. I think there should just be a button to view the failures, and
-              it can just link out to the PR"). The names cost a whole second line on every red row for
-              something the reader has to go to GitHub to act on anyway. The count still speaks — "2
-              failing" says HOW red — and this goes to the PR's own CHECKS tab, which is where they are.
-              `relative` lifts it over the stretched overlay so it keeps its own click. */}
-          {status && status.failing.length > 0 && url && (
-            <>
-              {" · "}
-              <a
-                href={`${url}/checks`}
-                target="_blank"
-                rel="noreferrer noopener"
-                onMouseDown={(e) => e.stopPropagation()}
-                className={`relative underline underline-offset-2 ${PRIMER_DANGER_LINK}`}
-              >
-                view failures
-              </a>
-            </>
-          )}
-        </>
+        // THE FAILED COUNT IS THE LINK TO THE FAILURES (maintainer 2026-08-15: "there should just be a
+        // button to view the failures, and it can just link out to the PR"). It was a separate "view
+        // failures" link after the counts until 2026-10-08; the count itself now goes to the PR's own
+        // CHECKS tab, which is where the failures are, so the button costs no words of its own.
+        // `relative` lifts it over the stretched overlay so it keeps its own click.
+        status && status.state === "open" && status.failed > 0 && url
+          ? (
+            <a
+              href={`${url}/checks`}
+              target="_blank"
+              rel="noreferrer noopener"
+              title={`View the failing checks on ${watch.target}`}
+              onMouseDown={(e) => e.stopPropagation()}
+              className={`relative underline underline-offset-2 ${PRIMER_DANGER_LINK}`}
+            >
+              {watchCounterLine(status)}
+            </a>
+          )
+          : watchCounterLine(status)
       }
     />
   )
@@ -670,8 +713,10 @@ function GithubIssueWatchRow({ watch }: { watch: ThreadWatchView }) {
       name={status?.title ? `${watch.target} ${status.title}` : watch.target}
       href={url ?? undefined}
       ghRef={url ? watch.target : undefined}
-      title={url ? `Open ${watch.target} on GitHub` : watch.target}
-      status={issueStatusLine(status)}
+      // The row says one fact — the comment count, or "closed" — in the strip's own words
+      // (issueCounterLabel); the glyph already says open or closed, and the full line is the tooltip.
+      title={url ? `Open ${watch.target} on GitHub — ${issueStatusLine(status)}` : watch.target}
+      status={status ? issueCounterLabel(status) : "Checking…"}
     />
   )
 }
@@ -735,9 +780,15 @@ function ShellWatchRow({ watch, thread, slug, now }: {
 }
 
 /** The strip's × for a rail row: STOP while the op runs, CLEAR once it does not — ChildOpRow's two
- *  meanings and words. Whether there is a × at all is the caller's `childOpDismisser`, as on the strip. */
-function railDismiss(onDismiss: (() => void) | undefined, running: boolean, kind: "AGENT" | "SHELL", label: string) {
-  if (!onDismiss) return undefined
+ *  meanings and words. Whether there is a × at all is the caller's `childOpDismisser`, as on the strip.
+ *
+ *  A RUNNING row that OPENS carries none (maintainer 2026-10-08: "it's fine if you need to open the
+ *  subagent to close it"): its drawer has the same stop — "Stop sub-agent" in SubAgentSheet, "Stop
+ *  shell" in BackgroundShellSheet — and the × cost a wrapped title its width on every live row. The
+ *  × stays where nothing else on /full can do its job: CLEAR on a settled row, which no drawer offers,
+ *  and STOP on a running row with no drawer to open. */
+function railDismiss(onDismiss: (() => void) | undefined, running: boolean, openable: boolean, kind: "AGENT" | "SHELL", label: string) {
+  if (!onDismiss || (running && openable)) return undefined
   const tone = running ? "running" : "settled"
   return { onDismiss, title: CHILD_DISMISS_TITLE[tone], label: `${CHILD_DISMISS_VERB[tone]} ${CHILD_DISMISS_NOUN[kind]}: ${label}` }
 }
@@ -779,13 +830,13 @@ export function BgShellRow({ shell, slug, now, testId, hint, onDismiss }: {
       // order, so one shell reads one way on neighbouring surfaces (it read `1m · 13m left` here beside the
       // strip's `13m left · 1m`). No "running": a running row is the default, the sub-agent rows above
       // state no such word either, and on the 308px fullscreen rail the word is what pushed "46m left" —
-      // the one reading with a deadline — past the status track's half-width cap into an ellipsis. A
-      // STALE one leads with the word, because that is the news.
+      // the one reading with a deadline — past the status track's half-width cap into an ellipsis. A STALE
+      // one says its age alone (upstream b31c4d5c): the grey mark and the tooltip say it is gone.
       hint={hint}
       status={running
         ? [shellBudgetLabel(shell.budgetEndsAt, now), elapsed || "running"].filter(Boolean).join(" · ")
-        : ["stale", elapsed].filter(Boolean).join(" · ")}
-      dismiss={railDismiss(onDismiss, running, "SHELL", shell.label)}
+        : elapsed}
+      dismiss={railDismiss(onDismiss, running, openable, "SHELL", shell.label)}
     />
   )
 }
@@ -822,19 +873,25 @@ export function TermWaitRow({ terminal, slug, now, hint }: { terminal: ThreadTer
 // rather than as a disabled control.
 export function TimerRow({ watch, now }: { watch: ThreadWatchView; now: number }) {
   const fireMs = Date.parse(watch.timer?.fireAt ?? "")
-  // "fires in 34m", counting down live off the card's shared clock. A due-but-undelivered timer says
+  // "in 34m", counting down live off the card's shared clock — under a "Timers" heading the verb is
+  // implied, and "fires in 33m" was the widest status in the rail for it (maintainer 2026-10-08: "pretty
+  // unnecessarily verbose"). The "in" stays: beside the sub-agents' elapsed "1h 1m", a bare "33m" would
+  // read as time already spent rather than time left. A due-but-undelivered timer says
   // "firing…" rather than a 0s countdown or a negative one — the same present-progressive the PR row uses
   // for its own gap ("Checking…"). That gap is usually a scheduler tick, but it can run to minutes: a
   // timer wake is not exempt from the quiet window after a handoff (wake-store.ts), and the row settles
   // only once the delivery is confirmed.
-  const status = !Number.isFinite(fireMs) ? "armed" : fireMs > now ? `fires in ${formatCompactElapsed(fireMs - now)}` : "firing…"
+  const status = !Number.isFinite(fireMs) ? "armed" : fireMs > now ? `in ${formatCompactElapsed(fireMs - now)}` : "firing…"
+  const prompt = watch.timer?.prompt
   return (
     <WaitRow
       testKind="timer"
       testId={watch.target}
       mark={<Clock size={12} className={`${ON_CAP} text-muted-60`} />}
-      name={watch.timer?.prompt || watch.target}
-      title={watch.timer?.fireAt ? `One-off timer, set for ${watch.timer.fireAt}` : watch.target}
+      name={prompt || watch.target}
+      oneLine
+      // The whole prompt lives here, since the row shows only its first line.
+      title={[prompt, watch.timer?.fireAt ? `One-off timer, set for ${watch.timer.fireAt}` : watch.target].filter(Boolean).join("\n\n")}
       status={status}
     />
   )
@@ -871,12 +928,16 @@ export function AgentRow({ agent, slug, now, onDismiss }: { agent: ThreadView["s
   const elapsed = compactElapsedSince(agent.startedAt, now)
   const open = useContext(WaitRowOpenContext)
   // The profile without its namespace: `frizz:opus-high` is how it is dispatched, `opus-high` is how the
-  // maintainer says it, and the row has no width to spend on a prefix every row would repeat.
+  // maintainer says it. It lives in the TOOLTIP, not the status (maintainer 2026-10-08: "I don't think
+  // the model and effort is very important") — the status track is width the title needs, and the
+  // elapsed time is the one reading on this row that changes.
   const profile = agent.subagentType?.replace(/^frizz:/, "")
   // STALE reaches the fullscreen rail only (this card's set is `liveAgents`): a child whose completion
   // never arrived and whose transcript has gone quiet past its window (tailer `quietPastWindow`). It does
   // not spin. It wears the flat dot every other surface gives a stale child, in a box the size of the
-  // spinner so the column keeps one footprint, and its status leads with the word.
+  // spinner so the column keeps one footprint. The dot is the whole signal and the tooltip the words: a
+  // "stale ·" in the status said the same thing a third time (maintainer 2026-10-08: "I don't think it's
+  // worth including the stale label either").
   const stale = agent.state === "stale"
   return (
     <WaitRow
@@ -890,9 +951,12 @@ export function AgentRow({ agent, slug, now, onDismiss }: { agent: ThreadView["s
       // Its handle (`cache-keys`), as on every row that shows a child as itself (groups.ts subAgentName).
       name={subAgentName(agent.label)}
       onOpen={agent.id ? () => open(() => pushSubAgentDrawer(slug, agent.id!, { label: agent.label, subagentType: agent.subagentType, startedAt: agent.startedAt })) : undefined}
-      title={agent.id ? `Open this sub-agent — ${stale ? CHILD_STALE_TITLE : `working for ${elapsed}`}` : agent.label}
-      status={[stale ? "stale" : undefined, profile, elapsed].filter(Boolean).join(" · ")}
-      dismiss={railDismiss(onDismiss, agent.state === "running", "AGENT", agent.label)}
+      // ONE FACT on the line, the elapsed time (upstream b31c4d5c, maintainer 2026-10-08: "We need to be
+      // picky about what we include as the light gray metadata"): the mark already says stale, and the
+      // profile rides the tooltip.
+      title={agent.id ? `Open this sub-agent${profile ? ` (${profile})` : ""} — ${stale ? CHILD_STALE_TITLE : `working for ${elapsed}`}` : agent.label}
+      status={elapsed}
+      dismiss={railDismiss(onDismiss, agent.state === "running", !!agent.id, "AGENT", agent.label)}
     />
   )
 }
@@ -1005,8 +1069,12 @@ export interface WaitGroup {
 // scripts/ink-gaps.mjs at dsf 6 on the fullscreen rail — label→count / count→caret: sans 7.84 / 8.10px,
 // mono 8.10 / 7.42px. `ml-[3px]` read 6.10px in sans, visibly tighter than the gap before it.
 function GroupHeading({ group, first }: { group: WaitGroup; first: boolean }) {
-  const place = `col-span-4 ${first ? "" : "mt-2.5"}`
-  // With an action the heading and the action share the row, which takes the grid placement; the toggle
+  // `px-2`: the rows' inset (ROW), so a heading's first letter stays on the column of marks below it.
+  // `mt-4` above every heading but the first — 16px against the rows' 1px. It was 10px while every row
+  // was one line; once names wrap, a two-line row is 40px tall and 10px no longer read as a section
+  // break (maintainer 2026-10-08: "We need more spacing between sections").
+  const place = `px-2 ${first ? "" : "mt-4"}`
+  // With an action the heading and the action share the row, which takes the placement; the toggle
   // stays its own button (a button cannot hold another), and both keep the heading's type on one baseline.
   const at = group.action ? "" : place
   const cls = `${at} text-[10.5px] uppercase tracking-wide text-muted-45`
@@ -1035,26 +1103,20 @@ export function WaitGrid({ groups, divider }: { groups: ReadonlyArray<WaitGroup>
           (maintainer 2026-08-24). It comes and goes with the prose: a card with rows alone (a bare
           sub-agent rest) needs no seam, and a seam over nothing reads as a scratch. */}
       {divider && <div aria-hidden className="-mx-4 mt-3 border-t border-border" />}
-      {/* THE TABLE — the card's real content, not an appendix to a sentence.
-          ONE grid for every group, so `grid-cols-subgrid` on each row shares FOUR tracks across the whole
-          card and the light-gray statuses line up down one edge even across a heading. Per-group grids
-          would each size their own name column and the statuses would step.
-
-          THE STATUS TRACK IS CAPPED AT HALF THE GRID — `fit-content(50%)`, not `auto` — because the
-          tracks are sized before the `1fr` name gets anything: a bare `auto` grows to the WIDEST status
-          in the whole shared grid, so one red PR's "2 failing, 1 in progress, 9 successful · view
-          failures" measured the track at 271px on the 308px fullscreen rail and truncated every file
-          name in the grid to its ellipsis (maintainer 2026-09-02, screenshot of a 22-file rail reading
-          "b…" down the column). Under the cap the wide status is the one that truncates — the reading
-          checkCountLine already orders severity-first for — and the names keep the other half.
+      {/* THE TABLE — the card's real content, not an appendix to a sentence. One column of rows for
+          every group; each row is its own flex line (see ROW), and every status ends on the chevron's
+          edge, so the statuses line up down one edge even across a heading.
 
           mt-3 UNCONDITIONALLY — 12px, and it is the WHOLE gap rather than an addition: CardContent's own
           mt-1 collapses into it, which is why an earlier mt-2 measured 8px and put the first row closer
-          to the card title than to the row beneath it (measured, sans and mono, dsf 3). */}
-      <div className="mt-3 grid grid-cols-[auto_1fr_fit-content(50%)_auto] gap-y-px">
+          to the card title than to the row beneath it (measured, sans and mono, dsf 3).
+
+          `-mx-2` hands back the rows' own `px-2` inset (ROW), so the ink keeps its edge and only the
+          hover fill grows past it. */}
+      <div className="-mx-2 mt-3 flex flex-col gap-y-px">
         {groups.map((g, i) => (
           <Fragment key={g.head}>
-            {/* The heading spans all four tracks. `mt-*` on every group but the first: the gap between
+            {/* `mt-*` on every group's heading but the first: the gap between
                 a group and the one above it has to beat the gap between two rows, or the heading reads
                 as belonging to the rows above rather than the ones below. */}
             <GroupHeading group={g} first={i === 0} />
@@ -1391,7 +1453,7 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
       // per-kind card the consolidation removed, exactly as a per-kind title did.
       // STEPS TAKE A THIRD, and only because their wait is of a different kind: the reader is the one
       // being waited on, so the card is a to-do rather than a status. It rides a KIND CHIP rather than
-      // the title (2026-10-05, TranscriptCard's KindChip): "To do" over the worker's own title, which is
+      // the title (2026-10-05, TranscriptCard's KindChip): "Awaiting human" over the worker's own title, which is
       // left out when the worker named none — the chip already says what the card is for.
       icon={steps.length > 0 ? ListTodo : shellsAlone(work) ? TerminalSquare : Hourglass}
       chip={steps.length > 0 ? STEPS_CHIP : undefined}

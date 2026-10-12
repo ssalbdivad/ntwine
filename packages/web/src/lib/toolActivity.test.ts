@@ -11,7 +11,6 @@ import {
   liveRuntimeStartedAt,
   liveToolActivityRun,
   liveToolActivityTail,
-  toolActivityStampAt,
   editedFileCount,
   settledToolActivityLabel,
   thinkingToolActivityLabel,
@@ -476,42 +475,6 @@ test("the runtime clock counts the live stretch, not the turn", () => {
   )
 
   assert.equal(liveRuntimeStartedAt([]), undefined)
-})
-
-test("a coalesced band reads the instant it opened, in both phases of the turn", () => {
-  // The row's hover reading must not move when the turn settles. It nearly did: while the turn runs,
-  // `historicalToolActivityMessages` strips the live tail off the run's opener, so a prose-bearing
-  // opener keeps its walked-forward `at` while LOSING the tail — any "does it still have a tail?"
-  // guard fails on exactly the entry it exists to catch, and the reading rewinds by the run's whole
-  // length the moment the last call lands.
-  const lead: ChatMessage = {
-    sourceId: "lead",
-    role: "assistant",
-    text: "Looking into it.",
-    tools: [tool("Read", { detail: "src/a.ts", status: "completed" })],
-    parts: [
-      { kind: "text", text: "Looking into it." },
-      { kind: "tools", tools: [tool("Read", { detail: "src/a.ts", status: "completed" })] },
-    ],
-    at: "2026-07-30T12:00:00.000Z",
-  }
-  const folded = toolMessage("batch-b", [tool("Grep", { detail: "renderActivity", status: "pending" })], "2026-07-30T12:00:09.000Z")
-
-  const compact = coalesceToolActivityMessages([lead, folded])
-  assert.equal(compact.length, 1)
-  assert.equal(compact[0].message.at, "2026-07-30T12:00:09.000Z", "`at` walked to the newest batch")
-  assert.equal(toolActivityStampAt(compact[0]), "2026-07-30T12:00:00.000Z")
-
-  // The live view of that same run — the tail stripped, the walked `at` left behind.
-  const live = historicalToolActivityMessages(compact)
-  assert.equal(live.length, 1)
-  assert.equal(live[0].message.at, "2026-07-30T12:00:09.000Z")
-  assert.equal(toolActivityStampAt(live[0]), "2026-07-30T12:00:00.000Z")
-
-  // An ordinary row is untouched: nothing folded in, so the opening instant IS its own.
-  const plain = coalesceToolActivityMessages([toolMessage("solo", [tool("Read", { status: "completed" })])])
-  assert.equal(toolActivityStampAt(plain[0]), "2026-07-30T12:00:00.000Z")
-  assert.equal(toolActivityStampAt({ message: { sourceId: "p", role: "assistant", text: "hi", tools: [] }, messageIndex: 0 }), undefined)
 })
 
 test("a live tool tail is removed without hiding the prose that introduced it", () => {

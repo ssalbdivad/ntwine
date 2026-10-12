@@ -463,6 +463,39 @@ test("backfill recovers a project whose server is STOPPED, not just a running on
   }
 })
 
+// Forgetting keeps the state dir, and the folder still claims the id — exactly what backfill adopts.
+// So a project deleted from the grid came back at the next boot, and the project the server is hosted
+// on came back at every restart of the server under its launcher, whose owner record names it.
+test("a forgotten project is not recovered by backfill until it is opened again", () => {
+  const home = mkdtempSync(join(tmpdir(), "frizz-backfill-forgotten-"))
+  try {
+    const dir = join(home, "forgotten-project")
+    const stateDir = join(home, ".frizz", "projects", A)
+    mkdirSync(dir, { recursive: true })
+    mkdirSync(stateDir, { recursive: true })
+    writeFileSync(join(stateDir, "launcher.json"), JSON.stringify({ projectDir: dir }))
+    const claims: Record<string, string> = { [canonical(dir)]: A }
+
+    registerProject({ dir, id: A }, home)
+    assert.equal(forgetProject(A, home), true)
+    assert.equal(backfillRegistry(home, (root) => claims[root]), 0)
+    assert.deepEqual(listProjects(home), [])
+
+    // Opening it again — the launcher, or the grid's add — is what ends the forgetting.
+    registerProject({ dir, id: A }, home)
+    assert.equal(readRegistry(home).forgotten, undefined)
+    assert.equal(forgetProject(A, home), true)
+
+    // With its state deleted too there is nothing left to recover, so nothing is remembered.
+    registerProject({ dir, id: A }, home)
+    rmSync(stateDir, { recursive: true, force: true })
+    assert.equal(forgetProject(A, home), true)
+    assert.equal(readRegistry(home).forgotten, undefined)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
 // A rail rendered the same project twice — `/var/...` and `/private/var/...`, two ids, two slugs —
 // because the launcher realpaths and the grid's add path did not. On macOS /var IS a symlink, so this
 // is the default state of every temp path, not an edge case (2026-08-06).

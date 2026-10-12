@@ -123,11 +123,16 @@ export function createTenantMap<App = unknown>(options: TenantMapOptions<App>): 
         // is the failure propagating out and ending a process that is serving other projects.
         report(project, error)
         return undefined
-      } finally {
-        opening.delete(project.id)
       }
     })()
     opening.set(project.id, attempt)
+    // Cleared once the attempt SETTLES, never from inside it: an attempt that fails before its first
+    // await (a createContext that throws synchronously) has already settled by the time the line above
+    // runs, and a `finally` in there would clear the entry before it was set — leaving a settled
+    // failure that every later activate of this project would be handed.
+    void attempt.then(() => {
+      if (opening.get(project.id) === attempt) opening.delete(project.id)
+    })
     return attempt
   }
 

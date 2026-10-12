@@ -210,6 +210,20 @@ function InteractionQuestionCard({
       failClosedAmbiguousInteraction(qc, record)
       turn.rollback()
       setError(errorText(cause))
+      // …and then FIND OUT, as the typed card does. Failing closed without a re-read left this card
+      // read-only with no Send button until a window refocus or a reload: the journal had not changed,
+      // so no push arrived, and a question never expires, so nothing polled. A record proven still
+      // awaiting the operator re-enables the same answer under the same response id; one that did land
+      // leaves the list; an unreachable server stays closed.
+      void api.interactionGet({
+        slug: record.owner.threadSlug,
+        sessionId: record.owner.sessionId,
+        interactionId: record.id,
+      }).then(({ interaction }) => {
+        reconcileCachedInteraction(qc, interaction)
+        qc.setQueryData(interactionRecordKey(record.owner.threadSlug, record.owner.sessionId, record.id), { interaction })
+        void qc.invalidateQueries({ queryKey: pendingInteractionsKey(record.owner.threadSlug, record.owner.sessionId), exact: true })
+      }).catch(() => {})
     },
   })
 

@@ -318,6 +318,16 @@ export class AccessStore {
   }
 
   /**
+   * Which device this session belongs to, for the audit trail: its record id (what `frizz --sessions`
+   * lists and `--sign-out` takes), `"legacy"` for a session minted before ids existed, or null when it
+   * does not verify. Never the session itself — the id is the one part of it that is not a credential.
+   */
+  sessionIdOf(session: string | undefined): string | null {
+    if (!session || !this.verifySession(session)) return null
+    return AccessStore.idOf(session.slice(0, session.lastIndexOf("."))) ?? "legacy"
+  }
+
+  /**
    * Sign out the device HOLDING this session — the "Sign out this device" row, not `--sign-out`.
    *
    * The id comes from the session itself, and only after its signature verifies, so the one thing this

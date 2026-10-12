@@ -70,6 +70,21 @@ const multiline = {
   parts: [],
 } as unknown as TranscriptMessage
 
+// A MULTI-SELECT with a note — five long picks and a typed paragraph, the 2026-10-08 report verbatim.
+// One comma-joined chip used to carry all of it; each pick is its own checked chip now, the note under them.
+const multiSelect = {
+  sourceId: "u5",
+  role: "user",
+  text: questionAnswerMessage([{
+    questionId: "qst_d",
+    question: "Which agent actions should run now? (The ready ones need nothing from the maintainer; the sign-in ones need one browser approval on this Mac first, and that new login is revoked again when the job is done.)",
+    chosen: ["A9 Neon DB password (ready)", "A10–A13 + A16 key rotations (ready)", "Google Cloud jobs (needs gcloud sign-in)", "GitHub jobs (needs gh sign-in)", "Cloudflare jobs (needs wrangler sign-in)"],
+    text: "Alright, sounds good. Let's uh do it all but let's be very deliberate about it and go through piece by piece. Obviously do everything possible to minimize downtime.",
+  }]),
+  tools: [],
+  parts: [],
+} as unknown as TranscriptMessage
+
 function Fixture() {
   return (
     <div className="mx-auto my-8 flex w-[min(560px,calc(100%-32px))] flex-col gap-6">
@@ -95,6 +110,18 @@ function Fixture() {
         <div className="mb-2 text-[11px] uppercase tracking-wide text-muted-70">Registered-question answers, with a follow-up and a dismissal</div>
         <div className="flex flex-col rounded-lg border border-border bg-panel p-4">
           <Message m={registered} />
+        </div>
+      </div>
+      <div data-fixture="multi-select">
+        <div className="mb-2 text-[11px] uppercase tracking-wide text-muted-70">Multi-select answer with a note</div>
+        <div className="flex flex-col rounded-lg border border-border bg-panel p-4">
+          <Message m={multiSelect} />
+        </div>
+      </div>
+      <div data-fixture="multi-select-dense">
+        <div className="mb-2 text-[11px] uppercase tracking-wide text-muted-70">Multi-select answer (dense / queue width)</div>
+        <div className="flex w-[380px] flex-col rounded-lg border border-border bg-panel p-4">
+          <Message m={multiSelect} dense />
         </div>
       </div>
       <div data-fixture="multiline">

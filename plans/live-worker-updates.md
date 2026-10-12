@@ -4,6 +4,15 @@ Written 2026-08-08, after the singleton broke every non-launching project's friz
 
 **Partly. Hooks, skills, agents and commands can be updated in a LIVE worker; the MCP servers cannot.** That split is measured, not reasoned — see §0 — and it is the single fact this plan turns on.
 
+**STATUS 2026-10-11: both halves of "The wire" below are built, and the reload needs nobody.** Everything under this note is the plan as written on 2026-08-08, kept as the record of why; where it says `stageStablePluginDir` has zero production callers, or names line numbers, it describes that day.
+
+- **§1 landed as written.** `workerPluginDir()` returns the stable path for an artifact launch. The version identity is a content digest of the plugin directory in every case, which settles the question §1 left open: a published release, a promoted build and a rebuilt-in-place artifact all change it exactly when the content changes. A DEV SOURCE checkout is NOT staged — its `cc-worker/` is edited in place, so a worker launched against it already reads every change, and the same fingerprint that notices a repoint notices an edit.
+- **§2 landed differently, and smaller.** The plan had the server repoint the link and then ask each idle thread to reload. Instead each worker's DAEMON compares a fingerprint of its plugin at its own turn boundaries and reloads itself (`packages/server/src/backend/claude-plugin-sync.ts`). The daemon is the one process that knows exactly when its session is between turns, so the "idle threads only" rule needs no board reading and no race with a follow-up; an input simply waits behind a reload in flight. The server's whole part is the repoint that booting already performs.
+- **It watches more than this plan asked for.** The same fingerprint covers the project's and the operator's own skills, agents, commands and installed plugins, which a live session does not notice by itself either (measured) and which the button was the only way to pick up.
+- **The Reload plugins button and its RPC are gone**, since the thing they did by hand now happens.
+- **Verified** as the section below asks, with the control it insists on: `packages/server/src/backend/_live_plugin_sync.mts` against real claude 2.1.296 (a skill and a hook registration that exist only in the new version are live after a repoint, same daemon pid; with the sync off, neither is), and `scripts/verify-artifact-plugin-sync.mjs` on a built artifact across a server replacement.
+- **§0 still holds and is still the limit**: an MCP server is not re-spawned by any of this.
+
 ## 0. MEASURED 2026-08-08, before believing any of this
 
 Two staged copies of the worker plugin (`v1`, `v2`), each declaring a marker MCP server in `.mcp.json` that reports which copy spawned it, published through one repointable symlink exactly as `stable-plugin-path.ts` does. A real dispatched worker, a real reload:

@@ -26,7 +26,10 @@ const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const repo = mkdtempSync(join(tmpdir(), "brk-srv-repo-"))
 execFileSync("git", ["init", "-q", repo])
 execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"])
-const project = resolveProject(repo)
+// A throwaway home for Frizz's own state. resolveProject REGISTERS the directory it resolves, and
+// under the real home that is the operator's project list: every run left a dead card on their rail.
+const frizzHome = mkdtempSync(join(tmpdir(), "brk-srv-home-"))
+const project = resolveProject(repo, frizzHome)
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -112,7 +115,7 @@ try {
 } finally {
   try { if (daemonPid) process.kill(daemonPid, "SIGKILL") } catch {}
   rmSync(repo, { recursive: true, force: true })
-  try { rmSync(project.stateDir, { recursive: true, force: true }) } catch {}
+  try { rmSync(frizzHome, { recursive: true, force: true }) } catch {}
   try { rmSync(join(process.env.HOME ?? "", ".claude", "projects", project.cwdSlug), { recursive: true, force: true }) } catch {}
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`)
   process.exit(failures === 0 ? 0 : 1)

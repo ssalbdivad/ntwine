@@ -185,23 +185,26 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
 
   await page.goto(`${url}/thread/theme-question/full`, { waitUntil: "networkidle2" })
   // A STAGED answer, typed and not sent — no longer a picked option. Since 2c41b46f (2026-09-29) a
-  // single-choice pick that completes the ask is its own send, and since f515ee44 Send answers is drawn
-  // only while something is half-filled, so the pick this step made found no button (and would now answer
-  // the fixture's one question, leaving the next palette's pass nothing to measure). Typed text is still
-  // staged until Enter, which is the state that draws the send button; it is cleared again below.
+  // single-choice pick that completes the ask is its own send, so a pick here would answer the fixture's
+  // one question and leave the next palette's pass nothing to measure. Typed text is still staged until
+  // Enter; it is cleared again below. A staged answer arms the prompt box's Send, which is what sends it:
+  // the cards draw no "Send answers" of their own beside a prompt box (upstream 59089c92, 2026-10-11).
   const answer = 'textarea[data-surface="questionAnswer"]'
   await page.waitForSelector("[data-question-option] > button")
   await page.click(answer)
   await page.keyboard.type("Both, renderer first")
-  await page.waitForFunction(() => { const el = document.querySelector("[data-send-answers]"); return el && !el.disabled && getComputedStyle(el).opacity === "1" })
+  await page.waitForFunction(() => {
+    const send = document.querySelector("[data-send-split] [data-send]")
+    return send && !send.disabled && !document.querySelector("[data-send-answers]")
+  })
   await contrast("selected-question")
   const outlineContract = await page.evaluate(() => {
     const question = getComputedStyle(document.querySelector('.bg-question'))
-    const button = getComputedStyle(document.querySelector('[data-send-answers]'))
-    return { question: [question.backgroundColor, question.borderTopColor, question.borderTopWidth], buttonShadow: button.boxShadow }
+    const send = getComputedStyle(document.querySelector('[data-send-split] [data-send]'))
+    return { question: [question.backgroundColor, question.borderTopColor, question.borderTopWidth], send: [send.backgroundColor, send.color] }
   })
   if (palette === 'light') assert.deepEqual(outlineContract.question, ['rgb(255, 255, 255)', 'rgb(220, 220, 220)', '1px'])
-  assert.match(outlineContract.buttonShadow, /inset/, 'Answer buttons retain subtle inset outlines')
+  assert.notEqual(outlineContract.send[0], outlineContract.send[1], 'The armed Send keeps its word legible on its fill')
   result[`${name}-question-outlines`] = outlineContract
   await shot("selected-question")
   await page.evaluate(() => {
@@ -456,7 +459,7 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
     await shot(`integrated-renderers-${width}`)
     // The trailing chevron deliberately overhangs its box by 4px to align its ink. Check the
     // single-line contract and document overflow, not that intentional box-level overhang.
-    assert.ok(rows.every(row => row.height < 32 && row.children.every(child => child.top >= 0 && child.top + child.height <= row.height)), 'Issue watches retain their real single-line subgrid layout')
+    assert.ok(rows.every(row => row.height < 32 && row.children.every(child => child.top >= 0 && child.top + child.height <= row.height)), 'Issue watches retain their real single-line layout')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Integrated controls do not overflow the viewport')
     await contrast(`integrated-renderers-${width}`)
     result[`${name}-acp-model-${width}-ink`] = await measureAppearanceInk(page, '[aria-label="Model for OpenCode"]')

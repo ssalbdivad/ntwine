@@ -56,7 +56,6 @@ const watchFeed = `  @settings-store  resting · watching acme/api#391
 const remoteMenu = `  Reach this board from anywhere
 
   ❯ Private name        no account, nothing to install
-    Custom name         <name>.frizz.sh
     Cloudflare Tunnel   a domain you own
     Tailscale           your tailnet
     Something else      any proxy you run

@@ -2,7 +2,7 @@
 // (no real claude, no network — fast and deterministic). Proves the broker↔client typed socket
 // protocol, the permission round-trip over the socket, and — the reason the broker exists —
 // reconnect with a PENDING permission re-delivered to a fresh client.
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -32,15 +32,16 @@ function shortSocket(): string {
 const openClients = new Set<ClaudeBrokerClient>()
 afterEach(() => { for (const client of openClients) client.close(); openClients.clear() })
 
-interface Captured { events: ClaudeQueryEvent[]; perms: { requestId: string; request: ClaudePermissionRequest }[]; hellos: string[]; diagnostics: ClaudeDiagnostic[] }
+interface Captured { events: ClaudeQueryEvent[]; perms: { requestId: string; request: ClaudePermissionRequest }[]; withdrawn: string[]; hellos: string[]; diagnostics: ClaudeDiagnostic[] }
 function clientWith(socketPath: string): { client: ClaudeBrokerClient; cap: Captured; waitPerm: (ms?: number) => Promise<{ requestId: string; request: ClaudePermissionRequest }>; waitEvent: (pred: (e: ClaudeQueryEvent) => boolean, ms?: number) => Promise<ClaudeQueryEvent> } {
-  const cap: Captured = { events: [], perms: [], hellos: [], diagnostics: [] }
+  const cap: Captured = { events: [], perms: [], withdrawn: [], hellos: [], diagnostics: [] }
   const permWaiters: ((v: any) => void)[] = []
   const eventWaiters: { pred: (e: ClaudeQueryEvent) => boolean; resolve: (e: ClaudeQueryEvent) => void }[] = []
   const client = connectClaudeBroker(socketPath, {
     onHello: (sid) => cap.hellos.push(sid),
     onEvent: (e) => { cap.events.push(e); for (let i = eventWaiters.length - 1; i >= 0; i--) if (eventWaiters[i].pred(e)) { eventWaiters[i].resolve(e); eventWaiters.splice(i, 1) } },
     onPermissionRequest: (requestId, request) => { const p = { requestId, request }; cap.perms.push(p); const w = permWaiters.shift(); if (w) w(p) },
+    onPermissionWithdrawn: (requestId) => cap.withdrawn.push(requestId),
     onDiagnostic: (diagnostic) => cap.diagnostics.push(diagnostic),
   })
   openClients.add(client)
@@ -56,7 +57,11 @@ function startBroker(scenario: string, extra: Partial<Parameters<typeof runClaud
   const exe = join(dir, `fake-claude--${scenario}.mjs`)
   copyFileSync(fakeCli, exe); chmodSync(exe, 0o700)
   const socketPath = shortSocket()
-  const broker = runClaudeBroker({ socketPath, cwd: dir, sessionId: randomUUID(), executablePath: exe, permissionMode: "default", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" }, ...extra })
+  // CLAUDE_CONFIG_DIR is the fixture's own, not the developer's `~/.claude`: the daemon fingerprints that
+  // directory to notice a plugin closure that moved (claude-plugin-sync.ts), and a skill some live
+  // session installs in the real one mid-test would put a reload request into a control sequence a test
+  // here counts. HOME stays real — the stand-in CLI is started through whatever `node` PATH resolves.
+  const broker = runClaudeBroker({ socketPath, cwd: dir, sessionId: randomUUID(), executablePath: exe, permissionMode: "default", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", CLAUDE_CONFIG_DIR: join(dir, "claude-config") }, ...extra })
   return { socketPath, close: async () => { await broker.close(); rmSync(dir, { recursive: true, force: true }) }, dir }
 }
 
@@ -200,6 +205,36 @@ test("broker relays a typed permission request and forwards the decision", { tim
     c.client.answerPermission(perm.requestId, { behavior: "allow" })
     const result = await c.waitEvent((e) => e.kind === "result")
     assert.equal(result.kind, "result")
+    c.client.close()
+  } finally { await b.close() }
+})
+
+// The SDK asks the host AND runs the PermissionRequest hooks side by side, and takes the host's copy
+// back when a hook settles the request first — which the worker's policy hook does for nearly every
+// request. Measured against real claude 2026-10-10: frizz was never told, so the card it had journaled
+// sat in front of the operator, dead, until the turn ended.
+test("a request the CLI settles inside the hold never reaches frizz at all", { timeout: 15_000 }, async () => {
+  const b = startBroker("permission-settled-fast")
+  try {
+    const c = clientWith(b.socketPath)
+    await new Promise((r) => setTimeout(r, 300))
+    c.client.sendInput({ id: randomUUID(), text: "do the thing" })
+    await c.waitEvent((e) => e.kind === "result")
+    assert.deepEqual(c.cap.perms, [], "no card for a request a hook answered in 30ms")
+    assert.deepEqual(c.cap.withdrawn, [], "and nothing to take back, because nothing was shown")
+    c.client.close()
+  } finally { await b.close() }
+})
+
+test("a request frizz WAS shown is taken back when the CLI settles it", { timeout: 15_000 }, async () => {
+  const b = startBroker("permission-settled-late")
+  try {
+    const c = clientWith(b.socketPath)
+    await new Promise((r) => setTimeout(r, 300))
+    c.client.sendInput({ id: randomUUID(), text: "do the thing" })
+    const perm = await c.waitPerm()
+    await c.waitEvent((e) => e.kind === "result")
+    assert.deepEqual(c.cap.withdrawn, [perm.requestId], "frizz is told the request it is showing no longer exists")
     c.client.close()
   } finally { await b.close() }
 })
@@ -417,4 +452,131 @@ test("a daemon whose socket path was taken over leaves the successor's socket al
     await survivor.close()
     await first.close()
   }
+})
+
+// ---- plugin sync (claude-plugin-sync.ts): the daemon re-reads a plugin that moved, between turns ----
+
+/** A plugin closure the test owns and can change under a running daemon. */
+function tempPlugin(): { dir: string; change: (name: string) => void; remove: () => void } {
+  const root = mkdtempSync(join(tmpdir(), "cbroker-plugin-"))
+  const dir = join(root, "cc-worker")
+  mkdirSync(join(dir, ".claude-plugin"), { recursive: true })
+  writeFileSync(join(dir, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "probe", version: "0.0.1" }))
+  return {
+    dir,
+    change: (name) => { mkdirSync(join(dir, "skills", name), { recursive: true }); writeFileSync(join(dir, "skills", name, "SKILL.md"), `---\nname: ${name}\n---\n`) },
+    remove: () => rmSync(root, { recursive: true, force: true }),
+  }
+}
+type CaptureRow = { kind: string; subtype?: string; text?: string }
+const reloadsIn = (rows: CaptureRow[]): number => rows.filter((row) => row.kind === "host-control" && row.subtype === "reload_plugins").length
+const waitResults = async (c: ReturnType<typeof clientWith>, count: number): Promise<void> => {
+  const deadline = Date.now() + 5_000
+  while (c.cap.events.filter((e) => e.kind === "result").length < count) {
+    if (Date.now() > deadline) throw new Error(`waited for ${count} result(s), saw ${c.cap.events.filter((e) => e.kind === "result").length}`)
+    await new Promise((r) => setTimeout(r, 25))
+  }
+}
+
+test("a plugin that changed while the session was idle is reloaded BEFORE the next input reaches claude", { timeout: 20_000 }, async () => {
+  const plugin = tempPlugin()
+  const b = startBroker("basic", { pluginDir: plugin.dir })
+  try {
+    const c = clientWith(b.socketPath)
+    await c.waitEvent((e) => e.kind === "init")
+    await c.client.deliverInput({ id: randomUUID(), text: "first" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 1)
+    assert.equal(reloadsIn(captureRows(b.dir) as CaptureRow[]), 0, "an unchanged plugin costs nothing")
+
+    plugin.change("added-while-idle")
+    await c.client.deliverInput({ id: randomUUID(), text: "second" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 2)
+    const rows = captureRows(b.dir) as CaptureRow[]
+    const order = rows.filter((row) => row.kind === "user-input" || (row.kind === "host-control" && row.subtype === "reload_plugins"))
+      .map((row) => row.kind === "user-input" ? row.text : "reload")
+    assert.deepEqual(order, ["first", "reload", "second"], "the reload lands between the turns, ahead of the input that found it")
+
+    await c.client.deliverInput({ id: randomUUID(), text: "third" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 3)
+    assert.equal(reloadsIn(captureRows(b.dir) as CaptureRow[]), 1, "and it is not reloaded again until it changes again")
+    c.client.close()
+  } finally { await b.close(); plugin.remove() }
+})
+
+// The other half of the closure: what the OPERATOR adds. A live session does not notice a new project
+// skill by itself (measured against real claude), so this reaches it the same way the plugin does.
+test("a skill added to the project while the session was idle is picked up before the next input", { timeout: 20_000 }, async () => {
+  const b = startBroker("basic") // no Frizz plugin at all: the closure is still worth keeping current
+  try {
+    const c = clientWith(b.socketPath)
+    await c.waitEvent((e) => e.kind === "init")
+    await c.client.deliverInput({ id: randomUUID(), text: "first" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 1)
+    mkdirSync(join(b.dir, ".claude", "skills", "added-by-the-operator"), { recursive: true })
+    writeFileSync(join(b.dir, ".claude", "skills", "added-by-the-operator", "SKILL.md"), "---\nname: added-by-the-operator\n---\n")
+    await c.client.deliverInput({ id: randomUUID(), text: "second" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 2)
+    const order = (captureRows(b.dir) as CaptureRow[])
+      .filter((row) => row.kind === "user-input" || (row.kind === "host-control" && row.subtype === "reload_plugins"))
+      .map((row) => row.kind === "user-input" ? row.text : "reload")
+    assert.deepEqual(order, ["first", "reload", "second"])
+    c.client.close()
+  } finally { await b.close() }
+})
+
+test("a plugin that changes DURING a turn is not reloaded under it", { timeout: 20_000 }, async () => {
+  const plugin = tempPlugin()
+  // `hold-inputs`: the fake never answers, so the first input opens a turn that stays open.
+  const b = startBroker("hold-inputs", { pluginDir: plugin.dir })
+  try {
+    const c = clientWith(b.socketPath)
+    await c.waitEvent((e) => e.kind === "init")
+    await c.client.deliverInput({ id: randomUUID(), text: "open a turn" }, { acknowledged: true, timeoutMs: 5_000 })
+    plugin.change("added-mid-turn")
+    await c.client.deliverInput({ id: randomUUID(), text: "a steer into it" }, { acknowledged: true, timeoutMs: 5_000 })
+    const rows = await waitForRows(b.dir, (r) => r.filter((row) => row.kind === "user-input").length === 2) as CaptureRow[]
+    assert.equal(rows.filter((row) => row.kind === "user-input").length, 2, "both inputs reached claude")
+    assert.equal(reloadsIn(rows), 0, "with no reload while the turn was running")
+    c.client.close()
+  } finally { await b.close(); plugin.remove() }
+})
+
+test("a reload the session refuses still lets the input through", { timeout: 20_000 }, async () => {
+  const plugin = tempPlugin()
+  const b = startBroker("reload-failure", { pluginDir: plugin.dir })
+  try {
+    const c = clientWith(b.socketPath)
+    await c.waitEvent((e) => e.kind === "init")
+    plugin.change("unloadable")
+    await c.client.deliverInput({ id: randomUUID(), text: "must not be lost" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 1)
+    const rows = captureRows(b.dir) as CaptureRow[]
+    assert.ok(rows.some((row) => row.kind === "user-input" && row.text === "must not be lost"), "the failure did not cost the operator's message")
+    assert.equal(reloadsIn(rows), 2, "tried before the input, and once more when its turn ended")
+
+    await c.client.deliverInput({ id: randomUUID(), text: "and again" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 2)
+    assert.equal(reloadsIn(captureRows(b.dir) as CaptureRow[]), 2, "then the same unloadable plugin is left alone")
+    c.client.close()
+  } finally { await b.close(); plugin.remove() }
+})
+
+test("FRIZZ_PLUGIN_SYNC_OFF=1 leaves the session on the plugin it started with", { timeout: 20_000 }, async () => {
+  const plugin = tempPlugin()
+  const before = process.env.FRIZZ_PLUGIN_SYNC_OFF
+  process.env.FRIZZ_PLUGIN_SYNC_OFF = "1"
+  let b: ReturnType<typeof startBroker>
+  try { b = startBroker("basic", { pluginDir: plugin.dir }) } finally {
+    if (before === undefined) delete process.env.FRIZZ_PLUGIN_SYNC_OFF
+    else process.env.FRIZZ_PLUGIN_SYNC_OFF = before
+  }
+  try {
+    const c = clientWith(b.socketPath)
+    await c.waitEvent((e) => e.kind === "init")
+    plugin.change("ignored")
+    await c.client.deliverInput({ id: randomUUID(), text: "hello" }, { acknowledged: true, timeoutMs: 5_000 })
+    await waitResults(c, 1)
+    assert.equal(reloadsIn(captureRows(b.dir) as CaptureRow[]), 0)
+    c.client.close()
+  } finally { await b.close(); plugin.remove() }
 })

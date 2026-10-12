@@ -1,5 +1,6 @@
 import { createContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { ArrowUp, FileText, Loader2, Paperclip, Plus, Repeat, X } from "lucide-react"
+import { useSnapshot } from "valtio"
+import { ArrowUp, FileText, Loader2, Mic, Paperclip, Plus, Repeat, X } from "lucide-react"
 import { ATTACHMENT_ACCEPT, ATTACHMENT_MAX_BYTES, isAllowedAttachmentName, type EmbedPickedFile, type ThreadSkill } from "@frizz/shared"
 import { showToast } from "../store.ts"
 import { joinComposerValue, splitComposerValue } from "../lib/imagePaths.ts"
@@ -9,7 +10,12 @@ import { renderInputFenceRun } from "./TextareaCodeFences.tsx"
 import { shouldInterruptSubmitComposerEnter, shouldPushQueuedComposerEnter, shouldRestoreOptionEnterNewline, shouldSubmitComposerEnter } from "../lib/composerKeyboard.ts"
 import { queueComposerHandlesOptionEnter } from "../lib/queueComposerKeyboard.ts"
 import { focusQuestionFrom } from "../lib/questionKeys.ts"
-import { RAIL_ACTION_OFFSET, RAIL_LEAD_OFFSET, RAIL_LEAD_WITH_ACTION_OFFSET, RAIL_PAPERCLIP_OFFSET, RAIL_PAPERCLIP_PLAIN_OFFSET, RAIL_RESERVE_PLAIN, RAIL_RESERVE_WITH_ACTION, RAIL_RESERVE_WITH_BOTH, RAIL_SEND_OFFSET } from "../lib/iconRhythm.ts"
+import { composerRail, SEND_SPLIT_WIDTH } from "../lib/iconRhythm.ts"
+import type { SendMode } from "../lib/sendMode.ts"
+import { SendSplitButton } from "./SendSplitButton.tsx"
+import { useDictation } from "../lib/dictation.ts"
+import { prefs } from "../lib/prefs.ts"
+import { DictationLevel } from "./DictationLevel.tsx"
 import { apiBase } from "../lib/base-path.ts"
 import { detectPlatform } from "../lib/keybindings.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
@@ -213,6 +219,18 @@ const LONG_PRESS_MS = 500
 // calls `hold(true)` for as long as its sheet is up, and the bar stays open until it lets go.
 export const PhoneBarHoldContext = createContext<((held: boolean) => void) | null>(null)
 
+// THE THREAD PROMPT BOX'S SEND — passed by ThreadComposerBox, absent on the dispatch composer (which
+// keeps the ↑ square: it starts a thread, and has nothing to steer or queue behind). With it the rail's
+// Send is the split button (SendSplitButton), and the box can send with NO text of its own: `staged`
+// counts the answers waiting on the question cards around it, which this same send carries.
+export interface ComposerSendControl {
+  mode: SendMode
+  onMode: (mode: SendMode) => void
+  /** A turn is in flight — the only time the menu's two rows differ. */
+  running: boolean
+  staged: number
+}
+
 // Auto-grow: reset to auto, then snap to content height clamped at maxHeight.
 //
 // BATCHED across every composer on the page (2026-10-01). Each snap writes `height` and then reads
@@ -280,6 +298,7 @@ export function Composer({
   sendTitle,
   sendPending = false,
   attachBase,
+  send,
   phone,
   onUploadingChange,
 }: {
@@ -394,6 +413,8 @@ export function Composer({
   // card shows a thread of ANY project while the page is focused on one, so it passes the thread's
   // project explicitly (AllQueuesCard ReplyBox).
   attachBase?: string
+  // See ComposerSendControl. Desktop layouts only; the phone bar keeps its own primary button.
+  send?: ComposerSendControl
   // A phone layout (see PhoneComposerLayout). Absent everywhere above the phone breakpoint.
   phone?: PhoneComposerLayout
   // For a surface whose send lives OUTSIDE this box (the phone's new-thread page puts Start in its
@@ -471,7 +492,7 @@ export function Composer({
     // message was sent (or the draft deliberately cleared) mid-upload — committing the path then
     // would plant an orphan chip that silently rides along with the user's NEXT, unrelated message.
     // Discard with a toast instead. (Enter/Send inside this box are gated on `uploading`, but a
-    // surface can still clear the draft externally — the queue card's "Send answers" button.)
+    // surface can still clear the draft externally — a question card's own Enter, which sends this box.)
     // Best-effort heuristic, not airtight: typing NEW text after such an external clear makes the
     // draft non-empty again before the upload lands, and the path then joins that newer draft.
     const baseValue = valueRef.current
@@ -923,17 +944,42 @@ export function Composer({
     requestAnimationFrame(() => taRef.current?.setSelectionRange(next.caret, next.caret))
   }
 
+  // DICTATION (lib/dictation.ts): the microphone beside Send, on the desktop layout only — a phone's
+  // keyboard carries its own. It writes into the prose at the caret (or at the end, when the box was
+  // not focused), and any edit that is not its own ends it: typing, sending, Escape.
+  const { dictation: dictationEnabled } = useSnapshot(prefs)
+  const dictation = useDictation({
+    read: () => {
+      const el = taRef.current
+      const current = el?.value ?? prose
+      const focused = el !== null && document.activeElement === el
+      return { prose: current, start: focused ? el.selectionStart : current.length, end: focused ? el.selectionEnd : current.length }
+    },
+    write: (next, caret) => {
+      setProse(next)
+      requestAnimationFrame(() => taRef.current?.setSelectionRange(caret, caret))
+    },
+    enabled: dictationEnabled,
+  })
+  const micShown = !phone && dictation.state !== "unsupported"
+  const submit = () => {
+    dictation.cancel()
+    onSubmit()
+  }
+
   const hasContent = value.trim().length > 0
   const interruptChord = useMemo(() => (detectPlatform() === "mac" ? "⌘⏎" : "Ctrl+Enter"), [])
+  // Something to send: words in the box, or — on a thread composer — an answer staged on a card.
+  const armed = hasContent || (send?.staged ?? 0) > 0
   // ONE rail slot. Reserving it must track what is actually rendered — the padding/offset classes below
   // key off `railAction`, and a truthy element that renders null would carve out an empty hole (the bug
   // GithubTrigger's `useGithubTriggerVisible` exists to prevent). Its only filler now is `leftAction`
   // (the dispatch composer's GitHub picker); interrupt-and-send gave up its button here and kept only
   // ⌘/Ctrl-Enter — see the `onInterruptSubmit` prop doc.
   const railAction = leftAction ?? null
+  // Where each rail mark sits, and the padding every text row keeps clear of the absolutely-placed rail.
   // The Goal (`railLead`, the thread composer only) sits beyond the paperclip.
-  const railReserve = railAction && railLead ? RAIL_RESERVE_WITH_BOTH : railAction || railLead ? RAIL_RESERVE_WITH_ACTION : RAIL_RESERVE_PLAIN
-  const paperclipOffset = railAction ? RAIL_PAPERCLIP_OFFSET : RAIL_PAPERCLIP_PLAIN_OFFSET
+  const rail = composerRail({ action: Boolean(railAction), lead: Boolean(railLead), mic: micShown, sendWidth: send && !phone ? SEND_SPLIT_WIDTH : undefined })
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget
@@ -1005,13 +1051,13 @@ export function Composer({
     // the prose WITHOUT the pending attachment, whose path then landed in the cleared composer and
     // silently rode along with the next unrelated message. Typing stays enabled during upload (the
     // commit re-derives from valueRef); only SENDING waits for the attachment to land.
-    const canSend = hasContent && !busy && !uploading
+    const canSend = armed && !busy && !uploading
     if (shouldSubmitComposerEnter(keyboardEvent, canSend)) {
       // A plain Enter is the ordinary send. Shift/Option-Enter and IME confirmations retain the
       // native textarea behavior, so they cannot accidentally submit or lose their newline.
       e.preventDefault()
       e.stopPropagation()
-      onSubmit()
+      submit()
       return
     }
     // ⌘/Ctrl-Enter — the FORCED send. With a worker mid-turn it preempts what the worker is doing so
@@ -1021,6 +1067,7 @@ export function Composer({
     if (shouldInterruptSubmitComposerEnter(keyboardEvent, canSend)) {
       e.preventDefault()
       e.stopPropagation()
+      dictation.cancel()
       ;(onInterruptSubmit ?? onSubmit)()
       return
     }
@@ -1045,6 +1092,13 @@ export function Composer({
       })
     }
     if (e.key === "Escape" && !e.nativeEvent.isComposing) {
+      // While dictating, the first Escape only stops listening — the box keeps focus and the text.
+      if (dictation.state === "listening") {
+        e.preventDefault()
+        e.stopPropagation()
+        dictation.cancel()
+        return
+      }
       // On the /full page the key is not ours: Escape there always leaves fullscreen (DrawerStack's
       // `onEscapeAtRest`), and a blur first would make the reader press it twice with nothing visible
       // happening the first time. The draft is persisted, so the drawer or card it lands in shows it.
@@ -1470,7 +1524,8 @@ export function Composer({
             ref={highlightRef}
             aria-hidden
             data-composer-highlight-backdrop
-            className={`pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap [overflow-wrap:break-word] px-3.5 ${footer ? "py-2.5 pb-3" : `py-2.5 ${railReserve}`} text-[13px] leading-relaxed text-transparent`}
+            className={`pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap [overflow-wrap:break-word] px-3.5 ${footer ? "py-2.5 pb-3" : "py-2.5"} text-[13px] leading-relaxed text-transparent`}
+            style={footer ? undefined : { paddingRight: rail.reserve }}
           >
             {markRuns.map((m, i) => (
               // Zero-layout like the context pill: every tone's side pad is bought back by its negative
@@ -1486,7 +1541,8 @@ export function Composer({
             ref={contextRef}
             aria-hidden
             data-composer-context-backdrop
-            className={`pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap [overflow-wrap:break-word] px-3.5 ${footer ? "py-2.5 pb-3" : `py-2.5 ${railReserve}`} text-[13px] leading-relaxed ${backdrop?.paintsText ? `text-fg ${busy ? "opacity-60" : ""}` : "text-transparent"}`}
+            className={`pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap [overflow-wrap:break-word] px-3.5 ${footer ? "py-2.5 pb-3" : "py-2.5"} text-[13px] leading-relaxed ${backdrop?.paintsText ? `text-fg ${busy ? "opacity-60" : ""}` : "text-transparent"}`}
+            style={footer ? undefined : { paddingRight: rail.reserve }}
           >
             {backdropSegments}
             {/* A textarea gives a trailing newline its own empty line and a div does not; without
@@ -1516,6 +1572,8 @@ export function Composer({
               const native = e.nativeEvent as InputEvent
               onInputEvent({ type: "edit", prose: e.target.value, caret: e.target.selectionStart, inputType: native.inputType, composing: native.isComposing === true })
             }
+            // Typing takes the box back from dictation (lib/dictation.ts).
+            dictation.cancel()
             setProse(e.target.value)
             trackCaret(e.target)
           }}
@@ -1540,13 +1598,13 @@ export function Composer({
           placeholder={placeholder}
           rows={1}
           spellCheck={false}
-          style={{ minHeight, maxHeight }}
+          style={{ minHeight, maxHeight, paddingRight: footer ? undefined : rail.reserve }}
           // With a footer strip the box is an INSET-FOOTER layout: the strip below already reserves the
           // vertical band the floating buttons occupy, so the text runs FULL width (no right rail carved
           // out of every line). Without a footer the box is a single compact row and the right padding is
           // what keeps text from sliding under the floating paperclip/send buttons. `relative` keeps the
           // caret and text painting above the marker backdrop behind it.
-          className={`relative block w-full resize-none bg-transparent px-3.5 ${footer ? "py-2.5 pb-3" : `py-2.5 ${railReserve}`} text-[13px] leading-relaxed ${backdrop?.paintsText ? "text-transparent caret-fg" : "text-fg"} outline-none placeholder:text-muted scrollbar-none disabled:opacity-60`}
+          className={`relative block w-full resize-none bg-transparent px-3.5 ${footer ? "py-2.5 pb-3" : "py-2.5"} text-[13px] leading-relaxed ${backdrop?.paintsText ? "text-transparent caret-fg" : "text-fg"} outline-none placeholder:text-muted scrollbar-none disabled:opacity-60`}
         />
       </div>
       {/* Attachment chips along the bottom row — one square tile per attached file (image thumbnail or
@@ -1554,7 +1612,7 @@ export function Composer({
           instead of the raw absolute-path text. Reserve the right rail so tiles never slip under the
           paperclip/send buttons on the last row. */}
       {attachments.length > 0 && (
-        <div className={`flex flex-wrap gap-1.5 px-3 pb-2 ${railReserve}`}>
+        <div className="flex flex-wrap gap-1.5 px-3 pb-2" style={{ paddingRight: rail.reserve }}>
           {attachments.map((a, i) => (
             <AttachmentChip
               key={`${a.path}-${i}`}
@@ -1573,7 +1631,7 @@ export function Composer({
       {/* Reserve the right-side action rail. Without this, three shrinkable readouts can extend under
           the absolutely positioned GitHub/send buttons on narrow composers. */}
       {footer && (
-        <div className={`flex min-w-0 flex-wrap items-center gap-1 pl-1.5 pb-1.5 ${railReserve}`}>
+        <div className="flex min-w-0 flex-wrap items-center gap-1 pl-1.5 pb-1.5" style={{ paddingRight: rail.reserve }}>
           {footer}
           {aside}
           {/* The forced chord's one visible trace: only while a draft exists AND the turn it would cut
@@ -1590,8 +1648,8 @@ export function Composer({
         </div>
       )}
       {/* Outlined controls keep 8px between edges; prose reserves the same clearance. */}
-      {railAction && <div className={`absolute bottom-2 ${RAIL_ACTION_OFFSET} flex items-center`}>{railAction}</div>}
-      {railLead && <div className={`absolute bottom-2 ${railAction ? RAIL_LEAD_WITH_ACTION_OFFSET : RAIL_LEAD_OFFSET} flex items-center`}>{railLead}</div>}
+      {railAction && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.action }}>{railAction}</div>}
+      {railLead && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.lead }}>{railLead}</div>}
       {/* Attach: a hidden file input driven by the paperclip. Sits in the right rail LEFT of the send
           button (and left of any railAction), so it never overlaps the mode/model footer or the send
           affordance. Accept is the shared extension allowlist; the /attach route re-validates. */}
@@ -1614,17 +1672,76 @@ export function Composer({
         aria-label="Attach files"
         // With no rail action the paperclip TAKES the rail-action slot — at its OWN offset, not the
         // rail action’s, because it paints 1px less dead space on that side (lib/iconRhythm.ts).
-        className={`icon-hover-outline absolute bottom-2 ${paperclipOffset} flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-[color,background-color] enabled:hover:bg-panel-2/70 enabled:hover:text-fg disabled:opacity-50`}
+        style={{ right: rail.right.paperclip }}
+        className={`icon-hover-outline absolute bottom-2 flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-[color,background-color] enabled:hover:bg-panel-2/70 enabled:hover:text-fg disabled:opacity-50`}
       >
         {uploading ? <Loader2 size={15} strokeWidth={2} className="animate-spin" /> : <Paperclip size={15} strokeWidth={2} />}
       </button>
+      {micShown && (
+        <button
+          type="button"
+          data-dictation={dictation.state}
+          // Keep the caret where it is: dictation inserts there (the send button's own rule).
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            // Starting from outside the box: dictate at the end of the draft, with the caret there, so
+            // whatever is typed next follows the spoken words.
+            const el = taRef.current
+            if (dictation.state === "idle" && el && document.activeElement !== el) {
+              el.focus({ preventScroll: true })
+              el.setSelectionRange(el.value.length, el.value.length)
+            }
+            void dictation.toggle()
+          }}
+          disabled={busy || dictation.state === "installing" || dictation.state === "starting"}
+          aria-pressed={dictation.state === "listening"}
+          title={
+            dictation.state === "listening"
+              ? "Stop dictation"
+              : dictation.state === "installing"
+                ? "Downloading the on-device speech model…"
+                : dictation.state === "starting"
+                  ? "Starting the microphone…"
+                  : "Dictate — transcribed on this device"
+          }
+          aria-label={dictation.state === "listening" ? "Stop dictation" : "Dictate"}
+          style={{ right: rail.right.mic }}
+          // Listening swaps the GLYPH for live level bars at full foreground, never a fill: a filled square
+          // is ink edge to edge, and at this slot's box gap it would sit ~6px off the paperclip's ink
+          // instead of ~14. (A red, pulsing microphone was tried first and rejected, 2026-10-08.)
+          className={`icon-hover-outline absolute bottom-2 flex h-7 w-7 items-center justify-center rounded-lg transition-[color,background-color] enabled:hover:bg-panel-2/70 disabled:opacity-50 ${
+            dictation.state === "listening" ? "text-fg" : "text-muted enabled:hover:text-fg"
+          }`}
+        >
+          {dictation.state === "installing" || dictation.state === "starting" ? (
+            <Loader2 size={15} strokeWidth={2} className="animate-spin" />
+          ) : dictation.state === "listening" && dictation.stream ? (
+            <DictationLevel stream={dictation.stream} />
+          ) : (
+            <Mic size={15} strokeWidth={2} />
+          )}
+        </button>
+      )}
+      {send ? (
+        <SendSplitButton
+          // `uploading` mirrors the Enter gate above: sending mid-upload dropped the pending attachment.
+          armed={armed && !busy && !uploading}
+          busy={busy}
+          mode={send.mode}
+          running={send.running}
+          right={rail.right.send}
+          onMode={send.onMode}
+          onSend={submit}
+          onMenuClosed={() => taRef.current?.focus({ preventScroll: true })}
+        />
+      ) : (
       <button
         type="button"
         // Prevent the mousedown default so clicking Send never blurs the textarea (the repo's idiom for
         // every submit affordance that sits beside a live input). Focus then never leaves the box on the
         // click path, so there is nothing to restore — and a surface that blurs on send stays in charge.
         onMouseDown={(e) => e.preventDefault()}
-        onClick={onSubmit}
+        onClick={submit}
         // `uploading` mirrors the Enter gate above: sending mid-upload dropped the pending attachment.
         disabled={!hasContent || busy || uploading}
         title={sendTitle ?? (sendGlyph === "schedule" ? "Create schedule (Enter)" : `Send (Enter · ${interruptChord} sends now)`)}
@@ -1633,7 +1750,8 @@ export function Composer({
         data-composer-send={sendGlyph}
         data-composer-send-pending={sendPending || undefined}
         // Never `transition-all`: it animates box-shadow, which holds the hover edge back (styles.css).
-        className={`icon-hover-outline absolute bottom-2 ${RAIL_SEND_OFFSET} flex h-7 w-7 items-center justify-center rounded-lg transition-[color,background-color,opacity,scale] ${
+        style={{ right: rail.right.send }}
+        className={`icon-hover-outline absolute bottom-2 flex h-7 w-7 items-center justify-center rounded-lg transition-[color,background-color,opacity,scale] ${
           // Primary actions use neutral contrast; the accent marks focus.
           hasContent && !busy && !uploading
             ? "bg-fg text-bg hover:opacity-90 active:scale-95"
@@ -1652,6 +1770,7 @@ export function Composer({
           </span>
         )}
       </button>
+      )}
     </div>
   )
 }

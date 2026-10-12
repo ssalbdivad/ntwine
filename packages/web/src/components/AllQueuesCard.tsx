@@ -80,7 +80,7 @@ import { ThreadLifecycleActions } from "./ThreadLifecycle.tsx"
 import { RecurringPromptControl } from "./RecurringPromptControl.tsx"
 import { ContextFact, FACTS_LINE_CLASS, Fact, FactSep, GoalLoopFact } from "./ThreadHeaderFacts.tsx"
 import { DeadlineFact } from "./DeadlineControl.tsx"
-import { cardProcesses, focusedProject, openProcessDrawer, TerminalPromptPane, ThreadProcessStrip } from "./ThreadTerminals.tsx"
+import { focusedProject, openProcessDrawer, TerminalPromptPane, ThreadProcessStrip } from "./ThreadTerminals.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
@@ -758,24 +758,31 @@ function CardArticle({
           // bottom edge — and the header's own rule is already there; a second would draw a 2px line.
           className={`sticky bottom-0 z-10 mt-[var(--queue-card-header-h,0px)] shrink-0 ${BLOCK_RADIUS_INNER_BOTTOM} ${thread.held !== undefined ? "" : "border-t border-border/60"} bg-panel px-5 pb-3 pt-3 shadow-[0_-12px_18px_-14px_var(--dock-shadow)]`}
         >
-          <QueueOpsSummary counts={queueOpsCounts(thread, { agents: !drawsSubAgentWait })}>
-            <div data-queue-card-ops={thread.id} className="flex min-w-0 flex-col gap-0.5">
-              <QueueChildOps
-                project={project}
-                thread={thread}
-                api={api}
-                agents={!drawsSubAgentWait}
-                onOpenThread={() => openInPlace(project, thread.id, displayTitle(thread))}
-                after={cardProcesses(thread, Date.now()).length > 0 ? (
+          <QueueOpsSummary
+            counts={queueOpsCounts(thread, { agents: !drawsSubAgentWait })}
+            // ONE KIND OF ROW PER PANEL (upstream 7a8a8ebe): each count opens its own, split by the same
+            // tests queueOpsCounts counts with, so a count and its panel cannot disagree.
+            panel={(kind) => (
+              <div data-queue-card-ops={thread.id} className="flex min-w-0 flex-col gap-0.5">
+                {kind === "agent" || kind === "workflow" ? (
+                  <QueueChildOps
+                    project={project}
+                    thread={{ ...thread, subAgents: (thread.subAgents ?? []).filter((child) => Boolean(child.workflow) === (kind === "workflow")) }}
+                    api={api}
+                    onOpenThread={() => openInPlace(project, thread.id, displayTitle(thread))}
+                  />
+                ) : kind === "terminal" ? (
                   <div data-queue-processes={thread.id} className="min-w-0">
                     <ThreadProcessStrip thread={thread} surface="card" onOpen={openProcess} />
                   </div>
-                ) : null}
-              />
-              <GithubWatchRows watches={(thread.watches ?? []).filter((watch) => watch.kind === "github")} />
-              <ThreadLinks links={thread.links ?? []} scope={projectMarkdownScope(project)} />
-            </div>
-          </QueueOpsSummary>
+                ) : kind === "pr" || kind === "issue" ? (
+                  <GithubWatchRows watches={(thread.watches ?? []).filter((watch) => watch.kind === "github" && (watch.subject === "issue") === (kind === "issue"))} />
+                ) : (
+                  <ThreadLinks links={(thread.links ?? []).filter((link) => link.kind === kind)} scope={projectMarkdownScope(project)} />
+                )}
+              </div>
+            )}
+          />
           {/* A HELD THREAD's box is what it will start with, and sending it starts the agent (HeldThreadBox.tsx). */}
           {thread.held !== undefined
             ? <HeldThreadComposer thread={thread} surface="queueComposer" className="min-w-0" />

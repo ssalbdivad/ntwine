@@ -3,6 +3,7 @@ import type { Duplex } from "node:stream"
 import { createHash } from "node:crypto"
 import { WebSocketServer, type WebSocket } from "ws"
 import type { BoardSnapshot, ServerEvent, SocketServerMsg, TranscriptMessage, TranscriptPushPage } from "@frizz/shared"
+import { projectTranscriptSessionPeers, type SessionPeerThread } from "./session-peer.ts"
 import { SocketClientMsg, diffTranscriptWindow, frizzRoute, transcriptPatchOps } from "@frizz/shared"
 import type { Bus } from "./bus.ts"
 import type { Emitter } from "./bus.ts"
@@ -175,6 +176,9 @@ export function makeTranscriptReader(
   // "The process that owned this thread's background ops is gone." Absent (tests / a bridge-less
   // server) ⇒ never gone, so nothing is retired that the × did not retire — the pre-existing behaviour.
   ownerGone?: (slug: string) => boolean,
+  // The thread behind a cross-session message's sender (session-peer.ts) — the same lookup the paged
+  // RPC uses, so the live push and the page head the card with the same link.
+  sessionPeerThread?: (peer: NonNullable<TranscriptMessage["sessionPeer"]>) => SessionPeerThread | undefined,
 ): (slug: string) => TranscriptPush {
   return (slug: string) => {
     // The SAME bounded latest window the paged RPC serves (readLatestThreadTranscriptPage), never the
@@ -190,7 +194,8 @@ export function makeTranscriptReader(
     // its last HTTP read delivered.
     const page = readLatestThreadTranscriptPage(project, storage, slug, backendFor, { editedFiles: false })
     const named = peerNameFor ? projectTranscriptPeerNames(page.messages, (taskId) => peerNameFor(slug, taskId)) : page.messages
-    const projected = lifecycleFor ? projectTranscriptAgentLifecycles(named, (id) => lifecycleFor(slug, id)) : named
+    const sent = sessionPeerThread ? projectTranscriptSessionPeers(named, sessionPeerThread) : named
+    const projected = lifecycleFor ? projectTranscriptAgentLifecycles(sent, (id) => lifecycleFor(slug, id)) : sent
     // The operator's × has to reach THIS producer too, and it is the one that matters most: the live UI
     // renders from the /ws push, so projecting only the RPC left the killed shell's card reading
     // "RUNNING · 1 MIN 34 SEC" on screen while the RPC returned "cancelled". A dead OWNER retires the

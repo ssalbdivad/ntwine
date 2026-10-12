@@ -137,6 +137,20 @@ test("a malformed tree is REFUSED with the fault named, and nothing is stored", 
   } finally { h.close() }
 })
 
+// The one-recommendation rule is a pick-ONE rule. On a `multi` the recommendation is a SET — every
+// option worth ticking — and a single chip there reads as "pick only this" (maintainer 2026-10-10).
+test("a multi registers with several options recommended", async () => {
+  const h = harness()
+  try {
+    h.storage.upsertSession(row("t"))
+    const { registered } = await h.router.ask.handler({ input: { slug: "t", questions: [{
+      question: "Which?", kind: "multi",
+      options: [{ label: "A", recommended: true }, { label: "B", recommended: true }, { label: "C" }],
+    }] } })
+    assert.deepEqual(registered[0].spec.options?.map((o) => o.recommended === true), [true, true, false])
+  } finally { h.close() }
+})
+
 test("a follow-up tree deeper than three levels is refused", async () => {
   const h = harness()
   try {

@@ -79,40 +79,6 @@ export function spanUntil(at: string | undefined, nowMs = Date.now()): string | 
 }
 
 /**
- * A message's own instant, for the transcript's hover reveal: `Aug 25, 10:31 AM`.
- *
- * The DATE is unconditional, and that is the point of the reading. A frizz thread is not a chat you
- * read in one sitting — a worker can be parked on a PR watcher for days, so two adjacent messages
- * routinely sit on different dates and a bare `10:31 AM` cannot tell you which (maintainer 2026-08-25:
- * "it should also include the date, not just the time, because some of these runs can go for a very,
- * very long time"). Showing the date only when the message is NOT from today would be terser, but it
- * encodes the day in an ABSENCE — `10:31 AM` means today only if you know the rule — and this reading
- * is one the reader deliberately went and got, so it can afford six characters to have no rule at all.
- *
- * The YEAR is conditional, because that one really is safe to omit: a thread crossing a new year is
- * rare enough that spending four characters on every reading to cover it is the wrong trade, and its
- * absence is not ambiguous the way a missing date is — `Aug 25` in August 2026 is this August.
- *
- * Deliberately NOT relative ("3h ago"). The board already speaks in relative ages everywhere —
- * the rail's rest column, `LastActive`, the child-op rows — and this exists precisely because those
- * cannot answer "when exactly did this come out". An absolute reading also never needs to tick, so it
- * does not join `useNowMs`.
- */
-const STAMP_DATE = new Intl.DateTimeFormat([], { month: "short", day: "numeric" })
-const STAMP_DATE_YEAR = new Intl.DateTimeFormat([], { year: "numeric", month: "short", day: "numeric" })
-const STAMP_TIME = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" })
-
-export function messageStamp(at: string | undefined, now: Date = new Date()): string | null {
-  const ms = at ? Date.parse(at) : NaN
-  if (!Number.isFinite(ms)) return null
-  const when = new Date(ms)
-  // Formatters built once: `toLocaleDateString(…, options)` builds a fresh Intl.DateTimeFormat on every
-  // call, twice per message per render — 237ms of one drawer opening's main thread (2026-10-01 profile).
-  const date = (when.getFullYear() === now.getFullYear() ? STAMP_DATE : STAMP_DATE_YEAR).format(when)
-  return `${date}, ${STAMP_TIME.format(when)}`
-}
-
-/**
  * The COMPACT age a hairline's tail carries: `just now` / `21m ago` / `3d ago`. It sits at the end of
  * a dense one-line petite-caps label, not on its own line, and at queue-rail width it is the one field
  * that must survive the label's truncation. Moved here from githubWakeCard.ts on 2026-08-29, when every
@@ -138,10 +104,9 @@ export function compactAge(at: string | undefined, nowMs = Date.now()): string |
  * Mirrored because the compact age it explains is GitHub's grammar too (`21m ago`), and the reader
  * hovering a review-comment hairline has just come from the page that taught them what to expect.
  *
- * It is NOT messageStamp. That reading (`Aug 25, 10:31 AM`) is a per-message reveal drawn on every
- * row, and it drops the year and the zone because a transcript's rows share both and its width is
- * scarce. A tooltip is read alone, cold, and has room — and a hairline is where a thread crosses a day
- * or a machine (a PR watcher fires on GitHub's clock, a timer on this one), so the zone earns its place.
+ * A tooltip is read alone, cold, and has room for the year and the zone — and a hairline is where a
+ * thread crosses a day or a machine (a PR watcher fires on GitHub's clock, a timer on this one), so the
+ * zone earns its place.
  *
  * `locale`/`timeZone` exist for the test; production passes neither and takes the browser's.
  */

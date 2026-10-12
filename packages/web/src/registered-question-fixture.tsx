@@ -119,7 +119,8 @@ const GATES: RegisteredQuestionView = {
   spec: {
     question: "Which gates should run before every commit?",
     kind: "multi",
-    options: [{ label: "Typecheck" }, { label: "Unit tests" }, { label: "The browser e2e pass", description: "slow — about 90s" }],
+    // TWO recommended on a `multi`: the recommendation there is the set worth ticking, so each wears the badge.
+    options: [{ label: "Typecheck", recommended: true }, { label: "Unit tests", recommended: true }, { label: "The browser e2e pass", description: "slow — about 90s" }],
   },
 }
 
@@ -302,9 +303,15 @@ window.fetch = async (input, init) => {
   if (rpc === "threadHandoff") {
     return new Response(JSON.stringify({ result: handoff }), { headers: { "content-type": "application/json" } })
   }
-  // The two writes the card makes, echoed onto the window so a probe can assert the exact payload the
+  // The writes the card makes, echoed onto the window so a probe can assert the exact payload the
   // worker would receive — above all that an answer RESTATES the question and carries the option's own
-  // label rather than the numbered chip text.
+  // label rather than the numbered chip text. A prompt box's Send carries staged answers on `followUp`
+  // (with whatever was typed there, upstream 59089c92), so that is echoed too.
+  if (rpc === "followUp") {
+    const body = JSON.parse(String(init?.body ?? "{}"))
+    window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc: "followUp", body } }))
+    return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
+  }
   if (rpc === "answerQuestions" || rpc === "dismissQuestions" || rpc === "holdQuestionDefault") {
     const body = JSON.parse(String(init?.body ?? "{}"))
     window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc, body } }))

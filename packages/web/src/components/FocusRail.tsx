@@ -16,11 +16,11 @@ import { newestFileChangeKey } from "../lib/editedFilesRefresh.ts"
 import { openLocalPath } from "../lib/local-file-links.ts"
 import { prewarmLocalFile } from "../lib/localFileQuery.ts"
 import { useNowMs } from "../lib/liveClock.ts"
-import { basename, tildePath } from "../lib/paths.ts"
+import { tildePath } from "../lib/paths.ts"
 import { prefs } from "../lib/prefs.ts"
 import { PRIMER } from "../lib/primer.ts"
 import { processIsLive, threadProcesses } from "../lib/threadProcesses.ts"
-import { AgentRow, armedTimerWatches, awaitedThreadWatches, BgShellRow, GithubWatchRow, ON_CAP, TermWaitRow, ThreadWaitRow, TimerRow, WaitGrid, WaitRow, type WaitGroup } from "./AwaitingBackgroundCard.tsx"
+import { AgentRow, armedTimerWatches, awaitedThreadWatches, BgShellRow, GithubWatchRow, ON_CAP, ROW_INSET, TermWaitRow, ThreadWaitRow, TimerRow, WaitGrid, WaitRow, type WaitGroup } from "./AwaitingBackgroundCard.tsx"
 import { FolderHintToken, folderHintTitle, processFolderHint } from "./ThreadTerminals.tsx"
 
 // THE FULLSCREEN PAGE'S OPERATIONAL RAIL — what is going on in this thread, listed beside the transcript
@@ -43,9 +43,8 @@ import { FolderHintToken, folderHintTitle, processFolderHint } from "./ThreadTer
 // THE FILES ARE A TREE (maintainer 2026-09-03), not a list: a directory row above the files it
 // holds, a small indent per level, and a chain of single-child directories folded into one row the
 // way GitHub's tree draws `packages/web/src` (lib/editedFileTree.ts). The flat list showed basenames
-// alone and twenty-two of them read as twenty-two names from nowhere. The tree's rows lay out by FLEX
-// inside one cell of the shared grid rather than as subgrid rows, because a subgrid cannot indent —
-// see ROW_FLEX in AwaitingBackgroundCard — and the file rows are still the card's own WaitRow.
+// alone and twenty-two of them read as twenty-two names from nowhere. The file rows are still the
+// card's own WaitRow, indented through its `indent`.
 //
 // IT REPLACES THE OPS STRIP UNDER THE PROMPT BOX while it is on screen (maintainer 2026-10-02: "it's
 // already showing up in the sidebar to the right"), so it has to carry every row that strip did — or
@@ -73,8 +72,8 @@ function DirRow({ name, depth }: { name: string; depth: number }) {
   return (
     <div
       data-file-dir={name}
-      className="flex items-baseline text-[12px] leading-5 text-muted-70"
-      style={{ paddingLeft: depth * TREE_INDENT }}
+      className="flex items-baseline pr-2 text-[12px] leading-5 text-muted-70"
+      style={{ paddingLeft: ROW_INSET + depth * TREE_INDENT }}
     >
       <span className="flex shrink-0"><Folder size={12} className={`${ON_CAP} text-muted-45`} /></span>
       {/* ml-[5px], not the row's ml-1.5: lucide's folder inks 11 of its 12 box px, so 6px of box read
@@ -90,10 +89,9 @@ function EditedFileTree({ files }: { files: readonly EditedFile[] }) {
   const homeDir = useHomeDir()
   const rows = flattenEditedFileTree(editedFileTree(files, projectDir, homeDir))
   return (
-    // ONE cell of the shared grid, holding its own column of rows: the tree's rows must not share the
-    // grid's tracks (the indent is the whole point), and a `gap-y-px` between them keeps the rhythm
-    // WaitGrid draws between its own rows.
-    <div data-edited-file-tree className="col-span-4 flex flex-col gap-y-px">
+    // One entry of the table, holding its own column of rows; a `gap-y-px` between them keeps the
+    // rhythm WaitGrid draws between its own rows.
+    <div data-edited-file-tree className="flex flex-col gap-y-px">
       {rows.map((node) =>
         node.kind === "dir"
           ? <DirRow key={`d:${node.path}`} name={node.name} depth={node.depth} />
@@ -145,11 +143,13 @@ function FileRow({ file, name, depth, homeDir }: { file: EditedFile; name: strin
 }
 
 // A file or link the worker SAVED for the human (`mcp__frizz__link`). The card's row shape again: the
-// label it was saved under is the name, and the status is the short reading of where it goes — a URL's
-// host, a file's basename — with the full target in the tooltip (a file's home written as `~`, as the
-// edited-files tree writes it). Never the whole URL or path: the status track is shared by every row in
-// the grid, so one long target there would truncate every name above it (see WaitGrid's
-// `fit-content(50%)`). A file opens in the page's viewer, a link in a new tab.
+// label it was saved under is the name, and the full target is the tooltip (a file's home written as
+// `~`, as the edited-files tree writes it). A URL's status is its host, the one thing its label may not
+// say; a FILE has none (maintainer 2026-10-08: "I don't think the file name is super important") — its
+// basename restated the label and took the width the label needed to stop wrapping. Never the whole URL
+// or path: the status track is shared by every row in the grid, so one long target there would squeeze
+// every name above it (see WaitGrid's `fit-content(50%)`). A file opens in the page's viewer, a link in
+// a new tab.
 function SavedLinkRow({ link }: { link: ThreadLinkView }) {
   const client = useQueryClient()
   const homeDir = useHomeDir()
@@ -170,16 +170,15 @@ function SavedLinkRow({ link }: { link: ThreadLinkView }) {
     <WaitRow
       testKind="link"
       testId={link.id}
-      // No ink trim, unlike FileRow's: that row lays out by flex, and this one sits in the shared
-      // subgrid, whose mark track puts every name on one column whatever the glyph inks. Measured
-      // there (ink-gaps, dsf 6): mark→name 8.00px, the shell row's own 8.00; the URL row's 7.67.
+      // No ink trim, unlike FileRow's: that one matches the directory rows of its tree, and this one
+      // matches the rows around it, whose names all start one 12px mark box in. Measured (ink-gaps,
+      // dsf 6): mark→name 8.00px, the shell row's own 8.00; the URL row's 7.67.
       mark={<FileText size={12} className={`${ON_CAP} text-muted-60`} />}
       name={link.label}
       onOpen={() => openLocalPath(link.target)}
       onPrewarm={() => prewarmLocalFile(client, link.target)}
       title={tildePath(link.target, homeDir)}
-      // Either separator: a `/`-only split left a Windows target's whole `C:\Users\…` path as the status.
-      status={basename(link.target)}
+      status={null}
     />
   )
 }
@@ -289,7 +288,7 @@ export function FocusRail({ thread }: { thread: ThreadView }) {
     { head: "Files and links", rows: (thread.links ?? []).map((l) => <SavedLinkRow key={l.id} link={l} />) },
     {
       head: "Edited files",
-      // One row of the grid, holding the whole tree (its own column, its own indents).
+      // One entry of the table, holding the whole tree (its own column, its own indents).
       rows: files.length > 0 ? [<EditedFileTree key="tree" files={files} />] : [],
       count: files.length,
       collapsed: railFilesCollapsed,

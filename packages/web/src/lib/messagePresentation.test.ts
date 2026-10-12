@@ -26,6 +26,10 @@ test("lastAskIndex pins the human's latest landed turn, never a queued one or an
   // letting one win would re-pin the current-ask band to "Sub-agent «…» reported" on every report.
   assert.equal(lastAskIndex([ask, reply, report, report]), 0)
   assert.equal(lastAskIndex([ask, reply, instruction]), 0)
+  // Another THREAD messaging this one is not the human either.
+  const fromThread = { role: "user" as const, sessionPeer: { name: "frizz-11" } }
+  assert.equal(lastAskIndex([ask, reply, fromThread]), 0)
+  assert.equal(lastHumanTurnIndex([{ ...ask, text: "ask" }, { ...reply, text: "r" }, { ...fromThread, text: "steer" }]), 0)
   // A queued follow-up pins to the bottom until it lands, so it is not the ask either.
   assert.equal(lastAskIndex([ask, report, queued]), 0)
   // A genuine later human turn does take the pin back.

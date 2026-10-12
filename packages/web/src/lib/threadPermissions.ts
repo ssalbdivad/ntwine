@@ -33,7 +33,7 @@ export function threadPermissionBlockedReason(thread: ThreadPermissionState): st
   if (thread.profileChangePending) return "A model and effort change is already in progress"
   if (thread.runtimeControlPending) return "Another runtime control is already in progress"
   if (thread.pendingAsk || thread.runtime === "perm-prompt") {
-    return "Resolve the current terminal approval or question first"
+    return "Resolve the open approval or question first"
   }
   // ---- everything below this line fences the CLAUDE process restart specifically ----
   // Claude applies a permission change by RETIRING THE WORKER PROCESS: the mode is a launch flag, and a

@@ -69,6 +69,15 @@ on:
   # workflow stays idempotent by construction either way: it asks the registry whether each version
   # exists and no-ops when it does, so a re-dispatch is always safe.
   workflow_dispatch:
+    inputs:
+      # npm-refuse-overtake.sh refuses to publish a version unless it directly follows the highest
+      # one npm serves, because npm serves two versions held in review in whichever order it likes
+      # (frizz 0.13.11 before 0.13.10, 2026-10-11). A number that was never published looks the same
+      # from here as one still in review, so skipping one takes this flag.
+      allow_version_gap:
+        description: "Publish past a version number npm does not serve (one that was never published)"
+        type: boolean
+        default: false
 
 # Two releases racing would fight over the same version; let an in-flight one finish rather than
 # cancelling it mid-publish.
@@ -165,6 +174,8 @@ jobs:
       # second, package-directory lifecycle that cannot see the source workspace.
       - name: Build and publish frizz-server to npm
         if: steps.decide.outputs.publish_server == 'true'
+        env:
+          ALLOW_VERSION_GAP: ${{ inputs.allow_version_gap }}
         run: |
           node ./scripts/prepare-package.mjs --server
           node ./scripts/build-package.mjs --server
@@ -188,6 +199,8 @@ jobs:
       # than ship a shell with no server behind it.
       - name: Publish the frizz shell to npm
         if: steps.decide.outputs.publish_shell == 'true'
+        env:
+          ALLOW_VERSION_GAP: ${{ inputs.allow_version_gap }}
         run: |
           PINNED_SERVER=$(node -p "require('./package.json').frizzServer.version")
           curl -sf "https://registry.npmjs.org/frizz-server/$PINNED_SERVER" > /dev/null \

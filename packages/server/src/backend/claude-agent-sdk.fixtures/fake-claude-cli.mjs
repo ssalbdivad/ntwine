@@ -234,6 +234,14 @@ function handleHostControl(message) {
     respond(message.request_id, { title: `titled: ${String(request.description ?? "").slice(0, 40)}` })
     return
   }
+  // Real claude re-reads the plugin closure and answers with what it now holds. The fake only needs to
+  // prove the REQUEST is made, and where it falls among the inputs, so it records (the `host-control`
+  // row above) and answers an empty closure.
+  if (request.subtype === "reload_plugins") {
+    if (scenario === "reload-failure") return respondError(message.request_id, "plugins could not be reloaded")
+    respond(message.request_id, { commands: [], agents: [], plugins: [], mcpServers: [], error_count: 0 })
+    return
+  }
   respondError(message.request_id, `unsupported fake control subtype ${String(request.subtype)}`)
 }
 
@@ -252,6 +260,8 @@ function handleHostResponse(message) {
   }
   if (requestId === "permission-request-1") {
     permissionResponses += 1
+    // The CLI already took this request back; whatever the host says now answers nothing.
+    if (scenario === "permission-settled-fast" || scenario === "permission-settled-late") return
     if ((scenario === "redelivery" || scenario === "conflicting-redelivery") && permissionResponses === 1) return
     emitToolResult("tool-use-permission-1", "permission accepted")
     emitResult("permission complete")
@@ -304,6 +314,17 @@ function handleUserMessage(message) {
   }
   if (scenario === "permission" || scenario === "redelivery") {
     send(permissionRequest)
+    return
+  }
+  // What the real CLI does when a PermissionRequest hook settles a request it has also asked the host
+  // about: it cancels the host's copy and carries on. `fast` cancels well inside the broker's hold,
+  // `late` well after it.
+  if (scenario === "permission-settled-fast" || scenario === "permission-settled-late") {
+    send(permissionRequest)
+    setTimeout(() => {
+      send({ type: "control_cancel_request", request_id: permissionRequest.request_id })
+      setTimeout(() => { emitToolResult("tool-use-permission-1", "settled by a hook"); emitResult("permission complete") }, 400)
+    }, scenario === "permission-settled-fast" ? 30 : 900)
     return
   }
   if (scenario === "conflicting-redelivery") {

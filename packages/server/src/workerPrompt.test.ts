@@ -171,13 +171,12 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
     const prompt = buildWorkerPrompt(backend)
     const c = prompt.replace(/\s+/g, " ")
     // Taught by example, in the grammar the parser reads: one `- ` item per step under the key.
-    assert.match(prompt, /```awaiting\n {2}title: Sign in to npm so the release can publish\n {2}steps:\n {4}- Run `npm login --auth-type=web`/)
+    assert.match(prompt, /```awaiting\n {2}title: Approve the npm sign-in so the release can publish\n {2}steps:\n {4}- Open \[the npm sign-in this thread started\]/)
     // Its properties: verbatim, names the human (so no other name and no `for:`), always queues, and its
     // one verb comes back as the human's own reply — anything else is a message of their own.
     assert.match(c, /The `title:` and `steps:` values are the exceptions: frizz reads them verbatim/)
     assert.match(c, /Steps NAME THE USER as the wait, so the fence needs no other name and no `for:`/)
     assert.match(c, /it always puts the thread in their queue/)
-    assert.match(c, /card shows the steps over one \*\*Done\*\* button, and its click comes back to you as their reply, `Done`/)
     assert.match(c, /anything else they need to tell you — a step that failed, the account they used — comes as a message of their own/)
     assert.doesNotMatch(c, /Couldn't do it/)
     assert.match(c, /\(`steps:` and `questions:` count: they name the user\.\)/)
@@ -186,7 +185,17 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
     assert.match(c, /EVERY STEP IS CLICKABLE AND COMPLETE — A STEP THAT MAKES THE USER GO LOOKING IS A BROKEN STEP/)
     assert.match(c, /every page it names is a real Markdown link to that exact page/)
     assert.match(c, /Good: `Open the \[Frizz account audit log\]\(https:\/\/dash\.cloudflare\.com\/<account-id>\/audit-log\)/)
-    assert.match(prompt, /steps:\n {4}- Run `npm login --auth-type=web`[^\n]*\n {4}- [^\n]*\[npmjs\.com\/login\]\(https:\/\/www\.npmjs\.com\/login\)/)
+    assert.match(prompt, /steps:\n {4}- Open \[the npm sign-in this thread started\]\(https:\/\/www\.npmjs\.com\/login\?next=\/login\/cli\/9f3c2a71\)[^\n]*\n {4}- /)
+    // THE FIRST TEST (maintainer 2026-10-10): a step is only what the worker cannot do itself. It sits
+    // AHEAD of clickable-and-complete, and the example fence obeys it — the command is the worker's, run
+    // already, and no step tells the human to run one.
+    assert.match(c, /THE FIRST TEST OF EVERY STEP: COULD YOU DO IT YOURSELF\? THEN IT IS NOT A STEP — DO IT\./)
+    assert.ok(c.indexOf("THE FIRST TEST OF EVERY STEP") < c.indexOf("EVERY STEP IS CLICKABLE AND COMPLETE"), "the residue test comes first")
+    assert.match(c, /A step is only what needs the user's BODY or the user's IDENTITY/)
+    assert.match(c, /do everything up to the first one, hand over only that, and do what follows yourself when their reply wakes you/)
+    assert.match(c, /`npm login --auth-type=web` is running in this thread and waiting on that approval/)
+    assert.doesNotMatch(prompt, /steps:\n(?: {4}- [^\n]*\n)*? {4}- Run `npm login/)
+    assert.match(c, /card, headed \*\*Awaiting human\*\*, shows the steps over one \*\*Done\*\* button, and its click comes back to you as their reply, `Done`/)
     // A decision is still a question; an act is steps — at every place the two used to blur.
     assert.match(c, /A DECISION you need from them is a question, never a fence/)
     assert.match(c, /WAITING ON ONE TO ACT IS `steps:`/)

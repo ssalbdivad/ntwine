@@ -13,9 +13,9 @@
 //
 // Two send paths, one per --mode (each CONSUMES its seed, so use a fresh slug per run):
 //   --mode=text (default) — type a multi-line freetext answer, send it with ⌘-Enter
-//   --mode=chip           — pick a chip only, send it with the card's "Send answers" button
+//   --mode=chip           — pick a chip only, send it with the prompt box's Send button
 // Two surfaces, one per --surface: the QUEUE card (its own card-level Send) and the thread DRAWER
-// (the per-message [data-send-answers] button). They run the same block through different controllers.
+// (the drawer's prompt box). They run the same block through different controllers.
 //
 // Seed a stack + question threads first (scripts/seed-question-cards.mjs, see .agents/skills/frizz-stack):
 //   node scripts/verify-question-answer.mjs --url=http://127.0.0.1:4930 --slug=q-legacy-approval
@@ -96,11 +96,13 @@ try {
   const buttons = () => page.evaluate((sel) =>
     [...document.querySelector(sel).querySelectorAll("button")].map((b) => b.textContent.trim()), SEL)
 
-  // The surface's commit control: the queue card's own Send answers, or the drawer's per-message one.
+  // The surface's commit control. Since 2026-10-11 that is the prompt box's Send, which carries the
+  // staged answers; a surface with no prompt box mounted still draws its own "Send answers".
   const sendAnswers = () => page.evaluate((sel) => {
     const scope = document.querySelector(sel)
-    const b = scope.querySelector("[data-send-answers]")
-      ?? [...scope.querySelectorAll("button")].find((b) => b.textContent.trim() === "Send answers")
+    const b = scope.querySelector("[data-send-split] [data-send]")
+      ?? document.querySelector("[data-send-split] [data-send]")
+      ?? scope.querySelector("[data-send-answers]")
     if (!b) return "missing"
     if (b.disabled) return "disabled"
     b.click()
@@ -153,9 +155,9 @@ try {
     await page.keyboard.press("Enter")
     await page.keyboard.up("Meta")
   } else {
-    // 2'. The chip alone is the answer: the surface's own Send answers button commits it.
+    // 2'. The chip alone is the answer: the prompt box's Send commits it, with nothing typed.
     const sent = await sendAnswers()
-    check("a staged chip enables the Send answers button", sent === "clicked", sent)
+    check("a staged chip arms the prompt box's Send", sent === "clicked", sent)
   }
   await settle(1500)
   check("exactly ONE follow-up was sent", sends.length === 1, `sends=${sends.length} ${JSON.stringify(sends)}`)

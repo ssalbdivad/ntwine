@@ -22,6 +22,9 @@ import {
   stripFollowUpRiders,
   stripOpenQuestionsNote,
   wakeTimeHeader,
+  withAnswersNote,
+  splitAnswersNote,
+  ANSWERS_NOTE_HEADER,
 } from "./index.ts"
 
 const stamped = (message: string) => `${message}\n\n${wakeTimeHeader(Date.parse("2026-09-29T15:00:00.000Z"))}`
@@ -35,7 +38,9 @@ test("answer deliveries fold into ONE header with every row renumbered, and a ty
   const merged = mergeAnswerMessages([first, second])!
   assert.equal(merged, [
     BURIED_ANSWERS_HEADER,
-    "1. “Which store?” → SQLite — Do these:",
+    "1. “Which store?” → - [x] SQLite",
+    ANSWER_CONTINUATION_INDENT,
+    `${ANSWER_CONTINUATION_INDENT}Do these:`,
     `${ANSWER_CONTINUATION_INDENT}1. run x`,
     `${ANSWER_CONTINUATION_INDENT}2. run y`,
     "2. “Publish?” → Yes",
@@ -46,6 +51,23 @@ test("answer deliveries fold into ONE header with every row renumbered, and a ty
   // The negative control for the fold itself: a cancellation is frizz's own voice and never merges into
   // the human's answers.
   assert.equal(mergeAnswerMessages([first, stamped(questionsCancelledWakeMessage(2))]), undefined)
+})
+
+// A part sent with the prompt box's note (withAnswersNote) ends its rows at the note header, so a fold that
+// left the note in place would read the NEXT part's rows as more of the note. Every note goes after every row.
+test("answer deliveries carrying a typed note fold with all the rows first and the notes under one header", () => {
+  const noted = stamped(withAnswersNote(questionAnswerMessage([{ questionId: "q1", question: "Which store?", chosen: ["SQLite"] }]), "keep it small"))
+  const plain = stamped(questionAnswerMessage([{ questionId: "q2", question: "Publish?", chosen: ["Yes"] }]))
+  const merged = mergeAnswerMessages([noted, plain])!
+  assert.equal(merged, [
+    BURIED_ANSWERS_HEADER,
+    "1. “Which store?” → SQLite",
+    "2. “Publish?” → Yes",
+    "",
+    ANSWERS_NOTE_HEADER,
+    "keep it small",
+  ].join("\n"))
+  assert.deepEqual(splitAnswersNote(merged), { answers: `${BURIED_ANSWERS_HEADER}\n1. “Which store?” → SQLite\n2. “Publish?” → Yes`, note: "keep it small" })
 })
 
 test("the open-questions note names each question by text and id, and comes back off the human's bubble", () => {

@@ -1073,10 +1073,12 @@ const hourglassMark = <StatusBox><Hourglass size={9} className="text-muted-70" /
 // (scripts/verify-rail-status-glyphs.mjs, the `user-snoozed` slot).
 const alarmMark = <StatusBox><AlarmClock size={9} className="text-muted/70" /></StatusBox>
 
-/** "fires in 34m" for the SOONEST armed timer — the resting card's TimerRow words, so the rail's hover
- *  and the card never count down in two vocabularies. A due-but-undelivered timer (the scheduler's tick
- *  runs seconds behind the instant) says "firing…" rather than a negative countdown. Null when no armed
- *  row carries an instant, which today is never — the board only synthesizes armed rows, each with one. */
+/** "fires in 34m" for the SOONEST armed timer — the resting card's TimerRow countdown, so the rail's
+ *  hover and the card never count down in two vocabularies. The row drops the verb its "Timers" heading
+ *  implies ("in 34m"); this tooltip is a sentence with no heading, so it keeps it. A due-but-undelivered
+ *  timer (the scheduler's tick runs seconds behind the instant) says "firing…" rather than a negative
+ *  countdown. Null when no armed row carries an instant, which today is never — the board only
+ *  synthesizes armed rows, each with one. */
 function timerWake(t: Pick<ThreadView, "watches">, nowMs = Date.now()): string | null {
   const soonest = (t.watches ?? [])
     .filter((w) => w.kind === "timer" && w.state === "armed")

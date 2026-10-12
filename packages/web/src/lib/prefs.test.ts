@@ -29,6 +29,13 @@ test("queue order defaults to FIFO and only accepts fifo/lifo", () => {
   assert.equal(parseStoredPrefs(JSON.stringify({ queueOrder: "sideways", diffsRedefaulted: true })).queueOrder, "fifo")
 })
 
+test("dictation is on by default and only a stored boolean turns it off", () => {
+  assert.equal(parseStoredPrefs(null).dictation, true)
+  assert.equal(parseStoredPrefs("not-json").dictation, true)
+  assert.equal(parseStoredPrefs(JSON.stringify({ dictation: false, diffsRedefaulted: true })).dictation, false)
+  assert.equal(parseStoredPrefs(JSON.stringify({ dictation: "off", diffsRedefaulted: true })).dictation, true)
+})
+
 test("the rail's edited-files fold is open by default and only a boolean folds it", () => {
   assert.equal(parseStoredPrefs(null).railFilesCollapsed, false)
   assert.equal(parseStoredPrefs("not-json").railFilesCollapsed, false)

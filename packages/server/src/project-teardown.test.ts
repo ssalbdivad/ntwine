@@ -136,7 +136,7 @@ test("deleteData stops the project's workers and removes everything Frizz holds 
   assert.equal(existsSync(join(dir, "README.md")), true)
 })
 
-test("the project Frizz is running from is refused, and nothing is torn down", async (t) => {
+test("deleting the data of the project Frizz is hosted on is refused, and nothing is torn down", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
   // `.frizz/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
@@ -144,14 +144,36 @@ test("the project Frizz is running from is refused, and nothing is torn down", a
   writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
   writeFileSync(join(dir, "README.md"), "theirs, not ours")
   registerProject({ dir, id: A }, home)
+  const state = stateDir(home, A)
 
   const { router, calls } = harness({ home, launchProjectId: A })
   await assert.rejects(
     () => router.projectRemove.handler({ input: { id: A, deleteData: true } }),
-    /Frizz is serving from this project/,
+    /threads and history cannot be deleted right now/,
   )
   assert.deepEqual(calls, [])
   assert.equal(listProjects(home).length, 1, "it is still registered")
+  assert.equal(existsSync(state), true)
+})
+
+// A `frizz` run from $HOME was hosted on the most recently opened project until 2026-10-11, so the
+// host was routinely a project nobody launched from — and refusing to forget it left a card the
+// operator could not remove by any restart that did not start inside a DIFFERENT project (2026-10-10).
+test("the project Frizz is hosted on can still be forgotten, without a teardown", async (t) => {
+  const home = homeSandbox(t)
+  const dir = join(home, "code", "alpha")
+  mkdirSync(join(dir, ".frizz"), { recursive: true })
+  writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
+  registerProject({ dir, id: A }, home)
+  const state = stateDir(home, A)
+
+  const { router, calls } = harness({ home, launchProjectId: A })
+  const result = await router.projectRemove.handler({ input: { id: A } })
+
+  assert.deepEqual(result, { removed: true, deletedData: false, stoppedWorkers: 0 })
+  assert.deepEqual(calls, [], "its tenant is the server's own, so nothing closes it")
+  assert.deepEqual(listProjects(home), [])
+  assert.equal(existsSync(state), true, "the state the running server stands on is untouched")
 })
 
 test("an id the registry has already forgotten reports removed: false rather than failing", async (t) => {

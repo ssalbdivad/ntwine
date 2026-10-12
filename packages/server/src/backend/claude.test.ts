@@ -79,7 +79,6 @@ test("createClaudeBackend: buildSpawn pins the session id + prompt and clears in
   assert.equal(argv[argv.length - 1], "hello")
   assert.deepEqual(env, {
     CLAUDE_CODE_TOTAL_TOKENS_REMINDER: "infinite",
-    BASH_DEFAULT_TIMEOUT_MS: "60000",
     BASH_MAX_TIMEOUT_MS: String(24 * 60 * 60 * 1000),
     CLAUDE_CODE_AUTO_CONNECT_IDE: "false",
     CLAUDE_CODE_SUBAGENT_MODEL: "",
@@ -98,7 +97,6 @@ test("createClaudeBackend sanitizes both spawn and resume without replacing Clau
   for (const built of [spawned, resumed]) {
     assert.deepEqual(built.env, {
       CLAUDE_CODE_TOTAL_TOKENS_REMINDER: "infinite",
-      BASH_DEFAULT_TIMEOUT_MS: "60000",
       BASH_MAX_TIMEOUT_MS: String(24 * 60 * 60 * 1000),
       CLAUDE_CODE_AUTO_CONNECT_IDE: "false",
       CLAUDE_CODE_SUBAGENT_MODEL: "",
@@ -115,11 +113,13 @@ test("Claude worker profile sanitization reaches the launch environment", () => 
   const backend = createClaudeBackend({ logDir: "/logs", claudeBin: "claude" })
   const built = backend.buildSpawn({ sessionId: "profile-env", cwd: "/clean-home/project", prompt: "P", workerContract: "", permissionMode: "auto", model: "opus", effort: "high" })
   // buildSpawn's `env` IS the launch environment now: the broker hands it straight to the SDK query.
-  // Every entry is silent when dropped — the worker just quietly quits early, or has every long gate
-  // bounced to the background — so pin them here.
+  // Every entry is silent when dropped — the worker just quietly quits early, or has a wait it sized
+  // itself cut off at Claude Code's ten-minute ceiling — so pin them here.
   for (const [key, value] of Object.entries(CLAUDE_WORKER_ENV)) {
     assert.equal(built.env[key], value, `${key} must reach the launch environment`)
   }
+  // The DEFAULT foreground timeout is Claude Code's own: Frizz pinned 60s until 2026-10-10.
+  assert.equal("BASH_DEFAULT_TIMEOUT_MS" in built.env, false, "the default Bash timeout is left to Claude Code")
   assert.ok("CLAUDE_CODE_SUBAGENT_MODEL" in built.env)
   assert.ok("CLAUDE_CODE_EFFORT_LEVEL" in built.env)
   assert.equal(built.env.CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION, String(WORKER_MAX_WEB_SEARCHES))

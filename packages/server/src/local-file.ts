@@ -166,11 +166,11 @@ export type LocalTextRead = { path: string; text: string; truncated: boolean }
  * had home-and-below all along (maintainer 2026-09-03: "why do we have this? I see it a lot, and it's
  * annoying").
  *
- * The narrower gate also bought no security it was the last line of. Frizz's exposed mode (`--host` /
- * `--public-origin`) has no auth at all, so anyone who can reach the origin can already dispatch a
+ * The narrower gate also bought no security it was the last line of. In exposed mode (`--host` /
+ * `--public-origin`) every request needs a board session, and anyone holding one can already dispatch a
  * worker that reads any file on the machine and prints it into a transcript — and `openLocalFile`
- * already spawns the desktop opener on anything under home. The origin check is the boundary; this is
- * defense in depth behind it, and it stays exactly as wide as the reader's.
+ * already spawns the desktop opener on anything under home. The origin check and the session are the
+ * boundary; this is defense in depth behind them, and it stays exactly as wide as the reader's.
  *
  * Binary is refused rather than rendered as noise: a NUL in the first 8 KiB is the classic tell and the
  * viewer is a text surface. Same 1 MiB line-boundary truncation as the Markdown reader.

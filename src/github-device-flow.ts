@@ -26,8 +26,11 @@
  * The client id of Frizz's GitHub OAuth App — public by design: device flow has no secret.
  *
  * Still the placeholder until the maintainer registers the app (see the registrar README). While it is,
- * a custom-name claim refuses up front with a clear message rather than sending GitHub an id it does
- * not know. `FRIZZ_GITHUB_CLIENT_ID` overrides it, for tests and for a self-hosted registrar.
+ * custom names are withdrawn altogether (CUSTOM_NAMES_OFFERED in cloud.ts, false since 2026-10-08), so
+ * nobody is offered a claim that would end here; registering the app means setting this AND flipping
+ * that. A claim that reaches this anyway (`FRIZZ_CUSTOM_NAMES=1`) refuses up front with a clear message
+ * rather than sending GitHub an id it does not know. `FRIZZ_GITHUB_CLIENT_ID` overrides it, for tests
+ * and for a self-hosted registrar.
  */
 export const GITHUB_CLIENT_ID_PLACEHOLDER = "frizz-oauth-app-client-id-not-set";
 export const FRIZZ_GITHUB_CLIENT_ID: string = GITHUB_CLIENT_ID_PLACEHOLDER;

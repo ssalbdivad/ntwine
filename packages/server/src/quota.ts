@@ -5,9 +5,9 @@ import { log as frizzLog } from "./logging.ts"
 
 // The polled provider-quota snapshot the sidebar status bar renders. Codex comes from the app-server's
 // live `account/rateLimits/read` (the rollout JSONL frizz tails is only its offline fallback, since a
-// rollout cannot say which account wrote it). Claude delegates to Claude Code's non-interactive
-// `/usage` command so Claude Code owns credential storage, token refresh, endpoint retries, and
-// fallback behavior.
+// rollout cannot say which account wrote it). Claude reads the OAuth usage endpoint with the
+// credential already on the machine, and starts Claude Code only to refresh a token that endpoint
+// rejected — never for a machine that is signed out or offline (claude-quota.ts has the bound).
 //
 // FIXTURE SEAM: set FRIZZ_QUOTA_FIXTURE to one of the named states below to return deterministic data
 // instead of touching the live sources. This lets the UI be exercised (and screenshotted) across all

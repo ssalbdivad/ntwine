@@ -2,9 +2,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { useState } from "react"
 import type { BoardSnapshot, ThreadView } from "@frizz/shared"
-import { BackgroundOpsStrip } from "./components/ChatView.tsx"
 import { Composer } from "./components/Composer.tsx"
 import { ProfileGridSelector } from "./components/ProfileGridSelector.tsx"
+import { QueueOpsSummary } from "./components/QueueOpsSummary.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
 import "./styles.css"
@@ -82,6 +82,10 @@ function Fixture() {
             that used to sit under this and carry it went on 2026-10-05. 0px on a desktop screen. */}
         <footer data-thread-chat-footer className="z-10 shrink-0 border-t border-border/60 bg-panel pb-[env(safe-area-inset-bottom)]">
           <div data-thread-action-bar className="px-3 py-3">
+            {/* Mirrors ThreadActionBar's `above` slot: the live ops as one line of counts over the
+                prompt box, their rows one hover away (2026-10-09). Under the box nothing hangs any more,
+                so the box's own pb is its gap to the footer's bottom edge. */}
+            <QueueOpsSummary thread={thread} />
             <Composer
               surface="drawerFooterFixture"
               value={draft}
@@ -105,12 +109,6 @@ function Fixture() {
                 </div>
               )}
             />
-            {/* Mirrors ThreadActionBar's `ops` slot, wrapper included: the strip lives INSIDE the padded
-                box so the rows hang off the prompt, and the box's OWN pb — less the row's leading, which
-                `ops-column-optical-inset` hands back — is their gap to the footer. */}
-            <div className="ops-column-optical-inset empty:hidden">
-              <BackgroundOpsStrip slug={thread.id} className="px-1 pt-1.5" />
-            </div>
           </div>
         </footer>
       </section>
@@ -121,8 +119,8 @@ function Fixture() {
 // The same providers the real shell mounts above this footer. Without them the page threw "No
 // QueryClient set" out of RestartWorkerButton's `useQueryClient` before React committed anything, so
 // the fixture rendered an EMPTY body and its e2e died on `[data-thread-action-bar]` not existing —
-// a failure that reads as "the selector moved" rather than "the page never mounted". The strip has
-// needed a client since the restart verb joined it; the fixture predates that and was never updated.
+// a failure that reads as "the selector moved" rather than "the page never mounted". The ops rows (now
+// in the counts' hover panel) have needed a client since the restart verb joined them.
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <TooltipProvider>

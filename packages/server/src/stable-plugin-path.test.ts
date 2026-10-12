@@ -1,9 +1,9 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { isAbsolute, join } from "node:path"
-import { defaultPluginStageRoot, defaultStablePluginRoot, ensureSymlink, stageStablePluginDir } from "./stable-plugin-path.ts"
+import { defaultPluginStageRoot, defaultStablePluginRoot, ensureSymlink, pluginContentDigest, pluginFingerprint, stageStablePluginDir } from "./stable-plugin-path.ts"
 
 // Every scratch dir is removed when the file finishes. Recursive rm unlinks the links inside it rather
 // than following them, on every Node — only a non-recursive rm of a link hits nodejs/node#61040.
@@ -160,4 +160,63 @@ test("stageStablePluginDir rejects a version that could escape the stage root", 
   for (const bad of ["../escape", "a/b", "", ".hidden", "x".repeat(200)]) {
     assert.throws(() => stageStablePluginDir({ source, version: bad, home }), /unsafe plugin version/, `accepted ${JSON.stringify(bad)}`)
   }
+})
+
+// A repoint swaps the link by rename, so a hook a live worker runs through it never finds it missing.
+// The swap itself cannot be observed from here; what can is that it leaves nothing beside the link.
+test("repointing leaves no scratch link beside the stable path", () => {
+  const dir = tmp("frizz-symlink-")
+  const a = join(dir, "buildA")
+  const b = join(dir, "buildB")
+  mkdirSync(a); mkdirSync(b)
+  const links = join(dir, "current")
+  ensureSymlink(join(links, "cc-worker"), a)
+  ensureSymlink(join(links, "cc-worker"), b)
+  assert.deepEqual(readdirSync(links), ["cc-worker"])
+})
+
+// ---- identity: what a version is staged under, and what a running worker compares ----------------
+
+test("pluginContentDigest is the content's identity: same bytes, same digest, wherever they sit", () => {
+  const dir = tmp("frizz-digest-")
+  const one = plugin(join(dir, "one"), "v1")
+  const two = plugin(join(dir, "two"), "v1")
+  assert.equal(pluginContentDigest(one), pluginContentDigest(two))
+  assert.match(pluginContentDigest(one), /^[0-9a-f]{16}$/, "and it is safe to use as a staged version directory")
+
+  writeFileSync(join(two, "hooks", "stop.mjs"), "// v2\n")
+  assert.notEqual(pluginContentDigest(one), pluginContentDigest(two), "an edited script is a different plugin")
+
+  const renamed = plugin(join(dir, "three"), "v1")
+  renameSync(join(renamed, "hooks", "stop.mjs"), join(renamed, "hooks", "halt.mjs"))
+  assert.notEqual(pluginContentDigest(one), pluginContentDigest(renamed), "and so is the same bytes under another name")
+})
+
+// The two ways a running worker's plugin moves, and the fingerprint has to see both.
+test("pluginFingerprint moves when the stable path is repointed, even at identical content", () => {
+  const dir = tmp("frizz-fingerprint-")
+  const home = join(dir, "home")
+  const first = stageStablePluginDir({ source: plugin(join(dir, "a"), "same"), version: "one", home })
+  const before = pluginFingerprint(first.stablePath)
+  assert.ok(before)
+  assert.equal(pluginFingerprint(first.stablePath), before, "asking twice changes nothing")
+
+  stageStablePluginDir({ source: plugin(join(dir, "b"), "same"), version: "two", home })
+  assert.notEqual(pluginFingerprint(first.stablePath), before)
+})
+
+test("pluginFingerprint moves when a checkout's plugin is edited in place", () => {
+  const dir = tmp("frizz-fingerprint-")
+  const checkout = plugin(dir, "v1")
+  const before = pluginFingerprint(checkout)
+  writeFileSync(join(checkout, "hooks", "stop.mjs"), "// edited, and a different length\n")
+  assert.notEqual(pluginFingerprint(checkout), before, "an edited file")
+  const edited = pluginFingerprint(checkout)
+  mkdirSync(join(checkout, "skills", "new"), { recursive: true })
+  writeFileSync(join(checkout, "skills", "new", "SKILL.md"), "---\nname: new\n---\n")
+  assert.notEqual(pluginFingerprint(checkout), edited, "an added file")
+})
+
+test("pluginFingerprint is undefined for a plugin that cannot be read", () => {
+  assert.equal(pluginFingerprint(join(tmp("frizz-fingerprint-"), "gone")), undefined)
 })

@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router"
 import type { BoardSnapshot, ThreadHandoff, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
 import { AllQueuesCard } from "./components/AllQueuesCard.tsx"
-import { BackgroundOpsStrip } from "./components/ChatView.tsx"
+import { QueueOpsSummary } from "./components/QueueOpsSummary.tsx"
 import { ThreadActionBar } from "./components/ThreadActionBar.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import type { QueuesProject } from "./lib/allQueues.ts"
@@ -157,11 +157,16 @@ window.fetch = async (input, init) => {
   if (url.pathname === "/_frizz/rpc/threadSettledQuestions") {
     return new Response(JSON.stringify({ result: { questions: [] } }), { headers: { "content-type": "application/json" } })
   }
+  // The `@` typeahead reads every project's queue (lib/threadMentions), and iterates the result: `{}` threw
+  // "queues is not iterable" and took the whole page down.
+  if (rpc === "projectsQueues") {
+    return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } })
+  }
   return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
 }
 
 // The drawer's real footer arrangement (ChatView renders exactly this pair): the chat footer frame,
-// with ThreadActionBar inside it and the background-ops strip passed as its `ops`.
+// with ThreadActionBar inside it and the line of op counts passed as its `above`.
 function DrawerSurface() {
   return (
     <div data-fixture-drawer className="my-5 flex h-[420px] w-[560px] max-w-full min-w-0 flex-col rounded-lg border border-border bg-panel">
@@ -174,7 +179,7 @@ function DrawerSurface() {
         ))}
       </div>
       <div data-thread-chat-footer className="z-10 shrink-0 border-t border-border/60 bg-panel">
-        <ThreadActionBar slug={SLUG} ops={<BackgroundOpsStrip slug={SLUG} className="px-1 pt-1.5" />} />
+        <ThreadActionBar slug={SLUG} above={<QueueOpsSummary thread={thread} />} />
       </div>
     </div>
   )
