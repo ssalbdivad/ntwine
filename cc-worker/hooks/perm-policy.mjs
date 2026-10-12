@@ -12,7 +12,7 @@
 // The blunt fix would be to dispatch at `bypassPermissions`. This is deliberately NOT that: bypass
 // removes the decision POINT, so nothing can ever inspect a request again. (Nearly: bypass became the
 // Settings default in 0.7.2, and Claude Code still raises a request there for its bypass-immune safety
-// checks — see `bypass-safety-check` below.) Keeping `auto` + deciding
+// checks — approved like auto's, see `restrictive-mode` below.) Keeping `auto` + deciding
 // here preserves the seam — the same request that is auto-approved today can be routed to a policy,
 // or to a human, without changing how workers launch. Claude Code labels the outcome in the
 // transcript ("Allowed by PermissionRequest hook"), so an auto-approval stays visible rather than
@@ -90,20 +90,6 @@ const RULES = [
     decision: 'deny',
     reason:
       'Refused: this formats a filesystem or writes directly to a raw block device, which destroys data irrecoverably and is never required of an unattended worker.',
-  },
-  {
-    // BYPASS STILL ASKS — rarely, and only about what Claude Code will not let bypass skip: its
-    // bypass-immune safety checks (in 2.1.282, `dangerousRemoval` — an `rm` whose target is built from
-    // variables that could expand empty — and the read/sandbox restrictions an operator's own settings
-    // impose) plus explicit `ask` rules. Approving those blind would undo exactly the checks bypass was
-    // built to keep, so they go to a human like a restrictive mode's do. Under their OWN rule, though:
-    // bypass is the MOST permissive mode, and until 2026-09-28 these were recorded as `restrictive-mode`,
-    // which is how an arktype worker's `rm -rf $BASE/$d/$o` loop came to reach the operator as a
-    // "Run a command?" card with a marker claiming the thread was in a restrictive mode.
-    id: 'bypass-safety-check',
-    test: (i) => i.permission_mode === 'bypassPermissions',
-    decision: 'defer',
-    reason: 'Claude Code asks about this even in bypass mode (a safety check or an explicit ask rule), so it is left for a human to answer.',
   },
   {
     // Respect a DELIBERATELY restrictive mode. frizz dispatches workers at `auto`; a thread sitting at

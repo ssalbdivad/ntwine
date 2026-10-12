@@ -76,15 +76,6 @@ try {
     check(`defer: \`${mode}\` counts as restrictive`, marker().rule === "restrictive-mode", marker().rule)
   }
 
-  // 4b. BYPASS only asks about what Claude Code keeps asking about there (its bypass-immune safety
-  // checks), so the request goes to a human — under its own rule, never as a "restrictive" mode — and
-  // the deny rules still come first.
-  const bypass = runHook(bash("rm -rf $BASE/$d/$o", { permission_mode: "bypassPermissions" }))
-  check("defer: a bypassPermissions request emits NOTHING (prompt is raised)", bypass === "", JSON.stringify(bypass))
-  check("defer: bypass is recorded as its own rule, not restrictive-mode", marker().decision === "defer" && marker().rule === "bypass-safety-check", `${marker().decision}/${marker().rule}`)
-  const bypassRm = JSON.parse(runHook(bash("rm -rf ~", { permission_mode: "bypassPermissions" })) || "{}")
-  check("deny: bypassPermissions still refuses a catastrophic delete", bypassRm.hookSpecificOutput?.decision?.behavior === "deny" && marker().rule === "catastrophic-delete")
-
   for (const mode of ["acceptEdits", "plan", "some-future-mode"]) {
     check(`defer: \`${mode}\` emits NOTHING (unknown must mean ask)`, runHook(bash("touch y", { permission_mode: mode })) === "" && marker().rule === "restrictive-mode")
   }

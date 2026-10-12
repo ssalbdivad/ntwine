@@ -273,21 +273,13 @@ is right for one repo is wrong for the next. `catastrophic-delete` and `raw-disk
 (strictly safer than bypass, which would have allowed both). `restrictive-mode` DEFERS whenever
 `permission_mode` is anything but `auto` or `bypassPermissions`, which is what makes a genuine
 lower-permission mode usable: move a thread to `default` with the live permission control and its prompts
-come back. (Upstream 9c6af4ad, 2026-10-10, took `bypassPermissions` out of that test so a bypass thread's
-prompts fall through to `worker-autonomy`, after every marker on Colin's machine that day turned out to be a
-bypass defer. In this fork `bypass-safety-check`, below, sits in front of it and still defers them, for the
-reason it gives, so the exclusion changes nothing here. Merged 2026-10-12; whether bypass prompts should be
-approved instead is open.)
-
-`bypass-safety-check` (2026-09-28) sits in front of it and also DEFERS. Bypass became the Settings
-default in 0.7.2 and is not prompt-free: Claude Code keeps asking there about its bypass-immune safety
-checks (2.1.282: `dangerousRemoval`, an `rm` whose target is built from variables that could expand
-empty, plus read/sandbox restrictions from the operator's own settings) and explicit `ask` rules. The
-hook cannot see which one fired, and approving any of them blind undoes a check bypass was built to
-keep, so a human answers. These were recorded as `restrictive-mode` until then — an honest outcome
-under a false name, since bypass is the MOST permissive mode. The first one on record (an arktype
-worker's `rm -rf $BASE/$d/$o` loop) reached the operator on a queue card that did not draw its
-approval buttons; that was the card's bug, fixed the same day in `AllQueuesCard`. `FRIZZ_PERM_POLICY=review`
+come back. `bypassPermissions` is not restrictive: it is the one mode more permissive than `auto`, so a
+prompt Claude Code still raises under it (its bypass-immune safety checks, e.g. 2.1.282's `dangerousRemoval`
+on an `rm` whose target is built from variables, and explicit `ask` rules) falls through to
+`worker-autonomy` and is approved like auto's, behind the two refusals (upstream 9c6af4ad, 2026-10-10,
+after every marker on Colin's machine that day was a bypass defer). The fork had added a
+`bypass-safety-check` rule on 2026-09-28 that deferred those to a human instead; it was dropped on
+2026-10-12 (maintainer: approve automatically, like upstream). `FRIZZ_PERM_POLICY=review`
 defers everything. Fail-safe INVERTS the old observer's fail-open — for a hook that can APPROVE, any
 error must fall back to asking, never to allowing.
 
