@@ -42,8 +42,13 @@ if (mode === "oversized") process.stdout.write("x".repeat(200 * 1024) + "\n")
 const sessions = new Map() // sessionId -> { cancelled: boolean, promptId: id|undefined }
 let sessionSeq = 0
 
-function modelOptions(current) {
-  return [{ id: "model", name: "Model", category: "model", type: "select", currentValue: current, options: [{ value: "fake/small", name: "Fake Small" }, { value: "fake/large", name: "Fake Large" }] }]
+// Like opencode, only a model with effort levels carries an `effort` option, and it appears once that
+// model is set. Its `default` value means "send none".
+const EFFORTS = ["low", "medium", "high", "default"]
+function modelOptions(current, effort) {
+  const options = [{ id: "model", name: "Model", category: "model", type: "select", currentValue: current, options: [{ value: "fake/small", name: "Fake Small" }, { value: "fake/large", name: "Fake Large" }] }]
+  if (current === "fake/large") options.push({ id: "effort", name: "Effort", category: "thought_level", type: "select", currentValue: effort ?? "low", options: EFFORTS.map((value) => ({ value, name: value })) })
+  return options
 }
 
 async function handle(msg) {
@@ -144,10 +149,15 @@ async function handle(msg) {
     }
     case "session/set_config_option": {
       const known = ["fake/small", "fake/large"]
+      const s = sessions.get(p.sessionId)
+      if (p.configId === "effort") {
+        if (s?.model !== "fake/large" || !EFFORTS.includes(p.value)) return fail(-32602, `unknown effort ${p.value}`)
+        s.effort = p.value
+        return reply({ configOptions: modelOptions(s.model, s.effort) })
+      }
       if (p.configId !== "model") return fail(-32602, `unknown config option ${p.configId}`)
       if (!known.includes(p.value)) return fail(-32602, `unknown model ${p.value}`)
-      const s = sessions.get(p.sessionId)
-      if (s) s.model = p.value
+      if (s) { s.model = p.value; delete s.effort }
       reply({ configOptions: modelOptions(p.value) })
       return
     }
