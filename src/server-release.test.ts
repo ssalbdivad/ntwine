@@ -31,7 +31,7 @@ function setup(t: TestContext) {
     async install(prefix, spec) { installs.push(spec.version); fixture(prefix, spec); },
     async latestVersion() { return "1.1.0"; },
   };
-  const roots = { cache: join(root, "cache"), state: join(root, "state"), data: join(root, "data"), legacy: false };
+  const roots = { cache: join(root, "cache"), state: join(root, "state"), data: join(root, "data"), legacy: false, brand: "ntwine" as const };
   return { root, roots, installs, installer, store: new ServerReleaseStore(baseline, installer, roots) };
 }
 
