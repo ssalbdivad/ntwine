@@ -850,7 +850,7 @@ export class RestartSupervisorProxy {
   }
 
   private handle(req: IncomingMessage, res: ServerResponse): void {
-    if (req.url) req.url = adoptLegacyRoute(req.url)
+    if (req.url) req.url = adoptLegacyRoute(req.url, NTWINE_ROUTE_PREFIX)
     if (isControlRequest(req)) {
       void this.handleControl(req, res)
       return
@@ -905,7 +905,7 @@ export class RestartSupervisorProxy {
   }
 
   private handleUpgrade(req: IncomingMessage, socket: import("node:stream").Duplex, head: Buffer): void {
-    if (req.url) req.url = adoptLegacyRoute(req.url)
+    if (req.url) req.url = adoptLegacyRoute(req.url, NTWINE_ROUTE_PREFIX)
     // The board socket and every terminal come through here, so the bearer gate has to cover the
     // upgrade too — otherwise the shell is reachable without the secret the HTML path demands. No
     // query-param exchange here: a browser sends the cookie it was given on the page that opened it.

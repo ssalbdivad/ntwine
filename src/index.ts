@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import "@ntwine/shared/legacy-env"
-import "@ntwine/server/frizz-migration-boot"
+import "@ntwine/shared/legacy-frizz"
 import type { RemoteController } from "./remote-controller.ts";
 import { wireRemote } from "./remote-wiring.ts";
 import { bindHostIsExposed } from "@ntwine/server/local-origin";
@@ -125,12 +124,6 @@ const sourceCommand = process.env.NTWINE_SOURCE_COMMAND ?? "ntwine-dev";
 if (argv[0] === "top") {
   const { runTop } = await import("@ntwine/server/top");
   process.exit(await runTop(argv.slice(1)));
-}
-// The Frizz -> Ntwine move, run by hand (`--dry-run` lists every step and changes nothing). Every
-// other launch runs it on its own, first (frizz-migration-boot.ts). Shared with src/production.ts.
-if (argv[0] === "migrate-frizz") {
-  const { runMigrateFrizzCommand } = await import("@ntwine/server/frizz-migration");
-  process.exit(runMigrateFrizzCommand(argv.slice(1)));
 }
 /**
  * build/promote/restart are ARTIFACT verbs: they suppress the readout and the foreground hold, do one

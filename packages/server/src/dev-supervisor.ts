@@ -25,7 +25,7 @@ import { RestartSupervisorProxy, type RemoteControlHandler, type RestartResult }
 import { log as ntwineLog } from "./logging.ts"
 import { startRemoteWake, type RemoteWake } from "./remote-wake.ts"
 import { withRootsPin } from "./ntwine-paths.ts"
-import { LEGACY_BOARD_LINK } from "./frizz-migration.ts"
+import { LEGACY_BOARD_LINK } from "./legacy-frizz.ts"
 import { BOOT_HARD_TIMEOUT_MS, BOOT_STALL_TIMEOUT_MS, readBootProgress } from "./boot-progress.ts"
 
 export const DEV_RESTART_DEBOUNCE_MS = 180
@@ -68,7 +68,6 @@ const NON_SOURCE_ROOT_DIRS = new Set([
   ".claude",
   ".agents",
   ".ntwine",
-  // The link the Frizz -> Ntwine migration leaves at a board's old name: the same tree as `.ntwine`.
   LEGACY_BOARD_LINK,
   "artifacts",
   "attachments",

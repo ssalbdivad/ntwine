@@ -114,7 +114,7 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwinectl"), "launcher");
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwinectl.mjs"), "cli");
   writeFileSync(join(dir, "runtime", "cc-worker", "lib", "ntwine-tools.mjs"), "tools");
-  writeFileSync(join(dir, "runtime", "cc-worker", "lib", "legacy-env.mjs"), "legacy env");
+  writeFileSync(join(dir, "runtime", "cc-worker", "lib", "legacy-frizz.mjs"), "legacy env");
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizzctl"), "legacy launcher");
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizz-mcp.mjs"), "legacy mcp");
   writeFileSync(join(dir, "runtime", "board", "config.mjs"), "config");
@@ -143,7 +143,7 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
         "cc-worker/bin/ntwinectl": hash("launcher"),
         "cc-worker/bin/ntwinectl.mjs": hash("cli"),
         "cc-worker/lib/ntwine-tools.mjs": hash("tools"),
-        "cc-worker/lib/legacy-env.mjs": hash("legacy env"),
+        "cc-worker/lib/legacy-frizz.mjs": hash("legacy env"),
         "cc-worker/bin/frizzctl": hash("legacy launcher"),
         "cc-worker/bin/frizz-mcp.mjs": hash("legacy mcp"),
         "board/config.mjs": hash("config"),
@@ -840,7 +840,7 @@ test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads i
   try {
     const artifact = buildNtwineArtifact(source, root);
     assert.match(
-      // Under a throwaway HOME: every launcher entry migrates a Frizz install it finds first (frizz-migration-boot.ts).
+      // Under a throwaway HOME: a test never starts a launcher entry against the real install.
       execFileSync(process.execPath, [join(artifact.runtimeDir, "src", "index.js"), "--help"], { encoding: "utf8", env: { ...process.env, HOME: join(root, "home") } }),
       /Ntwine source launcher/
     );

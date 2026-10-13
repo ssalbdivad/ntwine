@@ -24,7 +24,7 @@
 //
 // Everything here fails soft — a deadline Ntwine cannot read is one it does not keep — and callers wrap
 // it in their own fail-open.
-import '../lib/legacy-env.mjs';
+import '../lib/legacy-frizz.mjs';
 import { mkdirSync, openSync, closeSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 

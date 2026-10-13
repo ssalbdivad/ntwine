@@ -23,8 +23,6 @@
     "./dev-child": "./src/dev-child.ts",
     "./boot-progress": "./src/boot-progress.ts",
     "./ntwine-paths": "./src/ntwine-paths.ts",
-    "./frizz-migration": "./src/frizz-migration.ts",
-    "./frizz-migration-boot": "./src/frizz-migration-boot.ts",
     "./logging": "./src/logging.ts",
     "./top": "./src/top.ts"
   },

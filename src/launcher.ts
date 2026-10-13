@@ -484,7 +484,6 @@ Commands:
   promote <digest>       explicitly select a verified candidate for this workspace
   restart                restart the currently promoted artifact without building
   top                    memory on this machine and Ntwine's share of it (--json, --watch)
-  migrate-frizz          move a Frizz install to Ntwine's names now (--dry-run lists the steps)
 
 To reach the board from a phone or another machine, press R in the terminal running it: a short
 walkthrough sets up a private ntwine.app name (no account needed), a Cloudflare

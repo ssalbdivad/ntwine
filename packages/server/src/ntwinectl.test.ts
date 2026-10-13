@@ -82,7 +82,7 @@ interface Ran { code: number | null; stdout: string; stderr: string }
 
 /** The test runner's environment with every Ntwine identity removed — both spellings, since a runner
  *  inside a worker started before the rename carries FRIZZ_*, which the command line adopts as NTWINE_*
- *  (cc-worker/lib/legacy-env.mjs) wherever the NTWINE_ key is unset. Left in, a leaked server lock or
+ *  (cc-worker/lib/legacy-frizz.mjs) wherever the NTWINE_ key is unset. Left in, a leaked server lock or
  *  project id sends the test's calls to the live server instead of the fake one. */
 function hostEnv(): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(NTWINE|FRIZZ)_/.test(key)))

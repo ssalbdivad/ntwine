@@ -1,7 +1,6 @@
 // Tiny generation bootstrap. Prove the delegated owner before importing the watcher/supervisor
 // module, then validate that module as part of the disposable control-plane generation.
-import "@ntwine/shared/legacy-env"
-import "./frizz-migration-boot.ts"
+import "@ntwine/shared/legacy-frizz"
 import {
   projectLaunchOwnerTokenFromEnvironment,
   projectLaunchTargetFromEnvironment,

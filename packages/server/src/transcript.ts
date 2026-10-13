@@ -4026,7 +4026,7 @@ function stripCodexSentinel(text: string): string {
 // human's task. Strip only that complete suffix from the first projected prompt: similar ordinary prose,
 // or a title-transport sentence without the Ntwine sentinel, remains the user's text.
 function stripCodexFirstPromptTitleTransport(text: string): string {
-  // Each in both product names: a thread dispatched before the rename carries the Frizz spelling throughout.
+  // Each in both product names: a thread dispatched before the rename carries the old one (legacy-frizz.ts).
   const markers = [CODEX_FIRST_FINAL_TITLE_TRANSPORT, CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT]
     .flatMap((transport) => brandSpellings(`\n\n${transport}\n\n<!-- ntwine-session:`))
   for (const marker of markers) {

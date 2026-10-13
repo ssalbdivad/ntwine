@@ -234,11 +234,9 @@ function xdgRoots(env: NodeJS.ProcessEnv, home: string): NtwineRootDirs {
  */
 const decisions = new Map<string, Decision>()
 
-/** Where a resolution landed: whether it collapsed onto the dot-directory, or roots handed down whole. */
+/** Where a resolution landed: whether it collapsed onto the dot-directory. */
 interface Decision {
   legacy: boolean
-  /** Explicit roots that override the layout (pinNtwineRoots). Absent on every ordinary decision. */
-  roots?: NtwineRootDirs
 }
 /** Raw home spelling -> its realpath, so the key costs one realpath per spelling rather than per call. */
 const canonicalHomes = new Map<string, string>()
@@ -298,21 +296,13 @@ interface RootsPin extends Decision {
   key: string
 }
 
-/**
- * A pin carries the decision, and roots only when pinNtwineRoots put them there. A field this code does
- * not know (a pin made by an older process) is ignored rather than trusted.
- */
+/** A pin carries the decision alone. A field this code does not know is ignored rather than trusted. */
 function pinnedDecision(env: NodeJS.ProcessEnv, key: string): Decision | undefined {
   const raw = env[ROOTS_PIN_ENV]
   if (!raw) return undefined
   try {
     const pin = JSON.parse(raw) as Partial<RootsPin>
-    if (pin.key !== key || typeof pin.legacy !== "boolean") return undefined
-    if (pin.roots === undefined) return { legacy: pin.legacy }
-    const { data, state, cache } = pin.roots
-    return [data, state, cache].every((root) => typeof root === "string" && isAbsolute(root))
-      ? { legacy: pin.legacy, roots: { data, state, cache } }
-      : undefined
+    return pin.key === key && typeof pin.legacy === "boolean" ? { legacy: pin.legacy } : undefined
   } catch {
     return undefined
   }
@@ -331,36 +321,9 @@ function homeIn(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string {
 export function withRootsPin(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const platform = process.platform
   const home = homeIn(env, platform)
-  const key = memoKey(env, platform, home)
-  ntwinePaths({ env, platform, home })
-  const { legacy, roots } = decisions.get(key)!
-  const pin: RootsPin = { key, legacy, ...(roots ? { roots } : {}) }
+  const { legacy } = ntwinePaths({ env, platform, home })
+  const pin: RootsPin = { key: memoKey(env, platform, home), legacy }
   return { ...env, [ROOTS_PIN_ENV]: JSON.stringify(pin) }
-}
-
-/**
- * Serve THIS process, and every child it pins, from these exact roots instead of the layout.
- *
- * One caller: frizz-migration.ts, for a server forked by a supervisor started before the Frizz -> Ntwine
- * rename. That boot keeps the pre-rename roots, unmoved, so the migration runs only once the supervisor
- * itself restarts on current code. It goes with that module's LEGACY constants: once no process started
- * before the rename is alive, nothing calls it.
- */
-export function pinNtwineRoots(roots: NtwineRootDirs, env: NodeJS.ProcessEnv = process.env): void {
-  const platform = process.platform
-  const home = homeIn(env, platform)
-  const key = memoKey(env, platform, home)
-  const decision: Decision = { legacy: false, roots: { data: roots.data, state: roots.state, cache: roots.cache } }
-  decisions.set(key, decision)
-  env[ROOTS_PIN_ENV] = JSON.stringify({ key, ...decision } satisfies RootsPin)
-}
-
-/** The roots a pin handed this process whole (pinNtwineRoots), if it carries any. */
-export function pinnedNtwineRoots(env: NodeJS.ProcessEnv = process.env): NtwineRootDirs | undefined {
-  const platform = process.platform
-  const home = homeIn(env, platform)
-  const key = memoKey(env, platform, home)
-  return (decisions.get(key) ?? pinnedDecision(env, key))?.roots
 }
 
 /**
@@ -413,7 +376,7 @@ export function ntwinePaths(options: NtwinePathOptions = {}): NtwinePaths {
     decision = pinnedDecision(env, key) ?? resolveNtwinePaths(env, platform, home, existsSync)
     decisions.set(key, decision)
   }
-  return Object.freeze(layout(env, platform, home, decision.legacy, decision.roots))
+  return Object.freeze(layout(env, platform, home, decision.legacy))
 }
 
 /**
@@ -435,9 +398,7 @@ function layout(
   platform: NodeJS.Platform,
   home: string,
   legacy: boolean,
-  roots?: NtwineRootDirs,
 ): NtwinePaths {
-  if (roots) return { ...roots, legacy }
   if (legacy) {
     const root = legacyNtwineRoot(home)
     return { data: root, state: root, cache: root, legacy: true }

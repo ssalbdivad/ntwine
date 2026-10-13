@@ -37,6 +37,7 @@ import { compactElapsedSince, formatCompactElapsed, liveAgeSince } from "../lib/
 import { shellBudgetLabel } from "../lib/shellBudget.ts"
 import { AGENT_GLYPH_STROKE, CHILD_DISMISS_NOUN, CHILD_DISMISS_TITLE, CHILD_DISMISS_VERB, CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE, checksCounterLabel, issueCounterLabel } from "../lib/childOps.ts"
 import { useNowMs } from "../lib/liveClock.ts"
+import { PROFILE_NAMESPACE } from "../lib/subAgentProfile.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { pushBackgroundShellDrawer, pushSubAgentDrawer, pushTerminalDrawer, showToast } from "../store.ts"
 import { useThreadApi } from "../api/threadApi.tsx"
@@ -931,7 +932,7 @@ export function AgentRow({ agent, slug, now, onDismiss }: { agent: ThreadView["s
   // maintainer says it. It lives in the TOOLTIP, not the status (maintainer 2026-10-08: "I don't think
   // the model and effort is very important") — the status track is width the title needs, and the
   // elapsed time is the one reading on this row that changes.
-  const profile = agent.subagentType?.replace(/^(?:ntwine|frizz):/, "")
+  const profile = agent.subagentType?.replace(PROFILE_NAMESPACE, "")
   // STALE reaches the fullscreen rail only (this card's set is `liveAgents`): a child whose completion
   // never arrived and whose transcript has gone quiet past its window (tailer `quietPastWindow`). It does
   // not spin. It wears the flat dot every other surface gives a stale child, in a box the size of the

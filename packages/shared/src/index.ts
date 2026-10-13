@@ -7,7 +7,7 @@ import { ProjectSchedules, ThreadScheduleRef } from "./schedules.ts"
 import { formatDeadlineLeft, ThreadDeadlineView } from "./deadline.ts"
 import { EDITOR_COMPOSE_MAX_TEXT, EDITOR_MAX_FOLDERS, EDITOR_MAX_PATH, EDITOR_PROTOCOL_VERSION, EDITOR_REVIEW_MAX_CHECKOUTS, EDITOR_REVIEW_MAX_FILES, EDITOR_STATE_MAX_DIAGNOSTICS, EDITOR_STATE_MAX_MESSAGE, EDITOR_STATE_MAX_OPEN, EDITOR_STATE_MAX_SELECTION_TEXT, EDITOR_STATE_MAX_TAG, type EditorClientMessage, type EditorComposeInput, type EditorReviewTarget, type EditorSnapshot, type EditorWindowSummary } from "./editor-protocol.ts"
 import type { TranscriptPatchOp } from "./transcript-delta.ts"
-import { brandSpellings, eitherBrand } from "./legacy-brand.ts"
+import { brandSpellings, eitherBrand } from "./legacy-frizz.ts"
 
 // ---- Attachment intake (drag/drop, paste, file picker) ----
 // What a worker can actually GET AT. A format qualifies two ways: an agent's Read/file tool consumes
@@ -1995,7 +1995,7 @@ function legacyHumanWording(text: string): string {
   return text.replaceAll("The user", "The human").replaceAll("the user", "the human")
 }
 const LEGACY_SIGNOFF_NUDGE_MARKER = legacyHumanWording(SIGNOFF_NUDGE_MARKER)
-/** Both wordings, each in both product names (legacy-brand.ts). */
+/** Both wordings, each in both product names (legacy-frizz.ts). */
 const SIGNOFF_NUDGE_MARKERS = [SIGNOFF_NUDGE_MARKER, LEGACY_SIGNOFF_NUDGE_MARKER].flatMap(brandSpellings)
 
 /** The live things a thread could legitimately park on, appended to the reminder so the agent does not
@@ -8198,20 +8198,6 @@ export type ThreadLocation = z.infer<typeof ThreadLocation>
  * why nothing here said where the client half lived.)
  */
 export const NTWINE_ROUTE_PREFIX = "/_ntwine"
-/**
- * LEGACY: the prefix before the Frizz -> Ntwine rename (2026-10-13). A process started before it — a
- * worker's MCP server (`frizz-mcp.mjs`) that has run since, or the pre-rename dev supervisor probing its
- * child — still calls `/_frizz/…`, so the server reads that prefix as this one.
- *
- * REMOVE, with adoptLegacyRoute's two callers, once no process started before the rename (67962b73) is
- * alive: `pgrep -f frizz-mcp.mjs` finds none, and no `nub src/dev.ts` that old runs.
- */
-export const LEGACY_ROUTE_PREFIX = "/_frizz"
-export function adoptLegacyRoute(url: string): string {
-  return url === LEGACY_ROUTE_PREFIX || url.startsWith(`${LEGACY_ROUTE_PREFIX}/`) || url.startsWith(`${LEGACY_ROUTE_PREFIX}?`)
-    ? `${NTWINE_ROUTE_PREFIX}${url.slice(LEGACY_ROUTE_PREFIX.length)}`
-    : url
-}
 export function ntwineRoute(path: string): string {
   return `${NTWINE_ROUTE_PREFIX}${path.startsWith("/") ? path : `/${path}`}`
 }
@@ -8255,4 +8241,4 @@ export function fallbackPort(base: number): number {
 // stored name does not re-derive from its own slug has been tampered with or mis-keyed.
 export const threadIdentityName = (slug: string) => `ntwine-${ThreadSlug.parse(slug)}`
 export * from "./schedule-rule.ts"
-export { brandSpellings, eitherBrand, frizzWording } from "./legacy-brand.ts"
+export { adoptLegacyRoute, brandSpellings, eitherBrand, frizzWording } from "./legacy-frizz.ts"

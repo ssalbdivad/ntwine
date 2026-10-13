@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import "@ntwine/shared/legacy-env"
-import "@ntwine/server/frizz-migration-boot"
+import "@ntwine/shared/legacy-frizz"
 import type { RemoteController } from "./remote-controller.ts";
 import { wireRemote } from "./remote-wiring.ts";
 import { bindHostIsExposed } from "@ntwine/server/local-origin";
@@ -116,11 +115,6 @@ if (rawArgs[0] === "top") {
   const { runTop } = await import("@ntwine/server/top");
   process.exit(await runTop(rawArgs.slice(1)));
 }
-// The Frizz -> Ntwine move, run by hand. Shared with src/index.ts.
-if (rawArgs[0] === "migrate-frizz") {
-  const { runMigrateFrizzCommand } = await import("@ntwine/server/frizz-migration");
-  process.exit(runMigrateFrizzCommand(rawArgs.slice(1)));
-}
 // A re-exec'd launch was started by the PREVIOUS release, whose argv may carry a project directory this
 // release refuses (0.7.0–0.12.10 all append one); see reexecArgv. A human's argv is parsed as written.
 const args = reexec ? reexecArgv(rawArgs) : rawArgs;
@@ -146,7 +140,6 @@ for a source checkout.
 
 Commands:
   top                    memory on this machine and Ntwine's share of it (--json, --watch)
-  migrate-frizz          move a Frizz install to Ntwine's names now (--dry-run lists the steps)
 
 Options:
   --no-app               print the URL without opening a browser

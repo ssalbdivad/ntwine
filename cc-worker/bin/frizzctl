@@ -1,6 +1,5 @@
 #!/bin/sh
 # LEGACY: frizzctl — the name `ntwinectl` had before the Frizz -> Ntwine rename (2026-10-13). A worker
 # started before it still has this name in its instructions and its allowed tools, so it keeps answering.
-# REMOVE (with frizz-mcp.mjs, their closure entries and perm-policy's LEGACY_CTL_NAME) once no worker
-# started before the rename (67962b73) is alive: `grep -las '^FRIZZ_THREAD=' /proc/[0-9]*/environ` finds none.
+# REMOVE with the rest of the old name (packages/shared/src/legacy-frizz.ts has the gate and the runbook).
 exec "$(dirname "$0")/ntwinectl" "$@"

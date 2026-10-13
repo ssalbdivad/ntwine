@@ -10,7 +10,7 @@
 //
 // GATE: inert unless NTWINE_THREAD is set (ordinary Claude sessions keep their native behavior).
 // FAIL OPEN: malformed hook input allows the command rather than wedging a worker.
-import '../lib/legacy-env.mjs';
+import '../lib/legacy-frizz.mjs';
 import { readFileSync, realpathSync } from 'node:fs';
 import { basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

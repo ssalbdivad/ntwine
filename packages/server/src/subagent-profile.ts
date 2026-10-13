@@ -77,7 +77,7 @@ const PROFILE_ROUTE = eitherBrand(/^ntwine-/)
 
 export function dispatchProfileCell(input: DispatchProfileInput): string | undefined {
   const type = text(input.subagentType)
-  // `frizz:` is the same plugin's namespace before the Frizz -> Ntwine rename (legacy-brand.ts).
+  // Either product name's namespace: a transcript from before the rename has the old one (legacy-frizz.ts).
   const namespace = type ? PROFILE_NAMESPACE.exec(type)?.[0] : undefined
   const namespaced = namespace !== undefined
   const ours = namespaced || !type

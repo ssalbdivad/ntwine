@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // @ts-check
-import '../lib/legacy-env.mjs';
+import '../lib/legacy-frizz.mjs';
 /**
  * ntwine-mcp — the worker registry (../lib/ntwine-tools.mjs) over MCP stdio, mounted as `ntwine` so its
  * tools are `mcp__ntwine__<tool>`. The command line (`ntwinectl`, beside this file) is the worker

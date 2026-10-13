@@ -20,8 +20,8 @@ function splitEffort(value: string, separator: "/" | "-"): { model: string; effo
 // the legacy two-part shape and needs no branch of its own.
 // Preserve an agent role when one exists, but present the model/effort with the same separators the
 // normal prompt-box selector uses. Unknown/custom cells remain verbatim rather than being guessed.
-// `frizz:` is the same plugin's namespace before the Frizz -> Ntwine rename, still in older transcripts.
-const PROFILE_NAMESPACE = eitherBrand(/^ntwine:/)
+// Either product name's namespace: a transcript from before the rename has the old one (legacy-frizz.ts).
+export const PROFILE_NAMESPACE = eitherBrand(/^ntwine:/)
 const PROFILE_ROUTE = eitherBrand(/^ntwine-/)
 
 export function subAgentProfileLabel(subagentType?: string): string {

@@ -8,7 +8,7 @@
     "./editor-protocol": "./src/editor-protocol.ts",
     "./file-position": "./src/file-position.ts",
     "./embed-protocol": "./src/embed-protocol.ts",
-    "./legacy-env": "./src/legacy-env.ts"
+    "./legacy-frizz": "./src/legacy-frizz.ts"
   },
   "dependencies": {
     "yaml": "^2.9",

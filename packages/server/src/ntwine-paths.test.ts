@@ -9,8 +9,6 @@ import {
   ntwineRoots,
   isPromptAttachmentPath,
   legacyNtwineRoot,
-  pinNtwineRoots,
-  pinnedNtwineRoots,
   projectStateDir,
   resetNtwineRoots,
   ROOTS_PIN_ENV,
@@ -46,31 +44,6 @@ test("an existing ~/.ntwine keeps every root, on every platform, whatever XDG sa
     assert.equal(projectStateDir("p1", base), join(base, ".ntwine", "projects", "p1"))
   } finally {
     rmSync(base, { recursive: true, force: true })
-  }
-})
-
-// A server forked by a supervisor that predates the Frizz -> Ntwine rename serves the old roots as they
-// are (frizz-migration.ts). The roots ride the pin whole, so every child it starts agrees, and a child
-// that isolates itself under another home still resolves its own.
-test("roots pinned whole are this process's and its children's, and only theirs", () => {
-  const base = mkdtempSync(join(tmpdir(), "ntwine-paths-pinned-"))
-  const other = mkdtempSync(join(tmpdir(), "ntwine-paths-pinned-other-"))
-  try {
-    const env: NodeJS.ProcessEnv = { HOME: base, USERPROFILE: base }
-    const roots = { data: join(base, "old", "data"), state: join(base, "old", "state"), cache: join(base, "old", "cache") }
-    pinNtwineRoots(roots, env)
-    assert.deepEqual(pinnedNtwineRoots(env), roots)
-    assert.deepEqual(ntwinePaths({ env, home: base }), { ...roots, legacy: false })
-    const child = withRootsPin(env)
-    resetNtwineRoots()
-    assert.deepEqual(ntwinePaths({ env: child, home: base }), { ...roots, legacy: false }, "a child is handed the same roots")
-    assert.equal(ntwinePaths({ env: { ...child, HOME: other, USERPROFILE: other }, home: other }).data.startsWith(other), true, "another home resolves its own")
-    resetNtwineRoots()
-    assert.equal(pinnedNtwineRoots({ ...child, [ROOTS_PIN_ENV]: JSON.stringify({ ...JSON.parse(child[ROOTS_PIN_ENV]!), roots: { ...roots, data: "relative" } }) }), undefined, "a pin with a relative root is refused")
-  } finally {
-    resetNtwineRoots()
-    rmSync(base, { recursive: true, force: true })
-    rmSync(other, { recursive: true, force: true })
   }
 })
 

@@ -21,7 +21,7 @@
 //
 // GATE: inert unless NTWINE_THREAD is set. FAIL-OPEN ABSOLUTELY: any error, a slow server, a missing lock
 // → exit 0 with no output. A missed hint costs one link; a PostToolUse hook must never disturb the turn.
-import '../lib/legacy-env.mjs';
+import '../lib/legacy-frizz.mjs';
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 

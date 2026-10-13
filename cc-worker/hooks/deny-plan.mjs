@@ -32,7 +32,7 @@
 //
 // GATE: inert unless NTWINE_THREAD is set. FAIL OPEN on any parse error — a broken hook must never
 // halt work.
-import '../lib/legacy-env.mjs';
+import '../lib/legacy-frizz.mjs';
 import { readFileSync } from 'node:fs';
 
 const slug = process.env.NTWINE_THREAD;

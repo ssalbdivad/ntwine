@@ -1,5 +1,6 @@
-// TEXT WRITTEN BEFORE THE FRIZZ -> NTWINE RENAME: every recognizer that reads stored transcript text
-// must read a message exactly as it reads today's, when the only difference is the product's name.
+// LEGACY (legacy-frizz.ts; deleted with it). TEXT WRITTEN BEFORE THE RENAME: every recognizer that reads
+// stored transcript text must read a message exactly as it reads today's, when the only difference is the
+// product's name.
 // Each case writes today's message with its real writer, respells it the way pre-rename code wrote it
 // (frizzWording), and asserts the parser's verdict is identical — and that the respelling changed the
 // text, so a case cannot pass by never exercising the old spelling.

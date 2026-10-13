@@ -1,6 +1,7 @@
-// SERVER-SIDE MARKERS WRITTEN BEFORE THE FRIZZ -> NTWINE RENAME. Each case builds today's text with its
-// real writer, respells it as pre-rename code wrote it (frizzWording), and asserts the reader treats the
-// two alike. The shared recognizers have their own copy of this check (shared/src/legacy-brand.test.ts).
+// LEGACY (legacy-frizz.ts; deleted with it). SERVER-SIDE MARKERS WRITTEN BEFORE THE RENAME. Each case
+// builds today's text with its real writer, respells it as pre-rename code wrote it (frizzWording), and
+// asserts the reader treats the two alike. The shared recognizers have their own copy of this check
+// (shared/src/legacy-frizz.test.ts).
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { frizzWording } from "@ntwine/shared"
