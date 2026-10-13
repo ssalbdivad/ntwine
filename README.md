@@ -1,6 +1,6 @@
 <p align="center">
   <h1 align="center"><img src="assets/logo-ntwine/final/tile.png" alt="" width="104" height="104"><br/>Ntwine</h1>
-  <p align="center">An opinionated agent console for extreme productivity.
+  <p align="center">One tab for all your coding agents, and one queue for the ones that need you
     <br/>
     by <a href="https://github.com/ssalbdivad">@ssalbdivad</a>, from an original design by <a href="https://x.com/colinhacks">@colinhacks</a>
   </p>
@@ -15,23 +15,19 @@
 
 <br/>
 
-Ntwine is for you if you have any of these opinions:
+Ntwine is a local web UI for running lots of coding agents at once.
 
-- Terminal UIs are dated and have fundamental limitations that are incompatible with good user experience.
-- Orchestrator-style apps like Conductor feel overly complex.
-- It's annoying to constantly switch between sessions to check in on my agents' progress.
+It drives the agent CLIs you already pay for from one browser tab. When an agent comes to rest needing you, it becomes a card in a queue, so you can work through a list instead of checking on ten terminals.
 
-Ntwine is a browser tab, a queue, and the agent CLIs you already pay for. Every agent that comes to rest needing you becomes a card, and you work the cards instead of polling ten terminals.
-
-> **Attribution.** Ntwine began as Frizz, and its original design — the queue, the board and the principles below — is [Colin McDonnell](https://github.com/colinhacks)'s, from [colinhacks/frizz](https://github.com/colinhacks/frizz). Ntwine is [David Blass](https://github.com/ssalbdivad)'s standalone continuation: it keeps every one of those principles and adds the features listed under [What Ntwine adds](#what-ntwine-adds).
+> Ntwine started as Frizz, which [Colin McDonnell](https://github.com/colinhacks) designed ([colinhacks/frizz](https://github.com/colinhacks/frizz)). The queue, the board and the principles below are his, and I'm grateful to build on them. Ntwine is my standalone continuation. It keeps every one of those principles, and the features I've added are listed under [What Ntwine adds](#what-ntwine-adds). — [David Blass](https://github.com/ssalbdivad)
 
 <br/>
 
 <h2 align="center">Getting started</h2>
 
-**Requirements.** Node 22.13+, and a [Claude Code](https://claude.com/claude-code) or [Codex](https://developers.openai.com/codex) subscription you are signed in to. Ntwine brings its own pinned copy of each CLI (downloaded once, on first start), so the version on your PATH never changes what a thread runs. Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) — OpenCode, Gemini CLI, GitHub Copilot CLI, Cursor's agent, goose, Qwen Code and more — runs too, from your PATH.
+**Requirements.** Node 22.13+, and a [Claude Code](https://claude.com/claude-code) or [Codex](https://developers.openai.com/codex) subscription you're signed in to. Ntwine brings its own pinned copy of each CLI (downloaded once, on first start), so the version on your PATH never changes what a thread runs. Any agent on your PATH that speaks the [Agent Client Protocol](https://agentclientprotocol.com) works too, including OpenCode, Gemini CLI, GitHub Copilot CLI, Cursor's agent, goose and Qwen Code.
 
-Run it from anywhere. A project is any folder you add: a repo, a jj checkout, or a folder of scripts. Ntwine has no opinion about version control and does not require Git.
+You can run it from anywhere. A project is any folder you add: a repo, a jj checkout, or a folder of scripts. Ntwine doesn't care how you do version control, and it doesn't need Git.
 
 ```sh
 $ npx ntwine
@@ -54,36 +50,36 @@ A browser tab opens on acme's board, because acme is already a project. In a rep
 
 <h2 align="center">Principles</h2>
 
-Colin designed Frizz, the original, around a few commitments. Every feature Ntwine adds is held to them too.
+These are Colin's design principles from Frizz, and Ntwine keeps all of them. I owe him a lot for thinking them through so carefully. Every feature Ntwine adds is held to them too.
 
 **The agent decides, and Ntwine checks.**
 
-- **A thread's state is its agent's own last word.** The final message says whether the work is done, needs you, or is waiting on something, and Ntwine only checks that it holds up. There is no status field to set.
-- **Ntwine never acts on an agent's behalf.** It does not answer, withdraw, park or queue for one. The few deliberate exceptions are listed below.
-- **What must outlive a message is recorded.** A question, a finish and a watch are rows, not sentences, and a wait always names what it waits on.
-- **A gate can refuse, and it has no bypass.**
-- **A question stays open until it is answered, dismissed or withdrawn.** Typing past it leaves it open. Nothing retracts it by omission.
-- **Every card can be answered or archived.** Nothing enters the queue just to be dismissed, and a running thread never enters it.
+- A thread's state is its agent's own last word. The final message says whether the work is done, needs you, or is waiting on something. Ntwine only checks that it holds up, and there's no status field to set.
+- Ntwine never acts on an agent's behalf. It doesn't answer, withdraw, park or queue for one. The few deliberate exceptions are listed below.
+- What must outlive a message gets recorded. A question, a finish and a watch are rows, not sentences, and a wait always names what it's waiting on.
+- A gate can refuse, and it has no bypass.
+- A question stays open until it's answered, dismissed or withdrawn. Typing past it leaves it open, and nothing retracts it by omission.
+- Every card can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never enters it.
 
-**The board shows what is true, densely.**
+**The board shows what's true, densely.**
 
-- **Five bands: Pinned, Queue, Running, Snoozed, Done.** Every thread is in exactly one, no view loses that, and on a board the first three never fold.
-- **Projects stay separate.** The default view is one project's board. All projects is one click away.
-- **Density over decoration, and few settings.** The default view shows at least as much as Colin's original board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
+- There are five bands: Pinned, Queue, Running, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
+- Projects stay separate. The default view is one project's board, and All projects is one click away.
+- Density over decoration, and few settings. The default view shows at least as much as Colin's original board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
 
 **Ntwine is the process that outlives the agent.**
 
-- **One server, every project.** Agents run detached and talk to Ntwine over pipes, so closing the tab, the browser or Ntwine itself never stops a turn.
-- **A wait outlives the session that set it.** A watch on a pull request, an issue or another thread lasts as long as the server does, for years if need be, and wakes the thread the moment CI settles, a review or comment lands, or the other thread answers. Agents respond on their own, without polling and without you relaying.
+- One server serves every project. Agents run detached and talk to Ntwine over pipes, so closing the tab, the browser or Ntwine itself never stops a turn.
+- A wait outlives the session that set it. A watch on a pull request, an issue or another thread lasts as long as the server does, for years if need be. It wakes the thread the moment CI settles, a review or comment lands, or the other thread answers, and the agent responds on its own. No polling, and no relaying on your part.
 
 **Ntwine brings nothing of its own.**
 
-- **No model of its own.** Ntwine drives your CLIs on your sign-in. The few small model calls it makes itself run on your Claude sign-in.
-- **No workflow of its own.** No branches or worktrees behind your back, no build steps, and no universal timeout on a background shell, since some run for days.
+- No model of its own. Ntwine drives your CLIs on your sign-in, and the few small model calls it makes itself run on your Claude sign-in.
+- No workflow of its own. No branches or worktrees behind your back, no build steps, and no universal timeout on a background shell, since some run for days.
 
-**Where Ntwine bends one, on purpose.** Each is argued in [`ARCHITECTURE.md`](ARCHITECTURE.md#where-ntwine-acts-on-a-clock-or-with-a-model) and can be turned off or ignored:
+**Where Ntwine bends one, on purpose.** Each is argued in [`ARCHITECTURE.md`](ARCHITECTURE.md#where-ntwine-acts-on-a-clock-or-with-a-model), and each can be turned off or ignored:
 
-- A question the agent marks as safe to default, unanswered 10m after its thread rests, takes the agent's recommended option; never one that posts, merges, publishes or spends. Every other question waits for you. The × under the card turns it off.
+- If the agent marks a question as safe to default and you haven't answered it 10m after its thread rests, it takes the agent's recommended option. That never applies to an option that posts, merges, publishes or spends, and every other question waits for you. The × under the card turns it off.
 - A parent waiting on its sub-agents is asked for a progress note every 30m, so a long fan-out never shows one stale line for hours.
 - Thread names, status lines, Auto effort and reading a schedule out of a prompt use your Claude sign-in. `NTWINE_THREAD_NAMER=0` and `NTWINE_AUTO_EFFORT=0` turn them off.
 - A clean worktree in `.ntwine/worktrees` idle for 7d is removed; its branch is kept. **Settings → Remove idle worktrees after** turns it off.
@@ -109,39 +105,41 @@ Colin designed Frizz, the original, around a few commitments. Every feature Ntwi
 
 <h2 align="center">What Ntwine adds</h2>
 
-- **Threads that address each other**: every thread has an `@handle`, and agents read, message and wait on other threads by it. `#slug` names a project.
-- **Spinoff**: start a new thread from any card, carrying its context, without interrupting the one you are reading.
-- **Snooze until sub-agents return**: a queued parent waiting on its sub-agents parks until every one is back, and each return still wakes it.
-- **Thread names and status lines**: a stable name for every thread, a one-line status (a hover on a board), and Auto effort.
-- **First-run onboarding**: a new browser picks a project, then gets a short tour of its board. **Take the tour** in ⌘K replays it.
-- **Schedules**: type "every weekday at 9am triage new issues" and the prompt box reads the schedule as you type. Each run starts a fresh thread.
-- **Time limits**: give a thread `2h` or `15:30`. The agent plans the best result it can deliver by then, its sub-agents get a share, and the card counts down. Running out never interrupts a turn.
-- **Thread terminals**: press `t` on a thread, or start a prompt with `$ npm test`, for a shell in the folder its agent works in. It stops when the thread is done.
-- **Home**, a board for work that belongs to no project yet: cloning a repo, a question about your machine. It is the switcher's last choice.
-- **A VS Code, Cursor and Windsurf extension**: Ntwine in the editor's sidebar. Your selection goes with your message (⌘L), agents can read what you have open, and a thread's changes open as a multi-file diff.
-- **Keyboard first**: single-key shortcuts for the queue, listed under `?`, every one rebindable.
-- **Slash commands**: Claude Code's own, plus prompts of yours that work on every agent.
-- **Files and pictures in Ntwine**: a reader that follows a file as it is saved, and a viewer that zooms, pans and pages through an agent's screenshots.
-- **Usage**: a quota chip that warns before your plan runs out, and an optional Fable fallback for new Claude threads.
-- **Housekeeping**: thread info (tokens, turns, cost), deleting done threads you have not touched in a while, and keeping the machine awake while an agent works.
-- **All projects** at `/all`, the next step after Colin's project sidebar: every project's threads down the left, every waiting card beside them, never interleaved. A project's board stays the default, and the sidebar stays as he ships it, opt-in under **Settings → Project sidebar**.
-- **[frizz.sh/docs](https://frizz.sh/docs)**: the full docs, one page per feature.
+Here's what I've built on top of Colin's design so far:
+
+- **Threads that talk to each other.** Every thread has an `@handle`, and agents use it to read, message and wait on other threads. `#slug` names a project.
+- **Spinoff.** Start a new thread from any card with its context, without interrupting the one you're reading.
+- **Snooze until sub-agents return.** A queued parent waiting on its sub-agents parks until every one is back, and each return still wakes it.
+- **Thread names and status lines.** Every thread gets a stable name and a one-line status (a hover on a board), plus Auto effort.
+- **First-run onboarding.** A new browser picks a project, then gets a short tour of its board. **Take the tour** in ⌘K replays it.
+- **Schedules.** Type "every weekday at 9am triage new issues" and the prompt box reads the schedule as you type. Each run starts a fresh thread.
+- **Time limits.** Give a thread `2h` or `15:30`. The agent plans the best result it can deliver by then, its sub-agents get a share, and the card counts down. Running out never interrupts a turn.
+- **Thread terminals.** Press `t` on a thread, or start a prompt with `$ npm test`, to get a shell in the folder its agent works in. It stops when the thread is done.
+- **Home.** A board for work that doesn't belong to a project yet, like cloning a repo or asking about your machine. It's the switcher's last choice.
+- **A VS Code, Cursor and Windsurf extension.** Ntwine lives in the editor's sidebar. Your selection goes along with your message (⌘L), agents can read what you have open, and a thread's changes open as a multi-file diff.
+- **Keyboard first.** Single-key shortcuts for the queue, listed under `?`, and every one is rebindable.
+- **Slash commands.** Claude Code's own, plus prompts of yours that work on every agent.
+- **Files and pictures.** A reader that follows a file as it's saved, and a viewer that zooms, pans and pages through an agent's screenshots.
+- **Usage.** A quota chip that warns you before your plan runs out, and an optional Fable fallback for new Claude threads.
+- **Housekeeping.** Thread info (tokens, turns, cost), deleting done threads you haven't touched in a while, and keeping the machine awake while an agent works.
+- **All projects** at `/all`. This builds on Colin's project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. A project's board is still the default, and the sidebar is still there exactly as he ships it, opt-in under **Settings → Project sidebar**.
+- **[frizz.sh/docs](https://frizz.sh/docs)**, the full docs, with one page per feature.
 
 <br/>
 
 <h2 align="center">The queue</h2>
 
-When an agent comes to rest needing you, a card is added to the queue. You read what it has done since your last message, then answer its questions, steer it, snooze the card, or mark the thread done. Every action item is in one place, in the order it arrived.
+When an agent comes to rest needing you, it adds a card to the queue. You read what it's done since your last message, then answer its questions, steer it, snooze the card, or mark the thread done. Everything that needs you is in one place, in the order it arrived.
 
-The queue is strict about what earns a card, which is what keeps it a real to-do list. A thread resting only because its own sub-agents are working, or waiting on CI, a review or a timer, isn't waiting on you, so it stays out. Nothing shows up just to be dismissed.
+The queue is strict about what earns a card, and that's what keeps it a real to-do list. A thread resting only because its own sub-agents are working, or because it's waiting on CI, a review or a timer, isn't waiting on you, so it stays out. Nothing shows up just to be dismissed.
 
-**Threads are built to run without you.** A worker keeps going until it reaches something only you can settle — a product call, a fork where guessing wrong is expensive, an irreversible action — and then hands back an answerable question rather than a wall of text.
+Threads are built to run without you. A worker keeps going until it reaches something only you can settle, like a product call, a fork where guessing wrong is expensive, or an irreversible action. Then it hands back a question you can answer, not a wall of text.
 
 <p align="center">
   <img src="assets/question.png" alt="A question card asking whether the settings store should use SQLite or a JSON file, with option 1 marked recommended, a row for typing something else, and below it the prompt box." width="100%">
 </p>
 
-Options are numbered — press a number or click to pick, Enter to send — and a worker marks the one it recommends. There is always a row for writing something else, and a typed reply leaves the question open. When the answer isn't one thing, the card takes several: check any combination and add a note. When the agent needs you to *do* something it can't — sign in, press a button — the card lists the steps over one **Done** button.
+Options are numbered. Press a number or click to pick one, then Enter to send. The worker marks the one it recommends, there's always a row for writing something else, and a typed reply leaves the question open. When the answer isn't just one thing, the card takes several: check any combination and add a note. When the agent needs you to *do* something it can't, like signing in or pressing a button, the card lists the steps over one **Done** button.
 
 <br/>
 
@@ -181,7 +179,7 @@ A **goal** is a prompt Ntwine sends every time the agent comes to rest, on a clo
 
 <h2 align="center">Schedules and time limits</h2>
 
-Write a recurring prompt the way you'd say it — "every Monday at 9am triage new issues", "first weekday of the month bump deps". The prompt box shows the rule it understood and when it next runs before you press Enter; × if you didn't mean a schedule. The next run waits in Snoozed, where you can skip it, move it or run it now. An agent can propose a schedule, and it never runs until you turn it on.
+Write a recurring prompt the way you'd say it, like "every Monday at 9am triage new issues" or "first weekday of the month bump deps". Before you press Enter, the prompt box shows the rule it understood and when it next runs. Press × if you didn't mean a schedule. The next run waits in Snoozed, where you can skip it, move it or run it now. An agent can propose a schedule, and it never runs until you turn it on.
 
 <p align="center">
   <img src="assets/schedule.png" alt="The prompt box reading 'every weekday at 9am triage new issues' as a schedule: the phrase highlighted, the send button turned into a repeat button, and a strip reading 'Every weekday at 9am · next Thu Oct 8, in 22h'." width="100%">
@@ -221,14 +219,14 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 <details>
 <summary><b>Does Ntwine run its own agent or model?</b></summary>
 
-> No. It drives Claude Code, Codex or an ACP agent under the account you are signed in to. Its own small jobs — naming a thread, its status line, choosing an effort for Auto, reading a schedule from a prompt — are short calls on that same Claude sign-in; `NTWINE_THREAD_NAMER=0` and `NTWINE_AUTO_EFFORT=0` turn them off, and each falls back to doing without. Ntwine runs its own pinned copy of each CLI; set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another.
+> No. It drives Claude Code, Codex or an ACP agent under the account you're signed in to. Ntwine does make a few short calls of its own on that same Claude sign-in: naming a thread, writing its status line, choosing an effort for Auto, and reading a schedule from a prompt. `NTWINE_THREAD_NAMER=0` and `NTWINE_AUTO_EFFORT=0` turn them off, and each one falls back to doing without. Ntwine runs its own pinned copy of each CLI. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another.
 
 </details>
 
 <details>
 <summary><b>Does anything leave my machine?</b></summary>
 
-> Nothing from Ntwine. There's no account, no telemetry, and the server binds to `127.0.0.1`; reaching it from another device is something you switch on yourself. The agents talk to their providers and `gh` talks to GitHub, but Ntwine is a local process looking at local files.
+> Nothing from Ntwine. There's no account and no telemetry, and the server binds to `127.0.0.1`. Reaching it from another device is something you switch on yourself. The agents talk to their providers and `gh` talks to GitHub, but Ntwine is a local process looking at local files.
 
 </details>
 
@@ -261,9 +259,9 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 </details>
 
 <details>
-<summary><b>How is this different from the other orchestrator apps?</b></summary>
+<summary><b>How is this different from other agent orchestrators?</b></summary>
 
-> Those apps wrap your agents in their own workflow. Ntwine doesn't: it's a viewer and a queue over the CLIs you already run, with every piece of orchestration judgment in editable text instead of inside the binary.
+> Ntwine doesn't wrap your agents in a workflow of its own. It's a viewer and a queue over the CLIs you already run, and every piece of orchestration judgment lives in text you can edit rather than inside the binary.
 
 </details>
 
@@ -298,7 +296,11 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 
 <h2 align="center">Contributing</h2>
 
-Issues and pull requests are welcome. Fork the repo, branch off `main`, and open the PR against `main`; CI runs on every pull request. Keep **Allow edits by maintainers** checked (GitHub offers it only on forks in a personal account, not an organization), so a follow-up commit from the maintainer can land in your PR rather than separately on `main`. Three checks run there, and they need no install:
+Issues and pull requests are always welcome. Fork the repo, branch off `main`, and open your PR against `main`. CI runs on every pull request.
+
+Please keep **Allow edits by maintainers** checked. That way, if I have a follow-up commit, it can land in your PR instead of separately on `main`. GitHub only offers it on forks in a personal account, not an organization.
+
+CI runs three checks, and they don't need an install:
 
 ```sh
 $ node --test board/*.test.mjs
@@ -306,7 +308,9 @@ $ node scripts/sync-portable-monitors.mjs --check
 $ node --test monitors/*.test.mjs
 ```
 
-Everything else runs locally: install with `pnpm install`, typecheck with `pnpm typecheck`, and run the full suite with `pnpm test`. That suite drives real agent CLIs and a real browser, which is why CI does not gate on it, so say in the PR what you ran. It needs current Node 22.x or ≥ 23.4; early 22.x point releases (22.15 measured) fail `receipt-bus.test.ts` on a since-fixed test-runner defect.
+Everything else runs locally. Install with `pnpm install`, typecheck with `pnpm typecheck`, and run the full suite with `pnpm test`. The suite drives real agent CLIs and a real browser, so CI doesn't gate on it. Just mention in your PR what you ran.
+
+The suite needs a current Node 22.x or ≥ 23.4. Early 22.x point releases (22.15 measured) fail `receipt-bus.test.ts` because of a test-runner bug that's since been fixed.
 
 <br/>
 

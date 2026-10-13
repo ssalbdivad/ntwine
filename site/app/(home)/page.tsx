@@ -33,11 +33,11 @@ const features = [
 // the commitments every feature is held to, one line each; /docs/principles says the rest
 const principles = [
   { title: "The agent decides.", text: "A thread's state is its agent's own last word. Ntwine only checks that it holds up." },
-  { title: "Ntwine never answers for it.", text: "Nothing is answered, parked or withdrawn on an agent's behalf, outside a short, listed set." },
+  { title: "Ntwine never answers for it.", text: "Outside a short, listed set, nothing is answered, parked or withdrawn on an agent's behalf." },
   { title: "Every card is yours to act on.", text: "Nothing enters the queue just to be dismissed, and a running thread never does." },
   { title: "Five bands, never lost.", text: "Pinned, Queue, Running, Snoozed, Done. Every thread is in exactly one." },
   { title: "One project at a time.", text: "A project's board is the default. All projects is one click away." },
-  { title: "Nothing of its own.", text: "No model, no cloud, no workflow: your CLIs on your sign-in, on localhost." },
+  { title: "Nothing of its own.", text: "No model, no cloud and no workflow. Just your CLIs on your sign-in, on localhost." },
 ];
 
 const agents = ["Claude Code", "Codex", "OpenCode", "Gemini CLI", "Copilot CLI", "Cursor", "goose", "Qwen Code"];
@@ -69,11 +69,11 @@ export default function Home() {
           <h1 className="sr-only">Ntwine</h1>
           <Mark className="h-auto w-24 md:w-28" />
           <p className="mt-8 text-3xl leading-tight font-semibold tracking-tight text-balance md:text-4xl">
-            An opinionated agent console for extreme productivity.
+            One tab for all your coding agents.
           </p>
           <p className="mt-4 text-lg text-fd-muted-foreground text-balance">
-            Run Claude Code, Codex and any ACP agent from one browser tab. Every agent that needs you becomes a card
-            in one queue.
+            Run Claude Code, Codex and any ACP agent side by side. When one needs you, it becomes a card in a single
+            queue.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link
@@ -90,7 +90,7 @@ export default function Home() {
           width={1760}
           height={1100}
           priority
-          alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with lettered options and a countdown to the recommended pick."
+          alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick."
         />
       </section>
 
@@ -104,7 +104,7 @@ export default function Home() {
       </section>
 
       <section className="py-16">
-        <Heading title="Principles." subtitle="What every feature is held to." />
+        <Heading title="Principles." subtitle="Kept from Colin McDonnell's original design. Every feature is held to them." />
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {principles.map(({ title, text }) => (
             <div key={title} className="rounded-2xl border border-dashed border-fd-border p-5">
@@ -129,12 +129,13 @@ export default function Home() {
         }
       >
         <p>
-          A worker runs until it reaches something only you can settle, then hands back a question with lettered
-          options and its own recommendation. One keystroke answers it.
+          A worker keeps going until it reaches something only you can settle. Then it hands back a question with
+          numbered options and its own recommendation, and you answer with one keystroke.
         </p>
         <p>
           Threads waiting on their own sub-agents, on CI or on a review stay out of the queue, so nothing shows up just
-          to be dismissed. A question you leave alone takes the recommended option after ten minutes.
+          to be dismissed. If the agent marks a question as safe to default and you leave it alone, it takes the
+          recommended option after 10m.
         </p>
       </Split>
 
@@ -143,13 +144,13 @@ export default function Home() {
           <Heading title="Waits that outlive the agent." />
           <div className="mt-5 space-y-4 text-lg text-fd-muted-foreground">
             <p>
-              An agent waiting on CI, a review, a reporter&rsquo;s reply or another thread registers a watch and rests,
-              out of your queue. Ntwine holds the watch, not the agent&rsquo;s session, so it lasts as long as the
-              server: days, or years.
+              An agent waiting on CI, a review, a reporter&rsquo;s reply or another thread registers a watch and rests
+              outside your queue. Ntwine holds the watch, not the agent&rsquo;s session, so it lasts as long as the
+              server does. That can be days, or years.
             </p>
             <p>
-              When something lands, the thread wakes and answers it on its own. Every thread has an{" "}
-              <Code>@handle</Code>, so agents read, message and wait on each other the same way.
+              When something lands, the thread wakes up and handles it on its own. Every thread has an{" "}
+              <Code>@handle</Code>, so agents can read, message and wait on each other the same way.
             </p>
           </div>
           <More href="/docs/github#watchers">Watchers</More>
@@ -179,12 +180,13 @@ export default function Home() {
         }
       >
         <p>
-          One server serves every repo on your machine, and each gets its own board. Run <Code>npx ntwine</Code> in a
-          second one and it joins. All projects shows every board&rsquo;s work at once, one click away.
+          One server serves every repo on your machine, and each one gets its own board. Run{" "}
+          <Code>npx ntwine</Code> in a second repo and it joins. All projects is one click away and shows every
+          board&rsquo;s work at once.
         </p>
         <p>
-          Each agent runs in its own background process. Close the tab or stop Ntwine, and it keeps working; relaunch,
-          and Ntwine reconnects.
+          Each agent runs in its own background process. Close the tab or stop Ntwine and it keeps working. When you
+          relaunch, Ntwine reconnects.
         </p>
       </Split>
 
@@ -213,8 +215,8 @@ export default function Home() {
         }
       >
         <p>
-          Type &ldquo;every weekday at 9am triage new issues&rdquo; and the prompt box reads the schedule as you type,
-          showing when it next runs. Each run starts a fresh thread that lands in the queue like any other.
+          Type &ldquo;every weekday at 9am triage new issues&rdquo; and the prompt box reads the schedule as you type
+          and shows when it next runs. Each run starts a fresh thread that lands in the queue like any other.
         </p>
       </Split>
 
@@ -227,8 +229,8 @@ export default function Home() {
         }
       >
         <p>
-          Give a thread &ldquo;2h&rdquo; or &ldquo;15:30&rdquo;. The agent plans for the best result it can hand over
-          by then, gets reminders as time runs out, and passes a share of it to its sub-agents. The card counts down.
+          Give a thread &ldquo;2h&rdquo; or &ldquo;15:30&rdquo;. The agent plans the best result it can hand over by
+          then, gets reminders as time runs low, and gives its sub-agents a share. Meanwhile, the card counts down.
         </p>
       </Split>
 
@@ -237,12 +239,12 @@ export default function Home() {
           <Heading title="From your phone, too." />
           <div className="mt-5 space-y-4 text-lg text-fd-muted-foreground">
             <p>
-              Press <Code>R</Code> in the terminal running Ntwine and pick how a phone reaches it. A private frizz.sh
-              name needs no account and nothing installed.
+              Press <Code>R</Code> in the terminal running Ntwine and pick how your phone should reach it. A private
+              frizz.sh name needs no account and nothing installed.
             </p>
             <p>
-              Ntwine stays on localhost either way, and the first visit from each device needs a single-use sign-in
-              link, shown as a QR code.
+              Either way, Ntwine stays on localhost. The first visit from each device needs a single-use sign-in link,
+              which it shows as a QR code.
             </p>
           </div>
           <More href="/docs/remote-access">Remote access</More>
@@ -260,7 +262,7 @@ export default function Home() {
 
 
       <section className="flex flex-col items-center py-24 text-center">
-        <p className="text-lg text-fd-muted-foreground">Ready to clear your queue?</p>
+        <p className="text-lg text-fd-muted-foreground">Give it a try. It takes one command.</p>
         <div className="mt-6">
           <Install />
         </div>
@@ -272,6 +274,10 @@ export default function Home() {
       <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-fd-border py-8 text-sm text-fd-muted-foreground">
         <span>
           MIT licensed. By{" "}
+          <a href="https://github.com/ssalbdivad" className="hover:text-fd-foreground">
+            @ssalbdivad
+          </a>
+          , from an original design by{" "}
           <a href="https://x.com/colinhacks" className="hover:text-fd-foreground">
             @colinhacks
           </a>

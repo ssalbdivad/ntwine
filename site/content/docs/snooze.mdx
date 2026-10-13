@@ -1,20 +1,20 @@
 ---
 title: Snooze
-description: Park a card until later, optionally with what to do when it wakes.
+description: Park a card until later, and optionally tell it what to do when it wakes.
 ---
 
-Not everything needs an answer now. Snooze a card from the alarm clock in its header, or press <kbd>s</kbd>, and it leaves the queue for the **Snoozed** band until its time comes.
+Snoozing a card takes it out of the queue until a time you pick. Click the alarm clock in its header, or press <kbd>s</kbd>, and it moves to the **Snoozed** band until then.
 
 <Shot src="/img/snooze.png" width={1600} height={1090} alt="The snooze menu opened from the alarm clock in a queue card's header, offering 1h, tomorrow, 1d, 3d, 1w and a custom time." />
 
-Pick an hour, tomorrow morning, a few days, a week, or a date and time of your own. "Tomorrow" rolls over at 5am, so a snooze set after midnight still means the next morning.
+You can pick an hour, tomorrow morning, a few days, a week, or your own date and time. "Tomorrow" rolls over at 5am, so a snooze you set after midnight still means the next morning.
 
 ## With a follow-up
 
-Attach a prompt to the snooze and the thread wakes up already working on it — "check whether CI went green and fix it if not" — instead of waking up to wait for you.
+If you attach a prompt to the snooze, the thread wakes up already working on it ("check whether CI went green and fix it if not") instead of waking up just to wait for you.
 
 ## Until its sub-agents return
 
-A card whose worker is waiting on its own sub-agents can be snoozed until all of them are back, so it returns to the queue only when there is something to read.
+If a card's worker is waiting on its own sub-agents, you can snooze it until all of them are back. It returns to the queue only once there's something to read.
 
-Waiting on something outside — a pull request, an issue, a timer — doesn't need a snooze at all: the worker [watches it](/docs/github#watchers) and the thread stays out of the queue on its own.
+You don't need a snooze to wait on something outside, like a pull request, an issue or a timer. The worker [watches it](/docs/github#watchers), and the thread stays out of the queue on its own.

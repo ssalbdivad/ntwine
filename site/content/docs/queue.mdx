@@ -1,34 +1,34 @@
 ---
 title: The queue
-description: One list of the threads that need you, worked top to bottom.
+description: One list of the threads that need you, in the order they got there.
 ---
 
-A sidebar of sessions makes every agent something you have to remember to check on. Ntwine gives you one queue instead.
+The queue is the list of threads that need you. Instead of checking on each agent yourself, you work through one list.
 
-When an agent comes to rest needing you, its thread becomes a card. You read what it did since your last message, then answer its question, steer it, [snooze](/docs/snooze) it, or mark it done. Every action item is in one place, in the order it arrived.
+When an agent comes to rest and needs you, its thread becomes a card. You read what it did since your last message, then answer its question, steer it, [snooze](/docs/snooze) it or mark it done. Everything you need to act on is in one place, in the order it arrived.
 
 <Shot src="/img/question.png" width={1600} height={558} alt="A question card asking whether the settings store should use SQLite or a JSON file, with option A marked recommended, a row for typing something else, and below it a countdown to the recommended pick." />
 
 ## Only what needs you
 
-The queue is strict about what earns a card, which keeps it a real to-do list. A thread resting only because its own sub-agents are still working, or because it is waiting on CI, a review or a timer, isn't waiting on you. It stays out of the queue until something changes. Nothing shows up just to be dismissed.
+A thread only gets a card if it's actually waiting on you, so the queue stays a real to-do list. A thread that's resting because its own sub-agents are still working, or because it's waiting on CI, a review or a timer, isn't waiting on you. It stays out of the queue until something changes. Nothing shows up just to be dismissed.
 
 ## The bands
 
-Every thread is in exactly one of five bands. A project's board names them, and Pinned, Queue and Running never fold.
+Every thread is in exactly one of five bands. A project's board names all of them, and Pinned, Queue and Running never fold.
 
-| Band | What is in it |
+| Band | What's in it |
 | --- | --- |
-| **Pinned** | Threads you pinned, whatever they are doing, until you unpin them. |
-| **Queue** | Threads at rest that need you, or stopped on a permission prompt. One row per card, each with how long it has waited. |
+| **Pinned** | Threads you pinned, whatever they're doing, until you unpin them. |
+| **Queue** | Threads at rest that need you, or that stopped on a permission prompt. One row per card, each with how long it has waited. |
 | **Running** | Threads whose agents are working right now, however long they go quiet. |
-| **Snoozed** | Threads you parked, and threads waiting on something outside — a PR, an issue, a timer, the next run of a [schedule](/docs/schedules). |
+| **Snoozed** | Threads you parked, and threads waiting on something outside: a PR, an issue, a timer or the next run of a [schedule](/docs/schedules). |
 | **Done** | Threads you marked done. Reply to one to pick it back up. |
 
 ## Order
 
-The queue runs oldest first by default, so you cycle through everything; **Settings** can flip it to newest first. A card you are reading never moves under you: new arrivals join the bottom while the page is open.
+By default the queue runs oldest first, so you cycle through everything. You can flip it to newest first under **Settings**. A card you're reading never moves under you: while the page is open, new arrivals join the bottom.
 
 ## Working it
 
-<kbd>j</kbd> and <kbd>k</kbd> walk the cards, <kbd>r</kbd> replies, <kbd>d</kbd> marks done and opens the next, and <kbd>s</kbd> snoozes. See [keyboard shortcuts](/docs/keyboard) for the rest.
+<kbd>j</kbd> and <kbd>k</kbd> move between cards, <kbd>r</kbd> replies, <kbd>d</kbd> marks done and opens the next one, and <kbd>s</kbd> snoozes. The rest are in [keyboard shortcuts](/docs/keyboard).

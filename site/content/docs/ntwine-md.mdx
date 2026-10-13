@@ -1,11 +1,11 @@
 ---
 title: NTWINE.md
-description: Your repo's own norms, injected into every thread.
+description: Tell every agent in a project how you want things done.
 ---
 
-`NTWINE.md` is an optional file at the root of a project. Its contents are injected into the system prompt of every thread in that project, Claude Code and Codex alike, and they take precedence over Ntwine's own defaults for how a worker goes about its job.
+`NTWINE.md` is an optional file at the root of a project. Ntwine injects it into the system prompt of every thread in that project, Claude Code and Codex alike. Where it disagrees with Ntwine's own defaults for how a worker goes about its job, it wins.
 
-Use it for what you want every agent here to do: how to land work, what to verify before calling something done, how much to ask before acting.
+It's the place for anything you want every agent in the project to do, like how to land work, what to verify before calling something done, or how much to ask before acting.
 
 ```md title="NTWINE.md"
 # Worker norms for this repo
@@ -15,12 +15,16 @@ Use it for what you want every agent here to do: how to land work, what to verif
 - Decide reversible calls yourself. Ask only before something destructive.
 ```
 
-Ntwine has no opinion about your git workflow, so this is where you give it one. By default a worker commits, pushes or opens a pull request only when your request or this file asks it to.
+Ntwine doesn't assume anything about your git workflow, so this is where you spell yours out. By default, a worker only commits, pushes or opens a pull request when your request or this file asks it to.
 
 ## Editing it
 
-Open the agent settings beside the model picker and edit **Project instructions**. They save to `NTWINE.md` at the repo root, where they can be committed and reviewed, and take effect on the next thread you start and on any thread when it next resumes.
+Open the agent settings next to the model picker and edit **Project instructions**. They save to `NTWINE.md` at the repo root, so you can commit and review them like any other file.
+
+Changes take effect on the next thread you start, and on any existing thread the next time it resumes.
 
 ## Alongside AGENTS.md and CLAUDE.md
 
-A worker still reads your `AGENTS.md`, `CLAUDE.md` and skills as it would in a session you started yourself. `NTWINE.md` is for what only applies when an agent runs under Ntwine. Ntwine's own repository keeps [its `NTWINE.md`](https://github.com/colinhacks/frizz/blob/main/NTWINE.md) as a worked example.
+A worker still reads your `AGENTS.md`, `CLAUDE.md` and skills, the same way it would in a session you started yourself. `NTWINE.md` is just for what applies when an agent runs under Ntwine.
+
+If you want a worked example, Ntwine's own repository keeps [its `NTWINE.md`](https://github.com/colinhacks/frizz/blob/main/NTWINE.md).

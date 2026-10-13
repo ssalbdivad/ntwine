@@ -1,23 +1,17 @@
 ---
 title: Introduction
-description: An opinionated agent console for extreme productivity.
+description: Run all your coding agents from one tab, with one queue for the ones that need you.
 ---
 
-Ntwine runs your coding agents — Claude Code, Codex, and any agent that speaks the Agent Client Protocol — from one browser tab. Every agent that comes to rest needing you becomes a card in one queue, so you work through a list instead of checking on ten terminals.
+Ntwine runs your coding agents from one browser tab. That includes Claude Code, Codex, and any agent that speaks the Agent Client Protocol. When an agent comes to rest needing you, it becomes a card in a single queue, so you can work through a list instead of checking on ten terminals.
 
 ```bash
 npx ntwine
 ```
 
-It brings no model of its own and no workflow of its own. It drives the CLIs you already pay for, under your sign-in, and keeps every opinion it has in a text file you can edit.
+Ntwine doesn't bring a model or a workflow of its own. It drives the CLIs you already pay for under your sign-in, and every opinion it has lives in a text file you can edit.
 
-<Shot src="/img/board.png" width={1760} height={1100} alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with lettered options and a countdown to the recommended pick." />
-
-## Ntwine is for you if
-
-- Terminal UIs feel dated and get in the way of good user experience.
-- Orchestrator apps like Conductor feel overly complex.
-- Switching between sessions to check on agents is tedious.
+<Shot src="/img/board.png" width={1760} height={1100} alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick." />
 
 ## What it does
 
@@ -26,7 +20,7 @@ It brings no model of its own and no workflow of its own. It drives the CLIs you
     An agent that needs you becomes a card. Answer it, steer it, snooze it, or mark it done.
   </Card>
   <Card title="Answerable questions" href="/docs/questions">
-    Agents ask with lettered options and a recommendation. One keystroke answers.
+    Agents ask with numbered options and a recommendation. One keystroke answers.
   </Card>
   <Card title="A board per project" href="/docs/projects">
     One server serves every repo on your machine. Each has its own board, and All projects is a click away.
@@ -50,15 +44,15 @@ It brings no model of its own and no workflow of its own. It drives the CLIs you
 
 ## What it is not
 
-- **Not a model.** Ntwine drives the CLIs you already have signed in, on your subscription.
-- **Not a cloud.** No account, no telemetry. The server binds `127.0.0.1`, and its state lives in your user directory, never in your checkout.
-- **Not a workflow.** No worktrees, branches, or build steps behind your back. A thread behaves like a session you started yourself.
+- It's not a model. Ntwine drives the CLIs you already have signed in, on your subscription.
+- It's not a cloud. There's no account and no telemetry. The server binds `127.0.0.1`, and its state lives in your user directory, never in your checkout.
+- It's not a workflow. No worktrees, branches or build steps happen behind your back, and a thread behaves like a session you started yourself.
 
 ## Where next
 
 <Cards>
   <Card title="Principles" href="/docs/principles">
-    The commitments every feature is held to.
+    Colin McDonnell's design commitments, which every feature is held to.
   </Card>
   <Card title="Quick start" href="/docs/quick-start">
     From `npx ntwine` to your first answered question.

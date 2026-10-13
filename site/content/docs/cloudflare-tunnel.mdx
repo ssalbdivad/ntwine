@@ -1,9 +1,9 @@
 ---
 title: Cloudflare Tunnel
-description: Reach the board at your own domain, without opening a port.
+description: Open your board at your own domain without opening a port.
 ---
 
-A tunnel reaches a board from anywhere without opening a port. It needs a domain you control on Cloudflare, and [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) on your PATH.
+A tunnel lets you reach your board from anywhere without opening a port. You'll need a domain you control on Cloudflare, and [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) on your PATH.
 
 ## Create the tunnel once
 
@@ -13,11 +13,11 @@ cloudflared tunnel create my-board
 cloudflared tunnel route dns my-board board.example.com
 ```
 
-`login` opens a browser to pick your zone. `create` writes a credentials JSON under `~/.cloudflared/` and prints the tunnel id. `route dns` adds the CNAME that points your hostname at the tunnel.
+`login` opens a browser so you can pick your zone. `create` writes a credentials JSON under `~/.cloudflared/` and prints the tunnel id. `route dns` adds the CNAME that points your hostname at the tunnel.
 
 ## Point the tunnel at the board
 
-Write this to `~/.cloudflared/ntwine.yml`, which Ntwine looks for by name. Keep it out of `config.yml`, whose catch-all shadows other tunnels:
+Write this to `~/.cloudflared/ntwine.yml`, which Ntwine looks for by name. Keep it out of `config.yml`, since its catch-all shadows other tunnels:
 
 ```yaml title="~/.cloudflared/ntwine.yml"
 tunnel: my-board
@@ -38,6 +38,6 @@ ingress:
   Tunnel    my-board
 ```
 
-Ntwine asks which tunnel serves the hostname rather than guessing from its first label — a tunnel is rarely named after its host. Both answers are remembered, and it checks that `cloudflared` is on this machine before accepting them.
+Ntwine asks which tunnel serves the hostname instead of guessing from its first label, because a tunnel is rarely named after its host. It remembers both answers, and checks that `cloudflared` is on this machine before accepting them.
 
-Ntwine then runs the tunnel beside the board, so the two share a lifetime. A tunnel that outlives its board serves Cloudflare error 1033 to anyone who visits; a board that outlives its tunnel is unreachable with nothing to say why.
+Ntwine then runs the tunnel beside the board, so the two share a lifetime. A tunnel that outlives its board serves Cloudflare error 1033 to anyone who visits. A board that outlives its tunnel is unreachable with nothing to say why.

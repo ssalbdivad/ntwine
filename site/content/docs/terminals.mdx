@@ -1,16 +1,22 @@
 ---
 title: Terminals
-description: A shell in the folder a thread's agent works in.
+description: Open a shell right where a thread's agent is working.
 ---
 
-Press <kbd>t</kbd> on a thread, or choose **Open terminal** from its <kbd>⋯</kbd> menu, and Ntwine opens a shell in the folder that thread's agent is working in — its worktree, if it made one.
+Press <kbd>t</kbd> on a thread, or choose **Open terminal** from its <kbd>⋯</kbd> menu, and Ntwine opens a shell in the folder that thread's agent is working in. If the agent made a worktree, that's where you'll be.
 
-To run one command, start a prompt with `$`:
+If you just want to run one command, start a prompt with `$`:
 
 ```text
 $ npm test
 ```
 
-The terminal belongs to that thread. It shows on the thread's card and in its drawer beside the agent's own background shells, a finished command can take the next one, and the terminal stops when you mark the thread done. A thread with many terminals folds the older ones away.
+The terminal belongs to that thread:
 
-<kbd>y</kbd> copies the command that resumes the thread's session in a terminal of your own instead.
+- It shows on the thread's card and in its drawer, next to the agent's own background shells.
+- Once a command finishes, you can run the next one in the same terminal.
+- It stops when you mark the thread done.
+
+If a thread has a lot of terminals, the older ones fold away.
+
+Would you rather use a terminal of your own? Press <kbd>y</kbd> to copy the command that resumes the thread's session there.

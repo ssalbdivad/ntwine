@@ -6,10 +6,10 @@ description: From npx ntwine to your first answered question.
 ## Requirements
 
 - **Node 22.13 or later.**
-- **A Claude Code or Codex subscription you are signed in to.** Ntwine drives the subscription you already pay for. It brings its own pinned copy of each CLI, downloaded once on first start, so the version on your PATH never changes what a thread runs.
+- **A Claude Code or Codex subscription you're signed in to.** Ntwine drives the subscription you already pay for. It brings its own pinned copy of each CLI, downloaded once on first start, so the version on your PATH never changes what a thread runs.
 - Optionally, any [ACP agent](/docs/agents#acp-agents) on your PATH: OpenCode, Gemini CLI, GitHub Copilot CLI, Cursor's agent, goose, Qwen Code and more.
 
-Ntwine runs on macOS, Linux and Windows. It has no opinion about version control and does not need Git.
+Ntwine runs on macOS, Linux and Windows. It doesn't care how you do version control, and it doesn't need Git.
 
 <Steps>
 
@@ -31,7 +31,7 @@ npx ntwine
   press ctrl-c to stop · run with --debug for the full event feed
 ```
 
-A browser tab opens on acme's board. Ntwine listens on port 9393 (19393 if something else holds it). The first time, Ntwine asks whether to add the repository as a [project](/docs/projects); running the command never adds one by itself.
+A browser tab opens on acme's board. Ntwine listens on port 9393 (19393 if something else holds it). The first time, it asks whether to add the repository as a [project](/docs/projects). Running the command never adds one by itself.
 
 The first time a browser opens Ntwine, a short tour points out the project switcher, the prompt box, the queue and the thread list. A browser that opens a bare `http://127.0.0.1:9393/` first asks which project to start in, listing every project Ntwine knows. **Take the tour** in <kbd>⌘</kbd><kbd>K</kbd> replays it.
 
@@ -41,7 +41,7 @@ The first time a browser opens Ntwine, a short tour points out the project switc
 
 ### Start a thread
 
-Type a task in the prompt box and press <kbd>Enter</kbd>. Pick the agent, model and effort beside the box, or leave effort on **auto** and a quick model picks it for each prompt.
+Type a task in the prompt box and press <kbd>Enter</kbd>. You can pick the agent, model and effort beside the box. If you leave effort on **auto**, a quick model picks it for each prompt.
 
 </Step>
 
@@ -49,7 +49,7 @@ Type a task in the prompt box and press <kbd>Enter</kbd>. Pick the agent, model 
 
 ### Answer when it asks
 
-The agent works on its own until it reaches something only you can settle. Then its thread becomes a card in the queue, usually with a [question](/docs/questions) to answer in one keystroke. Reply, [snooze](/docs/snooze) it, or mark it done with <kbd>d</kbd>.
+The agent works on its own until it reaches something only you can settle. Then its thread becomes a card in the queue, usually with a [question](/docs/questions) you can answer in one keystroke. From there you can reply, [snooze](/docs/snooze) it, or mark it done with <kbd>d</kbd>.
 
 </Step>
 
@@ -57,7 +57,7 @@ The agent works on its own until it reaches something only you can settle. Then 
 
 ### Add another project
 
-Run `npx ntwine` in a second repo. It joins the server already running and asks whether to add the repo; once you confirm, its board opens. The switcher above the prompt box moves between projects, and its first choice, **All projects**, shows every project at once.
+Run `npx ntwine` in a second repo. It joins the server that's already running and asks whether to add the repo. Once you confirm, its board opens. The switcher above the prompt box moves between projects, and its first choice, **All projects**, shows every project at once.
 
 </Step>
 
@@ -73,4 +73,4 @@ The [VS Code extension](/docs/editor) puts Ntwine beside your code.
 npx ntwine --sandbox
 ```
 
-A disposable Ntwine: a throwaway home and project on its own port, deleted when the terminal closes. Your credentials come along, so it sees what your real board sees.
+This starts a disposable Ntwine with a throwaway home and project on its own port, and deletes it when the terminal closes. Your credentials come along, so it sees what your real board sees.
