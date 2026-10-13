@@ -80,12 +80,20 @@ async function fakeNtwine(answer: (procedure: string, body: any) => { status?: n
 
 interface Ran { code: number | null; stdout: string; stderr: string }
 
+/** The test runner's environment with every Ntwine identity removed — both spellings, since a runner
+ *  inside a worker started before the rename carries FRIZZ_*, which the command line adopts as NTWINE_*
+ *  (cc-worker/lib/legacy-env.mjs) wherever the NTWINE_ key is unset. Left in, a leaked server lock or
+ *  project id sends the test's calls to the live server instead of the fake one. */
+function hostEnv(): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(NTWINE|FRIZZ)_/.test(key)))
+}
+
 /** One invocation. `env` REPLACES the Ntwine identity a test runner inside a worker would leak in. */
 function run(argv: string[], opts: { env?: Record<string, string>; stdin?: string; cwd?: string; holdStdinOpen?: boolean } = {}): Promise<Ran> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [NTWINECTL, ...argv], {
       cwd: opts.cwd ?? mkdtempSync(join(tmpdir(), "ntwinectl-cwd-")),
-      env: { ...process.env, NTWINE_THREAD: "", NTWINE_THREAD_SLUG: "", NTWINE_STATE_DIR: "", NTWINE_PERM_DIR: "", NTWINE_SERVER_LOCK: "", NTWINE_PROJECT_ID: "", ...opts.env },
+      env: { ...hostEnv(), ...opts.env },
       stdio: ["pipe", "pipe", "pipe"],
     })
     let stdout = ""
@@ -247,7 +255,7 @@ test("a body through a quoted heredoc reaches Ntwine byte for byte — backticks
     const script = `ntwinectl done --body-file - <<'EOF'\n${body}\nEOF`
     const ran = await new Promise<Ran>((resolve) => {
       const child = spawn("sh", ["-c", script], {
-        env: { ...process.env, ...worker(fake), NTWINE_THREAD_SLUG: "", NTWINE_NODE: process.execPath, PATH: `${BIN}${delimiter}${process.env.PATH}` },
+        env: { ...hostEnv(), ...worker(fake), NTWINE_NODE: process.execPath, PATH: `${BIN}${delimiter}${process.env.PATH}` },
         stdio: ["ignore", "pipe", "pipe"],
       })
       let stdout = ""
@@ -475,7 +483,7 @@ test("every example in every command's help runs as written", async () => {
         const ran = await new Promise<Ran>((resolve) => {
           const child = spawn("sh", ["-c", example], {
             cwd,
-            env: { ...process.env, ...worker(fake), NTWINE_THREAD_SLUG: "", NTWINE_NODE: process.execPath, PATH: `${BIN}${delimiter}${process.env.PATH}` },
+            env: { ...hostEnv(), ...worker(fake), NTWINE_NODE: process.execPath, PATH: `${BIN}${delimiter}${process.env.PATH}` },
             stdio: ["ignore", "pipe", "pipe"],
           })
           let stdout = ""
@@ -518,7 +526,7 @@ test("every ntwinectl example the worker contract writes out runs as written, an
         const ran = await new Promise<Ran>((resolve) => {
           const child = spawn("sh", ["-c", example], {
             cwd: mkdtempSync(join(tmpdir(), "ntwinectl-contract-")),
-            env: { ...process.env, ...worker(fake), NTWINE_THREAD_SLUG: "", NTWINE_NODE: process.execPath, PATH: `${BIN}${delimiter}${process.env.PATH}` },
+            env: { ...hostEnv(), ...worker(fake), NTWINE_NODE: process.execPath, PATH: `${BIN}${delimiter}${process.env.PATH}` },
             stdio: ["ignore", "pipe", "pipe"],
           })
           let stdout = ""
