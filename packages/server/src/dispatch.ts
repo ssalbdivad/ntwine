@@ -20,6 +20,7 @@ import {
 } from "@ntwine/shared"
 import { log as ntwineLog } from "./logging.ts"
 import { PERM_DIR_ENV, permRequestDir, workDirOf, type Project } from "./project.ts"
+import { projectInstructionsPath } from "./project-instructions.ts"
 import type { SessionRow, Storage } from "./storage.ts"
 import { isHeldRow } from "./storage.ts"
 import type { BoardManager } from "./board.ts"
@@ -504,7 +505,7 @@ export function dispatchDeadline(raw: string, nowMs = Date.now()): { deadlineAt:
 }
 
 export function ntwineConfigBlock(projectDir: string): string {
-  const path = join(projectDir, "NTWINE.md")
+  const path = projectInstructionsPath(projectDir)
   let body: string
   try {
     const st = statSync(path) // follows a symlink to its target; ENOENT/ELOOP throw → caught

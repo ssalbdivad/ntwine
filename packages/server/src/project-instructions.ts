@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 // The "Project instructions" editor in the model picker's agent settings is an editor for the
@@ -15,6 +15,19 @@ import { join } from "node:path"
 // revision it was based on, and a write whose base no longer matches the disk is refused with the
 // current content, so the operator reloads instead of silently overwriting.
 export const PROJECT_INSTRUCTIONS_FILE = "NTWINE.md"
+/** The name before the Frizz -> Ntwine rename (2026-10-13), still read in a repo that has only it. */
+const LEGACY_PROJECT_INSTRUCTIONS_FILE = "FRIZZ.md"
+
+/**
+ * The project's instructions file: `NTWINE.md`, or a `FRIZZ.md` a repository committed before the
+ * rename and has not renamed. It is the repository's own file, so Ntwine reads and edits it in place
+ * rather than renaming it.
+ */
+export function projectInstructionsPath(projectDir: string): string {
+  const current = join(projectDir, PROJECT_INSTRUCTIONS_FILE)
+  const legacy = join(projectDir, LEGACY_PROJECT_INSTRUCTIONS_FILE)
+  return !existsSync(current) && existsSync(legacy) ? legacy : current
+}
 // Same ceiling ntwineConfigBlock reads under: a file past it is not injected AT ALL, so the editor must
 // not be able to write one.
 export const PROJECT_INSTRUCTIONS_MAX_BYTES = 64 * 1024
@@ -31,7 +44,7 @@ function revisionOf(bytes: string): string {
 // lstat, not stat: a symlinked or otherwise special NTWINE.md is left for the operator's own editor.
 // Writing through a symlink would edit a file outside the project; replacing it would sever the link.
 function readRaw(projectDir: string): { kind: "missing" } | { kind: "file"; bytes: string } | { kind: "other" } {
-  const path = join(projectDir, PROJECT_INSTRUCTIONS_FILE)
+  const path = projectInstructionsPath(projectDir)
   let st
   try {
     st = lstatSync(path)
@@ -58,7 +71,7 @@ export function writeProjectInstructions(projectDir: string, content: string, ba
   if (raw.kind === "other") return { ok: false, reason: "notAFile", ...current }
   if (current.revision !== baseRevision) return { ok: false, reason: "conflict", ...current }
   if (Buffer.byteLength(content, "utf8") > PROJECT_INSTRUCTIONS_MAX_BYTES) return { ok: false, reason: "tooLarge", ...current }
-  const path = join(projectDir, PROJECT_INSTRUCTIONS_FILE)
+  const path = projectInstructionsPath(projectDir)
   if (!content.trim()) {
     rmSync(path, { force: true })
     return { ok: true, content: "", revision: "" }
