@@ -453,9 +453,13 @@ function resolveNtwinePaths(
   return isInstall(frizz, exists) ? frizz : current
 }
 
-/** Every launch writes the registry, so an install is a root that holds one (or a dot-dir that won). */
+/**
+ * Every launch writes the registry, so an install is a root that holds one. Deliberately not "a dot-dir
+ * that won": an empty `~/.ntwine` (which the sandbox harnesses create on purpose) must not hide a
+ * Frizz install that has a registry.
+ */
 function isInstall(paths: NtwinePaths, exists: (path: string) => boolean): boolean {
-  return paths.legacy || exists(join(paths.data, "registry.json"))
+  return exists(join(paths.data, "registry.json"))
 }
 
 function resolveBrand(

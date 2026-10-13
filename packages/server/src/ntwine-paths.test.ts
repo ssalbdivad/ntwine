@@ -76,6 +76,13 @@ test("a Frizz-era install keeps its frizz roots; a fresh machine and an Ntwine i
     assert.equal(legacy.data, join(legacyHome, ".frizz"))
     assert.equal(legacy.legacy, true)
     rmSync(legacyHome, { recursive: true, force: true })
+
+    const emptyDotDir = mkdtempSync(join(tmpdir(), "ntwine-paths-frizz-empty-"))
+    mkdirSync(legacyNtwineRoot(emptyDotDir))
+    mkdirSync(join(emptyDotDir, ".local", "share", "frizz"), { recursive: true })
+    writeFileSync(join(emptyDotDir, ".local", "share", "frizz", "registry.json"), "{}")
+    assert.equal(ntwinePaths({ ...linux, home: emptyDotDir }).data, join(emptyDotDir, ".local", "share", "frizz"), "an empty ~/.ntwine does not hide a Frizz install")
+    rmSync(emptyDotDir, { recursive: true, force: true })
   } finally {
     rmSync(base, { recursive: true, force: true })
   }
