@@ -357,18 +357,3 @@ test("a second heavy job from a session at its cap queues, says why once, and st
   const queued = lines.find((l) => l.cmd === "sh -c echo second")
   assert.ok(queued.queueWaitMs >= 800, `waited ${queued.queueWaitMs}ms`)
 })
-
-// ───────────────────────────── state from before the Frizz -> Ntwine rename
-
-test("a host whose queue predates the rename keeps it, config keys and all, until an ntwine one exists", () => {
-  const xdg = mkdtempSync(join(tmpdir(), "job-gate-xdg-"))
-  const env = { XDG_STATE_HOME: xdg }
-  assert.equal(readSettings(env).dir, join(xdg, "ntwine", "job-gate"), "a fresh host gets the current name")
-  mkdirSync(join(xdg, "frizz", "job-gate"), { recursive: true })
-  writeFileSync(join(xdg, "frizz", "job-gate", "config.json"), JSON.stringify({ FRIZZ_GATE: "0" }))
-  const legacy = readSettings(env)
-  assert.equal(legacy.dir, join(xdg, "frizz", "job-gate"))
-  assert.equal(legacy.enabled, false, "the old off-switch key still switches the gate off")
-  mkdirSync(join(xdg, "ntwine", "job-gate"), { recursive: true })
-  assert.equal(readSettings(env).dir, join(xdg, "ntwine", "job-gate"), "an ntwine queue outranks it")
-})

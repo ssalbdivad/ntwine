@@ -23,7 +23,7 @@
 // A fresh worker never runs `ntwine on`, so such a cc is already dormant; we write cc's own per-session
 // `off` sentinel anyway via the shared config API (board survives as cc-worker's board
 // implementation) so a stale install is guaranteed inert. Cheap belt-and-suspenders. See DECISIONS.md.
-import { boardDirName } from '../lib/legacy-env.mjs';
+import '../lib/legacy-env.mjs';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -56,9 +56,7 @@ try {
 } catch {
   /* best-effort — a failed sentinel write just leaves cc at its dormant default */
 }
-const scratchBase = boardRoot
-  ? join(boardRoot, boardDirName(boardRoot), 'threads') + '/'
-  : boardDirName(process.cwd()) + '/threads/';
+const scratchBase = boardRoot ? join(boardRoot, '.ntwine', 'threads') + '/' : '.ntwine/threads/';
 const scratch = scratchBase + (sid ? sid + '/' : '<session-id>/');
 
 // A RUNTIME pointer, NOT a copy of the contract. The full worker contract (signal fences,

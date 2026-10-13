@@ -77,7 +77,7 @@ export interface DiscoveryResult {
 export interface DiscoveryOptions {
   /** The `ntwine.serverUrl` setting; empty means find it. */
   serverUrl?: string
-  roots?: Pick<NtwinePaths, "data" | "state"> & Partial<Pick<NtwinePaths, "brand">>
+  roots?: Pick<NtwinePaths, "data" | "state">
   ports?: readonly number[]
   timeoutMs?: number
   pidAlive?: (pid: number) => boolean
@@ -138,6 +138,7 @@ export async function readHealth(origin: string, timeoutMs = 1_000): Promise<Ntw
  */
 export function launchTokenProof(projectId: string, projectDir: string, token: string): string {
   return createHash("sha256")
+    // The pre-rename tag, kept on purpose: see projectLaunchTokenProof.
     .update("frizz-project-launch-v2\0")
     .update(projectId)
     .update("\0")
@@ -201,10 +202,7 @@ export async function ownedNtwine(port: number, data: string, timeoutMs = 1_000)
 
 /** `STABLE_SERVER_OWNER_PROJECT_ID`: the fixed id of the one machine-wide server target, never a repository's. */
 const STABLE_SERVER_OWNER_ID = "c1fd5810-0f8a-4c1d-91a0-6d7445d28e5a"
-/** server-owner.ts `stableServerOwnerName`: a Frizz-era install keeps its `frizz-server` lease. */
-function stableServerDir(roots: { brand?: NtwinePaths["brand"] }): string {
-  return roots.brand === "frizz" ? "frizz-server" : "ntwine-server"
-}
+const STABLE_SERVER_DIR = "ntwine-server"
 const GENERATION_TAG_RE = /^(?:linux|ps-utc|win32|opaque):/u
 
 export type OwnerAddressRead = { kind: "running"; port: number } | { kind: "not-running"; why: string }
@@ -310,7 +308,7 @@ async function generationIsStale(generation: Generation, pidAlive: (pid: number)
 
 /** The port the published launcher serves, when its address record is backed by a live owner generation. */
 export async function readOwnerAddress(
-  roots: Pick<NtwinePaths, "data" | "state"> & Partial<Pick<NtwinePaths, "brand">>,
+  roots: Pick<NtwinePaths, "data" | "state">,
   pidAlive: (pid: number) => boolean = defaultPidAlive,
   observe: (pid: number) => Promise<string | undefined> = observeGeneration,
 ): Promise<OwnerAddressRead> {
@@ -320,7 +318,7 @@ export async function readOwnerAddress(
   } catch {
     return { kind: "not-running", why: "no Ntwine data folder" }
   }
-  const stateDir = join(roots.state, stableServerDir(roots))
+  const stateDir = join(roots.state, STABLE_SERVER_DIR)
   const owner = readOwner(join(stateDir, "project-launch.owner"))
   if (!owner || owner.projectId !== STABLE_SERVER_OWNER_ID || owner.projectDir !== dataDir) return { kind: "not-running", why: "no owner record behind it" }
   if (await generationIsStale(owner, pidAlive, observe)) return { kind: "not-running", why: `its owner, pid ${owner.pid}, is gone` }
@@ -353,7 +351,7 @@ export async function discoverNtwine(options: DiscoveryOptions = {}): Promise<Di
   // (ntwine-paths.ts `ntwinePathsNow`).
   const roots = options.roots ?? ntwinePathsNow()
 
-  const addressPath = join(roots.state, stableServerDir(roots), "address.json")
+  const addressPath = join(roots.state, STABLE_SERVER_DIR, "address.json")
   const owner = await readOwnerAddress(roots, pidAlive, options.observeGeneration ?? observeGeneration)
   if (owner.kind === "running") {
     if (await readHealth(loopbackOrigin(owner.port), timeoutMs)) {

@@ -9,6 +9,8 @@ import {
   ntwineRoots,
   isPromptAttachmentPath,
   legacyNtwineRoot,
+  pinNtwineRoots,
+  pinnedNtwineRoots,
   projectStateDir,
   resetNtwineRoots,
   ROOTS_PIN_ENV,
@@ -47,44 +49,28 @@ test("an existing ~/.ntwine keeps every root, on every platform, whatever XDG sa
   }
 })
 
-// The rename to Ntwine moves nothing: a Frizz-era install is still the install, in either layout, until
-// an Ntwine one of its own exists.
-test("a Frizz-era install keeps its frizz roots; a fresh machine and an Ntwine install get ntwine", () => {
-  const base = mkdtempSync(join(tmpdir(), "ntwine-paths-frizz-"))
-  const linux = { home: base, platform: "linux" as const, env: {}, ...disk }
+// A server forked by a supervisor that predates the Frizz -> Ntwine rename serves the old roots as they
+// are (frizz-migration.ts). The roots ride the pin whole, so every child it starts agrees, and a child
+// that isolates itself under another home still resolves its own.
+test("roots pinned whole are this process's and its children's, and only theirs", () => {
+  const base = mkdtempSync(join(tmpdir(), "ntwine-paths-pinned-"))
+  const other = mkdtempSync(join(tmpdir(), "ntwine-paths-pinned-other-"))
   try {
-    assert.equal(ntwinePaths(linux).data, join(base, ".local", "share", "ntwine"))
-    mkdirSync(join(base, ".local", "share", "frizz"), { recursive: true })
-    assert.equal(ntwinePaths(linux).brand, "ntwine", "an empty frizz root is not an install")
-    writeFileSync(join(base, ".local", "share", "frizz", "registry.json"), "{}")
-    assert.deepEqual(ntwinePaths(linux), {
-      data: join(base, ".local", "share", "frizz"),
-      state: join(base, ".local", "state", "frizz"),
-      cache: join(base, ".cache", "frizz"),
-      legacy: false,
-      brand: "frizz",
-    })
-    assert.equal(ntwinePaths({ ...linux, platform: "darwin" }).data, join(base, "Library", "Application Support", "Ntwine"), "darwin looks in its own place")
-    mkdirSync(join(base, ".local", "share", "ntwine", "projects"), { recursive: true })
-    writeFileSync(join(base, ".local", "share", "ntwine", "registry.json"), "{}")
-    assert.equal(ntwinePaths(linux).brand, "ntwine", "an Ntwine install outranks the Frizz one")
-
-    const legacyHome = mkdtempSync(join(tmpdir(), "ntwine-paths-frizz-legacy-"))
-    mkdirSync(legacyNtwineRoot(legacyHome, "frizz"))
-    writeFileSync(join(legacyNtwineRoot(legacyHome, "frizz"), "registry.json"), "{}")
-    const legacy = ntwinePaths({ ...linux, home: legacyHome })
-    assert.equal(legacy.data, join(legacyHome, ".frizz"))
-    assert.equal(legacy.legacy, true)
-    rmSync(legacyHome, { recursive: true, force: true })
-
-    const emptyDotDir = mkdtempSync(join(tmpdir(), "ntwine-paths-frizz-empty-"))
-    mkdirSync(legacyNtwineRoot(emptyDotDir))
-    mkdirSync(join(emptyDotDir, ".local", "share", "frizz"), { recursive: true })
-    writeFileSync(join(emptyDotDir, ".local", "share", "frizz", "registry.json"), "{}")
-    assert.equal(ntwinePaths({ ...linux, home: emptyDotDir }).data, join(emptyDotDir, ".local", "share", "frizz"), "an empty ~/.ntwine does not hide a Frizz install")
-    rmSync(emptyDotDir, { recursive: true, force: true })
+    const env: NodeJS.ProcessEnv = { HOME: base, USERPROFILE: base }
+    const roots = { data: join(base, "old", "data"), state: join(base, "old", "state"), cache: join(base, "old", "cache") }
+    pinNtwineRoots(roots, env)
+    assert.deepEqual(pinnedNtwineRoots(env), roots)
+    assert.deepEqual(ntwinePaths({ env, home: base }), { ...roots, legacy: false })
+    const child = withRootsPin(env)
+    resetNtwineRoots()
+    assert.deepEqual(ntwinePaths({ env: child, home: base }), { ...roots, legacy: false }, "a child is handed the same roots")
+    assert.equal(ntwinePaths({ env: { ...child, HOME: other, USERPROFILE: other }, home: other }).data.startsWith(other), true, "another home resolves its own")
+    resetNtwineRoots()
+    assert.equal(pinnedNtwineRoots({ ...child, [ROOTS_PIN_ENV]: JSON.stringify({ ...JSON.parse(child[ROOTS_PIN_ENV]!), roots: { ...roots, data: "relative" } }) }), undefined, "a pin with a relative root is refused")
   } finally {
+    resetNtwineRoots()
     rmSync(base, { recursive: true, force: true })
+    rmSync(other, { recursive: true, force: true })
   }
 })
 

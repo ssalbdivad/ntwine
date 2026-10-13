@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import {
   closeSync,
-  existsSync,
   fsyncSync,
   mkdirSync,
   openSync,
@@ -395,28 +394,14 @@ export function resolveGitWorktree(dir: string): GitWorktree {
     // Do not enable Git's repository-wide `extensions.worktreeConfig` merely to hold one private Ntwine
     // value. A config file inside the linked worktree's own administrative directory has Git's atomic
     // config-lock behavior, survives `git worktree move`, and disappears with `git worktree remove`.
-    // A worktree whose id was written before the Frizz -> Ntwine rename keeps it in `frizz.config`.
-    ...(scope === "worktree"
-      ? { identityConfig: existsSync(join(gitDir, "ntwine.config")) || !existsSync(join(gitDir, "frizz.config"))
-        ? join(gitDir, "ntwine.config")
-        : join(gitDir, "frizz.config") }
-      : {}),
+    ...(scope === "worktree" ? { identityConfig: join(gitDir, "ntwine.config") } : {}),
   }
 }
 
-/**
- * The id under `ntwine.id`, or under `frizz.id` — the key before the Frizz -> Ntwine rename
- * (2026-10-13). Read, never rewritten: a repository keeps the id it already committed to.
- */
 function readProjectIdConfig(dir: string, args: string[], description: string): string | undefined {
-  return readProjectIdConfigKey(dir, args, description, "ntwine.id")
-    ?? readProjectIdConfigKey(dir, args, description.replace("ntwine.id", "frizz.id"), "frizz.id")
-}
-
-function readProjectIdConfigKey(dir: string, args: string[], description: string, key: string): string | undefined {
   let output: string
   try {
-    output = execFileSync("git", ["config", ...args, "--get-all", key], {
+    output = execFileSync("git", ["config", ...args, "--get-all", "ntwine.id"], {
       cwd: dir,
       windowsHide: true,
       encoding: "utf8",

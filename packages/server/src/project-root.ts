@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { appendFileSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, parse, resolve } from "node:path"
 import { acquireNamedLaunchLockSync, readGitProjectId, validateProjectId } from "./project-identity.ts"
@@ -62,7 +62,6 @@ export function projectIdPath(root: string): string {
  * of the maintainer's four live projects invisible.
  */
 export function readProjectIdFile(root: string): string | undefined {
-  adoptFrizzBoard(root)
   let raw: string
   try {
     raw = readFileSync(projectIdPath(root), "utf8")
@@ -107,62 +106,6 @@ export function writeProjectIdFile(root: string, id: string): string {
     throw error
   }
   return id
-}
-
-/**
- * THE RENAME'S BOARD: a project's board was `.frizz/` until the Frizz -> Ntwine rename (2026-10-13).
- * The first time anything asks this project's identity, the directory is renamed to `.ntwine/` — one
- * atomic rename, so the id, the threads and every worktree arrive together — and `.frizz` is left as
- * a link to it. The link is load-bearing: running workers, their prompts and git's own worktree
- * records (`.git/worktrees/<name>/gitdir`) hold absolute `.frizz/…` paths, and every one of them keeps
- * resolving. `.ntwine/.gitignore` cannot ignore a link that sits beside it, so the link is excluded in
- * the repository's own `info/exclude`, never in a tracked file.
- *
- * Only a real `.frizz` DIRECTORY moves. A `.ntwine` already beside it is the debris of a worker hook
- * that wrote its session state under the new name before the server got here (seen on the
- * maintainer's machine at the cutover, 2026-10-13): its entries are folded into the old board first,
- * never overwriting one the board already has, so nothing either side wrote is lost.
- */
-export function adoptFrizzBoard(root: string): void {
-  const legacy = join(root, ".frizz")
-  const current = join(root, NTWINE_DIR)
-  try {
-    if (!lstatSync(legacy).isDirectory()) return
-    if (existsSync(current)) {
-      if (!lstatSync(current).isDirectory()) return
-      foldInto(current, legacy)
-      rmSync(current, { recursive: true, force: true })
-    }
-    renameSync(legacy, current)
-  } catch {
-    return
-  }
-  try {
-    if (process.platform === "win32") symlinkSync(current, legacy, "junction")
-    else symlinkSync(NTWINE_DIR, legacy)
-  } catch {
-    // Raced by something recreating `.frizz` in the instant between: the board itself has moved.
-  }
-  try {
-    if (!statSync(join(root, ".git")).isDirectory()) return
-    const exclude = join(root, ".git", "info", "exclude")
-    const existing = existsSync(exclude) ? readFileSync(exclude, "utf8") : ""
-    if (existing.split(/\r?\n/u).includes("/.frizz")) return
-    mkdirSync(dirname(exclude), { recursive: true })
-    appendFileSync(exclude, `${existing && !existing.endsWith("\n") ? "\n" : ""}/.frizz\n`)
-  } catch {
-    // Not a plain git checkout: nothing to keep the link out of.
-  }
-}
-
-/** Move every entry of `from` into `into` that `into` does not already have, recursing into shared directories. */
-function foldInto(from: string, into: string): void {
-  for (const name of readdirSync(from)) {
-    const source = join(from, name)
-    const target = join(into, name)
-    if (!existsSync(target)) renameSync(source, target)
-    else if (lstatSync(source).isDirectory() && lstatSync(target).isDirectory()) foldInto(source, target)
-  }
 }
 
 /** Keyed on the canonical root rather than a common git dir, which a plain directory does not have. */
@@ -311,7 +254,7 @@ export function discoverProjectRoot(cwd = process.cwd(), home = homedir()): stri
     // adoptable is isHomeDirectory's question, asked by the launcher, not answered here.
     if (at === stop || at === filesystemRoot) break
     // An existing Ntwine project wins over the VCS or manifest it happens to sit in.
-    if (existsSync(projectIdPath(at)) || existsSync(join(at, ".frizz", ID_FILE))) return at
+    if (existsSync(projectIdPath(at))) return at
     if (hasAny(at, REPO_MARKERS)) return at
     if (hasAny(at, PROJECT_MARKERS)) return at
     if (dirname(at) === at) break
