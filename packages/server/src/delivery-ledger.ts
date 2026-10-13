@@ -620,7 +620,7 @@ function codexUserMessageText(r: Record<string, unknown>): string {
     .join("\n")
 }
 
-// The id ntwine itself supplied for this input, if the record is one the SDK minted FROM a ntwine input.
+// The id ntwine itself supplied for this input, if the record is one the SDK minted FROM an ntwine input.
 // Deliberately narrow — only the two record shapes measured to echo it — so nothing else in a
 // transcript can be mistaken for a delivery receipt. Returns null for every pre-broker record.
 export function echoedInputId(rec: Record<string, unknown>): string | null {

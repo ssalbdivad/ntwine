@@ -33,7 +33,7 @@
 //
 // THE WRITE-SIDE NUDGE — two channels:
 //   UserPromptSubmit — the turn boundary.
-//   PostToolUse      — MID-TURN, and this is the one that matters. A ntwine worker runs enormous
+//   PostToolUse      — MID-TURN, and this is the one that matters. An ntwine worker runs enormous
 //                      autonomous turns (dozens of tool calls between human prompts), so a
 //                      turn-boundary-only nudge can miss an entire session's worth of work. PostToolUse
 //                      additionalContext was verified live against cli 2.1.220: a real session quoted a
@@ -98,7 +98,7 @@ const via = flagValue('--via') ?? 'plugin';
 if (/^(off|0|false|no|disabled)$/i.test((process.env.NTWINE_SCRATCHPAD_HOOK ?? '').trim())) process.exit(0);
 
 // The repo-local registration defers to the plugin one for ntwine workers (see --via, and the
-// registration note in DECISIONS.md) so a ntwine worker never injects twice.
+// registration note in DECISIONS.md) so an ntwine worker never injects twice.
 if (via === 'project' && (process.env.NTWINE_THREAD ?? '').trim()) process.exit(0);
 
 /** @type {{ agent_id?: unknown, agentId?: unknown, source?: string, trigger?: string, session_id?: string, transcript_path?: string }} */

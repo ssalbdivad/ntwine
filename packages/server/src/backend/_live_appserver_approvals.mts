@@ -1,5 +1,5 @@
 // LIVE harness (not a unit test; excluded from the *.test.ts glob). Proves the ACTUAL user-facing
-// claim end-to-end against the REAL `codex app-server`: a ntwine-dispatched Codex thread never stalls on
+// claim end-to-end against the REAL `codex app-server`: an ntwine-dispatched Codex thread never stalls on
 // an approval, and it never silently loses its sandbox across a cold resume.
 //
 // It reproduces the exact live incident (2026-07-24, thread `we-need-to-revisit-the-sandboxing`): a

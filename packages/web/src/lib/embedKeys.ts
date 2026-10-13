@@ -125,7 +125,7 @@ export function hostChordKeycaps(chord: HostChord, platform: Platform): string[]
 }
 
 /**
- * A VS Code chord the human just pressed to rebind a Ntwine key to, in the sidebar: that key is VS Code's
+ * A VS Code chord the human just pressed to rebind an Ntwine key to, in the sidebar: that key is VS Code's
  * there (the page forwards it, HOST_CHORDS), so the sheet refuses it saying so — not that it belongs to the
  * browser, which is the desktop's reason for most of them. Matched on the event as the page forwards it, so
  * Ctrl and ⌘ are told apart on a Mac the way the extension tells them apart.

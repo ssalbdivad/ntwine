@@ -173,9 +173,9 @@ test("CR-separated buried form parses (terminal-injected follow-up)", () => {
 
 test("the SERVER's composed answer round-trips through this reader — the one that decides it is the human's", () => {
   // THE WHOLE POINT OF THE PAIRING. questionAnswerMessage composes the answer to a REGISTERED question,
-  // and it is delivered as a ntwine WAKE — which the chat draws as ntwine's own notification card unless
+  // and it is delivered as an ntwine WAKE — which the chat draws as ntwine's own notification card unless
   // this parser claims it first. It did not claim it until 2026-08-27, and the human's answer rendered as
-  // agent-facing prose in a Ntwine card over their own words. Composer and reader are pinned to each other
+  // agent-facing prose in an Ntwine card over their own words. Composer and reader are pinned to each other
   // here because nothing else in the system compares them.
   const wire = questionAnswerMessage([
     {

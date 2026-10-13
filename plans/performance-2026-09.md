@@ -1,6 +1,6 @@
 # Performance pass — 2026-09, what landed and what did not
 
-Written 2026-09-04, after a measured pass over the two complaints that started it: a Ntwine restart took a long time, and the first load after it took a long time. Both were root-caused and both are fixed in `0.11.0`. This file exists for the other half — the findings that were MEASURED but not acted on, and the ones that were measured and turned out to be nothing. It is a record at a point in time, not a description of how Ntwine works now; read [`plans/README.md`](README.md) first.
+Written 2026-09-04, after a measured pass over the two complaints that started it: an Ntwine restart took a long time, and the first load after it took a long time. Both were root-caused and both are fixed in `0.11.0`. This file exists for the other half — the findings that were MEASURED but not acted on, and the ones that were measured and turned out to be nothing. It is a record at a point in time, not a description of how Ntwine works now; read [`plans/README.md`](README.md) first.
 
 Every number here came from an instrument, not from reading code. Where a claim was later disproved by a second measurement, the disproof is kept beside it rather than deleted, because the wrong version is the one that sounds plausible and gets re-derived.
 

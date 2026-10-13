@@ -187,7 +187,7 @@ test("an approval nobody answers is denied at its deadline and the turn carries 
 })
 
 // ---- the first approval each agent needs goes back to it with a note -----------------------------------
-// A ntwine worker runs permissive, so an escalation is usually a check the agent could have routed around
+// An ntwine worker runs permissive, so an escalation is usually a check the agent could have routed around
 // (claude-permission-interactions.ts, claudeFirstApprovalHint). The first one is denied with a note
 // instead of raising a card; the agent's identical retry is what reaches the operator.
 async function hintCase(scenario: string, opts: { premarked?: boolean } = {}) {
@@ -213,7 +213,7 @@ async function hintCase(scenario: string, opts: { premarked?: boolean } = {}) {
         .filter((r) => r.kind === "host-response")
     } catch { return [] }
   }
-  // A ntwine restart forgets everything but the disk: a session whose agent was told before one starts
+  // An ntwine restart forgets everything but the disk: a session whose agent was told before one starts
   // with only the marker to go on.
   if (opts.premarked) markPermissionHintGiven(dir, sessionId, "agent-main")
   const approveTheCard = async () => {
@@ -596,7 +596,7 @@ test("the lifted worker caps reach the process the broker actually forks", { tim
     assert.equal(env.autoCompactWindow, "123456", "Settings.autoCompactWindow reaches the worker as CLAUDE_CODE_AUTO_COMPACT_WINDOW")
     // …and comes back OUT again, which is how the board's context dial learns the room this session
     // actually has. The daemon stamps the ceiling it forked with onto its own record, so the value
-    // survives a ntwine restart adopting it — that record, not today's Settings, is what a reattach
+    // survives an ntwine restart adopting it — that record, not today's Settings, is what a reattach
     // reports (see ClaudeRuntimeIngest.noteCompactionWindow).
     assert.equal(readBrokerRecord(claudeBrokerRecordPath(dir, sessionId))?.compactionWindow, 123_456, "the daemon records the ceiling it forked with")
     assert.deepEqual(reportedCeilings, [123_456], "…and the bridge reports it once, at attach")
@@ -666,7 +666,7 @@ test("a follow-up to a daemon that predates input acknowledgement still resolves
   const adopter = createClaudeAgentBrokerBridge({ stateDir: dir, executablePath: exe, env })
   try {
     await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: dir, prompt: "start", permissionMode: "default" })
-    bridge.close() // a ntwine restart
+    bridge.close() // an ntwine restart
     const record = readBrokerRecord(recordPath)!
     assert.ok(record.capabilities?.includes(CLAUDE_BROKER_CAPABILITY_INPUT_ACK), "precondition: a current daemon advertises the capability")
     writeFileSync(recordPath, JSON.stringify({ ...record, capabilities: record.capabilities!.filter((c) => c !== CLAUDE_BROKER_CAPABILITY_INPUT_ACK) }))

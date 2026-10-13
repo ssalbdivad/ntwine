@@ -370,10 +370,10 @@ test("the × dismisses an ordinary question and CANNOT reach a danger-tagged one
 })
 
 test("the answer message is written in the wire form the chat renders as the human's own Answers card", () => {
-  // THE FORMAT IS THE ATTRIBUTION. This message is delivered as a ntwine WAKE, and the chat draws a wake
+  // THE FORMAT IS THE ATTRIBUTION. This message is delivered as an ntwine WAKE, and the chat draws a wake
   // as ntwine's own notification card — UNLESS the text is in the one form `parseAnswersCard` reads, which
   // it checks first. Getting it wrong does not fail: the answer simply stops being the human's words on
-  // screen and becomes agent-facing prose in a Ntwine card over them (the 2026-08-27 regression).
+  // screen and becomes agent-facing prose in an Ntwine card over them (the 2026-08-27 regression).
   //
   // The worker never saw an id, so `{id: choice}` would be unreadable to it — each row quotes its own
   // question, which is also what makes the card restate the question beside the answer. And a dismissal

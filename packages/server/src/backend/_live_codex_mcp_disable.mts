@@ -47,7 +47,7 @@
 //      A NESTED `mcp_servers` table in the bag REPLACES the argv's whole `mcp_servers` layer (so `{}`
 //      drops the argv mount, and `{ntwine: {enabled: false}}` is an entry with no transport), while
 //      config.toml's servers survive every spelling. The two that work on BOTH shapes are
-//      `mcp_servers: {}` and `enabled: false` with a command of its own; neither starts a ntwine process.
+//      `mcp_servers: {}` and `enabled: false` with a command of its own; neither starts an ntwine process.
 //      Also: the argv's top-level `default_tools_approval_mode="approve"` is IGNORED by 0.161.0, with
 //      a `warning` notification on every thread ("session-flags: `default_tools_approval_mode` is
 //      ignored"); only the per-entry key does anything.
@@ -457,7 +457,7 @@ try {
   const env: Record<string, string> = { ...inheritWorkerEnvironment(process.env) }
   for (const key of Object.keys(env)) if (key.startsWith("CODEX_")) delete env[key]
   env.CODEX_HOME = codexHome
-  // No Ntwine's `cc-worker/bin` on the process PATH (a probe run from inside a Ntwine worker inherits the
+  // No Ntwine's `cc-worker/bin` on the process PATH (a probe run from inside an Ntwine worker inherits the
   // installed one's), so a bare `ntwinectl` can only come from the bag.
   env.PATH = (env.PATH ?? "").split(":").filter((entry) => !/cc-worker\/bin\/?$/.test(entry)).join(":")
   await listen(fakeNtwine, 0, "127.0.0.1")

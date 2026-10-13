@@ -1470,7 +1470,7 @@ test("a fresh bridge inherits no active bindings: boot detaches what a SIGKILLed
   h.close()
 })
 
-// The resume a Ntwine RESTART issues: the fresh bridge's warmUp() reconciles every row that was mid-turn
+// The resume an Ntwine RESTART issues: the fresh bridge's warmUp() reconciles every row that was mid-turn
 // when its app-server died. That `thread/resume` carried no per-thread ntwine mount until 2026-09-18, so
 // a codex worker that was working through a restart came back onto the new app-server with no
 // `mcp__ntwine__*` at all and could neither ask nor sign off (hypergres/this-is-a-fresh-project-i: "The
@@ -1559,7 +1559,7 @@ test("the Codex context window from Settings rides thread/start AND a cold threa
   assert.equal(startConfig.model_reasoning_summary, "detailed")
 
   // The operator raises the window while the thread is detached; the resume by a FRESH app-server (the
-  // one after a daemon death or a Ntwine restart) is exactly when a thread would otherwise keep the old
+  // one after a daemon death or an Ntwine restart) is exactly when a thread would otherwise keep the old
   // window for the rest of its life.
   settings.codexContextWindow = 1_000_000
   const restarted = h.newBridge()
@@ -2567,7 +2567,7 @@ test("a reattach that lost events is not a rejoin: the thread resumes instead of
 
 // ---- a background exec survives a rejoin, and so must its row -----------------------------------
 // A yielded exec keeps running in the app-server's PTY after the turn that started it, and the
-// app-server outlives both a Ntwine restart and a dropped socket. Its `item/started` went to the client
+// app-server outlives both an Ntwine restart and a dropped socket. Its `item/started` went to the client
 // that is gone and is never sent again, so the row (and its ×) used to vanish on every rejoin until the
 // exec ended. These pin the re-seed from `thread/backgroundTerminals/list`, and the cases that must NOT
 // seed.
@@ -2591,7 +2591,7 @@ async function threadWithBackgroundExec(h: ReturnType<typeof scriptedHostHarness
   return { binding, terminal }
 }
 
-test("a Ntwine restart that rejoins the same app-server re-learns a background exec that is still running", async () => {
+test("an Ntwine restart that rejoins the same app-server re-learns a background exec that is still running", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
   const h = scriptedHostHarness(() => plan)
   try {
@@ -2809,7 +2809,7 @@ test("the MCP mount rides only the threads whose contract taught it", async () =
   } finally { h.close() }
 })
 
-test("a thread idle at a Ntwine restart is released and resumed with the new server's bag before its next turn", async () => {
+test("a thread idle at an Ntwine restart is released and resumed with the new server's bag before its next turn", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
   const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, workerConfig: workerHooks })
   try {
@@ -2949,7 +2949,7 @@ test("a Codex with no thread/unsubscribe is asked once; its threads keep taking 
 })
 
 // ---- non-interactive by construction ------------------------------------------------------------
-// A ntwine worker runs with nobody watching its pane, so an approval request is not a safety gate — it is
+// An ntwine worker runs with nobody watching its pane, so an approval request is not a safety gate — it is
 // a thread that stops working until a human opens the dashboard hours later. These pin the two wire
 // moments where that guarantee is made, because the live incident came from BOTH being wrong: the
 // thread was started `on-request`, and its cold resume sent no policy at all.

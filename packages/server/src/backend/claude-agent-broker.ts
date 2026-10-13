@@ -100,7 +100,7 @@ export interface BrokerRecord {
   capabilities?: string[]
   /** The auto-compact ceiling this daemon's worker environment actually carries
    *  (CLAUDE_CODE_AUTO_COMPACT_WINDOW), echoed onto the record because it is a FORK-TIME property: a
-   *  daemon keeps the value it was forked with while Settings moves on underneath it, and after a ntwine
+   *  daemon keeps the value it was forked with while Settings moves on underneath it, and after an ntwine
    *  restart the record is the only thing left that remembers which value that was. Read by the bridge
    *  to give the board a denominator the session genuinely runs under. Absent ⇒ nothing was set, or the
    *  daemon predates this field. */
@@ -114,7 +114,7 @@ export interface BrokerRecord {
   processStart?: string
   /** The permission mode this daemon's session was launched under — a launch flag, so fixed for the
    *  daemon's life (a mode change retires it; see the bridge's retireDaemon). Echoed here for the same
-   *  reason as `compactionWindow`: after a ntwine restart the record is all that remembers it, and the
+   *  reason as `compactionWindow`: after an ntwine restart the record is all that remembers it, and the
    *  bridge only holds an escalation back for the agent to reconsider when the mode was a permissive one.
    *  Absent ⇒ a daemon forked before 2026-10-06. */
   permissionMode?: ClaudeBrokerConfig["permissionMode"]
@@ -187,7 +187,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
       // CAPPED ON BOTH AXES. The count cap alone bounds the wrong quantity: measured over 108,718 real
       // records of the maintainer's largest thread, a frame is 0.7 KB at p50 but 193 KB at p99 and
       // 568 KB at the max — so 20,000 frames is ~105 MB of backlog at the MEAN and ~500 MB at the
-      // large end, per detached session. And it only fills WHILE DETACHED, which is precisely a ntwine
+      // large end, per detached session. And it only fills WHILE DETACHED, which is precisely an ntwine
       // restart, when several daemons are detached at once.
       const frame = JSON.stringify({ t: "event", event }) + "\n"
       eventBacklog.push(frame)
@@ -331,7 +331,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
     },
     onDiagnostic: (diagnostic: ClaudeDiagnostic) => {
       // Persist FIRST, then relay. A `crashed` diagnostic is emitted with the process seconds from
-      // gone, and relaying only reaches a ntwine that happens to be attached right now.
+      // gone, and relaying only reaches an ntwine that happens to be attached right now.
       writeDiagnostic?.(diagnostic)
       if (client) write(client, { t: "diagnostic", diagnostic })
     },

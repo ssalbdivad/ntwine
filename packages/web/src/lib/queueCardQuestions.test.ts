@@ -10,7 +10,7 @@ import { handoffQuestionSlots } from "./queueCardQuestions.ts"
 const at = (min: number) => new Date(Date.UTC(2026, 9, 6, 9, min)).toISOString()
 const human = (min: number, text = "Rotate the signing key.") => ({ role: "user", text, at: at(min) })
 const worker = (min: number, text = "Here is where it stands.") => ({ role: "assistant", text, at: at(min) })
-// A ntwine wake — a CI result, a timer — is a TURN to the anchor readers (it closes a rest) but not the
+// An ntwine wake — a CI result, a timer — is a TURN to the anchor readers (it closes a rest) but not the
 // human's: the card's bubble stays on the human's own message.
 const wake = (min: number) => ({ role: "user", text: "CI finished: all checks passed.", wake: true, at: at(min) })
 const question = (id: string, askedMin: number) => ({ id, askedAt: at(askedMin) })

@@ -57,7 +57,7 @@ function statusFor(connection: ConnectionStatus, projects: readonly EditorProjec
 
 /**
  * What a command that needs the connection says without one: the connection's own reason, the one the
- * tooltip shows. A Ntwine that is running but refused this window (one from before the editor connection,
+ * tooltip shows. An Ntwine that is running but refused this window (one from before the editor connection,
  * a version mismatch) is told to update, never reported as stopped.
  */
 export function notConnectedMessage(connection: ConnectionStatus): string {

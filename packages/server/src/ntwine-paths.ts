@@ -100,7 +100,7 @@ export function legacyNtwineRoot(home = homedir(), brand: Brand = "ntwine"): str
 }
 
 /**
- * What only a Ntwine DATA ROOT holds. Any one of them makes `~/.ntwine` the legacy root, whatever else is
+ * What only an Ntwine DATA ROOT holds. Any one of them makes `~/.ntwine` the legacy root, whatever else is
  * in it: every launch writes the registry and a project state directory, so a real install has several.
  */
 const DATA_ROOT_ENTRIES = ["projects", "registry.json", "config.json", "ui.db", "server.lock", "settings.json", "logs"]
@@ -111,7 +111,7 @@ const BOARD_ENTRIES = ["threads", ".session-state", ".id", ".gitignore", ".agent
  * Is `~/.ntwine` a project's BOARD rather than a data root — something wrote `threads/…` into it?
  *
  * The name is shared: a project's board is `<project>/.ntwine/`, so the home folder's board would be
- * `~/.ntwine` — and the bare existence of that directory is what selects the legacy layout below. A Ntwine
+ * `~/.ntwine` — and the bare existence of that directory is what selects the legacy layout below. An Ntwine
  * worker runs with its cwd in the home folder when it belongs to the Home workspace (home-workspace.ts),
  * and while Ntwine points that worker's scratch directory elsewhere, a worker or tool that still writes
  * the conventional `.ntwine/threads/<id>/` relative to its cwd would otherwise switch an XDG install onto

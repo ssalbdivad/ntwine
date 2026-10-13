@@ -948,7 +948,7 @@ export interface ForeignRolloutScan {
   exclude: ReadonlySet<string> // ids owned by a registry row — never surface one of those as foreign
   max: number
 }
-/** Rollouts in THIS project, fresh, human-started, and not owned by a ntwine row — newest first.
+/** Rollouts in THIS project, fresh, human-started, and not owned by an ntwine row — newest first.
  *  Telemetry-grade: any fs/parse surprise skips that file, never throws. */
 export function scanForeignRollouts(scan: ForeignRolloutScan, codexHome = defaultCodexHome()): { id: string; path: string }[] {
   const wanted = new Set(scan.cwds)

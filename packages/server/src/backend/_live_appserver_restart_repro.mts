@@ -1,5 +1,5 @@
 // LIVE repro (not a unit test; excluded from the *.test.ts glob). Reproduces the "codex threads stop
-// spontaneously" failure against the REAL `codex app-server`: a ntwine runtime restart kills the shared
+// spontaneously" failure against the REAL `codex app-server`: an ntwine runtime restart kills the shared
 // app-server child mid-turn, and NOTHING ever resumes the interrupted turn.
 //
 //   nub packages/server/src/backend/_live_appserver_restart_repro.mts

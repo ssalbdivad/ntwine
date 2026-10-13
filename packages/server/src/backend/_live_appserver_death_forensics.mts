@@ -68,7 +68,7 @@ function makeBridge(label: string) {
     const priorGeneration = record.generation
     console.log(`  daemon pid=${record.daemonPid} app-server child pid=${record.childPid} generation=${priorGeneration}`)
 
-    // Kill the codex app-server CHILD directly (SIGKILL) — a codex crash, NOT a ntwine restart. The
+    // Kill the codex app-server CHILD directly (SIGKILL) — a codex crash, NOT an ntwine restart. The
     // daemon observes child.on("exit") and self-terminates, leaving the breadcrumb behind.
     console.log("  --- SIGKILL the app-server child (simulated codex crash) ---")
     process.kill(record.childPid, "SIGKILL")

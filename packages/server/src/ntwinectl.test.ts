@@ -292,7 +292,7 @@ test("the caller is the environment's thread and nothing a command line can say"
   }
 })
 
-// A worker forked by a Ntwine that predates the command line was never handed NTWINE_STATE_DIR. Its shell
+// A worker forked by an Ntwine that predates the command line was never handed NTWINE_STATE_DIR. Its shell
 // has had NTWINE_PERM_DIR all along, and that is enough to find the server and name the project.
 test("a shell that only has NTWINE_PERM_DIR still finds the server and its own project", async () => {
   const fake = await fakeNtwine()

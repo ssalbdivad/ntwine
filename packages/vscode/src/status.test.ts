@@ -34,7 +34,7 @@ test("offline or incompatible, a click tries again and the tooltip says why", ()
 })
 
 test("a command with no connection says the connection's own reason, not that Ntwine is stopped", () => {
-  // A Ntwine that is up but refused this window: the commands must not contradict the tooltip.
+  // An Ntwine that is up but refused this window: the commands must not contradict the tooltip.
   assert.equal(notConnectedMessage({ kind: "offline", reason: "This Ntwine has no editor connection yet. Update Ntwine." }), "This Ntwine has no editor connection yet. Update Ntwine.")
   assert.equal(
     notConnectedMessage({ kind: "incompatible", reason: "This Ntwine speaks a different version of the editor connection. Update Ntwine or the extension." }),

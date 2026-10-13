@@ -181,7 +181,7 @@ const TABLE: RegisteredQuestionView = {
   },
 }
 
-// The ask a ntwine wake used to strand above the worker's newer handoff (2026-09-28, a real thread's
+// The ask an ntwine wake used to strand above the worker's newer handoff (2026-09-28, a real thread's
 // shape: asked on one day, the PR watcher expired four days later, the worker re-armed and rested again).
 const MERGE: RegisteredQuestionView = {
   id: "qst_0007abab",

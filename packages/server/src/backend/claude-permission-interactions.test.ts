@@ -142,7 +142,7 @@ test("several questions each get their own field and their own answer key", () =
 })
 
 test("FREE TEXT rides the SDK's own annotations, with claude's notes-only sentinel in answers", () => {
-  // The fence card's free-text box is not a ntwine convention bolted onto a tool call: claude's own
+  // The fence card's free-text box is not an ntwine convention bolted onto a tool call: claude's own
   // AskUserQuestion input schema carries `annotations[questionText].notes`, and its result mapper
   // special-cases the literal "(notes only)" answer. Picking an option AND typing sends both.
   const spec = parseClaudeAskUserQuestion(CHANNEL_INPUT)!

@@ -26,7 +26,7 @@ import { splitQuestionBlocks, parseQuestionBlock, type MessageSegment } from "./
 //
 // THAT SECOND FORM HAS A THIRD WRITER, and it is the one this file's shape now has to serve: an answer to
 // a REGISTERED question (`ntwinectl ask`), composed on the SERVER by questionAnswerMessage because the
-// human may have answered while the worker's process was down. It arrives as a ntwine WAKE rather than as
+// human may have answered while the worker's process was down. It arrives as an ntwine WAKE rather than as
 // a message the browser sent, and the only thing that makes it read as the human's own answer instead of
 // a notification card is that it is written in this form (see Message, which checks for it first). The
 // marked rows are that path's: its questions can be a static TREE, which is flat on the wire.

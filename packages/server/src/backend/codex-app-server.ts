@@ -60,7 +60,7 @@ export type CodexHostKind = "native" | "daemon" | "direct"
  * The DEFAULT is the native listener (`codex app-server --listen unix://`): the app-server owns its own
  * socket, so it genuinely outlives every ntwine process and there is no ntwine-authored daemon in the middle
  * that could die and take the app-server — and every sub-agent turn inside it — down with it. The
- * hand-rolled `--stdio` daemon can only broker survival across a ntwine restart; across its OWN death
+ * hand-rolled `--stdio` daemon can only broker survival across an ntwine restart; across its OWN death
  * (idle expiry, reachability self-collection, a signal, its child crashing) it kills the app-server. It
  * stays the default ONLY on win32, whose named-pipe socket path the native transport does not implement.
  *
@@ -256,7 +256,7 @@ export function codexSandboxModeOfPolicy(policy: { type?: unknown } | null | und
 }
 
 // The approval policy ntwine establishes at `thread/start` (see startDisposableSession) and re-asserts on
-// every `thread/resume`. `never` is the ONLY correct value for a ntwine worker: the worker runs headless
+// every `thread/resume`. `never` is the ONLY correct value for an ntwine worker: the worker runs headless
 // inside a detached daemon with nobody watching, so an approval request is not a safety gate — it is a
 // thread that stops working until a human happens to open the dashboard. Under `never` a sandbox-denied action fails back to the model, which
 // can then adapt, say so, or ask the human in its own words; the sandbox stays the actual boundary.
@@ -269,7 +269,7 @@ export function codexSandboxModeOfPolicy(policy: { type?: unknown } | null | und
 // `approvalPolicy: "untrusted"` still reported `"untrusted"` in the `thread/settings/updated` payload
 // after a sandboxPolicy-only update).
 const CODEX_APPROVAL_POLICY = "never"
-// The sandbox a ntwine-owned codex thread runs under when nothing narrower was explicitly recorded. Every
+// The sandbox an ntwine-owned codex thread runs under when nothing narrower was explicitly recorded. Every
 // ntwine-CREATED worker is dispatched at this level (WORKER_DISPATCH_PERMISSION.codex), and a resume that
 // cannot find a stated intent must land here rather than fall through to the config.toml default —
 // letting config.toml decide is what downgraded live threads mid-flight.
@@ -1079,7 +1079,7 @@ export interface CodexAppServerBridgeOptions {
    */
   getSettings?: () => { codexContextWindow?: number }
   /**
-   * What a Ntwine WORKER thread carries beyond its MCP mount: the hooks, and the reasoning-summary
+   * What an Ntwine WORKER thread carries beyond its MCP mount: the hooks, and the reasoning-summary
    * setting. Asked for at `thread/start` and at EVERY `thread/resume`, because a resume that rebuilds
    * the thread rebuilds it from the bag in that one request and nothing else (see threadConfig) — the
    * bag used to reach `thread/start` alone, as the dispatcher's own argument, and every thread lost
@@ -2194,7 +2194,7 @@ export class CodexAppServerBridge {
         approvalsReviewer: "user",
         ...adoptionOverride,
         // Adoption is the first time ntwine owns this rollout, so it is also the first chance to give
-        // the thread a ntwine MCP mount that knows its slug, and its hooks. The rollout belonged to a
+        // the thread an ntwine MCP mount that knows its slug, and its hooks. The rollout belonged to a
         // process of its own, so this app-server is loading it cold and the bag is what it is built from.
         ...this.threadConfig(input.threadSlug, input.sessionId),
       })
@@ -3254,7 +3254,7 @@ export class CodexAppServerBridge {
   // explicitly makes that re-establishment reliable instead of lucky. `list_agents` is codex's own
   // authoritative snapshot, so it is the correct thing to point at.
   private static readonly RESTART_RECOVERY_NUDGE = [
-    "[ntwine] Your previous turn was interrupted: the Codex app-server process running it exited (a Ntwine",
+    "[ntwine] Your previous turn was interrupted: the Codex app-server process running it exited (an Ntwine",
     "restart or a crash). This was not a decision by you or the user, and nothing you had already done",
     "was rolled back — but any command or edit that was in flight at that moment may not have finished.",
     "Re-check the state of your work before trusting it, then continue from where you left off.",
@@ -3448,8 +3448,8 @@ export class CodexAppServerBridge {
   ): { sandbox: CodexSandboxMode; approvalPolicy: string } {
     // `intended_sandbox` wins because it is the only record of an explicit narrowing (setSandbox writes
     // it before the wire call, so it survives a change that could not be delivered). `sandboxFor` is the
-    // registry's stated intent for rows written before that column existed. Everything else is a ntwine
-    // worker, and a ntwine worker runs at CODEX_DEFAULT_SANDBOX.
+    // registry's stated intent for rows written before that column existed. Everything else is an ntwine
+    // worker, and an ntwine worker runs at CODEX_DEFAULT_SANDBOX.
     const intent = (isCodexSandboxMode(row.intended_sandbox) ? row.intended_sandbox : undefined)
       ?? this.options.sandboxFor?.(row.thread_slug, row.ntwine_session_id)
       ?? CODEX_DEFAULT_SANDBOX
@@ -3467,7 +3467,7 @@ export class CodexAppServerBridge {
    * `_live_codex_resume_mcp.mts` (`STALE_CWD=1`: no child spawned, the model answers NOTOOL) after
    * hypergres → porg took `this-is-a-fresh-project-i` down exactly that way. `thread/resume` takes a
    * `cwd` override, so a resume whose recorded cwd is missing retargets the thread at the project's
-   * CURRENT directory — the only path a ntwine worker was ever dispatched into — and the binding is
+   * CURRENT directory — the only path an ntwine worker was ever dispatched into — and the binding is
    * re-recorded on success (recordResumedCwd). A cwd that still exists is left alone: an adopted
    * external rollout may legitimately live somewhere else.
    */

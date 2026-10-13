@@ -416,7 +416,7 @@ test("integration: a structured task_notification retires the child with NO pros
 
 test("integration: a parent that dispatched in the BACKGROUND and rested reads as at rest, not working", async () => {
   // The reported bug, on the seam that produced it (2026-07-30: a thread whose own turn had ended 63
-  // minutes earlier rendered the "Working…" shimmer). A ntwine worker's normal shape is `run_in_background:
+  // minutes earlier rendered the "Working…" shimmer). An ntwine worker's normal shape is `run_in_background:
   // true` then rest, and a background child keeps streaming assistant/user events on the PARENT's socket
   // for its whole life. Folding those as the parent's own turn held `runtime: "running"` for the child's
   // entire lifetime, which also starved `awaitingBackground` — it requires turn-idle, so the one card

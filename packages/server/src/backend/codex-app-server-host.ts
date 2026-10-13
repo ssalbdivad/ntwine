@@ -39,7 +39,7 @@ import { launchEnvironment } from "./worker-env.ts"
 
 export interface CodexAppServerDaemonRecord {
   projectId: string
-  /** Identity of the app-server PROCESS. Unchanged across a ntwine restart; new only when the
+  /** Identity of the app-server PROCESS. Unchanged across an ntwine restart; new only when the
    *  app-server itself died and a fresh daemon replaced it. This is what tells the bridge whether
    *  in-flight turns survived. */
   generation: string
@@ -57,7 +57,7 @@ export interface CodexAppServerDaemonRecord {
 export interface CodexAppServerAttachment {
   process: CodexAppServerProcess
   generation: string
-  /** True when we joined an app-server that was ALREADY running (i.e. it outlived a ntwine restart). */
+  /** True when we joined an app-server that was ALREADY running (i.e. it outlived an ntwine restart). */
   reattached: boolean
   daemonPid: number
   /** Lines the daemon had to DROP because its detached queue overflowed while nobody was attached.
@@ -414,7 +414,7 @@ export const daemonCodexAppServerHost: CodexAppServerHost = async (options) => {
     // app-server was an ordinary child of this runtime. So a daemon that cannot start must cost the
     // survival property, never Codex. Without this, one packaging slip took out every Codex dispatch,
     // follow-up, steer and interrupt at once (2026-07-23) with only a cryptic toast to go on.
-    ntwineLog.error("codex", `codex app-server daemon unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive a ntwine restart`)
+    ntwineLog.error("codex", `codex app-server daemon unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive an ntwine restart`)
     return inProcessCodexAppServer(options)
   }
 }

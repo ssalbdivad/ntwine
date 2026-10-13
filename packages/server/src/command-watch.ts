@@ -264,7 +264,7 @@ function sandboxInSettings(raw: string, file: string): string | undefined {
 }
 
 /** Every settings file that can turn Claude Code's sandbox on for a thread in `cwd`: managed, local,
- *  project, user — the four scopes a Ntwine worker loads (`settingSources: ["user","project","local"]`,
+ *  project, user — the four scopes an Ntwine worker loads (`settingSources: ["user","project","local"]`,
  *  plus the managed file Claude Code always reads). */
 export function claudeSettingsFiles(where: ClaudeSettingsLocations): string[] {
   const env = where.env ?? process.env

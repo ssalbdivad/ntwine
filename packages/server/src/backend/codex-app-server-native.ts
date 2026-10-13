@@ -46,7 +46,7 @@ import { log as ntwineLog } from "../logging.ts"
 
 export interface NativeListenerRecord {
   projectId: string
-  /** Identity of the app-server PROCESS — stable across a ntwine restart, new only when the listener
+  /** Identity of the app-server PROCESS — stable across an ntwine restart, new only when the listener
    *  itself was replaced. Drives the bridge's `sameProcess` check. */
   generation: string
   listenerPid: number
@@ -403,7 +403,7 @@ export const nativeListenCodexAppServerHost: CodexAppServerHost = async (options
         authAccountId: raced.authAccountId,
       }
     }
-    ntwineLog.error("codex", `codex app-server native listener unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive a ntwine restart`)
+    ntwineLog.error("codex", `codex app-server native listener unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive an ntwine restart`)
     const child = spawn(options.codexBin, codexAppServerArgv(["--stdio"], options.ntwineMcp), { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
     return { process: child as unknown as CodexAppServerProcess, generation: randomUUID(), reattached: false, daemonPid: process.pid, droppedWhileDetached: 0, authAccountId: options.authAccountId }
   }

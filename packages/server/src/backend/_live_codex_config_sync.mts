@@ -1,4 +1,4 @@
-// LIVE proof (not a unit test; excluded from the *.test.ts glob). After a Ntwine update, what does a
+// LIVE proof (not a unit test; excluded from the *.test.ts glob). After an Ntwine update, what does a
 // Codex thread that was already running end up on — and is anything it was doing lost on the way?
 //
 //   env -u NODE_COMPAT nub packages/server/src/backend/_live_codex_config_sync.mts
@@ -12,7 +12,7 @@
 // what a model would have CHOSEN to do; nothing here depends on that.
 //
 // The flow is the real one: the REAL CodexAppServerBridge over the REAL production transport (a detached
-// `codex app-server --listen unix://`), the real per-thread MCP mount and the real hook config. "A Ntwine
+// `codex app-server --listen unix://`), the real per-thread MCP mount and the real hook config. "An Ntwine
 // update" is exactly what the code sees: bridge A is built with generation A's MCP script and hooks,
 // then closed, which leaves the listener running as a server exit does; bridge B is built over the same
 // database with generation B's. Three threads cross it:

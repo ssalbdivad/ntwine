@@ -1,5 +1,5 @@
 // A WORKER'S `editor` TOOL, CALLED FOR REAL — one `tools/call editor` on the real cc-worker/bin/ntwine-mcp.mjs,
-// spawned the way a Ntwine worker of `projectId` runs it and finding the server by its lock, so what comes
+// spawned the way an Ntwine worker of `projectId` runs it and finding the server by its lock, so what comes
 // back is exactly what an agent reads. Shared by the suite (e2e/suite.ts, inside VS Code, --stack mode)
 // and the real-page sidebar run (scripts/e2e-sidebar.ts, in the harness).
 

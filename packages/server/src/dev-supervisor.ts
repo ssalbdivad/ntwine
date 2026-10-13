@@ -992,7 +992,7 @@ class Supervisor implements DevSupervisor {
 
   /**
    * Update only the disposable application server while retaining the public listener and launcher.
-   * There is deliberately no blue/green overlap: a Ntwine child opens SQLite, tailers and schedulers
+   * There is deliberately no blue/green overlap: an Ntwine child opens SQLite, tailers and schedulers
    * before it can report ready, so a candidate is started only after the old child is fully gone.
    */
   private async updateChildFromBrowser(): Promise<RestartResult> {

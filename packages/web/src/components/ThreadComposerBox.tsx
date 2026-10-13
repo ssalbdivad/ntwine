@@ -167,7 +167,7 @@ export function ThreadComposerBox({
   // and two Done verbs one above the other on a phone read as the same button.
   const stepsOpen = thread?.lastFence?.kind === "awaiting" && awaitingSteps(thread.lastFence.hints).length > 0
   const canComplete = thread ? threadLifecycleAvailability(thread).archive && !turnRunning && !stepsOpen : false
-  // THE GOAL rides the rail on every desktop surface that steers a Ntwine-owned session — the same
+  // THE GOAL rides the rail on every desktop surface that steers an Ntwine-owned session — the same
   // threads the lifecycle verbs in the header serve. The phone reaches it from the header's ⋯ sheet.
   const goal = thread && thread.kind === "session" && thread.foreign !== true ? <RecurringPromptControl thread={thread as ThreadView} /> : undefined
 

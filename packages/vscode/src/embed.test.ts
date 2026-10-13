@@ -199,7 +199,7 @@ test("a chord the allowlist does not name, or with one modifier more or less, ru
   for (const [key, mac] of none) assert.equal(chordCommand(key, mac), undefined, JSON.stringify({ key, mac }))
 })
 
-test("Add to Ntwine prompt goes to the sidebar whenever it is on and there is a Ntwine to frame, opened or not", () => {
+test("Add to Ntwine prompt goes to the sidebar whenever it is on and there is an Ntwine to frame, opened or not", () => {
   assert.equal(addRoute({ enabled: true, ntwine: true }), "sidebar", "a window that never opened the sidebar opens it")
   assert.equal(addRoute({ enabled: false, ntwine: true }), "server", "the setting keeps the browser flow")
   assert.equal(addRoute({ enabled: true, ntwine: false }), "server", "no Ntwine: the server path, which says why")

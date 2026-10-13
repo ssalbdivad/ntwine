@@ -230,7 +230,7 @@ Nothing the server runs on its own opens a pseudo-terminal. A Claude thread runs
 
 **node-pty is loaded LAZILY, and that is load-bearing.** `await import("node-pty")` runs on a terminal's start and nowhere else; no server module imports it at load (`thread-terminals.test.ts` fails if one does, with `import type` exempt). So a box where the addon will not load — no prebuild for its platform, a broken install — boots and serves every project, and the terminal pane says why it could not start (#42 was the eager version of this killing every Linux boot). Both the source server and the published `ntwine-server` depend on `node-pty@1.2.0-beta.15`, the beta that ships glibc Linux prebuilds; the server generation installs `--ignore-scripts` and node-pty loads its prebuild directly, so no install script and no `node-gyp` fallback ever runs, and it needs no `onlyBuiltDependencies` entry (`src/package-contents.test.ts` pins all of that). Sign-in and agents stay off it.
 
-Two more things look like exceptions and are not. node-pty is a ROOT `devDependency` for `scripts/verify-product-e2e.mjs` alone, which drives the launcher's interactive readout and never ships. "PTY" in the Codex code (`codex-app-server.ts`, `transcript.ts`) is Codex's own logical terminal handle inside its app-server, not a Ntwine process.
+Two more things look like exceptions and are not. node-pty is a ROOT `devDependency` for `scripts/verify-product-e2e.mjs` alone, which drives the launcher's interactive readout and never ships. "PTY" in the Codex code (`codex-app-server.ts`, `transcript.ts`) is Codex's own logical terminal handle inside its app-server, not an Ntwine process.
 
 # Board nomenclature: "active" means SPINNING, and nothing else
 

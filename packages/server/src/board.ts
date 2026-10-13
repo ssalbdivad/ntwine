@@ -1406,7 +1406,7 @@ export function deriveDeliveryInFlight(
   runtime: RuntimeState,
   needsYou: boolean,
   deliveryProcessGone: boolean,
-  // A ntwine wake owns this rest and is on its way: the human's answer, or the sign-off nudge.
+  // An ntwine wake owns this rest and is on its way: the human's answer, or the sign-off nudge.
   wakeInFlight: boolean,
   nowMs = Date.now(),
 ): boolean {

@@ -86,7 +86,7 @@ test("applyRecord: a system-origin user record (peer / task-notification) RE-INV
 // `lastHumanAt` is the clock a question is "replied past" against (shared questionRepliedPast): a typed
 // reply moves it; ntwine's wakes — a watcher, a timer, a nudge, and the delivery of answers — never do,
 // though they bump lastUserAt. Answering one card of a batch must not release the unanswered rest.
-test("applyRecord: lastHumanAt moves on the human's turns only — a ntwine wake bumps the row key but not it", () => {
+test("applyRecord: lastHumanAt moves on the human's turns only — an ntwine wake bumps the row key but not it", () => {
   const s = newTailState("t", "sid", "/x")
   applyRecord(s, { type: "user", timestamp: "2026-07-01T00:00:00.000Z", message: { content: "fix the parser" } })
   assert.equal(s.lastHumanAt, "2026-07-01T00:00:00.000Z")
@@ -2892,7 +2892,7 @@ test("tailer: in-flight → idle fires exactly one turn-done + sets unread", () 
 // `rested_at` was written by `onTurnDone` alone, which fires on the LIVE in-flight → idle edge. Prime
 // has no edge — it folds a whole transcript and adopts the turn it finds — so a turn that completed
 // while the server was down was never recorded as a rest at all, and never would be: prime runs once
-// per session per process. A worker is a detached broker daemon that keeps working across a ntwine
+// per session per process. A worker is a detached broker daemon that keeps working across an ntwine
 // restart by design, so this is the ordinary case on every bounce, not an edge.
 //
 // The column being wrong is not cosmetic: `snoozeAwaitingBackground` (router.ts) refuses a row with a
@@ -4440,7 +4440,7 @@ test("tailer: a killed shell does NOT come back when the fold re-primes from scr
   // durable this re-minted the row and it pulsed "running" for as long as the thread lived.
   const second = makeTailer(h, { mtimeMs: () => Date.parse("2026-07-01T00:00:02.000Z") })
   second.tick()
-  assert.deepEqual(second.get("t")?.bgShells, [], "a ntwine restart must not resurrect what the operator killed")
+  assert.deepEqual(second.get("t")?.bgShells, [], "an ntwine restart must not resurrect what the operator killed")
   assert.deepEqual(second.get("t")?.subAgents, [], "…and it is gone from every live surface, not just the shell list")
 })
 
@@ -4527,7 +4527,7 @@ test("tailer: a restart on a STEADY tick clears the dismissal, not just the boar
   assert.deepEqual(t.get("t")?.subAgents.map((a) => a.id), ["toolu_dispatch"], "the revived child is back on the board")
   assert.deepEqual([...h.storage.retiredOps("t", "sid")], [], "and the registry no longer calls it dismissed")
 
-  // The consequence, made explicit: a ntwine restart over the same registry must not re-hide it.
+  // The consequence, made explicit: an ntwine restart over the same registry must not re-hide it.
   t.stop()
   const second = makeTailer(h, { mtimeMs: () => h.clock.ms })
   second.tick()

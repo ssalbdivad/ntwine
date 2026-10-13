@@ -105,7 +105,7 @@ try {
   const target = { projectId, projectDir: PROJECT_DIR, stateDir }
   const owner = acquireProjectLaunchOwner(target, "launcher")
   release = owner.release
-  // This harness is usually run from INSIDE a ntwine worker: its NTWINE_* control-plane variables would
+  // This harness is usually run from INSIDE an ntwine worker: its NTWINE_* control-plane variables would
   // point the artifact at the live server instead of this one.
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("NTWINE_")))
   let output = ""

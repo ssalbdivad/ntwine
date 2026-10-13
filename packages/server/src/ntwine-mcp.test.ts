@@ -311,7 +311,7 @@ test("`editor` is listed only while an editor has the project open, and the list
   }
 })
 
-// A Ntwine from before `workerCapabilities` answers 404: the capability is unknown, not absent, so every
+// An Ntwine from before `workerCapabilities` answers 404: the capability is unknown, not absent, so every
 // tool stays listed — gating must never take a tool away because the server is older than the worker.
 test("a server that cannot report capabilities keeps every tool listed", async () => {
   const http = createServer((_req, res) => {
@@ -438,7 +438,7 @@ test("`editor` reads the window on this project as text, and says why when there
   const stateDir = mkdtempSync(join(tmpdir(), "ntwine-mcp-"))
   writeFileSync(join(stateDir, "server.lock"), JSON.stringify({ port }))
   const projectId = "0b7c1f6e-5a2d-4c4e-9d61-6f1f7c2b9a10"
-  // No thread stamped (the test may itself run inside a Ntwine worker, whose NTWINE_THREAD would ride in).
+  // No thread stamped (the test may itself run inside an Ntwine worker, whose NTWINE_THREAD would ride in).
   const rpc = startServer({ NTWINE_STATE_DIR: stateDir, NTWINE_PROJECT_ID: projectId, NTWINE_THREAD: "", NTWINE_THREAD_SLUG: "" })
   let id = 10
   const call = async (result: unknown, status = 200) => {
@@ -539,7 +539,7 @@ test("`editor` reads the window on this project as text, and says why when there
       assert.equal(reply.isError, undefined, "having nothing to read is an answer, not a failure")
     }
 
-    // A Ntwine from before the procedure answers 404 naming it (packages/rpc's fall-through).
+    // An Ntwine from before the procedure answers 404 naming it (packages/rpc's fall-through).
     const old = await call({ error: "unknown RPC procedure `editorState` — this server does not implement it." }, 404)
     assert.match(old.text, /predates this command\. Restart Ntwine to enable this\./)
     assert.equal(old.isError, undefined)
@@ -1061,7 +1061,7 @@ test("`goal` reads back what is armed, and a `start` reports what it replaced", 
   }
 })
 
-// A ntwine server older than this tool 404s the read procedure. A bare HTTP status would read to a worker
+// An ntwine server older than this tool 404s the read procedure. A bare HTTP status would read to a worker
 // as "nothing is armed", which is the opposite of the truth — so the refusal has to say UNKNOWN.
 test("`goal` get says the state is UNKNOWN against a server that predates the read", async () => {
   const http = createServer((req, res) => {

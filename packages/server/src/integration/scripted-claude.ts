@@ -4,7 +4,7 @@
 //
 // Ported in substance from t3code's apps/server/integration/TestProviderAdapter.integration.ts (a
 // 577-line fake provider you queue canned canonical events into). The ntwine-specific difference is
-// that a ntwine session has TWO surfaces, not one: the disk transcript the tailer folds, and the event
+// that an ntwine session has TWO surfaces, not one: the disk transcript the tailer folds, and the event
 // stream the ingest consumes. A fake that drove only one of them would be testing half the seam —
 // and the seam is the entire point, because the interesting failures are ORDERING failures between
 // the two. So a script is a list of steps, and the harness can interleave them freely:

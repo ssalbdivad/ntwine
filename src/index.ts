@@ -755,7 +755,7 @@ function ownSlug(launched = false): string | undefined {
 }
 
 /**
- * Where a Ntwine that could already be serving this project would be listening.
+ * Where an Ntwine that could already be serving this project would be listening.
  *
  * An explicit `--port` is asked FIRST, for the same reason the well-known ones are asked at all: if a
  * Ntwine is already serving this project there, joining it is the answer and starting a rival is not.
@@ -773,7 +773,7 @@ function joinCandidatePorts(): number[] {
 }
 
 /**
- * A ntwine-dev already running on this machine, serving THIS project under its own slug.
+ * An ntwine-dev already running on this machine, serving THIS project under its own slug.
  *
  * The same client-not-a-server move the published launcher makes, and it matters more here: this is
  * the command the maintainer actually runs, in four repositories. Without it a second `ntwine-dev`
@@ -1198,7 +1198,7 @@ if (options.link) {
   // Another Ntwine under this home already has this project open as one of its many — the installed
   // one, whose dev port this launch does not probe. Its server would refuse to boot on it anyway; say
   // so now, naming that server, rather than after a build and a boot. Checked once the launch lease is
-  // ours: a ntwine-dev of this project that is still starting has had its chance to be reused above.
+  // ours: an ntwine-dev of this project that is still starting has had its chance to be reused above.
   const servedBy = servingRecordElsewhere(workspace.stateDir, target.projectId);
   if (servedBy !== undefined) {
     launchOwner.release();

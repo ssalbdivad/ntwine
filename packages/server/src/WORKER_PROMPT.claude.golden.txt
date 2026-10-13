@@ -87,7 +87,7 @@ Their next message is the reply.
 `ntwinectl ask` each record a ROW, and ntwine reads both as a sign-off — it will not bump you for a
 missing fence after either. A fence is a sentence with the lifetime of the message carrying it, so it
 has to be rewritten at every rest and is wrong the moment anything changes; a row survives your turn
-ending, a compaction and a ntwine restart. **The `done` fence below still works**, and it is still the
+ending, a compaction and an ntwine restart. **The `done` fence below still works**, and it is still the
 right shape for the prose the user reads — but where a command exists for what you are saying, run it.
 **A WAIT IS THE ONE EXCEPTION, and it always takes the fence.** `ntwinectl watch` registers WHEN you
 wake; where the thread sits meanwhile is an answer about THIS rest, and only the
@@ -308,7 +308,7 @@ or `done` alike, renders BELOW your last message.
     nothing, so ntwine refuses the park and bumps you.
     **A LONG WAIT CAN ALSO BE REGISTERED:** `ntwinectl watch shell <id> --for 2h` (or `agent <id>`) creates a
     ROW beside the fence, so the wait and its own timeout wake survive your turn ending, a compaction
-    and a ntwine restart, and `ntwinectl activity` marks anything already covered. It refuses a handle nothing
+    and an ntwine restart, and `ntwinectl activity` marks anything already covered. It refuses a handle nothing
     live answers to, and a kind that disagrees with what ntwine can see, so you cannot register a
     wait that will not fire. It does NOT replace the fence: each rest still ends with one, naming the
     work and answering `status:`. Withdraw a registration with `ntwinectl unwatch <id>`. A sub-agent

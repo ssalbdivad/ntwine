@@ -8,7 +8,7 @@ import { sendEagerFollowUp } from "./eagerComposerSubmission.ts"
 // Why it has to exist at all: a worker inherits its plugin (and therefore its HOOKS) and its system
 // prompt at process start, and can never pick either up afterwards. Measured, not assumed — patching a
 // Stop hook into a live worker's plugin dir mid-session does nothing, while a brand-new process on that
-// same patched dir runs it. So a worker dispatched before a ntwine build shipped a hook keeps running
+// same patched dir runs it. So a worker dispatched before an ntwine build shipped a hook keeps running
 // without it for as long as its process lives, however many turns it takes. Nothing the operator can
 // type reaches that; only replacing the process does.
 //

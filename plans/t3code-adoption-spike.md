@@ -54,7 +54,7 @@ Plus a `ProviderSessionReaper` that stops sessions idle >30min on a 5min sweep.
 **The tradeoff t3code accepts: it loses the in-flight turn on server restart.** You resume the
 conversation; you do not resume the work that was mid-flight. That is fine for t3code, whose threads
 are foreground and interactive. It is *not* fine for ntwine, whose threads are unattended multi-hour
-dispatches and where a ntwine restart during a dev cycle is routine.
+dispatches and where an ntwine restart during a dev cycle is routine.
 
 Ntwine's broker already solves this, and its own header says so
 (`packages/server/src/backend/claude-agent-broker.ts`): *"the session OUTLIVES ntwine, so ntwine
@@ -83,8 +83,8 @@ come from tmux and from running two parallel transports, not from the daemon con
 >
 > `if (client) write(...)` with no backlog was real — for the **diagnostic** relay, one callback lower
 > in the same file. That gap was genuine and is now fixed: the daemon writes its own lifecycle/stderr
-> forensics to disk (`backend/claude-broker-diagnostics.ts`), because a relay only reaches a ntwine that
-> is attached, which a ntwine crashing or restarting is not.
+> forensics to disk (`backend/claude-broker-diagnostics.ts`), because a relay only reaches an ntwine that
+> is attached, which an ntwine crashing or restarting is not.
 >
 > The section's *conclusion* is still worth keeping for the reason below, and the spike honored it:
 > item 1 as landed does **not** delete the tailer. The fold stays the authority and the event stream

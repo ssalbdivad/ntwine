@@ -83,7 +83,7 @@ test("nothing waiting, the main thread, or a non-worker session: the hook says n
   assert.equal(runHook(postToolUse(s.transcript, AGENT)), "")
   postToAgentInbox(s.sessionDir, AGENT, { from: "parent", text: "hello" })
   assert.equal(runHook(postToolUse(s.transcript)), "", "the main thread never reads a sub-agent's mail")
-  assert.equal(runHook(postToolUse(s.transcript, AGENT), { NTWINE_THREAD: "" }), "", "inert outside a Ntwine worker")
+  assert.equal(runHook(postToolUse(s.transcript, AGENT), { NTWINE_THREAD: "" }), "", "inert outside an Ntwine worker")
   assert.equal(runHook(postToolUse(s.transcript, "a-different-agent")), "", "another agent's mail is not this one's")
 })
 

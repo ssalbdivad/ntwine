@@ -382,7 +382,7 @@ try {
 
   // THE APP-SERVER THAT PREDATES THE UPDATE: Ntwine's own rule for the process environment (everything,
   // minus NTWINE_*), and no `cc-worker/bin` of ANY Ntwine on its PATH, this checkout's or an installed
-  // one's (a probe run from inside a Ntwine worker inherits the installed server's).
+  // one's (a probe run from inside an Ntwine worker inherits the installed server's).
   const appServerEnv: Record<string, string> = { ...inheritWorkerEnvironment(process.env) }
   for (const key of Object.keys(appServerEnv)) if (key.startsWith("CODEX_")) delete appServerEnv[key]
   appServerEnv.CODEX_HOME = codexHome

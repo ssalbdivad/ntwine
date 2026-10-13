@@ -140,7 +140,7 @@ test("the gap note ntwine appends to a human follow-up stays out of the human's 
   const follow = parseTranscript(raw).at(-1)!
   assert.equal(follow.text, delivered, "the worker keeps the clock it has no other way to read")
   assert.equal(follow.displayText, "can we make these invisible?")
-  // The human WROTE this turn — hiding ntwine's line must not turn their message into a ntwine card.
+  // The human WROTE this turn — hiding ntwine's line must not turn their message into an ntwine card.
   assert.equal(follow.wake, undefined)
 })
 
@@ -2797,7 +2797,7 @@ const dispatchLines = (toolUseId: string, agentId: string, description = "probe"
     message: { role: "user", content: [{ type: "tool_result", tool_use_id: toolUseId, content: [{ type: "text", text: `Async agent launched successfully.\nagentId: ${agentId}` }] }] },
   }),
 ]
-// Faithful to the real record (observed live in a ntwine worker's own transcript): the delivery carries the
+// Faithful to the real record (observed live in an ntwine worker's own transcript): the delivery carries the
 // wrapper as `prompt` AND the same sender/body already broken out under `origin`, plus `senderTaskId` —
 // the child's agentId, which appears nowhere else.
 const peerDeliverLine = (from: string, body: string, senderTaskId?: string, ts = "2026-07-01T00:00:10.000Z") =>
@@ -3047,7 +3047,7 @@ test("a message from another session still renders once when its enqueue scrolle
 })
 
 test("a message from another session whose ENQUEUE carries routing attributes its delivery drops still draws once", () => {
-  // Observed on a ntwine thread (1853e255, 2026-09-24): the queued copy carried `hop-chain="…"` and the
+  // Observed on an ntwine thread (1853e255, 2026-09-24): the queued copy carried `hop-chain="…"` and the
   // attachment, the removal and an at-rest delivery did not, so the exact-text lookup missed and the
   // delivery drew a second line under the first. Sender and body identify it, not the byte string.
   const body = "Ack. I'll build narrow-in-place as client state."

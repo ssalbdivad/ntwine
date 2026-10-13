@@ -368,7 +368,7 @@ test("acp-bridge: agentModels reads the advertised list through a throwaway sess
 
 // ---- THE DETACHED DAEMON: an agent and its turn outlive the bridge ----------------------------------
 // The whole reason acp-daemon.ts exists (maintainer 2026-09-24: an ACP restart ended the agent, its
-// turn and every sub-agent inside it). Bridge A is shut down MID-TURN — exactly what a Ntwine restart
+// turn and every sub-agent inside it). Bridge A is shut down MID-TURN — exactly what an Ntwine restart
 // does — and bridge B, a fresh instance over the same state dir, warms up and carries the turn to its
 // real ending. The plain-child control shows the turn dying instead.
 

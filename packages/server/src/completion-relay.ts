@@ -26,7 +26,7 @@
 // repairs on ABSENCE, which is correct whatever the upstream cause turns out to be.
 //
 // IDEMPOTENCE IS CARRIED BY THE TRANSCRIPT, not by a persisted flag. The repair ntwine injects is itself
-// a user record, and it embeds `RELAY_MARKER` + the task-id. On any later re-fold — a ntwine restart, a
+// a user record, and it embeds `RELAY_MARKER` + the task-id. On any later re-fold — an ntwine restart, a
 // cold resume, a full re-read of the file — that record is model-facing evidence for exactly this
 // task-id, so the report resolves as delivered and is never repaired twice. Nothing to persist,
 // nothing to migrate, and the evidence lives in the same file as the thing it is evidence about.
@@ -85,7 +85,7 @@ export const RELAY_AFTER_MS = 90_000
 // treating the symptom: the backlog is not a rate problem, it is a relevance problem. A completion
 // that was lost last Tuesday is history, and replaying it teaches the agent nothing it can act on.
 //
-// Captured at module load, so it is the process start instant. A ntwine restart moves it forward and
+// Captured at module load, so it is the process start instant. An ntwine restart moves it forward and
 // the (at most a few) completions dropped across the restart window are given up deliberately — that
 // is a far better trade than resurrecting a week of dead notifications.
 export const RELAY_EPOCH_MS = Date.now()

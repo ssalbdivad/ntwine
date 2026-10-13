@@ -41,7 +41,7 @@ export const SIDEBAR_VIEW_KEY = "ntwine.sidebarView"
 
 /**
  * How long a page gets to say `ntwine:ready` before the view offers Reload. An installed Ntwine boots its
- * page in a second or two; a Ntwine run from source serves ~250 unbundled modules through Vite, which took
+ * page in a second or two; an Ntwine run from source serves ~250 unbundled modules through Vite, which took
  * 13s and 42s to load on a busy machine (scripts/e2e-sidebar.ts, 2026-10-01) — and offered Reload under
  * a page that was only slow. An older Ntwine, which has no embed mode, never says it, and its page still
  * shows under the bar.
@@ -281,7 +281,7 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
     message = undefined
     frameUrl = target.url
     frameOrigin = target.origin
-    // A Ntwine known to predate the sidebar says so from the first paint: its page will never be ready.
+    // An Ntwine known to predate the sidebar says so from the first paint: its page will never be ready.
     const old = host.pageSupport() === "no"
     if (old) {
       host.log.warn(OLD_NTWINE_LOG)
@@ -450,7 +450,7 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
     refresh() {
       clearTimeout(refreshTimer)
       refreshTimer = setTimeout(() => {
-        // A page that reloaded into a Ntwine that was down is the browser's error page: the connection
+        // A page that reloaded into an Ntwine that was down is the browser's error page: the connection
         // coming back is the moment to frame it again.
         void render(frameUrl !== undefined && reloaded && !ready)
         // The connection may have just learned what the framed Ntwine is (a welcome, a 404): a page that

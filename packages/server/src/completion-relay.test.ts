@@ -72,7 +72,7 @@ test("a repair is idempotent through the TRANSCRIPT — its own marker resolves 
   const report: QueuedReport = { taskId: "a26ab44059b4cf3db", kind: "agent", chars: 14796, outputFile: "/t/a.output", summary: 'Agent "Impact analysis" finished' }
   const msg = relayMessage(report)
   // This is the load-bearing round-trip: what ntwine injects must be readable back as delivery evidence
-  // for exactly this task-id, or a ntwine restart repairs the same report forever.
+  // for exactly this task-id, or an ntwine restart repairs the same report forever.
   assert.deepEqual(relayedTaskIds(msg), ["a26ab44059b4cf3db"])
   assert.deepEqual(relayedTaskIds("ordinary prose with no marker"), [])
 })

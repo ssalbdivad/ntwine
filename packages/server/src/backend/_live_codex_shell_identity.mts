@@ -272,7 +272,7 @@ class AppServer {
 
   constructor(readonly label: string, extraEnv: Record<string, string> = {}, pathPrefix?: string) {
     // What Ntwine gives its own app-server (codexAppServerEnvironment): everything it has, minus NTWINE_*.
-    // This process may itself be a Ntwine worker, so that subtraction is also what keeps the reading honest.
+    // This process may itself be an Ntwine worker, so that subtraction is also what keeps the reading honest.
     const env: Record<string, string> = { ...inheritWorkerEnvironment(process.env) }
     for (const key of Object.keys(env)) if (key.startsWith("CODEX_")) delete env[key]
     Object.assign(env, { CODEX_HOME: codexHome }, extraEnv)
@@ -485,7 +485,7 @@ try {
   console.log("\n======== an app-server started with a PATH entry and NTWINE_ variables of its own ========")
   const processEnv = {
     NTWINE_STATE_DIR: stateDir, NTWINE_PROJECT_ID: "abc",
-    // Codex's default excludes are named `*KEY*` / `*SECRET*` / `*TOKEN*`: do they bite a Ntwine variable?
+    // Codex's default excludes are named `*KEY*` / `*SECRET*` / `*TOKEN*`: do they bite an Ntwine variable?
     NTWINE_PROBE_SECRET_TOKEN: "tok", NTWINE_PROBE_API_KEY: "key",
   }
   const three = new AppServer("three", processEnv, binDir)

@@ -421,7 +421,7 @@ const WATCH = {
     "REGISTER A WAIT on something this thread already has running — a background shell, a sub-agent — " +
     "and ntwine brings you back when it finishes, or when `--for` runs out.\n\n" +
     "IT IS A ROW, NOT A SENTENCE. A ```awaiting fence has the lifetime of the message carrying it; this " +
-    "survives your turn ending, a compaction and a ntwine restart.\n\n" +
+    "survives your turn ending, a compaction and an ntwine restart.\n\n" +
     "IT DOES NOT REPLACE THE FENCE. Where the thread sits while you wait is an answer about each REST, " +
     "so every rest on running work still ends with a ```awaiting fence that names the work and answers " +
     "`status: working|watching|needs_input` — `working` and `watching` keep the thread out of the " +
@@ -1482,7 +1482,7 @@ async function editor() {
   try {
     result = (await callRpc("editorState", slug ? { slug } : {}))?.result
   } catch (err) {
-    // A Ntwine from before this command answers an unknown procedure with 404; a worker outlives
+    // An Ntwine from before this command answers an unknown procedure with 404; a worker outlives
     // restarts, so it can hold this command while the server it talks to does not have it yet.
     if (/HTTP 404/.test(err instanceof Error ? err.message : String(err))) {
       return `The running Ntwine cannot read the editor yet: it predates this command. Restart Ntwine to enable this. Until then: ${EDITOR_FALLBACK}`
@@ -1577,7 +1577,7 @@ function editorWindowReport(w, checkout) {
   if (!e) {
     return (
       `${head} has this project open, but it has not reported what it shows: its Ntwine extension predates ` +
-      `this, or it connected a moment ago. Updating the extension (\`nub run vscode:install\` in a Ntwine ` +
+      `this, or it connected a moment ago. Updating the extension (\`nub run vscode:install\` in an Ntwine ` +
       `checkout) enables it. ${EDITOR_FALLBACK}`
     )
   }
@@ -1772,8 +1772,8 @@ function serverLockPort() {
   if (candidates.length === 0) {
     throw new NoNtwineState(
       "cannot locate the Ntwine server: this environment names no Ntwine state (NTWINE_STATE_DIR, " +
-      "NTWINE_SERVER_LOCK and NTWINE_PERM_DIR are all unset). That is what a shell OUTSIDE a Ntwine worker " +
-      "looks like; inside one it is a Ntwine bug. NOTHING WAS SAVED — this command had no effect.",
+      "NTWINE_SERVER_LOCK and NTWINE_PERM_DIR are all unset). That is what a shell OUTSIDE an Ntwine worker " +
+      "looks like; inside one it is an Ntwine bug. NOTHING WAS SAVED — this command had no effect.",
     )
   }
   // SAY THAT NOTHING WAS SAVED, and say to retry. A worker reads "is ntwine running?" as a fact about the
@@ -1920,7 +1920,7 @@ const LOCK_RETRY_MS = Number(process.env.NTWINE_LOCK_RETRY_MS) || 60_000
 const LOCK_RETRY_INTERVAL_MS = 400
 
 /** The port, waiting out a brief restart window rather than failing into one. Rethrows the real
- *  "no running ntwine server" error once the budget is spent, so a ntwine that is actually down still
+ *  "no running ntwine server" error once the budget is spent, so an ntwine that is actually down still
  *  says so — and says it with the retry guidance attached.
  *  @param {number} deadline epoch ms; shared with postToNtwine's refused-connection retries, so the two
  *  waits together never exceed one window. */
@@ -1929,7 +1929,7 @@ async function serverLockPortWaiting(deadline = Date.now() + LOCK_RETRY_MS) {
     try {
       return serverLockPort()
     } catch (err) {
-      // No lock to wait FOR is not a restart window: nothing in this environment names a Ntwine, and
+      // No lock to wait FOR is not a restart window: nothing in this environment names an Ntwine, and
       // six seconds of retrying would only delay saying so.
       if (err instanceof NoNtwineState || Date.now() >= deadline) throw err
       await new Promise((r) => setTimeout(r, LOCK_RETRY_INTERVAL_MS))
@@ -1980,7 +1980,7 @@ function transportFailure(what, err) {
       "(CODEX_SANDBOX_NETWORK_DISABLED=1), and that includes the Ntwine server on this machine. NOTHING " +
       "WAS SAVED, and no Ntwine command can work from this thread while it stays sandboxed — do not " +
       "retry. Say what you needed in your final message, and say there that this thread needs full " +
-      "access before a Ntwine command can run.",
+      "access before an Ntwine command can run.",
     )
   }
   if (causeCode(err) === "ECONNREFUSED") {
@@ -2051,7 +2051,7 @@ async function postToNtwine(what, path, body) {
   }
 }
 
-/** POST a ntwine RPC procedure and return its parsed payload. @param {string} procedure
+/** POST an ntwine RPC procedure and return its parsed payload. @param {string} procedure
  *  @param {Record<string, unknown>} body @returns {Promise<any>} */
 async function callRpc(procedure, body) {
   return postToNtwine(procedure, rpcPath(procedure), body)
@@ -2077,7 +2077,7 @@ function threadSlug() {
     // thing after `title` failed on a codex thread.
     throw new Error(
       "Ntwine could not tell which thread is calling (neither NTWINE_THREAD_SLUG nor NTWINE_THREAD is in this environment), so it cannot " +
-      "act on the caller's own thread. Inside a Ntwine worker this is a Ntwine bug — report it rather than " +
+      "act on the caller's own thread. Inside an Ntwine worker this is an Ntwine bug — report it rather than " +
       "working around it. Outside one there is no thread to act on.",
     )
   }
@@ -2176,7 +2176,7 @@ async function goal(args) {
   }
 
   if (action === "get") {
-    // A ntwine server older than this tool has no such procedure and answers 404. Say what that means,
+    // An ntwine server older than this tool has no such procedure and answers 404. Say what that means,
     // rather than leaving a worker to read a bare HTTP status as "nothing is armed" — the two answers
     // could not be further apart.
     let payload
@@ -2446,7 +2446,7 @@ async function watch(args) {
   const head = result?.alreadyArmed
     ? `Already watching \`${target}\` as ${id} — nothing new was registered, and its original expiry stands.`
     : `Watching \`${target}\` as ${id}. Your thread is held out of the queue until it finishes, and the ` +
-      "registration survives your turn ending, a compaction and a ntwine restart."
+      "registration survives your turn ending, a compaction and an ntwine restart."
   // A clamp is news here for the same reason it is on `watch_pr` — see that handler.
   const clamped = result?.clampedFrom
     ? `\n\nYOUR \`--for ${result.clampedFrom}\` WAS CAPPED at the 24h ceiling for a shell or a sub-agent — ` +
@@ -2709,7 +2709,7 @@ async function watchPr(args) {
   const head = result?.alreadyArmed
     ? `Already watching ${ref} as ${id}${until} — nothing new was registered, its original expiry stands, and you will be woken once per event.`
     : `Watching ${ref} as ${id}${until}. Ntwine wakes you when CI passes or fails and on every later ` +
-      "review or comment, and the registration survives your turn ending, a compaction and a ntwine restart."
+      "review or comment, and the registration survives your turn ending, a compaction and an ntwine restart."
   // A CLAMP IS NEWS. Silently handing back less coverage than was asked for is how a worker comes to
   // rest believing it is watched for a year when it is watched for one day.
   const clamped = result?.clampedFrom
@@ -2758,7 +2758,7 @@ async function watchIssue(args) {
   const head = result?.alreadyArmed
     ? `Already watching ${ref} as ${id}${until} — nothing new was registered, its original expiry stands, and you will be woken once per event.`
     : `Watching issue ${ref} as ${id}${until}. Ntwine wakes you on every later comment, on a label or ` +
-      "assignee change, and when the issue closes; the registration survives your turn ending, a compaction and a ntwine restart."
+      "assignee change, and when the issue closes; the registration survives your turn ending, a compaction and an ntwine restart."
   const clamped = result?.clampedFrom
     ? `\n\nYOUR \`--for ${result.clampedFrom}\` WAS CAPPED at the ceiling — the expiry above is what you ` +
       "actually hold. Nothing else about the watcher changed."

@@ -1,6 +1,6 @@
 // Idle-thread hibernation — reclaim the memory a RESTING worker holds, without ending it.
 //
-// A ntwine worker is expensive at rest and free to restart. Measured on the maintainer's machine
+// An ntwine worker is expensive at rest and free to restart. Measured on the maintainer's machine
 // 2026-08-19 (64 GB, 38 live worker threads, ALL 38 idle, 19 GB held): 504 MB per thread all-in —
 // a `claude` CLI at 289 MB, a chrome-devtools MCP pair at 159 MB, the broker daemon at 39 MB and the
 // ntwine MCP server at 17 MB. That browser was ntwine's own always-on mount, removed 2026-08-26: a
@@ -9,7 +9,7 @@
 // until a tool call starts it (lazy-mcp-host.ts) — still the largest reclaimable block on the machine. Seventeen of those threads had been idle for an hour or
 // more; the oldest for 19.5 hours, still holding its full 504 MB. Nothing in ntwine ever collected them:
 // the broker daemon's own IDLE_EXIT_MS is six hours AND only fires when no client is attached, which
-// for a ntwine-managed thread is never.
+// for an ntwine-managed thread is never.
 //
 // SIXTY MINUTES is the threshold because it is the Anthropic prompt-cache TTL. A thread idle longer
 // than that has ALREADY lost its cache, so tearing its process down and cold-resuming it later costs no

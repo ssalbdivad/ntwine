@@ -71,9 +71,9 @@ function runHook(
       CLAUDE_PROJECT_DIR: dir,
       NTWINE_THREAD: "",
       NTWINE_SCRATCHPAD_HOOK: "",
-      // A Ntwine worker running this suite carries its own board root (Home's state dir), and the hook
+      // An Ntwine worker running this suite carries its own board root (Home's state dir), and the hook
       // honours it over CLAUDE_PROJECT_DIR — so the hook looked for these fixtures' scratch files in the
-      // worker's board and every case below failed, only when the suite ran inside a Ntwine thread.
+      // worker's board and every case below failed, only when the suite ran inside an Ntwine thread.
       NTWINE_BOARD_ROOT: "",
       ...env,
     },
@@ -188,7 +188,7 @@ test("every silence gate holds: project registration under ntwine, sub-agents, a
   const dir = newProject()
   writeScratch(dir, "should never appear\n", "plan.md")
   const evt = { session_id: SID, source: "compact" }
-  // The repo-local `.claude/settings.json` copy defers to the plugin one inside a ntwine worker.
+  // The repo-local `.claude/settings.json` copy defers to the plugin one inside an ntwine worker.
   assert.equal(runHook(dir, ["--mode=session-start", "--via=project"], evt, { NTWINE_THREAD: "t" }), "")
   assert.notEqual(runHook(dir, ["--mode=session-start", "--via=project"], evt), "")
   // Sub-agents do not get root re-ground/nudge injections; their dedicated start epilogue owns the
@@ -275,7 +275,7 @@ test("the mid-turn channel reports itself as PostToolUse so the harness accepts 
     { session_id: SID, transcript_path: writeTranscript(dir, 90_000) },
     { NTWINE_SCRATCHPAD_STALE_TOKENS: "60000" }
   )
-  // A ntwine worker runs enormous autonomous turns; a turn-boundary-only nudge can miss a whole
+  // An ntwine worker runs enormous autonomous turns; a turn-boundary-only nudge can miss a whole
   // session's work. The event name must match the firing hook or the payload is rejected.
   assert.equal(JSON.parse(out).hookSpecificOutput.hookEventName, "PostToolUse")
   assert.match(additionalContext(out), /⟦scratch directory empty⟧/)

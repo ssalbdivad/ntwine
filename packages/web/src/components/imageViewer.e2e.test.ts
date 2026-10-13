@@ -5,7 +5,7 @@ import test from "node:test"
 import type { Page } from "puppeteer"
 
 // The picture viewer and the file reader, driven by real clicks on the real components and the real
-// drawer stack (image-viewer-fixture.tsx). The pictures are REAL screenshots of a Ntwine surface, taken
+// drawer stack (image-viewer-fixture.tsx). The pictures are REAL screenshots of an Ntwine surface, taken
 // first and served back through request interception — an <img> load is not a fetch the fixture could
 // stub — so the fit/actual-size geometry is measured on the shape of picture a worker actually sends.
 //

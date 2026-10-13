@@ -36,7 +36,7 @@ const now = () => new Date().toISOString()
 let n = 0
 const uuid = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`
 
-// One dispatch per shape the tag has to survive: a ntwine cell with an effort, the older doubled
+// One dispatch per shape the tag has to survive: an ntwine cell with an effort, the older doubled
 // namespace, a profile with no effort axis, and a named agent type that carries NO profile (which must
 // render no tag at all rather than a guessed one).
 const DISPATCHES = [

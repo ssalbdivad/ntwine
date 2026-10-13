@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // @ts-check
-// PreToolUse hook on AskUserQuestion (ntwine-worker). A ntwine worker runs under a dashboard, not a
+// PreToolUse hook on AskUserQuestion (ntwine-worker). An ntwine worker runs under a dashboard, not a
 // live chat: an interactive question prompt would hang the session invisibly (nobody is at the
 // keyboard to click it). Deny with a redirect to the async pattern: register the question with
 // `ntwinectl ask` (a row; the free-form ```question fence was retired 2026-09-11), keep working, and

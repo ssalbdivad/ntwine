@@ -119,11 +119,11 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   // Its host reads the connection, the discovery and the openers below only when the view asks, which
   // is never before activation returns.
   const sidebar = registerSidebar(api, context, {
-    // Like the browser page, the sidebar needs no editor connection: a Ntwine discovery found serves its page.
+    // Like the browser page, the sidebar needs no editor connection: an Ntwine discovery found serves its page.
     origin: () => connection.origin ?? found?.origin,
     projectSlug: () => workspaceProjects(folders(), projects)[0]?.slug,
     notFound: () => (status.kind === "offline" || status.kind === "incompatible" ? status.reason : undefined),
-    // A Ntwine whose welcome names neither the sidebar nor the editor's picture (which came after the
+    // An Ntwine whose welcome names neither the sidebar nor the editor's picture (which came after the
     // sidebar), or that answered the editor socket with a 404, serves a page from before the sidebar.
     pageSupport: () => {
       const features = connection.features
@@ -284,7 +284,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   // What this window shows — file, selection, tabs, problems — for Ntwine's agents to read
-  // (`mcp__ntwine__editor`), sent on every change to a Ntwine that takes it. `ntwine.shareEditorState` off
+  // (`mcp__ntwine__editor`), sent on every change to an Ntwine that takes it. `ntwine.shareEditorState` off
   // sends that it is off, and nothing else.
   const editorState = registerEditorStateFeed(api, context, watcher, { send: () => connection.sendEditor(), shared })
 
@@ -446,7 +446,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
    * undefined. A file link the sidebar's page hands over (`ntwine:open-file`) comes straight here, not
    * through Ntwine's opener, which settles its own; an agent that worked in `.ntwine/worktrees/<slug>` wrote
    * its links there, and Done removes the worktree. Asked of the project the path lies in, else the
-   * window's; a Ntwine too old for the procedure, or no answer within a moment, leaves the path missing.
+   * window's; an Ntwine too old for the procedure, or no answer within a moment, leaves the path missing.
    */
   async function settleMissing(path: string): Promise<string | undefined> {
     const origin = connection.origin ?? found?.origin
@@ -588,7 +588,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     if (match) return { project: match.project, ref: ref(match.path, match.relative || match.path) }
     const home = projects.find((project) => project.home)
     const add = "Add folder to Ntwine"
-    const choice = await api.window.showWarningMessage(`${basename(target.path)} isn't in a Ntwine project.`, ...(home ? [homeLabel] : []), add)
+    const choice = await api.window.showWarningMessage(`${basename(target.path)} isn't in an Ntwine project.`, ...(home ? [homeLabel] : []), add)
     if (choice === homeLabel && home) return { project: home, ref: ref(target.path, target.path) }
     if (choice === add) {
       const folder = api.workspace.getWorkspaceFolder(target.uri)?.uri.fsPath ?? dirname(target.path)
@@ -655,7 +655,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     if (typeof named.thread === "string") {
       const project = typeof named.project === "string" ? named.project : windowProject()?.slug
       if (!project) {
-        void api.window.showInformationMessage("Open a folder that's a Ntwine project to open its threads here.")
+        void api.window.showInformationMessage("Open a folder that's an Ntwine project to open its threads here.")
         return undefined
       }
       target = { thread: named.thread, project }
@@ -665,7 +665,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       else {
         const project = windowProject()
         if (!project) {
-          void api.window.showInformationMessage("Open a folder that's a Ntwine project to open its threads here.")
+          void api.window.showInformationMessage("Open a folder that's an Ntwine project to open its threads here.")
           return undefined
         }
         let threads: PickerThread[]
@@ -768,7 +768,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       project = windowProject()
     }
     if (!project) {
-      void api.window.showInformationMessage("Open a file in a Ntwine project to send it to a thread.")
+      void api.window.showInformationMessage("Open a file in an Ntwine project to send it to a thread.")
       return undefined
     }
     const rpc = new NtwineRpc(origin)
@@ -1125,7 +1125,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const { options } = splitArgs(args)
     const project = windowProject()
     if (!project) {
-      void api.window.showInformationMessage("Open a folder that's a Ntwine project to review its threads' changes.")
+      void api.window.showInformationMessage("Open a folder that's an Ntwine project to review its threads' changes.")
       return undefined
     }
     let threads: PickerThread[]
@@ -1181,7 +1181,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   function openNtwine(): void {
-    // The page needs no editor connection: a Ntwine that answered discovery but refused the socket (an
+    // The page needs no editor connection: an Ntwine that answered discovery but refused the socket (an
     // older Ntwine, a version mismatch) still serves its page.
     const origin = connection.origin ?? found?.origin
     if (!origin) return showNotConnected()

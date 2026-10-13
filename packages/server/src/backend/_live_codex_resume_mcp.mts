@@ -1,5 +1,5 @@
 // LIVE repro (not a unit test; excluded from the *.test.ts glob). Does a codex thread KEEP ntwine's MCP
-// tools across a Ntwine restart that replaces its app-server?
+// tools across an Ntwine restart that replaces its app-server?
 //
 //   nub packages/server/src/backend/_live_codex_resume_mcp.mts
 //   TRANSPORT=native nub …   — the production transport (`--listen unix://`, detached listener)

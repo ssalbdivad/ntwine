@@ -357,7 +357,7 @@ export function codexScratchpadHookConfig(
       // `--resume-keeps-context`: a Codex thread that is resumed comes back from its rollout with its
       // whole conversation, so SessionStart(resume) is no loss and the hook must not announce one. It
       // could not fire at all until the hooks rode every resume (codexWorkerThreadConfig); now it fires
-      // on each one — the first message after a Ntwine restart included.
+      // on each one — the first message after an Ntwine restart included.
       SessionStart: [cmd("--mode=session-start --resume-keeps-context")],
       UserPromptSubmit: [cmd("--mode=nudge")],
       PostToolUse: [cmd("--mode=nudge --event=PostToolUse")],
@@ -366,7 +366,7 @@ export function codexScratchpadHookConfig(
 }
 
 /**
- * Everything a Ntwine worker's Codex thread carries as per-thread config besides its MCP mount: the
+ * Everything an Ntwine worker's Codex thread carries as per-thread config besides its MCP mount: the
  * reasoning summaries the transcript renders, and the hooks above.
  *
  * It is handed to the BRIDGE (context.ts `workerConfig`), not to one `thread/start`, because Codex
@@ -761,7 +761,7 @@ export function claudeMcpFlags(sessionId: string, mcp?: NtwineMcp, project?: Wor
   return argv
 }
 
-// A ntwine worker runs under a dashboard, not a live chat, so a BLOCKING question tool would hang the
+// An ntwine worker runs under a dashboard, not a live chat, so a BLOCKING question tool would hang the
 // session invisibly — there is nobody at the keyboard to click it. Remove it at spawn rather than
 // arguing against it in prose: the contract used to spend a paragraph on "NEVER invoke it" AND a
 // PreToolUse hook denied it, three mechanisms for one prohibition. Taking the tool away is the cheap
@@ -1498,7 +1498,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       return { slug, sessionId }
     },
 
-    // ---- PROMOTION: the human steered one of their own terminals, so it becomes a ntwine thread ----
+    // ---- PROMOTION: the human steered one of their own terminals, so it becomes an ntwine thread ----
     //
     // There is no "adopt" button and no separate ceremony (maintainer 2026-08-24: "once the user steers
     // an external thread, it should then be essentially promoted to operate as a regular thread"). The
@@ -1531,7 +1531,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // second row over a thread ntwine is already driving.
       for (const row of deps.storage.allSessions()) {
         if (row.session_id === externalId || row.agent_session_id === externalId || row.transcript_id === externalId) {
-          throw new Error("that session is already a ntwine thread")
+          throw new Error("that session is already an ntwine thread")
         }
       }
       const displayTitle = title?.trim() || `Session ${externalId.slice(0, 8)}`

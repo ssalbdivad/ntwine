@@ -1200,7 +1200,7 @@ export interface Storage extends ScheduleStore {
   // nothing to the transcript when it stops one (backend/_live_shell_stop_notice.mts) and leaves no
   // disk trace either (backend/_live_shell_stop_trace.mts, whose control shows a normally-finished
   // shell keeps its output file exactly as a killed one does). So the fold has no way to learn the op
-  // ended, and any re-prime — a ntwine restart above all — re-creates it as LIVE off a tool_use that
+  // ended, and any re-prime — an ntwine restart above all — re-creates it as LIVE off a tool_use that
   // will never get a result.
   //
   // That is not hypothetical: the maintainer's own board carried a killed shell reading "57hr 18m",

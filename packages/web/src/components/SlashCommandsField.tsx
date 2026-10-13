@@ -8,7 +8,7 @@ import { SettingsField } from "./SettingsField.tsx"
 
 // Settings → Slash commands: every user command the prompt box offers (UserCommand in @ntwine/shared),
 // and an editor for the ones written here. Only Ntwine's own folder is written. A project's or the
-// machine-wide `~/.agents/commands` one opens as a COPY — saving it writes a Ntwine command of the same
+// machine-wide `~/.agents/commands` one opens as a COPY — saving it writes an Ntwine command of the same
 // name, which then wins over the original — so nothing here ever edits a file another tool owns.
 //
 // Saved explicitly, not as-you-type like the project instructions: a command's NAME is its file name,

@@ -106,7 +106,7 @@ test("a turn's result retires the interactions it left pending", { timeout: 30_0
   }
 })
 
-// The other half: a card journaled by a ntwine that is GONE. The canUseTool promise lived in that
+// The other half: a card journaled by an ntwine that is GONE. The canUseTool promise lived in that
 // daemon's process, `pendingPerms` is memory this bridge never had, and a cold resume re-asks inside a
 // new turn under a new request id — so nothing can ever route an answer to it. This boot is the only
 // thing that will notice, which is why it must sweep rather than skip.

@@ -184,13 +184,13 @@ test("the relay posts the host's ntwine: messages to the page at Ntwine's origin
   r.dispatch({ source: r.hostFrame, origin: "vscode-webview://another-webview", data: compose })
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: { type: "other" } })
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: "ntwine:compose" })
-  assert.equal(r.toPage.length, 2, "only a ntwine: object from the host frame")
+  assert.equal(r.toPage.length, 2, "only an ntwine: object from the host frame")
 
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: { view: "hint", show: true } })
   assert.equal(r.hint.hidden, false)
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: { view: "hint", show: false } })
   assert.equal(r.hint.hidden, true)
-  // A Ntwine from before the sidebar: the bar says so, in the extension's words.
+  // An Ntwine from before the sidebar: the bar says so, in the extension's words.
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: { view: "hint", show: true, text: HINT_OLD_NTWINE } })
   assert.equal(r.hint.hidden, false)
   assert.equal(r.hintText.textContent, HINT_OLD_NTWINE)

@@ -4,7 +4,7 @@
 // `ai-title` transcript record — and that the tailer surfaces it as the board's `aiTitle`.
 //
 // The bug this guards: Claude Code's automatic titling is suppressed on the Agent-SDK transport
-// whenever a SessionStart hook is registered, which is always true for a ntwine broker worker. With no
+// whenever a SessionStart hook is registered, which is always true for an ntwine broker worker. With no
 // `ai-title` record the board shows "Spinning up a thread…" for SPIN_UP_MS and then falls back to a
 // truncation of the raw dispatch prompt, forever. The broker therefore ASKS for the title explicitly
 // (claude-agent-broker.ts → seedSessionTitle → generate_session_title with persist).

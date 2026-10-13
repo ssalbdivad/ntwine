@@ -506,7 +506,7 @@ export const EndedShellView = z.object({
   status: z.enum(["completed", "failed", "killed"]),
   startedAt: z.string().optional(),
   finishedAt: z.string().optional(),
-  taskId: z.string().optional(), // see BgShellView.taskId — what a ntwine-relayed completion names it by
+  taskId: z.string().optional(), // see BgShellView.taskId — what an ntwine-relayed completion names it by
   monitor: z.boolean().optional(),
   cwd: z.string().optional(),
   checkout: WorkCheckout.optional(),
@@ -4205,7 +4205,7 @@ export type DropOwnLinkResult = z.infer<typeof DropOwnLinkResult>
 // agent works in (server thread-terminals.ts). It is not a thread: it has no row and no card of its own,
 // and rides its parent's `ThreadView.terminals`. `id` is its /term/<id> handle. `runId` counts starts, so
 // a restart is a NEW terminal to the browser (a fresh pty, a fresh screen) rather than more output on the
-// old one. An exited run with no `exitCode` is one the server went away under (a Ntwine restart takes its
+// old one. An exited run with no `exitCode` is one the server went away under (an Ntwine restart takes its
 // children with it) — shown as interrupted, never as a success.
 export const ThreadTerminal = z.object({
   id: ThreadSlug,
@@ -5368,7 +5368,7 @@ export const Settings = z.object({
   // The token count at which a NEW Claude worker auto-compacts its conversation. Ntwine requests the
   // 1M context window on every dispatch (resolveClaudeLaunchModel), so without this a worker grows
   // toward 1M before it ever compacts — and every turn past 200K re-sends up to 5x the conversation a
-  // 200K TUI session would, which is the single largest reason a Ntwine thread spends quota faster than
+  // 200K TUI session would, which is the single largest reason an Ntwine thread spends quota faster than
   // the TUI (measured 2026-08-26). Reaches the worker as CLAUDE_CODE_AUTO_COMPACT_WINDOW, which Claude
   // Code caps to the model's real window. Optional so an old blob parses; defaultSettings pins 500_000
   // (maintainer 2026-08-26: "a default compaction window of 500k by default").
@@ -6168,10 +6168,10 @@ export const ThreadProfileOptionsResult = z.object({
 })
 export type ThreadProfileOptionsResult = z.infer<typeof ThreadProfileOptionsResult>
 
-// The thread's invocable skills — and, on Claude, the built-in slash commands a Ntwine thread can run —
+// The thread's invocable skills — and, on Claude, the built-in slash commands an Ntwine thread can run —
 // for the composer's `/` typeahead. Always the HARNESS's own list —
 // Claude's `supportedCommands()` through the broker, Codex's `skills/list` through the app-server —
-// never a ntwine-side scan of skill directories, which could only drift from what the session actually
+// never an ntwine-side scan of skill directories, which could only drift from what the session actually
 // loaded. `description` may be empty (Claude's init-frame names carry no descriptions for entries the
 // command list omits).
 //
@@ -6418,7 +6418,7 @@ export function wakeTimeHeader(nowMs: number, lastAssistantAt?: string | null, d
 // only: the stored text keeps the stamp, which is the whole point of sending it.
 const WAKE_TIME_HEADER_TAIL = /\n+⏱ \d{4}-\d{2}-\d{2} \d{2}:\d{2}(?: — you last spoke [^\n]*? ago)?(?: · (?:[^\n]*? left|over by [^\n]*?))?\.[ \t]*$/
 
-/** Display projection: a ntwine wake without the clock line ntwine appended for the worker. */
+/** Display projection: an ntwine wake without the clock line ntwine appended for the worker. */
 export function stripWakeTimeHeader(text: string): string {
   return text.replace(WAKE_TIME_HEADER_TAIL, "")
 }
@@ -6435,7 +6435,7 @@ export function stripWakeTimeHeader(text: string): string {
 const HUMAN_WATCH_TRAILERS = [PR_WATCH_HUMAN_TRAILER, ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_QUIET_TRAILER]
 const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER].flatMap(brandSpellings)
 
-/** Display projection: a ntwine wake without the agent-facing trailer ntwine appended for the worker.
+/** Display projection: an ntwine wake without the agent-facing trailer ntwine appended for the worker.
  *
  *  Anchored to END-OF-TEXT, after the clock line and the delivery token have already come off (see
  *  `userDisplayText`, which composes the three in that order — the order they were appended in). Exact
@@ -6719,7 +6719,7 @@ export function parseMergedWake(text: string): MergedWakePart[] | null {
 
 // ---- harness plumbing that arrives dressed as a user turn -----------------------------------------
 // A user record that is not the human speaking: a task-notification from a background child, a bare
-// system-reminder wrapper, a ntwine orchestrator pulse. Matched on the LEADING tag so a human message
+// system-reminder wrapper, an ntwine orchestrator pulse. Matched on the LEADING tag so a human message
 // that merely QUOTES one of these somewhere inside still counts as the human.
 //
 // THIS IS THE SHARED CLASSIFIER, and it is shared for a reason. It used to live in transcript.ts alone,
@@ -7836,7 +7836,7 @@ export const TranscriptMessage = z.object({
   //
   // `name` is the sender's Claude Code session name, the fallback label. `thread` is the Ntwine thread
   // behind it, filled in by the server from the sender's socket (session-peer.ts) — absent when the
-  // sender is not a Ntwine thread or is gone without having been resolved, and then the line names the
+  // sender is not an Ntwine thread or is gone without having been resolved, and then the line names the
   // session without a link. `project` is the URL slug of the sender's project.
   sessionPeer: z.object({
     name: z.string().optional(),

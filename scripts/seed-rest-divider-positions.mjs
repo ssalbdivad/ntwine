@@ -1,7 +1,7 @@
 // Seed a disposable adhoc stack with ONE simulated worker whose transcript puts the "Agent rested"
 // hairline in all three positions it can land in, in reading order:
 //
-//   1. above a ntwine WAKE DELIVERY (the sign-off nudge) — the back-to-back pair the maintainer called
+//   1. above an ntwine WAKE DELIVERY (the sign-off nudge) — the back-to-back pair the maintainer called
 //      out on 2026-08-13 ("we're just getting these back-to-back hairlines");
 //   2. above the HUMAN'S own next message — the one position where the rule discriminates, since
 //      without it a reply to a finished agent reads exactly like a steer typed mid-turn;

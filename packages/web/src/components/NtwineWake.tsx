@@ -70,7 +70,7 @@ export const DIVIDER_LINK = "rounded-sm underline decoration-muted/30 underline-
 // hairline here dates itself by, with two exceptions that carry a better one of their own: a single
 // review item dates by GitHub's clock (when the comment was filed, which is the news), and a timer by
 // the instant it was set to fire.
-/** `agentMessage` draws a wake that is ANOTHER AGENT speaking (a Ntwine thread's message) in the agent
+/** `agentMessage` draws a wake that is ANOTHER AGENT speaking (an Ntwine thread's message) in the agent
  *  bubble, or returns null; the thread view passes it (ChatView threadMessageBubble), since the bubble's
  *  name link lives there. Asked for each part of a merged delivery too. */
 export type WakeAgentMessage = (text: string, sourceId: string | undefined, at: string | undefined) => ReactNode | null

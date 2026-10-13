@@ -62,7 +62,7 @@ test("silent when it cannot name the child: inside a sub-agent, no handle, not a
     const env = { NTWINE_THREAD: "parser-port", NTWINE_PERM_DIR: root.permDir }
     assert.equal(await runHook(dispatch({ agent_id: "aChild" }), env), "", "a grandchild's address is not this thread's to state")
     assert.equal(await runHook(dispatch(), env), "", "a description with no handle gets no line")
-    assert.equal(await runHook(dispatch(), { NTWINE_PERM_DIR: root.permDir }), "", "inert outside a ntwine worker")
+    assert.equal(await runHook(dispatch(), { NTWINE_PERM_DIR: root.permDir }), "", "inert outside an ntwine worker")
     assert.equal(root.seen.length, 1, "only the one real lookup reached the server")
   } finally { await root.close() }
   const gone = mkdtempSync(join(tmpdir(), "ntwine-agent-address-gone-"))

@@ -1666,7 +1666,7 @@ export function createRouter(ctx: AppContext) {
       // The row is bound to the CALLER's session id (origin/main's staleness guard): a stale tab must
       // not deliver a follow-up into a thread that has since been re-dispatched.
       // PROMOTION. Steering an EXTERNAL session — one of the human's own terminals, listed in the
-      // rail's External band — is what turns it into a ntwine thread (maintainer 2026-08-24). It runs
+      // rail's External band — is what turns it into an ntwine thread (maintainer 2026-08-24). It runs
       // here, inside the follow-up, rather than behind a button of its own: one round trip, so the
       // message and the row it belongs to can never end up on opposite sides of a failure.
       //
@@ -3908,7 +3908,7 @@ export function createRouter(ctx: AppContext) {
     // The composer's `/` typeahead asks the thread's HARNESS for its skills — the broker daemon's
     // `supportedCommands()` for Claude, the app-server's `skills/list` for Codex. Ntwine owns no skill
     // discovery of its own, on purpose: the harness already resolves plugins, project and global roots
-    // and enable state, and a ntwine-side scan could only drift from what the session actually loaded.
+    // and enable state, and an ntwine-side scan could only drift from what the session actually loaded.
     // Unavailability (no live daemon, a legacy row, an old broker) THROWS with a reason; the web treats
     // any failure as "no suggestions" rather than surfacing an error.
     threadSkills: query({
@@ -4839,7 +4839,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // THE MACHINE-WIDE WRAP-UP: one deadline, and the human's note, on every Running thread in every open
-    // project — the way to say "restarting in 15m" before a reboot ends the broker daemons a Ntwine restart
+    // project — the way to say "restarting in 15m" before a reboot ends the broker daemons an Ntwine restart
     // would not. Running means the rail's own band (`activeBandThread`): a queued thread is already at rest
     // and a snoozed one is parked on a registration that outlives the reboot, so neither is woken. A thread
     // already due SOONER keeps its time, but still gets a new generation so the note reaches it.

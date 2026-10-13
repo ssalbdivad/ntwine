@@ -362,7 +362,7 @@ if (isDirectHookExecution(process.argv[1], import.meta.url)) {
   // It is a `.ts` module loaded on demand, and every way that can fail — a Node that cannot strip
   // types, a copy installed under node_modules (where Node refuses to), a throw inside the rewrite —
   // lands in the catch and emits this hook's own result unchanged. Never for a denied call, never for
-  // Codex (`--ntwine-thread`: it has no `updatedInput`), never outside a Ntwine thread.
+  // Codex (`--ntwine-thread`: it has no `updatedInput`), never outside an Ntwine thread.
   if (
     result.hookSpecificOutput?.permissionDecision === 'deny' ||
     process.argv.includes('--ntwine-thread') ||

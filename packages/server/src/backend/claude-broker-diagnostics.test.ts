@@ -110,7 +110,7 @@ test("a drop names the delivery id it killed, so the ledger can mark exactly tha
 })
 
 test("only a real drop yields an id — noise, deaths, and a pre-id daemon yield none", () => {
-  // A detached daemon outlives a ntwine upgrade by hours, so the drop with no id is a shape that WILL be
+  // A detached daemon outlives an ntwine upgrade by hours, so the drop with no id is a shape that WILL be
   // seen in production. It must degrade to the old behaviour (log + slow age-out), never to a wrong id.
   const old = `${CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX}: Claude outstanding input limit exceeded`
   assert.equal(droppedDeliveryId({ kind: "stderr", message: old, truncated: false }), undefined)

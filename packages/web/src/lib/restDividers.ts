@@ -17,7 +17,7 @@ import { agentCompletionCall } from "./subAgentCompletion.ts"
 //     stacked with nothing between them (maintainer 2026-08-13: "we're just getting these back-to-back
 //     hairlines that are kind of unnecessary").
 //
-// A ntwine wake DELIVERY counts as a divider even though it is a `role: "user"` record: `wake: true`
+// An ntwine wake DELIVERY counts as a divider even though it is a `role: "user"` record: `wake: true`
 // messages render as a NtwineWake or a RecurringPromptLine, never as a plain bubble, so they
 // carry the seam themselves. The human's own messages are the only `user` records that do not.
 //

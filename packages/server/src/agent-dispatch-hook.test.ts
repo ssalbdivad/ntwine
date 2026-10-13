@@ -124,7 +124,7 @@ test("Agent dispatch hook tells every helper that nothing can wake it", () => {
   assert.match(prompt, /AS YOU GO/)
 })
 
-test("Agent dispatch hook is inert outside a ntwine worker session", () => {
+test("Agent dispatch hook is inert outside an ntwine worker session", () => {
   assert.deepEqual(decision(dispatch, false), {})
   assert.deepEqual(decision({ prompt: "p" }, false), {})
 })

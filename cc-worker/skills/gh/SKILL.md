@@ -1,6 +1,6 @@
 ---
 name: gh
-description: The gh-CLI playbook for a ntwine worker signed into GitHub (invoke as ntwine:gh). Load this whenever your effort touches GitHub — reading or triaging an issue or PR, reviewing a diff, checking CI/release status, or searching issues/PRs — to use `gh` eagerly and correctly: the read-vs-write boundary (never push/open a PR/comment/label/close/merge unless the human asks), concrete read recipes, and active Monitor/background-Bash CI/PR watches. Only meaningful when you are signed in (`gh auth status --active` exit 0); the session-seed hook injects a pointer here when you are.
+description: The gh-CLI playbook for an ntwine worker signed into GitHub (invoke as ntwine:gh). Load this whenever your effort touches GitHub — reading or triaging an issue or PR, reviewing a diff, checking CI/release status, or searching issues/PRs — to use `gh` eagerly and correctly: the read-vs-write boundary (never push/open a PR/comment/label/close/merge unless the human asks), concrete read recipes, and active Monitor/background-Bash CI/PR watches. Only meaningful when you are signed in (`gh auth status --active` exit 0); the session-seed hook injects a pointer here when you are.
 version: 0.1.2
 metadata:
   internal: true
@@ -99,7 +99,7 @@ Before launching any CI/review monitor, inspect project-local `AGENTS.md`, activ
 docs, `package.json` scripts, and declared monitor tooling. Prefer an explicit project-local monitor
 only if it documents terminal semantics for this gate. Validate its absolute command and terminal
 event/exit contract before launch. If declared tooling is missing, invalid, or has no terminal
-semantics, stop and report that configuration error; never silently shadow it with a Ntwine script, and
+semantics, stop and report that configuration error; never silently shadow it with an Ntwine script, and
 never execute a monitor merely because its filename looks plausible.
 
 When no project monitor is declared, the bundled fallback scripts are

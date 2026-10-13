@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
-// SessionStart hook (ntwine-worker) — SEEDS a ntwine WORKER session's context. Run directly with
+// SessionStart hook (ntwine-worker) — SEEDS an ntwine WORKER session's context. Run directly with
 // node (zero deps, max Node compat), mirroring cc's hook idiom.
 //
-// A ntwine worker is a top-level interactive `claude` the UI spawns per effort; the slug arrives in
+// An ntwine worker is a top-level interactive `claude` the UI spawns per effort; the slug arrives in
 // env NTWINE_THREAD (and a `THREAD:` line in the first prompt). There are NO thread files, no
 // frontmatter, no status field — a worker SIGNALS through its final message (fences), and anything that
 // must outlive its context window is an arrangement it makes for itself. This hook injects, on every
@@ -15,7 +15,7 @@
 //   3. on `compact` — a short re-grounding (compaction drops the deep model + this orientation).
 //
 // GATE: everything is gated on NTWINE_THREAD being set, so the plugin is completely inert when
-// loaded outside a ntwine worker (e.g. a plain `claude --plugin-dir cc-worker` smoke run).
+// loaded outside an ntwine worker (e.g. a plain `claude --plugin-dir cc-worker` smoke run).
 //
 // STALE-INSTALL DEFENSE: the `cc` orchestrator plugin is retired — the marketplace ships only this
 // worker plugin, and cc's hooks/skills/agents are gone. But a machine can still carry a CACHED cc
@@ -39,7 +39,7 @@ try {
 // Skip inside sub-agent contexts (they carry agent_id) — the seed is for the top-level worker.
 if (input.agent_id ?? input.agentId) process.exit(0);
 
-// WORKER GATE — inert unless this is a ntwine worker session.
+// WORKER GATE — inert unless this is an ntwine worker session.
 const thread = (process.env.NTWINE_THREAD ?? '').trim();
 if (!thread) process.exit(0);
 
@@ -73,7 +73,7 @@ const scratch = scratchBase + (sid ? sid + '/' : '<session-id>/');
 // prompt. Trimmed 2026-08-26 (maintainer: "Definitely trim the session seed hook if it's fully
 // repetitive") as part of cutting the per-session token overhead Ntwine adds over a plain TUI session.
 const core =
-  '⟦ntwine worker contract⟧ You are a ntwine WORKER driving EXACTLY ONE effort. Your FULL operating contract — the end-of-turn signal fences (```done / ```awaiting — a question is a registered row, `ntwinectl ask`, whose card renders at the BOTTOM of your handoff, so every word of explanation goes above it; there is no ```question fence), the scratch-directory rules, the sub-agent rules, the question handback and the stop criterion — lives in your SYSTEM PROMPT; follow it there. ALWAYS SIGN OFF — a fence OR a registration (`ntwinectl ask`, `ntwinectl done`); a question is the sign-off of the rest that asked it, so rest normally and write no question fence for it; at a later rest, name it under `questions:` in an ```awaiting fence or `ntwinectl unask` it. A rest on running work takes the ```awaiting fence with `status: working|watching|needs_input` — `working` and `watching` are quiet parks and need no write-up.\n' +
+  '⟦ntwine worker contract⟧ You are an ntwine WORKER driving EXACTLY ONE effort. Your FULL operating contract — the end-of-turn signal fences (```done / ```awaiting — a question is a registered row, `ntwinectl ask`, whose card renders at the BOTTOM of your handoff, so every word of explanation goes above it; there is no ```question fence), the scratch-directory rules, the sub-agent rules, the question handback and the stop criterion — lives in your SYSTEM PROMPT; follow it there. ALWAYS SIGN OFF — a fence OR a registration (`ntwinectl ask`, `ntwinectl done`); a question is the sign-off of the rest that asked it, so rest normally and write no question fence for it; at a later rest, name it under `questions:` in an ```awaiting fence or `ntwinectl unask` it. A rest on running work takes the ```awaiting fence with `status: working|watching|needs_input` — `working` and `watching` are quiet parks and need no write-up.\n' +
   'SCRATCH DIRECTORY (OPTIONAL): `' + scratch + '` — a folder kept FOR YOU, nothing in it read automatically, never a substitute for doing the work. Give each sub-agent its OWN file rather than a shared one.';
 
 const grounding =

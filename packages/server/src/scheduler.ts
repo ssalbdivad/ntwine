@@ -1989,7 +1989,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // worker's transcript under 184 limit records — a self-inflicted context burn on a thread that was
   // already stuck.
   //
-  // In memory on purpose: a ntwine restart costs one extra attempt per thread, and a durable table for a
+  // In memory on purpose: an ntwine restart costs one extra attempt per thread, and a durable table for a
   // guard this cheap would be a migration in exchange for nothing.
   const spentEarlyResume = new Map<string, string>()
 

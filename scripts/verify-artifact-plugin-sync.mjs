@@ -76,7 +76,7 @@ let daemonPid
 function bootServer(artifact, pluginDir, target, token, label) {
   let output = ""
   const env = { ...process.env }
-  // This harness is usually run BY a Ntwine worker, whose own identity must not reach the server it boots.
+  // This harness is usually run BY an Ntwine worker, whose own identity must not reach the server it boots.
   for (const key of ["NTWINE_THREAD", "NTWINE_PERM_DIR", "NTWINE_PLUGIN_SYNC_OFF", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "NODE_COMPAT"]) delete env[key]
   const child = spawn(process.execPath, [join(artifact.runtimeDir, "src", "index.js")], {
     cwd: PROJECT_DIR,

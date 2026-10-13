@@ -756,7 +756,7 @@ try {
     if (!token) throw new Error("registry supervisor launch is missing project ownership");
     await runSupervisor(options.port, token);
   }
-  // A Ntwine already running on Ntwine's own folder that does not hold the machine-wide record — the
+  // An Ntwine already running on Ntwine's own folder that does not hold the machine-wide record — the
   // source launcher started outside a project. Its launch token is in the record it does publish.
   const existing = await existingPort();
   if (existing) {

@@ -1,5 +1,5 @@
 // LIVE proof for A+B (not a unit test; excluded from the *.test.ts glob). The counterpart to
-// _live_appserver_restart_repro.mts, which showed a ntwine runtime restart silently killing an
+// _live_appserver_restart_repro.mts, which showed an ntwine runtime restart silently killing an
 // in-flight codex turn. Run:
 //   nub packages/server/src/backend/_live_appserver_daemon_survival.mts
 //
@@ -66,7 +66,7 @@ const check = (label: string, ok: boolean) => { console.log(`  ${ok ? "PASS" : "
 
 ;(async () => {
   try {
-    // ================= A: the turn survives a ntwine runtime restart =================
+    // ================= A: the turn survives an ntwine runtime restart =================
     console.log("\n======== A — runtime restart must NOT kill the turn ========")
     const slugA = "survive-a", sessionA = "session-a"
     const one = makeBridge("gen1")
@@ -129,7 +129,7 @@ const check = (label: string, ok: boolean) => { console.log(`  ${ok ? "PASS" : "
     await sleep(5000)
     const recordB = liveDaemonRecord(root, PROJECT)!
 
-    console.log("  --- killing the daemon outright (an app-server crash, not a ntwine restart) ---")
+    console.log("  --- killing the daemon outright (an app-server crash, not an ntwine restart) ---")
     killCodexAppServerDaemon(root, PROJECT)
     await sleep(1500)
     check("the app-server is gone", !alive(recordB.childPid))

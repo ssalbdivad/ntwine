@@ -27,7 +27,7 @@ function runHook(name: string, event: Record<string, unknown>, env: Record<strin
   })
 }
 
-/** A ntwine root whose server answers `threadDeadline` with `at` (or no deadline). */
+/** An ntwine root whose server answers `threadDeadline` with `at` (or no deadline). */
 async function ntwineRoot(at: number | undefined) {
   const root = mkdtempSync(join(tmpdir(), "ntwine-agent-deadline-"))
   const permDir = join(root, "projects", PROJECT, "perm-requests")

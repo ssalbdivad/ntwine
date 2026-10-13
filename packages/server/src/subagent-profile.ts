@@ -68,7 +68,7 @@ function shortModel(raw: unknown): string | undefined {
 /**
  * The cell for one Claude `Agent` dispatch, or `undefined` when nothing is known about its runtime.
  * Shapes out, all of which web/lib/subAgentProfile.ts already renders:
- *   ntwine:opus-high             a ntwine profile (or no profile at all) with both halves resolved
+ *   ntwine:opus-high             an ntwine profile (or no profile at all) with both halves resolved
  *   general-purpose opus/high   a foreign agent type, which keeps its name and gains what the call named
  *   ntwine:high                  the model genuinely unknown — the profile verbatim, as before
  */
@@ -88,7 +88,7 @@ export function dispatchProfileCell(input: DispatchProfileInput): string | undef
   const effort = fromType.effort ?? (ours ? text(input.turnEffort) : undefined)
   if (!model && !effort) return type
   const pair = model && effort ? `${model}/${effort}` : (model ?? effort)!
-  // A ntwine profile and a bare dispatch both speak the namespaced form; anything else is an agent type
+  // An ntwine profile and a bare dispatch both speak the namespaced form; anything else is an agent type
   // with a name worth keeping, so the pair joins it the way a codex spawn's role does.
   if (ours) return `ntwine:${[model, effort].filter(Boolean).join("-")}`
   return `${type} ${pair}`

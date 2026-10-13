@@ -53,7 +53,7 @@ export interface GithubIdentity {
 
 /**
  * Resolve a token to its account. `null` means GitHub did not accept it; `"scoped"` means it is a token
- * that can do more than name its account — a `gh` CLI token from a Ntwine older than the device flow —
+ * that can do more than name its account — a `gh` CLI token from an Ntwine older than the device flow —
  * and is refused whoever it belongs to, so the registrar never again accepts one worth stealing.
  */
 export interface GithubVerifier {

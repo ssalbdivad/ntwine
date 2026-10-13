@@ -160,13 +160,13 @@ export interface ClaudeRuntimeIngest {
   /**
    * The auto-compact ceiling this session's daemon was forked with (CLAUDE_CODE_AUTO_COMPACT_WINDOW,
    * from Settings.autoCompactWindow). Reported by the bridge at every attach, off the daemon's own
-   * record, so a reattach after a ntwine restart re-learns the value that daemon is really running under
+   * record, so a reattach after an ntwine restart re-learns the value that daemon is really running under
    * rather than whatever the drawer says today.
    *
    * WHY IT LOWERS `contextWindow` INSTEAD OF RIDING BESIDE IT. Claude Code's effective window is
    * literally `Math.min(model window, this)` — its own `/config` help says so ("the actual threshold is
    * the minimum of this setting and your model's maximum context window"), and the CLI computes exactly
-   * that. So a ntwine worker dispatched at `opus[1m]` under the shipped 500K ceiling has 500K of room,
+   * that. So an ntwine worker dispatched at `opus[1m]` under the shipped 500K ceiling has 500K of room,
    * not 1M, and the footer's dial spent its whole life reporting the second number: 253,862 of
    * 1,000,000 = a comfortable 25%, when the session was in fact half full and half a turn's reading
    * away from a summary (maintainer 2026-09-01). One number, one meaning — how full the space this

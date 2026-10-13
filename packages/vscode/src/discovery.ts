@@ -18,7 +18,7 @@
 //      socket work there, but a page opened on it is a different origin (its own storage, and a port
 //      that moves on every restart). Without a supervisor (a bare `startServer`) it IS the public port.
 //      Last for the first reason. The steps above win whenever a supervisor is up, so pages land here
-//      only in narrow windows — a supervisor that died under a live child, or a Ntwine on a port outside
+//      only in narrow windows — a supervisor that died under a live child, or an Ntwine on a port outside
 //      the well-known set with no address record — and the extension logs which kind of address a page
 //      was opened on (app.ts `openUrl`) instead of refusing to open one.
 //
@@ -131,7 +131,7 @@ export async function readHealth(origin: string, timeoutMs = 1_000): Promise<Ntw
 }
 
 /**
- * The launch-token proof a Ntwine's health carries: sha256 over a fixed tag, the launching project's id
+ * The launch-token proof an Ntwine's health carries: sha256 over a fixed tag, the launching project's id
  * and folder, and the owner token from `<data>/projects/<id>/project-launch.owner`. Reimplemented, not
  * imported — `@ntwine/server/project-launch` drags process bookkeeping into the bundle — and pinned
  * byte-for-byte to `projectLaunchTokenProof` by discovery.test.ts.

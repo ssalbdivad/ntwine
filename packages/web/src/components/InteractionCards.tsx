@@ -471,7 +471,7 @@ function InteractionApprovalCard({
 
   const mutation = useMutation<MutationResult, unknown, MutationAction>({
     mutationFn: async ({ decision, values, responseId }) => {
-      // A Ntwine-owned request has no provider delivery to acknowledge; its advertised cancel is a
+      // An Ntwine-owned request has no provider delivery to acknowledge; its advertised cancel is a
       // journal cancellation. Provider-backed cancel choices travel through resolve so the provider
       // receives the exact advertised decision.
       if (decision.semantic === "cancel" && record.provider.kind === "ntwine") {

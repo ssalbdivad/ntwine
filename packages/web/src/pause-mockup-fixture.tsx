@@ -487,7 +487,7 @@ createRoot(document.getElementById("root")!).render(
       </Panel>
     </Frame>
 
-    <Frame id="board" title="7 · Pause all (scope question, not a proposal)" note={<>The same switch at board altitude: every open thread in this project pauses at once, and new dispatches start paused, until Resume all. Useful before a Ntwine restart, a quota crunch, or a machine you are about to close. Drawn small because it is a second feature riding the first's mechanics — the question is whether it ships with Pause or later.</>}>
+    <Frame id="board" title="7 · Pause all (scope question, not a proposal)" note={<>The same switch at board altitude: every open thread in this project pauses at once, and new dispatches start paused, until Resume all. Useful before an Ntwine restart, a quota crunch, or a machine you are about to close. Drawn small because it is a second feature riding the first's mechanics — the question is whether it ships with Pause or later.</>}>
       <Panel title="Rail top while the board is paused" note="A caution strip under the prompt box; the ⏸ beside the project name is the switch.">
         <div className="p-3">
           <div className="mb-3 flex items-center justify-between px-1">

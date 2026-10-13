@@ -31,7 +31,7 @@ import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@ntwine/share
 //     resolves it and CANCELLED (fail closed) when the turn ends, the session is released or nobody can
 //     answer — the Claude bridge's contract, because a card nothing terminalizes never leaves the queue.
 //
-// The agent runs inside a DETACHED DAEMON (acp-daemon.ts, attached through acp-host.ts), so a Ntwine
+// The agent runs inside a DETACHED DAEMON (acp-daemon.ts, attached through acp-host.ts), so an Ntwine
 // restart or crash only drops the socket: the agent, its running turn and every sub-agent inside it keep
 // going, and `warmUp()` reattaches at the next boot — adopting the in-flight `session/prompt` as the live
 // turn and raising afresh any permission card the dead runtime was holding. Until 2026-09-24 the agent
@@ -212,7 +212,7 @@ function toolResultText(tc: AcpToolCallUpdate): string {
   return ""
 }
 
-/** An ACP permission request as a Ntwine card. The card's decision ids are the CANONICAL ones the web
+/** An ACP permission request as an Ntwine card. The card's decision ids are the CANONICAL ones the web
  *  renders buttons for (typedInteractions.ts `specFor`); the agent's own optionIds are kept beside the
  *  pending entry and echoed back verbatim on the answer. */
 export function buildAcpPermissionInteraction(
@@ -320,7 +320,7 @@ export class AcpBridge {
     const agent = this.resolveAgent(input.agentId)
     // An ACP agent is one detached daemon PER THREAD (acp-host.ts), so its environment can say who is
     // calling — which is all `ntwinectl`, run from the agent's own shell, needs. Applied when the daemon
-    // is forked; one that survived a Ntwine restart keeps the environment it was born with.
+    // is forked; one that survived an Ntwine restart keeps the environment it was born with.
     const cli = this.options.ntwineCli
     const inherited = inheritWorkerEnvironment(this.options.env ?? process.env)
     const env = cli ? withNtwineCliOnPath({ ...inherited, ...ntwineCliEnv(cli, slug) }, cli) : inherited
@@ -371,13 +371,13 @@ export class AcpBridge {
     live = { slug, sessionId, cwd, agent, conn, init, acpSessionId: "", writer, loading: false, queue: [], pendingPerms: new Map(), tools: new Map(), exited: false, detaching: false }
     void conn.exited.then(() => { if (live) this.onExit(live) })
 
-    // REATTACHED to an agent that outlived a ntwine restart: the session is already open (the daemon
+    // REATTACHED to an agent that outlived an ntwine restart: the session is already open (the daemon
     // reports its id) and a `session/prompt` may still be running. Adopt both — no session/new, no
     // session/load, and the in-flight prompt becomes the live turn so it ends in the transcript exactly
     // as it would have had nothing happened.
     if (attachment.reattached && attachment.hello.acpSessionId) {
       live.acpSessionId = attachment.hello.acpSessionId
-      writer.append({ kind: "acp-note", at: this.now(), text: `Reattached to the running ${agent.label} session after a Ntwine restart.` })
+      writer.append({ kind: "acp-note", at: this.now(), text: `Reattached to the running ${agent.label} session after an Ntwine restart.` })
       if (attachment.hello.droppedWhileDetached > 0) {
         writer.append({ kind: "acp-note", at: this.now(), text: `${attachment.hello.droppedWhileDetached} message(s) from the agent were lost while Ntwine was away; the transcript may have gaps.` })
       }

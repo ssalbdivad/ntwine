@@ -31,7 +31,7 @@ export const EDITOR_COMPOSE_MAX_TEXT = 64 * 1024
 /**
  * What a server can do beyond v1, named in its `welcome` (`features`). The protocol stays v1 and grows by
  * these instead: the server closes a socket on ANY frame it does not know (4401), so an extension that
- * sent a new frame to a Ntwine from before it would be refused on every redial, forever. A new extension
+ * sent a new frame to an Ntwine from before it would be refused on every redial, forever. A new extension
  * sends a new frame only to a server that named it; an old extension ignores the field.
  */
 export const EDITOR_FEATURES = {
@@ -117,7 +117,7 @@ export interface EditorComposeInput {
   endLine?: number
 }
 
-/** A compose input the server is holding until a Ntwine page claims it (`composeTake`). */
+/** A compose input the server is holding until an Ntwine page claims it (`composeTake`). */
 export interface EditorComposeItem extends EditorComposeInput {
   id: string
   /** The sending window's app name, for copy ("From VS Code"). */
@@ -143,7 +143,7 @@ export interface EditorHello {
   focused: boolean
   /**
    * How long ago this window last had focus, when it does not have it now. A reconnect (every window
-   * redials after a Ntwine restart, while the human is in the browser) would otherwise erase which
+   * redials after an Ntwine restart, while the human is in the browser) would otherwise erase which
    * window was used last, and an open no folder claims would go to whichever window redialled last.
    */
   focusedAgoMs?: number
@@ -309,7 +309,7 @@ export interface EditorFocus {
 
 // ── a thread's changes, as VS Code's multi-file diff (`review`) ──────────────────────────────────────
 //
-// Claude Code and Cursor show an agent's edits as native diffs. A Ntwine worker edits files directly, often
+// Claude Code and Cursor show an agent's edits as native diffs. An Ntwine worker edits files directly, often
 // in a worktree of its own, so the Ntwine form is to open everything a thread changed as one multi-file
 // diff against where it started. The SERVER names what to show — the checkouts the thread's edits are in,
 // read off its transcript (review-target.ts) — and the EXTENSION, which runs where the files are, asks git
@@ -407,7 +407,7 @@ export interface EditorAttentionThread {
 
 export type EditorServerMessage = EditorWelcome | EditorOpen | EditorFocus | EditorReview | EditorComposed | EditorProjects | EditorHeartbeat | EditorAttention
 
-/** What a Ntwine page knows about connected editor windows (`editorWindows`, and the `editors` event). */
+/** What an Ntwine page knows about connected editor windows (`editorWindows`, and the `editors` event). */
 export interface EditorWindowSummary {
   app: string
   kind: EditorKind

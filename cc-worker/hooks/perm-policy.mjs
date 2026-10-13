@@ -3,7 +3,7 @@
 // PermissionRequest hook (ntwine worker), matcher "*" — the worker's permission POLICY, and the durable
 // structured signal the tailer reads instead of scraping the worker's terminal output.
 //
-// WHY THIS DECIDES (it used to only observe): a ntwine worker runs under a dashboard with nobody at the
+// WHY THIS DECIDES (it used to only observe): an ntwine worker runs under a dashboard with nobody at the
 // keyboard, so a tool-approval prompt parks the thread invisibly until a human happens to look. ntwine
 // dispatches Claude workers at `--permission-mode auto` (dispatch.ts WORKER_DISPATCH_PERMISSION), and
 // `auto` is NOT non-interactive — its classifier still raises a prompt for anything it deems risky
@@ -188,7 +188,7 @@ try {
   process.exit(0); // unparseable payload → defer to the human
 }
 
-// ExitPlanMode is always auto-denied by the sibling deny-plan.mjs (a ntwine worker is never in plan
+// ExitPlanMode is always auto-denied by the sibling deny-plan.mjs (an ntwine worker is never in plan
 // mode), so it never becomes a real human block — leave it entirely alone, marker included.
 if (input.tool_name === 'ExitPlanMode') process.exit(0);
 

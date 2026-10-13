@@ -4,7 +4,7 @@
 // so sameProcess is always false). Run:
 //   nub packages/server/src/backend/_live_appserver_native_adversarial.mts
 //
-// A. A LIVE turn must SURVIVE a ntwine restart UNTOUCHED — same turn id, NO recovery nudge, no second
+// A. A LIVE turn must SURVIVE an ntwine restart UNTOUCHED — same turn id, NO recovery nudge, no second
 //    turn. If native's forced-cold reconcile retired or re-nudged a running turn, every ntwine restart
 //    (which happens constantly) would disrupt every live codex turn. This is the highest-risk case.
 // B. Approvals must never STALL on native (Phase 1's guarantee, on the new default): an out-of-workspace
@@ -67,8 +67,8 @@ function makeBridge(label: string, collect?: CodexAppServerDiagnostic[]) {
 
 ;(async () => {
   try {
-    // ================= A: a LIVE turn survives a ntwine restart UNTOUCHED =================
-    console.log("======== A — a LIVE turn survives a ntwine restart with NO disruption ========")
+    // ================= A: a LIVE turn survives an ntwine restart UNTOUCHED =================
+    console.log("======== A — a LIVE turn survives an ntwine restart with NO disruption ========")
     const slugA = "live-turn", sessionA = "live-turn-session"
     const one = makeBridge("gen1")
     const bindA = await one.bridge.startDisposableSession({ threadSlug: slugA, sessionId: sessionA, cwd: root, sandbox: "read-only", ephemeral: false })

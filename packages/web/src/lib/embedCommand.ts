@@ -7,7 +7,7 @@ import { homeHref } from "./pageView.ts"
 import { spaNavigate } from "./router.ts"
 import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 
-// THE TITLE ROW'S BUTTONS — VS Code's own row above the sidebar's frame carries what a Ntwine header would
+// THE TITLE ROW'S BUTTONS — VS Code's own row above the sidebar's frame carries what an Ntwine header would
 // (ARCHITECTURE.md § VS Code extension), and each button arrives here as a
 // `ntwine:command`. Each is the app's own door, called rather than re-implemented, so a button and the key
 // or menu item it stands for cannot drift:

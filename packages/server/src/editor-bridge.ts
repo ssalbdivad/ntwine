@@ -440,7 +440,7 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
         closeWith(other, 1000, "superseded")
       }
     }
-    // A reconnect must not erase which window the human used last: after a Ntwine restart every window
+    // A reconnect must not erase which window the human used last: after an Ntwine restart every window
     // redials while they are in the browser, and with every one at 0 the last to redial won each open
     // no folder claims. Clamped, so a window that says it was focused before the epoch ranks as never.
     const at = now()

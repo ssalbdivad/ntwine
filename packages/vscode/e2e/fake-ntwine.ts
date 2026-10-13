@@ -31,7 +31,7 @@
 //   POST /__e2e/click     {selector}         click an element of the workbench with a real mouse
 //   POST /__e2e/shot      {path}             save a screenshot of the whole workbench to `path`
 //   POST /__e2e/features  {features, ready}  what the next welcome names, and whether the page says it is
-//                                            ready — `[]` and false is a Ntwine from before the sidebar
+//                                            ready — `[]` and false is an Ntwine from before the sidebar
 //
 // and two the fake page itself calls: POST /__e2e/page-event (what it received, recorded in `page`) and
 // GET /__e2e/page-next (the messages it was told to post).

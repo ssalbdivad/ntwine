@@ -192,7 +192,7 @@ test("a provider with NO DATA renders nothing at all — and takes the divider w
 
 // IN AN EDITOR'S SIDEBAR the row draws neither the gear nor the ⌨ — VS Code's title row carries Settings
 // and, under its ⋯, Keyboard shortcuts — and is not drawn at all when nothing is left. The real-page run
-// found the ⌨ alone on a 36px row above the prompt box (scripts/e2e-sidebar.ts, 2026-10-01): a Ntwine with
+// found the ⌨ alone on a 36px row above the prompt box (scripts/e2e-sidebar.ts, 2026-10-01): an Ntwine with
 // no supervisor (run from source) and no quota to read.
 test("the sidebar's row: no gear, no ⌨, and no row at all with nothing left in it", () => {
   const sidebarRow = (options: { quota: boolean; supervisor: boolean }) => {

@@ -1,6 +1,6 @@
 // LIVE worker-ENVIRONMENT gate for the broker cutover: proves a broker worker dispatched through the
 // REAL server (createContext → dispatch broker branch → daemon with the wired workerEnv) actually has
-// the ntwine plugin environment — specifically that it can DISPATCH a ntwine:<effort> sub-agent
+// the ntwine plugin environment — specifically that it can DISPATCH an ntwine:<effort> sub-agent
 // profile (which requires the cc-worker plugin to have loaded through the SDK) and that the ntwine MCP is
 // mounted. Run:  NTWINE_CLAUDE_BROKER_BRIDGE=1 nub \
 //   packages/server/src/backend/_live_broker_workerenv.mts
@@ -45,7 +45,7 @@ try {
   const deadline = Date.now() + 180_000
   while (!existsSync(subFile) && Date.now() < deadline) await sleep(1_000)
 
-  ok("broker worker dispatched a ntwine:low SUB-AGENT that ran (SUB_OK.txt written)", existsSync(subFile),
+  ok("broker worker dispatched an ntwine:low SUB-AGENT that ran (SUB_OK.txt written)", existsSync(subFile),
     existsSync(subFile) ? readFileSync(subFile, "utf8").trim() : (existsSync(reportFile) ? `report=${readFileSync(reportFile, "utf8").trim().slice(0, 120)}` : "neither file appeared"))
 
   // Give the parent a moment to also write the tools report, then inspect it.

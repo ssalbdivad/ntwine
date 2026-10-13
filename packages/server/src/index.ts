@@ -486,7 +486,7 @@ const STATIC_CACHE_REVALIDATE = "no-cache"
 /**
  * Encoded static bodies, keyed by file + mtime + size + encoding.
  *
- * Brotli takes the cold load from 1,568,997 to 473,271 bytes — 70% — which is what a Ntwine reached
+ * Brotli takes the cold load from 1,568,997 to 473,271 bytes — 70% — which is what an Ntwine reached
  * through the relay from a remote origin actually pays, the same reason /rpc is compressed (app.ts).
  * It is NOT free-but-pointless locally either: measured 2026-09-04 against one server with the only
  * variable being the client's accept-encoding, median cold FCP was 260 ms with brotli and 280 ms with

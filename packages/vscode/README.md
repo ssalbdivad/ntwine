@@ -134,7 +134,7 @@ command palette.
 
 Ntwine must be running on this machine (`npx ntwine`). The extension finds it on its own.
 
-From a Ntwine checkout: `nub run vscode:install` builds the `.vsix` and installs it — into the VS Code
+From an Ntwine checkout: `nub run vscode:install` builds the `.vsix` and installs it — into the VS Code
 Server when you are in WSL, since the extension runs where your files are. Or build it with
 `nub run vscode:package` and install `packages/vscode/dist/ntwine-vscode-<version>.vsix` with
 **Extensions: Install from VSIX…**.
@@ -153,5 +153,5 @@ Server when you are in WSL, since the extension runs where your files are. Or bu
 **Ntwine: Show log** shows which build of the extension this window runs (`0.1.0+1a2b3c4d`, the commit it
 was built from; the status bar's tooltip says it too), how it found Ntwine and every time the connection
 changed; **Ntwine: Reconnect** looks for Ntwine again at once. When a new build is installed under an open
-window, the window offers **Reload window** to use it. A Ntwine older than the sidebar is said in the
+window, the window offers **Reload window** to use it. An Ntwine older than the sidebar is said in the
 sidebar at once, with what to do.

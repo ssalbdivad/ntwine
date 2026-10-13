@@ -60,7 +60,7 @@
 // dispatcher discarded it and redid the work itself. This paragraph is the only place that reaches
 // a nested dispatcher without depending on its parent remembering to restate the norm.
 //
-// GATE: inert unless NTWINE_THREAD is set (not a ntwine worker → allow every dispatch unmodified).
+// GATE: inert unless NTWINE_THREAD is set (not an ntwine worker → allow every dispatch unmodified).
 //
 // DROPPED vs cc's agent-dispatch.mjs (see DECISIONS.md): the `.dispatch-count` bump (it only gates
 // cc's SubagentStop rest-recorder, which cc-worker does not ship) and the THREAD:-ledger write +
@@ -75,7 +75,7 @@ import { agentDeadline, shareIntoPrompt, threadDeadlineMs } from './agent-deadli
 const EPILOGUE = `
 
 ---
-[ORCHESTRATION EPILOGUE — auto-appended by the ntwine worker dispatch hook] You are a helper sub-agent for a ntwine worker. Your final message is the handoff your dispatcher reads: what you did, what you verified, what remains.
+[ORCHESTRATION EPILOGUE — auto-appended by the ntwine worker dispatch hook] You are a helper sub-agent for an ntwine worker. Your final message is the handoff your dispatcher reads: what you did, what you verified, what remains.
 NOTHING CAN WAKE YOU — ending your turn IS your return. A job you backgrounded (Bash \`run_in_background:true\` above all) reports to your DISPATCHER, never to you, so a turn that ends while one is outstanding hands back unfinished work and leaves its result somewhere you will never read. So never end a turn waiting for something to finish: run long commands in the FOREGROUND, and where one would outrun the foreground limit, make the command itself loop until its own terminal condition rather than backgrounding it. If you did background something, collect it in the SAME turn. And if your dispatcher named a scratch directory, write anything you would not want to lose into your own file there AS YOU GO — a turn that ends early takes with it everything you had neither written down nor said.
 If the worker names its scratch directory: Write your OWN file there — never edit or delete a file another agent wrote. That file is Ntwine coordination state, not a project deliverable or source edit, so it stays allowed under limits such as "write only <path>" or "do not modify the repo"; never classify it as unauthorized or roll it back. Every other file is governed by your delegated authority; its location alone neither permits nor forbids editing. Do not edit other \`.ntwine/\` state unless your prompt asks.
 Upward channel: \`SendMessage({to: "main", summary: "<5-10 words>", message: "…"})\` reaches your dispatcher while you work (load it first with ToolSearch \`select:SendMessage\` if it is deferred). Use it only when the dispatcher acting before you finish would change the outcome — a blocker, a milestone another task needs, instructions that should change — not for progress updates. The same tool reaches a SIBLING sub-agent by the full agent id your prompt gives you (a message from one arrives as \`<agent-message from="<id>">\`; reply to that id), and \`ntwinectl message-thread @<handle> --message-file <file|->\`, run from your shell, reaches another Ntwine THREAD by its @handle: when your prompt says your result belongs to another thread or sibling, send it there yourself before you return, and say in your final message that you did.
@@ -111,7 +111,7 @@ function emit(obj) {
 }
 
 try {
-  // WORKER GATE — inert outside a ntwine worker session.
+  // WORKER GATE — inert outside an ntwine worker session.
   if (!(process.env.NTWINE_THREAD ?? '').trim()) emit({});
 
   const input = JSON.parse(readFileSync(0, 'utf8'));

@@ -175,7 +175,7 @@ export function groupThreadTrees(procs: readonly TopProc[], opts: { selfPid?: nu
     }
     // A codex or a second claude root under one slug is possible; the oldest names the thread.
     const root = roots.reduce((a, b) => (b.ageMs > a.ageMs ? b : a))
-    // Its OWN broker is the root's parent; another broker in the list belongs to a Ntwine this thread
+    // Its OWN broker is the root's parent; another broker in the list belongs to an Ntwine this thread
     // launched (an adhoc stack inherits the launching worker's marker) and counts as its work.
     const broker = list.find((p) => p.pid === root.ppid && isBrokerDaemon(p.command))
     const agent = list.filter((p) => p === root || p === broker || (isNtwineMcp(p.command) && p.ppid === root.pid))

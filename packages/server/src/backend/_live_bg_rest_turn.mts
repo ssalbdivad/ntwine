@@ -1,5 +1,5 @@
 // LIVE PROBE: what does the TURN look like when the parent dispatches a BACKGROUND sub-agent and then
-// RESTS immediately — the exact shape a ntwine worker uses, and the one the board renders as a shimmer?
+// RESTS immediately — the exact shape an ntwine worker uses, and the one the board renders as a shimmer?
 //   nub packages/server/src/backend/_live_bg_rest_turn.mts
 //
 // Reported symptom (2026-07-30): a thread whose own turn ended ~55 min ago (`stop_reason: "end_turn"`,

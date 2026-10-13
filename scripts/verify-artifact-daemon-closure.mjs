@@ -130,7 +130,7 @@ try {
   }
   check(records.length > 0, `the DETACHED ${NATIVE ? "native listener" : "daemon"} started and published its record`, `${recordDir} → ${records.join(",") || "(empty)"}`)
 
-  // A ntwine-created codex worker is headless: it must launch at danger-full-access, because a
+  // An ntwine-created codex worker is headless: it must launch at danger-full-access, because a
   // restrictive sandbox just stalls an unattended worker on a modal nobody is watching.
   const stored = execFileSync("sqlite3", [
     join(stateDir, "ui.db"),

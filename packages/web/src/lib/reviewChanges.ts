@@ -7,7 +7,7 @@ import { store } from "../store.ts"
 
 // REVIEW CHANGES — everything a thread changed, as the editor's multi-file diff against where it started
 // (ARCHITECTURE.md § VS Code extension). Claude Code and Cursor show an agent's edits
-// as native diffs; a Ntwine worker edits files directly, often in a worktree of its own, so here the
+// as native diffs; an Ntwine worker edits files directly, often in a worktree of its own, so here the
 // review is of what is on disk, opened in the editor where the human can fix what they see in place.
 //
 // WHERE IT IS OFFERED, and why only there. The diff is the EDITOR's (the Ntwine extension's), so the action

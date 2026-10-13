@@ -66,7 +66,7 @@ let listedCapabilities
 const absentPolls = {}
 
 /** The capability report for this thread, or undefined when it cannot be read — no server, a timeout,
- * or a Ntwine from before `workerCapabilities` (404). Never waits out a restart. */
+ * or an Ntwine from before `workerCapabilities` (404). Never waits out a restart. */
 async function readCapabilities() {
   try {
     const slug = process.env.NTWINE_THREAD_SLUG || process.env.NTWINE_THREAD

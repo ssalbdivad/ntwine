@@ -24,7 +24,7 @@ import "./styles.css"
 // so both halves of the fix are under test — the reconciler keeping the page envelope across a slid
 // window, and the transcript holding the reader's anchor across the trim.
 //
-// It deliberately does NOT boot a ntwine server. The seam it skips (tailer → socket) is not where the bug
+// It deliberately does NOT boot an ntwine server. The seam it skips (tailer → socket) is not where the bug
 // lives, and a full stack plus a 300-message first render is what this machine OOM-kills.
 //   ?messages=340   how many messages to seed (must exceed the 300 cap to saturate)
 const params = new URLSearchParams(location.search)

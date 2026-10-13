@@ -1,4 +1,4 @@
-// The MCP servers a ntwine worker mounts BESIDES the unified `ntwine` server — and, since 2026-09-03, the
+// The MCP servers an ntwine worker mounts BESIDES the unified `ntwine` server — and, since 2026-09-03, the
 // ONLY servers it mounts: every worker launches under `--strict-mcp-config`, so what this module returns
 // plus the ntwine mount (claudeMcpConfig, dispatch.ts) is the whole MCP surface of a thread.
 //

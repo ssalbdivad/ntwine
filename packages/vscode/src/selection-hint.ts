@@ -94,7 +94,7 @@ export function selectionKey(path: string, selection: Pick<SelectionLike, "start
 // ── the glue ─────────────────────────────────────────────────────────────────────────────────────────
 
 export interface SelectionHintHost {
-  /** The window is connected to a Ntwine that can take the selection. */
+  /** The window is connected to an Ntwine that can take the selection. */
   connected(): boolean
   /** The UI's platform when something running in it said so (the sidebar's relay), else undefined. */
   mac(): boolean | undefined

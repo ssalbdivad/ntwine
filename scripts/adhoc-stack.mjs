@@ -1,6 +1,6 @@
 // Disposable, fully-ISOLATED ntwine stack for ad hoc CDP / manual verification.
 //
-// Why this exists: verifying a ntwine change means driving the REAL app end-to-end, but you must never
+// Why this exists: verifying an ntwine change means driving the REAL app end-to-end, but you must never
 // touch the maintainer's live instance or real ~/.ntwine SQLite. This boots a
 // throwaway stack that is sandboxed on every axis:
 //   • HOME              → a fresh temp dir, so the SQLite DB + server.lock live in an empty ~/.ntwine

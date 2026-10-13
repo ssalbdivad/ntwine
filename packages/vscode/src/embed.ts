@@ -318,7 +318,7 @@ export function chordCommand(key: KeyChord, mac: boolean): string | undefined {
 export interface SidebarReadiness {
   /** The `ntwine.useSidebar` setting. */
   enabled: boolean
-  /** There is a Ntwine for the sidebar to frame: connected, or found by discovery. */
+  /** There is an Ntwine for the sidebar to frame: connected, or found by discovery. */
   ntwine: boolean
 }
 

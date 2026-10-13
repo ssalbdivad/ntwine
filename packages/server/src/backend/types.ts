@@ -453,7 +453,7 @@ export function withNtwineCliOnPath(env: Record<string, string>, cli: NtwineCli,
 // `infinite` and not `countdown`: a live remaining-token count is still a shrinking number, which is
 // the exact input to the bad inference. Claude Code's own autocompact system prompt already tells the
 // model "your conversation with the user is not limited by the context window" — `Infinite` restates
-// that in the one place the model looks for a budget, and it is TRUE for a ntwine worker, whose session
+// that in the one place the model looks for a budget, and it is TRUE for an ntwine worker, whose session
 // compacts and continues rather than ending.
 //
 // The env var is the highest-precedence source, ahead of `totalTokensReminder` in settings and the
@@ -497,7 +497,7 @@ export function withNtwineCliOnPath(env: Record<string, string>, cli: NtwineCli,
 
 // Claude Code caps WebSearch at 200 calls per SESSION (verified in the 2.1.220 bundle:
 // `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION ?? 200`, enforced in the WebSearch tool against a
-// `taskRegistry` counter). A ntwine worker is long-lived and research-heavy — it burns that budget on
+// `taskRegistry` counter). An ntwine worker is long-lived and research-heavy — it burns that budget on
 // work a chat session never would — and past the cap the tool stops searching and merely returns
 // "this session has used its web search budget", which reads to the model as a dead end rather than
 // as a quota. Raise it far enough that a real effort never hits it, while keeping a finite backstop
@@ -510,7 +510,7 @@ export const WORKER_MAX_WEB_SEARCHES = 10000
 //
 //   CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION  default 200 — TOTAL Task spawns for the whole session.
 //     Past it every spawn throws "Subagent spawn limit reached (N of 200 agents spawned)… ask the user
-//     to raise CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION". A ntwine worker is long-lived and dispatches a
+//     to raise CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION". An ntwine worker is long-lived and dispatches a
 //     helper per prong across many turns, so it reaches 200 on work a chat session never would — and
 //     the failure reads to the model as "stop delegating", not as a quota. Lifted like the search
 //     budget: no machine cost to a high ceiling, since this counts spawns over time, not live ones.
@@ -537,7 +537,7 @@ function workerCap(name: string, lifted: number, env: NodeJS.ProcessEnv): string
   return String(lifted)
 }
 
-// Claude Code reads these inherited process variables as sub-agent profile defaults. A Ntwine worker
+// Claude Code reads these inherited process variables as sub-agent profile defaults. An Ntwine worker
 // chooses its profile explicitly through the launch argv and plugin agent profiles, so let neither
 // a shell nor a globally configured Claude session silently replace that selection. An EMPTY entry
 // here overrides the inherited value while preserving every auth/config variable.

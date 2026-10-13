@@ -429,7 +429,7 @@ carries all the risk; land it alone.
   `codex exec --json` in a wrapper that captures `thread.started.thread_id` from stdout and writes it
   to a known sidecar path ntwine reads — but that only works headless, not for the attach-able TUI;
   (b) briefly serialize codex spawns and grab the single newest rollout created in a tight window;
-  (c) match on `session_meta.cwd` + a ntwine marker we can force into the rollout (e.g. a unique
+  (c) match on `session_meta.cwd` + an ntwine marker we can force into the rollout (e.g. a unique
   sentinel in the first prompt) and scan for it. **Recommendation:** prototype (b)+(c) in Phase 2;
   this is the single biggest codex-adapter risk.
 - **AGENTS.md placement.** Writing a repo-root `AGENTS.md` pollutes the user's workspace and collides

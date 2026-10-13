@@ -189,7 +189,7 @@ export function mountRouter(app: Hono, prefix: string, router: Router) {
   }
 
   // Registered LAST so every concrete procedure above wins the match: an unknown name under this prefix
-  // is almost always version SKEW rather than a routing accident, because a ntwine worker's MCP server is
+  // is almost always version SKEW rather than a routing accident, because an ntwine worker's MCP server is
   // spawned once from the build its session was dispatched with and outlives every server restart — it
   // keeps POSTing whatever procedure names THAT build knew. Hono's fall-through answers those with a bare
   // `404 Not Found` naming nothing, which is exactly how a renamed procedure cost a live worker three

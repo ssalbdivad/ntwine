@@ -161,7 +161,7 @@ The thing that would wreck this model is anything that puts you on the data plan
 
 ## Security: the part that deserves the most paranoia
 
-**A Ntwine board runs shell commands as its owner. An auth bug here is remote code execution on your
+**An Ntwine board runs shell commands as its owner. An auth bug here is remote code execution on your
 customers' laptops, not a data leak.** That reframes several ordinary choices:
 
 - **Vanity subdomains advertise the target list.** `colin.frizz.sh` lets anyone enumerate your customers

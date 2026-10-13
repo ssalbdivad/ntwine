@@ -1,5 +1,5 @@
 // The parent side of the Claude session broker: derive its socket/record paths, fork it as a detached
-// daemon, and — after a ntwine restart — ADOPT an already-running one instead of cold-starting. Mirrors
+// daemon, and — after an ntwine restart — ADOPT an already-running one instead of cold-starting. Mirrors
 // codex-app-server-host.ts (fork/record/adopt), keyed per Claude session id (one broker per thread).
 import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
@@ -195,7 +195,7 @@ export function takeBrokerRetirement(stateDir: string, sessionId: string): Broke
 
 /** Where the bridge records that one agent in a session has had its first approval held back (see
  *  `claudeFirstApprovalHint`). Per AGENT, because a sub-agent never sees the note its parent was given.
- *  On disk because the daemon — and so the conversation that read the note — outlives a ntwine restart,
+ *  On disk because the daemon — and so the conversation that read the note — outlives an ntwine restart,
  *  and a second "first time" after every restart would be the noise the note exists to spare. Not a
  *  `.json` name, for the reason claudeBrokerRetirementPath gives. */
 export function claudePermissionHintPath(stateDir: string, sessionId: string, agentId: string | undefined): string {
@@ -354,7 +354,7 @@ export function forkBroker(options: ForkBrokerOptions): Promise<BrokerRecord> {
       if (record && record.generation === generation && pidAlive(record.daemonPid)) return settle(() => resolve(record))
       if (Date.now() > deadline) {
         // A daemon that died AND wrote its exit record is named here too: the deadline path is what
-        // an operator sees when the exit event was missed (a ntwine restart between fork and death).
+        // an operator sees when the exit event was missed (an ntwine restart between fork and death).
         const exit = recordedCause()
         return settle(() => reject(new Error(
           `Claude broker for session ${options.sessionId} did not become ready${exit ? `: ${describeClaudeBrokerExit(exit)}` : ""}`,
@@ -407,7 +407,7 @@ export async function adoptOrForkBroker(options: ForkBrokerOptions): Promise<{ r
  *  reported to the operator as a crash. Any other cause ends the session itself (a stop, a completion,
  *  a replaced session): there is no later resume to explain, and no death to suppress — and any mark an
  *  EARLIER retirement left is void, so this clears it rather than leaving a promise of a resume that is
- *  never coming. The mark is written BEFORE the signal so a ntwine that dies mid-teardown still leaves
+ *  never coming. The mark is written BEFORE the signal so an ntwine that dies mid-teardown still leaves
  *  the truth on disk.
  *
  *  The signal goes through endDaemonTree (daemon-tree.ts): SIGTERM on POSIX, where the daemon's own

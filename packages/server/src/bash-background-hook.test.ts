@@ -117,7 +117,7 @@ test("an untimed run_in_background call gets ONE non-blocking line; a timed one,
   assert.equal(decision("server &", true, { run_in_background: true }).hookSpecificOutput?.permissionDecision, "deny")
 })
 
-test("Bash background hook is inert outside a Ntwine worker", () => {
+test("Bash background hook is inert outside an Ntwine worker", () => {
   assert.deepEqual(decision("cargo test &", false), {})
 })
 

@@ -249,7 +249,7 @@ Each phase ships on its own and says what it protects against. The plaintext pat
 - The relay drops `req`/`res` framing and `BoardSocket`. A board that never upgraded gets a message at connect time naming the update.
 - **Protects against:** the relay ever again being able to see content, for any board.
 
-**Compatibility across phases.** The relay ships the pipe mode before any board uses it, and keeps the old mode until Phase 5. A new board with an old relay keeps today's path. A new loader with an old board shows "this machine runs a Ntwine without the encrypted link; update it" and stops — it never falls back. The handshake carries the server version, so the loader can say which version to update to.
+**Compatibility across phases.** The relay ships the pipe mode before any board uses it, and keeps the old mode until Phase 5. A new board with an old relay keeps today's path. A new loader with an old board shows "this machine runs an Ntwine without the encrypted link; update it" and stops — it never falls back. The handshake carries the server version, so the loader can say which version to update to.
 
 ## 9. Open questions for the maintainer
 

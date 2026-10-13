@@ -1929,7 +1929,7 @@ test("an unknown RPC procedure answers 404 NAMING it, so the next version skew d
   }
 })
 
-// ---- PROMOTION: steering an EXTERNAL session turns it into a ntwine thread ----
+// ---- PROMOTION: steering an EXTERNAL session turns it into an ntwine thread ----
 //
 // The External band's rows carry an ordinary composer, and sending the first message is the whole
 // ceremony (maintainer 2026-08-24). It runs inside followUp rather than behind a verb of its own so

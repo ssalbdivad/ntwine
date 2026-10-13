@@ -305,7 +305,7 @@ function readTranscriptTail(path: string, size: number, window: number): string 
 // there is no pid to ask about. (On POSIX lsof names its holders, and those pids ARE asked about
 // between probes — see shellProbeTtlMs.)
 //
-// The failure directions are the same as lsof's. A sharing violation is "held" (alive) — a Ntwine
+// The failure directions are the same as lsof's. A sharing violation is "held" (alive) — an Ntwine
 // reader with the file open for the drawer momentarily reads as alive, which costs a TTL, never a
 // verdict; any other outcome is "unknown", which is never dead; and only a clean exclusive open of an
 // existing file is "free", i.e. gone. That last one is the only thing that ever demotes a shell.
@@ -1468,7 +1468,7 @@ export function isRealUserMessage(content: unknown): boolean {
 }
 
 // The CLI's own receipt for a LOCAL slash command — one it runs itself instead of handing to the model.
-// A manual `/compact` is the one that reaches a ntwine thread: Claude Code 2.1.282 writes the compact
+// A manual `/compact` is the one that reaches an ntwine thread: Claude Code 2.1.282 writes the compact
 // boundary, the carry-over summary, the command's `<command-name>` envelope and then this record as the
 // command's output, all `type:"user"`, and then nothing but sidecars — no assistant record, so nothing
 // the fold read as the end of a turn, and the thread showed running until the next real message. The
@@ -3632,7 +3632,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // Claude's context WINDOW, latched onto the fold from the broker event stream. One-way and
   // latching by design: the SDK only names the window when a turn ends, so it must survive the
   // in-between ticks, and it lands in TailState (not a side map) so the durable tail cache carries it
-  // across a ntwine restart — otherwise every resting Claude thread would lose its readout on reload and
+  // across an ntwine restart — otherwise every resting Claude thread would lose its readout on reload and
   // not get it back until its next turn finished. The tokens half needs none of this: it is on disk.
   //
   // The ingest may answer with a window BORROWED from another session on the same model alias, which is
@@ -4871,7 +4871,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   //
   // A RUNNING shell's reading is asked again once a minute. The folder is where its process is NOW — a `cd`
   // inside the command moves it, and the row's tooltip says "Runs in" — and it was taken once and kept for
-  // the shell's life, so a single bad sample (the shell mid-`cd`, or before the pid fix a Ntwine read holding
+  // the shell's life, so a single bad sample (the shell mid-`cd`, or before the pid fix an Ntwine read holding
   // the log) could never be corrected. A shell with no answer at all is still asked only a few times.
   // Both maps are keyed by output path, one entry per background shell ever seen, so both are bounded
   // the way the line counter's scan cache is: insertion order, oldest out (a shell that finished long ago
@@ -5024,7 +5024,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     const state = states.get(slug)
     if (!state || !registeredStateIsCurrent(state)) return false
     // DURABLE FIRST, and unconditionally — before the in-memory retirement and regardless of whether
-    // anything was live to retire. The in-memory maps do not survive a ntwine restart, and the op's
+    // anything was live to retire. The in-memory maps do not survive an ntwine restart, and the op's
     // dispatch record does; a dismissal that lived only in memory is exactly how a killed shell came
     // back reading "57hr 18m" on the maintainer's board. Recording it for an id that is already gone
     // is harmless (the fold simply never mints it again) and is the honest reading of the click.
@@ -6567,7 +6567,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // `rested_at` NULL for the rest of its life while sitting visibly at rest on the board.
   //
   // That window is not exotic. A worker is a DETACHED broker daemon in its own process group, so it
-  // keeps working across a ntwine restart BY DESIGN (ARCHITECTURE.md) — which makes "the turn ended
+  // keeps working across an ntwine restart BY DESIGN (ARCHITECTURE.md) — which makes "the turn ended
   // while ntwine was down" the ordinary case every time the server bounces, not an edge.
   //
   // The consequences are all downstream of the column simply being WRONG:

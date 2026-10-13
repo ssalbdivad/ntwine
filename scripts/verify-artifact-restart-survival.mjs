@@ -114,7 +114,7 @@ try {
 
 
   // A turn long enough to still be running when the runtime dies under it. `sleep` needs a real
-  // sandbox, which a ntwine-dispatched codex worker gets (danger-full-access).
+  // sandbox, which an ntwine-dispatched codex worker gets (danger-full-access).
   log("dispatching a codex turn that will still be in flight when we kill the server…")
   const { slug, sessionId } = await api.mutate("dispatch", {
     title: "restart survival",

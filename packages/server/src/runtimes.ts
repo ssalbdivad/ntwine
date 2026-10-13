@@ -530,7 +530,7 @@ export interface SweepRuntimesDeps {
 // Windows cannot delete an executable that is currently mapped as a process image: rmSync gets
 // EBUSY/EPERM (or ENOTEMPTY for the directory, once the files inside it refused), and `force: true`
 // only forgives ENOENT. The version directory being swept is by design the one still-running daemons
-// execute from — they survive an update on purpose — and a daemon started by a Ntwine older than
+// execute from — they survive an update on purpose — and a daemon started by an Ntwine older than
 // d37b8588 (2026-09-10) wrote no lease, so the lease check above cannot see it. `maxRetries` covers
 // the transient holders (a scanner, an exiting process); a refusal past that is a live one, and the
 // directory is KEPT and named rather than thrown about (Windows audit 2026-09-11, finding 2). The

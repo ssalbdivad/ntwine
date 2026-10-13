@@ -20,7 +20,7 @@
 //
 //   NTWINE_E2E_ORIGIN=http://127.0.0.1:<port> NTWINE_E2E_PROJECT_DIR=<a registered project's folder> \
 //     nub packages/vscode/scripts/e2e.ts
-//       REAL mode against a Ntwine you started — a disposable one, since it writes a sample file into the
+//       REAL mode against an Ntwine you started — a disposable one, since it writes a sample file into the
 //       project folder and, with NTWINE_E2E_SET_OPENER=1, sets Local file links to VS Code for the run.
 //       NTWINE_E2E_DISPATCH=1 (+ NTWINE_E2E_THREAD=<slug>) also runs the steps that start or message a
 //       real agent. NTWINE_E2E_PAGE_CLAIMS=1 leaves the prompt-box insert for a real page open on that
@@ -124,7 +124,7 @@ let stack: Stack | undefined
 /** The stack's teardown, set as soon as it is spawned; idempotent, so the boot's own failure path and the run's may both call it. */
 let stackTeardown: (() => Promise<void>) | undefined
 let fake: FakeNtwine | undefined
-/** A second fake on another port, which the sidebar's suite moves the window to, as a Ntwine restarting elsewhere would. */
+/** A second fake on another port, which the sidebar's suite moves the window to, as an Ntwine restarting elsewhere would. */
 let fakeElsewhere: FakeNtwine | undefined
 let exitCode = 1
 let pageClaim: Promise<PageClaimResult> | undefined

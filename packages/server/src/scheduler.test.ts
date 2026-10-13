@@ -374,7 +374,7 @@ test("question: an answer is handed over once, and the row is not re-delivered",
   await s.tick()
   await s.tick() // the row is delivered → must not go round again
   assert.equal(h.resumes.length, 1)
-  // THE WIRE FORM IS THE ATTRIBUTION. This lands as a ntwine WAKE, and a wake renders as ntwine's own
+  // THE WIRE FORM IS THE ATTRIBUTION. This lands as an ntwine WAKE, and a wake renders as ntwine's own
   // notification card unless the text is in the form the chat reads as the human's Answers card — which
   // it checks first. Getting it wrong does not fail; the answer just stops being the human's words on
   // screen (the 2026-08-27 regression).

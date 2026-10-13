@@ -140,7 +140,7 @@ export interface ClaudeQueryStartOptions {
   // the PROJECT's `CLAUDE.md` / `AGENTS.md` and `.claude/skills` at all.
   //
   // Default `["user", "project", "local"]` — every scope, which is what a plain `claude` in the same
-  // cwd reads. A ntwine thread is the operator's OWN session on their OWN machine, so anything they
+  // cwd reads. An ntwine thread is the operator's OWN session on their OWN machine, so anything they
   // configured for `claude` has to reach it: `env` (an API-proxy front-end writes its base-URL/token
   // pair there, so dropping the scope authenticates a worker differently from the CLI beside it),
   // `autoCompactWindow`, permissions, hooks and enabled plugins. `cc-worker/DECISIONS.md` already
@@ -186,7 +186,7 @@ export interface ClaudeQueryHandle extends AsyncIterable<ClaudeQueryEvent> {
    * The session's invocable skills, as the harness itself reports them — names from the init frame,
    * descriptions from `supportedCommands()`. Ntwine deliberately implements NO skill discovery of its
    * own: the CLI already resolves plugins, project and global skill roots and their enable state, and
-   * a ntwine-side re-implementation could only ever drift from it.
+   * an ntwine-side re-implementation could only ever drift from it.
    */
   listSkills(): Promise<ClaudeSkillInfo[]>
   setPermissionMode(mode: ClaudePermissionMode): Promise<void>
@@ -1860,7 +1860,7 @@ function buildEnvironment(overrides: Readonly<Record<string, string | undefined>
   // inherited environment as overrides with the per-thread ntwine vars merged on top
   // (claude-agent-broker.ts) — so what these lines judge is the operator's shell.
   //
-  // Which means a THROW here is not "loud about a ntwine bug": it kills the daemon before it publishes
+  // Which means a THROW here is not "loud about an ntwine bug": it kills the daemon before it publishes
   // its record, exactly like the inherit caps above would, and the operator sees every dispatch time out
   // with "did not become ready" and nothing naming the cause. That is how `ProgramFiles(x86)` bricked
   // Windows (see ENV_KEY_PATTERN) — and `SKIP_AUTH=1` or a 200 KB ambient value in an ordinary shell
@@ -2069,13 +2069,13 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-// Built-in commands the composer's `/` menu never offers on a Ntwine thread. Each one fights something
+// Built-in commands the composer's `/` menu never offers on an Ntwine thread. Each one fights something
 // Ntwine owns, so offering it would invite the operator to break their own thread:
-// - `clear` starts a NEW session, and a Ntwine thread is bound to the one it was dispatched as.
+// - `clear` starts a NEW session, and an Ntwine thread is bound to the one it was dispatched as.
 // - `model`, `effort`, `fast` change the live profile behind the thread's own model and effort control,
 //   which then reads a setting the session no longer runs.
 // - `rename` has Ntwine's own title editor; `color`, `focus` and `heapdump` drive or dump the CLI's own
-//   terminal UI, which a Ntwine thread does not have.
+//   terminal UI, which an Ntwine thread does not have.
 // Typing one is still sent as written — this filters the MENU, never the message.
 const NTWINE_EXCLUDED_COMMANDS: ReadonlySet<string> = new Set(["clear", "model", "effort", "fast", "rename", "color", "focus", "heapdump"])
 export function offeredBuiltinCommand(command: { name: string; description: string }): boolean {

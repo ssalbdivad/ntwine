@@ -80,7 +80,7 @@ export function clearSessionOverride(projectDir, sessionId) {
 }
 
 // ── PER-SESSION LIVENESS HEARTBEAT — the crux of thread OWNERSHIP ───────────────────
-// A ntwine thread can be OWNED by a session (frontmatter `owner_session: <id>`), so several
+// An ntwine thread can be OWNED by a session (frontmatter `owner_session: <id>`), so several
 // sessions can share one repo, each driving its own set of threads (see ownership.mjs). The
 // failure to avoid: a thread owned by a session that then TERMINATES → nobody can touch it.
 // Claude Code's `SessionEnd` hook is a best-effort eager signal but is NOT guaranteed on a

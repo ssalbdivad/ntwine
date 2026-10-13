@@ -27,11 +27,11 @@ The providers are more divergent than their shared `/` prefix suggests:
 - Codex's current CLI menu includes session configuration, context compaction, cloud/local routing, model/reasoning, review, terminal/title/status-line configuration, background-terminal inspection, and conditional platform/catalog commands. When work is active it queues slash commands for the next turn; menus and errors may therefore arrive only after it finishes. [Codex slash commands](https://developers.openai.com/codex/cli/slash-commands).
 - The installed CLI helps validate executable/launch facts (`claude` 2.1.209; `codex-cli` 0.144.4), but neither non-interactive `--help` exposes a safe complete live-TUI command catalogue. A later implementation must discover native capabilities from a real session, not copy this document into a static allowlist.
 
-This means a Ntwine mirror would either be incomplete, falsely universal, stale after provider updates, or require fragile screen scraping/control injection. All are worse than preserving the native terminal.
+This means an Ntwine mirror would either be incomplete, falsely universal, stale after provider updates, or require fragile screen scraping/control injection. All are worse than preserving the native terminal.
 
 ## Command inventory and classification
 
-“Already represented” means a Ntwine-owned action/profile control exists; it does **not** mean Ntwine should submit the provider command. “Terminal-only” includes commands whose arguments, picker state, output, permissions, or availability remain provider-owned.
+“Already represented” means an Ntwine-owned action/profile control exists; it does **not** mean Ntwine should submit the provider command. “Terminal-only” includes commands whose arguments, picker state, output, permissions, or availability remain provider-owned.
 
 | Backend / native command family | Classification | Ntwine handling |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ This means a Ntwine mirror would either be incomplete, falsely universal, stale 
 | **Claude:** `/clear`, `/compact`, `/context`, `/rewind`, `/branch`, `/resume`, `/fork`, `/btw`, transcript/history/view controls | **Terminal-only** | They mutate or inspect provider conversation/context/TUI state that Ntwine's rendered transcript does not own completely. |
 | **Claude:** `/model`, `/effort`, `/plan`, `/permissions`, `/config`, `/add-dir`, `/mcp`, `/agents`, `/tasks`, `/background`, `/workflows` | **Terminal-only; some related settings already represented** | Existing profile controls govern Ntwine dispatch; they must not claim to be live-session `/model`/`/effort`/permission replacements. Native pickers, agents, and approval state stay in Terminal. |
 | **Claude:** `/init`, `/memory`, `/doctor`, `/debug`, `/feedback`, `/review`, `/code-review`, `/security-review`, `/diff`, `/verify`, `/batch`, `/plugin`, custom/project/plugin/MCP skills | **Terminal-only** | Potential side effects, provider-specific workflow semantics, dynamically discovered commands, or output Ntwine cannot faithfully model. |
-| **Codex:** `/status` | **Terminal-only** | Useful but provider-owned: current docs say it reports model, approval policy, writable roots, context/token use, and remote state. A Ntwine summary would be a different feature, not command replay. |
+| **Codex:** `/status` | **Terminal-only** | Useful but provider-owned: current docs say it reports model, approval policy, writable roots, context/token use, and remote state. An Ntwine summary would be a different feature, not command replay. |
 | **Codex:** `/model`, `/reasoning`, `/permissions`, `/personality`, `/fast`, `/ide`, `/keymap`, `/vim`, `/theme`, `/statusline`, `/title` | **Terminal-only; launch profile is already represented** | Runtime/session configuration and persistent Codex TUI preferences. Do not map profile controls to these commands. |
 | **Codex:** `/compact`, `/diff`, `/review`, `/plan`, `/fork`, `/side`, `/goal`, `/init`, `/mcp`, `/ps`, `/feedback` | **Terminal-only** | They create provider work, inspect native data, or have provider-specific UI/results. |
 | **Codex:** `/cloud`, `/cloud-environment`, `/local`, `/approve`, `/sandbox-add-read-dir`, `/setup-default-sandbox`, `/memories` | **Terminal-only** | Conditional availability and security/environment effects; do not expose a false capability or choose an approval in Ntwine. |

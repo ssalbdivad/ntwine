@@ -371,7 +371,7 @@ export class ServerReleaseStore {
 
   commit(generation: ServerGeneration): void {
     if (generation.package !== this.spec.package || generation.root !== realpathSync(this.packageRoot(generation.id)))
-      throw new Error("cannot select a Ntwine server outside this release store");
+      throw new Error("cannot select an Ntwine server outside this release store");
     validateServerGeneration(generation.root, generation, generation.id, this.compatibility);
     const { package: packageName, version, protocol, dataEpoch, id } = generation;
     atomicJson(this.selection, { package: packageName, version, protocol, dataEpoch, id });

@@ -1,6 +1,6 @@
 ---
 name: ntwine-artifact-e2e
-description: End-to-end verification of a ntwine change on a REAL PROMOTED ARTIFACT (not dev source), driven in a real browser. Use this whenever a change could behave differently in a promoted build than in the dev stack — anything touching packaging/bundling, detached daemons (codex app-server, the Claude broker), spawn/exec paths, worker-environment resolution, or "it works on the dev stack but does it ship?" The `ntwine-stack` skill runs `startServer({dev:true})` = SOURCE and will pass while the promoted artifact is broken. This skill launches the actual artifact. Do this before claiming a dispatch/runtime change is done.
+description: End-to-end verification of an ntwine change on a REAL PROMOTED ARTIFACT (not dev source), driven in a real browser. Use this whenever a change could behave differently in a promoted build than in the dev stack — anything touching packaging/bundling, detached daemons (codex app-server, the Claude broker), spawn/exec paths, worker-environment resolution, or "it works on the dev stack but does it ship?" The `ntwine-stack` skill runs `startServer({dev:true})` = SOURCE and will pass while the promoted artifact is broken. This skill launches the actual artifact. Do this before claiming a dispatch/runtime change is done.
 version: 0.1.0
 metadata:
   internal: true
@@ -25,7 +25,7 @@ catches it.
 `ntwine-dev` (= `nub … src/index.ts`) builds/promotes an artifact from CURRENT SOURCE and runs
 it. Two gotchas:
 
-- **You are probably running inside a ntwine worker**, so your env has `NTWINE_DEV_CHILD=1` and `NTWINE_LAUNCH_*`.
+- **You are probably running inside an ntwine worker**, so your env has `NTWINE_DEV_CHILD=1` and `NTWINE_LAUNCH_*`.
   Left set, `ntwine-dev` takes the CHILD path and dies `"Ntwine control-plane child has no live matching
   project launch owner"`. Strip them.
 - Use a **throwaway git repo** as the project (isolated `~/.ntwine/projects/<id>`), **real HOME** (so
@@ -118,6 +118,6 @@ otherwise empty.
 ### 4. Clean up
 
 Kill the instance by its EXACT proxy+child PIDs (`lsof -nP -iTCP:<port> -sTCP:LISTEN -t`, never broad
-`pkill`), and `rm -rf` the throwaway repo + its `~/.ntwine/projects/<id>`. A ntwine server retains its artifact
+`pkill`), and `rm -rf` the throwaway repo + its `~/.ntwine/projects/<id>`. An ntwine server retains its artifact
 snapshot for its process lifetime, so the *in-app restart button* does NOT pick up a new build — only a
 full process kill + relaunch re-promotes from current source.

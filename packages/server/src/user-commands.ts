@@ -83,7 +83,7 @@ export async function listUserCommands(projectDir: string | undefined, home = ho
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Write a Ntwine command, atomically, and drop the file it was renamed from. Only Ntwine's own folder is
+/** Write an Ntwine command, atomically, and drop the file it was renamed from. Only Ntwine's own folder is
  *  ever written: a project's or the machine-wide commands are read, never edited from here. */
 export async function saveUserCommand(input: SaveUserCommandInput): Promise<void> {
   const dir = ntwineCommandsDir()

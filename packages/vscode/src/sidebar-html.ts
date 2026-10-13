@@ -140,7 +140,7 @@ export const HINT_OLD_NTWINE = "This Ntwine is older than the sidebar. Update Nt
 
 /**
  * The iframe of Ntwine at `url` (whose origin is `origin`), and the relay. `hint`: the bar's words, shown
- * from the first paint — for a Ntwine already known to predate the sidebar, rather than a message posted
+ * from the first paint — for an Ntwine already known to predate the sidebar, rather than a message posted
  * at a document whose relay may not be listening yet. `state`: kept with VS Code's webview state
  * (`setState`), which is what a thread's editor tab is restored from after a window reload
  * (thread-panel.ts); JSON, and only names — never anything the page showed.

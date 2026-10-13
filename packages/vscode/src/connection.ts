@@ -7,7 +7,7 @@
 //
 // What keeps it honest:
 //   - Discovery runs again before EVERY attempt. The private port behind the restart supervisor moves on
-//     each restart, and a Ntwine started after this window opened has to be found, not remembered.
+//     each restart, and an Ntwine started after this window opened has to be found, not remembered.
 //   - The upgrade carries `Origin: http://127.0.0.1:<port>` — the server refuses a socket without one,
 //     and the restart supervisor destroys it without even a status line. That is why this uses the `ws`
 //     package: the WHATWG WebSocket cannot set Origin.
@@ -22,11 +22,11 @@
 //     forever, so the folders a window reports are fitted to Ntwine's limits (`fitFolders`) rather than
 //     sent whole, and the editor's picture is fitted to its byte ceiling (editor-state.ts).
 //   - Nothing goes out that Ntwine does not know. The server closes the socket on a frame it has never
-//     heard of, so the `editor` frame — newer than v1 — goes only to a Ntwine whose welcome names it
+//     heard of, so the `editor` frame — newer than v1 — goes only to an Ntwine whose welcome names it
 //     (`features`). An older Ntwine simply never hears it, and its agents cannot read the editor. A field
 //     newer than the frame (a selection's `withheld`) is spelled the way that Ntwine's schema takes
 //     (`forServer`): its schema is strict, so an unknown key would be refused like an unknown frame. The
-//     same for this window's own `features` frame (it can show a thread's changes), sent only to a Ntwine
+//     same for this window's own `features` frame (it can show a thread's changes), sent only to an Ntwine
 //     whose welcome names `review`: the one way Ntwine learns a window can, since the hello reaches every Ntwine.
 //
 // Pure node (no `vscode` import): the host interface is how the window is reached, and the tests drive
@@ -152,7 +152,7 @@ export function fitFolders(folders: readonly string[]): string[] {
 
 /**
  * When this window last had focus, for the hello's `focusedAgoMs`. Ntwine ranks windows by it for an open
- * no folder claims, and every window redials after a Ntwine restart — while the human is in the browser,
+ * no folder claims, and every window redials after an Ntwine restart — while the human is in the browser,
  * so none is focused, and without this whichever redialled last would win. Gaining focus and losing it
  * both mean "focused until now", the rule the server applies to a `state` frame. Monotonic, so a clock
  * change cannot make it negative.
@@ -286,7 +286,7 @@ export class EditorConnection {
   }
 
   /**
-   * Tell Ntwine what the editor shows now (`host.editor()`), fitted to its ceiling. Only to a Ntwine that
+   * Tell Ntwine what the editor shows now (`host.editor()`), fitted to its ceiling. Only to an Ntwine that
    * said it takes it; an unchanged picture is not resent.
    */
   sendEditor(): void {
@@ -417,7 +417,7 @@ export class EditorConnection {
     let refusal: string | undefined
 
     socket.on("unexpected-response", (_request, response) => {
-      // A Ntwine from before the editor connection answers the upgrade with a plain 404.
+      // An Ntwine from before the editor connection answers the upgrade with a plain 404.
       this.#predatesBridge = response.statusCode === 404
       refusal = response.statusCode === 404
         ? "This Ntwine has no editor connection yet. Update Ntwine."
@@ -428,7 +428,7 @@ export class EditorConnection {
       if (generation !== this.#generation) return
       const code = (error as NodeJS.ErrnoException).code
       if (code === "ECONNREFUSED") this.#predatesBridge = false
-      // A Ntwine from before the editor connection, behind its restart supervisor, does not answer the
+      // An Ntwine from before the editor connection, behind its restart supervisor, does not answer the
       // upgrade at all: the child drops a path it has no handler for. Measured against one 2026-10-01.
       refusal ??= code === "ECONNREFUSED"
         ? "Ntwine isn't running."
@@ -487,9 +487,9 @@ export class EditorConnection {
         const blind = this.#host.editor && !this.#features.has(EDITOR_FEATURES.editorState) ? "; this Ntwine is too old for its agents to read the editor, so update it" : ""
         this.#host.log.info(`Connected to Ntwine at ${origin} (${detail})${restarted ? "; Ntwine restarted since the last connection" : ""}${blind}.`)
         this.#setStatus({ kind: "connected", origin, bootId: message.bootId })
-        // What this window can do beyond v1, to a Ntwine that takes the frame (see the header).
+        // What this window can do beyond v1, to an Ntwine that takes the frame (see the header).
         if (this.#host.review && this.#features.has(EDITOR_FEATURES.review)) this.#send({ t: "features", features: [EDITOR_FEATURES.review] })
-        // Anything that changed between the hello and the welcome, and the editor's picture: a Ntwine that
+        // Anything that changed between the hello and the welcome, and the editor's picture: an Ntwine that
         // just (re)started knows nothing of it.
         this.sendState()
         this.sendEditor()

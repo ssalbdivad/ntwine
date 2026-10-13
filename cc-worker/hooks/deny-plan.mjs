@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // @ts-check
-// PermissionRequest hook on ExitPlanMode (ntwine) — a ntwine worker runs under a dashboard, not a
+// PermissionRequest hook on ExitPlanMode (ntwine) — an ntwine worker runs under a dashboard, not a
 // live chat, so the plan-APPROVAL prompt (shown when the model calls ExitPlanMode to present a plan
 // and ask to proceed) would hang the session invisibly. Deny it and redirect the worker to encode
 // its plan/ask in the thread file instead.
@@ -8,7 +8,7 @@
 // WHY PermissionRequest, not PreToolUse: ExitPlanMode is a PERMISSION surface, not a plain tool —
 // it is denied via PermissionRequest (AskUserQuestion, a real tool, is denied via PreToolUse in the
 // sibling deny-ask.mjs). CAVEAT: PermissionRequest hooks do NOT fire under `claude -p` (headless
-// print mode); a ntwine worker runs as an INTERACTIVE `claude` session inside its session-broker
+// print mode); an ntwine worker runs as an INTERACTIVE `claude` session inside its session-broker
 // daemon, where they DO fire. So this protects the real worker path; the `-p` smoke test cannot
 // exercise it (documented).
 //
@@ -19,7 +19,7 @@
 // permission-mode signal — that is FALSE and was corrected 2026-07-25: the payload carries
 // `permission_mode`, `tool_name`, and `tool_input`, which is exactly what the sibling perm-policy.mjs
 // keys its rules on. The unconditional deny is kept because the SOURCE fix below makes plan mode
-// unreachable for a ntwine worker anyway, not because the signal is unavailable.) The fix is at the SOURCE
+// unreachable for an ntwine worker anyway, not because the signal is unavailable.) The fix is at the SOURCE
 // instead — ntwine NEVER spawns a worker in plan mode (dispatch.ts coerces `--permission-mode plan`
 // → `auto` in both command builders), so a real ntwine worker is never in plan mode and this deny
 // only ever meets a SPURIOUS ExitPlanMode call (nothing to exit → deny + redirect is correct). A

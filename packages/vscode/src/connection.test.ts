@@ -22,7 +22,7 @@ class FakeNtwine {
   readonly sockets: WebSocket[] = []
   /** Answer each hello with welcome + projects, as the server does. */
   welcome = true
-  /** What the welcome says this Ntwine takes beyond v1, as the real one does; undefined is a Ntwine from before the field. */
+  /** What the welcome says this Ntwine takes beyond v1, as the real one does; undefined is an Ntwine from before the field. */
   features: string[] | undefined = ["editor-state"]
   projects: EditorProject[] = [{ id: "p1", slug: "repo", name: "repo", dir: "/home/me/repo", ready: 2, working: 1 }]
   readonly #server: Server
@@ -247,8 +247,8 @@ function picture(selected: string, over: Partial<EditorSnapshot> = {}): EditorSn
   }
 }
 
-test("the editor's picture goes only to a Ntwine whose welcome names it: on connect, then only when it changes", async () => {
-  // A Ntwine from before the frame closes the socket on it (4401) — on every redial, forever — so it
+test("the editor's picture goes only to an Ntwine whose welcome names it: on connect, then only when it changes", async () => {
+  // An Ntwine from before the frame closes the socket on it (4401) — on every redial, forever — so it
   // must never hear one. Its welcome has no `features`.
   const old = await new FakeNtwine().listen()
   old.features = undefined
@@ -285,7 +285,7 @@ test("the editor's picture goes only to a Ntwine whose welcome names it: on conn
     connection.sendEditor()
     await until("the changed picture", () => ntwine.of("editor").length === 2)
     assert.equal(ntwine.of("editor")[1]?.active?.selection?.text, "let x = 2")
-    // A Ntwine that restarted knows nothing: the same picture again on the new welcome.
+    // An Ntwine that restarted knows nothing: the same picture again on the new welcome.
     ntwine.live.close(1001, "restarting")
     await until("the picture on the redial", () => ntwine.of("editor").length === 3)
     assert.deepEqual(ntwine.of("editor")[2], ntwine.of("editor")[1])
@@ -295,8 +295,8 @@ test("the editor's picture goes only to a Ntwine whose welcome names it: on conn
   }
 })
 
-test("a window says it can show a thread's changes only to a Ntwine that asks, and answers a review with its result", async () => {
-  // A Ntwine from before the feature: its welcome does not name it, so the frame it would refuse never goes.
+test("a window says it can show a thread's changes only to an Ntwine that asks, and answers a review with its result", async () => {
+  // An Ntwine from before the feature: its welcome does not name it, so the frame it would refuse never goes.
   const old = await new FakeNtwine().listen()
   const oldHost = makeHost(old)
   oldHost.review = async () => ({ ok: true })
@@ -386,7 +386,7 @@ test("a withheld selection is spelled the way each Ntwine's schema takes it: `wi
     problems: { errors: 0, warnings: 0 },
   }
   const now = forServer(frame, new Set(["editor-state", "editor-selection-withheld"]))
-  assert.equal(now, frame, "a Ntwine that takes the field gets the frame as built")
+  assert.equal(now, frame, "an Ntwine that takes the field gets the frame as built")
   const before = forServer(frame, new Set(["editor-state"]))
   assert.deepEqual(before.active?.selection, { startLine: 1, endLine: 2, truncated: true })
   // Both spellings are frames today's server takes; the converted one carries nothing an older schema
@@ -536,7 +536,7 @@ test("4401 and 4402 are refusals worth logging, then an ordinary reconnect", asy
   }
 })
 
-test("a Ntwine from before the editor connection (a plain 404 on the upgrade) is told to update", async () => {
+test("an Ntwine from before the editor connection (a plain 404 on the upgrade) is told to update", async () => {
   const ntwine = await new FakeNtwine({ editorPath: false }).listen()
   const host = makeHost(ntwine)
   const connection = new EditorConnection(host, FAST)
@@ -551,7 +551,7 @@ test("a Ntwine from before the editor connection (a plain 404 on the upgrade) is
   }
 })
 
-test("a Ntwine that hangs up on the upgrade (one from before the editor connection, behind its supervisor) is told to update", async () => {
+test("an Ntwine that hangs up on the upgrade (one from before the editor connection, behind its supervisor) is told to update", async () => {
   const server = createServer()
   server.on("upgrade", (_request, socket) => socket.destroy())
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
@@ -656,7 +656,7 @@ test("the backoff doubles from 1s to a 30s ceiling, jittered ±20%", () => {
   assert.equal(backoffDelay(9, 1_000, 30_000, () => 1), 30_000, "jitter never pushes past the ceiling")
 })
 
-test("a Ntwine that answers the editor socket with a 404 predates it; one that welcomes this window does not", async () => {
+test("an Ntwine that answers the editor socket with a 404 predates it; one that welcomes this window does not", async () => {
   const old = await new FakeNtwine({ editorPath: false }).listen()
   const host = makeHost(old)
   const connection = new EditorConnection(host, FAST)

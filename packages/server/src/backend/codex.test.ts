@@ -994,7 +994,7 @@ test("scanForeignRollouts: this project's own human-started rollouts, and nothin
       cwds: ["/work/app"],
       nowMs: NOW,
       freshMs: 24 * 3600_000,
-      // A ntwine-dispatched codex thread pins its rollout id in `agent_session_id`. Without it here the
+      // An ntwine-dispatched codex thread pins its rollout id in `agent_session_id`. Without it here the
       // thread ntwine is actively driving comes back as its own read-only twin.
       exclude: new Set([DISPATCHED]),
       max: 20,

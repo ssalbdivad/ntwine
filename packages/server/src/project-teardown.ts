@@ -19,7 +19,7 @@ import { stopThreadRuntime } from "./router.ts"
 /**
  * Kill every live worker daemon in one project.
  *
- * A Ntwine worker is a DETACHED daemon in its own process group — that is the whole point, and it is
+ * An Ntwine worker is a DETACHED daemon in its own process group — that is the whole point, and it is
  * why Ctrl-C on the server leaves a running turn alone. Deactivating a tenant therefore stops the
  * board, the tailer and the scheduler and touches no worker at all, which is exactly right for a
  * shutdown and exactly wrong for a delete: the daemon keeps running against a state directory that

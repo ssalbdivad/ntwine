@@ -1,4 +1,4 @@
-// LIVE end-to-end test of the CONTEXT METER's denominator across a ntwine restart:
+// LIVE end-to-end test of the CONTEXT METER's denominator across an ntwine restart:
 //   real claude → broker daemon → socket → bridge.onEvent → ingest.contextWindow → tailer state.
 //   nub packages/server/src/backend/_live_broker_context_window.mts
 //

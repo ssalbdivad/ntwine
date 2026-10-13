@@ -99,7 +99,7 @@ test("real SDK + fake executable: init owns the requested session, input streams
   // flip this assertion. Clearing them through the override path keeps the baseline deterministic AND
   // exercises buildEnvironment's delete branch. The worker caps are the same hazard inverted: in
   // production the BRIDGE spreads claudeWorkerEnv() into the daemon env and the foundation inherits
-  // it, so a test process outside a ntwine worker has no CLAUDE_CODE_MAX_* at all — until 2026-08-24
+  // it, so a test process outside an ntwine worker has no CLAUDE_CODE_MAX_* at all — until 2026-08-24
   // this test read them from ambient env and only passed INSIDE a dispatched worker (first caught by
   // a suite run on a plain Linux box). claudeWorkerEnv({}) is the bridge's spread at its defaults.
   const harness = startHarness("basic", {
@@ -116,7 +116,7 @@ test("real SDK + fake executable: init owns the requested session, input streams
     // THE SAME HAZARD A THIRD TIME, and this one fooled a bump (2026-09-05). The SDK writes
     // CLAUDE_CODE_ENTRYPOINT only when the child's env does not already carry it (`if(!c.CLAUDE_CODE_
     // ENTRYPOINT)c.CLAUDE_CODE_ENTRYPOINT="sdk-ts"` in sdk.mjs, 0.3.260 through 0.3.263 alike), and
-    // every Claude-launched shell already does: an interactive `claude` exports `sdk-cli`, a ntwine
+    // every Claude-launched shell already does: an interactive `claude` exports `sdk-cli`, an ntwine
     // broker worker exports `sdk-ts`. So the fixture echoed the RUNNER's tag, and the 0.3.261 bump read
     // its own shell's `sdk-cli` as a vendor rename — a suite run from a broker worker then failed on the
     // exact assertion that comment said must never be loosened. Cleared, so the SDK's own default is what
@@ -232,7 +232,7 @@ test("host runtime injection is stripped whatever case the OS spells its variabl
   }
 })
 
-test("listSkills offers the skills and the built-in commands a Ntwine thread can run", { timeout: 10_000 }, async () => {
+test("listSkills offers the skills and the built-in commands an Ntwine thread can run", { timeout: 10_000 }, async () => {
   const harness = startHarness("basic")
   try {
     await withTimeout(harness.handle.ready(), "session init")

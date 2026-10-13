@@ -19,7 +19,7 @@ document.documentElement.dataset.font = font
 // matters, because "show it if we know it" means a harness that stays silent must still render.
 const SKILLS: ThreadSkill[] = [
   { name: "ntwine-stack", description: "Boot a real, fully-isolated, disposable Ntwine you can poke", source: "project" },
-  { name: "ntwine:gh", description: "The gh-CLI playbook for a ntwine worker signed into GitHub", source: "plugin" },
+  { name: "ntwine:gh", description: "The gh-CLI playbook for an ntwine worker signed into GitHub", source: "plugin" },
   { name: "headless-browser", description: "Drive a local page in Chrome and capture it without putting a window on screen", source: "project" },
   { name: "optical-spacing", description: "Space a row of small marks by the ink the eye reads instead of the boxes CSS lays out", source: "user" },
   { name: "verify", description: "Check the pending changes on the current branch", source: "builtin" },

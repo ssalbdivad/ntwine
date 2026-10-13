@@ -213,7 +213,7 @@ test("readThread reaches another open project's thread, says whose it is, and pr
 
 // NAMES ARE UNIQUE ACROSS OPEN PROJECTS (thread-names.ts), because the caller's own project wins a handle
 // both carry: a thread here named like another project's open thread hides it from every thread here.
-// Seen 2026-10-09 — a ntwine thread named "Issues audit" beside arktype's open `@issues-audit` answered
+// Seen 2026-10-09 — an ntwine thread named "Issues audit" beside arktype's open `@issues-audit` answered
 // that handle itself, so the arktype thread and its sub-agents could not be reached from ntwine.
 test("a thread cannot take another open project's thread name, so the other's handle stays reachable", async () => {
   const { a, b, close } = twoProjects()

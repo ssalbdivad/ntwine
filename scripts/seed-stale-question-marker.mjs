@@ -1,12 +1,12 @@
 // NOTE 2026-09-28: a marker no longer PLACES anything — a card renders at the BOTTOM of the rest it
 // belongs to and never inside a message (maintainer: "questions should always appear at the bottom of the
 // thread not in the middle any explanation should occur beforehand"), and only the HUMAN'S turn ends that
-// rest, not a ntwine wake. So, per variant:
+// rest, not an ntwine wake. So, per variant:
 //   (default)       the marker's own slot draws NOTHING; the card sits under the WHOLE asking handoff
 //                   ("Both PRs have watchers armed…" above it), still above the human's reply.
 //   --fresh-marker  the marker in the final handoff carries the card to the BOTTOM of that handoff —
 //                   under "The Mini autocomplete question is still open…", not in the marker's slot.
-//   --woken         no marker at all, and the human's reply is replaced by a ntwine WAKE (a PR watcher
+//   --woken         no marker at all, and the human's reply is replaced by an ntwine WAKE (a PR watcher
 //                   expiring): nobody but ntwine has spoken, so the card rides down under the final handoff.
 // NOTE 2026-09-24: the expectation below is REVERSED. An open question now stays at the rest that asked
 // it (lib/questionAnchor), so the card belongs ABOVE the human's reply, not at the tail; a marker in the
@@ -150,4 +150,4 @@ for (let i = 0; i < 40; i++) {
 }
 const board = await api.query("board")
 const t = board.threads.find((x) => x.id === slug)
-console.log(JSON.stringify({ slug, marker: freshMarker ? "final handoff" : woken ? "none — a ntwine wake moved the thread on" : "asking rest (stale)", runtime: t?.runtime, questions: t?.questions?.map((q) => ({ id: q.id, askedAt: q.askedAt })) }, null, 1))
+console.log(JSON.stringify({ slug, marker: freshMarker ? "final handoff" : woken ? "none — an ntwine wake moved the thread on" : "asking rest (stale)", runtime: t?.runtime, questions: t?.questions?.map((q) => ({ id: q.id, askedAt: q.askedAt })) }, null, 1))

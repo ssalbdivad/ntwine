@@ -111,7 +111,7 @@ export interface ClaudeBrokerBridgeDeps {
    *  ClaudeRuntimeIngest.noteCompactionWindow for why that is one number rather than two. */
   onCompactionWindow?: (sessionId: string, window: number | undefined) => void
   /** Observe daemon lifecycle/stderr diagnostics from a LIVE socket. The durable copy is written by
-   *  the daemon itself (claude-broker-diagnostics.ts) precisely because this relay only reaches a ntwine
+   *  the daemon itself (claude-broker-diagnostics.ts) precisely because this relay only reaches an ntwine
    *  that is attached at the time — which a crash during a restart is not. Optional; for a live
    *  consumer, not for forensics.
    *
@@ -265,7 +265,7 @@ export interface ClaudeAgentBrokerBridge {
    * The codex bridge has done this since its daemon started outliving ntwine, and its doc comment names
    * the bug: a turn still running inside a detached daemon has nobody observing it, so a perfectly
    * healthy surviving turn cards as stalled. The broker adopted LAZILY — only `spawnDispatch` and
-   * `followUp` ever called `attach` — so after a ntwine restart:
+   * `followUp` ever called `attach` — so after an ntwine restart:
    *
    *  - the daemon's event backlog (queued, not dropped, while detached) sits unread, so the runtime
    *    ingest has no reading of the turn and never nudges the tailer;
@@ -355,7 +355,7 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
   // the live client + the daemon's requestId to answer against once the human resolves the interaction.
   // `ask` is present for an AskUserQuestion card: the parsed question spec, needed to turn the operator's
   // field values back into the tool's `{questions, answers}` updatedInput. It is re-derived from the
-  // re-delivered request on reconnect, so it survives a ntwine restart with the question still open.
+  // re-delivered request on reconnect, so it survives an ntwine restart with the question still open.
   const pendingPerms = new Map<string, { client: ClaudeBrokerClient; requestId: string; scope: InteractionSessionScope; ask?: ClaudeAskSpec }>()
   // `<sessionId>\0<agentId>` of every agent whose first escalation was already held back with a note.
   const hintedAgents = new Set<string>()
@@ -406,7 +406,7 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
     // The first escalation from each agent goes back to it with a note instead of to the operator — see
     // claudeFirstApprovalHint. AFTER the reuse check, so a re-delivery of a request that already has a
     // card keeps it. Remembered in memory AND on disk: memory so a mark that cannot be written never
-    // bounces the agent's own retry, disk so a ntwine restart does not make a later one "first" again.
+    // bounces the agent's own retry, disk so an ntwine restart does not make a later one "first" again.
     const hint = claudeFirstApprovalHint(request, permissionMode, deadlineMs)
     const hintKey = `${sessionId}\0${request.agentId ?? ""}`
     if (hint !== null && !hintedAgents.has(hintKey) && !permissionHintGiven(deps.stateDir, sessionId, request.agentId)) {
@@ -955,7 +955,7 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
 
     retireDaemon(input) {
       // Killed BY RECORD, exactly like releaseSession, rather than only when this bridge holds the
-      // session live: after a ntwine restart the daemon is running and unattached, and that is precisely
+      // session live: after an ntwine restart the daemon is running and unattached, and that is precisely
       // the session whose launch flags are stale. `isDaemonAlive` is read FIRST so the answer describes
       // what was actually retired — the caller turns it into "takes effect on the next turn" versus
       // "saved for the next resume", and those must not be interchangeable.

@@ -47,7 +47,7 @@ export async function freePort(): Promise<number> {
   return port
 }
 
-/** A git repo at `dir` with a README committed — what a Ntwine project needs to be one. */
+/** A git repo at `dir` with a README committed — what an Ntwine project needs to be one. */
 export function gitRepo(dir: string): string {
   mkdirSync(dir, { recursive: true })
   const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=ntwine e2e", "-c", "user.email=e2e@ntwine.invalid", ...args], { cwd: dir, stdio: "ignore" })

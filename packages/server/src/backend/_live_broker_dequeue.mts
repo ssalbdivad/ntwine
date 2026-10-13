@@ -141,11 +141,11 @@ try {
     const mid = (e.event as unknown as Record<string, unknown>).messageId
     return typeof mid === "string" && known.has(mid)
   })
-  console.log(`Q1 events carrying a ntwine input id: ${idsInEvents.length}` +
+  console.log(`Q1 events carrying an ntwine input id: ${idsInEvents.length}` +
     (idsInEvents.length ? ` → ${idsInEvents.map((e) => `${e.event.kind}:${label((e.event as unknown as Record<string, unknown>).messageId as string)}@${e.ms}ms`).join(", ")}` : ""))
 
   const diskWithId = diskLines.filter((d) => typeof d.rec.uuid === "string" && known.has(d.rec.uuid as string))
-  console.log(`Q2 disk records carrying a ntwine input id: ${diskWithId.length}` +
+  console.log(`Q2 disk records carrying an ntwine input id: ${diskWithId.length}` +
     (diskWithId.length ? ` → ${diskWithId.map((d) => `${String(d.rec.type)}:${label(d.rec.uuid as string)}@${d.ms}ms`).join(", ")}` : ""))
 
   const queueOps = diskLines.filter((d) => d.rec.type === "queue-operation")

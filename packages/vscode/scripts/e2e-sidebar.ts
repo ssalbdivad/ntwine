@@ -1987,7 +1987,7 @@ try {
     await command("workbench.view.extension.ntwine")
     await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
-    // A gitignored copy, where a Ntwine checkout keeps its threads' worktrees: never offered.
+    // A gitignored copy, where an Ntwine checkout keeps its threads' worktrees: never offered.
     mkdirSync(join(workspace.dir, "ignored-copy"), { recursive: true })
     writeFileSync(join(workspace.dir, "ignored-copy", "sample.ts"), SAMPLE)
     appendFileSync(join(workspace.dir, ".git", "info", "exclude"), "\nignored-copy/\n")

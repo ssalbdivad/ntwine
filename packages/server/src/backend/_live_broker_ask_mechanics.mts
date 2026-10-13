@@ -139,7 +139,7 @@ try {
     ok("[restart] the question is STILL pending after the restart (SQLite kept it)", after !== undefined)
     if (after) {
       answer(scope, after, { q0: "Blue" })
-      ok("[restart] answering AFTER a ntwine restart still reaches the model", await waitForReply(sessionId, "PICKED=Blue"), assistantText(sessionId).slice(-200))
+      ok("[restart] answering AFTER an ntwine restart still reaches the model", await waitForReply(sessionId, "PICKED=Blue"), assistantText(sessionId).slice(-200))
     }
     bridge.releaseSession(slug, sessionId, "session-deleted")
     bridge.close()

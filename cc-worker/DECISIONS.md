@@ -31,7 +31,7 @@ what was ported from the orchestrator `cc/` plugin, what was dropped, and why.
 | --- | --- | --- | --- |
 | `session-seed.mjs` | SessionStart (startup/resume/clear/compact) | cc `session-seed.mjs` | Injects the single-thread worker contract + the bound slug + its file path; re-grounds on compact. Also writes cc's `off` sentinel defensively (see interplay). |
 | `precompact-instructions.mjs` | PreCompact (auto/manual) | new — no cc equivalent | Steers WHAT SURVIVES compaction: emits an editorial brief asking the summarizer to preserve the high-level approach (plan, alternatives rejected, rationale) at high fidelity, plus a closing "Re-grounding before continuing:" section naming the thread's scratch-directory path and the files to re-read. **PLAIN STDOUT is the channel** — cc's usual `hookSpecificOutput` JSON would be handed to the summarizer as its literal instructions. Skips sub-agent contexts (the derived scratch-directory path is only guaranteed for the top-level worker). |
-| `scratchpad.mjs` | SessionStart (startup/resume/clear/compact) + PreCompact (auto/manual) + UserPromptSubmit + PostToolUse | new — no cc equivalent | Keeps a worker aware of its per-thread scratch DIRECTORY (`.ntwine/threads/<sid>/`). `--mode=session-start` NAMES the files in it on the context-losing sources (compact/resume/clear) — a listing, never their content — and otherwise teaches the arrangement (write a doc, then arm `post_compaction`); `--mode=precompact` (**plain stdout**) tells the summarizer those files exist so it carries their paths forward; `--mode=nudge` fires on BOTH UserPromptSubmit and PostToolUse (mid-turn — the one that matters for long autonomous turns) once context has grown past `STALE_TOKENS` since the last write. Both nudge channels share one state file, so mid-turn firing does not multiply reminders. NOT gated on `NTWINE_THREAD`; `--via=project` marks the repo-local registration and defers to this one inside a ntwine worker. |
+| `scratchpad.mjs` | SessionStart (startup/resume/clear/compact) + PreCompact (auto/manual) + UserPromptSubmit + PostToolUse | new — no cc equivalent | Keeps a worker aware of its per-thread scratch DIRECTORY (`.ntwine/threads/<sid>/`). `--mode=session-start` NAMES the files in it on the context-losing sources (compact/resume/clear) — a listing, never their content — and otherwise teaches the arrangement (write a doc, then arm `post_compaction`); `--mode=precompact` (**plain stdout**) tells the summarizer those files exist so it carries their paths forward; `--mode=nudge` fires on BOTH UserPromptSubmit and PostToolUse (mid-turn — the one that matters for long autonomous turns) once context has grown past `STALE_TOKENS` since the last write. Both nudge channels share one state file, so mid-turn firing does not multiply reminders. NOT gated on `NTWINE_THREAD`; `--via=project` marks the repo-local registration and defers to this one inside an ntwine worker. |
 | `agent-dispatch.mjs` | PreToolUse(Agent) | cc `agent-dispatch.mjs` | Enforces `run_in_background:true`, strips `name`/`team_name`, appends a worker-flavored orchestration epilogue. |
 | `bash-background.mjs` | PreToolUse(Bash) | new | Denies a local shell job that escapes through `&` without a later `wait` or EXIT trap, including one hidden inside a command-position `bash -c '…'`. Shell job control bypasses Claude's task registry, so Ntwine cannot track or wake it; self-contained probe concurrency, and a wrapper handed to another program (`ssh`/`docker run`/`limactl shell`), remain allowed. Also carries the job gate's rewrite (`job-gate/hook.ts`): a heavy command runs through `ntwine-run` (2026-10-08 entry). |
 | `agent-bind.mjs` | PostToolUse(Agent) | cc `agent-bind.mjs` (verbatim behavior) | Records `agentId → thread` into `.ntwine/.agent-bindings.jsonl` in cc's exact format, so a worker's THREAD-tagged helper renders on the ntwine board's per-thread liveness. |
@@ -73,7 +73,7 @@ what was ported from the orchestrator `cc/` plugin, what was dropped, and why.
 
 ## Interplay with the orchestrator `cc` plugin (double-hook analysis)
 
-**Question:** if the user has `cc` (the ntwine orchestrator plugin) enabled globally AND a ntwine
+**Question:** if the user has `cc` (the ntwine orchestrator plugin) enabled globally AND an ntwine
 worker session starts in the same repo, do both plugins' hooks fire (double-hook)?
 
 **Finding — NO, not by default. cc is inert in a fresh worker session.** cc's every hook is gated on
@@ -139,7 +139,7 @@ at the default threshold, not the configured one), `permissions`, `hooks` and `e
 Measured against the maintainer's real config, one variable, observed through a project-scope hook:
 `--setting-sources=project,local` reported their `env` block UNSET, `user,project,local` reported it
 applied, both sessions exiting 0 with empty stderr. The default is now all three scopes — the same
-thing a plain `claude` in the same cwd reads. A ntwine thread is the operator's own session on their own
+thing a plain `claude` in the same cwd reads. An ntwine thread is the operator's own session on their own
 machine, so the surprising behavior was the divergence, not the inheritance.
 
 ## 2026-07-02: Stop hook removed
@@ -214,7 +214,7 @@ dispatches read `ntwine:opus-high` etc. Renamed the worker skill dir + frontmatt
 
 **Accepted name collision.** The old GLOBAL orchestrator plugin (`cc/`) is ALSO named `ntwine`. This is
 accepted as harmless: `cc/` is disabled in `~/.claude/settings.json` (`"ntwine@ntwine": false`) and, even
-when enabled, loads only in ORCHESTRATOR sessions (a different process class) — never in a ntwine
+when enabled, loads only in ORCHESTRATOR sessions (a different process class) — never in an ntwine
 worker, which loads ONLY this plugin via `--plugin-dir cc-worker`. Verified: the headless worker env
 (same settings.json) registers a clean `ntwine:*` set with no `cc/` agents present. If a user ever
 loaded BOTH plugins in one session, Claude Code would namespace-collide two `ntwine` plugins — but that
@@ -249,7 +249,7 @@ shell-out, so they take effect on the next board rebuild with NO server restart.
   **top-level `additionalContext`** (NOT `decision.message`), which Claude injects to the model as a
   plain-text system-reminder; exit 0 with the JSON on stdout (exit 2 makes Claude ignore it). CAVEAT:
   PermissionRequest hooks do NOT fire under `claude -p` (headless print mode), so the `-p` smoke test
-  can't exercise it — but a ntwine worker runs as an INTERACTIVE `claude` session inside its
+  can't exercise it — but an ntwine worker runs as an INTERACTIVE `claude` session inside its
   session-broker daemon, where they DO fire. Both deny hooks are NTWINE_THREAD-gated and fail-open. (`AskUserQuestion` was not surfaced as
   an invokable tool in the `-p` harness either, so both hooks were verified by piping their exact hook
   payloads rather than by driving a live prompt.)
@@ -644,7 +644,7 @@ and empty task boxes, and measures what remains. It is a heuristic on purpose �
 whether to NUDGE, so a wrong call costs one redundant reminder, never correctness.
 
 **The nudge now also fires on PostToolUse, and that is the real fix.** UserPromptSubmit alone only
-fires at turn boundaries, and a ntwine worker runs enormous autonomous turns — dozens of tool calls
+fires at turn boundaries, and an ntwine worker runs enormous autonomous turns — dozens of tool calls
 between human prompts — so a whole session's work could compact unpersisted without a single nudge.
 PostToolUse `additionalContext` was verified live against cli 2.1.220 (a real session quoted a
 sentinel injected after a Bash call, and through the plugin the model received the nudge mid-turn and
@@ -825,7 +825,7 @@ Suite 2413 pass / 0 fail, typecheck clean.
 
 ## 2026-07-30 (sixth pass): keep the helper epilogue universal
 
-`hooks/agent-dispatch.mjs` appends its epilogue to every Claude `Agent` helper launched by a ntwine
+`hooks/agent-dispatch.mjs` appends its epilogue to every Claude `Agent` helper launched by an ntwine
 worker, regardless of the repository or kind of task. That makes it the wrong layer for requirements
 about compilation, shared build locks, build/test ownership, or how long-running operations should
 be managed.
@@ -1231,7 +1231,7 @@ A dozen agent sessions share one WSL box (31GiB), and RAM is what runs out: an a
 
 The maintainer, after a worker asked to send an audit's results to a resting thread spent sixteen tool calls finding the board's `followUp` route, the slug and the session id, and then curled it: *"We need to educate and encourage sub-agents to steer each other. And provide better mechanisms for doing so."*
 
-- **Between threads: `steer`, a ntwine MCP tool over a new `steerThread` RPC.** Claude Code's cross-session `SendMessage` reaches only a session whose process is live, so a resting thread had no channel at all short of the board's own RPC. `steerThread` is the operator's follow-up delivery (one shared `deliverFollowUp` in `router.ts`), so it wakes a resting thread, queues into a running one, and reopens a done one. The server reads the target's current session itself and stamps the sender's name from its own row; the shim takes the sender from its env. The body arrives wrapped in `<thread-message from-thread=… from-title=…>` with a guidance line naming the sender's slug, and the chat draws it as the existing "Message from «thread»" hairline. Same project only, as `spawn_thread` is.
+- **Between threads: `steer`, an ntwine MCP tool over a new `steerThread` RPC.** Claude Code's cross-session `SendMessage` reaches only a session whose process is live, so a resting thread had no channel at all short of the board's own RPC. `steerThread` is the operator's follow-up delivery (one shared `deliverFollowUp` in `router.ts`), so it wakes a resting thread, queues into a running one, and reopens a done one. The server reads the target's current session itself and stamps the sender's name from its own row; the shim takes the sender from its env. The body arrives wrapped in `<thread-message from-thread=… from-title=…>` with a guidance line naming the sender's slug, and the chat draws it as the existing "Message from «thread»" hairline. Same project only, as `spawn_thread` is.
 - **`spawn_thread` now names the spawner at the end of the child's prompt**, so a spawned thread asked for results can `steer` them back. Its "results NEVER come back to you" premise was true only because nothing could carry them; the doctrine (last resort, do-or-ask first) is unchanged.
 - **Inside one session: measured, then taught.** Measured live on Claude Code 2.1.295 (2026-10-09, headless `claude -p` sessions, read off the sub-agent transcripts and token files each recipient wrote): a parent's `SendMessage` to a RUNNING child's full agent id is delivered when the child's current tool call returns; a child's `SendMessage` to a running sibling's id is delivered the same way, and to a finished sibling's id resumes it. Only the full id resolves — a prefix, the description or the `subagent_type` answers `No agent named '<x>' is reachable`. Children have no `ListAgents`, so a sibling is reachable only by an id someone hands it, or by replying to the `from=` of a message it received. The epilogue gains one sentence for the sideways channels; the worker contract gains one paragraph under Sub-agents and a short section for `steer`.
 - **This fork took the substance, not the tool (merge 2026-10-12).** It already had `mcp__ntwine__message_thread` (2026-10-02, with `await_reply` and the `threads:` fence key) for the same delivery, so `steer` was not added: two verbs for one act would split every rule that names one. The spawner footer and the dispatch epilogue name `message_thread`, which resolves a slug as it does a handle. One difference stays: `message_thread` refuses a finished thread, where `steer` reopened it.

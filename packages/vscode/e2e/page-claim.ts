@@ -3,7 +3,7 @@
 // It passes when the page claimed the item and its new-thread box holds the chip token — the one place
 // the insert can be seen landing, since the server only holds the item until a page takes it.
 //
-// `scripts/e2e.ts --stack` runs it beside the suite. Standalone, against a Ntwine you started:
+// `scripts/e2e.ts --stack` runs it beside the suite. Standalone, against an Ntwine you started:
 //
 //   nub packages/vscode/e2e/page-claim.ts --origin=http://127.0.0.1:<port> --project=<slug> \
 //     --token=@sample.ts:2-3 [--shot=<png>] [--timeout-ms=240000]

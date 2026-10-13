@@ -4,7 +4,7 @@
 // WHY THIS EXISTS. The × kills the process (backend/_live_shell_stop.mts) and the row leaves the board
 // — but the row CAME BACK on the maintainer's real instance two days later, and reproducing it took one
 // cold fold of their transcript: the kill writes NOTHING to the session JSONL, so the tailer's
-// retirement is in-memory only and any re-prime (a ntwine restart, which is exactly what happened)
+// retirement is in-memory only and any re-prime (an ntwine restart, which is exactly what happened)
 // resurrects the shell as live, forever, because its tool_use never gets a tool_result.
 //
 // Fixing that needs a signal the fold can read off DISK. There is a candidate: on the maintainer's

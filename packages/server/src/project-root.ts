@@ -30,7 +30,7 @@ const NTWINE_DIR = ".ntwine"
 const ID_FILE = ".id"
 const SELF_IGNORE = ".gitignore"
 
-/** Any of these makes a directory the project root. A Ntwine project wins over the VCS it sits in. */
+/** Any of these makes a directory the project root. An Ntwine project wins over the VCS it sits in. */
 const REPO_MARKERS = [".git", ".jj", ".hg", ".svn"]
 const PROJECT_MARKERS = [
   "package.json",

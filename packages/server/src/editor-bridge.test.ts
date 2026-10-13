@@ -312,7 +312,7 @@ test("an open goes to the window whose folder holds the file: deepest folder, th
 })
 
 test("focus recency survives a reconnect: the hello says how long ago the window last had focus", async (t) => {
-  // After a Ntwine restart every window redials while the human is in the browser, so none is focused.
+  // After an Ntwine restart every window redials while the human is in the browser, so none is focused.
   // Without the hello's focusedAgoMs they all ranked 0 and the window that redialled LAST took every
   // open no folder claims.
   const h = await harness(t)

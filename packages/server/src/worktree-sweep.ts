@@ -20,7 +20,7 @@ import { log as ntwineLog } from "./logging.ts"
 //   1. It is a LINKED worktree git knows (`git worktree list --porcelain`), inside `.ntwine/worktrees`
 //      of its repository's main checkout. Not locked (`git worktree remove` would refuse one anyway),
 //      not already prunable.
-//   2. NO REGISTERED PROJECT IS IN IT. A worktree opened as a Ntwine project has its own board and
+//   2. NO REGISTERED PROJECT IS IN IT. A worktree opened as an Ntwine project has its own board and
 //      threads, which another tenant's view of "in use" does not cover.
 //   3. NO OPEN THREAD IS WORKING IN IT. Any thread on this server that is Running, in the Queue, Pinned
 //      or Snoozed — every thread but an unpinned, resting Done one — whose working folder (the tailer's

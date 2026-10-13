@@ -8,7 +8,7 @@
 // claude-broker-client.ts, but the bridge never supplied a handler — so `{kind:"lifecycle",
 // phase:"crashed", message}`, the single most useful line there is, went nowhere. And the daemon only
 // wrote diagnostics to an ATTACHED client (`if (client) write(...)`, unlike events, which are
-// backlogged), so a crash during a ntwine restart — exactly when a detached daemon is most likely to
+// backlogged), so a crash during an ntwine restart — exactly when a detached daemon is most likely to
 // die unobserved — was guaranteed lost.
 //
 // So the DAEMON owns this file, not ntwine. A death is precisely when the process may be seconds from
@@ -189,7 +189,7 @@ export function recordClaudeBrokerTermination(
  *  Never gates anything: pure post-hoc attribution for what the bridge would otherwise report as "the
  *  thread went quiet."
  *
- *  An EMPTY generation means the caller could not identify the daemon it lost (a ntwine restart with no
+ *  An EMPTY generation means the caller could not identify the daemon it lost (an ntwine restart with no
  *  record left on disk). That is not a licence to guess: it returns null for the same reason. */
 export function readClaudeBrokerExit(stateDir: string, sessionId: string, generation: string): ClaudeBrokerExitRecord | null {
   if (!generation) return null

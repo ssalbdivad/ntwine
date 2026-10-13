@@ -1,4 +1,4 @@
-// Map a Claude tool-permission request (the SDK's canUseTool escalation) to a ntwine InteractionStore
+// Map a Claude tool-permission request (the SDK's canUseTool escalation) to an ntwine InteractionStore
 // entry, and map the human's decision back to a ClaudePermissionDecision. Under permissionMode "auto"
 // the SDK's model classifier auto-approves the safe/common majority BEFORE canUseTool — so canUseTool
 // fires only for the genuinely risky minority the classifier escalates. Those are exactly the ones that
@@ -115,7 +115,7 @@ export const CLAUDE_PERMISSION_LAPSED_MESSAGE =
   "(or register it with `ntwinectl ask`)."
 
 // THE FIRST APPROVAL EACH AGENT NEEDS IS HELD BACK ONCE, SO THE AGENT CAN LOOK FOR ANOTHER WAY. The
-// journal's 38 Claude cards (2026-09-28..10-06, every one a Bash call) show what they are: in a ntwine
+// journal's 38 Claude cards (2026-09-28..10-06, every one a Bash call) show what they are: in an ntwine
 // worker (auto or bypass, with cc-worker's perm-policy allowing everything else) an escalation is almost
 // always one of Claude Code's bypass-immune checks — an `rm` on a variable-built or globbed path
 // (`rm -rf $W/$t`, `rm -f copy/*`), a nested `bash -c "…"`, a heredoc-fed script outside the project —
@@ -296,7 +296,7 @@ const HAS_UNSAFE_TEXT = new RegExp(UNSAFE_TEXT_SOURCE, "u")
 // claude 2.1.220's own sentinel for "the operator left notes but picked no option" — its result mapper
 // special-cases this exact string (`if (!f || f === "(notes only)") return true`) so a notes-only answer
 // is not scored as an unadvertised pick. Matching it is what makes ntwine's free-text box native rather
-// than a ntwine-shaped approximation.
+// than an ntwine-shaped approximation.
 const CLAUDE_NOTES_ONLY = "(notes only)"
 
 const CLAUDE_QUESTION_DECLINED =
@@ -516,7 +516,7 @@ export function claudeQuestionDecisionFor(
     // free text rides `annotations[question].notes`, and a notes-only answer takes claude's own
     // NOTES_ONLY sentinel in `answers`. Both are read by the result mapper — the presence of notes
     // is precisely what makes it tell the model to read the answer carefully rather than treating a
-    // matched label as a clean pick. This is why free text is native here and not a ntwine convention.
+    // matched label as a clean pick. This is why free text is native here and not an ntwine convention.
     answers[question.question] = picked === "" ? CLAUDE_NOTES_ONLY : picked
     if (notes !== "") annotations[question.question] = { notes }
   }

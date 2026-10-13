@@ -32,7 +32,7 @@ test("a rest above another divider is dropped — nothing wakes an agent that ha
   assert.deepEqual(kept([prose(), rest(), wake]), ["a", "w"])
 })
 
-test("a rest above a ntwine wake DELIVERY is dropped too — those render as their own hairline, not a bubble", () => {
+test("a rest above an ntwine wake DELIVERY is dropped too — those render as their own hairline, not a bubble", () => {
   const signoff = msg({ sourceId: "s", role: "user", wake: true, text: "…sign off with a fence…" })
   assert.deepEqual(kept([prose(), rest(), signoff]), ["a", "s"])
 })

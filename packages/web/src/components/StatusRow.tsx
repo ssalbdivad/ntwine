@@ -70,7 +70,7 @@ function Divider() {
  * drop the gear and the ⌨: in an editor's sidebar the title row VS Code draws over the frame carries both
  * (Settings as a button, Keyboard shortcuts under its ⋯), and the page's name (SidebarPage.tsx), so the
  * row there is the rest of it, at the right end — and NOTHING when there is no rest. With no supervisor to
- * restart (a Ntwine run from source) and no quota to read, the ⌨ stood alone on a 36px row above the prompt
+ * restart (an Ntwine run from source) and no quota to read, the ⌨ stood alone on a 36px row above the prompt
  * box, a stray glyph the real-page run flagged as debris (scripts/e2e-sidebar.ts, 2026-10-01); a row of
  * nothing would still hold the box 10px down, so the row is not drawn at all.
  */

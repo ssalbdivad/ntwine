@@ -647,8 +647,8 @@ test("adoptSession: a session ntwine already owns cannot be promoted again, thro
   // The registry is re-read rather than the caller's claim trusted: the request arrives from a browser
   // saying "this came from the foreign band", and a crafted one must not be able to mint a second row
   // over a thread ntwine is already driving.
-  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: CLAUDE_ID, backend: "claude" }), /already a ntwine thread/)
-  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: ROLLOUT, backend: "codex" }), /already a ntwine thread/)
+  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: CLAUDE_ID, backend: "claude" }), /already an ntwine thread/)
+  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: ROLLOUT, backend: "codex" }), /already an ntwine thread/)
   // And a malformed id is refused before anything is written.
   await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: "../escape", backend: "claude" }), /cannot be adopted/)
 })

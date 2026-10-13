@@ -30,7 +30,7 @@ import { launchEnvironment } from "./worker-env.ts"
 export interface AcpDaemonRecord {
   threadSlug: string
   sessionId: string
-  /** Identity of the agent PROCESS. Unchanged across a ntwine restart; new only when the agent itself
+  /** Identity of the agent PROCESS. Unchanged across an ntwine restart; new only when the agent itself
    *  died and a fresh daemon replaced it. */
   generation: string
   daemonPid: number
@@ -56,7 +56,7 @@ export interface AcpDaemonHello {
 
 export interface AcpAttachment {
   process: AcpProcess
-  /** True when we joined an agent that was ALREADY running (it outlived a ntwine restart). */
+  /** True when we joined an agent that was ALREADY running (it outlived an ntwine restart). */
   reattached: boolean
   generation: string
   daemonPid: number
@@ -351,7 +351,7 @@ export const daemonAcpHost: AcpHost = async (options) => {
   } catch (error) {
     // LAST RESORT, and deliberately not a hard failure: the daemon buys restart survival, and a daemon
     // that cannot start must cost that property, never the ACP thread itself.
-    ntwineLog.error("acp", `acp daemon unavailable (${(error as Error).message}); running ${options.command} as a plain child — its turns will NOT survive a ntwine restart`)
+    ntwineLog.error("acp", `acp daemon unavailable (${(error as Error).message}); running ${options.command} as a plain child — its turns will NOT survive an ntwine restart`)
     return directAcpHost(spawnAcpChild)(options)
   }
 }

@@ -149,7 +149,7 @@ const waitForThread = async (slug, predicate, seconds, label) => {
   return null
 }
 
-// A long, observable turn. `sleep` needs a real sandbox, which a ntwine-dispatched codex worker gets.
+// A long, observable turn. `sleep` needs a real sandbox, which an ntwine-dispatched codex worker gets.
 const LONG_TURN = "Run exactly this shell command and wait for it to finish: `sleep 60`. After it completes, reply with exactly the word FINISHED and nothing else."
 
 try {

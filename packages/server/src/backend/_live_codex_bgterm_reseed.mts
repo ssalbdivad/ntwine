@@ -1,4 +1,4 @@
-// LIVE PROBE: does a codex background exec's row survive a Ntwine restart that rejoins the same app-server?
+// LIVE PROBE: does a codex background exec's row survive an Ntwine restart that rejoins the same app-server?
 //   nub packages/server/src/backend/_live_codex_bgterm_reseed.mts
 //   CODEX_BIN=/path/to/codex overrides the binary (default: the provisioned 0.158.0 pin, then PATH).
 //
@@ -9,7 +9,7 @@
 // on a rejoin of the same process (codex-app-server.ts seedLiveExecs). This drives the REAL thing:
 //
 //   Q1. A real yielded exec becomes a live exec on bridge A (the precondition).
-//   Q2. Closing bridge A — a Ntwine restart — leaves the exec's OS process running.
+//   Q2. Closing bridge A — an Ntwine restart — leaves the exec's OS process running.
 //   Q3. A fresh bridge B on the same database and state dir rejoins the SAME listener and lists the
 //       exec, with the same processId, without any new turn. Before the fix this was [].
 //   Q4. When that exec then ends on its own (the probe SIGKILLs its OS process), does the row clear on

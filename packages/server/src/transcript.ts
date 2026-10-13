@@ -166,7 +166,7 @@ const LEGACY_TASK_MARKER = "\nTASK:\n"
 const LEGACY_BANNER_PREAMBLE =
   "Everything ABOVE this line is ntwine system orientation. Everything BELOW the `TASK:` marker is the human operator's own prompt, verbatim."
 
-// Display-only projection for the FIRST user turn of a ntwine dispatch: strip ntwine's own envelope
+// Display-only projection for the FIRST user turn of an ntwine dispatch: strip ntwine's own envelope
 // (scratchpad orientation + project instructions + the YOUR TASK banner) so the bubble is the human
 // operator's prompt and nothing else. Everything below DISPATCH_TASK_BANNER_MARKER is verbatim theirs.
 //
@@ -3432,7 +3432,7 @@ const CAPTION_MAX = 120
 // The body is usually unrecoverable: codex Fernet-encrypts inter-agent `message` payloads (821/821
 // across 386 real rollouts — send_message, followup_task AND spawn_agent alike), and the tool's own
 // result is an empty string, so there is no plaintext anywhere in the parent transcript to render.
-// Say so IN the card rather than leaving an empty row that reads like a ntwine bug. A message that does
+// Say so IN the card rather than leaving an empty row that reads like an ntwine bug. A message that does
 // arrive in the clear (older/unencrypted codex builds) still renders verbatim.
 function codexPeerMessageCall(label: string, target: string | undefined, obj: Record<string, unknown>): TranscriptToolCall {
   // strField has ALREADY run redactToolPayload, so an encrypted body arrives here as the redaction

@@ -423,7 +423,7 @@ function skewBridge(h: ReturnType<typeof versionedHarness>, diagnostics: unknown
 // upgrade path — bump CODEX_APP_SERVER_SUPPORTED_VERSION, Update & Restart — leaves a surviving
 // daemon serving the OLD userAgent to every new ntwine generation. The bridge's version gate then
 // rejects every single connect, forever: the daemon re-arms its 6h idle timer on each client drop, so
-// a ntwine that keeps retrying keeps the wedged daemon alive indefinitely, and the symptom is
+// an ntwine that keeps retrying keeps the wedged daemon alive indefinitely, and the symptom is
 // indistinguishable from Codex being completely down.
 //
 // Modelled by holding the SUPPORTED constant fixed (it is a constant) and moving the installed

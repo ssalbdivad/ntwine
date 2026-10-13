@@ -1505,7 +1505,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "a Ntwine from before the sidebar is named as the cause at once, not after the 20s wait",
+    name: "an Ntwine from before the sidebar is named as the cause at once, not after the 20s wait",
     modes: ["fake"],
     async run({ api }) {
       const hellos = async () => (await fakeLog()).frames.filter((frame) => frame.t === "hello").length
@@ -1743,7 +1743,7 @@ const steps: Step[] = [
         await ntwine.update("serverUrl", "http://127.0.0.1:1", vscode.ConfigurationTarget.Global)
         await until("the frame on port 1", () => api.sidebar().url === `http://127.0.0.1:1/${embedQuery(project)}`)
         assert.equal(api.sidebar().ready, false)
-        // The view waits 20s for a page to say it is ready (src/sidebar.ts READY_HINT_MS; 10s until a Ntwine
+        // The view waits 20s for a page to say it is ready (src/sidebar.ts READY_HINT_MS; 10s until an Ntwine
         // run from source took 13s and 42s to load on a busy machine), so the hint comes after that.
         await until("the hint", () => api.sidebar().hinted, 30_000)
 

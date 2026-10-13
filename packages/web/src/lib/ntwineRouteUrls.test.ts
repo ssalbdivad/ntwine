@@ -35,7 +35,7 @@ function sourceFiles(dir: string): string[] {
   })
 }
 
-test("no client URL addresses a Ntwine route without the /_ntwine prefix", () => {
+test("no client URL addresses an Ntwine route without the /_ntwine prefix", () => {
   const offenders: string[] = []
   for (const file of sourceFiles(SRC)) {
     const lines = stripComments(readFileSync(file, "utf8")).split("\n")

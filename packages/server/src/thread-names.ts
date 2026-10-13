@@ -33,7 +33,7 @@ import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-onesh
 // THE SET IS EVERY PROJECT THIS SERVER HAS OPEN, not the thread's own (2026-10-09). A handle is resolved
 // in the caller's project first and only falls through to the others when nothing there answers
 // (router.ts `resolveElsewhere`), so a local name equal to another project's open thread SHADOWS that
-// thread: a ntwine-project thread auto-named "Issues audit" beside arktype's open `@issues-audit` made
+// thread: an ntwine-project thread auto-named "Issues audit" beside arktype's open `@issues-audit` made
 // `@issues-audit` answer the caller itself, and `@issues-audit.<sub-agent>` report no sub-agents. The
 // namer had been told only its own project's names, and its prompt @-mentioned the arktype thread — so a
 // name the request MENTIONS is taken too (`mentionedHandles`), open, done or not a thread at all: a thread
