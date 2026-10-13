@@ -35,7 +35,7 @@ points.
 
 **Working here (David)**
 - Copy says what the human can do, never how Ntwine works. It is sentence case, and durations use one grammar.
-- Never run unmerged code against the maintainer's live Ntwine data (`~/.local/share/ntwine`). Use a disposable stack (the
+- Never run unmerged code against the maintainer's live Ntwine data (`~/.local/share/ntwine`, or `~/.local/share/frizz` on an install from before the rename). Use a disposable stack (the
   `ntwine-stack` skill).
 - Preserve evidence: never delete or rewrite a stored measurement. Experiments are temporary: record the conclusion and
   its numbers, then delete the harness. Keep benchmarks few.
