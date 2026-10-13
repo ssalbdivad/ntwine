@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import test, { after, before } from "node:test"
-import { SCHEDULE_SPACING_COPY } from "@frizz/shared"
+import { SCHEDULE_SPACING_COPY } from "@ntwine/shared"
 
 // THE SCHEDULE IN THE WORDS, in the real prompt box (ARCHITECTURE.md § Scheduled threads, the 2026-10-06 design):
 // there is no schedule button and no mode. A prompt with a schedule word in it is read by the model as it is
@@ -17,10 +17,10 @@ import { SCHEDULE_SPACING_COPY } from "@frizz/shared"
 // a gate that holds every answer until released, failures and calls that never answer.
 //
 // Skipped unless a Vite URL serving the fixtures is provided: start `vite` in packages/web and set
-// FRIZZ_SCHEDULE_E2E_URL to its origin (scripts/e2e-web.mjs does both: `nub run test:e2e -- composerScheduleLive`).
-// FRIZZ_SCHEDULE_SHOTS=<dir> also saves the evidence screenshots (intent-*.png) at the moments named below.
-const baseUrl = process.env.FRIZZ_SCHEDULE_E2E_URL
-const shotsDir = process.env.FRIZZ_SCHEDULE_SHOTS
+// NTWINE_SCHEDULE_E2E_URL to its origin (scripts/e2e-web.mjs does both: `nub run test:e2e -- composerScheduleLive`).
+// NTWINE_SCHEDULE_SHOTS=<dir> also saves the evidence screenshots (intent-*.png) at the moments named below.
+const baseUrl = process.env.NTWINE_SCHEDULE_E2E_URL
+const shotsDir = process.env.NTWINE_SCHEDULE_SHOTS
 
 const NY = "America/New_York"
 const PAGE_BOX = `[data-dispatch-form]:not([role="dialog"] [data-dispatch-form])`
@@ -35,7 +35,7 @@ type PuppeteerModule = typeof import("puppeteer")
 type Browser = Awaited<ReturnType<PuppeteerModule["launch"]>>
 type Page = Awaited<ReturnType<Browser["newPage"]>>
 type Counts = Record<"dispatch" | "createSchedule" | "deleteSchedule" | "interpretSchedule", number>
-const ATTACHED = "/fixture/.frizz/attachments/1-abcdef12-shot.png"
+const ATTACHED = "/fixture/.ntwine/attachments/1-abcdef12-shot.png"
 type Rule = { match: string; delayMs?: number } & Record<string, unknown>
 
 let browser: Browser | undefined

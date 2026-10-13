@@ -6,7 +6,7 @@ import { LONG_BLOCK_OVER, LONG_BLOCK_SHOWN } from "./codeBlock.ts"
 import { MARKDOWN_OPTIONS } from "./markdown.ts"
 
 // The worker contract TEACHES the components this package draws (server/src/workerPrompt.ts § Markdown
-// that Frizz draws as more than text), and the two live in different packages. A grammar change here
+// that Ntwine draws as more than text), and the two live in different packages. A grammar change here
 // would leave the prompt teaching a spelling that now renders as plain text, with nothing failing — the
 // worker cannot see its own message drawn, so nobody would learn of it. So the section's OWN examples
 // and spellings go through the app's real marked configuration, and each must come out as the component
@@ -20,7 +20,7 @@ const render = (md: string) => (marked.parse(md, { async: false }) as string).tr
 
 function section(kind: "claude" | "codex"): string {
   const prompt = buildWorkerPrompt(kind)
-  const start = prompt.indexOf("## Markdown that Frizz draws as more than text")
+  const start = prompt.indexOf("## Markdown that Ntwine draws as more than text")
   assert.notEqual(start, -1, `the ${kind} contract carries the section`)
   const end = prompt.indexOf("\n## ", start + 3)
   return prompt.slice(start, end === -1 ? undefined : end)

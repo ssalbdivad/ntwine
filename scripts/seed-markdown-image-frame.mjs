@@ -13,7 +13,7 @@
 // running it here rather than in a fixture, where an <img> load bypasses the stubbed fetch and every
 // picture silently falls back to its path.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: nub scripts/seed-markdown-image-frame.mjs --home=/abs/temp-home --shot=/abs/real.png [--slug=x]
 import { execFileSync } from "node:child_process"
@@ -24,7 +24,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, shot, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, shot, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home || !shot) {
   console.error("usage: nub scripts/seed-markdown-image-frame.mjs --home=/abs/temp-home --shot=/abs/real.png")
   process.exit(1)
@@ -47,7 +47,7 @@ const uuid = () => `0000000${(++uuidN).toString().padStart(4, "0")}-0000-4000-80
 // already-tailed JSONL in place leaves the projection stuck on the old content.
 const slug = flags.slug ?? "markdown-image-frame"
 const sessionId = `${slug}-0000-4000-8000-000000000000`.slice(0, 36)
-const MISSING = "/tmp/frizz-frame-this-file-does-not-exist.png"
+const MISSING = "/tmp/ntwine-frame-this-file-does-not-exist.png"
 
 const user = (text) => ({
   parentUuid: null, isSidechain: false, type: "user", uuid: uuid(), timestamp: now(), session_id: sessionId, cwd,
@@ -93,6 +93,6 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${now()}', 'Markdown image frames', 0, 'claude', 'opus', 'high', 'default', 'open', 1, 0, 0, '${now()}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${now()}', 'Markdown image frames', 0, 'claude', 'opus', 'high', 'default', 'open', 1, 0, 0, '${now()}')`,
 ])
 console.log(`seeded ${slug} → ${sessionId} (markdown + bare-path + inline + missing, shot=${shot})`)

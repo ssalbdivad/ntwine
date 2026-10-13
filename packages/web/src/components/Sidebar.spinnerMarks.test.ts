@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { renderToStaticMarkup } from "react-dom/server"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { sessionIndicatorFor } from "./Sidebar.tsx"
 
 // THE SPINNER IS THE FRAME, THE MARK INSIDE SAYS WHAT IS ALIVE (2026-09-20). The maintainer's rule for
@@ -53,7 +53,7 @@ test("own turn running: the empty spinner, nothing inside", () => {
   const html = markup({ runtime: "running" })
   assert.ok(spins(html), "the box traces")
   assert.ok(!html.includes("lucide-"), "and holds no glyph")
-  assert.ok(!html.includes("frizz-rail-dot"), "and no dot")
+  assert.ok(!html.includes("ntwine-rail-dot"), "and no dot")
 })
 
 test("a parent at rest with a sub-agent out: the ellipsis inside the spinner", () => {
@@ -76,7 +76,7 @@ const regQuestion = [{ id: "qst_ab12cd34", spec: { question: "Merge it?", kind: 
 test("running with an open question: the ? inside the spinner, outranking the sub-agent ellipsis", () => {
   const html = markup({ runtime: "running", questions: regQuestion })
   assert.ok(spins(html), "the worker kept going, so the box still traces")
-  assert.ok(html.includes("frizz-rail-glyph") && html.includes(">?<"), "and the ? stands inside it")
+  assert.ok(html.includes("ntwine-rail-glyph") && html.includes(">?<"), "and the ? stands inside it")
   assert.equal(sessionIndicatorFor({ ...base, runtime: "running", questions: regQuestion } as ThreadView).tip, "Working — a question is waiting on your answer")
   const withChild = markup({ questions: regQuestion, subAgents: liveChild })
   assert.ok(spins(withChild) && withChild.includes(">?<"), "a parent resting on its sub-agents shows the ask")
@@ -86,15 +86,15 @@ test("running with an open question: the ? inside the spinner, outranking the su
 test("resting on a live background shell: the solid blue dot, inside the spinner only on a `working` rest", () => {
   const working = markup({ awaitingBackground: true, bgShells: liveShell, waitStatus: "working" })
   assert.ok(spins(working), "the work finishes by itself, so the box traces")
-  assert.ok(working.includes("frizz-rail-dot"), "the dot says it is a shell")
+  assert.ok(working.includes("ntwine-rail-dot"), "the dot says it is a shell")
   // The same shell behind a queued rest: the human has the thread, so nothing on its row moves.
   const queued = markup({ needsYou: true, awaitingBackground: true, bgShells: liveShell })
-  assert.ok(queued.includes("frizz-rail-dot") && !spins(queued), "a queue row never spins")
+  assert.ok(queued.includes("ntwine-rail-dot") && !spins(queued), "a queue row never spins")
   // …and behind a watcher, parked in Snoozed — fenced, and resting on a registered watch with no fence.
   const fenced = { kind: "awaiting", body: "", hints: [{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "23h" }, { kind: "status", value: "watching" }] }
   for (const lastFence of [fenced, undefined]) {
     const html = markup({ awaitingBackground: true, bgShells: liveShell, waitStatus: "watching", lastFence: lastFence as never })
-    assert.ok(html.includes("frizz-rail-dot"), `${lastFence ? "fenced" : "unfenced"}: still the shell's mark`)
+    assert.ok(html.includes("ntwine-rail-dot"), `${lastFence ? "fenced" : "unfenced"}: still the shell's mark`)
     assert.ok(!spins(html), `${lastFence ? "fenced" : "unfenced"}: still — the wait is on the world`)
     assert.ok(!html.includes("data-running-indicator"), "and it does not claim to be running")
   }

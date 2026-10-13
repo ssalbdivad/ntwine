@@ -9,8 +9,8 @@ import test from "node:test"
 // to end — every chip toggled, the question's own Send answer, the payload the worker would receive — so the answer that
 // picks the whole list is OBSERVED rather than inferred from the schema alone. Skipped unless a Vite
 // URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts here): start `vite` in
-// packages/web and set FRIZZ_REGISTERED_QUESTION_WIDE_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_REGISTERED_QUESTION_WIDE_E2E_URL
+// packages/web and set NTWINE_REGISTERED_QUESTION_WIDE_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_REGISTERED_QUESTION_WIDE_E2E_URL
 
 async function launch() {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")

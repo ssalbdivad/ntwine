@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { PIN_OPTIMISM_MS, pinOverlayQueues } from "./optimisticPin.ts"
 import { loudBands } from "./listBands.ts"
 import { threadKey, type QueuesProject } from "./allQueues.ts"

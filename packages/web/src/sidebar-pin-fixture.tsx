@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { ThreadRow, type RowScope } from "./components/Sidebar.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
@@ -123,7 +123,7 @@ const unpinnedStalled = {
 const activeLong = {
   ...base,
   id: "active-long",
-  title: "/Users/colinmcd94/.frizz/projects/029a30af-f126-40e3-b04c-d80e74e3e090/broker.sock ENOTCONN on reconnect",
+  title: "/Users/colinmcd94/.ntwine/projects/029a30af-f126-40e3-b04c-d80e74e3e090/broker.sock ENOTCONN on reconnect",
   runtime: "running",
 } as unknown as ThreadView
 

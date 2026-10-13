@@ -1,12 +1,12 @@
 # Codex backend migration: tmux TUI → app-server JSON-RPC
 
-Status: DRAFTING (architecture readers in flight). Owner effort: frizz worker thread.
+Status: DRAFTING (architecture readers in flight). Owner effort: ntwine worker thread.
 Branch: `codex-app-server-migration`.
 
 ## Why
 
-Codex is the only frizz backend still driven by scripting its interactive TUI inside tmux
-(`backend/codex.ts`): frizz types the user's follow-up into the Codex composer, presses Enter/Tab, then
+Codex is the only ntwine backend still driven by scripting its interactive TUI inside tmux
+(`backend/codex.ts`): ntwine types the user's follow-up into the Codex composer, presses Enter/Tab, then
 *discovers* the rollout jsonl (Codex gives no session-id pin) and polls it for state. That mechanism is
 fragile and produced the "unsteerable thread" failure: a stale draft in the Codex composer blocks the
 input-queue drain, follow-ups pile up undelivered, and once the process exits nothing recovers. Claude,
@@ -36,7 +36,7 @@ either succeeds or returns a typed error. This deletes the entire tmux-composer 
   the subscription-authed CLI binary.) Undocumented-but-functional; pin the codex version + add a
   subscription-auth canary.
 - **Foundation exists** — `backend/codex-app-server.ts` (~105KB, feature-flagged
-  `FRIZZ_CODEX_APP_SERVER_BRIDGE`, "deliberately not an AgentBackend") already speaks `thread/start`,
+  `NTWINE_CODEX_APP_SERVER_BRIDGE`, "deliberately not an AgentBackend") already speaks `thread/start`,
   `thread/resume`, `turn/start`, and the approval surface. Version-pinned to **0.144.1** (drift vs
   installed 0.144.6 → re-audit + re-pin per its own upgrade policy). Does NOT yet wire turn/steer or
   turn/interrupt, and its sessions are currently disposable (no durable resume across server restart).
@@ -58,7 +58,7 @@ Interface members + fate under app-server:
   `thread/start`; no jsonl to locate, no post-spawn id race).
 - `parseLine`/`foldLine` → **reuse the NormalizedEvent vocabulary + `applyEvent` verbatim**; only the
   input changes (v2 notification → NormalizedEvent instead of rollout line). Reuse `parseToolArguments`,
-  `stringifyOutput`, the Frizz-title extraction, `codexSandbox`/`codexEffort` value maps.
+  `stringifyOutput`, the Ntwine-title extraction, `codexSandbox`/`codexEffort` value maps.
 - `matchesPermPrompt`/`detectNativeInput` (pane-scraping TUI modals) → **omit both**; replaced by a live
   **approval callback** answering ExecCommandApproval/ApplyPatchApproval/Permissions/ToolRequestUserInput
   JSON-RPC requests (→ InteractionStore). Kills the stuck-modal + `ensureCwdTrusted` trust-gate classes.
@@ -88,7 +88,7 @@ invalidation. Approvals are live-wired into `router.ts` (ownsInteraction/resolve
 
 **MISSING / blocking:**
 1. **Disposability (the #1 blocker).** `startDisposableSession` is the ONLY creator, defaults
-   `ephemeral:true`. Every reachable session is disposable → **dead on any frizz-server restart OR child
+   `ephemeral:true`. Every reachable session is disposable → **dead on any ntwine-server restart OR child
    disconnect** (`reconcileOwnedSessions` detaches all ephemeral rows). The persisted (`ephemeral:false`)
    + `thread/resume` + reconcile path EXISTS but is unreachable — no caller sets it. Fix FIRST.
 2. **Zero event projection.** Notifications are consumed only for approval correlation + turn-id
@@ -105,9 +105,9 @@ invalidation. Approvals are live-wired into `router.ts` (ownsInteraction/resolve
    `turn/interrupt` + `thread/archive`/`thread/delete`. Title via `ThreadNameUpdatedNotification`.
    Worker-contract via `thread/start.baseInstructions`/`developerInstructions`.
 
-Own DB tables in the project `ui.db`: `codex_app_server_session` (frizz_session_id↔thread_slug↔
+Own DB tables in the project `ui.db`: `codex_app_server_session` (ntwine_session_id↔thread_slug↔
 codex_thread_id, epoch/capability/turn-id/state), `codex_app_server_meta`, schema marker. Does NOT
-write the frizz `session` registry — parallel binding keyed by frizz_session_id/thread_slug.
+write the ntwine `session` registry — parallel binding keyed by ntwine_session_id/thread_slug.
 
 ### R4 — wiring + cutover blast radius  ✅
 `backendFor(kind)=kind==="codex"?codexBackend:claudeBackend` (context.ts:388) — pure string switch,
@@ -152,8 +152,8 @@ a gap either way. **→ resolving via live smoke test below.**
 Confirmed facts (drove the real `codex app-server --stdio`, subscription auth, a real turn):
 - **Subscription auth works with NO API key.** Handshake + thread/start + turn/start ran; the agent
   streamed "PONG" via `item/agentMessage/delta`. Billing preserved. ✅
-- **userAgent = `frizz/0.144.6 (Mac OS 26.5.2; arm64) tmux/3.7a (frizz; 0.0.1)`** → the re-pin gate regex
-  `^frizz/(\d+\.\d+\.\d+)` cleanly extracts `0.144.6`. Re-pin is mechanical. ✅
+- **userAgent = `ntwine/0.144.6 (Mac OS 26.5.2; arm64) tmux/3.7a (ntwine; 0.0.1)`** → the re-pin gate regex
+  `^ntwine/(\d+\.\d+\.\d+)` cleanly extracts `0.144.6`. Re-pin is mechanical. ✅
 - **`thread/start` returns `thread.path` = the exact rollout jsonl path synchronously** (with
   `ephemeral:false`): `~/.codex/sessions/YYYY/MM/DD/rollout-<ISO>-<threadId>.jsonl`. **No discovery
   race, no sentinel, no 15s poll.** ✅
@@ -214,7 +214,7 @@ prerequisite. Durable resume falls out of persisted threads + `thread/resume` (b
    `CODEX_APP_SERVER_PROTOCOL_REVISION` + `PROTOCOL_FINGERPRINT`, regenerate contract fixtures from
    `/tmp/codex-schema/`.
 2. **Persisted sessions + steer/interrupt + config.** `ephemeral:false`; persist `codex_thread_id` +
-   rollout `path` to the frizz registry; add `turn/steer` (with the atomic steer→start fallback owned in
+   rollout `path` to the ntwine registry; add `turn/steer` (with the atomic steer→start fallback owned in
    the bridge, B2) + `turn/interrupt`; per-session kill via `thread/archive`/`delete`; port the tmux `-c`
    overrides into `thread/start` `developerInstructions`/`config` (title protocol, `model_reasoning_summary`,
    worker-contract — M2); `deliveryId`→`clientUserMessageId` dedup table.
@@ -247,15 +247,15 @@ JSON-RPC backend receives parsed notification OBJECTS and holds a live handle. T
   server restart for free; the fold stays line-oriented. ← leaning A.
 - **(B) Change the fold-driver contract to accept parsed events** and hold state in the live handle.
   Cleaner conceptually but ripples through the tailer + loses the free durable-resume/replay property.
-Recommend A unless R3/R4 surface a blocker. This also means frizz gets its FIRST live-process backend
+Recommend A unless R3/R4 surface a blocker. This also means ntwine gets its FIRST live-process backend
 handle (model on `ClaudeQueryHandle`) — a reusable abstraction both this and the (also-foundation-only)
 `claude-agent-sdk.ts` could share later.
 
 ## Workflow (DECIDED by human)
 - Work in the worktree, test end-to-end THERE, then **merge straight into local `main`** at high
-  confidence. **NO GitHub PR** (per FRIZZ.md — this repo never uses PRs). I own the merge-back.
+  confidence. **NO GitHub PR** (per NTWINE.md — this repo never uses PRs). I own the merge-back.
 - **Test the real thing end-to-end** as the primary confidence mechanism; adversarial/self-review is a
-  supplement only (FRIZZ.md hardened in commit 287b828). Build → run it live → merge.
+  supplement only (NTWINE.md hardened in commit 287b828). Build → run it live → merge.
 - **PRs #12 & #15 are SUPERSEDED** by this migration (both patch `permission-controller.ts` codex-input
   drain — the machinery Phase B deletes). Close as superseded once this lands (human's call).
 

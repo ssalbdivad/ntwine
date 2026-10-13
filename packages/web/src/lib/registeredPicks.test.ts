@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { AskedQuestion } from "@frizz/shared"
+import type { AskedQuestion } from "@ntwine/shared"
 import { DraftStore, draftKey } from "./drafts.ts"
 import { decodeQuestionPick, encodeQuestionPick, questionSpecAt } from "./registeredPicks.ts"
 import { registeredAnswer, liveQuestionNodes } from "./registeredQuestion.ts"

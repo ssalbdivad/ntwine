@@ -7,7 +7,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { test, type TestContext } from "node:test"
-import { writeProjectStatus } from "@frizz/server/project-launch"
+import { writeProjectStatus } from "@ntwine/server/project-launch"
 import {
   acquireStableServerOwner,
   readStableServerOwner,
@@ -20,7 +20,7 @@ const ownerUrl = pathToFileURL(join(import.meta.dirname, "server-owner.ts")).hre
 type Roots = { data: string; state: string }
 
 function fixture(t: TestContext): Roots {
-  const root = mkdtempSync(join(tmpdir(), "frizz-stable-server-owner-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-stable-server-owner-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   return { data: join(root, "data"), state: join(root, "state") }
 }
@@ -48,7 +48,7 @@ function ownerScript(): string {
 
 function delegateScript(): string {
   return `
-    import { registerProjectLaunchDelegate } from "@frizz/server/project-launch"
+    import { registerProjectLaunchDelegate } from "@ntwine/server/project-launch"
     const target = JSON.parse(process.env.TARGET)
     const lease = registerProjectLaunchDelegate(target, process.env.TOKEN)
     console.log(JSON.stringify({ kind: "delegated", pid: lease.pid, processStart: lease.processStart }))

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Check, ChevronDown, Mic, Paperclip } from "lucide-react"
-import { questionAnswerMessage, type BoardSnapshot, type QuestionAnswer, type RegisteredQuestionView, type ThreadView } from "@frizz/shared"
+import { questionAnswerMessage, type BoardSnapshot, type QuestionAnswer, type RegisteredQuestionView, type ThreadView } from "@ntwine/shared"
 import type { ChatMessage } from "./hooks.ts"
 import { Message, WorkingIndicator, withMessageSpacers } from "./components/ChatView.tsx"
 import { VSpace } from "./components/rhythm.tsx"
@@ -25,7 +25,7 @@ import "./styles.css"
 // of the prompt box. It's very annoying to me that I can't send my answers and submit an additional
 // steer at the same time, so we need to unify them. […] just have it be a big white button […] say
 // 'Steer' on it. There should be a dropdown on the right that lets you change it to [Queue]. [Queue]
-// just means that Frizz maintains that in memory until the agent comes to rest, and then it pushes it.
+// just means that Ntwine maintains that in memory until the agent comes to rest, and then it pushes it.
 // There's force steer, I guess, so there are three options there. Maybe it's just actually queue and
 // steer initially. We should also have the placeholder text change if there are already some answers
 // that have been filled out." Then: "The button should turn white as soon as any answers are filled
@@ -70,7 +70,7 @@ const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   // location.href, not origin: the page also ships as one file:// document, whose origin is "null".
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.href)
-  if (url.pathname.includes("/_frizz/")) return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
+  if (url.pathname.includes("/_ntwine/")) return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   return originalFetch(input, init)
 }
 
@@ -152,7 +152,7 @@ interface FrameState {
   settled: SettledQuestion[]
   /** The human's turns the agent has (or is being handed). */
   tail: ChatMessage[]
-  /** The human's turns Frizz is holding until the agent rests. */
+  /** The human's turns Ntwine is holding until the agent rests. */
   held: ChatMessage[]
   text: string
   mode: Mode
@@ -187,7 +187,7 @@ function send(s: FrameState, staged: Staged[], kind: Mode): FrameState {
     held: hold ? [...s.held, ...turns] : s.held,
     running: true,
     said: hold
-      ? `Queued ${what}. Frizz holds it until the agent rests.`
+      ? `Queued ${what}. Ntwine holds it until the agent rests.`
       : !s.running
         ? `Sent ${what} as one turn. The agent is working again.`
         : kind === "force"
@@ -198,10 +198,10 @@ function send(s: FrameState, staged: Staged[], kind: Mode): FrameState {
 
 const delivered = (held: ChatMessage[]): ChatMessage[] => held.map((m) => ({ ...m, queued: undefined } as ChatMessage))
 
-/** The agent comes to rest. Anything Frizz was holding goes out as its next turn, so it works on. */
+/** The agent comes to rest. Anything Ntwine was holding goes out as its next turn, so it works on. */
 function rest(s: FrameState): FrameState {
   if (s.held.length > 0) {
-    return { ...s, tail: [...s.tail, ...delivered(s.held)], held: [], mode: "steer", said: `The agent came to rest. Frizz sent the ${plural(s.held.length, "queued message")} as its next turn.` }
+    return { ...s, tail: [...s.tail, ...delivered(s.held)], held: [], mode: "steer", said: `The agent came to rest. Ntwine sent the ${plural(s.held.length, "queued message")} as its next turn.` }
   }
   return { ...s, running: false, mode: "steer", said: "The agent came to rest." }
 }
@@ -276,7 +276,7 @@ function placeholderFor(staged: number, open: number, running: boolean, mode: Mo
 
 const ROWS: { mode: Mode; name: string; says: string }[] = [
   { mode: "steer", name: "Send as steer", says: "The agent reads it at its next step." },
-  { mode: "queue", name: "Send to queue", says: "Frizz holds it until the agent comes to rest." },
+  { mode: "queue", name: "Send to queue", says: "Ntwine holds it until the agent comes to rest." },
   { mode: "force", name: "Send as force steer", says: "Interrupts the agent, which reads it now." },
 ]
 const ROW_NAME = Object.fromEntries(ROWS.map((r) => [r.mode, r.name])) as Record<Mode, string>
@@ -657,7 +657,7 @@ const SCENES: Scene[] = [
   {
     id: "sb-run-queue",
     title: "Agent working — Send to queue chosen",
-    note: "The button still says Send; the placeholder says the message will be queued. A queued message sits dimmed under the Working line, where a waiting message sits today, with a line that says who holds it. Let the agent come to rest to see Frizz send it.",
+    note: "The button still says Send; the placeholder says the message will be queued. A queued message sits dimmed under the Working line, where a waiting message sits today, with a line that says who holds it. Let the agent come to rest to see Ntwine send it.",
     meta: "Working",
     messages: WORKING,
     running: true,
@@ -681,7 +681,7 @@ const SCENES: Scene[] = [
   {
     id: "sb-run-question",
     title: "Agent working, with a question open",
-    note: "A worker can ask and keep going. The picked answer makes the button white. As a steer the answer is handed over now; to the queue, Frizz holds it, with any note, until the agent rests.",
+    note: "A worker can ask and keep going. The picked answer makes the button white. As a steer the answer is handed over now; to the queue, Ntwine holds it, with any note, until the agent rests.",
     meta: "Working",
     messages: WORKING_ASKED,
     running: true,
@@ -778,7 +778,7 @@ const MODES: { name: string; working: string; rest: string; key: string; today: 
   },
   {
     name: "Send to queue",
-    working: "Frizz holds it. When the agent comes to rest, Frizz sends everything queued as its next turn. Until then a queued message can be sent now or taken back.",
+    working: "Ntwine holds it. When the agent comes to rest, Ntwine sends everything queued as its next turn. Until then a queued message can be sent now or taken back.",
     rest: "The same as a steer.",
     key: "⏎ while its row is ticked",
     today: "New for typed text: nothing holds a human message until rest today. It is how answers already travel.",

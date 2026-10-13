@@ -9,7 +9,7 @@ function splitEffort(value: string, separator: "/" | "-"): { model: string; effo
 }
 
 // The server hands every surface one composed dispatch cell rather than separate profile fields:
-//   Claude: frizz:opus-high (and the equivalent legacy frizz:frizz-opus-high)
+//   Claude: ntwine:opus-high (and the equivalent legacy ntwine:ntwine-opus-high)
 //   Codex:  explorer gpt-5.6-terra/high
 //   either: general-purpose opus/high — a foreign agent type keeps its name and gains the pair
 // The MODEL half is not always in what the provider recorded: a Claude profile has been effort-only
@@ -22,8 +22,8 @@ export function subAgentProfileLabel(subagentType?: string): string {
   const raw = subagentType?.trim()
   if (!raw) return "Profile unknown"
 
-  if (raw.startsWith("frizz:")) {
-    const routed = raw.slice("frizz:".length).replace(/^frizz-/, "")
+  if (raw.startsWith("ntwine:")) {
+    const routed = raw.slice("ntwine:".length).replace(/^ntwine-/, "")
     const { model, effort } = splitEffort(routed, "-")
     return effort ? `${model} › ${effort}` : model
   }

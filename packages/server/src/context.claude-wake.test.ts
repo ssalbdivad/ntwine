@@ -10,7 +10,7 @@
 // worker contract, the model and the permission mode from the process it was started as. A cold resume
 // has nothing, and rebuilds all of it from exactly these arguments. So a wake that dropped one would
 // look perfectly healthy against a live daemon and, against a hibernated thread, silently start a
-// worker with no frizz contract, the wrong model, or the wrong permission mode.
+// worker with no ntwine contract, the wrong model, or the wrong permission mode.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { deliverClaudeBrokerWake } from "./context.ts"
@@ -45,7 +45,7 @@ test("a scheduled wake carries everything a COLD RESUME needs to rebuild the wor
   assert.equal(call.model, "claude-opus-4-6", "the thread's model, or the resume starts on the default")
   assert.equal(call.effort, "high")
   assert.equal(call.permissionMode, "bypassPermissions", "a launch flag — unreachable after the process starts")
-  assert.ok(call.appendSystemPrompt && call.appendSystemPrompt.length > 0, "the frizz worker contract is rebuilt, not inherited")
+  assert.ok(call.appendSystemPrompt && call.appendSystemPrompt.length > 0, "the ntwine worker contract is rebuilt, not inherited")
 })
 
 // The scheduler owns retry/supersede and can only do it if the failure reaches it. This is the CODEX

@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { InteractionField, InteractionRecord } from "@frizz/shared"
+import type { InteractionField, InteractionRecord } from "@ntwine/shared"
 import {
   canonicalInteractionDecisions,
   initialInteractionDraft,
@@ -52,7 +52,7 @@ function record(over: Partial<InteractionRecord> = {}): InteractionRecord {
   }
 }
 
-test("decision presentation ignores provider labels, uses Frizz order, and warns on durable scope", () => {
+test("decision presentation ignores provider labels, uses Ntwine order, and warns on durable scope", () => {
   const decisions = canonicalInteractionDecisions(record())
   assert.deepEqual(decisions.map(({ id, label }) => [id, label]), [
     ["accept", "Approve once"],

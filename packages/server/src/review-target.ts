@@ -1,12 +1,12 @@
 import path from "node:path"
-import { EDITOR_REVIEW_MAX_CHECKOUTS, EDITOR_REVIEW_MAX_FILES, type EditorReviewCheckout, type EditorReviewTarget, type ThreadWorkingDir } from "@frizz/shared"
+import { EDITOR_REVIEW_MAX_CHECKOUTS, EDITOR_REVIEW_MAX_FILES, type EditorReviewCheckout, type EditorReviewTarget, type ThreadWorkingDir } from "@ntwine/shared"
 import { liftRepoWorktree } from "./thread-cwd.ts"
 
 // WHAT "REVIEW CHANGES" SHOWS FOR A THREAD — the checkouts its edits are in, for the editor extension to
 // diff (packages/vscode review.ts asks git for the rest). Design: ARCHITECTURE.md § VS Code
 // extension.
 //
-// Frizz records nothing about a thread's base: it stays out of the worktree decision (thread-cwd.ts), and
+// Ntwine records nothing about a thread's base: it stays out of the worktree decision (thread-cwd.ts), and
 // a thread's start is a transcript, not a commit. What it DOES know is where the thread wrote — the rail's
 // edited files, read off the whole transcript and filtered to what git carries (edited-files.ts,
 // repo-files.ts) — and where its agent is working now. Those name the checkouts; git names the base:

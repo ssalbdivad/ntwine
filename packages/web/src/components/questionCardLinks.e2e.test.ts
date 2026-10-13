@@ -4,13 +4,13 @@ import test from "node:test"
 // Runtime coverage for "the references inside a question are live — a file path, a Markdown link, a
 // #123 reference, a bare URL — and clicking one follows it without picking the option". Skipped unless a
 // Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts here): start `vite`
-// in packages/web and set FRIZZ_QUESTION_CARD_LINKS_E2E_URL to its origin.
+// in packages/web and set NTWINE_QUESTION_CARD_LINKS_E2E_URL to its origin.
 //
 // EVERY CLICK HERE IS A REAL MOUSE CLICK AT COORDINATES, never `el.click()`. The chip is a row whose hit
 // area is a stretched button laid over the text, and the references are positioned above it (styles.css
 // `[data-question-option]`). A DOM query proves the link is in the markup; only a hit-test proves it is
 // on TOP — a link that ends up under the button is present, styled, and picks the option when clicked.
-const baseUrl = process.env.FRIZZ_QUESTION_CARD_LINKS_E2E_URL
+const baseUrl = process.env.NTWINE_QUESTION_CARD_LINKS_E2E_URL
 
 type Page = import("puppeteer").Page
 

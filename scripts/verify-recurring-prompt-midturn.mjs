@@ -3,7 +3,7 @@
 // The scheduler unit tests pin the delivery GATE with a stubbed `resume`. They cannot answer the only
 // question that matters for this feature: whether the real broker will take a message addressed at a
 // `claude` that is busy, and whether the agent then reads it without the turn having to end first.
-// That is a seam between three processes (frizz → broker daemon → the CLI's own command queue), so it
+// That is a seam between three processes (ntwine → broker daemon → the CLI's own command queue), so it
 // gets driven for real here.
 //
 // Run against a stack booted with --wakers and a real HOME (the broker needs the keychain):
@@ -34,7 +34,7 @@ function check(name, ok, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`)
 }
 
-// The transcript the tailer is reading, so the probe reads exactly what frizz reads.
+// The transcript the tailer is reading, so the probe reads exactly what ntwine reads.
 function transcriptPath(cwd, sessionId) {
   const slugged = cwd.replace(/[^a-zA-Z0-9]/g, "-")
   const dir = join(homedir(), ".claude", "projects", slugged)
@@ -111,7 +111,7 @@ await api.mutate("setThreadRecurringPrompt", {
 log(`recurring prompt armed: SCHEDULE trigger only, every ${INTERVAL_S}s`)
 
 // WHAT COUNTS AS THE DELIVERY INSTANT. Not the `user` record — Claude Code materializes that when it
-// DEQUEUES the message, which for a mid-turn beat is later than the moment frizz handed it over. The
+// DEQUEUES the message, which for a mid-turn beat is later than the moment ntwine handed it over. The
 // honest marker is the `queued_command` attachment / `queue-operation` record, which the CLI writes when
 // the message ENTERS its queue. Reading the user record instead makes a mid-turn delivery look like a
 // post-rest one, which is exactly the wrong answer for this probe.

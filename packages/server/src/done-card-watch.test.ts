@@ -12,7 +12,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { isSnoozed, sectionOf, type Settings, type ThreadView } from "@frizz/shared"
+import { isSnoozed, sectionOf, type Settings, type ThreadView } from "@ntwine/shared"
 import { createBoard } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createRouter } from "./router.ts"
@@ -27,7 +27,7 @@ const NOW = Date.parse(REST) + 5 * 60_000
 const DONE_BODY = "Pushed the fix to #1685; CI is green."
 
 function harness(opts: { probePr?: (ref: PrRef) => PrProbe; probeIssue?: (ref: PrRef) => PrProbe; tele?: Partial<SessionTelemetry> } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-done-watch-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-done-watch-"))
   const project: Project = { dir, id: "p", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const probed: string[] = []
@@ -64,7 +64,7 @@ function harness(opts: { probePr?: (ref: PrRef) => PrProbe; probeIssue?: (ref: P
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug: "t", session_id: "sess-t", thread_name: "frizz-t", spawned_at: "2026-10-07T11:00:00.000Z",
+    slug: "t", session_id: "sess-t", thread_name: "ntwine-t", spawned_at: "2026-10-07T11:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: REST, title_auto: 0,
     title: "t", state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }

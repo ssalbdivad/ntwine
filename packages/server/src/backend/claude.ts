@@ -16,7 +16,7 @@ export interface ClaudeBackendOptions {
   // <sessionId>.jsonl. Injected by the composition layer so it matches the tailer's foreign-scan dir.
   logDir: string
   claudeBin?: string // injectable dispatch executable (tests use a stand-in)
-  // The servers a worker in `cwd` mounts besides frizz's own (project-mcp-servers.ts). Injectable so a
+  // The servers a worker in `cwd` mounts besides ntwine's own (project-mcp-servers.ts). Injectable so a
   // test does not read the operator's real `~/.claude.json`.
   resolveProjectMcpServers?: (cwd: string) => WorkerMcpServers
 }
@@ -94,7 +94,7 @@ export function parseClaudeLine(line: string): NormalizedEvent[] {
   if (rec.type === "ai-title" && typeof rec.aiTitle === "string" && rec.aiTitle.trim()) return [{ kind: "title", title: rec.aiTitle.trim() }]
   // Native `/rename` writes an intermediate `custom-title` record. It is deliberately
   // observation-only in the authoritative tailer until the rename controller verifies the
-  // readable replacement, so this normalized view must not promote it into Frizz title state.
+  // readable replacement, so this normalized view must not promote it into Ntwine title state.
   return []
 }
 
@@ -115,7 +115,7 @@ export function createClaudeBackend(opts: ClaudeBackendOptions): AgentBackend {
         pluginDir: workerPluginDir(),
         workerPrompt: o.workerContract,
         extraSystemPrompt: o.extraSystemPrompt,
-        frizzMcp: o.frizzMcp,
+        ntwineMcp: o.ntwineMcp,
         projectMcpServers: (opts.resolveProjectMcpServers ?? projectMcpServers)(o.cwd),
       })
       return { argv, env: claudeWorkerEnvironment(), prewrite: [] }
@@ -132,7 +132,7 @@ export function createClaudeBackend(opts: ClaudeBackendOptions): AgentBackend {
         pluginDir: workerPluginDir(),
         workerPrompt: o.workerContract,
         extraSystemPrompt: o.extraSystemPrompt,
-        frizzMcp: o.frizzMcp,
+        ntwineMcp: o.ntwineMcp,
         projectMcpServers: (opts.resolveProjectMcpServers ?? projectMcpServers)(o.cwd),
       })
       return { argv, env: claudeWorkerEnvironment(), prewrite: [] }

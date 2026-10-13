@@ -18,7 +18,7 @@ const fakeExec = (answer: { stdout?: string; code?: number | string }): Exec =>
   }) as unknown as Exec
 
 function taskLog() {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-shell-cwd-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-shell-cwd-")))
   const tasks = join(root, "tasks")
   mkdirSync(tasks)
   const file = join(tasks, "b1.output")
@@ -45,7 +45,7 @@ test("the lowest holder is the shell, and its folder is the answer", async () =>
   }
 })
 
-// Frizz's own server holds the same log for the length of a drawer read or a line count. Sampled then, it
+// Ntwine's own server holds the same log for the length of a drawer read or a line count. Sampled then, it
 // is the lowest holder, and its folder was taken for the shell's — for good (the tailer keeps the reading).
 test("the server's own pid is never taken for the shell, even as the lowest holder", async () => {
   const log = taskLog()
@@ -75,7 +75,7 @@ test("every uncertain step is no reading, never a guess", async () => {
     const gone = async () => { throw new Error("ESRCH") }
     assert.equal((await probeShellCwds([log.file], { platform: "linux", exec: fakeExec({ stdout: `p9\nn${log.file}\n` }), readCwd: gone })).get(log.file), undefined)
     // Its folder was deleted under it.
-    const deleted = async () => "/repo/.frizz/worktrees/x (deleted)"
+    const deleted = async () => "/repo/.ntwine/worktrees/x (deleted)"
     assert.equal((await probeShellCwds([log.file], { platform: "linux", exec: fakeExec({ stdout: `p9\nn${log.file}\n` }), readCwd: deleted })).get(log.file), undefined)
     // No such file, and Windows, which names no holder.
     assert.equal((await probeShellCwds(["/nowhere/tasks/x.output"], { platform: "linux", exec: fakeExec({ stdout: "" }), readCwd })).get("/nowhere/tasks/x.output"), undefined)

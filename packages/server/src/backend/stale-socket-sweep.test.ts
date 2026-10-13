@@ -15,7 +15,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parseLsofSocketNames, sweepStaleSockets } from "./stale-socket-sweep.ts"
 
-const PREFIX = "frizz-swtest-"
+const PREFIX = "ntwine-swtest-"
 
 // The sweep exists to collect unix-socket FILES. Windows daemons bind NAMED PIPES, which the kernel
 // reclaims with their last handle and which leave nothing on disk, so sweepStaleSockets() returns
@@ -35,7 +35,7 @@ async function until(predicate: () => boolean, timeoutMs = 15_000): Promise<bool
 }
 
 test("the real sweep unlinks a killed daemon's socket and never touches a live one", { skip: process.platform === "win32" }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sweep-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sweep-"))
   const deadPath = join(dir, `${PREFIX}dead.sock`)
   const livePath = join(dir, `${PREFIX}live.sock`)
 
@@ -83,15 +83,15 @@ test("the real sweep unlinks a killed daemon's socket and never touches a live o
 test("parseLsofSocketNames reads the bare macOS path and strips Linux's type suffix", () => {
   const referenced = parseLsofSocketNames([
     "p123",
-    "n/tmp/frizz-claude-a.sock", // macOS shape
-    "n/tmp/frizz-claude-b.sock type=STREAM", // Linux shape
+    "n/tmp/ntwine-claude-a.sock", // macOS shape
+    "n/tmp/ntwine-claude-b.sock type=STREAM", // Linux shape
     "ntype=STREAM", // Linux's pathless endpoints carry no `/`, so they are not paths at all
     "f7",
     "",
   ].join("\n"))
-  assert.ok(referenced.has("/tmp/frizz-claude-a.sock"))
-  assert.ok(referenced.has("/tmp/frizz-claude-b.sock"), "the Linux suffix is stripped")
-  assert.ok(referenced.has("/tmp/frizz-claude-b.sock type=STREAM"), "and the raw spelling is kept too (over-inclusion only ever SKIPS)")
+  assert.ok(referenced.has("/tmp/ntwine-claude-a.sock"))
+  assert.ok(referenced.has("/tmp/ntwine-claude-b.sock"), "the Linux suffix is stripped")
+  assert.ok(referenced.has("/tmp/ntwine-claude-b.sock type=STREAM"), "and the raw spelling is kept too (over-inclusion only ever SKIPS)")
   assert.ok(!referenced.has("type=STREAM"))
 })
 
@@ -136,7 +136,7 @@ test("no lsof evidence sweeps nothing at all", { skip: POSIX_ONLY }, () => {
 test("only this family's .sock files are candidates, and `keep` is absolute", { skip: POSIX_ONLY }, () => {
   const keep = `/sockets/${PREFIX}mine.sock`
   const out = run(
-    [`${PREFIX}mine.sock`, `${PREFIX}other.sock`, `${PREFIX}notasocket.json`, "frizz-codex-x.sock", "unrelated"],
+    [`${PREFIX}mine.sock`, `${PREFIX}other.sock`, `${PREFIX}notasocket.json`, "ntwine-codex-x.sock", "unrelated"],
     new Set(),
     { keep: [keep] },
   )

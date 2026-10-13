@@ -1,14 +1,14 @@
-// A PROJECT'S THREADS, as "Send to Frizz thread…" lists them. Only threads a follow-up can reach: open
-// (not Done), Frizz's own (not an external terminal session), and real sessions (not a legacy row) with
+// A PROJECT'S THREADS, as "Send to Ntwine thread…" lists them. Only threads a follow-up can reach: open
+// (not Done), Ntwine's own (not an external terminal session), and real sessions (not a legacy row) with
 // a session to address. Ordered the way the human scans the page: the queue first (Ready — waiting on
 // them), then what is spinning, then the rest, newest activity first within each.
 //
 // The NAME each row shows is ported from the page (packages/web/src/groups.ts `displayTitle`,
-// `threadHandleOf`, and @frizz/shared's `threadHandle`) rather than imported: the page's module pulls
+// `threadHandleOf`, and @ntwine/shared's `threadHandle`) rather than imported: the page's module pulls
 // the shared index (zod, yaml) into the bundle for a dozen lines of string rules. threads.test.ts runs
 // the originals beside these copies over the same rows, so a change to either fails there.
 
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 
 export type PickerThread = Pick<
   ThreadView,
@@ -47,7 +47,7 @@ const HANDLE_MAX_WORDS = 5
 
 type TitleFields = Pick<PickerThread, "title" | "aiTitle" | "id" | "titleAuto" | "titleLocked" | "titleNamed" | "spawnedAt" | "backend" | "runtime" | "foreign" | "held">
 
-/** @frizz/shared thread-handle.ts `threadHandle`: the words lowercased and joined by `-`; none past five words. */
+/** @ntwine/shared thread-handle.ts `threadHandle`: the words lowercased and joined by `-`; none past five words. */
 export function threadHandle(name: string): string | undefined {
   const parts = name.normalize("NFKD").replace(/\p{M}+/gu, "").split(/[^\p{L}\p{N}]+/u).filter(Boolean)
   if (parts.length === 0 || parts.length > HANDLE_MAX_WORDS) return undefined
@@ -147,11 +147,11 @@ export function pickerThreads<T extends PickerThread>(threads: readonly T[]): (T
 // ── the window's own thread ──────────────────────────────────────────────────────────────────────────
 //
 // A VS Code window whose workspace folder IS a thread's worktree (the drawer's "Open in editor" on a thread
-// in `.frizz/worktrees/<slug>` opens exactly that) is about that thread, not about the project in general:
-// the sidebar opens on it, and "Send to Frizz thread…" offers it first. The thread's `checkout` is the
+// in `.ntwine/worktrees/<slug>` opens exactly that) is about that thread, not about the project in general:
+// the sidebar opens on it, and "Send to Ntwine thread…" offers it first. The thread's `checkout` is the
 // server's own reading of where its agent works (thread-cwd.ts, the same one the terminal and Done use),
-// so the match needs nothing new from Frizz. Decided on the EXTENSION's side, after the page says it is
-// ready, rather than through the frame's address: the page already takes `frizz:navigate`, and the
+// so the match needs nothing new from Ntwine. Decided on the EXTENSION's side, after the page says it is
+// ready, rather than through the frame's address: the page already takes `ntwine:navigate`, and the
 // address is read once per frame — a thread chosen there would be stale the moment the human moved on.
 
 /**

@@ -1,13 +1,13 @@
 /* Styles for the rendered diff (packages/web/src/lib/diff). Self-contained: token colours are the
-   selected Frizz palette (see theme.css). Import this where the diff
-   is rendered. Class names are namespaced `frizz-diff-*` / `ftk-*` (frizz token kind). */
+   selected Ntwine palette (see theme.css). Import this where the diff
+   is rendered. Class names are namespaced `ntwine-diff-*` / `ftk-*` (ntwine token kind). */
 
 /* `--block-radius` (styles.css) is the corner EVERY block-level element in the app wears — a signal
    card, a code fence, a table, an image, and these tool cards. It used to be 6px here, which put a
    tool card and the ```done card directly above it in two visibly different design languages
    (maintainer 2026-07-31). `overflow: hidden` is what makes it hold: the header carries a panel-2
    fill edge to edge, and without the clip that fill paints square right through the arc. */
-.frizz-diff {
+.ntwine-diff {
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.55;
@@ -17,9 +17,9 @@
   background: var(--color-bg);
 }
 
-/* Mirrors .frizz-bash-header (space-between) so Edit / Bash / Read headers read as one system: a
+/* Mirrors .ntwine-bash-header (space-between) so Edit / Bash / Read headers read as one system: a
    petite-caps tool label on the left, detail beside it, the chevron pushed to the far right. */
-.frizz-diff-header {
+.ntwine-diff-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -31,30 +31,30 @@
 }
 /* The body stays mounted (hidden when collapsed) so aria-controls always resolves; key the divider
    to disclosure state instead of DOM adjacency so a collapsed card keeps its single bottom border. */
-.frizz-diff-header[data-expanded="true"] {
+.ntwine-diff-header[data-expanded="true"] {
   border-bottom: 1px solid var(--color-border);
 }
 /* Lighter than assistant prose — bright white is reserved for actual agent messages. */
-.frizz-diff-header .frizz-diff-file { color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.frizz-diff-header .frizz-diff-add { color: var(--code-add-sign); }
-.frizz-diff-header .frizz-diff-del { color: var(--code-del-sign); }
+.ntwine-diff-header .ntwine-diff-file { color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ntwine-diff-header .ntwine-diff-add { color: var(--code-add-sign); }
+.ntwine-diff-header .ntwine-diff-del { color: var(--code-del-sign); }
 
-.frizz-diff-body { overflow-x: auto; }
+.ntwine-diff-body { overflow-x: auto; }
 
 /* Divider between successive edit groups merged into one block (same-file consecutive edits). A
    hairline is enough to read them as distinct edits without a heavy separator. */
-.frizz-diff-editsep { border-top: 1px solid var(--color-border); }
+.ntwine-diff-editsep { border-top: 1px solid var(--color-border); }
 
 /* Line rows */
-.frizz-diff-line {
+.ntwine-diff-line {
   display: flex;
   align-items: baseline;
   white-space: pre;
 }
-.frizz-diff-line[data-type="add"] { background: var(--code-add-bg); }
-.frizz-diff-line[data-type="del"] { background: var(--code-del-bg); }
+.ntwine-diff-line[data-type="add"] { background: var(--code-add-bg); }
+.ntwine-diff-line[data-type="del"] { background: var(--code-del-bg); }
 
-.frizz-diff-gutter {
+.ntwine-diff-gutter {
   color: var(--code-gutter);
   user-select: none;
   text-align: right;
@@ -62,20 +62,20 @@
   padding: 0 8px 0 12px;
   flex-shrink: 0;
 }
-.frizz-diff-sign {
+.ntwine-diff-sign {
   width: 1.4em;
   text-align: center;
   flex-shrink: 0;
   user-select: none;
   color: var(--code-gutter);
 }
-.frizz-diff-line[data-type="add"] .frizz-diff-sign { color: var(--code-add-sign); }
-.frizz-diff-line[data-type="del"] .frizz-diff-sign { color: var(--code-del-sign); }
+.ntwine-diff-line[data-type="add"] .ntwine-diff-sign { color: var(--code-add-sign); }
+.ntwine-diff-line[data-type="del"] .ntwine-diff-sign { color: var(--code-del-sign); }
 
-.frizz-diff-code { flex: 1; min-width: 0; padding-right: 12px; }
+.ntwine-diff-code { flex: 1; min-width: 0; padding-right: 12px; }
 
 /* Collapsed-context separator */
-.frizz-diff-sep {
+.ntwine-diff-sep {
   background: var(--color-panel);
   color: var(--color-muted);
   padding: 1px 14px;
@@ -84,8 +84,8 @@
 }
 
 /* Bordered card family shared by the Bash command block AND the Read excerpt block (ReadBlock reuses
-   these .frizz-bash-* classes) — same visual language as the diff, for a collapsed expandable card. */
-.frizz-bash {
+   these .ntwine-bash-* classes) — same visual language as the diff, for a collapsed expandable card. */
+.ntwine-bash {
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.55;
@@ -94,7 +94,7 @@
   overflow: hidden;
   background: var(--color-bg);
 }
-.frizz-bash-header {
+.ntwine-bash-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -103,15 +103,15 @@
   background: var(--color-panel-2);
 }
 /* The "Bash" label sits in the same near-white the tool NAMES use (not the dimmer detail gray). */
-.frizz-bash-label { color: rgb(from var(--color-fg) r g b / 0.85); font-size: 11.5px; }
+.ntwine-bash-label { color: rgb(from var(--color-fg) r g b / 0.85); font-size: 11.5px; }
 /* The tool-name label (READ / EDIT / AGENT …) is petite-caps at the SAME 11.5px as the detail path
    beside it. Its small-caps ride optically LOW in the line-box, so lift the label a pixel and drop
    the detail beside it a pixel — the two then meet on a shared optical baseline instead of the raw
    flex center. Covers both the Bash/Read/Agent header and the Edit diff header (sibling metrics). */
-.frizz-bash-header .frizz-bash-label,
-.frizz-diff-header .frizz-bash-label { position: relative; top: 0.8px; }
-.frizz-bash-header > span:first-child > :not(.frizz-bash-label, .frizz-tool-mark),
-.frizz-diff-header > span:first-child > :not(.frizz-bash-label, .frizz-tool-mark) { position: relative; top: 1px; }
+.ntwine-bash-header .ntwine-bash-label,
+.ntwine-diff-header .ntwine-bash-label { position: relative; top: 0.8px; }
+.ntwine-bash-header > span:first-child > :not(.ntwine-bash-label, .ntwine-tool-mark),
+.ntwine-diff-header > span:first-child > :not(.ntwine-bash-label, .ntwine-tool-mark) { position: relative; top: 1px; }
 /* A card that has something live behind it — a dispatched sub-agent, a detached background shell —
    leads its header with a liveness DOT instead of text (both mirror the child lines under the prompt
    box). The 1px drop above is a TEXT correction — small-caps and a path meeting on one optical
@@ -119,22 +119,22 @@
    measured 0.65px BELOW the "Agent" ink centre. So the mark is excluded from the text rule and
    carries its own ink correction, in em so it tracks the header's font size rather than pinning to
    today's 12.5px (re-measured residual: 0.02px, and 0.03px at double the size). */
-.frizz-tool-mark { position: relative; transform: translateY(0.028em); }
+.ntwine-tool-mark { position: relative; transform: translateY(0.028em); }
 /* The status meta (done · 2m) shares the header's 11.5px so it doesn't read as an afterthought; its
    small-caps sit low in that box, so drop it a pixel onto the row's optical baseline. */
-.frizz-tool-header-caps { position: relative; top: 1px; }
-.frizz-tool-failed { color: var(--code-del-sign); }
-.frizz-bash-expand {
+.ntwine-tool-header-caps { position: relative; top: 1px; }
+.ntwine-tool-failed { color: var(--code-del-sign); }
+.ntwine-bash-expand {
   color: var(--color-muted);
   font-size: 11px;
   cursor: pointer;
   outline: none;
   transition: color 0.12s;
 }
-.frizz-bash-expand:hover { color: var(--color-fg); }
+.ntwine-bash-expand:hover { color: var(--color-fg); }
 /* pre-wrap: long lines wrap; a wide unbreakable token scrolls INSIDE the block (overflow-x auto),
    never the page. margin:0 keeps the block on the message's explicit-spacer rhythm. */
-.frizz-bash-body {
+.ntwine-bash-body {
   margin: 0;
   padding: 8px 12px;
   white-space: pre-wrap;
@@ -144,21 +144,21 @@
   border-top: 1px solid var(--color-border);
 }
 /* Past ~16 lines the body clamps; the header's expand affordance reveals the rest. */
-.frizz-bash-clamp {
+.ntwine-bash-clamp {
   max-height: 320px;
   overflow-y: hidden;
 }
 
-/* The to-do checklist body (TodoBlock). A LIST, not a code body: it drops .frizz-bash-body's pre-wrap
+/* The to-do checklist body (TodoBlock). A LIST, not a code body: it drops .ntwine-bash-body's pre-wrap
    and gets per-row padding instead, so a long item wraps under its own text rather than under its
    checkbox. Same top border as every other card body so the header keeps its divider. */
-.frizz-todo-list {
+.ntwine-todo-list {
   margin: 0;
   padding: 5px 12px 6px;
   list-style: none;
   border-top: 1px solid var(--color-border);
 }
-.frizz-todo-row {
+.ntwine-todo-row {
   display: flex;
   align-items: flex-start;
   gap: 7px;
@@ -170,7 +170,7 @@
 }
 /* The row IN PROGRESS — the one the header headlines. A tint (not a colour on the text) so it reads as
    "this line" without competing with the status glyphs, which are the row's own signal. */
-.frizz-todo-row[data-current="true"] { background: var(--color-panel-2); }
+.ntwine-todo-row[data-current="true"] { background: var(--color-panel-2); }
 /* Icon-beside-text is an INK problem, so the checkbox is EXCLUDED from the header's blanket 1px text
    nudge above (that correction is for small-caps meeting a path; an SVG shares none of those metrics)
    and carries its own correction, measured in a real browser (scripts/verify-todo-render.mjs runs the
@@ -192,20 +192,20 @@
               box centred on a flex line lands on a sub-pixel Chrome resolves differently than at 23px.
               No single em value zeroes both, so this is the value measured AT THE SIZE THAT SHIPS
               (residual 0px at 11.5px, the only size the header renders at). */
-.frizz-bash-header .frizz-todo-mark { position: relative; transform: translateY(-0.137em); }
-.frizz-todo-row .frizz-todo-mark { position: relative; transform: translateY(0.181em); }
+.ntwine-bash-header .ntwine-todo-mark { position: relative; transform: translateY(-0.137em); }
+.ntwine-todo-row .ntwine-todo-mark { position: relative; transform: translateY(0.181em); }
 
 /* Codex exec output: a second pane below the command in a BashBlock (the shell result codex records
    in the rollout — Claude Bash calls have none). The label bar is the divider (border-top); the output
    body drops its own top border so the two don't stack a double line. */
-.frizz-bash-output-label {
+.ntwine-bash-output-label {
   padding: 3px 12px;
   font-size: 10.5px;
   color: var(--color-muted);
   background: var(--color-panel-2);
   border-top: 1px solid var(--color-border);
 }
-.frizz-bash-output-body {
+.ntwine-bash-output-body {
   border-top: none;
 }
 

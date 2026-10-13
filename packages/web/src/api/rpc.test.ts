@@ -7,7 +7,7 @@ import { store } from "../store.ts"
 test("RPC response: a stale server's plain-text missing route asks for a server restart", async () => {
   await assert.rejects(
     parseRpcResponse(new Response("404 Not Found", { status: 404 }), "setThreadPermission"),
-    /Frizz server restart required/,
+    /Ntwine server restart required/,
   )
 })
 
@@ -49,7 +49,7 @@ test("a kept follow-up failure is readable on the thrown error", async () => {
 
 // ── A PAGE WITH NO PROJECT BOUND REFUSES A CALL THAT NEEDS ONE (routeCall) ─────────────────────────
 // `/all` and `/` name no project in their path; the route binds the pick (setHomeFocus). Before it does,
-// or with nothing to pick, `apiBase()` there is the LAUNCHING project's `/_frizz` — so a forgotten project
+// or with nothing to pick, `apiBase()` there is the LAUNCHING project's `/_ntwine` — so a forgotten project
 // used to read or write a stranger's state and look fine. Upstream 759c3255's guard, in the fork's terms.
 
 test("an unbound All projects page refuses a thread or project call rather than send it to the launching project", () => {
@@ -57,29 +57,29 @@ test("an unbound All projects page refuses a thread or project call rather than 
     assert.throws(() => routeCall("threadTranscript", { slug: "fix-auth" }, page), /names no project/, page)
     assert.throws(() => routeCall("dispatch", { prompt: "x" }, page), /needs a project/, page)
     // Machine-wide calls still go, including threadLocate's REAL slug, which searches every project.
-    assert.equal(routeCall("projectsList", undefined, page), "/_frizz", page)
-    assert.equal(routeCall("threadLocate", { slug: "fix" }, page), "/_frizz", page)
+    assert.equal(routeCall("projectsList", undefined, page), "/_ntwine", page)
+    assert.equal(routeCall("threadLocate", { slug: "fix" }, page), "/_ntwine", page)
   }
 })
 
 test("a bound page, a board and the launching project's own page route as they always did", () => {
   try {
     setHomeFocus("nub")
-    assert.equal(routeCall("dispatch", { prompt: "x" }, "/all"), "/_frizz/nub")
-    assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/"), "/_frizz/nub")
+    assert.equal(routeCall("dispatch", { prompt: "x" }, "/all"), "/_ntwine/nub")
+    assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/"), "/_ntwine/nub")
   } finally {
     setHomeFocus(undefined)
   }
-  assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/project/nub/thread/fix"), "/_frizz/nub")
-  assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/all/nub/thread/fix"), "/_frizz/nub")
-  // The unprefixed /full IS the launching project's page, so `/_frizz` there is meant.
-  assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/thread/fix/full"), "/_frizz")
+  assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/project/nub/thread/fix"), "/_ntwine/nub")
+  assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/all/nub/thread/fix"), "/_ntwine/nub")
+  // The unprefixed /full IS the launching project's page, so `/_ntwine` there is meant.
+  assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/thread/fix/full"), "/_ntwine")
 })
 
 test("a refused call is a rejected promise that never reaches the wire", async () => {
   const previousLocation = Object.getOwnPropertyDescriptor(globalThis, "location")
   const previousFetch = globalThis.fetch
-  Object.defineProperty(globalThis, "location", { configurable: true, writable: true, value: { pathname: "/all", origin: "http://frizz.test" } })
+  Object.defineProperty(globalThis, "location", { configurable: true, writable: true, value: { pathname: "/all", origin: "http://ntwine.test" } })
   const sent: string[] = []
   globalThis.fetch = (async (url: string | URL | Request) => {
     sent.push(String(url))
@@ -93,7 +93,7 @@ test("a refused call is a rejected promise that never reaches the wire", async (
     assert.deepEqual(sent, [])
     // The negative control: a machine-wide call from the same page is sent.
     await rpc.projectsList()
-    assert.deepEqual(sent, ["http://frizz.test/_frizz/rpc/projectsList"])
+    assert.deepEqual(sent, ["http://ntwine.test/_ntwine/rpc/projectsList"])
   } finally {
     globalThis.fetch = previousFetch
     if (previousLocation) Object.defineProperty(globalThis, "location", previousLocation)

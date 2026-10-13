@@ -6,7 +6,7 @@ import { splitProseAttachments } from "./lib/imagePaths.ts"
 import { installLocalFileLinkInterceptor } from "./lib/local-file-links.ts"
 import { mdToHtml } from "./lib/markdown.ts"
 import type { BlockAnswer, ParsedQuestion } from "./lib/questionBlocks.ts"
-import type { RegisteredQuestionView } from "@frizz/shared"
+import type { RegisteredQuestionView } from "@ntwine/shared"
 import { BlockImage, FenceCard } from "./components/ChatView.tsx"
 import { ImageViewer } from "./components/ImageViewer.tsx"
 import { LightboxGallery, LightboxHost } from "./components/Lightbox.tsx"
@@ -26,7 +26,7 @@ import { RegisteredAnsweringContext, type RegisteredAnswering } from "./componen
 // viewer through the delegated click listener (lib/local-file-links.ts).
 //
 // The pictures come from that test, not from here. An <img> load is not a `fetch`, so no stub on this
-// page can answer `/_frizz/local-image` (see attachment-render-fixture.tsx); the test intercepts the
+// page can answer `/_ntwine/local-image` (see attachment-render-fixture.tsx); the test intercepts the
 // request instead and draws a PNG at the size the path names (`…-1440x900.png`), and answers a `.webm`
 // with a real clip, in byte ranges as the real route does. A path naming `missing` is answered 404, the
 // way the real route answers a file that is gone.
@@ -45,10 +45,10 @@ window.addEventListener("keydown", (e) => { window.__pageKeys!.push(e.key) })
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.href)
-  if (url.pathname === "/_frizz/rpc/resolveLocalPaths") {
+  if (url.pathname === "/_ntwine/rpc/resolveLocalPaths") {
     return new Response(JSON.stringify({ result: { resolved: [] } }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return nativeFetch(input, init)
@@ -166,8 +166,8 @@ createRoot(document.getElementById("root")!).render(
           )}
         </section>
       ))}
-      {/* One transcript message's loose pictures: `data-frizz-msg` is the root ChatView stamps on it. */}
-      <section data-fixture-loose data-frizz-msg="loose" className="mb-8 flex flex-col gap-3 text-[13px]">
+      {/* One transcript message's loose pictures: `data-ntwine-msg` is the root ChatView stamps on it. */}
+      <section data-fixture-loose data-ntwine-msg="loose" className="mb-8 flex flex-col gap-3 text-[13px]">
         <div className="md-body" dangerouslySetInnerHTML={{ __html: mdToHtml(`The page now:\n\n![The settings page](${shot("settings-1200x800.png")})`) }} />
         <BlockImage path={shot("terminal-1000x700.png")} />
         <div className="md-body" dangerouslySetInnerHTML={{ __html: mdToHtml(`And [the log view](${shot("log-800x600.png")}) on its own.`) }} />

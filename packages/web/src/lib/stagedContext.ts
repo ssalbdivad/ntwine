@@ -24,7 +24,7 @@ import { splitComposerValue } from "./imagePaths.ts"
 // by nobody. Memory-only was tolerable while every item was a ⌘I quote the human could re-make in two
 // keystrokes; an editor selection cannot be re-made from the page at all.
 
-export const STAGED_CONTEXT_STORAGE_KEY = "frizz-staged-context:v1"
+export const STAGED_CONTEXT_STORAGE_KEY = "ntwine-staged-context:v1"
 // Bounded like the drafts (lib/drafts.ts): a quote can be 64 KiB (EDITOR_COMPOSE_MAX_TEXT), and the
 // tab's whole sessionStorage is ~5 MB, two of which the drafts may hold.
 const MAX_SNAPSHOT_BYTES = 1024 * 1024

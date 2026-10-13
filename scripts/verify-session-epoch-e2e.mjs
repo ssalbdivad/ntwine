@@ -10,7 +10,7 @@
  *
  * "A board from before the release" is simulated by deleting the epoch record, which is exactly what an
  * older launcher leaves on disk (it never wrote one). Needs `nub scripts/build-package.mjs --shell`
- * first; the first boot installs the pinned frizz-server into the throwaway HOME, which takes a minute
+ * first; the first boot installs the pinned ntwine-server into the throwaway HOME, which takes a minute
  * or two.
  *
  *   nub scripts/build-package.mjs --shell && nub scripts/verify-session-epoch-e2e.mjs
@@ -44,16 +44,16 @@ const ask = (path, { host = "board.example.com", cookie } = {}) =>
     req.end();
   });
 
-const home = mkdtempSync(join(tmpdir(), "frizz-epoch-e2e-"));
+const home = mkdtempSync(join(tmpdir(), "ntwine-epoch-e2e-"));
 // An `external` setup gates the origin and starts nothing, so no relay or tunnel is in the way.
 const cloudJson = cloudConfigPath(home);
 mkdirSync(dirname(cloudJson), { recursive: true });
 writeFileSync(cloudJson, JSON.stringify({ hostname: new URL(ORIGIN).hostname, serve: "external", provider: "other" }));
-const env = { ...process.env, HOME: home, FRIZZ_WAKERS_OFF: "1" };
+const env = { ...process.env, HOME: home, NTWINE_WAKERS_OFF: "1" };
 
 let board = null;
 const startBoard = async () => {
-  const child = spawn(process.execPath, ["dist/frizz.js", "--port", String(PORT), "--no-app"], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, ["dist/ntwine.js", "--port", String(PORT), "--no-app"], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   const code = await new Promise((resolve, reject) => {
     const fail = (why) => { clearTimeout(timer); try { child.kill("SIGTERM"); } catch { /* gone */ } reject(new Error(`${why}:\n${out.slice(-600)}`)); };
@@ -61,7 +61,7 @@ const startBoard = async () => {
     child.once("exit", (exit) => fail(`the board exited (${exit}) before printing a link`));
     const onData = (d) => {
       out += d;
-      const m = out.match(/frizz_code=([A-Za-z0-9_-]+)/);
+      const m = out.match(/ntwine_code=([A-Za-z0-9_-]+)/);
       if (m) { clearTimeout(timer); child.removeAllListeners("exit"); resolve(m[1]); }
     };
     child.stdout.on("data", onData);
@@ -79,19 +79,19 @@ const stopBoard = async () => {
 };
 const cli = (...args) =>
   new Promise((resolve) => {
-    const child = spawn(process.execPath, ["dist/frizz.js", ...args], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, ["dist/ntwine.js", ...args], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
     child.on("exit", (code) => resolve({ code, out }));
   });
-const redeem = async (code) => (await ask(`/?frizz_code=${encodeURIComponent(code)}`)).setCookie;
+const redeem = async (code) => (await ask(`/?ntwine_code=${encodeURIComponent(code)}`)).setCookie;
 const NOTICE = /Security update: signed out (\d+) remote device/;
 
 try {
   const first = await startBoard();
   board = first.child;
-  // The state root is platform-dependent (~/Library/Application Support/Frizz on macOS, ~/.frizz where
+  // The state root is platform-dependent (~/Library/Application Support/Ntwine on macOS, ~/.ntwine where
   // one already exists), so find the key rather than guessing where it lives.
   const stateDir = readdirSync(home, { recursive: true })
     .filter((path) => String(path).endsWith(`${"/"}session-key`) && !String(path).includes("node_modules"))
@@ -101,13 +101,13 @@ try {
 
   const phoneCookies = await redeem(first.code);
   const phone = phoneCookies.map((c) => c.split(";")[0]).join("; ");
-  check("a phone redeems a link", phone.includes("frizz_session="));
-  check("its cookie lives 30 days, not a year", /Max-Age=2592000\b|Max-Age=2591999\b/.test(phoneCookies.join(" ")), phoneCookies.join(" ").replace(/frizz_session=[^;]+/, "frizz_session=…"));
+  check("a phone redeems a link", phone.includes("ntwine_session="));
+  check("its cookie lives 30 days, not a year", /Max-Age=2592000\b|Max-Age=2591999\b/.test(phoneCookies.join(" ")), phoneCookies.join(" ").replace(/ntwine_session=[^;]+/, "ntwine_session=…"));
   check("the phone is let in", (await ask("/", { cookie: phone })).status === 200);
   // A session from before per-device ids, signed with this board's real key: no denylist can name it.
   const key = readFileSync(join(stateDir, "session-key"));
   const payload = `${Date.now() + 60 * 24 * 60 * 60_000}.legacy-nonce`;
-  const legacy = `frizz_session=${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`;
+  const legacy = `ntwine_session=${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`;
   check("so is a pre-id session signed with the same key", (await ask("/", { cookie: legacy })).status === 200);
 
   // Back to a board from before the release: an older launcher never wrote the epoch record.
@@ -128,13 +128,13 @@ try {
   const listed = await cli("--sessions");
   check("--sessions no longer lists the phone", listed.code === 0 && /No device is signed in/.test(listed.out), listed.out.trim());
   const logs = readdirSync(join(stateDir, "logs"))
-    .filter((name) => /^frizz-.*\.log$/.test(name))
+    .filter((name) => /^ntwine-.*\.log$/.test(name))
     .map((name) => readFileSync(join(stateDir, "logs", name), "utf8"))
     .join("\n");
   check("the run log records the rotation", /session epoch 0 -> \d+: rotated the session key/.test(logs));
 
   const link = await cli("--link");
-  const laptopCode = link.out.match(/frizz_code=([A-Za-z0-9_-]+)/)?.[1];
+  const laptopCode = link.out.match(/ntwine_code=([A-Za-z0-9_-]+)/)?.[1];
   const laptop = (await redeem(laptopCode ?? "missing")).map((c) => c.split(";")[0]).join("; ");
   check("a fresh link signs a device in after the upgrade", (await ask("/", { cookie: laptop })).status === 200);
 

@@ -1,10 +1,10 @@
-// LIVE PROBE: can frizz kill ONE codex background exec, and can it tell the codex worker it did?
+// LIVE PROBE: can ntwine kill ONE codex background exec, and can it tell the codex worker it did?
 //   nub packages/server/src/backend/_live_codex_bgterm.mts
 //
 // The Claude half of this shipped first (`_live_shell_stop.mts`): a background Bash is a task in the
 // registry `Query.stopTask` addresses, so the × on a shell row is a real kill. Codex's answer had to be
 // found in its own protocol, and `codex app-server generate-json-schema --experimental` (codex-cli
-// 0.146.0) has it — three methods gated behind `capabilities.experimentalApi`, which frizz ALREADY
+// 0.146.0) has it — three methods gated behind `capabilities.experimentalApi`, which ntwine ALREADY
 // sends (codex-app-server.ts CLIENT_CAPABILITIES):
 //
 //   thread/backgroundTerminals/list      → { itemId, processId, command, cwd, osPid, … }
@@ -15,20 +15,20 @@
 // and `command/exec/terminate` / `process/kill` address a client-supplied handle from the client's own
 // `command/exec` — an IDE's terminals, never the model's execs.
 //
-// Reading a schema proves a method exists, not that it does what frizz needs. This settles the four
+// Reading a schema proves a method exists, not that it does what ntwine needs. This settles the four
 // things that decide whether the × can ship on a codex row, and what it may claim:
 //
 //   Q1. Does `terminate` kill the REAL OS process? Measured with a control (before / positive /
 //       negative), against a unique `sleep` DURATION — a real argv element. A comment marker does not
 //       work: zsh strips it before exec, so both readings come back empty and prove nothing.
-//   Q2. Is `processId` an id frizz can already read off the ROLLOUT? Frizz's transcript reader parses two
+//   Q2. Is `processId` an id ntwine can already read off the ROLLOUT? Ntwine's transcript reader parses two
 //       codex handles out of an exec result — a PTY `session_id` and a script `cell_id` (transcript.ts
 //       parseCodexResult). If `processId` is one of them, the × needs no new plumbing to know what to
-//       address. If it is neither, frizz must capture it from the app-server stream instead.
+//       address. If it is neither, ntwine must capture it from the app-server stream instead.
 //   Q3. Is the codex agent notified when its exec is killed? (The Claude answer was no for shells.)
 //   Q4. If not — does `thread/inject_items` ("Raw Responses API items to append to the thread's
 //       model-visible history") actually reach the model? That is the only candidate channel, and
-//       nothing in frizz uses it today.
+//       nothing in ntwine uses it today.
 import { spawn, execSync } from "node:child_process"
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -113,7 +113,7 @@ const awaitTurn = async (from: number) => {
 }
 
 try {
-  await req("initialize", { clientInfo: { name: "frizz", title: "Frizz probe", version: "0.0.1" }, capabilities: { experimentalApi: true } })
+  await req("initialize", { clientInfo: { name: "ntwine", title: "Ntwine probe", version: "0.0.1" }, capabilities: { experimentalApi: true } })
   const started = await req("thread/start", { cwd: dir, sandbox: "danger-full-access", approvalPolicy: "never", ephemeral: false })
   const threadId = started.thread?.id ?? started.threadId
   console.log(`[probe] threadId ${threadId}`)
@@ -137,14 +137,14 @@ try {
   const descendants = new Set(descendantPids(APPSERVER_PID))
   console.log(`[probe] POSITIVE — pids ${JSON.stringify(alive)}; descendants of the app-server include them: ${alive.map((p) => `${p}:${descendants.has(p)}`).join(",")}`)
   ok("Q1 the exec's OS process is really running", alive.length > 0)
-  ok("Q1 it is a DESCENDANT of the app-server frizz spawned", alive.some((p) => descendants.has(p)))
+  ok("Q1 it is a DESCENDANT of the app-server ntwine spawned", alive.some((p) => descendants.has(p)))
   ok("Q1 processId is NOT an OS pid (it is codex's logical PTY handle)", !alive.includes(Number(terminal.processId)),
     `processId=${terminal.processId} osPid=${JSON.stringify(terminal.osPid)} real=${JSON.stringify(alive)}`)
 
-  // ---- Q2: can frizz name this exec from what it already reads? ----------------------------------
-  // Frizz reads the ROLLOUT, not this stream. `parseCodexResult` pulls two handles out of an exec's
+  // ---- Q2: can ntwine name this exec from what it already reads? ----------------------------------
+  // Ntwine reads the ROLLOUT, not this stream. `parseCodexResult` pulls two handles out of an exec's
   // result text: "Process running with session ID <n>" → sessionId, and "Script running with cell ID
-  // <n>" → cellId. If `processId` equals one of those, the row can address the kill with what frizz
+  // <n>" → cellId. If `processId` equals one of those, the row can address the kill with what ntwine
   // already has; if it equals neither, the id has to come off the app-server stream instead.
   let rolloutPath: string | undefined
   try {
@@ -158,11 +158,11 @@ try {
   console.log(`[probe] rollout handles — session IDs ${JSON.stringify(sessionIds)}, cell IDs ${JSON.stringify(cellIds)}, JSON session_id ${JSON.stringify(jsonSessionIds)}`)
   console.log(`[probe] processId from the app-server: ${JSON.stringify(terminal.processId)}`)
   const inRollout = [...sessionIds, ...cellIds, ...jsonSessionIds].includes(String(terminal.processId))
-  ok("Q2 processId is recoverable from the ROLLOUT frizz already reads", inRollout,
-    inRollout ? "no new stream plumbing needed" : "it is NOT in the rollout — frizz must capture it from the item/started stream")
-  // The stream half, either way: frizz receives these notifications today and parses only FileChangeItem.
+  ok("Q2 processId is recoverable from the ROLLOUT ntwine already reads", inRollout,
+    inRollout ? "no new stream plumbing needed" : "it is NOT in the rollout — ntwine must capture it from the item/started stream")
+  // The stream half, either way: ntwine receives these notifications today and parses only FileChangeItem.
   const streamed = notes.filter((n) => n.params?.item?.type === "commandExecution" && n.params.item.processId != null)
-  ok("Q2 processId IS on the item/* stream frizz already receives", streamed.length > 0,
+  ok("Q2 processId IS on the item/* stream ntwine already receives", streamed.length > 0,
     `${streamed.length} commandExecution notifications carried one`)
 
   // ---- Q1 (the kill) ----------------------------------------------------------------------------
@@ -178,12 +178,12 @@ try {
   await req("turn/start", { threadId, input: [{ type: "text", text: "In one sentence: what is the state of the background command you started, and how do you know? Do not run any tools — answer only from what you have been told." }] })
   await awaitTurn(mark)
   const beforeInject = agentText.join(" ")
-  console.log(`[probe] the model, with no help from frizz: ${JSON.stringify(beforeInject.slice(0, 400))}`)
+  console.log(`[probe] the model, with no help from ntwine: ${JSON.stringify(beforeInject.slice(0, 400))}`)
   ok("Q3 codex does NOT tell its agent the exec was killed", !/stopped|killed|terminated|no longer running/i.test(beforeInject),
-    /stopped|killed|terminated|no longer running/i.test(beforeInject) ? "it DOES — no frizz notice needed" : "confirmed silent, exactly like Claude's shells")
+    /stopped|killed|terminated|no longer running/i.test(beforeInject) ? "it DOES — no ntwine notice needed" : "confirmed silent, exactly like Claude's shells")
 
   // ---- Q4: does inject_items reach the model? ---------------------------------------------------
-  const NOTICE = `[frizz] The operator stopped your background command \`sleep ${UNIQ}\` from the Frizz dashboard. It is no longer running and will never report a result — do not wait on it.`
+  const NOTICE = `[ntwine] The operator stopped your background command \`sleep ${UNIQ}\` from the Ntwine dashboard. It is no longer running and will never report a result — do not wait on it.`
   let injected = true
   try {
     await req("thread/inject_items", { threadId, items: [{ type: "message", role: "user", content: [{ type: "input_text", text: NOTICE }] }] })
@@ -198,7 +198,7 @@ try {
     await req("turn/start", { threadId, input: [{ type: "text", text: "Same question again, one sentence: what is the state of that background command, and how do you know? Do not run any tools." }] })
     await awaitTurn(mark)
     const afterInject = agentText.join(" ")
-    console.log(`[probe] the model, after frizz's injected notice: ${JSON.stringify(afterInject.slice(0, 400))}`)
+    console.log(`[probe] the model, after ntwine's injected notice: ${JSON.stringify(afterInject.slice(0, 400))}`)
     ok("Q4 the injected notice reaches the model and changes what it believes",
       /stopped|killed|no longer|not running|won't wait|will not wait|terminated/i.test(afterInject), afterInject.slice(0, 200))
   }

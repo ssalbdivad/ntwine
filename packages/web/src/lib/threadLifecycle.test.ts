@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { CompletionHold, ThreadView } from "@frizz/shared"
+import type { CompletionHold, ThreadView } from "@ntwine/shared"
 import { threadLifecycleAvailability, completionArchivesImmediately, completionHoldSummary } from "./threadLifecycle.ts"
 
 function thread(over: Partial<ThreadView> = {}): ThreadView {
@@ -56,8 +56,8 @@ test("thread lifecycle controls have one home independent of queue/done presenta
   })
   const rolling = threadLifecycleAvailability(thread({ state: undefined, archived: true }))
   assert.deepEqual({ lifecycle: rolling.lifecycle, done: rolling.done, archive: rolling.archive }, { lifecycle: true, done: true, archive: false }, "rolling snapshots still read the legacy flag as done")
-  // A thread frizz does not own has no lifecycle standing at all: no verbs AND no readout, because
-  // "Done" would assert a completion state frizz never wrote.
+  // A thread ntwine does not own has no lifecycle standing at all: no verbs AND no readout, because
+  // "Done" would assert a completion state ntwine never wrote.
   for (const unowned of [thread({ foreign: true }), thread({ kind: "legacy" })]) {
     assert.deepEqual(threadLifecycleAvailability(unowned), { lifecycle: false, done: false, snooze: false, archive: false })
   }

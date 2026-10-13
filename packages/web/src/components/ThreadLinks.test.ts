@@ -19,7 +19,7 @@ test("registered destinations keep the selected row grammar without advertising 
   assert.match(html, /Working &lt;plan&gt;/)
   assert.match(html, />Link<\/span>/)
   assert.match(html, />File<\/span>/)
-  assert.doesNotMatch(html, /data-running-indicator|frizz-live-dot|>Links</)
+  assert.doesNotMatch(html, /data-running-indicator|ntwine-live-dot|>Links</)
 })
 
 // The row's BOX is the child-op row's: its height is the label's inherited line box and nothing else,

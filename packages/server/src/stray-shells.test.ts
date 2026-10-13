@@ -16,11 +16,11 @@ import { createWakeDeliveryStore } from "./wake-store.ts"
 const POLLER = { id: "toolu_poller", taskId: "b7hi00yp4", label: "Waiting for the example-building workflow to finish", startedAt: "2026-09-29T14:06:22.000Z", state: "running" as const }
 
 function harness(tele: Partial<SessionTelemetry>, opts: { question?: boolean } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-stray-shells-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-stray-shells-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "resting"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)

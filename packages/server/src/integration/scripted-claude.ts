@@ -3,8 +3,8 @@
 // broker socket — from a hand-written script, with no `claude` process anywhere.
 //
 // Ported in substance from t3code's apps/server/integration/TestProviderAdapter.integration.ts (a
-// 577-line fake provider you queue canned canonical events into). The frizz-specific difference is
-// that a frizz session has TWO surfaces, not one: the disk transcript the tailer folds, and the event
+// 577-line fake provider you queue canned canonical events into). The ntwine-specific difference is
+// that a ntwine session has TWO surfaces, not one: the disk transcript the tailer folds, and the event
 // stream the ingest consumes. A fake that drove only one of them would be testing half the seam —
 // and the seam is the entire point, because the interesting failures are ORDERING failures between
 // the two. So a script is a list of steps, and the harness can interleave them freely:
@@ -72,7 +72,7 @@ export function resultEvent(sessionId: string, isError = false): ClaudeQueryEven
 // thread has only these, and a broker thread has both.
 
 /** The `Agent` tool_use that registers a live child, keyed by its tool_use id. */
-export function agentDispatchRecord(toolUseId: string, description: string, at: string, subagentType = "frizz:opus-high"): Record<string, unknown> {
+export function agentDispatchRecord(toolUseId: string, description: string, at: string, subagentType = "ntwine:opus-high"): Record<string, unknown> {
   return {
     type: "assistant",
     timestamp: at,

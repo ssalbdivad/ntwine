@@ -1,5 +1,5 @@
 // LIVE PROBE: what does the TURN look like when the parent dispatches a BACKGROUND sub-agent and then
-// RESTS immediately — the exact shape a frizz worker uses, and the one the board renders as a shimmer?
+// RESTS immediately — the exact shape a ntwine worker uses, and the one the board renders as a shimmer?
 //   nub packages/server/src/backend/_live_bg_rest_turn.mts
 //
 // Reported symptom (2026-07-30): a thread whose own turn ended ~55 min ago (`stop_reason: "end_turn"`,
@@ -90,7 +90,7 @@ tailer = createTailer({
 const slug = "bgrest-live"
 const sessionId = randomUUID()
 
-// THE WORKLOAD — the frizz worker shape verbatim: background dispatch, then REST without waiting.
+// THE WORKLOAD — the ntwine worker shape verbatim: background dispatch, then REST without waiting.
 const PROMPT = [
   "Dispatch ONE sub-agent with the Agent tool and `run_in_background: true`, description exactly `SLOW-CHILD`.",
   "Its task, verbatim: \"Run `sleep 100` with Bash (set the timeout parameter to 150000), then run `date`, then reply exactly CHILD-DONE.\"",
@@ -100,7 +100,7 @@ const PROMPT = [
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

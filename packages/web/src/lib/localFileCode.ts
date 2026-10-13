@@ -1,5 +1,5 @@
 import { useContext, useLayoutEffect, useSyncExternalStore, type RefObject } from "react"
-import { formatFileReference, splitFilePosition, type FilePosition } from "@frizz/shared"
+import { formatFileReference, splitFilePosition, type FilePosition } from "@ntwine/shared"
 import { projectRpc, rpc, type Api } from "../api/rpc.ts"
 import { apiBase } from "./base-path.ts"
 import { stampLocalPosition } from "./localFilePosition.ts"

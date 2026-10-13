@@ -1,4 +1,4 @@
-import type { QuestionAnswer } from "@frizz/shared"
+import type { QuestionAnswer } from "@ntwine/shared"
 
 // ── follow-ups that were still on the wire when the page went away ───────────────────────────────
 // A reply is optimistic: the composer clears and the bubble paints before the request settles (see
@@ -13,14 +13,14 @@ import type { QuestionAnswer } from "@frizz/shared"
 // safe: the server records every delivered id on the session row (delivery-ledger.ts `hasDelivery`)
 // and answers a repeat with a no-op, so a send that actually landed before the reload is not pasted
 // twice. Session-scoped for the same reason drafts are — it never escapes the tab that typed it.
-export const PENDING_SENDS_STORAGE_KEY = "frizz-pending-sends:v1"
+export const PENDING_SENDS_STORAGE_KEY = "ntwine-pending-sends:v1"
 // Past this a replay would land as a surprise rather than a continuation of what the operator was
 // doing, so an older entry goes back into the composer instead of onto the wire.
 export const PENDING_SEND_MAX_AGE_MS = 15 * 60_000
 
 export type PendingSend = {
   deliveryId: string
-  /** The `/_frizz/<project>` API base the send went to — the All queues page sends across projects. */
+  /** The `/_ntwine/<project>` API base the send went to — the All queues page sends across projects. */
   apiBase: string
   /** For the draft key a send that cannot be replayed is restored under. */
   projectDir?: string

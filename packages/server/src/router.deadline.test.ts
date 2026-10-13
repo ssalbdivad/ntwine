@@ -7,7 +7,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, Settings } from "@frizz/shared"
+import type { BoardSnapshot, Settings } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { createRouter } from "./router.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -18,7 +18,7 @@ import { withDispatchCaller } from "./dispatch-caller.ts"
 import { createWakeDeliveryStore } from "./wake-store.ts"
 
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-deadline-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-deadline-rpc-"))
   const project: Project = { dir, id: "dl", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -41,7 +41,7 @@ function harness() {
 
 function row(slug: string): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-10-06T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-10-06T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   }
@@ -78,7 +78,7 @@ test("a worker's transport cannot use the human's control", async () => {
     h.storage.upsertSession(row("t"))
     await assert.rejects(
       asWorker(() => h.router.setThreadDeadline.handler({ input: { slug: "t", deadline: inMs(3_600_000) } })),
-      /`frizzctl deadline`/,
+      /`ntwinectl deadline`/,
     )
     assert.equal(h.storage.getSession("t")!.deadline_at ?? null, null)
   } finally {
@@ -227,9 +227,9 @@ test("the machine-wide wrap-up is the user's: a worker's transport is refused", 
 // On 2026-10-08 four parents handed off within a minute of a 5m limit while their twelve children ran on
 // unaware. Each child now gets its share of the limit in its deadline file and the user's note in its mailbox.
 
-const childDeadline = (sessionDir: string, agentId: string) => JSON.parse(readFileSync(join(sessionDir, "frizz-deadlines", `${agentId}.json`), "utf8"))
+const childDeadline = (sessionDir: string, agentId: string) => JSON.parse(readFileSync(join(sessionDir, "ntwine-deadlines", `${agentId}.json`), "utf8"))
 const childInbox = (sessionDir: string, agentId: string) =>
-  readdirSync(join(sessionDir, "frizz-inbox", agentId)).map((f) => JSON.parse(readFileSync(join(sessionDir, "frizz-inbox", agentId, f), "utf8")))
+  readdirSync(join(sessionDir, "ntwine-inbox", agentId)).map((f) => JSON.parse(readFileSync(join(sessionDir, "ntwine-inbox", agentId, f), "utf8")))
 
 test("the wrap-up reaches each running child — with a share that leaves the parent a reserve — and a queued thread's children without waking it", async () => {
   const h = harness()

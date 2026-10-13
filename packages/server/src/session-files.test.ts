@@ -11,7 +11,7 @@ import { SYSTEM_PROMPT_DIR, cleanupAdoptionSessionFiles } from "./session-files.
 // link (nodejs/node#61040) — a link to a directory threw ERR_FS_EISDIR and a dangling link was silently
 // left in place — so cleanup reported not-clean for a child it could have removed.
 test("adoption cleanup unlinks a symlinked system-prompt child and never touches its target", () => {
-  const project = mkdtempSync(join(tmpdir(), "frizz-session-files-"))
+  const project = mkdtempSync(join(tmpdir(), "ntwine-session-files-"))
   mkdirSync(SYSTEM_PROMPT_DIR, { recursive: true })
   const outside = join(project, "outside")
   mkdirSync(outside)

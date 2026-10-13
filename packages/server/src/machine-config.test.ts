@@ -9,7 +9,7 @@ import { deleteMachineConfig, machineConfigPath, readMachineConfig, writeMachine
 const Font = z.object({ font: z.enum(["sans", "mono"]) })
 
 function withHome<T>(body: (home: string) => T): T {
-  const home = mkdtempSync(join(tmpdir(), "frizz-machine-config-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-machine-config-"))
   try {
     return body(home)
   } finally {

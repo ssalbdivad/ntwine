@@ -6,7 +6,7 @@ import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { frizzPaths, frizzPathsNow } from "@frizz/server/frizz-paths";
+import { ntwinePaths, ntwinePathsNow } from "@ntwine/server/ntwine-paths";
 import {
   cloudConfigPath,
   establishCloudConfig,
@@ -25,16 +25,16 @@ import {
   zoneClaimLabel,
 } from "./cloud.ts";
 
-// Every case below hands cloud.ts a throwaway home, and frizz-paths.ts resolves the paths under it —
+// Every case below hands cloud.ts a throwaway home, and ntwine-paths.ts resolves the paths under it —
 // unless a SET XDG variable outranks it, which it does by design. On an XDG-configured machine that
-// would point the writes at the operator's real `$XDG_DATA_HOME/frizz`, where the cleanup never looks.
+// would point the writes at the operator's real `$XDG_DATA_HOME/ntwine`, where the cleanup never looks.
 for (const name of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) delete process.env[name];
 
 // Custom names are withdrawn (CUSTOM_NAMES_OFFERED is false), but the path behind the gate is kept to
 // be switched back on, and most claims below drive it — so this whole file runs with the override on.
 // It is set for the FILE, not per test: `nub --test` runs a file's tests concurrently, so a per-test
 // toggle would leak into its neighbours. The shipped default is pinned in custom-names-paused.test.ts.
-process.env.FRIZZ_CUSTOM_NAMES = "1";
+process.env.NTWINE_CUSTOM_NAMES = "1";
 
 // Claiming a NAME binds it to a GitHub account, which establishCloudConfig confirms through GitHub's
 // device flow. The claim tests hand in this stand-in for the finished sign-in, so no test waits on a
@@ -71,12 +71,12 @@ async function claimServer(
 }
 
 function tempHome() {
-  return mkdtempSync(join(tmpdir(), "frizz-cloud-"));
+  return mkdtempSync(join(tmpdir(), "ntwine-cloud-"));
 }
 
 test("a pasted URL, a trailing slash or a stray dot all resolve to the same hostname", () => {
   // People paste the address bar. Refusing that would be a pointless second question.
-  for (const raw of ["colin.frizz.sh", "https://colin.frizz.sh", "https://colin.frizz.sh/", "COLIN.Frizz.SH", "colin.frizz.sh."]) {
+  for (const raw of ["colin.frizz.sh", "https://colin.frizz.sh", "https://colin.frizz.sh/", "COLIN.Ntwine.SH", "colin.frizz.sh."]) {
     assert.equal(normalizeHostname(raw), "colin.frizz.sh", raw);
   }
   assert.equal(normalizeHostname("  https://colin.frizz.sh/board  "), "colin.frizz.sh");
@@ -101,35 +101,35 @@ test("the config round-trips, so the second run of --cloud asks nothing", () => 
   }
 });
 
-test("saving the setup on a machine with no ~/.frizz does not create one", () => {
-  // frizz-paths.ts reads an existing `~/.frizz` as "legacy install, route every root here". Until
-  // 2026-09-23 the first remote-access setup on a fresh install wrote `~/.frizz/cloud.json`, and the
+test("saving the setup on a machine with no ~/.ntwine does not create one", () => {
+  // ntwine-paths.ts reads an existing `~/.ntwine` as "legacy install, route every root here". Until
+  // 2026-09-23 the first remote-access setup on a fresh install wrote `~/.ntwine/cloud.json`, and the
   // next launch resolved the registry, the projects and the database under that new directory instead
   // of the roots that held them — an empty board, with the setup it just saved. The claim identity had
   // the same bug and the same fix (identity.ts, 2026-08-28).
   const home = tempHome();
   try {
-    const paths = frizzPaths({ home });
+    const paths = ntwinePaths({ home });
     assert.equal(paths.legacy, false, "a temp home starts out as a fresh install");
     writeCloudConfig({ hostname: "colin.frizz.sh", tunnel: "colin" }, home);
-    assert.equal(existsSync(join(home, ".frizz")), false, "the literal directory must not appear");
+    assert.equal(existsSync(join(home, ".ntwine")), false, "the literal directory must not appear");
     assert.equal(cloudConfigPath(home), join(paths.data, "cloud.json"));
     assert.equal(tunnelTokenPath(home), join(paths.state, "tunnel-token"));
     // Afresh, as the NEXT launch would: this process memoised its answer above, so a plain
-    // frizzPaths() here could not fail.
-    assert.equal(frizzPathsNow({ home }).legacy, false, "the next launch still resolves the install the same way");
+    // ntwinePaths() here could not fail.
+    assert.equal(ntwinePathsNow({ home }).legacy, false, "the next launch still resolves the install the same way");
     assert.deepEqual(readCloudConfig(home), { hostname: "colin.frizz.sh", tunnel: "colin" });
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
 });
 
-test("a machine that already has ~/.frizz keeps its setup exactly where it was", () => {
+test("a machine that already has ~/.ntwine keeps its setup exactly where it was", () => {
   const home = tempHome();
   try {
-    mkdirSync(join(home, ".frizz"), { recursive: true });
-    assert.equal(cloudConfigPath(home), join(home, ".frizz", "cloud.json"));
-    assert.equal(tunnelTokenPath(home), join(home, ".frizz", "tunnel-token"));
+    mkdirSync(join(home, ".ntwine"), { recursive: true });
+    assert.equal(cloudConfigPath(home), join(home, ".ntwine", "cloud.json"));
+    assert.equal(tunnelTokenPath(home), join(home, ".ntwine", "tunnel-token"));
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
@@ -157,8 +157,8 @@ test("an explicit cloudflared config wins; otherwise it is found or reported mis
     assert.equal(resolveTunnelConfigPath(base, home), null, "absent means let cloudflared use its own default");
 
     mkdirSync(join(home, ".cloudflared"), { recursive: true });
-    writeFileSync(join(home, ".cloudflared", "frizz.yml"), "tunnel: colin\n");
-    assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "frizz.yml"));
+    writeFileSync(join(home, ".cloudflared", "ntwine.yml"), "tunnel: colin\n");
+    assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "ntwine.yml"));
 
     assert.equal(resolveTunnelConfigPath({ ...base, config: "/somewhere/else.yml" }, home), "/somewhere/else.yml");
   } finally {
@@ -246,7 +246,7 @@ test("a launch renews the lease, and falls back to the cached token when the reg
     const offline = await resolveRunToken(config, 9393, home, (m) => warnings.push(m), "http://127.0.0.1:1");
     assert.equal(offline, "run-token", "the cached token carries the launch");
     assert.equal(warnings.length, 1);
-    assert.match(warnings[0]!, /could not reach the Frizz registrar/);
+    assert.match(warnings[0]!, /could not reach the Ntwine registrar/);
   } finally {
     await server.close();
     rmSync(home, { recursive: true, force: true });
@@ -281,7 +281,7 @@ test("a config naming neither a tunnel nor a claim reads as absent", () => {
   // address with no tunnel behind it — a board that answers Forbidden with no way to tell why.
   const home = tempHome();
   try {
-    mkdirSync(join(home, ".frizz"), { recursive: true });
+    mkdirSync(join(home, ".ntwine"), { recursive: true });
     writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "colin.frizz.sh" }));
     assert.equal(readCloudConfig(home), null);
     writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "colin.frizz.sh", claim: "colin" }));
@@ -298,7 +298,7 @@ test("a first claim that cannot reach the registrar points at the path that work
   try {
     await assert.rejects(
       establishCloudConfig("colin", 9393, home, "http://127.0.0.1:1", fakeGithub),
-      /could not reach the Frizz registrar[\s\S]*tunnel of your own/,
+      /could not reach the Ntwine registrar[\s\S]*tunnel of your own/,
     );
   } finally {
     rmSync(home, { recursive: true, force: true });
@@ -365,15 +365,15 @@ test("a hostname inside the zone stands for exactly one claim label", () => {
   assert.equal(zoneClaimLabel("notfrizz.sh"), null);
 });
 
-// 2026-08-25: `frizz up` ran the hand-made tunnel for colin.frizz.sh faithfully, and the phone that
-// scanned the QR read "No Frizz board has claimed this name." — the relay's wildcard route had taken
+// 2026-08-25: `ntwine up` ran the hand-made tunnel for colin.frizz.sh faithfully, and the phone that
+// scanned the QR read "No Ntwine board has claimed this name." — the relay's wildcard route had taken
 // the zone, and nothing in `up` would ever have claimed the name. Claiming is part of `up`.
 test("up claims a zone hostname that was saved as a hand-made tunnel, and serves it by relay", async () => {
   const home = tempHome();
   const server = await claimServer({ hostname: "colin.frizz.sh", leaseExpiresAt: 0, renewed: false });
   const notices: string[] = [];
   try {
-    const stale = { hostname: "colin.frizz.sh", tunnel: "colin", config: "/x/frizz.yml" };
+    const stale = { hostname: "colin.frizz.sh", tunnel: "colin", config: "/x/ntwine.yml" };
     const config = await reconcileCloudConfig(stale, 9393, home, (m) => notices.push(m), server.origin, fakeGithub);
     assert.deepEqual(config, { hostname: "colin.frizz.sh", claim: "colin", serve: "relay" });
     assert.equal(server.claims.length, 1, "the label is claimed through the same call a first launch makes");
@@ -459,7 +459,7 @@ test("a name that already HAS the anonymous shape re-claims without GitHub too",
 // carries only the device-flow token, and the `gh` was never touched.
 test("a named claim never runs `gh` and never sends its token", { skip: process.platform === "win32" && "a shell-script gh needs a POSIX shell" }, async () => {
   const home = tempHome();
-  const bin = mkdtempSync(join(tmpdir(), "frizz-fake-gh-"));
+  const bin = mkdtempSync(join(tmpdir(), "ntwine-fake-gh-"));
   const ran = join(bin, "ran");
   writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> "${ran}"\necho gho_SECRET_FROM_GH_CLI\n`, { mode: 0o755 });
   const path = process.env.PATH;

@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { SectionHeader, ThreadRow, type RowScope } from "./components/Sidebar.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
@@ -70,7 +70,7 @@ const snoozeThread = {
   snoozedUntil: snoozeAt,
 } as unknown as ThreadView
 
-// Row C — a worker whose turn was CUT OFF by the subscription SESSION limit; frizz will auto-resume it
+// Row C — a worker whose turn was CUT OFF by the subscription SESSION limit; ntwine will auto-resume it
 // when the window resets. NOT a snoozed row any more (2026-08-31): it queues as a failed thread and
 // wears the YELLOW hourglass — the counter-example this fixture keeps so the two hourglasses can be
 // compared side by side. Like a stalled row it carries the hover-revealed Retry, so an operator with
@@ -109,7 +109,7 @@ const runningSnoozed = {
   snoozedUntil: snoozeAt,
 } as unknown as ThreadView
 
-// Row E — snoozed with a BUMP armed (a follow-up frizz sends at the deadline), still waiting on a live
+// Row E — snoozed with a BUMP armed (a follow-up ntwine sends at the deadline), still waiting on a live
 // sub-agent. Same excusal, and it is the row that used to read "BUMPS · …".
 const bumpingSnoozed = {
   ...base,

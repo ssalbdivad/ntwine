@@ -1,27 +1,27 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * frizz — the board + validator. There is NO stored board file: the board/status
- * view is COMPUTED ON DEMAND from the independent per-thread `.frizz/<slug>.md`
+ * ntwine — the board + validator. There is NO stored board file: the board/status
+ * view is COMPUTED ON DEMAND from the independent per-thread `.ntwine/<slug>.md`
  * files (the filename slug IS the thread id — the filesystem guarantees uniqueness,
- * so there is no `id` frontmatter field and nothing to dedupe) plus `.frizz/config.yml`
+ * so there is no `id` frontmatter field and nothing to dedupe) plus `.ntwine/config.yml`
  * (globals). Each thread's frontmatter is validated against the schema; the
- * `frizz-reminder` hook runs `--validate` every turn so malformed frontmatter surfaces
+ * `ntwine-reminder` hook runs `--validate` every turn so malformed frontmatter surfaces
  * to the orchestrator immediately.
  *
- * SCOPE: FRIZZ CLASSIC. Every thread here is a `.frizz/<slug>.md` file. A thread the Frizz APP
+ * SCOPE: NTWINE CLASSIC. Every thread here is a `.ntwine/<slug>.md` file. A thread the Ntwine APP
  * dispatches writes no such file and therefore never appears in this board at all — its row, its
  * status and its queue membership are all derived server-side (packages/server/src/board.ts). See
  * config.mjs § STATUS for what still consumes this tool and why it is not the app's queue model.
  *
- * Usage (the `frizz` command is the bin/ shim that runs this script against the
- * project's `.frizz/`, regardless of cwd or where the plugin is installed):
- *   frizz               # print the LIVE board (⚖ awaiting-you + active/planning/blocked; planned hidden)
- *   frizz --all         # print all threads (every status)
- *   frizz --status planned # print only threads in one status (aliases todo/plan/enqueued/needs-decision accepted)
- *   frizz reconcile     # stamp .frizz/.last-reconcile = now (records a completed board reconcile)
- *   frizz --validate    # print ONLY validation errors; exit 1 if any (for the hook / CI). --check is an alias.
- *   frizz --json        # machine-readable {config, threads, errors} — ALWAYS complete, never filtered
+ * Usage (the `ntwine` command is the bin/ shim that runs this script against the
+ * project's `.ntwine/`, regardless of cwd or where the plugin is installed):
+ *   ntwine               # print the LIVE board (⚖ awaiting-you + active/planning/blocked; planned hidden)
+ *   ntwine --all         # print all threads (every status)
+ *   ntwine --status planned # print only threads in one status (aliases todo/plan/enqueued/needs-decision accepted)
+ *   ntwine reconcile     # stamp .ntwine/.last-reconcile = now (records a completed board reconcile)
+ *   ntwine --validate    # print ONLY validation errors; exit 1 if any (for the hook / CI). --check is an alias.
+ *   ntwine --json        # machine-readable {config, threads, errors} — ALWAYS complete, never filtered
  *
  * A `blocked` thread's RESOLUTION MECHANISM (which frontmatter field is set) drives its color +
  * placement — see `blockMechanism` in config.mjs. HUMAN-blocked (no machine field) → the hoisted
@@ -48,7 +48,7 @@ import {
   clearSessionOverride,
   sessionOverride,
   currentSessionId,
-  frizzActive,
+  ntwineActive,
   writeLastReconcile,
   revalidateState,
   formatEta,
@@ -69,12 +69,12 @@ import { deriveAgentState, findAgentOutputAge, IDLE_MIN, DROPPED_MIN } from './a
 import { collectDecisions } from './decisions.mjs';
 
 // The project root comes from the environment, NOT from this script's own path: the
-// board ships inside the frizz PLUGIN (and, after a marketplace install, lives in
+// board ships inside the ntwine PLUGIN (and, after a marketplace install, lives in
 // ~/.claude/plugins/cache/…), so a script-relative `../../` root would point at the
 // PLUGIN, never the project. CLAUDE_PROJECT_DIR is exported to hook processes and set
-// by the bin/frizz shim; when run by hand from the repo root, process.cwd() is correct.
+// by the bin/ntwine shim; when run by hand from the repo root, process.cwd() is correct.
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const FRIZZ_DIR = join(PROJECT_DIR, '.frizz');
+const NTWINE_DIR = join(PROJECT_DIR, '.ntwine');
 
 // STATUS/TERMINAL are imported from ./config.mjs — the single shared source the hooks
 // also use, so the vocab can never drift between the tool and the reminder hook.
@@ -114,18 +114,18 @@ function nextStep(src) {
 }
 
 
-// PER-SESSION TOGGLE — `frizz on` / `frizz off` / `frizz status` flip (or report) frizz
+// PER-SESSION TOGGLE — `ntwine on` / `ntwine off` / `ntwine status` flip (or report) ntwine
 // enablement for THIS Claude Code session, keyed on CLAUDE_CODE_SESSION_ID (the same id
 // the hooks gate on — verified equal). Activation is OPT-IN: a session is dormant by
-// default, so `frizz on` is what an agent (the `/frizz` skill's step 0) OR a human runs to
-// ACTIVATE the current session; `frizz off` silences it; both write the sentinel, no
+// default, so `ntwine on` is what an agent (the `/ntwine` skill's step 0) OR a human runs to
+// ACTIVATE the current session; `ntwine off` silences it; both write the sentinel, no
 // relaunch. These are handled BEFORE the board renders, since they are not board queries.
 {
   const sub = process.argv[2];
   if (sub === 'on' || sub === 'off' || sub === 'enable' || sub === 'disable') {
     const sid = currentSessionId();
     if (!sid) {
-      console.error('frizz: no session id (CLAUDE_CODE_SESSION_ID unset) — cannot toggle this session.');
+      console.error('ntwine: no session id (CLAUDE_CODE_SESSION_ID unset) — cannot toggle this session.');
       process.exit(1);
     }
     const state = sub === 'on' || sub === 'enable' ? 'on' : 'off';
@@ -134,12 +134,12 @@ function nextStep(src) {
     // (the session stops participating → its owned threads become orphaned/claimable at once).
     if (state === 'on') touchSessionHeartbeat(PROJECT_DIR, sid);
     else clearSessionHeartbeat(PROJECT_DIR, sid);
-    console.log(`frizz: ${state === 'on' ? 'ENABLED' : 'DISABLED'} for this session (${sid}).`);
+    console.log(`ntwine: ${state === 'on' ? 'ENABLED' : 'DISABLED'} for this session (${sid}).`);
     console.log(`  sentinel: ${path}`);
-    console.log(`  revert to default (dormant) with: frizz reset`);
+    console.log(`  revert to default (dormant) with: ntwine reset`);
     process.exit(0);
   }
-  // `frizz claim <slug> [--force]` / `frizz disown <slug> [--force]` / `frizz owners [--gc]` —
+  // `ntwine claim <slug> [--force]` / `ntwine disown <slug> [--force]` / `ntwine owners [--gc]` —
   // per-thread session OWNERSHIP. Claiming is EASY when a thread is unowned or its owner is
   // DEAD (heartbeat stale/absent); claiming a thread owned by a DIFFERENT, still-LIVE session
   // is DISCOURAGED and requires `--force`. Ownership is stored as `owner_session:` frontmatter,
@@ -163,13 +163,13 @@ function nextStep(src) {
       // explicit reconciliation-path clear — safe because it is orchestrator-driven, not a hook).
       let entries;
       try {
-        entries = readdirSync(FRIZZ_DIR).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.')).sort();
+        entries = readdirSync(NTWINE_DIR).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.')).sort();
       } catch {
-        console.log(`No .frizz/ in ${PROJECT_DIR}.`);
+        console.log(`No .ntwine/ in ${PROJECT_DIR}.`);
         process.exit(0);
       }
       let cleared = 0;
-      console.log(`frizz owners — this session: ${id8(sid)} · owner-stale window: ${staleMin}m\n`);
+      console.log(`ntwine owners — this session: ${id8(sid)} · owner-stale window: ${staleMin}m\n`);
       for (const f of entries) {
         const s = f.replace(/\.md$/, '');
         const owner = readOwner(PROJECT_DIR, s);
@@ -189,9 +189,9 @@ function nextStep(src) {
     }
 
     // claim / disown both need a slug + a session id + the thread to exist.
-    if (!sid) { console.error(`frizz ${sub}: no session id (CLAUDE_CODE_SESSION_ID unset).`); process.exit(1); }
-    if (!slug) { console.error(`usage: frizz ${sub} <slug> [--force]`); process.exit(1); }
-    if (!existsSync(join(FRIZZ_DIR, `${slug}.md`))) { console.error(`frizz ${sub}: no thread .frizz/${slug}.md`); process.exit(1); }
+    if (!sid) { console.error(`ntwine ${sub}: no session id (CLAUDE_CODE_SESSION_ID unset).`); process.exit(1); }
+    if (!slug) { console.error(`usage: ntwine ${sub} <slug> [--force]`); process.exit(1); }
+    if (!existsSync(join(NTWINE_DIR, `${slug}.md`))) { console.error(`ntwine ${sub}: no thread .ntwine/${slug}.md`); process.exit(1); }
     const owner = readOwner(PROJECT_DIR, slug);
     const live = owner ? sessionLive(PROJECT_DIR, owner, staleMin) : false;
     const st = effectiveOwnership(owner, sid, live);
@@ -199,59 +199,59 @@ function nextStep(src) {
     if (sub === 'claim') {
       if (st === 'mine') {
         touchSessionHeartbeat(PROJECT_DIR, sid);
-        console.log(`frizz: ${slug} is already yours (${id8(sid)}).`);
+        console.log(`ntwine: ${slug} is already yours (${id8(sid)}).`);
         process.exit(0);
       }
       if (st === 'other-live' && !force) {
-        console.error(`frizz: ${slug} is owned by a DIFFERENT, LIVE session ${id8(owner)} (last seen ${seenAgo(owner)}).`);
-        console.error(`  Another session is on this thread — coordinate first. To take it anyway: frizz claim ${slug} --force`);
+        console.error(`ntwine: ${slug} is owned by a DIFFERENT, LIVE session ${id8(owner)} (last seen ${seenAgo(owner)}).`);
+        console.error(`  Another session is on this thread — coordinate first. To take it anyway: ntwine claim ${slug} --force`);
         process.exit(1);
       }
-      try { setOwner(PROJECT_DIR, slug, sid); } catch (e) { console.error(`frizz claim: ${e instanceof Error ? e.message : e}`); process.exit(1); }
+      try { setOwner(PROJECT_DIR, slug, sid); } catch (e) { console.error(`ntwine claim: ${e instanceof Error ? e.message : e}`); process.exit(1); }
       touchSessionHeartbeat(PROJECT_DIR, sid);
       const from = st === 'unowned' ? 'was unowned'
         : st === 'orphaned' ? `previous owner ${id8(owner)} was DEAD (last seen ${seenAgo(owner)})`
           : `FORCE-taken from LIVE session ${id8(owner)}`;
-      console.log(`frizz: CLAIMED ${slug} for this session (${id8(sid)}) — ${from}.`);
+      console.log(`ntwine: CLAIMED ${slug} for this session (${id8(sid)}) — ${from}.`);
       process.exit(0);
     }
 
     // disown
-    if (st === 'unowned') { console.log(`frizz: ${slug} is not owned — nothing to disown.`); process.exit(0); }
+    if (st === 'unowned') { console.log(`ntwine: ${slug} is not owned — nothing to disown.`); process.exit(0); }
     if (st === 'other-live' && !force) {
-      console.error(`frizz: ${slug} is owned by a DIFFERENT, LIVE session ${id8(owner)}. To release it anyway: frizz disown ${slug} --force`);
+      console.error(`ntwine: ${slug} is owned by a DIFFERENT, LIVE session ${id8(owner)}. To release it anyway: ntwine disown ${slug} --force`);
       process.exit(1);
     }
-    try { setOwner(PROJECT_DIR, slug, null); } catch (e) { console.error(`frizz disown: ${e instanceof Error ? e.message : e}`); process.exit(1); }
-    console.log(`frizz: released ownership of ${slug}${st === 'orphaned' ? ` (cleared dead owner ${id8(owner)})` : ''}.`);
+    try { setOwner(PROJECT_DIR, slug, null); } catch (e) { console.error(`ntwine disown: ${e instanceof Error ? e.message : e}`); process.exit(1); }
+    console.log(`ntwine: released ownership of ${slug}${st === 'orphaned' ? ` (cleared dead owner ${id8(owner)})` : ''}.`);
     process.exit(0);
   }
-  // `frizz reconcile` — RECORD a completed board reconcile by stamping `.frizz/.last-reconcile`
+  // `ntwine reconcile` — RECORD a completed board reconcile by stamping `.ntwine/.last-reconcile`
   // to now. The reconcile nudge (Stop-hook rest path + per-turn backstop) fires when a thread
   // moved since this stamp (dirty-gate) or a long backstop elapses; a reconcile sub-agent (or a
   // human) runs this AS ITS LAST STEP, AFTER re-grounding + editing every non-terminal thread —
   // stamping last is REQUIRED, or its own edits leave the board dirty. Pure timestamp write.
   if (sub === 'reconcile') {
     const f = writeLastReconcile(PROJECT_DIR);
-    console.log('frizz: board reconcile recorded — staleness clock reset.');
+    console.log('ntwine: board reconcile recorded — staleness clock reset.');
     console.log(`  stamped: ${f}`);
     process.exit(0);
   }
   if (sub === 'reset' || sub === 'default') {
     const sid = currentSessionId();
     if (sid) clearSessionOverride(PROJECT_DIR, sid);
-    console.log(`frizz: session override cleared for ${sid ?? '(no session id)'} — back to the default (DORMANT; run \`frizz on\` to activate this session).`);
+    console.log(`ntwine: session override cleared for ${sid ?? '(no session id)'} — back to the default (DORMANT; run \`ntwine on\` to activate this session).`);
     process.exit(0);
   }
   if (sub === 'status') {
     const sid = currentSessionId();
     const ov = sessionOverride(PROJECT_DIR, sid);
-    const active = frizzActive(PROJECT_DIR, sid);
-    console.log(`frizz: ${active ? 'ACTIVE' : 'INACTIVE'} this session (${sid ?? 'no session id'})`);
-    console.log(`  override: ${ov ?? 'none (default — DORMANT; run `frizz on` to activate)'}`);
+    const active = ntwineActive(PROJECT_DIR, sid);
+    console.log(`ntwine: ${active ? 'ACTIVE' : 'INACTIVE'} this session (${sid ?? 'no session id'})`);
+    console.log(`  override: ${ov ?? 'none (default — DORMANT; run `ntwine on` to activate)'}`);
     process.exit(0);
   }
-  // `frizz decisions` — the rich inline-reading view of every HUMAN-blocked thread's FULL
+  // `ntwine decisions` — the rich inline-reading view of every HUMAN-blocked thread's FULL
   // write-up (collectDecisions — `blocked` with no `blocking_threads`/`revalidate_at`). The same
   // queue the thread updater prints after each edit; surfaced here as a board subcommand.
   if (sub === 'decisions') {
@@ -270,7 +270,7 @@ function nextStep(src) {
   }
 }
 
-// .frizz/config.yml globals — parsed by the shared, type-safe loadConfig (autonomous_mode + state).
+// .ntwine/config.yml globals — parsed by the shared, type-safe loadConfig (autonomous_mode + state).
 const cfg = loadConfig(PROJECT_DIR);
 // Session-ownership context for the board: THIS session's id (from CLAUDE_CODE_SESSION_ID,
 // present in Bash tool calls) + the owner-staleness window. Used to annotate each thread with
@@ -278,17 +278,17 @@ const cfg = loadConfig(PROJECT_DIR);
 const CURRENT_SID = currentSessionId();
 const OWNER_STALE_MIN = ownerStaleMin(cfg);
 
-// No `.frizz/` here → frizz is not active in this project. Print a friendly pointer instead
+// No `.ntwine/` here → ntwine is not active in this project. Print a friendly pointer instead
 // of crashing on a missing directory (the board ships globally and may be run anywhere).
-let frizzEntries;
+let ntwineEntries;
 try {
-  frizzEntries = readdirSync(FRIZZ_DIR, { withFileTypes: true });
+  ntwineEntries = readdirSync(NTWINE_DIR, { withFileTypes: true });
 } catch {
-  console.log(`No .frizz/ in ${PROJECT_DIR} — frizz is not active here. Run the /frizz skill to bootstrap it (creates .frizz/ + a default config.yml).`);
+  console.log(`No .ntwine/ in ${PROJECT_DIR} — ntwine is not active here. Run the /ntwine skill to bootstrap it (creates .ntwine/ + a default config.yml).`);
   process.exit(0);
 }
 
-// AUTOMATIC thread↔agent binding (`.frizz/.agent-bindings.jsonl`, written by the agent-bind
+// AUTOMATIC thread↔agent binding (`.ntwine/.agent-bindings.jsonl`, written by the agent-bind
 // hook at dispatch) — the replacement for the old hand-maintained `agents:` frontmatter.
 // Liveness keys on each thread's NEWEST agent only (a superseded older one is never flagged),
 // suppresses threads with a PR landing via the merge cascade, and uses the rest log to tell a
@@ -297,9 +297,9 @@ const newestBindings = newestBindingByThread(PROJECT_DIR);
 const downstream = downstreamThreads(PROJECT_DIR);
 const restedIds = restedAgentIds(PROJECT_DIR);
 
-const threads = frizzEntries
+const threads = ntwineEntries
   // Only direct regular files are thread documents. `Dirent.isFile()` deliberately excludes
-  // symlinks: a board refresh must never follow `.frizz/foo.md -> /outside/secret` merely to decide
+  // symlinks: a board refresh must never follow `.ntwine/foo.md -> /outside/secret` merely to decide
   // whether `foo` is adoptable or renderable.
   .filter((entry) => entry.isFile() && entry.name.endsWith('.md') && !entry.name.startsWith('_') && !entry.name.startsWith('.')) // `_`-prefixed = non-thread meta (e.g. a stray _board.md); `.`-prefixed = hook-internal scratch (e.g. `.stop-context.md`), never a thread
   .map((entry) => entry.name)
@@ -311,7 +311,7 @@ const threads = frizzEntries
     let fd;
     let src;
     try {
-      fd = openSync(join(FRIZZ_DIR, f), constants.O_RDONLY | constants.O_NOFOLLOW);
+      fd = openSync(join(NTWINE_DIR, f), constants.O_RDONLY | constants.O_NOFOLLOW);
       src = readFileSync(fd, 'utf8');
     } catch {
       return null;
@@ -421,9 +421,9 @@ const threads = frizzEntries
   .filter((thread) => thread !== null);
 
 // THREAD-slug deps reference other threads — validate they resolve. A dangling slug (no
-// matching `.frizz/<slug>.md`) is an error, surfaced like any frontmatter error so the
+// matching `.ntwine/<slug>.md`) is an error, surfaced like any frontmatter error so the
 // orchestrator notices the stale dependency. EXTERNAL deps (`pr:`/`ci:`/`external:`…) are
-// NOT checked — there is nothing in `.frizz/` to resolve them to. Everything is COMPUTED from
+// NOT checked — there is nothing in `.ntwine/` to resolve them to. Everything is COMPUTED from
 // the scanned set; there is no external registry to consult.
 const slugs = new Set(threads.map((t) => t.id));
 const statusOf = new Map(threads.map((t) => [t.id, t.status]));
@@ -481,7 +481,7 @@ function renderThread(t, out) {
   }
   // SESSION OWNERSHIP — annotate ONLY the actionable coordination cases (owned by another live
   // session → don't touch; orphaned → claimable). `mine`/`unowned` stay unmarked to keep the
-  // board lean (`frizz owners` gives the full per-thread view). Derived from the owner's
+  // board lean (`ntwine owners` gives the full per-thread view). Derived from the owner's
   // heartbeat freshness, never a stored flag.
   if (t.owner) {
     const ownerLive = sessionLive(PROJECT_DIR, t.owner, OWNER_STALE_MIN);
@@ -490,9 +490,9 @@ function renderThread(t, out) {
     if (st === 'other-live') {
       const hb = readSessionHeartbeat(PROJECT_DIR, t.owner);
       const ago = hb == null ? 'unknown' : `${Math.round((Date.now() - hb) / 60_000)}m ago`;
-      out.push(`    👤 owned by another LIVE session ${id8} (last seen ${ago}) — don't touch; \`frizz claim ${t.id} --force\` to take it`);
+      out.push(`    👤 owned by another LIVE session ${id8} (last seen ${ago}) — don't touch; \`ntwine claim ${t.id} --force\` to take it`);
     } else if (st === 'orphaned') {
-      out.push(`    👤 orphaned — owner session ${id8} is dead; \`frizz claim ${t.id}\` to take it`);
+      out.push(`    👤 orphaned — owner session ${id8} is dead; \`ntwine claim ${t.id}\` to take it`);
     }
   }
   // REVALIDATE timer status — `⏰ revalidate due` once the timer fired (re-poll the external
@@ -521,7 +521,7 @@ function renderThread(t, out) {
 // a transient blocker encoded as PROSE (not `depends_on`) and silently DROPPED turn
 // after turn. The canonical drop shape post-`planned`-removal: an `enqueued` thread
 // whose `depends_on` are ALL terminal — it SHOULD have auto-fired and didn't. The
-// `dropRisk` flag below is the SAME signal the per-turn frizz-reminder hook surfaces by
+// `dropRisk` flag below is the SAME signal the per-turn ntwine-reminder hook surfaces by
 // name. Self-contained: every signal is read off the thread's own frontmatter; no
 // external state. Keep these PRECISE — never false-flag a legitimately-waiting `todo`.
 for (const t of threads) {
@@ -591,12 +591,12 @@ const errorItems = threads
 if (process.argv.includes('--validate') || process.argv.includes('--check')) {
   // Warnings print but DO NOT affect the exit code — they're conservative drop-risk
   // heuristics, not schema errors. Only real frontmatter errors fail the hook/CI.
-  if (allWarnings.length) console.error(`frizz drop-risk WARNINGS (advisory, non-fatal):\n${allWarnings.join('\n')}`);
+  if (allWarnings.length) console.error(`ntwine drop-risk WARNINGS (advisory, non-fatal):\n${allWarnings.join('\n')}`);
   if (allErrors.length) {
-    console.error(`frizz frontmatter validation FAILED:\n${allErrors.join('\n')}`);
+    console.error(`ntwine frontmatter validation FAILED:\n${allErrors.join('\n')}`);
     process.exit(1);
   }
-  console.log(`frizz frontmatter OK${allWarnings.length ? ` (${allWarnings.length} drop-risk warning${allWarnings.length === 1 ? '' : 's'} above)` : ''}`);
+  console.log(`ntwine frontmatter OK${allWarnings.length ? ` (${allWarnings.length} drop-risk warning${allWarnings.length === 1 ? '' : 's'} above)` : ''}`);
   process.exit(0);
 }
 
@@ -630,7 +630,7 @@ if (qi !== -1) {
 
 // Default: the board. `--status <s>` narrows to one status. `--all` shows everything.
 // A legacy alias (`todo`/`plan`/`needs-decision`) is accepted and normalized to its
-// canonical target, so `frizz --status todo` shows `planned` threads.
+// canonical target, so `ntwine --status todo` shows `planned` threads.
 const si = process.argv.indexOf('--status');
 const onlyRaw = si !== -1 ? process.argv[si + 1] : null;
 if (onlyRaw && !isValidStatus(onlyRaw)) {
@@ -654,7 +654,7 @@ const showStatuses = only
     : STATUS.filter((s) => !HIDDEN_BY_DEFAULT.has(s));
 
 const out = [];
-out.push(`frizz board — autonomous_mode: ${cfg.autonomousMode ? 'on' : 'off'}${only ? ` — status:${only}` : showAll ? ' — all' : ' — live'}`);
+out.push(`ntwine board — autonomous_mode: ${cfg.autonomousMode ? 'on' : 'off'}${only ? ` — status:${only}` : showAll ? ' — all' : ' — live'}`);
 if (allErrors.length) out.push(`\n⚠ VALIDATION ERRORS:\n${allErrors.join('\n')}`);
 if (allWarnings.length) out.push(`\n⚠ DROP-RISK WARNINGS (advisory):\n${allWarnings.join('\n')}`);
 

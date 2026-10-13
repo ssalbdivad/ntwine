@@ -16,7 +16,7 @@ import type {
   InteractionRecord,
   InteractionValues,
   ThreadView,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import {
@@ -63,7 +63,7 @@ function errorText(error: unknown): string {
 
 function newResponseId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID()
-  return `frizz-response-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `ntwine-response-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export function InteractionStack({
@@ -205,7 +205,7 @@ function InteractionQuestionCard({
       void qc.invalidateQueries({ queryKey: interactionRecordKey(record.owner.threadSlug, record.owner.sessionId, record.id) })
     },
     onError: (cause) => {
-      // Fail CLOSED on an ambiguous write, exactly as the typed card does: a response frizz cannot
+      // Fail CLOSED on an ambiguous write, exactly as the typed card does: a response ntwine cannot
       // prove landed must not look re-sendable.
       failClosedAmbiguousInteraction(qc, record)
       turn.rollback()
@@ -471,10 +471,10 @@ function InteractionApprovalCard({
 
   const mutation = useMutation<MutationResult, unknown, MutationAction>({
     mutationFn: async ({ decision, values, responseId }) => {
-      // A Frizz-owned request has no provider delivery to acknowledge; its advertised cancel is a
+      // A Ntwine-owned request has no provider delivery to acknowledge; its advertised cancel is a
       // journal cancellation. Provider-backed cancel choices travel through resolve so the provider
       // receives the exact advertised decision.
-      if (decision.semantic === "cancel" && record.provider.kind === "frizz") {
+      if (decision.semantic === "cancel" && record.provider.kind === "ntwine") {
         const result = await api.interactionCancel({
           slug: record.owner.threadSlug,
           sessionId: record.owner.sessionId,
@@ -676,7 +676,7 @@ function InteractionApprovalCard({
               <KeyRound aria-hidden="true" size={14} className="mt-0.5 shrink-0" />
               <div>
                 <div className="font-medium">Secret input is unavailable in this page.</div>
-                <div className="mt-1 text-attention-soft-70">Frizz will not persist or send secret values through the current RPC.</div>
+                <div className="mt-1 text-attention-soft-70">Ntwine will not persist or send secret values through the current RPC.</div>
               </div>
             </div>
             <div className="mt-2 font-medium">Use the provider's trusted secret-input flow. The thread terminal cannot answer this typed request.</div>
@@ -686,7 +686,7 @@ function InteractionApprovalCard({
         {unavailableCount > 0 && (
           <div className="mt-3 flex items-start gap-2 rounded-md border border-attention-fill/25 bg-attention-fill/[0.05] px-3 py-2 text-[11px] leading-snug text-attention-soft-75">
             <AlertTriangle aria-hidden="true" size={13} className="mt-0.5 shrink-0" />
-            <span>{unavailableCount === 1 ? "One advertised choice" : `${unavailableCount} advertised choices`} cannot be safely labeled or delivered in Frizz and is not shown.</span>
+            <span>{unavailableCount === 1 ? "One advertised choice" : `${unavailableCount} advertised choices`} cannot be safely labeled or delivered in Ntwine and is not shown.</span>
           </div>
         )}
 

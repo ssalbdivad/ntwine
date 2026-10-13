@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { basename, dirname, resolve } from "node:path"
 
-// READ-SIDE recovery for a malformed frizz thread file. The write-side hook already blocks a compliant
+// READ-SIDE recovery for a malformed ntwine thread file. The write-side hook already blocks a compliant
 // worker from writing a thread .md with no YAML frontmatter; this heals the stragglers it can't catch
 // (pre-hook files, shell-written files that bypass the file-tool hooks, hand edits). A file with no
 // frontmatter is INVISIBLE to the queue/status system (the board can't read its title/status) — this
@@ -23,7 +23,7 @@ export class RepairError extends Error {
 export const REPAIR_STATUS_TEXT =
   "Frontmatter was missing and auto-repaired — verify the status (the body may declare the real one)."
 
-// Quote a frontmatter scalar the way the frizz thread files / thread-update.mjs do: a bare safe scalar
+// Quote a frontmatter scalar the way the ntwine thread files / thread-update.mjs do: a bare safe scalar
 // (slug, date, single word) is left unquoted; anything with spaces/punctuation is double-quoted with
 // inner quotes + backslashes escaped. Keeps the healed file byte-consistent with the rest of the board.
 function quoteValue(v: string): string {
@@ -42,15 +42,15 @@ export function deriveTitle(body: string, slug: string): string {
 // Repair the named thread file IN PLACE. `file` is expected to be a bare `<slug>.md` basename (the
 // value carried on a BoardErrorItem), but is validated defensively regardless of caller. Throws a
 // RepairError (surfaced to the RPC caller as the error message) on any refusal.
-//   - path traversal / wrong location: the resolved path MUST sit directly under frizzDir and end in .md
+//   - path traversal / wrong location: the resolved path MUST sit directly under ntwineDir and end in .md
 //   - missing file: nothing to repair
 //   - already has a `---` block: repair is ONLY for the missing-frontmatter case, never an edit
-export function repairThreadFile(frizzDir: string, file: string): { slug: string } {
-  const root = resolve(frizzDir)
+export function repairThreadFile(ntwineDir: string, file: string): { slug: string } {
+  const root = resolve(ntwineDir)
   const abs = resolve(root, file)
   // Prefix/location guard: reject `../escape.md`, `sub/nested.md`, and absolute paths alike — the file
-  // must be a direct child of .frizz/. Comparing the resolved dirname to the resolved root is the check.
-  if (dirname(abs) !== root) throw new RepairError(`refusing to repair "${file}": not directly under .frizz/`)
+  // must be a direct child of .ntwine/. Comparing the resolved dirname to the resolved root is the check.
+  if (dirname(abs) !== root) throw new RepairError(`refusing to repair "${file}": not directly under .ntwine/`)
   if (!abs.endsWith(".md")) throw new RepairError(`refusing to repair "${file}": not a .md thread file`)
   if (!existsSync(abs)) throw new RepairError(`no thread file to repair: ${basename(abs)}`)
 

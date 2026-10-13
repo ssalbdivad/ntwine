@@ -4,7 +4,7 @@ import test from "node:test"
 
 const chat = readFileSync(new URL("./ChatView.tsx", import.meta.url), "utf8")
 
-// A completion registered with `mcp__frizz__done` is in no message, so the transcript's fence parser
+// A completion registered with `mcp__ntwine__done` is in no message, so the transcript's fence parser
 // never draws it — and until 2026-08-27 nothing else did either: the thread rested on a prose handoff
 // with no card at its end, on the thread page, on /full and on the queue card alike. These pin the
 // wiring: the card is the LAST rung of the runtime-status ladder, above the residual rung.

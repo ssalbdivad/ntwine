@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { discoverTranscriptDir, discoverTranscriptId, sentinelFor } from "./discover.ts"
 
 function tmp() {
-  return mkdtempSync(join(tmpdir(), "frizz-discover-"))
+  return mkdtempSync(join(tmpdir(), "ntwine-discover-"))
 }
 
 // Write a transcript whose first user message embeds the scratch-directory sentinel for `ownerId` (the
@@ -15,7 +15,7 @@ function transcript(dir: string, fileId: string, ownerId: string, mtimeSec?: num
   const first = JSON.stringify({
     type: "user",
     timestamp: "2026-07-01T00:00:00.000Z",
-    message: { role: "user", content: `Your scratch directory is \`.frizz/threads/${ownerId}/\` — yours to use.` },
+    message: { role: "user", content: `Your scratch directory is \`.ntwine/threads/${ownerId}/\` — yours to use.` },
   })
   const path = join(dir, `${fileId}.jsonl`)
   writeFileSync(path, first + "\n")
@@ -37,7 +37,7 @@ test("discoverTranscriptId: a PRE-2026-08-06 transcript still matches the shorte
   writeFileSync(path, JSON.stringify({
     type: "user",
     timestamp: "2026-07-01T00:00:00.000Z",
-    message: { role: "user", content: "Your scratchpad is `.frizz/threads/pinned-id/scratch.md` — keep state there." },
+    message: { role: "user", content: "Your scratchpad is `.ntwine/threads/pinned-id/scratch.md` — keep state there." },
   }) + "\n")
   assert.equal(discoverTranscriptId(dir, "pinned-id"), "forked-id")
 })
@@ -83,13 +83,13 @@ test("discoverTranscriptId: a stale (aged-out) candidate is ignored", () => {
 })
 
 test("discoverTranscriptId: a missing/unreadable dir degrades to undefined (never throws)", () => {
-  assert.equal(discoverTranscriptId(join(tmpdir(), "frizz-nope-does-not-exist-xyz"), "pinned-id"), undefined)
+  assert.equal(discoverTranscriptId(join(tmpdir(), "ntwine-nope-does-not-exist-xyz"), "pinned-id"), undefined)
 })
 
 test("discoverTranscriptId: non-.jsonl and dotfiles are skipped", () => {
   const dir = tmp()
-  writeFileSync(join(dir, "pinned-id.txt"), `.frizz/threads/pinned-id/scratch.md`)
-  writeFileSync(join(dir, ".hidden.jsonl"), `.frizz/threads/pinned-id/scratch.md`)
+  writeFileSync(join(dir, "pinned-id.txt"), `.ntwine/threads/pinned-id/scratch.md`)
+  writeFileSync(join(dir, ".hidden.jsonl"), `.ntwine/threads/pinned-id/scratch.md`)
   assert.equal(discoverTranscriptId(dir, "pinned-id"), undefined)
 })
 
@@ -97,9 +97,9 @@ test("discoverTranscriptId: non-.jsonl and dotfiles are skipped", () => {
 //
 // Claude Code shards its transcript store by the cwd a session was born in, and a resumed session keeps
 // writing to its BIRTH bucket forever (measured against the real CLI, 2026-08-11). Rename the checkout
-// and every pre-existing thread's file is not missing — it is one directory over. Before this, frizz
+// and every pre-existing thread's file is not missing — it is one directory over. Before this, ntwine
 // read that as "no transcript 60s after dispatch — likely a boot failure" and stranded 417 transcripts
-// behind a yellow [!] whose Retry could only ever start more work frizz could not see.
+// behind a yellow [!] whose Retry could only ever start more work ntwine could not see.
 
 function bucket(root: string, name: string) {
   mkdirSync(join(root, name), { recursive: true })
@@ -114,7 +114,7 @@ function jsonl(dir: string, sessionId: string, body = '{"type":"user"}\n') {
 
 test("discoverTranscriptDir: finds a transcript stranded in the pre-rename bucket", () => {
   const root = tmp()
-  const current = bucket(root, "-Users-me-projects-frizz")
+  const current = bucket(root, "-Users-me-projects-ntwine")
   const old = bucket(root, "-Users-me-projects-fray")
   jsonl(old, "stranded-id")
   assert.equal(discoverTranscriptDir(current, "stranded-id", new Set()), old)
@@ -129,7 +129,7 @@ test("discoverTranscriptDir: NO freshness filter — a thread idle for years is 
 
 test("discoverTranscriptDir: skips the caller's own dir, so a 0-byte local file can't shadow the real one", () => {
   const root = tmp()
-  const current = bucket(root, "-Users-me-projects-frizz")
+  const current = bucket(root, "-Users-me-projects-ntwine")
   const old = bucket(root, "-Users-me-projects-fray")
   jsonl(current, "sid", "") // the empty husk a worker leaves when it dies before writing a record
   jsonl(old, "sid")
@@ -150,14 +150,14 @@ test("discoverTranscriptDir: no match anywhere → undefined (a genuine boot fai
 })
 
 test("discoverTranscriptDir: a missing root degrades to undefined (never throws)", () => {
-  assert.equal(discoverTranscriptDir(join(tmpdir(), "frizz-nope-xyz", "-a-bucket"), "sid", new Set()), undefined)
+  assert.equal(discoverTranscriptDir(join(tmpdir(), "ntwine-nope-xyz", "-a-bucket"), "sid", new Set()), undefined)
 })
 
 // A rename strands EVERY session of a project at once, so the first hit must answer for the rest without
 // re-sweeping ~300 buckets per row per retry — that sweep is what the tick-latency warning is made of.
 test("discoverTranscriptDir: a hit is memoized, and the memo answers the next session without a sweep", () => {
   const root = tmp()
-  const current = bucket(root, "-Users-me-projects-frizz")
+  const current = bucket(root, "-Users-me-projects-ntwine")
   const old = bucket(root, "-Users-me-projects-fray")
   jsonl(old, "first-id")
   const memo = new Set<string>()

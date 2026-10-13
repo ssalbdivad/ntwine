@@ -1,8 +1,8 @@
-import { deadlineStageAtMs, deadlineStageDue, deadlineStageRank, preciseSpanLabel, spanLabel, type DeadlineSetter, type DeadlineStage, type ThreadDeadlineView } from "@frizz/shared"
+import { deadlineStageAtMs, deadlineStageDue, deadlineStageRank, preciseSpanLabel, spanLabel, type DeadlineSetter, type DeadlineStage, type ThreadDeadlineView } from "@ntwine/shared"
 import type { SessionRow } from "./storage.ts"
 
 // THE THREAD'S TIME LIMIT, as the WORKER meets it (ARCHITECTURE.md § Time limits). The shared half
-// (@frizz/shared deadline.ts) parses what the human typed and places the stages; this half is what the
+// (@ntwine/shared deadline.ts) parses what the human typed and places the stages; this half is what the
 // worker reads — the section of its system prompt, the check-ins, the notice when the human moves the
 // clock — and the one reading of a row's deadline every server reader shares.
 //
@@ -22,7 +22,7 @@ export interface ThreadDeadline {
   stage: DeadlineStage | undefined
 }
 
-/** A row's deadline, or undefined when it has none (or the columns do not parse — a deadline frizz
+/** A row's deadline, or undefined when it has none (or the columns do not parse — a deadline ntwine
  *  cannot read is not one it can keep). */
 export function rowDeadline(row: Pick<SessionRow, "deadline_at" | "deadline_set_at" | "deadline_set_by" | "deadline_stage"> | undefined | null): ThreadDeadline | undefined {
   if (!row?.deadline_at || !row.deadline_set_at) return undefined
@@ -65,7 +65,7 @@ function named(d: Pick<ThreadDeadline, "atMs" | "setAtMs">, nowMs: number): stri
 // ---- THE CHECK-INS ----------------------------------------------------------------------------------
 // One per stage, each asking for a different behaviour. Written for a model that has no clock of its
 // own (wakeTimeHeader), so each says the time left in absolute and relative form. Delivered mid-turn,
-// headed so the worker reads it as Frizz speaking rather than as output of whatever tool it just ran.
+// headed so the worker reads it as Ntwine speaking rather than as output of whatever tool it just ran.
 
 export function deadlineCheckInMessage(stage: DeadlineStage, d: Pick<ThreadDeadline, "atMs" | "setAtMs" | "setBy">, nowMs: number): string {
   const left = preciseSpanLabel(Math.max(0, d.atMs - nowMs))
@@ -119,13 +119,13 @@ export function deadlineNoticeMessage(change: { kind: "set"; deadline: Pick<Thre
   return (
     `⏰ The user ${verb}: your deadline is now ${deadlineClock(d.atMs, nowMs)}, ${left} from now.\n\n` +
     (note ? `${note.split("\n").map((line) => `> ${line}`).join("\n")}\n\n` : "") +
-    "Plan to the best deliverable you can hand over by then, not the complete one eventually. Frizz checks in " +
+    "Plan to the best deliverable you can hand over by then, not the complete one eventually. Ntwine checks in " +
     "at half-time, at 80% and shortly before the deadline."
   )
 }
 
 // ---- THE WORKER PROMPT SECTION --------------------------------------------------------------------
-// Present only when a deadline is set, injected beside the FRIZZ.md block wherever the system prompt is
+// Present only when a deadline is set, injected beside the NTWINE.md block wherever the system prompt is
 // composed — at dispatch and at every cold resume — so a worker brought back from disk still knows. It
 // states the deadline as of composition; a later change reaches a live worker as a notice
 // (deadlineNoticeMessage), and every check-in restates the current one.
@@ -137,8 +137,8 @@ export function deadlineSection(row: Parameters<typeof rowDeadline>[0], nowMs = 
   const left = d.atMs - nowMs
   const status = left > 0 ? `${spanLabel(left)} from now` : `already passed, ${spanLabel(-left)} ago`
   const extend = d.setBy === "human"
-    ? "The user set it, and only the user can move or remove it: `frizzctl deadline read` reads it, and `extend` refuses it."
-    : "You set it yourself with `frizzctl deadline`, which can also move (`extend`) or `clear` it."
+    ? "The user set it, and only the user can move or remove it: `ntwinectl deadline read` reads it, and `extend` refuses it."
+    : "You set it yourself with `ntwinectl deadline`, which can also move (`extend`) or `clear` it."
   return (
     "## Your time limit\n\n" +
     `This thread has a DEADLINE: ${deadlineClock(d.atMs, nowMs)} (a ${budgetLabel(d.atMs - d.setAtMs)} budget; ${status}). ${extend}\n\n` +
@@ -146,10 +146,10 @@ export function deadlineSection(row: Parameters<typeof rowDeadline>[0], nowMs = 
     "the deadline: it is enforced by what you are told and by the board showing this thread as over time.\n\n" +
     "- **Plan to an anytime deliverable.** Commit at each coherent checkpoint and keep your write-up true at every stage, " +
     "so that whenever the clock runs out there is something real to hand over — never a big reveal at the end.\n" +
-    `- **Frizz checks in, mid-turn, at fixed points:** half-time (${stageAt("half")}) — if you are still exploring, commit to an ` +
+    `- **Ntwine checks in, mid-turn, at fixed points:** half-time (${stageAt("half")}) — if you are still exploring, commit to an ` +
     `approach; 80% (${stageAt("converge")}) — start nothing new, finish and commit what is open; just before the deadline ` +
     `(${stageAt("final")}) — hand off at your next stop; and at the deadline itself — your next stop IS the handoff. Every wake ` +
-    "Frizz sends you also carries the time left on its clock line.\n" +
+    "Ntwine sends you also carries the time left on its clock line.\n" +
     "- **Waiting counts.** The clock is wall time, parks and pauses included. A wait on CI or a reviewer that will outlive the " +
     "deadline is handed to the user, not waited out.\n" +
     "- **Size your sub-agents' time explicitly.** Put a line `Time limit: 20m` on a line of its own in an Agent or Workflow " +

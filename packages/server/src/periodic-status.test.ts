@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 import { createPeriodicStatus, operatorMessages, recentConversation } from "./periodic-status.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
 
@@ -15,9 +15,9 @@ const user = (text: string, extra: Partial<TranscriptMessage> = {}): TranscriptM
 const agent = (text: string): TranscriptMessage => ({ role: "assistant", text, tools: [], parts: [] }) as TranscriptMessage
 
 function harness(titleLocked = 0) {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-status-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-status-")), "ui.db"), "p")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: "2026-09-24T00:00:00Z",
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: "2026-09-24T00:00:00Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title_locked: titleLocked, title: "Opening ask", state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -49,7 +49,7 @@ test("only the operator's own messages count — wakes, child reports, boundarie
   const counted = operatorMessages([
     user("real"),
     user("scheduler steer", { wake: true }),
-    user("child report", { peerFrom: "frizz:high" }),
+    user("child report", { peerFrom: "ntwine:high" }),
     user("", { boundary: "compaction" }),
     user("not yet delivered", { queued: true }),
     user("into a child", { agentInstruction: true }),

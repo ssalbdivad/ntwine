@@ -1,17 +1,17 @@
 // @ts-check
 /**
- * frizz — per-thread SESSION OWNERSHIP. A thread carries an optional `owner_session: <id>`
- * frontmatter field naming the Claude Code session RESPONSIBLE for it, so multiple frizz
+ * ntwine — per-thread SESSION OWNERSHIP. A thread carries an optional `owner_session: <id>`
+ * frontmatter field naming the Claude Code session RESPONSIBLE for it, so multiple ntwine
  * sessions can share one repo, each driving its own set of threads without stepping on the
- * others. This module is the read/write + state-derivation layer; the `frizz claim/disown/
+ * others. This module is the read/write + state-derivation layer; the `ntwine claim/disown/
  * owners` subcommands (index.mjs) and the board annotation sit on top.
  *
- * TWO HARD DESIGN CHOICES (both deliberate — see the frizz thread / report):
+ * TWO HARD DESIGN CHOICES (both deliberate — see the ntwine thread / report):
  *
  *   1. LIVENESS IS DERIVED, ownership is only WRITTEN by an explicit gesture. Whether an owner
  *      is alive comes from its heartbeat freshness (config.mjs `sessionLive`), NOT a stored
- *      flag. The `owner_session` STRING is physically written ONLY by `frizz claim`/`disown`
- *      (a human/orchestrator action) and cleared by `frizz owners --gc` — NEVER by an automatic
+ *      flag. The `owner_session` STRING is physically written ONLY by `ntwine claim`/`disown`
+ *      (a human/orchestrator action) and cleared by `ntwine owners --gc` — NEVER by an automatic
  *      per-turn hook. That is the safety guarantee: no hook ever rewrites a thread `.md` body,
  *      so there is no clobber race against a sub-agent editing the same thread. A dead owner's
  *      lingering `owner_session` string is INERT — derivation reads it as orphaned/claimable,
@@ -47,7 +47,7 @@ export function isValidSessionId(sid) {
  */
 export function readOwner(projectDir, slug) {
   try {
-    const src = readFileSync(join(projectDir, '.frizz', `${slug}.md`), 'utf8');
+    const src = readFileSync(join(projectDir, '.ntwine', `${slug}.md`), 'utf8');
     const fmEnd = src.indexOf('\n---', 4); // frontmatter is `---\n … \n---`
     const fm = fmEnd === -1 ? src : src.slice(0, fmEnd);
     const m = fm.match(/^owner_session:[ \t]*(.*)$/m);
@@ -69,7 +69,7 @@ export function readOwner(projectDir, slug) {
  */
 export function setOwner(projectDir, slug, sid) {
   if (sid !== null && !isValidSessionId(sid)) throw new Error(`invalid session id: ${sid}`);
-  const path = join(projectDir, '.frizz', `${slug}.md`);
+  const path = join(projectDir, '.ntwine', `${slug}.md`);
   const original = readFileSync(path, 'utf8');
   const lines = original.split('\n');
   if (lines[0] !== '---') throw new Error(`thread ${slug}.md has no YAML frontmatter block`);

@@ -1,9 +1,9 @@
 // COMMAND WATCHES — a worker's wait on an outside condition, checked by the SERVER (2026-10-11).
 //
-// `frizzctl watch-command add --command "npm view frizz@0.13.12 version" --every 5m --for 6h` stores a
+// `ntwinectl watch-command add --command "npm view ntwine@0.13.12 version" --every 5m --for 6h` stores a
 // row (storage.ts `command_watch`); scheduler SOURCE 16 re-runs the command on that cadence until it
 // exits 0, then settles the row and wakes the thread once with the command and the tail of its output.
-// This module is everything about RUNNING one: the process, the gates that decide whether Frizz may run
+// This module is everything about RUNNING one: the process, the gates that decide whether Ntwine may run
 // it at all, and the server-wide bound on how many run at once.
 //
 // WHY THE SERVER RUNS IT. The alternative a worker had was a polling loop in a background shell, and a
@@ -15,24 +15,24 @@
 //
 // WHY IT IS GATED, and why the gate is the whole security story. A command the worker runs itself goes
 // through Claude Code's permission system and, where it is on, its sandbox. A command watch does not:
-// the SERVER runs it, unsandboxed, with no prompt. And `frizzctl` is pre-approved (`Bash(frizzctl:*)`),
+// the SERVER runs it, unsandboxed, with no prompt. And `ntwinectl` is pre-approved (`Bash(ntwinectl:*)`),
 // so even a default-permission thread can register one without a prompt — the registration is a way to
-// run an arbitrary command outside every check the thread is under. So Frizz runs one only for a thread
+// run an arbitrary command outside every check the thread is under. So Ntwine runs one only for a thread
 // that is under no check anyway: a Claude thread in `bypassPermissions` mode with Claude Code's sandbox
 // off. Everything else is REFUSED, and every refusal names the background shell the worker should use
-// instead. It fails CLOSED: a settings file Frizz cannot read or parse refuses, exactly as an enabled
+// instead. It fails CLOSED: a settings file Ntwine cannot read or parse refuses, exactly as an enabled
 // sandbox does. The same gate is asked again before EVERY run, so a thread whose mode changes after it
 // registered stops getting its commands run (the scheduler cancels the watch and tells it why).
 //
 // CODEX AND ACP ARE REFUSED, not gated. A codex thread's "permission" is a sandbox level on a shared
-// app-server, and Frizz has no reading of whether a given command would have run inside it; an ACP agent
+// app-server, and Ntwine has no reading of whether a given command would have run inside it; an ACP agent
 // has no such reading at all. Neither can hibernate either (hibernation is Claude-only), so the memory
 // the watch exists to free is not there to free. Refusing is the sound answer until one of those changes.
 import { execFileSync, spawn } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir, userInfo } from "node:os"
 import { join } from "node:path"
-import { COMMAND_WATCH_OUTPUT_MAX_BYTES, COMMAND_WATCH_RUN_TIMEOUT_MS } from "@frizz/shared"
+import { COMMAND_WATCH_OUTPUT_MAX_BYTES, COMMAND_WATCH_RUN_TIMEOUT_MS } from "@ntwine/shared"
 import type { SessionRow } from "./storage.ts"
 
 /** How a check ended. `exit` is the only outcome with an exit status; exit 0 is the only pass. */
@@ -196,7 +196,7 @@ export const COMMAND_WATCH_SERVER_CONCURRENCY = 4
 const serverRunLimiter = createRunLimiter(COMMAND_WATCH_SERVER_CONCURRENCY)
 
 /** The registration's first check gets a shorter leash than a scheduled one: it runs INSIDE the
- *  worker's `frizzctl` call, whose RPC gives up at 30s. A first check that has not answered by then is
+ *  worker's `ntwinectl` call, whose RPC gives up at 30s. A first check that has not answered by then is
  *  not refused — the watch is armed and the scheduler runs it with the full timeout. */
 export const COMMAND_WATCH_PROBE_TIMEOUT_MS = 15_000
 /** And registrations do not queue behind each other: two first checks at once, and a third registration
@@ -249,7 +249,7 @@ function sandboxInSettings(raw: string, file: string): string | undefined {
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return `\`${file}\` is not valid JSON, so Frizz cannot tell whether it turns Claude Code's sandbox on for this thread`
+    return `\`${file}\` is not valid JSON, so Ntwine cannot tell whether it turns Claude Code's sandbox on for this thread`
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined
   const sandbox = (parsed as Record<string, unknown>).sandbox
@@ -264,7 +264,7 @@ function sandboxInSettings(raw: string, file: string): string | undefined {
 }
 
 /** Every settings file that can turn Claude Code's sandbox on for a thread in `cwd`: managed, local,
- *  project, user — the four scopes a Frizz worker loads (`settingSources: ["user","project","local"]`,
+ *  project, user — the four scopes a Ntwine worker loads (`settingSources: ["user","project","local"]`,
  *  plus the managed file Claude Code always reads). */
 export function claudeSettingsFiles(where: ClaudeSettingsLocations): string[] {
   const env = where.env ?? process.env
@@ -283,7 +283,7 @@ export function claudeSettingsFiles(where: ClaudeSettingsLocations): string[] {
  * ANY SCOPE THAT ENABLES IT REFUSES, even where a higher scope turns it back off. The effective value is
  * Claude Code's to compute, from files that can change under a running session; the cost of reading it
  * wrong in the permissive direction is a command run outside a sandbox the operator asked for, and the
- * cost the other way is a worker using a background shell. A file Frizz cannot read or parse refuses too
+ * cost the other way is a worker using a background shell. A file Ntwine cannot read or parse refuses too
  * — it might be the one that says `enabled: true`. The macOS managed preferences (an MDM profile) are
  * read the same way after the JSON files, through `plutil` as Claude Code reads them.
  */
@@ -294,7 +294,7 @@ export function claudeSandboxRefusal(where: ClaudeSettingsLocations): string | u
       raw = readFileSync(file, "utf8")
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ENOENT" || (err as NodeJS.ErrnoException)?.code === "ENOTDIR") continue
-      return `Frizz could not read \`${file}\` to check whether Claude Code's sandbox is on for this thread`
+      return `Ntwine could not read \`${file}\` to check whether Claude Code's sandbox is on for this thread`
     }
     const refusal = sandboxInSettings(raw, file)
     if (refusal) return refusal
@@ -307,7 +307,7 @@ export function claudeSandboxRefusal(where: ClaudeSettingsLocations): string | u
     try {
       raw = (where.readPlistJson ?? plistAsJson)(file)
     } catch {
-      return `Frizz could not read \`${file}\` to check whether Claude Code's sandbox is on for this thread`
+      return `Ntwine could not read \`${file}\` to check whether Claude Code's sandbox is on for this thread`
     }
     const refusal = sandboxInSettings(raw, file)
     if (refusal) return refusal
@@ -332,8 +332,8 @@ export interface CommandWatchGateOptions {
 }
 
 /**
- * Why Frizz may NOT run a command watch's command for this thread, or undefined when it may.
- * The text completes "Frizz will not run a command watch for this thread: …", and ends in the fallback.
+ * Why Ntwine may NOT run a command watch's command for this thread, or undefined when it may.
+ * The text completes "Ntwine will not run a command watch for this thread: …", and ends in the fallback.
  */
 export function commandWatchRefusal(
   row: Pick<SessionRow, "backend" | "permission_mode" | "permission_pending">,
@@ -347,13 +347,13 @@ export function commandWatchRefusal(
   if (backend !== "claude") {
     return refuse(
       `command watches are for Claude threads only, and this one runs on ${backend === "codex" ? "Codex" : "an ACP agent"}: ` +
-        "Frizz cannot tell whether your thread's own sandbox would have let the command run",
+        "Ntwine cannot tell whether your thread's own sandbox would have let the command run",
     )
   }
   if (row.permission_mode !== "bypassPermissions") {
     return refuse(
       `this thread runs in \`${row.permission_mode ?? "an unrecorded"}\` permission mode, and the server runs a ` +
-        "watched command with no permission check at all — so Frizz runs one only for a thread in " +
+        "watched command with no permission check at all — so Ntwine runs one only for a thread in " +
         "`bypassPermissions` mode",
     )
   }
@@ -369,7 +369,7 @@ export function commandWatchRefusal(
 
 /** What the scheduler and the router need from this module, bound to one project. */
 export interface CommandWatchService {
-  /** Why Frizz may not run commands for this thread right now (see commandWatchRefusal), or undefined. */
+  /** Why Ntwine may not run commands for this thread right now (see commandWatchRefusal), or undefined. */
   refusal(row: SessionRow): string | undefined
   /** One scheduled check, through the server-wide bound. */
   run(slug: string, command: string, opts?: { signal?: AbortSignal }): Promise<CommandRunResult>
@@ -382,7 +382,7 @@ export interface CommandWatchServiceOptions {
   /** The project root: every check runs here, and its `.claude/` is read for the sandbox gate. */
   cwd: string
   /** The environment one check runs with — the server's own (scrubbed of what the server's toolchain
-   *  injects), plus the thread's identity so a command can call `frizzctl` itself. */
+   *  injects), plus the thread's identity so a command can call `ntwinectl` itself. */
   env: (slug: string) => Record<string, string | undefined>
   runner?: CommandRunner
   gate?: Omit<CommandWatchGateOptions, "cwd">
@@ -410,16 +410,16 @@ export function createCommandWatchService(opts: CommandWatchServiceOptions): Com
   }
 }
 
-/** The environment a check runs with, given the server's own and the thread's Frizz variables. Git and
+/** The environment a check runs with, given the server's own and the thread's Ntwine variables. Git and
  *  `gh` are told never to prompt: there is nobody at a terminal, and stdin is closed.
  *
- *  FRIZZ_THREAD is dropped rather than inherited: it is the orphan reaper's ownership tag
+ *  NTWINE_THREAD is dropped rather than inherited: it is the orphan reaper's ownership tag
  *  (orphan-reaper.ts), and a check carrying a thread's tag with no live session root behind it would be
- *  reaped as an orphan. The thread's identity rides FRIZZ_THREAD_SLUG, which `frizzctl` reads first. */
+ *  reaped as an orphan. The thread's identity rides NTWINE_THREAD_SLUG, which `ntwinectl` reads first. */
 export function commandWatchEnvironment(
   base: Record<string, string | undefined>,
-  frizz: Record<string, string>,
+  ntwine: Record<string, string>,
 ): Record<string, string | undefined> {
-  const { FRIZZ_THREAD: _tag, ...rest } = base
-  return { ...rest, ...frizz, GIT_TERMINAL_PROMPT: "0", GH_PROMPT_DISABLED: "1" }
+  const { NTWINE_THREAD: _tag, ...rest } = base
+  return { ...rest, ...ntwine, GIT_TERMINAL_PROMPT: "0", GH_PROMPT_DISABLED: "1" }
 }

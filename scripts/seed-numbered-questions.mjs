@@ -9,7 +9,7 @@
 //                 to work, answered afterwards. composeAnswerWire renumbers those rows from 1, so the
 //                 answers card printed "1" beside a question reading "9. …".
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: node scripts/seed-numbered-questions.mjs --home=/abs/temp-home
 import { execFileSync } from "node:child_process"
@@ -20,7 +20,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-numbered-questions.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -149,17 +149,17 @@ const GROUPED_ASK = [
   "```question",
   "**Package name — brainstorm.** All of these are available on npm. Grouped by the metaphor:",
   "",
-  "Thread / loom family (frizz = a frizzed thread):",
-  "- A. **frizzloom** — keeps the `frizz` lineage + a loom weaves many threads into one board (recommended: brand continuity)",
+  "Thread / loom family (ntwine = a ntwineed thread):",
+  "- A. **ntwineloom** — keeps the `ntwine` lineage + a loom weaves many threads into one board (recommended: brand continuity)",
   "- B. **warp** — the taut lengthwise loom threads. ⚠️ collides with **Warp.dev**.",
-  "- C. **selvage** — the fabric edge that literally *doesn't frizz*.",
+  "- C. **selvage** — the fabric edge that literally *doesn't ntwine*.",
   "",
-  "Melee family (frizz = a scrap/brawl of agents):",
-  "- D. **melee** — a direct synonym for \"frizz\": the scrum of agents.",
-  "- E. **fracas** — a noisy, disorderly frizz.",
-  "- F. **tussle** — a scrappy, informal frizz.",
+  "Melee family (ntwine = a scrap/brawl of agents):",
+  "- D. **melee** — a direct synonym for \"ntwine\": the scrum of agents.",
+  "- E. **fracas** — a noisy, disorderly ntwine.",
+  "- F. **tussle** — a scrappy, informal ntwine.",
   "",
-  "Also still open from before: `frizz`, `frizzhq`, `frizzboard`.",
+  "Also still open from before: `ntwine`, `ntwinehq`, `ntwineboard`.",
   "```",
 ].join("\n")
 
@@ -215,7 +215,7 @@ const THREADS = [
 
 for (const t of THREADS) {
   const sessionId = `${t.slug}-0000-4000-8000-000000000000`.slice(0, 36)
-  const threadName = `frizz-${t.slug}`
+  const threadName = `ntwine-${t.slug}`
   const records = t.records.map((r) => ({ ...r, session_id: sessionId }))
   writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stringify(r)).join("\n") + "\n")
   execFileSync("sqlite3", [

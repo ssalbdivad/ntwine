@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { Marked } from "marked"
-import type { ProjectQueue, ThreadView } from "@frizz/shared"
+import type { ProjectQueue, ThreadView } from "@ntwine/shared"
 import { MARKDOWN_OPTIONS } from "./markdown.ts"
 import { setGithubRepo } from "./githubAutolink.ts"
 import { mentionHref, mentionIndexVersion, setCrossProjectMentions, setMentionIndex, subscribeMentionIndex, withMentionProject } from "./mentionAutolink.ts"
@@ -27,7 +27,7 @@ const BOARD = [
   thread("external", "External", { foreign: true }),
 ]
 
-before(() => setMentionIndex("frizz", BOARD))
+before(() => setMentionIndex("ntwine", BOARD))
 after(() => setMentionIndex(null, null))
 
 test("a mention whose thread resolves becomes an in-app link to it; one that names nothing stays text", () => {
@@ -81,7 +81,7 @@ test("mentions link inside lists, emphasis and tables, beside GitHub refs", () =
 
 test("another project's prose resolves nothing against this page's board", () => {
   assert.equal(withMentionProject("other", () => render("ask @shell-budgets")), "ask @shell-budgets")
-  assert.match(withMentionProject("frizz", () => render("ask @shell-budgets")), /href="\/thread\/shell-budgets"/, "its own project's prose still links")
+  assert.match(withMentionProject("ntwine", () => render("ask @shell-budgets")), /href="\/thread\/shell-budgets"/, "its own project's prose still links")
   assert.match(render("ask @shell-budgets"), /href=/, "…and the index is back after the override")
 })
 
@@ -90,7 +90,7 @@ const queue = (projectSlug: string, threads: ThreadView[]) =>
 
 test("showing All projects, another project's thread links to it there, and this project's still wins", () => {
   setCrossProjectMentions([
-    queue("frizz", BOARD.filter((t) => t.state === "open")),
+    queue("ntwine", BOARD.filter((t) => t.state === "open")),
     queue("nub", [thread("focus-mode", "Focus mode"), thread("sb-nub", "Shell budgets")]),
   ])
   try {
@@ -98,7 +98,7 @@ test("showing All projects, another project's thread links to it there, and this
     assert.match(render("ask @shell-budgets"), /href="\/thread\/shell-budgets"/, "the page's own thread, not nub's")
     // A card of ANOTHER project: its own threads first, and every link names its project.
     assert.match(withMentionProject("nub", () => render("ask @shell-budgets")), /href="\/all\/nub\/thread\/sb-nub"/)
-    assert.match(withMentionProject("nub", () => render("ask @port-the-parser")), /href="\/all\/frizz\/thread\/port-parser"/)
+    assert.match(withMentionProject("nub", () => render("ask @port-the-parser")), /href="\/all\/ntwine\/thread\/port-parser"/)
     assert.equal(withMentionProject("gone", () => render("ask @focus-mode")), "ask @focus-mode", "a project the poll does not carry")
   } finally {
     setCrossProjectMentions(null)
@@ -111,14 +111,14 @@ test("the index notifies only when a handle changes, not on every board push", (
   const unsubscribe = subscribeMentionIndex(() => notified++)
   try {
     const before = mentionIndexVersion()
-    setMentionIndex("frizz", BOARD.map((t) => ({ ...t, statusLine: "busy" })))
+    setMentionIndex("ntwine", BOARD.map((t) => ({ ...t, statusLine: "busy" })))
     assert.equal(notified, 0, "a status line is not a handle")
-    setMentionIndex("frizz", [...BOARD, thread("fresh", "Fresh idea")])
+    setMentionIndex("ntwine", [...BOARD, thread("fresh", "Fresh idea")])
     assert.equal(notified, 1)
     assert.ok(mentionIndexVersion() > before)
     assert.match(render("@fresh-idea"), /href="\/thread\/fresh"/)
   } finally {
-    setMentionIndex("frizz", BOARD)
+    setMentionIndex("ntwine", BOARD)
     unsubscribe()
   }
 })

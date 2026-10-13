@@ -1,4 +1,4 @@
-import type { TranscriptMessage, TranscriptToolCall } from "@frizz/shared"
+import type { TranscriptMessage, TranscriptToolCall } from "@ntwine/shared"
 import type { ChatMessage } from "../hooks.ts"
 import { localPathBase } from "./localPathBase.ts"
 import { abbreviateHome, isRooted, pathPrefixPattern } from "./paths.ts"
@@ -110,7 +110,7 @@ export function isToolActivityException(tool: Pick<
  * running; with the process gone that handle points at nothing, and the completion wake divider already
  * says what happened to it — so the call is history like any other and folds into the run.
  *
- * `"background"` only. The `"unknown"` state is a job frizz could not track, so no completion ever
+ * `"background"` only. The `"unknown"` state is a job ntwine could not track, so no completion ever
  * arrives to settle it; a settled `"unknown"` call is the launch's own result (the hook refusing the `&`
  * job, say), not the process ending, and the card stays.
  */
@@ -146,7 +146,7 @@ export function isPictureTool(tool: Pick<TranscriptToolCall, "sentImages">): boo
 /**
  * A codex `Wait` / `Poll process` the projector could not pair with the launch it belongs to.
  *
- * It reaches the client `pending` and `backgroundState: "unknown"` — honest about the fact that frizz
+ * It reaches the client `pending` and `backgroundState: "unknown"` — honest about the fact that ntwine
  * cannot say whether that process is alive (transcript.ts, the `orphanPoll` branch) — but that is the
  * one background shape which LAUNCHED NOTHING. It is a read of somebody else's process, so the card is
  * not a handle on anything: it names a cell id the reader cannot act on, and because the call never
@@ -622,19 +622,19 @@ function gerundDescription(description: string | undefined, fallback: string): s
  * Rewrite absolute in-project paths as project-relative ones for display.
  *
  * `detail` carries the provider's raw input, and every Claude/Codex file tool passes an ABSOLUTE path,
- * so the shimmer reads `Editing /Users/me/Documents/projects/frizz/packages/web/src/App.tsx` — one
+ * so the shimmer reads `Editing /Users/me/Documents/projects/ntwine/packages/web/src/App.tsx` — one
  * short row whose only identifying part is pushed off the end by a home prefix that never varies.
  * Stripping the project root leaves `Editing packages/web/src/App.tsx`.
  *
  * The root is the board's `projectDir`, which is the git toplevel of the dir the server was launched in
- * — so when Frizz runs on a linked worktree that IS the worktree root, and no separate detection is
+ * — so when Ntwine runs on a linked worktree that IS the worktree root, and no separate detection is
  * needed. A worktree a worker created underneath the project keeps its own directory in the relative
  * path (`wt-fix/ui/…`), which is exactly the disambiguation you want. Paths outside the project are left
  * absolute: there is no root that makes them both shorter and honest.
  *
  * Applied to the finished label rather than to `detail` alone so a Bash description's arguments shorten
  * too, and every occurrence is replaced because a command line can name several paths. The trailing
- * slash is part of the needle, so a sibling checkout (`…/frizz-old/a.ts`) never matches.
+ * slash is part of the needle, so a sibling checkout (`…/ntwine-old/a.ts`) never matches.
  *
  * A path outside the project still gets its home prefix collapsed to `~` — `~/.claude/CLAUDE.md` says
  * the same thing in a quarter of the width. The browser can't read $HOME, but the board snapshot

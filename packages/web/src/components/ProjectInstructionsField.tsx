@@ -9,11 +9,11 @@ import { TextareaCodeFences } from "./TextareaCodeFences.tsx"
 const SAVE_DEBOUNCE_MS = 500
 const SAVED_LINGER_MS = 1600
 
-// The "Project instructions" editor in the model picker's agent settings: the project's FRIZZ.md, which
-// Frizz injects into every worker it dispatches, adopts or resumes here, on either runtime. It edits the
+// The "Project instructions" editor in the model picker's agent settings: the project's NTWINE.md, which
+// Ntwine injects into every worker it dispatches, adopts or resumes here, on either runtime. It edits the
 // file itself rather than a Settings value (why: project-instructions.ts on the server), so it keeps
 // its own save loop instead of useSettingsDraft — same write-as-you-type feel, but every write names
-// the revision it started from. Workers edit FRIZZ.md too; when one has, the save is refused and the
+// the revision it started from. Workers edit NTWINE.md too; when one has, the save is refused and the
 // field offers the file as it now is instead of overwriting it.
 export function ProjectInstructionsField() {
   const queryClient = useQueryClient()
@@ -82,9 +82,9 @@ export function ProjectInstructionsField() {
   return (
     <SettingsField label="Project instructions" help={SETTINGS_HELP.projectInstructions}>
       {text === null ? (
-        <div className="text-[12px] text-muted">{loaded.isError ? "Couldn't read FRIZZ.md" : "Loading…"}</div>
+        <div className="text-[12px] text-muted">{loaded.isError ? "Couldn't read NTWINE.md" : "Loading…"}</div>
       ) : !editable ? (
-        <div className="text-[12px] text-muted">FRIZZ.md is a symlink or too large to edit here; edit it in the repo.</div>
+        <div className="text-[12px] text-muted">NTWINE.md is a symlink or too large to edit here; edit it in the repo.</div>
       ) : (
         <>
           <textarea
@@ -101,14 +101,14 @@ export function ProjectInstructionsField() {
           <div className="flex items-center justify-between gap-3 text-[11px] text-muted-70">
             {conflict ? (
               <span className="text-accent">
-                FRIZZ.md changed on disk.{" "}
+                NTWINE.md changed on disk.{" "}
                 <button type="button" onClick={loadLatest} className="underline hover:text-fg">
                   Load latest
                 </button>
               </span>
             ) : (
               <span>
-                Stored in <code className="font-mono-keep">FRIZZ.md</code> at the repo root
+                Stored in <code className="font-mono-keep">NTWINE.md</code> at the repo root
               </span>
             )}
             <SaveStatus state={state} />

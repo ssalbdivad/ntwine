@@ -52,8 +52,8 @@ function connect(mode = "", opts: { onRequest?: (method: string, params: unknown
 }
 
 async function handshake(h: Harness, cwd = "/tmp") {
-  const init = AcpInitializeResult.parse(await h.conn.request("initialize", { protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "frizz-test", version: "0" } }))
-  const sess = AcpNewSessionResult.parse(await h.conn.request("session/new", { cwd, mcpServers: [{ name: "frizz", command: "/usr/bin/true", args: [], env: [{ name: "FRIZZ_THREAD_SLUG", value: "t" }] }] }))
+  const init = AcpInitializeResult.parse(await h.conn.request("initialize", { protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "ntwine-test", version: "0" } }))
+  const sess = AcpNewSessionResult.parse(await h.conn.request("session/new", { cwd, mcpServers: [{ name: "ntwine", command: "/usr/bin/true", args: [], env: [{ name: "NTWINE_THREAD_SLUG", value: "t" }] }] }))
   return { init, sess }
 }
 
@@ -74,7 +74,7 @@ test("acp-rpc: a well-behaved agent — initialize, session/new with an MCP serv
     // Every update that arrived before the response is already in the list: the fake writes them to
     // stdout ahead of the reply and the reader is one ordered stream.
     assert.deepEqual(kinds(h), [
-      "unknown", // available_commands_update — not one Frizz renders, classified rather than thrown
+      "unknown", // available_commands_update — not one Ntwine renders, classified rather than thrown
       "agent_thought_chunk", "agent_thought_chunk",
       "tool_call", "tool_call_update",
       "agent_message_chunk", "agent_message_chunk",
@@ -88,7 +88,7 @@ test("acp-rpc: a well-behaved agent — initialize, session/new with an MCP serv
     const frames = readFileSync(h.logPath, "utf8").trim().split("\n").map((l) => JSON.parse(l))
     const newSession = frames.find((f) => f.method === "session/new")
     assert.equal(newSession.params.cwd, "/tmp/project")
-    assert.deepEqual(newSession.params.mcpServers[0].env, [{ name: "FRIZZ_THREAD_SLUG", value: "t" }])
+    assert.deepEqual(newSession.params.mcpServers[0].env, [{ name: "NTWINE_THREAD_SLUG", value: "t" }])
   } finally { await h.conn.close() }
 })
 

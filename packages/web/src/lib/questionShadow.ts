@@ -20,7 +20,7 @@
 // the human has not seen elsewhere on the page. The text rule is deliberately loose about markup (the
 // fence wraps `code` and [links](…) that the registration's plain string cannot carry) and about
 // trailing prose (the worker appends a parenthetical), and strict about the question itself.
-import type { RegisteredQuestionView } from "@frizz/shared"
+import type { RegisteredQuestionView } from "@ntwine/shared"
 import { type AnchorMessage, questionsByAnchor, restEnd } from "./questionAnchor.ts"
 import { type MessageSegment, parseQuestionBlock, splitQuestionBlocks } from "./questionBlocks.ts"
 

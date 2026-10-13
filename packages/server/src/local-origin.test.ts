@@ -162,13 +162,13 @@ test("an exposed policy admits IP literals and nothing else by default", () => {
   // Loopback keeps working while exposed — the local browser tab is still the common case.
   assert.equal(parseLocalHost(`localhost:${PORT}`, PORT, EXPOSED)?.hostname, "localhost")
   // A DNS NAME is the whole DNS-rebinding vector, so it stays rejected until named explicitly.
-  assert.equal(parseLocalHost(`frizz.local:${PORT}`, PORT, EXPOSED), null)
-  assert.equal(parseLocalHost(`frizz.local:${PORT}`, PORT, { exposed: true, allowedHosts: ["frizz.local"] })?.hostname, "frizz.local")
-  assert.equal(parseLocalHost(`FRIZZ.local:${PORT}`, PORT, { exposed: true, allowedHosts: ["frizz.local"] })?.hostname, "frizz.local")
-  assert.equal(parseLocalHost(`other.local:${PORT}`, PORT, { exposed: true, allowedHosts: ["frizz.local"] }), null)
+  assert.equal(parseLocalHost(`ntwine.local:${PORT}`, PORT, EXPOSED), null)
+  assert.equal(parseLocalHost(`ntwine.local:${PORT}`, PORT, { exposed: true, allowedHosts: ["ntwine.local"] })?.hostname, "ntwine.local")
+  assert.equal(parseLocalHost(`NTWINE.local:${PORT}`, PORT, { exposed: true, allowedHosts: ["ntwine.local"] })?.hostname, "ntwine.local")
+  assert.equal(parseLocalHost(`other.local:${PORT}`, PORT, { exposed: true, allowedHosts: ["ntwine.local"] }), null)
   assert.equal(parseLocalHost(`other.local:${PORT}`, PORT, { exposed: true, allowedHosts: ["*"] })?.hostname, "other.local")
   // An allow-list without exposure changes nothing: the port is still unreachable from off-machine.
-  assert.equal(parseLocalHost(`frizz.local:${PORT}`, PORT, { exposed: false, allowedHosts: ["frizz.local"] }), null)
+  assert.equal(parseLocalHost(`ntwine.local:${PORT}`, PORT, { exposed: false, allowedHosts: ["ntwine.local"] }), null)
   // Every canonicalization trick the loopback parser rejects is still rejected while exposed.
   for (const host of [`192.168.1.5:${PORT + 1}`, `user@192.168.1.5:${PORT}`, `192.168.1.5:${PORT}/x`, `3232235781:${PORT}`]) {
     assert.equal(parseLocalHost(host, PORT, EXPOSED), null, host)
@@ -195,7 +195,7 @@ test("the machine's own names: the hostname as given, its first label, and that 
 test("a refused Host is named back only when an unlisted DNS name is all that is wrong with it", () => {
   // The operator who opened an exposed board by the machine's name gets told which flag to add.
   assert.equal(unlistedHostName(`pupper:${PORT}`, PORT, EXPOSED), "pupper")
-  assert.equal(unlistedHostName(`Pupper.LAN:${PORT}`, PORT, { exposed: true, allowedHosts: ["frizz.local"] }), "pupper.lan")
+  assert.equal(unlistedHostName(`Pupper.LAN:${PORT}`, PORT, { exposed: true, allowedHosts: ["ntwine.local"] }), "pupper.lan")
   // Nothing to explain once the name is accepted, by listing or by wildcard.
   assert.equal(unlistedHostName(`pupper:${PORT}`, PORT, { exposed: true, allowedHosts: ["pupper"] }), null)
   assert.equal(unlistedHostName(`pupper:${PORT}`, PORT, { exposed: true, allowedHosts: ["*"] }), null)
@@ -239,45 +239,45 @@ test("bind hosts: loopback spellings are private, wildcards are not, and names a
   assert.deepEqual(normalizeAllowedHosts([" A ", "b,, B ", ""]), ["a", "b"])
 })
 
-const TUNNELLED = { publicOrigin: "https://frizz.example.com" } as const
+const TUNNELLED = { publicOrigin: "https://ntwine.example.com" } as const
 
 test("a declared public origin is the one authority admitted at another scheme and another port", () => {
   // The proxy terminates TLS on 443 and dials this server's loopback port, so neither the scheme nor
   // the port a browser saw has anything to do with `expectedPort`. Nothing else gets that latitude.
-  assert.equal(parseLocalHttpOrigin("https://frizz.example.com", PORT, TUNNELLED)?.hostname, "frizz.example.com")
-  assert.equal(parseLocalHttpOrigin("https://frizz.example.com", PORT, TUNNELLED)?.port, 443)
-  assert.equal(parseLocalHttpOrigin("https://frizz.example.com", PORT), null)
-  assert.equal(allowedLocalCorsOrigin("https://frizz.example.com", PORT, TUNNELLED), "https://frizz.example.com")
+  assert.equal(parseLocalHttpOrigin("https://ntwine.example.com", PORT, TUNNELLED)?.hostname, "ntwine.example.com")
+  assert.equal(parseLocalHttpOrigin("https://ntwine.example.com", PORT, TUNNELLED)?.port, 443)
+  assert.equal(parseLocalHttpOrigin("https://ntwine.example.com", PORT), null)
+  assert.equal(allowedLocalCorsOrigin("https://ntwine.example.com", PORT, TUNNELLED), "https://ntwine.example.com")
 
   // Matched WHOLE, against the configured string. A neighbouring name, a scheme downgrade, a bare
   // port, or any suffix trick is a different origin and stays foreign.
   for (const origin of [
-    "https://frizz.example.com.evil",
-    "https://evil.frizz.example.com",
-    "http://frizz.example.com",
-    `http://frizz.example.com:${PORT}`,
-    "https://frizz.example.com:8443",
-    "https://frizz.example.com/",
+    "https://ntwine.example.com.evil",
+    "https://evil.ntwine.example.com",
+    "http://ntwine.example.com",
+    `http://ntwine.example.com:${PORT}`,
+    "https://ntwine.example.com:8443",
+    "https://ntwine.example.com/",
   ]) {
     assert.equal(parseLocalHttpOrigin(origin, PORT, TUNNELLED), null, origin)
   }
 
   // cloudflared forwards the browser's Host verbatim, so it arrives with no port at all. The proxy's
   // own port is accepted too; this server's loopback port never is, because a browser never saw it.
-  assert.equal(parseLocalHost("frizz.example.com", PORT, TUNNELLED)?.hostname, "frizz.example.com")
-  assert.equal(parseLocalHost("frizz.example.com:443", PORT, TUNNELLED)?.hostname, "frizz.example.com")
-  assert.equal(parseLocalHost(`frizz.example.com:${PORT}`, PORT, TUNNELLED), null)
-  assert.equal(parseLocalHost("frizz.example.com", PORT), null)
+  assert.equal(parseLocalHost("ntwine.example.com", PORT, TUNNELLED)?.hostname, "ntwine.example.com")
+  assert.equal(parseLocalHost("ntwine.example.com:443", PORT, TUNNELLED)?.hostname, "ntwine.example.com")
+  assert.equal(parseLocalHost(`ntwine.example.com:${PORT}`, PORT, TUNNELLED), null)
+  assert.equal(parseLocalHost("ntwine.example.com", PORT), null)
   // Loopback keeps working through a tunnel — the operator's own tab on the box is still the norm.
   assert.equal(parseLocalHost(`127.0.0.1:${PORT}`, PORT, TUNNELLED)?.hostname, "127.0.0.1")
 })
 
 test("a declared public origin tolerates forwarded headers only on requests that arrived as it", () => {
-  const proxied = { host: "frizz.example.com", origin: "https://frizz.example.com" }
+  const proxied = { host: "ntwine.example.com", origin: "https://ntwine.example.com" }
   const forwarded = { "x-forwarded-for": "203.0.113.7", "x-forwarded-proto": "https" }
   assert.equal(isTrustedLocalHttpRequest({ ...proxied, ...forwarded }, PORT, false, TUNNELLED), true)
   assert.equal(isTrustedLocalHttpRequest(proxied, PORT, false, TUNNELLED), true)
-  // Undeclared, this is exactly the shape Frizz refuses — naming a proxy is what changes the answer.
+  // Undeclared, this is exactly the shape Ntwine refuses — naming a proxy is what changes the answer.
   assert.equal(isTrustedLocalHttpRequest({ ...proxied, ...forwarded }, PORT, false), false)
 
   // The laundering case: a caller on the loopback port cannot borrow the proxy's licence by claiming
@@ -287,33 +287,33 @@ test("a declared public origin tolerates forwarded headers only on requests that
     false,
   )
   // Host and Origin still have to agree, and a foreign Origin is still a foreign Origin.
-  assert.equal(isTrustedLocalHttpRequest({ host: "frizz.example.com", origin: "https://evil.example" }, PORT, false, TUNNELLED), false)
-  assert.equal(isTrustedLocalHttpRequest({ host: `127.0.0.1:${PORT}`, origin: "https://frizz.example.com" }, PORT, false, TUNNELLED), false)
+  assert.equal(isTrustedLocalHttpRequest({ host: "ntwine.example.com", origin: "https://evil.example" }, PORT, false, TUNNELLED), false)
+  assert.equal(isTrustedLocalHttpRequest({ host: `127.0.0.1:${PORT}`, origin: "https://ntwine.example.com" }, PORT, false, TUNNELLED), false)
 
   // The WebSocket gate keeps its mandatory-Origin rule through the tunnel.
-  assert.equal(isTrustedLocalWebSocketRequest(upgradeRequest("frizz.example.com", "https://frizz.example.com", forwarded), PORT, TUNNELLED), true)
-  assert.equal(isTrustedLocalWebSocketRequest(upgradeRequest("frizz.example.com", undefined, forwarded), PORT, TUNNELLED), false)
-  assert.equal(isTrustedLocalWebSocketRequest(upgradeRequest("frizz.example.com", "https://evil.example"), PORT, TUNNELLED), false)
+  assert.equal(isTrustedLocalWebSocketRequest(upgradeRequest("ntwine.example.com", "https://ntwine.example.com", forwarded), PORT, TUNNELLED), true)
+  assert.equal(isTrustedLocalWebSocketRequest(upgradeRequest("ntwine.example.com", undefined, forwarded), PORT, TUNNELLED), false)
+  assert.equal(isTrustedLocalWebSocketRequest(upgradeRequest("ntwine.example.com", "https://evil.example"), PORT, TUNNELLED), false)
 })
 
 test("an https proxy origin still sends Fetch Metadata, so it never needs the LAN vouch", () => {
   // The vouch exists because Chrome withholds Sec-Fetch-* from a non-trustworthy origin. A tunnel that
   // terminates TLS hands the browser a trustworthy one, so the real signal survives and must be used.
-  assert.equal(authoritySendsFetchMetadata(parseLocalHost("frizz.example.com", PORT, TUNNELLED)!), true)
+  assert.equal(authoritySendsFetchMetadata(parseLocalHost("ntwine.example.com", PORT, TUNNELLED)!), true)
   assert.equal(authoritySendsFetchMetadata(parseLocalHost(`192.168.1.5:${PORT}`, PORT, EXPOSED)!), false)
   assert.equal(authoritySendsFetchMetadata(parseLocalHost(`127.0.0.1:${PORT}`, PORT)!), true)
   // A plain-http proxy is in the same boat as a LAN address and does need it.
-  const insecure = { publicOrigin: "http://frizz.example.com" } as const
-  assert.equal(authoritySendsFetchMetadata(parseLocalHost("frizz.example.com", PORT, insecure)!), false)
+  const insecure = { publicOrigin: "http://ntwine.example.com" } as const
+  assert.equal(authoritySendsFetchMetadata(parseLocalHost("ntwine.example.com", PORT, insecure)!), false)
 })
 
 test("public origins are validated at launch, where the message can say what is wrong", () => {
-  assert.equal(normalizePublicOrigin(" https://frizz.example.com "), "https://frizz.example.com")
-  assert.equal(normalizePublicOrigin("https://Frizz.Example.com"), "https://frizz.example.com")
+  assert.equal(normalizePublicOrigin(" https://ntwine.example.com "), "https://ntwine.example.com")
+  assert.equal(normalizePublicOrigin("https://Ntwine.Example.com"), "https://ntwine.example.com")
   assert.equal(normalizePublicOrigin("http://box.local:8080"), "http://box.local:8080")
   assert.throws(() => normalizePublicOrigin(""), /requires a URL/)
-  assert.throws(() => normalizePublicOrigin("frizz.example.com"), /use a full URL/)
-  assert.throws(() => normalizePublicOrigin("wss://frizz.example.com"), /only http and https/)
-  assert.throws(() => normalizePublicOrigin("https://frizz.example.com/board"), /no path/)
-  assert.throws(() => normalizePublicOrigin("https://u:p@frizz.example.com"), /no credentials/)
+  assert.throws(() => normalizePublicOrigin("ntwine.example.com"), /use a full URL/)
+  assert.throws(() => normalizePublicOrigin("wss://ntwine.example.com"), /only http and https/)
+  assert.throws(() => normalizePublicOrigin("https://ntwine.example.com/board"), /no path/)
+  assert.throws(() => normalizePublicOrigin("https://u:p@ntwine.example.com"), /no credentials/)
 })

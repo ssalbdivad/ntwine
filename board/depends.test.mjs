@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * frizz — `blocking_threads` classification tests: THREAD-slug deps (backward-compatible) vs typed
+ * ntwine — `blocking_threads` classification tests: THREAD-slug deps (backward-compatible) vs typed
  * EXTERNAL deps (`pr:`/`issue:`/`ci:`/`external:`). Run with `node --test 'board/*.test.mjs'`.
  * The `depends_on` field is still read as an alias for `blocking_threads` — one test below pins
  * that legacy path end-to-end; the rest use the canonical `blocking_threads` + `status: blocked`.
@@ -50,13 +50,13 @@ test('classifyDep: an UNRECOGNIZED prefix stays a thread slug (a typo must still
 });
 
 test('board: the LEGACY `enqueued` + `depends_on` alias path keeps READY/dangling behavior', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-dep-thread-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-dep-thread-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
     // Deliberately on the legacy aliases (`status: enqueued`, `depends_on`) — pins backward-compat.
-    writeFileSync(join(dir, '.frizz', 'dep-done.md'), '---\ntitle: d\nstatus: done\nstatus_text: x\n---\nb\n');
-    writeFileSync(join(dir, '.frizz', 'waiter.md'), '---\ntitle: w\nstatus: enqueued\nstatus_text: x\ndepends_on: [dep-done]\n---\nb\n');
-    writeFileSync(join(dir, '.frizz', 'dangles.md'), '---\ntitle: g\nstatus: enqueued\nstatus_text: x\ndepends_on: [nope]\n---\nb\n');
+    writeFileSync(join(dir, '.ntwine', 'dep-done.md'), '---\ntitle: d\nstatus: done\nstatus_text: x\n---\nb\n');
+    writeFileSync(join(dir, '.ntwine', 'waiter.md'), '---\ntitle: w\nstatus: enqueued\nstatus_text: x\ndepends_on: [dep-done]\n---\nb\n');
+    writeFileSync(join(dir, '.ntwine', 'dangles.md'), '---\ntitle: g\nstatus: enqueued\nstatus_text: x\ndepends_on: [nope]\n---\nb\n');
     const { threads, errors } = board(dir);
     const t = byId(threads);
     assert.equal(t['waiter'].ready, true, 'all thread deps terminal → READY');
@@ -68,12 +68,12 @@ test('board: the LEGACY `enqueued` + `depends_on` alias path keeps READY/danglin
 });
 
 test('board: an EXTERNAL dep parks the thread (ready=false), never dangles, and suppresses drop-risk', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-dep-ext-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-dep-ext-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
     // blocked, thread dep terminal, but a pending external PR gate → NOT ready, NOT drop-risk.
-    writeFileSync(join(dir, '.frizz', 'dep-done.md'), '---\ntitle: d\nstatus: done\nstatus_text: x\n---\nb\n');
-    writeFileSync(join(dir, '.frizz', 'parked.md'),
+    writeFileSync(join(dir, '.ntwine', 'dep-done.md'), '---\ntitle: d\nstatus: done\nstatus_text: x\n---\nb\n');
+    writeFileSync(join(dir, '.ntwine', 'parked.md'),
       '---\ntitle: p\nstatus: blocked\nstatus_text: x\nblocking_threads: [dep-done, pr:vercel/turborepo#13187, external:design-signoff]\n---\nb\n');
     const validate = execFileSync(process.execPath, [INDEX, '--validate'], {
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
@@ -94,10 +94,10 @@ test('board: an EXTERNAL dep parks the thread (ready=false), never dangles, and 
 });
 
 test('board: a thread whose ONLY deps are external is parked, not a drop-risk', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-dep-extonly-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-dep-extonly-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
-    writeFileSync(join(dir, '.frizz', 'ci-wait.md'),
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
+    writeFileSync(join(dir, '.ntwine', 'ci-wait.md'),
       '---\ntitle: c\nstatus: blocked\nstatus_text: x\nblocking_threads: [ci:release-build]\n---\nb\n');
     const { threads, errors } = board(dir);
     const t = byId(threads);
@@ -114,11 +114,11 @@ test('board: a thread whose ONLY deps are external is parked, not a drop-risk', 
 // list) `blocking_threads` classifies as MACHINE-blocked — NOT wrongly hoisted into the ⚖
 // human-blocked queue. (Regression: the flat frontmatter reader dropped block-form list items.)
 test('board: a BLOCK-FORM blocking_threads is machine-blocked, resolves its dep, not human-blocked', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-dep-block-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-dep-block-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
-    writeFileSync(join(dir, '.frizz', 'dep.md'), '---\ntitle: d\nstatus: active\nstatus_text: x\n---\nb\n');
-    writeFileSync(join(dir, '.frizz', 'waiter.md'),
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
+    writeFileSync(join(dir, '.ntwine', 'dep.md'), '---\ntitle: d\nstatus: active\nstatus_text: x\n---\nb\n');
+    writeFileSync(join(dir, '.ntwine', 'waiter.md'),
       '---\ntitle: w\nstatus: blocked\nstatus_text: x\nblocking_threads:\n  - dep\n---\nb\n');
     const { threads, errors } = board(dir);
     const t = byId(threads);

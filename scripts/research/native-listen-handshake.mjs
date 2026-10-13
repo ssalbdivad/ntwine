@@ -6,10 +6,10 @@ import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
 
-const require = createRequire("/Users/colinmcd94/Documents/projects/frizz/packages/server/index.js")
+const require = createRequire("/Users/colinmcd94/Documents/projects/ntwine/packages/server/index.js")
 const WebSocket = require("ws")
 
-const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "frizz-native-listen-"))
+const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "ntwine-native-listen-"))
 const sock = path.join(runDir, "as.sock")
 const logPath = path.join(runDir, "server.log")
 const log = fs.openSync(logPath, "a")
@@ -98,7 +98,7 @@ const main = async () => {
   ws.on("message", (d) => console.log("[recv]", d.toString().slice(0, 600)))
   ws.send(JSON.stringify({
     jsonrpc: "2.0", id: 1, method: "initialize",
-    params: { clientInfo: { name: "frizz-probe", title: "Frizz probe", version: "0.0.1" }, capabilities: { experimentalApi: true } },
+    params: { clientInfo: { name: "ntwine-probe", title: "Ntwine probe", version: "0.0.1" }, capabilities: { experimentalApi: true } },
   }))
   await new Promise((r) => setTimeout(r, 4000))
   ws.close()

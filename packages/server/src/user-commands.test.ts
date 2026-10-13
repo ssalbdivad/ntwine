@@ -3,14 +3,14 @@ import { mkdtempSync, mkdirSync, readFileSync, existsSync, symlinkSync, writeFil
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
-import { resetFrizzRoots } from "./frizz-paths.ts"
-import { deleteUserCommand, formatCommandFile, frizzCommandsDir, listUserCommands, parseCommandFile, saveUserCommand } from "./user-commands.ts"
+import { resetNtwineRoots } from "./ntwine-paths.ts"
+import { deleteUserCommand, formatCommandFile, ntwineCommandsDir, listUserCommands, parseCommandFile, saveUserCommand } from "./user-commands.ts"
 
-// A throwaway data root (XDG_DATA_HOME is how every harness here isolates Frizz) and a throwaway home.
+// A throwaway data root (XDG_DATA_HOME is how every harness here isolates Ntwine) and a throwaway home.
 function sandbox() {
-  const root = mkdtempSync(join(tmpdir(), "frizz-user-commands-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-user-commands-"))
   process.env.XDG_DATA_HOME = join(root, "data")
-  resetFrizzRoots()
+  resetNtwineRoots()
   const home = join(root, "home")
   const project = join(root, "project")
   mkdirSync(join(home, ".agents", "commands"), { recursive: true })
@@ -35,20 +35,20 @@ test("a saved file parses back to what was saved, frontmatter only when needed",
   assert.equal(formatCommandFile({ description: "", body: "x" }), "x\n")
 })
 
-test("the three folders are read in precedence order — Frizz's own, the project's, then ~/.agents", async () => {
+test("the three folders are read in precedence order — Ntwine's own, the project's, then ~/.agents", async () => {
   const { home, project } = sandbox()
   writeFileSync(join(home, ".agents", "commands", "commit.md"), "global commit")
   writeFileSync(join(home, ".agents", "commands", "dev.md"), "global dev")
   writeFileSync(join(project, ".agents", "commands", "dev.md"), "project dev")
   writeFileSync(join(project, ".agents", "commands", "not a name.md"), "skipped")
   writeFileSync(join(project, ".agents", "commands", "notes.txt"), "skipped")
-  await saveUserCommand({ name: "commit", description: "mine", body: "frizz commit" })
+  await saveUserCommand({ name: "commit", description: "mine", body: "ntwine commit" })
   const listed = await listUserCommands(project, home)
   assert.deepEqual(listed.map((c) => [c.name, c.source, c.body]), [
-    ["commit", "frizz", "frizz commit"],
+    ["commit", "ntwine", "ntwine commit"],
     ["dev", "project", "project dev"],
   ])
-  assert.equal(listed[0]!.path, join(frizzCommandsDir(), "commit.md"))
+  assert.equal(listed[0]!.path, join(ntwineCommandsDir(), "commit.md"))
 })
 
 test("a symlinked command is read through its link, the way ~/app shares its commands", async () => {
@@ -59,13 +59,13 @@ test("a symlinked command is read through its link, the way ~/app shares its com
   assert.deepEqual((await listUserCommands(undefined, home)).map((c) => c.body), ["linked prompt"])
 })
 
-test("a rename removes the old file; delete removes Frizz's own file and nothing else", async () => {
+test("a rename removes the old file; delete removes Ntwine's own file and nothing else", async () => {
   const { home } = sandbox()
   writeFileSync(join(home, ".agents", "commands", "keep.md"), "global")
   await saveUserCommand({ name: "old", description: "", body: "x" })
   await saveUserCommand({ name: "new", description: "", body: "x", previousName: "old" })
-  assert.equal(existsSync(join(frizzCommandsDir(), "old.md")), false)
-  assert.equal(readFileSync(join(frizzCommandsDir(), "new.md"), "utf8"), "x\n")
+  assert.equal(existsSync(join(ntwineCommandsDir(), "old.md")), false)
+  assert.equal(readFileSync(join(ntwineCommandsDir(), "new.md"), "utf8"), "x\n")
   await deleteUserCommand("keep")
   await deleteUserCommand("new")
   assert.deepEqual((await listUserCommands(undefined, home)).map((c) => `${c.source}:${c.name}`), ["global:keep"])

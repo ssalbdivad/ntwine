@@ -1,12 +1,12 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { ThreadSkill } from "@frizz/shared"
+import type { ThreadSkill } from "@ntwine/shared"
 import { mergeSlashItems } from "../hooks/useUserCommands.ts"
 import { draftStart, insertSlashCommand, matchSlashItems, slashQueryAt, slashSegments } from "./slashCommands.ts"
 
 const items: ThreadSkill[] = [
-  { name: "frizz-stack", description: "Boot a stack", source: "project" },
-  { name: "frizz:gh", description: "gh playbook", source: "plugin" },
+  { name: "ntwine-stack", description: "Boot a stack", source: "project" },
+  { name: "ntwine:gh", description: "gh playbook", source: "plugin" },
   { name: "context", description: "Show current context usage", source: "builtin", command: true },
 ]
 // The operator's own `~/.agents/commands/armstrong.md`, as the menu receives it.
@@ -29,15 +29,15 @@ test("a path, a URL or a slash inside a word never opens it", () => {
 })
 
 test("a built-in command is offered only where it runs — as the draft's first token", () => {
-  assert.deepEqual(matchSlashItems(items, "", true).map((s) => s.name), ["frizz-stack", "frizz:gh", "context"])
-  assert.deepEqual(matchSlashItems(items, "", false).map((s) => s.name), ["frizz-stack", "frizz:gh"])
-  assert.deepEqual(matchSlashItems(items, "gh", false).map((s) => s.name), ["frizz:gh"], "substring reaches a namespaced skill")
+  assert.deepEqual(matchSlashItems(items, "", true).map((s) => s.name), ["ntwine-stack", "ntwine:gh", "context"])
+  assert.deepEqual(matchSlashItems(items, "", false).map((s) => s.name), ["ntwine-stack", "ntwine:gh"])
+  assert.deepEqual(matchSlashItems(items, "gh", false).map((s) => s.name), ["ntwine:gh"], "substring reaches a namespaced skill")
 })
 
 test("completion replaces the whole token in place and leaves one space", () => {
-  assert.deepEqual(insertSlashCommand("run /fri now", 4, 8, "frizz-stack"), { prose: "run /frizz-stack now", caret: 17 })
+  assert.deepEqual(insertSlashCommand("run /fri now", 4, 8, "ntwine-stack"), { prose: "run /ntwine-stack now", caret: 17 })
   assert.deepEqual(insertSlashCommand("/co", 0, 3, "context"), { prose: "/context ", caret: 9 })
-  assert.deepEqual(insertSlashCommand("x /frXXX", 2, 5, "frizz:gh"), { prose: "x /frizz:gh ", caret: 12 }, "the tail past the caret goes too")
+  assert.deepEqual(insertSlashCommand("x /frXXX", 2, 5, "ntwine:gh"), { prose: "x /ntwine:gh ", caret: 12 }, "the tail past the caret goes too")
 })
 
 test("only names the thread can run are tinted, commands only at the start", () => {
@@ -45,8 +45,8 @@ test("only names the thread can run are tinted, commands only at the start", () 
   assert.deepEqual(segs("/context please"), ["command:/context", "text: please"])
   assert.deepEqual(segs("  /context"), ["text:  ", "command:/context"])
   assert.deepEqual(segs("use /context"), ["text:use /context"], "mid-sentence a command is plain text to Claude")
-  assert.deepEqual(segs("use /frizz-stack, then /frizz:gh."), ["text:use ", "command:/frizz-stack", "text:, then ", "command:/frizz:gh", "text:."])
-  assert.deepEqual(segs("/nope and /tmp/frizz-stack"), ["text:/nope and /tmp/frizz-stack"])
+  assert.deepEqual(segs("use /ntwine-stack, then /ntwine:gh."), ["text:use ", "command:/ntwine-stack", "text:, then ", "command:/ntwine:gh", "text:."])
+  assert.deepEqual(segs("/nope and /tmp/ntwine-stack"), ["text:/nope and /tmp/ntwine-stack"])
 })
 
 test("a run's offset decides whether its command opens the draft", () => {
@@ -54,7 +54,7 @@ test("a run's offset decides whether its command opens the draft", () => {
   assert.deepEqual(slashSegments("/context", items, 5, 5).map((s) => s.kind), ["command"])
 })
 
-test("a user command is offered and tinted mid-prompt, where Frizz expands it", () => {
+test("a user command is offered and tinted mid-prompt, where Ntwine expands it", () => {
   assert.deepEqual(matchSlashItems(withUserCommand, "arm", false).map((s) => s.name), ["armstrong"])
   const text = "only finish when sure /armstrong"
   assert.deepEqual(slashSegments(text, withUserCommand, 0, draftStart(text)).map((s) => `${s.kind}:${s.text}`), ["text:only finish when sure ", "command:/armstrong"])

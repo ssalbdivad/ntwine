@@ -5,7 +5,7 @@ import test from "node:test"
 // follow-up and (b) NOT also navigate the row — two behaviors only a real browser proves: that the
 // button is hidden until hover, that it reveals on hover, that stopPropagation actually keeps the row
 // click from co-firing, and that the real retrySession → showToast → Toaster path runs.
-const baseUrl = process.env.FRIZZ_SIDEBAR_RETRY_E2E_URL
+const baseUrl = process.env.NTWINE_SIDEBAR_RETRY_E2E_URL
 
 test("hovering a stalled sidebar row reveals a Retry button that restarts the session in one click", {
   skip: !baseUrl,
@@ -103,7 +103,7 @@ test("hovering a stalled sidebar row reveals a Retry button that restarts the se
     // eager path stamps a fresh `deliveryId` UUID, so a whole-object deepEqual could never hold. This
     // line called a `stable()` helper that dropped that field, and `a7b40082` rewrote the FIRST
     // assertion into the spelling above while deleting the helper both of them shared. Nothing caught
-    // it, because nothing has run this file: every e2e here gates on a `FRIZZ_*_E2E_URL` that no runner
+    // it, because nothing has run this file: every e2e here gates on a `NTWINE_*_E2E_URL` that no runner
     // set, so the whole suite reported `skipped` and counted as green. It has thrown
     // `ReferenceError: stable is not defined` on its last assertion ever since (2026-08-24).
     const [, limitCall] = allCalls

@@ -11,7 +11,7 @@ import {
   resolveGitProjectIdentity,
   tryReservePort,
   type GitProjectIdentityScope,
-} from "@frizz/server/project-identity";
+} from "@ntwine/server/project-identity";
 import {
   defaultProcessPlatformAdapter,
   processGenerationIsStale,
@@ -22,7 +22,7 @@ import {
   type ProjectLaunchOwnerRecord,
   type ProjectLaunchTarget,
   type ProcessPlatformAdapter,
-} from "@frizz/server/project-launch";
+} from "@ntwine/server/project-launch";
 import {
   ALL_INTERFACES_BIND_HOST,
   bindHostIsExposed,
@@ -31,16 +31,16 @@ import {
   normalizeAllowedHosts,
   normalizeBindHost,
   normalizePublicOrigin,
-} from "@frizz/server/local-origin";
-import { BOOT_HARD_TIMEOUT_MS, BOOT_STALL_TIMEOUT_MS, readBootProgress } from "@frizz/server/boot-progress";
-import { frizzPaths, launchHostDir, projectStateDir } from "@frizz/server/frizz-paths";
+} from "@ntwine/server/local-origin";
+import { BOOT_HARD_TIMEOUT_MS, BOOT_STALL_TIMEOUT_MS, readBootProgress } from "@ntwine/server/boot-progress";
+import { ntwinePaths, launchHostDir, projectStateDir } from "@ntwine/server/ntwine-paths";
 import { claimIdentityPath } from "./identity.ts";
 import {
   discoverProjectRoot,
   ensureProjectIdFile,
   isNotAGitWorktree,
   writeProjectIdFile,
-} from "@frizz/server/project-root";
+} from "@ntwine/server/project-root";
 import {
   classifyLaunch,
   LAUNCH_ROUTE_PATH,
@@ -48,9 +48,9 @@ import {
   LAUNCH_TOKEN_HEADER,
   parseLaunchRoute,
   type LaunchRoute,
-} from "@frizz/server/launch-routing";
-import { defaultLogRoot, latestLogPath } from "@frizz/server/logging";
-import { DEFAULT_PORT, fallbackPort, FRIZZ_ROUTE_PREFIX } from "@frizz/shared";
+} from "@ntwine/server/launch-routing";
+import { defaultLogRoot, latestLogPath } from "@ntwine/server/logging";
+import { DEFAULT_PORT, fallbackPort, NTWINE_ROUTE_PREFIX } from "@ntwine/shared";
 
 export { acquireGlobalLaunchLock, pidIsAlive };
 
@@ -78,7 +78,7 @@ export interface CliOptions {
   /** Stream the full event feed to the terminal instead of the compact readout. */
   debug: boolean;
   port?: number;
-  /** `--sandbox`: a disposable Frizz — throwaway home and project, own port, deleted on exit. */
+  /** `--sandbox`: a disposable Ntwine — throwaway home and project, own port, deleted on exit. */
   sandbox: boolean;
   /** `--link`: ask the ALREADY-RUNNING board for a fresh single-use access link, then exit. */
   link: boolean;
@@ -111,7 +111,7 @@ export interface LauncherStatus {
   artifactDigest?: string;
 }
 
-export interface FrizzHealth {
+export interface NtwineHealth {
   ok: true;
   projectId: string;
   projectDir: string;
@@ -119,14 +119,14 @@ export interface FrizzHealth {
   ownerProof?: string;
 }
 
-export interface ExpectedFrizzHealth {
+export interface ExpectedNtwineHealth {
   projectId: string;
   projectDir: string;
   ownerProof?: string;
   /**
-   * Ask a SPECIFIC project's health on a shared server: `/_frizz/nub/health`.
+   * Ask a SPECIFIC project's health on a shared server: `/_ntwine/nub/health`.
    *
-   * One Frizz serves N projects, so "is Frizz on this port" and "is Frizz serving MY project on this
+   * One Ntwine serves N projects, so "is Ntwine on this port" and "is Ntwine serving MY project on this
    * port" stopped being the same question. Probing the slug answers the second one.
    *
    * Asking does NOT open the project. The server answers this route out of its registry for a project
@@ -173,7 +173,7 @@ export function durableReexecArgs(options: { entry: string; port: number }): str
 
 /**
  * The argv a `--dev` launcher re-execs itself with when its own source changes — the internal
- * re-entry's, never the operator's. That re-entry (FRIZZ_DEV_REEXEC) REQUIRES `--port`, which an
+ * re-entry's, never the operator's. That re-entry (NTWINE_DEV_REEXEC) REQUIRES `--port`, which an
  * operator almost never types: the launcher allocates it. Re-execing `process.argv` passed it
  * `--dev` alone and the successor exited on the spot. `--sandbox` must not ride along either — it
  * would mint a second throwaway home; DEV_SANDBOX_HOME_ENV carries the first one instead.
@@ -189,7 +189,7 @@ export function devLauncherReexecArgs(options: { entry: string; port: number; de
 }
 
 /** The sandbox home a re-exec'd `--dev` launcher adopts instead of preparing a new one. */
-export const DEV_SANDBOX_HOME_ENV = "FRIZZ_DEV_SANDBOX_HOME";
+export const DEV_SANDBOX_HOME_ENV = "NTWINE_DEV_SANDBOX_HOME";
 
 /** Flags that decided how a board was reached. Retired 2026-08-25 for the R pane; see retiredFlagMessage. */
 const RETIRED_NETWORK_FLAGS = ["--host", "--allowed-host", "--public-origin", "--cloud"];
@@ -239,10 +239,10 @@ export function parseCliArgs(argv: string[]): CliOptions {
     if (arg.startsWith("-")) continue;
     // ONE SERVER SERVES EVERY PROJECT, so "which repository" is not a question a launch has. The
     // positional was a leftover from one-server-per-repo and it kept the wrong mental model alive:
-    // `frizz /some/repo` reads as "serve that repo", when the server it starts serves all of them.
+    // `ntwine /some/repo` reads as "serve that repo", when the server it starts serves all of them.
     // Refuse rather than ignore — someone with this in a script deserves to be told where it went.
     throw new Error(
-      `unexpected argument: ${arg} — Frizz takes no repository path, because one server serves every project on this machine. cd into the directory you want and run it with no arguments.`
+      `unexpected argument: ${arg} — Ntwine takes no repository path, because one server serves every project on this machine. cd into the directory you want and run it with no arguments.`
     );
   }
   let port: number | undefined;
@@ -284,7 +284,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
     if (!known.has(arg)) throw new Error(`unknown option: ${arg}`);
   }
   if (args.has("--detach"))
-    throw new Error("--detach is no longer available; frizz-dev always runs in the foreground");
+    throw new Error("--detach is no longer available; ntwine-dev always runs in the foreground");
   if (args.has("--app") && args.has("--no-app"))
     throw new Error("choose either --app or --no-app");
   // A sandbox is a FRESH board by definition, so the flags that query the running one have nothing
@@ -298,7 +298,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
   return {
     noApp: args.has("--no-app"),
     appMode: args.has("--app"),
-    // Retain the option in the parsed shape for callers, but normal frizz-dev is always attached.
+    // Retain the option in the parsed shape for callers, but normal ntwine-dev is always attached.
     foreground: true,
     stop: args.has("--stop"),
     link: args.has("--link"),
@@ -326,7 +326,7 @@ export function boardAddress(url: string): string {
   return url.includes("?") || url.endsWith("/") ? url : `${url}/`;
 }
 
-/** The XDG roots frizz-paths.ts honors, and therefore the ones a throwaway home must not inherit. */
+/** The XDG roots ntwine-paths.ts honors, and therefore the ones a throwaway home must not inherit. */
 export const SANDBOX_DROPPED_XDG_ROOTS = ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"] as const;
 
 /**
@@ -336,18 +336,18 @@ export const SANDBOX_DROPPED_XDG_ROOTS = ["XDG_DATA_HOME", "XDG_STATE_HOME", "XD
  * exit; the state root, logs and the minted project id all live under it.
  */
 export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: string = homedir()): { home: string; project: string } {
-  const home = mkdtempSync(join(tmpdir(), "frizz-sandbox-"));
+  const home = mkdtempSync(join(tmpdir(), "ntwine-sandbox-"));
   // The operator's environment as it was, because one path below is still theirs to resolve: the
   // machine's claim identity lives wherever THEIR roots put it, XDG included.
   const inherited: NodeJS.ProcessEnv = { ...env };
   // POSIX homedir() reads $HOME and Windows reads USERPROFILE, both at call time — this is the whole lever.
   env.HOME = home;
   env.USERPROFILE = home;
-  // A SET XDG variable outranks the home in frizz-paths.ts, by design: a developer who configured XDG
+  // A SET XDG variable outranks the home in ntwine-paths.ts, by design: a developer who configured XDG
   // asked for it. Inherited into a sandbox it defeats the whole point — `registryPath(home)`,
   // `claimIdentityPath(home)`, `cloudConfigPath(home)` all resolve straight back into the operator's
-  // real `$XDG_DATA_HOME/frizz`, and the cleanup on exit only removes the throwaway home (raised on
-  // PR #43, 2026-09-23). A sandbox is a home that has never run Frizz, so it gets the platform defaults.
+  // real `$XDG_DATA_HOME/ntwine`, and the cleanup on exit only removes the throwaway home (raised on
+  // PR #43, 2026-09-23). A sandbox is a home that has never run Ntwine, so it gets the platform defaults.
   for (const name of SANDBOX_DROPPED_XDG_ROOTS) delete env[name];
   // The pinned Claude Code and Codex are a CACHE, not state: immutable, one directory per version,
   // and guarded against a concurrent sweep by live-process leases (runtime-lease.ts), which is exactly
@@ -355,10 +355,10 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
   // them under the throwaway home and deletes them on exit, so EVERY sandbox launch downloaded both —
   // 31s of claude and 11s of codex, 42s of the server's 44s start in the 623s sandbox launch logged
   // 2026-10-01. Point it at the operator's copies, resolved under THEIR roots (XDG included), as
-  // scripts/adhoc-stack.mjs already does. An explicit FRIZZ_RUNTIMES / FRIZZ_RUNTIMES_DIR still wins:
+  // scripts/adhoc-stack.mjs already does. An explicit NTWINE_RUNTIMES / NTWINE_RUNTIMES_DIR still wins:
   // that is how a run that must exercise provisioning itself asks for it.
-  if (!inherited.FRIZZ_RUNTIMES && !inherited.FRIZZ_RUNTIMES_DIR) {
-    env.FRIZZ_RUNTIMES_DIR = join(frizzPaths({ home: realHome, env: inherited }).cache, "runtimes");
+  if (!inherited.NTWINE_RUNTIMES && !inherited.NTWINE_RUNTIMES_DIR) {
+    env.NTWINE_RUNTIMES_DIR = join(ntwinePaths({ home: realHome, env: inherited }).cache, "runtimes");
   }
   // AFTER the scrub, so the sandbox end of every link is resolved the way the sandbox itself will
   // resolve it later. Sharing first and scrubbing second put the identity link at the XDG-resolved
@@ -367,13 +367,13 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
   shareCredentials(realHome, home, inherited, env);
   const project = join(home, "sandbox");
   mkdirSync(project, { recursive: true });
-  writeFileSync(join(project, "README.md"), "# frizz sandbox\n\nA throwaway project; everything here is deleted when the sandbox exits.\n");
+  writeFileSync(join(project, "README.md"), "# ntwine sandbox\n\nA throwaway project; everything here is deleted when the sandbox exits.\n");
   try {
     execFileSync("git", ["init", "-q"], { cwd: project, stdio: "ignore", windowsHide: true });
   } catch {
     throw new Error("--sandbox mints a throwaway git repository and git is not available — install git, or play in a repo of your own with a temp HOME");
   }
-  // Only a folder Frizz already knows opens its own board (resolveLaunchIntent); a fresh repository
+  // Only a folder Ntwine already knows opens its own board (resolveLaunchIntent); a fresh repository
   // lands on the dashboard. A sandbox is a board to try things in, so its project is made one here.
   writeProjectIdFile(project, randomUUID());
   process.chdir(project);
@@ -390,8 +390,8 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
  * be "taken" against the real board for the length of a lease. Linking the real key makes a sandbox
  * claim the machine's claim, which the real board then renews as its own.
  *
- * cloudflared's files are linked one by one into a real directory, not as the directory itself: Frizz
- * writes frizz.yml there, and that write must land in the sandbox, not over the real one. Everything
+ * cloudflared's files are linked one by one into a real directory, not as the directory itself: Ntwine
+ * writes ntwine.yml there, and that write must land in the sandbox, not over the real one. Everything
  * here is best-effort — a missing file is simply not linked, and a platform that refuses symlinks gets
  * a sandbox without shared credentials rather than no sandbox.
  */
@@ -405,8 +405,8 @@ function shareCredentials(realHome: string, home: string, realEnv: NodeJS.Proces
   };
   // The claim identity: through a link even before it exists, so a first claim from the sandbox mints
   // the REAL machine key rather than a throwaway one. Both ends are wherever identity.ts puts the key
-  // for that home — never a literal `~/.frizz`, which this used to create on the real home and which
-  // frizz-paths.ts reads as "legacy install, route everything here" (found by the Linux suite run of
+  // for that home — never a literal `~/.ntwine`, which this used to create on the real home and which
+  // ntwine-paths.ts reads as "legacy install, route everything here" (found by the Linux suite run of
   // 2026-08-28: one sandbox launch on a fresh machine moved every later launch off the XDG roots).
   // Each end under ITS environment: the real key sits under the operator's XDG roots if they set any,
   // the sandbox's under the throwaway home, since those roots are gone from the sandbox's env.
@@ -435,7 +435,7 @@ function shareCredentials(realHome: string, home: string, realEnv: NodeJS.Proces
   // macOS keeps the login keychain UNDER the home directory, and that is where gh and Claude keep their
   // tokens — so a redirected HOME hides every credential above even with the config dirs linked.
   // Measured: gh answers 401 through a linked ~/.config/gh alone, and the login through this link.
-  // Only the keychain: ~/Library/Application Support/Frizz is state and must stay throwaway.
+  // Only the keychain: ~/Library/Application Support/Ntwine is state and must stay throwaway.
   if (process.platform === "darwin" && existsSync(join(realHome, "Library", "Keychains"))) {
     mkdirSync(join(home, "Library"), { recursive: true });
     link(join(realHome, "Library", "Keychains"), join(home, "Library", "Keychains"));
@@ -451,14 +451,14 @@ export function cleanupSandbox(home: string): void {
   }
 }
 
-export function helpText(command = "frizz-dev"): string {
-  return `Frizz source launcher
+export function helpText(command = "ntwine-dev"): string {
+  return `Ntwine source launcher
 
 Usage: ${command} [options]
 
 Run it anywhere. One server serves EVERY project on this machine, each on its own board, so a
 second run joins the one already going. In a folder that is already a project it opens that
-project's board; anywhere else it opens All projects, where projects are added. Frizz serves a
+project's board; anywhere else it opens All projects, where projects are added. Ntwine serves a
 verified immutable artifact, selecting or safely building one on first launch, then opens it in
 your default browser; source edits never restart the shared board.
 
@@ -467,7 +467,7 @@ Options:
   --foreground           accepted for compatibility; ${command} always runs in the foreground
   --dev                  explicitly use the unsafe source watcher and Vite/HMR, not an artifact
   --port <port>          request a fixed port for a new workspace server
-  --sandbox              a disposable Frizz to try things in: throwaway home and project, its
+  --sandbox              a disposable Ntwine to try things in: throwaway home and project, its
                          own port, deleted when this terminal closes; credentials (gh,
                          cloudflared, Claude, Codex, the machine's frizz.sh key) are shared
   --link                 print a fresh single-use access link for the already-running board
@@ -480,10 +480,10 @@ Options:
 
 
 Commands:
-  build                  build a new immutable candidate from the configured Frizz source checkout
+  build                  build a new immutable candidate from the configured Ntwine source checkout
   promote <digest>       explicitly select a verified candidate for this workspace
   restart                restart the currently promoted artifact without building
-  top                    memory on this machine and Frizz's share of it (--json, --watch)
+  top                    memory on this machine and Ntwine's share of it (--json, --watch)
 
 To reach the board from a phone or another machine, press R in the terminal running it: a short
 walkthrough sets up a private frizz.sh name (no account needed), a Cloudflare
@@ -496,33 +496,33 @@ An immutable artifact is the default. --dev is the only explicit unsafe source w
 }
 
 /**
- * What a `frizz` in THIS directory should actually do.
+ * What a `ntwine` in THIS directory should actually do.
  *
- * A FOLDER FRIZZ ALREADY KNOWS OPENS ITS BOARD. ANYTHING ELSE OPENS ALL PROJECTS. One server serves
- * every project on the machine, so the command starts Frizz; it does not pick a project, and it never
+ * A FOLDER NTWINE ALREADY KNOWS OPENS ITS BOARD. ANYTHING ELSE OPENS ALL PROJECTS. One server serves
+ * every project on the machine, so the command starts Ntwine; it does not pick a project, and it never
  * makes one. Projects are added from the add-project dialog (upstream maintainer 2026-10-10: "If the
- * folder that you run it in is not a pre-existing Frizz project, it should just bring you to the root
+ * folder that you run it in is not a pre-existing Ntwine project, it should just bring you to the root
  * of the dashboard"; this fork's dashboard is All projects).
  *
  * It was the other way round twice. Running the command ADOPTED the directory until 2026-08-06, which
- * minted a project in $HOME, inside Frizz's own `~/.frizz` state root. Then a repository was adopted
- * on sight and everything else refused or offered (2026-08-11) — so a new user's first `npx frizz`,
- * typed in a fresh terminal or in `~/Documents`, ended in "cd into a repository and run frizz
+ * minted a project in $HOME, inside Ntwine's own `~/.ntwine` state root. Then a repository was adopted
+ * on sight and everything else refused or offered (2026-08-11) — so a new user's first `npx ntwine`,
+ * typed in a fresh terminal or in `~/Documents`, ended in "cd into a repository and run ntwine
  * there". Both came from the days of one server per project, when where the command ran had to mean
  * something.
  *
- *  - `open`  — a directory Frizz knows, from `.frizz/.id` or from the registry: its own board.
- *  - `offer` — a repository or a manifest root Frizz has not seen: `/`, where the add-project dialog
+ *  - `open`  — a directory Ntwine knows, from `.ntwine/.id` or from the registry: its own board.
+ *  - `offer` — a repository or a manifest root Ntwine has not seen: `/`, where the add-project dialog
  *               asks whether to add it. Nothing is written until the operator says yes there.
  *  - `everything` — every other directory: All projects, `/all`, and nothing else. `~/Downloads` is a
  *               command in the wrong terminal. $HOME is never offered because the add-project dialog
  *               refuses it (isHomeDirectory).
  *
  * The last two still need a project to LAUNCH with, because a server is a process that serves a
- * board. That host is a folder of Frizz's own (hostWorkspace), never one of the operator's projects.
+ * board. That host is a folder of Ntwine's own (hostWorkspace), never one of the operator's projects.
  *
  * It was the most recently opened project until 2026-10-11, and that tied a running board to a
- * folder nobody had launched it from: `npx frizz` typed in $HOME was hosted on `~/Documents/scratch`,
+ * folder nobody had launched it from: `npx ntwine` typed in $HOME was hosted on `~/Documents/scratch`,
  * the folder was deleted a day later, and the board could no longer update or restart — the server
  * refuses to boot without its host folder (maintainer: "Why can't we just start it from wherever
  * they run the fucking command?").
@@ -538,7 +538,7 @@ export function resolveLaunchIntent(
   env: NodeJS.ProcessEnv = process.env
 ): LaunchIntent {
   // The rule itself lives with the server (launch-routing.ts classifyLaunch), which answers it for a
-  // launcher that asks. This is the copy a launcher falls back on, and the one frizz-dev still uses.
+  // launcher that asks. This is the copy a launcher falls back on, and the one ntwine-dev still uses.
   const launch = classifyLaunch(cwd, home)
   if (launch.kind === "open") return { kind: "open", workspace: resolveWorkspace(cwd, home, env) }
 
@@ -569,7 +569,7 @@ export async function askLaunchRoute(
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 5_000)
     timeout.unref?.()
     try {
-      const response = await fetcher(`http://127.0.0.1:${port}${FRIZZ_ROUTE_PREFIX}${LAUNCH_ROUTE_PATH}`, {
+      const response = await fetcher(`http://127.0.0.1:${port}${NTWINE_ROUTE_PREFIX}${LAUNCH_ROUTE_PATH}`, {
         method: "POST",
         headers: { "content-type": "application/json", [LAUNCH_TOKEN_HEADER]: ownerToken },
         body: JSON.stringify({ protocol: LAUNCH_ROUTE_PROTOCOL, dir, ...(options.args?.length ? { args: options.args } : {}) }),
@@ -587,13 +587,13 @@ export async function askLaunchRoute(
 }
 
 /**
- * The server's host for a launch outside a project: a folder of Frizz's own, never registered.
+ * The server's host for a launch outside a project: a folder of Ntwine's own, never registered.
  *
  * The server builds a whole board around the project it is launched with — its state dir holds the
  * launch record and the `server.lock` every worker reads the port from — so "no project" is not a
  * state it has. This is the smallest thing that stands in: a real, empty project the registry never
  * hears about, so the dashboard lists only the operator's own projects, and on a new machine says
- * "Welcome to Frizz". Every project there is an ordinary tenant.
+ * "Welcome to Ntwine". Every project there is an ordinary tenant.
  */
 export function hostWorkspace(home = homedir()): Workspace {
   const dir = launchHostDir(home)
@@ -619,7 +619,7 @@ export function resolveWorkspace(
   home = homedir(),
   env: NodeJS.ProcessEnv = process.env
 ): Workspace {
-  // A repository still gets its root from Git — that is what makes `frizz` in a sub-directory open the
+  // A repository still gets its root from Git — that is what makes `ntwine` in a sub-directory open the
   // repo's board. Outside one (including a non-colocated jj checkout, which has no `.git` at all, and
   // a machine with no `git` installed) the root comes from marker walk-up instead of the launch dying.
   let gitRoot: string | undefined;
@@ -641,7 +641,7 @@ export function resolveWorkspace(
   const root0 = realpathSync(gitRoot ?? discoverProjectRoot(cwd, home));
   const identity = gitRoot ? resolveGitProjectIdentity(root0, home) : undefined;
   const root = identity?.root ?? root0;
-  // The id lives at `.frizz/.id`; a repository's existing `git config frizz.id` seeds it, so an
+  // The id lives at `.ntwine/.id`; a repository's existing `git config ntwine.id` seeds it, so an
   // established board keeps its exact id and nothing is ever removed from the old store.
   const id = ensureProjectIdFile(root, home, identity?.id);
   const stateDir = projectStateDir(id, home);
@@ -684,10 +684,10 @@ export function workspaceFromLaunchTarget(
   try {
     root = realpathSync(target.projectDir);
   } catch {
-    throw new Error("pinned Frizz workspace is no longer available");
+    throw new Error("pinned Ntwine workspace is no longer available");
   }
   if (root !== target.projectDir)
-    throw new Error("pinned Frizz workspace path is not canonical");
+    throw new Error("pinned Ntwine workspace path is not canonical");
   return {
     root,
     id: target.projectId,
@@ -779,7 +779,7 @@ export function liveWorkspaceOwner(
 }
 
 // A config validation failure deliberately leaves the prior healthy child serving while the durable
-// watcher waits for a corrective edit. Health alone therefore cannot make `frizz-dev --status` green: the
+// watcher waits for a corrective edit. Health alone therefore cannot make `ntwine-dev --status` green: the
 // supervisor lock is the authoritative signal that the newest generation needs attention.
 export function supervisorNeedsAttention(
   owner: LauncherStatus | null
@@ -829,33 +829,33 @@ export const HEALTH_PROBE_TIMEOUT_MS = 1000;
  * How long the JOIN probe waits, versus the second it takes to ask a server about itself.
  *
  * These are different questions and only one of them is cheap. "Is the server I started healthy yet"
- * is answered by a process with nothing else to do. "Is the Frizz already running on this machine
+ * is answered by a process with nothing else to do. "Is the Ntwine already running on this machine
  * serving my project" is answered by a process that may be mid-prime for some other board, and its
  * event loop is genuinely busy for seconds at a time.
  *
  * Timing out the second question does not degrade — it starts a RIVAL SERVER, which is worse than any
- * wait: two Frizzes on one machine means two schedulers, and a board whose timers and recurring
+ * wait: two Ntwinees on one machine means two schedulers, and a board whose timers and recurring
  * prompts fire twice. A dead port fails instantly with ECONNREFUSED, so this patience is only ever
  * spent when something really is listening, which is exactly when we want to wait rather than race.
  */
 export const JOIN_PROBE_TIMEOUT_MS = 15_000;
 
-export async function probeFrizz(
+export async function probeNtwine(
   port: number,
-  expected: ExpectedFrizzHealth,
+  expected: ExpectedNtwineHealth,
   fetcher: typeof fetch = fetch,
   timeoutMs = HEALTH_PROBE_TIMEOUT_MS
-): Promise<FrizzHealth | null> {
+): Promise<NtwineHealth | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   timeout.unref?.();
   try {
-    const scope = expected.slug ? `${FRIZZ_ROUTE_PREFIX}/${expected.slug}` : FRIZZ_ROUTE_PREFIX;
+    const scope = expected.slug ? `${NTWINE_ROUTE_PREFIX}/${expected.slug}` : NTWINE_ROUTE_PREFIX;
     const response = await fetcher(`http://127.0.0.1:${port}${scope}/health`, {
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    const health = (await response.json()) as Partial<FrizzHealth>;
+    const health = (await response.json()) as Partial<NtwineHealth>;
     if (
       health.ok !== true ||
       typeof health.projectId !== "string" ||
@@ -873,7 +873,7 @@ export async function probeFrizz(
       health.ownerProof !== expected.ownerProof
     )
       return null;
-    return health as FrizzHealth;
+    return health as NtwineHealth;
   } catch {
     return null;
   } finally {
@@ -882,20 +882,20 @@ export async function probeFrizz(
 }
 
 /**
- * The unscoped health of whatever Frizz answers on a port, with no expectation to match against:
+ * The unscoped health of whatever Ntwine answers on a port, with no expectation to match against:
  * the singleton names the project it was LAUNCHED from, which is what a client in another project
  * needs to learn before it can find that launch's owner record.
  */
-export async function readFrizzHealth(port: number, fetcher: typeof fetch = fetch, timeoutMs = HEALTH_PROBE_TIMEOUT_MS): Promise<FrizzHealth | null> {
+export async function readNtwineHealth(port: number, fetcher: typeof fetch = fetch, timeoutMs = HEALTH_PROBE_TIMEOUT_MS): Promise<NtwineHealth | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   timeout.unref?.();
   try {
-    const response = await fetcher(`http://127.0.0.1:${port}${FRIZZ_ROUTE_PREFIX}/health`, { signal: controller.signal });
+    const response = await fetcher(`http://127.0.0.1:${port}${NTWINE_ROUTE_PREFIX}/health`, { signal: controller.signal });
     if (!response.ok) return null;
-    const health = (await response.json()) as Partial<FrizzHealth>;
+    const health = (await response.json()) as Partial<NtwineHealth>;
     if (health.ok !== true || typeof health.projectId !== "string" || typeof health.projectDir !== "string" || typeof health.bootId !== "string") return null;
-    return health as FrizzHealth;
+    return health as NtwineHealth;
   } catch {
     return null;
   } finally {
@@ -912,7 +912,7 @@ export interface LaunchControlTarget {
 
 /**
  * Which launch `--stop` and `--status` are about. ONE server serves every project, and it publishes
- * its owner record under the project it was launched from — so `frizz --stop` in project B, served
+ * its owner record under the project it was launched from — so `ntwine --stop` in project B, served
  * by a board launched in A, found no record in B and answered "not running" (pullfrog on #35,
  * 2026-09-11). When this project holds no record, the singleton's ports are asked who they are; a
  * board that names another project with a live record is the one to control, with that project's
@@ -930,7 +930,7 @@ export async function resolveLaunchControlTarget(options: {
   const fetcher = options.fetcher ?? fetch;
   const stateDirFor = options.stateDirFor ?? ((projectId: string) => projectStateDir(projectId));
   for (const port of new Set(options.ports ?? [DEFAULT_PORT, fallbackPort(DEFAULT_PORT)])) {
-    const health = await readFrizzHealth(port, fetcher);
+    const health = await readNtwineHealth(port, fetcher);
     if (!health || health.projectId === options.target.projectId) continue;
     const stateDir = stateDirFor(health.projectId);
     if (!readProjectLaunchOwner(stateDir)) continue;
@@ -939,20 +939,20 @@ export async function resolveLaunchControlTarget(options: {
   return own;
 }
 
-export async function requestFrizzStop(
+export async function requestNtwineStop(
   port: number,
-  expected: ExpectedFrizzHealth,
+  expected: ExpectedNtwineHealth,
   ownerToken: string,
   fetcher: typeof fetch = fetch
 ): Promise<boolean> {
-  if (!(await probeFrizz(port, expected, fetcher))) return false;
+  if (!(await probeNtwine(port, expected, fetcher))) return false;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1_000);
   timeout.unref?.();
   try {
-    const response = await fetcher(`http://127.0.0.1:${port}${FRIZZ_ROUTE_PREFIX}/control/stop`, {
+    const response = await fetcher(`http://127.0.0.1:${port}${NTWINE_ROUTE_PREFIX}/control/stop`, {
       method: "POST",
-      headers: { "x-frizz-launch-token": ownerToken },
+      headers: { "x-ntwine-launch-token": ownerToken },
       signal: controller.signal,
     });
     return response.status === 202;
@@ -966,7 +966,7 @@ export async function requestFrizzStop(
 export function expectedOwnerHealth(
   target: ProjectLaunchTarget,
   owner: ProjectLaunchOwnerRecord | null
-): ExpectedFrizzHealth {
+): ExpectedNtwineHealth {
   return {
     projectId: target.projectId,
     projectDir: target.projectDir,
@@ -1068,7 +1068,7 @@ function portCandidates(
 
 function noFreePortMessage(base = DEFAULT_PORT): string {
   const fallback = fallbackPort(base);
-  return `no free Frizz port: ${base} is taken, and so is every port in ${fallback}-${
+  return `no free Ntwine port: ${base} is taken, and so is every port in ${fallback}-${
     fallback + PORT_SCAN_COUNT - 1
   }`;
 }
@@ -1096,7 +1096,7 @@ export async function allocatePort(
     reserve?: (port: number) => (() => void) | undefined;
     /** Address the caller will actually bind; the probe has to match it. */
     host?: string;
-    /** The well-known port to try first. `frizz-dev` has its own so it never fights the singleton. */
+    /** The well-known port to try first. `ntwine-dev` has its own so it never fights the singleton. */
     base?: number;
   } = {}
 ): Promise<PortAllocation> {
@@ -1137,11 +1137,11 @@ export interface WaitForWorkspaceOptions {
 }
 
 /**
- * Wait for the control plane on `port` to answer /_frizz/health as the expected owner.
+ * Wait for the control plane on `port` to answer /_ntwine/health as the expected owner.
  *
  * WHY THIS IS NOT A FLAT DEADLINE. A launcher spawns the control plane detached and cannot see inside
  * it, so a flat 30s budget silently conflates "something is wrong" with "this board is big and this
- * machine is busy" — and the maintainer's own board hit that every time, printing "Frizz did not become
+ * machine is busy" — and the maintainer's own board hit that every time, printing "Ntwine did not become
  * healthy" while a perfectly healthy child kept booting behind it. Elapsed time is not evidence of
  * failure; a boot that has STOPPED MAKING PROGRESS is. So when the state dir is known, `timeoutMs` is
  * spent from the last observed progress step rather than from the start, and the failure message names
@@ -1149,17 +1149,17 @@ export interface WaitForWorkspaceOptions {
  */
 export async function waitForWorkspace(
   port: number,
-  expected: ExpectedFrizzHealth,
+  expected: ExpectedNtwineHealth,
   timeoutMs = LAUNCH_TIMEOUT_MS,
   options: WaitForWorkspaceOptions = {}
-): Promise<FrizzHealth> {
+): Promise<NtwineHealth> {
   const started = Date.now();
   const hardDeadline = started + (options.hardTimeoutMs ?? LAUNCH_HARD_TIMEOUT_MS);
   let stallDeadline = started + timeoutMs;
   let lastStep = -1;
   let lastPhase: string | undefined;
   for (;;) {
-    const health = await probeFrizz(port, expected);
+    const health = await probeNtwine(port, expected);
     if (health) return health;
     if (options.stateDir) {
       const progress = readBootProgress(options.stateDir);
@@ -1176,8 +1176,8 @@ export async function waitForWorkspace(
       const waited = Math.ceil((now - started) / 1000);
       throw new Error(
         lastPhase
-          ? `Frizz did not become healthy on port ${port} after ${waited}s; its last reported boot step was "${lastPhase}" and it stopped making progress`
-          : `Frizz did not become healthy on port ${port} within ${waited}s`
+          ? `Ntwine did not become healthy on port ${port} after ${waited}s; its last reported boot step was "${lastPhase}" and it stopped making progress`
+          : `Ntwine did not become healthy on port ${port} within ${waited}s`
       );
     }
     await delay(150);
@@ -1185,11 +1185,11 @@ export async function waitForWorkspace(
 }
 
 export function sourceWorkspaceDir(env: NodeJS.ProcessEnv = process.env): string {
-  // A durable artifact re-exec runs its deployed CLI from ~/.frizz/builds, not this checkout.
+  // A durable artifact re-exec runs its deployed CLI from ~/.ntwine/builds, not this checkout.
   // Preserve the original canonical checkout explicitly so Update & Restart continues to build
   // from the source the operator launched, rather than treating the artifact cache as source.
-  return env.FRIZZ_SOURCE_DIR
-    ? resolve(env.FRIZZ_SOURCE_DIR)
+  return env.NTWINE_SOURCE_DIR
+    ? resolve(env.NTWINE_SOURCE_DIR)
     : resolve(import.meta.dirname, "..");
 }
 
@@ -1201,9 +1201,9 @@ export function sourceLabel(): string {
  * The tail of this workspace's most recent run log, for a failure message that can show what the
  * server was doing when it gave up.
  *
- * This used to read `<stateDir>/dev.log` — a file Frizz has never written since the detached
+ * This used to read `<stateDir>/dev.log` — a file Ntwine has never written since the detached
  * supervisor was removed — and had no callers, so the diagnostic it appeared to offer always came
- * back empty. It now reads the run log that `@frizz/server/logging` actually produces.
+ * back empty. It now reads the run log that `@ntwine/server/logging` actually produces.
  */
 export function logTail(stateDir: string, maxChars = 4000): string {
   try {
@@ -1252,11 +1252,11 @@ export async function stopProjectLaunch(options: StopProjectLaunchOptions): Prom
   const status = liveWorkspaceOwner(stateDir, target, adapter);
   const controlPort = status?.port ?? (status ? undefined : await options.fallbackPort?.());
   const controlled = controlPort
-    ? await requestFrizzStop(controlPort, expectedOwnerHealth(target, owner), owner.token, fetcher)
+    ? await requestNtwineStop(controlPort, expectedOwnerHealth(target, owner), owner.token, fetcher)
     : false;
   if (!controlled && !processGenerationIsStale(owner, adapter)) {
     throw new Error(
-      "Frizz refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
+      "Ntwine refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
     );
   }
   const reap = (): boolean => {
@@ -1280,7 +1280,7 @@ export async function stopProjectLaunch(options: StopProjectLaunchOptions): Prom
   throw new Error(`supervisor pid ${owner.pid} did not stop within ${Math.round((options.timeoutMs ?? 10_000) / 1000)}s`);
 }
 
-export interface RunningFrizzStatus {
+export interface RunningNtwineStatus {
   port: number;
   pid: number;
   version?: string;
@@ -1293,17 +1293,17 @@ export interface RunningFrizzStatus {
  * reports on its status route — or null when nothing live owns the project. Read-only, and the
  * answer behind the registry launcher's `--status`.
  */
-export async function runningFrizzStatus(options: {
+export async function runningNtwineStatus(options: {
   stateDir: string;
   target: ProjectLaunchTarget;
   fetcher?: typeof fetch;
   adapter?: ProcessPlatformAdapter;
-}): Promise<RunningFrizzStatus | null> {
+}): Promise<RunningNtwineStatus | null> {
   const fetcher = options.fetcher ?? fetch;
   const owner = liveWorkspaceOwner(options.stateDir, options.target, options.adapter ?? defaultProcessPlatformAdapter);
   if (!owner?.port) return null;
   const expected = expectedOwnerHealth(options.target, readProjectLaunchOwner(options.stateDir));
-  if (!(await probeFrizz(owner.port, expected, fetcher))) return null;
+  if (!(await probeNtwine(owner.port, expected, fetcher))) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), HEALTH_PROBE_TIMEOUT_MS);
   timeout.unref?.();
@@ -1311,7 +1311,7 @@ export async function runningFrizzStatus(options: {
   try {
     // Same-origin gated, and Node's fetch carries no Origin: without this every read was a 403 and
     // `--status` printed "version: unknown" for a healthy board (measured on Windows 2026-09-11).
-    const response = await fetcher(`http://127.0.0.1:${owner.port}${FRIZZ_ROUTE_PREFIX}/control/status`, {
+    const response = await fetcher(`http://127.0.0.1:${owner.port}${NTWINE_ROUTE_PREFIX}/control/status`, {
       signal: controller.signal,
       headers: { origin: `http://127.0.0.1:${owner.port}`, "cache-control": "no-store" },
     });

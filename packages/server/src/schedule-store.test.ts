@@ -3,11 +3,11 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
-import { threadIdentityName } from "@frizz/shared"
+import { threadIdentityName } from "@ntwine/shared"
 import { createStorage, isScheduleHeldRow, type SessionRow } from "./storage.ts"
 import type { ThreadScheduleRow } from "./schedule-store.ts"
 
-const tmpStorage = () => createStorage(join(mkdtempSync(join(tmpdir(), "frizz-schedule-store-")), "ui.db"), "p")
+const tmpStorage = () => createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-schedule-store-")), "ui.db"), "p")
 
 const schedule = (patch: Partial<ThreadScheduleRow> = {}): ThreadScheduleRow => ({
   id: "sch_aaaaaaaaaaaa", title: "Triage issues", when_text: "every Monday at 9am", prompt: "triage new issues", condition: null,

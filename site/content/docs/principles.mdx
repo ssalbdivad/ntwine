@@ -1,14 +1,14 @@
 ---
 title: Principles
-description: The commitments Frizz is built on, and the few places it bends one on purpose.
+description: The commitments Ntwine is built on, and the few places it bends one on purpose.
 ---
 
-Colin McDonnell designed Frizz around a few commitments. Every feature is held to them.
+Colin McDonnell designed Ntwine around a few commitments. Every feature is held to them.
 
-## The agent decides, and Frizz checks
+## The agent decides, and Ntwine checks
 
-- **A thread's state is its agent's own last word.** The final message says whether the work is done, needs you, or is waiting on something, and Frizz only checks that it holds up. There is no status field to set.
-- **Frizz never acts on an agent's behalf.** It does not answer, withdraw, park or queue for one. The few deliberate exceptions are [listed below](#where-frizz-bends-one).
+- **A thread's state is its agent's own last word.** The final message says whether the work is done, needs you, or is waiting on something, and Ntwine only checks that it holds up. There is no status field to set.
+- **Ntwine never acts on an agent's behalf.** It does not answer, withdraw, park or queue for one. The few deliberate exceptions are [listed below](#where-ntwine-bends-one).
 - **What must outlive a message is recorded.** A question, a finish and a watch are records, not sentences, and a wait always names what it waits on.
 - **A gate can refuse, and it has no bypass.**
 - **A question stays open until it is answered, dismissed or withdrawn.** Typing past it leaves it open. Nothing retracts it by omission. See [questions](/docs/questions).
@@ -20,19 +20,19 @@ Colin McDonnell designed Frizz around a few commitments. Every feature is held t
 - **Projects stay separate.** The default view is one [project's board](/docs/projects). All projects is one click away.
 - **Density over decoration, and few settings.** The default view shows at least as much as the original board at heavy load (17 projects, ~70 threads), and a test holds it there.
 
-## Frizz is the process that outlives the agent
+## Ntwine is the process that outlives the agent
 
-- **One server, every project.** Agents run detached and talk to Frizz over pipes, so closing the tab, the browser or Frizz itself never stops a turn.
+- **One server, every project.** Agents run detached and talk to Ntwine over pipes, so closing the tab, the browser or Ntwine itself never stops a turn.
 - **A wait outlives the session that set it.** A watch on a [pull request or issue](/docs/github), or on [another thread](/docs/handles), lasts as long as the server does, for years if need be, and wakes the thread the moment CI settles, a review or comment lands, or the other thread answers. Agents respond on their own, without polling and without you relaying.
 
-## Frizz brings nothing of its own
+## Ntwine brings nothing of its own
 
-- **No model of its own.** Frizz drives [your CLIs](/docs/agents) on your sign-in. The few small model calls it makes itself sit behind one switch, **Settings → Background summaries**.
-- **No workflow of its own.** No branches or worktrees behind your back, no build steps, and no universal timeout on a background shell, since some run for days. Your norms go in [`FRIZZ.md`](/docs/frizz-md).
+- **No model of its own.** Ntwine drives [your CLIs](/docs/agents) on your sign-in. The few small model calls it makes itself sit behind one switch, **Settings → Background summaries**.
+- **No workflow of its own.** No branches or worktrees behind your back, no build steps, and no universal timeout on a background shell, since some run for days. Your norms go in [`NTWINE.md`](/docs/ntwine-md).
 
-## Where Frizz bends one
+## Where Ntwine bends one
 
-Each of these departs from "Frizz only checks" on purpose, and each can be turned off or ignored:
+Each of these departs from "Ntwine only checks" on purpose, and each can be turned off or ignored:
 
 - **A default answer.** A question unanswered 10m after its thread rests takes the agent's recommended option, never one that posts, merges, publishes or spends. The <kbd>×</kbd> under the card turns it off.
 - **A check-in on sub-agents.** A parent waiting on its sub-agents is asked for a progress note every 30m, so a long fan-out never shows one stale line for hours.

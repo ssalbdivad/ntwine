@@ -24,7 +24,7 @@ test("a changed board-server boot id is adopted without document navigation", ()
     noteServerBootId("before-queue-update")
     noteServerBootId("after-queue-update")
 
-    assert.equal(values.get("frizz-boot-id"), "after-queue-update")
+    assert.equal(values.get("ntwine-boot-id"), "after-queue-update")
     assert.equal(reloads, 0, "a transport/keyframe transition must not discard an unsent composer draft")
   } finally {
     Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: originalStorage })

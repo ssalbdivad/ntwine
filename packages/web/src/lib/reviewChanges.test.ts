@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { EditorWindowSummary } from "@frizz/shared"
+import type { EditorWindowSummary } from "@ntwine/shared"
 import { reviewLabel } from "./reviewChanges.ts"
 
 const window = (over: Partial<EditorWindowSummary> = {}): EditorWindowSummary => ({ app: "Visual Studio Code", kind: "vscode", acceptsOpens: true, reviews: true, ...over })

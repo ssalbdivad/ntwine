@@ -1,4 +1,4 @@
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 
 // THE QUEUE CLOCK — when each thread ENTERED the queue, which is what the queue is ordered by.
 //
@@ -93,7 +93,7 @@ import type { ThreadView } from "@frizz/shared"
 //     card's event-snooze, or a follow-up still in the delivery ledger. Every follow-up passes through the
 //     ledger and the router re-assembles the board the moment it writes one, so no message the human sends
 //     can slip past unseen — which is why this reads the ledger rather than the transcript, where a wake
-//     frizz delivers is a user turn exactly like one the human typed;
+//     ntwine delivers is a user turn exactly like one the human typed;
 //   • a GATE only the human's own reply clears, on any reading while the thread waited IN the queue
 //     (`humanGate`): a permission prompt, a native ask, a request in the interaction journal — the gate
 //     ending is the human answering it;

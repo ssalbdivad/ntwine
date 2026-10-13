@@ -107,7 +107,7 @@ test("concurrent activations of a moved project build exactly one new context", 
 
 test("several projects are open at once and addressed by id", async () => {
   const tenants = createTenantMap({ createContext: async () => fakeContext([]) })
-  await tenants.activate(project("p1", "frizz"))
+  await tenants.activate(project("p1", "ntwine"))
   await tenants.activate(project("p2", "nub"))
   assert.equal(tenants.active().length, 2)
   assert.ok(tenants.get("p1"))

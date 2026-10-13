@@ -10,7 +10,7 @@ import { recoveryPage, retryTarget, unauthorizedPage, unlistedHostPage } from ".
 test("the unauthorized page discloses nothing about the product, in every reason", () => {
   for (const reason of [undefined, "unknown", "expired", "already-used"] as const) {
     const page = unauthorizedPage(reason)
-    assert.doesNotMatch(page, /frizz|board|agent/i, `the ${reason ?? "default"} 401 page named the product`)
+    assert.doesNotMatch(page, /ntwine|board|agent/i, `the ${reason ?? "default"} 401 page named the product`)
     // The whole point of carrying a reason: "already used" and "expired" are different next actions.
     assert.match(page, /access link|Generate a fresh one/)
   }
@@ -44,17 +44,17 @@ test("the recovery page escapes its target into both the link and the script's d
 test("each recovery variant states its own cause, and both offer the same two ways out", () => {
   const starting = recoveryPage("/")
   const unreachable = recoveryPage("/", "unreachable")
-  assert.match(starting, />Frizz is restarting</)
-  assert.match(unreachable, />Frizz is not responding</)
+  assert.match(starting, />Ntwine is restarting</)
+  assert.match(unreachable, />Ntwine is not responding</)
   for (const page of [starting, unreachable]) {
     assert.match(page, /Try again/)
-    assert.match(page, /Restart Frizz/)
+    assert.match(page, /Restart Ntwine/)
     // Threads outlive a restart because each is its own detached process; an operator staring at this
     // page should not have to guess.
     assert.match(page, /Threads already running are not affected/)
     // A `</script>` anywhere inside the inline script would end it early and dump the rest as markup.
     assert.equal(page.split("</script>").length - 1, 2, "one theme script and one recovery script")
-    assert.match(page, /localStorage\.getItem\("frizz-theme"\)/)
+    assert.match(page, /localStorage\.getItem\("ntwine-theme"\)/)
   }
 })
 
@@ -63,5 +63,5 @@ test("the unlisted-host page escapes the name it echoes, in prose and in both fl
   assert.doesNotMatch(page, /<b>/)
   assert.equal(page.split("a&quot;&lt;b&gt;&amp;c").length - 1, 3, "prose, --allowed-host and the env var")
   assert.match(page, /--allowed-host/)
-  assert.match(page, /FRIZZ_ALLOWED_HOSTS/)
+  assert.match(page, /NTWINE_ALLOWED_HOSTS/)
 })

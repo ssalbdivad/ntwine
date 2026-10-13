@@ -1,4 +1,4 @@
-// Orphan process reaper — frizz runs a worker per thread inside a DETACHED DAEMON (a Claude thread in
+// Orphan process reaper — ntwine runs a worker per thread inside a DETACHED DAEMON (a Claude thread in
 // its own session broker, a codex thread in the app-server; both forked with `detached: true` into
 // their own process group), and each worker spawns auxiliary processes for its task: MCP servers,
 // dev/watch servers, and verification browsers (chrome-devtools-mcp, agent-browser, puppeteer).
@@ -7,7 +7,7 @@
 // stop and leaks — permanently, since nothing else collects it. Over days this accretes GBs of orphaned
 // Chrome/node whose owning thread is long gone. This module reaps exactly those.
 //
-// Ownership is read from the env marker every worker carries: FRIZZ_THREAD=<slug> (set at spawn in
+// Ownership is read from the env marker every worker carries: NTWINE_THREAD=<slug> (set at spawn in
 // dispatch.ts/resume.ts), inherited by everything the worker spawns. A slug is LIVE iff a live
 // `claude`/`codex` session process still carries it — a worker's only OS-level agent process is its
 // session root (Agent sub-agents are in-process), so this is exact and socket-agnostic (it protects
@@ -19,7 +19,7 @@
 //
 // SAFETY — the reaper only ever kills an AUXILIARY process whose slug is live NOWHERE. It never
 // touches: a session root (`claude`/`codex`, or anything bearing `--session-id`), a leftover tmux
-// server from a pre-cutover frizz (it carries the first thread's slug in env but is shared
+// server from a pre-cutover ntwine (it carries the first thread's slug in env but is shared
 // infrastructure — see isTmuxServer), the reaper's own process or any ancestor (so it can never kill
 // the server it runs in — which is untagged anyway,
 // being user-spawned rather than worker-spawned), or any process whose slug is currently live. Every
@@ -35,7 +35,7 @@ import { sweepStaleSockets } from "./backend/stale-socket-sweep.ts"
 export const ORPHAN_REAP_INTERVAL_MS = 60_000
 export const ORPHAN_MIN_AGE_MS = 120_000
 
-const SLUG_RE = /FRIZZ_THREAD=([A-Za-z0-9._-]+)/
+const SLUG_RE = /NTWINE_THREAD=([A-Za-z0-9._-]+)/
 
 export interface ProcRow {
   pid: number
@@ -43,7 +43,7 @@ export interface ProcRow {
   ageMs: number
   /** argv only (no env), from `ps -o command=` */
   command: string
-  /** FRIZZ_THREAD read from the process ENVIRONMENT, or null when untagged/unreadable */
+  /** NTWINE_THREAD read from the process ENVIRONMENT, or null when untagged/unreadable */
   slug: string | null
 }
 
@@ -65,10 +65,10 @@ export function isSessionRoot(command: string): boolean {
 }
 
 /**
- * Frizz has not spawned tmux since 2026-08-02 (commit 3dc5bb1d, which deleted the last two modules
- * that did), but this guard OUTLIVES the strip on purpose: upgrading from a pre-cutover frizz can
+ * Ntwine has not spawned tmux since 2026-08-02 (commit 3dc5bb1d, which deleted the last two modules
+ * that did), but this guard OUTLIVES the strip on purpose: upgrading from a pre-cutover ntwine can
  * leave a tmux server holding panes the operator may still be reading, and it inherits the first
- * thread's FRIZZ_THREAD in env — which is exactly what makes it look reapable. Killing it would take
+ * thread's NTWINE_THREAD in env — which is exactly what makes it look reapable. Killing it would take
  * those panes with it.
  */
 export function isTmuxServer(command: string): boolean {
@@ -223,12 +223,12 @@ const defaultReadEnv: ReadEnv = (pid) => {
  * there 2026-08-24, and procps only tolerates the BSD `-ax` form as a compatibility special case).
  *
  * The slug is then read FROM THE ENVIRONMENT ONLY, per platform. On Linux, `/proc/<pid>/environ` —
- * NUL-delimited, so only an exact `FRIZZ_THREAD=<slug>` entry matches and none of the pass-2 record
+ * NUL-delimited, so only an exact `NTWINE_THREAD=<slug>` entry matches and none of the pass-2 record
  * parsing below applies. procps has no `-E`: on a Linux install the old unconditional pass 2 failed
  * every sweep with `error: unsupported SysV option` into the server log (reported 2026-08-24), so the
  * reaper silently reaped nothing there. On macOS, pass 2 is `ps -Eww` (env appended after argv) with
  * the pass-1 argv prefix stripped off first. Reading the slug from env — never argv — is what stops a literal
- * `FRIZZ_THREAD=x` inside a process's argv (pasted task text, an `env FRIZZ_THREAD=x …` invocation,
+ * `NTWINE_THREAD=x` inside a process's argv (pasted task text, an `env NTWINE_THREAD=x …` invocation,
  * a grep) from spoofing ownership and mis-attributing a live thread's slug.
  *
  * On macOS, deliberately TWO passes, not one `-Eww` pass storing the whole line: a process's full
@@ -280,7 +280,7 @@ export async function enumerateProcs(exec: Exec = defaultExec, opts: EnumerateOp
   if (!pids.length) return rows
 
   if ((opts.platform ?? process.platform) === "linux") {
-    // Only an exact NUL-delimited `FRIZZ_THREAD=<slug>` entry counts — a `FRIZZ_THREAD=x` literal
+    // Only an exact NUL-delimited `NTWINE_THREAD=<slug>` entry counts — a `NTWINE_THREAD=x` literal
     // INSIDE another variable's value (pasted task text) is part of a longer entry and never matches.
     // A pid reused between pass 1 and this read would attribute the NEW process's slug to the old
     // row, but Linux allocates pids sequentially up to pid_max, so a wrap inside this sub-ms gap is
@@ -291,7 +291,7 @@ export async function enumerateProcs(exec: Exec = defaultExec, opts: EnumerateOp
       const environ = readEnv(row.pid)
       if (environ === null) continue
       for (const entry of environ.split("\0")) {
-        const m = entry.match(/^FRIZZ_THREAD=([A-Za-z0-9._-]+)$/)
+        const m = entry.match(/^NTWINE_THREAD=([A-Za-z0-9._-]+)$/)
         if (m) {
           row.slug = m[1]!
           break
@@ -303,7 +303,7 @@ export async function enumerateProcs(exec: Exec = defaultExec, opts: EnumerateOp
 
   // Pass 2 (macOS): `-Eww -o pid=,command=` appends the full ENVIRONMENT after argv. Two subtleties:
   //  (a) the slug MUST come from the env, not argv — a process whose argv contains a literal
-  //      `FRIZZ_THREAD=x` (pasted task text, a grep, an `env FRIZZ_THREAD=x …` invocation) would spoof
+  //      `NTWINE_THREAD=x` (pasted task text, a grep, an `env NTWINE_THREAD=x …` invocation) would spoof
   //      ownership. So strip the known pass-1 argv prefix and read the slug only from what follows.
   //  (b) an env VALUE can contain newlines (PEM keys, JSON), so a record spans multiple physical
   //      lines. Split on record starts (`<pid> <argv>`), re-merging any line that isn't a real
@@ -404,12 +404,12 @@ export interface SweepResult {
 // The reaper's whole predicate is "the owning thread is DEAD." That leaves the opposite case entirely
 // unwatched: a LIVE thread whose dispatched work is pinning the machine. Measured on the maintainer's
 // box 2026-07-26 — load average 95-103 on 10 cores, 5.6 GB into swap, and the top EIGHT CPU consumers
-// were all FRIZZ_THREAD-tagged node processes from just TWO threads, four of them at ~80% CPU for
+// were all NTWINE_THREAD-tagged node processes from just TWO threads, four of them at ~80% CPU for
 // 2 days 18 hours. Every "extreme lag" / "insane contention" / "the sidebar won't update" report in
-// the thread history is downstream of that, and every engineering response so far has made FRIZZ's own
+// the thread history is downstream of that, and every engineering response so far has made NTWINE's own
 // per-tick work cheaper while the workers' far larger slice stayed unmeasured.
 //
-// This does not reap. Killing a worker's build because it is slow is a decision frizz has no business
+// This does not reap. Killing a worker's build because it is slow is a decision ntwine has no business
 // making unattended, and a long compile is indistinguishable from a runaway by CPU alone. What is
 // missing is not enforcement, it is VISIBILITY: today the operator's only signal is that the laptop
 // is hot. So this names the thread.
@@ -489,7 +489,7 @@ export function summarizeRunaways(runaways: readonly RunawayAux[]): string[] {
     .sort((a, b) => b.cores - a.cores)
     .map(({ slug, list, cores }) => {
       const hours = (Math.max(...list.map((r) => r.ageMs)) / 3_600_000).toFixed(1)
-      return `orphan-reaper: thread "${slug}" is holding ~${cores.toFixed(1)} core(s) across ${list.length} background process(es), oldest ${hours}h — frizz dispatched these but does not reap a LIVE thread's work`
+      return `orphan-reaper: thread "${slug}" is holding ~${cores.toFixed(1)} core(s) across ${list.length} background process(es), oldest ${hours}h — ntwine dispatched these but does not reap a LIVE thread's work`
     })
 }
 
@@ -530,7 +530,7 @@ export async function sweepOrphansOnce(deps: SweepDeps = {}): Promise<SweepResul
 // A Claude session broker that was SIGKILLed, or whose record a successor had already taken, leaves
 // its socket FILE in $TMPDIR forever: the host only ever derives the one path belonging to the session
 // it is connecting for, so nothing revisits the rest. Measured on this machine 2026-07-27: ~119 dead
-// `frizz-claude-*.sock` against ~4 live. The codex daemon already collects its own family on every
+// `ntwine-claude-*.sock` against ~4 live. The codex daemon already collects its own family on every
 // daemon start; the broker has no equivalent moment, and its litter is the larger pile — so it is
 // collected HERE, from the one long-lived process the board always has.
 //
@@ -549,7 +549,7 @@ const STALE_SOCKET_SWEEP_DELAY_MS = 30_000
 // that builder rather than restating `$TMPDIR`, so the two cannot drift apart; the PREFIX is named here
 // because the module exports no constant for it. A wrong directory or prefix finds no candidates and
 // sweeps nothing, which is the safe direction to fail.
-const CLAUDE_BROKER_SOCKET_PREFIX = "frizz-claude-"
+const CLAUDE_BROKER_SOCKET_PREFIX = "ntwine-claude-"
 
 function sweepStaleBrokerSockets(): void {
   try {
@@ -569,7 +569,7 @@ function sweepStaleBrokerSockets(): void {
 // the aux processes a dead thread leaves behind on Windows are collected by nobody, and a live
 // thread's runaway build is never named.
 const UNAVAILABLE_ON_WINDOWS =
-  "orphan-reaper: unavailable on Windows — a worker's FRIZZ_THREAD is read from its process environment, which Windows does not expose; " +
+  "orphan-reaper: unavailable on Windows — a worker's NTWINE_THREAD is read from its process environment, which Windows does not expose; " +
   "background processes a stopped thread leaves behind are not collected here, and a live thread's runaway work is not reported"
 
 /** Start the startup + periodic sweep. Returns a stop handle. Timers are unref'd (never hold the loop open). */

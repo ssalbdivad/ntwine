@@ -60,6 +60,6 @@ writeFileSync(join(jsonlDir, `${SESSION}.jsonl`), records.map((r) => JSON.string
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at, snoozed_until)
-   VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${at(0)}', 'Overlay E2E', 'claude', 'opus', 'high', 'default', '${at(1)}', '${snoozedUntil}')`,
+   VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${at(0)}', 'Overlay E2E', 'claude', 'opus', 'high', 'default', '${at(1)}', '${snoozedUntil}')`,
 ])
 console.log(`seeded ${SLUG} → ${SESSION} (snoozed until ${snoozedUntil})`)

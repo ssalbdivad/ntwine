@@ -10,8 +10,8 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, Settings } from "@frizz/shared"
-import { COMMAND_WATCH_EVERY_MIN_MS, COMMAND_WATCH_FOR_MAX_MS, COMMAND_WATCH_MAX_ARMED } from "@frizz/shared"
+import type { BoardSnapshot, Settings } from "@ntwine/shared"
+import { COMMAND_WATCH_EVERY_MIN_MS, COMMAND_WATCH_FOR_MAX_MS, COMMAND_WATCH_MAX_ARMED } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import type { CommandRunResult, CommandWatchService } from "./command-watch.ts"
 import { createRouter } from "./router.ts"
@@ -25,7 +25,7 @@ function result(over: Partial<CommandRunResult> = {}): CommandRunResult {
 }
 
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-cmw-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-cmw-rpc-"))
   const project: Project = { dir, id: "cmw", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -70,14 +70,14 @@ function harness() {
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-10-11T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-10-11T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
     backend: "claude", permission_mode: "bypassPermissions", ...over,
   }
 }
 
-const NPM = "npm view frizz@0.13.12 version"
+const NPM = "npm view ntwine@0.13.12 version"
 
 test("add runs a first check, arms the watch with that check on it, and answers with the armed set", async () => {
   const h = harness()
@@ -112,7 +112,7 @@ test("a REFUSAL is asked first, stores nothing, runs nothing, and names the back
     h.storage.upsertSession(row("t"))
     h.gate.refusal = "this thread runs in `default` permission mode. Run the check in a background shell instead."
     const refused = await h.router.addOwnCommandWatch.handler({ input: { slug: "t", command: NPM, every: "5m", for: "6h" } })
-    assert.match(refused.refused!, /^Frizz will not run a command watch for this thread: this thread runs in `default`/)
+    assert.match(refused.refused!, /^Ntwine will not run a command watch for this thread: this thread runs in `default`/)
     assert.match(refused.refused!, /background shell instead\.$/)
     assert.equal(refused.id, undefined)
     assert.deepEqual(h.probes, [], "a refused command is never run, not even once")

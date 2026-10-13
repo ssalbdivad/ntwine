@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react"
-import type { ProjectCard } from "@frizz/shared"
+import type { ProjectCard } from "@ntwine/shared"
 
 // ALL PROJECTS' PICK — which project the prompt box dispatches into while the page shows every project.
 //
@@ -7,13 +7,13 @@ import type { ProjectCard } from "@frizz/shared"
 // base-path.ts). Focused on a project (lib/pageView.ts), that is the project the page shows. Showing All
 // projects — the home, and where every launch lands — it is the prompt box's own setting, like its model
 // (David 2026-09-28), resolved by defaultCrossProjectFocus below: the operator's own pick in this
-// browser, else the project they last focused here, else the one `frizz` was last run in, else the one
+// browser, else the project they last focused here, else the one `ntwine` was last run in, else the one
 // opened most recently.
 //
 // Remembered by ID, not slug: a rename changes the slug, and a remembered slug that no longer resolves
 // would quietly fall back to another project.
 
-const FOCUS_KEY = "frizz.crossProjectFocus"
+const FOCUS_KEY = "ntwine.crossProjectFocus"
 
 // THE PICK, as opposed to the page project. The page project moves whenever a thread of another project
 // is opened (its drawer needs that project bound, and its address names it: `/all/<slug>/thread/<t>`), but
@@ -64,7 +64,7 @@ export function useCrossProjectPick(): string | null {
 // next-best answer after an explicit pick to "which project is this person working in", and the board a
 // bare `/` opens for a browser that has a board to go back to but no view on record (lastViewHref). By ID,
 // not slug: a rename changes the slug.
-const LAST_FOCUSED_KEY = "frizz.lastFocusedProject"
+const LAST_FOCUSED_KEY = "ntwine.lastFocusedProject"
 
 export function lastFocusedProject(): string | null {
   try {
@@ -78,7 +78,7 @@ export function rememberLastFocusedProject(projectId: string): void {
   try {
     if (localStorage.getItem(LAST_FOCUSED_KEY) !== projectId) localStorage.setItem(LAST_FOCUSED_KEY, projectId)
   } catch {
-    // Storage disabled: the box falls through to the project Frizz was launched from.
+    // Storage disabled: the box falls through to the project Ntwine was launched from.
   }
 }
 
@@ -90,7 +90,7 @@ export function rememberLastFocusedProject(projectId: string): void {
 // view itself, which is each tab's path. A board is remembered by ID, so a rename still finds it. An
 // editor's sidebar does not write it (routes.tsx): it is a frame in another app, and its view is the
 // editor window's, not this browser's.
-const LAST_VIEW_KEY = "frizz.lastView"
+const LAST_VIEW_KEY = "ntwine.lastView"
 const ALL_VIEW = "all"
 const PROJECT_VIEW_PREFIX = "project:"
 
@@ -119,7 +119,7 @@ export function rememberLastView(view: { kind: "all" } | { kind: "project"; id: 
  *
  *   1. the view this browser showed LAST (`remembered`, lastView above) — All projects, or a board whose
  *      project is still registered and its directory still there;
- *   2. else a board, never All projects: the project this browser last focused, else the one `frizz` was
+ *   2. else a board, never All projects: the project this browser last focused, else the one `ntwine` was
  *      most recently RUN in, else the one opened most recently, else the first in the machine's order
  *      (defaultCrossProjectFocus — the same order All projects' prompt box falls back through).
  *
@@ -171,7 +171,7 @@ export function stepPick<P extends { slug: string; open: boolean; stale: boolean
  *   1. the operator's own PICK in this browser (`pickId`: the picker, ⌥↑/⌥↓, leaving a focused project
  *      for All projects);
  *   2. else the project they last FOCUSED in this browser (`lastFocusedId`);
- *   3. else the project `frizz` was most recently RUN in, cold or joining (`lastLaunchedAt`, which only
+ *   3. else the project `ntwine` was most recently RUN in, cold or joining (`lastLaunchedAt`, which only
  *      the launcher stamps);
  *   4. else the project opened most recently, which is also the list's own order until someone arranges it.
  *
@@ -179,13 +179,13 @@ export function stepPick<P extends { slug: string; open: boolean; stale: boolean
  * usable project — the page then shows the welcome, where one is added).
  *
  * Step 3 exists because from 2026-09-30 every launch landed on All projects at a bare `/` (97fb6c42), so
- * the address did not say where `frizz` was run; since 2026-10-06 a launch lands on its project's board
+ * the address did not say where `ntwine` was run; since 2026-10-06 a launch lands on its project's board
  * again, but All projects reached any other way still has only this to go on. Without it a browser with no pick fell to step 4, and `lastOpenedAt`
  * is bumped by any registration — adding a project from the page, a stack registering its tenants after
  * boot — so a launch from `storefront` aimed the box at `billing-api` and a task landed in the wrong repo.
  *
  * `openIds`, when known, narrows every step to projects whose board this server has open: a project another
- * Frizz serves, or one that failed to open, can be focused but never takes a thread, and landing on it
+ * Ntwine serves, or one that failed to open, can be focused but never takes a thread, and landing on it
  * showed a prompt box that never arrived. It only narrows — with none open (a boot still opening them)
  * the page lands as it would without the list.
  */
@@ -204,7 +204,7 @@ export function defaultCrossProjectFocus(
   }
   // The Home workspace is focused only when CHOSEN. It exists on every machine, so falling back to it
   // would mean an empty machine never shows the welcome page that adds its first project — and nobody
-  // runs `frizz` in it, which is what both fallbacks are reading.
+  // runs `ntwine` in it, which is what both fallbacks are reading.
   const latest = (stamp: (card: (typeof usable)[number]) => string | undefined) => {
     let best: (typeof usable)[number] | undefined
     for (const card of usable) {
@@ -290,8 +290,8 @@ function persistedSet(key: string) {
 }
 
 const NONE: ReadonlySet<string> = new Set()
-const collapsed = persistedSet("frizz.collapsedProjects")
-const openBands = persistedSet("frizz.openBands")
+const collapsed = persistedSet("ntwine.collapsedProjects")
+const openBands = persistedSet("ntwine.openBands")
 
 /** Fold one project away in the list, or back open; `on` omitted toggles it. */
 export function setProjectCollapsed(projectId: string, on?: boolean): void {
@@ -335,7 +335,7 @@ export function useOpenBands(): ReadonlySet<string> {
 // per browser like every other fold here — and its own set, not All projects' `openBands`: a band opened
 // on a project's board is a header the human clicked, while one open in All projects lists that band
 // under the project's row among every other project's, and opening one should not reshape the other.
-const boardOpenBands = persistedSet("frizz.boardOpenBands")
+const boardOpenBands = persistedSet("ntwine.boardOpenBands")
 
 /** Open or close one of a project board's quiet bands; `on` omitted toggles it. */
 export function setBoardBandOpen(projectId: string, band: QuietBandKey, on?: boolean): void {

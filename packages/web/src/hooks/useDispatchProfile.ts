@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useEffect } from "react"
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
-import { acpModelPreset, acpModelSlug, type AcpAgent, type Backend, type ClaudeModel, type CodexModel, type SetDispatchPreferenceInput } from "@frizz/shared"
+import { acpModelPreset, acpModelSlug, type AcpAgent, type Backend, type ClaudeModel, type CodexModel, type SetDispatchPreferenceInput } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { useDraft } from "../lib/drafts.ts"
@@ -23,7 +23,7 @@ const SAVE_KEY = ["dispatchPreferenceSet"] as const
 // Every OTHER tab of this browser on this origin. The record is one machine-wide file, but each tab
 // caches its read and the prompt box stays mounted for the tab's whole life, so without a nudge a
 // window left open beside the one you changed it in kept dispatching on the old profile.
-const channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel("frizz:dispatch-preferences")
+const channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel("ntwine:dispatch-preferences")
 // Node's BroadcastChannel holds the event loop open until closed, so under the unit tests every file that
 // imports the prompt box (Sidebar.tsx, for one) finished its tests and then never exited, wedging the run.
 // Browsers have no `unref`; a page's channel lives as long as the page, which is what it is for.

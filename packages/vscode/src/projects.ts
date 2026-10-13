@@ -1,4 +1,4 @@
-// WHICH FRIZZ PROJECT A FILE BELONGS TO. The server pushes every registered project with the folder its
+// WHICH NTWINE PROJECT A FILE BELONGS TO. The server pushes every registered project with the folder its
 // agents run in (`dir`); a file belongs to the project whose folder holds it — the LONGEST such folder,
 // since projects nest (a repo checked out inside another's tree) — and to Home only when no registered
 // project holds it, because Home's folder is the home directory and holds nearly everything. This is the
@@ -12,7 +12,7 @@
 // Windows compares without case and with either separator, as Windows itself does.
 
 import { realpathSync } from "node:fs"
-import type { EditorProject } from "@frizz/shared/editor-protocol"
+import type { EditorProject } from "@ntwine/shared/editor-protocol"
 
 export interface MatchOptions {
   realpath?: (path: string) => string

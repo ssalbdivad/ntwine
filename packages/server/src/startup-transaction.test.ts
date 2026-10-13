@@ -8,7 +8,7 @@ import { setImmediate as nextTurn } from "node:timers/promises"
 import { test, type TestContext } from "node:test"
 import { randomUUID } from "node:crypto"
 import { ContextStartupError, type AppContext } from "./context.ts"
-import { openFrizzDatabase } from "./frizz-db.ts"
+import { openNtwineDatabase } from "./ntwine-db.ts"
 import {
   ServerStartupError,
   startServer,
@@ -80,7 +80,7 @@ class FakeHttpServer extends EventEmitter {
 }
 
 function fixture(t: TestContext, controls: FixtureControls = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-startup-transaction-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-startup-transaction-"))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const project: Project = {
     id: randomUUID(),
@@ -105,7 +105,7 @@ function fixture(t: TestContext, controls: FixtureControls = {}) {
     // the unwind has to close what the database phase opened exactly once.
     openDatabase() {
       databasesOpened++
-      const real = openFrizzDatabase({ path: ":memory:", importLegacy: false })
+      const real = openNtwineDatabase({ path: ":memory:", importLegacy: false })
       return { ...real, close: () => { closeCounts.database++; real.close() } }
     },
     createContext() {

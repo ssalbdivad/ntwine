@@ -36,7 +36,7 @@ function fakePaneIdentity(n = 1): PaneIdentity {
 // A dispatcher wired to a tmp project + real storage + a stub board + injected spawn seams. No test in
 // this harness contacts the live project socket or starts a real worker.
 function dispatcherHarness(settings = defaultSettings(), editors?: DispatchDeps["editors"]) {
-  const dir = tmp("frizz-dispatch-")
+  const dir = tmp("ntwine-dispatch-")
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = { dir, id: "id", name: "test", label: "o/test", stateDir: dir, cwdSlug: cwdSlug(dir) }
   const spawned: { slug: string; cmd: string[]; cwd: string; env?: Record<string, string>; promptText?: string; promptMode?: number }[] = []
@@ -54,8 +54,8 @@ function dispatcherHarness(settings = defaultSettings(), editors?: DispatchDeps[
     board,
     readBoard: async () => ({
       config: {},
-      threads: existsSync(join(dir, ".frizz"))
-        ? readdirSync(join(dir, ".frizz"), { withFileTypes: true })
+      threads: existsSync(join(dir, ".ntwine"))
+        ? readdirSync(join(dir, ".ntwine"), { withFileTypes: true })
             .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
             .map((entry) => ({
               id: entry.name.slice(0, -3),
@@ -77,7 +77,7 @@ function dispatcherHarness(settings = defaultSettings(), editors?: DispatchDeps[
     // assertions below still read the same facts.
     claudeBroker: {
       spawnDispatch: async (input: { threadSlug: string; sessionId: string; cwd: string; prompt: string; appendSystemPrompt?: string }) => {
-        spawned.push({ slug: input.threadSlug, cmd: [input.appendSystemPrompt ?? "", input.prompt], cwd: input.cwd, env: { FRIZZ_THREAD: input.threadSlug } })
+        spawned.push({ slug: input.threadSlug, cmd: [input.appendSystemPrompt ?? "", input.prompt], cwd: input.cwd, env: { NTWINE_THREAD: input.threadSlug } })
         return { binding: { threadSlug: input.threadSlug, sessionId: input.sessionId, cwd: input.cwd } }
       },
       releaseSession: () => {},
@@ -108,14 +108,14 @@ function systemPromptOf(cmd: string[]): string {
 }
 
 test("storage: session roundtrip + markRead + exited", () => {
-  const dir = tmp("frizz-store-")
+  const dir = tmp("ntwine-store-")
   const s = createStorage(join(dir, "ui.db"), "p")
   assert.equal(s.getSession("t"), undefined)
 
   s.upsertSession({
     slug: "t",
     session_id: "sid-1",
-    thread_name: "frizz-t",
+    thread_name: "ntwine-t",
     spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null,
     unread: 1,
@@ -150,11 +150,11 @@ test("storage: session roundtrip + markRead + exited", () => {
 })
 
 test("storage: transcript_id cache round-trips, survives restart, resets on re-dispatch, preserves on resume", () => {
-  const dir = tmp("frizz-store-tid-")
+  const dir = tmp("ntwine-store-tid-")
   const dbPath = join(dir, "ui.db")
   const s = createStorage(dbPath, "p")
   s.upsertSession({
-    slug: "t", session_id: "sid-1", thread_name: "frizz-t", spawned_at: "2026-07-01T00:00:00.000Z",
+    slug: "t", session_id: "sid-1", thread_name: "ntwine-t", spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -179,13 +179,13 @@ test("storage: transcript_id cache round-trips, survives restart, resets on re-d
 })
 
 test("settings: defaults, roundtrip, merge-over-defaults", () => {
-  const dir = tmp("frizz-settings-")
+  const dir = tmp("ntwine-settings-")
   const s = createStorage(join(dir, "ui.db"), "p")
   // The tmp dir doubles as the home: machine settings are real files, and a test that reads the
-  // developer own ~/.frizz would both leak into its assertions and write to it.
+  // developer own ~/.ntwine would both leak into its assertions and write to it.
   const def = getSettings(s, dir)
   assert.deepEqual(def, defaultSettings())
-  // Project-specific conventions live in FRIZZ.md, not in settings — there is no preamble field.
+  // Project-specific conventions live in NTWINE.md, not in settings — there is no preamble field.
   // system prompt ships separately (packages/server/src/workerPrompt.ts via dispatch.ts) and is not a setting.
   assert.equal(def.permissionMode, "bypassPermissions")
   assert.equal(def.notifications, true)
@@ -242,40 +242,40 @@ test("fallbackTitle: derived title slugifies to a valid board id", () => {
 })
 
 test("resolveSlug: appends -N on collision", () => {
-  const dir = tmp("frizz-slug-")
-  const frizzDir = join(dir, ".frizz")
-  mkdirSync(frizzDir, { recursive: true })
-  assert.equal(resolveSlug(frizzDir, "foo"), "foo")
+  const dir = tmp("ntwine-slug-")
+  const ntwineDir = join(dir, ".ntwine")
+  mkdirSync(ntwineDir, { recursive: true })
+  assert.equal(resolveSlug(ntwineDir, "foo"), "foo")
 
-  writeFileSync(join(frizzDir, "foo.md"), "x")
-  assert.equal(resolveSlug(frizzDir, "foo"), "foo-2")
+  writeFileSync(join(ntwineDir, "foo.md"), "x")
+  assert.equal(resolveSlug(ntwineDir, "foo"), "foo-2")
 
-  writeFileSync(join(frizzDir, "foo-2.md"), "x")
-  assert.equal(resolveSlug(frizzDir, "foo"), "foo-3")
+  writeFileSync(join(ntwineDir, "foo-2.md"), "x")
+  assert.equal(resolveSlug(ntwineDir, "foo"), "foo-3")
 
   // A taken REGISTRY slug (a fileless session dispatch) also bumps — uniqueness spans rows, not just files.
   const taken = new Set(["bar", "bar-2"])
-  assert.equal(resolveSlug(frizzDir, "bar", (s) => taken.has(s)), "bar-3")
-  assert.equal(resolveSlug(frizzDir, "baz", (s) => taken.has(s)), "baz")
+  assert.equal(resolveSlug(ntwineDir, "bar", (s) => taken.has(s)), "bar-3")
+  assert.equal(resolveSlug(ntwineDir, "baz", (s) => taken.has(s)), "baz")
 })
 
 test("composePrompt: scratch-directory orientation + task, and NOT the operator's instructions", () => {
   const out = composePrompt("sid-123", "Do the thing.")
-  // Session-first: the visible first message points at the scratch DIRECTORY, NOT a .frizz file to own.
+  // Session-first: the visible first message points at the scratch DIRECTORY, NOT a .ntwine file to own.
   // The fixed worker prompt still rides --append-system-prompt (buildClaudeCommand), not this message.
-  assert.ok(out.includes(".frizz/threads/sid-123/"))
+  assert.ok(out.includes(".ntwine/threads/sid-123/"))
   assert.ok(!out.includes("scratch.md"), "no filename is reserved in that directory")
   assert.ok(!out.includes("You are a dispatched worker agent"))
   assert.ok(!out.includes("You own")) // the old ownership contract is gone
   assert.ok(!out.includes("status: blocked"))
-  // There is no operator preamble anywhere any more — project conventions live in FRIZZ.md alone.
+  // There is no operator preamble anywhere any more — project conventions live in NTWINE.md alone.
   assert.ok(!out.includes("PROJECT INSTRUCTIONS"))
   assert.ok(out.endsWith("\n\nDo the thing.")) // the task is the tail, directly below the banner
 })
 
 test("scratchpadOrientation: names the scratch directory", () => {
   const bare = scratchpadOrientation("sid-1")
-  assert.ok(bare.includes("SCRATCH DIRECTORY: .frizz/threads/sid-1/"))
+  assert.ok(bare.includes("SCRATCH DIRECTORY: .ntwine/threads/sid-1/"))
 })
 
 test("buildClaudeCommand: pins session-id, permission mode, optional model/effort, worker system prompt", () => {
@@ -286,8 +286,8 @@ test("buildClaudeCommand: pins session-id, permission mode, optional model/effor
     claudeBin: "sleep",
     workerPrompt: "", // disabled for the argv-shape assertion
   })
-  // NO --mcp-config / --allowedTools here: these dispatches carry no frizz-MCP descriptor and no project
-  // servers, and frizz mounts nothing else (the always-on chrome-devtools mount was removed 2026-08-26 —
+  // NO --mcp-config / --allowedTools here: these dispatches carry no ntwine-MCP descriptor and no project
+  // servers, and ntwine mounts nothing else (the always-on chrome-devtools mount was removed 2026-08-26 —
   // dispatch.ts). Empty flags would be worse than absent ones, so claudeMcpFlags emits neither. What it
   // ALWAYS emits is `--strict-mcp-config` (since 2026-09-03): with nothing to mount, the CLI must still
   // not discover the operator's user-scope servers. dispatch.test.ts pins that; this pins the argv
@@ -354,7 +354,7 @@ test("buildClaudeResumeCommand: -r <sessionId> with the follow-up + worker syste
 })
 
 test("build*Command: extraSystemPrompt is appended AFTER the worker norms in the system prompt", () => {
-  const scratch = "SCRATCHPAD: .frizz/threads/u/scratch.md — memory"
+  const scratch = "SCRATCHPAD: .ntwine/threads/u/scratch.md — memory"
   const disp = buildClaudeCommand({ sessionId: "u", permissionMode: "auto", prompt: "p", workerPrompt: "WORKER", extraSystemPrompt: scratch })
   const dSys = systemPromptOf(disp)
   assert.ok(dSys.startsWith("WORKER"))
@@ -379,7 +379,7 @@ test("dispatch: the editor section rides the contract only while an editor has t
   await h.dispatcher.dispatch({ prompt: "Editor open.", model: "opus", effort: "high" })
   const [without, withEditor] = h.spawned.map((s) => systemPromptOf(s.cmd))
   assert.ok(without.startsWith("You are a dispatched worker agent"))
-  assert.ok(!without.includes(EDITOR_SECTION) && !without.includes("mcp__frizz__editor"), "no editor: no section, and the tool goes unnamed")
+  assert.ok(!without.includes(EDITOR_SECTION) && !without.includes("mcp__ntwine__editor"), "no editor: no section, and the tool goes unnamed")
   assert.ok(withEditor.includes(EDITOR_SECTION), "an editor on the project: the section is rendered")
   // Asked about the folder the project's agents work in, once per dispatch.
   assert.deepEqual(asked, [h.dir, h.dir])
@@ -393,25 +393,25 @@ test("dispatch: creates an EMPTY scratch dir (not a thread file), argv carries i
   const h = dispatcherHarness()
   const { slug, sessionId } = await h.dispatcher.dispatch({ prompt: "Do the thing.", model: "opus", effort: "high" })
 
-  // Session-first: NO .frizz/<slug>.md thread file is written on dispatch.
-  assert.ok(!existsSync(join(h.dir, ".frizz", `${slug}.md`)), "no thread file written")
+  // Session-first: NO .ntwine/<slug>.md thread file is written on dispatch.
+  assert.ok(!existsSync(join(h.dir, ".ntwine", `${slug}.md`)), "no thread file written")
 
   // The scratch DIRECTORY is provisioned, and provisioned EMPTY. Nothing is seeded into it: the
   // skeleton went away with the canonical pad (2026-08-06), and a template the worker did not write is
   // exactly what used to make "present" indistinguishable from "written".
-  const scratchDir = join(h.dir, ".frizz", "threads", sessionId)
+  const scratchDir = join(h.dir, ".ntwine", "threads", sessionId)
   assert.ok(existsSync(scratchDir), "scratch directory created")
   assert.deepEqual(readdirSync(scratchDir), [], "nothing is provisioned inside it")
 
   // argv: the SCRATCH orientation rides the system prompt; the user message carries the path + TASK
   // and NONE of the retired thread-ownership contract.
   const cmd = h.spawned[0].cmd
-  assert.ok(systemPromptOf(cmd).includes(`SCRATCH DIRECTORY: .frizz/threads/${sessionId}/`))
+  assert.ok(systemPromptOf(cmd).includes(`SCRATCH DIRECTORY: .ntwine/threads/${sessionId}/`))
   const userPrompt = cmd[cmd.length - 1]
-  assert.ok(userPrompt.includes(`.frizz/threads/${sessionId}/`))
+  assert.ok(userPrompt.includes(`.ntwine/threads/${sessionId}/`))
   assert.ok(userPrompt.endsWith("\n\nDo the thing.")) // the task is the tail, directly below the banner
   assert.ok(!userPrompt.includes("You own"))
-  assert.equal(h.spawned[0].env?.FRIZZ_THREAD, slug)
+  assert.equal(h.spawned[0].env?.NTWINE_THREAD, slug)
 
   const row = h.storage.getSession(slug)
   assert.equal(row?.session_id, sessionId)
@@ -426,17 +426,17 @@ test("adopt: requires the legacy file, provisions a scratch dir, orientation is 
   // No file → clean rejection.
   await assert.rejects(h.dispatcher.adopt("adopt-fixture"), /thread is not available for adoption/)
 
-  mkdirSync(join(h.dir, ".frizz"), { recursive: true })
-  writeFileSync(join(h.dir, ".frizz", "adopt-fixture.md"), "---\ntitle: x\nstatus: active\n---\n\n## Goal\n\ng\n")
+  mkdirSync(join(h.dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(h.dir, ".ntwine", "adopt-fixture.md"), "---\ntitle: x\nstatus: active\n---\n\n## Goal\n\ng\n")
   const { slug, sessionId } = await h.dispatcher.adopt("adopt-fixture", "keep going")
   assert.equal(slug, "adopt-fixture")
 
   // A scratch directory is provisioned even for an adopted thread.
-  assert.ok(existsSync(join(h.dir, ".frizz", "threads", sessionId)))
+  assert.ok(existsSync(join(h.dir, ".ntwine", "threads", sessionId)))
 
   // System prompt: scratch orientation + the adoption note framing the file as CONTEXT, not a contract.
   const sys = systemPromptOf(h.spawned[0].cmd)
-  assert.ok(sys.includes(`SCRATCH DIRECTORY: .frizz/threads/${sessionId}/`))
+  assert.ok(sys.includes(`SCRATCH DIRECTORY: .ntwine/threads/${sessionId}/`))
   assert.ok(sys.includes("CONTEXT, not a contract"))
   assert.ok(sys.includes("adopt-fixture.md"))
   const row = h.storage.getSession(slug)
@@ -446,18 +446,18 @@ test("adopt: requires the legacy file, provisions a scratch dir, orientation is 
 })
 
 test("cwdSlug: replaces every non-alphanumeric character with - (Claude Code project-log convention)", () => {
-  assert.equal(cwdSlug("/Users/x/Documents/projects/frizz"), "-Users-x-Documents-projects-frizz")
+  assert.equal(cwdSlug("/Users/x/Documents/projects/ntwine"), "-Users-x-Documents-projects-ntwine")
   assert.equal(cwdSlug("/Users/x/.workshell/wt"), "-Users-x--workshell-wt")
 })
 
 // ---- Codex dispatch wiring (Codex-support epic, Phase 2): the COMPOSED spawn orchestration ----
 // createCodexBackend + createClaudeBackend behind a backendFor resolver (mirrors context.ts). A codex
 // dispatch must: pre-arm the cwd trust gate, spawn the codex argv (worker contract in the prompt), then
-// sentinel-discover the rollout id and PIN it on the row (session_id stays the frizz key). A claude
+// sentinel-discover the rollout id and PIN it on the row (session_id stays the ntwine key). A claude
 // dispatch through the SAME dispatcher is byte-identical — no trust write, backend stays 'claude'.
 function codexDispatcherHarness(codexAppServer?: Partial<CodexAppServerBridge>) {
-  const dir = tmp("frizz-dispatch-codex-")
-  const codexHome = tmp("frizz-codexhome-")
+  const dir = tmp("ntwine-dispatch-codex-")
+  const codexHome = tmp("ntwine-codexhome-")
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = { dir, id: "id", name: "test", label: "o/test", stateDir: dir, cwdSlug: cwdSlug(dir) }
   const spawned: {
@@ -472,13 +472,13 @@ function codexDispatcherHarness(codexAppServer?: Partial<CodexAppServerBridge>) 
   // A spawn that SIMULATES codex: extract the per-dispatch sentinel from the prompt (codex spawns via an
   // `sh -c` wrapper that reads the prompt from a temp FILE — the last argv element — so read it) and write
   // a fresh rollout carrying it (+ a session_meta id/cwd) so the dispatcher's sentinel discovery resolves
-  // it. A claude spawn (no `frizz-session:` sentinel) writes nothing — the resolver stayed off codex.
+  // it. A claude spawn (no `ntwine-session:` sentinel) writes nothing — the resolver stayed off codex.
   const spawn = (slug: string, cmd: string[], cwd: string, env?: Record<string, string>) => {
     const last = cmd[cmd.length - 1] ?? ""
     const promptText = cmd[0] === "sh" ? readFileSync(last, "utf8") : last
     const promptMode = cmd[0] === "sh" ? statSync(last).mode & 0o777 : undefined
     spawned.push({ slug, cmd, cwd, env, promptText, promptMode })
-    const sentinel = promptText.match(/frizz-session:[0-9a-f-]+/)?.[0]
+    const sentinel = promptText.match(/ntwine-session:[0-9a-f-]+/)?.[0]
     if (!sentinel) return fakePaneIdentity(spawned.length)
     const sdir = join(codexHome, "sessions", "2026", "07", "10")
     mkdirSync(sdir, { recursive: true })

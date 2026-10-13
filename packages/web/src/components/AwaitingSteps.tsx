@@ -48,7 +48,7 @@ export function StepsList({ steps, live }: { steps: readonly string[]; live: boo
     // break the prose itself uses (`--md-step`, which `.card-md .md-body` sets on this very element), not
     // a tighter 8px of its own — the two blocks are one handoff rendered in two pieces.
     <div data-awaiting-steps className={`md-body ${QUEUE_WRAP} mt-[var(--md-step)] first:mt-0`}>
-      <ol className="frizz-steps">
+      <ol className="ntwine-steps">
         {steps.map((step, i) => (
           <Step key={i} n={i + 1} md={step} done={ticked.has(i)} next={i === next} onToggle={live ? () => toggle(i) : undefined} />
         ))}
@@ -61,36 +61,36 @@ function Step({ n, md, done, next, onToggle }: { n: number; md: string; done: bo
   const html = useMarkdownHtml(md)
   // The check is the task family's own (`.md-task-checked`): lucide `Check` at strokeWidth 3, its viewBox
   // shifted −0.5 in y because the path's ink centres half a unit above the box's.
-  const glyph = done ? <Check aria-hidden="true" size="0.62em" strokeWidth={3} viewBox="0 -0.5 24 24" /> : <span className="frizz-step-num" aria-hidden="true">{n}</span>
+  const glyph = done ? <Check aria-hidden="true" size="0.62em" strokeWidth={3} viewBox="0 -0.5 24 24" /> : <span className="ntwine-step-num" aria-hidden="true">{n}</span>
   const state = done ? "done" : next ? "next" : "todo"
   return (
-    <li className="frizz-step" data-step-state={state}>
-      <span className="frizz-step-gutter">
-        <span className="frizz-step-line">
+    <li className="ntwine-step" data-step-state={state}>
+      <span className="ntwine-step-gutter">
+        <span className="ntwine-step-line">
           {/* The RING is a span and the control sits inside it, never the other way round: Chrome puts a
               `<button>`'s baseline at its CONTENT box, a border-width above the bottom edge the cap-band
               rule assumes, and a button ring rode exactly 1.00px low (measured 2026-10-12). */}
-          <span data-step-mark className="frizz-step-mark">
+          <span data-step-mark className="ntwine-step-mark">
             {onToggle ? (
               <button
                 type="button"
                 role="checkbox"
                 aria-checked={done}
                 aria-label={`Step ${n}`}
-                className="frizz-step-face"
+                className="ntwine-step-face"
                 onClick={onToggle}
                 onMouseDown={(e) => e.preventDefault()}
               >
                 {glyph}
               </button>
             ) : (
-              <span className="frizz-step-face">{glyph}</span>
+              <span className="ntwine-step-face">{glyph}</span>
             )}
           </span>
         </span>
-        <span className="frizz-step-rail" aria-hidden="true" />
+        <span className="ntwine-step-rail" aria-hidden="true" />
       </span>
-      <LinkedHtml className="md-body frizz-step-text" html={html} />
+      <LinkedHtml className="md-body ntwine-step-text" html={html} />
     </li>
   )
 }

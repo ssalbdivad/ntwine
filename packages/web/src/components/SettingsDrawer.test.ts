@@ -13,7 +13,7 @@ const pickerSource = readFileSync(new URL("./GithubPickerModal.tsx", import.meta
 const tooltipSource = readFileSync(new URL("./Tooltip.tsx", import.meta.url), "utf8")
 
 test("settings maps each contextual explanation to a help control", () => {
-  // `subagentInstructions` is gone: the settings preamble was retired in favour of FRIZZ.md, so there
+  // `subagentInstructions` is gone: the settings preamble was retired in favour of NTWINE.md, so there
   // is exactly one operator-authored surface for project conventions.
   for (const key of ["permissionMode", "promptCacheTtl", "appearance", "density", "notifications", "githubPrompt"]) {
     assert.match(helpSource, new RegExp(`\\b${key}:`), `missing settings help mapping: ${key}`)
@@ -56,8 +56,8 @@ test("the drawer no longer duplicates the composer's controls or offers vestigia
   // divergent copy of them here was only ever a way to confuse which one applied.
   assert.doesNotMatch(source, /label="Model"/)
   assert.doesNotMatch(source, /label="Effort"/)
-  // The Runtime QA gate setting is gone entirely — browser-QA policy is a project's own FRIZZ.md
-  // concern, not a global Frizz switch.
+  // The Runtime QA gate setting is gone entirely — browser-QA policy is a project's own NTWINE.md
+  // concern, not a global Ntwine switch.
   assert.doesNotMatch(source, /Runtime QA gate/)
   assert.doesNotMatch(source, /runtimeGate/)
   // Auto-resume after a usage limit is unconditional now: nothing to turn off.
@@ -72,7 +72,7 @@ test("the drawer no longer duplicates the composer's controls or offers vestigia
 // need to have them in the drawer anymore, so yeah, you can drop the tab switcher").
 test("the drawer is one untabbed list of interface preferences, with no project or runtime settings", () => {
   // (The note above the component NAMES the retired tab in prose; what must be gone is the markup.)
-  assert.doesNotMatch(source, /role="tab(?:list)?"|SettingsTabs|label: "(?:Project|Frizz) settings"/)
+  assert.doesNotMatch(source, /role="tab(?:list)?"|SettingsTabs|label: "(?:Project|Ntwine) settings"/)
   const fields = [...source.matchAll(/<SettingsField label="([^"]+)"/g)].map((m) => m[1])
   assert.deepEqual(fields, ["Appearance", "Project sidebar", "Density", "Queue order", "Dictation", "Desktop notifications", "Always show status lines", "Show recent threads", "Remove idle worktrees after", "Delete done threads", "Local file links"])
   // The triage prompt has exactly one editor, and it is the picker's.

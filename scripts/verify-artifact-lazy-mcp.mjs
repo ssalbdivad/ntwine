@@ -21,8 +21,8 @@ import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { buildFrizzArtifact } from "../src/artifacts.ts"
-import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
+import { buildNtwineArtifact } from "../src/artifacts.ts"
+import { ntwinePaths } from "../packages/server/src/ntwine-paths.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
@@ -37,9 +37,9 @@ const check = (ok, label, detail = "") => {
 }
 
 const realHome = homedir()
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-verify-lazy-mcp-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-verify-lazy-mcp-")))
 const home = join(root, "home")
-mkdirSync(join(home, ".frizz"), { recursive: true })
+mkdirSync(join(home, ".ntwine"), { recursive: true })
 for (const name of [".claude", ".claude.json"]) symlinkSync(join(realHome, name), join(home, name))
 const PROJECT_DIR = join(root, "project")
 mkdirSync(join(PROJECT_DIR, ".claude"), { recursive: true })
@@ -96,35 +96,35 @@ async function waitForReply(slug, marker, ms) {
 
 try {
   log("building a real artifact from", SOURCE)
-  const artifact = buildFrizzArtifact(SOURCE, join(root, "artifacts"))
+  const artifact = buildNtwineArtifact(SOURCE, join(root, "artifacts"))
   check(existsSync(join(artifact.runtimeDir, "src", "claude-agent-broker.js")), "the artifact ships the bundled broker daemon")
   const bundled = readFileSync(join(artifact.runtimeDir, "src", "claude-agent-broker.js"), "utf8")
-  check(bundled.includes("server/discover") && bundled.includes("frizz-lazy-"), "the bundled broker daemon carries the lazy MCP host")
+  check(bundled.includes("server/discover") && bundled.includes("ntwine-lazy-"), "the bundled broker daemon carries the lazy MCP host")
 
   const projectId = randomUUID()
   const target = { projectId, projectDir: PROJECT_DIR, stateDir }
   const owner = acquireProjectLaunchOwner(target, "launcher")
   release = owner.release
-  // This harness is usually run from INSIDE a frizz worker: its FRIZZ_* control-plane variables would
+  // This harness is usually run from INSIDE a ntwine worker: its NTWINE_* control-plane variables would
   // point the artifact at the live server instead of this one.
-  const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("FRIZZ_")))
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("NTWINE_")))
   let output = ""
   child = spawn(process.execPath, [join(artifact.runtimeDir, "src", "index.js")], {
     cwd: PROJECT_DIR,
     env: projectLaunchEnvironment({
       ...inherited,
       HOME: home,
-      FRIZZ_RUNTIMES_DIR: join(frizzPaths({ home: realHome }).cache, "runtimes"),
-      FRIZZ_DEV_CHILD: "1",
-      FRIZZ_DEV_PORT: String(PORT),
-      FRIZZ_WAKERS_OFF: "1",
-      FRIZZ_ORPHAN_REAPER_OFF: "1",
-      FRIZZ_TENANT_PRIME_OFF: "1",
-      FRIZZ_SANDBOX_TAG: `frizz-verify-${PORT}-${process.pid}`,
-      FRIZZ_STABLE_ARTIFACT: artifact.digest,
-      FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-      FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
-      FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
+      NTWINE_RUNTIMES_DIR: join(ntwinePaths({ home: realHome }).cache, "runtimes"),
+      NTWINE_DEV_CHILD: "1",
+      NTWINE_DEV_PORT: String(PORT),
+      NTWINE_WAKERS_OFF: "1",
+      NTWINE_ORPHAN_REAPER_OFF: "1",
+      NTWINE_TENANT_PRIME_OFF: "1",
+      NTWINE_SANDBOX_TAG: `ntwine-verify-${PORT}-${process.pid}`,
+      NTWINE_STABLE_ARTIFACT: artifact.digest,
+      NTWINE_STABLE_WEB_DIST: artifact.webDir,
+      NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
+      NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
     }, target, owner.token),
     stdio: ["ignore", "pipe", "pipe"],
   })
@@ -137,7 +137,7 @@ try {
   // 1. The first worker of this configuration: nothing cached, so the handshake starts the server.
   const first = await api.mutate("dispatch", { prompt: `${ask("FIRST", "DONE")} Do not use any tools.`, backend: "claude", model: "haiku" })
   check(!!(await waitForReply(first.slug, "FIRST-DONE", 120_000)), "the first worker answered")
-  const cacheDir = join(home, ".frizz", "mcp-cache")
+  const cacheDir = join(home, ".ntwine", "mcp-cache")
   const cached = existsSync(cacheDir) ? readdirSync(cacheDir).filter((f) => f.endsWith(".json")) : []
   check(cached.length === 1, "the first worker left a cache for the configuration", cached.join(","))
   check(browserServers(first.sessionId).length === 1, "the first worker's server runs under its broker daemon (started for the cache)")

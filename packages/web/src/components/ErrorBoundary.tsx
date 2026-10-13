@@ -11,7 +11,7 @@ import { store } from "../store.ts"
 // ChatView.tsx between two edits (its unqueue hooks called, their `import` line not yet written),
 // the bundler emitted the calls as free identifiers because a free identifier is legal JS, and
 // opening a thread drawer threw `ReferenceError: useUnqueueSupported is not defined` — board,
-// sidebar, drawer, all gone at once. Frizz builds its own artifacts from a working tree several
+// sidebar, drawer, all gone at once. Ntwine builds its own artifacts from a working tree several
 // agents are editing at the same time, so a torn build is a permanent hazard here, not an accident
 // that got fixed once.
 //
@@ -51,9 +51,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Frizz is a developer tool run against its own source, so the stack IS the deliverable. Keep it
+    // Ntwine is a developer tool run against its own source, so the stack IS the deliverable. Keep it
     // in the console verbatim rather than losing it inside the fallback's one-line summary.
-    console.error(`[frizz] render error in ${this.props.label}:`, error, info.componentStack)
+    console.error(`[ntwine] render error in ${this.props.label}:`, error, info.componentStack)
   }
 
   override componentDidUpdate(previous: Props): void {
@@ -107,7 +107,7 @@ export function ErrorPanel({
           </button>
         )}
         <button type="button" className={ACTION_CLASS} onClick={() => window.location.reload()}>
-          Reload frizz
+          Reload ntwine
         </button>
       </div>
     </div>
@@ -122,11 +122,11 @@ export function ErrorPanel({
 export function RootErrorBoundary({ children }: { children: ReactNode }): ReactElement {
   return (
     <ErrorBoundary
-      label="frizz"
+      label="ntwine"
       fallback={(error, retry) => (
         <div className="flex min-h-screen items-center justify-center bg-bg p-6 text-fg">
           <div className="w-full max-w-lg">
-            <ErrorPanel label="frizz" error={error} onRetry={retry} />
+            <ErrorPanel label="ntwine" error={error} onRetry={retry} />
           </div>
         </div>
       )}

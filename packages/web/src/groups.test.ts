@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { activeBandThread, workingThread, type ThreadView } from "@frizz/shared"
+import { activeBandThread, workingThread, type ThreadView } from "@ntwine/shared"
 import { bandOf, doneButRunning, needsAction, queued, orderQueue, partitionActive, sectionOf, sectionThreads, isSnoozed, sessionIndicatorKind, offersRetry, restIsWorking, workingWithOpenQuestion, titleIsProvisional, displayTitle, displayName, threadHandleOf, subAgentName, subAgentAddressOf, subAgentTitle, UNNAMED_SUB_AGENT_LABEL, lastActiveLabelAt, queueLabelAt, queueLabelWord, SPINNING_UP_TITLE, UNTITLED_THREAD_TITLE } from "./groups.ts"
 
 // Minimal ThreadView fixture — the same shape board-delta.test.ts uses, defaulting to a live/active
@@ -44,7 +44,7 @@ test("needsAction: needs-human AT REST cards — but only with a SESSION (humanB
 })
 
 test("needsAction: SESSION-LESS needs-human NEVER cards (the queue is agent work paused on the human)", () => {
-  // A thread worked outside frizz (frizz classic / hand edits): no session, no transcript to card.
+  // A thread worked outside ntwine (ntwine classic / hand edits): no session, no transcript to card.
   // It surfaces in the SIDEBAR (yellow awaiting-you dot); its click-through composite (doc +
   // kick-off composer) is where it gets read and acted on.
   assert.equal(needsAction(thread({ status: "needs-human", humanBlocked: true, runtime: "none", spawnedAt: undefined })), false)
@@ -188,7 +188,7 @@ test("sessionIndicatorKind: a rested QUEUED thread is at rest even with live sub
   assert.equal(sessionIndicatorKind(thread({ ...restedInQueue, runtime: "exited" })), "stalled")
 })
 
-// A REGISTERED question (mcp__frizz__ask) queues its thread server-side (deriveNeedsYou's
+// A REGISTERED question (mcp__ntwine__ask) queues its thread server-side (deriveNeedsYou's
 // openQuestions) and the card renders the ask — the rail must agree. Found 2026-08-31: a queued thread
 // resting on nothing but an open registered row wore the bare-rest ellipsis beside its own question card.
 test("sessionIndicatorKind: a REGISTERED question wears the ? at rest, never the ellipsis", () => {
@@ -386,9 +386,9 @@ const RETRY_CONTRACT: { name: string; over: Partial<ThreadView>; kind: string; r
   { name: "exited after a done fence — finished, not stopped", over: { runtime: "exited", lastFence: { kind: "done", body: "shipped", hints: [] } }, kind: "done", retry: false },
   { name: "exited but snoozed — held, wakes on its own deadline", over: { runtime: "exited", snoozedUntil: "2999-01-01T00:00:00.000Z" }, kind: "snoozed", retry: false },
   { name: "archived", over: { state: "archived", needsYou: true, crashed: true, runtime: "exited" }, kind: "archived", retry: false },
-  { name: "foreign (read-only — nothing frizz can restart)", over: { foreign: true, crashed: true, needsYou: true, runtime: "exited" }, kind: "rest", retry: false },
+  { name: "foreign (read-only — nothing ntwine can restart)", over: { foreign: true, crashed: true, needsYou: true, runtime: "exited" }, kind: "rest", retry: false },
   { name: "registry lost the row (runtime none — not reattachable)", over: { needsYou: true, crashed: true, runtime: "none" }, kind: "rest", retry: false },
-  // ── KILLED BY A USAGE LIMIT frizz will auto-resume: the rail's OTHER yellow mark, with Retry ──
+  // ── KILLED BY A USAGE LIMIT ntwine will auto-resume: the rail's OTHER yellow mark, with Retry ──
   // Snoozed until 2026-08-31 (maintainer: killed threads "showed up and fucking snoozed … they should
   // have shown up in the queue, as threads that had failed in some way"); the server now queues them.
   { name: "killed by a session limit (auto-resume) — yellow hourglass, retry", over: { needsYou: true, runtime: "exited", limitPause: { backend: "claude", window: "session", at: "2026-07-23T00:00:00.000Z", autoResume: true } }, kind: "limit", retry: true },
@@ -397,10 +397,10 @@ const RETRY_CONTRACT: { name: string; over: Partial<ThreadView>; kind: string; r
   { name: "killed by a limit, needsYou not yet set — still the limit mark", over: { runtime: "exited", limitPause: { backend: "claude", window: "session", at: "2026-07-23T00:00:00.000Z", autoResume: true } }, kind: "limit", retry: true },
   // The OPERATOR's own snooze outranks the kill: they parked it, so it parks (and Retry stands down).
   { name: "limit-killed but user-snoozed — the human's park wins", over: { runtime: "exited", snoozedUntil: "2999-01-01T00:00:00.000Z", limitPause: { backend: "claude", window: "session", at: "2026-07-23T00:00:00.000Z", autoResume: true } }, kind: "snoozed", retry: false },
-  // A limit pause frizz will NOT auto-resume (an unknown phrasing, an aged-out fault) is STILL a limit
+  // A limit pause ntwine will NOT auto-resume (an unknown phrasing, an aged-out fault) is STILL a limit
   // kill: same yellow hourglass, same Retry — there the Retry is the only way back, not a shortcut.
   { name: "limit pause without auto-resume — still the limit mark, retry is the way back", over: { needsYou: true, runtime: "exited", limitPause: { backend: "claude", window: "unknown", at: "2026-07-23T00:00:00.000Z", autoResume: false } }, kind: "limit", retry: true },
-  // A FOREIGN read-only session is nothing frizz can restart, so it takes neither yellow mark.
+  // A FOREIGN read-only session is nothing ntwine can restart, so it takes neither yellow mark.
   { name: "foreign killed on a limit — read-only, no retry", over: { foreign: true, runtime: "exited", limitPause: { backend: "claude", window: "session", at: "2026-07-23T00:00:00.000Z", autoResume: true } }, kind: "rest", retry: false },
 ]
 
@@ -428,7 +428,7 @@ test("every surface shares the ONE offersRetry derivation — the retry verb is 
       `${name}: Retry is offered on exactly the yellow rows (stalled or limit-killed)`,
     )
   }
-  // A held row parked by something OTHER than a limit frizz will auto-resume (a user snooze, a timer
+  // A held row parked by something OTHER than a limit ntwine will auto-resume (a user snooze, a timer
   // wait) must NEVER offer Retry — those are intentional parks with no stall to recover.
   assert.equal(offersRetry(thread({ kind: "session", runtime: "exited", snoozedUntil: "2999-01-01T00:00:00.000Z" })), false, "snooze-snoozed: no retry")
   assert.equal(sessionIndicatorKind(thread({ kind: "session", runtime: "exited", snoozedUntil: "2999-01-01T00:00:00.000Z" })), "snoozed", "snooze-snoozed: still held")
@@ -615,7 +615,7 @@ test("sectionOf: an ARCHIVED thread whose worker is running lifts into Running; 
     assert.equal(sessionIndicatorKind(t), "archived", JSON.stringify(extra))
     assert.equal(workingThread(t), false, JSON.stringify(extra))
   }
-  // A foreign terminal marked done has no worker of frizz's to count.
+  // A foreign terminal marked done has no worker of ntwine's to count.
   assert.equal(workingThread(thread({ kind: "session", foreign: true, state: "archived", archived: true, runtime: "running" })), false)
   // …and an OPEN running row still counts exactly once, through the Active band.
   assert.equal(workingThread(thread({ kind: "session", state: "open", runtime: "running" })), true)
@@ -730,7 +730,7 @@ const awaitingPrWatch = { kind: "awaiting" as const, body: "", hints: [{ kind: "
 const awaitingTimer = { kind: "awaiting" as const, body: "", hints: [{ kind: "timer" as const, value: "tmr_a1b2c3" }, { kind: "for" as const, value: "2h" }] }
 const awaitingPr = { kind: "awaiting" as const, body: "", hints: [{ kind: "pr" as const, value: "owner/repo#12" }, { kind: "for" as const, value: "2h" }] }
 const liveSub = [{ label: "x", startedAt: "2026-07-10T00:00:00.000Z", state: "running" as const, id: "a1" }]
-/** One open registered question (mcp__frizz__ask), as the board emits it on `questions`. */
+/** One open registered question (mcp__ntwine__ask), as the board emits it on `questions`. */
 const regQuestion = [{ id: "qst_ab12cd34", spec: { question: "Merge it?", kind: "question" as const }, askedAt: "2026-08-31T00:00:00.000Z" }]
 const liveShell = [{ label: "Watch CI", startedAt: "2026-07-10T00:00:00.000Z", state: "running" as const }]
 // HELD IS THE SERVER'S VERDICT, and this pins that the client reads it rather than re-deriving it.
@@ -941,7 +941,7 @@ test("displayTitle: a machine-generated session slug is never presented as a suc
   assert.equal(
     displayName(thread({ id: "internal-id", title: "internal-id", titleAuto: true, aiTitle: "conversation-summary-task" })),
     "Conversation summary task",
-    "a native backend slug is humanized (sentence case) even when it differs from the Frizz thread id",
+    "a native backend slug is humanized (sentence case) even when it differs from the Ntwine thread id",
   )
   // …and, being a real name of three words, it SHOWS as its handle.
   assert.equal(
@@ -978,7 +978,7 @@ test("displayTitle: a real name shows as its kebab-case handle; placeholders, id
 })
 
 test("a legacy session/hintless declared wait is never Snoozed — at rest it is simply a rested/queued row", () => {
-  // A fence whose lines frizz cannot parse at all (the deleted `session:` kind) folds to NO hints, and a
+  // A fence whose lines ntwine cannot parse at all (the deleted `session:` kind) folds to NO hints, and a
   // thread the server left needing you is queued whatever it wrote.
   const sessWait = { kind: "awaiting" as const, body: "", hints: [] }
   const s = sectionThreads([
@@ -1000,7 +1000,7 @@ test("titleIsProvisional / displayTitle: 'Spinning up' shows briefly, then falls
   // aiTitle landed → not provisional; the real name wins.
   assert.equal(titleIsProvisional(thread({ titleAuto: true, aiTitle: "Parser fix", spawnedAt: fresh })), false)
   assert.equal(displayTitle(thread({ titleAuto: true, aiTitle: "Parser fix", spawnedAt: fresh })), "parser-fix")
-  // STALE spawn, still no aiTitle (e.g. a compacted session whose transcript frizz lost track of) → NOT
+  // STALE spawn, still no aiTitle (e.g. a compacted session whose transcript ntwine lost track of) → NOT
   // provisional: fall back to the dispatch title, never stick on "Spinning up…" forever.
   assert.equal(titleIsProvisional(thread({ titleAuto: true, title: "fix the parser bug", spawnedAt: "2026-07-08T00:00:00.000Z" })), false)
   assert.equal(displayTitle(thread({ titleAuto: true, title: "fix the parser bug", spawnedAt: "2026-07-08T00:00:00.000Z" })), "fix-the-parser-bug")
@@ -1036,7 +1036,7 @@ test("displayTitle: an EXTERNAL row shows the name the server resolved, whicheve
   // The server (foreignThreadView) names a terminal session the way its own resume picker does — the
   // harness's title, else a chop of the opening human turn — and marks the chop `titleAuto`. The codex
   // dispatch rule ("no title signal ⇒ Untitled thread") must not fire on it: that rule guards a raw
-  // prompt frizz seeded, and an external row has no such prompt (2026-08-24: every external codex row
+  // prompt ntwine seeded, and an external row has no such prompt (2026-08-24: every external codex row
   // read "Untitled thread" while every external claude row was named).
   const stale = new Date(Date.now() - 20_000).toISOString()
   const codexChop = thread({ id: "0199-uuid", backend: "codex", foreign: true, runtime: "turn-idle", titleAuto: true, title: "Which skills are available to you?…", spawnedAt: stale })
@@ -1045,8 +1045,8 @@ test("displayTitle: an EXTERNAL row shows the name the server resolved, whicheve
   const codexNamed = thread({ id: "0199-uuid", backend: "codex", foreign: true, runtime: "turn-idle", titleAuto: false, title: "Fix queue focus", aiTitle: "Fix queue focus" })
   assert.equal(displayTitle(codexNamed), "Fix queue focus")
   // Claude's chop already passed through the generic fallback; pin that it still does.
-  const claudeChop = thread({ id: "0199-uuid", backend: "claude", foreign: true, runtime: "turn-idle", titleAuto: true, title: "is frizz down? threads aren't starting…" })
-  assert.equal(displayTitle(claudeChop), "is frizz down? threads aren't starting…")
+  const claudeChop = thread({ id: "0199-uuid", backend: "claude", foreign: true, runtime: "turn-idle", titleAuto: true, title: "is ntwine down? threads aren't starting…" })
+  assert.equal(displayTitle(claudeChop), "is ntwine down? threads aren't starting…")
   // A transcript with no human turn keeps the server's short id, never a placeholder.
   const noTurn = thread({ id: "0199-uuid", backend: "codex", foreign: true, runtime: "turn-idle", titleAuto: true, title: "Session 0199-uui" })
   assert.equal(displayTitle(noTurn), "Session 0199-uui")
@@ -1369,7 +1369,7 @@ test("bandOf: Snoozed, Done, External, and no band for a legacy row", () => {
   assert.equal(bandOf(thread({ kind: "session", foreign: true, runtime: "turn-idle" })), "external")
   // A terminal waiting at a prompt queues its THREAD (server board.withThreadTerminals); it has no row.
   assert.equal(bandOf(thread({ kind: "session", state: "open", runtime: "turn-idle", needsYou: true, terminals: [{ id: "term-1", command: "npm publish", cwd: "/repo", state: "running", awaitingInput: true, runId: 1, startedAt: "2026-09-29T10:00:00.000Z" }] })), "ready")
-  assert.equal(bandOf(thread({})), null, "a legacy .frizz row has no row, so no band")
+  assert.equal(bandOf(thread({})), null, "a legacy .ntwine row has no row, so no band")
 })
 
 test("bandOf: a pin moves the row, never the band — a pinned thread still says what it is doing", () => {

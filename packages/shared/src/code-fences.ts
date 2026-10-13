@@ -1,4 +1,4 @@
-// Where a markdown text's fenced CODE BLOCKS are, so the scanners that hunt for frizz's own openers
+// Where a markdown text's fenced CODE BLOCKS are, so the scanners that hunt for ntwine's own openers
 // (```question, ```done, ```awaiting) can ignore the ones a message is merely QUOTING.
 //
 // Every one of those scanners is a line-anchored regex over raw markdown with no notion of nesting, so

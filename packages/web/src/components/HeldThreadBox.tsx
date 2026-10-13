@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from "react"
 import { useMutation } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { showToast } from "../store.ts"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { Composer } from "./Composer.tsx"

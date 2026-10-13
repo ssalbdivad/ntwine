@@ -9,9 +9,9 @@
 //    (its content still runs), while cancelling the batch-representative uuid drops the WHOLE
 //    coalesced batch — in both cases the cancel response reports cancelled:false"
 //
-// If that is reachable, frizz's unqueue has a SILENT DESTRUCTION path, because `cancelled:false` is
-// exactly what frizz renders as "the agent already picked that message up — it's on its way":
-//   · frizz writes no tombstone, so every bubble stays on screen looking delivered;
+// If that is reachable, ntwine's unqueue has a SILENT DESTRUCTION path, because `cancelled:false` is
+// exactly what ntwine renders as "the agent already picked that message up — it's on its way":
+//   · ntwine writes no tombstone, so every bubble stays on screen looking delivered;
 //   · but B — which the operator never touched — never runs, and nothing anywhere says so.
 //
 // _live_sdk_cancel_queued.mts already covered the EASY case (both still in the queue: cancelling A
@@ -26,13 +26,13 @@
 // below (one `queued_command` attachment carrying both prompts) never fired, so this is INCONCLUSIVE
 // rather than a clean bill of health — read the verdict line, not the absence of failures.
 //
-// So frizz does not depend on the answer. `cancelled:false` is surfaced as "that message has already
-// left the queue", never as "the agent has it", and a refusal writes no tombstone — so anything frizz
+// So ntwine does not depend on the answer. `cancelled:false` is surfaced as "that message has already
+// left the queue", never as "the agent has it", and a refusal writes no tombstone — so anything ntwine
 // could not retract keeps rendering as an undelivered gray bubble under either reading. This probe
 // stays here to be re-run against future CLI builds, and to be extended if someone finds the shape
 // that does coalesce (`turns` is reported per round because a single result covering both messages is
 // the other candidate signal, and the two did not agree here).
-import { query } from "@frizz/claude-agent-sdk-runtime"
+import { query } from "@ntwine/claude-agent-sdk-runtime"
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
@@ -47,7 +47,7 @@ type Round = { round: number; cancelledAnswer: boolean | string; aRan: boolean; 
 const rounds: Round[] = []
 
 for (let round = 1; round <= ROUNDS; round++) {
-  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "frizz-coalesce-")))
+  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-coalesce-")))
   execFileSync("git", ["init", "-q", cwd])
   const A = randomUUID()
   const B = randomUUID()
@@ -148,7 +148,7 @@ for (let round = 1; round <= ROUNDS; round++) {
 }
 
 console.log("\n──────── VERDICT ────────")
-// The failure that matters: frizz rendered "already delivered" (false) while a message the operator
+// The failure that matters: ntwine rendered "already delivered" (false) while a message the operator
 // never touched was destroyed.
 const silentLoss = rounds.filter((r) => r.cancelledAnswer === false && !r.bRan)
 const trueButLost = rounds.filter((r) => r.cancelledAnswer === true && !r.bRan)

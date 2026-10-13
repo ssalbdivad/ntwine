@@ -81,7 +81,7 @@ const records = [
         // FOREGROUND, still pending: marks itself on elapsed time once past the threshold. This record's
         // own timestamp is the clock, and it is minutes old, so it renders marked on first paint.
         call("toolu_fg", "Bash", { command: "npm run build", description: "Build the workspace" }),
-        call("toolu_agent", "Agent", { prompt: "Sweep every call site of the renamed helper.", subagent_type: "frizz:opus-high", description: "Sweep the renamed helper" }),
+        call("toolu_agent", "Agent", { prompt: "Sweep every call site of the renamed helper.", subagent_type: "ntwine:opus-high", description: "Sweep the renamed helper" }),
       ],
     },
   },
@@ -91,6 +91,6 @@ fs.writeFileSync(path.join(transcriptDir, `${sessionId}.jsonl`), records.map((r)
 execFileSync("sqlite3", [
   db,
   `INSERT INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${T(0)}', 'Tool liveness marks', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${T(0)}', 'Tool liveness marks', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
 ])
 console.log(`seeded ${slug} (${sessionId})`)

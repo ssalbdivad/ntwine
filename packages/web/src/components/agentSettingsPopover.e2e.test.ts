@@ -8,8 +8,8 @@ import test from "node:test"
 // replacement cannot: a source test can pin the `modal` flag, not what Radix does with it.
 //
 // Drives dispatch-composer-profile-fixture, which records every settingsSet the panel makes. Skipped
-// unless FRIZZ_AGENT_SETTINGS_E2E_URL names a vite serving the fixtures (scripts/e2e-web.mjs sets it).
-const baseUrl = process.env.FRIZZ_AGENT_SETTINGS_E2E_URL
+// unless NTWINE_AGENT_SETTINGS_E2E_URL names a vite serving the fixtures (scripts/e2e-web.mjs sets it).
+const baseUrl = process.env.NTWINE_AGENT_SETTINGS_E2E_URL
 
 type Fixture = { settingsWrites: Record<string, unknown>[] }
 const MENU = ".profile-grid-menu"
@@ -149,7 +149,7 @@ test("a settings write still in flight holds the composer until it lands", { ski
   }
 })
 
-test("project instructions save to FRIZZ.md and never overwrite a change a worker made meanwhile", { skip: !baseUrl, timeout: 60_000 }, async () => {
+test("project instructions save to NTWINE.md and never overwrite a change a worker made meanwhile", { skip: !baseUrl, timeout: 60_000 }, async () => {
   type Instructions = { disk: string; revision: number; writes: { content: string; baseRevision: string }[] }
   const read = (page: import("puppeteer").Page) =>
     page.evaluate(() => structuredClone((window as unknown as { dispatchComposerProfileFixture: { instructions: Instructions } }).dispatchComposerProfileFixture.instructions))
@@ -166,7 +166,7 @@ test("project instructions save to FRIZZ.md and never overwrite a change a worke
     assert.deepEqual(state.writes[0], { content: "Run the tests before committing. Never push.", baseRevision: "1" }, "one debounced write, based on the revision it loaded")
     assert.ok(await page.$(PANEL), "typing leaves the panel open")
 
-    // A worker rewrites FRIZZ.md behind the open panel; the next edit is refused, not saved over it.
+    // A worker rewrites NTWINE.md behind the open panel; the next edit is refused, not saved over it.
     await page.evaluate(() => {
       const i = (window as unknown as { dispatchComposerProfileFixture: { instructions: Instructions } }).dispatchComposerProfileFixture.instructions
       i.disk = "Edited by a worker."

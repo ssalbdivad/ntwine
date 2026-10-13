@@ -5,16 +5,16 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { repairThreadFile, deriveTitle, RepairError, REPAIR_STATUS_TEXT } from "./repair.ts"
 
-// Stand up a temp project with a .frizz/ dir; return its .frizz path.
-function frizzDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-repair-"))
-  const fd = join(dir, ".frizz")
+// Stand up a temp project with a .ntwine/ dir; return its .ntwine path.
+function ntwineDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-repair-"))
+  const fd = join(dir, ".ntwine")
   mkdirSync(fd, { recursive: true })
   return fd
 }
 
 test("repairThreadFile: happy path — no heading → filename slug title, prepends frontmatter", () => {
-  const fd = frizzDir()
+  const fd = ntwineDir()
   try {
     // The incident shape: metadata in bold prose, no frontmatter at all.
     writeFileSync(join(fd, "sandbox-windows-backend.md"), "**Status: DONE**\n\nSome prose body.\n")
@@ -34,7 +34,7 @@ test("repairThreadFile: happy path — no heading → filename slug title, prepe
 })
 
 test("repairThreadFile: title derived from the first H1 heading when present", () => {
-  const fd = frizzDir()
+  const fd = ntwineDir()
   try {
     writeFileSync(join(fd, "t.md"), "# Real Title Here\n\nbody\n")
     repairThreadFile(fd, "t.md")
@@ -46,7 +46,7 @@ test("repairThreadFile: title derived from the first H1 heading when present", (
 })
 
 test("repairThreadFile: refuses a file that OPENS with a --- block, but heals a body `---` rule", () => {
-  const fd = frizzDir()
+  const fd = ntwineDir()
   try {
     // Opens with frontmatter (first non-blank line is `---`) → refuse.
     writeFileSync(join(fd, "has-fm.md"), "---\ntitle: x\nstatus: active\n---\nbody\n")
@@ -68,9 +68,9 @@ test("repairThreadFile: refuses a file that OPENS with a --- block, but heals a 
 })
 
 test("repairThreadFile: refuses path traversal / non-child / non-.md / missing", () => {
-  const fd = frizzDir()
+  const fd = ntwineDir()
   try {
-    // A sibling file outside .frizz that we must NOT be able to reach.
+    // A sibling file outside .ntwine that we must NOT be able to reach.
     writeFileSync(join(fd, "..", "secret.md"), "top secret\n")
     assert.throws(() => repairThreadFile(fd, "../secret.md"), (e: unknown) => e instanceof RepairError && /not directly under/.test((e as Error).message))
     assert.throws(() => repairThreadFile(fd, "sub/nested.md"), /not directly under/)
@@ -80,7 +80,7 @@ test("repairThreadFile: refuses path traversal / non-child / non-.md / missing",
     // Right location, wrong extension.
     writeFileSync(join(fd, "notes.txt"), "hi\n")
     assert.throws(() => repairThreadFile(fd, "notes.txt"), /not a .md/)
-    // Directly under .frizz, .md, but does not exist.
+    // Directly under .ntwine, .md, but does not exist.
     assert.throws(() => repairThreadFile(fd, "ghost.md"), /no thread file to repair/)
   } finally {
     rmSync(fd, { recursive: true, force: true })

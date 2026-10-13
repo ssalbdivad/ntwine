@@ -1,4 +1,4 @@
-import type { EditorFront, EditorKind, EditorWindowSummary } from "@frizz/shared"
+import type { EditorFront, EditorKind, EditorWindowSummary } from "@ntwine/shared"
 import { contextChipLabel, contextDisplayPath } from "./composerContext.ts"
 
 // THE EDITOR BESIDE A BROWSER TAB — the quiet line over a tab's prompt boxes (components/EditorLine.tsx)

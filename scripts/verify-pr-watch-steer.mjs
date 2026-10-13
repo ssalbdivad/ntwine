@@ -44,13 +44,13 @@ const asOf = (instant) => async (ref) => {
 }
 
 async function run(label, { fenceAt, fetchGithubReview, ticks = [] }) {
-  const home = mkdtempSync(join(tmpdir(), "frizz-prwatch-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-prwatch-"))
   try {
     const storage = createStorage(join(home, "ui.db"))
     const resumes = []
     const logs = []
     storage.upsertSession({
-      slug: label, session_id: `sid-${label}`, thread_name: `frizz-${label}`, spawned_at: fenceAt,
+      slug: label, session_id: `sid-${label}`, thread_name: `ntwine-${label}`, spawned_at: fenceAt,
       last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
       title: label, state: "open", meta: null, seen_at: null, transcript_id: null,
     })

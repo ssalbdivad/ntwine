@@ -5,7 +5,7 @@ import {
   SCHEDULE_SPACING_COPY,
   zonedWall,
   type InterpretScheduleResult,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
 // THE MODEL READS OF A SCHEDULE (ARCHITECTURE.md § Scheduled threads), shared by the prompt box and the drawer's
 // Change when. The server's interpreter (`interpretSchedule`, schedule-interpreter.ts) decides whether the

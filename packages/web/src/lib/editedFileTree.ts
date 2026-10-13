@@ -1,4 +1,4 @@
-import type { EditedFile } from "@frizz/shared"
+import type { EditedFile } from "@ntwine/shared"
 import { isRooted, relativeTo, splitPath } from "./paths.ts"
 
 // THE RAIL'S EDITED FILES AS A TREE (maintainer 2026-09-03: "maybe we could do a file tree here

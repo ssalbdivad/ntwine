@@ -6,8 +6,8 @@ const paths = (command: string) => shellWriteTargets(command).map((t) => (t.base
 
 test("a heredoc redirect names the file it writes — the reported case", () => {
   // Verbatim shape of the call that went missing (nub thread a5d33c0a, 2026-09-04).
-  const command = "cd /Users/colinmcd94/Documents/projects/nub; cat > .frizz/sandbox-direction-decisions.md <<'MD'\n# Notes\nsome > text\nMD\necho done"
-  assert.deepEqual(paths(command), ["/Users/colinmcd94/Documents/projects/nub::.frizz/sandbox-direction-decisions.md"])
+  const command = "cd /Users/colinmcd94/Documents/projects/nub; cat > .ntwine/sandbox-direction-decisions.md <<'MD'\n# Notes\nsome > text\nMD\necho done"
+  assert.deepEqual(paths(command), ["/Users/colinmcd94/Documents/projects/nub::.ntwine/sandbox-direction-decisions.md"])
 })
 
 test("a heredoc BODY is content, not shell — its redirects and quotes never parse", () => {

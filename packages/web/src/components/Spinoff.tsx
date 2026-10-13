@@ -1,7 +1,7 @@
 import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { ArrowRight, Check, ChevronDown, ChevronRight, Loader2, Split } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
-import { type ProjectCard, type SpinoffView, type ThreadView } from "@frizz/shared"
+import { type ProjectCard, type SpinoffView, type ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { projectsQueuesQuery } from "../lib/projectsQueuesRead.ts"
 import { useThreadApi, useThreadProjectDir } from "../api/threadApi.tsx"
@@ -29,7 +29,7 @@ import { TextareaCodeFences } from "./TextareaCodeFences.tsx"
 //
 //   · SpinoffButton — the icon in every thread header: each queue card's, and the drawer's and /full's.
 //     It opens the one-field dialog, and the `spinoff` RPC starts the new thread — a fork of this one's
-//     session, or a fresh thread on context Frizz assembles — without sending this one anything.
+//     session, or a fresh thread on context Ntwine assembles — without sending this one anything.
 //   · SpinoffCard — the request, in this thread's timeline where the human sent it: the human's
 //     instructions under the `@handle` of the thread it became.
 //   · SpinoffOriginCard — the same card at the other end, heading the new thread: whose spinoff it is,
@@ -51,7 +51,7 @@ function SpinoffMark({ size, className = "" }: { size: number; className?: strin
   return <Split size={size} strokeWidth={2} aria-hidden className={`shrink-0 rotate-90 ${className}`} />
 }
 
-/** Whether a thread can be asked for a spinoff: a live Frizz session. A foreign row is not ours to read,
+/** Whether a thread can be asked for a spinoff: a live Ntwine session. A foreign row is not ours to read,
  *  and a held thread that has not started has nothing to spin off. */
 function canSpinoff(thread: ThreadView | undefined): thread is ThreadView & { sessionId: string } {
   return Boolean(thread && thread.kind === "session" && thread.foreign !== true && thread.held === undefined && thread.sessionId)
@@ -412,7 +412,7 @@ const BODY = "mt-1.5 whitespace-pre-wrap [overflow-wrap:anywhere]"
 /** Where a spinoff request stands, as its card shows it. */
 export type SpinoffCardState = "started" | "unstarted" | "detached"
 
-/** A request with a child has STARTED — every request Frizz makes now, since the row is written once the
+/** A request with a child has STARTED — every request Ntwine makes now, since the row is written once the
  *  child exists (server router.ts `spinoff`). The other two are older rows:
  *   · UNSTARTED — a request an older build handed to the parent's worker, which never started a thread.
  *   · DETACHED — the board row lists the thread's spinoffs and this request is not among them: the row is
@@ -439,7 +439,7 @@ export function SpinoffCard({ id, instructions, sourceId }: { id: string; instru
   const edge = thread?.spinoffs?.find((o) => o.id === id)
   const state = spinoffCardState(edge, thread?.spinoffs !== undefined)
   return (
-    <div data-frizz-msg={sourceId} data-spinoff={id} data-spinoff-card="request" data-spinoff-state={state} className="self-end flex min-w-0 max-w-[85%] flex-col">
+    <div data-ntwine-msg={sourceId} data-spinoff={id} data-spinoff-card="request" data-spinoff-state={state} className="self-end flex min-w-0 max-w-[85%] flex-col">
       <div className={CARD_SHELL}>
         <div className={HEADER_ROW}>
           <SpinoffMark size={14} className={HEADER_GLYPH} />
@@ -472,7 +472,7 @@ export function SpinoffOriginCard({ instructions, context, sourceId }: { instruc
   const [open, setOpen] = useState(false)
   const contextId = useId()
   return (
-    <div data-frizz-msg={sourceId} data-spinoff-card="origin" className="self-end flex min-w-0 max-w-[85%] flex-col">
+    <div data-ntwine-msg={sourceId} data-spinoff-card="origin" className="self-end flex min-w-0 max-w-[85%] flex-col">
       <div className={CARD_SHELL}>
         <div className={HEADER_ROW}>
           <SpinoffMark size={14} className={HEADER_GLYPH} />
@@ -486,7 +486,7 @@ export function SpinoffOriginCard({ instructions, context, sourceId }: { instruc
           )}
         </div>
         <p className={BODY}>{instructions}</p>
-        {/* THE CONTEXT, FOLDED. It is the parent's request and latest handoff Frizz quoted for this thread
+        {/* THE CONTEXT, FOLDED. It is the parent's request and latest handoff Ntwine quoted for this thread
             (or, on an older child, the brief the parent's worker wrote) — often thousands of characters —
             and the human already knows what it says, having been in that conversation; the instructions
             above are the part they wrote. Collapsed it is one quiet line, the transcript's own disclosure

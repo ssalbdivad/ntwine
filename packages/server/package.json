@@ -1,5 +1,5 @@
 {
-  "name": "@frizz/server",
+  "name": "@ntwine/server",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -22,14 +22,14 @@
     "./dev": "./src/dev.ts",
     "./dev-child": "./src/dev-child.ts",
     "./boot-progress": "./src/boot-progress.ts",
-    "./frizz-paths": "./src/frizz-paths.ts",
+    "./ntwine-paths": "./src/ntwine-paths.ts",
     "./logging": "./src/logging.ts",
     "./top": "./src/top.ts"
   },
   "dependencies": {
-    "@frizz/claude-agent-sdk-runtime": "workspace:*",
-    "@frizz/rpc": "workspace:*",
-    "@frizz/shared": "workspace:*",
+    "@ntwine/claude-agent-sdk-runtime": "workspace:*",
+    "@ntwine/rpc": "workspace:*",
+    "@ntwine/shared": "workspace:*",
     "@hono/node-server": "^1.13",
     "@parcel/watcher": "^2.5",
     "hono": "^4.7",

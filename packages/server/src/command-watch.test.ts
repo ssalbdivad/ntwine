@@ -11,7 +11,7 @@ import assert from "node:assert/strict"
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { COMMAND_WATCH_OUTPUT_MAX_BYTES } from "@frizz/shared"
+import { COMMAND_WATCH_OUTPUT_MAX_BYTES } from "@ntwine/shared"
 import {
   claudeSandboxRefusal,
   commandWatchEnvironment,
@@ -72,7 +72,7 @@ test("runner: /bin/sh -c in the given cwd, with exactly the given environment, a
 })
 
 test("runner: a command not found is the shell's own 127, not an error", { skip: !posix }, async () => {
-  const r = await run("definitely-not-a-command-frizz-cmw")
+  const r = await run("definitely-not-a-command-ntwine-cmw")
   assert.equal(r.outcome, "exit")
   assert.equal(r.exitCode, 127)
   assert.match(r.output, /not found/)
@@ -126,18 +126,18 @@ test("outputTail keeps short output whole and marks a cut", () => {
 })
 
 test("runner: a cwd that does not exist is an `error` outcome, never a throw", { skip: !posix }, async () => {
-  const r = await run("true", { cwd: "/definitely/not/a/dir/frizz-cmw" })
+  const r = await run("true", { cwd: "/definitely/not/a/dir/ntwine-cmw" })
   assert.equal(r.outcome, "error")
   assert.match(r.output, /could not start/)
 })
 
 test("the environment carries the thread's identity, drops the reaper's tag, and never prompts", () => {
   const env = commandWatchEnvironment(
-    { PATH: "/usr/bin", FRIZZ_THREAD: "someone-else", HOME: "/h" },
-    { FRIZZ_THREAD_SLUG: "me", FRIZZ_STATE_DIR: "/s" },
+    { PATH: "/usr/bin", NTWINE_THREAD: "someone-else", HOME: "/h" },
+    { NTWINE_THREAD_SLUG: "me", NTWINE_STATE_DIR: "/s" },
   )
-  assert.equal(env.FRIZZ_THREAD, undefined, "FRIZZ_THREAD is the orphan reaper's ownership tag")
-  assert.equal(env.FRIZZ_THREAD_SLUG, "me")
+  assert.equal(env.NTWINE_THREAD, undefined, "NTWINE_THREAD is the orphan reaper's ownership tag")
+  assert.equal(env.NTWINE_THREAD_SLUG, "me")
   assert.equal(env.GIT_TERMINAL_PROMPT, "0")
   assert.equal(env.GH_PROMPT_DISABLED, "1")
   assert.equal(env.HOME, "/h")
@@ -265,7 +265,7 @@ test("gate: a sandbox block that is off, or says nothing about `enabled`, does n
   assert.ok(commandWatchRefusal(BYPASS, gate))
 })
 
-test("gate: a settings file Frizz cannot parse or read refuses — it might be the one that says `enabled: true`", { skip: !posix || process.getuid?.() === 0 }, () => {
+test("gate: a settings file Ntwine cannot parse or read refuses — it might be the one that says `enabled: true`", { skip: !posix || process.getuid?.() === 0 }, () => {
   const { cwd, home, gate } = settingsRoots()
   writeFileSync(join(cwd, ".claude", "settings.json"), "{ not json")
   assert.match(commandWatchRefusal(BYPASS, gate)!, /not valid JSON/)
@@ -290,7 +290,7 @@ test("gate: CLAUDE_CONFIG_DIR moves the user scope, as it does for Claude Code",
 
 // An MDM configuration profile reaches Claude Code as `/Library/Managed Preferences/…/com.anthropic.claudecode.plist`,
 // which it converts with `plutil` and reads as settings — a sandbox turned on there is in no JSON file.
-test("gate: a sandbox an MDM profile turns on refuses, and a profile Frizz cannot convert refuses too", () => {
+test("gate: a sandbox an MDM profile turns on refuses, and a profile Ntwine cannot convert refuses too", () => {
   const { root, gate } = settingsRoots()
   const plist = join(root, "com.anthropic.claudecode.plist")
   writeFileSync(plist, "<plist/>") // only its existence is read; the conversion is the seam below

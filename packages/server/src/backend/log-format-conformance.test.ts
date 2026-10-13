@@ -1,4 +1,4 @@
-// Conformance gate for the two vendors' TRANSCRIPT FORMATS — the logs Frizz folds to build the board.
+// Conformance gate for the two vendors' TRANSCRIPT FORMATS — the logs Ntwine folds to build the board.
 //
 // This is the sibling of codex-protocol-conformance.test.ts, aimed at the other half of the seam. That
 // one asks "do the fields we SEND still exist?"; this one asks "do the fields we READ still exist?" —
@@ -6,7 +6,7 @@
 //
 // WHAT WENT WRONG, and what this would have caught. Codex 0.153 respelled its rollout: every semantic
 // event moved onto ONE `event_msg/item_completed` envelope carrying a typed `item`, and the flat
-// `agent_message` / `user_message` / `sub_agent_activity` payloads Frizz read were no longer written at
+// `agent_message` / `user_message` / `sub_agent_activity` payloads Ntwine read were no longer written at
 // all. Nothing threw. The fold simply returned EMPTY — zero assistant text, zero user turns, zero
 // sub-agents — while the turn brackets, which did not move, kept working. So a thread went in-flight
 // and came to rest perfectly, with no title, no preview, no fences and no children on the board. A
@@ -39,7 +39,7 @@ import { createClaudeBackend } from "./claude.ts"
 import { CODEX_APP_SERVER_SUPPORTED_VERSION } from "./codex-app-server.ts"
 import { createCodexBackend, defaultCodexHome, parseCodexLine } from "./codex.ts"
 
-// How many recent transcripts to look through before giving up. A machine that runs Frizz writes these
+// How many recent transcripts to look through before giving up. A machine that runs Ntwine writes these
 // constantly, so the pinned build's samples are near the front; this bound keeps the test off the
 // operator's whole history (which reaches back a year here) and keeps its runtime flat.
 const CANDIDATES = 60

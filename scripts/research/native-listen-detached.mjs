@@ -1,4 +1,4 @@
-// Probe: the two properties frizz's daemon queue exists to preserve.
+// Probe: the two properties ntwine's daemon queue exists to preserve.
 // EXP-A: a turn that completes ENTIRELY while no client is attached — can a later client learn it ended?
 // EXP-B: an approval request issued to a client that then dies — is it re-delivered, or is the turn wedged?
 import { spawn } from "node:child_process"
@@ -6,10 +6,10 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
-const require = createRequire("/Users/colinmcd94/Documents/projects/frizz/packages/server/index.js")
+const require = createRequire("/Users/colinmcd94/Documents/projects/ntwine/packages/server/index.js")
 const WebSocket = require("ws")
 
-const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "frizz-nl4-"))
+const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "ntwine-nl4-"))
 const cwd = path.join(runDir, "work"); fs.mkdirSync(cwd)
 const sock = path.join(runDir, "as.sock")
 const logPath = path.join(runDir, "server.log")
@@ -18,7 +18,7 @@ const child = spawn("codex", ["app-server", "--listen", `unix://${sock}`], { std
 console.log("[p4] runDir", runDir, "serverPid", child.pid)
 process.on("exit", () => { try { child.kill("SIGKILL") } catch {} })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const INIT = { clientInfo: { name: "frizz", title: "Frizz", version: "0.0.1" }, capabilities: { experimentalApi: true } }
+const INIT = { clientInfo: { name: "ntwine", title: "Ntwine", version: "0.0.1" }, capabilities: { experimentalApi: true } }
 
 class Conn {
   constructor(tag) { this.tag = tag; this.notes = []; this.serverRequests = []; this.next = 1; this.pending = new Map() }

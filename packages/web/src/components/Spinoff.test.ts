@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs"
 import { createElement, type ReactNode } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, SpinoffView, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, SpinoffView, ThreadView } from "@ntwine/shared"
 import { store } from "../store.ts"
 import { ThreadHandleLink } from "./MentionLinks.tsx"
 import { SpinoffCard, SpinoffOf, SpinoffOriginCard, spinoffCardState } from "./Spinoff.tsx"
@@ -25,7 +25,7 @@ const edge = (over: Partial<SpinoffView> = {}): SpinoffView => ({
 })
 
 function board(threads: ThreadView[]): void {
-  store.board = { threads, projectSlug: "frizz" } as unknown as BoardSnapshot
+  store.board = { threads, projectSlug: "ntwine" } as unknown as BoardSnapshot
 }
 
 function inThread(slug: string, node: ReactNode): string {
@@ -62,7 +62,7 @@ test("the parent's card names the child by @handle, links it, and is outlined ra
   const html = inThread("live-sub-agents", createElement(SpinoffCard, { id: edge().id, instructions: "Is it worth keeping?\nBe blunt.", sourceId: "u1" }))
   assert.match(html, /data-spinoff-card="request"/)
   assert.match(html, /data-spinoff="spn_0123456789abcdef"/)
-  assert.match(html, /data-frizz-msg="u1"/)
+  assert.match(html, /data-ntwine-msg="u1"/)
   assert.match(html, /data-spinoff-state="started"/)
   assert.match(html, />Spinoff</)
   assert.match(html, /<a href="\/thread\/evaluate-addresses" title="Evaluate addresses · Reading the router" data-thread-mention="evaluate-addresses"[^>]*>@evaluate-addresses<\/a>/)

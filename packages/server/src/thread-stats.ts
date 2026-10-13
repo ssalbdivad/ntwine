@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs"
 import { open, type FileHandle } from "node:fs/promises"
 import { join } from "node:path"
-import type { ThreadModelUsage, ThreadStats, ThreadTokenUsage } from "@frizz/shared"
+import type { ThreadModelUsage, ThreadStats, ThreadTokenUsage } from "@ntwine/shared"
 
 // THE THREAD INFO VIEW's numbers (⋯ menu → Thread info): what one thread has consumed, read off its own
 // transcript rather than the tailer's fold. The fold keeps only what the board needs on every tick (the

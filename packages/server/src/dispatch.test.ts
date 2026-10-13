@@ -4,10 +4,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSy
 import { tmpdir } from "node:os"
 import { join, dirname, isAbsolute } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import { DISPATCH_TASK_BANNER_MARKER } from "@frizz/shared"
-import { buildClaudeCommand, launchableWorkerPluginDir, loadWorkerPrompt, composePrompt, monitorScriptsDir, resolveWorkerPluginDir, scratchDirRelPath, scratchpadOrientation, workerPluginDir, workerScratchPath, frizzConfigBlock, workerDispatchPermission, WORKER_DISPATCH_PERMISSION } from "./dispatch.ts"
+import { DISPATCH_TASK_BANNER_MARKER } from "@ntwine/shared"
+import { buildClaudeCommand, launchableWorkerPluginDir, loadWorkerPrompt, composePrompt, monitorScriptsDir, resolveWorkerPluginDir, scratchDirRelPath, scratchpadOrientation, workerPluginDir, workerScratchPath, ntwineConfigBlock, workerDispatchPermission, WORKER_DISPATCH_PERMISSION } from "./dispatch.ts"
 import { parseTranscript } from "./transcript.ts"
-import { FRIZZ_MCP } from "./backend/types.ts"
+import { NTWINE_MCP } from "./backend/types.ts"
 
 // The worker's MCP config, read from the owner-only FILE its argv names. Never inline JSON: the config
 // carries credentials, and an argv is readable through `ps` by every local process.
@@ -51,51 +51,51 @@ test("Claude dispatch supplies the discovered worker plugin via --plugin-dir", (
   assert.deepEqual(argv.slice(argv.indexOf("--plugin-dir"), argv.indexOf("--plugin-dir") + 2), ["--plugin-dir", plugin])
 })
 
-test("Claude dispatch mounts the unified frizz MCP server, alone, and pre-approves it", () => {
+test("Claude dispatch mounts the unified ntwine MCP server, alone, and pre-approves it", () => {
   const argv = buildClaudeCommand({
     sessionId: "mcp-dispatch",
     permissionMode: "auto",
     prompt: "test",
     workerPrompt: "",
-    frizzMcp: { scriptPath: "/abs/plugin/bin/frizz-mcp.mjs", stateDir: "/home/.frizz/projects/pid" },
+    ntwineMcp: { scriptPath: "/abs/plugin/bin/ntwine-mcp.mjs", stateDir: "/home/.ntwine/projects/pid" },
   })
   const cfg = mcpConfigOf(argv)
-  // `frizz` is the ONLY server frizz injects. A `chrome-devtools` mount rode every dispatch until
+  // `ntwine` is the ONLY server ntwine injects. A `chrome-devtools` mount rode every dispatch until
   // 2026-08-26; it cost ~6,400 prefix tokens of tool schema on a worker that mostly never opened a
   // page, and a browser is the project's to bring — its `.mcp.json`, which rides this same config file
   // (next test but one); `claude mcp add --scope user` no longer reaches a worker at all.
   assert.ok(argv.includes("--strict-mcp-config"), "a worker discovers no MCP scope on its own")
-  assert.deepEqual(Object.keys(cfg.mcpServers), [FRIZZ_MCP.name])
-  assert.deepEqual(cfg.mcpServers[FRIZZ_MCP.name], {
+  assert.deepEqual(Object.keys(cfg.mcpServers), [NTWINE_MCP.name])
+  assert.deepEqual(cfg.mcpServers[NTWINE_MCP.name], {
     command: process.execPath, // absolute node path, not bare "node" (worker PATH-independence)
-    args: ["/abs/plugin/bin/frizz-mcp.mjs"],
-    env: { FRIZZ_STATE_DIR: "/home/.frizz/projects/pid" },
+    args: ["/abs/plugin/bin/ntwine-mcp.mjs"],
+    env: { NTWINE_STATE_DIR: "/home/.ntwine/projects/pid" },
   })
-  // No FRIZZ_PROJECT_ID here because this descriptor carries none: the id is stamped by the SERVER at
+  // No NTWINE_PROJECT_ID here because this descriptor carries none: the id is stamped by the SERVER at
   // spawn, from the worker's own project, and is never a tool argument — which is what makes "spawn a
   // thread on another project's board" unexpressible rather than merely discouraged. The same reason
-  // FRIZZ_THREAD_SLUG is env-only.
+  // NTWINE_THREAD_SLUG is env-only.
   // Tools are pre-approved so a headless worker never blocks on a permission prompt. One comma-joined
   // EQUALS-form token: --allowedTools is variadic, so a space-separated value could swallow a
   // following positional (the prompt) — the equals form binds exactly one token. BOTH rules are
   // SERVER-level, so a tool added to either server needs no allow-list edit.
-  assert.ok(argv.includes("--allowedTools=mcp__frizz"))
+  assert.ok(argv.includes("--allowedTools=mcp__ntwine"))
   // Nothing in the argv reaches for a browser, on any flag.
-  assert.ok(!argv.some((a) => a.includes("chrome-devtools")), "frizz must inject no browser")
+  assert.ok(!argv.some((a) => a.includes("chrome-devtools")), "ntwine must inject no browser")
   // The prompt stays the trailing positional (flags never displace it).
   assert.equal(argv[argv.length - 1], "test")
 })
 
-test("Claude dispatch stamps the singleton's lock path and the worker's OWN project into the frizz MCP env", () => {
+test("Claude dispatch stamps the singleton's lock path and the worker's OWN project into the ntwine MCP env", () => {
   const argv = buildClaudeCommand({
     sessionId: "mcp-tenant",
     permissionMode: "auto",
     prompt: "test",
     workerPrompt: "",
-    frizzMcp: {
-      scriptPath: "/abs/plugin/bin/frizz-mcp.mjs",
-      stateDir: "/home/.frizz/projects/tenant",
-      serverLock: "/home/.frizz/projects/launcher/server.lock",
+    ntwineMcp: {
+      scriptPath: "/abs/plugin/bin/ntwine-mcp.mjs",
+      stateDir: "/home/.ntwine/projects/tenant",
+      serverLock: "/home/.ntwine/projects/launcher/server.lock",
       projectId: "b47f4055-4262-432a-af18-ded4cbfb3071",
     },
   })
@@ -104,14 +104,14 @@ test("Claude dispatch stamps the singleton's lock path and the worker's OWN proj
   // where that lock is; and the RPC it POSTs is prefixed with its own project, because unprefixed
   // means the LAUNCHING project — the difference between spawning onto your board and onto someone
   // else's. Neither value is derivable inside the worker, and neither is a tool argument.
-  assert.deepEqual(cfg.mcpServers[FRIZZ_MCP.name].env, {
-    FRIZZ_STATE_DIR: "/home/.frizz/projects/tenant",
-    FRIZZ_SERVER_LOCK: "/home/.frizz/projects/launcher/server.lock",
-    FRIZZ_PROJECT_ID: "b47f4055-4262-432a-af18-ded4cbfb3071",
+  assert.deepEqual(cfg.mcpServers[NTWINE_MCP.name].env, {
+    NTWINE_STATE_DIR: "/home/.ntwine/projects/tenant",
+    NTWINE_SERVER_LOCK: "/home/.ntwine/projects/launcher/server.lock",
+    NTWINE_PROJECT_ID: "b47f4055-4262-432a-af18-ded4cbfb3071",
   })
 })
 
-test("Claude dispatch mounts NOTHING when no frizz-MCP descriptor resolved — no empty flags", () => {
+test("Claude dispatch mounts NOTHING when no ntwine-MCP descriptor resolved — no empty flags", () => {
   const argv = buildClaudeCommand({ sessionId: "no-mcp", permissionMode: "auto", prompt: "test", workerPrompt: "" })
   // With the browser mount gone this is a real state, and the flags must be ABSENT rather than empty:
   // `--allowedTools=` hands the CLI one rule that is the empty string, which is not the same as no
@@ -123,122 +123,122 @@ test("Claude dispatch mounts NOTHING when no frizz-MCP descriptor resolved — n
   assert.ok(!argv.some((a) => a.startsWith("--allowedTools")))
 })
 
-test("Claude dispatch mounts the project's approved servers under --strict-mcp-config, and frizz wins a name collision", () => {
+test("Claude dispatch mounts the project's approved servers under --strict-mcp-config, and ntwine wins a name collision", () => {
   const argv = buildClaudeCommand({
     sessionId: "mcp-project",
     permissionMode: "auto",
     prompt: "test",
     workerPrompt: "",
-    frizzMcp: { scriptPath: "/abs/plugin/bin/frizz-mcp.mjs", stateDir: "/home/.frizz/projects/pid" },
+    ntwineMcp: { scriptPath: "/abs/plugin/bin/ntwine-mcp.mjs", stateDir: "/home/.ntwine/projects/pid" },
     projectMcpServers: {
       "chrome-devtools": { command: "npx", args: ["-y", "chrome-devtools-mcp@1.7.0", "--headless"] },
       Neon: { type: "http", url: "https://mcp.neon.tech/mcp" },
-      [FRIZZ_MCP.name]: { command: "/not/frizz" },
+      [NTWINE_MCP.name]: { command: "/not/ntwine" },
     },
   })
   assert.ok(argv.includes("--strict-mcp-config"))
   const cfg = mcpConfigOf(argv)
-  // The project's servers travel in the SAME config file as the frizz mount — under strict mode that
-  // config is the whole MCP surface — and a project cannot shadow `frizz` by naming a server after it.
-  assert.deepEqual(Object.keys(cfg.mcpServers).sort(), ["Neon", "chrome-devtools", FRIZZ_MCP.name].sort())
+  // The project's servers travel in the SAME config file as the ntwine mount — under strict mode that
+  // config is the whole MCP surface — and a project cannot shadow `ntwine` by naming a server after it.
+  assert.deepEqual(Object.keys(cfg.mcpServers).sort(), ["Neon", "chrome-devtools", NTWINE_MCP.name].sort())
   assert.deepEqual(cfg.mcpServers["chrome-devtools"], { command: "npx", args: ["-y", "chrome-devtools-mcp@1.7.0", "--headless"] })
   assert.deepEqual(cfg.mcpServers.Neon, { type: "http", url: "https://mcp.neon.tech/mcp" })
-  assert.equal(cfg.mcpServers[FRIZZ_MCP.name].args[0], "/abs/plugin/bin/frizz-mcp.mjs")
-  // Only the frizz server is pre-approved; a project server keeps whatever approval story it had.
-  assert.ok(argv.includes("--allowedTools=mcp__frizz"))
+  assert.equal(cfg.mcpServers[NTWINE_MCP.name].args[0], "/abs/plugin/bin/ntwine-mcp.mjs")
+  // Only the ntwine server is pre-approved; a project server keeps whatever approval story it had.
+  assert.ok(argv.includes("--allowedTools=mcp__ntwine"))
 })
 
 test("Claude worker surfaces share the canonical per-session scratch DIRECTORY path", () => {
   const sessionId = "scratch-canonical"
-  const canonical = `.frizz/threads/${sessionId}/`
+  const canonical = `.ntwine/threads/${sessionId}/`
   assert.match(composePrompt(sessionId, "task", "claude"), new RegExp(canonical.replaceAll("/", "\\/")))
   assert.match(scratchpadOrientation(sessionId, "claude"), new RegExp(canonical.replaceAll("/", "\\/")))
-  assert.match(SESSION_SEED, /\.frizz\/threads\//)
+  assert.match(SESSION_SEED, /\.ntwine\/threads\//)
   // No surface may resurrect the canonical filename: nothing reserves a name in that directory now.
   assert.doesNotMatch(composePrompt(sessionId, "task", "claude"), /scratch\.md/)
   assert.doesNotMatch(scratchpadOrientation(sessionId, "claude"), /scratch\.md/)
   assert.doesNotMatch(SESSION_SEED, /scratch\.md/)
-  assert.doesNotMatch(SESSION_SEED, /\.frizz\/scratch\//)
+  assert.doesNotMatch(SESSION_SEED, /\.ntwine\/scratch\//)
 })
 
-// ---- FRIZZ.md project-config injection (defer-to-project-norms) ----
-// A repo-committed FRIZZ.md at the project root is injected into the worker SYSTEM prompt under an
-// "overrides frizz defaults" header, so a project's own norms win over frizz's built-in defaults.
-test("frizzConfigBlock: absent FRIZZ.md injects nothing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-md-absent-"))
-  assert.equal(frizzConfigBlock(dir), "")
+// ---- NTWINE.md project-config injection (defer-to-project-norms) ----
+// A repo-committed NTWINE.md at the project root is injected into the worker SYSTEM prompt under an
+// "overrides ntwine defaults" header, so a project's own norms win over ntwine's built-in defaults.
+test("ntwineConfigBlock: absent NTWINE.md injects nothing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-md-absent-"))
+  assert.equal(ntwineConfigBlock(dir), "")
 })
 
-test("frizzConfigBlock: empty/whitespace FRIZZ.md injects nothing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-md-empty-"))
-  writeFileSync(join(dir, "FRIZZ.md"), "\n  \n")
-  assert.equal(frizzConfigBlock(dir), "")
+test("ntwineConfigBlock: empty/whitespace NTWINE.md injects nothing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-md-empty-"))
+  writeFileSync(join(dir, "NTWINE.md"), "\n  \n")
+  assert.equal(ntwineConfigBlock(dir), "")
 })
 
-test("frizzConfigBlock: present FRIZZ.md is wrapped in an overrides-frizz-defaults header", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-md-present-"))
+test("ntwineConfigBlock: present NTWINE.md is wrapped in an overrides-ntwine-defaults header", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-md-present-"))
   const body = "## Our norms\n- Gates: `pnpm check`\n- Skip adversarial review on small UI diffs."
-  writeFileSync(join(dir, "FRIZZ.md"), body + "\n")
-  const block = frizzConfigBlock(dir)
-  assert.match(block, /PROJECT FRIZZ CONFIG \(from this repo's FRIZZ\.md\)/)
-  // Header is scoped to PROCESS defaults and explicitly does NOT relax the frizz-mechanical contract —
-  // so a FRIZZ.md can't contradict the "Defer" section's non-negotiable browser/signal gates.
-  assert.match(block, /OVERRIDE the frizz worker PROCESS defaults above/)
-  assert.match(block, /do NOT relax the frizz-mechanical contract/)
-  assert.ok(block.includes(body), "the FRIZZ.md body must be present verbatim")
+  writeFileSync(join(dir, "NTWINE.md"), body + "\n")
+  const block = ntwineConfigBlock(dir)
+  assert.match(block, /PROJECT NTWINE CONFIG \(from this repo's NTWINE\.md\)/)
+  // Header is scoped to PROCESS defaults and explicitly does NOT relax the ntwine-mechanical contract —
+  // so a NTWINE.md can't contradict the "Defer" section's non-negotiable browser/signal gates.
+  assert.match(block, /OVERRIDE the ntwine worker PROCESS defaults above/)
+  assert.match(block, /do NOT relax the ntwine-mechanical contract/)
+  assert.ok(block.includes(body), "the NTWINE.md body must be present verbatim")
 })
 
-test("frizzConfigBlock: an over-cap FRIZZ.md content is clipped with a truncation marker", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-md-clip-"))
-  writeFileSync(join(dir, "FRIZZ.md"), "x".repeat(50_000)) // > 24k chars, < 64KB → read then clipped
-  const block = frizzConfigBlock(dir)
-  assert.match(block, /\[FRIZZ\.md truncated\]/)
+test("ntwineConfigBlock: an over-cap NTWINE.md content is clipped with a truncation marker", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-md-clip-"))
+  writeFileSync(join(dir, "NTWINE.md"), "x".repeat(50_000)) // > 24k chars, < 64KB → read then clipped
+  const block = ntwineConfigBlock(dir)
+  assert.match(block, /\[NTWINE\.md truncated\]/)
   assert.ok(block.length < 26_000, "the injected block must stay within the system-prompt budget")
 })
 
 // THE CAP HAS TO CLEAR A REAL FILE, not just look prudent, and the clip is silent to everyone who
-// matters: the marker lands in a system prompt nobody reads. At 12,000 this repo's own FRIZZ.md
+// matters: the marker lands in a system prompt nobody reads. At 12,000 this repo's own NTWINE.md
 // (16,522 chars on 2026-08-28) lost its last 4,522 on EVERY dispatch — beginning at the "NEVER open a
 // pull request" section, which CLAUDE.md calls the most-violated rule in the repo. This test is the
 // guard; the constant is only a number.
-test("frizzConfigBlock injects this repo's own FRIZZ.md IN FULL — the cap clears the real file", () => {
+test("ntwineConfigBlock injects this repo's own NTWINE.md IN FULL — the cap clears the real file", () => {
   const repoRoot = join(here, "..", "..", "..")
-  const body = readFileSync(join(repoRoot, "FRIZZ.md"), "utf8").trim()
-  const block = frizzConfigBlock(repoRoot)
+  const body = readFileSync(join(repoRoot, "NTWINE.md"), "utf8").trim()
+  const block = ntwineConfigBlock(repoRoot)
   assert.doesNotMatch(
     block,
-    /\[FRIZZ\.md truncated\]/,
-    `FRIZZ.md is ${body.length} chars and no longer fits the injection cap — raise FRIZZ_MD_MAX_CHARS or trim the file, because workers are silently losing its tail`,
+    /\[NTWINE\.md truncated\]/,
+    `NTWINE.md is ${body.length} chars and no longer fits the injection cap — raise NTWINE_MD_MAX_CHARS or trim the file, because workers are silently losing its tail`,
   )
   assert.ok(block.includes(body), "the whole file must reach the worker, never a prefix of it")
 })
 
-test("frizzConfigBlock: a runaway (>64KB) FRIZZ.md is rejected unread, not slurped", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-md-runaway-"))
-  writeFileSync(join(dir, "FRIZZ.md"), "x".repeat(200_000)) // exceeds the read-size guard
-  assert.equal(frizzConfigBlock(dir), "")
+test("ntwineConfigBlock: a runaway (>64KB) NTWINE.md is rejected unread, not slurped", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-md-runaway-"))
+  writeFileSync(join(dir, "NTWINE.md"), "x".repeat(200_000)) // exceeds the read-size guard
+  assert.equal(ntwineConfigBlock(dir), "")
 })
 
-test("frizzConfigBlock: a non-regular FRIZZ.md (a directory) injects nothing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-md-dir-"))
-  mkdirSync(join(dir, "FRIZZ.md"))
-  assert.equal(frizzConfigBlock(dir), "")
+test("ntwineConfigBlock: a non-regular NTWINE.md (a directory) injects nothing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-md-dir-"))
+  mkdirSync(join(dir, "NTWINE.md"))
+  assert.equal(ntwineConfigBlock(dir), "")
 })
 
-test("frizzConfigBlock composes AFTER the worker contract (override position) in the system prompt", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-md-order-"))
-  writeFileSync(join(dir, "FRIZZ.md"), "PROJECT-NORM-SENTINEL")
-  const sessionId = "frizz-md-order"
-  const system = [loadWorkerPrompt("claude"), scratchpadOrientation(sessionId, "claude"), frizzConfigBlock(dir)]
+test("ntwineConfigBlock composes AFTER the worker contract (override position) in the system prompt", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-md-order-"))
+  writeFileSync(join(dir, "NTWINE.md"), "PROJECT-NORM-SENTINEL")
+  const sessionId = "ntwine-md-order"
+  const system = [loadWorkerPrompt("claude"), scratchpadOrientation(sessionId, "claude"), ntwineConfigBlock(dir)]
     .filter(Boolean)
     .join("\n\n")
   assert.ok(system.indexOf("PROJECT-NORM-SENTINEL") > system.indexOf("Defer to the project's own norms"))
 })
 
 test("artifact worker resolver finds runtime/cc-worker through pnpm's nested module store", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-worker-plugin-resolver-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-worker-plugin-resolver-"))
   const runtime = join(root, "runtime")
-  const module = join(runtime, "node_modules", ".pnpm", "@frizz+server@fixture", "node_modules", "@frizz", "server", "src", "dispatch.js")
+  const module = join(runtime, "node_modules", ".pnpm", "@ntwine+server@fixture", "node_modules", "@ntwine", "server", "src", "dispatch.js")
   const plugin = join(runtime, "cc-worker")
   mkdirSync(dirname(module), { recursive: true })
   mkdirSync(join(plugin, ".claude-plugin"), { recursive: true })
@@ -260,24 +260,24 @@ function artifactPlugin(root: string, marker: string): string {
 }
 
 test("an artifact's plugin is launched through the stable path, and a newer artifact's boot moves it", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-launchable-plugin-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-launchable-plugin-"))
   const roots = { stageRoot: join(root, "cache", "plugins"), stableRoot: join(root, "cache", "current") }
   const marker = (path: string) => JSON.parse(readFileSync(join(path, "hooks", "hooks.json"), "utf8")).marker
 
   const v1 = artifactPlugin(join(root, "generation-1"), "v1")
-  const launched = launchableWorkerPluginDir(v1, { FRIZZ_WORKER_PLUGIN_DIR: v1 }, roots)
+  const launched = launchableWorkerPluginDir(v1, { NTWINE_WORKER_PLUGIN_DIR: v1 }, roots)
   assert.equal(launched, join(roots.stableRoot, "cc-worker"), "a worker is handed the stable path, not the generation's own")
   assert.equal(marker(launched), "v1")
 
   // The next version boots: a different process in production, the same call here.
   const v2 = artifactPlugin(join(root, "generation-2"), "v2")
-  assert.equal(launchableWorkerPluginDir(v2, { FRIZZ_WORKER_PLUGIN_DIR: v2 }, roots), launched, "the path a running worker holds never changes")
+  assert.equal(launchableWorkerPluginDir(v2, { NTWINE_WORKER_PLUGIN_DIR: v2 }, roots), launched, "the path a running worker holds never changes")
   assert.equal(marker(launched), "v2", "and what it leads to is now the new version's plugin")
   assert.equal(marker(v1), "v1", "with the old generation's own directory left exactly as it was")
 })
 
 test("a source checkout's plugin is launched where it stands — it is edited in place, so it is already live", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-launchable-plugin-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-launchable-plugin-"))
   const roots = { stageRoot: join(root, "cache", "plugins"), stableRoot: join(root, "cache", "current") }
   const checkout = artifactPlugin(root, "source")
   assert.equal(launchableWorkerPluginDir(checkout, {}, roots), checkout)
@@ -285,12 +285,12 @@ test("a source checkout's plugin is launched where it stands — it is edited in
 })
 
 test("staging that fails costs no dispatch: the worker is launched against the immutable directory", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-launchable-plugin-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-launchable-plugin-"))
   const roots = { stageRoot: join(root, "cache", "plugins"), stableRoot: join(root, "cache", "current") }
   // Something real already sits where the link belongs, which ensureSymlink refuses to replace.
   mkdirSync(join(roots.stableRoot, "cc-worker"), { recursive: true })
   const artifact = artifactPlugin(join(root, "generation"), "v1")
-  assert.equal(launchableWorkerPluginDir(artifact, { FRIZZ_WORKER_PLUGIN_DIR: artifact }, roots), artifact)
+  assert.equal(launchableWorkerPluginDir(artifact, { NTWINE_WORKER_PLUGIN_DIR: artifact }, roots), artifact)
 })
 
 test("loadWorkerPrompt(claude) is BYTE-IDENTICAL to the pre-split contract (the regression bar)", () => {
@@ -302,7 +302,7 @@ test("loadWorkerPrompt(claude) is BYTE-IDENTICAL to the pre-split contract (the 
 // itself is pinned separately below.
 test("loadWorkerPrompt(codex) is BYTE-IDENTICAL to its golden (regenerate on deliberate codex edits)", () => {
   const monitors = monitorScriptsDir()
-  const normalized = monitors ? loadWorkerPrompt("codex").replaceAll(monitors, "{{FRIZZ_MONITORS_DIR}}") : loadWorkerPrompt("codex")
+  const normalized = monitors ? loadWorkerPrompt("codex").replaceAll(monitors, "{{NTWINE_MONITORS_DIR}}") : loadWorkerPrompt("codex")
   assert.equal(normalized, CODEX_GOLDEN)
 })
 
@@ -331,9 +331,9 @@ test("both contracts forbid resting while the instruction still has parts left",
   }
 })
 
-test("loadWorkerPrompt: no unresolved {{FRIZZ_*}} markers survive in either backend's contract", () => {
-  assert.doesNotMatch(loadWorkerPrompt("claude"), /\{\{FRIZZ_/)
-  assert.doesNotMatch(loadWorkerPrompt("codex"), /\{\{FRIZZ_/)
+test("loadWorkerPrompt: no unresolved {{NTWINE_*}} markers survive in either backend's contract", () => {
+  assert.doesNotMatch(loadWorkerPrompt("claude"), /\{\{NTWINE_/)
+  assert.doesNotMatch(loadWorkerPrompt("codex"), /\{\{NTWINE_/)
 })
 
 test("loadWorkerPrompt(claude) carries the Claude-Code-only guidance", () => {
@@ -345,10 +345,10 @@ test("loadWorkerPrompt(claude) carries the Claude-Code-only guidance", () => {
   assert.match(c, /plain Agent tool \+ `run_in_background: true`/)
   // Effort-only profiles since 2026-08-26: the model rides the Agent tool's own parameter, so the 16
   // model×effort cells (and the tiering doctrine their descriptions carried) are gone.
-  assert.match(c, /namespaced string `frizz:<effort>`/)
-  assert.doesNotMatch(c, /frizz:<model>-<effort>|frizz:opus-high|Bias toward Opus/)
+  assert.match(c, /namespaced string `ntwine:<effort>`/)
+  assert.doesNotMatch(c, /ntwine:<model>-<effort>|ntwine:opus-high|Bias toward Opus/)
   assert.match(c, /name your scratch directory and the OWN FILE it should write there/)
-  // Claude frizz workers have NO fork option (`subagent_type: "fork"` does not resolve); say so
+  // Claude ntwine workers have NO fork option (`subagent_type: "fork"` does not resolve); say so
   // explicitly so a worker never blocks hunting for one — the codex fork_context failure mode.
   assert.match(c, /There is NO fork\/inherit option here/)
   assert.match(c, /absence of a fork switch is NOT a blocker to report/)
@@ -361,14 +361,14 @@ test("loadWorkerPrompt(claude) carries the Claude-Code-only guidance", () => {
 
 test("loadWorkerPrompt(codex) OMITS every Claude-Code-only construct a codex worker can't use", () => {
   const c = loadWorkerPrompt("codex")
-  // No Claude session/wake, no Agent tool, no frizz profiles, no sub-agent blackboard framing.
+  // No Claude session/wake, no Agent tool, no ntwine profiles, no sub-agent blackboard framing.
   assert.doesNotMatch(c, /claude session/)
   assert.doesNotMatch(c, /claude -r/)
   assert.doesNotMatch(c, /## Sub-agents/)
   assert.doesNotMatch(c, /Agent tool/)
   assert.doesNotMatch(c, /run_in_background/)
-  assert.doesNotMatch(c, /frizz:<model>-<effort>/)
-  assert.doesNotMatch(c, /frizz:opus/)
+  assert.doesNotMatch(c, /ntwine:<model>-<effort>/)
+  assert.doesNotMatch(c, /ntwine:opus/)
   assert.doesNotMatch(c, /blackboard/)
 })
 
@@ -383,16 +383,16 @@ test("loadWorkerPrompt(codex) carries codex's OWN session/wake + model/effort/sa
   assert.match(c, /### CI\/review monitor selection/)
   assert.match(c, /project-local `AGENTS\.md`/)
   assert.match(c, /terminal event\/exit semantics/)
-  assert.match(c, /never silently shadow it with Frizz/)
+  assert.match(c, /never silently shadow it with Ntwine/)
   assert.match(c, /persistent `exec_command` \/ `write_stdin` session/)
   assert.match(c, /Luna child is optional\nonly/)
   assert.match(c, /active native spawn tool/)
-  // Frizz mounts an MCP server and pre-approves its tools; it sends NO override for the native spawn
-  // surface. The prompt said the opposite until 2026-08-26 — it told every codex worker that frizz
+  // Ntwine mounts an MCP server and pre-approves its tools; it sends NO override for the native spawn
+  // surface. The prompt said the opposite until 2026-08-26 — it told every codex worker that ntwine
   // "requests the V2 surface with process-scoped, version-gated CLI overrides", and no commit ever
   // added such an override (codexAppServerArgv is the single argv builder for all four spawn sites and
   // pushes only the two `-c` values named here). Pin the disclaimer so the false premise cannot return.
-  assert.match(c, /Frizz sends NO config override for the native spawn surface/)
+  assert.match(c, /Ntwine sends NO config override for the native spawn surface/)
   assert.match(c, /trust the callable schema/)
   assert.match(c, /context-fork control/)
   // Both directions must be teachable: fresh for clean-room/adversarial, fork when the child
@@ -408,7 +408,7 @@ test("loadWorkerPrompt(codex) carries codex's OWN session/wake + model/effort/sa
   assert.match(c, /Before any Astra, Sol or xhigh spawn/)
   assert.match(c, /why Terra \+ medium is inadequate/)
   assert.doesNotMatch(c, /do that work INLINE yourself/)
-  // The effort enum must match what frizz actually sends codex: codexEffort (backend/codex.ts) passes
+  // The effort enum must match what ntwine actually sends codex: codexEffort (backend/codex.ts) passes
   // the complete outer universe through; the selected model gates which levels it accepts.
   assert.match(c, /reasoning effort \(low \/ medium \/ high \/ xhigh \/ max \/ ultra\)/)
   assert.match(c, /read-only/)
@@ -424,14 +424,14 @@ test("loadWorkerPrompt(codex) carries codex's OWN session/wake + model/effort/sa
 test("loadWorkerPrompt(codex) requests exactly one first-output invisible title comment", () => {
   const c = loadWorkerPrompt("codex")
   assert.match(c, /## Thread title signal/)
-  assert.match(c, /<!-- frizz title="Queue focus" -->/)
+  assert.match(c, /<!-- ntwine title="Queue focus" -->/)
   assert.match(c, /very FIRST assistant message/)
   assert.match(c, /before any[\s\S]*commentary[\s\S]*tool call/)
   assert.match(c, /ONE or TWO words naming the SUBJECT/)
   assert.match(c, /strips this comment from visible chat/)
   assert.match(c, /user rename always wins/)
   assert.match(c, /Never use an H1\nfor the title signal/)
-  assert.doesNotMatch(loadWorkerPrompt("claude"), /<!-- frizz-title:/)
+  assert.doesNotMatch(loadWorkerPrompt("claude"), /<!-- ntwine-title:/)
 })
 
 test("loadWorkerPrompt(codex) never turns an ordinary thread label into unconditional fan-out", () => {
@@ -459,7 +459,7 @@ test("loadWorkerPrompt: the backend-AGNOSTIC core is present in BOTH contracts",
     assert.match(raw, /## The stop criterion/)
     // THE CURRENT AWAITING GRAMMAR (2026-08-24): YAML frontmatter, PLURAL keys taking LISTS. `human:` used
     // to be pinned here; it is deleted, because it parked a thread in Snoozed and nothing ever fired it.
-    // Waiting on a person is a registered question now (`frizzctl ask`), and this asserts the contract
+    // Waiting on a person is a registered question now (`ntwinectl ask`), and this asserts the contract
     // says so rather than merely omitting the old kind.
     assert.match(c, /shells: \[bzvtnt3ig\]/)
     assert.match(c, /for: 2h/)
@@ -488,7 +488,7 @@ test("loadWorkerPrompt: the backend-AGNOSTIC core is present in BOTH contracts",
 
 test("awaiting re-entry: every worker-contract surface requires a fresh fence after a follow-up", () => {
   // This is deliberately pinned across the shipped backend contracts (the single source — the former
-  // frizz:worker skill copy was deleted; session-seed is a slim pointer, see its own test). A
+  // ntwine:worker skill copy was deleted; session-seed is a slim pointer, see its own test). A
   // human turn clears lastFence in the tailer, so merely saying "already parked" cannot restore the
   // state: the worker must make a fresh decision, then repeat a current human/timer fence or re-arm
   // the active backend wait for an automatable condition.
@@ -517,12 +517,12 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
   for (const raw of [loadWorkerPrompt("claude"), loadWorkerPrompt("codex")]) {
     const c = raw.replace(/\s+/g, " ")
     // REVERSED 2026-08-12. A bare rest used to be "the ordinary handoff"; it is now the one outcome
-    // frizz actively corrects (scheduler SOURCE 9), so the contract must not still bless it — a
+    // ntwine actively corrects (scheduler SOURCE 9), so the contract must not still bless it — a
     // reminder that contradicts the system prompt teaches nothing.
     //
     // The RULE is pinned, not the sentence it was written in. It read "ALWAYS SIGN OFF WITH A FENCE"
     // until 2026-08-27, when a fence stopped being the only way to say it: `done`, `ask` and `watch`
-    // each recorded a row frizz read as a sign-off and would not bump for (scheduler SOURCE 9 again). The
+    // each recorded a row ntwine read as a sign-off and would not bump for (scheduler SOURCE 9 again). The
     // instruction that must survive is "always sign off", plus the fact that a registration is one.
     //
     // `watch` LEFT THAT LIST ON 2026-10-01. A registration says when the worker wakes; where the thread
@@ -530,8 +530,8 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     // running work always takes the fence (board.needsInputQueues, scheduler evalSignoffNudges).
     assert.match(c, /ALWAYS SIGN OFF/)
     assert.doesNotMatch(c, /ALWAYS SIGN OFF WITH A FENCE/, "a fence is no longer the only way to sign off")
-    assert.match(c, /`frizzctl done` and `frizzctl ask` each record a ROW, and frizz reads both as a sign-off/)
-    assert.doesNotMatch(c, /frizz reads all three as a sign-off/, "a watch alone is no longer a sign-off")
+    assert.match(c, /`ntwinectl done` and `ntwinectl ask` each record a ROW, and ntwine reads both as a sign-off/)
+    assert.doesNotMatch(c, /ntwine reads all three as a sign-off/, "a watch alone is no longer a sign-off")
     assert.match(c, /A WAIT IS THE ONE EXCEPTION, and it always takes the fence/)
     // THE ANSWER IS A PLACE (2026-10-05): one required line, three words, one per band — never a second
     // boolean beside the first.
@@ -601,9 +601,9 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     // Unlanded code and the live code-change discussion remain INSTANCES of the heuristic.
     assert.match(c, /live code-change discussion/)
     assert.match(c, /PLANNING session whose plan file is FULLY written and PERSISTED/)
-    // Frizz prescribes NO plan location (the plans feature was dropped 2026-08-24) — the contract must
+    // Ntwine prescribes NO plan location (the plans feature was dropped 2026-08-24) — the contract must
     // not resurrect one.
-    assert.doesNotMatch(c, /\.frizz\/plans/)
+    assert.doesNotMatch(c, /\.ntwine\/plans/)
     assert.match(c, /artifact already lives outside the thread, so dismissing the thread loses nothing/)
     // 2026-08-16, TWO threads in one sitting fenced `done` on work that was still owed, and both read
     // the contract correctly to get there — so these are the wording defects, not model defects:
@@ -628,7 +628,7 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     assert.match(c, /Neither\s+exception stretches to a report that ENDS IN A DECISION the user has yet to make/)
     // The deadlock's exit, in order: do it, hand it to its own card, ask. Never stretch `done`.
     assert.match(c, /### When the work is finished but the thread found more/)
-    assert.match(c, /HAND IT OFF TO ITS OWN CARD[\s\S]{0,120}`frizzctl spawn-thread`/)
+    assert.match(c, /HAND IT OFF TO ITS OWN CARD[\s\S]{0,120}`ntwinectl spawn-thread`/)
     assert.match(c, /stretching `done` is not how you break it/)
     assert.match(c, /A bare rest is the residual, not a plan/)
     // The fourth exit is DROP, and it is the one the maintainer asked for by name (2026-08-16): a
@@ -654,7 +654,7 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     assert.ok(order.every((i) => i > 0), "all four exits present")
     assert.deepEqual(order, [...order].sort((a, b) => a - b), "do it → ask → own card → drop")
     // ...and the card must not restate the prose. Same maintainer note; the rule already existed in
-    // this repo's FRIZZ.md but never in the contract every worker gets.
+    // this repo's NTWINE.md but never in the contract every worker gets.
     assert.match(c, /TWO SURFACES, NOT ONE MESSAGE WRITTEN TWICE/)
     assert.match(c, /would read the same in either,\s+it belongs in exactly ONE of them/)
     // ...and spawn_thread's own section points BACK, so a worker reading either one finds the link —
@@ -689,20 +689,20 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
 })
 
 test("session-seed is a SLIM runtime pointer, not a fourth full contract copy", () => {
-  // The full contract lives ONCE in the system prompt (loadWorkerPrompt) — the on-demand frizz:worker
+  // The full contract lives ONCE in the system prompt (loadWorkerPrompt) — the on-demand ntwine:worker
   // skill copy was deleted. The SessionStart hook only re-grounds: it points at the system prompt, carries the runtime
   // scratchpad path + a signal-at-rest anchor, and must NOT re-duplicate the re-entry drill or any
   // browser-QA checklist (that duplication is exactly what drifted and what this slim removes).
   assert.match(SESSION_SEED, /lives in your SYSTEM PROMPT/i)
   // The worker-skill copy is GONE — the seed must not tell workers to load a skill that no longer exists.
-  assert.doesNotMatch(SESSION_SEED, /frizz:worker/)
-  assert.match(SESSION_SEED, /\.frizz\/threads\//)
+  assert.doesNotMatch(SESSION_SEED, /ntwine:worker/)
+  assert.match(SESSION_SEED, /\.ntwine\/threads\//)
   assert.doesNotMatch(SESSION_SEED, /scratch\.md/, "no filename is reserved in the scratch directory")
   for (const fence of [/```done/, /```awaiting/]) assert.match(SESSION_SEED, fence)
   // A question is a registered row whose card renders at the bottom of the handoff; the seed names
-  // `frizzctl ask`, and no longer the placement marker retired 2026-09-28.
-  assert.match(SESSION_SEED, /a question is a registered row, `frizzctl ask`/)
-  assert.doesNotMatch(SESSION_SEED, /mcp__frizz__/)
+  // `ntwinectl ask`, and no longer the placement marker retired 2026-09-28.
+  assert.match(SESSION_SEED, /a question is a registered row, `ntwinectl ask`/)
+  assert.doesNotMatch(SESSION_SEED, /mcp__ntwine__/)
   assert.match(SESSION_SEED, /BOTTOM of your handoff/)
   assert.doesNotMatch(SESSION_SEED, /placement marker/)
   assert.doesNotMatch(SESSION_SEED, /```done \/ ```awaiting \/ ```question/)
@@ -714,8 +714,8 @@ test("session-seed is a SLIM runtime pointer, not a fourth full contract copy", 
 test("runtime release gate: WIPED — no worker surface carries browser-QA opinionation", () => {
   // The settings-toggled Runtime-release-gate module was deleted (maintainer 2026-08-03: "extremely
   // overfit to our specific requirements inside of this repo. Wipe it entirely."). Browser-QA policy
-  // now belongs to a project's own FRIZZ.md/CLAUDE.md, which frizzConfigBlock injects per repo — never to
-  // every worker Frizz dispatches anywhere.
+  // now belongs to a project's own NTWINE.md/CLAUDE.md, which ntwineConfigBlock injects per repo — never to
+  // every worker Ntwine dispatches anywhere.
   for (const raw of [loadWorkerPrompt("claude"), loadWorkerPrompt("codex")]) {
     const c = raw.replace(/\s+/g, " ")
     assert.doesNotMatch(c, /Runtime release gate/i)
@@ -752,7 +752,7 @@ test("showing pictures: both contracts say tool output is collapsed and the ligh
     assert.match(c, /one-line finding beside it/)
     // Where it may and may not go: never after or inside a signal fence (the parser is END-anchored).
     assert.match(c, /above any closing signal fence, never inside one/)
-    assert.match(c, /gallery in the body of `frizzctl done`/)
+    assert.match(c, /gallery in the body of `ntwinectl done`/)
     // Maintainer 2026-10-06: a UI concept is a linked HTML page, never screenshots of one — the old
     // text offered "the screens a design would ship" for a question option, and workers took it.
     assert.match(c, /A UI CONCEPT IS NOT A PICTURE — IT IS A PAGE, AND YOU LINK IT/)
@@ -795,7 +795,7 @@ test("composePrompt gives each backend's sub-agents their OWN file, never a shar
     assert.doesNotMatch(text, /merge/i, `${kind} must not reintroduce a shared-document merge contract`)
     assert.doesNotMatch(text, /blackboard/, `${kind} must not reintroduce the shared blackboard`)
     // The post-compaction goal stays NAMED as a capability — offered, never pushed (2026-08-28).
-    assert.match(text, /`frizzctl goal start --post-compaction`/, `${kind} must name the post-compaction capability`)
+    assert.match(text, /`ntwinectl goal start --post-compaction`/, `${kind} must name the post-compaction capability`)
   }
   assert.ok(codex.endsWith("do the thing")) // the task still rides through, and rides through LAST
 })
@@ -821,7 +821,7 @@ test("every scratch surface presents notes as optional and never a substitute fo
 
 // ---- composePrompt: the system→human handoff carries a loud demarcation banner ----
 
-test("composePrompt puts NOTHING of frizz's below the banner — the operator's prompt is the whole tail", () => {
+test("composePrompt puts NOTHING of ntwine's below the banner — the operator's prompt is the whole tail", () => {
   const task = "Fix the thing.\n\nWith a second paragraph."
   const composed = composePrompt("sid", task, "claude")
 
@@ -830,7 +830,7 @@ test("composePrompt puts NOTHING of frizz's below the banner — the operator's 
   assert.notEqual(banner, -1)
   // Anchor on the scratchpad orientation: the operator preamble moved to the system prompt, and
   // asserting `indexOf(...) < banner` on an ABSENT string passes vacuously (-1 < banner).
-  assert.ok(composed.indexOf(".frizz/threads/") < banner)
+  assert.ok(composed.indexOf(".ntwine/threads/") < banner)
   assert.doesNotMatch(composed, /PROJECT INSTRUCTIONS/)
   assert.match(composed, /\n\n\n\n=+\n=+ {4}YOUR TASK {4}=+\n=+\n/)
   // THE property the banner exists for: below it is the operator's prompt, byte for byte. The framing
@@ -838,7 +838,7 @@ test("composePrompt puts NOTHING of frizz's below the banner — the operator's 
   assert.ok(composed.endsWith(`${DISPATCH_TASK_BANNER_MARKER}${task}`))
   assert.equal(composed.indexOf(DISPATCH_TASK_BANNER_MARKER), composed.lastIndexOf(DISPATCH_TASK_BANNER_MARKER))
   assert.ok(!composed.includes("\nTASK:\n"))
-  assert.ok(composed.indexOf("frizz system orientation") < banner)
+  assert.ok(composed.indexOf("ntwine system orientation") < banner)
 
   // Round-trip through the real parser: the UI's first user message shows exactly the human's words,
   // while the stored text keeps the whole machine-facing prompt the worker actually received.
@@ -872,7 +872,7 @@ test("composePrompt round-trips through the BROKER's enqueue record with the sam
 
 test("scratchpadOrientation names the directory, the arming, and one file per sub-agent", () => {
   const claude = scratchpadOrientation("sid", "claude")
-  assert.match(claude, /SCRATCH DIRECTORY: \.frizz\/threads\/sid\//)
+  assert.match(claude, /SCRATCH DIRECTORY: \.ntwine\/threads\/sid\//)
   assert.match(claude, /name it in a sub-agent's prompt when you want its notes back, and give each child its own file/)
   assert.equal(scratchpadOrientation("sid"), claude)
 
@@ -881,7 +881,7 @@ test("scratchpadOrientation names the directory, the arming, and one file per su
 
   for (const [kind, text] of [["claude", claude], ["codex", codex]] as const) {
     // The post-compaction trigger stays named as an available capability, never a prescription.
-    assert.match(text, /`frizzctl goal start --post-compaction`/, `${kind} must name the trigger`)
+    assert.match(text, /`ntwinectl goal start --post-compaction`/, `${kind} must name the trigger`)
     assert.match(text, /Nothing in this directory is read automatically/, `${kind} must not imply an injection`)
     assert.doesNotMatch(text, /merge/i, `${kind} must not reintroduce the merge contract`)
     assert.doesNotMatch(text, /scratch\.md/, `${kind} must not reserve a filename`)
@@ -895,7 +895,7 @@ test("workerScratchPath is relative for a registered project and absolute when t
   assert.equal(workerScratchPath({ dir: "/repo" }, "sid"), rel)
   assert.equal(workerScratchPath({ dir: "/repo", workDir: "/repo" }, "sid"), rel)
   // The Home workspace: agents in the home folder, board in the state dir. Relative would name
-  // `<home>/.frizz/threads/…` — the legacy data root.
+  // `<home>/.ntwine/threads/…` — the legacy data root.
   assert.equal(workerScratchPath({ dir: "/state/home", workDir: "/home/x" }, "sid"), join("/state/home", rel))
 })
 

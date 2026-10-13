@@ -17,7 +17,7 @@ import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const MARKER = "# frizz-dev-source-launcher:v5";
+const MARKER = "# ntwine-dev-source-launcher:v5";
 const args = new Set(process.argv.slice(2));
 const knownArgs = new Set(["--uninstall", "--check", "--force", "--help"]);
 for (const arg of process.argv.slice(2)) {
@@ -27,24 +27,24 @@ for (const arg of process.argv.slice(2)) {
   }
 }
 
-const command = "frizz-dev";
+const command = "ntwine-dev";
 const windows = process.platform === "win32";
 // WINDOWS RESOLVES A COMMAND BY EXTENSION, so the shim's NAME is part of the contract.
 //
-// cmd.exe and PowerShell find a bare `frizz-dev` on PATH only if its extension is listed in
+// cmd.exe and PowerShell find a bare `ntwine-dev` on PATH only if its extension is listed in
 // %PATHEXT% (`.COM;.EXE;.BAT;.CMD;…`), and neither one honours a `#!` line. An extensionless
 // `#!/bin/sh` file is therefore not a command on Windows — it is an unrunnable text file, and
-// `frizz-dev` simply did not exist there. `.cmd` is the shape npm's own bin shims use for the
+// `ntwine-dev` simply did not exist there. `.cmd` is the shape npm's own bin shims use for the
 // same reason. Only a Git Bash / MSYS shell would want the sh form; it can still call the
 // launcher directly, and carrying two shims would double every ownership and atomicity rule below.
 const shimName = windows ? `${command}.cmd` : command;
 
 if (args.has("--help")) {
   console.log(
-    "Usage: nub run frizz-dev:install [-- --bin-dir=/path] [--force]\n" +
-      "       nub run frizz-dev:check [-- --bin-dir=/path]\n" +
-      "       nub run frizz-dev:uninstall [-- --bin-dir=/path]\n\n" +
-      "Installs frizz-dev, the source-checkout launcher."
+    "Usage: nub run ntwine-dev:install [-- --bin-dir=/path] [--force]\n" +
+      "       nub run ntwine-dev:check [-- --bin-dir=/path]\n" +
+      "       nub run ntwine-dev:uninstall [-- --bin-dir=/path]\n\n" +
+      "Installs ntwine-dev, the source-checkout launcher."
   );
   process.exit(0);
 }
@@ -52,7 +52,7 @@ if (args.has("--help")) {
 const binDirArg = process.argv
   .find((arg) => arg.startsWith("--bin-dir="))
   ?.slice("--bin-dir=".length);
-const binDir = binDirArg || process.env.FRIZZ_BIN_DIR || join(homedir(), ".local", "bin");
+const binDir = binDirArg || process.env.NTWINE_BIN_DIR || join(homedir(), ".local", "bin");
 const target = join(binDir, shimName);
 const launcher = realpathSync(
   fileURLToPath(new URL("../src/index.ts", import.meta.url))
@@ -63,7 +63,7 @@ const quote = (value) => `'${value.replaceAll("'", `"'"'`)}'`;
 const cmdQuote = (value) => `"${value.replaceAll("%", "%%")}"`;
 // `--no-env-file` disables nub's automatic `.env*` discovery for the launcher process only. nub
 // resolves those files from the CWD's project root, so launching a board from any repo carrying an
-// ANTHROPIC_API_KEY in its .env put that key in the frizz server env — and from there into every
+// ANTHROPIC_API_KEY in its .env put that key in the ntwine server env — and from there into every
 // detached worker daemon it forks, each of which outlives the shell, where Claude Code blocks on
 // "Detected a custom API key". v4 fixed this with `env -u` and was
 // reverted (3f311e9) for being too invasive: it also stripped a key the developer had deliberately
@@ -81,8 +81,8 @@ const cmdQuote = (value) => `"${value.replaceAll("%", "%%")}"`;
 //   · CRLF, deliberately: cmd.exe's parser is documented against CRLF and mis-handles LF-only files
 //     in ways that depend on the command (a split `goto`, a swallowed final line).
 const body = windows
-  ? `@echo off\r\nrem ${MARKER}\r\nsetlocal\r\nset "FRIZZ_SOURCE_COMMAND=${command}"\r\nnub --no-env-file ${cmdQuote(launcher)} %*\r\nexit /b %ERRORLEVEL%\r\n`
-  : `#!/bin/sh\n${MARKER}\nexec env FRIZZ_SOURCE_COMMAND=${quote(command)} nub --no-env-file ${quote(launcher)} "$@"\n`;
+  ? `@echo off\r\nrem ${MARKER}\r\nsetlocal\r\nset "NTWINE_SOURCE_COMMAND=${command}"\r\nnub --no-env-file ${cmdQuote(launcher)} %*\r\nexit /b %ERRORLEVEL%\r\n`
+  : `#!/bin/sh\n${MARKER}\nexec env NTWINE_SOURCE_COMMAND=${quote(command)} nub --no-env-file ${quote(launcher)} "$@"\n`;
 
 /** Exactly the launcher this run would write — i.e. already current, nothing to do. */
 function isOwned(path) {
@@ -97,10 +97,10 @@ function isOwned(path) {
 /**
  * Written by THIS installer, whatever checkout it points at.
  *
- * A byte-for-byte comparison against `body` cannot tell "someone else's frizz-dev" from "our own
+ * A byte-for-byte comparison against `body` cannot tell "someone else's ntwine-dev" from "our own
  * launcher aimed at a path that moved" — and the second is routine: move or re-clone the checkout, or
  * relocate the CLI inside it, and the embedded path changes. Guarding replacement on the exact body
- * therefore refused to upgrade our own shim and said `is not the Frizz source launcher` about a file
+ * therefore refused to upgrade our own shim and said `is not the Ntwine source launcher` about a file
  * whose first comment line is that very marker. Ownership is the marker; the body is only currency.
  */
 function isOurs(path) {
@@ -193,7 +193,7 @@ function writeAtomic(path, contents) {
   }
 }
 
-const label = "Frizz development source launcher";
+const label = "Ntwine development source launcher";
 
 if (args.has("--uninstall")) {
   if (existsSync(target) && isOurs(target)) {
@@ -215,7 +215,7 @@ if (args.has("--check")) {
 mkdirSync(binDir, { recursive: true });
 if (targetExists(target) && !isOurs(target) && !args.has("--force")) {
   console.error(
-    `${target} already exists and is not the Frizz source launcher; rerun with --force to replace it`
+    `${target} already exists and is not the Ntwine source launcher; rerun with --force to replace it`
   );
   process.exit(1);
 }

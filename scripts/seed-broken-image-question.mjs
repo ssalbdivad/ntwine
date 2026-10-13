@@ -6,7 +6,7 @@
 // Enough filler turns are seeded ahead of it that the transcript is genuinely virtualized, so the row
 // measurement feedback path is the real one and not an artifact of a two-message thread.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: node scripts/seed-broken-image-question.mjs --home=/abs/temp-home
 import { execFileSync } from "node:child_process"
@@ -17,7 +17,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-broken-image-question.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -40,14 +40,14 @@ const uuid = () => `0000000${(++uuidN).toString().padStart(4, "0")}-0000-4000-80
 // already-tailed JSONL in place leaves the projection stuck on the old content.
 const slug = flags.slug ?? "broken-image-flash"
 const sessionId = `${slug}-0000-4000-8000-000000000000`.slice(0, 36)
-const threadName = `frizz-${slug}`
+const threadName = `ntwine-${slug}`
 
 // The path is deliberately absent from disk: /local-image resolves it, fails realpath, and 404s.
-const MISSING = "/tmp/frizz-does-not-exist-1785612974807.png"
+const MISSING = "/tmp/ntwine-does-not-exist-1785612974807.png"
 // A screenshot that IS on disk — the control that proves a working image still paints.
-const PRESENT = "/tmp/frizz-working-shot.png"
+const PRESENT = "/tmp/ntwine-working-shot.png"
 // A bare path line: ChatView's splitProseAttachments turns this into a React BlockImage, not markdown.
-const MISSING_BLOCK = "/tmp/frizz-block-image-does-not-exist.png"
+const MISSING_BLOCK = "/tmp/ntwine-block-image-does-not-exist.png"
 
 const user = (text) => ({
   parentUuid: null,
@@ -92,7 +92,7 @@ for (let i = 0; i < 14; i++) {
 }
 
 records.push(assistant([
-  "**Fixed** — GitHub picker screenshot landed, `FRIZZ.md` demoted, `584a159` on `main`.",
+  "**Fixed** — GitHub picker screenshot landed, `NTWINE.md` demoted, `584a159` on `main`.",
   "",
   `![The GitHub picker listing real zod issues with three selected](${MISSING})`,
   "",

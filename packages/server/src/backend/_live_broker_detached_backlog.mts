@@ -1,4 +1,4 @@
-// LIVE proof of the property a concurrent session's plan note (fe4bdf3) claimed frizz does NOT have:
+// LIVE proof of the property a concurrent session's plan note (fe4bdf3) claimed ntwine does NOT have:
 //   nub packages/server/src/backend/_live_broker_detached_backlog.mts
 //
 // That note says "the daemon does not buffer: claude-agent-broker.ts:81 drops every event when no
@@ -44,7 +44,7 @@ try {
   // ---- nothing is attached; the turn runs to completion in here -----------------------------------
   await sleep(25_000)
 
-  // ---- client B: a "restarted frizz" reconnecting to the live session ------------------------------
+  // ---- client B: a "restarted ntwine" reconnecting to the live session ------------------------------
   const afterReconnect: ClaudeQueryEvent[] = []
   const b = connectClaudeBroker(record.socketPath, { onEvent: (e) => afterReconnect.push(e) })
   await sleep(3_000)

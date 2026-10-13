@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 import type { ClaudeOneShotRequest } from "./backend/claude-oneshot.ts"
 import { createLiveStatus, liveActivity, parseLiveStatus } from "./live-status.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -18,9 +18,9 @@ const agent = (text: string, tools: Array<{ name: string; desc?: string; detail?
   ({ role: "assistant", text, tools, parts: [] }) as unknown as TranscriptMessage
 
 function harness(answers: string[]) {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-live-status-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-live-status-")), "ui.db"), "p")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: "2026-09-29T00:00:00Z",
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: "2026-09-29T00:00:00Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title_locked: 0, title: "Resolver", state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -107,9 +107,9 @@ test("a turn that starts long after the last rest does not inherit the old task"
 })
 
 test("an answer that lands after the turn rested is dropped", async () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-live-status-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-live-status-")), "ui.db"), "p")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: "2026-09-29T00:00:00Z",
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: "2026-09-29T00:00:00Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title_locked: 0, title: "Resolver", state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -145,7 +145,7 @@ test("the activity window starts at the operator's latest message and keeps wake
   assert.equal(read.activity, [
     "Agent: On it.",
     "→ Bash: Running the rail tests",
-    "[Frizz] CI went red",
+    "[Ntwine] CI went red",
     "→ Edit: Sidebar.tsx",
   ].join("\n"))
 })
@@ -160,9 +160,9 @@ test("an answer parses as SAME, a cleaned status, or nothing", () => {
 })
 
 test("the first check fires on its own when the turn writes nothing more", async () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-live-status-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-live-status-")), "ui.db"), "p")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: "2026-09-29T00:00:00Z",
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: "2026-09-29T00:00:00Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title_locked: 0, title: "Resolver", state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)

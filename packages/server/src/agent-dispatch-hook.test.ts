@@ -11,7 +11,7 @@ function decision(toolInput: Record<string, unknown>, worker = true): Record<str
   const result = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Agent", tool_input: toolInput }),
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: worker ? "thread-under-test" : "", FRIZZ_PERM_DIR: "" },
+    env: { ...process.env, NTWINE_THREAD: worker ? "thread-under-test" : "", NTWINE_PERM_DIR: "" },
   })
   assert.equal(result.status, 0, result.stderr)
   return JSON.parse(result.stdout || "{}")
@@ -56,7 +56,7 @@ test("Agent dispatch hook appends the orchestration epilogue exactly once", () =
 // The regression this hook's nested-dispatch paragraph exists for: a depth-1 helper backgrounded its
 // own helper, hand-rolled a `stat`-based wait over the `.output` path — which is a SYMLINK, so the
 // size/mtime it read were the LINK's, frozen forever — declared a live 413KB agent dead, and redid
-// its work. The frizz worker contract never reaches a depth-1 helper, so this epilogue is the only
+// its work. The ntwine worker contract never reaches a depth-1 helper, so this epilogue is the only
 // place that can tell it how to collect a helper of its own.
 // Nesting is DEFAULT-OFF. The conditional phrasing this replaced ("if you dispatch a helper of your
 // own…") read as neutral permission, so a helper could fan out again purely because it could.
@@ -97,7 +97,7 @@ test("Agent dispatch hook keeps the handoff, scratch-file and upward-channel coo
   assert.doesNotMatch(prompt, /merge your own scoped progress/, "the merge mandate is gone, not reworded")
   // The delegated-authority carve-out lives HERE now, not in the worker contract: a child told
   // "write only <path>" must not read that as forbidding its own coordination file.
-  assert.match(prompt, /Frizz coordination state, not a project deliverable or source edit/)
+  assert.match(prompt, /Ntwine coordination state, not a project deliverable or source edit/)
   assert.match(prompt, /write only <path>/)
   assert.match(prompt, /location alone neither permits nor forbids editing/)
   assert.match(prompt, /SendMessage\(\{to: "main"/)
@@ -105,7 +105,7 @@ test("Agent dispatch hook keeps the handoff, scratch-file and upward-channel coo
   // 2026-10-09 on Claude Code 2.1.295: a child's SendMessage to a running sibling's id is delivered at
   // its next tool round, and to a finished sibling's id resumes it.
   assert.match(prompt, /reaches a SIBLING sub-agent by the full agent id/)
-  assert.match(prompt, /`frizzctl message-thread @<handle> --message-file <file\|->`, run from your shell, reaches another Frizz THREAD by its @handle/)
+  assert.match(prompt, /`ntwinectl message-thread @<handle> --message-file <file\|->`, run from your shell, reaches another Ntwine THREAD by its @handle/)
 })
 
 // A child cannot be re-invoked: Claude notifies the DISPATCHER when a helper "stops with no live
@@ -124,7 +124,7 @@ test("Agent dispatch hook tells every helper that nothing can wake it", () => {
   assert.match(prompt, /AS YOU GO/)
 })
 
-test("Agent dispatch hook is inert outside a frizz worker session", () => {
+test("Agent dispatch hook is inert outside a ntwine worker session", () => {
   assert.deepEqual(decision(dispatch, false), {})
   assert.deepEqual(decision({ prompt: "p" }, false), {})
 })
@@ -133,7 +133,7 @@ test("Agent dispatch hook fails open on unparseable input", () => {
   const result = spawnSync(process.execPath, [hook], {
     input: "not json",
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: "thread-under-test" },
+    env: { ...process.env, NTWINE_THREAD: "thread-under-test" },
   })
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(JSON.parse(result.stdout || "{}"), {})

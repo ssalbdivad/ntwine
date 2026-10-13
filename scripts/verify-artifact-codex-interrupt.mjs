@@ -1,11 +1,11 @@
 // END-TO-END proof that STOPPING a Codex thread actually stops the Codex turn.
 //
-// The bug this guards against: back when frizz still drove workers through tmux, an app-server Codex
+// The bug this guards against: back when ntwine still drove workers through tmux, an app-server Codex
 // thread had no pane, yet every "stop this thread" verb went through the tmux terminator —
 // kill-session for a session that never existed, reported as "stopped", while the turn kept running. That was masked while the app-server died with
-// the frizz runtime. It no longer does: the app-server lives in a DETACHED daemon that deliberately
-// outlives us (see verify-artifact-restart-survival.mjs), so a turn frizz claims to have stopped keeps
-// burning tokens and touching the repo with no frizz-side owner and no UI trace.
+// the ntwine runtime. It no longer does: the app-server lives in a DETACHED daemon that deliberately
+// outlives us (see verify-artifact-restart-survival.mjs), so a turn ntwine claims to have stopped keeps
+// burning tokens and touching the repo with no ntwine-side owner and no UI trace.
 //
 // A unit test with a mocked bridge cannot prove a turn stopped. This drives the REAL thing: a built
 // artifact, a real codex worker running `sleep 60`, killed over the real RPC surface, and the CODEX
@@ -22,7 +22,7 @@ import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { buildFrizzArtifact } from "../src/artifacts.ts"
+import { buildNtwineArtifact } from "../src/artifacts.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
@@ -37,11 +37,11 @@ const check = (ok, label, detail = "") => {
 }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch (e) { return e.code === "EPERM" } }
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-interrupt-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-interrupt-")))
 const home = join(root, "home")
 const stateDir = join(root, "state")
 const PROJECT_DIR = join(root, "project")
-for (const d of [join(home, ".frizz"), stateDir, PROJECT_DIR]) mkdirSync(d, { recursive: true })
+for (const d of [join(home, ".ntwine"), stateDir, PROJECT_DIR]) mkdirSync(d, { recursive: true })
 execFileSync("git", ["init", "-q"], { cwd: PROJECT_DIR })
 writeFileSync(join(PROJECT_DIR, "README.md"), "# interrupt fixture\n")
 
@@ -51,7 +51,7 @@ let release
 let daemonRecord = null
 
 // Ground truth for "did the turn stop?", read from codex's OWN rollout journal rather than from
-// anything frizz reports about itself. `turn_aborted` is emitted when a turn is interrupted;
+// anything ntwine reports about itself. `turn_aborted` is emitted when a turn is interrupted;
 // `task_complete` when it runs to its own ending. (Same parse as _live_appserver_daemon_survival.mts.)
 function rolloutStats(codexSessionId) {
   const base = join(process.env.CODEX_HOME || join(homedir(), ".codex"), "sessions")
@@ -94,15 +94,15 @@ function bootServer(artifact, target, token, label) {
         ...process.env,
         HOME: home,
         CODEX_HOME: join(homedir(), ".codex"),
-        FRIZZ_DEV_CHILD: "1",
-        FRIZZ_DEV_PORT: String(PORT),
-        FRIZZ_WAKERS_OFF: "1",
-        FRIZZ_ORPHAN_REAPER_OFF: "1",
-        FRIZZ_SANDBOX_TAG: `frizz-interrupt-${PORT}-${process.pid}`,
-        FRIZZ_STABLE_ARTIFACT: artifact.digest,
-        FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-        FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
-        FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
+        NTWINE_DEV_CHILD: "1",
+        NTWINE_DEV_PORT: String(PORT),
+        NTWINE_WAKERS_OFF: "1",
+        NTWINE_ORPHAN_REAPER_OFF: "1",
+        NTWINE_SANDBOX_TAG: `ntwine-interrupt-${PORT}-${process.pid}`,
+        NTWINE_STABLE_ARTIFACT: artifact.digest,
+        NTWINE_STABLE_WEB_DIST: artifact.webDir,
+        NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
+        NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
       },
       target,
       token,
@@ -124,7 +124,7 @@ const readRecord = () => {
 
 const thread = async (slug) => (await api.query("board"))?.threads?.find((x) => x.id === slug)
 
-// The codex ROLLOUT id frizz pinned for this row (not the frizz session UUID). ThreadView does not carry
+// The codex ROLLOUT id ntwine pinned for this row (not the ntwine session UUID). ThreadView does not carry
 // it and no RPC returns it, so it is read off the row's own `agent_session_id` column, which is filled
 // in shortly after the spawn (verify-artifact-daemon-closure.mjs reads its column the same way).
 const codexRolloutId = async (slug) => {
@@ -149,12 +149,12 @@ const waitForThread = async (slug, predicate, seconds, label) => {
   return null
 }
 
-// A long, observable turn. `sleep` needs a real sandbox, which a frizz-dispatched codex worker gets.
+// A long, observable turn. `sleep` needs a real sandbox, which a ntwine-dispatched codex worker gets.
 const LONG_TURN = "Run exactly this shell command and wait for it to finish: `sleep 60`. After it completes, reply with exactly the word FINISHED and nothing else."
 
 try {
   log("building a real artifact…")
-  const artifact = buildFrizzArtifact(SOURCE, join(root, "artifacts"))
+  const artifact = buildNtwineArtifact(SOURCE, join(root, "artifacts"))
   log("artifact", artifact.digest)
 
   const target = { projectId: randomUUID(), projectDir: PROJECT_DIR, stateDir }
@@ -176,7 +176,7 @@ try {
   check(!!runningA, "the turn is in flight before we stop it", runningA ? `runtime=${runningA.runtime}` : "never went running")
 
   const codexSessionA = await codexRolloutId(a.slug)
-  check(!!codexSessionA, "frizz pinned the codex rollout id for this thread", String(codexSessionA))
+  check(!!codexSessionA, "ntwine pinned the codex rollout id for this thread", String(codexSessionA))
   log(`  codex rollout id: ${codexSessionA}`)
 
   // Wait until `sleep 60` is genuinely EXECUTING, so the interrupt lands mid-command and the
@@ -214,8 +214,8 @@ try {
 
   // The turn must stay dead. We interrupt within a few seconds of `sleep 60` starting, so an
   // uninterrupted turn would reach its own task_complete comfortably inside this window — the point
-  // of watching past it is that a stop frizz only CLAIMED would show up here as a turn finishing
-  // normally inside the daemon, with no frizz-side owner left to notice.
+  // of watching past it is that a stop ntwine only CLAIMED would show up here as a turn finishing
+  // normally inside the daemon, with no ntwine-side owner left to notice.
   log("  watching for 90s to prove no orphaned work continues inside the daemon…")
   await sleep(90_000)
   const settledA = rolloutStats(codexSessionA)

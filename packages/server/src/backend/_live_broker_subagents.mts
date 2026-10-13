@@ -94,7 +94,7 @@ const PROMPT = [
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -132,7 +132,7 @@ try {
 
   // ---- the assertions ----
   const byPhase = (phase: string) => taskEvents.filter((e) => e.phase === phase)
-  ok("task events reach frizz at all", taskEvents.length > 0, `${taskEvents.length} task events`)
+  ok("task events reach ntwine at all", taskEvents.length > 0, `${taskEvents.length} task events`)
   ok("task_started arrived", byPhase("started").length > 0, `${byPhase("started").length}`)
   ok("task_progress arrived", byPhase("progress").length > 0, `${byPhase("progress").length}`)
   ok("task_notification arrived", byPhase("notification").length > 0, `${byPhase("notification").length}`)
@@ -143,7 +143,7 @@ try {
   ok("task_started carries tool_use_id (the primary correlation key)", startedWithToolUse.length > 0,
     `${startedWithToolUse.length}/${byPhase("started").length} started events carried one`)
   const matched = startedWithToolUse.filter((e) => dispatchedToolUseIds.has(e.toolUseId!))
-  ok("that tool_use_id MATCHES a real Agent dispatch frizz folded", matched.length > 0,
+  ok("that tool_use_id MATCHES a real Agent dispatch ntwine folded", matched.length > 0,
     `matched ${matched.length}; dispatched ids: ${[...dispatchedToolUseIds].join(",") || "(none seen)"}`)
 
   ok("progress carries a per-step description (the richest LIVE field)", byPhase("progress").some((e) => e.description),
@@ -167,7 +167,7 @@ try {
 
   // ---- PHASE 2: HOSTILE SUB-AGENTS -------------------------------------------------------------
   // A happy-path prompt proves almost nothing about a provider integration: the risk lives in the
-  // VALUES the provider sends back, and clean prompts only ever produce clean ones (frizz-artifact-e2e
+  // VALUES the provider sends back, and clean prompts only ever produce clean ones (ntwine-artifact-e2e
   // step 2b). Everything below rides the NEW path — a child's description and its final reply become
   // `task_started.description`, `task_progress.description` and `task_notification.summary`, all of
   // which now flow through mapTask. Each case is a shape that has broken a validator or sits directly

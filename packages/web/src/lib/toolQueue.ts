@@ -10,7 +10,7 @@
 //
 // The batch rule is Claude Code's own, read out of the shipped binary (claude-agent-sdk 0.3.282, each
 // tool's `isConcurrencySafe`): TRUE for Read, Grep, Glob, WebFetch, Monitor, Agent and TaskStop; TRUE for
-// Bash only when its command is read-only, and for an MCP tool only with `readOnlyHint` (Frizz's own MCP
+// Bash only when its command is read-only, and for an MCP tool only with `readOnlyHint` (Ntwine's own MCP
 // tools carry no annotations, so they run serially); FALSE — the default — for everything else (Edit,
 // Write, Skill, SendMessage, Workflow, ToolSearch…). WebSearch is not in that read; it is treated as safe
 // because transcripts show it finishing before an earlier WebFetch.

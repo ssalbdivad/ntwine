@@ -18,10 +18,10 @@ export const SHEET_SCRIM_CLASS =
 // The sliding panel: right-anchored, full-height, bordered, elevated; slides along the X axis. The
 // consumer appends the translate toggle (translate-x-0 / translate-x-full) and its own width.
 export const SHEET_PANEL_CLASS =
-  "frizz-sheet-panel flex h-full flex-col border-l border-border bg-panel shadow-2xl shadow-shadow-ink/50 transition-transform duration-200 ease-out motion-reduce:transition-none"
+  "ntwine-sheet-panel flex h-full flex-col border-l border-border bg-panel shadow-2xl shadow-shadow-ink/50 transition-transform duration-200 ease-out motion-reduce:transition-none"
 
 // The stack width curve: each STAYING layer below steps the panel 28px / 4vw narrower so the stack
-// reads as a stack. `offset` pulls the effective depth back — ThreadDrawer passes 1 because the frizz-doc
+// reads as a stack. `offset` pulls the effective depth back — ThreadDrawer passes 1 because the ntwine-doc
 // is a "flip surface" of the chat drawer for the same thread, not a genuine extra layer, so it must
 // render at the width of the drawer beneath it (depth-1) rather than one step narrower.
 // The depth-0 panel width, exported because the fullscreen page's thread column caps at the SAME

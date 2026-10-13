@@ -1,10 +1,10 @@
-import { SUPERVISOR_SESSIONS_PATH } from "@frizz/server/restart-supervisor";
-import type { SessionRecord } from "@frizz/server/access-codes";
+import { SUPERVISOR_SESSIONS_PATH } from "@ntwine/server/restart-supervisor";
+import type { SessionRecord } from "@ntwine/server/access-codes";
 
 /**
  * `--sessions` and `--sign-out`, for whichever launcher is asking.
  *
- * Shared by BOTH launchers on purpose. `src/index.ts` (frizz-dev) and `src/production.ts` (npx frizz)
+ * Shared by BOTH launchers on purpose. `src/index.ts` (ntwine-dev) and `src/production.ts` (npx ntwine)
  * are separate programs, and every user-facing thing added to one and not the other has shipped broken
  * at least once here — `--cloud` did exactly that. One implementation, two call sites.
  *
@@ -29,12 +29,12 @@ async function call(port: number, init?: RequestInit): Promise<Record<string, un
     headers: { origin: `http://127.0.0.1:${port}`, ...(init?.body ? { "content-type": "application/json" } : {}), ...init?.headers },
   }).catch(() => undefined);
   if (!response) {
-    console.error("frizz: the running board did not answer");
+    console.error("ntwine: the running board did not answer");
     process.exit(1);
   }
   const body = (await response.json().catch(() => undefined)) as Record<string, unknown> | undefined;
   if (!response.ok) {
-    console.error(`frizz: ${(body?.error as string) ?? `the board answered ${response.status}`}`);
+    console.error(`ntwine: ${(body?.error as string) ?? `the board answered ${response.status}`}`);
     process.exit(1);
   }
   return body;
@@ -56,7 +56,7 @@ export async function listSessions(port: number): Promise<never> {
   for (const session of live) {
     console.log(`  ${session.id.padEnd(width)}  ${session.label}  ${ago(session.createdAt)}`);
   }
-  console.log(`\n  frizz --sign-out <id>   sign one out\n  frizz --sign-out all    sign every device out`);
+  console.log(`\n  ntwine --sign-out <id>   sign one out\n  ntwine --sign-out all    sign every device out`);
   process.exit(0);
 }
 

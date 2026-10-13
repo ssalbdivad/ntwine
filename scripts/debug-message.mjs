@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Resolve a per-message debug id (a message's `sourceId` — every rendered message root carries its own
-// on `data-frizz-msg`, so an inspector reads one straight off the DOM) back to BOTH SIDES of the
+// on `data-ntwine-msg`, so an inspector reads one straight off the DOM) back to BOTH SIDES of the
 // projection seam — the raw session-log record(s) that produced the message, and the projected
 // TranscriptMessage the renderer actually received.
 //

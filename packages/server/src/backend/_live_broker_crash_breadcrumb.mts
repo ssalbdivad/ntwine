@@ -10,11 +10,11 @@
 // That ambiguity was not academic. Measured across this machine's whole broker corpus on 2026-08-02:
 // 276 daemon `started` records against 223 recorded exits — 53 deaths (~19%) with no attribution at
 // all, reported to the operator as "the broker daemon is gone and left no exit record (killed
-// outright, or it predates exit breadcrumbs)". With no breadcrumb there was no way to tell frizz's own
-// unhandled throw from something outside frizz killing the process, and those want opposite fixes.
+// outright, or it predates exit breadcrumbs)". With no breadcrumb there was no way to tell ntwine's own
+// unhandled throw from something outside ntwine killing the process, and those want opposite fixes.
 //
 // The probe spawns the REAL daemon entry the REAL way — `stdio: "ignore"`, config in
-// FRIZZ_CLAUDE_BROKER — so the stack really does go nowhere, and asserts an attributed record lands
+// NTWINE_CLAUDE_BROKER — so the stack really does go nowhere, and asserts an attributed record lands
 // anyway. Run it with the handlers removed and the log does not even exist (verified 2026-08-02).
 import { spawn } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
@@ -38,7 +38,7 @@ const config = {
 }
 
 const child = spawn(process.execPath, ["--experimental-strip-types", entry], {
-  env: { ...process.env, FRIZZ_CLAUDE_BROKER: JSON.stringify(config) },
+  env: { ...process.env, NTWINE_CLAUDE_BROKER: JSON.stringify(config) },
   stdio: "ignore",
 })
 const timer = setTimeout(() => { try { process.kill(child.pid!, "SIGKILL") } catch { /* already gone */ } }, 20_000)

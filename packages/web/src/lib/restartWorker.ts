@@ -8,7 +8,7 @@ import { sendEagerFollowUp } from "./eagerComposerSubmission.ts"
 // Why it has to exist at all: a worker inherits its plugin (and therefore its HOOKS) and its system
 // prompt at process start, and can never pick either up afterwards. Measured, not assumed — patching a
 // Stop hook into a live worker's plugin dir mid-session does nothing, while a brand-new process on that
-// same patched dir runs it. So a worker dispatched before a frizz build shipped a hook keeps running
+// same patched dir runs it. So a worker dispatched before a ntwine build shipped a hook keeps running
 // without it for as long as its process lives, however many turns it takes. Nothing the operator can
 // type reaches that; only replacing the process does.
 //
@@ -20,7 +20,7 @@ import { sendEagerFollowUp } from "./eagerComposerSubmission.ts"
 // the operator staring at a card where nothing visibly happened until the thread's next natural wake;
 // carrying a continuation makes the restart the observable act it reads as.
 export const RESTART_WORKER_MESSAGE =
-  "Your worker process was restarted so it picks up frizz's current tooling (hooks and worker contract). Re-read whatever you left in your scratch directory, then continue exactly where you left off."
+  "Your worker process was restarted so it picks up ntwine's current tooling (hooks and worker contract). Re-read whatever you left in your scratch directory, then continue exactly where you left off."
 
 // Live sub-agents do NOT gate this verb. A restart does kill the parent's in-memory children, and for a
 // while that reasoning disabled the button whenever any of them was running — but the operator reaching
@@ -28,7 +28,7 @@ export const RESTART_WORKER_MESSAGE =
 // losing are routinely the reason the worker needs replacing in the first place. Making them wait it out
 // (maintainer 2026-08-01: "do not disable the button when there are sub-agents running") turned the one
 // recovery affordance into a control that is unavailable exactly when it is wanted. The completion
-// invariant binds frizz's OWN automatic restarts — needsFreshProcessForLimit still refuses to kill a live
+// invariant binds ntwine's OWN automatic restarts — needsFreshProcessForLimit still refuses to kill a live
 // child on its own initiative — not an explicit human instruction.
 export function restartWorker(queryClient: QueryClient, slug: string): Promise<void> {
   return new Promise<void>((resolve) => {

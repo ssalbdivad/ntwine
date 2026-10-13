@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http"
 import type { Duplex } from "node:stream"
 import { WebSocket, WebSocketServer, type RawData } from "ws"
-import { ThreadSlug, type TermClientMsg, FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
+import { ThreadSlug, type TermClientMsg, NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 import { isTrustedLocalWebSocketRequest, rejectWebSocketUpgrade } from "./local-origin.ts"
 
 // The /term/<id> transport. It serves exactly ONE thing: a terminal the human opened on a thread, whose
@@ -9,12 +9,12 @@ import { isTrustedLocalWebSocketRequest, rejectWebSocketUpgrade } from "./local-
 // it at a prompt. (It also served the sign-in modal's `claude auth login` pane until upstream replaced
 // that pane with the bare login command; thread terminals are the only pty left.)
 //
-// It used to attach each viewer to a `tmux -L <socket> attach-session -t frizz-<slug>` so an operator
+// It used to attach each viewer to a `tmux -L <socket> attach-session -t ntwine-<slug>` so an operator
 // could watch an agent's TUI. Agents no longer run in panes — the broker drives them over pipes — so
 // there is nothing to attach to, and the whole tmux half of this file (socket resolution, per-viewer
 // attach ptys, and the refresh-client dance that worked around tmux's resize replay) went with it.
 
-const TERM_PATH = new RegExp(`^${FRIZZ_ROUTE_PREFIX}/term/([^/?]+)$`)
+const TERM_PATH = new RegExp(`^${NTWINE_ROUTE_PREFIX}/term/([^/?]+)$`)
 
 
 // Keep the raw websocket bounded before JSON parsing, and independently validate the decoded input.
@@ -428,7 +428,7 @@ export function createTerminalServer(deps: TerminalServerDeps = {}): TerminalSer
         }
       } catch {
         // A valid message can still race a dead/detached PTY. Contain that failure to this viewer;
-        // the Frizz control plane and every running agent worker must survive.
+        // the Ntwine control plane and every running agent worker must survive.
         beginClose(1011, "terminal unavailable")
       }
     })

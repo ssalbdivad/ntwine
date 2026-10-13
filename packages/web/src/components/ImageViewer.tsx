@@ -15,7 +15,7 @@ import { handleDialogEscape } from "../lib/selectOverlay.ts"
 import { OpenAction } from "./FileReaderDrawer.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 
-// THE PICTURE VIEWER: a click on any picture Frizz renders — a tool's screenshot, a delivered image, a
+// THE PICTURE VIEWER: a click on any picture Ntwine renders — a tool's screenshot, a delivered image, a
 // path a worker wrote on its own line, a Markdown `![](…)`, an attachment — opens it HERE, over
 // whatever page or drawer it was clicked in, instead of handing the file to the desktop opener (which on
 // a WSL box meant a browser tab; see lib/localViewer.ts). Esc, the close button or a click anywhere off
@@ -259,7 +259,7 @@ function ViewerContent({ path, index, count, project, onFade }: { path: string; 
               // paints, so a screenshot is untouched, while an icon's black strokes on nothing stay
               // visible over the dimmed page. At fit the cursor offers the zoom; magnified, it inherits the
               // stage's drag.
-              className={`frizz-transparency-grid block select-none rounded-sm shadow-2xl shadow-shadow-ink/40 ring-1 ring-border ${
+              className={`ntwine-transparency-grid block select-none rounded-sm shadow-2xl shadow-shadow-ink/40 ring-1 ring-border ${
                 natural ? "" : "opacity-0"
               } ${zoomed ? "" : natural ? "cursor-zoom-in" : ""}`}
             />

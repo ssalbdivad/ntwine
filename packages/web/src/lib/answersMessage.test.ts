@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { ANSWER_FOLLOW_UP_MARKER, BURIED_ANSWERS_HEADER, DISMISSED_ANSWER, SECRET_ANSWER_MASK, questionAnswerMessage, secretAnswerText, withAnswersNote } from "@frizz/shared"
+import { ANSWER_FOLLOW_UP_MARKER, BURIED_ANSWERS_HEADER, DISMISSED_ANSWER, SECRET_ANSWER_MASK, questionAnswerMessage, secretAnswerText, withAnswersNote } from "@ntwine/shared"
 import { answersForDisplay, answersNote, splitAnswerPicks, parseAnswersMessage, parseBuriedAnswersMessage, parseAnswersCard, pairAnswersMessage, pairAllAnswers, settledAnswerKeys, unrenderedAnswers, withoutSettledAnswers, type MsgLike } from "./answersMessage.ts"
 import { composeAnswerWire } from "./answering.ts"
 
@@ -136,7 +136,7 @@ test("a multi-select's picks travel one per line, and the card gets each pick an
 test("a question that spans lines still closes at its quote-arrow — the registered path restates it verbatim", () => {
   // 2026-09-23: a registered question walked the human through adding an SSH key and carried the key
   // on its own line, so the row spanned five lines. The single-line row pattern missed it and the whole
-  // answer fell through to frizz's notification card as a broken numbered list.
+  // answer fell through to ntwine's notification card as a broken numbered list.
   const question = "Add it to GitHub: open the keys page, paste this line:\n\n`ecdsa-sha2-nistp256 AAAA… colinhacks@keyward`\n\nIs the key added?"
   const wire = questionAnswerMessage([
     { questionId: "qst_a", question, chosen: ["Yes, added"] },
@@ -173,9 +173,9 @@ test("CR-separated buried form parses (terminal-injected follow-up)", () => {
 
 test("the SERVER's composed answer round-trips through this reader — the one that decides it is the human's", () => {
   // THE WHOLE POINT OF THE PAIRING. questionAnswerMessage composes the answer to a REGISTERED question,
-  // and it is delivered as a frizz WAKE — which the chat draws as frizz's own notification card unless
+  // and it is delivered as a ntwine WAKE — which the chat draws as ntwine's own notification card unless
   // this parser claims it first. It did not claim it until 2026-08-27, and the human's answer rendered as
-  // agent-facing prose in a Frizz card over their own words. Composer and reader are pinned to each other
+  // agent-facing prose in a Ntwine card over their own words. Composer and reader are pinned to each other
   // here because nothing else in the system compares them.
   const wire = questionAnswerMessage([
     {
@@ -230,7 +230,7 @@ test("parseAnswersCard accepts either wire form", () => {
 const user = (text: string): MsgLike => ({ role: "user", text })
 const asst = (text: string): MsgLike => ({ role: "assistant", text })
 const event = (text = "Agent finished"): MsgLike => ({ role: "assistant", kind: "event", text })
-// An assistant message carrying one ```question block per body, in the frizz worker convention
+// An assistant message carrying one ```question block per body, in the ntwine worker convention
 // (context prose, then trailing lettered options).
 const qmsg = (...bodies: string[]): MsgLike => asst(bodies.map((b) => "```question\n" + b + "\n```").join("\n\n"))
 
@@ -363,14 +363,14 @@ test("the buried form pairs from its OWN quoted questions, ignoring the lookback
   assert.equal(paired?.[1].answer, "A. Yes")
 })
 
-// The clock note frizz appends to a late human reply (humanGapNote) lives in the worker's record and so
+// The clock note ntwine appends to a late human reply (humanGapNote) lives in the worker's record and so
 // in `text`; the server projects it away into `displayText`. The pairing must read the projection, or
 // the note rides into the card as a continuation line of the last answer — which is exactly what the
 // maintainer saw (2026-08-25) under their chosen option.
-const GAP_NOTE = "\n\n⏱ Frizz: the message above arrived 4h9m after your last one. It is now 2026-08-25 16:39."
+const GAP_NOTE = "\n\n⏱ Ntwine: the message above arrived 4h9m after your last one. It is now 2026-08-25 16:39."
 const userWithNote = (text: string): MsgLike => ({ role: "user", text: text + GAP_NOTE, displayText: text })
 
-test("an answers turn carrying frizz's clock note pairs from displayText — the note never reaches the card", () => {
+test("an answers turn carrying ntwine's clock note pairs from displayText — the note never reaches the card", () => {
   const ask = "Auto-charging means the run gate must accept a subscription the customer never clicked through. How wide should that opening be?\n- A. Wide\n- B. Same column, but the gate honours it only for rows stamped before a hard cutoff date"
   const msgs = [qmsg(ask), userWithNote("Answers:\n1. B. Same column, but the gate honours it only for rows stamped before a hard cutoff date")]
   const paired = pairAnswersMessage(msgs, 1)
@@ -398,7 +398,7 @@ test("a user turn with no projection still reads its raw text", () => {
 
 // ---- unrenderedAnswers (the in-flight card stands down once the transcript draws the answer) -------
 //
-// The 2026-09-01 double render: the human answers a registered question, frizz's delivery lands in the
+// The 2026-09-01 double render: the human answers a registered question, ntwine's delivery lands in the
 // worker's own queue (a `queue-operation enqueue`, which the transcript draws as this very card), and
 // `answersInFlight` is still set because it is spent by the worker RECEIVING the answer — a later event.
 // So the same answer drew twice, in two identical dimmed cards, for as long as the in-flight turn ran.
@@ -414,7 +414,7 @@ test("unrenderedAnswers: the transcript's own copy of the delivery retires the p
   assert.equal(unrenderedAnswers([user("go"), user(WIRE)], WIRE), null)
 })
 
-test("unrenderedAnswers: frizz's riders on the delivered copy do not defeat the match", () => {
+test("unrenderedAnswers: ntwine's riders on the delivered copy do not defeat the match", () => {
   const delivered: MsgLike = { role: "user", text: `${WIRE}${GAP_NOTE}`, displayText: WIRE }
   assert.equal(unrenderedAnswers([delivered], WIRE), null)
 })

@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { BoardSnapshot, SocketServerMsg } from "@frizz/shared"
+import type { BoardSnapshot, SocketServerMsg } from "@ntwine/shared"
 
 type Listener = (event: unknown) => void
 
@@ -481,7 +481,7 @@ test("socket transport bounds oversized frames and only resets reconnect backoff
     })
     assert.equal(boardSocket.closeCalls, 1)
     assert.equal(FakeEventSource.instances.length, 1)
-    assert.equal(FakeEventSource.instances[0].url, "/_frizz/events")
+    assert.equal(FakeEventSource.instances[0].url, "/_ntwine/events")
     assert.deepEqual(store.socketBoardFallback, { actualBytes: 4_194_305, maxBytes: 4_194_304 })
     assert.deepEqual(store.socketTranscriptFallbacks, {})
     assert.equal(store.socketTranscripts, false)

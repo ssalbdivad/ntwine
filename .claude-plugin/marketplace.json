@@ -1,12 +1,12 @@
 {
-  "name": "frizz",
+  "name": "ntwine",
   "owner": { "name": "Colin McDonnell" },
-  "description": "frizz — the multi-agent workbench. A dashboard drives many one-effort worker sessions.",
+  "description": "ntwine — the multi-agent workbench. A dashboard drives many one-effort worker sessions.",
   "plugins": [
     {
-      "name": "frizz",
+      "name": "ntwine",
       "source": "./cc-worker",
-      "description": "Worker-side plugin for frizz sessions: the worker contract seed, sub-agent profiles, the on-demand gh/handoff/waits skills, and the hooks that keep a dashboard worker signalling correctly."
+      "description": "Worker-side plugin for ntwine sessions: the worker contract seed, sub-agent profiles, the on-demand gh/handoff/waits skills, and the hooks that keep a dashboard worker signalling correctly."
     }
   ]
 }

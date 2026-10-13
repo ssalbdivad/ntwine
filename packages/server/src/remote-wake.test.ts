@@ -16,7 +16,7 @@ test("PowerLineStatus and pmset readings map to a power source; anything else is
 })
 
 test("Linux: an online Mains supply is AC, a battery without one is battery, no battery at all is a desktop", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-power-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-power-"))
   const supply = (name: string, files: Record<string, string>) => {
     mkdirSync(join(root, name), { recursive: true })
     for (const [file, text] of Object.entries(files)) writeFileSync(join(root, name, file), `${text}\n`)

@@ -3,7 +3,7 @@ import test from "node:test"
 
 // Runtime coverage for the air around a rendered PICTURE. Skipped unless a Vite URL serving the
 // fixtures is provided (same pattern as the other *.e2e.test.ts here): start `vite` in packages/web and
-// set FRIZZ_PICTURE_SPACING_E2E_URL to its origin.
+// set NTWINE_PICTURE_SPACING_E2E_URL to its origin.
 //
 // The invariant (maintainer 2026-08-11, on an image `Read` with the live shimmer under it: "we need
 // better spacing under the screenshots … it's too close"): a picture CARD is a tool-activity EXCEPTION,
@@ -22,9 +22,9 @@ import test from "node:test"
 //
 // The picture itself does not have to LOAD: `/local-image` is not served by a plain Vite dev server, so
 // the delivery's gallery lists its path as text — and the gap is decided by the tool's `sentImages`
-// field, never by whether the bytes arrived. Point the URL at a server that proxies /_frizz to a real stack if
+// field, never by whether the bytes arrived. Point the URL at a server that proxies /_ntwine to a real stack if
 // you want to SEE the frames while the numbers are checked.
-const baseUrl = process.env.FRIZZ_PICTURE_SPACING_E2E_URL
+const baseUrl = process.env.NTWINE_PICTURE_SPACING_E2E_URL
 
 const TIGHT = 6
 const STEP = 14
@@ -56,12 +56,12 @@ async function tailGap(page: import("puppeteer").Page) {
   return page.evaluate(() => {
     const scope = document.querySelector("[data-virtualized-transcript]")
     if (!scope) return { error: "surface not mounted" }
-    const rows = [...scope.querySelectorAll("[data-frizz-msg]")]
+    const rows = [...scope.querySelectorAll("[data-ntwine-msg]")]
     const working = scope.querySelector("[data-working-indicator]")
     if (!working || rows.length === 0) return { error: "no live tail" }
     const last = rows.reduce((a, b) => (b.getBoundingClientRect().bottom > a.getBoundingClientRect().bottom ? b : a))
     return {
-      lastRow: last.getAttribute("data-frizz-msg"),
+      lastRow: last.getAttribute("data-ntwine-msg"),
       aboveWorking: Math.round((working.getBoundingClientRect().top - last.getBoundingClientRect().bottom) * 10) / 10,
     }
   })
@@ -79,8 +79,8 @@ async function settled(page: import("puppeteer").Page) {
 // Every gap between consecutive tool CARDS inside one message, in document order.
 async function cardGaps(page: import("puppeteer").Page) {
   return page.evaluate(() => {
-    const cards = [...document.querySelectorAll("[data-virtualized-transcript] .frizz-bash")]
-      .filter((el) => !el.parentElement?.closest(".frizz-bash"))
+    const cards = [...document.querySelectorAll("[data-virtualized-transcript] .ntwine-bash")]
+      .filter((el) => !el.parentElement?.closest(".ntwine-bash"))
     return cards.slice(1).map((c, i) => Math.round((c.getBoundingClientRect().top - cards[i].getBoundingClientRect().bottom) * 10) / 10)
   })
 }
@@ -125,9 +125,9 @@ test("a picture takes its own gap on both sides, and the compact exceptions arou
     // 3. Two picture cards batched in ONE message, then an ordinary tool band in the next: the seam
     //    inside the band and the seam across the message boundary both take the picture's gap.
     await page.goto(fixtureUrl("?case=cards"), { waitUntil: "domcontentloaded" })
-    await page.waitForSelector('[data-frizz-msg="m4"]')
+    await page.waitForSelector('[data-ntwine-msg="m4"]')
     await settled(page)
-    // The two picture BLOCKS are read as the message column's own children, not as `figure.frizz-bash`.
+    // The two picture BLOCKS are read as the message column's own children, not as `figure.ntwine-bash`.
     // That selector is what this test used to use, and it stopped matching without anything about the
     // SPACING changing: `/local-image` is not served here, so the picture falls back to a bare line of
     // path text INSTEAD of the ImageFrame — no `figure`. The header above has always said the bytes need
@@ -138,9 +138,9 @@ test("a picture takes its own gap on both sides, and the compact exceptions arou
     // nothing set its env gate.)
     const stacked = await page.evaluate(() => {
       const scope = document.querySelector("[data-virtualized-transcript]")!
-      const pictures = scope.querySelector('[data-frizz-msg="m3"] > div > div')!
+      const pictures = scope.querySelector('[data-ntwine-msg="m3"] > div > div')!
       const blocks = [...pictures.children].filter((el) => el.getAttribute("aria-hidden") === null)
-      const digest = scope.querySelector('[data-frizz-msg="m4"]')!
+      const digest = scope.querySelector('[data-ntwine-msg="m4"]')!
       const lastPicture = blocks[blocks.length - 1]
       if (blocks.length < 2) throw new Error(`expected two picture blocks in m3, got ${blocks.length}`)
       return {
@@ -153,12 +153,12 @@ test("a picture takes its own gap on both sides, and the compact exceptions arou
 
     // 4. Prose below a picture: already the widest ordinary boundary, and it widens to the picture's.
     await page.goto(fixtureUrl("?case=prose"), { waitUntil: "domcontentloaded" })
-    await page.waitForSelector('[data-frizz-msg="m4"]')
+    await page.waitForSelector('[data-ntwine-msg="m4"]')
     await settled(page)
     const prose = await page.evaluate(() => {
       const scope = document.querySelector("[data-virtualized-transcript]")!
-      const rows = [...scope.querySelectorAll("[data-frizz-msg]")]
-      const i = rows.findIndex((r) => r.getAttribute("data-frizz-msg") === "m4")
+      const rows = [...scope.querySelectorAll("[data-ntwine-msg]")]
+      const i = rows.findIndex((r) => r.getAttribute("data-ntwine-msg") === "m4")
       return Math.round((rows[i].getBoundingClientRect().top - rows[i - 1].getBoundingClientRect().bottom) * 10) / 10
     })
     near(prose, PICTURE, "prose under a picture")
@@ -180,11 +180,11 @@ test("a picture takes its own gap on both sides, and the compact exceptions arou
       }
       // The bare-path block, found positionally for the same reason as the stacked probe above: with
       // `/local-image` unserved, `BlockImage` renders its `broken` fallback and there is no
-      // `.frizz-bash` frame to select. It is the message column's one child that is neither a prose
+      // `.ntwine-bash` frame to select. It is the message column's one child that is neither a prose
       // body nor a spacer — which is exactly what "its own block in the transcript's rhythm" means, and
       // is what this assertion is about. The Markdown frame is unaffected: that one is sanitized HTML
       // carrying the frame classes, so it survives its `<img>` failing to load.
-      const column = document.querySelector('[data-frizz-msg="m3"]')!
+      const column = document.querySelector('[data-ntwine-msg="m3"]')!
       const barePathBlock = [...column.children].find(
         (el) => el.getAttribute("aria-hidden") === null && !el.classList.contains("md-body"),
       ) ?? null

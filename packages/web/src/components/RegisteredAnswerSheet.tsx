@@ -1,6 +1,6 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import { Check } from "lucide-react"
-import type { AskedOption, RegisteredQuestionView } from "@frizz/shared"
+import type { AskedOption, RegisteredQuestionView } from "@ntwine/shared"
 import { useBackDismiss } from "../lib/backDismiss.ts"
 import { answerSteps, answerSummary, firstOpenStep, oneLineDescription, stepAfter, stepAfterPick, type AnswerStep } from "../lib/answerSheet.ts"
 import { useKeyboardInset } from "../lib/keyboardInset.ts"

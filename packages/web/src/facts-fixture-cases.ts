@@ -1,4 +1,4 @@
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 
 // THE FACTS LINE'S COMBINATIONS (ThreadHeaderFacts FACTS_LINE_CLASS), shared by the two fixtures that draw
 // it: the queue card's (queue-card-states-fixture.tsx `?case=facts-matrix`) and the drawer header's
@@ -13,7 +13,7 @@ const context = { context: { tokens: 148_000, window: 200_000 } }
 const goal = {
   recurringPrompt: { prompt: "Keep the census sweep green.", stopHook: true, heartbeat: false, postCompaction: false, armedAt: minutesAgo(90), runs: 7, maxRuns: 20, forSeconds: 4 * 3600, endsAt: minutesAhead(72) },
 }
-const checkout = { checkout: { dir: "/fixture/signing/.frizz/worktrees/catalog-v2-rollout", kind: "worktree" as const } }
+const checkout = { checkout: { dir: "/fixture/signing/.ntwine/worktrees/catalog-v2-rollout", kind: "worktree" as const } }
 const spinoff = (id: string) => ({
   spinoffs: [{ id: `spn_${id}`, parentSlug: "migrate-the-catalog-reader", childSlug: id, instructions: "Check the partner feed.", createdAt: Date.now() - 3_600_000 }],
 })

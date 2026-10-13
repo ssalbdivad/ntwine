@@ -9,7 +9,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { classify } from "../../../cc-worker/job-gate/classify.ts"
-import { FRIZZ_RUN, jobGateCommand, rewriteCommand, segments } from "../../../cc-worker/job-gate/hook.ts"
+import { NTWINE_RUN, jobGateCommand, rewriteCommand, segments } from "../../../cc-worker/job-gate/hook.ts"
 import {
   decide, estimateMB, heapCapMB, pushHistory, readSettings, repoKey, signatureOf,
   type Host, type Job, type Settings,
@@ -18,7 +18,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url))
 const cc = join(here, "../../../cc-worker")
 const hookScript = join(cc, "hooks/bash-background.mjs")
-const P = "'node' 'frizz-run.ts' --hook --"
+const P = "'node' 'ntwine-run.ts' --hook --"
 
 // ───────────────────────────── classify
 
@@ -76,7 +76,7 @@ test("the rewrite fails open on anything it cannot read with certainty", () => {
     "pnpm test &",
     "$RUNNER test",
     "echo 'unterminated",
-    "frizz-run -- pnpm test",
+    "ntwine-run -- pnpm test",
     "diff <(pnpm test) x",
     "",
     "   ",
@@ -91,13 +91,13 @@ test("the word reader keeps quotes, escapes and redirects in their words", () =>
 test("the hook entry point is inert for Codex, when switched off, and for non-strings", () => {
   const input = { tool_input: { command: "pnpm test" } }
   const dir = mkdtempSync(join(tmpdir(), "job-gate-cfg-"))
-  const env = { FRIZZ_GATE_DIR: dir }
-  assert.match(jobGateCommand(input, env, "/n") ?? "", /^'\/n' '.*frizz-run\.ts' --hook -- pnpm test$/)
+  const env = { NTWINE_GATE_DIR: dir }
+  assert.match(jobGateCommand(input, env, "/n") ?? "", /^'\/n' '.*ntwine-run\.ts' --hook -- pnpm test$/)
   assert.equal(jobGateCommand({ ...input, model: "gpt-5" }, env), null)
-  assert.equal(jobGateCommand(input, { ...env, FRIZZ_GATE: "0" }), null)
+  assert.equal(jobGateCommand(input, { ...env, NTWINE_GATE: "0" }), null)
   assert.equal(jobGateCommand({ tool_input: { command: 42 } }, env), null)
   assert.equal(jobGateCommand(null, env), null)
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ FRIZZ_GATE: "0" }))
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ NTWINE_GATE: "0" }))
   assert.equal(jobGateCommand(input, env), null, "the host-wide config file switches the fleet off")
 })
 
@@ -107,7 +107,7 @@ function runHook(script: string, toolInput: Record<string, unknown>, env: Record
   const result = spawnSync(process.execPath, [script], {
     input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: toolInput }),
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: "thread-under-test", FRIZZ_GATE: "", FRIZZ_GATE_DIR: mkdtempSync(join(tmpdir(), "job-gate-h-")), ...env },
+    env: { ...process.env, NTWINE_THREAD: "thread-under-test", NTWINE_GATE: "", NTWINE_GATE_DIR: mkdtempSync(join(tmpdir(), "job-gate-h-")), ...env },
   })
   assert.equal(result.status, 0, result.stderr)
   return JSON.parse(result.stdout || "{}")
@@ -115,34 +115,34 @@ function runHook(script: string, toolInput: Record<string, unknown>, env: Record
 
 test("the Bash hook wraps a heavy command and keeps bash-background's own patch in the same updatedInput", () => {
   const wrapped = runHook(hookScript, { command: "pnpm test" })
-  assert.equal(wrapped.hookSpecificOutput.updatedInput.command, `'${process.execPath}' '${FRIZZ_RUN}' --hook -- pnpm test`)
+  assert.equal(wrapped.hookSpecificOutput.updatedInput.command, `'${process.execPath}' '${NTWINE_RUN}' --hook -- pnpm test`)
   assert.equal(wrapped.hookSpecificOutput.hookEventName, "PreToolUse")
   assert.equal(wrapped.hookSpecificOutput.permissionDecision, undefined)
   // An untimed background suite gets BOTH the wrap and the 24h timeout: one updatedInput, no race.
   const bg = runHook(hookScript, { command: "pnpm test", run_in_background: true, description: "suite" })
   assert.deepEqual(bg.hookSpecificOutput.updatedInput, {
-    command: `'${process.execPath}' '${FRIZZ_RUN}' --hook -- pnpm test`, run_in_background: true, description: "suite", timeout: 86_400_000,
+    command: `'${process.execPath}' '${NTWINE_RUN}' --hook -- pnpm test`, run_in_background: true, description: "suite", timeout: 86_400_000,
   })
   assert.match(bg.hookSpecificOutput.additionalContext, /background shell with no `timeout`/)
   // A sub-agent's suite weighs the same as its thread's: it is gated too.
   const sub = spawnSync(process.execPath, [hookScript], {
     input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", agent_id: "a1", tool_input: { command: "pnpm test" } }),
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: "thread-under-test", FRIZZ_GATE: "" },
+    env: { ...process.env, NTWINE_THREAD: "thread-under-test", NTWINE_GATE: "" },
   })
   assert.match(JSON.parse(sub.stdout).hookSpecificOutput.updatedInput.command, /--hook -- pnpm test$/)
   // The controls: a light command, a denied escape, a non-worker and Codex are exactly as before.
   assert.deepEqual(runHook(hookScript, { command: "ls" }), {})
   assert.equal(runHook(hookScript, { command: "pnpm test &" }).hookSpecificOutput.permissionDecision, "deny")
   assert.equal(runHook(hookScript, { command: "pnpm test &" }).hookSpecificOutput.updatedInput, undefined)
-  assert.deepEqual(runHook(hookScript, { command: "pnpm test" }, { FRIZZ_THREAD: "" }), {})
-  assert.deepEqual(runHook(hookScript, { command: "pnpm test" }, { FRIZZ_GATE: "0" }), {})
+  assert.deepEqual(runHook(hookScript, { command: "pnpm test" }, { NTWINE_THREAD: "" }), {})
+  assert.deepEqual(runHook(hookScript, { command: "pnpm test" }, { NTWINE_GATE: "0" }), {})
 })
 
 test("a copy where the gate cannot load (under node_modules, or missing) emits bash-background's own result", () => {
-  // Node refuses to strip types under node_modules — exactly where a published frizz-server lives.
+  // Node refuses to strip types under node_modules — exactly where a published ntwine-server lives.
   const root = mkdtempSync(join(tmpdir(), "job-gate-nm-"))
-  const installed = join(root, "node_modules", "frizz-server", "runtime", "cc-worker")
+  const installed = join(root, "node_modules", "ntwine-server", "runtime", "cc-worker")
   mkdirSync(installed, { recursive: true })
   cpSync(join(cc, "hooks"), join(installed, "hooks"), { recursive: true })
   cpSync(join(cc, "job-gate"), join(installed, "job-gate"), { recursive: true })
@@ -154,12 +154,12 @@ test("a copy where the gate cannot load (under node_modules, or missing) emits b
   // The control: the same tree outside node_modules does wrap, so the copy is a faithful one.
   const outside = join(root, "cc-worker")
   cpSync(installed, outside, { recursive: true })
-  assert.match(runHook(join(outside, "hooks", "bash-background.mjs"), { command: "pnpm test" }).hookSpecificOutput.updatedInput.command, /frizz-run\.ts' --hook -- pnpm test$/)
+  assert.match(runHook(join(outside, "hooks", "bash-background.mjs"), { command: "pnpm test" }).hookSpecificOutput.updatedInput.command, /ntwine-run\.ts' --hook -- pnpm test$/)
   // A gate module that throws on load.
   writeFileSync(join(outside, "job-gate", "hook.ts"), "throw new Error('broken')\n")
   assert.deepEqual(runHook(join(outside, "hooks", "bash-background.mjs"), { command: "pnpm test" }), {})
   // Malformed hook input.
-  const garbage = spawnSync(process.execPath, [hookScript], { input: "{not json", encoding: "utf8", env: { ...process.env, FRIZZ_THREAD: "t" } })
+  const garbage = spawnSync(process.execPath, [hookScript], { input: "{not json", encoding: "utf8", env: { ...process.env, NTWINE_THREAD: "t" } })
   assert.equal(garbage.status, 0)
   assert.deepEqual(JSON.parse(garbage.stdout), {})
 })
@@ -168,14 +168,14 @@ test("a copy where the gate cannot load (under node_modules, or missing) emits b
 
 test("every worktree of a repo shares one signature for the same suite", () => {
   const files: Record<string, string> = {
-    "/h/arktype/.frizz/worktrees/jsi-rev2-val/.git": "gitdir: /h/arktype/.git/worktrees/jsi-rev2-val\n",
-    "/h/arktype/.frizz/worktrees/jsi-rev2-obj/.git": "gitdir: /h/arktype/.git/worktrees/jsi-rev2-obj\n",
+    "/h/arktype/.ntwine/worktrees/jsi-rev2-val/.git": "gitdir: /h/arktype/.git/worktrees/jsi-rev2-val\n",
+    "/h/arktype/.ntwine/worktrees/jsi-rev2-obj/.git": "gitdir: /h/arktype/.git/worktrees/jsi-rev2-obj\n",
   }
   const dirs = new Set(["/h/arktype/.git"])
   const read = (p: string) => { if (p in files) return files[p]; throw new Error("ENOENT") }
   const isDir = (p: string) => { if (dirs.has(p)) return true; if (p in files) return false; throw new Error("ENOENT") }
-  const a = repoKey("/h/arktype/.frizz/worktrees/jsi-rev2-val/ark/schema", read, isDir)
-  const b = repoKey("/h/arktype/.frizz/worktrees/jsi-rev2-obj/ark/schema", read, isDir)
+  const a = repoKey("/h/arktype/.ntwine/worktrees/jsi-rev2-val/ark/schema", read, isDir)
+  const b = repoKey("/h/arktype/.ntwine/worktrees/jsi-rev2-obj/ark/schema", read, isDir)
   const main = repoKey("/h/arktype/ark/schema", read, isDir)
   assert.equal(a, "arktype:ark/schema")
   assert.equal(b, a)
@@ -185,8 +185,8 @@ test("every worktree of a repo shares one signature for the same suite", () => {
   const sig = (argv: string[]) => signatureOf(a, classify(argv)!)
   assert.equal(sig(["pnpm", "test"]), "arktype:ark/schema|pnpm test")
   assert.equal(
-    sig(["node", "--conditions=ark-ts", "/h/arktype/.frizz/worktrees/jsi-rev2-val/node_modules/.pnpm/mocha@11.7.4/node_modules/mocha/lib/cli/cli.js", "--exclude", "ark/attest/**"]),
-    sig(["node", "--conditions=ark-ts", "/h/arktype/.frizz/worktrees/jsi-rev2-obj/node_modules/.pnpm/mocha@11.7.4/node_modules/mocha/lib/cli/cli.js", "--exclude", "ark/attest/**"]),
+    sig(["node", "--conditions=ark-ts", "/h/arktype/.ntwine/worktrees/jsi-rev2-val/node_modules/.pnpm/mocha@11.7.4/node_modules/mocha/lib/cli/cli.js", "--exclude", "ark/attest/**"]),
+    sig(["node", "--conditions=ark-ts", "/h/arktype/.ntwine/worktrees/jsi-rev2-obj/node_modules/.pnpm/mocha@11.7.4/node_modules/mocha/lib/cli/cli.js", "--exclude", "ark/attest/**"]),
   )
 })
 
@@ -278,26 +278,26 @@ test("switched off, everything starts at once; settings read the environment ove
   const busy = Array.from({ length: 6 }, (_, i) => job({ status: "running", session: `s${i}` }))
   assert.deepEqual(decide(me, [...busy, me], host(0), { ...S, enabled: false }), { admit: true, reason: "off" })
   const dir = mkdtempSync(join(tmpdir(), "job-gate-set-"))
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ FRIZZ_GATE_RESERVE_GB: 8, FRIZZ_GATE_MAX_PER_SESSION: "3" }))
-  const s = readSettings({ FRIZZ_GATE_DIR: dir, FRIZZ_GATE_MAX_PER_SESSION: "1" })
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ NTWINE_GATE_RESERVE_GB: 8, NTWINE_GATE_MAX_PER_SESSION: "3" }))
+  const s = readSettings({ NTWINE_GATE_DIR: dir, NTWINE_GATE_MAX_PER_SESSION: "1" })
   assert.equal(s.reserveMB, 8192)
   assert.equal(s.maxPerSession, 1)
-  assert.equal(readSettings({ FRIZZ_GATE_DIR: dir, FRIZZ_GATE: "0" }).enabled, false)
-  assert.equal(readSettings({ FRIZZ_GATE_DIR: dir, FRIZZ_GATE: "0" }, { honorEnvOffSwitch: false }).enabled, true, "a per-call FRIZZ_GATE=0 does not reach a hooked wrapper")
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ FRIZZ_GATE: "0" }))
-  assert.equal(readSettings({ FRIZZ_GATE_DIR: dir }, { honorEnvOffSwitch: false }).enabled, false, "the file always can")
+  assert.equal(readSettings({ NTWINE_GATE_DIR: dir, NTWINE_GATE: "0" }).enabled, false)
+  assert.equal(readSettings({ NTWINE_GATE_DIR: dir, NTWINE_GATE: "0" }, { honorEnvOffSwitch: false }).enabled, true, "a per-call NTWINE_GATE=0 does not reach a hooked wrapper")
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ NTWINE_GATE: "0" }))
+  assert.equal(readSettings({ NTWINE_GATE_DIR: dir }, { honorEnvOffSwitch: false }).enabled, false, "the file always can")
 })
 
 // ───────────────────────────── the real wrapper
 
 function wrapper(argv: string[], env: Record<string, string>) {
-  return spawnSync(process.execPath, [FRIZZ_RUN, "--hook", "--", ...argv], { encoding: "utf8", env: { ...process.env, FRIZZ_GATE: "", FRIZZ_GATE_SCOPE: "0", ...env } })
+  return spawnSync(process.execPath, [NTWINE_RUN, "--hook", "--", ...argv], { encoding: "utf8", env: { ...process.env, NTWINE_GATE: "", NTWINE_GATE_SCOPE: "0", ...env } })
 }
 
 test("the wrapper is transparent: stdout, stderr, exit code, cwd, and the signal that killed the job", () => {
   const dir = mkdtempSync(join(tmpdir(), "job-gate-run-"))
-  const env = { FRIZZ_GATE_DIR: dir, FRIZZ_THREAD: "t1" }
-  const r = spawnSync(process.execPath, [FRIZZ_RUN, "--hook", "--", "sh", "-c", "pwd; echo err >&2; exit 7"], { encoding: "utf8", cwd: dir, env: { ...process.env, ...env, FRIZZ_GATE_SCOPE: "0" } })
+  const env = { NTWINE_GATE_DIR: dir, NTWINE_THREAD: "t1" }
+  const r = spawnSync(process.execPath, [NTWINE_RUN, "--hook", "--", "sh", "-c", "pwd; echo err >&2; exit 7"], { encoding: "utf8", cwd: dir, env: { ...process.env, ...env, NTWINE_GATE_SCOPE: "0" } })
   assert.equal(r.status, 7)
   assert.equal(r.stdout.trim(), dir)
   assert.equal(r.stderr, "err\n")
@@ -313,8 +313,8 @@ test("the wrapper is transparent: stdout, stderr, exit code, cwd, and the signal
 test("a signal to the wrapper reaches the job's whole tree, and the wrapper dies of it", async () => {
   const dir = mkdtempSync(join(tmpdir(), "job-gate-sig-"))
   const marker = join(dir, "grandchild.pid")
-  const child = spawn(process.execPath, [FRIZZ_RUN, "--hook", "--", "sh", "-c", `sh -c 'echo $$ > ${marker}; exec sleep 30' ; echo unreachable`], {
-    env: { ...process.env, FRIZZ_GATE_DIR: dir, FRIZZ_THREAD: "t1", FRIZZ_GATE_SCOPE: "0" },
+  const child = spawn(process.execPath, [NTWINE_RUN, "--hook", "--", "sh", "-c", `sh -c 'echo $$ > ${marker}; exec sleep 30' ; echo unreachable`], {
+    env: { ...process.env, NTWINE_GATE_DIR: dir, NTWINE_THREAD: "t1", NTWINE_GATE_SCOPE: "0" },
     stdio: "ignore",
     detached: true, // its own group: the only signal anything here receives is the one we forward
   })
@@ -341,16 +341,16 @@ test("a signal to the wrapper reaches the job's whole tree, and the wrapper dies
 
 test("a second heavy job from a session at its cap queues, says why once, and starts when the first ends", async () => {
   const dir = mkdtempSync(join(tmpdir(), "job-gate-q-"))
-  const env = { ...process.env, FRIZZ_GATE_DIR: dir, FRIZZ_THREAD: "t1", FRIZZ_GATE_SCOPE: "0", FRIZZ_GATE_MAX_PER_SESSION: "1", FRIZZ_GATE: "" }
-  const first = spawn(process.execPath, [FRIZZ_RUN, "--hook", "--", "sh", "-c", "sleep 2; echo first"], { env, stdio: ["ignore", "pipe", "pipe"] })
+  const env = { ...process.env, NTWINE_GATE_DIR: dir, NTWINE_THREAD: "t1", NTWINE_GATE_SCOPE: "0", NTWINE_GATE_MAX_PER_SESSION: "1", NTWINE_GATE: "" }
+  const first = spawn(process.execPath, [NTWINE_RUN, "--hook", "--", "sh", "-c", "sleep 2; echo first"], { env, stdio: ["ignore", "pipe", "pipe"] })
   await new Promise((r) => setTimeout(r, 700))
-  const second = spawnSync(process.execPath, [FRIZZ_RUN, "--hook", "--", "sh", "-c", "echo second"], { env, encoding: "utf8" })
+  const second = spawnSync(process.execPath, [NTWINE_RUN, "--hook", "--", "sh", "-c", "echo second"], { env, encoding: "utf8" })
   assert.equal(second.status, 0)
   assert.equal(second.stdout, "second\n")
   const notes = second.stderr.trim().split("\n")
   assert.equal(notes.length, 2, second.stderr)
-  assert.match(notes[0], /^frizz-run: queued: this thread already runs 1 heavy jobs \(limit 1\)\. It starts on its own/)
-  assert.match(notes[1], /^frizz-run: started after \d+s in the queue$/)
+  assert.match(notes[0], /^ntwine-run: queued: this thread already runs 1 heavy jobs \(limit 1\)\. It starts on its own/)
+  assert.match(notes[1], /^ntwine-run: started after \d+s in the queue$/)
   await new Promise((r) => first.on("exit", r))
   const lines = readFileSync(join(dir, "jobs.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l))
   const queued = lines.find((l) => l.cmd === "sh -c echo second")

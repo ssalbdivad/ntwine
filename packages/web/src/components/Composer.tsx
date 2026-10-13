@@ -1,7 +1,7 @@
 import { createContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useSnapshot } from "valtio"
 import { ArrowUp, FileText, Loader2, Mic, Paperclip, Plus, Repeat, X } from "lucide-react"
-import { ATTACHMENT_ACCEPT, ATTACHMENT_MAX_BYTES, isAllowedAttachmentName, type EmbedPickedFile, type ThreadSkill } from "@frizz/shared"
+import { ATTACHMENT_ACCEPT, ATTACHMENT_MAX_BYTES, isAllowedAttachmentName, type EmbedPickedFile, type ThreadSkill } from "@ntwine/shared"
 import { showToast } from "../store.ts"
 import { joinComposerValue, splitComposerValue } from "../lib/imagePaths.ts"
 import { splitProseByTokens } from "../lib/composerContext.ts"
@@ -75,7 +75,7 @@ const SKILL_SOURCE_LABEL: Record<NonNullable<ThreadSkill["source"]>, string> = {
   user: "global",
   builtin: "built-in",
   plugin: "plugin",
-  frizz: "frizz",
+  ntwine: "ntwine",
 }
 
 // Both typeahead menus' row inset: the textarea's 14px on the left, and 6px on the right because the
@@ -540,7 +540,7 @@ export function Composer({
     if (!fileMentions || !uris.length) return
     const files = await fileMentions.resolve(uris)
     if (!files?.length) {
-      showToast(files === null ? "Update the Frizz extension to drop files here." : "Only files and folders on disk can be added.")
+      showToast(files === null ? "Update the Ntwine extension to drop files here." : "Only files and folders on disk can be added.")
       return
     }
     const latest = splitComposerValue(valueRef.current)
@@ -645,7 +645,7 @@ export function Composer({
   // The thread's skills and commands, as its harness reports them: fetched once, the first time the draft
   // holds a `/` token anywhere (null = not asked yet; [] = asked, nothing to offer — including a fetch
   // that failed, which must read as "no suggestions", never as an error the operator has to dismiss).
-  // Read by the menu AND the tint, so a draft restored with `/frizz-stack` in it lights up too.
+  // Read by the menu AND the tint, so a draft restored with `/ntwine-stack` in it lights up too.
   const [skillItems, setSkillItems] = useState<ThreadSkill[] | null>(null)
   const [skillsVersion, setSkillsVersion] = useState(slashSuggestVersion)
   if (skillsVersion !== slashSuggestVersion) {

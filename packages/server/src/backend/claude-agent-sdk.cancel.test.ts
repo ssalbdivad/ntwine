@@ -10,7 +10,7 @@
 // path is the proof — anything that actually launched would fail on it.
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { query } from "@frizz/claude-agent-sdk-runtime"
+import { query } from "@ntwine/claude-agent-sdk-runtime"
 import { CLAUDE_SDK_CANCEL_METHOD } from "./claude-agent-sdk.ts"
 
 function unspawnedQuery(): Record<string, unknown> {
@@ -26,7 +26,7 @@ function unspawnedQuery(): Record<string, unknown> {
   }) as unknown as Record<string, unknown>
 }
 
-test("the SDK still exposes the queued-input cancel method frizz reaches for", () => {
+test("the SDK still exposes the queued-input cancel method ntwine reaches for", () => {
   const q = unspawnedQuery()
   assert.equal(
     typeof q[CLAUDE_SDK_CANCEL_METHOD],

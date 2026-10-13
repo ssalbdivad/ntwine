@@ -44,7 +44,7 @@ export const WAKE_QUIET_WINDOW_MS = 5 * 60_000
  *  waiting on the reply, and holding it five minutes would make two threads talking cost ten per round.
  *
  *  THE SIGN-OFF NUDGE AND THE FENCE CORRECTIONS answer the worker's OWN rest, and that rest is the card
- *  the human is reading in the queue right now: a bare rest nobody can triage, or a park frizz refused.
+ *  the human is reading in the queue right now: a bare rest nobody can triage, or a park ntwine refused.
  *  Holding the fix for five minutes leaves that card on the board for five minutes, which is the whole
  *  failure the nudge exists to prevent — observed 2026-09-25, a Codex thread's bare rest landing 9s after
  *  its PR-merged wake, its nudge queued 2s later and held until 4m51s after that, by which point the
@@ -177,7 +177,7 @@ function delivery(row: WakeDeliveryRow): WakeDelivery {
   }
 }
 
-/** The outbox table, idempotent; frizz-db.ts creates it ahead of a legacy import. */
+/** The outbox table, idempotent; ntwine-db.ts creates it ahead of a legacy import. */
 export const WAKE_DELIVERY_TABLES = ["wake_delivery"] as const
 export function ensureWakeDeliverySchema(db: Database): void {
   db.exec(`

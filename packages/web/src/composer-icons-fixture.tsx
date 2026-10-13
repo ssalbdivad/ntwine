@@ -26,12 +26,12 @@ let githubStatusCalls = 0
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  if (url.pathname === "/_frizz/rpc/githubStatus") {
+  if (url.pathname === "/_ntwine/rpc/githubStatus") {
     const outage = heals && githubStatusCalls++ === 0
     const result = outage ? { inRepo: false, authed: true } : { inRepo: true, authed }
     return new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
+  if (url.pathname.startsWith("/_ntwine/rpc/")) return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   return originalFetch(input, init)
 }
 

@@ -1,6 +1,6 @@
 # Watchers beyond GitHub — what Linear and GitLab would take
 
-Status: assessment, written 2026-09-14 alongside the GitHub issue watcher (`mcp__frizz__watch_issue`, commit `7a274712` and the follow-ups on `main`). Nothing here is built. The maintainer's framing: "a similar structure where we require the user to be signed in to their respective CLIs."
+Status: assessment, written 2026-09-14 alongside the GitHub issue watcher (`mcp__ntwine__watch_issue`, commit `7a274712` and the follow-ups on `main`). Nothing here is built. The maintainer's framing: "a similar structure where we require the user to be signed in to their respective CLIs."
 
 ## What a watcher is made of today
 
@@ -13,11 +13,11 @@ The GitHub issue watcher was built by threading one new `kind` through every lay
 | Registration probe | `scheduler.ts` `probePrReadable` / `probeIssueReadable` | `gh pr view` | `gh issue view`, refuses a PR number |
 | Fetch | `github-review.ts`, one batched GraphQL request per tick, token from `gh auth token` | `pullRequest(number:)` fragment | `issue(number:)` fragment in the same batch |
 | Diff and report | `scheduler.ts` `evalPrWatches` / `evalIssueWatch`: cursor of seen ids plus baselines, one undelivered report, re-mint | CI verdict, reviews, comments, labels, conflicts, reviewers, merge/close | comments, labels, assignees, close with reason |
-| Wake text | `@frizz/shared` `prWatchWakeMessage` / `issueWatchWakeMessage`, parsed back by the chat's divider parsers | | same line shapes on purpose |
+| Wake text | `@ntwine/shared` `prWatchWakeMessage` / `issueWatchWakeMessage`, parsed back by the chat's divider parsers | | same line shapes on purpose |
 | Status book | `awaiting.ts` `GITHUB_STATUS_SETTING` / `GITHUB_ISSUE_STATUS_SETTING` | `GithubWatchStatus` | `GithubIssueStatus` |
 | Board row | `board.ts` `fenceWatchViews`: `kind: "github"`, `subject: pull \| issue` | checks glyph, counts | issue glyph, "Open · N comments" |
 | Fence key | `prs:` / `issues:` → hint kinds `pr` / `issue`, checked against the registry | | |
-| Worker tool | `frizz-mcp.mjs` `watch_pr` / `watch_issue`, both over `addOwnPrWatch` / `dropOwnPrWatch` / `listOwnPrWatches` | | `kind: "issue"` on the add |
+| Worker tool | `ntwine-mcp.mjs` `watch_pr` / `watch_issue`, both over `addOwnPrWatch` / `dropOwnPrWatch` / `listOwnPrWatches` | | `kind: "issue"` on the add |
 | Everything that names kinds | `activity`, `done` blockers, the sign-off nudge, the park corrections, `workerPrompt.ts`, the `gh` skill | | |
 
 The row and the RPCs are GitHub-shaped: `owner`, `repo` and an integer `number`. That is the one thing a second provider cannot reuse as-is, and it is the first thing to change.
@@ -47,7 +47,7 @@ That refactor is roughly the size of the issue watcher itself: it moves code rat
 
 ## Linear — smaller surface, weaker premise
 
-**Auth: the premise does not quite hold.** Linear ships no official CLI. The community ones (`linear-cli`, `lin`, a few npm packages) each keep their own config, none of them is the thing a user is reliably "signed in to", and Linear's own supported path is a personal API key or an OAuth app. The honest shape is `LINEAR_API_KEY` in the server's environment (or a `~/.frizz` setting), with the registration probe refusing when it is unset, rather than reading a CLI's config file. That is a different story from `gh`/`glab` and should be said in the tool description.
+**Auth: the premise does not quite hold.** Linear ships no official CLI. The community ones (`linear-cli`, `lin`, a few npm packages) each keep their own config, none of them is the thing a user is reliably "signed in to", and Linear's own supported path is a personal API key or an OAuth app. The honest shape is `LINEAR_API_KEY` in the server's environment (or a `~/.ntwine` setting), with the registration probe refusing when it is unset, rather than reading a CLI's config file. That is a different story from `gh`/`glab` and should be said in the tool description.
 
 **Refs.** `TEAM-123` identifiers, and `https://linear.app/<workspace>/issue/TEAM-123/<slug>` URLs. String identifiers, so again the opaque `target` column.
 
@@ -65,9 +65,9 @@ That refactor is roughly the size of the issue watcher itself: it moves code rat
 
 ## Alternative raised 2026-09-14: a generic change-detecting command watcher
 
-The maintainer's counter-proposal, after the issue watcher landed: register an arbitrary shell command; Frizz runs it once at registration to take a baseline, keeps running it on a cadence, and wakes the worker only when the output changes. This section is the assessment; nothing is decided.
+The maintainer's counter-proposal, after the issue watcher landed: register an arbitrary shell command; Ntwine runs it once at registration to take a baseline, keeps running it on a cadence, and wakes the worker only when the output changes. This section is the assessment; nothing is decided.
 
-**What it buys.** One mechanism covers the whole long tail this document sizes provider by provider — a GitLab MR, a Linear issue, an npm publish, a deploy URL, a CI run by id, a file on disk — because the worker writes the command and the "signed in to their CLI" premise becomes literally the command (`glab mr view 12 --output json`, `npm view frizz version`, `curl -s …`). The provider-generic registry refactor above stops being a prerequisite for GitLab and Linear: each becomes a skill snippet showing the right command and projection, with no server code. It is also the durable form of the wait the worker contract already teaches (`Monitor` with an until-loop, or a sub-agent owning the wait), which today dies with the session.
+**What it buys.** One mechanism covers the whole long tail this document sizes provider by provider — a GitLab MR, a Linear issue, an npm publish, a deploy URL, a CI run by id, a file on disk — because the worker writes the command and the "signed in to their CLI" premise becomes literally the command (`glab mr view 12 --output json`, `npm view ntwine version`, `curl -s …`). The provider-generic registry refactor above stops being a prerequisite for GitLab and Linear: each becomes a skill snippet showing the right command and projection, with no server code. It is also the durable form of the wait the worker contract already teaches (`Monitor` with an until-loop, or a sub-agent owning the wait), which today dies with the session.
 
 **What the bespoke PR watcher knows that "output changed" does not.** Every one of these was a bug report before it was a rule, and a generic watcher re-exposes each unless the worker projects the output carefully:
 
@@ -81,7 +81,7 @@ So the generic watcher complements the GitHub ones rather than replacing them: k
 
 **A shape that would work.**
 
-- `mcp__frizz__watch_cmd` (`add` / `list` / `drop`): `command` (run with `sh -c`, cwd pinned to the project dir, no stdin, 30s timeout, output capped), `every` (a duration, floor 30s, default 60s), `for` (required, the PR watcher's ceilings), `label`, and an optional settle rule (`exit0`, or a regex on the output) so a wait with a known end can end itself instead of running out its `for`.
+- `mcp__ntwine__watch_cmd` (`add` / `list` / `drop`): `command` (run with `sh -c`, cwd pinned to the project dir, no stdin, 30s timeout, output capped), `every` (a duration, floor 30s, default 60s), `for` (required, the PR watcher's ceilings), `label`, and an optional settle rule (`exit0`, or a regex on the output) so a wait with a known end can end itself instead of running out its `for`.
 - Registration runs the command once, synchronously, and returns the baseline output so the worker sees exactly what will be diffed; it refuses only when the command cannot be spawned or times out, since a non-zero exit may be the state being waited on.
 - One `cmd_watch` row per registration; the cursor holds the last output's hash, its head and tail, the exit code and the run instant. Identical `(cwd, command)` pairs across threads run once per tick, as identical PR refs do.
 - Change means the normalized output (trailing whitespace stripped) or the exit code differs. The wake body is a capped unified diff of the two outputs plus the exit-code change, under an armed trailer — a diff of JSON is a good steer for a model, and it is what `changes` already is on the PR wake. One undelivered report per row, re-minted as the PR watcher's is.

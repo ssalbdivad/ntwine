@@ -1,32 +1,32 @@
-// WHICH THREAD SENT THIS? — the sender of a cross-session message, as a Frizz thread.
+// WHICH THREAD SENT THIS? — the sender of a cross-session message, as a Ntwine thread.
 //
 // One top-level session can message another through Claude Code's own channel (`SendMessage` to a
 // session name), and the receiving transcript records only the sender's messaging SOCKET and its Claude
-// Code session NAME (see parseCrossSessionMessage in shared). Neither is a Frizz identity: the name is
-// `<cwd basename>-<2 hex>`, so every thread in this repo is `frizz-<something>` and two can collide.
+// Code session NAME (see parseCrossSessionMessage in shared). Neither is a Ntwine identity: the name is
+// `<cwd basename>-<2 hex>`, so every thread in this repo is `ntwine-<something>` and two can collide.
 //
 // The socket is the handle that leads somewhere. Claude Code keeps a registry of its LIVE sessions —
 // `<config dir>/sessions/<pid>.json`, one per running process — and each entry names the session's
 // `messagingSocketPath` beside its `sessionId`. The socket path is `/tmp/cc-socks/<pid>.sock`, so the
 // pid in it picks the registry entry, the entry's socket and name confirm it is the same process, and its
-// session id is the one a Frizz thread row pins. Measured on this machine 2026-10-08: the coordinator's
-// message into a watcher thread carried `from="uds:/tmp/cc-socks/2908.sock" from-name="frizz-11"`, and
+// session id is the one a Ntwine thread row pins. Measured on this machine 2026-10-08: the coordinator's
+// message into a watcher thread carried `from="uds:/tmp/cc-socks/2908.sock" from-name="ntwine-11"`, and
 // `~/.claude/sessions/2908.json` named session 5c6eacc1-…, the coordinator thread's own session.
 //
 // THE REGISTRY ONLY HOLDS LIVE PROCESSES, so a resolution is REMEMBERED: once a socket and name have led
-// to a session, that pairing is kept in `session-peers.json` under Frizz's state root. A thread whose
-// sender has since exited still links to it, across a Frizz restart too. A pid the OS later reuses
+// to a session, that pairing is kept in `session-peers.json` under Ntwine's state root. A thread whose
+// sender has since exited still links to it, across a Ntwine restart too. A pid the OS later reuses
 // comes with a different name (the name is derived from the session), so the pairing key holds both.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 
 type SessionPeer = NonNullable<TranscriptMessage["sessionPeer"]>
 export type SessionPeerThread = NonNullable<SessionPeer["thread"]>
 
 // Every directory a running Claude Code may have registered itself in: the configured one first, and
-// the default beside it, because Frizz's own workers run under the default even when this server was
+// the default beside it, because Ntwine's own workers run under the default even when this server was
 // started with an override (and the reverse).
 export function claudeSessionDirs(env: NodeJS.ProcessEnv = process.env, home = homedir()): string[] {
   const dirs = [join(home, ".claude", "sessions")]

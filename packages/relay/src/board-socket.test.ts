@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { encodeBody, parseFrame, serializeFrame } from "@frizz/shared"
+import { encodeBody, parseFrame, serializeFrame } from "@ntwine/shared"
 import { BoardSocket, type SocketLike } from "./board-socket.ts"
 
 /** A socket that records what the relay sent, so a fake board can answer it. */
@@ -60,7 +60,7 @@ test("a whole answer with no body is marked ended, so the visitor's stream can c
 })
 
 test("a STREAMED body reaches the visitor while it is still being produced", async () => {
-  // This is the whole reason the head and the body are separate frames. Frizz's event feed is SSE: the
+  // This is the whole reason the head and the body are separate frames. Ntwine's event feed is SSE: the
   // response never ends, so buffering until it does would mean the board never appears to load at all.
   const board = fakeSocket()
   const relay = new BoardSocket()

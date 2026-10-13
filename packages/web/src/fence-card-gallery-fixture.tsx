@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { AwaitingHint, BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { AwaitingHint, BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { composeBlockAnswer, parseQuestionBlock, type BlockAnswer } from "./lib/questionBlocks.ts"
 import {
   FenceCard,
@@ -22,10 +22,10 @@ import "./styles.css"
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input.toString(), window.location.origin)
-  if (url.pathname === '/_frizz/rpc/resolveLocalPaths') {
+  if (url.pathname === '/_ntwine/rpc/resolveLocalPaths') {
     return new Response(JSON.stringify({ result: { resolved: [] } }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return nativeFetch(input, init)
@@ -76,7 +76,7 @@ const midTurnShellThread: Partial<Pick<ThreadView, "runtime" | "subAgents" | "bg
 
 const timerIso = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
 
-// An assistant rest whose fence names a sub-agent id that is not running — the shape frizz refuses. The
+// An assistant rest whose fence names a sub-agent id that is not running — the shape ntwine refuses. The
 // prose above the fence is the worker's own and always survives; only the fence block is at stake.
 const refusedMessageText = [
   "Both rework agents are back and I have folded their numbers in.",
@@ -136,7 +136,7 @@ const fences: { slug: string; label: string; kind: "done" | "awaiting"; body: st
     label: "```awaiting · a stale `watch:` line",
     kind: "awaiting",
     // BOTH in the body, which is the post-2026-08-24 shape: `reason:` is retired, so the worker's prose
-    // and the line frizz refused arrive in the same place, and the card has to tell them apart itself.
+    // and the line ntwine refused arrive in the same place, and the card has to tell them apart itself.
     body: "watch: bvg44v4ij\nCI on acme/app#1227 is running.",
     hints: [{ kind: "for", value: "40m" }],
   },
@@ -296,7 +296,7 @@ function Fixture() {
             only `fenceRefused` differs, so the pair reads as the before/after it is. */}
         <p className="petite-caps mt-4 text-[10px] text-accent">A refused fence</p>
         {[false, true].map((refused) => (
-          <Section key={String(refused)} label={refused ? "fenceRefused — frizz declined the park" : "the same message, honoured"}>
+          <Section key={String(refused)} label={refused ? "fenceRefused — ntwine declined the park" : "the same message, honoured"}>
             <ThreadSlugContext.Provider value="g-pr">
               <Message
                 m={{

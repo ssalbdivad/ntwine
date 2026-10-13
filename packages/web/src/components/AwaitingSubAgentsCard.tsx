@@ -20,7 +20,7 @@
 // is edited by several hands at once and this one only needs a line there.
 import { useState } from "react"
 import { Hourglass } from "lucide-react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope, useThreadApi } from "../api/threadApi.tsx"
 import { projectSlug } from "../lib/base-path.ts"
 import { ICON_LABEL_NUDGE } from "../lib/iconAlign.ts"

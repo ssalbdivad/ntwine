@@ -1,4 +1,4 @@
-// Presentation helpers for the GitHub wake card. The PARSING lives in @frizz/shared beside the
+// Presentation helpers for the GitHub wake card. The PARSING lives in @ntwine/shared beside the
 // scheduler's formatter (so the two can't drift); this is only about how the parsed shape reads.
 
 // The compact age the divider's tail used to take from here (`wakeItemAge`) is `compactAge` in

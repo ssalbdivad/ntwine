@@ -13,7 +13,7 @@
 //
 // No `vscode` here (extras.test.ts); extras-feed.ts is the glue.
 
-import { EMBED_MAX_COMMAND, type EmbedEditorExtrasMessage } from "@frizz/shared/embed-protocol"
+import { EMBED_MAX_COMMAND, type EmbedEditorExtrasMessage } from "@ntwine/shared/embed-protocol"
 import { composable, normalizeNewlines, QUOTE_MAX_BYTES, QUOTE_MAX_LINES } from "./message.ts"
 
 // ── problems ─────────────────────────────────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ export function terminalCommandText(input: { command: string; output: string; ex
 
 // ── what the bar's menu is told ──────────────────────────────────────────────────────────────────────
 
-/** The `frizz:editor-extras` message: only what there is to offer, the command line clipped to one line. */
+/** The `ntwine:editor-extras` message: only what there is to offer, the command line clipped to one line. */
 export function extrasMessage(input: {
   problems?: { label: string; counts: { errors: number; warnings: number; infos: number } }
   terminal?: { command?: string; exitCode?: number }
@@ -159,5 +159,5 @@ export function extrasMessage(input: {
   const terminal = input.terminal
     ? { ...(command ? { command } : {}), ...(input.terminal.exitCode !== undefined ? { exitCode: input.terminal.exitCode } : {}) }
     : undefined
-  return { type: "frizz:editor-extras", ...(problems ? { problems } : {}), ...(terminal ? { terminal } : {}) }
+  return { type: "ntwine:editor-extras", ...(problems ? { problems } : {}), ...(terminal ? { terminal } : {}) }
 }

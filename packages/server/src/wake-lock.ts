@@ -3,7 +3,7 @@ import { release as osRelease } from "node:os"
 import { win32 } from "node:path"
 import type { SessionTelemetry } from "./tailer.ts"
 import type { SessionRow } from "./storage.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 
 // ── KEEP THE MACHINE AWAKE WHILE AN AGENT IS WORKING ─────────────────────────────────────────────────
 //
@@ -101,7 +101,7 @@ export function isWsl(p: Pick<WakeLockPlatform, "platform" | "env" | "kernelRele
 // process. Measured on the maintainer's machine with CallNtPowerInformation(SystemExecutionState):
 // 0x0 before, 0x1 while held, 0x0 once the process exited. ES_DISPLAY_REQUIRED is left out on purpose.
 const WINDOWS_HOLD_SCRIPT =
-  `$k=Add-Type -Name WakeLock -Namespace Frizz -PassThru -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);';` +
+  `$k=Add-Type -Name WakeLock -Namespace Ntwine -PassThru -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);';` +
   `[void]$k::SetThreadExecutionState([uint32]2147483649);` +
   `[void][Console]::In.ReadToEnd();` +
   `Start-Sleep -Seconds ${WAKE_LOCK_LINGER_S}`
@@ -131,7 +131,7 @@ export function wakeLockCommand(p: WakeLockPlatform): [string, string[]] | undef
   if (isWsl(p)) return ["powershell.exe", psArgs]
   if (p.platform === "darwin") return ["caffeinate", ["-i", "/bin/sh", "-c", POSIX_HOLD_SCRIPT]]
   if (p.platform === "linux") {
-    return ["systemd-inhibit", ["--what=idle", "--who=Frizz", "--why=An agent is working", "--mode=block", "/bin/sh", "-c", POSIX_HOLD_SCRIPT]]
+    return ["systemd-inhibit", ["--what=idle", "--who=Ntwine", "--why=An agent is working", "--mode=block", "/bin/sh", "-c", POSIX_HOLD_SCRIPT]]
   }
   return undefined
 }
@@ -157,7 +157,7 @@ export function createWakeLock(
     c.unref()
     return c
   },
-  log: Pick<typeof frizzLog, "info" | "warn"> = frizzLog,
+  log: Pick<typeof ntwineLog, "info" | "warn"> = ntwineLog,
 ): WakeLock {
   let child: ChildProcess | undefined
   let disabled = command === undefined
@@ -228,7 +228,7 @@ export function startWakeLockLoop(
   sources: () => Iterable<WakeSource>,
   lock: WakeLock = createWakeLock(wakeLockCommand({ platform: process.platform, env: process.env, kernelRelease: osRelease() })),
   intervalMs = WAKE_LOCK_POLL_MS,
-  log: Pick<typeof frizzLog, "info"> = frizzLog,
+  log: Pick<typeof ntwineLog, "info"> = ntwineLog,
 ): WakeLockLoop {
   let was = false
   const tick = () => {

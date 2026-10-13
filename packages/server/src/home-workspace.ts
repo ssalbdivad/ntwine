@@ -1,6 +1,6 @@
 import { mkdirSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
-import { projectStateDir } from "./frizz-paths.ts"
+import { projectStateDir } from "./ntwine-paths.ts"
 import { isDirectory } from "./path-probe.ts"
 import { cwdSlug, projectFromRegistryEntry, type Project } from "./project.ts"
 import { findById, findProjectBySegment, listProjects, readRegistry, reorderProjects, writeRegistry, type RegistryEntry } from "./project-registry.ts"
@@ -14,25 +14,25 @@ import { findById, findProjectBySegment, listProjects, readRegistry, reorderProj
 // that behaves like any project's — its entry in Everything's project list, its lane in the queue, its
 // square in the switcher.
 //
-// IT IS NOT A REGISTERED PROJECT, and cannot be one. A project's board is `<folder>/.frizz/`, and
-// `~/.frizz` is not a free name: it is Frizz's own data root on every install that predates the XDG
-// layout, and on every other install the mere EXISTENCE of that directory switches Frizz back to it on
-// the next boot (frizz-paths.ts), taking every project's threads with it. The home folder is also the
+// IT IS NOT A REGISTERED PROJECT, and cannot be one. A project's board is `<folder>/.ntwine/`, and
+// `~/.ntwine` is not a free name: it is Ntwine's own data root on every install that predates the XDG
+// layout, and on every other install the mere EXISTENCE of that directory switches Ntwine back to it on
+// the next boot (ntwine-paths.ts), taking every project's threads with it. The home folder is also the
 // one directory project-root.ts refuses to adopt, for the same reason. So Home is synthesized here
 // rather than written into registry.json, and its Project splits the two directories every registered
 // project keeps as one:
 //
 //   · `workDir` — the home folder, where agents are spawned and resumed, where their transcripts are
 //     sharded, and what their relative paths resolve against (project.ts workDirOf);
-//   · `dir`     — its STATE DIRECTORY, which holds the board: `<state>/.frizz/threads/<session>/` is
+//   · `dir`     — its STATE DIRECTORY, which holds the board: `<state>/.ntwine/threads/<session>/` is
 //     where a Home thread's scratch directory lives, and a worker is handed that path absolute.
 //
 // Everything that reads `dir` meaning "the board" works unchanged, and a site that should have read
-// workDirOf but did not puts an agent in Frizz's state directory — visibly wrong, never `~/.frizz`.
+// workDirOf but did not puts an agent in Ntwine's state directory — visibly wrong, never `~/.ntwine`.
 //
 // It stays out of the registry's own lookups on purpose. The launcher reads listProjects to pick a
 // project to host the server from (src/launcher.ts mostRecentProject), and hosting from Home would
-// resolve its folder as a workspace — minting `.frizz/.id` in it. Only the SERVER's surfaces — the
+// resolve its folder as a workspace — minting `.ntwine/.id` in it. Only the SERVER's surfaces — the
 // project list, routing, tenant priming — ask for workspaces.
 
 /** Fixed, so every row, state directory and remembered pick survives a restart. "home" in hex. */

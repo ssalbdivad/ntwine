@@ -18,7 +18,7 @@ const json = (result: unknown) => new Response(JSON.stringify({ result }), { hea
 window.fetch = async (input, init) => {
   const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(href, location.href)
-  if (!url.pathname.startsWith("/_frizz/rpc/")) return nativeFetch(input, init)
+  if (!url.pathname.startsWith("/_ntwine/rpc/")) return nativeFetch(input, init)
   if (url.pathname.endsWith("/localMarkdown")) return json({ path: "/fixture/long.md", markdown, truncated: false })
   return json({})
 }

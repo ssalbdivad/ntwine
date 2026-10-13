@@ -9,12 +9,12 @@ import { createRpcClient } from "../../../../scripts/lib/rpc-client.mjs"
 // Create two empty directories, then start the stack in a separate terminal:
 //   nub scripts/adhoc-stack.mjs --port=45837 --project=/abs/a --also-project=/abs/b
 // Its first JSON line contains the sandbox "home" field. With the stack still running:
-//   FRIZZ_QUESTION_NAVIGATION_E2E_URL=http://127.0.0.1:45837 \
-//   FRIZZ_QUESTION_NAVIGATION_E2E_HOME=<the "home" field> nub --test \
+//   NTWINE_QUESTION_NAVIGATION_E2E_URL=http://127.0.0.1:45837 \
+//   NTWINE_QUESTION_NAVIGATION_E2E_HOME=<the "home" field> nub --test \
 //     packages/web/src/components/registeredQuestionNavigation.e2e.test.ts
 // Stop the disposable stack with Ctrl-C when finished.
-const baseUrl = process.env.FRIZZ_QUESTION_NAVIGATION_E2E_URL
-const home = process.env.FRIZZ_QUESTION_NAVIGATION_E2E_HOME
+const baseUrl = process.env.NTWINE_QUESTION_NAVIGATION_E2E_URL
+const home = process.env.NTWINE_QUESTION_NAVIGATION_E2E_HOME
 
 test("registered picks survive fullscreen, project switches and reload, then clear only after a successful send", {
   skip: !baseUrl || !home, timeout: 120_000,
@@ -24,11 +24,11 @@ test("registered picks survive fullscreen, project switches and reload, then cle
   assert.ok(projects.length >= 2)
   const [a, b] = projects
   const slug = "question-navigation"
-  const db = join(home!, ".frizz", "ui.db")
+  const db = join(home!, ".ntwine", "ui.db")
   for (const [i, project] of [a, b].entries()) {
     execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session
       (project_id, slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at)
-      VALUES ('${project.id}', '${slug}', 'aabbccdd-0000-4000-9000-00000000000${i}', 'frizz-${slug}',
+      VALUES ('${project.id}', '${slug}', 'aabbccdd-0000-4000-9000-00000000000${i}', 'ntwine-${slug}',
       '2026-10-09T00:00:00Z', 'Question navigation', 'claude', 'broker', 'opus', 'high', 'default', '2026-10-09T00:01:00Z')`])
   }
   const projectApi = createRpcClient(baseUrl!, a.slug)
@@ -55,7 +55,7 @@ test("registered picks survive fullscreen, project switches and reload, then cle
       // adhoc-stack has no launcher control server; throwaway projects have no icon. These 404s
       // are the app's normal fallback, unrelated to answering. The one 500 below is deliberate.
       const url = m.location().url ?? ""
-      if (m.type() === "error" && !/\/_frizz\/(control\/status|project-icon)/.test(url)
+      if (m.type() === "error" && !/\/_ntwine\/(control\/status|project-icon)/.test(url)
         && !(/\/rpc\/followUp$/.test(url) && /status of 500/.test(m.text()))) errors.push(`${m.text()} ${url}`)
     })
     await page.goto(`${baseUrl}/project/${a.slug}`, { waitUntil: "networkidle2" })
@@ -126,7 +126,7 @@ test("registered picks survive fullscreen, project switches and reload, then cle
     // Both shapes are staged before the send: the picks and the follow-up's typed text.
     const ids = asked.registered.map((q) => q.id)
     const draftKeys = () => page.evaluate((ids) => {
-      const raw = localStorage.getItem("frizz-drafts:v1")
+      const raw = localStorage.getItem("ntwine-drafts:v1")
       return Object.keys(raw ? JSON.parse(raw).entries : {}).filter((k) => k.startsWith("question:") && ids.some((id) => k.includes(id)))
     }, ids)
     const before = await draftKeys()
@@ -135,7 +135,7 @@ test("registered picks survive fullscreen, project switches and reload, then cle
     // The board push can drop the registration before the reply lands, so only the keys captured at send
     // can clear the text draft. Wait for the answer to settle, then require that every key is gone.
     await page.waitForFunction(() => {
-      const raw = localStorage.getItem("frizz-drafts:v1")
+      const raw = localStorage.getItem("ntwine-drafts:v1")
       return !raw || !Object.keys(JSON.parse(raw).entries).some((k) => k.includes("question-navigation") && k.endsWith(":picks"))
     })
     assert.deepEqual(await draftKeys(), [])

@@ -1,6 +1,6 @@
 ---
 name: headless-browser
-description: Drive a local page in Chrome and capture it WITHOUT putting a window on the maintainer's screen — `scripts/shot.mjs` (isolated headless puppeteer, screenshot + in-page evaluate + page-error report) as the default, Chrome DevTools MCP when you must genuinely drive rather than photograph, plus the browser process hygiene that keeps concurrent agents from killing each other's runs, why a headless run stalls while the Mac's display sleeps (`Runtime.callFunctionOn timed out`, screenshots that never return), and the rules for embedding screenshots so Frizz actually renders them. Load this whenever you need to SEE a page — proving something renders, responsive/overflow checks, console and network inspection, capturing evidence for a handoff, or any change judged by eye. Popping a visible browser is the single most disruptive thing an agent does here and is never necessary. Pair with `frizz-stack` for something to point it at, and `visual-review` / `optical-spacing` for how to JUDGE the shot.
+description: Drive a local page in Chrome and capture it WITHOUT putting a window on the maintainer's screen — `scripts/shot.mjs` (isolated headless puppeteer, screenshot + in-page evaluate + page-error report) as the default, Chrome DevTools MCP when you must genuinely drive rather than photograph, plus the browser process hygiene that keeps concurrent agents from killing each other's runs, why a headless run stalls while the Mac's display sleeps (`Runtime.callFunctionOn timed out`, screenshots that never return), and the rules for embedding screenshots so Ntwine actually renders them. Load this whenever you need to SEE a page — proving something renders, responsive/overflow checks, console and network inspection, capturing evidence for a handoff, or any change judged by eye. Popping a visible browser is the single most disruptive thing an agent does here and is never necessary. Pair with `ntwine-stack` for something to point it at, and `visual-review` / `optical-spacing` for how to JUDGE the shot.
 version: 0.1.0
 metadata:
   internal: true
@@ -24,7 +24,7 @@ tabs in my actual real Chrome"*), and the cause was a skill file recommending th
 **Every browser you start comes from `launchHeadless()` in `scripts/lib/headless-browser.mjs`.** It launches puppeteer's own `chrome-headless-shell` on a temp profile: no window, no Dock tile, dark by default, and never the installed Google Chrome. `shot.mjs`, the `verify-*` scripts and the e2e tests all go through it. So does a driver you write yourself:
 
 ```js
-import { launchHeadless } from "/abs/path/to/frizz/scripts/lib/headless-browser.mjs"
+import { launchHeadless } from "/abs/path/to/ntwine/scripts/lib/headless-browser.mjs"
 
 const browser = await launchHeadless() // or { protocolTimeout: 30_000, args: ["--disable-gpu"], colorScheme: "light" }
 ```
@@ -100,9 +100,9 @@ photograph it.
 > launch `chrome-devtools-mcp` any other way than through the wrapper.** If the MCP is unavailable or
 > collides anyway, fall straight to `shot.mjs` — don't fight it.
 >
-> **The `.mcp.json` is where the browser comes from — Frizz does not supply one.** Frizz mounted
+> **The `.mcp.json` is where the browser comes from — Ntwine does not supply one.** Ntwine mounted
 > chrome-devtools into every worker it dispatched, on both backends, until 2026-08-26; it now injects only
-> the `frizz` MCP server. So these tools are here because THIS repo configures them (`.mcp.json` +
+> the `ntwine` MCP server. So these tools are here because THIS repo configures them (`.mcp.json` +
 > `enabledMcpjsonServers` in `.claude/settings.json`), and a worker dispatched in a repo that configures
 > nothing has no browser at all. Anyone who wants one elsewhere adds it themselves — a project `.mcp.json`,
 > or `claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@<version> --headless
@@ -111,7 +111,7 @@ photograph it.
 **Removing an injected style: hold the handle.** `page.addStyleTag()` returns an ElementHandle — remove
 THAT (`await tag.evaluate((el) => el.remove())`). Never sweep `querySelectorAll("style")` matching on
 text content: in dev, Vite injects the entire app CSS as a `<style>`, so a predicate like "contains
-`.frizz-todo-row` and `nowrap`" matches the whole stylesheet and deletes it. The page then renders
+`.ntwine-todo-row` and `nowrap`" matches the whole stylesheet and deletes it. The page then renders
 unstyled and every geometry assertion after it fails for a reason that has nothing to do with your change.
 
 ---
@@ -149,9 +149,9 @@ Measured 2026-10-05 on this machine (Apple M1 Max, Chrome compositing on ANGLE M
 
 ## 4. Putting the shot in the handoff
 
-Show the **decisive** screenshots (not bulk) in a **```lightbox fence** — one absolute path per line, a caption after each — which Frizz draws as a gallery the maintainer opens, zooms into and pages through. It is the ONLY way a picture reaches them: Frizz folds every tool call into a collapsed row, a screenshot you took or Read included, so a shot you only looked at is on nobody's screen (maintainer 2026-10-03: *"No images or screenshots are visible unless you make them visible to the user with the light box"*). A screen recording goes in the same fence — `.mp4`, `.webm` or `.mov` — and plays in the viewer. Markdown `![](…)` still renders, but it is no longer the way to do it; and never `SendUserFile`, which a dispatched worker does not have.
+Show the **decisive** screenshots (not bulk) in a **```lightbox fence** — one absolute path per line, a caption after each — which Ntwine draws as a gallery the maintainer opens, zooms into and pages through. It is the ONLY way a picture reaches them: Ntwine folds every tool call into a collapsed row, a screenshot you took or Read included, so a shot you only looked at is on nobody's screen (maintainer 2026-10-03: *"No images or screenshots are visible unless you make them visible to the user with the light box"*). A screen recording goes in the same fence — `.mp4`, `.webm` or `.mov` — and plays in the viewer. Markdown `![](…)` still renders, but it is no longer the way to do it; and never `SendUserFile`, which a dispatched worker does not have.
 
-Frizz serves a local picture or video through its origin-gated `/local-image` route, and the route is deliberately path-unconfined (`packages/server/src/local-image.ts`): any absolute path that realpath-resolves to a regular `.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`/`.mp4`/`.m4v`/`.webm`/`.mov` file renders — `.adhoc-shots/` included. The trap is **durability**, not authorization: `/tmp` and `os.tmpdir()` are emptied at boot, and a handoff card is read hours or days later. Three shots embedded from `/tmp` on 2026-08-29 had become gray path labels by the time the maintainer read them, because the machine rebooted in between (a picture that fails to load deliberately falls back to its plain path text). Show them from a path that outlives a reboot: `.adhoc-shots/` right where `shot.mjs` wrote it, or your thread's scratch directory. Keep a concise textual finding beside the fence; the handoff must still read when the pictures are unavailable.
+Ntwine serves a local picture or video through its origin-gated `/local-image` route, and the route is deliberately path-unconfined (`packages/server/src/local-image.ts`): any absolute path that realpath-resolves to a regular `.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`/`.mp4`/`.m4v`/`.webm`/`.mov` file renders — `.adhoc-shots/` included. The trap is **durability**, not authorization: `/tmp` and `os.tmpdir()` are emptied at boot, and a handoff card is read hours or days later. Three shots embedded from `/tmp` on 2026-08-29 had become gray path labels by the time the maintainer read them, because the machine rebooted in between (a picture that fails to load deliberately falls back to its plain path text). Show them from a path that outlives a reboot: `.adhoc-shots/` right where `shot.mjs` wrote it, or your thread's scratch directory. Keep a concise textual finding beside the fence; the handoff must still read when the pictures are unavailable.
 
 If a check was skipped (MCP unavailable, a state you couldn't reach), say so plainly — don't imply
 coverage you didn't have.
@@ -160,7 +160,7 @@ coverage you didn't have.
 
 ## Composes with
 
-- **`frizz-stack`** — boot the thing you are pointing this at.
+- **`ntwine-stack`** — boot the thing you are pointing this at.
 - **`visual-review`** — this skill gets you the shot; that one tells you how to JUDGE it. Load it for any
   UI change: it carries the ink-measurement routine for icon-beside-text alignment (every glyph is off by
   a different amount, so one shared nudge cannot fix a cluster) and the baseline-probe bug that inflates a

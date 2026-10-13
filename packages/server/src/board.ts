@@ -7,8 +7,8 @@ import {
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import watcher from "@parcel/watcher"
-import type { BoardSnapshot, ClaudeModel, ThreadScheduleRef, ThreadTerminal, ThreadView, RuntimeState, ThreadRecurringPrompt, ProviderError } from "@frizz/shared"
-import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingNeedsInput, awaitingStatus, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@frizz/shared"
+import type { BoardSnapshot, ClaudeModel, ThreadScheduleRef, ThreadTerminal, ThreadView, RuntimeState, ThreadRecurringPrompt, ProviderError } from "@ntwine/shared"
+import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingNeedsInput, awaitingStatus, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { workDirOf, type Project } from "./project.ts"
 import { liftWorkingDir } from "./thread-cwd.ts"
@@ -23,14 +23,14 @@ import { claudeModelStanding } from "./backend/claude-model-upgrade.ts"
 import type { Tailer, SessionTelemetry, FenceView } from "./tailer.ts"
 import { firstTextLine } from "./tailer.ts"
 import type { InteractionChange } from "./interaction-store.ts"
-import { frizzDirExists } from "./frizz.ts"
+import { ntwineDirExists } from "./ntwine.ts"
 import { githubStatusKey, liveActivityOf, needsInputParkHolds, parkExpiresAt, parkIsHonoured, parseIssueRef, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
 import { findByPath } from "./project-registry.ts"
 import { homeWorkspaceSlug, isHomeWorkspace } from "./home-workspace.ts"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
 import { effectivePermissionMode, fallbackTitle, resolveLegacyThreadFile } from "./dispatch.ts"
 import { ProducerStoppedError } from "./shutdown.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 import { createQueueClock } from "./queue-clock.ts"
 import { adoptionRuntimeBinding } from "./adoption-recovery.ts"
 import { limitPauseIsStale, textResetInstant } from "./backend/usage-limit.ts"
@@ -38,7 +38,7 @@ import { getSettings } from "./settings.ts"
 import { rowThreadName } from "./thread-names.ts"
 
 // The read model is provenance-bound to the durable session registry. A session row exists only after
-// Frizz dispatches or explicitly adopts a thread, so unrelated legacy `.frizz/*.md` files and raw
+// Ntwine dispatches or explicitly adopts a thread, so unrelated legacy `.ntwine/*.md` files and raw
 // terminal transcripts never enter this board (or its queue/error surface). The tailer contributes
 // telemetry only for registered rows. Plan documents remain project artifacts and are read separately.
 
@@ -56,11 +56,11 @@ const QUEUE_CLOCK_ALIVE_SETTING = "queue.clock.alive.v1"
 // when the app-server process dies mid-turn it simply stops, so the folded turn stays "in-flight"
 // forever and the thread spins on `running` — never at rest, so never queued, so invisible (four
 // threads sat like this for hours on 2026-07-22). The bridge is the authority on whether a turn is
-// actually running; a rollout that has not advanced since frizz took the thread onto its current
+// actually running; a rollout that has not advanced since ntwine took the thread onto its current
 // connection is being driven by nobody at all.
 //
 // Rollout activity AFTER that instant means some OTHER writer is driving the thread — the operator
-// running `codex resume` in their own terminal — which is a real live turn frizz is mirroring. Keep it.
+// running `codex resume` in their own terminal — which is a real live turn ntwine is mirroring. Keep it.
 //
 // The grace exists because the two signals are read from different places: the bridge clears its turn
 // on `turn/completed` while the rollout's matching record still has to reach the tailer's next tick.
@@ -73,7 +73,7 @@ export function appServerTurnStalled(
   lastActivityAt: string | undefined,
   nowMs: number,
 ): boolean {
-  // Not bridge-owned — frizz has never held this thread, so it has no standing to call the turn dead.
+  // Not bridge-owned — ntwine has never held this thread, so it has no standing to call the turn dead.
   if (!liveness) return false
   if (liveness.bridgeTurn) return false
   const ownedSince = Date.parse(liveness.ownedSince)
@@ -99,7 +99,7 @@ function deriveRuntime(
   headlessLostWork = false,
 ): RuntimeState {
   if (!row) return "none"
-  // App-server codex sessions have NO process of their own for frizz to probe. A persisted bridge
+  // App-server codex sessions have NO process of their own for ntwine to probe. A persisted bridge
   // thread is always resumable, so liveness is never "is some process alive" — it's the rollout-tailed
   // turn state. Probing for one here would mark every headless thread "exited" (and, mid-turn, trip
   // the crash-net). Never do that.
@@ -125,7 +125,7 @@ function deriveRuntime(
     return appServerStalled ? "exited" : "running"
   }
   // Every live row is headless and returned above. Anything reaching here is a PRE-CUTOVER row whose
-  // transport was an interactive terminal — frizz has driven none since the broker landed, so that
+  // transport was an interactive terminal — ntwine has driven none since the broker landed, so that
   // row's process cannot be alive. Reporting "exited" is what puts it in front of the operator
   // (stalled card + Retry) instead of leaving it spinning against a liveness probe that can never
   // succeed.
@@ -202,7 +202,7 @@ export function degradeIfNoTranscript(runtime: RuntimeState, noTranscript: boole
 // grant anything not at rest. So one record that re-opened the turn — a task-notification, a wake
 // pulse, an echoed tool_result, none of which the chat even renders — put a thread in the ACTIVE rail,
 // shimmering "Thinking…", above a live question card with a Send answers button (maintainer 2026-08-24:
-// "this needs to be structurally impossible… it represents a complete failure of frizz").
+// "this needs to be structurally impossible… it represents a complete failure of ntwine").
 //
 // Fixing the derivations was necessary and not sufficient: a fix inside `pendingQuestion` leaves the
 // next signal free to re-open the same gap. Degrading the RUNTIME closes it structurally, because
@@ -224,7 +224,7 @@ function capLine(s: string | undefined | null, cap = LINE_CAP): string | undefin
 }
 
 // ---- Session threads (2026-07-09): the working rail's unit — exactly one ThreadView per durable
-// registry row. The legacy frizz status vocabulary does not apply: `status` is synthesized "active"
+// registry row. The legacy ntwine status vocabulary does not apply: `status` is synthesized "active"
 // (the field is required but display keys on kind/state/needsYou), and block/dep fields are inert.
 
 // Parse an ISO time to epoch-ms, or -Infinity when absent/unparseable (a missing clearance never
@@ -244,7 +244,7 @@ function effectiveSessionState(row: SessionRow, registeredLegacyTerminal: boolea
   return "open"
 }
 
-// Pre-session-first Frizz rows may have state=NULL and derive their archived state from a paired
+// Pre-session-first Ntwine rows may have state=NULL and derive their archived state from a paired
 // terminal thread document. Preserve that migration behavior without scanning the directory: open
 // only the canonical filename selected by a durable session row, reject symlinks at open time, and
 // read only whether status is `done`/`dismissed`. Malformed or missing files fail open as an active session and never
@@ -258,16 +258,16 @@ function registeredLegacyFileIsTerminal(projectDir: string, slug: string): boole
   return status === "done" || status === "dismissed"
 }
 
-// WHAT A `.frizz` FILESYSTEM EVENT CAN ACTUALLY CHANGE ABOUT THIS BOARD, and it is one thing:
-// `legacyTerminalCache`, whose only input is `.frizz/<slug>.md` — a DIRECT child of `.frizz`
+// WHAT A `.ntwine` FILESYSTEM EVENT CAN ACTUALLY CHANGE ABOUT THIS BOARD, and it is one thing:
+// `legacyTerminalCache`, whose only input is `.ntwine/<slug>.md` — a DIRECT child of `.ntwine`
 // (resolveLegacyThreadFile opens nothing else and rejects anything whose resolved dirname is not
-// `.frizz` itself). Everything else `assemble()` reads is ui.db and tailer state, and both arrive on
+// `.ntwine` itself). Everything else `assemble()` reads is ui.db and tailer state, and both arrive on
 // their own edges. So a full rebuild is warranted by a top-level `.md` and by nothing else down there.
 //
-// That distinction is worth money because `.frizz/` is NOT only board state. Frizz hands every
-// dispatched worker `.frizz/threads/<session-id>/` as a free-form scratch directory it may fill as it
+// That distinction is worth money because `.ntwine/` is NOT only board state. Ntwine hands every
+// dispatched worker `.ntwine/threads/<session-id>/` as a free-form scratch directory it may fill as it
 // likes (dispatch.ts), and the board CLI keeps a per-session sentinel plus a `.seen` liveness
-// heartbeat under `.frizz/.session-state/` (board/config.mjs) — on this checkout, 715 scratch
+// heartbeat under `.ntwine/.session-state/` (board/config.mjs) — on this checkout, 715 scratch
 // directories and 559 sentinels. Watching the whole tree recursively turned every note any agent wrote
 // into a full rebuild, and a rebuild is thousands of SYNCHRONOUS node:sqlite queries on the event loop
 // (five per thread across 637 threads here). Measured 2026-09-04: the board RPC answers in 4.5-10ms on
@@ -281,21 +281,21 @@ function registeredLegacyFileIsTerminal(projectDir: string, slug: string): boole
 // tree nobody has thought of yet costs one string test rather than a rebuild.
 //
 // `worktrees` is the costly one. The worker contract puts every git worktree at
-// `.frizz/worktrees/<slug>/` (workerPrompt.ts § Git worktrees), and each is a full checkout with its own
+// `.ntwine/worktrees/<slug>/` (workerPrompt.ts § Git worktrees), and each is a full checkout with its own
 // `node_modules` and build output: on 2026-10-06 arktype's held 4.4G in 286,510 directories, every one
 // an inotify descriptor. Opening that project took 711s, and a build deleting `out/structure` mid-walk
 // failed the subscribe with ENOENT and took the whole project down with it — no scheduler, so a
 // question answered a second later was never delivered.
-const FRIZZ_WATCH_IGNORED_DIRS = ["threads", ".session-state", "worktrees"]
+const NTWINE_WATCH_IGNORED_DIRS = ["threads", ".session-state", "worktrees"]
 
 // True when a watcher event names a file the board would actually re-read. `roots` holds every spelling
-// the watched `.frizz` may be reported under — see watchFrizzDir for why there is more than one.
+// the watched `.ntwine` may be reported under — see watchNtwineDir for why there is more than one.
 //
 // FAILING OPEN IS THE RIGHT FAILURE: a spurious rebuild costs milliseconds, a dropped one costs up to
 // RECONCILE_MS of a stale sidebar. So this accepts every direct-child `.md`, not only the ones whose
 // stem is a live session slug — an unregistered `foo.md` contributes nothing to the board, but keeping
 // it out of the predicate would buy a rounding error and put the answer at the mercy of the registry.
-export function isBoardRelevantFrizzPath(roots: ReadonlySet<string>, path: string): boolean {
+export function isBoardRelevantNtwinePath(roots: ReadonlySet<string>, path: string): boolean {
   return path.endsWith(".md") && roots.has(dirname(path))
 }
 
@@ -379,7 +379,7 @@ function stampStoppable(agents: ThreadView["subAgents"], row: SessionRow): Threa
 }
 
 // The same question for a background SHELL, and it is deliberately the other way round: the tailer has
-// already said whether frizz holds a handle for each shell (BgShellView.stoppable), so all this adds is
+// already said whether ntwine holds a handle for each shell (BgShellView.stoppable), so all this adds is
 // the TRANSPORT half — and on a thread with no control channel it must REVOKE the tailer's half rather
 // than merely decline to add one. A shell on a legacy pre-cutover thread carries a task id in its
 // launch ack just the same; nothing outside that worker's own terminal could ever act on it.
@@ -445,7 +445,7 @@ export function stampShellBudgets(
 // a child still reading "running" died mid-work, while a dead worker with a shell behind it is just a
 // shell whose owner is gone.
 // ---- THE DECLARED PARK ---------------------------------------------------------------------------
-// A thread is "awaiting background work" when it SAYS SO, naming what it waits on — not when frizz
+// A thread is "awaiting background work" when it SAYS SO, naming what it waits on — not when ntwine
 // notices it happens to have something running. That inference is what put the resting card on a thread
 // whose only background work was a dev server nobody ever tore down: true by the letter, useless as a
 // signal (maintainer 2026-08-14: "For it to be truly awaiting something, it needs to list it
@@ -454,7 +454,7 @@ export function stampShellBudgets(
 // THE FENCE REGISTERS NOTHING. It is display-only, and its whole job is to let a worker come to rest
 // without being bumped for a handoff. A background shell already wakes its agent when it finishes — the
 // harness reports the completion and the transcript carries a `wake` boundary for it, which is the
-// hairline you see in chat — and a sub-agent's return re-invokes its parent. Frizz does not need to arm
+// hairline you see in chat — and a sub-agent's return re-invokes its parent. Ntwine does not need to arm
 // anything for either, and an earlier version of this that did was solving a problem that does not
 // exist (maintainer 2026-08-14: "Any time a background shell completes, it should notify the agent…
 // Both subagents and background shells should be display-only here").
@@ -513,7 +513,7 @@ function liveWaitHandles(tele: SessionTelemetry | undefined): Set<string> {
 }
 
 /** The same live handles as `liveWaitHandles`, but resolved rather than merely tested — for
- *  `frizzctl watch`, which has to answer three questions the fence's integrity check never asks:
+ *  `ntwinectl watch`, which has to answer three questions the fence's integrity check never asks:
  *  does this handle name anything live, WHICH KIND is it, and what is the work called.
  *
  *  THE KIND IS RESOLVED, NOT TRUSTED. A shell handle and a sub-agent handle are both opaque runtime
@@ -559,7 +559,7 @@ export function hasDeclaredBackgroundPark(
   if (named.length === 0) return false
   const live = liveWaitHandles(tele)
   // ALL of them, not any: the thread said it was waiting on every one, so a single dead name means the
-  // fence no longer describes reality and frizz should stop believing it.
+  // fence no longer describes reality and ntwine should stop believing it.
   if (!named.every((id) => live.has(id))) return false
   // A park with no expiry is the dev-server problem inverted: instead of a card that lies, a thread that
   // disappears. The fence's own instant bounds it without any new syntax.
@@ -607,7 +607,7 @@ export function safeQuestionAnswer(raw: string | null): QuestionAnswer | undefin
  *  SPENT BY THE WORKER RECEIVING IT, as the transcript shows it. `delivered` is the OUTBOX's verdict on
  *  the carrying wake (scheduler.evalQuestionAnswers) and can lead the transcript — a daemon's
  *  acknowledgement files the wake before the record lands — so keying on it would reopen the same hole
- *  a moment wide. The newest USER record is the honest test — frizz's delivery IS one — and it is the same test
+ *  a moment wide. The newest USER record is the honest test — ntwine's delivery IS one — and it is the same test
  *  `registeredDoneFence` uses for the same reason. A dismissal alone shows nothing: nobody is being
  *  woken for it, so there is no arrival to bridge to — UNLESS `wakeOnDismissals` says one is. On an
  *  AUTONOMOUS thread (a Goal armed on rest — the exact gate evalQuestionAnswers wakes on) the
@@ -633,7 +633,7 @@ export function answersInFlight(rows: readonly ThreadQuestionRow[], lastUserAt: 
   }
   if (answers.length > 0) return questionAnswerMessage(answers, dismissed)
   // questionAnswerMessage would compose the same cancellation wake for an empty answers list; calling
-  // the producer directly keeps this branch readable as what it is — frizz's own "nobody is coming".
+  // the producer directly keeps this branch readable as what it is — ntwine's own "nobody is coming".
   return wakeOnDismissals && dismissed.length > 0 ? questionsCancelledWakeMessage(dismissed.length) : undefined
 }
 
@@ -693,7 +693,7 @@ export function signoffNudgeVerdict(
   // the queue; ~20 of 46 nudges over 2026-09-29..10-01 went to a worker waiting on a shell, sub-agent or
   // Workflow. Ineligible, not signed-off: a child is not a sign-off, so it gives no allowance back, and
   // the rest the child comes back to is judged on its own. A shell does NOT get this — see
-  // signoffWaitingNudgeMessage in @frizz/shared for why it is asked instead.
+  // signoffWaitingNudgeMessage in @ntwine/shared for why it is asked instead.
   //
   // EXCEPT ON A THREAD WITH A GOAL ARMED AT REST. A child parks the thread out of the QUEUE, but the Goal
   // deliberately ignores children (scheduler evalRestPrompts, maintainer 2026-08-02) and stands down only
@@ -788,7 +788,7 @@ export function childJustReturned(tele: Pick<SessionTelemetry, "retiredSubAgents
 }
 
 /** How long a rest the sign-off nudge is about to take stays out of the queue. The scheduler mints the
- *  nudge within a tick (measured 2.2s on 2026-10-01, `work-on-a-frizz-integration-vscode`) and the
+ *  nudge within a tick (measured 2.2s on 2026-10-01, `work-on-a-ntwine-integration-vscode`) and the
  *  worker's reply lands a beat later; the cap is for a nudge that never arrives (runtime unreachable,
  *  outbox exhausted), so that rest still reaches the queue rather than hiding behind a wake that died. */
 export const SIGNOFF_NUDGE_EXCUSAL_MS = 60_000
@@ -950,13 +950,13 @@ export function hasDeclaredWait(
 // ALL of them, not any. With several PRs watched, one finishing is something the human can act on, so
 // the thread queues — the same all-or-nothing reading the declared park uses.
 //
-// AN UNPOLLED PR DOES NOT HOLD. No reading means frizz does not know, and not-knowing must never be a
+// AN UNPOLLED PR DOES NOT HOLD. No reading means ntwine does not know, and not-knowing must never be a
 // reason a thread leaves the queue; nor does a PR with no checks at all (`none`), which would otherwise
 // wait forever for CI that is never coming. Only a live `running` reading holds, and only while the PR
 // is still open.
 //
 // THE REGISTERED WATCH IS THE SIGNAL, NOT THE FENCE (2026-09-20). Until then this read `prs:` hints only
-// and required each to be registered too, so a worker that called `frizzctl watch-pr` and rested
+// and required each to be registered too, so a worker that called `ntwinectl watch-pr` and rested
 // WITHOUT a fence — the shape the worker contract steers toward ("Register FIRST: this line states the
 // wait, it does not create one") — was queued while its checks ran, while the rail's own mark
 // (groups.prChecksRunning) read the registered rows and called the same thread live. One thread, two
@@ -1002,7 +1002,7 @@ function hasLiveOwnWork(tele: SessionTelemetry | undefined, registeredPrWatches:
 /** A standing PR park the scheduler will actually fire. DECLARED AND REGISTERED, both — the rule
  *  heldByRunningChecks and hasParkedTimerWatch already spell out: the declaration says the thread is
  *  waiting, the registration is what will actually wake it. Until 2026-08-26 this read the declaration
- *  alone, so a `prs:` line naming a PR the worker never registered with `frizzctl watch-pr`
+ *  alone, so a `prs:` line naming a PR the worker never registered with `ntwinectl watch-pr`
  *  counted as a wait: the resting card showed with NOTHING in it (a `prs:` entry adds no watch row of
  *  its own — see fenceWatchViews), the fence card hid itself behind it, and the ref — the one thing the
  *  wait was about — rendered on no surface at all. Membership is by githubStatusKey, so a fence naming
@@ -1114,7 +1114,7 @@ function bgSnoozeArmed(row: Pick<SessionRow, "bg_snooze_rested_at" | "rested_at"
 // and the human said which of the two they want to see: it leaves the queue and rests in Snoozed as a
 // `watching` rest, exactly where a worker's own `status: watching` park on a PR would put it, until the
 // watch reports — that wake starts a turn, the next rest is a different instant, and the park is spent,
-// so the worker's answer to the news decides the thread's place again. Frizz parks nothing here on its
+// so the worker's answer to the news decides the thread's place again. Ntwine parks nothing here on its
 // own: the snooze column is written only by the human's two clicks.
 //
 // Needs the armed watcher: a done the human parked on a watch that has since settled (merged, closed,
@@ -1238,9 +1238,9 @@ function hasParkedExternalWait(tele: SessionTelemetry | undefined, _nowMs: numbe
   // NOTHING EXTERNAL PARKS A THREAD ANY MORE. This carried the two hint kinds that took a thread out of
   // the queue on the worker's word alone: `human:`, which parked it in Snoozed and which NOTHING EVER
   // FIRED, and `timer: <instant>`, one of which was written 5h55m in the past and stalled its thread for
-  // 5.5 hours. Both are deleted (see the AwaitingHint doc block in @frizz/shared): waiting on a person is
+  // 5.5 hours. Both are deleted (see the AwaitingHint doc block in @ntwine/shared): waiting on a person is
   // a ```question, and a timer is a registered row named by id like every other item. Parking is decided
-  // by the structural park alone now — hasDeclaredBackgroundPark — which frizz can actually check.
+  // by the structural park alone now — hasDeclaredBackgroundPark — which ntwine can actually check.
   return false
 }
 
@@ -1362,12 +1362,12 @@ export function fenceWatchViews(
 // to rest. A user-owned snooze temporarily suppresses every queue reason—including a concrete ask,
 // permission prompt, or crash—then the exact deadline restores the still-current reason. Truthful
 // external waits place ordinary rest in Snoozed without writing lifecycle state.
-// A follow-up frizz has delivered but the transcript has not yet reflected: it lives in the delivery
+// A follow-up ntwine has delivered but the transcript has not yet reflected: it lives in the delivery
 // ledger as `pending` (injected, no JSONL evidence yet), `enqueued` (positively receipted by Claude
 // Code's own queue) or `delivered` (the transport's receipt proved it went straight into a turn). All
 // three mean the human's message is handled and in flight, and so does the write-ahead `sending` (the
 // transport is being called right now; it settles or fails within SENDING_STALL_MS). `unconfirmed` is
-// NOT fresh — frizz could not confirm that send, so it must stay visible for the human to re-drive — and
+// NOT fresh — ntwine could not confirm that send, so it must stay visible for the human to re-drive — and
 // `failed` is not either: the words never reached the worker, so the thread is still waiting on them.
 //
 // `processGone` is what keeps "in flight" honest, and it is the whole reason this reads a second
@@ -1382,7 +1382,7 @@ export function fenceWatchViews(
 // sub-agent phantom deriveRuntime's `headlessLostWork` fixed, and the same lesson.
 function hasFreshDelivery(row: SessionRow, processGone: boolean): boolean {
   if (processGone) return false
-  // `held` counts: Frizz is keeping a message of the human's for exactly this rest and is about to
+  // `held` counts: Ntwine is keeping a message of the human's for exactly this rest and is about to
   // deliver it (releaseHeldFollowUps), so the thread is not waiting on them either.
   return parseDeliveryLedger(row.delivery_ledger).some((d) => d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "delivered" || d.state === "held")
 }
@@ -1406,7 +1406,7 @@ export function deriveDeliveryInFlight(
   runtime: RuntimeState,
   needsYou: boolean,
   deliveryProcessGone: boolean,
-  // A frizz wake owns this rest and is on its way: the human's answer, or the sign-off nudge.
+  // A ntwine wake owns this rest and is on its way: the human's answer, or the sign-off nudge.
   wakeInFlight: boolean,
   nowMs = Date.now(),
 ): boolean {
@@ -1474,7 +1474,7 @@ export function deriveNeedsYou(
   // interaction-clearance would bury it forever after one view). The legacy needsAction had this net
   // (active/planning + exited/none); deriveNeedsYou dropped it — restored here (found 2026-07-09).
   if (runtime === "exited" && tele?.turn === "in-flight") return true
-  // A human follow-up frizz has DELIVERED but the transcript has not YET reflected — the tailer folds
+  // A human follow-up ntwine has DELIVERED but the transcript has not YET reflected — the tailer folds
   // JSONL on a poll that runs seconds behind under load — sits in the delivery ledger as pending or
   // enqueued. The human has already responded, so the thread is NOT awaiting them: suppress it here,
   // from SERVER TRUTH, so a card the operator just steered leaves the queue and STAYS gone until the
@@ -1482,7 +1482,7 @@ export function deriveNeedsYou(
   // "reappears after ~10s, then leaves again" flicker). This is the durable, reload-safe complement to
   // the client's optimistic steer. Placed AFTER the crash net (a delivered follow-up to a worker that
   // then died must still surface) and the hard live asks, but before the at-rest reasons a steer
-  // resolves (a question, a done handoff, bare rest). `unconfirmed` is excluded on purpose: a send frizz
+  // resolves (a question, a done handoff, bare rest). `unconfirmed` is excluded on purpose: a send ntwine
   // could not confirm is one the human may need to re-drive, so the ledger's own aging re-surfaces it.
   if (hasFreshDelivery(row, deliveryProcessGone)) return false
   // THE SAME EXCUSAL FOR AN ANSWER. answerQuestions stores the answer and the scheduler delivers it a
@@ -1518,7 +1518,7 @@ export function deriveNeedsYou(
   // stale ```awaiting fence from the rest BEFORE the kill must not bury it. The operator's own snooze
   // still wins (futureSnooze, checked first), so a card can be parked deliberately.
   if (limitPause) return true
-  // A BARE REST THE SIGN-OFF NUDGE IS ABOUT TO TAKE is not the human's yet: frizz is sending the worker
+  // A BARE REST THE SIGN-OFF NUDGE IS ABOUT TO TAKE is not the human's yet: ntwine is sending the worker
   // back to sign off, and the queue reads what it signs off with. Queueing it here is what made a card
   // blink in and out — see signoffNudgeDue. After every hard member above, so nothing that IS the
   // human's waits behind it.
@@ -1593,7 +1593,7 @@ export function deriveNeedsYou(
   // this too: respect the worker's completion signal (show the done card).
   // A DECLARED PARK KEEPS THE THREAD OUT OF THE QUEUE. The worker named what it is waiting on and every
   // name still matches something live, so there is nothing for the human to do until one of them reports
-  // — which is the difference between this and the line below, where frizz merely NOTICED something
+  // — which is the difference between this and the line below, where ntwine merely NOTICED something
   // running. See `hasDeclaredBackgroundPark`.
   //
   // It rides `excuseLiveOwnWork` for the same reason the line below does: this is a QUEUE rule, and
@@ -1616,7 +1616,7 @@ export function deriveNeedsYou(
   // for the reason that flag exists: the CARD must still state the wait (deriveAwaitingBackground opts
   // out), or the drawer blanks at rest and reads as "the agent died".
   if (parkExcuses && heldByRunningChecks(github, registeredPrWatches)) return false
-  // AN HONOURED PARK. The worker fenced on waits frizz can see, and nothing it named has settled — so
+  // AN HONOURED PARK. The worker fenced on waits ntwine can see, and nothing it named has settled — so
   // there is nothing for the human to do until one of them wakes it. See hasHonouredPark.
   if (parkExcuses && hasHonouredPark(tele, nowMs, registeredPrWatches, armedTimerIds)) return false
   // A TIMER PARK TAKES THE SAME SNOOZE (2026-08-25). A timer park that is NOT honoured (no `for:`, or
@@ -1647,10 +1647,10 @@ export function deriveNeedsYou(
 }
 
 // THE QUEUE RULE FOR A THREAD THAT ANSWERS FOR ITSELF — the at-rest tail of deriveNeedsYou for a worker
-// dispatched under the answer-required contract (NEEDS_INPUT_REQUIRED_AT in @frizz/shared). Three rules,
+// dispatched under the answer-required contract (NEEDS_INPUT_REQUIRED_AT in @ntwine/shared). Three rules,
 // where the legacy tail has one per kind of wait:
 //
-//  1. `status: working` or `status: watching` (or the older `needs_input: false`) on a park frizz can
+//  1. `status: working` or `status: watching` (or the older `needs_input: false`) on a park ntwine can
 //     honour keeps the thread OUT of the queue. Which band it then sits in — Running or Snoozed — is
 //     deriveWaitStatus's verdict. "Honour" is the scheduler's own reading (awaiting.needsInputParkHolds):
 //     every named item live and the `for:` not yet run out — so a wrong answer cannot hide a thread that
@@ -1658,7 +1658,7 @@ export function deriveNeedsYou(
 //  2. Any other rest on running work QUEUES, with the resting card and its event-snooze: `needs_input`, a
 //     fence with no answer (the scheduler bumps it), and a rest with work out and no fence at all (the
 //     sign-off nudge teaches the fence). This is where a live sub-agent, a registered watch and a PR whose
-//     CI is still running used to excuse the thread on frizz's guess; the worker says so now, or it queues.
+//     CI is still running used to excuse the thread on ntwine's guess; the worker says so now, or it queues.
 //  3. A `done` handoff and a rest with nothing out queue as they always did.
 //
 // `excuseLiveOwnWork` false is deriveAwaitingBackground asking for the FACT, as it does of the legacy
@@ -1823,7 +1823,7 @@ export function deriveAwaitingBackground(
 //    sub-agent; the child keeps its own spinner on its own row.
 //
 // A fence that answers with the older `needs_input: false`, and a legacy fence with neither line, get
-// frizz's reading instead: `working` while a live sub-agent or moving CI is out, `watching` otherwise —
+// ntwine's reading instead: `working` while a live sub-agent or moving CI is out, `watching` otherwise —
 // shells included, since a shell alone cannot say whether it is a test run or a watcher. That is what
 // moves the reported thread, a 23h shell watcher on a pre-cut fence, into Snoozed with no fence change.
 //
@@ -1887,7 +1887,7 @@ export function resolveSessionProfile(
   // keeps: observedProfileIfCurrentStmt in storage.ts fences the same case and carries the full account.
   // Both halves say the same thing, so the row and the readout cannot disagree about a thread's target.
   //
-  // The trade is stated on that statement: on a claude row with a hand-set profile, a model change frizz
+  // The trade is stated on that statement: on a claude row with a hand-set profile, a model change ntwine
   // never made and cannot see is no longer learned back.
   const setAt = row.profile_set_at ? Date.parse(row.profile_set_at) : NaN
   const operatorSetSticks = (row.backend ?? "claude") !== "codex"
@@ -1940,7 +1940,7 @@ export function resolvePendingPermission(row: Pick<SessionRow, "permission_pendi
 }
 
 // The recurring prompt as BOTH readers see it: the board's Goal panel (through the thread view below)
-// and the worker's own `frizzctl goal get` (through the router). One
+// and the worker's own `ntwinectl goal get` (through the router). One
 // projection because they must agree — a worker reading back a different row than the human is editing
 // is exactly the confusion the read action exists to end.
 //
@@ -1984,7 +1984,7 @@ export function resolveRecurringPrompt(
 }
 
 // Project a fold-observed limit fault onto the wire view: which window blew, when, when it comes back,
-// and whether frizz will deliver its own "continue". `resumesAt` is present only when the provider's
+// and whether ntwine will deliver its own "continue". `resumesAt` is present only when the provider's
 // own reset clock resolves it (a weekly clock never does — see textResetInstant); its ABSENCE does not
 // cancel the auto-resume promise, because the scheduler can still resolve a weekly instant from the
 // usage endpoint. The card then says "when the window resets" rather than naming a time known nowhere.
@@ -2034,7 +2034,7 @@ export function resolveLimitPause(
 // aiTitle on the wire the display side cannot tell a persisted worker title from the dispatch chop,
 // so it must assume the chop.
 //
-// THE REGISTRY COPY OUTRANKS TELEMETRY, which is the reverse of the rule here until `frizzctl title`
+// THE REGISTRY COPY OUTRANKS TELEMETRY, which is the reverse of the rule here until `ntwinectl title`
 // existed ("telemetry wins while present — it is the fresher of the two"). Freshness was the right
 // tiebreak only while the two could not disagree: both halves were the same codex marker, so the CAS
 // either matched telemetry exactly or had not run. A worker registering its own name breaks that tie
@@ -2049,7 +2049,7 @@ export function resolveSessionTitle(
   const locked = sessionTitleLocked(row)
   // Any non-zero value: rows written between 2026-09-29 14:0x and this line's revert carry
   // `title_agent = 2` (the retired setPeriodicTitle), and their titles are still the persisted ones. The
-  // name Frizz MINTS at dispatch (thread-names.ts) persists the same way, so it too outranks the
+  // name Ntwine MINTS at dispatch (thread-names.ts) persists the same way, so it too outranks the
   // transcript's live title the moment it lands.
   const persisted = row.title_agent ? row.title?.trim() || undefined : undefined
   // A CALLER's dispatch title (a spinoff's, a `spawn_thread` title: title_auto 0, unlocked) is a name too,
@@ -2089,7 +2089,7 @@ export function parseFormerTitles(raw: string | null | undefined): string[] {
  *  Deciding that by comparing timestamps means there is no sweep to forget one, and no window where a
  *  thread that was reopened still cards as finished.
  *
- *  The comparison is `<=`, not `<`: the two instants come from different clocks (the row's is frizz's
+ *  The comparison is `<=`, not `<`: the two instants come from different clocks (the row's is ntwine's
  *  own `Date.now()`, the telemetry's is the transcript record's), and a same-millisecond tie is the
  *  worker signing off on the turn that user record started, which is the ordinary case. */
 export function registeredDoneFence(
@@ -2139,7 +2139,7 @@ export function registeredDoneFence(
 // whole cost lands on the event loop, which is the same loop every RPC and every board push is waiting
 // on. On a copy of the maintainer's own board (558 rows) one rebuild issued 2,794 statements and took
 // 30.5ms; 2,790 of those statements were these five. A rebuild fires on a 150ms debounce whenever any
-// agent writes into `.frizz`, and unconditionally every RECONCILE_MS — so on a live server with agents
+// agent writes into `.ntwine`, and unconditionally every RECONCILE_MS — so on a live server with agents
 // working it ran continuously, and the board RPC that idles at 4.5-10ms was measured at 49-1069ms
 // (median ~270ms) with 220 blocked-loop warnings in the server's own log.
 //
@@ -2236,12 +2236,12 @@ function sessionThreadView(
     createdAt: new Date(t.created_at).toISOString(),
   }))
   // …with the threads its reply waits are on, which a `threads:` declaration is checked against
-  // (thread-mentions.armedTimerKeys), and its ARMED COMMAND WATCHES (`frizzctl watch-command`), in the
+  // (thread-mentions.armedTimerKeys), and its ARMED COMMAND WATCHES (`ntwinectl watch-command`), in the
   // same set: see isCommandWatchId for why one set serves both, and where it is split back by kind.
   const armedCommandWatches = registries.commandWatches.get(row.slug) ?? []
   const armedTimerIds = armedTimerKeys(armedTimers)
   for (const w of armedCommandWatches) armedTimerIds.add(w.id)
-  // This thread's ARMED WATCHES on its own running work — the `thread_watch` rows `frizzctl watch`
+  // This thread's ARMED WATCHES on its own running work — the `thread_watch` rows `ntwinectl watch`
   // creates. Same per-thread lookup as the two registries above, and the same ms→ISO mapping as the
   // worker's own read-back (router.armedOwnWatchViews), so the row, the strip and the tool cannot
   // disagree about one wait.
@@ -2591,10 +2591,10 @@ export function heldThreadView(view: ThreadView, row: SessionRow): ThreadView {
 // WHAT IS HONEST TO SHOW, measured against three real terminal transcripts through this same tailer
 // (2026-08-19): `aiTitle` — Claude titles its own sessions, so these rows carry real names; the rest
 // instants; the last assistant line as the preview; the profile chips and the context dial. What is
-// structurally ABSENT is `lastFence`: fences come from the worker contract frizz injects at dispatch,
+// structurally ABSENT is `lastFence`: fences come from the worker contract ntwine injects at dispatch,
 // so a terminal session never writes one. That single absence is why HELD and DONE cannot be derived
 // for these rows at all — a park is a fence/timer/snooze and an archive is a human's lifecycle write —
-// and why they get their own band instead of being sorted into frizz's.
+// and why they get their own band instead of being sorted into ntwine's.
 function foreignThreadView(sessionId: string, tele: SessionTelemetry, backend: "claude" | "codex"): ThreadView {
   return {
     id: sessionId,
@@ -2610,8 +2610,8 @@ function foreignThreadView(sessionId: string, tele: SessionTelemetry, backend: "
     // its worker names itself — so an external row reads like every other row rather than like a raw
     // prompt. It must be the FIRST turn and not the newest: a session's name is what it was opened to
     // do. The short id survives only for a transcript with no human turn in it at all.
-    // Never the frizz "Spinning up…" placeholder, which promises a title that is on its way; for a
-    // session frizz did not dispatch, nothing is on its way.
+    // Never the ntwine "Spinning up…" placeholder, which promises a title that is on its way; for a
+    // session ntwine did not dispatch, nothing is on its way.
     title: tele.aiTitle ?? (tele.firstUserText ? fallbackTitle(tele.firstUserText) : undefined) ?? `Session ${sessionId.slice(0, 8)}`,
     aiTitle: tele.aiTitle,
     // A harness-given name is a real name; a chop of the opening prompt is a machine guess, and the
@@ -2648,7 +2648,7 @@ function foreignThreadView(sessionId: string, tele: SessionTelemetry, backend: "
     // the interaction surface is the terminal the human is already sitting in (groups.ts).
     pendingAsk: tele.pendingAsk ? { questions: tele.pendingAsk.questions } : undefined,
     // ALWAYS false, and not for want of trying: this is `at rest with an unanswered ```question fence`,
-    // and a session frizz did not dispatch has no fence to read.
+    // and a session ntwine did not dispatch has no fence to read.
     pendingQuestion: false,
     questions: [],
     kind: "session",
@@ -2678,7 +2678,7 @@ export interface BoardManager {
   // Overlay-only: reuses file-backed caches; cheap + sync. Use for tailer/session changes.
   refresh(): BoardSnapshot
   // A durable typed-interaction transition changes queue membership independently of transcript or
-  // .frizz files. The board caches per-session presence and refreshes on the journal's post-commit edge.
+  // .ntwine files. The board caches per-session presence and refreshes on the journal's post-commit edge.
   interactionChanged?(change: InteractionChange): void
   start(): Promise<void>
   stop(): Promise<void>
@@ -2865,12 +2865,12 @@ export function createBoard(
     notifyPrimed = true
   }
 
-  // The file-backed migration cache is recomputed only on a full rebuild (the `.frizz` watcher catches
+  // The file-backed migration cache is recomputed only on a full rebuild (the `.ntwine` watcher catches
   // changes to the top-level `<slug>.md` files this reads, and only those — see
-  // isBoardRelevantFrizzPath). Overlay-only refreshes remain filesystem-free.
+  // isBoardRelevantNtwinePath). Overlay-only refreshes remain filesystem-free.
   let legacyTerminalCache = new Set<string>()
 
-  // Build exactly the session-backed threads recorded by Frizz. The registry is the provenance
+  // Build exactly the session-backed threads recorded by Ntwine. The registry is the provenance
   // boundary: historical rows remain valid after migration/restart, and both Claude and Codex use the
   // same durable shape. Raw tailer discoveries never confer ownership.
   // Rows the human's own follow-up holds out of the queue (hasFreshDelivery, before any process check),
@@ -2959,7 +2959,7 @@ export function createBoard(
 
   // The project's EXTERNAL sessions: transcripts the tailer discovered with no registry row behind
   // them. They are their own rail band, never part of the registered set — see foreignThreadView for
-  // why they cannot be sorted into frizz's own bands at all.
+  // why they cannot be sorted into ntwine's own bands at all.
   //
   // RESTED ONLY, by explicit decision (maintainer 2026-08-19): "if something is currently running,
   // then presumably the user already has that open in Claude Code." A spinning terminal session is one
@@ -2986,7 +2986,7 @@ export function createBoard(
 
   // Assemble a snapshot from registered sessions + external sessions. Unregistered legacy files are
   // excluded before any legacy parser is invoked, so they cannot contribute a row, queue card,
-  // warning, or error. `.frizz/` presence is deliberately NOT reported: it gates only scratchpad
+  // warning, or error. `.ntwine/` presence is deliberately NOT reported: it gates only scratchpad
   // storage (probed locally where that matters), never whether this project has a board.
   function assemble(): BoardSnapshot {
     // One clock sample owns every snooze decision in this snapshot: expiry clearing, visibility,
@@ -3014,8 +3014,8 @@ export function createBoard(
     const sessionThreads = buildSessionThreads(assembledAtMs).map((t) => withThreadTerminals(t, terminals?.get(t.id), workDirOf(project)))
     // REGISTERED ROWS ONLY reach these two, and that is the point rather than an oversight. A snooze
     // is a durable column on a row a foreign session does not have, and a needs-decision notification
-    // is frizz telling you a WORKER is waiting on you — a terminal session is waiting on you in the
-    // window you opened it in, and pushing a notification for it would be frizz claiming an ask it
+    // is ntwine telling you a WORKER is waiting on you — a terminal session is waiting on you in the
+    // window you opened it in, and pushing a notification for it would be ntwine claiming an ask it
     // neither received nor can answer.
     // Foreign rows never queue (queuedThread), so they have no place in line to keep. Ahead of the notify
     // on purpose: the clock withholds an entry off a park (queue-clock.ts), and a withheld entry must not
@@ -3145,7 +3145,7 @@ export function createBoard(
     return task
   }
 
-  // OVERLAY-ONLY rebuild: reuse the cached frizz data. For tailer/session-registry changes.
+  // OVERLAY-ONLY rebuild: reuse the cached ntwine data. For tailer/session-registry changes.
   function refresh(): BoardSnapshot {
     if (stopped) throw new ProducerStoppedError("board")
     cached = assemble()
@@ -3177,13 +3177,13 @@ export function createBoard(
     debounce = setTimeout(() => void rebuild().catch(() => {}), DEBOUNCE_MS)
   }
 
-  function watchFrizzDir(): Promise<void> {
+  function watchNtwineDir(): Promise<void> {
     if (parcelSub || stopped) return Promise.resolve()
     if (watchSetup) return watchSetup
     const setup = (async () => {
-      const dir = join(project.dir, ".frizz")
+      const dir = join(project.dir, ".ntwine")
       // @parcel/watcher reports every event under the REALPATH of the watched root rather than the
-      // string it was handed: subscribing to `/tmp/x/.frizz` on macOS yields `/private/tmp/x/.frizz/…`
+      // string it was handed: subscribing to `/tmp/x/.ntwine` on macOS yields `/private/tmp/x/.ntwine/…`
       // (probed 2026-09-04 against the pinned 2.5.6, which is also how the fs-events backend spells its
       // own backfill). Carry both spellings, or a project reached through any symlinked path — every
       // sandbox under /tmp, and plenty of real checkouts — filters to nothing and never rebuilds again.
@@ -3203,9 +3203,9 @@ export function createBoard(
             scheduleRebuild()
             return
           }
-          if (events.some((event) => isBoardRelevantFrizzPath(roots, event.path))) scheduleRebuild()
+          if (events.some((event) => isBoardRelevantNtwinePath(roots, event.path))) scheduleRebuild()
         },
-        { ignore: FRIZZ_WATCH_IGNORED_DIRS.map((name) => join(dir, name)) },
+        { ignore: NTWINE_WATCH_IGNORED_DIRS.map((name) => join(dir, name)) },
       )
       if (stopped) {
         await next.unsubscribe()
@@ -3239,25 +3239,25 @@ export function createBoard(
       // never forever. Edge-triggered paths above make it feel instant; this makes it CORRECT.
       reconcileTimer = setInterval(() => {
         void rebuild().catch(() => {})
-        if (!parcelSub && !bootstrapWatch && frizzDirExists(project.dir)) void watchFrizzDir().catch(() => {})
+        if (!parcelSub && !bootstrapWatch && ntwineDirExists(project.dir)) void watchNtwineDir().catch(() => {})
       }, RECONCILE_MS)
-      if (frizzDirExists(project.dir)) {
+      if (ntwineDirExists(project.dir)) {
         // A watcher that cannot start is NOT a project that cannot open. Thrown from here, it failed
         // the tenant's open, which nothing retries: the board, the scheduler and every wake for that
         // project stayed dead until a restart. The reconcile above already keeps the board CORRECT
         // without the watcher — it only loses promptness — and each tick tries the watcher again.
-        await watchFrizzDir().catch((error: unknown) => {
-          frizzLog.warn("board", `${project.name}: watching .frizz failed; falling back to the ${RECONCILE_MS / 1000}s reconcile until it succeeds — ${error instanceof Error ? error.message : String(error)}`)
+        await watchNtwineDir().catch((error: unknown) => {
+          ntwineLog.warn("board", `${project.name}: watching .ntwine failed; falling back to the ${RECONCILE_MS / 1000}s reconcile until it succeeds — ${error instanceof Error ? error.message : String(error)}`)
         })
       } else {
-        // .frizz/ not created yet — watch the repo root (non-recursive) for its appearance,
-        // then hand off to the .frizz watcher. Avoids recursively watching the whole repo.
+        // .ntwine/ not created yet — watch the repo root (non-recursive) for its appearance,
+        // then hand off to the .ntwine watcher. Avoids recursively watching the whole repo.
         try {
           bootstrapWatch = fsWatch(project.dir, (_e, name) => {
-            if (name === ".frizz" && frizzDirExists(project.dir)) {
+            if (name === ".ntwine" && ntwineDirExists(project.dir)) {
               bootstrapWatch?.close()
               bootstrapWatch = null
-              void watchFrizzDir().catch(() => {})
+              void watchNtwineDir().catch(() => {})
               scheduleRebuild()
             }
           })

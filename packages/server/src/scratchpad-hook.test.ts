@@ -16,7 +16,7 @@ import { codexScratchpadHookConfig } from "./dispatch.ts"
 // against cli 2.1.220 as well: a real session quoted injected text with zero tool calls,
 // `PreCompact:manual` logged status 0, and PostToolUse additionalContext reached the model mid-turn.
 //
-// IT POINTS, IT NO LONGER INJECTS. Until 2026-08-06 frizz provisioned one canonical `scratch.md` and
+// IT POINTS, IT NO LONGER INJECTS. Until 2026-08-06 ntwine provisioned one canonical `scratch.md` and
 // this hook spliced its head into the emptied window. The maintainer replaced that with a free-form
 // directory plus the recurring prompt's post_compaction trigger, so the guaranteed channel is now
 // something the WORKER arms and the OPERATOR can see. What the hook still owes is the listing — and
@@ -28,16 +28,16 @@ const SID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 
 function newProject(): string {
   const dir = mkdtempSync(join(tmpdir(), "scratchpad-hook-"))
-  mkdirSync(join(dir, ".frizz", "threads", SID), { recursive: true })
+  mkdirSync(join(dir, ".ntwine", "threads", SID), { recursive: true })
   return dir
 }
 
 function scratchPath(dir: string, name = "notes.md"): string {
-  return join(dir, ".frizz", "threads", SID, name)
+  return join(dir, ".ntwine", "threads", SID, name)
 }
 
 /** Write one file into the thread's scratch directory. The worker chooses these names; nothing in
- *  frizz reserves one, so the tests use several to prove the hook does not privilege any. */
+ *  ntwine reserves one, so the tests use several to prove the hook does not privilege any. */
 function writeScratch(dir: string, body: string, name = "notes.md"): void {
   writeFileSync(scratchPath(dir, name), body)
 }
@@ -69,12 +69,12 @@ function runHook(
     env: {
       ...process.env,
       CLAUDE_PROJECT_DIR: dir,
-      FRIZZ_THREAD: "",
-      FRIZZ_SCRATCHPAD_HOOK: "",
-      // A Frizz worker running this suite carries its own board root (Home's state dir), and the hook
+      NTWINE_THREAD: "",
+      NTWINE_SCRATCHPAD_HOOK: "",
+      // A Ntwine worker running this suite carries its own board root (Home's state dir), and the hook
       // honours it over CLAUDE_PROJECT_DIR — so the hook looked for these fixtures' scratch files in the
-      // worker's board and every case below failed, only when the suite ran inside a Frizz thread.
-      FRIZZ_BOARD_ROOT: "",
+      // worker's board and every case below failed, only when the suite ran inside a Ntwine thread.
+      NTWINE_BOARD_ROOT: "",
       ...env,
     },
   })
@@ -91,7 +91,7 @@ test("a fresh startup offers the directory and names the goal capability without
   assert.match(ctx, /nothing in it is read automatically/)
   // The capability stays NAMED — the worker can arm it — but it is offered, never prescribed
   // (maintainer 2026-08-28: stop pushing the notes-plus-arming arrangement).
-  assert.match(ctx, /`frizzctl goal start --post-compaction`/)
+  assert.match(ctx, /`ntwinectl goal start --post-compaction`/)
   assert.match(ctx, /Use it if you want it/)
   assert.doesNotMatch(ctx, /then arm|write the doc/, "the arrangement is offered, never pushed")
 })
@@ -101,19 +101,19 @@ test("after a compaction the hook NAMES the scratch files and never injects thei
   // Content that would be unmistakable if it leaked into the injection.
   writeScratch(dir, "UNMISTAKABLE-BODY-TEXT\n".repeat(40), "plan.md")
   writeScratch(dir, "reviewer findings", "reviewer.md")
-  // frizz's own per-thread bookkeeping lives in the same directory and is NOT the worker's notes.
+  // ntwine's own per-thread bookkeeping lives in the same directory and is NOT the worker's notes.
   writeFileSync(scratchPath(dir, ".scratchpad-state.json"), "{}")
   const ctx = additionalContext(runHook(dir, ["--mode=session-start"], { session_id: SID, source: "compact" }))
 
   assert.match(ctx, /⟦scratch directory⟧/)
-  assert.match(ctx, new RegExp(`\\.frizz/threads/${SID}/plan\\.md`))
-  assert.match(ctx, new RegExp(`\\.frizz/threads/${SID}/reviewer\\.md`))
+  assert.match(ctx, new RegExp(`\\.ntwine/threads/${SID}/plan\\.md`))
+  assert.match(ctx, new RegExp(`\\.ntwine/threads/${SID}/reviewer\\.md`))
   // THE LOAD-BEARING ASSERTION. Naming is the accepted cost of dropping the canonical pad; quietly
   // re-growing this back into a content injection would restore exactly what was removed.
   assert.doesNotMatch(ctx, /UNMISTAKABLE-BODY-TEXT/, "a listing, never the content")
-  assert.doesNotMatch(ctx, /scratchpad-state/, "frizz's own bookkeeping is not the worker's notes")
+  assert.doesNotMatch(ctx, /scratchpad-state/, "ntwine's own bookkeeping is not the worker's notes")
   // And it still names the post-compaction goal as an available capability.
-  assert.match(ctx, /`frizzctl goal start --post-compaction`/)
+  assert.match(ctx, /`ntwinectl goal start --post-compaction`/)
 })
 
 test("a fresh startup does not pay for the listing — only the context-losing sources get it", () => {
@@ -131,7 +131,7 @@ test("a fresh startup does not pay for the listing — only the context-losing s
 // from a previous conversation that ran out of context." It is about the conversation just summarized,
 // but it arrives when the window is emptiest and workers read it as a report on themselves and wind
 // down — nub session 5258ebe4 took its auto-compaction at transcript line 20239 and then declared
-// "I'm out of context" on 13 consecutive turns at fills of 176k-244k. This hook is the only frizz text
+// "I'm out of context" on 13 consecutive turns at fills of 176k-244k. This hook is the only ntwine text
 // that lands in that exact window, so it is where the preamble gets answered. Pinned on BOTH pad
 // states, because a compacted worker with an empty pad is the one least able to argue with it.
 test("a compaction re-ground contradicts the summary's 'ran out of context' preamble", () => {
@@ -178,25 +178,25 @@ test("a large directory is summarized rather than listed line by line", () => {
   const dir = newProject()
   for (let i = 0; i < 12; i++) writeScratch(dir, "x", `note-${i}.md`)
   const ctx = additionalContext(
-    runHook(dir, ["--mode=session-start"], { session_id: SID, source: "compact" }, { FRIZZ_SCRATCH_MAX_LISTED: "5" })
+    runHook(dir, ["--mode=session-start"], { session_id: SID, source: "compact" }, { NTWINE_SCRATCH_MAX_LISTED: "5" })
   )
   assert.match(ctx, /…and 7 more/, "a worker with many files needs the count, not every line")
   assert.equal((ctx.match(/note-\d+\.md/g) ?? []).length, 5)
 })
 
-test("every silence gate holds: project registration under frizz, sub-agents, and the kill switch", () => {
+test("every silence gate holds: project registration under ntwine, sub-agents, and the kill switch", () => {
   const dir = newProject()
   writeScratch(dir, "should never appear\n", "plan.md")
   const evt = { session_id: SID, source: "compact" }
-  // The repo-local `.claude/settings.json` copy defers to the plugin one inside a frizz worker.
-  assert.equal(runHook(dir, ["--mode=session-start", "--via=project"], evt, { FRIZZ_THREAD: "t" }), "")
+  // The repo-local `.claude/settings.json` copy defers to the plugin one inside a ntwine worker.
+  assert.equal(runHook(dir, ["--mode=session-start", "--via=project"], evt, { NTWINE_THREAD: "t" }), "")
   assert.notEqual(runHook(dir, ["--mode=session-start", "--via=project"], evt), "")
   // Sub-agents do not get root re-ground/nudge injections; their dedicated start epilogue owns the
   // collaborative editing contract instead.
   assert.equal(runHook(dir, ["--mode=session-start"], { ...evt, agent_id: "sub-1" }), "")
-  assert.equal(runHook(dir, ["--mode=session-start"], evt, { FRIZZ_SCRATCHPAD_HOOK: "off" }), "")
+  assert.equal(runHook(dir, ["--mode=session-start"], evt, { NTWINE_SCRATCHPAD_HOOK: "off" }), "")
   // …but a non-off value never disables it: absence means ON now.
-  assert.notEqual(runHook(dir, ["--mode=session-start"], evt, { FRIZZ_SCRATCHPAD_HOOK: "maybe" }), "")
+  assert.notEqual(runHook(dir, ["--mode=session-start"], evt, { NTWINE_SCRATCHPAD_HOOK: "maybe" }), "")
   // With no session id there is no key, and an unkeyed pad would bleed across sessions.
   assert.equal(runHook(dir, ["--mode=session-start"], { source: "compact" }, { CLAUDE_CODE_SESSION_ID: "" }), "")
 })
@@ -212,7 +212,7 @@ test("the codex child epilogue gives a child its OWN file instead of a document 
   )
   assert.equal(out.hookSpecificOutput.hookEventName, "SubagentStart")
   const ctx = out.hookSpecificOutput.additionalContext as string
-  assert.match(ctx, new RegExp(`\\.frizz/threads/${SID}/`))
+  assert.match(ctx, new RegExp(`\\.ntwine/threads/${SID}/`))
   assert.match(ctx, /create your own file in it/)
   // The failure this replaced: an undifferentiated "keep the doc current" mandate once made a native
   // child replace a shared document with its task notes, then delete the replacement as a rollback.
@@ -222,7 +222,7 @@ test("the codex child epilogue gives a child its OWN file instead of a document 
   assert.doesNotMatch(ctx, /merge your own scoped progress/, "the merge mandate is gone, not reworded")
   // The delegated-authority carve-out survives: a task that says "write only <path>" must not be read
   // as forbidding the child's own coordination file.
-  assert.match(ctx, /Frizz coordination state, not a project deliverable or source edit/)
+  assert.match(ctx, /Ntwine coordination state, not a project deliverable or source edit/)
   assert.match(ctx, /“write only <path>”/)
   assert.match(ctx, /location alone neither permits nor forbids editing/)
 })
@@ -245,7 +245,7 @@ test("the codex child epilogue tells the child not to spawn agents of its own un
 
 test("the nudge tracks context GROWTH, not an absolute threshold or wall clock", () => {
   const dir = newProject()
-  const stale = { FRIZZ_SCRATCHPAD_STALE_TOKENS: "60000" }
+  const stale = { NTWINE_SCRATCHPAD_STALE_TOKENS: "60000" }
   const nudge = (tokens: number) =>
     runHook(dir, ["--mode=nudge"], { session_id: SID, transcript_path: writeTranscript(dir, tokens) }, stale)
 
@@ -273,9 +273,9 @@ test("the mid-turn channel reports itself as PostToolUse so the harness accepts 
     dir,
     ["--mode=nudge", "--event=PostToolUse"],
     { session_id: SID, transcript_path: writeTranscript(dir, 90_000) },
-    { FRIZZ_SCRATCHPAD_STALE_TOKENS: "60000" }
+    { NTWINE_SCRATCHPAD_STALE_TOKENS: "60000" }
   )
-  // A frizz worker runs enormous autonomous turns; a turn-boundary-only nudge can miss a whole
+  // A ntwine worker runs enormous autonomous turns; a turn-boundary-only nudge can miss a whole
   // session's work. The event name must match the firing hook or the payload is rejected.
   assert.equal(JSON.parse(out).hookSpecificOutput.hookEventName, "PostToolUse")
   assert.match(additionalContext(out), /⟦scratch directory empty⟧/)
@@ -283,7 +283,7 @@ test("the mid-turn channel reports itself as PostToolUse so the harness accepts 
 
 test("both nudge channels share one interval, so mid-turn firing does not multiply reminders", () => {
   const dir = newProject()
-  const stale = { FRIZZ_SCRATCHPAD_STALE_TOKENS: "60000" }
+  const stale = { NTWINE_SCRATCHPAD_STALE_TOKENS: "60000" }
   const t = (tokens: number) => ({ session_id: SID, transcript_path: writeTranscript(dir, tokens) })
 
   assert.notEqual(runHook(dir, ["--mode=nudge", "--event=PostToolUse"], t(70_000), stale), "", "first fires")
@@ -294,7 +294,7 @@ test("both nudge channels share one interval, so mid-turn firing does not multip
 
 test("the nudge rebases when ANY file in the directory is touched, by agent or human", () => {
   const dir = newProject()
-  const stale = { FRIZZ_SCRATCHPAD_STALE_TOKENS: "10000" }
+  const stale = { NTWINE_SCRATCHPAD_STALE_TOKENS: "10000" }
   const nudge = (tokens: number) =>
     runHook(dir, ["--mode=nudge"], { session_id: SID, transcript_path: writeTranscript(dir, tokens) }, stale)
 
@@ -350,7 +350,7 @@ test("hooks.json wires every channel, and no stale carryover registration surviv
 //     the hooks arrive as per-conversation config overrides (with bypass_hook_trust).
 //   • The app-server daemon is SHARED per project, so its environment cannot carry a per-conversation
 //     decision — hence `--enabled` rather than the env var.
-//   • Codex reports its OWN rollout session id to the hook, not frizz's thread id — hence `--session`.
+//   • Codex reports its OWN rollout session id to the hook, not ntwine's thread id — hence `--session`.
 // Verified live: SessionStart / UserPromptSubmit / Stop all fired through CodexAppServerBridge with
 // the real scratchpad.mjs wired exactly as codexScratchpadHookConfig wires it.
 
@@ -363,7 +363,7 @@ test("re-orienting is UNCONDITIONAL — no setting, no flag, no env var required
   assert.match(ctx, /⟦scratch directory⟧/)
   assert.match(ctx, /plan\.md/)
   // The only escape hatch is an explicit env off — a one-off, not a project posture.
-  assert.equal(runHook(dir, ["--mode=session-start"], { session_id: SID, source: "compact" }, { FRIZZ_SCRATCHPAD_HOOK: "off" }), "")
+  assert.equal(runHook(dir, ["--mode=session-start"], { session_id: SID, source: "compact" }, { NTWINE_SCRATCHPAD_HOOK: "off" }), "")
 })
 
 test("an EMPTY directory still re-orients after compaction, and says so plainly", () => {
@@ -373,15 +373,15 @@ test("an EMPTY directory still re-orients after compaction, and says so plainly"
   // staying silent here was the old behavior and it left the worker with nothing at all.
   assert.match(ctx, /⟦scratch directory⟧/)
   assert.match(ctx, /is EMPTY — you left yourself nothing to recover from/)
-  assert.match(ctx, /Do not search other `\.frizz\/threads\/\*\/` directories/)
+  assert.match(ctx, /Do not search other `\.ntwine\/threads\/\*\/` directories/)
   assert.match(ctx, /retained compaction summary/)
   // …and it says how to not be here again.
-  assert.match(ctx, /`frizzctl goal start --post-compaction`/)
+  assert.match(ctx, /`ntwinectl goal start --post-compaction`/)
 })
 
-test("--session overrides the reported id, so a codex worker finds FRIZZ's directory not its own", () => {
+test("--session overrides the reported id, so a codex worker finds NTWINE's directory not its own", () => {
   const dir = newProject()
-  writeScratch(dir, "frizz thread content\n", "frizz-thread-file.md")
+  writeScratch(dir, "ntwine thread content\n", "ntwine-thread-file.md")
   // Exactly what codex sends: its own rollout session id, and a transcript under ~/.codex/sessions.
   const codexEvent = {
     session_id: "019fb427-93aa-7ab0-91af-436173f99bc4",
@@ -392,13 +392,13 @@ test("--session overrides the reported id, so a codex worker finds FRIZZ's direc
   // Without --session the hook addresses codex's id — a directory that does not exist — so it can
   // only report an empty one.
   const derived = additionalContext(runHook(dir, ["--mode=session-start"], codexEvent))
-  assert.doesNotMatch(derived, /frizz-thread-file\.md/)
+  assert.doesNotMatch(derived, /ntwine-thread-file\.md/)
   // With it, the real directory is found.
   const explicit = additionalContext(
     runHook(dir, [`--session=${SID}`, "--mode=session-start"], codexEvent)
   )
-  assert.match(explicit, /frizz-thread-file\.md/)
-  assert.match(explicit, new RegExp(`\\.frizz/threads/${SID}/`))
+  assert.match(explicit, /ntwine-thread-file\.md/)
+  assert.match(explicit, new RegExp(`\\.ntwine/threads/${SID}/`))
 })
 
 // NO FILENAME IS RESERVED, and nothing in a scratch file is parsed. `scratch.md` used to be the one
@@ -448,9 +448,9 @@ test("the codex hook config is built unconditionally, and carries what codex req
     const cmd = entries[0].hooks[0].command
     if (event === "PreToolUse") {
       assert.match(cmd, /bash-background\.mjs/)
-      assert.match(cmd, /--frizz-thread/)
+      assert.match(cmd, /--ntwine-thread/)
     } else {
-      assert.match(cmd, /--session="sid-1"/, "frizz's thread id must override codex's own reported session id")
+      assert.match(cmd, /--session="sid-1"/, "ntwine's thread id must override codex's own reported session id")
       assert.doesNotMatch(cmd, /--enabled/, "there is no opt-in flag any more")
       assert.match(cmd, /scratchpad\.mjs/)
     }
@@ -459,8 +459,8 @@ test("the codex hook config is built unconditionally, and carries what codex req
   assert.match(cfg.hooks?.SessionStart?.[0]?.hooks[0]?.command ?? "", /--mode=session-start --resume-keeps-context$/)
 })
 
-// A Codex thread is resumed from its rollout with its whole conversation, and Frizz resumes one
-// routinely: its first message after every Frizz restart, and again when a newer Frizz hands it new
+// A Codex thread is resumed from its rollout with its whole conversation, and Ntwine resumes one
+// routinely: its first message after every Ntwine restart, and again when a newer Ntwine hands it new
 // hooks. Those hooks ride every resume since 2026-10-11, so SessionStart(resume) now FIRES there — and
 // "Context was just lost" would be false every time. The Codex registration carries the flag; Claude's
 // does not, because a Claude resume is a cold start of the process.
@@ -477,10 +477,10 @@ test("a Codex resume is silent, because it lost nothing — and only a resume is
 })
 
 // ---- a board that is NOT the worker's cwd: the Home workspace (server/home-workspace.ts) ----
-// A Home worker runs in the operator's home folder, but its board lives in Frizz's state directory:
-// `~/.frizz` is Frizz's legacy data root, and creating it switches an install onto it at the next boot.
-// Frizz names the board root with FRIZZ_BOARD_ROOT (Claude) or `--board-root` (codex's shared
-// app-server, which carries no per-thread env). The cwd below gets its OWN `.frizz/` so that a hook
+// A Home worker runs in the operator's home folder, but its board lives in Ntwine's state directory:
+// `~/.ntwine` is Ntwine's legacy data root, and creating it switches an install onto it at the next boot.
+// Ntwine names the board root with NTWINE_BOARD_ROOT (Claude) or `--board-root` (codex's shared
+// app-server, which carries no per-thread env). The cwd below gets its OWN `.ntwine/` so that a hook
 // ignoring the board root would succeed there — and fail these tests — rather than error out.
 
 const HOME_SID = "11111111-2222-4333-8444-555555555555"
@@ -498,7 +498,7 @@ function temp(prefix: string): string {
 
 function homeBoard(): { cwd: string; board: string } {
   const cwd = temp("scratchpad-home-cwd-")
-  mkdirSync(join(cwd, ".frizz"))
+  mkdirSync(join(cwd, ".ntwine"))
   return { cwd, board: temp("scratchpad-home-board-") }
 }
 
@@ -514,32 +514,32 @@ function runHookIn(
     input: JSON.stringify(event),
     encoding: "utf8",
     // No `gh` on PATH, so session-seed's auth probe fails fast instead of shelling out.
-    env: { ...process.env, PATH: dirname(process.execPath), CLAUDE_PROJECT_DIR: cwd, FRIZZ_THREAD: "", FRIZZ_SCRATCHPAD_HOOK: "", FRIZZ_BOARD_ROOT: "", ...env },
+    env: { ...process.env, PATH: dirname(process.execPath), CLAUDE_PROJECT_DIR: cwd, NTWINE_THREAD: "", NTWINE_SCRATCHPAD_HOOK: "", NTWINE_BOARD_ROOT: "", ...env },
   })
 }
 
 for (const [how, args, env] of [
-  ["FRIZZ_BOARD_ROOT", [] as string[], (board: string) => ({ FRIZZ_BOARD_ROOT: board })],
+  ["NTWINE_BOARD_ROOT", [] as string[], (board: string) => ({ NTWINE_BOARD_ROOT: board })],
   ["--board-root", ["--board-root=BOARD"], () => ({})],
 ] as const) {
   test(`scratchpad.mjs: ${how} puts the directory under the board, and names it by its ABSOLUTE path`, () => {
     const { cwd, board } = homeBoard()
     const argv = [...args.map((arg) => arg.replace("BOARD", board)), "--mode=session-start"]
     const ctx = additionalContext(runHookIn("scratchpad.mjs", cwd, argv, { session_id: HOME_SID, source: "startup" }, env(board)))
-    const threadDir = join(board, ".frizz", "threads", HOME_SID)
+    const threadDir = join(board, ".ntwine", "threads", HOME_SID)
     assert.ok(existsSync(threadDir), "created under the board root")
-    assert.equal(existsSync(join(cwd, ".frizz", "threads")), false, "never under the worker's cwd")
+    assert.equal(existsSync(join(cwd, ".ntwine", "threads")), false, "never under the worker's cwd")
     // Relative, it would resolve against the cwd — the home folder — which is exactly the wrong place.
     assert.ok(ctx.includes("`" + threadDir + "/`"), ctx)
-    assert.doesNotMatch(ctx, /`\.frizz\/threads\//)
+    assert.doesNotMatch(ctx, /`\.ntwine\/threads\//)
   })
 }
 
 test("scratchpad.mjs: the codex child epilogue names the absolute directory too", () => {
   const { cwd, board } = homeBoard()
   const out = runHookIn("scratchpad.mjs", cwd, [`--session=${HOME_SID}`, `--board-root=${board}`, "--mode=subagent-start"], { session_id: "codex-own", agent_id: "child-1" }, {})
-  assert.ok(out.includes(join(board, ".frizz", "threads", HOME_SID) + "/"), out)
-  assert.equal(existsSync(join(cwd, ".frizz", "threads")), false)
+  assert.ok(out.includes(join(board, ".ntwine", "threads", HOME_SID) + "/"), out)
+  assert.equal(existsSync(join(cwd, ".ntwine", "threads")), false)
 })
 
 // The command string is run by a SHELL, so this runs it through one: the JSON-quoted flag has to
@@ -562,38 +562,38 @@ test("the codex hook command carries --board-root, and the hook honors it throug
       cwd,
       input: JSON.stringify({ session_id: "019fb427-93aa-7ab0-91af-436173f99bc4", source: "startup" }),
       encoding: "utf8",
-      env: { ...process.env, PATH: `${dirname(process.execPath)}:${process.env.PATH ?? ""}`, CLAUDE_PROJECT_DIR: "", FRIZZ_THREAD: "", FRIZZ_SCRATCHPAD_HOOK: "", FRIZZ_BOARD_ROOT: "" },
+      env: { ...process.env, PATH: `${dirname(process.execPath)}:${process.env.PATH ?? ""}`, CLAUDE_PROJECT_DIR: "", NTWINE_THREAD: "", NTWINE_SCRATCHPAD_HOOK: "", NTWINE_BOARD_ROOT: "" },
     }),
   )
-  const threadDir = join(board, ".frizz", "threads", HOME_SID)
+  const threadDir = join(board, ".ntwine", "threads", HOME_SID)
   assert.ok(existsSync(threadDir))
   assert.ok(ctx.includes(threadDir + "/"), ctx)
-  assert.equal(existsSync(join(cwd, ".frizz", "threads")), false)
+  assert.equal(existsSync(join(cwd, ".ntwine", "threads")), false)
 })
 
-test("session-seed.mjs: FRIZZ_BOARD_ROOT keeps the sentinel on the board and names the absolute path", () => {
+test("session-seed.mjs: NTWINE_BOARD_ROOT keeps the sentinel on the board and names the absolute path", () => {
   const { cwd, board } = homeBoard()
-  const out = runHookIn("session-seed.mjs", cwd, [], { session_id: HOME_SID, source: "startup" }, { FRIZZ_THREAD: "t", FRIZZ_BOARD_ROOT: board })
+  const out = runHookIn("session-seed.mjs", cwd, [], { session_id: HOME_SID, source: "startup" }, { NTWINE_THREAD: "t", NTWINE_BOARD_ROOT: board })
   const ctx = additionalContext(out)
-  assert.ok(existsSync(join(board, ".frizz", ".session-state", HOME_SID)), "the per-session sentinel lands on the board")
-  assert.equal(existsSync(join(cwd, ".frizz", ".session-state")), false)
-  assert.ok(ctx.includes("`" + join(board, ".frizz", "threads", HOME_SID) + "/`"), ctx)
+  assert.ok(existsSync(join(board, ".ntwine", ".session-state", HOME_SID)), "the per-session sentinel lands on the board")
+  assert.equal(existsSync(join(cwd, ".ntwine", ".session-state")), false)
+  assert.ok(ctx.includes("`" + join(board, ".ntwine", "threads", HOME_SID) + "/`"), ctx)
   // …and without it, a registered project's worker is told the relative path exactly as before.
-  const plain = additionalContext(runHookIn("session-seed.mjs", cwd, [], { session_id: HOME_SID, source: "startup" }, { FRIZZ_THREAD: "t" }))
-  assert.ok(plain.includes("`.frizz/threads/" + HOME_SID + "/`"), plain)
+  const plain = additionalContext(runHookIn("session-seed.mjs", cwd, [], { session_id: HOME_SID, source: "startup" }, { NTWINE_THREAD: "t" }))
+  assert.ok(plain.includes("`.ntwine/threads/" + HOME_SID + "/`"), plain)
 })
 
-test("agent-bind.mjs: FRIZZ_BOARD_ROOT records the helper binding on the board, not in the cwd", () => {
+test("agent-bind.mjs: NTWINE_BOARD_ROOT records the helper binding on the board, not in the cwd", () => {
   const { cwd, board } = homeBoard()
-  mkdirSync(join(board, ".frizz"))
+  mkdirSync(join(board, ".ntwine"))
   const event = {
     session_id: HOME_SID,
     tool_input: { prompt: "THREAD: clone-repo\nDo the thing.", description: "helper" },
     tool_response: { agentId: "agent-1" },
   }
-  runHookIn("agent-bind.mjs", cwd, [], event, { FRIZZ_THREAD: "t", FRIZZ_BOARD_ROOT: board })
-  const record = JSON.parse(readFileSync(join(board, ".frizz", ".agent-bindings.jsonl"), "utf8").trim())
+  runHookIn("agent-bind.mjs", cwd, [], event, { NTWINE_THREAD: "t", NTWINE_BOARD_ROOT: board })
+  const record = JSON.parse(readFileSync(join(board, ".ntwine", ".agent-bindings.jsonl"), "utf8").trim())
   assert.equal(record.agent_id, "agent-1")
   assert.equal(record.thread, "clone-repo")
-  assert.equal(existsSync(join(cwd, ".frizz", ".agent-bindings.jsonl")), false)
+  assert.equal(existsSync(join(cwd, ".ntwine", ".agent-bindings.jsonl")), false)
 })

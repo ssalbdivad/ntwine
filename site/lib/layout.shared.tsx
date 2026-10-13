@@ -8,6 +8,6 @@ export const baseOptions: BaseLayoutProps = {
   githubUrl,
   links: [
     { text: "Docs", url: "/docs", active: "nested-url" },
-    { text: "npm", url: "https://www.npmjs.com/package/frizz", external: true },
+    { text: "npm", url: "https://www.npmjs.com/package/ntwine", external: true },
   ],
 };

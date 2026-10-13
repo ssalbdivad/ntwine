@@ -17,9 +17,9 @@ cloudflared tunnel route dns my-board board.example.com
 
 ## Point the tunnel at the board
 
-Write this to `~/.cloudflared/frizz.yml`, which Frizz looks for by name. Keep it out of `config.yml`, whose catch-all shadows other tunnels:
+Write this to `~/.cloudflared/ntwine.yml`, which Ntwine looks for by name. Keep it out of `config.yml`, whose catch-all shadows other tunnels:
 
-```yaml title="~/.cloudflared/frizz.yml"
+```yaml title="~/.cloudflared/ntwine.yml"
 tunnel: my-board
 credentials-file: /Users/you/.cloudflared/<tunnel-id>.json
 
@@ -29,7 +29,7 @@ ingress:
   - service: http_status:404
 ```
 
-## Let Frizz run it
+## Let Ntwine run it
 
 ```text
   press R, choose Cloudflare Tunnel
@@ -38,6 +38,6 @@ ingress:
   Tunnel    my-board
 ```
 
-Frizz asks which tunnel serves the hostname rather than guessing from its first label — a tunnel is rarely named after its host. Both answers are remembered, and it checks that `cloudflared` is on this machine before accepting them.
+Ntwine asks which tunnel serves the hostname rather than guessing from its first label — a tunnel is rarely named after its host. Both answers are remembered, and it checks that `cloudflared` is on this machine before accepting them.
 
-Frizz then runs the tunnel beside the board, so the two share a lifetime. A tunnel that outlives its board serves Cloudflare error 1033 to anyone who visits; a board that outlives its tunnel is unreachable with nothing to say why.
+Ntwine then runs the tunnel beside the board, so the two share a lifetime. A tunnel that outlives its board serves Cloudflare error 1033 to anyone who visits; a board that outlives its tunnel is unreachable with nothing to say why.

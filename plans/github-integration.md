@@ -1,13 +1,13 @@
 # GitHub-first batch dispatch — implementation plan
 
-Status: PLANNING. This is a file-level build spec for a new frizz feature. No code is written yet.
+Status: PLANNING. This is a file-level build spec for a new ntwine feature. No code is written yet.
 
 ## Goal
 
 When the opened project is a GitHub repo:
 1. **Auth detection** — server learns whether the user is signed into `gh`; UI prompts to sign in if not.
 2. **Picker modal** — lists the repo's Issues and PRs (tabs), sortable by recency or reactions, multi-select checkboxes.
-3. **Batch dispatch** — each checked ISSUE spins up an "investigate/reproduce/recommend" frizz thread; each checked PR spins up a review thread. Reuses the existing dispatch flow.
+3. **Batch dispatch** — each checked ISSUE spins up an "investigate/reproduce/recommend" ntwine thread; each checked PR spins up a review thread. Reuses the existing dispatch flow.
 4. **Conditional gh skill injection** — teach workers to use `gh` eagerly, but ONLY when signed in.
 5. **toon synergy** — encourage workers to pipe large `gh … --json | toon`.
 
@@ -25,7 +25,7 @@ When the opened project is a GitHub repo:
 ### Dispatch flow, end to end
 - `packages/server/src/dispatch.ts`:
   - `createDispatcher({ project, storage, board, getSettings, claudeBin })` → `{ dispatch(input), adopt(slug, message) }`.
-  - `dispatch(input: DispatchInput)`: derive title (`input.title` or `fallbackTitle(prompt)`) → slug (`slugify` + `resolveSlug`) → fresh `sessionId` (UUID) → `writeScratchpad()` → `composePrompt(sessionId, input.prompt, settings.dispatchPreamble)` → `buildClaudeCommand({ sessionId, permissionMode, model, effort, prompt, pluginDir: workerPluginDir(), extraSystemPrompt: scratchpadOrientation(...) })` → `tmux.spawn(slug, cmd, project.dir, { FRIZZ_THREAD: slug })` → `storage.upsertSession(...)` → `board.rebuild()` → returns `{ slug, sessionId }`.
+  - `dispatch(input: DispatchInput)`: derive title (`input.title` or `fallbackTitle(prompt)`) → slug (`slugify` + `resolveSlug`) → fresh `sessionId` (UUID) → `writeScratchpad()` → `composePrompt(sessionId, input.prompt, settings.dispatchPreamble)` → `buildClaudeCommand({ sessionId, permissionMode, model, effort, prompt, pluginDir: workerPluginDir(), extraSystemPrompt: scratchpadOrientation(...) })` → `tmux.spawn(slug, cmd, project.dir, { NTWINE_THREAD: slug })` → `storage.upsertSession(...)` → `board.rebuild()` → returns `{ slug, sessionId }`.
   - The **system prompt** is assembled in `buildClaudeCommand`: `[loadWorkerPrompt(), extraSystemPrompt].join("\n\n")`, written to a per-session file passed via `--append-system-prompt-file` (inline blows tmux's command-length limit — see comment at dispatch.ts:158).
   - `DispatchInput` (shared, line 259): `{ prompt, title?, slug?, permissionMode?, model?, effort?, planPath? }`.
 - **Web dispatch UI**: `packages/web/src/components/NewThreadModal.tsx`:
@@ -43,15 +43,15 @@ When the opened project is a GitHub repo:
 ### Modals + store/board (web)
 - `packages/web/src/store.ts` — single valtio `proxy`. Boolean flags drive overlays: `showSettings`, `showNewThread`, `showPalette`. `openNewThread(planPath?)` sets the flag. Toasts via `showToast(text, opts)`. The board arrives as a full `BoardSnapshot` over SSE (`setBoard`).
 - `packages/web/src/App.tsx` — mounts overlays off the snapshot: line 228–229 `{snap.showSettings && <SettingsDrawer/>}`, `{snap.showNewThread && <NewThreadDialog .../>}`. `overlayOpen` (line 40) gates global key handling. `openNewThread()` bound to ⌘N (line 89). **The picker mounts here the same way.**
-- `BoardSnapshot` (shared line 220): `projectDir`, `projectName`, `projectLabel`, `frizzActive`, `threads`, `errors`, `warnings`, `errorItems?`, `plans?`. Extended with optional fields for back-compat.
+- `BoardSnapshot` (shared line 220): `projectDir`, `projectName`, `projectLabel`, `ntwineActive`, `threads`, `errors`, `warnings`, `errorItems?`, `plans?`. Extended with optional fields for back-compat.
 - Reusable UI: `packages/web/src/components/ui/Select.tsx` (the readout selects), `Menu.tsx`, `Dialog.tsx`; `packages/web/src/lib/options.ts` (`MODEL_OPTIONS`, `EFFORT_OPTIONS`, `PERMISSION_OPTIONS`, `PERMISSION_COLOR`).
 
 ### Worker prompt / skill injection points
 - `packages/server/src/workerPrompt.ts` — the FIXED worker system prompt (loaded by `loadWorkerPrompt()` in dispatch.ts, stripped of its provenance header). Not user-editable.
-- `cc-worker/skills/worker/SKILL.md` — the worker-contract skill (loadable as `frizz:worker`). Sibling skill dir is `cc-worker/skills/`.
-- `cc-worker/hooks/session-seed.mjs` — **SessionStart hook**, runs on every start/resume/clear/compact, gated on `FRIZZ_THREAD`. Injects the worker contract + scratchpad path via `hookSpecificOutput.additionalContext`. Runs `node`, zero deps, in the worker's env (so `gh` is on its PATH). **This is the correct auth-gated injection site** — it can shell `gh auth status` live at every session start and covers dispatch + resume + compact uniformly, with no server changes to the dispatch/resume argv.
+- `cc-worker/skills/worker/SKILL.md` — the worker-contract skill (loadable as `ntwine:worker`). Sibling skill dir is `cc-worker/skills/`.
+- `cc-worker/hooks/session-seed.mjs` — **SessionStart hook**, runs on every start/resume/clear/compact, gated on `NTWINE_THREAD`. Injects the worker contract + scratchpad path via `hookSpecificOutput.additionalContext`. Runs `node`, zero deps, in the worker's env (so `gh` is on its PATH). **This is the correct auth-gated injection site** — it can shell `gh auth status` live at every session start and covers dispatch + resume + compact uniformly, with no server changes to the dispatch/resume argv.
 - `cc-worker/.claude-plugin/plugin.json` + `cc-worker/hooks/hooks.json` — plugin manifest + hook registration. `workerPluginDir()` in dispatch.ts resolves `cc-worker` and passes it via `--plugin-dir`, so its skills are loadable by workers.
-- NOTE the repo layout: the git root is `/Users/colinmcd94/Documents/projects/frizz`; `ui/` and `cc-worker/` are siblings under it. `workerPluginDir()` resolves `../../../../cc-worker` from `packages/server/src`.
+- NOTE the repo layout: the git root is `/Users/colinmcd94/Documents/projects/ntwine`; `ui/` and `cc-worker/` are siblings under it. `workerPluginDir()` resolves `../../../../cc-worker` from `packages/server/src`.
 
 ---
 
@@ -101,7 +101,7 @@ gh issue list -R OWNER/REPO --json number,title,url --limit 30 | ~/.nvm/versions
 | `packages/server/src/github.ts` | gh-wrapper module (auth, list, hydrate, batch-prompt helpers). |
 | `packages/server/src/github.test.ts` | Unit tests for parsing/scoring/prompt-templating (pure fns; gh calls injected). |
 | `packages/web/src/components/GithubPickerModal.tsx` | The picker modal component. |
-| `cc-worker/skills/gh/SKILL.md` | The `frizz:gh` skill (deep gh + toon guidance) workers load. |
+| `cc-worker/skills/gh/SKILL.md` | The `ntwine:gh` skill (deep gh + toon guidance) workers load. |
 
 ### Edit
 | File | Change |
@@ -379,7 +379,7 @@ Both templates: keep `{body}` truncated defensively (e.g. cap at ~8KB) so a gian
 Two coordinated pieces, both gated on gh auth:
 
 ### (a) Session-seed hook block — `cc-worker/hooks/session-seed.mjs` (primary mechanism)
-Already runs on every SessionStart, gated on `FRIZZ_THREAD`, in the worker's env. Add, AFTER the existing `core` composition:
+Already runs on every SessionStart, gated on `NTWINE_THREAD`, in the worker's env. Add, AFTER the existing `core` composition:
 
 ```js
 import { execFileSync } from 'node:child_process';
@@ -401,12 +401,12 @@ it is the fastest path to issue/PR/CI/release context:
   `gh issue list -R OWNER/REPO --json number,title,url --limit 50 | "$HOME/.nvm/versions/node/v24.14.0/bin/toon"`
   toon is NOT on PATH — use the absolute path above (or `export PATH="$HOME/.nvm/versions/node/v24.14.0/bin:$PATH"`
   once at the start of a shell). Skip toon for tiny payloads or deeply-nested JSON (savings are noise there).
-Load the `frizz:gh` skill for the full playbook.
+Load the `ntwine:gh` skill for the full playbook.
 ```
 
 This is the exact gate: `gh auth status --active` exit 0 → inject; else nothing. It re-evaluates every session start/resume/compact, so a later `gh auth login` starts injecting on the next turn boundary. It fires for gh-authed sessions even in a non-GitHub dir — harmless (the guidance is inert if there's no repo), but you MAY additionally gate on `gh repo view` succeeding if you want it strictly repo-scoped.
 
-### (b) The `frizz:gh` skill — `cc-worker/skills/gh/SKILL.md`
+### (b) The `ntwine:gh` skill — `cc-worker/skills/gh/SKILL.md`
 A fuller playbook the block tells the worker to load: the read-vs-write boundary, the toon shim, common recipes (triage, diff review, CI watch tied to the ```awaiting``` fence's `ci:`/`pr:` hints), and the "never post without explicit ask" rule. Frontmatter mirrors `skills/worker/SKILL.md` (`name: gh`, `description:` triggering on gh/GitHub/issue/PR work, `metadata.internal: true`). It ships in the same plugin dir already passed via `--plugin-dir`, so no manifest change is needed beyond the file existing (verify `hooks.json`/plugin discovery picks up `skills/*` automatically — it already discovers `skills/worker` and `skills/dialectic`).
 
 **Why the hook, not a dispatch.ts append**: the hook covers dispatch + resume + compact with one gate and re-checks auth live; a server-side `extraSystemPrompt` append would have to be threaded through BOTH `buildClaudeCommand` (dispatch/adopt) AND `buildClaudeResumeCommand` (resume.ts) and would bake auth state at dispatch time. The hook is the smaller, more robust change.

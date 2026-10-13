@@ -1,4 +1,4 @@
-// WHAT A FRAMED FRIZZ PAGE MAY ASK OF THE EDITOR — answered the same wherever the page is framed: the
+// WHAT A FRAMED NTWINE PAGE MAY ASK OF THE EDITOR — answered the same wherever the page is framed: the
 // sidebar (sidebar.ts) or a thread in an editor tab (thread-panel.ts). Each frame keeps what is its own —
 // when its page is ready, the composes it waits on, what its route means to the frame around it (the
 // sidebar's title row, a tab's title) — and hands every other page message here: a file or a web link to
@@ -8,7 +8,7 @@
 
 import { randomUUID } from "node:crypto"
 import type * as vscode from "vscode"
-import type { EditorOpen } from "@frizz/shared/editor-protocol"
+import type { EditorOpen } from "@ntwine/shared/editor-protocol"
 import type {
   EmbedAddContextMessage,
   EmbedComposeMessage,
@@ -19,7 +19,7 @@ import type {
   EmbedPickContextMessage,
   EmbedPickedFile,
   EmbedReviewMessage,
-} from "@frizz/shared/embed-protocol"
+} from "@ntwine/shared/embed-protocol"
 import { chordCommand } from "./embed.ts"
 
 type Vscode = typeof vscode
@@ -31,18 +31,18 @@ export type PageComposer = (input: Omit<EmbedComposeMessage, "type" | "id">, ms:
 export interface PageHost {
   openFile(message: EditorOpen): Promise<{ ok: boolean; error?: string }>
   /**
-   * The page asked for the editor's context in its composer (`frizz:add-context`). `into` is the frame
+   * The page asked for the editor's context in its composer (`ntwine:add-context`). `into` is the frame
    * that asked — the context goes back to the page whose bar was clicked — or undefined for the sidebar,
    * whose own path reveals it first. Resolves to what came of it, for the record.
    */
   addContext(message: EmbedAddContextMessage, into: PageComposer | undefined): Promise<string>
-  /** What the page shows of the extension's own state (`frizz:host-state`). */
+  /** What the page shows of the extension's own state (`ntwine:host-state`). */
   hostState(): Omit<EmbedHostStateMessage, "type">
-  /** The page's eye: share the editor with Frizz or stop (`frizz:share-editor`); resolves to what came of it. */
+  /** The page's eye: share the editor with Ntwine or stop (`ntwine:share-editor`); resolves to what came of it. */
   setShareEditor(on: boolean): Promise<string>
-  /** A thread's changes in this window (`frizz:review`); resolves to what came of it. */
+  /** A thread's changes in this window (`ntwine:review`); resolves to what came of it. */
   review(message: EmbedReviewMessage): Promise<string>
-  /** Files for the page's `@` menu, or what was dropped from the explorer (`frizz:pick-context`). */
+  /** Files for the page's `@` menu, or what was dropped from the explorer (`ntwine:pick-context`). */
   pickContext(message: EmbedPickContextMessage): Promise<EmbedPickedFile[]>
   log: { info(line: string): void; warn(line: string): void }
 }
@@ -54,26 +54,26 @@ export interface FrameLink {
   mac(): boolean
   /** Run the VS Code command a forwarded chord maps to — a frame may mean something of its own by one. */
   runChord(command: string): Promise<void>
-  /** This frame's composer, for `frizz:add-context`; undefined for the sidebar (see PageHost.addContext). */
+  /** This frame's composer, for `ntwine:add-context`; undefined for the sidebar (see PageHost.addContext). */
   composer?: PageComposer
 }
 
 /** The page messages each frame answers itself; everything else is `actOnPage`'s. */
-export type FrameOwnMessage = Extract<EmbedPageMessage, { type: "frizz:ready" | "frizz:composed" | "frizz:route" }>
+export type FrameOwnMessage = Extract<EmbedPageMessage, { type: "ntwine:ready" | "ntwine:composed" | "ntwine:route" }>
 export type SharedPageMessage = Exclude<EmbedPageMessage, FrameOwnMessage>
 
 /** Act on a page message every frame answers alike; resolves to what came of it, for the frame's record. */
 export async function actOnPage(api: Vscode, page: SharedPageMessage, host: PageHost, frame: FrameLink): Promise<string> {
   switch (page.type) {
-    case "frizz:open-file": {
+    case "ntwine:open-file": {
       const { type: _, ...open } = page
       const result = await host.openFile({ t: "open", id: randomUUID(), ...open })
       if (!result.ok) void api.window.showWarningMessage(result.error ?? `Couldn't open ${page.path}.`)
       return result.ok ? "opened" : "missing"
     }
-    case "frizz:open-external":
+    case "ntwine:open-external":
       return (await api.env.openExternal(api.Uri.parse(page.url, true))) ? "opened" : "declined"
-    case "frizz:key": {
+    case "ntwine:key": {
       const command = chordCommand(page, frame.mac())
       // Recorded as it is RUN, not once it has finished: a command's effect (the Explorer taking the side
       // bar) lands before VS Code resolves the call, and whoever reads the record after seeing the effect
@@ -82,17 +82,17 @@ export async function actOnPage(api: Vscode, page: SharedPageMessage, host: Page
       if (command) frame.runChord(command).catch((error: unknown) => host.log.warn(`${command} failed: ${(error as Error).message}`))
       return command ?? "ignored"
     }
-    case "frizz:add-context":
+    case "ntwine:add-context":
       return host.addContext(page, frame.composer)
-    case "frizz:share-editor": {
+    case "ntwine:share-editor": {
       const outcome = await host.setShareEditor(page.on)
       // Whatever came of it, the page shows what is TRUE now: a write that did not take puts its eye back.
-      void frame.post({ type: "frizz:host-state", ...host.hostState() })
+      void frame.post({ type: "ntwine:host-state", ...host.hostState() })
       return outcome
     }
-    case "frizz:review":
+    case "ntwine:review":
       return host.review(page)
-    case "frizz:pick-context": {
+    case "ntwine:pick-context": {
       // Answered always, with nothing when nothing matched or the ask failed: the page waits on this id.
       let files: EmbedPickedFile[] = []
       try {
@@ -100,13 +100,13 @@ export async function actOnPage(api: Vscode, page: SharedPageMessage, host: Page
       } catch (error) {
         host.log.warn(`Listing the workspace's files failed: ${(error as Error).message}`)
       }
-      await frame.post({ type: "frizz:context-picks", id: page.id, files })
+      await frame.post({ type: "ntwine:context-picks", id: page.id, files })
       return `${files.length} ${page.uris ? "dropped" : "found"}`
     }
   }
 }
 
-/** The pending composes of one frame: an id per post, answered by the page's `frizz:composed` or dropped. */
+/** The pending composes of one frame: an id per post, answered by the page's `ntwine:composed` or dropped. */
 export class Composes {
   readonly #pending = new Map<string, (answer: EmbedComposedMessage | undefined) => void>()
 
@@ -122,7 +122,7 @@ export class Composes {
         clearTimeout(timer)
         resolve(answer)
       })
-      void post({ type: "frizz:compose", id, ...input }).then((sent) => {
+      void post({ type: "ntwine:compose", id, ...input }).then((sent) => {
         if (sent) return
         this.#pending.delete(id)
         clearTimeout(timer)

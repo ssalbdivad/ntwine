@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { fencedInteriors, insideFence } from "@frizz/shared"
+import { fencedInteriors, insideFence } from "@ntwine/shared"
 
 // The shared fenced-interior scan (packages/shared/src/code-fences.ts) — tested from here because the
 // test runner's globs cover web/server/cli, not shared. Its consumers are questionBlocks.ts,

@@ -19,9 +19,9 @@ import {
   type AwaitingHint,
   type SectionKey,
   type ThreadView,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
-// The band predicates live in @frizz/shared so the server counts the rail's running badge with the
+// The band predicates live in @ntwine/shared so the server counts the rail's running badge with the
 // same rule the sidebar bands on. Re-exported here, where every web caller already imports them.
 // `needsAction` (the queue's ask definition) moved there too, so the server can count a project's asks.
 export { doneButRunning, futureSnoozedUntil, isActivelyRunning, isSnoozed, needsAction, prChecksRunning, sectionOf, type SectionKey }
@@ -33,12 +33,12 @@ import { canRetry } from "./lib/status.ts"
 type TitleFields = Pick<ThreadView, "title" | "aiTitle" | "id" | "titleAuto" | "titleLocked" | "titleNamed" | "spawnedAt" | "backend" | "runtime" | "foreign" | "held">
 
 // The title to SHOW for a thread: its HANDLE. A real name ("Shell budgets") renders as the kebab-case
-// handle it makes (`shell-budgets`, @frizz/shared thread-handle.ts), so what the operator reads on the
+// handle it makes (`shell-budgets`, @ntwine/shared thread-handle.ts), so what the operator reads on the
 // board is exactly what they type after `@` to point one thread at another (David 2026-09-29: "I
 // want the displayed names to also be camelCase so its obvious how to refer to them and that they
 // represent ids"; kebab-case since 2026-09-30). Everything that is NOT a name renders as it always did: the "Spinning up…" and
 // "Untitled thread" placeholders, a legacy row's bare id, an external terminal session's resolved
-// title (Frizz holds no registry name for it, so there is nothing to address), and a name too long to
+// title (Ntwine holds no registry name for it, so there is nothing to address), and a name too long to
 // be a handle (a legacy sentence-length title — threadHandle declines past five words).
 //
 // One place so every render site (sidebar, palette, header, drawer, tab title) agrees. The narrow Pick
@@ -110,8 +110,8 @@ export function subAgentTitle(
 function titleSource(t: TitleFields): { text: string; name: boolean } {
   // An EXTERNAL row is already named. The server resolves it in foreignThreadView — the harness's own
   // name, else a chop of the opening human turn, else a short id — which is the order both agents'
-  // resume pickers use, and it stores the result in `title`. Every rule below is about a row frizz
-  // DISPATCHED: a placeholder for a name that is on its way, a raw prompt frizz seeded and must never
+  // resume pickers use, and it stores the result in `title`. Every rule below is about a row ntwine
+  // DISPATCHED: a placeholder for a name that is on its way, a raw prompt ntwine seeded and must never
   // show. Neither describes a terminal session, and the codex rule in particular replaced every
   // external codex row's resolved name with "Untitled thread" the day the server learned to name them
   // (maintainer 2026-08-24: "for my externals all the codexes show up as 'untitled thread'").
@@ -127,7 +127,7 @@ function titleSource(t: TitleFields): { text: string; name: boolean } {
   // Only a persisted name is a NAME (shown as a handle): with `titleNamed` false, aiTitle is Claude's live
   // session title, which moves — and a handle never changes once shown — so it reads as plain text.
   if (t.aiTitle?.trim() && !titleIsHumanOwned(t)) return { text: readableMachineTitle(t.aiTitle), name: t.titleNamed !== false }
-  // Codex's TUI has no native automatic naming event. Frizz asks the first finalized response for a
+  // Codex's TUI has no native automatic naming event. Ntwine asks the first finalized response for a
   // hidden title signal; omission or malformed syntax must stay neutral rather than exposing either
   // the stored legacy prompt heuristic or a provider-recorded raw initial prompt.
   if (t.backend === "codex" && t.titleAuto === true && !t.aiTitle?.trim()) return { text: UNTITLED_THREAD_TITLE, name: false }
@@ -181,7 +181,7 @@ const CODEX_TITLE_SIGNAL_GRACE_MS = 15_000
 
 // A title is PROVISIONAL when it's the auto-guessed dispatch slug, Claude hasn't named the session yet
 // (titleAuto && no aiTitle), AND the dispatch is still WITHIN the spin-up window. The time bound is
-// load-bearing: a long session that compacts gets a NEW transcript id, so frizz (still tracking the
+// load-bearing: a long session that compacts gets a NEW transcript id, so ntwine (still tracking the
 // pinned id) loses the transcript and never sees an aiTitle — without the bound the row would stick on
 // "Spinning up…" forever (maintainer 2026-07-10). After the window it falls back to the dispatch title.
 // Root cause of the lost transcript is tracked separately ([[session-transcript-drift]]).
@@ -345,19 +345,19 @@ export function queueLabelWord(t: Pick<ThreadView, "queuedAt" | "queuedForReply"
 // ── SESSION-FIRST QUEUE ──────────────────────────────────────────────────────────────────────────
 // The Needs-you queue (the cards surface) is EXACTLY the session threads the SERVER derived as needing
 // the human (t.needsYou — explicit questions, checked/done handoffs, and process-level blocks a view
-// can't clear). Do NOT re-derive it client-side for session rows. Legacy .frizz-file rows
+// can't clear). Do NOT re-derive it client-side for session rows. Legacy .ntwine-file rows
 // never card anymore. An archived thread is out of the queue regardless (belt-and-suspenders — the
 // server already drops needsYou when archived). Pre-restart snapshots carry no kind/needsYou → false →
 // an empty queue, the accepted degrade.
 export function queued(t: ThreadView): boolean {
   // Foreign (terminal-originated) sessions never queue: their interaction surface is the terminal
-  // the human is already sitting in — frizz can't be "awaiting" them here. The predicate itself is
+  // the human is already sitting in — ntwine can't be "awaiting" them here. The predicate itself is
   // shared with the server, which counts it per project for the rail's badges.
   return queuedThread(t)
 }
 
-// EXTERNAL SESSIONS — agent sessions discovered in the project's transcript dir that frizz did NOT
-// originate (the human's own terminals). They are NOT part of the four frizz bands and never can be
+// EXTERNAL SESSIONS — agent sessions discovered in the project's transcript dir that ntwine did NOT
+// originate (the human's own terminals). They are NOT part of the four ntwine bands and never can be
 // while they stay external: such a session writes no ```awaiting fence and has no lifecycle row, so
 // Snoozed and Done have nothing to derive from (see the server's foreignThreadView). So they get their
 // own collapsible section at the bottom of the rail — one the reader can ignore wholesale.
@@ -388,7 +388,7 @@ export function externalThreads(threads: readonly ThreadView[]): ThreadView[] {
 //   DONE     — the collapsed archived section.
 // Say "rested" or "in the queue" for a card's row. NEVER call it active merely because this key does.
 //
-// The rail's THREAD-derived sections, keyed on the session-first model (NOT frizz status). Every thread
+// The rail's THREAD-derived sections, keyed on the session-first model (NOT ntwine status). Every thread
 // row lands in exactly one of these.
 //   • active           — the SECTION holding the Active AND Rested bands (partitionActive splits it):
 //                        open session work — running, needs-you, bare rest, done-fenced, OR owning a
@@ -405,7 +405,7 @@ export function externalThreads(threads: readonly ThreadView[]): ThreadView[] {
 //                        button) and at rest: an archived thread whose worker is still running lifts
 //                        into the Active band until it rests (sectionOf, Colin 2026-07-10). Rendered
 //                        under the label DONE — the key and the label differ.
-//   • legacy           — kind !== "session": vestigial .frizz-file rows, hidden entirely (null).
+//   • legacy           — kind !== "session": vestigial .ntwine-file rows, hidden entirely (null).
 // A FOREIGN session row (a maintainer terminal — no registry row, so no state/needsYou) is dropped
 // entirely (never rows). Order within a section is interaction recency.
 // Thread-derived buckets, in render order.
@@ -588,7 +588,7 @@ export function workingWithOpenQuestion(t: ThreadView): boolean {
  *  was the one behind a park (maintainer 2026-09-04: "it's kind of weird that this only shows up on a
  *  snoozed card … the GitHub icon should show up anytime that an agent is awaiting a PR").
  *
- *  THE REGISTERED WATCH IS THE PRIMARY SIGNAL, not the fence. `frizzctl watch-pr` creates the row
+ *  THE REGISTERED WATCH IS THE PRIMARY SIGNAL, not the fence. `ntwinectl watch-pr` creates the row
  *  the scheduler actually polls, and it is what survives a compaction and a restart; the `prs:` fence
  *  line only ECHOES it (the worker contract: "Register FIRST: this line states the wait, it does not
  *  create one"). Reading the fence alone — which is all the Snoozed arm ever did — therefore misses a
@@ -666,7 +666,7 @@ export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "bac
 // "this thread has a hook" could only ever render in the gap where the thread is at REST — and a live
 // hook has almost no such gap: the thread works, stops, and is bumped again within a tick. What it DID
 // render on was the one at-rest state that lasts, the thread whose agent answered AWAITING — where the
-// mark said "frizz will act on this" about a loop that had just closed itself. It was invisible when
+// mark said "ntwine will act on this" about a loop that had just closed itself. It was invisible when
 // true and wrong when visible.
 //
 // The prompt box's RecurringPromptControl carries the state instead, where it is legible and editable.
@@ -733,7 +733,7 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // not showing up as yellow in the sidebar"). Below isSnoozed so the operator's own wall-clock snooze
   // still parks the row; above the done fence and the background dot, both of which would be a STALE
   // story from before the kill (the fault postdates any fence, and nothing of the thread's is coming
-  // back until the window resets). PRESENCE, not `autoResume`: a pause frizz will not resume by itself
+  // back until the window resets). PRESENCE, not `autoResume`: a pause ntwine will not resume by itself
   // (an unknown phrasing, an aged-out fault) is still a limit kill, and the tip says which story holds.
   if (t.limitPause && t.foreign !== true) return "limit"
   if (t.lastFence?.kind === "done" && atRest(t)) return "done"
@@ -746,11 +746,11 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // AWAITING A TIMER — the hourglass, in whichever band the row sits (awaitingTimerWatch). Below the
   // PR mark: a timer beside a PR watch is the watch's backstop, not the subject. Above the dot: a timer
   // park in the QUEUE wore the shell's blue dot until 2026-09-07, which claimed live work behind a
-  // thread whose only pending event is a wake frizz will deliver. NOT FOR A `working` REST: the timer
+  // thread whose only pending event is a wake ntwine will deliver. NOT FOR A `working` REST: the timer
   // there is the backstop of a shell the worker named, and that shell is the motion the row spins for.
   if (awaitingTimerWatch(t) && !restIsWorking(t)) return "timer"
   // Below the two DECLARED states on purpose. A worker that fenced ```done while a server it never
-  // killed keeps running is a one-click dismissal, not live work (FRIZZ.md: "name it in the body and
+  // killed keeps running is a one-click dismissal, not live work (NTWINE.md: "name it in the body and
   // fence anyway"), and a parked ```awaiting is the human's gate — either story outranks "something it
   // launched is still going". The ordering is LOAD-BEARING now rather than merely declarative: it used
   // to be unreachable because deriveAwaitingBackground dropped any fenced thread, and since a timer park
@@ -782,15 +782,15 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
 //
 // Two states earn Retry, and they wear DIFFERENT sidebar marks — the verb is shared, the glyph is not:
 //   • STALLED — the process is gone with the work unfinished (yellow [!]). The classic case.
-//   • KILLED BY A USAGE LIMIT frizz will auto-resume (the yellow hourglass — the "limit" kind). It
-//     queues as a failed thread (deriveNeedsYou, 2026-08-31) and frizz continues it itself once the
+//   • KILLED BY A USAGE LIMIT ntwine will auto-resume (the yellow hourglass — the "limit" kind). It
+//     queues as a failed thread (deriveNeedsYou, 2026-08-31) and ntwine continues it itself once the
 //     window resets, but the operator with capacity elsewhere shouldn't have to wait, so it gets the
 //     same one-click Retry: the same verb, message and RPC as a stall (retrySession sends the very
 //     "Continue exactly where you left off." the in-drawer LimitPauseCard already offers) — a faster
 //     door from the rail (maintainer 2026-07-23: limit-killed rows want the same one-click retry as
 //     stalled rows). This is why offersRetry is NOT simply `kind === "stalled"`. The invariant the
 //     maintainer reads the rail by (2026-08-31): EVERY YELLOW ROW carries the hover Retry.
-// The "limit" kind keys on the fault's PRESENCE, so a pause frizz will not resume by itself (an
+// The "limit" kind keys on the fault's PRESENCE, so a pause ntwine will not resume by itself (an
 // unknown phrasing, an aged-out fault) still wears the yellow hourglass and this same Retry — for
 // that row the Retry is not a shortcut but the only way back.
 //
@@ -805,7 +805,7 @@ export function offersRetry(t: ThreadView): boolean {
   const kind = sessionIndicatorKind(t)
   // Gated on the RESOLVED kinds (never raw limitPause/canRetry) so a higher-priority state that stole
   // the row — a fresh ask, live work, the operator's own snooze — never sprouts a Retry. Both kinds
-  // are non-foreign by construction, so each stays a session frizz can actually restart.
+  // are non-foreign by construction, so each stays a session ntwine can actually restart.
   return kind === "stalled" || kind === "limit"
 }
 
@@ -848,13 +848,13 @@ export function partitionActive(active: readonly ThreadView[]): { running: Threa
 
 // THE BAND A THREAD'S STATE PUTS IT IN, by the names the rail's headers print rather than the section
 // keys above: READY is the cue (it has a queue card), WORKING the band below the rule, then SNOOZED,
-// DONE, and EXTERNAL for a terminal session Frizz does not own. The same derivation the rail's bands
+// DONE, and EXTERNAL for a terminal session Ntwine does not own. The same derivation the rail's bands
 // run, so a surface that names the band — the drawer header's stamp — can never disagree with the band
 // the row actually sits in.
 //
 // It IGNORES THE PIN on purpose. A pin moves the row, never the state (see isPinned): a pinned thread
 // that is spinning is still Working, and the stamp says what the thread is doing, not where the human
-// shelved it. Legacy `.frizz` rows have no band (null), as they have no row.
+// shelved it. Legacy `.ntwine` rows have no band (null), as they have no row.
 export type Band = "ready" | "working" | "snoozed" | "done" | "external"
 export function bandOf(t: ThreadView): Band | null {
   if (t.kind === "session" && t.foreign === true) return "external"

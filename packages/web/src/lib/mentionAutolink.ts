@@ -1,5 +1,5 @@
 import type { Token, Tokens } from "marked"
-import type { ProjectQueue, ThreadView } from "@frizz/shared"
+import type { ProjectQueue, ThreadView } from "@ntwine/shared"
 import { crossProjectHref } from "./base-path.ts"
 import { childArrays } from "./githubAutolink.ts"
 import { crossProjectMentionCandidates, mentionCandidates, scanMentions, type MentionCandidate } from "./threadMentions.ts"

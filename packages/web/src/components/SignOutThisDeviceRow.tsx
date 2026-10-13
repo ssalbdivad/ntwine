@@ -6,7 +6,7 @@ import { Dialog } from "./ui/Dialog.tsx"
 
 // The phone Settings row that ends THIS browser's remote-access session (approved in the 2026-09-30
 // phone redesign, "This device" section). It signs out only the browser that taps it: the supervisor
-// takes the id from this request's own cookie. Signing out OTHER devices stays `frizz --sign-out` on the
+// takes the id from this request's own cookie. Signing out OTHER devices stays `ntwine --sign-out` on the
 // host, loopback only, so a stolen phone cannot evict the laptop.
 //
 // Renders nothing unless the supervisor says this page holds a remote session — the operator's own
@@ -68,7 +68,7 @@ export function SignOutThisDeviceRow({ className = "" }: { className?: string })
         }
       >
         <div className="flex flex-col gap-2 p-4 text-[12.5px] leading-relaxed text-muted">
-          <p>This browser will need a new access link to open Frizz again. Your other devices stay signed in.</p>
+          <p>This browser will need a new access link to open Ntwine again. Your other devices stay signed in.</p>
           {error ? <p className="text-[11.5px] text-danger">{error}</p> : null}
         </div>
       </Dialog>

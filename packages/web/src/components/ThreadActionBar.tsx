@@ -20,7 +20,7 @@ export function ThreadActionBar({ slug, above, phoneBarOverride, phoneChrome }: 
   if (!thread) return null
 
   // AN EXTERNAL SESSION GETS THE ORDINARY COMPOSER, and that is the whole feature. It has no registry
-  // row yet, so frizz has no channel into it — but SENDING is what opens one: the follow-up promotes
+  // row yet, so ntwine has no channel into it — but SENDING is what opens one: the follow-up promotes
   // the session to a real thread server-side and then delivers into it, in one round trip (see the
   // router's promoteExternalSession). Nothing here has to know that happened, because the promoted
   // thread keeps the id this composer is already mounted on.
@@ -46,6 +46,6 @@ export function ThreadActionBar({ slug, above, phoneBarOverride, phoneChrome }: 
   )
 }
 
-// The old ⋯ overflow menu is gone: the frizz-document, retry, and done actions all live as direct
+// The old ⋯ overflow menu is gone: the ntwine-document, retry, and done actions all live as direct
 // icons in the shared <HeaderActions> (Kill and Dismiss were dropped entirely — an exited session
 // is retried from the header, or cleared through the header's check).

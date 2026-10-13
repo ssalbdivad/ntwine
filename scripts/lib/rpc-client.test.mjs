@@ -19,8 +19,8 @@ test("the verification client addresses the chosen tenant without changing the d
     assert.equal(await tenant.mutate("upsertOwnLink", {}), "ok")
     assert.equal(await tenant.waitForHealth(), true)
     assert.deepEqual(seen, [
-      ["GET", "/_frizz/rpc/board"], ["GET", "/_frizz/second-project/rpc/board"],
-      ["POST", "/_frizz/second-project/rpc/upsertOwnLink"], ["GET", "/_frizz/second-project/health"],
+      ["GET", "/_ntwine/rpc/board"], ["GET", "/_ntwine/second-project/rpc/board"],
+      ["POST", "/_ntwine/second-project/rpc/upsertOwnLink"], ["GET", "/_ntwine/second-project/health"],
     ])
   } finally { await new Promise(resolve => server.close(resolve)) }
 })

@@ -22,12 +22,12 @@ import {
 } from "./thread-names.ts"
 
 function store(): Storage {
-  return createStorage(join(mkdtempSync(join(tmpdir(), "frizz-names-")), "ui.db"), "p")
+  return createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-names-")), "ui.db"), "p")
 }
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-09-29T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-09-29T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1, title_locked: 0,
     title: `${slug} chop…`, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   } as SessionRow
@@ -193,14 +193,14 @@ test("another open project's thread names are taken: listed in the prompt, refus
   // The same slug in the other project must not count as this thread itself.
   named(there, "newcomer", "Shell budgets")
   const tenants = [
-    { project: { id: "frizz", name: "frizz" }, ctx: { storage: here } },
+    { project: { id: "ntwine", name: "ntwine" }, ctx: { storage: here } },
     { project: { id: "arktype", name: "arktype" }, ctx: { storage: there } },
   ]
   const asked: string[] = []
   const answers = ["Issues audit", "issues-audit"]
   const namer = createThreadNamer({
     storage: here,
-    elsewhere: () => openThreadsElsewhere(tenants, "frizz"),
+    elsewhere: () => openThreadsElsewhere(tenants, "ntwine"),
     complete: async ({ prompt }) => { asked.push(prompt); return answers.shift()! },
   })
   assert.equal(namer.holder("Issues audit")?.project, "arktype")

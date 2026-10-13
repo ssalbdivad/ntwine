@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { BackgroundShellOutputResult } from "@frizz/shared"
+import type { BackgroundShellOutputResult } from "@ntwine/shared"
 import { GONE_RECHECKS, ShellLogStream, nextShellLogDelay, shellLogHead, type ShellLogEvent } from "./shellLog.ts"
 
 // The agent-terminal drawer's stream: what a poll reply becomes on the read-only xterm. The rules a browser

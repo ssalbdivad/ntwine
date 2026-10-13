@@ -6,8 +6,8 @@ import test from "node:test"
 // options"). The card's onFocus hands the producer its unchanged text and relies on THAT clearing the
 // pick; this producer wrote only the draft and left the chip lit beside a focused box. Skipped unless a
 // Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts here): start
-// `vite` in packages/web and set FRIZZ_REGISTERED_QUESTION_FOCUS_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_REGISTERED_QUESTION_FOCUS_E2E_URL
+// `vite` in packages/web and set NTWINE_REGISTERED_QUESTION_FOCUS_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_REGISTERED_QUESTION_FOCUS_E2E_URL
 
 type Page = import("puppeteer").Page
 

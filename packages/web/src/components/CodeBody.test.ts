@@ -11,10 +11,10 @@ import { CodeBody } from "./CodeBody.tsx"
 
 test("the surface's own className and attributes survive, with hljs added", () => {
   const html = renderToStaticMarkup(
-    createElement(CodeBody, { text: "echo hi", language: "bash", className: "frizz-bash-body frizz-bash-clamp", "data-probe": "x" } as never),
+    createElement(CodeBody, { text: "echo hi", language: "bash", className: "ntwine-bash-body ntwine-bash-clamp", "data-probe": "x" } as never),
   )
   assert.match(html, /^<pre/)
-  assert.match(html, /class="hljs frizz-bash-body frizz-bash-clamp"/)
+  assert.match(html, /class="hljs ntwine-bash-body ntwine-bash-clamp"/)
   assert.match(html, /data-probe="x"/)
 })
 

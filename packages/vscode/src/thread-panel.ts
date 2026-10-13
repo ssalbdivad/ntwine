@@ -1,11 +1,11 @@
-// A THREAD IN AN EDITOR TAB — Claude Code's "open in new tab": the same Frizz page the sidebar frames,
+// A THREAD IN AN EDITOR TAB — Claude Code's "open in new tab": the same Ntwine page the sidebar frames,
 // opened on one thread in a webview panel, so a long conversation gets the editor's width beside the code.
 // The sidebar stays the primary surface; this is the door for when it is too narrow to read in.
 //
 // One tab per thread: asking again for a thread that a tab already shows brings that tab forward. "Shows"
-// is what the tab's page says it shows (its `frizz:route`), not what it was opened on — a link to another
+// is what the tab's page says it shows (its `ntwine:route`), not what it was opened on — a link to another
 // thread followed inside the tab makes it that thread's, and a tab whose page went back to the queue
-// (its drawer closed) is nobody's, and reads "Frizz".
+// (its drawer closed) is nobody's, and reads "Ntwine".
 //
 // It is a full frame, not a picture: the relay and its checks are the sidebar's (sidebar-html.ts
 // frameDocument), and every page message is answered the way the sidebar answers it (framed-page.ts
@@ -14,19 +14,19 @@
 //  - Ctrl+L pressed in the tab goes back to the code (the sidebar's runs "focus the active editor group",
 //    which in a tab is the tab itself);
 //  - a click on the tab's context bar adds to the TAB's box (framed-page.ts PageHost.addContext `into`).
-// And the editor's own Ctrl+L comes to the tab when the tab is the Frizz the human used last (app.ts).
+// And the editor's own Ctrl+L comes to the tab when the tab is the Ntwine the human used last (app.ts).
 //
-// In the editor's colours (frizz.matchEditorTheme, sidebar-html.ts § The editor's colours) as the sidebar is,
+// In the editor's colours (ntwine.matchEditorTheme, sidebar-html.ts § The editor's colours) as the sidebar is,
 // but on the EDITOR's surface: a tab sits among the code's tabs, so its page takes the editor's background,
 // not the side bar's.
 //
 // Restored after a window reload: the relay keeps `{ thread, project }` as the webview's state, and the
-// serializer frames that thread again (activation event `onWebviewPanel:frizz.thread`).
+// serializer frames that thread again (activation event `onWebviewPanel:ntwine.thread`).
 //
 // Only `import type` from vscode, like app.ts.
 
 import type * as vscode from "vscode"
-import type { EmbedComposeMessage, EmbedComposedMessage, EmbedHostMessage, EmbedPageMessage, EmbedRouteMessage } from "@frizz/shared/embed-protocol"
+import type { EmbedComposeMessage, EmbedComposedMessage, EmbedHostMessage, EmbedPageMessage, EmbedRouteMessage } from "@ntwine/shared/embed-protocol"
 import { embedTheme, embedUrl, frameTarget, isSlug, parsePageMessage, threadEmbedUrl, threadOfHref, threadPath, type ComposeSidebar } from "./embed.ts"
 import { actOnPage, Composes, type FrameLink, type PageHost } from "./framed-page.ts"
 import { MATCH_THEME_SETTING } from "./sidebar.ts"
@@ -34,21 +34,21 @@ import { frameDocument, HINT, messageDocument, nonce } from "./sidebar-html.ts"
 
 type Vscode = typeof vscode
 
-export const THREAD_PANEL = "frizz.thread"
+export const THREAD_PANEL = "ntwine.thread"
 
 /** As long as the sidebar gives a page to say it is ready before it offers Reload (sidebar.ts READY_HINT_MS). */
 const READY_HINT_MS = 20_000
 const EVENTS_KEPT = 50
 /** A tab whose page shows no thread (it went back to the queue) — the product's name, as the sidebar's row reads. */
-const NO_THREAD_TITLE = "Frizz"
-/** A tab with no Frizz to frame yet (restored before discovery answered): it frames the page once there is one. */
+const NO_THREAD_TITLE = "Ntwine"
+/** A tab with no Ntwine to frame yet (restored before discovery answered): it frames the page once there is one. */
 
 export interface ThreadPanelsHost extends PageHost {
-  /** Where Frizz is: the connected origin, else the last discovery's. */
+  /** Where Ntwine is: the connected origin, else the last discovery's. */
   origin(): string | undefined
   /** Ctrl+L pressed in a tab: back to the code the human came from. */
   backToEditor(): Promise<void>
-  /** Open a page of Frizz in the browser (the hint bar's Open in browser). */
+  /** Open a page of Ntwine in the browser (the hint bar's Open in browser). */
   openInBrowser(url: string): void
 }
 
@@ -98,7 +98,7 @@ export interface ThreadPanels {
   post(message: EmbedHostMessage): Promise<boolean>
   /** The extension's state the pages show changed: tell every ready one. */
   pushState(): void
-  /** Frizz may have moved (a new origin) or come back: frame again what shows another origin or none. */
+  /** Ntwine may have moved (a new origin) or come back: frame again what shows another origin or none. */
   refresh(): void
   /** Called when a tab's page takes the keyboard: the human is using that tab. */
   onFocus(listener: (tab: ThreadTab) => void): void
@@ -136,7 +136,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
   const readyListeners: ((ready: boolean) => void)[] = []
   const focusListeners: ((tab: ThreadTab) => void)[] = []
   const theme = () => embedTheme(api.window.activeColorTheme.kind)
-  const matchTheme = () => api.workspace.getConfiguration("frizz").get<boolean>(MATCH_THEME_SETTING, true) !== false
+  const matchTheme = () => api.workspace.getConfiguration("ntwine").get<boolean>(MATCH_THEME_SETTING, true) !== false
   const icon = api.Uri.joinPath(context.extensionUri, "dist", "icon.png")
 
   const record = (tab: Tab, type: string, outcome: string) => {
@@ -184,7 +184,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
   async function render(tab: Tab): Promise<void> {
     const origin = host.origin()
     if (!origin) return showMessage(tab, LOOKING)
-    // A tab whose page left every thread (and is framed again: Reload, Frizz on a new port) shows the
+    // A tab whose page left every thread (and is framed again: Reload, Ntwine on a new port) shows the
     // project's queue, as its page last did.
     const wanted = tab.thread ? threadEmbedUrl(origin, theme(), tab.project, tab.thread) : embedUrl(origin, theme(), tab.project)
     const generation = ++tab.renders
@@ -197,7 +197,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
     }
     if (generation !== tab.renders || !tabs.has(tab)) return
     const target = frameTarget(wanted, external)
-    if (target.kind === "remapped") return showMessage(tab, "Frizz can't load in this window. Open it in your browser instead.")
+    if (target.kind === "remapped") return showMessage(tab, "Ntwine can't load in this window. Open it in your browser instead.")
     setReady(tab, false)
     tab.message = undefined
     tab.frameUrl = target.url
@@ -216,7 +216,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
 
   /**
    * Where the tab's page is. A thread: the tab is that thread's, titled as the page names it (VS Code does
-   * not re-case a tab's title, as it does the sidebar's row). Anything else: nobody's, and "Frizz".
+   * not re-case a tab's title, as it does the sidebar's row). Anything else: nobody's, and "Ntwine".
    */
   function applyRoute(tab: Tab, route: EmbedRouteMessage): void {
     tab.view = route.view
@@ -235,17 +235,17 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
 
   async function onPageMessage(tab: Tab, link: FrameLink, page: EmbedPageMessage): Promise<void> {
     switch (page.type) {
-      case "frizz:ready":
+      case "ntwine:ready":
         setReady(tab, true)
         record(tab, page.type, "ready")
         void postTo(tab, { view: "hint", show: false })
-        void postTo(tab, { type: "frizz:theme", theme: theme() })
-        void postTo(tab, { type: "frizz:host-state", ...host.hostState() })
+        void postTo(tab, { type: "ntwine:theme", theme: theme() })
+        void postTo(tab, { type: "ntwine:host-state", ...host.hostState() })
         return
-      case "frizz:composed":
+      case "ntwine:composed":
         record(tab, page.type, tab.composes.answer(page) ? (page.ok ? "ok" : `refused: ${page.error ?? ""}`) : "unknown id")
         return
-      case "frizz:route":
+      case "ntwine:route":
         applyRoute(tab, page)
         record(tab, page.type, page.view)
         return
@@ -333,7 +333,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
         onPageMessage(tab, link, page).catch((error: unknown) => host.log.warn(`A tab couldn't act on ${page.type}: ${(error as Error).message}`))
       }),
     ]
-    // Which Frizz the human used last (app.ts frontTab). The relay's `focused` alone is not enough here: a
+    // Which Ntwine the human used last (app.ts frontTab). The relay's `focused` alone is not enough here: a
     // click inside the page fires the relay window's focus only when focus comes from OUTSIDE its chain, and
     // a tab opened with the keyboard has its relay in the chain before the relay's script listens — the human
     // who opened a tab and clicked straight into its reply box was never counted (e2e-sidebar c19, 1 of 1).
@@ -363,11 +363,11 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
       },
     }),
     api.window.onDidChangeActiveColorTheme(() => {
-      for (const tab of tabs) if (tab.ready) void postTo(tab, { type: "frizz:theme", theme: theme() })
+      for (const tab of tabs) if (tab.ready) void postTo(tab, { type: "ntwine:theme", theme: theme() })
     }),
     // To each tab's relay, which holds the colours (sidebar.ts does the same for the sidebar's).
     api.workspace.onDidChangeConfiguration((event) => {
-      if (!event.affectsConfiguration(`frizz.${MATCH_THEME_SETTING}`)) return
+      if (!event.affectsConfiguration(`ntwine.${MATCH_THEME_SETTING}`)) return
       for (const tab of tabs) void postTo(tab, { view: "match-theme", on: matchTheme() })
     }),
     { dispose: () => {
@@ -395,7 +395,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
         localResourceRoots: [],
       })
       const tab = adopt(panel, target)
-      // Opened with the keyboard in it: this tab is now the Frizz used last.
+      // Opened with the keyboard in it: this tab is now the Ntwine used last.
       for (const listener of focusListeners) listener(tab)
     },
     anyReady: () => [...tabs].some((tab) => tab.ready),
@@ -407,7 +407,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
       return results.some(Boolean)
     },
     pushState() {
-      for (const tab of tabs) if (tab.ready) void postTo(tab, { type: "frizz:host-state", ...host.hostState() })
+      for (const tab of tabs) if (tab.ready) void postTo(tab, { type: "ntwine:host-state", ...host.hostState() })
     },
     refresh() {
       const origin = host.origin()
@@ -435,4 +435,4 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
   }
 }
 
-const LOOKING = "Looking for Frizz…"
+const LOOKING = "Looking for Ntwine…"

@@ -1,24 +1,24 @@
-// FINDING FRIZZ from an editor window, with nothing configured. Frizz is one server per machine, and
+// FINDING NTWINE from an editor window, with nothing configured. Ntwine is one server per machine, and
 // it leaves records of where it listens in its own data and state roots; this reads them in the order
 // that gets the PUBLIC origin — the one the human's tab is on — whenever one exists:
 //
-//   1. `frizz.serverUrl`, when the human set it. Nothing else is consulted.
-//   2. `<state>/frizz-server/address.json` — the published launcher's address record, naming the port it
+//   1. `ntwine.serverUrl`, when the human set it. Nothing else is consulted.
+//   2. `<state>/ntwine-server/address.json` — the published launcher's address record, naming the port it
 //      serves. Trusted the way the launcher trusts it (src/server-owner.ts `readStableServerOwner`):
 //      the machine-wide owner record beside it must name the same token, pid and process start, and that
 //      process generation must still be alive. The record outlives a crash, and by then its port can be
-//      anyone's — a `frizz --sandbox` takes the next free well-known port, another account any port.
+//      anyone's — a `ntwine --sandbox` takes the next free well-known port, another account any port.
 //   3. The well-known ports (9393, 19393, 9494, 19494), accepted only with the launch-token proof
-//      (`ownedFrizz` below): loopback is shared with every other account on the machine and with a
-//      `frizz --sandbox`, so answering proves nothing.
-//   4. `<data>/projects/<id>/dev-supervisor.lock` — `frizz-dev`'s public port when it is not on a
+//      (`ownedNtwine` below): loopback is shared with every other account on the machine and with a
+//      `ntwine --sandbox`, so answering proves nothing.
+//   4. `<data>/projects/<id>/dev-supervisor.lock` — `ntwine-dev`'s public port when it is not on a
 //      well-known one. Ours by construction (it is in our own data root), so liveness is enough.
 //   5. `<data>/server.lock` — written by every launch mode, only while the pid that wrote it is alive.
 //      Behind the restart supervisor its port is the control plane's PRIVATE listener: RPC and the editor
 //      socket work there, but a page opened on it is a different origin (its own storage, and a port
 //      that moves on every restart). Without a supervisor (a bare `startServer`) it IS the public port.
 //      Last for the first reason. The steps above win whenever a supervisor is up, so pages land here
-//      only in narrow windows — a supervisor that died under a live child, or a Frizz on a port outside
+//      only in narrow windows — a supervisor that died under a live child, or a Ntwine on a port outside
 //      the well-known set with no address record — and the extension logs which kind of address a page
 //      was opened on (app.ts `openUrl`) instead of refusing to open one.
 //
@@ -31,7 +31,7 @@ import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
 import { readFileSync, realpathSync } from "node:fs"
 import { isAbsolute, join } from "node:path"
-import { frizzPathsNow, type FrizzPaths } from "@frizz/server/frizz-paths"
+import { ntwinePathsNow, type NtwinePaths } from "@ntwine/server/ntwine-paths"
 
 /** `DEFAULT_PORT`, its fallback, `DEFAULT_DEV_PORT`, its fallback (packages/shared `fallbackPort` = +10 000). */
 export const WELL_KNOWN_PORTS: readonly number[] = [9393, 19393, 9494, 19494]
@@ -40,16 +40,16 @@ export type DiscoverySource = "setting" | "owner-record" | "well-known-port" | "
 
 /** Where an address came from, for the log. */
 export const SOURCE_WORDS: Record<DiscoverySource, string> = {
-  setting: "the frizz.serverUrl setting",
+  setting: "the ntwine.serverUrl setting",
   "owner-record": "the launcher's address record",
   "well-known-port": "its well-known port",
-  "dev-supervisor": "frizz-dev's address record",
+  "dev-supervisor": "ntwine-dev's address record",
   "server-lock": "the server's own lock file",
 }
 
 /**
  * What kind of address a page is being opened on, for the log line beside it. Every source but the
- * lock file names the port the human's own tab is on. The lock file's is that port only when Frizz runs
+ * lock file names the port the human's own tab is on. The lock file's is that port only when Ntwine runs
  * without its restart supervisor; behind one it is the control plane's private port, where a tab keeps
  * drafts of its own and stops answering on the next restart — the log says so, so a tab that went dead
  * has its explanation one command away.
@@ -58,26 +58,26 @@ export function pageAddressNote(source: DiscoverySource): { level: "info" | "war
   if (source !== "server-lock") return { level: "info", note: `a public address, from ${SOURCE_WORDS[source]}` }
   return {
     level: "warn",
-    note: "an address from the server's own lock file, found because no public one was. It is Frizz's page address only when Frizz runs without its restart supervisor; otherwise the tab keeps separate drafts and stops working when Frizz restarts. Set frizz.serverUrl to Frizz's page address to pin it",
+    note: "an address from the server's own lock file, found because no public one was. It is Ntwine's page address only when Ntwine runs without its restart supervisor; otherwise the tab keeps separate drafts and stops working when Ntwine restarts. Set ntwine.serverUrl to Ntwine's page address to pin it",
   }
 }
 
-export interface FoundFrizz {
+export interface FoundNtwine {
   origin: string
   port: number
   source: DiscoverySource
 }
 
 export interface DiscoveryResult {
-  found?: FoundFrizz
+  found?: FoundNtwine
   /** One line per place looked, for the log: what was there and why it was or was not taken. */
   notes: string[]
 }
 
 export interface DiscoveryOptions {
-  /** The `frizz.serverUrl` setting; empty means find it. */
+  /** The `ntwine.serverUrl` setting; empty means find it. */
   serverUrl?: string
-  roots?: Pick<FrizzPaths, "data" | "state">
+  roots?: Pick<NtwinePaths, "data" | "state">
   ports?: readonly number[]
   timeoutMs?: number
   pidAlive?: (pid: number) => boolean
@@ -85,7 +85,7 @@ export interface DiscoveryOptions {
   observeGeneration?: (pid: number) => Promise<string | undefined>
 }
 
-export interface FrizzHealth {
+export interface NtwineHealth {
   ok: true
   bootId: string
   projectId?: string
@@ -101,7 +101,7 @@ export function loopbackOrigin(port: number): string {
 }
 
 /**
- * The origin a `frizz.serverUrl` value names, or undefined when it names none. A bare port and a
+ * The origin a `ntwine.serverUrl` value names, or undefined when it names none. A bare port and a
  * `host:port` are accepted, and a loopback name is spelled `127.0.0.1` whatever the human typed.
  */
 export function originFromSetting(raw: string): string | undefined {
@@ -119,26 +119,26 @@ export function originFromSetting(raw: string): string | undefined {
   return url.origin
 }
 
-export async function readHealth(origin: string, timeoutMs = 1_000): Promise<FrizzHealth | undefined> {
+export async function readHealth(origin: string, timeoutMs = 1_000): Promise<NtwineHealth | undefined> {
   try {
-    const response = await fetch(`${origin}/_frizz/health`, { signal: AbortSignal.timeout(timeoutMs) })
+    const response = await fetch(`${origin}/_ntwine/health`, { signal: AbortSignal.timeout(timeoutMs) })
     if (!response.ok) return undefined
-    const health = (await response.json()) as Partial<FrizzHealth>
-    return health.ok === true && typeof health.bootId === "string" ? (health as FrizzHealth) : undefined
+    const health = (await response.json()) as Partial<NtwineHealth>
+    return health.ok === true && typeof health.bootId === "string" ? (health as NtwineHealth) : undefined
   } catch {
     return undefined
   }
 }
 
 /**
- * The launch-token proof a Frizz's health carries: sha256 over a fixed tag, the launching project's id
+ * The launch-token proof a Ntwine's health carries: sha256 over a fixed tag, the launching project's id
  * and folder, and the owner token from `<data>/projects/<id>/project-launch.owner`. Reimplemented, not
- * imported — `@frizz/server/project-launch` drags process bookkeeping into the bundle — and pinned
+ * imported — `@ntwine/server/project-launch` drags process bookkeeping into the bundle — and pinned
  * byte-for-byte to `projectLaunchTokenProof` by discovery.test.ts.
  */
 export function launchTokenProof(projectId: string, projectDir: string, token: string): string {
   return createHash("sha256")
-    .update("frizz-project-launch-v2\0")
+    .update("ntwine-project-launch-v2\0")
     .update(projectId)
     .update("\0")
     .update(projectDir)
@@ -172,11 +172,11 @@ export function defaultPidAlive(pid: number): boolean {
 }
 
 /**
- * Whether the Frizz on this port is the one THIS user launched from these roots. The health answer
+ * Whether the Ntwine on this port is the one THIS user launched from these roots. The health answer
  * names the launching project; its owner record sits in our data root, readable by nobody else, and
  * the proof in the answer must be the hash of the token in it.
  */
-export async function ownedFrizz(port: number, data: string, timeoutMs = 1_000): Promise<boolean> {
+export async function ownedNtwine(port: number, data: string, timeoutMs = 1_000): Promise<boolean> {
   const health = await readHealth(loopbackOrigin(port), timeoutMs)
   if (!health || typeof health.projectId !== "string" || typeof health.projectDir !== "string" || typeof health.ownerProof !== "string") return false
   // The id becomes a path segment below; a hostile listener must not be able to aim it elsewhere.
@@ -194,14 +194,14 @@ export async function ownedFrizz(port: number, data: string, timeoutMs = 1_000):
 // extension on one thread: its module load observes the current process's generation, which on
 // Windows is a synchronous PowerShell spawn (250-430ms, process-generation.ts) during activation; its
 // staleness check spawns PowerShell synchronously again on every discovery that finds a live pid; and
-// `stableServerOwnerTarget` creates Frizz's data folder — a read that writes, on a machine where the
-// extension is installed and Frizz is not. Here the same verdict is reached with async spawns and no
+// `stableServerOwnerTarget` creates Ntwine's data folder — a read that writes, on a machine where the
+// extension is installed and Ntwine is not. Here the same verdict is reached with async spawns and no
 // writes, and discovery.test.ts runs both readers over the same fixture files, written by the server's
 // own writer, so the two cannot drift apart silently.
 
 /** `STABLE_SERVER_OWNER_PROJECT_ID`: the fixed id of the one machine-wide server target, never a repository's. */
 const STABLE_SERVER_OWNER_ID = "c1fd5810-0f8a-4c1d-91a0-6d7445d28e5a"
-const STABLE_SERVER_DIR = "frizz-server"
+const STABLE_SERVER_DIR = "ntwine-server"
 const GENERATION_TAG_RE = /^(?:linux|ps-utc|win32|opaque):/u
 
 export type OwnerAddressRead = { kind: "running"; port: number } | { kind: "not-running"; why: string }
@@ -307,7 +307,7 @@ async function generationIsStale(generation: Generation, pidAlive: (pid: number)
 
 /** The port the published launcher serves, when its address record is backed by a live owner generation. */
 export async function readOwnerAddress(
-  roots: Pick<FrizzPaths, "data" | "state">,
+  roots: Pick<NtwinePaths, "data" | "state">,
   pidAlive: (pid: number) => boolean = defaultPidAlive,
   observe: (pid: number) => Promise<string | undefined> = observeGeneration,
 ): Promise<OwnerAddressRead> {
@@ -315,7 +315,7 @@ export async function readOwnerAddress(
   try {
     dataDir = realpathSync(roots.data)
   } catch {
-    return { kind: "not-running", why: "no Frizz data folder" }
+    return { kind: "not-running", why: "no Ntwine data folder" }
   }
   const stateDir = join(roots.state, STABLE_SERVER_DIR)
   const owner = readOwner(join(stateDir, "project-launch.owner"))
@@ -329,8 +329,8 @@ export async function readOwnerAddress(
   return { kind: "running", port: address.port }
 }
 
-/** Find the running Frizz. Asked again before every connection attempt: the port can move. */
-export async function discoverFrizz(options: DiscoveryOptions = {}): Promise<DiscoveryResult> {
+/** Find the running Ntwine. Asked again before every connection attempt: the port can move. */
+export async function discoverNtwine(options: DiscoveryOptions = {}): Promise<DiscoveryResult> {
   const notes: string[] = []
   const timeoutMs = options.timeoutMs ?? 1_000
   const pidAlive = options.pidAlive ?? defaultPidAlive
@@ -338,17 +338,17 @@ export async function discoverFrizz(options: DiscoveryOptions = {}): Promise<Dis
   if (options.serverUrl?.trim()) {
     const origin = originFromSetting(options.serverUrl)
     if (!origin) {
-      notes.push(`frizz.serverUrl "${options.serverUrl}" is not an http address`)
+      notes.push(`ntwine.serverUrl "${options.serverUrl}" is not an http address`)
       return { notes }
     }
-    notes.push(`frizz.serverUrl: ${origin}`)
+    notes.push(`ntwine.serverUrl: ${origin}`)
     return { found: { origin, port: Number(new URL(origin).port || (origin.startsWith("https:") ? 443 : 80)), source: "setting" }, notes }
   }
 
-  // Resolved afresh per discovery, never memoised: this host lives for days and owns no Frizz data,
+  // Resolved afresh per discovery, never memoised: this host lives for days and owns no Ntwine data,
   // and the server it looks for may have started on other roots than this process would have frozen
-  // (frizz-paths.ts `frizzPathsNow`).
-  const roots = options.roots ?? frizzPathsNow()
+  // (ntwine-paths.ts `ntwinePathsNow`).
+  const roots = options.roots ?? ntwinePathsNow()
 
   const addressPath = join(roots.state, STABLE_SERVER_DIR, "address.json")
   const owner = await readOwnerAddress(roots, pidAlive, options.observeGeneration ?? observeGeneration)
@@ -357,7 +357,7 @@ export async function discoverFrizz(options: DiscoveryOptions = {}): Promise<Dis
       notes.push(`${addressPath}: port ${owner.port} answers`)
       return { found: { origin: loopbackOrigin(owner.port), port: owner.port, source: "owner-record" }, notes }
     }
-    notes.push(`${addressPath}: port ${owner.port} does not answer (Frizz may be starting)`)
+    notes.push(`${addressPath}: port ${owner.port} does not answer (Ntwine may be starting)`)
   } else {
     notes.push(`${addressPath}: ${owner.why}`)
   }
@@ -365,13 +365,13 @@ export async function discoverFrizz(options: DiscoveryOptions = {}): Promise<Dis
   const ports = options.ports ?? WELL_KNOWN_PORTS
   // In parallel — a closed port refuses at once, and an open one owes us its answer within the timeout —
   // then taken in the listed order, so the result never depends on which reply came back first.
-  const owned = await Promise.all(ports.map((port) => ownedFrizz(port, roots.data, timeoutMs)))
+  const owned = await Promise.all(ports.map((port) => ownedNtwine(port, roots.data, timeoutMs)))
   const ownedPort = ports.find((_, i) => owned[i])
   if (ownedPort !== undefined) {
     notes.push(`port ${ownedPort} answers with this user's launch token`)
     return { found: { origin: loopbackOrigin(ownedPort), port: ownedPort, source: "well-known-port" }, notes }
   }
-  notes.push(`ports ${ports.join(", ")}: no Frizz of this user's`)
+  notes.push(`ports ${ports.join(", ")}: no Ntwine of this user's`)
 
   const lockPath = join(roots.data, "server.lock")
   const lock = readJson(lockPath)

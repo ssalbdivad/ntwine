@@ -55,14 +55,14 @@ export const InteractionFieldId = z.string()
 export const InteractionDecisionId = z.string().min(1).max(80).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/)
 
 export const InteractionProvider = z.object({
-  kind: z.enum(["claude", "codex", "acp", "frizz"]),
+  kind: z.enum(["claude", "codex", "acp", "ntwine"]),
   name: InteractionLabel.optional(),
   version: InteractionOpaqueId.optional(),
 }).strict()
 export type InteractionProvider = z.infer<typeof InteractionProvider>
 
 export const InteractionSource = z.object({
-  kind: z.enum(["runtime", "agent", "tool", "mcp-server", "frizz"]),
+  kind: z.enum(["runtime", "agent", "tool", "mcp-server", "ntwine"]),
   id: InteractionOpaqueId,
   label: InteractionLabel.optional(),
 }).strict()
@@ -296,7 +296,7 @@ export const InteractionFileChangeDisplay = z.object({
   operation: z.enum(["create", "write", "move", "delete"]),
   pathLabel: plainText(2_048, 4_096),
   destinationLabel: plainText(2_048, 4_096).optional(),
-  // Display-only, bounded plain text. This value is never parsed or applied as a patch by Frizz.
+  // Display-only, bounded plain text. This value is never parsed or applied as a patch by Ntwine.
   diffPreview: InteractionPreview.optional(),
 }).strict()
 export type InteractionFileChangeDisplay = z.infer<typeof InteractionFileChangeDisplay>
@@ -327,7 +327,7 @@ export const InteractionPayload = z.discriminatedUnion("kind", [
     // labeled so the affected-file summary cannot disguise the durable scope.
     grantRootLabel: plainText(2_048, 4_096).optional(),
     scopeLabel: InteractionDescription.optional(),
-    // Plain-text, bounded preview only. It is never a trusted patch and must never be applied by Frizz.
+    // Plain-text, bounded preview only. It is never a trusted patch and must never be applied by Ntwine.
     diffPreview: InteractionPreview.optional(),
     changes: z.array(InteractionFileChangeDisplay).min(1).max(16).optional(),
   }).strict(),

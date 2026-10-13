@@ -11,7 +11,7 @@ import {
   type InteractionSource,
   type InteractionValue,
   type InteractionValues as InteractionValuesType,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
 export interface InteractionDeliveryPresentation {
   actionsEnabled: boolean
@@ -173,7 +173,7 @@ export function interactionProviderLabel(kind: InteractionProvider["kind"]): str
     case "claude": return "Claude"
     case "codex": return "Codex"
     case "acp": return "ACP agent"
-    case "frizz": return "Frizz"
+    case "ntwine": return "Ntwine"
   }
 }
 
@@ -183,7 +183,7 @@ export function interactionSourceLabel(kind: InteractionSource["kind"]): string 
     case "agent": return "Agent"
     case "tool": return "Tool"
     case "mcp-server": return "MCP server"
-    case "frizz": return "Frizz"
+    case "ntwine": return "Ntwine"
   }
 }
 
@@ -231,7 +231,7 @@ export function parseInteractionDraft(fields: readonly InteractionField[], draft
   if (fields.some((field) => field.secret)) {
     return {
       errors: {},
-      formError: "Secret responses cannot be sent through this Frizz connection.",
+      formError: "Secret responses cannot be sent through this Ntwine connection.",
     }
   }
   const values: Record<string, InteractionValue> = Object.create(null) as Record<string, InteractionValue>

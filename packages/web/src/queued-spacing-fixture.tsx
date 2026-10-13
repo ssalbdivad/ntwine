@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { ThreadView } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
@@ -60,7 +60,7 @@ const thread = {
   sessionId: "sid-queued-spacing",
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const messages: TranscriptMessage[] = [
   { sourceId: "u1", role: "user", text: "Look at the queued-message spacing.", tools: [], parts: [], at: "2026-07-18T17:15:00.000Z" },
@@ -99,7 +99,7 @@ const messages: TranscriptMessage[] = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : ((input as Request).url ?? input.toString()), location.origin)
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(
       JSON.stringify({ result: { messages, transcriptKey: `${SLUG}-key`, hasEarlier: false, historyLoaded: true } }),
       { headers: { "content-type": "application/json" } },
@@ -107,20 +107,20 @@ window.fetch = async (input, init) => {
   }
   // Record the push-now call rather than swallowing it into the generic `{}` below: a control that
   // renders correctly and asks the server for nothing is the failure this fixture has to be able to see.
-  if (url.pathname === "/_frizz/rpc/deliverQueuedNow") {
+  if (url.pathname === "/_ntwine/rpc/deliverQueuedNow") {
     const calls = ((window as unknown as { __pushNowCalls?: unknown[] }).__pushNowCalls ??= [])
     calls.push(JSON.parse(String(init?.body ?? "{}")))
     return new Response(JSON.stringify({ result: { interrupted: true } }), { headers: { "content-type": "application/json" } })
   }
   // A LIST, not the generic `{}`: the thread view iterates it, and `{}` threw before the transcript drew.
-  if (url.pathname === "/_frizz/rpc/threadSettledQuestions") {
+  if (url.pathname === "/_ntwine/rpc/threadSettledQuestions") {
     return new Response(JSON.stringify({ result: { questions: [] } }), { headers: { "content-type": "application/json" } })
   }
   // Lists too: the spinoff dialog iterates both.
-  if (url.pathname === "/_frizz/rpc/projectsQueues" || url.pathname === "/_frizz/rpc/projectsList") {
+  if (url.pathname === "/_ntwine/rpc/projectsQueues" || url.pathname === "/_ntwine/rpc/projectsList") {
     return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

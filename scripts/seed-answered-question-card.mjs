@@ -2,9 +2,9 @@
 // queue card repaint itself: the human's ask, a whole iteration, the answer to a REGISTERED question,
 // then a second whole iteration.
 //
-// The answer is the point. It is the one user turn frizz DELIVERS that the HUMAN wrote — it arrives as a
+// The answer is the point. It is the one user turn ntwine DELIVERS that the HUMAN wrote — it arrives as a
 // scheduler wake (the human may have answered while the worker's process was down), so a card that reads
-// `wake` as "frizz wrote this" walks straight past it, back to the ask, and paints both iterations
+// `wake` as "ntwine wrote this" walks straight past it, back to the ask, and paints both iterations
 // (maintainer 2026-08-31: "the cue card should only go back to the most recent user interaction"). The
 // card must open on the ANSWER, with everything above it left to the drawer.
 //
@@ -12,7 +12,7 @@
 // wake-delivery token and clock note, so this exercises the production projection rather than a
 // hand-written string — the clock note in particular is why the rule has to read `displayText`.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads. No process: liveness
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads. No process: liveness
 // comes from the row.
 // Usage: nub scripts/seed-answered-question-card.mjs --home=/abs/temp-home --port=NNNN
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -30,13 +30,13 @@ if (!home || !port) {
   process.exit(1)
 }
 
-// ONE server, EVERY project: the DB is a single `~/.frizz/ui.db` and a session row names its project,
+// ONE server, EVERY project: the DB is a single `~/.ntwine/ui.db` and a session row names its project,
 // so the row has to carry the registry's id for this cwd or the board never sees it.
-const db = join(home, ".frizz", "ui.db")
+const db = join(home, ".ntwine", "ui.db")
 if (!existsSync(db)) throw new Error(`no ui.db at ${db} — is the stack booted?`)
-const registry = JSON.parse(readFileSync(join(home, ".frizz", "registry.json"), "utf8"))
+const registry = JSON.parse(readFileSync(join(home, ".ntwine", "registry.json"), "utf8"))
 const projectId = registry.projects.find((p) => p.path === cwd)?.id
-if (!projectId) throw new Error(`${cwd} is not registered in ${home}/.frizz/registry.json`)
+if (!projectId) throw new Error(`${cwd} is not registered in ${home}/.ntwine/registry.json`)
 const jsonlDir = join(home, ".claude", "projects", cwd.replace(/[/.]/g, "-"))
 mkdirSync(jsonlDir, { recursive: true })
 
@@ -63,7 +63,7 @@ const assistant = (min, text) => ({
 })
 
 // Exactly what the scheduler enqueues (questionAnswerMessage), delivered exactly as the runtime records
-// it: frizz's clock note, then the token the outbox acks on. The server strips both into `displayText`.
+// it: ntwine's clock note, then the token the outbox acks on. The server strips both into `displayText`.
 const ANSWER = `${questionAnswerMessage([{
   questionId: "qst_1",
   question: "The Fable-limit fix is committed on the local main branch, one commit ahead of origin. Push it to GitHub now, or leave it local?",
@@ -81,7 +81,7 @@ const records = [
   assistant(52, "The fix holds and the suite is green. Now the tests that pin this behaviour."),
   assistant(74, "Another writer is editing this tree concurrently — `src/tokens.ts` and `src/activation.ts` are both dirty and neither is mine. Committing only my four paths."),
   assistant(95, "**Fixed** — a Fable limit now switches like any other.\n\n```done\n- Taught the broker's quota parser that a rejection outranks the itemized window, in `src/pass.ts` (`b91d3de`).\n- Added the two regression tests; the project's gates are green.\n```"),
-  // THE HUMAN'S ANSWER — frizz's transport, the human's words. The card opens here.
+  // THE HUMAN'S ANSWER — ntwine's transport, the human's words. The card opens here.
   user(260, ANSWER),
   // ITERATION TWO — the only turn the card should paint.
   assistant(262, "Pushing to origin/main. First let me re-check the repo state — over four hours passed, and this tree has other writers in it."),
@@ -93,7 +93,7 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES ('${projectId}', '${slug}', '${sessionId}', 'frizz-${slug}', '${at(0)}', 'Switch models on a Fable limit', 'claude', 'opus', 'high', 'default', '${at(272)}')`,
+   VALUES ('${projectId}', '${slug}', '${sessionId}', 'ntwine-${slug}', '${at(0)}', 'Switch models on a Fable limit', 'claude', 'opus', 'high', 'default', '${at(272)}')`,
 ])
 
 const api = createRpcClient(`http://127.0.0.1:${port}/`)

@@ -1,4 +1,4 @@
-import type { PendingAsk, ThreadView } from "@frizz/shared"
+import type { PendingAsk, ThreadView } from "@ntwine/shared"
 
 // What the bottom of a thread says while a worker is blocked on a PERSON — the two decisions the
 // runtime-status ladder (ChatView `runtimeStatusRung`) needs and must not get wrong, kept here so they
@@ -6,7 +6,7 @@ import type { PendingAsk, ThreadView } from "@frizz/shared"
 //
 // Both used to assume a terminal. A permission prompt drew "respond in your external terminal", and so
 // did a native AskUserQuestion, each standing down only while a typed interaction was pending. That
-// premise is gone for every thread Frizz runs: `perm-prompt` and an owned thread's `pendingAsk` occur
+// premise is gone for every thread Ntwine runs: `perm-prompt` and an owned thread's `pendingAsk` occur
 // only on a broker session (board.ts `deriveRuntime`, tailer.ts `permBlocked`), which HAS no terminal —
 // its request is journaled as an answerable card or denied on the spot. So the terminal reading could
 // only ever draw in the gap around a card: before it was journaled, or after it was answered and before
@@ -17,7 +17,7 @@ type BlockState = Pick<ThreadView, "foreign" | "runtime" | "pendingAsk" | "pendi
 
 /** The read-only "answer it in your external terminal" card for a native AskUserQuestion. FOREIGN
  *  sessions only: a session the operator is driving in their own terminal is the one place that
- *  sentence is true, and the one place Frizz has no card of its own to offer. */
+ *  sentence is true, and the one place Ntwine has no card of its own to offer. */
 export function frozenPendingAsk(thread: BlockState | undefined): PendingAsk | undefined {
   return thread?.foreign && thread.pendingInteraction !== true ? thread.pendingAsk : undefined
 }

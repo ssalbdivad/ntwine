@@ -58,7 +58,7 @@ function rpc(
   env?: { remoteAddress?: string },
 ) {
   return app.request(
-    `http://127.0.0.1:${PORT}/_frizz/rpc/${name}`,
+    `http://127.0.0.1:${PORT}/_ntwine/rpc/${name}`,
     {
       method: "POST",
       headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}`, "content-type": "application/json", ...headers },
@@ -155,7 +155,7 @@ test("an audit log that cannot be written never fails the action", async () => {
 test("projectAdd through the app: a refused folder is recorded as refused, an accepted one as added", async (t) => {
   // projectAdd reaches the registry through homedir(); this file runs in its own process, so a sandbox
   // HOME is contained to it (see project-teardown.test.ts homeSandbox).
-  const home = mkdtempSync(join(tmpdir(), "frizz-audit-home-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-audit-home-"))
   const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE }
   process.env.HOME = home
   process.env.USERPROFILE = home
@@ -191,7 +191,7 @@ test("projectAdd through the app: a refused folder is recorded as refused, an ac
 })
 
 test("the file sink appends one JSON line per record, readable by this user alone", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-audit-file-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-audit-file-"))
   try {
     const stateDir = join(root, "projects", "abc")
     const path = auditLogPathForStateDir(stateDir)

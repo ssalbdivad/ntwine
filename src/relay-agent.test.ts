@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer, type Server } from "node:http";
 import { once } from "node:events";
-import { decodeBody, encodeBody, RELAY_MAX_FRAME_BODY, type RelayUpFrame } from "@frizz/shared";
+import { decodeBody, encodeBody, RELAY_MAX_FRAME_BODY, type RelayUpFrame } from "@ntwine/shared";
 import { serveRelayRequest, serveRelayWebSocket, type ServeOptions } from "./relay-agent.ts";
 
 /** Serve one request to completion — what every test here means by "serve". */
@@ -54,7 +54,7 @@ test("a response of known length comes back in ONE frame", async () => {
 });
 
 test("the board sees the PUBLIC host, not loopback — without this it refuses every relayed request", async () => {
-  // Frizz's origin gate keys on the request having arrived AS the declared public origin. Forwarding
+  // Ntwine's origin gate keys on the request having arrived AS the declared public origin. Forwarding
   // with a loopback Host would be judged local and skip the access gate entirely.
   let seen = "";
   const b = await board((req, res) => { seen = req.headers.host ?? ""; res.writeHead(200); res.end("ok"); });
@@ -149,7 +149,7 @@ test("a board that is down answers 502 rather than leaving the visitor to time o
   );
   const head = out.frames[0] as Extract<RelayUpFrame, { t: "res" }>;
   assert.equal(head.status, 502);
-  assert.match(text(out.frames), /Frizz is not answering on this machine/);
+  assert.match(text(out.frames), /Ntwine is not answering on this machine/);
 });
 
 test("hop-by-hop headers are not replayed onto the local connection", async () => {
@@ -338,7 +338,7 @@ test("the visitor's Host, Origin and session cookie reach the board — the gate
       headers: [
         ["host", "ada.frizz.sh"],
         ["origin", "https://ada.frizz.sh"],
-        ["cookie", "frizz_session=abc123"],
+        ["cookie", "ntwine_session=abc123"],
         ["sec-websocket-key", "someone-elses-key"],
         ["connection", "Upgrade"],
       ],
@@ -349,7 +349,7 @@ test("the visitor's Host, Origin and session cookie reach the board — the gate
     await until(out.frames, (f) => f.t === "ws-ack", "the ack");
     assert.equal(t.handshake.host, "ada.frizz.sh");
     assert.equal(t.handshake.origin, "https://ada.frizz.sh");
-    assert.equal(t.handshake.cookie, "frizz_session=abc123");
+    assert.equal(t.handshake.cookie, "ntwine_session=abc123");
     // The handshake is OURS, not a replay of the visitor's — a borrowed key is answered with an
     // accept value computed for somebody else, which a strict client rejects.
     assert.notEqual(t.handshake["sec-websocket-key"], "someone-elses-key");

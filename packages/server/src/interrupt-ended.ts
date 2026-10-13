@@ -19,7 +19,7 @@
 // SINCE ff71234e (same day) THE SDK QUERY DECLARES `perTaskStopAffordance`, and an interrupt through a
 // daemon forked on that build spares the children: this note then never fires, which is the point of
 // gating on what the tailer saw. It still covers a daemon forked BEFORE that build (a detached daemon
-// outlives a frizz upgrade by hours) and any runtime that regresses to killing them.
+// outlives a ntwine upgrade by hours) and any runtime that regresses to killing them.
 import type { RetiredSubAgentView, SessionTelemetry, SubAgentView } from "./tailer.ts"
 import type { Storage } from "./storage.ts"
 import { enqueueInterruptEndedWake } from "./scheduler.ts"

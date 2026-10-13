@@ -21,7 +21,7 @@ const UUID = "029a30af-f126-40e3-b04c-d80e74e3e090"
 const OTHER = "50577e5e-802f-4567-bd0e-cf7cbf3d2ed5"
 
 function sandbox(name: string): string {
-  return mkdtempSync(join(tmpdir(), `frizz-root-${name}-`))
+  return mkdtempSync(join(tmpdir(), `ntwine-root-${name}-`))
 }
 
 // The property a naive "just use cwd" loses, and the one users notice: two boards for one project,
@@ -54,7 +54,7 @@ test("any VCS marks a root — git, jj, hg, svn — so a non-colocated jj checko
   }
 })
 
-// An existing Frizz project wins over the VCS or manifest it happens to sit inside.
+// An existing Ntwine project wins over the VCS or manifest it happens to sit inside.
 test("a directory that already has an id is the root", () => {
   const home = sandbox("existing")
   try {
@@ -62,7 +62,7 @@ test("a directory that already has an id is the root", () => {
     const inner = join(outer, "packages", "inner")
     mkdirSync(inner, { recursive: true })
     writeFileSync(join(outer, "package.json"), "{}")
-    mkdirSync(join(inner, ".frizz"), { recursive: true })
+    mkdirSync(join(inner, ".ntwine"), { recursive: true })
     writeFileSync(projectIdPath(inner), `${UUID}\n`)
     assert.equal(discoverProjectRoot(inner, home), inner)
   } finally {
@@ -151,12 +151,12 @@ test("writing an id also makes the directory ignore itself", () => {
   const dir = sandbox("ignore")
   try {
     writeProjectIdFile(dir, UUID)
-    assert.equal(readFileSync(join(dir, ".frizz", ".gitignore"), "utf8"), "*\n")
+    assert.equal(readFileSync(join(dir, ".ntwine", ".gitignore"), "utf8"), "*\n")
     assert.equal(readProjectIdFile(dir), UUID)
     // Re-writing must not clobber a .gitignore the user has since edited.
-    writeFileSync(join(dir, ".frizz", ".gitignore"), "*\n!keep\n")
+    writeFileSync(join(dir, ".ntwine", ".gitignore"), "*\n!keep\n")
     writeProjectIdFile(dir, OTHER)
-    assert.equal(readFileSync(join(dir, ".frizz", ".gitignore"), "utf8"), "*\n!keep\n")
+    assert.equal(readFileSync(join(dir, ".ntwine", ".gitignore"), "utf8"), "*\n!keep\n")
     assert.equal(readProjectIdFile(dir), OTHER)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -167,7 +167,7 @@ test("a missing id reads as absent; a malformed one is refused rather than guess
   const dir = sandbox("malformed")
   try {
     assert.equal(readProjectIdFile(dir), undefined)
-    mkdirSync(join(dir, ".frizz"), { recursive: true })
+    mkdirSync(join(dir, ".ntwine"), { recursive: true })
     writeFileSync(projectIdPath(dir), "not-a-uuid\n")
     assert.throws(() => readProjectIdFile(dir), /expected exactly one UUID/)
   } finally {
@@ -189,7 +189,7 @@ test("ensureProjectIdFile mints once and is stable across calls", () => {
   }
 })
 
-// The whole reason an established repository does not lose its board: `git config frizz.id` seeds the
+// The whole reason an established repository does not lose its board: `git config ntwine.id` seeds the
 // file rather than a fresh UUID being minted beside every thread the repo ever had.
 test("an existing store seeds the file, and only when the file has nothing yet", () => {
   const home = sandbox("seed-home")
@@ -216,12 +216,12 @@ test("a seed that is not a UUID is refused rather than recorded", () => {
   }
 })
 
-// $HOME is where Frizz keeps its OWN state (~/.frizz), so adopting it as a project writes a project
+// $HOME is where Ntwine keeps its OWN state (~/.ntwine), so adopting it as a project writes a project
 // id into the global state root — and from then on the walk-up finds it from every unmarked
 // directory under home. It happened on the maintainer's machine (2026-08-06).
 test("the home directory is recognised even when it is reached through a symlink", () => {
-  const real = realpathSync(mkdtempSync(join(tmpdir(), "frizz-realhome-")))
-  const link = join(realpathSync(tmpdir()), `frizz-linkhome-${randomUUID().slice(0, 8)}`)
+  const real = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-realhome-")))
+  const link = join(realpathSync(tmpdir()), `ntwine-linkhome-${randomUUID().slice(0, 8)}`)
   symlinkSync(real, link)
   try {
     assert.equal(isHomeDirectory(real, real), true)
@@ -241,17 +241,17 @@ test("the home directory is recognised even when it is reached through a symlink
 })
 
 // Boron and pullfrog/app were both in this state on the maintainer's machine — established boards
-// with 15 and 85 threads, carrying only a `git config frizz.id` because they predate the gitless
+// with 15 and 85 threads, carrying only a `git config ntwine.id` because they predate the gitless
 // change and had not been reopened since. A file-only check made them invisible to the registry
 // backfill AND made the launcher offer to "add" them as if they were new, which would have minted a
 // fresh id and orphaned every thread (2026-08-06).
 test("a project whose id lives only in git config is still an EXISTING project", () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-gitid-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-gitid-")))
   try {
     execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir })
     const id = randomUUID()
-    execFileSync("git", ["config", "--local", "frizz.id", id], { cwd: dir })
-    assert.equal(existsSync(join(dir, ".frizz", ".id")), false, "no id FILE, on purpose")
+    execFileSync("git", ["config", "--local", "ntwine.id", id], { cwd: dir })
+    assert.equal(existsSync(join(dir, ".ntwine", ".id")), false, "no id FILE, on purpose")
 
     assert.equal(existingProjectId(dir), id, "found in the git config")
     assert.equal(isExistingProjectRoot(dir), true, "so it is not a new directory")
@@ -265,7 +265,7 @@ test("a project whose id lives only in git config is still an EXISTING project",
 })
 
 test("a directory that claims no id at all is genuinely new", () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-noid-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-noid-")))
   try {
     assert.equal(existingProjectId(dir), undefined)
     assert.equal(isExistingProjectRoot(dir), false)

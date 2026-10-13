@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ContextMeter } from "./ContextMeter.tsx"
 
 // The readout has two halves that are easy to break in opposite directions, so both are pinned here.

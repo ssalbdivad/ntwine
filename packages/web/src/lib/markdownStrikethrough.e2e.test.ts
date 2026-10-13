@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_MARKDOWN_STRIKETHROUGH_E2E_URL
+const baseUrl = process.env.NTWINE_MARKDOWN_STRIKETHROUGH_E2E_URL
 
 // The unit tests in markdown.test.ts drive the tokenizer; this drives the whole shipped path —
 // mdToHtml/mdInlineToHtml through marked AND the DOM sanitizer — in a real browser. A <del> may only

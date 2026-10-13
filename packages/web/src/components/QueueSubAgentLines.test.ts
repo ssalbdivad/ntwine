@@ -13,7 +13,7 @@ test("queue cards show BOTH running and stale child work, and no model+effort ta
         label: "Complete GVS fix differential repro",
         startedAt: "2026-07-22T16:00:00.000Z",
         state: "running",
-        subagentType: "frizz:opus-xhigh",
+        subagentType: "ntwine:opus-xhigh",
       },
       {
         id: "stale-child",
@@ -29,12 +29,12 @@ test("queue cards show BOTH running and stale child work, and no model+effort ta
   assert.match(html, />complete-gvs-fix-differential-repro</)
   assert.match(html, /data-running-indicator="queue-subagent"/)
   // Tagged like the drawer's strip and like the shell/File rows that continue this column on the card.
-  assert.equal(html.match(/frizz-kind-tag[^"]*">AGENT</g)?.length, 2, "every child line carries its AGENT tag")
+  assert.equal(html.match(/ntwine-kind-tag[^"]*">AGENT</g)?.length, 2, "every child line carries its AGENT tag")
   // The model+effort tag was DELETED from these lines on 2026-07-27 (maintainer): the profile belongs
   // to the prompt box's own control one line above, not repeated on every child line beneath it.
   assert.doesNotMatch(html, /data-agent-profile/)
   assert.doesNotMatch(html, /opus › xhigh/)
-  assert.doesNotMatch(html, /frizz:opus-xhigh/)
+  assert.doesNotMatch(html, /ntwine:opus-xhigh/)
   // A STALE child now renders on the card too (maintainer ruling 2026-07-24): a stale child is
   // unresolved work, not gone, and hiding it made the card claim "done underneath" while the rail
   // still showed it. It gets the flat stale dot, not the pulsing running indicator.

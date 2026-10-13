@@ -14,7 +14,7 @@
 //
 // The fix keeps the browser's morph and changes only its starting box: the door measures the part of
 // the surface inside the viewport and hands it to the group's `from` keyframe through custom
-// properties (`--frizz-vt-from-*`), gated by `data-vt-door` on the root so the reverse leg — whose old
+// properties (`--ntwine-vt-from-*`), gated by `data-vt-door` on the root so the reverse leg — whose old
 // element is the /full column, always fully on screen — keeps the browser's own keyframes. The old
 // snapshot is still the whole card; a negative top margin slides the reader's part up to the group's
 // top edge. That margin is a PERCENTAGE of the group's width rather than a pixel count on purpose: the
@@ -80,11 +80,11 @@ export function armFullscreenMorph(surface: HTMLElement): MorphStart | null {
     disarmFullscreenMorph()
     return null
   }
-  root.style.setProperty("--frizz-vt-from-x", `${start.box.left}px`)
-  root.style.setProperty("--frizz-vt-from-y", `${start.box.top}px`)
-  root.style.setProperty("--frizz-vt-from-w", `${start.box.width}px`)
-  root.style.setProperty("--frizz-vt-from-h", `${start.box.height}px`)
-  root.style.setProperty("--frizz-vt-old-shift", `${start.oldShiftFraction * 100}%`)
+  root.style.setProperty("--ntwine-vt-from-x", `${start.box.left}px`)
+  root.style.setProperty("--ntwine-vt-from-y", `${start.box.top}px`)
+  root.style.setProperty("--ntwine-vt-from-w", `${start.box.width}px`)
+  root.style.setProperty("--ntwine-vt-from-h", `${start.box.height}px`)
+  root.style.setProperty("--ntwine-vt-old-shift", `${start.oldShiftFraction * 100}%`)
   root.setAttribute(MORPH_DOOR_ATTR, "expand")
   return start
 }
@@ -102,7 +102,7 @@ export function disarmFullscreenMorph(): void {
   if (typeof document === "undefined") return
   const root = document.documentElement
   root.removeAttribute(MORPH_DOOR_ATTR)
-  for (const name of ["--frizz-vt-from-x", "--frizz-vt-from-y", "--frizz-vt-from-w", "--frizz-vt-from-h", "--frizz-vt-old-shift"]) {
+  for (const name of ["--ntwine-vt-from-x", "--ntwine-vt-from-y", "--ntwine-vt-from-w", "--ntwine-vt-from-h", "--ntwine-vt-old-shift"]) {
     root.style.removeProperty(name)
   }
 }

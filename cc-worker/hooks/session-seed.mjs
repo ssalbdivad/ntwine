@@ -1,32 +1,32 @@
 #!/usr/bin/env node
 // @ts-check
-// SessionStart hook (frizz-worker) — SEEDS a frizz WORKER session's context. Run directly with
+// SessionStart hook (ntwine-worker) — SEEDS a ntwine WORKER session's context. Run directly with
 // node (zero deps, max Node compat), mirroring cc's hook idiom.
 //
-// A frizz worker is a top-level interactive `claude` the UI spawns per effort; the slug arrives in
-// env FRIZZ_THREAD (and a `THREAD:` line in the first prompt). There are NO thread files, no
+// A ntwine worker is a top-level interactive `claude` the UI spawns per effort; the slug arrives in
+// env NTWINE_THREAD (and a `THREAD:` line in the first prompt). There are NO thread files, no
 // frontmatter, no status field — a worker SIGNALS through its final message (fences), and anything that
 // must outlive its context window is an arrangement it makes for itself. This hook injects, on every
 // session start (startup/resume/clear/compact):
 //   1. `core` — a runtime POINTER, not a copy of the contract: the full worker contract lives ONCE in
 //      the system prompt (workerPrompt.ts) the server injects at spawn. This carries only what a
 //      static system prompt can't: the runtime scratch-directory PATH, and a one-line pointer.
-//   2. the SCRATCH DIRECTORY — `.frizz/threads/<session_id>/`, a folder the worker may use as it likes.
+//   2. the SCRATCH DIRECTORY — `.ntwine/threads/<session_id>/`, a folder the worker may use as it likes.
 //   3. on `compact` — a short re-grounding (compaction drops the deep model + this orientation).
 //
-// GATE: everything is gated on FRIZZ_THREAD being set, so the plugin is completely inert when
-// loaded outside a frizz worker (e.g. a plain `claude --plugin-dir cc-worker` smoke run).
+// GATE: everything is gated on NTWINE_THREAD being set, so the plugin is completely inert when
+// loaded outside a ntwine worker (e.g. a plain `claude --plugin-dir cc-worker` smoke run).
 //
 // STALE-INSTALL DEFENSE: the `cc` orchestrator plugin is retired — the marketplace ships only this
 // worker plugin, and cc's hooks/skills/agents are gone. But a machine can still carry a CACHED cc
 // install from before the retirement, whose hooks fire in every repo gated on cc's opt-IN sentinel.
-// A fresh worker never runs `frizz on`, so such a cc is already dormant; we write cc's own per-session
+// A fresh worker never runs `ntwine on`, so such a cc is already dormant; we write cc's own per-session
 // `off` sentinel anyway via the shared config API (board survives as cc-worker's board
 // implementation) so a stale install is guaranteed inert. Cheap belt-and-suspenders. See DECISIONS.md.
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { setSessionOverride, currentSessionId } from '../scripts/frizz/config.mjs';
+import { setSessionOverride, currentSessionId } from '../scripts/ntwine/config.mjs';
 
 /** @type {{ agent_id?: unknown, agentId?: unknown, source?: string, session_id?: string }} */
 let input = {};
@@ -38,16 +38,16 @@ try {
 // Skip inside sub-agent contexts (they carry agent_id) — the seed is for the top-level worker.
 if (input.agent_id ?? input.agentId) process.exit(0);
 
-// WORKER GATE — inert unless this is a frizz worker session.
-const thread = (process.env.FRIZZ_THREAD ?? '').trim();
+// WORKER GATE — inert unless this is a ntwine worker session.
+const thread = (process.env.NTWINE_THREAD ?? '').trim();
 if (!thread) process.exit(0);
 
 // The board's directory, which is the worker's own cwd except in the Home workspace — see scratchpad.mjs.
-const boardRoot = (process.env.FRIZZ_BOARD_ROOT ?? '').trim();
+const boardRoot = (process.env.NTWINE_BOARD_ROOT ?? '').trim();
 const dir = boardRoot || (process.env.CLAUDE_PROJECT_DIR ?? '.');
 
 // Neutralize the orchestrator cc plugin for THIS session (defensive; see header + DECISIONS.md).
-// The session id also names the worker's scratch directory (`.frizz/threads/<session_id>/`).
+// The session id also names the worker's scratch directory (`.ntwine/threads/<session_id>/`).
 let sid = null;
 try {
   sid = currentSessionId(input.session_id);
@@ -55,12 +55,12 @@ try {
 } catch {
   /* best-effort — a failed sentinel write just leaves cc at its dormant default */
 }
-const scratchBase = boardRoot ? join(boardRoot, '.frizz', 'threads') + '/' : '.frizz/threads/';
+const scratchBase = boardRoot ? join(boardRoot, '.ntwine', 'threads') + '/' : '.ntwine/threads/';
 const scratch = scratchBase + (sid ? sid + '/' : '<session-id>/');
 
 // A RUNTIME pointer, NOT a copy of the contract. The full worker contract (signal fences,
 // scratch-directory rules, sub-agent rules, the question handback, the stop criterion) lives ONCE in
-// the system prompt frizz injects at spawn (workerPrompt.ts / loadWorkerPrompt) — re-applied on every
+// the system prompt ntwine injects at spawn (workerPrompt.ts / loadWorkerPrompt) — re-applied on every
 // resume, and it survives compaction. This hook adds only what a static system prompt CANNOT carry:
 // the runtime-derived scratch-directory PATH, plus (below) the compaction re-read nudge and the
 // auth-gated gh guidance.
@@ -68,13 +68,13 @@ const scratch = scratchBase + (sid ? sid + '/' : '<session-id>/');
 // It used to restate the fence protocol, the stop criterion and the autonomy rule in full — ~4.4 KB
 // (~1,100 tokens) on every startup, resume, clear AND compact, all of it already in the 42 KB system
 // prompt. Trimmed 2026-08-26 (maintainer: "Definitely trim the session seed hook if it's fully
-// repetitive") as part of cutting the per-session token overhead Frizz adds over a plain TUI session.
+// repetitive") as part of cutting the per-session token overhead Ntwine adds over a plain TUI session.
 const core =
-  '⟦frizz worker contract⟧ You are a frizz WORKER driving EXACTLY ONE effort. Your FULL operating contract — the end-of-turn signal fences (```done / ```awaiting — a question is a registered row, `frizzctl ask`, whose card renders at the BOTTOM of your handoff, so every word of explanation goes above it; there is no ```question fence), the scratch-directory rules, the sub-agent rules, the question handback and the stop criterion — lives in your SYSTEM PROMPT; follow it there. ALWAYS SIGN OFF — a fence OR a registration (`frizzctl ask`, `frizzctl done`); a question is the sign-off of the rest that asked it, so rest normally and write no question fence for it; at a later rest, name it under `questions:` in an ```awaiting fence or `frizzctl unask` it. A rest on running work takes the ```awaiting fence with `status: working|watching|needs_input` — `working` and `watching` are quiet parks and need no write-up.\n' +
+  '⟦ntwine worker contract⟧ You are a ntwine WORKER driving EXACTLY ONE effort. Your FULL operating contract — the end-of-turn signal fences (```done / ```awaiting — a question is a registered row, `ntwinectl ask`, whose card renders at the BOTTOM of your handoff, so every word of explanation goes above it; there is no ```question fence), the scratch-directory rules, the sub-agent rules, the question handback and the stop criterion — lives in your SYSTEM PROMPT; follow it there. ALWAYS SIGN OFF — a fence OR a registration (`ntwinectl ask`, `ntwinectl done`); a question is the sign-off of the rest that asked it, so rest normally and write no question fence for it; at a later rest, name it under `questions:` in an ```awaiting fence or `ntwinectl unask` it. A rest on running work takes the ```awaiting fence with `status: working|watching|needs_input` — `working` and `watching` are quiet parks and need no write-up.\n' +
   'SCRATCH DIRECTORY (OPTIONAL): `' + scratch + '` — a folder kept FOR YOU, nothing in it read automatically, never a substitute for doing the work. Give each sub-agent its OWN file rather than a shared one.';
 
 const grounding =
-  '⟦frizz worker re-grounding (post-compaction)⟧ Context was just compacted. You are still the frizz worker for effort `' + thread + '` — read whatever you left yourself in `' + scratch + '` NOW to recover your working state and to-do list before asserting anything, and re-read any code before claiming how it is structured. Your system prompt still carries the full contract; sign off as it says.';
+  '⟦ntwine worker re-grounding (post-compaction)⟧ Context was just compacted. You are still the ntwine worker for effort `' + thread + '` — read whatever you left yourself in `' + scratch + '` NOW to recover your working state and to-do list before asserting anything, and re-read any code before claiming how it is structured. Your system prompt still carries the full contract; sign off as it says.';
 
 // AUTH-GATED gh guidance — teach the worker to use `gh` well, but ONLY when signed in.
 // Shell `gh auth status --active`: exit 0 = an active gh account is authenticated. The whole gate is
@@ -87,7 +87,7 @@ const ghBlock =
   '• READ freely: `gh issue view N -R OWNER/REPO --comments`, `gh pr view N`, `gh pr diff N`, `gh pr checks N`, `gh run list`/`gh run view`, `gh api repos/OWNER/REPO/…`. Prefer `--json <fields>` over scraping human text.\n' +
   '• SEARCH across the repo (and GitHub) with `gh search issues`/`gh search prs` when hunting related work, duplicates, or prior art.\n' +
   '• READ-ONLY BOUNDARY: never push, open a PR, comment, label, assign, close, review, approve, or merge — no mutation of any kind — UNLESS the user\'s CURRENT request asks for it (a PR they asked for earlier covers that change, not the next one). Default to producing your findings/review as your final message, not as a GitHub post.\n' +
-  'Load the `frizz:gh` skill for the full playbook (recipes + explicit project-local monitor selection + native Monitor/background-Bash CI/PR watches).';
+  'Load the `ntwine:gh` skill for the full playbook (recipes + explicit project-local monitor selection + native Monitor/background-Bash CI/PR watches).';
 
 let ghAuthed = false;
 try {

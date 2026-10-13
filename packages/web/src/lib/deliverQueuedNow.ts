@@ -59,7 +59,7 @@ export function useDeliverQueuedNow(slug: string | null): {
         // bubbles un-gray on this round trip rather than on the tailer. Keeping the claim server-side
         // is what makes it survive a reload and reach every other open tab. A refusal is spoken, since
         // the operator asked for something and did not get it.
-        // `released`: messages Frizz was holding for the rest went to the runtime. On a runtime with
+        // `released`: messages Ntwine was holding for the rest went to the runtime. On a runtime with
         // no interrupt that is the whole of "send now", and it is not a refusal.
         if (!result.interrupted && !result.released) showToast(result.reason ?? "That message could not be pushed through")
       },
@@ -70,7 +70,7 @@ export function useDeliverQueuedNow(slug: string | null): {
     )
   }, [pending, slug])
 
-  // SEND WHAT FRIZZ IS HOLDING, WITHOUT INTERRUPTING — the "Send now" under a message sent to the queue.
+  // SEND WHAT NTWINE IS HOLDING, WITHOUT INTERRUPTING — the "Send now" under a message sent to the queue.
   // The operator stopped waiting for the rest; the message goes in as the steer it would have been.
   const releaseHeld = useCallback(() => {
     if (!slug || pending) return

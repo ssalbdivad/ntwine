@@ -16,7 +16,7 @@ const thread = {
   bgShells: [{ id: "toolu_sh", label: "nub run dev", startedAt: "2026-09-29T17:30:00.000Z", state: "running" as const }],
 }
 const render = (props: Partial<Parameters<typeof QueueChildOps>[0]> = {}) =>
-  renderToStaticMarkup(createElement(QueueChildOps, { project: { slug: "frizz" }, thread, api: {} as Api, onOpenThread: () => {}, ...props }))
+  renderToStaticMarkup(createElement(QueueChildOps, { project: { slug: "ntwine" }, thread, api: {} as Api, onOpenThread: () => {}, ...props }))
 
 test("the card's ops column lists every sub-agent and Workflow, in the drawer's row shape, and no shell", () => {
   const html = render()

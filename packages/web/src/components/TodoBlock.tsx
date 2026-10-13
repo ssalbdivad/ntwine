@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from "react"
 import { ChevronRight, Square, SquareCheckBig, SquareDot } from "lucide-react"
-import type { TranscriptTodo } from "@frizz/shared"
+import type { TranscriptTodo } from "@ntwine/shared"
 
 // THE TO-DO LIST CARD — for the calls that actually list the whole thing out.
 //
@@ -47,7 +47,7 @@ const TODO_ROW_TEXT = {
 // rows' residual stays 0px at 12px, 24px and 48px.
 function TodoMark({ status }: { status: TranscriptTodo["status"] }) {
   const { Icon, className } = TODO_GLYPH[status]
-  return <Icon aria-hidden="true" size="1em" strokeWidth={2} className={`frizz-todo-mark shrink-0 ${className}`} />
+  return <Icon aria-hidden="true" size="1em" strokeWidth={2} className={`ntwine-todo-mark shrink-0 ${className}`} />
 }
 
 const STATUS_WORD = { pending: "to do", in_progress: "in progress", completed: "done" } as const
@@ -73,7 +73,7 @@ export function TodoBlock({
   const counter = todos.length > 0 ? `${done}/${todos.length}` : undefined
   const summary = current ? current.text : todos.length === 0 ? "empty" : undefined
   return (
-    <div className="frizz-bash" data-todo-card>
+    <div className="ntwine-bash" data-todo-card>
       <button
         type="button"
         onClick={() => expandable && setOpen((v) => !v)}
@@ -81,10 +81,10 @@ export function TodoBlock({
         aria-controls={expandable ? bodyId : undefined}
         aria-expanded={expandable ? open : undefined}
         aria-label={`${expandable ? `${open ? "Collapse" : "Expand"} ` : ""}${TODO_LABEL}${summary ? `: ${summary}` : ""}${counter ? ` — ${done} of ${todos.length} done` : ""}`}
-        className="frizz-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
+        className="ntwine-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="petite-caps frizz-bash-label shrink-0">{TODO_LABEL}</span>
+          <span className="petite-caps ntwine-bash-label shrink-0">{TODO_LABEL}</span>
           {/* The 11.5px lives on the WRAPPER, not on the text span, so the 1em glyph and the text it sits
               beside derive from ONE font size. With it on the span the glyph silently inherited the card's
               12.5px instead — a 1px size mismatch, and an alignment correction tied to that accident
@@ -98,7 +98,7 @@ export function TodoBlock({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {counter && (
-            <span className="frizz-tool-header-caps tabular-nums text-[11px] text-muted-55" title={`${done} of ${todos.length} done`}>
+            <span className="ntwine-tool-header-caps tabular-nums text-[11px] text-muted-55" title={`${done} of ${todos.length} done`}>
               {counter}
             </span>
           )}
@@ -109,9 +109,9 @@ export function TodoBlock({
       {expandable && (
         <div id={bodyId} hidden={!open}>
           {open && todos.length > 0 && (
-            <ul className="frizz-todo-list">
+            <ul className="ntwine-todo-list">
               {todos.map((todo, i) => (
-                <li key={i} className="frizz-todo-row" data-current={todo.status === "in_progress" ? "true" : undefined}>
+                <li key={i} className="ntwine-todo-row" data-current={todo.status === "in_progress" ? "true" : undefined}>
                   <TodoMark status={todo.status} />
                   <span className={`min-w-0 ${TODO_ROW_TEXT[todo.status]}`}>{todo.text}</span>
                   <span className="sr-only">{` — ${STATUS_WORD[todo.status]}`}</span>
@@ -121,8 +121,8 @@ export function TodoBlock({
           )}
           {open && note && (
             <>
-              <div className="frizz-bash-output-label petite-caps">note</div>
-              <pre className="frizz-bash-body frizz-bash-output-body">{note}</pre>
+              <div className="ntwine-bash-output-label petite-caps">note</div>
+              <pre className="ntwine-bash-body ntwine-bash-output-body">{note}</pre>
             </>
           )}
         </div>

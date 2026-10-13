@@ -7,8 +7,8 @@ import { randomUUID } from "node:crypto"
 import { dirname, join } from "node:path"
 import { createStorage, type Storage, type SessionRow } from "./storage.ts"
 import { Bus } from "./bus.ts"
-import type { CodexModel, ServerEvent } from "@frizz/shared"
-import { AwaitingHint, BURIED_ANSWERS_HEADER, QUESTION_FENCE_RETIRED_AT, wakeDeliveryToken } from "@frizz/shared"
+import type { CodexModel, ServerEvent } from "@ntwine/shared"
+import { AwaitingHint, BURIED_ANSWERS_HEADER, QUESTION_FENCE_RETIRED_AT, wakeDeliveryToken } from "@ntwine/shared"
 import { permMarkerPath, type Project } from "./project.ts"
 import { degradeIfAwaitingAnswer, deriveNeedsYou } from "./board.ts"
 import { parseLine, applyRecord, applyEvent, computeTurn, newTailState, createTailer, shellProbeTtlMs, defaultBrokerDaemonAlive, hasQuestionBlock, isClaudeAuthErrorText, isRealUserMessage, parseSignalFence, markerDecision, pendingCallDeadline, unwrapShellCommand, FOREIGN_FRESH_MS, parseWindowsShellHolderReport, probeShellsAlive, probeShellVerdicts, findShellProcesses, windowsShellHolderCommand, type ShellLaunch, type ShellVerdict } from "./tailer.ts"
@@ -19,7 +19,7 @@ import { createClaudeBackend } from "./backend/claude.ts"
 import { createCodexBackend } from "./backend/codex.ts"
 import { acpTranscriptPath, createAcpBackend } from "./backend/acp-transcript.ts"
 import { mkdirSync } from "node:fs"
-import { frizzTempDir } from "./frizz-paths.ts"
+import { ntwineTempDir } from "./ntwine-paths.ts"
 
 function tmp(prefix: string) {
   return mkdtempSync(join(tmpdir(), prefix))
@@ -84,9 +84,9 @@ test("applyRecord: a system-origin user record (peer / task-notification) RE-INV
 })
 
 // `lastHumanAt` is the clock a question is "replied past" against (shared questionRepliedPast): a typed
-// reply moves it; frizz's wakes — a watcher, a timer, a nudge, and the delivery of answers — never do,
+// reply moves it; ntwine's wakes — a watcher, a timer, a nudge, and the delivery of answers — never do,
 // though they bump lastUserAt. Answering one card of a batch must not release the unanswered rest.
-test("applyRecord: lastHumanAt moves on the human's turns only — a frizz wake bumps the row key but not it", () => {
+test("applyRecord: lastHumanAt moves on the human's turns only — a ntwine wake bumps the row key but not it", () => {
   const s = newTailState("t", "sid", "/x")
   applyRecord(s, { type: "user", timestamp: "2026-07-01T00:00:00.000Z", message: { content: "fix the parser" } })
   assert.equal(s.lastHumanAt, "2026-07-01T00:00:00.000Z")
@@ -322,7 +322,7 @@ test("computeTurn: an interrupt receipt with nothing after it settles the turn",
   applyRecord(s, { type: "user", timestamp: "2026-07-01T00:00:02.000Z", message: { content: [{ type: "text", text: "[Request interrupted by user]" }] } })
   assert.equal(s.lastKind, "user", "still a substantive record — it moves the clock and the row like any other")
   assert.equal(s.interrupted, true)
-  // SEND NOW is the common case and it must not flash a rest: frizz interrupts the running turn so the
+  // SEND NOW is the common case and it must not flash a rest: ntwine interrupts the running turn so the
   // worker reads the queue at once, and the real prompt lands milliseconds later.
   assert.equal(computeTurn(s, Date.parse("2026-07-01T00:00:04.000Z")), "in-flight", "2s on: the pushed-through prompt is still arriving")
   assert.equal(computeTurn(s, Date.parse("2026-07-01T00:00:08.000Z")), "idle", "6s of silence after an abort is a stopped thread, not a spinner")
@@ -592,7 +592,7 @@ test("applyRecord: Claude permission-mode sidecars update the observed mode with
 // run_in_background). Registers a live sub-agent keyed by the tool_use id. (Return type left to
 // inference so it stays structurally compatible with applyRecord's internal Record interface.)
 // `subagentType: null` omits the field entirely (undefined would trip the default-param rule).
-function dispatch(id: string, description: string, background = true, subagentType: string | null = "frizz:frizz-opus-high") {
+function dispatch(id: string, description: string, background = true, subagentType: string | null = "ntwine:ntwine-opus-high") {
   return {
     type: "assistant",
     timestamp: "2026-07-01T00:00:01.000Z",
@@ -663,7 +663,7 @@ function toolResult(id: string) {
 // Shapes copied from the real corpus (705 transcripts under ~/.claude/projects, 2026-07-28). The
 // launch ack states `agentId:` and `output_file:`; the restart ack is a JSON tool_result whose
 // `resumedAgentId` is that SAME agent id, and whose `message` restates the output path.
-function agentDispatch(id: string, description: string, at: string, subagentType = "frizz:opus-high") {
+function agentDispatch(id: string, description: string, at: string, subagentType = "ntwine:opus-high") {
   return {
     type: "assistant",
     timestamp: at,
@@ -726,7 +726,7 @@ test("applyRecord: a child that FAILED and was re-steered comes back live under 
   const e = s.subAgents.get("toolu_dispatch")
   assert.ok(e, "it keeps the ORIGINAL dispatch tool_use id, so an open drawer keeps resolving")
   assert.equal(e?.label, "Fix the node-shim abort", "and its original label, not the steer's recap")
-  assert.equal(e?.subagentType, "frizz:opus-high", "and its worker-profile tag")
+  assert.equal(e?.subagentType, "ntwine:opus-high", "and its worker-profile tag")
   assert.equal(e?.taskId, "a0b15ec8029fe3830", "keyed to the runtime id, which is stable across restarts")
   assert.equal(e?.startedAt, "2026-07-28T18:36:36.974Z", "elapsed measures THIS run, not the dead gap")
   assert.equal(s.retiredSubAgents.has("toolu_dispatch"), false, "and it is no longer in the retired ring")
@@ -741,7 +741,7 @@ test("applyRecord: a resume landing between the carriers of the OLD completion k
   // The real lando thread (2026-09-30): one completion reached the transcript three times, byte-identical
   // — queue enqueue, inline attachment, queue remove — and the parent's SendMessage resumed the child
   // between the first and the second. The later copies used to retire the resumed run 100 ms after it
-  // started, and Frizz told the worker its helper was "NOT RUNNING" for the hour it went on building.
+  // started, and Ntwine told the worker its helper was "NOT RUNNING" for the hour it went on building.
   const s = newTailState("t", "s", "/x")
   const agentId = "a0b3e54c10910201e"
   applyRecord(s, agentDispatch("toolu_dispatch", "Renaming Lando to Porg", "2026-09-30T17:40:00.000Z"))
@@ -772,7 +772,7 @@ test("applyRecord: an ordinary SendMessage to a LIVE child neither duplicates it
   applyRecord(s, queuedAck("toolu_send", "a0b15ec8029fe3830", "2026-07-28T18:20:00.100Z"))
   assert.equal(s.subAgents.size, 1, "the queued-delivery shape restarts nothing")
   assert.ok(s.subAgents.has("toolu_dispatch"))
-  // Even a RESTART ack for a child frizz still holds live must not double the row.
+  // Even a RESTART ack for a child ntwine still holds live must not double the row.
   applyRecord(s, resumeAck("toolu_send2", "a0b15ec8029fe3830", OUT, "2026-07-28T18:21:00.000Z"))
   assert.equal(s.subAgents.size, 1, "a restart ack for an already-live child is a no-op")
 })
@@ -886,7 +886,7 @@ test("applyRecord: a Monitor timeout notification (no <status>, no <tool-use-id>
     content: `<task-notification>\n<task-id>${taskId}</task-id>\n<summary>Monitor event: "wait for agent sweep"</summary>\n<event>${event}</event>\n</task-notification>`,
   })
   // BOTH spellings Claude Code picks between (isMonitorTimeoutEvent). The `expired` pair is the default
-  // today, and the one a real lando Monitor carried while frizz still read it as "running" two days on.
+  // today, and the one a real lando Monitor carried while ntwine still read it as "running" two days on.
   for (const sentinel of [
     "[Monitor timed out — re-arm if needed.]",
     "[Monitor expired after 30m with 2 events delivered. Re-arm it if you still need the watch.]",
@@ -1244,7 +1244,7 @@ test("applyRecord: a BACKGROUND Agent dispatch registers a live sub-agent; foreg
   const e = s.subAgents.get("toolu_bg")
   assert.equal(e?.label, "Investigate issue 376")
   assert.equal(e?.startedAt, "2026-07-01T00:00:01.000Z")
-  assert.equal(e?.subagentType, "frizz:opus-high") // the RESOLVED profile cell, not input.subagent_type verbatim
+  assert.equal(e?.subagentType, "ntwine:opus-high") // the RESOLVED profile cell, not input.subagent_type verbatim
   assert.equal(e?.outputFile, undefined) // not yet enriched
 })
 
@@ -1321,7 +1321,7 @@ test("tailer: surfaces running vs stale sub-agents (via injected mtime) and clea
 
   h.clock.ms = Date.parse("2026-07-01T00:01:00.000Z") // <15min since child mtime → running
   t.tick() // prime
-  assert.deepEqual(t.get("t")?.subAgents, [{ label: "child", startedAt: "2026-07-01T00:00:01.000Z", state: "running", subagentType: "frizz:opus-high", id: "toolu_bg", taskId: "abc123", lastActivityAt: "2026-07-01T00:00:02.000Z" }])
+  assert.deepEqual(t.get("t")?.subAgents, [{ label: "child", startedAt: "2026-07-01T00:00:01.000Z", state: "running", subagentType: "ntwine:opus-high", id: "toolu_bg", taskId: "abc123", lastActivityAt: "2026-07-01T00:00:02.000Z" }])
 
   h.clock.ms = Date.parse("2026-07-01T00:20:00.000Z") // >15min since child mtime (SUBAGENT_STALE_MS) → stale
   const before = h.changes.n
@@ -1511,7 +1511,7 @@ test("tailer: a finished shell rides the telemetry with its start and place, and
 })
 
 test("tailer: a shell whose task id has not arrived yet is NOT marked stoppable", () => {
-  // The window this closes: a shell's row is minted at its `tool_use` record, but the task id frizz
+  // The window this closes: a shell's row is minted at its `tool_use` record, but the task id ntwine
   // would stop it with only arrives at the LAUNCH ACK one record later. `stoppable` is what the client
   // renders the × off, so advertising it before the handle exists puts a control on the row that would
   // fail on click — "We shouldn't show the X if it doesn't fucking work" (maintainer 2026-07-30).
@@ -1534,7 +1534,7 @@ test("tailer: a shell whose task id has not arrived yet is NOT marked stoppable"
   const shell = t.get("t")?.bgShells[0]
   assert.equal(shell?.id, "toolu_sh", "the row still appears — live work is never hidden")
   assert.equal(shell?.state, "running")
-  assert.equal(shell?.stoppable, undefined, "…but it advertises no stop until frizz holds the handle")
+  assert.equal(shell?.stoppable, undefined, "…but it advertises no stop until ntwine holds the handle")
   assert.equal(shell?.taskId, undefined, "…and names no task id it does not yet have")
 })
 
@@ -1701,7 +1701,7 @@ test("tailer: stopping a BROKER thread clears its live background shells (the he
   t.tick()
   assert.equal(t.get("t")?.bgShells.length, 1, "live before the session is stopped")
 
-  h.storage.setExited("t", true) // frizz stopped the broker session — its children went with it
+  h.storage.setExited("t", true) // ntwine stopped the broker session — its children went with it
   const before = h.changes.n
   t.tick()
   assert.deepEqual(t.get("t")?.bgShells, [], "a stopped headless session owns no live background shells")
@@ -1709,7 +1709,7 @@ test("tailer: stopping a BROKER thread clears its live background shells (the he
 })
 
 // The seven-hour phantom (thread invoices-just-went-out-for-august, 2026-08-02). A broker daemon that
-// dies WITHOUT frizz stopping it — SIGKILL, OOM, its own 6h idle-timeout — never gets `exited` stamped,
+// dies WITHOUT ntwine stopping it — SIGKILL, OOM, its own 6h idle-timeout — never gets `exited` stamped,
 // because that column records only a deliberate stop. paneDeadForRow read `exited` alone, so the row
 // stayed "alive" and every background shell the dead process owned kept shimmering on the board. The
 // operator came back after seven hours to a background shell still rendering as running; its owning
@@ -1765,7 +1765,7 @@ test("tailer: a broker daemon that dies holding a follow-up retires it instead o
   const at = "2026-07-01T00:00:30.000Z"
   h.storage.setDeliveryLedger("t", JSON.stringify([
     { id: "d-live", text: "keep going", state: "enqueued", at, updatedAt: at },
-    { id: "d-warn", text: "an older send frizz could not confirm", state: "unconfirmed", at, updatedAt: at },
+    { id: "d-warn", text: "an older send ntwine could not confirm", state: "unconfirmed", at, updatedAt: at },
   ]))
   const daemon = { alive: true }
   const t = createTailer({
@@ -1866,7 +1866,7 @@ test("tailer: end-to-end, a real broker record naming a dead pid clears the shel
   writeFileSync(recordPath, JSON.stringify({ daemonPid: 2 ** 30, sessionId: "sid" }))
   h.clock.ms += 60_000 // past BROKER_LIVENESS_TTL_MS, so the tick re-probes
   t.tick()
-  assert.deepEqual(t.get("t")?.bgShells, [], "the shell clears without frizz ever stopping the session")
+  assert.deepEqual(t.get("t")?.bgShells, [], "the shell clears without ntwine ever stopping the session")
   assert.equal(h.storage.getSession("t")?.exited ?? 0, 0, "and without inventing a deliberate stop")
 
   rmSync(stateDir, { recursive: true, force: true })
@@ -1890,7 +1890,7 @@ test("defaultBrokerDaemonAlive: reads a real record and probes a real pid, faili
 
   // A pid that cannot exist: kill(0) gives ESRCH, the one error that means "gone".
   write("dead", JSON.stringify({ daemonPid: 2 ** 30 }))
-  assert.equal(probe()("dead"), false, "a record naming a vanished pid is a death frizz can prove")
+  assert.equal(probe()("dead"), false, "a record naming a vanished pid is a death ntwine can prove")
 
   assert.equal(probe()("never-ran"), false, "no record at all ⇒ no daemon to discover")
 
@@ -1951,7 +1951,7 @@ test("tailer: ownerGone answers for a pane death on a non-broker row, not just a
   t.tick()
   assert.equal(t.ownerGone?.("t"), true, "a dead pane is a dead owner, exactly as a dead daemon is")
 
-  // A thread frizz has never tailed cannot be declared dead — the fail-safe every caller relies on.
+  // A thread ntwine has never tailed cannot be declared dead — the fail-safe every caller relies on.
   assert.equal(t.ownerGone?.("never-seen"), false, "an unknown slug is never reported gone")
 })
 
@@ -2220,7 +2220,7 @@ function harness(): Harness {
   // other test's fixture dir, and a case asserting "no transcript → degraded" would find some other
   // case's `sid.jsonl` and bind it. Each harness gets its OWN projects root, so the sweep sees only
   // what the case put there.
-  const dir = join(tmp("frizz-tail-"), "-a-project")
+  const dir = join(tmp("ntwine-tail-"), "-a-project")
   mkdirSync(dir, { recursive: true })
   const storage = createStorage(join(dir, "ui.db"), "p")
   const bus = new Bus()
@@ -2243,8 +2243,8 @@ function makeTailer(h: Harness, over: Partial<Parameters<typeof createTailer>[0]
 }
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
-  const result = { slug: "t", session_id: "sid", thread_name: "frizz-t", spawned_at: "2026-07-01T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null, ...over }
-  if (over.slug !== undefined && over.thread_name === undefined) result.thread_name = `frizz-${result.slug}`
+  const result = { slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: "2026-07-01T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null, ...over }
+  if (over.slug !== undefined && over.thread_name === undefined) result.thread_name = `ntwine-${result.slug}`
   return result
 }
 
@@ -2285,7 +2285,7 @@ test("tailer: a transcript abandoned on an interrupt receipt settles through the
 })
 
 // THE ASK SURVIVES THE MACHINERY, THROUGH THE TICK. The reported shape verbatim: the agent rests on a
-// ```question, then frizz's own plumbing lands one record the CHAT does not render — a background
+// ```question, then ntwine's own plumbing lands one record the CHAT does not render — a background
 // child's <task-notification>. That record re-opens the turn, and it used to take the question with it,
 // so the board reported {pendingQuestion:false, runtime:"running"} for a thread whose chat was still
 // drawing an answerable card with a Send answers button (maintainer 2026-08-24).
@@ -2302,7 +2302,7 @@ test("tailer: a record the chat never draws cannot answer the human's question",
   assert.equal(t.get("t")?.turn, "idle")
   assert.equal(t.get("t")?.pendingQuestion, true, "the agent asked and nobody has answered")
 
-  fixture(h.logDir, "sid", [IN_FLIGHT, ASK, NOTIFICATION]) // a child returns; frizz injects the receipt
+  fixture(h.logDir, "sid", [IN_FLIGHT, ASK, NOTIFICATION]) // a child returns; ntwine injects the receipt
   h.clock.ms = Date.parse("2026-07-01T00:00:11.000Z")
   t.tick()
   assert.equal(t.get("t")?.turn, "in-flight", "the notification DOES re-invoke the agent — that part was never wrong")
@@ -2439,7 +2439,7 @@ test("tailer: a decision-less marker (older plugin build) still blocks", () => {
   assert.equal(t.get("t")?.permPrompt, true, "no decision ⇒ treat as deferred, exactly as before")
 })
 
-// An approval is NOT retained. It used to be, so the dashboard could say what frizz approved on the
+// An approval is NOT retained. It used to be, so the dashboard could say what ntwine approved on the
 // human's behalf — but permPolicy has no clear, so the note it fed sat at the bottom of the thread
 // forever, naming one routine command as though it were the thread's standing condition. It blocks
 // nobody and answered no question anyone was asking; only the denial half survives.
@@ -2715,7 +2715,7 @@ test("tailer: a marker predating the current spawn is stale (resume of a killed-
 // disk at the project stateDir — the exact production read path the hook writes to.
 test("tailer: the default reader round-trips a real on-disk marker (blocked → superseded)", () => {
   const h = harness()
-  const stateDir = tmp("frizz-state-")
+  const stateDir = tmp("ntwine-state-")
   mkdirSync(join(stateDir, "perm-requests"), { recursive: true })
   const project = { cwdSlug: "x", stateDir } as Project
   h.storage.upsertSession(row())
@@ -2887,12 +2887,12 @@ test("tailer: in-flight → idle fires exactly one turn-done + sets unread", () 
   assert.equal(h.events.filter((e) => e.type === "notify").length, 1)
 })
 
-// A TURN THAT ENDED WHILE FRIZZ WAS NOT WATCHING IS STILL A REST.
+// A TURN THAT ENDED WHILE NTWINE WAS NOT WATCHING IS STILL A REST.
 //
 // `rested_at` was written by `onTurnDone` alone, which fires on the LIVE in-flight → idle edge. Prime
 // has no edge — it folds a whole transcript and adopts the turn it finds — so a turn that completed
 // while the server was down was never recorded as a rest at all, and never would be: prime runs once
-// per session per process. A worker is a detached broker daemon that keeps working across a frizz
+// per session per process. A worker is a detached broker daemon that keeps working across a ntwine
 // restart by design, so this is the ordinary case on every bounce, not an edge.
 //
 // The column being wrong is not cosmetic: `snoozeAwaitingBackground` (router.ts) refuses a row with a
@@ -2923,7 +2923,7 @@ test("tailer: a prime never writes the rest BACKWARDS over a newer stamp", () =>
   const h = harness()
   h.storage.upsertSession(row())
   // The row already carries a LATER rest than anything in this transcript — the state a restart
-  // inherits when nothing happened while frizz was down. Seeded through the setter that owns the
+  // inherits when nothing happened while ntwine was down. Seeded through the setter that owns the
   // column: `upsertSession` deliberately does not write `rested_at`.
   h.storage.setRestedAt("t", "2026-07-01T00:05:00.000Z")
   fixture(h.logDir, "sid", [IN_FLIGHT, TOOL, DONE])
@@ -3072,7 +3072,7 @@ test("parseSignalFence: a PR ref keeps its `#`, which YAML would only eat after 
   assert.deepEqual(f?.hints, [{ kind: "pr", value: "colinhacks/zod#6440" }, { kind: "for", value: "24h" }])
 })
 
-// FRONTMATTER FRIZZ CANNOT PARSE MUST NEVER LOOK LIKE A PARK. A tab is the likeliest way in — YAML refuses
+// FRONTMATTER NTWINE CANNOT PARSE MUST NEVER LOOK LIKE A PARK. A tab is the likeliest way in — YAML refuses
 // tabs as indentation outright — and the fence then names nothing, so the scheduler bumps rather than
 // parking. The worker's own lines survive in the BODY, or the correction is about a fence it cannot see.
 test("parseSignalFence: unparseable YAML names nothing, and the lines survive in the body", () => {
@@ -3093,7 +3093,7 @@ test("parseSignalFence: a `word:` line outside the vocabulary is PROSE — inclu
 
 test("parseSignalFence: a key is case-insensitive, lowercased on output; a frontmatter-only body is empty", () => {
   // YAML itself is case-SENSITIVE, so without the fold a shouted key would parse and then match nothing
-  // — a fence that reads correct to its author and names nothing to frizz.
+  // — a fence that reads correct to its author and names nothing to ntwine.
   const f = parseSignalFence("```awaiting\nSHELLS: [bzvtnt3ig]\nTiMeRs: [tmr_a1b2c3d4e5f6]\nPRS: [acme/app#391]\nFor: 2h\n```")
   assert.deepEqual(f?.hints, [
     { kind: "shell", value: "bzvtnt3ig" },
@@ -3244,20 +3244,20 @@ test("tailer: firstUserText is the OPENING human turn and never drifts to a late
   assert.equal(t.get("toolfirst")?.firstUserText, "the real question")
 })
 
-// The exclusion that a CODEX row depends on entirely. Frizz mints `session_id` itself, but codex mints
-// its own rollout id and frizz pins it in `agent_session_id` — so for a codex thread that column is the
-// ONLY one naming the file on disk. Missing it, every codex thread frizz dispatched came back as its own
-// read-only external twin in the External band, which promises the opposite of a thread frizz drives.
+// The exclusion that a CODEX row depends on entirely. Ntwine mints `session_id` itself, but codex mints
+// its own rollout id and ntwine pins it in `agent_session_id` — so for a codex thread that column is the
+// ONLY one naming the file on disk. Missing it, every codex thread ntwine dispatched came back as its own
+// read-only external twin in the External band, which promises the opposite of a thread ntwine drives.
 test("tailer: a registered row's agent_session_id is excluded from foreign discovery too", () => {
   const h = harness()
-  h.storage.upsertSession(row({ slug: "codex-thread", session_id: "frizz-minted-id" }))
+  h.storage.upsertSession(row({ slug: "codex-thread", session_id: "ntwine-minted-id" }))
   // Pinned AFTER dispatch by its own setter — the shared upsert deliberately leaves it alone, which is
   // exactly why it is easy to forget on the read side.
   h.storage.setAgentSession("codex-thread", "codex-rollout-id")
   h.clock.ms = FCLOCK
   const { t } = foreignTailer(h)
   foreignFile(h.logDir, "codex-rollout-id", [IN_FLIGHT, TOOL, DONE], FRESH_MTIME) // the backend's own id
-  foreignFile(h.logDir, "frizz-minted-id", [IN_FLIGHT], FRESH_MTIME)              // the frizz-minted id
+  foreignFile(h.logDir, "ntwine-minted-id", [IN_FLIGHT], FRESH_MTIME)              // the ntwine-minted id
   foreignFile(h.logDir, "genuinely-foreign", [IN_FLIGHT], FRESH_MTIME)
   t.tick()
   assert.deepEqual(t.foreignIds(), ["genuinely-foreign"], "neither id a row owns may surface as a foreign thread")
@@ -3340,7 +3340,7 @@ const PAST_GRACE = Date.parse("2026-07-01T00:01:01.000Z") // 61s after SPAWN (> 
 
 // A drifted transcript: lives at `fileId`.jsonl but carries `ownerId`'s scratchpad sentinel in content.
 function driftedFixture(dir: string, fileId: string, ownerId: string, tail: string[] = [DONE]) {
-  const sentinel = JSON.stringify({ type: "user", timestamp: SPAWN, message: { role: "user", content: `Your scratchpad is \`.frizz/threads/${ownerId}/scratch.md\` — keep state here.` } })
+  const sentinel = JSON.stringify({ type: "user", timestamp: SPAWN, message: { role: "user", content: `Your scratchpad is \`.ntwine/threads/${ownerId}/scratch.md\` — keep state here.` } })
   fixture(dir, fileId, [sentinel, ...tail])
 }
 
@@ -3370,9 +3370,9 @@ test("tailer: a transcript missing past the grace window → noTranscript degrad
   const h = harness()
   // Per-project now — keyed on the tailer's project.stateDir. This fixture project has none, so both
   // sides fall back to the per-install directory; ask for it the same way or this looks in an empty one.
-  const stallLog = join(frizzTempDir("frizz-worker-logs"), `${slug}.stall.log`)
+  const stallLog = join(ntwineTempDir("ntwine-worker-logs"), `${slug}.stall.log`)
   try { rmSync(stallLog) } catch { /* not there */ }
-  h.storage.upsertSession(row({ slug, thread_name: `frizz-${slug}` }))
+  h.storage.upsertSession(row({ slug, thread_name: `ntwine-${slug}` }))
   const t = makeTailer(h)
 
   h.clock.ms = Date.parse(SPAWN)
@@ -3398,10 +3398,10 @@ test("tailer: a transcript missing past the grace window → noTranscript degrad
 // carded as a bare "Stalled" while the reason sat unread in the stall log.
 test("tailer: a present-but-EMPTY (0-byte) transcript past grace is treated as MISSING → degraded (0-byte crash-net hole closed)", () => {
   const slug = stallSlug("empty-thread")
-  const stallLog = join(frizzTempDir("frizz-worker-logs"), `${slug}.stall.log`)
+  const stallLog = join(ntwineTempDir("ntwine-worker-logs"), `${slug}.stall.log`)
   try { rmSync(stallLog) } catch { /* not there */ }
   const h = harness()
-  h.storage.upsertSession(row({ slug, thread_name: `frizz-${slug}` }))
+  h.storage.upsertSession(row({ slug, thread_name: `ntwine-${slug}` }))
   fixture(h.logDir, "sid", []) // <sid>.jsonl EXISTS but is 0 bytes (worker created it then crashed)
   const t = makeTailer(h)
 
@@ -3449,13 +3449,13 @@ test("tailer: discovers a drifted transcript by sentinel, re-links + caches tran
   assert.equal(h.events.length, before, "a discovered transcript replays as a SILENT prime — no spurious turn-done notify")
 })
 
-// THE RENAMED CHECKOUT (maintainer, 2026-08-11: "all of these threads in /project/frizz are frozen and
+// THE RENAMED CHECKOUT (maintainer, 2026-08-11: "all of these threads in /project/ntwine are frozen and
 // Retry doesn't work and I can't do a hard restart on the threads"). Claude Code shards its transcript
 // store by the cwd a session was BORN in and a resumed session keeps writing to its birth bucket
-// forever, so renaming `.../projects/fray` to `.../projects/frizz` left 417 transcripts one directory
-// over from where frizz looked. Every one of them read as "no transcript 60s after dispatch" → degraded
+// forever, so renaming `.../projects/fray` to `.../projects/ntwine` left 417 transcripts one directory
+// over from where ntwine looked. Every one of them read as "no transcript 60s after dispatch" → degraded
 // → board.ts degradeIfNoTranscript turned that into runtime "exited" → the yellow [!] plus a Retry that
-// could only ever start MORE work frizz could not see, while RestartWorkerButton hid itself because the
+// could only ever start MORE work ntwine could not see, while RestartWorkerButton hid itself because the
 // runtime read as exited. One missing file, all three symptoms.
 //
 // The session id is deliberately unique to this case: `discoverTranscriptDir` memoizes a hit dir
@@ -3464,7 +3464,7 @@ test("tailer: a transcript stranded in a SIBLING log dir (the project was rename
   const h = harness()
   const slug = "renamed-project-thread"
   h.storage.upsertSession(row({ slug, session_id: "born-before-the-rename" }))
-  // The bucket the checkout used to be called, beside the one frizz now derives from the current path.
+  // The bucket the checkout used to be called, beside the one ntwine now derives from the current path.
   const preRename = join(dirname(h.logDir), "-Users-me-projects-fray")
   mkdirSync(preRename, { recursive: true })
   fixture(preRename, "born-before-the-rename", [IN_FLIGHT, TOOL, DONE])
@@ -3483,7 +3483,7 @@ test("tailer: a transcript stranded in a SIBLING log dir (the project was rename
   // Same session, different directory: nothing drifted, so the DRIFTED-id column must stay clean.
   assert.equal(h.storage.getSession(slug)?.transcript_id ?? null, null, "a moved dir is not a drifted id")
   // SILENT, and this one is load-bearing at scale rather than merely tidy: on the real board 386 of the
-  // frizz project's 427 sessions were stranded by one rename (measured 2026-08-11), so they all bind on
+  // ntwine project's 427 sessions were stranded by one rename (measured 2026-08-11), so they all bind on
   // the same tick the operator restarts. A notify per historical turn-done would be 386 notifications
   // for work that finished days ago. Same discipline as the drifted-id re-link above.
   assert.equal(h.events.length, before, "a recovered transcript replays as a SILENT prime — no historical notify")
@@ -3929,9 +3929,9 @@ function codexTailer(h: Harness, codexHome: string, codexModels?: () => readonly
 }
 
 // Pin a codex row the way dispatch does: backend + the discovered rollout id land via the dedicated
-// setters (the shared upsert never writes them), leaving session_id as the frizz-minted key.
+// setters (the shared upsert never writes them), leaving session_id as the ntwine-minted key.
 function pinCodexRow(h: Harness, codexId: string) {
-  h.storage.upsertSession(row({ session_id: "frizz-uuid" }))
+  h.storage.upsertSession(row({ session_id: "ntwine-uuid" }))
   h.storage.setBackend("t", "codex")
   h.storage.setAgentSession("t", codexId)
 }
@@ -3941,11 +3941,11 @@ function pinCodexRow(h: Harness, codexId: string) {
 // `atRoot`), because the exec ran in its tool call's `workdir` if it had one, which that level cannot see.
 test("tailer: codex — a tool call's workdir moves the thread's checkout, and each exec row carries its folder", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0d-1111-2222-3333-444455556666"
-  const project = realpathSync(tmp("frizz-codex-proj-"))
+  const project = realpathSync(tmp("ntwine-codex-proj-"))
   mkdirSync(join(project, ".git"))
-  const worktree = join(project, ".frizz", "worktrees", "cx")
+  const worktree = join(project, ".ntwine", "worktrees", "cx")
   mkdirSync(worktree, { recursive: true })
   writeFileSync(join(worktree, ".git"), "gitdir: elsewhere\n")
   const call = (id: string, workdir: string) => JSON.stringify({ timestamp: "2026-07-10T21:58:44.000Z", type: "response_item", payload: { type: "function_call", name: "exec_command", call_id: id, arguments: JSON.stringify({ cmd: "ls", workdir }) } })
@@ -3983,7 +3983,7 @@ test("tailer: codex — a tool call's workdir moves the thread's checkout, and e
   ], "the root is claimed only for a folder that was read; a bare exec claims nothing")
 
   // The next command runs in the worktree: that is now where the agent is.
-  appendFileSync(path, call("c2", ".frizz/worktrees/cx") + "\n")
+  appendFileSync(path, call("c2", ".ntwine/worktrees/cx") + "\n")
   h.clock.ms = Date.parse("2026-07-10T21:58:50.000Z")
   t.tick()
   tele = t.get("t")!
@@ -4005,7 +4005,7 @@ test("tailer: codex — a tool call's workdir moves the thread's checkout, and e
 // Open in editor opened `~/yes`). Its tools are the only trace — trusted only for the project's own repo.
 test("tailer: claude — tools working in a sibling worktree of the project's repo move its checkout; other folders do not", () => {
   const h = harness()
-  const root = realpathSync(tmp("frizz-sibling-"))
+  const root = realpathSync(tmp("ntwine-sibling-"))
   const project = join(root, "proj")
   const sibling = join(root, "proj-perf")
   const other = join(root, "other")
@@ -4048,17 +4048,17 @@ test("tailer: claude — tools working in a sibling worktree of the project's re
 // moved into a worktree that exists here.
 test("tailer: codex — the exec wrapper's workdir moves the thread's checkout, and only a shell command's does", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0d-1111-2222-3333-444455556677"
-  const project = realpathSync(tmp("frizz-codex-proj-"))
+  const project = realpathSync(tmp("ntwine-codex-proj-"))
   mkdirSync(join(project, ".git"))
-  const worktree = join(project, ".frizz", "worktrees", "wrap")
+  const worktree = join(project, ".ntwine", "worktrees", "wrap")
   mkdirSync(worktree, { recursive: true })
   writeFileSync(join(worktree, ".git"), "gitdir: elsewhere\n")
   const fixture = readFileSync(join(import.meta.dirname, "backend", "codex.fixtures", "exec-wrapper-common-tools.jsonl"), "utf8")
   const wrapperCalls = fixture.split("\n").filter((line) => line.includes('"custom_tool_call"') && line.includes('"name":"exec"') && line.includes("workdir"))
   assert.ok(wrapperCalls.length >= 3, "the fixture carries real wrapper calls")
-  const inWorktree = wrapperCalls[0]!.replaceAll("/tmp/frizz-tool-sample", worktree)
+  const inWorktree = wrapperCalls[0]!.replaceAll("/tmp/ntwine-tool-sample", worktree)
   assert.notEqual(inWorktree, wrapperCalls[0], "the real call names a folder")
   const path = writeCodexRollout(codexHome, codexId, [cxMeta(codexId, project), cxTaskStarted])
   pinCodexRow(h, codexId)
@@ -4092,7 +4092,7 @@ test("tailer: codex — the exec wrapper's workdir moves the thread's checkout, 
   assert.deepEqual(t.get("t")!.checkout, { dir: worktree, kind: "worktree" }, "a non-shell tool's cwd argument moves nothing")
 
   // Back at the root through the wrapper again.
-  appendFileSync(path, wrapperCalls[1]!.replaceAll("/tmp/frizz-tool-sample", project) + "\n")
+  appendFileSync(path, wrapperCalls[1]!.replaceAll("/tmp/ntwine-tool-sample", project) + "\n")
   h.clock.ms = Date.parse("2026-07-12T17:43:12.000Z")
   t.tick()
   assert.equal(t.get("t")!.checkout, undefined, "a wrapper command at the root clears the token")
@@ -4100,7 +4100,7 @@ test("tailer: codex — the exec wrapper's workdir moves the thread's checkout, 
 
 test("tailer: a codex rollout primes to in-flight, then transitions to idle+fence THROUGH the tick", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0a-42cb-7891-9cbf-325e93ae587c"
   const path = writeCodexRollout(codexHome, codexId, [cxMeta(codexId, "/x"), cxTaskStarted]) // turn open
   pinCodexRow(h, codexId)
@@ -4128,7 +4128,7 @@ test("tailer: a codex rollout primes to in-flight, then transitions to idle+fenc
 
 test("tailer: a codex rollout already at task_complete PRIMES straight to idle (not clobbered to in-flight)", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0b-1111-2222-3333-444455556666"
   writeCodexRollout(codexHome, codexId, [cxMeta(codexId, "/x"), cxTaskStarted, cxAgentFinal(CX_DONE), cxTaskComplete(CX_DONE)])
   pinCodexRow(h, codexId)
@@ -4142,7 +4142,7 @@ test("tailer: a codex rollout already at task_complete PRIMES straight to idle (
 
 test("tailer: observed Codex profiles use the same injected catalogue as the composer", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0b-aaaa-bbbb-cccc-ddddeeeeffff"
   const path = writeCodexRollout(codexHome, codexId, [cxMeta(codexId, "/x"), cxTaskStarted])
   pinCodexRow(h, codexId)
@@ -4164,9 +4164,9 @@ test("tailer: observed Codex profiles use the same injected catalogue as the com
 
 test("tailer: a real-shaped first Codex title comment persists its title and replay never restores the transport", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0c-1111-2222-3333-444455556666"
-  const final = '<!-- frizz title="Queue focus" -->\nVisible answer'
+  const final = '<!-- ntwine title="Queue focus" -->\nVisible answer'
   writeCodexRollout(codexHome, codexId, [
     cxMeta(codexId, "/x"),
     cxTaskStarted,
@@ -4174,7 +4174,7 @@ test("tailer: a real-shaped first Codex title comment persists its title and rep
     cxTaskComplete(final),
   ])
   h.storage.upsertSession(row({
-    session_id: "frizz-uuid",
+    session_id: "ntwine-uuid",
     title: "raw initial prompt",
     title_auto: 1,
   }))
@@ -4197,7 +4197,7 @@ test("tailer: a real-shaped first Codex title comment persists its title and rep
 
 test("tailer: an omitted real-shaped Codex final retains the bounded dispatch fallback rather than an internal slug", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0d-1111-2222-3333-444455556666"
   const final = "`hello.txt` says: tui file.\n\n```done\ntui-ok\n```"
   writeCodexRollout(codexHome, codexId, [
@@ -4206,7 +4206,7 @@ test("tailer: an omitted real-shaped Codex final retains the bounded dispatch fa
     cxAgentFinal(final),
     cxTaskComplete(final),
   ])
-  h.storage.upsertSession(row({ session_id: "frizz-uuid", title: "Fix queue focus…", title_auto: 1 }))
+  h.storage.upsertSession(row({ session_id: "ntwine-uuid", title: "Fix queue focus…", title_auto: 1 }))
   h.storage.setBackend("t", "codex")
   h.storage.setAgentSession("t", codexId)
 
@@ -4217,10 +4217,10 @@ test("tailer: an omitted real-shaped Codex final retains the bounded dispatch fa
 
 test("tailer: a later Codex marker cannot overwrite a manual title after an omitted-marker dispatch fallback", () => {
   const h = harness()
-  const codexHome = tmp("frizz-codexhome-")
+  const codexHome = tmp("ntwine-codexhome-")
   const codexId = "019f4e0e-1111-2222-3333-444455556666"
   const path = writeCodexRollout(codexHome, codexId, [cxMeta(codexId, "/x"), cxTaskStarted])
-  h.storage.upsertSession(row({ session_id: "frizz-uuid", title: "Audit registry auth…", title_auto: 1 }))
+  h.storage.upsertSession(row({ session_id: "ntwine-uuid", title: "Audit registry auth…", title_auto: 1 }))
   h.storage.setBackend("t", "codex")
   h.storage.setAgentSession("t", codexId)
   const t = codexTailer(h, codexHome)
@@ -4393,7 +4393,7 @@ test("isClaudeAuthErrorText: narrow conjunction", () => {
 })
 
 // The app-server reports a model-run command as the ARGV it spawned, while codex's own
-// `backgroundTerminals/list`, the rollout, and frizz's transcript-projected row all say the bare
+// `backgroundTerminals/list`, the rollout, and ntwine's transcript-projected row all say the bare
 // command. Stripping the wrapper is what lets the board row and the transcript row reconcile at all
 // (lib/childOps.ts keys on it) — and it is what the operator reads.
 test("tailer: a codex exec's launcher wrapper is stripped, and nothing else is", () => {
@@ -4440,7 +4440,7 @@ test("tailer: a killed shell does NOT come back when the fold re-primes from scr
   // durable this re-minted the row and it pulsed "running" for as long as the thread lived.
   const second = makeTailer(h, { mtimeMs: () => Date.parse("2026-07-01T00:00:02.000Z") })
   second.tick()
-  assert.deepEqual(second.get("t")?.bgShells, [], "a frizz restart must not resurrect what the operator killed")
+  assert.deepEqual(second.get("t")?.bgShells, [], "a ntwine restart must not resurrect what the operator killed")
   assert.deepEqual(second.get("t")?.subAgents, [], "…and it is gone from every live surface, not just the shell list")
 })
 
@@ -4458,7 +4458,7 @@ test("tailer: a killed shell stays killed on a board big enough to defer its pri
   // never fires and the count is the only thing deferring anybody.
   for (let i = 0; i < 60; i++) {
     const slug = `filler-${i}`
-    h.storage.upsertSession(row({ slug, thread_name: `frizz-${slug}`, session_id: `filler-sid-${i}` }))
+    h.storage.upsertSession(row({ slug, thread_name: `ntwine-${slug}`, session_id: `filler-sid-${i}` }))
     fixture(h.logDir, `filler-sid-${i}`, [IN_FLIGHT, DONE])
   }
   h.storage.upsertSession(row())
@@ -4494,7 +4494,7 @@ test("tailer: a killed shell stays killed on a board big enough to defer its pri
 // that writes it lived ONLY in the prime branch, which ends in `continue`. A SendMessage restart is
 // folded on a STEADY tick, so its un-retirement was queued and never written: `retired_op` kept
 // asserting a dismissal the fold had already superseded. The row is back on the board — correctly, it
-// is live work again — and the NEXT frizz restart silently deletes it, hiding a child that is
+// is live work again — and the NEXT ntwine restart silently deletes it, hiding a child that is
 // genuinely running. That is verbatim the failure the un-retire exists to prevent.
 test("tailer: a restart on a STEADY tick clears the dismissal, not just the board", () => {
   const h = harness()
@@ -4527,7 +4527,7 @@ test("tailer: a restart on a STEADY tick clears the dismissal, not just the boar
   assert.deepEqual(t.get("t")?.subAgents.map((a) => a.id), ["toolu_dispatch"], "the revived child is back on the board")
   assert.deepEqual([...h.storage.retiredOps("t", "sid")], [], "and the registry no longer calls it dismissed")
 
-  // The consequence, made explicit: a frizz restart over the same registry must not re-hide it.
+  // The consequence, made explicit: a ntwine restart over the same registry must not re-hide it.
   t.stop()
   const second = makeTailer(h, { mtimeMs: () => h.clock.ms })
   second.tick()
@@ -4618,12 +4618,12 @@ test("tailer: the BACKOFF never delays a transcript that appears at the pinned p
 test("tailer: an exited+archived row flags noTranscript but raises NO boot-failure alarm", () => {
   const h = harness()
   const slug = stallSlug("filed-away")
-  const stallLog = join(frizzTempDir("frizz-worker-logs"), `${slug}.stall.log`)
+  const stallLog = join(ntwineTempDir("ntwine-worker-logs"), `${slug}.stall.log`)
   try { rmSync(stallLog) } catch { /* not there */ }
   // A thread the operator finished with and archived. Its transcript never existed and never will.
   // `archived` is a legacy column upsertSession does not even write — setState is the only way to
   // archive, and it is what the board reads. Archive it the way the Archive button does.
-  h.storage.upsertSession(row({ slug, thread_name: `frizz-${slug}`, exited: 1 }))
+  h.storage.upsertSession(row({ slug, thread_name: `ntwine-${slug}`, exited: 1 }))
   h.storage.setState(slug, "archived")
   const t = makeTailer(h)
 
@@ -4637,9 +4637,9 @@ test("tailer: an exited+archived row flags noTranscript but raises NO boot-failu
 test("tailer: a LIVE row still raises the boot-failure alarm (the archived skip is not a blanket mute)", () => {
   const h = harness()
   const slug = stallSlug("really-stalled")
-  const stallLog = join(frizzTempDir("frizz-worker-logs"), `${slug}.stall.log`)
+  const stallLog = join(ntwineTempDir("ntwine-worker-logs"), `${slug}.stall.log`)
   try { rmSync(stallLog) } catch { /* not there */ }
-  h.storage.upsertSession(row({ slug, thread_name: `frizz-${slug}`, exited: 0, archived: 0 }))
+  h.storage.upsertSession(row({ slug, thread_name: `ntwine-${slug}`, exited: 0, archived: 0 }))
   const t = makeTailer(h)
 
   h.clock.ms = PAST_GRACE
@@ -4658,12 +4658,12 @@ test("tailer: cold ARCHIVED rows yield their prime slots until every visible row
   // registry order alone would starve the visible row.
   for (let i = 0; i < 60; i++) {
     const slug = `archived-${i}`
-    h.storage.upsertSession(row({ slug, thread_name: `frizz-${slug}`, session_id: `arch-sid-${i}`, exited: 1 }))
+    h.storage.upsertSession(row({ slug, thread_name: `ntwine-${slug}`, session_id: `arch-sid-${i}`, exited: 1 }))
     h.storage.setState(slug, "archived")
     fixture(h.logDir, `arch-sid-${i}`, [IN_FLIGHT, DONE])
   }
   const slug = "on-screen"
-  h.storage.upsertSession(row({ slug, thread_name: `frizz-${slug}`, session_id: "visible-sid" }))
+  h.storage.upsertSession(row({ slug, thread_name: `ntwine-${slug}`, session_id: "visible-sid" }))
   h.storage.setState(slug, "open")
   fixture(h.logDir, "visible-sid", [IN_FLIGHT, TOOL, DONE, TITLE])
 
@@ -4767,13 +4767,13 @@ test("parseSignalFence: a `shell:` line after the delimiter is prose, not a wait
 
 // A BACKGROUND SHELL'S LIVENESS IS ASKED OF THE OS, not guessed from age or output.
 //
-// Frizz spawns none of these processes and the runtime records no pid it can read, so before this the
+// Ntwine spawns none of these processes and the runtime records no pid it can read, so before this the
 // ONLY thing that retired a shell was its `<task-notification>` — and one whose process died without
 // emitting one stayed "running" forever (the maintainer's board: `RUNNING · 2583 MIN`, 43 hours, for a
 // process that did not exist).
 //
-// The key frizz already holds is the OUTPUT PATH: a shell's stdout is redirected into `<taskId>.output`,
-// so whoever holds that file open IS the shell. An age threshold could not do this job — frizz's own
+// The key ntwine already holds is the OUTPUT PATH: a shell's stdout is redirected into `<taskId>.output`,
+// so whoever holds that file open IS the shell. An age threshold could not do this job — ntwine's own
 // contract tells workers to wait with `until <cond>; do sleep 5; done`, which prints nothing for hours by
 // design, so silence and death look identical there and only the OS can tell them apart.
 test("tailer: a shell the OS says nobody is running goes stale; alive and unknown both stay running", () => {
@@ -4812,7 +4812,7 @@ test("tailer: a shell the OS says nobody is running goes stale; alive and unknow
 // executable is asked, how its answer maps to verdicts, and that every failure is "unknown", never
 // "dead". The real PowerShell run is the win32-gated case after it.
 test("tailer: the win32 shell probe asks PowerShell for an exclusive open, and reads held/free/unknown per path", async () => {
-  const dir = tmp("frizz-shell-probe-win-")
+  const dir = tmp("ntwine-shell-probe-win-")
   const a = join(dir, "a.output")
   const b = join(dir, "b.output")
   const c = join(dir, "c.output")
@@ -4847,7 +4847,7 @@ test("tailer: the win32 shell probe asks PowerShell for an exclusive open, and r
 // The real thing, on the one platform that has it: a file this process holds open must read as held,
 // and a file nobody holds as free. Mirrors the lsof case below.
 test("tailer: the real win32 probe reads a held file as alive and an unheld one as gone", { skip: process.platform !== "win32" ? "PowerShell exclusive-open probe is win32-only" : false }, async () => {
-  const dir = tmp("frizz-shell-probe-real-win-")
+  const dir = tmp("ntwine-shell-probe-real-win-")
   const dead = join(dir, "dead.output")
   const alive = join(dir, "alive.output")
   writeFileSync(dead, "")
@@ -4897,7 +4897,7 @@ test("tailer: the real shell probe is async — the verdict lands on the NEXT ti
     return { first, second: t.get("t")?.bgShells[0]?.state }
   }
 
-  const dir = tmp("frizz-shell-probe-")
+  const dir = tmp("ntwine-shell-probe-")
   const dead = join(dir, "dead.output")
   const alive = join(dir, "alive.output")
   writeFileSync(dead, "")
@@ -4933,7 +4933,7 @@ test("tailer: the real shell probe is async — the verdict lands on the NEXT ti
 // probe against the real trigger (a path that does not exist); the second counts a scripted one.
 test("tailer: a shell probe that cannot tell is remembered for a TTL — it does not nudge the board, and is not asked again every pass", async () => {
   const TTL = 30_000 // SHELL_PROBE_TTL_MS
-  const gone = join(tmp("frizz-shell-probe-unknown-"), "never-created.output")
+  const gone = join(tmp("ntwine-shell-probe-unknown-"), "never-created.output")
   const settle = (ms: number) => new Promise((r) => setTimeout(r, ms))
   const open = (over: Partial<Parameters<typeof createTailer>[0]> = {}) => {
     const h = harness()
@@ -5016,7 +5016,7 @@ test("tailer: a shell probe that cannot tell is remembered for a TTL — it does
 
 // HOW OFTEN is the other half of what the probe costs. `lsof` walks every process on the machine
 // whatever it is asked, so a shell probed every 30s for as long as it lives makes a thread parked on a
-// day-long watcher the most expensive idle thing frizz does: 13 runs in 65 seconds on the maintainer's
+// day-long watcher the most expensive idle thing ntwine does: 13 runs in 65 seconds on the maintainer's
 // machine (2026-10-11), about 8% of a core for six watchers. A verdict therefore stands for a tenth of
 // the shell's age — 30s at the least, ten minutes at the most.
 test("shellProbeTtlMs: a verdict stands for a tenth of the shell's age, between 30s and ten minutes", () => {
@@ -5027,7 +5027,7 @@ test("shellProbeTtlMs: a verdict stands for a tenth of the shell's age, between 
 })
 
 test("tailer: a long-running shell is asked about on its age, not every 30s", async () => {
-  const output = join(tmp("frizz-shell-probe-age-"), "bWatch.output")
+  const output = join(tmp("ntwine-shell-probe-age-"), "bWatch.output")
   writeFileSync(output, "")
   const h = harness()
   h.storage.upsertSession(row())
@@ -5067,7 +5067,7 @@ test("tailer: a long-running shell is asked about on its age, not every 30s", as
 // a verdict by itself. These drive the queue and the flush with a scripted probe and scripted pids; the
 // real-process case is with the other real ones further down.
 function watcherOnPids(name: string) {
-  const output = join(tmp(`frizz-shell-pids-${name}-`), "bWatch.output")
+  const output = join(tmp(`ntwine-shell-pids-${name}-`), "bWatch.output")
   writeFileSync(output, "")
   const h = harness()
   h.storage.upsertSession(row())
@@ -5198,7 +5198,7 @@ test("tailer: with its pids alive, a pinned shell is still fully re-probed at it
 // probed when the flight lands rather than whenever the board next happens to assemble, and a shell
 // whose own answer was in flight must NOT be — it was just answered.
 test("tailer: a shell queued while a probe is in flight is asked about when it lands — and one that was just answered is not", async () => {
-  const dir = tmp("frizz-shell-probe-flight-")
+  const dir = tmp("ntwine-shell-probe-flight-")
   const first = join(dir, "bFirst.output")
   const later = join(dir, "bLater.output")
   const h = harness()
@@ -5314,7 +5314,7 @@ test("tailer: an unheld shell is looked for in the process table — forked in i
 
   // Composed with the holder probe: an unheld file is alive when the table finds its process, and when
   // the table cannot answer at all the holder verdict stands — exactly the behaviour before 2026-10-05.
-  const dir = tmp("frizz-shell-probe-composed-")
+  const dir = tmp("ntwine-shell-probe-composed-")
   const file = join(dir, "x.output")
   writeFileSync(file, "")
   const lsofThen = (psExec: typeof ps) => (async (bin: string, args: string[], opts: { env?: NodeJS.ProcessEnv }) => {
@@ -5416,7 +5416,7 @@ async function until(cond: () => boolean, ms = 5000) {
 }
 
 test("tailer: the real probe finds an exec'd shell that redirected away from its output file, and still retires one that exited", { skip: process.platform === "win32" ? "lsof and ps are POSIX" : false }, async () => {
-  const dir = tmp("frizz-shell-exec-")
+  const dir = tmp("ntwine-shell-exec-")
   const sid = randomUUID()
   const cli = await fakeClaudeCli(sid)
   try {
@@ -5456,7 +5456,7 @@ test("tailer: the real probe finds an exec'd shell that redirected away from its
 // END TO END THROUGH THE TAILER: the transcript a real worker writes, the real (async, batched) probe,
 // and real processes. Before 2026-10-05 the exec'd shell read "stale" here while it ran.
 test("tailer: an exec'd background shell with redirected output reads running while it runs, stale once it dies", { skip: process.platform === "win32" ? "lsof and ps are POSIX" : false }, async () => {
-  const dir = tmp("frizz-shell-exec-tail-")
+  const dir = tmp("ntwine-shell-exec-tail-")
   const sid = randomUUID()
   const cli = await fakeClaudeCli(sid)
   try {
@@ -5496,7 +5496,7 @@ test("tailer: an exec'd background shell with redirected output reads running wh
 // and once it is killed the tailer must notice through the pid check plus a real re-probe — with the
 // shell an hour old, so the six-minute age TTL cannot be what notices it.
 test("tailer: the real probe names a shell's holder pid, and its death is noticed on the next 30s pid check", { skip: process.platform === "win32" ? "lsof is POSIX" : false }, async () => {
-  const dir = tmp("frizz-shell-pid-real-")
+  const dir = tmp("ntwine-shell-pid-real-")
   const outputFile = join(dir, "bPid.output")
   const fd = openSync(outputFile, "w")
   // `exec` so the holder IS the pid spawn reports, as with a Claude Code shell; our own fd is closed at
@@ -5552,9 +5552,9 @@ test("tailer: the real probe names a shell's holder pid, and its death is notice
 
 // ---- ACP rows ----
 //
-// An ACP transcript is FRIZZ-written (acp-transcript.ts) and keyed by the frizz session id, while the
+// An ACP transcript is NTWINE-written (acp-transcript.ts) and keyed by the ntwine session id, while the
 // row's `agent_session_id` carries the AGENT's own session (kept for session/load on resume). The
-// tailer has to bind the frizz id, never the agent's: bound the other way it tailed a file that did not
+// tailer has to bind the ntwine id, never the agent's: bound the other way it tailed a file that did not
 // exist and the thread spun `running` forever (live 2026-09-15 on a disposable stack — turn-end on
 // disk, board still "running" a minute later, `tail_state` empty).
 function acpTailer(h: Harness, stateDir: string) {
@@ -5577,22 +5577,22 @@ function acpTailer(h: Harness, stateDir: string) {
 const ACP_SESSION = JSON.stringify({ kind: "acp-session", at: "2026-09-16T05:53:16.696Z", agent: { id: "opencode", name: "OpenCode", version: "1.18.29" }, acpSessionId: "ses_agent", cwd: "/x", model: "opencode/big-pickle" })
 const ACP_USER = JSON.stringify({ kind: "user-message", at: "2026-09-16T05:53:16.696Z", text: "call the tool then say DONE", synthetic: false })
 const ACP_TURN_START = JSON.stringify({ kind: "turn-start", at: "2026-09-16T05:53:16.696Z" })
-const ACP_TOOL_CALL = JSON.stringify({ kind: "tool-call", at: "2026-09-16T05:53:23.871Z", id: "call_1", name: "frizz_activity", input: {}, acp: { kind: "other", title: "frizz_activity", locations: [] } })
+const ACP_TOOL_CALL = JSON.stringify({ kind: "tool-call", at: "2026-09-16T05:53:23.871Z", id: "call_1", name: "ntwine_activity", input: {}, acp: { kind: "other", title: "ntwine_activity", locations: [] } })
 const ACP_TOOL_RESULT = JSON.stringify({ kind: "tool-result", at: "2026-09-16T05:53:23.932Z", id: "call_1", text: "Nothing is running on this thread.", acp: { kind: "completed" } })
 const ACP_FINAL = JSON.stringify({ kind: "assistant-text", at: "2026-09-16T05:53:26.679Z", text: "DONE", final: false, messageId: "msg_1" })
 const ACP_TURN_END = JSON.stringify({ kind: "turn-end", at: "2026-09-16T05:53:26.679Z", finalText: "DONE", successful: true })
 
 function pinAcpRow(h: Harness) {
-  h.storage.upsertSession(row({ session_id: "frizz-uuid", spawned_at: "2026-09-16T05:53:16.000Z" }))
+  h.storage.upsertSession(row({ session_id: "ntwine-uuid", spawned_at: "2026-09-16T05:53:16.000Z" }))
   h.storage.setBackend("t", "acp")
   h.storage.setAgentSession("t", "ses_agent") // the AGENT's id — must NOT become the transcript stem
 }
 
-test("tailer: an ACP row binds the frizz-written transcript by session id and settles idle through the tick", () => {
+test("tailer: an ACP row binds the ntwine-written transcript by session id and settles idle through the tick", () => {
   const h = harness()
-  const stateDir = tmp("frizz-acp-state-")
+  const stateDir = tmp("ntwine-acp-state-")
   pinAcpRow(h)
-  const path = acpTranscriptPath(stateDir, "frizz-uuid")
+  const path = acpTranscriptPath(stateDir, "ntwine-uuid")
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, [ACP_SESSION, ACP_USER, ACP_TURN_START, ACP_TOOL_CALL, ACP_TOOL_RESULT].map((l) => l + "\n").join(""))
   const t = acpTailer(h, stateDir)
@@ -5616,16 +5616,16 @@ test("tailer: an ACP row binds the frizz-written transcript by session id and se
 
 test("tailer: an ACP row past the discovery grace with no transcript yet is NOT put through Claude discovery", () => {
   const h = harness()
-  const stateDir = tmp("frizz-acp-state-")
+  const stateDir = tmp("ntwine-acp-state-")
   pinAcpRow(h)
   // Nothing written yet, and the clock is well past DISCOVERY_GRACE_MS. The claude sweep would scan the
-  // log dir for `frizz-uuid`, miss, and flag noTranscript — which would card the thread as a boot failure.
+  // log dir for `ntwine-uuid`, miss, and flag noTranscript — which would card the thread as a boot failure.
   const t = acpTailer(h, stateDir)
   h.clock.ms = Date.parse("2026-09-16T06:53:16.000Z")
   t.tick()
-  assert.notEqual(t.get("t")?.noTranscript, true, "a deterministic frizz-written file is never 'undiscoverable'")
+  assert.notEqual(t.get("t")?.noTranscript, true, "a deterministic ntwine-written file is never 'undiscoverable'")
   // The file appears later → the next tick binds and folds it with no rebind ceremony.
-  const path = acpTranscriptPath(stateDir, "frizz-uuid")
+  const path = acpTranscriptPath(stateDir, "ntwine-uuid")
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, [ACP_SESSION, ACP_USER, ACP_TURN_START, ACP_FINAL, ACP_TURN_END].map((l) => l + "\n").join(""))
   h.clock.ms = Date.parse("2026-09-16T06:53:17.000Z")

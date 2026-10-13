@@ -6,7 +6,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { AWAITING_FOR_MAX_MS, type BoardSnapshot, type Settings } from "@frizz/shared"
+import { AWAITING_FOR_MAX_MS, type BoardSnapshot, type Settings } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { INBOX_DIRNAME } from "./agent-inbox.ts"
 import { createRouter } from "./router.ts"
@@ -55,7 +55,7 @@ test("an open thread outranks a finished one carrying the same name", () => {
 })
 
 function harness(tailerOver: Partial<Tailer> = {}, id = "m", name = "test") {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-mentions-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-mentions-rpc-"))
   const project: Project = { dir, id, name, label: name, stateDir: dir, cwdSlug: name }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -82,7 +82,7 @@ function harness(tailerOver: Partial<Tailer> = {}, id = "m", name = "test") {
 
 function row(slug: string, title: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -118,7 +118,7 @@ test("messageThread queues a signed message for the other thread, and refuses se
     assert.equal(queued.length, 1)
     assert.equal(queued[0]!.slug, "sb")
     assert.match(queued[0]!.fenceId, /^thread-message:/)
-    assert.match(queued[0]!.message, /^Message from @mentions, another Frizz thread/)
+    assert.match(queued[0]!.message, /^Message from @mentions, another Ntwine thread/)
     assert.match(queued[0]!.message, /Which file owns the cap\?/)
 
     const self = await h.router.messageThread.handler({ input: { slug: "me", handle: "@mentions", message: "hi" } })
@@ -213,8 +213,8 @@ test("readThread reaches another open project's thread, says whose it is, and pr
 
 // NAMES ARE UNIQUE ACROSS OPEN PROJECTS (thread-names.ts), because the caller's own project wins a handle
 // both carry: a thread here named like another project's open thread hides it from every thread here.
-// Seen 2026-10-09 — a frizz thread named "Issues audit" beside arktype's open `@issues-audit` answered
-// that handle itself, so the arktype thread and its sub-agents could not be reached from frizz.
+// Seen 2026-10-09 — a ntwine thread named "Issues audit" beside arktype's open `@issues-audit` answered
+// that handle itself, so the arktype thread and its sub-agents could not be reached from ntwine.
 test("a thread cannot take another open project's thread name, so the other's handle stays reachable", async () => {
   const { a, b, close } = twoProjects()
   try {
@@ -252,7 +252,7 @@ test("messageThread delivers into another project's thread, and its answer settl
     const delivered = createWakeDeliveryStore(b.storage.scope).list()
     assert.equal(delivered.length, 1)
     assert.equal(delivered[0]!.slug, "sb")
-    assert.match(delivered[0]!.message, /^Message from @mentions, another Frizz thread in the alpha project/)
+    assert.match(delivered[0]!.message, /^Message from @mentions, another Ntwine thread in the alpha project/)
     assert.equal(b.kicks(), 1, "the recipient's scheduler is kicked")
     const waits = a.storage.listThreadTimers("me", { armedOnly: true })
     assert.match(waits[0]!.prompt, /^Waiting on @shell-budgets to reply \(thread `sb` in beta\)/)
@@ -304,10 +304,10 @@ test("a miss is answered with the addresses that exist, finished ones tagged, se
 })
 
 test("readThread on a thread.subAgent address answers from the child's own transcript, finished ones too", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-subagent-read-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-subagent-read-"))
   const transcript = join(dir, "agent-aReview.jsonl")
   writeFileSync(transcript, [
-    JSON.stringify({ type: "user", timestamp: "2026-09-30T02:00:00.000Z", message: { role: "user", content: "Review the parser port.\n\n---\n[ORCHESTRATION EPILOGUE — auto-appended by the frizz worker dispatch hook] You are a helper sub-agent." } }),
+    JSON.stringify({ type: "user", timestamp: "2026-09-30T02:00:00.000Z", message: { role: "user", content: "Review the parser port.\n\n---\n[ORCHESTRATION EPILOGUE — auto-appended by the ntwine worker dispatch hook] You are a helper sub-agent." } }),
     JSON.stringify({ type: "assistant", timestamp: "2026-09-30T02:09:00.000Z", message: { id: "m1", stop_reason: "end_turn", content: [{ type: "text", text: "The port is sound; one cache key collides." }] } }),
   ].join("\n") + "\n")
   const h = harness({
@@ -327,10 +327,10 @@ test("readThread on a thread.subAgent address answers from the child's own trans
     assert.equal(hit.slug, "pp")
     assert.equal(hit.state, "done")
     assert.equal(hit.outcome, "completed")
-    assert.equal(hit.request, "Review the parser port.", "Frizz's helper epilogue is not part of what the child was asked")
+    assert.equal(hit.request, "Review the parser port.", "Ntwine's helper epilogue is not part of what the child was asked")
     assert.equal(hit.latest, "The port is sound; one cache key collides.")
     const drawer = await h.router.subAgentTranscript.handler({ input: { slug: "pp", id: "toolu_review" } })
-    assert.equal(drawer.messages[0]!.displayText, "Review the parser port.", "the child's drawer opens on the same task, not on Frizz's rules for helpers")
+    assert.equal(drawer.messages[0]!.displayText, "Review the parser port.", "the child's drawer opens on the same task, not on Ntwine's rules for helpers")
     assert.match(drawer.messages[0]!.text, /ORCHESTRATION EPILOGUE/, "the raw prompt the child received is kept")
 
     const miss = await h.router.readThread.handler({ input: { slug: "me", handle: "port-the-parser.nothing" } })
@@ -348,7 +348,7 @@ test("readThread on a thread.subAgent address answers from the child's own trans
 })
 
 test("messageThread delivers to a running sub-agent's mailbox, and refuses one it cannot reach", async () => {
-  const sessionDir = mkdtempSync(join(tmpdir(), "frizz-subagent-mailbox-"))
+  const sessionDir = mkdtempSync(join(tmpdir(), "ntwine-subagent-mailbox-"))
   const h = harness({
     subAgentDirectory: (slug) => (slug === "pp" ? [
       { id: "toolu_keys", label: "Cache keys", depth: 1, state: "running" },

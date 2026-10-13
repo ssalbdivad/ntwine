@@ -45,7 +45,7 @@ test("isSessionRoot: claude/codex binary or --session-id anywhere", () => {
 })
 
 test("isTmuxServer matches only a leftover pre-cutover tmux binary", () => {
-  assert.ok(isTmuxServer("tmux -L frizz-repo-x new-session -d"))
+  assert.ok(isTmuxServer("tmux -L ntwine-repo-x new-session -d"))
   assert.ok(!isTmuxServer("node tmux-thing"))
 })
 
@@ -56,7 +56,7 @@ test("decideOrphans: reap aux whose slug has no live root; keep everything prote
     row({ pid: 200, command: "Google Chrome for Testing --remote-debugging-port=0", slug: "beta" }), // aux, dead beta → REAP
     row({ pid: 201, command: "node --watch server.js", slug: "beta" }), // aux, dead beta → REAP
     row({ pid: 300, command: "codex --cd /x", slug: "gamma" }), // a session root with no aux; dead-ish but NEVER reaped
-    row({ pid: 400, command: "tmux -L frizz-repo-x new-session", slug: "delta" }), // a pre-cutover leftover, dead → keep
+    row({ pid: 400, command: "tmux -L ntwine-repo-x new-session", slug: "delta" }), // a pre-cutover leftover, dead → keep
   ]
   const { reap, liveSlugs } = decideOrphans(rows, { minAgeMs: ORPHAN_GUARD, protectedPids: new Set() })
   assert.deepEqual([...reap].sort((a, b) => a - b), [200, 201])
@@ -143,13 +143,13 @@ test("enumerateProcs joins argv pass with env pass, slug from the ENV segment on
   const base = [
     "  100        1 10:00 claude --session-id A",
     "  200      100 09:00 Google Chrome for Testing --remote-debugging-port=0",
-    // A leftover tmux server carries a FRIZZ_THREAD literal in ARGV (the `-e` flag); its OWN env has a different one
-    "  400        1 20:00 tmux -L frizz-repo-x new-session -d -e FRIZZ_THREAD=argvslug",
+    // A leftover tmux server carries a NTWINE_THREAD literal in ARGV (the `-e` flag); its OWN env has a different one
+    "  400        1 20:00 tmux -L ntwine-repo-x new-session -d -e NTWINE_THREAD=argvslug",
   ].join("\n")
   const env = [
-    "100 claude --session-id A FRIZZ_THREAD=alpha",
-    "200 Google Chrome for Testing --remote-debugging-port=0 FRIZZ_THREAD=alpha",
-    "400 tmux -L frizz-repo-x new-session -d -e FRIZZ_THREAD=argvslug HOME=/x FRIZZ_THREAD=envslug",
+    "100 claude --session-id A NTWINE_THREAD=alpha",
+    "200 Google Chrome for Testing --remote-debugging-port=0 NTWINE_THREAD=alpha",
+    "400 tmux -L ntwine-repo-x new-session -d -e NTWINE_THREAD=argvslug HOME=/x NTWINE_THREAD=envslug",
   ].join("\n")
   const procs = await enumerateProcs(fakePs(base, env), { platform: "darwin" })
   const byPid = new Map(procs.map((p) => [p.pid, p]))
@@ -157,15 +157,15 @@ test("enumerateProcs joins argv pass with env pass, slug from the ENV segment on
   assert.equal(byPid.get(200)!.slug, "alpha")
   assert.equal(byPid.get(400)!.ppid, 1)
   assert.equal(byPid.get(200)!.ageMs, 9 * 60_000)
-  // the ENV slug wins over the argv `-e FRIZZ_THREAD=argvslug` literal
+  // the ENV slug wins over the argv `-e NTWINE_THREAD=argvslug` literal
   assert.equal(byPid.get(400)!.slug, "envslug")
 })
 
-test("enumerateProcs: a FRIZZ_THREAD literal in a ROOT's argv never overrides its real env slug", async () => {
-  // Reproduces the critical mis-attribution: a worker whose task text pasted `FRIZZ_THREAD=other`
+test("enumerateProcs: a NTWINE_THREAD literal in a ROOT's argv never overrides its real env slug", async () => {
+  // Reproduces the critical mis-attribution: a worker whose task text pasted `NTWINE_THREAD=other`
   // into its argv. Ownership must come from ENV, or the root's real slug would be lost from `live`.
-  const base = ["  100 1 10:00 claude --session-id A pasted:FRIZZ_THREAD=other-slug"].join("\n")
-  const env = ["100 claude --session-id A pasted:FRIZZ_THREAD=other-slug FRIZZ_THREAD=realroot"].join("\n")
+  const base = ["  100 1 10:00 claude --session-id A pasted:NTWINE_THREAD=other-slug"].join("\n")
+  const env = ["100 claude --session-id A pasted:NTWINE_THREAD=other-slug NTWINE_THREAD=realroot"].join("\n")
   const procs = await enumerateProcs(fakePs(base, env), { platform: "darwin" })
   assert.equal(procs[0]!.slug, "realroot")
 })
@@ -177,7 +177,7 @@ test("enumerateProcs: reads the slug across a multiline env value and re-merges 
   const env = [
     "100 node dev.js KEY=-----BEGIN-----",
     "500 not-a-real-record continues the KEY value",
-    "-----END----- FRIZZ_THREAD=realslug",
+    "-----END----- NTWINE_THREAD=realslug",
   ].join("\n")
   const procs = await enumerateProcs(fakePs(base, env), { platform: "darwin" })
   assert.equal(procs[0]!.slug, "realslug")
@@ -199,9 +199,9 @@ test("enumerateProcs: a pid narrower than ps's right-aligned pid column still ge
   // Exactly what `ps -Eww -o pid=,command=` emits: the pid column is 5 wide, so a 5-digit pid is flush
   // left and everything shorter carries leading blanks.
   const env = [
-    " 1154 claude --session-id A HOME=/Users/x FRIZZ_THREAD=live-worker",
-    "48311 node scripts/adhoc-stack.mjs --port=48311 HOME=/tmp/sandbox FRIZZ_THREAD=live-worker",
-    "65816 Google Chrome for Testing --headless FRIZZ_THREAD=live-worker",
+    " 1154 claude --session-id A HOME=/Users/x NTWINE_THREAD=live-worker",
+    "48311 node scripts/adhoc-stack.mjs --port=48311 HOME=/tmp/sandbox NTWINE_THREAD=live-worker",
+    "65816 Google Chrome for Testing --headless NTWINE_THREAD=live-worker",
   ].join("\n")
   const procs = await enumerateProcs(fakePs(base, env), { platform: "darwin" })
   const byPid = new Map(procs.map((p) => [p.pid, p]))
@@ -216,7 +216,7 @@ test("enumerateProcs: a pid narrower than ps's right-aligned pid column still ge
 
 test("enumerateProcs: a pid whose pass-2 argv does not match pass-1 (reuse) yields no slug (fail-safe)", async () => {
   const base = ["  100 1 10:00 node real-argv"].join("\n")
-  const env = ["100 node DIFFERENT-argv FRIZZ_THREAD=whatever"].join("\n") // marker mismatch
+  const env = ["100 node DIFFERENT-argv NTWINE_THREAD=whatever"].join("\n") // marker mismatch
   const procs = await enumerateProcs(fakePs(base, env), { platform: "darwin" })
   assert.equal(procs[0]!.slug, null)
 })
@@ -260,10 +260,10 @@ test("enumerateProcs (linux): slug from an exact environ entry; a literal inside
     {
       platform: "linux",
       readEnv: environ({
-        100: ["HOME=/home/x", "FRIZZ_THREAD=alpha"],
-        // the pasted `FRIZZ_THREAD=spoofed` lives INSIDE another variable's value → not an entry
-        200: ["TASK_TEXT=note FRIZZ_THREAD=spoofed here", "FRIZZ_THREAD=alpha"],
-        300: ["TASK_TEXT=note FRIZZ_THREAD=spoofed here"],
+        100: ["HOME=/home/x", "NTWINE_THREAD=alpha"],
+        // the pasted `NTWINE_THREAD=spoofed` lives INSIDE another variable's value → not an entry
+        200: ["TASK_TEXT=note NTWINE_THREAD=spoofed here", "NTWINE_THREAD=alpha"],
+        300: ["TASK_TEXT=note NTWINE_THREAD=spoofed here"],
       }),
     },
   )
@@ -293,10 +293,10 @@ test("sweepOrphansOnce (linux) end-to-end: reaps dead-slug aux, spares live + se
     exec: linuxPs(base),
     platform: "linux",
     readEnv: environ({
-      100: ["FRIZZ_THREAD=alpha"],
-      101: ["FRIZZ_THREAD=alpha"],
-      200: ["FRIZZ_THREAD=beta"],
-      999: ["FRIZZ_THREAD=beta"], // self → protected even under a dead slug
+      100: ["NTWINE_THREAD=alpha"],
+      101: ["NTWINE_THREAD=alpha"],
+      200: ["NTWINE_THREAD=beta"],
+      999: ["NTWINE_THREAD=beta"], // self → protected even under a dead slug
     }),
     kill: (pid) => killed.push(pid),
     selfPid: 999,
@@ -318,11 +318,11 @@ test("sweepOrphansOnce end-to-end with fakes: reaps dead-slug Chrome, spares liv
     "  999     1 10:00 node server.js", // the reaper's own process (self)
   ].join("\n")
   const env = [
-    "100 claude --session-id A FRIZZ_THREAD=alpha",
-    "101 node chrome-devtools-mcp FRIZZ_THREAD=alpha",
-    "200 Google Chrome for Testing --remote-debugging-port=0 FRIZZ_THREAD=beta",
-    "201 Google Chrome Helper (Renderer) FRIZZ_THREAD=beta",
-    "999 node server.js FRIZZ_THREAD=beta", // even if tagged beta, it is self → protected
+    "100 claude --session-id A NTWINE_THREAD=alpha",
+    "101 node chrome-devtools-mcp NTWINE_THREAD=alpha",
+    "200 Google Chrome for Testing --remote-debugging-port=0 NTWINE_THREAD=beta",
+    "201 Google Chrome Helper (Renderer) NTWINE_THREAD=beta",
+    "999 node server.js NTWINE_THREAD=beta", // even if tagged beta, it is self → protected
   ].join("\n")
   const killed: number[] = []
   const res = await sweepOrphansOnce({
@@ -340,17 +340,17 @@ test("sweepOrphansOnce end-to-end with fakes: reaps dead-slug Chrome, spares liv
   assert.deepEqual(res.liveSlugs, ["alpha"])
 })
 
-test("sweepOrphansOnce: a live root whose argv holds a stray FRIZZ_THREAD literal never gets its aux reaped", async () => {
+test("sweepOrphansOnce: a live root whose argv holds a stray NTWINE_THREAD literal never gets its aux reaped", async () => {
   // The critical false-kill regression: root's REAL slug is `realthread` (env); its argv also contains
-  // a pasted `FRIZZ_THREAD=spoofed`. If ownership were read from argv, `realthread` would look dead
+  // a pasted `NTWINE_THREAD=spoofed`. If ownership were read from argv, `realthread` would look dead
   // and the live aux (101) would be reaped mid-verification. It must not be.
   const base = [
-    "  100 1 10:00 claude --session-id A note:FRIZZ_THREAD=spoofed",
+    "  100 1 10:00 claude --session-id A note:NTWINE_THREAD=spoofed",
     "  101 100 10:00 node chrome-devtools-mcp",
   ].join("\n")
   const env = [
-    "100 claude --session-id A note:FRIZZ_THREAD=spoofed FRIZZ_THREAD=realthread",
-    "101 node chrome-devtools-mcp FRIZZ_THREAD=realthread",
+    "100 claude --session-id A note:NTWINE_THREAD=spoofed NTWINE_THREAD=realthread",
+    "101 node chrome-devtools-mcp NTWINE_THREAD=realthread",
   ].join("\n")
   const killed: number[] = []
   const res = await sweepOrphansOnce({ exec: fakePs(base, env), platform: "darwin", kill: (p) => killed.push(p), selfPid: 999, minAgeMs: 120_000 })

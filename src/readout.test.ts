@@ -58,10 +58,10 @@ test("formatDuration reads naturally at every magnitude", () => {
 });
 
 test("paths under home are shortened so the block stays narrow", () => {
-  assert.equal(tildePath("/Users/x/code/frizz", "/Users/x"), "~/code/frizz");
+  assert.equal(tildePath("/Users/x/code/ntwine", "/Users/x"), "~/code/ntwine");
   assert.equal(tildePath("/Users/x", "/Users/x"), "~");
   // The remainder opens with `\` on Windows; that collapses too (Windows audit 2026-09-11, finding 14).
-  assert.equal(tildePath("C:\\Users\\x\\code\\frizz", "C:\\Users\\x"), "~\\code\\frizz");
+  assert.equal(tildePath("C:\\Users\\x\\code\\ntwine", "C:\\Users\\x"), "~\\code\\ntwine");
   assert.equal(tildePath("C:\\Users\\x", "C:\\Users\\x"), "~");
   assert.equal(tildePath("C:\\Users\\xavier\\code", "C:\\Users\\x"), "C:\\Users\\xavier\\code");
   assert.equal(tildePath("/opt/other", "/Users/x"), "/opt/other");
@@ -76,14 +76,14 @@ test("a TTY boot repaints one region rather than accumulating rows", () => {
     { key: "server", label: "Server" },
   ]);
   readout.begin("workspace");
-  readout.settle("workspace", "done", "frizz");
+  readout.settle("workspace", "done", "ntwine");
   readout.begin("server", "starting");
 
   const shown = out.rendered;
   // Each step appears EXACTLY once on screen despite many repaints — that is the whole point.
   assert.equal(shown.match(/Workspace/g)?.length, 1, shown);
   assert.equal(shown.match(/Server/g)?.length, 1, shown);
-  assert.match(shown, /✓ {2}Workspace\s+frizz/);
+  assert.match(shown, /✓ {2}Workspace\s+ntwine/);
   assert.match(shown, /Server\s+starting/);
   // The repaint really is a rewind, not just newlines.
   assert.match(out.raw, /\x1b\[\d+A/);
@@ -117,15 +117,15 @@ test("the ready block names one address, and it is the one to open", () => {
   readout.ready(
     [
       { label: "Local", value: "http://127.0.0.1:4923/", accent: true },
-      { label: "Project", value: "frizz — ~/code/frizz" },
-      { label: "Logs", value: "~/.frizz/projects/abc/logs/frizz-1.log" },
+      { label: "Project", value: "ntwine — ~/code/ntwine" },
+      { label: "Logs", value: "~/.ntwine/projects/abc/logs/ntwine-1.log" },
     ],
     "press ctrl-c to stop"
   );
   const shown = out.rendered;
-  assert.match(shown, /FRIZZ v0\.1\.2\s+ready in/);
+  assert.match(shown, /NTWINE v0\.1\.2\s+ready in/);
   assert.match(shown, /➜ {2}Local:\s+http:\/\/127\.0\.0\.1:4923\//);
-  assert.match(shown, /➜ {2}Logs:\s+~\/\.frizz/);
+  assert.match(shown, /➜ {2}Logs:\s+~\/\.ntwine/);
   assert.match(shown, /press ctrl-c to stop/);
   // Exactly one address — the child's private port must never appear beside it.
   assert.equal(shown.match(/http:\/\//g)?.length, 1, shown);
@@ -140,17 +140,17 @@ test("reopening an already-running server reports what it found, not a boot time
   readout.begin("server");
   readout.ready(
     [{ label: "Local", value: "http://127.0.0.1:4923/", accent: true }],
-    "reopened the server already running for this project · run frizz-dev --stop to stop it",
+    "reopened the server already running for this project · run ntwine-dev --stop to stop it",
     { status: "already running on port 4923" }
   );
   const shown = tty.rendered;
-  assert.match(shown, /FRIZZ v0\.1\.2\s+already running on port 4923/);
+  assert.match(shown, /NTWINE v0\.1\.2\s+already running on port 4923/);
   // "ready in 0ms" beside a reused server reads as an implausibly fast cold boot.
   assert.equal(/ready in/.test(shown), false, shown);
   // Ctrl-C would not stop a server this launch does not own.
   assert.equal(shown.includes("press ctrl-c"), false, shown);
   assert.match(shown, /reopened the server already running for this project/);
-  assert.match(shown, /run frizz-dev --stop to stop it/);
+  assert.match(shown, /run ntwine-dev --stop to stop it/);
 
   // The piped/non-TTY records carry the same distinction.
   const piped = new Capture(false);
@@ -158,8 +158,8 @@ test("reopening an already-running server reports what it found, not a boot time
   plain.ready([{ label: "Local", value: "http://127.0.0.1:4923/" }], undefined, {
     status: "already running on port 4923",
   });
-  assert.match(piped.rendered, /frizz: already running on port 4923/);
-  assert.equal(/frizz: ready in/.test(piped.rendered), false, piped.rendered);
+  assert.match(piped.rendered, /ntwine: already running on port 4923/);
+  assert.equal(/ntwine: ready in/.test(piped.rendered), false, piped.rendered);
 });
 
 test("labels in the ready block align on one column regardless of length", () => {
@@ -181,11 +181,11 @@ test("a failure names the step it died in and where to read the whole story", ()
   readout.plan([{ key: "server", label: "Server" }]);
   readout.begin("server");
   assert.equal(readout.activeStep()?.key, "server");
-  readout.fail("server: port 4923 is already in use", "/tmp/logs/frizz-1.log");
+  readout.fail("server: port 4923 is already in use", "/tmp/logs/ntwine-1.log");
   const shown = out.rendered;
-  assert.match(shown, /✗ {2}Frizz could not start/);
+  assert.match(shown, /✗ {2}Ntwine could not start/);
   assert.match(shown, /port 4923 is already in use/);
-  assert.match(shown, /Full log: \/tmp\/logs\/frizz-1\.log/);
+  assert.match(shown, /Full log: \/tmp\/logs\/ntwine-1\.log/);
 });
 
 test("a note scrolls above the region instead of landing inside it", () => {
@@ -211,10 +211,10 @@ test("a pipe gets newline-delimited records and never an escape sequence", () =>
   readout.ready([{ label: "Local", value: "http://127.0.0.1:4923/" }]);
   const raw = out.raw;
   assert.equal(raw.includes("\x1b"), false, "a pipe must never receive terminal control codes");
-  assert.match(raw, /frizz: ··· server — starting\n/);
-  assert.match(raw, /frizz: done server\n/);
-  assert.match(raw, /frizz: ready in /);
-  assert.match(raw, /frizz: local: http:\/\/127\.0\.0\.1:4923\/\n/);
+  assert.match(raw, /ntwine: ··· server — starting\n/);
+  assert.match(raw, /ntwine: done server\n/);
+  assert.match(raw, /ntwine: ready in /);
+  assert.match(raw, /ntwine: local: http:\/\/127\.0\.0\.1:4923\/\n/);
 });
 
 test("--debug streams records, suppresses the repaint, and does not duplicate the feed", () => {
@@ -222,15 +222,15 @@ test("--debug streams records, suppresses the repaint, and does not duplicate th
   const readout = new Readout({ output: out, color: false, debug: true, tickMs: 60_000 });
   readout.plan([{ key: "server", label: "Server" }]);
   readout.begin("server", "starting");
-  readout.note("12:00:00 INFO  supervisor   starting Frizz");
+  readout.note("12:00:00 INFO  supervisor   starting Ntwine");
   assert.equal(out.raw.includes("\x1b["), false, "debug mode must not repaint");
-  assert.match(out.raw, /12:00:00 INFO {2}supervisor {3}starting Frizz/);
+  assert.match(out.raw, /12:00:00 INFO {2}supervisor {3}starting Ntwine/);
   // The log feed is the authoritative account under --debug; the step rows would restate it in a
   // second format right beside it.
-  assert.equal(out.raw.includes("frizz: ··· server"), false, out.raw);
+  assert.equal(out.raw.includes("ntwine: ··· server"), false, out.raw);
   // The final summary still prints — it carries the URL, which the feed does not present as such.
   readout.ready([{ label: "Local", value: "http://127.0.0.1:4923/" }]);
-  assert.match(out.raw, /frizz: local: http:\/\/127\.0\.0\.1:4923\//);
+  assert.match(out.raw, /ntwine: local: http:\/\/127\.0\.0\.1:4923\//);
 });
 
 test("colour is suppressed when asked, and emitted when not", () => {
@@ -251,13 +251,13 @@ test("a lifecycle notice prints under the ready block without disturbing it", ()
   readout.begin("server");
   readout.ready([{ label: "Local", value: "http://127.0.0.1:3939" }], "press ctrl-c to stop");
   const before = out.rendered;
-  readout.notice("progress", "Restarting", "Restart Frizz requested from browser");
+  readout.notice("progress", "Restarting", "Restart Ntwine requested from browser");
   readout.notice("done", "Restarted", "in 1.2s");
   const rendered = out.rendered;
   assert.ok(rendered.startsWith(before), "the ready block stays exactly as it was printed");
   const added = rendered.slice(before.length).split("\n").filter((line) => line.trim());
   assert.deepEqual(added, [
-    "  ↻  03:04:05  Restarting  Restart Frizz requested from browser",
+    "  ↻  03:04:05  Restarting  Restart Ntwine requested from browser",
     "  ✓  03:04:05  Restarted   in 1.2s",
   ]);
 });
@@ -266,7 +266,7 @@ test("a notice still reaches a pipe, where there is no cursor to move", () => {
   const out = new Capture(false);
   const readout = new Readout({ output: out, color: false });
   readout.notice("failed", "Failed", "control plane stopped (signal SIGKILL)");
-  assert.equal(out.raw, "frizz: failed — control plane stopped (signal SIGKILL)\n");
+  assert.equal(out.raw, "ntwine: failed — control plane stopped (signal SIGKILL)\n");
 });
 
 test("supervisor beats map onto the terminal's own vocabulary", () => {

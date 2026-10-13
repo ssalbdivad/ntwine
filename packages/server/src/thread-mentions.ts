@@ -1,4 +1,4 @@
-import { replyWaitOf, subAgentAddress, subAgentChain, subAgentHandle, threadHandle } from "@frizz/shared"
+import { replyWaitOf, subAgentAddress, subAgentChain, subAgentHandle, threadHandle } from "@ntwine/shared"
 import { foldThreadName, type NamedThread } from "./thread-names.ts"
 
 // ONE THREAD POINTING AT ANOTHER BY HANDLE — "ask @shell-budgets about this", "reconcile with
@@ -88,13 +88,13 @@ export function subAgentAddresses(threadHandle: string, agents: readonly Child[]
  *  on both sides, and nothing a human sees would stop it. Ten is far past any real exchange. */
 export const THREAD_MESSAGE_HOURLY_CAP = 10
 
-// The delivered text lives in @frizz/shared beside its parser (parseThreadMessage), because the chat
+// The delivered text lives in @ntwine/shared beside its parser (parseThreadMessage), because the chat
 // rebuilds the message from it.
-export { threadMessageBody } from "@frizz/shared"
+export { threadMessageBody } from "@ntwine/shared"
 
-// A REPLY WAIT's prompt format and its reader live in @frizz/shared (thread-handle.ts), because the
+// A REPLY WAIT's prompt format and its reader live in @ntwine/shared (thread-handle.ts), because the
 // resting card reads it too.
-export { isReplyWaitFor, replyWaitOf, replyWaitPrompt } from "@frizz/shared"
+export { isReplyWaitFor, replyWaitOf, replyWaitPrompt } from "@ntwine/shared"
 
 export function isReplyWait(prompt: string): boolean {
   return replyWaitOf(prompt) !== undefined

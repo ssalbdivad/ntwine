@@ -1,13 +1,13 @@
 // NOTE 2026-09-28: a marker no longer PLACES anything — a card renders at the BOTTOM of the rest it
 // belongs to and never inside a message (maintainer: "questions should always appear at the bottom of the
 // thread not in the middle any explanation should occur beforehand"), and only the HUMAN'S turn ends that
-// rest, not a frizz wake. So, per variant:
+// rest, not a ntwine wake. So, per variant:
 //   (default)       the marker's own slot draws NOTHING; the card sits under the WHOLE asking handoff
 //                   ("Both PRs have watchers armed…" above it), still above the human's reply.
 //   --fresh-marker  the marker in the final handoff carries the card to the BOTTOM of that handoff —
 //                   under "The Mini autocomplete question is still open…", not in the marker's slot.
-//   --woken         no marker at all, and the human's reply is replaced by a frizz WAKE (a PR watcher
-//                   expiring): nobody but frizz has spoken, so the card rides down under the final handoff.
+//   --woken         no marker at all, and the human's reply is replaced by a ntwine WAKE (a PR watcher
+//                   expiring): nobody but ntwine has spoken, so the card rides down under the final handoff.
 // NOTE 2026-09-24: the expectation below is REVERSED. An open question now stays at the rest that asked
 // it (lib/questionAnchor), so the card belongs ABOVE the human's reply, not at the tail; a marker in the
 // older handoff keeps placing there, with its Send right after that rest.
@@ -26,7 +26,7 @@
 // code path must place the card INSIDE that message rather than at the tail, so a run that draws the
 // card at the tail either way proves nothing.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads. No process.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads. No process.
 // Usage: nub scripts/seed-stale-question-marker.mjs --home=/abs/temp-home --port=NNNN [--fresh-marker | --woken]
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { execFileSync } from "node:child_process"
@@ -44,11 +44,11 @@ if (!home || !port || (freshMarker && woken)) {
   process.exit(1)
 }
 
-const db = join(home, ".frizz", "ui.db")
+const db = join(home, ".ntwine", "ui.db")
 if (!existsSync(db)) throw new Error(`no ui.db at ${db} — is the stack booted?`)
-const registry = JSON.parse(readFileSync(join(home, ".frizz", "registry.json"), "utf8"))
+const registry = JSON.parse(readFileSync(join(home, ".ntwine", "registry.json"), "utf8"))
 const projectId = registry.projects.find((p) => p.path === cwd)?.id
-if (!projectId) throw new Error(`${cwd} is not registered in ${home}/.frizz/registry.json`)
+if (!projectId) throw new Error(`${cwd} is not registered in ${home}/.ntwine/registry.json`)
 const jsonlDir = join(home, ".claude", "projects", cwd.replace(/[/.]/g, "-"))
 mkdirSync(jsonlDir, { recursive: true })
 
@@ -100,10 +100,10 @@ const FINAL_HANDOFF = [
   "The Mini autocomplete question is still open and unaffected by any of this.",
 ].join("\n")
 
-// What moved the thread on after the ask: the human replying past it, or — --woken — frizz, whose
+// What moved the thread on after the ask: the human replying past it, or — --woken — ntwine, whose
 // delivery token at the END of the record is what makes the tailer mark it a wake (shared isWakeDelivery).
 const MOVED_ON = woken
-  ? "⏰ Your watcher on colinhacks/zod#5500 has expired and is no longer armed — nothing on that PR will wake you now.\n\n<!-- frizz-wake:seed-woken-question -->"
+  ? "⏰ Your watcher on colinhacks/zod#5500 has expired and is no longer armed — nothing on that PR will wake you now.\n\n<!-- ntwine-wake:seed-woken-question -->"
   : "I guess let's just unrevert it. We'll announce it in the 4.7 blog post, though."
 const records = [
   user(0, "we need to add a properties example for Zod Mini"),
@@ -119,7 +119,7 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES ('${projectId}', '${slug}', '${sessionId}', 'frizz-${slug}', '${at(0)}', 'Properties docs and instanceof shape typing', 'claude', 'opus', 'high', 'default', '${at(48)}')`,
+   VALUES ('${projectId}', '${slug}', '${sessionId}', 'ntwine-${slug}', '${at(0)}', 'Properties docs and instanceof shape typing', 'claude', 'opus', 'high', 'default', '${at(48)}')`,
 ])
 
 // The registration the marker names. Hand-written for the same reason the session row is: the row IS the
@@ -150,4 +150,4 @@ for (let i = 0; i < 40; i++) {
 }
 const board = await api.query("board")
 const t = board.threads.find((x) => x.id === slug)
-console.log(JSON.stringify({ slug, marker: freshMarker ? "final handoff" : woken ? "none — a frizz wake moved the thread on" : "asking rest (stale)", runtime: t?.runtime, questions: t?.questions?.map((q) => ({ id: q.id, askedAt: q.askedAt })) }, null, 1))
+console.log(JSON.stringify({ slug, marker: freshMarker ? "final handoff" : woken ? "none — a ntwine wake moved the thread on" : "asking rest (stale)", runtime: t?.runtime, questions: t?.questions?.map((q) => ({ id: q.id, askedAt: q.askedAt })) }, null, 1))

@@ -7,7 +7,7 @@ test("an unprefixed page has no base and addresses the unprefixed API", () => {
   for (const path of ["/", "/thread/fix-auth", "/thread/fix-auth/full", "/status/active", "/thread/a%2Fb"]) {
     assert.equal(basePath(path), "", path)
     assert.equal(innerPath(path), path, path)
-    assert.equal(apiBase(path), "/_frizz", path)
+    assert.equal(apiBase(path), "/_ntwine", path)
     assert.equal(projectSlug(path), undefined, path)
   }
 })
@@ -17,7 +17,7 @@ test("a drawer's project lives under /all, and its API stays flat", () => {
   assert.equal(projectSlug("/all/pullfrog-app/thread/x/full"), "pullfrog-app")
   // The API is already inside a reserved namespace, so it has no root to protect: `/all` would buy
   // nothing there, and the server's split stays a two-part one.
-  assert.equal(apiBase("/all/nub/thread/fix-auth"), "/_frizz/nub")
+  assert.equal(apiBase("/all/nub/thread/fix-auth"), "/_ntwine/nub")
 })
 
 // A PROJECT'S BOARD IS `/project/<slug>` (Colin's scheme, restored 2026-10-06): its board, a thread on it,
@@ -27,7 +27,7 @@ test("/project/<slug> is that project's board", () => {
   for (const path of ["/project/nub", "/project/nub/", "/project/nub/thread/fix-auth", "/project/nub/thread/x/full", "/project/nub/status/active"]) {
     assert.equal(projectSlug(path), "nub", path)
     assert.equal(basePath(path), "/project/nub", path)
-    assert.equal(apiBase(path), "/_frizz/nub", path)
+    assert.equal(apiBase(path), "/_ntwine/nub", path)
     assert.equal(isCrossProjectPath(path), true, path)
     assert.equal(isProjectBoardPath(path), true, path)
   }
@@ -47,7 +47,7 @@ test("/project/<slug> is that project's board", () => {
 })
 
 // EXACTLY those shapes: `/project` is a real directory on plenty of machines, and the markdown sanitizer
-// asks projectSlug whether a link is in-app (markdownTargets.ts isFrizzRoute).
+// asks projectSlug whether a link is in-app (markdownTargets.ts isNtwineRoute).
 test("nothing else under /project/ is a page", () => {
   for (const path of ["/project", "/project/", "/project/acme/src/main.rs", "/project/acme/thread/x/notes.md", "/project/acme/status", "/project/acme/status/a/b"]) {
     assert.equal(projectSlug(path), undefined, path)
@@ -57,7 +57,7 @@ test("nothing else under /project/ is a page", () => {
 })
 
 // A bare `/status/<s>` was the launching project's status list before the singleton; it is still an
-// address Frizz minted, so a link to one is in-app (markdownTargets.ts isFrizzRoute) and is left exactly as
+// address Ntwine minted, so a link to one is in-app (markdownTargets.ts isNtwineRoute) and is left exactly as
 // written: re-pointed under a drawer's prefix it would name a route that never existed there, and it lands
 // on the page either way.
 test("a retired address is recognised, and never re-pointed", () => {
@@ -83,7 +83,7 @@ test("inner and outer paths round-trip", () => {
   assert.equal(outerPath("/", "/"), "/")
 })
 
-// THE POINT of moving projects under a segment of their own: the root namespace stays Frizz's.
+// THE POINT of moving projects under a segment of their own: the root namespace stays Ntwine's.
 test("only /all/<slug> and /project/<slug> name a project, so the root is free for other pages", () => {
   assert.equal(basePath("/thread/nub"), "", "a thread called `nub` is not a project")
   assert.equal(basePath("/status/blocked"), "")
@@ -107,7 +107,7 @@ test("only /all/<slug> and /project/<slug> name a project, so the root is free f
 test("the cross-project page is focused on a project", () => {
   const page = "/all/nub/thread/fix-auth"
   assert.equal(projectSlug(page), "nub")
-  assert.equal(apiBase(page), "/_frizz/nub")
+  assert.equal(apiBase(page), "/_ntwine/nub")
   assert.equal(basePath(page), "/all/nub")
   assert.equal(innerPath(page), "/thread/fix-auth")
   assert.equal(innerPath("/all/nub"), "/")
@@ -154,7 +154,7 @@ test("All projects at /all, and a phone's /, are bound to a project the path doe
     setHomeFocus("nub")
     for (const home of ["/all", "/all/", "/"]) {
       assert.equal(projectSlug(home), "nub", home)
-      assert.equal(apiBase(home), "/_frizz/nub", home)
+      assert.equal(apiBase(home), "/_ntwine/nub", home)
       assert.equal(isCrossProjectPath(home), true, home)
       assert.equal(innerPath(home), "/", home)
       assert.equal(outerPath("/thread/x", home), "/all/nub/thread/x", "a drawer's address names its project")

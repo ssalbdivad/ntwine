@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { MACHINE_SETTING_KEYS, type Settings } from "@frizz/shared"
+import { MACHINE_SETTING_KEYS, type Settings } from "@ntwine/shared"
 import { isRetryableRpcError, rpc } from "../api/rpc.ts"
 
 // Every settings control WRITES AS YOU TOUCH IT — there is no Save button and no Cancel. A picker or a
@@ -9,7 +9,7 @@ import { isRetryableRpcError, rpc } from "../api/rpc.ts"
 const SAVE_DEBOUNCE_MS = 500
 // How long "Saved" lingers before the status goes quiet again.
 const SAVED_LINGER_MS = 1600
-// A REPLAYABLE failure — a mutation refused because Frizz is mid-update — is worth waiting out rather
+// A REPLAYABLE failure — a mutation refused because Ntwine is mid-update — is worth waiting out rather
 // than reporting. A promotion takes a few seconds; six tries covers it without becoming a poller.
 const RETRY_DELAY_MS = 2000
 const MAX_RETRIES = 6

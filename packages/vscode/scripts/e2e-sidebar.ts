@@ -1,5 +1,5 @@
 // THE SIDEBAR, END TO END, AS THE HUMAN USES IT — a real VS Code (under Xvfb), the extension as its .vsix
-// ships, a real disposable two-project Frizz, and the REAL Frizz page framed in the sidebar. Every seam is
+// ships, a real disposable two-project Ntwine, and the REAL Ntwine page framed in the sidebar. Every seam is
 // exercised the way a person crosses it: keys and clicks are trusted input on the workbench (Chromium
 // routes them through the webview into the page's frame), and what is asserted is read where it shows —
 // the page's own DOM, VS Code's own title row and editor, the simulated worker's socket.
@@ -16,18 +16,18 @@
 //   --only   run only these checks (c1…c24); the boot, the seed and the view opening always run.
 //   --icon-before=<png>   an earlier top-dark activity-bar strip (1x enlarged 6x, as c1 writes it) to set
 //            beside this run's, for the eye.
-//   --worktree  open the window on a thread's git worktree (`.frizz/worktrees/<slug>` of the workspace)
+//   --worktree  open the window on a thread's git worktree (`.ntwine/worktrees/<slug>` of the workspace)
 //            instead of the workspace, for c12's positive half; runs c12 alone unless --only says more,
 //            because every other check is written against a window on the workspace itself.
-//   FRIZZ_E2E_VSCODE=oldest|<version>   VS Code to run (default: stable). `oldest` is the manifest's floor.
-//   FRIZZ_E2E_KEEP=1                    keep the scratch folder (logs, the stack's log) even on a pass.
+//   NTWINE_E2E_VSCODE=oldest|<version>   VS Code to run (default: stable). `oldest` is the manifest's floor.
+//   NTWINE_E2E_KEEP=1                    keep the scratch folder (logs, the stack's log) even on a pass.
 //
 // THE CHECKS (each one PASS/FAIL with its evidence in results.json, and a screenshot where it is visible):
-//   c1 the Frizz icon in the activity bar, side and top, dark and light: its mask file loads, and its ink
+//   c1 the Ntwine icon in the activity bar, side and top, dark and light: its mask file loads, and its ink
 //      is a line drawing the weight of the codicons beside it (within the bar's own spread of their mean)
 //      — not a blank, not a solid square
-//   c2 the view frames the real page, which says frizz:ready and draws no header and no lone ⌨ row; VS
-//      Code's title row reads Frizz, its buttons follow the page's view, the badge's tooltip carries the
+//   c2 the view frames the real page, which says ntwine:ready and draws no header and no lone ⌨ row; VS
+//      Code's title row reads Ntwine, its buttons follow the page's view, the badge's tooltip carries the
 //      counts, and each button, clicked, does its thing in the page
 //   c3 the context bar follows the editor: a selection, no selection, another editor, the open files
 //   c4 Ctrl+L (Cursor's chord, the one the page names) in the editor: the sidebar revealed, the chip a pill
@@ -35,29 +35,29 @@
 //      worker, the context serialized and the transcript showing the chip; the context bar's click does the
 //      same; Alt+K with only a caret adds the whole file; Ctrl+L pressed in the reply box goes back to the
 //      editor, and Ctrl+L in the editor with nothing selected reveals the sidebar with the caret in the box
-//   c5 "Ask Frizz to fix" on a real TypeScript error: chip + the problem as a note
+//   c5 "Ask Ntwine to fix" on a real TypeScript error: chip + the problem as a note
 //   c6 a code-file link opens in the editor at its range; a web link goes to openExternal (a stub
-//      xdg-open, no browser); a Markdown link opens Frizz's reader
+//      xdg-open, no browser); a Markdown link opens Ntwine's reader
 //   c7 a VS Code theme switch re-themes the page live
-//   c8 keys with the frame focused: Ctrl+Shift+P is VS Code's palette, Ctrl+K Frizz's, `?` the shortcuts
+//   c8 keys with the frame focused: Ctrl+Shift+P is VS Code's palette, Ctrl+K Ntwine's, `?` the shortcuts
 //      sheet with its Editor group (Ctrl+L both ways first) and its VS Code group, the title row's ⋯
 //      Keyboard shortcuts opening the same sheet, Ctrl+1 back to the editor
 //   c9 the gallery: queue (dark, light), a thread with a selection and a chip, the open-files menu,
 //      Settings, the shortcuts sheet — at ~300px and ~450px; Settings over a thread on top, with the
 //      keyboard, its own Escape and its own clicks
-//   c10 one switch: the bar's eye, clicked, turns `frizz.shareEditorState` off — the worker's real `editor`
-//      tool (frizz-mcp.mjs) then reads nothing and a send carries no block; the setting turned back on in
+//   c10 one switch: the bar's eye, clicked, turns `ntwine.shareEditorState` off — the worker's real `editor`
+//      tool (ntwine-mcp.mjs) then reads nothing and a send carries no block; the setting turned back on in
 //      VS Code turns the eye on, the tool reads the selection, a send quotes it, and the next send of the
 //      same selection names it instead of quoting it again
 //   c11 Claude Code: a stand-in extension with its id (anthropic.claude-code) and its Alt+K, installed
-//      live — Alt+K is then its (its binding answers, nothing reaches Frizz) and the `?` sheet drops the
-//      row; uninstalled, Alt+K is Frizz's again
+//      live — Alt+K is then its (its binding answers, nothing reaches Ntwine) and the `?` sheet drops the
+//      row; uninstalled, Alt+K is Ntwine's again
 //   c12 the window's own thread: a window opened on a thread's worktree opens the sidebar on that thread
 //      (--worktree); a window on the project itself opens on the queue (every other run, the control)
 //   c13 `@` in a prompt box offers the workspace's files as git and VS Code list them (a gitignored copy
 //      left out); Enter writes the whole-file reference where the `@` was
 //   c14 a file dragged from VS Code's explorer onto a prompt box, Shift held, lands as the same reference
-//      (the Frizz view moved into the Explorer's side bar so both are in sight). The drag is VS Code's
+//      (the Ntwine view moved into the Explorer's side bar so both are in sight). The drag is VS Code's
 //      own, started by a real press on the explorer's row and intercepted with its data; DevTools cannot
 //      route the drop into the webview's out-of-process frame, so the drop is dispatched, trusted, to the
 //      page's own frame. results.json's `explorerDrop` says which path landed it (synthesized is the
@@ -67,18 +67,18 @@
 //   c16 a thread that enters the queue needing the human while the sidebar is out of sight (snoozed, then
 //      woken, through the REAL server's needs-you edge) is a VS Code notification, and its Open shows the
 //      thread in the sidebar
-//   c18 the editor's colours (frizz.matchEditorTheme): through Dark Modern, Light Modern, Tomorrow Night
+//   c18 the editor's colours (ntwine.matchEditorTheme): through Dark Modern, Light Modern, Tomorrow Night
 //      Blue, Solarized Dark, Abyss and both High Contrasts, the page follows live, its painted background
 //      is the side bar's pixel for pixel (sampled from the screenshot, beside the side bar's title row),
-//      and its text, secondary text and accent read; the setting off puts Frizz's palette back, on again
+//      and its text, secondary text and accent read; the setting off puts Ntwine's palette back, on again
 //      the theme's. Shots of the side bar beside the editor: the queue, a thread with the reply box
 //      focused and a selection in the bar, the open-files menu. (Runs before c17, which ends the editor.)
-//   c19 the selection hint: lines selected by keys get `Ctrl+L to add to Frizz` after their last line, in
+//   c19 the selection hint: lines selected by keys get `Ctrl+L to add to Ntwine` after their last line, in
 //      the colour of VS Code's own inline blame, once the selection settles; gone when it empties, once Ctrl+L has
-//      added it, and with `frizz.selectionHint` off. A 6x crop of the line for the eye
+//      added it, and with `ntwine.selectionHint` off. A 6x crop of the line for the eye
 //   c20 a thread in an editor tab: the title row's ⋯ (while the sidebar shows a thread) opens it beside the
 //      code, on the thread at the editor's width, titled by the page; its reply box sends to the simulated
-//      worker with the editor block; Ctrl+L in the editor then lands in the tab (the Frizz used last), and
+//      worker with the editor block; Ctrl+L in the editor then lands in the tab (the Ntwine used last), and
 //      Ctrl+L in the tab goes back to the code; asked again, the same tab
 //   c21 the bar's × (pointed at, the reading's glyph): this selection left out of a send while the eye
 //      stays on and the agents' tool still reads it; a new selection goes again and is quoted
@@ -89,7 +89,7 @@
 //      (a plain drag turns the webview's pointer events off, Shift keeps them on; `osDropRouting` records
 //      them), and the drop itself, trusted and carrying the file from disk, dispatched to the page's frame
 //      (DevTools cannot route a drop into the out-of-process frame, as c14 says), attaches it
-//   c24 a page that reloaded into an error page (a reload that landed while Frizz was down): the sidebar
+//   c24 a page that reloaded into an error page (a reload that landed while Ntwine was down): the sidebar
 //      stops calling it ready, the title row stops claiming its view, and the view frames the page again
 //      on its own, ready, on the queue
 //   c17 a restart and a window reload (last: the test runner's VS Code ends with a reload, so the same
@@ -119,14 +119,14 @@ import { SAMPLE, seedSidebarStack, seedWorktreeThread, type Seeded } from "../e2
 import { bootStack, freePort, killAll, leftovers, stubbedPath, type Stack } from "../e2e/stack.ts"
 import { workerTool } from "../e2e/worker-tool.ts"
 import { hasShellExecutions } from "../src/extras-feed.ts"
-import { FrizzRpc } from "../src/rpc.ts"
+import { NtwineRpc } from "../src/rpc.ts"
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const repo = resolve(pkg, "..", "..")
 
 
-if (process.platform === "linux" && process.env.FRIZZ_E2E_UNDER_XVFB !== "1") {
-  const env: NodeJS.ProcessEnv = { ...process.env, FRIZZ_E2E_UNDER_XVFB: "1" }
+if (process.platform === "linux" && process.env.NTWINE_E2E_UNDER_XVFB !== "1") {
+  const env: NodeJS.ProcessEnv = { ...process.env, NTWINE_E2E_UNDER_XVFB: "1" }
   delete env.DISPLAY
   delete env.WAYLAND_DISPLAY
   const child = spawnSync("xvfb-run", ["-a", "-s", "-screen 0 1920x1200x24", "nub", fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: "inherit", env })
@@ -148,16 +148,16 @@ const only = flag("only")?.split(",").map((id) => id.trim()) ?? (worktreeWindow 
 const wanted = (id: string) => !only || only.includes(id)
 
 function vscodeVersion(): string {
-  const asked = process.env.FRIZZ_E2E_VSCODE ?? "stable"
+  const asked = process.env.NTWINE_E2E_VSCODE ?? "stable"
   if (asked !== "oldest") return asked
   const engines = (JSON.parse(readFileSync(join(pkg, "package.json"), "utf8")) as { engines: { vscode: string } }).engines.vscode
   return engines.replace(/^[\^~>=]+/u, "")
 }
 
-const scratch = realpathSync(mkdtempSync(join(tmpdir(), "frizz-vscode-sidebar-e2e-")))
+const scratch = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-vscode-sidebar-e2e-")))
 const out = resolve(flag("out") ?? join(scratch, "shots"))
 mkdirSync(out, { recursive: true })
-const log = (line: string) => console.log(`frizz sidebar e2e: ${line}`)
+const log = (line: string) => console.log(`ntwine sidebar e2e: ${line}`)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // ── results ───────────────────────────────────────────────────────────────────────────────────────────
@@ -328,14 +328,14 @@ const pageErrors: string[] = []
 /** VS Code's keybinding dispatch log (workbench.action.toggleKeybindingsLog), while it is on. */
 
 /**
- * Frames of Frizz's page in a thread's editor tab (c20), never the sidebar's: the tab frames the same
+ * Frames of Ntwine's page in a thread's editor tab (c20), never the sidebar's: the tab frames the same
  * thread's address the sidebar's page shows by then, so only the frame object tells the two apart.
  */
 const tabFrames = new Set<Frame>()
-const frizzFrame = (): Frame | undefined => page.frames().find((frame) => frame.url().startsWith(`${origin}/`) && !tabFrames.has(frame) && !frame.detached)
-const frame = () => waitFor("the Frizz frame in the sidebar", frizzFrame, 30_000)
+const ntwineFrame = (): Frame | undefined => page.frames().find((frame) => frame.url().startsWith(`${origin}/`) && !tabFrames.has(frame) && !frame.detached)
+const frame = () => waitFor("the Ntwine frame in the sidebar", ntwineFrame, 30_000)
 
-/** Evaluate in the Frizz page. */
+/** Evaluate in the Ntwine page. */
 async function inPage<T, A extends unknown[]>(fn: (...args: A) => T, ...args: A): Promise<Awaited<T>> {
   return (await frame()).evaluate(fn as never, ...(args as unknown as never[])) as Promise<Awaited<T>>
 }
@@ -671,12 +671,12 @@ function traceInstaller() {
   document.addEventListener("focusin", (event) => push("focusin", event.target), true)
   document.addEventListener("focusout", (event) => push("focusout", event.target), true)
   window.addEventListener("focus", () => push("window-focus", null))
-  // The messages each document receives — VS Code's host channel or Frizz's type (not the context feed,
+  // The messages each document receives — VS Code's host channel or Ntwine's type (not the context feed,
   // which is every selection): a focus that arrives with no focus() in the page came with one of these.
   window.addEventListener("message", (event) => {
     const data = event.data as { channel?: unknown; type?: unknown; focus?: unknown } | null
     const name = typeof data?.channel === "string" ? data.channel : typeof data?.type === "string" ? data.type : null
-    if (name && name !== "frizz:editor-context") trace.push({ at: Date.now(), kind: `message ${name}${data?.focus === true ? " focus" : ""}`, active: describe(document.activeElement), hasFocus: document.hasFocus() })
+    if (name && name !== "ntwine:editor-context") trace.push({ at: Date.now(), kind: `message ${name}${data?.focus === true ? " focus" : ""}`, active: describe(document.activeElement), hasFocus: document.hasFocus() })
   }, true)
   window.addEventListener("blur", () => push("window-blur", null))
   // The press itself, in each document it crosses: where it went, and whether a handler prevented it (read
@@ -706,7 +706,7 @@ function traceInstaller() {
 
 /** The documents from the page up to (not including) the workbench, named. */
 function tracedFrames(): { name: string; frame: Frame }[] {
-  const pageFrame = frizzFrame()
+  const pageFrame = ntwineFrame()
   if (!pageFrame) return []
   const names = ["page", "relay", "webview-host", "webview-outer"]
   const out: { name: string; frame: Frame }[] = []
@@ -765,9 +765,9 @@ async function focusTraceSince(since: number) {
 }
 
 /** The extension's output channel, as VS Code writes it to the run's logs. */
-function frizzLog(): string {
+function ntwineLog(): string {
   try {
-    const found = execFileSync("find", [join(userData, "logs"), "-name", "Frizz.log"], { encoding: "utf8" }).trim().split("\n").filter(Boolean)
+    const found = execFileSync("find", [join(userData, "logs"), "-name", "Ntwine.log"], { encoding: "utf8" }).trim().split("\n").filter(Boolean)
     return found.map((file) => readFileSync(file, "utf8")).join("\n")
   } catch {
     return ""
@@ -776,7 +776,7 @@ function frizzLog(): string {
 
 /** Back to a clean queue: the title row's own command, which closes every drawer and overlay (lib/embedCommand.ts). */
 async function resetPage(): Promise<void> {
-  await command("frizz.sidebar.queue")
+  await command("ntwine.sidebar.queue")
   await until(async () => !(await drawerOpen()) && !(await inPage(() => !!document.querySelector("[data-shortcut-list], [cmdk-root], [data-settings-editor]"))), 8_000)
 }
 
@@ -805,7 +805,7 @@ async function clearBox(surface: "chatComposer" | "newComposer"): Promise<void> 
 async function capture(file: string, clip?: { x: number; y: number; width: number; height: number }, scale = 1): Promise<Buffer> {
   const { data } = await cdp.send("Page.captureScreenshot", { format: "png", ...(clip ? { clip: { ...clip, scale } } : {}), captureBeyondViewport: false })
   await resyncFrames()
-  if (process.env.FRIZZ_E2E_FRAMES_AFTER_CAPTURE) ((notes.framesAfterCapture ??= []) as unknown[]).push({ file: file.split("/").pop(), ...(await framesAlive()) })
+  if (process.env.NTWINE_E2E_FRAMES_AFTER_CAPTURE) ((notes.framesAfterCapture ??= []) as unknown[]).push({ file: file.split("/").pop(), ...(await framesAlive()) })
   const png = Buffer.from(data, "base64")
   if (file) {
     writeFileSync(file, png)
@@ -840,7 +840,7 @@ function packClaudeCodeStandIn(): void {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, "package.json"), JSON.stringify({
     name: "claude-code", publisher: "anthropic", version: "0.0.1", displayName: "Claude Code (e2e stand-in)",
-    description: "Claude Code's id and its Alt+K, for Frizz's end-to-end run.", engines: { vscode: "^1.90.0" },
+    description: "Claude Code's id and its Alt+K, for Ntwine's end-to-end run.", engines: { vscode: "^1.90.0" },
     contributes: { keybindings: [{ command: "editor.action.selectAll", key: "alt+k", mac: "alt+k", when: "editorTextFocus" }] },
   }, null, 2))
   const packed = spawnSync("nubx", ["-y", "-p", "@vscode/vsce@3.9.2", "vsce", "package", "--no-dependencies", "--allow-missing-repository", "--skip-license", "--out", claudeCodeStandIn], { cwd: dir, stdio: "inherit" })
@@ -885,7 +885,7 @@ try {
   log(`stack up at ${origin}; the window's folder is ${worktreeThread ? `the worktree of ${worktreeThread.slug}` : "the tenant"} ${workspace.slug} (${windowFolder})`)
 
   // A cold dev server optimizes its dependencies on the first page load, which can take a minute — a
-  // stall no installed Frizz has (it serves a build). One headless load first, so the sidebar's first
+  // stall no installed Ntwine has (it serves a build). One headless load first, so the sidebar's first
   // page is the one a human would get.
   warmBrowser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"], userDataDir: join(scratch, "warm-profile") })
   {
@@ -901,7 +901,7 @@ try {
   const agentOrigin = await startAgentServer()
   mkdirSync(join(userData, "User"), { recursive: true })
   writeFileSync(join(userData, "User", "settings.json"), JSON.stringify({
-    "frizz.serverUrl": origin,
+    "ntwine.serverUrl": origin,
     "workbench.colorTheme": "Default Dark Modern",
     "workbench.startupEditor": "none",
     "workbench.activityBar.location": "default",
@@ -924,7 +924,7 @@ try {
   process.env.PATH = stubbedPath(stack.stubs)
   delete process.env.BROWSER
   const debuggingPort = await freePort()
-  const vscodeExecutablePath = await downloadAndUnzipVSCode({ version, cachePath: join(homedir(), ".cache", "frizz-vscode-e2e") })
+  const vscodeExecutablePath = await downloadAndUnzipVSCode({ version, cachePath: join(homedir(), ".cache", "ntwine-vscode-e2e") })
   log(`VS Code ${version} at ${vscodeExecutablePath}, debugging port ${debuggingPort}, DISPLAY=${process.env.DISPLAY}`)
   suite = runTests({
     vscodeExecutablePath,
@@ -943,7 +943,7 @@ try {
       "--skip-release-notes",
       `--remote-debugging-port=${debuggingPort}`,
     ],
-    extensionTestsEnv: { FRIZZ_E2E_AGENT: agentOrigin },
+    extensionTestsEnv: { NTWINE_E2E_AGENT: agentOrigin },
   }).catch((error: unknown) => {
     log(`VS Code did not run the agent: ${(error as Error).message}`)
     return 1
@@ -955,7 +955,7 @@ try {
   await Promise.race([agentUp, suite.then(() => Promise.reject(new Error("VS Code exited before its agent asked for anything"))), sleep(180_000).then(() => Promise.reject(new Error("VS Code's agent never asked for anything within 180s")))])
   const first = await status()
   version = first.version
-  log(`the editor is up: ${first.appName} ${first.version}; Frizz connection ${first.status.kind}`)
+  log(`the editor is up: ${first.appName} ${first.version}; Ntwine connection ${first.status.kind}`)
 
   browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${debuggingPort}`, defaultViewport: null, protocolTimeout: 180_000 })
   page = await waitFor("the workbench page", async () => (await browser!.pages()).find((candidate) => /workbench(\.esm)?\.html/u.test(candidate.url())), 60_000)
@@ -968,7 +968,7 @@ try {
     if (message.type() === "error" && url.startsWith(origin) && !/control\/status/u.test(message.text())) pageErrors.push(`${message.text()} (${url})`)
   })
   page.on("pageerror", (error) => pageErrors.push(String(error)))
-  await waitFor("the extension connected to Frizz", async () => (await status()).status.kind === "connected" || undefined, 60_000)
+  await waitFor("the extension connected to Ntwine", async () => (await status()).status.kind === "connected" || undefined, 60_000)
 
   const run = async (id: string, title: string, fn: () => Promise<void>) => {
     if (!wanted(id)) return
@@ -982,7 +982,7 @@ try {
   }
 
   // ── c1: the icon ──
-  await run("c1", "the Frizz icon renders in the activity bar", async () => {
+  await run("c1", "the Ntwine icon renders in the activity bar", async () => {
     const before = flag("icon-before")
     try {
       for (const layout of [
@@ -996,7 +996,7 @@ try {
         const wantLight = layout.theme.includes("Light")
         const strip = await waitFor(`the activity bar ${layout.name}`, async () => {
           const state = await inWorkbench(() => {
-            const bar = [...document.querySelectorAll(".composite-bar")].find((candidate) => candidate.querySelector('.action-label[aria-label^="Frizz"]'))
+            const bar = [...document.querySelectorAll(".composite-bar")].find((candidate) => candidate.querySelector('.action-label[aria-label^="Ntwine"]'))
             const items = bar ? [...bar.querySelectorAll<HTMLElement>(".action-item")].map((item) => item.querySelector<HTMLElement>(".action-label")).filter((label): label is HTMLElement => !!label && label.getBoundingClientRect().width > 0) : []
             const rects = items.map((label) => {
               const r = label.getBoundingClientRect()
@@ -1010,14 +1010,14 @@ try {
               items: rects,
             }
           })
-          return state.items.some((item) => item.label.startsWith("Frizz")) && state.top === (layout.location === "top") && state.light === wantLight ? state : undefined
+          return state.items.some((item) => item.label.startsWith("Ntwine")) && state.top === (layout.location === "top") && state.light === wantLight ? state : undefined
         }, 30_000)
         await sleep(600)
-        const frizz = strip.items.find((item) => item.label.startsWith("Frizz"))!
+        const ntwine = strip.items.find((item) => item.label.startsWith("Ntwine"))!
         // A codicon at rest beside it (Explorer is the active one, drawn brighter).
         const explorer = strip.items.find((item) => /^Search/u.test(item.label)) ?? strip.items[1]!
         // The mask is the icon file: it must load, and be the SVG the package carries.
-        const mask = /url\("?([^")]+)"?\)/u.exec(frizz.mask)?.[1] ?? ""
+        const mask = /url\("?([^")]+)"?\)/u.exec(ntwine.mask)?.[1] ?? ""
         const file = await page.evaluate(async (url) => {
           try {
             const response = await fetch(url)
@@ -1040,19 +1040,19 @@ try {
         rmSync(stripFile)
         shots.splice(shots.indexOf(stripFile), 1, at6)
         // The icon and its codicon neighbour at 8x, and their ink.
-        const big = async (item: typeof frizz, name: string) => {
+        const big = async (item: typeof ntwine, name: string) => {
           const file = join(out, `${version}-c1-icon-${layout.name}-${name}-8x.png`)
           return { file, ink: inkOf(decodePng(await capture(file, { x: item.x, y: item.y, width: item.w, height: item.h }, 8)), 8) }
         }
         // A count badge sits over the icon's corner once the board has one; it is not the icon's ink.
         const unbadge = await page.addStyleTag({ content: ".monaco-workbench .composite-bar .badge { visibility: hidden !important; }" })
         await sleep(100)
-        const mine = await big(frizz, "frizz")
+        const mine = await big(ntwine, "ntwine")
         const theirs = await big(explorer, "search")
         // Every codicon at rest in the bar (Search, Source Control, Run and Debug, Extensions; Explorer is
         // the active one), unsaved.
         const neighbours: Record<string, number> = {}
-        for (const item of strip.items.filter((candidate) => !candidate.label.startsWith("Frizz") && !candidate.active)) {
+        for (const item of strip.items.filter((candidate) => !candidate.label.startsWith("Ntwine") && !candidate.active)) {
           neighbours[item.label] = inkOf(decodePng(await capture("", { x: item.x, y: item.y, width: item.w, height: item.h }, 8)), 8).mass
         }
         await unbadge.evaluate((el) => el.remove())
@@ -1060,11 +1060,11 @@ try {
         shots.splice(shots.indexOf(theirs.file), 1)
         const masses = Object.values(neighbours)
         const mean = masses.reduce((sum, mass) => sum + mass, 0) / Math.max(1, masses.length)
-        const ink = { frizz: mine.ink, search: theirs.ink, box: [frizz.w, frizz.h], neighbours, ofMean: Math.round((mine.ink.mass / mean) * 100) / 100, ofSearch: Math.round((mine.ink.mass / theirs.ink.mass) * 100) / 100 }
+        const ink = { ntwine: mine.ink, search: theirs.ink, box: [ntwine.w, ntwine.h], neighbours, ofMean: Math.round((mine.ink.mass / mean) * 100) / 100, ofSearch: Math.round((mine.ink.mass / theirs.ink.mass) * 100) / 100 }
         expect("c1", `${layout.name}: the icon draws a line mark — not blank, not a filled square`, mine.ink.peak >= 0.6 * theirs.ink.peak && mine.ink.fill < 0.5 && mine.ink.box[0] >= 10 && mine.ink.box[1] >= 10, ink)
         // The bound is the bar's own spread: against the mean of the four at rest, Explorer's glyph is
         // ~1.38x and Search's ~0.7x (headless Chrome over codicon.ttf, 2026-10-02). The mark at a codicon's
-        // pen read ~1.9x that mean; at 0.7 of it, ~1.34x (media/frizz.svg).
+        // pen read ~1.9x that mean; at 0.7 of it, ~1.34x (media/ntwine.svg).
         expect("c1", `${layout.name}: its ink is the weight of the codicons beside it (mass within 0.5–1.5x the mean of those at rest)`, masses.length > 0 && mine.ink.mass >= 0.5 * mean && mine.ink.mass <= 1.5 * mean, ink)
         if (layout.name === "top-dark" && before && existsSync(before)) {
           // BEFORE over AFTER, the same framing, for the eye.
@@ -1085,11 +1085,11 @@ try {
 
   // ── c2: the view frames the real page ──
   const started = Date.now()
-  log("opening the Frizz view from its activity-bar icon, with the mouse")
-  await waitFor("the Frizz item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="Frizz"]'), 30_000)
-  await clickInWorkbench('.part.activitybar .action-label[aria-label^="Frizz"]')
-  const framed = await waitFor("the Frizz frame", frizzFrame, 60_000)
-  await waitFor("frizz:ready", async () => (await status()).sidebar.ready || undefined, 90_000)
+  log("opening the Ntwine view from its activity-bar icon, with the mouse")
+  await waitFor("the Ntwine item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="Ntwine"]'), 30_000)
+  await clickInWorkbench('.part.activitybar .action-label[aria-label^="Ntwine"]')
+  const framed = await waitFor("the Ntwine frame", ntwineFrame, 60_000)
+  await waitFor("ntwine:ready", async () => (await status()).sidebar.ready || undefined, 90_000)
   notes.readyAfterMs = Date.now() - started
   await waitFor("the queue in the page", async () => (await inPage(() => document.querySelectorAll("[data-xq-thread-row]").length)) > 0 || undefined, 60_000)
   await sleep(1_000)
@@ -1098,11 +1098,11 @@ try {
   notes.firstRoute = (await status()).sidebar.href ?? null
   await installFocusTrace()
   // What the first load cost: a dev server serves the page as hundreds of unbundled modules, where an
-  // installed Frizz serves a build — so a slow first ready here is a fact about the stack, and the
+  // installed Ntwine serves a build — so a slow first ready here is a fact about the stack, and the
   // number says how slow.
   notes.firstLoad = {
     readyAfterMs: notes.readyAfterMs,
-    hintShown: /didn't say it was ready/u.test(frizzLog()),
+    hintShown: /didn't say it was ready/u.test(ntwineLog()),
     page: await inPage(() => {
       const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined
       const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[]
@@ -1134,7 +1134,7 @@ try {
     const snapshot = (await status()).sidebar
     const url = new URL(snapshot.url ?? "about:blank")
     expect("c2", "the frame is the real page, in embed mode, dark, on this window's project", url.origin === origin && new URL(framed.url()).origin === origin && url.searchParams.get("embed") === "vscode" && url.searchParams.get("theme") === "dark" && url.searchParams.get("project") === workspace.slug, { framed: snapshot.url, now: framed.url() })
-    expect("c2", "the page said frizz:ready", snapshot.ready && snapshot.events.some((event) => event.type === "frizz:ready"), { readyAfterMs: notes.readyAfterMs, events: snapshot.events.slice(0, 6) })
+    expect("c2", "the page said ntwine:ready", snapshot.ready && snapshot.events.some((event) => event.type === "ntwine:ready"), { readyAfterMs: notes.readyAfterMs, events: snapshot.events.slice(0, 6) })
     expect("c2", "no 'hasn't finished loading' bar over it", !snapshot.hinted)
     const boot = await inPage(() => ({
       embed: document.documentElement.dataset.embed,
@@ -1148,7 +1148,7 @@ try {
       // is not drawn: it stood alone on a 36px row above the prompt box (2026-10-01).
       keyboard: !!document.querySelector('[data-status-row] [aria-label="Keyboard shortcuts"]'),
       emptyStatusRow: [...document.querySelectorAll<HTMLElement>("[data-status-row]")].some((row) => row.getClientRects().length > 0 && row.querySelectorAll("button, [data-quota-bar]").length === 0),
-      header: [...document.querySelectorAll("header")].filter((h) => h.getClientRects().length > 0 && !h.closest("[role=dialog], .frizz-sheet-panel")).length,
+      header: [...document.querySelectorAll("header")].filter((h) => h.getClientRects().length > 0 && !h.closest("[role=dialog], .ntwine-sheet-panel")).length,
       width: innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
       rowTitlePx: (() => {
@@ -1158,11 +1158,11 @@ try {
     }))
     expect("c2", "the page knows it is in VS Code, in VS Code's dark theme, in sans", boot.embed === "vscode" && boot.theme === "dark" && boot.font === "sans", boot)
     expect("c2", "the desktop page narrowed, not the phone page", boot.sidebarPage && boot.phone === 0 && boot.rowTitlePx === "13px", boot)
-    expect("c2", "no Frizz header: no title, no gear, no header bar", !boot.statusTitle && !boot.gear && boot.header === 0, boot)
+    expect("c2", "no Ntwine header: no title, no gear, no header bar", !boot.statusTitle && !boot.gear && boot.header === 0, boot)
     expect("c2", "no ⌨ over the prompt box, and no empty status row", !boot.keyboard && !boot.emptyStatusRow, boot)
     expect("c2", "nothing overflows sideways", boot.scrollWidth <= boot.width, { width: boot.width, scrollWidth: boot.scrollWidth })
 
-    // The row says Frizz and nothing the page names: VS Code re-cases a view's title ("Frizz: Marketing-Site"
+    // The row says Ntwine and nothing the page names: VS Code re-cases a view's title ("Ntwine: Marketing-Site"
     // on 1.140, all caps on 1.90) and drops its description in a one-view container, so the counts ride the
     // badge's tooltip and the names stay in the page (src/sidebar.ts applyRoute).
     const queueRow = await waitFor("the queue's buttons in the title row", async () => {
@@ -1174,7 +1174,7 @@ try {
       return snapshot.view === "queue" && /ready|need/iu.test(snapshot.badgeTooltip ?? "") ? snapshot : undefined
     }, 15_000).catch(async () => (await status()).sidebar)
     expect("c2", "queue: the page's counts ride the badge's tooltip", /ready|need/iu.test(queueSnapshot.badgeTooltip ?? ""), { badge: queueSnapshot.badge, badgeTooltip: queueSnapshot.badgeTooltip })
-    expect("c2", "queue: the title row reads Frizz, with no page name in it to re-case", /frizz/iu.test(queueRow.text) && !/marketing-site/iu.test(queueRow.text), { shown: queueRow.text, words: queueRow.words, transform: queueRow.transform })
+    expect("c2", "queue: the title row reads Ntwine, with no page name in it to re-case", /ntwine/iu.test(queueRow.text) && !/marketing-site/iu.test(queueRow.text), { shown: queueRow.text, words: queueRow.words, transform: queueRow.transform })
     expect("c2", "queue: the buttons are New thread, Jump to a thread, Settings — no Back to queue", JSON.stringify(queueRow.buttons) === JSON.stringify(["New thread", "Jump to a thread", "Settings"]), queueRow.buttons)
     notes.titleRowQueue = queueRow
     await shot("c2-queue-dark-w300", { window: true })
@@ -1185,8 +1185,8 @@ try {
       const row = await titleRow()
       return row.buttons.includes("Back to queue") ? row : undefined
     }, 10_000).catch(async () => titleRow())
-    const named = await inPage((handle) => [...document.querySelectorAll<HTMLElement>(".frizz-sheet-panel")].some((panel) => panel.getClientRects().length > 0 && panel.innerText.includes(handle)), seeded!.thread.handle)
-    expect("c2", "thread: the drawer names the thread, and the title row still reads Frizz (no handle for VS Code to re-case)", named && !threadRow.text.toLowerCase().includes(seeded!.thread.handle.toLowerCase()), { named, shown: threadRow.text, words: threadRow.words, transform: threadRow.transform })
+    const named = await inPage((handle) => [...document.querySelectorAll<HTMLElement>(".ntwine-sheet-panel")].some((panel) => panel.getClientRects().length > 0 && panel.innerText.includes(handle)), seeded!.thread.handle)
+    expect("c2", "thread: the drawer names the thread, and the title row still reads Ntwine (no handle for VS Code to re-case)", named && !threadRow.text.toLowerCase().includes(seeded!.thread.handle.toLowerCase()), { named, shown: threadRow.text, words: threadRow.words, transform: threadRow.transform })
     expect("c2", "thread: the buttons are Back to queue, Jump to a thread, Settings — no New thread", JSON.stringify(threadRow.buttons) === JSON.stringify(["Back to queue", "Jump to a thread", "Settings"]), threadRow.buttons)
     notes.titleRowThread = threadRow
     await shot("c2-thread-dark-w300", { window: true })
@@ -1238,7 +1238,7 @@ try {
 
     await clickInWorkbench('.part.sidebar .title-actions .action-label[aria-label="Jump to a thread"]')
     const palette = await until(async () => (await inPage(() => !!document.querySelector("[cmdk-root]"))), 5_000)
-    expect("c2", "Jump to a thread opens Frizz's palette", palette)
+    expect("c2", "Jump to a thread opens Ntwine's palette", palette)
     await shot("c2-jump-palette-w300")
     await press("Escape")
     await until(async () => !(await inPage(() => !!document.querySelector("[cmdk-root]"))), 3_000)
@@ -1348,11 +1348,11 @@ try {
 
   // ── c4: Ctrl+L, the chip, a send to a simulated worker ──
   await run("c4", "Ctrl+L puts the selection in the front composer as a pill, and it sends", async () => {
-    // The thread in the drawer is the front composer; the Explorer takes the side bar, so Ctrl+L must reveal Frizz.
+    // The thread in the drawer is the front composer; the Explorer takes the side bar, so Ctrl+L must reveal Ntwine.
     await resetPage()
     await openThreadRow()
     await command("workbench.view.explorer")
-    await waitFor("the Frizz view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the Ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
     await installFocusTrace()
     const editorAt = Date.now()
     await openInEditor(files.sample)
@@ -1453,7 +1453,7 @@ try {
     await press("Alt+KeyK")
     // A whole file goes in as a REFERENCE, `src/sample.ts` in code quotes — the item carries no text (the
     // extension's own suite pins that: e2e/suite.ts "Alt+K … the whole file"), and the page writes a text-less
-    // item as a reference to it (lib/editorCompose.ts composeEdit), as Add file to Frizz prompt always has.
+    // item as a reference to it (lib/editorCompose.ts composeEdit), as Add file to Ntwine prompt always has.
     const wholeFile = await waitFor("the file's reference from Alt+K", async () => {
       const state = await box("chatComposer")
       return state?.value.includes("`src/sample.ts`") ? state : undefined
@@ -1469,11 +1469,11 @@ try {
     await waitFor("the reply box's bar on the selection", async () => (await contextBar("chatComposer"))?.kind === "selection" || undefined, 5_000)
     await clickInPage('textarea[data-surface="chatComposer"]')
     await until(async () => (await box("chatComposer"))?.active === true, 3_000)
-    const keysBefore = (await status()).sidebar.events.filter((event) => event.type === "frizz:key").length
+    const keysBefore = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").length
     await press("Control+KeyL")
     const backToEditor = await until(async () => (await workbenchFocus()).editor, 5_000)
     await sleep(500)
-    const forwarded = (await status()).sidebar.events.filter((event) => event.type === "frizz:key").slice(keysBefore)
+    const forwarded = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").slice(keysBefore)
     const leftBox = await box("chatComposer")
     expect("c4", "Ctrl+L pressed in the reply box goes back to the editor, adding nothing", backToEditor && forwarded.some((event) => event.outcome === "workbench.action.focusActiveEditorGroup") && leftBox?.value === "", { focus: await workbenchFocus(), forwarded, box: leftBox?.value })
 
@@ -1481,7 +1481,7 @@ try {
     // has it — with the caret in the box and nothing added.
     await agent({ op: "select", selection: [1, 2, 1, 2] })
     await command("workbench.view.explorer")
-    await waitFor("the Frizz view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the Ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
     await openInEditor(files.sample)
     await agent({ op: "select", selection: [1, 2, 1, 2] })
     // The empty selection crosses to the renderer, where `editorHasSelection` is kept, on its own channel.
@@ -1496,8 +1496,8 @@ try {
     await shot("c4-ctrl-l-to-prompt-w300")
   })
 
-  // ── c5: Ask Frizz to fix ──
-  await run("c5", "Ask Frizz to fix on a real TypeScript error", async () => {
+  // ── c5: Ask Ntwine to fix ──
+  await run("c5", "Ask Ntwine to fix on a real TypeScript error", async () => {
     await resetPage()
     await openThreadRow()
     // A draft an earlier check left (the drawer keeps it) would ride along in front of the chip.
@@ -1518,7 +1518,7 @@ try {
     expect("c5", "the editor keeps the caret while the human reads the error (nothing pulls it into the sidebar)", kept.editor, notes.focusBeforeQuickFix)
     // The menu waits on every provider, tsserver's fixes included, which are slow on a first request. The
     // chord goes the instant the caret is set: a beat later the page may hold the keyboard (above).
-    const menuShows = () => until(async () => (await inWorkbench(() => [...document.querySelectorAll(".action-widget")].some((w) => (w as HTMLElement).offsetHeight > 0 && /Ask Frizz to fix/u.test(w.textContent ?? "")))), 20_000)
+    const menuShows = () => until(async () => (await inWorkbench(() => [...document.querySelectorAll(".action-widget")].some((w) => (w as HTMLElement).offsetHeight > 0 && /Ask Ntwine to fix/u.test(w.textContent ?? "")))), 20_000)
     let menu = false
     for (let attempt = 1; attempt <= 3 && !menu; attempt++) {
       if (!(await workbenchFocus()).editor) {
@@ -1534,11 +1534,11 @@ try {
         if ((await workbenchFocus()).editor) await press("Escape")
       }
     }
-    if (!menu) throw new Error(`no quick-fix menu with Ask Frizz to fix after Ctrl+. three times: ${JSON.stringify(notes.quickFixTry3)}`)
+    if (!menu) throw new Error(`no quick-fix menu with Ask Ntwine to fix after Ctrl+. three times: ${JSON.stringify(notes.quickFixTry3)}`)
     const widget = await rectOf(".action-widget")
     if (widget) await capture(join(out, `${version}-c5-quick-fix-menu.png`), { x: widget.x - 8, y: widget.y - 8, width: widget.width + 16, height: widget.height + 16 }, 2)
-    const item = (await page.evaluateHandle(() => [...document.querySelectorAll(".action-widget .monaco-list-row, .action-widget li")].find((row) => /Ask Frizz to fix/u.test(row.textContent ?? "")) ?? null)).asElement() as ElementHandle | null
-    await clickHandle(item, "the Ask Frizz to fix item")
+    const item = (await page.evaluateHandle(() => [...document.querySelectorAll(".action-widget .monaco-list-row, .action-widget li")].find((row) => /Ask Ntwine to fix/u.test(row.textContent ?? "")) ?? null)).asElement() as ElementHandle | null
+    await clickHandle(item, "the Ask Ntwine to fix item")
     const line = problem.range[0]! + 1
     const fixed = await waitFor("the chip and the note", async () => {
       const state = await box("chatComposer").catch(() => null)
@@ -1583,13 +1583,13 @@ try {
     // VS Code's link protection asks before an untrusted domain opens. The test runner refuses every dialog
     // (DialogService: "refused to show dialog in tests"), and the extension logs the refusal: that line is
     // the proof the link reached VS Code's opener. A trusted domain would go on to `xdg-open` (a stub).
-    const reached = await until(() => /xdg-open https:\/\/example\.com\/spec/u.test(stack!.openers()) || /open the external website/u.test(frizzLog()), 10_000)
-    const outcome = (await status()).sidebar.events.filter((event) => event.type === "frizz:open-external").at(-1)
-    const line = frizzLog().split("\n").find((entry) => /frizz:open-external/u.test(entry)) ?? null
+    const reached = await until(() => /xdg-open https:\/\/example\.com\/spec/u.test(stack!.openers()) || /open the external website/u.test(ntwineLog()), 10_000)
+    const outcome = (await status()).sidebar.events.filter((event) => event.type === "ntwine:open-external").at(-1)
+    const line = ntwineLog().split("\n").find((entry) => /ntwine:open-external/u.test(entry)) ?? null
     notes.openExternal = { openers: stack!.openers(), outcome, dialog, log: line }
     expect("c6", "a web link goes to VS Code's openExternal — no window from the frame (VS Code's own 'open the external website?' prompt comes first)", reached, notes.openExternal)
 
-    // The drawer's ↗ (Open in browser): the page asks the host to open the thread's own page. Frizz's
+    // The drawer's ↗ (Open in browser): the page asks the host to open the thread's own page. Ntwine's
     // address is loopback, which VS Code's link protection trusts, so this one goes all the way to the
     // system opener — the stub `xdg-open`, which only writes down what it was asked.
     const fullUrl = `/thread/${seeded!.thread.slug}/full`
@@ -1598,11 +1598,11 @@ try {
     const toOpener = await until(() => stack!.openers().split("\n").some((line) => line.startsWith("xdg-open ") && line.includes(fullUrl)), 10_000)
     expect("c6", "the drawer's Open in browser goes through VS Code's openExternal to the system opener (a stub xdg-open)", toOpener, stack!.openers())
 
-    // A Markdown link: Frizz's own reader.
+    // A Markdown link: Ntwine's own reader.
     await clickInPage(`[data-local-path="${files.readme}"]`, "the README link")
     const reader = await until(async () => (await inPage((path) => !!document.querySelector(`button[aria-label="Open"][title^="Open ${path}"]`), files.readme)), 8_000)
     const front = (await editorState()).path
-    expect("c6", "a Markdown link opens Frizz's reader, and nothing in the editor", reader && front !== files.readme, { reader, front })
+    expect("c6", "a Markdown link opens Ntwine's reader, and nothing in the editor", reader && front !== files.readme, { reader, front })
     await shot("c6-markdown-reader-w300")
     notes.titleRowReader = await titleRow()
     await press("Escape")
@@ -1625,22 +1625,22 @@ try {
   await run("c8", "keys with the frame focused", async () => {
     await resetPage()
     await focusPageBody()
-    const keysBefore = (await status()).sidebar.events.filter((event) => event.type === "frizz:key").length
+    const keysBefore = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").length
     await press("Control+Shift+KeyP")
     const vsPalette = await until(paletteOpen, 5_000)
-    const keyEvents = (await status()).sidebar.events.filter((event) => event.type === "frizz:key").slice(keysBefore)
+    const keyEvents = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").slice(keysBefore)
     expect("c8", "Ctrl+Shift+P from the frame opens VS Code's command palette (forwarded)", vsPalette && keyEvents.some((event) => event.outcome === "workbench.action.showCommands"), keyEvents)
     await shot("c8-vscode-palette", { window: true })
     await press("Escape")
     await until(async () => !(await paletteOpen()), 3_000)
 
     await focusPageBody()
-    const before = (await status()).sidebar.events.filter((event) => event.type === "frizz:key").length
+    const before = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").length
     await press("Control+KeyK")
-    const frizzPalette = await until(async () => (await inPage(() => !!document.querySelector("[cmdk-root]"))), 5_000)
+    const ntwinePalette = await until(async () => (await inPage(() => !!document.querySelector("[cmdk-root]"))), 5_000)
     await sleep(500)
-    const forwarded = (await status()).sidebar.events.filter((event) => event.type === "frizz:key").slice(before)
-    expect("c8", "Ctrl+K opens Frizz's palette and is not forwarded to VS Code", frizzPalette && forwarded.length === 0 && !(await paletteOpen()), forwarded)
+    const forwarded = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").slice(before)
+    expect("c8", "Ctrl+K opens Ntwine's palette and is not forwarded to VS Code", ntwinePalette && forwarded.length === 0 && !(await paletteOpen()), forwarded)
     await press("Escape")
     await until(async () => !(await inPage(() => !!document.querySelector("[cmdk-root]"))), 3_000)
 
@@ -1680,9 +1680,9 @@ try {
       await clickHandle(item.asElement() as ElementHandle | null, "Keyboard shortcuts in the ⋯ menu")
     } else {
       // A native context menu (no DOM to click): the same command the item runs.
-      notes.shortcutsMenu = "the ⋯ menu was not in the workbench's DOM; ran frizz.sidebar.shortcuts"
+      notes.shortcutsMenu = "the ⋯ menu was not in the workbench's DOM; ran ntwine.sidebar.shortcuts"
       await press("Escape")
-      await command("frizz.sidebar.shortcuts")
+      await command("ntwine.sidebar.shortcuts")
     }
     const fromRow = await until(async () => (await inPage(() => !!document.querySelector("[data-shortcut-list]"))), 5_000)
     const sheetFocus = await inPage(() => ({ hasFocus: document.hasFocus(), inSheet: !!document.activeElement?.closest("[role=dialog]") }))
@@ -1714,8 +1714,8 @@ try {
 
   // ── c9: the gallery, at ~300px and ~450px ──
   const gallery = async (tag: string) => {
-    await command("workbench.view.extension.frizz")
-    await waitFor("the Frizz view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await command("workbench.view.extension.ntwine")
+    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openInEditor(files.sample)
     await selectLines23()
@@ -1816,9 +1816,9 @@ try {
   })
 
   // ── c10: one switch ──
-  /** The worker's `editor` tool, run for real (frizz-mcp.mjs, as a worker of this window's project runs it). */
-  const toolReads = () => workerTool({ node: process.execPath, mcp: join(repo, "cc-worker", "bin", "frizz-mcp.mjs"), serverLock: stack!.info.launcher.serverLock, projectId: workspace.id, home: stack!.info.home })
-  const sharing = () => agent<SettingState>({ op: "inspect", section: "frizz", key: "shareEditorState" })
+  /** The worker's `editor` tool, run for real (ntwine-mcp.mjs, as a worker of this window's project runs it). */
+  const toolReads = () => workerTool({ node: process.execPath, mcp: join(repo, "cc-worker", "bin", "ntwine-mcp.mjs"), serverLock: stack!.info.launcher.serverLock, projectId: workspace.id, home: stack!.info.home })
+  const sharing = () => agent<SettingState>({ op: "inspect", section: "ntwine", key: "shareEditorState" })
   const eye = () => inPage(() => [...document.querySelectorAll<HTMLElement>("[data-editor-context-toggle]")].find((toggle) => toggle.getClientRects().length > 0)?.getAttribute("aria-pressed") ?? null)
   /** Type and send from the reply box; what reached the simulated worker. */
   const sendFromReply = async (text: string) => {
@@ -1832,7 +1832,7 @@ try {
       return lines.length > before ? (JSON.parse(lines.at(-1)!) as { id: string; text: string }) : undefined
     }, 20_000)
   }
-  await run("c10", "one switch: the eye is frizz.shareEditorState, for the block a send carries and for the agents' tool", async () => {
+  await run("c10", "one switch: the eye is ntwine.shareEditorState, for the block a send carries and for the agents' tool", async () => {
     await resetPage()
     await openThreadRow()
     await openInEditor(files.sample, [1, 0, 2, -1])
@@ -1849,7 +1849,7 @@ try {
       const state = await sharing()
       return state.value === false ? state : undefined
     }, 8_000).catch(sharing)
-    expect("c10", "the eye, clicked off, turns frizz.shareEditorState off (the user's value, so every window)", off.value === false && off.globalValue === false, off)
+    expect("c10", "the eye, clicked off, turns ntwine.shareEditorState off (the user's value, so every window)", off.value === false && off.globalValue === false, off)
     const offText = await waitFor("the tool reading nothing", async () => {
       const text = await toolReads()
       return /turned off sharing/u.test(text) ? text : undefined
@@ -1861,7 +1861,7 @@ try {
     expect("c10", "…and a send carries no editor context", unshared.text.startsWith("what does this do?") && parseSentEditorContext(unshared.text) === null && !unshared.text.includes("let total = 0"), unshared.text.slice(0, 400))
 
     // On again from VS Code's side (Settings, another window): the eye follows, and so does everything else.
-    await agent({ op: "config", section: "frizz", key: "shareEditorState", value: true })
+    await agent({ op: "config", section: "ntwine", key: "shareEditorState", value: true })
     expect("c10", "the setting turned on in VS Code turns the eye on", await until(async () => (await eye()) === "true", 8_000), await contextBar("chatComposer"))
     const back = await waitFor("the tool reading lines 2-3 again", async () => {
       const text = await toolReads()
@@ -1879,11 +1879,11 @@ try {
     const again = await sendFromReply("and again?")
     const repeat = parseSentEditorContext(again.text)
     expect("c10", "…and the same selection on the next send is named, not quoted again", repeat?.editor.kind === "selection" && repeat.editor.repeat === true && repeat.editor.startLine === 2 && !again.text.includes("let total = 0"), { text: again.text.slice(0, 600), repeat })
-    await agent({ op: "config", section: "frizz", key: "shareEditorState", value: null })
+    await agent({ op: "config", section: "ntwine", key: "shareEditorState", value: null })
   })
 
   // ── c11: Claude Code's Alt+K ──
-  await run("c11", "with Claude Code's extension installed, Alt+K is its: Frizz steps aside, and takes it back when it goes", async () => {
+  await run("c11", "with Claude Code's extension installed, Alt+K is its: Ntwine steps aside, and takes it back when it goes", async () => {
     await resetPage()
     await openThreadRow()
     await clearBox("chatComposer")
@@ -1897,7 +1897,7 @@ try {
     await sleep(1_500)
     const theirs = { box: await box("chatComposer"), editor: await editorState() }
     const lastLine = SAMPLE.split("\n").length - 1
-    expect("c11", "Alt+K adds nothing to Frizz's prompt box", !/sample\.ts/u.test(theirs.box?.value ?? ""), theirs.box)
+    expect("c11", "Alt+K adds nothing to Ntwine's prompt box", !/sample\.ts/u.test(theirs.box?.value ?? ""), theirs.box)
     expect("c11", "…it is Claude Code's: the stand-in's binding answered (Select All)", theirs.editor.selection?.start.join() === "0,0" && theirs.editor.selection.end[0] === lastLine, theirs.editor)
     await focusPageBody()
     await page.keyboard.type("?")
@@ -1919,7 +1919,7 @@ try {
       const state = await box("chatComposer")
       return /sample\.ts/u.test(state?.value ?? "") ? state : undefined
     }, 8_000).catch(async () => box("chatComposer"))
-    expect("c11", "…and Alt+K is Frizz's again: the whole file into the reply box", /sample\.ts(?!:)/u.test(ours?.value ?? ""), ours)
+    expect("c11", "…and Alt+K is Ntwine's again: the whole file into the reply box", /sample\.ts(?!:)/u.test(ours?.value ?? ""), ours)
     await clearBox("chatComposer")
   })
 
@@ -1944,11 +1944,11 @@ try {
       return read
     }, 15_000).catch(() => undefined)
     expect("c12", "the page shows that thread, its title and its reply box", !!shown?.composer, shown)
-    const said = frizzLog().split("\n").find((line) => line.includes(`worktree of thread ${worktreeThread.slug}`))
+    const said = ntwineLog().split("\n").find((line) => line.includes(`worktree of thread ${worktreeThread.slug}`))
     expect("c12", "the extension says why it opened there", !!said, said?.trim())
     await shot("c12-worktree-window-thread", { window: true })
     // A link the thread wrote into its worktree, to a file only the main checkout has (as every link is
-    // once Done removed the worktree): clicked in the sidebar, the extension finds it missing, asks Frizz
+    // once Done removed the worktree): clicked in the sidebar, the extension finds it missing, asks Ntwine
     // (settleLocalPath) and opens the main checkout's copy at the linked line — not "doesn't exist".
     const { linked, main } = worktreeThread.onlyMain
     await clickTextInPage("[data-local-path]", "only-main.ts")
@@ -1956,7 +1956,7 @@ try {
       const now = await editorState()
       return now.path === main && now.selection?.start[0] === 1 ? now : undefined
     }, 15_000).catch(async () => editorState())
-    const settledLine = frizzLog().split("\n").find((line) => line.includes(`${linked} is gone`))
+    const settledLine = ntwineLog().split("\n").find((line) => line.includes(`${linked} is gone`))
     expect("c12", "a link into the worktree to a file it doesn't have opens the main checkout's copy, at its line", opened.path === main && opened.selection?.start[0] === 1, { linked, opened, log: settledLine?.trim() })
     await shot("c12-settled-link", { window: true })
   })
@@ -1984,10 +1984,10 @@ try {
 
   // ── c13: `@` files ──
   await run("c13", "`@` in a prompt box offers the workspace's files", async () => {
-    await command("workbench.view.extension.frizz")
-    await waitFor("the Frizz view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await command("workbench.view.extension.ntwine")
+    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
-    // A gitignored copy, where a Frizz checkout keeps its threads' worktrees: never offered.
+    // A gitignored copy, where a Ntwine checkout keeps its threads' worktrees: never offered.
     mkdirSync(join(workspace.dir, "ignored-copy"), { recursive: true })
     writeFileSync(join(workspace.dir, "ignored-copy", "sample.ts"), SAMPLE)
     appendFileSync(join(workspace.dir, ".git", "info", "exclude"), "\nignored-copy/\n")
@@ -2023,10 +2023,10 @@ try {
 
   // ── c14: a drag from the explorer ──
   await run("c14", "a file dragged from the explorer lands in the prompt box", async () => {
-    // Both in sight at once: the Frizz view moved in as a pane of the Explorer's side bar.
-    await command("vscode.moveViews", { viewIds: ["frizz.sidebar"], destinationId: "workbench.view.explorer" })
+    // Both in sight at once: the Ntwine view moved in as a pane of the Explorer's side bar.
+    await command("vscode.moveViews", { viewIds: ["ntwine.sidebar"], destinationId: "workbench.view.explorer" })
     try {
-      await command("frizz.sidebar.focus")
+      await command("ntwine.sidebar.focus")
       await waitFor("the page ready in the Explorer", async () => (await status()).sidebar.ready || undefined, 60_000)
       await openInEditor(files.sample)
       await command("workbench.files.action.showActiveFileInExplorer")
@@ -2040,7 +2040,7 @@ try {
         const handle = (await (await frame()).evaluateHandle(() => [...document.querySelectorAll('textarea[data-surface="newComposer"]')].find((t) => t.getClientRects().length > 0) ?? null)).asElement() as ElementHandle | null
         return handle && (await handle.boundingBox()) ? (await handle.boundingBox())! : undefined
       }, 10_000)
-      await shot("c14-explorer-and-frizz", { window: true })
+      await shot("c14-explorer-and-ntwine", { window: true })
       const to = { x: target.x + target.width / 2, y: target.y + target.height / 2 }
       // A real drag: a trusted press and move on the explorer's row, so VS Code's own dragstart fills the
       // drag (read back from the workbench as it bubbles out), intercepted by DevTools so it can be carried
@@ -2050,29 +2050,29 @@ try {
       type DragItem = { mimeType: string; data: string }
       type DragData = { items: DragItem[]; dragOperationsMask: number }
       await page.evaluate(() => {
-        const w = window as unknown as { __frizzDrag?: DragItem[] | null }
-        w.__frizzDrag = null
+        const w = window as unknown as { __ntwineDrag?: DragItem[] | null }
+        w.__ntwineDrag = null
         window.addEventListener("dragstart", (event) => {
-          w.__frizzDrag = [...(event.dataTransfer?.types ?? [])].map((type) => ({ mimeType: type, data: event.dataTransfer!.getData(type) }))
+          w.__ntwineDrag = [...(event.dataTransfer?.types ?? [])].map((type) => ({ mimeType: type, data: event.dataTransfer!.getData(type) }))
         }, { once: true })
       })
       // Where the drop's events land: the workbench (with VS Code's pointer-events state on the webview) and
       // the page, so a trusted drop that does not arrive says where it stopped.
       await page.evaluate(() => {
-        const w = window as unknown as { __frizzDragEvents?: string[] }
-        w.__frizzDragEvents = []
+        const w = window as unknown as { __ntwineDragEvents?: string[] }
+        w.__ntwineDragEvents = []
         for (const type of ["dragenter", "dragover", "drop"]) {
           window.addEventListener(type, (event) => {
             const target = event.target as HTMLElement
             const webview = document.querySelector<HTMLElement>("iframe.webview")
-            if (w.__frizzDragEvents!.length < 40) w.__frizzDragEvents!.push(`${type} on ${target.tagName}.${String(target.className).slice(0, 30)} shift=${(event as DragEvent).shiftKey} webview-pointer=${webview?.style.pointerEvents ?? "?"}`)
+            if (w.__ntwineDragEvents!.length < 40) w.__ntwineDragEvents!.push(`${type} on ${target.tagName}.${String(target.className).slice(0, 30)} shift=${(event as DragEvent).shiftKey} webview-pointer=${webview?.style.pointerEvents ?? "?"}`)
           }, true)
         }
       })
       await inPage(() => {
-        const w = window as unknown as { __frizzDragEvents?: string[] }
-        w.__frizzDragEvents = []
-        for (const type of ["dragenter", "dragover", "drop"]) window.addEventListener(type, (event) => { if (w.__frizzDragEvents!.length < 40) w.__frizzDragEvents!.push(`${type} shift=${(event as DragEvent).shiftKey}`) }, true)
+        const w = window as unknown as { __ntwineDragEvents?: string[] }
+        w.__ntwineDragEvents = []
+        for (const type of ["dragenter", "dragover", "drop"]) window.addEventListener(type, (event) => { if (w.__ntwineDragEvents!.length < 40) w.__ntwineDragEvents!.push(`${type} shift=${(event as DragEvent).shiftKey}`) }, true)
       })
       await cdp.send("Input.setInterceptDrags", { enabled: true })
       const intercepted = new Promise<DragData>((resolveDrag) => cdp.once("Input.dragIntercepted", (event: { data: DragData }) => resolveDrag(event.data)))
@@ -2084,7 +2084,7 @@ try {
       await mouse("mousePressed", sx, sy)
       for (let step = 1; step <= 6; step++) await mouse("mouseMoved", sx + step * 4, sy + step * 3)
       const caught = await Promise.race([intercepted, sleep(3_000).then(() => undefined)])
-      const started = await page.evaluate(() => (window as unknown as { __frizzDrag?: DragItem[] | null }).__frizzDrag ?? null)
+      const started = await page.evaluate(() => (window as unknown as { __ntwineDrag?: DragItem[] | null }).__ntwineDrag ?? null)
       const data: DragData | undefined = caught ?? (started?.length ? { items: started, dragOperationsMask: 1 } : undefined)
       notes.explorerDrag = { intercepted: !!caught, dragstart: started?.map((item) => item.mimeType) ?? null, items: data?.items.map((item) => ({ type: item.mimeType, data: item.data.slice(0, 200) })) }
       let how = "none"
@@ -2100,8 +2100,8 @@ try {
       await mouse("mouseReleased", to.x, to.y)
       await cdp.send("Input.setInterceptDrags", { enabled: false })
       notes.explorerDragEvents = {
-        workbench: await page.evaluate(() => (window as unknown as { __frizzDragEvents?: string[] }).__frizzDragEvents ?? []),
-        page: await inPage(() => (window as unknown as { __frizzDragEvents?: string[] }).__frizzDragEvents ?? []),
+        workbench: await page.evaluate(() => (window as unknown as { __ntwineDragEvents?: string[] }).__ntwineDragEvents ?? []),
+        page: await inPage(() => (window as unknown as { __ntwineDragEvents?: string[] }).__ntwineDragEvents ?? []),
       }
       const label = relative(workspace.dir, files.sample).split("\\").join("/")
       let landed = await until(async () => (await box("newComposer"))?.value.includes(`\`${label}\``) === true, 6_000)
@@ -2126,7 +2126,7 @@ try {
             })
             await sleep(150)
           }
-          notes.explorerFrameDragEvents = await inPage(() => (window as unknown as { __frizzDragEvents?: string[] }).__frizzDragEvents ?? [])
+          notes.explorerFrameDragEvents = await inPage(() => (window as unknown as { __ntwineDragEvents?: string[] }).__ntwineDragEvents ?? [])
           landed = await until(async () => (await box("newComposer"))?.value.includes(`\`${label}\``) === true, 6_000)
           if (landed) how = "trusted drop dispatched to the page's frame"
         } else notes.explorerFrameDragError = "the page shares the workbench's process"
@@ -2157,16 +2157,16 @@ try {
         notes.explorerDragCancel = String(error)
       })
       await cdp.send("Input.setInterceptDrags", { enabled: false }).catch(() => undefined)
-      await command("vscode.moveViews", { viewIds: ["frizz.sidebar"], destinationId: "workbench.view.extension.frizz" })
-      await command("workbench.view.extension.frizz")
+      await command("vscode.moveViews", { viewIds: ["ntwine.sidebar"], destinationId: "workbench.view.extension.ntwine" })
+      await command("workbench.view.extension.ntwine")
       await waitFor("the page ready back in its own view", async () => (await status()).sidebar.ready || undefined, 60_000).catch(() => undefined)
     }
   })
 
   // ── c15: the file's problems and the terminal's last command, from the bar's menu ──
   await run("c15", "the bar's menu adds the file's problems and the terminal's last command", async () => {
-    await command("workbench.view.extension.frizz")
-    await waitFor("the Frizz view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await command("workbench.view.extension.ntwine")
+    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await clearBox("newComposer")
     await openInEditor(files.broken)
@@ -2174,7 +2174,7 @@ try {
       const found = await agent<{ source: string | null }[]>({ op: "diagnostics", path: files.broken })
       return found.some((d) => d.source === "ts") || undefined
     }, 90_000)
-    const ran = await agent<{ exitCode: unknown }>({ op: "terminal", command: "echo frizz-from-the-terminal" })
+    const ran = await agent<{ exitCode: unknown }>({ op: "terminal", command: "echo ntwine-from-the-terminal" })
     notes.terminalRun = ran
     await openInEditor(files.broken)
     const extra = (what: string) => inPage((w) => [...document.querySelectorAll<HTMLElement>(`[data-editor-extra="${w}"]`)].filter((row) => row.getClientRects().length > 0).map((row) => row.innerText.replace(/\s+/gu, " ").trim())[0] ?? null, what)
@@ -2193,7 +2193,7 @@ try {
     // that the menu offers the last command without naming it, and adding it borrows the terminal's own
     // Copy Last Command (extras-feed.ts) — the floor's graceful path, checked as that, not failed as the
     // other.
-    if (hasShellExecutions(version)) expect("c15", "…and the terminal's last command, by its line", /^Add last terminal command echo frizz-from-the-terminal$/u.test(terminalRow ?? ""), { terminalRow, ran })
+    if (hasShellExecutions(version)) expect("c15", "…and the terminal's last command, by its line", /^Add last terminal command echo ntwine-from-the-terminal$/u.test(terminalRow ?? ""), { terminalRow, ran })
     else expect("c15", `…and the terminal's last command, unnamed: VS Code ${version} tells extensions no command line before 1.93`, terminalRow === "Add last terminal command" && ran.exitCode === "not reported before 1.93", { terminalRow, ran })
     await shot("c15-bar-menu-extras-w300")
     const extraGaps = (await rowGaps("[data-editor-extra], [data-editor-open-file]")) as { row: string; gap: number }[]
@@ -2216,7 +2216,7 @@ try {
       focus: await workbenchFocus(),
       menuOpen: await inPage(() => document.querySelector('[data-editor-extra="problems"]')?.closest("[role=menu]") !== null),
       boxes: await inPage(() => [...document.querySelectorAll<HTMLTextAreaElement>("textarea[data-surface]")].map((t) => ({ surface: t.dataset.surface, shown: t.getClientRects().length > 0, value: t.value.slice(0, 60) }))),
-      log: frizzLog().split("\n").slice(-12),
+      log: ntwineLog().split("\n").slice(-12),
       events: (await status()).sidebar.events.slice(eventsAt),
       trace: await focusTraceSince(menuAt),
     }
@@ -2237,14 +2237,14 @@ try {
   await run("c16", "a thread that needs you is a notification while the sidebar is hidden", async () => {
     await resetPage()
     await command("workbench.view.explorer")
-    await waitFor("the Frizz view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the Ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
     await command("notifications.clearAll")
     // The thread leaves the queue and comes back to it through the REAL server: snoozed, then woken
     // (the board's Wake now), so it enters the queue again needing the human — the server's own needs-you
     // edge (board.ts notifyNeedsYou), the one the page's notifications ride. (Not a follow-up: the
     // simulated worker answers one, but never clears the delivery the server holds the thread out of the
     // queue for, so its rest never reaches the queue.)
-    const rpc = new FrizzRpc(origin)
+    const rpc = new NtwineRpc(origin)
     // At rest first. Earlier checks send the thread messages (c10's one-switch sends among them), and the
     // simulated worker answers each with a turn; a thread still mid-turn enters the queue only when that
     // turn ends, so the notification came 30s+ after the wake in a full run and the check timed out on a
@@ -2261,7 +2261,7 @@ try {
       const text = await inWorkbench(() => [...document.querySelectorAll<HTMLElement>(".notification-toast")].map((t) => t.innerText.replace(/\s+/gu, " ").trim()).find((t) => /Open/u.test(t)) ?? null)
       return text ?? undefined
     }, 30_000).catch(() => null)
-    expect("c16", "a VS Code notification names the thread and what it needs, with Open", !!toast && toast.includes(seeded!.thread.handle), { toast, log: frizzLog().split("\n").filter((line) => /needs|notif|attention/iu.test(line)).slice(-5) })
+    expect("c16", "a VS Code notification names the thread and what it needs, with Open", !!toast && toast.includes(seeded!.thread.handle), { toast, log: ntwineLog().split("\n").filter((line) => /needs|notif|attention/iu.test(line)).slice(-5) })
     await shot("c16-notification", { window: true })
     // The toast slides in: pressed where it comes to rest, as a hand would, and again if the first press
     // found it still moving. An info toast also hides itself after a while in a focused window (it is
@@ -2293,13 +2293,13 @@ try {
       }
       shown = await waitFor("the thread in the sidebar", async () => ((await status()).sidebar.visible && (await drawerOpen())) || undefined, 8_000).catch(() => false)
     }
-    notes.attentionOpen = { pressed, log: frizzLog().split("\n").filter((line) => /Told you|Opening/u.test(line)).slice(-3) }
+    notes.attentionOpen = { pressed, log: ntwineLog().split("\n").filter((line) => /Told you|Opening/u.test(line)).slice(-3) }
     expect("c16", "Open brings the sidebar back on that thread", shown === true, (await status()).sidebar)
     await shot("c16-opened-thread-w300")
   })
 
   // ── c18: the editor's colours ──
-  await run("c18", "the page wears the editor theme's colours, and Frizz's own with frizz.matchEditorTheme off", async () => {
+  await run("c18", "the page wears the editor theme's colours, and Ntwine's own with ntwine.matchEditorTheme off", async () => {
     // Where the page's background shows bare, in the WORKBENCH's pixels: a point whose element and every
     // ancestor paint no background but the page's own, in a 5x5 patch of one colour, in the frame's lower right (the list's
     // empty tail). The page's (0,0) is the sidebar webview element's corner: VS Code's host document and
@@ -2391,8 +2391,8 @@ try {
     const relayBackground = () => tracedFrames().find((f) => f.name === "relay")!.frame.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--vscode-sideBar-background").trim())
     const pageBackground = () => inPage(() => document.documentElement.style.getPropertyValue("--vscode-sideBar-background"))
 
-    await command("workbench.view.extension.frizz")
-    await waitFor("the Frizz view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await command("workbench.view.extension.ntwine")
+    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openInEditor(files.a)
     await openInEditor(files.sample)
@@ -2443,19 +2443,19 @@ try {
           await openInEditor(files.sample)
         }
       }
-      // frizz.matchEditorTheme off, in the theme the user asked about's family (blue-black): Frizz's own
+      // ntwine.matchEditorTheme off, in the theme the user asked about's family (blue-black): Ntwine's own
       // palette, its #0d0e10 canvas, against the theme's side bar; on again, the theme's.
       await agent({ op: "config", section: "workbench", key: "colorTheme", value: "Abyss" })
       await until(async () => (await pageBackground()) === (await relayBackground()), 8_000)
-      await agent({ op: "config", section: "frizz", key: "matchEditorTheme", value: false })
+      await agent({ op: "config", section: "ntwine", key: "matchEditorTheme", value: false })
       const off = await until(async () => (await hostColors()) === null, 8_000)
       await sleep(400)
       const offShot = await capture("")
       const offPage = await pagePixels(offShot)
       const offBar = await sideBarPixel(offShot)
-      expect("c18", "matchEditorTheme off: the page is back in Frizz's palette (#0d0e10), not the theme's", off && !!offPage && offPage.rgb.join() === "13,14,16" && offPage.rgb.join() !== offBar.rgb.join(), { page: offPage, sideBar: offBar })
+      expect("c18", "matchEditorTheme off: the page is back in Ntwine's palette (#0d0e10), not the theme's", off && !!offPage && offPage.rgb.join() === "13,14,16" && offPage.rgb.join() !== offBar.rgb.join(), { page: offPage, sideBar: offBar })
       await beside("abyss-setting-off-queue")
-      await agent({ op: "config", section: "frizz", key: "matchEditorTheme", value: true })
+      await agent({ op: "config", section: "ntwine", key: "matchEditorTheme", value: true })
       const on = await until(async () => (await hostColors()) === "sideBar", 8_000)
       await sleep(400)
       const onShot = await capture("")
@@ -2463,7 +2463,7 @@ try {
       expect("c18", "…and on again, the theme's, without a reload", on && !!onPage && onPage.rgb.join() === (await sideBarPixel(onShot)).rgb.join() && (await status()).sidebar.ready, { page: onPage })
     } finally {
       notes.themeColours = readings
-      await agent({ op: "config", section: "frizz", key: "matchEditorTheme", value: null })
+      await agent({ op: "config", section: "ntwine", key: "matchEditorTheme", value: null })
       await agent({ op: "config", section: "workbench", key: "colorTheme", value: "Default Dark Modern" })
       await until(async () => (await inPage(() => document.documentElement.dataset.theme)) === "dark", 8_000)
     }
@@ -2472,7 +2472,7 @@ try {
   // ── c19: the selection hint ──
   /** The hint as the editor DRAWS it: the decoration's ::after, its colour, its line, its box. */
   const hintDrawn = () => inWorkbench(() => {
-    const span = [...document.querySelectorAll<HTMLElement>(".part.editor .view-lines span")].find((s) => getComputedStyle(s, "::after").content.includes("add to Frizz"))
+    const span = [...document.querySelectorAll<HTMLElement>(".part.editor .view-lines span")].find((s) => getComputedStyle(s, "::after").content.includes("add to Ntwine"))
     if (!span) return null
     const after = getComputedStyle(span, "::after")
     const line = span.closest<HTMLElement>(".view-line")
@@ -2496,8 +2496,8 @@ try {
     }
   })
   await run("c19", "the selection hint beside a fresh selection", async () => {
-    await command("workbench.view.extension.frizz")
-    await waitFor("the Frizz view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await command("workbench.view.extension.ntwine")
+    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openInEditor(files.sample)
     await press("ArrowRight")
@@ -2508,7 +2508,7 @@ try {
     const latency = Date.now() - pressedAt
     const told = (await status()).selectionHint
     notes.selectionHint = { drawn, told, latency }
-    expect("c19", "lines 2-3 selected by keys: `Ctrl+L to add to Frizz` after line 3's text, once the selection settled", drawn?.content === '"Ctrl+L to add to Frizz"' && /for \(const x of xs\) \{$/u.test(drawn.line) && told?.line === 3 && latency >= 250, { drawn, told, latency })
+    expect("c19", "lines 2-3 selected by keys: `Ctrl+L to add to Ntwine` after line 3's text, once the selection settled", drawn?.content === '"Ctrl+L to add to Ntwine"' && /for \(const x of xs\) \{$/u.test(drawn.line) && told?.line === 3 && latency >= 250, { drawn, told, latency })
     expect("c19", "…in the colour VS Code draws its own inline blame in, not the code's", !!drawn && drawn.color === drawn.annotation, drawn && { color: drawn.color, annotation: drawn.annotation })
     if (drawn?.lineBox) {
       // The line from its start to past the hint, 6x: the gap and the weight are judged by eye on this.
@@ -2562,23 +2562,23 @@ try {
     await clearBox("newComposer")
 
     // The setting off: a fresh selection gets none.
-    await agent({ op: "config", section: "frizz", key: "selectionHint", value: false })
+    await agent({ op: "config", section: "ntwine", key: "selectionHint", value: false })
     try {
       await openInEditor(files.sample)
       await press("ArrowRight")
       await selectLines23()
       await sleep(900)
       const off = await hintDrawn()
-      expect("c19", "frizz.selectionHint off: no hint", off === null && (await status()).selectionHint === null, off)
+      expect("c19", "ntwine.selectionHint off: no hint", off === null && (await status()).selectionHint === null, off)
     } finally {
-      await agent({ op: "config", section: "frizz", key: "selectionHint", value: null })
+      await agent({ op: "config", section: "ntwine", key: "selectionHint", value: null })
     }
   })
 
   // ── c20: a thread in an editor tab ──
   await run("c20", "a thread in an editor tab, from the title row's ⋯: on the thread, at the editor's width, and its reply box sends", async () => {
-    await command("workbench.view.extension.frizz")
-    await waitFor("the Frizz view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await command("workbench.view.extension.ntwine")
+    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openThreadRow()
     await waitFor("the sidebar on the thread", async () => (await status()).sidebar.view === "thread" || undefined, 8_000)
@@ -2604,13 +2604,13 @@ try {
       await clickHandle(item.asElement() as ElementHandle | null, "Open thread in editor tab in the ⋯ menu")
     } else {
       await press("Escape")
-      await command("frizz.openThreadInTab")
+      await command("ntwine.openThreadInTab")
     }
     type Tab = Awaited<ReturnType<typeof status>>["threadTabs"][number]
     const tab = await waitFor("the tab's page ready", async () => (await status()).threadTabs.find((candidate: Tab) => candidate.ready), 60_000).catch(async () => (await status()).threadTabs[0])
     const tabUrl = tab?.url ? new URL(tab.url) : undefined
     expect("c20", "a tab opens beside the code, framing the thread's own address in embed mode", tab?.thread === seeded!.thread.slug && tab.project === workspace.slug && tabUrl?.pathname === `/all/${workspace.slug}/thread/${seeded!.thread.slug}` && tabUrl.searchParams.get("embed") === "vscode" && tab.viewColumn === 2, tab)
-    const tabFrame = await waitFor("the tab's Frizz frame", () => page.frames().find((candidate) => candidate !== sidebarFrame && !candidate.detached && candidate.url().startsWith(`${origin}/`)), 20_000)
+    const tabFrame = await waitFor("the tab's Ntwine frame", () => page.frames().find((candidate) => candidate !== sidebarFrame && !candidate.detached && candidate.url().startsWith(`${origin}/`)), 20_000)
     tabFrames.add(tabFrame)
     const inTab = <T>(fn: () => T) => tabFrame.evaluate(fn) as Promise<Awaited<T>>
     const shownInTab = await waitFor("the thread's drawer in the tab", async () => {
@@ -2629,7 +2629,7 @@ try {
       document.body.append(probe)
       const editor = getComputedStyle(probe).color
       probe.remove()
-      const drawer = document.querySelector<HTMLElement>(".frizz-sheet-panel")
+      const drawer = document.querySelector<HTMLElement>(".ntwine-sheet-panel")
       return { hostColors: document.documentElement.dataset.hostColors ?? null, editor, drawer: drawer ? getComputedStyle(drawer).backgroundColor : null, body: getComputedStyle(document.body).backgroundColor }
     })
     expect("c20", "…in the editor's colours, on the editor's surface: its drawer is the editor's background", tabColours.hostColors === "editor" && !!tabColours.editor && tabColours.drawer === tabColours.editor, tabColours)
@@ -2643,7 +2643,7 @@ try {
     })
     // Whether the tab's page shares the sidebar's storage (drafts, the page's own settings): both frames
     // sit under the same workbench, which is what a partition is keyed by. Recorded, not judged.
-    const probeKey = `frizz-e2e-tab-probe-${Date.now()}`
+    const probeKey = `ntwine-e2e-tab-probe-${Date.now()}`
     await inPage((key: string) => localStorage.setItem(key, "from the sidebar"), probeKey)
     notes.tabSharesSidebarStorage = await tabFrame.evaluate((key: string) => localStorage.getItem(key), probeKey)
     await inPage((key: string) => localStorage.removeItem(key), probeKey)
@@ -2684,14 +2684,14 @@ try {
       return value.includes("@sample.ts:2-3") ? value : undefined
     }, 8_000).catch(() => null)
     const sidebarBox = await box("chatComposer")
-    expect("c20", "Ctrl+L in the editor puts the selection in the tab's reply box — the Frizz used last — not the sidebar's", !!chip && !sidebarBox?.value.includes("@sample.ts:2-3"), { tab: chip, sidebar: sidebarBox?.value })
+    expect("c20", "Ctrl+L in the editor puts the selection in the tab's reply box — the Ntwine used last — not the sidebar's", !!chip && !sidebarBox?.value.includes("@sample.ts:2-3"), { tab: chip, sidebar: sidebarBox?.value })
     // Ctrl+L in the tab: back to the code.
     await press("Control+KeyL")
     const back = await until(async () => (await workbenchFocus()).editor && (await editorState()).path === files.sample, 5_000)
     expect("c20", "Ctrl+L pressed in the tab goes back to the code", back, await workbenchFocus())
 
     // Asked again: the same tab, forward.
-    await command("frizz.openThreadInTab", { thread: seeded!.thread.slug, project: workspace.slug })
+    await command("ntwine.openThreadInTab", { thread: seeded!.thread.slug, project: workspace.slug })
     const again = await until(async () => {
       const tabs = (await status()).threadTabs
       return tabs.length === 1 && tabs[0]!.active
@@ -2897,8 +2897,8 @@ try {
     await openThreadRow()
     const lostFrame = await frame()
     const eventsBefore = (await status()).sidebar.events.length
-    // The frame navigates itself somewhere the relay's CSP refuses (frame-src names Frizz's origin only):
-    // the browser's error page, blank in VS Code — what a page's reload that lands while Frizz is down
+    // The frame navigates itself somewhere the relay's CSP refuses (frame-src names Ntwine's origin only):
+    // the browser's error page, blank in VS Code — what a page's reload that lands while Ntwine is down
     // leaves in the frame (2026-10-07). The extension is told nothing but that a document loaded.
     await lostFrame.evaluate(() => { location.href = "http://127.0.0.1:9/" }).catch(() => undefined)
     const lost = await until(async () => { const s = (await status()).sidebar; return !s.ready && s.view === "" }, 10_000)
@@ -2906,7 +2906,7 @@ try {
     expect("c24", "the sidebar stops calling the page ready, and the title row stops claiming its thread", lost, { ready: lostSnapshot.ready, view: lostSnapshot.view, events: lostSnapshot.events.slice(eventsBefore) })
     await shot("c24-error-page-w300")
     const started = Date.now()
-    const back = await until(async () => (await status()).sidebar.events.slice(eventsBefore).some((event) => event.type === "frizz:ready"), 60_000)
+    const back = await until(async () => (await status()).sidebar.events.slice(eventsBefore).some((event) => event.type === "ntwine:ready"), 60_000)
     const backSnapshot = (await status()).sidebar
     expect("c24", "framed again, without a click, and the new page says it is ready", back, { afterMs: Date.now() - started, url: backSnapshot.url, events: backSnapshot.events.slice(eventsBefore) })
     const rows = await waitFor("the queue in the page", async () => (await inPage(() => document.querySelectorAll("[data-xq-thread-row]").length)) || undefined, 30_000).catch(() => 0)
@@ -2920,9 +2920,9 @@ try {
     // drafts) — and the eye off, with a file in front so the bar (and its eye) is drawn.
     await openInEditor(files.sample)
     const probe = `reload-probe-${Date.now()}`
-    await inPage((value) => localStorage.setItem("frizz-e2e-reload-probe", value), probe)
+    await inPage((value) => localStorage.setItem("ntwine-e2e-reload-probe", value), probe)
     const keysBefore = await inPage(() => Object.keys(localStorage).sort())
-    await agent({ op: "config", section: "frizz", key: "shareEditorState", value: false })
+    await agent({ op: "config", section: "ntwine", key: "shareEditorState", value: false })
     await until(async () => (await eye()) === "false", 8_000)
     // Under the test runner a window reload ENDS the run: VS Code exits with its extension host (seen:
     // "Test run failed with code 1" the moment Reload Window ran). So the agent is told it is done, that
@@ -2944,13 +2944,13 @@ try {
     cdp = await page.createCDPSession()
     await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true })
     page.on("pageerror", (error) => pageErrors.push(String(error)))
-    // The side bar comes back on Frizz's view when the workspace remembers it; else, its icon, clicked.
-    if (!(await until(async () => !!frizzFrame(), 30_000))) {
-      await waitFor("the Frizz item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="Frizz"]'), 30_000)
-      await clickInWorkbench('.part.activitybar .action-label[aria-label^="Frizz"]')
+    // The side bar comes back on Ntwine's view when the workspace remembers it; else, its icon, clicked.
+    if (!(await until(async () => !!ntwineFrame(), 30_000))) {
+      await waitFor("the Ntwine item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="Ntwine"]'), 30_000)
+      await clickInWorkbench('.part.activitybar .action-label[aria-label^="Ntwine"]')
     }
     const pageUp = async (not?: Frame) => waitFor("the page framed and drawn", async () => {
-      const framedNow = frizzFrame()
+      const framedNow = ntwineFrame()
       if (!framedNow || framedNow === not || framedNow.detached) return undefined
       return (await framedNow.evaluate(() => !!document.querySelector("[data-sidebar-page]")).catch(() => false)) ? framedNow : undefined
     }, 120_000)
@@ -2966,7 +2966,7 @@ try {
     }
     const restarted = await pageUp()
     await inFront()
-    const afterRestart = await inPage(() => ({ probe: localStorage.getItem("frizz-e2e-reload-probe"), keys: Object.keys(localStorage).sort() }))
+    const afterRestart = await inPage(() => ({ probe: localStorage.getItem("ntwine-e2e-reload-probe"), keys: Object.keys(localStorage).sort() }))
     expect("c17", "a restart: the page's own storage is still there", afterRestart.probe === probe, { before: keysBefore, after: afterRestart.keys })
     const eyeRestart = await waitFor("the eye", async () => (await eye()) ?? undefined, 20_000).catch(() => null)
     expect("c17", "…and the eye is still off: it is the VS Code setting", eyeRestart === "false", { eye: eyeRestart })
@@ -2980,7 +2980,7 @@ try {
     // Puppeteer keeps the workbench's page across a reload; the frame inside it is a new one.
     await pageUp(restarted)
     await inFront()
-    const afterReload = await inPage(() => ({ probe: localStorage.getItem("frizz-e2e-reload-probe"), keys: Object.keys(localStorage).sort() }))
+    const afterReload = await inPage(() => ({ probe: localStorage.getItem("ntwine-e2e-reload-probe"), keys: Object.keys(localStorage).sort() }))
     expect("c17", "a window reload: the page's own storage is still there", afterReload.probe === probe, { before: keysBefore, after: afterReload.keys })
     const eyeReload = await waitFor("the eye", async () => (await eye()) ?? undefined, 20_000).catch(() => null)
     expect("c17", "…and the eye is still off", eyeReload === "false", { eye: eyeReload })
@@ -3005,7 +3005,7 @@ try {
   const file = join(out, `${version || "unknown"}-results.json`)
   writeFileSync(file, JSON.stringify({ version, extension: devMode ? "source tree" : "packaged .vsix", passed, failed: results.length - passed, results, notes, shots: shots.map((s) => s.slice(out.length + 1)), pageErrors, survivors }, null, 2))
   log(`${passed}/${results.length} passed; results ${file}; screenshots in ${out}`)
-  if (exitCode === 0 && process.env.FRIZZ_E2E_KEEP !== "1" && !out.startsWith(scratch)) rmSync(scratch, { recursive: true, force: true })
+  if (exitCode === 0 && process.env.NTWINE_E2E_KEEP !== "1" && !out.startsWith(scratch)) rmSync(scratch, { recursive: true, force: true })
   else log(`scratch kept: ${scratch}`)
 }
 process.exit(exitCode)

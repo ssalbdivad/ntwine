@@ -30,7 +30,7 @@ const SVG = [
   `<rect x="10" y="10" width="90" height="40" rx="6" fill="none" stroke="#1f2328" stroke-width="2"/>`,
   `<text x="55" y="35" font-family="sans-serif" font-size="12" text-anchor="middle" fill="#1f2328">worker</text>`,
   `<rect x="140" y="70" width="90" height="40" rx="6" fill="none" stroke="#1f2328" stroke-width="2"/>`,
-  `<text x="185" y="95" font-family="sans-serif" font-size="12" text-anchor="middle" fill="#1f2328">frizz</text>`,
+  `<text x="185" y="95" font-family="sans-serif" font-size="12" text-anchor="middle" fill="#1f2328">ntwine</text>`,
   `<path d="M100 30 C 130 30, 150 50, 185 70" fill="none" stroke="#1f2328" stroke-width="2"/>`,
   `<script>document.title = "svg script ran"</script>`,
   `</svg>`,
@@ -38,8 +38,8 @@ const SVG = [
 // No width or height at all — Chrome calls this 300×150 whatever the viewBox says; it is a 64px square.
 const ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#1f2328" stroke-width="4"/></svg>`
 const LOG = [
-  "12:00:01.114 frizz  booting server (pid 48213)",
-  "12:00:01.402 frizz  listening on http://127.0.0.1:4321",
+  "12:00:01.114 ntwine  booting server (pid 48213)",
+  "12:00:01.402 ntwine  listening on http://127.0.0.1:4321",
   "12:00:02.018 worker dispatched thread image-viewer (claude-opus-5-5, xhigh)",
   '12:00:09.771 worker tool Read {"file_path":"/tmp/shot-wide.png"}',
   "12:00:10.003 worker rested — awaiting review",
@@ -61,8 +61,8 @@ const nativeFetch = window.fetch.bind(window)
 const json = (result: unknown) => new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json" } })
 window.fetch = async (request, init) => {
   const url = new URL(typeof request === "string" ? request : request instanceof URL ? request.href : request.url, location.href)
-  if (!url.pathname.startsWith("/_frizz/rpc/")) return nativeFetch(request, init)
-  const name = url.pathname.slice("/_frizz/rpc/".length)
+  if (!url.pathname.startsWith("/_ntwine/rpc/")) return nativeFetch(request, init)
+  const name = url.pathname.slice("/_ntwine/rpc/".length)
   const raw = url.searchParams.get("input") ?? (typeof init?.body === "string" ? init.body : "{}")
   const input = JSON.parse(raw) as { path?: string; image?: boolean }
   const path = input.path ?? ""

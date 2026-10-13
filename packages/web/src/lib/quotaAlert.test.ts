@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ProviderQuota, QuotaSnapshot, ThreadView } from "@frizz/shared"
+import type { ProviderQuota, QuotaSnapshot, ThreadView } from "@ntwine/shared"
 import { isQuotaAlertDismissed, quotaAlerts } from "./quotaAlert.ts"
 
 const now = 1_800_000_000

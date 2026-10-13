@@ -22,7 +22,7 @@ import { promisify } from "node:util"
 //   1. `lsof -F pn -- <paths>` names each path's holders: a `p<pid>` line, then an `n<path>` line per fd.
 //   2. The LOWEST pid holding a path is taken as the shell. Its children (a `sleep`, a dev server's
 //      workers) inherit the same fds and were spawned after it, and they almost always share its folder.
-//      Never THIS process: Frizz's server opens the same log for the drawer's read and the line counter,
+//      Never THIS process: Ntwine's server opens the same log for the drawer's read and the line counter,
 //      and an lsof that sampled one of those reads found the server — whose pid is almost always the lower
 //      — so the server's own folder would have been taken for the shell's.
 //   3. That pid's cwd: `/proc/<pid>/cwd` on Linux (a readlink, no process spawned);

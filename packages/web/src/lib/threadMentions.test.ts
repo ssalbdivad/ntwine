@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ProjectQueue, SubAgentDirectory, ThreadView } from "@frizz/shared"
-import { threadHandle } from "@frizz/shared"
+import type { ProjectQueue, SubAgentDirectory, ThreadView } from "@ntwine/shared"
+import { threadHandle } from "@ntwine/shared"
 import {
   crossProjectMentionCandidates,
   foldAddress,
@@ -264,11 +264,11 @@ test("crossProjectMentionCandidates: other projects' threads, tagged, minus the 
     ({ projectId: projectSlug, projectSlug, projectName: `${projectSlug} name`, projectDir: "/", threads, doneCount: 0 }) as ProjectQueue
   const own = mentionCandidates(board)
   const queues = [
-    queue("frizz", board),
+    queue("ntwine", board),
     queue("nub", [thread({ id: "n1", title: "Shell budgets" }), thread({ id: "n2", title: "Parser port" })]),
     queue("app", [thread({ id: "p1", title: "Parser port" }), thread({ id: "p2", title: "Billing" })]),
   ]
-  const cross = crossProjectMentionCandidates(queues, "frizz", own)
+  const cross = crossProjectMentionCandidates(queues, "ntwine", own)
   assert.deepEqual(cross.map((c) => [c.handle, c.slug, c.project?.slug]), [
     ["parser-port", "n2", "nub"],
     ["billing", "p2", "app"],
@@ -286,7 +286,7 @@ test("crossProjectMentionCandidates: another project's recent done threads, afte
       recentDone: [thread({ id: "h2", title: "Standup notes", state: "archived" })] },
     { projectId: "nub", projectSlug: "nub", projectName: "nub", projectDir: "/", doneCount: 0, threads: [thread({ id: "n1", title: "Parser port" })] },
   ] as ProjectQueue[]
-  const cross = crossProjectMentionCandidates(queues, "frizz", [])
+  const cross = crossProjectMentionCandidates(queues, "ntwine", [])
   assert.deepEqual(cross.map((c) => [c.handle, c.done, c.project?.slug]), [
     ["tea-recipes", false, "home"],
     ["parser-port", false, "nub"],

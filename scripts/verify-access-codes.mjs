@@ -1,7 +1,7 @@
 // Drives the REAL proxy through a REAL TLS origin in a REAL browser, to prove the single-use code
 // flow end to end: redeem, keep the session, and watch the spent code die in a fresh browser.
 //
-// The child here is a stub on purpose — this exercises the GATE, not the Frizz control plane, and a
+// The child here is a stub on purpose — this exercises the GATE, not the Ntwine control plane, and a
 // stub makes the failure unambiguous when it fails. The x-forwarded-* headers match what a real
 // cloudflared sends (measured 2026-08-03), so the origin policy is exercised as it is in production.
 //
@@ -15,11 +15,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { RestartSupervisorProxy } from "../packages/server/src/restart-supervisor.ts"
 
-const HOST = "frizz.local.test", FRONT = 8446, ORIGIN = `https://${HOST}:${FRONT}`
+const HOST = "ntwine.local.test", FRONT = 8446, ORIGIN = `https://${HOST}:${FRONT}`
 const fails = []
 const check = (n, ok, d) => { console.log(`${ok ? "PASS" : "FAIL"} ${n}${d ? ` — ${d}` : ""}`); if (!ok) fails.push(n) }
 
-// Stub child: stands in for the Frizz control plane; this test is about the GATE.
+// Stub child: stands in for the Ntwine control plane; this test is about the GATE.
 const child = createHttp((req, res) => { res.writeHead(200, {"content-type":"text/html"}); res.end("<title>board</title><h1>board</h1>") })
 await new Promise((r) => child.listen(0, "127.0.0.1", r))
 const childPort = child.address().port
@@ -31,7 +31,7 @@ const proxy = new RestartSupervisorProxy({
 })
 await proxy.listen()
 
-const dir = mkdtempSync(join(tmpdir(), "frizz-codes-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-codes-"))
 execFileSync("openssl", ["req","-x509","-newkey","rsa:2048","-nodes","-keyout",join(dir,"k.pem"),"-out",join(dir,"c.pem"),
   "-days","1","-subj",`/CN=${HOST}`,"-addext",`subjectAltName=DNS:${HOST}`], { stdio: "ignore" })
 const CF = { "x-forwarded-for": "203.0.113.7", "x-forwarded-proto": "https" }
@@ -53,7 +53,7 @@ try {
   const url = proxy.accessUrl(link.code)
   const redeemed = await page.goto(url, { waitUntil: "domcontentloaded" })
   check("code redeems and lands on the board", redeemed.status() === 200, String(redeemed.status()))
-  check("the code is stripped from the URL", !page.url().includes("frizz_code"), page.url())
+  check("the code is stripped from the URL", !page.url().includes("ntwine_code"), page.url())
   check("consumption fired once", consumed === 1, String(consumed))
 
   const again = await page.goto(`${ORIGIN}/`, { waitUntil: "domcontentloaded" })

@@ -1,4 +1,4 @@
-import { activeBandThread, type AccountBackend, type AuthSnapshot, type QuotaSnapshot, type QuotaWindow, type ThreadView } from "@frizz/shared"
+import { activeBandThread, type AccountBackend, type AuthSnapshot, type QuotaSnapshot, type QuotaWindow, type ThreadView } from "@ntwine/shared"
 
 // THE LOW-QUOTA ALERT — the queue card that warns, BEFORE a usage limit pauses anything, that a
 // provider's subscription is nearly spent while threads on it are still working. The pause card
@@ -99,7 +99,7 @@ export function quotaAlerts(
 // Per browser, like the rest of the page's view state. Bounded so a long-lived tab cannot grow it: only
 // the newest few keys matter, since an older one names a reset period that has already passed.
 
-const DISMISSED_KEY = "frizz.quotaAlert.dismissed"
+const DISMISSED_KEY = "ntwine.quotaAlert.dismissed"
 const DISMISSED_CAP = 16
 
 export function readDismissedQuotaAlerts(): string[] {

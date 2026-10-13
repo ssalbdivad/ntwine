@@ -1,6 +1,6 @@
 // THE WORKER'S OWN WATCH REGISTRY at the RPC boundary — the real router against real SQLite.
 //
-// `mcp__frizz__watch` registers a wait on work this thread already has running, so that coming to rest
+// `mcp__ntwine__watch` registers a wait on work this thread already has running, so that coming to rest
 // stops being a line the worker restates in a fence at every rest (plans/rest-by-registration.md). What
 // makes this registry different from the PR one is that its target cannot be validated by SHAPE: a
 // background shell's handle and a sub-agent's handle are both opaque runtime strings that overlap
@@ -12,8 +12,8 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, Settings } from "@frizz/shared"
-import { AWAITING_FOR_MAX_MS, OWN_WATCH_MAX_ARMED } from "@frizz/shared"
+import type { BoardSnapshot, Settings } from "@ntwine/shared"
+import { AWAITING_FOR_MAX_MS, OWN_WATCH_MAX_ARMED } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { createRouter } from "./router.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -24,7 +24,7 @@ import type { Project } from "./project.ts"
 import type { BgShellView, SessionTelemetry, SubAgentView, Tailer } from "./tailer.ts"
 
 function harness(tele: Partial<SessionTelemetry> = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-own-watch-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-own-watch-rpc-"))
   const project: Project = { dir, id: "ownw", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -56,7 +56,7 @@ function harness(tele: Partial<SessionTelemetry> = {}) {
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-08-26T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-08-26T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }

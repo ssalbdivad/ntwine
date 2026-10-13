@@ -30,7 +30,7 @@ test("a question the human replied past sits at ITS rest, above their reply", ()
 })
 
 // A wake is recorded as a USER turn, and it counts: the thread moved on, whoever moved it.
-test("frizz's own delivery ends the rest just as a typed reply does", () => {
+test("ntwine's own delivery ends the rest just as a typed reply does", () => {
   const messages = [msg("assistant", 1), msg("user", 2), msg("assistant", 3)]
   assert.equal(questionAnchorIndex(messages, at(1)), 0)
 })

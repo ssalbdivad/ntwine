@@ -1,4 +1,4 @@
-import type { ServerEvent } from "@frizz/shared"
+import type { ServerEvent } from "@ntwine/shared"
 
 // The single fan-out point: board rebuilds + notifications publish here, the /events
 // SSE endpoint is the only subscriber (one listener per connected client). Kept a plain

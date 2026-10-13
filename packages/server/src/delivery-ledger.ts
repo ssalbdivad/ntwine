@@ -1,9 +1,9 @@
-import { stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@frizz/shared"
+import { stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@ntwine/shared"
 import type { Storage } from "./storage.ts"
 import { decodeDeliveryMarkers, deliveryTag, stripDeliveryMarkers } from "./delivery-marker.ts"
 
 // ── The Claude follow-up delivery ledger ───────────────────────────────────────────────────────────────
-// Frizz's Claude steer path used to be fire-and-forget: keystrokes went into the worker's own terminal
+// Ntwine's Claude steer path used to be fire-and-forget: keystrokes went into the worker's own terminal
 // and the ONLY record that a follow-up existed was the CLIENT's optimistic gray bubble, reconciled by
 // exact text match against whatever later appeared in the JSONL. That made the queued/delivered
 // rendering an inference — a mangled injection (the multiline split), a slash command, or a plain
@@ -98,7 +98,7 @@ export const SENDING_STALL_ERROR = "No answer after 2m. It may still arrive, so 
 // record the moment it accepts a follow-up, and transcript.ts renders that record as the gray queued
 // bubble. Cancelling removes the message from the CLI's queue but cannot unwrite that record.
 //
-// Nor does the CLI leave anything frizz could attribute the cancellation TO. Measured live
+// Nor does the CLI leave anything ntwine could attribute the cancellation TO. Measured live
 // (_live_sdk_cancel_queued.mts): the cancelled send got its `enqueue` and then nothing that names it —
 // no content-bearing `remove`, no `queued_command` attachment, no user record. (A contentless
 // `dequeue` was written around the same instant; contentless ops carry no send identity and both the
@@ -106,11 +106,11 @@ export const SENDING_STALL_ERROR = "No answer after 2m. It may still arrive, so 
 //
 // Left alone the enqueue bubble therefore outlives the cancellation, and the FIFO backstop in transcript.ts eventually
 // UN-GRAYS it when a later message delivers — rendering a message the agent provably never read as a
-// message the human sent it. So frizz has to remember the cancellation itself.
+// message the human sent it. So ntwine has to remember the cancellation itself.
 //
 // ── HELD: a message the operator sent TO THE QUEUE ("Send to queue" in the prompt box's Send menu) ──
 // Every state above describes a send some transport has, or was handed. `held` is the one that describes
-// a send NOTHING has been handed yet: the operator asked Frizz to keep the words until the agent comes
+// a send NOTHING has been handed yet: the operator asked Ntwine to keep the words until the agent comes
 // to rest, so they open its next turn instead of steering the one it is running. The router writes the
 // item instead of delivering (holdDelivery), and releases it through the ordinary follow-up path when
 // the thread rests (releaseHeldFollowUps in router.ts → beginDelivery with `release`), under the SAME
@@ -128,7 +128,7 @@ export interface DeliveryLedgerItem {
   id: string
   text: string
   state: DeliveryState
-  at: string // ISO8601 — when frizz accepted/injected the follow-up
+  at: string // ISO8601 — when ntwine accepted/injected the follow-up
   updatedAt: string
   // LEGACY COUNTER, read by nothing. How many times the submit-confirmer re-sent a BARE Enter because
   // this item was still provably sitting in the worker's own composer — capped at MAX_SUBMIT_ATTEMPTS,
@@ -152,11 +152,11 @@ export interface DeliveryLedgerItem {
 
 // The form every text comparison in this module runs in.
 //
-// The steer channel REWROTE frizz's bytes before they reached the JSONL, so the text frizz sent and the
+// The steer channel REWROTE ntwine's bytes before they reached the JSONL, so the text ntwine sent and the
 // text the transcript recorded were not equal and an exact compare stranded the send as `unconfirmed`
-// forever. That channel was a COMPOSITION of two rewriters frizz did not own — the paste transport
+// forever. That channel was a COMPOSITION of two rewriters ntwine did not own — the paste transport
 // (LF→CR) and Claude Code's TUI paste handler (`/\r\n|\r/`→`\n`, `\t`→four spaces) — and measuring it
-// against a live claude 2.1.219 TUI, driven through frizz's own paste sequence, showed:
+// against a live claude 2.1.219 TUI, driven through ntwine's own paste sequence, showed:
 //
 //     sent          recorded          note
 //     \t            "    "            four spaces, not a tab stop
@@ -228,7 +228,7 @@ export function trimLedger(items: DeliveryLedgerItem[]): DeliveryLedgerItem[] {
   for (const item of items) over[bucket(item)]++
   if (over.cancelled <= 0 && over.failed <= 0 && over.live <= 0) return items
   return items.filter((item) => {
-    // A HELD send is never evicted: Frizz is the only place its words exist.
+    // A HELD send is never evicted: Ntwine is the only place its words exist.
     if (item.state === "held") return true
     const b = bucket(item)
     if (over[b] > 0) { over[b]--; return false }
@@ -430,7 +430,7 @@ export function holdDelivery(storage: Storage, slug: string, send: { id: string;
   return true
 }
 
-/** Every send Frizz is holding for this thread's next rest, oldest first — the order they release in. */
+/** Every send Ntwine is holding for this thread's next rest, oldest first — the order they release in. */
 export function heldDeliveries(storage: Storage, slug: string): DeliveryLedgerItem[] {
   const row = storage.getSession(slug)
   if (!row?.delivery_ledger) return []
@@ -479,7 +479,7 @@ export function cancelDelivery(storage: Storage, slug: string, id: string, now?:
  * Retire every still-outstanding send on a session whose worker process has just been REPLACED, and
  * report how many went. Returns 0 when there was nothing to retire.
  *
- * A restart is positive evidence about exactly these items. `pending`/`enqueued` mean "frizz handed
+ * A restart is positive evidence about exactly these items. `pending`/`enqueued` mean "ntwine handed
  * this to a process and is still waiting for the transcript to show it"; `killBroker` then SIGTERMs
  * that process. Anything the agent actually read is already in the JSONL, where the tailer correlates
  * it and drops the row on its own — so what is left at this moment is provably unread, and its queued
@@ -490,7 +490,7 @@ export function cancelDelivery(storage: Storage, slug: string, id: string, now?:
  *
  * DROPPED, not tombstoned. A `cancelled` tombstone suppresses a matching JSONL enqueue bubble, so
  * using one here would hide a message that DID land in the sliver before the kill but that the tailer
- * had not yet correlated. Dropping only stops frizz projecting its own synthetic bubble; if a real
+ * had not yet correlated. Dropping only stops ntwine projecting its own synthetic bubble; if a real
  * record exists it renders on its own. Same reasoning, and the same words, as the age-out in
  * `ageDeliveries`: this only stops PROJECTING it; nothing about the real message is touched.
  */
@@ -620,7 +620,7 @@ function codexUserMessageText(r: Record<string, unknown>): string {
     .join("\n")
 }
 
-// The id frizz itself supplied for this input, if the record is one the SDK minted FROM a frizz input.
+// The id ntwine itself supplied for this input, if the record is one the SDK minted FROM a ntwine input.
 // Deliberately narrow — only the two record shapes measured to echo it — so nothing else in a
 // transcript can be mistaken for a delivery receipt. Returns null for every pre-broker record.
 export function echoedInputId(rec: Record<string, unknown>): string | null {
@@ -681,9 +681,9 @@ export function correlateDeliveryRecord(
 
   // DEQUEUE — Claude Code taking the message back OUT of its own queue and into the turn.
   //
-  // frizz used to learn this only from the `queued_command` attachment that follows, and the gap is real:
+  // ntwine used to learn this only from the `queued_command` attachment that follows, and the gap is real:
   // across 263 dequeues in this machine's transcripts the attachment lands 1 to 19 records later (p50 2,
-  // p95 6). For that whole window the send is already being worked on while frizz still renders it as a
+  // p95 6). For that whole window the send is already being worked on while ntwine still renders it as a
   // gray queued bubble — which the chat pins BELOW the working indicator, so the spinner appears above
   // the very message it is answering. Resolving on the dequeue closes the window.
   //
@@ -693,7 +693,7 @@ export function correlateDeliveryRecord(
   //
   // A content-bearing `remove` is also what a CANCELLATION looks like (the human ESC-ing a queued
   // message in the terminal). Dropping the item is right either way: the message is provably no longer
-  // queued, so continuing to render frizz's own synthetic bubble for it would be a lie in both readings,
+  // queued, so continuing to render ntwine's own synthetic bubble for it would be a lie in both readings,
   // and the transcript's own records go on telling the true story.
   if (r.type === "queue-operation" && r.operation === "remove" && typeof r.content === "string" && r.content.trim()) {
     const dequeued = accountFor(items, r.content, contemporaneous)
@@ -702,7 +702,7 @@ export function correlateDeliveryRecord(
   }
 
   // ── IDENTITY, the exact path (broker/SDK rows) ──────────────────────────────────────────────────
-  // frizz hands the SDK a `uuid` with every input (claude-agent-broker-bridge → sendInput), and the SDK
+  // ntwine hands the SDK a `uuid` with every input (claude-agent-broker-bridge → sendInput), and the SDK
   // ECHOES IT BACK on the record that materializes that input:
   //   • delivered straight away → the `user` record's own `uuid`
   //   • delivered out of the queue → the `queued_command` attachment's `source_uuid`
@@ -749,16 +749,16 @@ export function correlateDeliveryRecord(
 
 // Which ledger items one evidence record accounts for — BY IDENTITY first, by text only as the fallback.
 //
-// frizz used to stamp every follow-up it pasted with an invisible marker carrying that send's
+// ntwine used to stamp every follow-up it pasted with an invisible marker carrying that send's
 // deliveryId (delivery-marker.ts), so the normal path was an exact lookup: no prose compared at all and
 // no rewrite of the surrounding text — tab expansion, CRLF doubling, a re-wrap, a future mangling
 // nobody had met yet — could break it. A record that glued several sends together carried every
 // constituent's marker, so all of them resolved from the one record. A broker send needs none of that
-// (the SDK echoes frizz's own `uuid` back — see the IDENTITY section in correlateDeliveryRecord), so nothing
+// (the SDK echoes ntwine's own `uuid` back — see the IDENTITY section in correlateDeliveryRecord), so nothing
 // stamps a marker now; this branch still reads one out of an older transcript.
 //
 // The text path remains for everything neither a marker nor an echoed id covers: sends already in
-// flight across an upgrade, a record from a worker frizz adopted rather than launched, and any send
+// flight across an upgrade, a record from a worker ntwine adopted rather than launched, and any send
 // whose marker the old channel destroyed. It runs on the STRIPPED text so a marker never perturbs the
 // comparison.
 export function accountFor(
@@ -806,7 +806,7 @@ const COMPOSED_ANCHOR_MIN = 24
 // Which ledger items a single JSONL evidence record accounts for.
 //
 // The naive rule — whole-string equality — is what shipped, and it is wrong for the case the operator
-// actually hit. frizz injected a follow-up by pasting into Claude Code's composer and sending Enter,
+// actually hit. ntwine injected a follow-up by pasting into Claude Code's composer and sending Enter,
 // and the TUI could SWALLOW that Enter while it was mid-render: the text stayed in the composer, the
 // NEXT follow-up's paste landed after it, and its Enter submitted the ACCUMULATION as one message.
 // Claude Code then wrote exactly one `queue-operation enqueue` and one `queued_command` attachment
@@ -963,7 +963,7 @@ export function ageDeliveries(items: DeliveryLedgerItem[], nowMs: number, observ
     // row — the "it still says queued long after the agent answered it" report. The reasoning for never
     // timing it out was sound (a mid-turn queue legitimately lasts as long as the turn) but it left no
     // escape hatch at all. Give it the same hour the unconfirmed items get: past that, a queue entry is
-    // not a live queue entry, and the transcript's own records are a better witness than frizz's
+    // not a live queue entry, and the transcript's own records are a better witness than ntwine's
     // synthetic bubble. This only stops PROJECTING it; nothing about the real message is touched.
     if (item.state === "enqueued" && Number.isFinite(born) && nowMs - born > UNCONFIRMED_DROP_MS) {
       changed = true // dropped
@@ -996,7 +996,7 @@ export function ageDeliveries(items: DeliveryLedgerItem[], nowMs: number, observ
 const renderMatchKey = (s: string): string => canon(stripFollowUpRiders(stripWakeDeliveryToken(stripDeliveryMarkers(s))))
 
 // How far past the cancellation instant a rendered bubble may still be the cancelled send. Covers the
-// clock skew between frizz's own timestamp and the CLI's record, and nothing more: the bound is what
+// clock skew between ntwine's own timestamp and the CLI's record, and nothing more: the bound is what
 // keeps a LATER re-send of the same words — the likely next thing the operator does, since unqueueing
 // hands them the text back in the prompt box — from being eaten by its own tombstone.
 const CANCEL_MATCH_SLACK_MS = 5_000

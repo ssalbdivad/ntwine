@@ -8,9 +8,9 @@ import test from "node:test"
 // An isolated adhoc-stack seeded by scripts/seed-done-thread.mjs. Never point at a live board:
 //   nub scripts/adhoc-stack.mjs --port=<port>        (prints the board url and the sandbox HOME)
 //   nub scripts/seed-done-thread.mjs --home=<HOME> --port=<port>
-//   FRIZZ_MOBILE_THREAD_BACK_E2E_URL=http://127.0.0.1:<port>/project/<slug> nub --test <this file>
-const url = process.env.FRIZZ_MOBILE_THREAD_BACK_E2E_URL
-const recordingDir = process.env.FRIZZ_MOBILE_THREAD_BACK_RECORD_DIR
+//   NTWINE_MOBILE_THREAD_BACK_E2E_URL=http://127.0.0.1:<port>/project/<slug> nub --test <this file>
+const url = process.env.NTWINE_MOBILE_THREAD_BACK_E2E_URL
+const recordingDir = process.env.NTWINE_MOBILE_THREAD_BACK_RECORD_DIR
 
 test("mobile thread Back returns direct/reloaded links to their project and pops live navigation", { skip: !url, timeout: 120_000 }, async () => {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -22,7 +22,7 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
     await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
     const boardPath = new URL(url!).pathname
     const threadUrl = `${url}/thread/done-thread`
-    const outside = "data:text/html,<h1>Outside Frizz</h1>"
+    const outside = "data:text/html,<h1>Outside Ntwine</h1>"
     const waitForThread = async (slug = "done-thread") => {
       await page.waitForFunction(s => location.pathname.endsWith(`/thread/${s}`), {}, slug)
       await page.waitForSelector("[data-mobile-thread-back]", { visible: true })
@@ -51,14 +51,14 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
       await page.click('[data-mobile-thread-row="done-thread"]')
       await waitForThread()
     }
-    // Back from the board leaves Frizz: there is no second board entry (or a dead same-URL one) under it.
-    const backLeavesFrizz = async () => {
+    // Back from the board leaves Ntwine: there is no second board entry (or a dead same-URL one) under it.
+    const backLeavesNtwine = async () => {
       await page.goBack({ waitUntil: "load" })
       assert.equal(page.url(), outside)
     }
     const historyLength = () => page.evaluate(() => history.length)
 
-    // No Frizz entry underneath: a notification/bookmark arriving from another site.
+    // No Ntwine entry underneath: a notification/bookmark arriving from another site.
     await page.goto(outside)
     await page.goto(threadUrl, { waitUntil: "networkidle2" })
     await waitForThread()
@@ -72,7 +72,7 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
     await page.goto(url!, { waitUntil: "networkidle2" })
     await openFromBoard()
     await backToBoard()
-    await backLeavesFrizz()
+    await backLeavesNtwine()
 
     // A plain reload on a thread opened from the board: the entry under it is still ours, so ← pops.
     await page.goto(url!, { waitUntil: "networkidle2" })
@@ -80,17 +80,17 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
     await page.reload({ waitUntil: "networkidle2" })
     await waitForThread()
     await backToBoard()
-    await backLeavesFrizz()
+    await backLeavesNtwine()
 
     // A sheet's same-URL entry survives reload, but its UI does not. The new document steps off it at
     // boot, so ← lands on the board rather than popping onto the same thread, and Back then leaves.
     await page.goto(url!, { waitUntil: "networkidle2" })
     await openFromBoard()
     await page.click("[data-mobile-thread-more]")
-    await page.waitForFunction(() => history.state?.frizzLayer)
+    await page.waitForFunction(() => history.state?.ntwineLayer)
     await page.reload({ waitUntil: "networkidle2" })
     await waitForThread()
-    await page.waitForFunction(() => !history.state?.frizzLayer)
+    await page.waitForFunction(() => !history.state?.ntwineLayer)
     const recorder = recordingDir ? await page.screencast({ path: `${recordingDir}/fixed-back.webm` }) : undefined
     try {
       if (recorder) await new Promise(resolve => setTimeout(resolve, 800))
@@ -102,21 +102,21 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
     } finally {
       await recorder?.stop()
     }
-    await backLeavesFrizz()
+    await backLeavesNtwine()
 
     // Stacked layers (a reader over a reader) leave one entry each; every stale one is stepped off.
     await page.goto(url!, { waitUntil: "networkidle2" })
     await openFromBoard()
     await page.evaluate(() => {
       // Tokens a previous document minted: below this one's clock-seeded counter (lib/backDismiss).
-      history.pushState({ ...history.state, frizzLayer: 1 }, "")
-      history.pushState({ ...history.state, frizzLayer: 2 }, "")
+      history.pushState({ ...history.state, ntwineLayer: 1 }, "")
+      history.pushState({ ...history.state, ntwineLayer: 2 }, "")
     })
     await page.reload({ waitUntil: "networkidle2" })
     await waitForThread()
-    await page.waitForFunction(() => !history.state?.frizzLayer)
+    await page.waitForFunction(() => !history.state?.ntwineLayer)
     await backToBoard()
-    await backLeavesFrizz()
+    await backLeavesNtwine()
 
     // A LATERAL move — a thread link followed from inside another thread. The one-drawer policy
     // replaces the first thread, and Back to it used to find it gone, push the second thread's URL back,
@@ -139,7 +139,7 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
     assert.equal(await historyLength(), lateralLength, "← popped back to the first thread; it pushed nothing")
     await backToBoard()
     assert.equal(await historyLength(), lateralLength)
-    await backLeavesFrizz()
+    await backLeavesNtwine()
 
     assert.deepEqual(errors, [])
   } finally {

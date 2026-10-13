@@ -27,7 +27,7 @@ import { Tooltip } from "./Tooltip.tsx"
 // IN AN EDITOR'S SIDEBAR IT OPENS THE THREAD IN THE BROWSER (lib/embed.ts). The drawer there is already
 // the frame's whole width, so /full in the frame would be the same thread with the list gone from behind
 // it — fullscreen in name only. The room the door is for is a browser tab's, so it opens the same /full
-// page there (`frizz:open-external`; a webview cannot open a window), says so in its icon and tooltip,
+// page there (`ntwine:open-external`; a webview cannot open a window), says so in its icon and tooltip,
 // and `f` presses it as ever. The ↗ is the door's own earlier icon: it was "Open in new tab" until
 // 2026-08-28.
 export function ExpandThreadLink({

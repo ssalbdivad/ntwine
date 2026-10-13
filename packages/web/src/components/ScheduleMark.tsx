@@ -1,5 +1,5 @@
 import { Repeat } from "lucide-react"
-import type { ThreadScheduleRef } from "@frizz/shared"
+import type { ThreadScheduleRef } from "@ntwine/shared"
 
 // THE REPEAT GLYPH on a thread that a SCHEDULE started, or will start (ARCHITECTURE.md § Scheduled threads): its
 // pending next run, a held row in Snoozed, and every run it has started. One small mark after the title —

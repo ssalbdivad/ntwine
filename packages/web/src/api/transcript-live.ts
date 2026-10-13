@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query"
 import { subscribe as subscribeStore } from "valtio/vanilla"
-import type { BoardSnapshot } from "@frizz/shared"
+import type { BoardSnapshot } from "@ntwine/shared"
 import { store } from "../store.ts"
 import { subscribeTranscript, unsubscribeTranscript } from "./socket.ts"
 

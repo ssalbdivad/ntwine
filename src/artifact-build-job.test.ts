@@ -8,7 +8,7 @@ import { spawnArtifactBuild } from "./artifact-build-job.ts";
 const JOB_MODULE = join(import.meta.dirname, "artifact-build-job.ts");
 
 function fixture(source: string): { entry: string; dir: string } {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-build-job-"));
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-build-job-"));
   const entry = join(dir, "entry.ts");
   writeFileSync(entry, source);
   return { entry, dir };
@@ -51,7 +51,7 @@ test("a synchronous build in the job leaves the parent's event loop free, and re
   // Stands in for execFileSync(typecheck): blocks the CHILD's loop for 1.5s, then reports.
   const { entry, dir } = fixture(
     `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1500);\n` +
-      `process.stdout.write("frizz-artifact-build-result " + JSON.stringify({ ok: true, candidate: "a".repeat(64), previous: "b".repeat(64) }) + "\\n");\n`
+      `process.stdout.write("ntwine-artifact-build-result " + JSON.stringify({ ok: true, candidate: "a".repeat(64), previous: "b".repeat(64) }) + "\\n");\n`
   );
   try {
     let ticks = 0;
@@ -67,7 +67,7 @@ test("a synchronous build in the job leaves the parent's event loop free, and re
 });
 
 test("cancel kills the job and the build tools it started", { skip: process.platform === "win32" }, async () => {
-  const pidFile = join(tmpdir(), `frizz-build-job-grandchild-${process.pid}`);
+  const pidFile = join(tmpdir(), `ntwine-build-job-grandchild-${process.pid}`);
   // The grandchild stands in for `tsc` under `nub run typecheck`: nub starts the script in a process
   // group of its OWN and forwards signals to it, so a signal to the job's group reaches the tool only
   // through that forwarding. Mirror both halves.

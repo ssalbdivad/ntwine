@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
 import { useQuery } from "@tanstack/react-query"
 import { Loader2, Timer } from "lucide-react"
-import { parseDeadlineInput } from "@frizz/shared"
+import { parseDeadlineInput } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, store } from "../store.ts"
 import { useNowMs } from "../lib/liveClock.ts"
@@ -12,7 +12,7 @@ import { STATUS_ROW_ACTION, STATUS_ROW_ICON } from "../lib/statusRow.ts"
 
 // ONE TIME LIMIT ON EVERY RUNNING THREAD, in every open project, with a note each worker reads beside it
 // (router setRunningDeadlines) — the palette's way to say "restarting the machine in 15m" before a reboot.
-// A Frizz restart needs none of this: the agents run in daemons it does not own. Opened from the command
+// A Ntwine restart needs none of this: the agents run in daemons it does not own. Opened from the command
 // palette or the status row's stopwatch (`store.showRunningTimeLimit`), mounted once by App.
 
 const PRESETS = ["5m", "15m", "30m", "1h"] as const

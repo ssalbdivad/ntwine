@@ -2,8 +2,8 @@
 
 Verified September 19, 2026, with the control corrections on local `main` at `e35d440e`. This supersedes the visual-change recommendation in [the original review](pr-36-review.md). The maintainer approved the third mockup's light-gray outline treatment, then requested quieter icon buttons and single-frame segmented controls.
 
-[Open the 10-screenshot control refinements](file:///Users/colinmcd94/Documents/projects/frizz/.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/control-refinements.html).
-[Open the 32-screenshot review gallery](file:///Users/colinmcd94/Documents/projects/frizz/.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/screenshots.html).
+[Open the 10-screenshot control refinements](file:///Users/colinmcd94/Documents/projects/ntwine/.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/control-refinements.html).
+[Open the 32-screenshot review gallery](file:///Users/colinmcd94/Documents/projects/ntwine/.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/screenshots.html).
 
 ## What changed
 
@@ -43,7 +43,7 @@ Direct source review also covers wrapper-only paths such as `ThreadDrawer`, `Dra
 | `nub run test` | 4,766 tests: 4,670 passed, 96 skipped, no failures |
 | CI's board parser / portable monitor / sync checks | 73 board tests and 16 monitor tests passed; portable copies match |
 | Contextual settings browser tests | 11 passed across agent settings, GitHub prompt and settings autosave |
-| `verify-light-mode.mjs` | 61 passing checks against an isolated real Frizz stack |
+| `verify-light-mode.mjs` | 61 passing checks against an isolated real Ntwine stack |
 | `verify-light-mode-gallery.mjs` | 176 component captures at 1100px/390px, light/dark; no document overflow or unexpected console/page errors |
 | `verify-control-chrome.mjs` | Light/dark at 1100px/390px; no resting icon edges, hover/focus edges present, no sticky touch edge, short/long/legacy recommendation alignment |
 | `verify-light-mode-artifact.mjs` | Promoted production UI, complete compiled token set, asset-independent recovery, anonymous refusal and OS/persisted appearance passed |

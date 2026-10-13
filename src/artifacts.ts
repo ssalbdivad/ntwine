@@ -1,5 +1,5 @@
 // Immutable web artifacts are deliberately tooling-owned. The stable control plane never watches
-// the Frizz checkout; ordinary stopped-then-fresh launches select or build and promote one digest.
+// the Ntwine checkout; ordinary stopped-then-fresh launches select or build and promote one digest.
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -24,14 +24,14 @@ import { createRequire } from "node:module";
 import {
   DETACHED_DAEMON_ENTRIES,
   detachedDaemonOutputName,
-} from "@frizz/server/detached-daemons";
-import { frizzPaths } from "@frizz/server/frizz-paths";
+} from "@ntwine/server/detached-daemons";
+import { ntwinePaths } from "@ntwine/server/ntwine-paths";
 import {
   WORKER_PLUGIN_REQUIRED_FILES,
   assertWorkerPluginClosure,
 } from "./worker-plugin-closure.ts";
 
-export interface FrizzArtifactManifest {
+export interface NtwineArtifactManifest {
   version: 1 | 2;
   digest: string;
   createdAt: string;
@@ -53,14 +53,14 @@ export interface FrizzArtifactManifest {
   runtimeFiles: Record<string, string>;
 }
 
-export interface FrizzArtifactHost {
+export interface NtwineArtifactHost {
   platform: string;
   arch: string;
   nodeMajor: number;
   nodeModules: string;
 }
 
-export function currentArtifactHost(): FrizzArtifactHost {
+export function currentArtifactHost(): NtwineArtifactHost {
   return {
     platform: platform(),
     arch: arch(),
@@ -71,13 +71,13 @@ export function currentArtifactHost(): FrizzArtifactHost {
 
 /** Reject a promoted closure before its server child can load incompatible native dependencies. */
 export function assertArtifactHostCompatible(
-  artifact: Pick<FrizzArtifact, "digest" | "manifest">,
-  host: FrizzArtifactHost = currentArtifactHost()
+  artifact: Pick<NtwineArtifact, "digest" | "manifest">,
+  host: NtwineArtifactHost = currentArtifactHost()
 ): void {
   const built = artifact.manifest.host;
   if (!built)
     throw new Error(
-      `Frizz artifact ${artifact.digest} does not record host compatibility; stop Frizz and rerun frizz-dev on this machine to build a compatible immutable artifact`
+      `Ntwine artifact ${artifact.digest} does not record host compatibility; stop Ntwine and rerun ntwine-dev on this machine to build a compatible immutable artifact`
     );
   const mismatches: string[] = [];
   if (built.platform !== host.platform) mismatches.push(`platform ${built.platform} != ${host.platform}`);
@@ -86,14 +86,14 @@ export function assertArtifactHostCompatible(
   if (built.nodeModules !== host.nodeModules) mismatches.push(`Node ABI ${built.nodeModules} != ${host.nodeModules}`);
   if (mismatches.length > 0)
     throw new Error(
-      `Frizz artifact ${artifact.digest} is incompatible with this host (${mismatches.join(", ")}); stop Frizz and rerun frizz-dev on this machine to build a compatible immutable artifact`
+      `Ntwine artifact ${artifact.digest} is incompatible with this host (${mismatches.join(", ")}); stop Ntwine and rerun ntwine-dev on this machine to build a compatible immutable artifact`
     );
 }
 
 function artifactHostMatches(
-  built: FrizzArtifactManifest["host"],
-  host: FrizzArtifactHost
-): built is FrizzArtifactHost {
+  built: NtwineArtifactManifest["host"],
+  host: NtwineArtifactHost
+): built is NtwineArtifactHost {
   return !!built &&
     built.platform === host.platform &&
     built.arch === host.arch &&
@@ -101,12 +101,12 @@ function artifactHostMatches(
     built.nodeModules === host.nodeModules;
 }
 
-export interface FrizzArtifact {
+export interface NtwineArtifact {
   digest: string;
   dir: string;
   webDir: string;
   runtimeDir: string;
-  manifest: FrizzArtifactManifest;
+  manifest: NtwineArtifactManifest;
 }
 
 export interface StableArtifactPointer {
@@ -117,13 +117,13 @@ export interface StableArtifactPointer {
 }
 
 export interface EnsureStableArtifactOptions {
-  /** Injectable for the launcher regression tests; production uses buildFrizzArtifact. */
-  build?: (sourceDir: string, root: string) => FrizzArtifact;
+  /** Injectable for the launcher regression tests; production uses buildNtwineArtifact. */
+  build?: (sourceDir: string, root: string) => NtwineArtifact;
   /** Human-facing lifecycle updates; callers retain control of rendering. */
   onProgress?: (message: string) => void;
 }
 
-export interface BuildFrizzArtifactOptions {
+export interface BuildNtwineArtifactOptions {
   /** Human-facing lifecycle updates; successful build-tool output stays deliberately quiet. */
   onProgress?: (message: string) => void;
   /** Injectable command boundary for artifact-order regression tests. */
@@ -137,7 +137,7 @@ export interface BuildFrizzArtifactOptions {
  */
 const WORKER_PLUGIN_CLOSURE_SCRIPT = "scripts/assert-worker-plugin-closure.mjs";
 
-export interface FrizzSourceSnapshot {
+export interface NtwineSourceSnapshot {
   /** Temporary workspace root; remove this whole directory after the build. */
   dir: string;
   /** Snapshot-local ui workspace consumed by build tools. */
@@ -154,9 +154,9 @@ interface SourceArtifactIdentity {
   fingerprint: string;
 }
 
-/** CACHE: every artifact here is rebuildable from source, and this is the biggest thing Frizz stores. */
+/** CACHE: every artifact here is rebuildable from source, and this is the biggest thing Ntwine stores. */
 export function defaultArtifactRoot(home = homedir()): string {
-  return join(frizzPaths({ home }).cache, "builds");
+  return join(ntwinePaths({ home }).cache, "builds");
 }
 
 function digestFile(path: string): string {
@@ -166,8 +166,8 @@ function digestFile(path: string): string {
 /**
  * A manifest path, in the ONE separator a manifest is allowed to speak.
  *
- * `relative()` answers in the host's separator, so a Windows build recorded `cc-worker\bin\frizz`
- * where every reader spells that key `cc-worker/bin/frizz` — including the closure list every
+ * `relative()` answers in the host's separator, so a Windows build recorded `cc-worker\bin\ntwine`
+ * where every reader spells that key `cc-worker/bin/ntwine` — including the closure list every
  * artifact is verified against (`WORKER_PLUGIN_REQUIRED_FILES`, worker-plugin-closure.ts), which is
  * a plain object lookup and cannot normalize for itself. The result was a Windows artifact that
  * built cleanly and then failed its own manifest validation the instant it was published, with no
@@ -197,7 +197,7 @@ function collectFiles(
  *
  * The artifact's one internal link — `runtime/node_modules` into the dependency cell — is written
  * from `relative()`, so on Windows it is stored and read back with backslashes. Normalizing here
- * only works if the VERIFIER normalizes too, so both sides call this; see readFrizzArtifact.
+ * only works if the VERIFIER normalizes too, so both sides call this; see readNtwineArtifact.
  */
 function manifestLinkTarget(file: string): string {
   return readlinkSync(file).replaceAll("\\", "/");
@@ -230,12 +230,12 @@ function stableFileMap(files: Record<string, string>): Record<string, string> {
  * verifier below shows it always was, as `basename(sourceDir)` before it became the canonical realpath.
  * The consequence is worth knowing before it surprises someone: MOVING OR RENAMING THE CHECKOUT
  * INVALIDATES THE ENTIRE BUILD CACHE, because every cached digest committed to the old path. Measured
- * on this machine after `.../projects/fray` became `.../projects/frizz` (2026-08-11): `9574d530` and
+ * on this machine after `.../projects/fray` became `.../projects/ntwine` (2026-08-11): `9574d530` and
  * `f2ac154a` are the same commit with an identical fingerprint, dependency cell and byte-identical
  * `webFiles`, differing only in that string — 112 builds, 2.3 GB, of which 4 are still reachable for
  * reuse. That is a one-time rebuild, not a fault, and it is the price of the commitment.
  *
- * If a garbage collector is ever written for `~/.frizz/builds`, "unreachable for reuse" is NOT the same
+ * If a garbage collector is ever written for `~/.ntwine/builds`, "unreachable for reuse" is NOT the same
  * as "safe to delete": a worker's plugin, hooks and MCP entry point all live inside the build it was
  * spawned on and are re-read from that path for the life of the process (dispatch.ts workerPluginDir).
  * 11 distinct build dirs were held by live workers at the time of writing, several of them old. Deleting
@@ -246,7 +246,7 @@ function artifactDigestFromIdentity(identity: {
   sourceRevision: string;
   sourceFingerprint?: string;
   nodeVersion: string;
-  host?: FrizzArtifactHost;
+  host?: NtwineArtifactHost;
   webFiles: Record<string, string>;
   runtimeFiles: Record<string, string>;
   dependencyCell?: string;
@@ -268,7 +268,7 @@ function artifactDigestFromIdentity(identity: {
 }
 
 /** Compatibility verifier for artifacts built before canonical source identity became part of the key. */
-function legacyArtifactDigest(manifest: FrizzArtifactManifest): string {
+function legacyArtifactDigest(manifest: NtwineArtifactManifest): string {
   return createHash("sha256")
     .update(
       JSON.stringify({
@@ -301,7 +301,7 @@ function assertNoExternalArtifactSymlinks(
     const target = resolve(dirname(file), readlinkSync(file));
     if (!containedPath(root, target) && target !== allowedExternalTarget)
       throw new Error(
-        `Frizz artifact contains a symlink outside its immutable closure: ${relative(root, file)}`
+        `Ntwine artifact contains a symlink outside its immutable closure: ${relative(root, file)}`
       );
   }
 }
@@ -338,7 +338,7 @@ function workerPluginBoardClosureSourceDir(sourceDir: string): string {
 }
 
 /**
- * The frizz source closure, as an explicit ALLOWLIST of repo-root entries.
+ * The ntwine source closure, as an explicit ALLOWLIST of repo-root entries.
  *
  * The workspace used to live in a `ui/` subtree, so a snapshot could be "that one directory, plus a
  * reach-back to cc-worker and the board closure". The workspace is now the repo root itself, and the
@@ -347,8 +347,8 @@ function workerPluginBoardClosureSourceDir(sourceDir: string): string {
  * silently swallows every new root directory, which bloats the snapshot and — worse — makes the
  * fingerprint a moving target, so every capture would race "source changed during capture".
  */
-const FRIZZ_SOURCE_DIRECTORIES = ["src", "packages", "scripts", "board", "cc-worker"] as const;
-const FRIZZ_SOURCE_FILES = [
+const NTWINE_SOURCE_DIRECTORIES = ["src", "packages", "scripts", "board", "cc-worker"] as const;
+const NTWINE_SOURCE_FILES = [
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
@@ -358,8 +358,8 @@ const FRIZZ_SOURCE_FILES = [
 ] as const;
 
 /** The allowlisted source directories that actually exist, as snapshot trees rooted at `destination`. */
-function frizzSourceTrees(source: string, destination: string): SnapshotTree[] {
-  return FRIZZ_SOURCE_DIRECTORIES.filter((name) => existsSync(join(source, name))).map((name) => ({
+function ntwineSourceTrees(source: string, destination: string): SnapshotTree[] {
+  return NTWINE_SOURCE_DIRECTORIES.filter((name) => existsSync(join(source, name))).map((name) => ({
     source: join(source, name),
     destination: join(destination, name),
   }));
@@ -374,7 +374,7 @@ function assertDetachedDaemonClosure(runtimeSrc: string): void {
     const emitted = detachedDaemonOutputName(entry);
     if (!existsSync(join(runtimeSrc, emitted)))
       throw new Error(
-        `Frizz runtime bundle is missing the detached daemon ${emitted} (built from ${entry}); it is spawned as its own node process and must exist beside index.js`
+        `Ntwine runtime bundle is missing the detached daemon ${emitted} (built from ${entry}); it is spawned as its own node process and must exist beside index.js`
       );
   }
 }
@@ -385,7 +385,7 @@ function assertDetachedDaemonClosure(runtimeSrc: string): void {
 const SOURCE_FINGERPRINT_IGNORED_DIRECTORIES = new Set([
   ".git",
   ".cache",
-  ".frizz",
+  ".ntwine",
   ".parcel-cache",
   ".turbo",
   ".vite",
@@ -408,7 +408,7 @@ function ignoredFingerprintFile(name: string): boolean {
 export function relevantSourceFingerprint(sourceDir: string): string {
   const source = canonicalSourceDir(sourceDir);
   const hash = createHash("sha256");
-  hash.update("frizz-native-cell-v2\0");
+  hash.update("ntwine-native-cell-v2\0");
   const visit = (root: string, label: string, directory = root): void => {
     for (const name of readdirSync(directory).sort()) {
       if (ignoredFingerprintFile(name)) continue;
@@ -426,11 +426,11 @@ export function relevantSourceFingerprint(sourceDir: string): string {
       }
     }
   };
-  for (const name of FRIZZ_SOURCE_DIRECTORIES) {
+  for (const name of NTWINE_SOURCE_DIRECTORIES) {
     const directory = join(source, name);
     if (existsSync(directory)) visit(directory, name);
   }
-  for (const name of FRIZZ_SOURCE_FILES) {
+  for (const name of NTWINE_SOURCE_FILES) {
     const file = join(source, name);
     if (existsSync(file)) hash.update(`file\0${name}\0`).update(readFileSync(file));
   }
@@ -501,12 +501,12 @@ function cloneRelevantSourceTree(
     if (stat.isSymbolicLink()) {
       const target = readlinkSync(sourcePath);
       if (isAbsolute(target))
-        throw new Error(`Frizz source snapshot cannot retain absolute symlink ${sourcePath}`);
+        throw new Error(`Ntwine source snapshot cannot retain absolute symlink ${sourcePath}`);
       const resolvedTarget = resolve(dirname(sourcePath), target);
       const targetTree = trees.find((candidate) => containedPath(candidate.source, resolvedTarget));
       if (!targetTree)
         throw new Error(
-          `Frizz source snapshot cannot retain symlink ${sourcePath} outside the captured source closure`
+          `Ntwine source snapshot cannot retain symlink ${sourcePath} outside the captured source closure`
         );
       const snapshotTarget = join(
         targetTree.destination,
@@ -525,12 +525,12 @@ function cloneRelevantSourceTree(
  * read-only by convention, while recreating package-level link farms inside the snapshot so their
  * workspace links resolve to snapshot source. An install that mutates node_modules concurrently is
  * outside the source-snapshot guarantee; the lockfile remains part of the source fingerprint and a
- * dependency-changing install must complete before launching frizz-dev.
+ * dependency-changing install must complete before launching ntwine-dev.
  */
 function attachInstalledDependencyClosure(source: string, snapshot: string): void {
   const installed = join(source, "node_modules");
   if (!existsSync(installed))
-    throw new Error("Frizz source dependencies are not installed; run the project install first");
+    throw new Error("Ntwine source dependencies are not installed; run the project install first");
   symlinkSync(installed, join(snapshot, "node_modules"), "dir");
   const packages = join(source, "packages");
   if (!existsSync(packages)) return;
@@ -553,7 +553,7 @@ function attachInstalledDependencyClosure(source: string, snapshot: string): voi
  * Stop the snapshot from inheriting an ancestor's ignore rules, or the web build silently ships a
  * stylesheet with NO Tailwind utilities in it.
  *
- * The snapshot is built inside the artifact root, which lives under `~/.frizz` — and `~/.frizz`
+ * The snapshot is built inside the artifact root, which lives under `~/.ntwine` — and `~/.ntwine`
  * carries a `.gitignore` of `*` on purpose, the `.venv/.gitignore` trick that keeps this scratch
  * tree out of any repo a user happens to init above it (see project-root.ts). Tailwind v4 finds its
  * class names by SCANNING the source tree, and its scanner honours ancestor `.gitignore` files, so
@@ -563,7 +563,7 @@ function attachInstalledDependencyClosure(source: string, snapshot: string): voi
  * the whole UI renders unstyled.
  *
  * Measured on 4.3.2, one variable, same tree: 114,660 bytes at a neutral path, 28,849 under
- * `~/.frizz`, 114,660 again with the ancestor `.gitignore` moved aside.
+ * `~/.ntwine`, 114,660 again with the ancestor `.gitignore` moved aside.
  *
  * An empty `.git` DIRECTORY is enough — the scanner treats a directory holding one as a repository
  * root and stops walking up for ignore files, which restores auto-detection to byte-identical output
@@ -588,13 +588,13 @@ function markSnapshotAsScanRoot(snapshot: string): void {
  *
  * It deliberately does NOT assert the worker-plugin closure. THIS process's list describes THIS
  * build's worker; `sourceDir` is a checkout that may already be newer, and during Update & Restart it
- * reliably is. See scripts/assert-worker-plugin-closure.mjs, which buildFrizzArtifact runs out of the
+ * reliably is. See scripts/assert-worker-plugin-closure.mjs, which buildNtwineArtifact runs out of the
  * captured snapshot so the list and the tree come from the same place.
  */
-export function captureFrizzSourceSnapshot(
+export function captureNtwineSourceSnapshot(
   sourceDir: string,
   root = defaultArtifactRoot()
-): FrizzSourceSnapshot {
+): NtwineSourceSnapshot {
   const source = canonicalSourceDir(sourceDir);
   mkdirSync(root, { recursive: true, mode: 0o700 });
   reapInterruptedSourceSnapshots(root);
@@ -604,13 +604,13 @@ export function captureFrizzSourceSnapshot(
     // The snapshot mirrors the repo root itself, so cc-worker's `../../board` reach-back
     // and the workspace's own relative paths resolve inside it exactly as they do in the checkout.
     const snapshotSource = dir;
-    const trees = frizzSourceTrees(source, dir);
+    const trees = ntwineSourceTrees(source, dir);
     try {
       const beforeRevision = gitRevision(source);
       const beforeFingerprint = relevantSourceFingerprint(source);
       mkdirSync(dir, { recursive: true, mode: 0o700 });
       for (const tree of trees) cloneRelevantSourceTree(tree, trees);
-      for (const name of FRIZZ_SOURCE_FILES) {
+      for (const name of NTWINE_SOURCE_FILES) {
         const file = join(source, name);
         if (existsSync(file))
           copyFileSync(file, join(dir, name), fsConstants.COPYFILE_FICLONE);
@@ -652,7 +652,7 @@ export function captureFrizzSourceSnapshot(
     }
   }
   throw new Error(
-    `Frizz source did not remain stable long enough to capture after ${SOURCE_SNAPSHOT_MAX_ATTEMPTS} attempts: ${lastFailure}`
+    `Ntwine source did not remain stable long enough to capture after ${SOURCE_SNAPSHOT_MAX_ATTEMPTS} attempts: ${lastFailure}`
   );
 }
 
@@ -670,8 +670,8 @@ function validArtifactRelativePath(path: unknown): path is string {
     path.length > 0 &&
     !path.includes("\0") &&
     !isAbsolute(path) &&
-    containedPath("/frizz-artifact-root", resolve("/frizz-artifact-root", path)) &&
-    resolve("/frizz-artifact-root", path) !== "/frizz-artifact-root"
+    containedPath("/ntwine-artifact-root", resolve("/ntwine-artifact-root", path)) &&
+    resolve("/ntwine-artifact-root", path) !== "/ntwine-artifact-root"
   );
 }
 
@@ -688,9 +688,9 @@ function validArtifactFileMap(value: unknown): value is Record<string, string> {
 function validArtifactManifest(
   manifest: unknown,
   digest: string
-): manifest is FrizzArtifactManifest {
+): manifest is NtwineArtifactManifest {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return false;
-  const value = manifest as Partial<FrizzArtifactManifest>;
+  const value = manifest as Partial<NtwineArtifactManifest>;
   const host = value.host;
   return (
     (value.version === 1 || value.version === 2) &&
@@ -760,27 +760,27 @@ const HOST_NATIVE_PREBUILDS = new Set(
     : [`${platform()}-${arch()}`]
 );
 
-interface FrizzDependencyCellManifest {
+interface NtwineDependencyCellManifest {
   version: 1;
   digest: string;
   createdAt: string;
-  host: FrizzArtifactHost;
+  host: NtwineArtifactHost;
   inputs: string;
   files: Record<string, string>;
 }
 
-interface FrizzDependencyCell {
+interface NtwineDependencyCell {
   digest: string;
   dir: string;
   modulesDir: string;
-  manifest: FrizzDependencyCellManifest;
+  manifest: NtwineDependencyCellManifest;
 }
 
 function dependencyCellRoot(root: string): string {
   return join(root, "cells");
 }
 
-function dependencyCellInputs(source: string, host: FrizzArtifactHost): string {
+function dependencyCellInputs(source: string, host: NtwineArtifactHost): string {
   const inputs = [
     "package.json",
     "pnpm-lock.yaml",
@@ -808,9 +808,9 @@ function dependencyCellDigest(inputs: string, files: Record<string, string>): st
 function validDependencyCellManifest(
   manifest: unknown,
   digest: string
-): manifest is FrizzDependencyCellManifest {
+): manifest is NtwineDependencyCellManifest {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return false;
-  const value = manifest as Partial<FrizzDependencyCellManifest>;
+  const value = manifest as Partial<NtwineDependencyCellManifest>;
   return value.version === 1 && value.digest === digest &&
     typeof value.createdAt === "string" && !Number.isNaN(Date.parse(value.createdAt)) &&
     typeof value.inputs === "string" && /^[a-f0-9]{64}$/.test(value.inputs) &&
@@ -818,30 +818,30 @@ function validDependencyCellManifest(
     artifactHostMatches(value.host, currentArtifactHost());
 }
 
-function readFrizzDependencyCell(digest: string, root: string): FrizzDependencyCell {
-  if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error("invalid Frizz dependency cell digest");
+function readNtwineDependencyCell(digest: string, root: string): NtwineDependencyCell {
+  if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error("invalid Ntwine dependency cell digest");
   const dir = join(dependencyCellRoot(root), digest);
-  let manifest: FrizzDependencyCellManifest;
+  let manifest: NtwineDependencyCellManifest;
   try {
     manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
   } catch {
-    throw new Error(`Frizz dependency cell ${digest} is missing its manifest`);
+    throw new Error(`Ntwine dependency cell ${digest} is missing its manifest`);
   }
   if (!validDependencyCellManifest(manifest, digest) ||
     dependencyCellDigest(manifest.inputs, manifest.files) !== digest ||
     !existsSync(join(dir, "node_modules")))
-    throw new Error(`Frizz dependency cell ${digest} failed manifest validation`);
+    throw new Error(`Ntwine dependency cell ${digest} failed manifest validation`);
   try {
     assertNoExternalArtifactSymlinks(join(dir, "node_modules"));
   } catch {
-    throw new Error(`Frizz dependency cell ${digest} failed immutable closure validation`);
+    throw new Error(`Ntwine dependency cell ${digest} failed immutable closure validation`);
   }
   for (const [file, expected] of Object.entries(manifest.files)) {
     const path = join(dir, file);
     const valid = expected.startsWith("link:")
       ? (() => { try { return lstatSync(path).isSymbolicLink() && `link:${manifestLinkTarget(path)}` === expected; } catch { return false; } })()
       : existsSync(path) && digestFile(path) === expected;
-    if (!valid) throw new Error(`Frizz dependency cell ${digest} has a changed or missing file: ${file}`);
+    if (!valid) throw new Error(`Ntwine dependency cell ${digest} has a changed or missing file: ${file}`);
   }
   return { digest, dir, modulesDir: join(dir, "node_modules"), manifest };
 }
@@ -906,7 +906,7 @@ function copyResolvedPackageClosure(source: string, modules: string): void {
   for (const dependency of RUNTIME_NATIVE_EXTERNALS) copyPackage(dependency, serverRequire);
 }
 
-function ensureFrizzDependencyCell(source: string, root: string): FrizzDependencyCell {
+function ensureNtwineDependencyCell(source: string, root: string): NtwineDependencyCell {
   const host = currentArtifactHost();
   const inputs = dependencyCellInputs(source, host);
   const cells = dependencyCellRoot(root);
@@ -915,7 +915,7 @@ function ensureFrizzDependencyCell(source: string, root: string): FrizzDependenc
   for (const entry of readdirSync(cells)) {
     if (!/^[a-f0-9]{64}$/.test(entry)) continue;
     try {
-      const cell = readFrizzDependencyCell(entry, root);
+      const cell = readNtwineDependencyCell(entry, root);
       if (cell.manifest.inputs === inputs) return cell;
     } catch {}
   }
@@ -927,7 +927,7 @@ function ensureFrizzDependencyCell(source: string, root: string): FrizzDependenc
     assertNoExternalArtifactSymlinks(modules);
     const files = collectFiles(staging);
     const digest = dependencyCellDigest(inputs, files);
-    const manifest: FrizzDependencyCellManifest = {
+    const manifest: NtwineDependencyCellManifest = {
       version: 1, digest, createdAt: new Date().toISOString(), host, inputs, files,
     };
     writeFileSync(join(staging, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o400 });
@@ -939,7 +939,7 @@ function ensureFrizzDependencyCell(source: string, root: string): FrizzDependenc
       if (!renameLostPublishRace(error, destination)) throw error;
       rmSync(staging, { recursive: true, force: true });
     }
-    return readFrizzDependencyCell(digest, root);
+    return readNtwineDependencyCell(digest, root);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
     throw error;
@@ -950,14 +950,14 @@ function ensureFrizzDependencyCell(source: string, root: string): FrizzDependenc
  * Publish a completed staging directory; an identical concurrent publisher wins safely.
  *
  * `workerPluginClosure: false` on the read-back, because this artifact was built from a checkout that
- * may be newer than the process publishing it — see readFrizzArtifact's own note. Its closure was
+ * may be newer than the process publishing it — see readNtwineArtifact's own note. Its closure was
  * already asserted, moments ago, by the one list entitled to judge it: the snapshot's.
  */
-export function publishFrizzArtifactStaging(
+export function publishNtwineArtifactStaging(
   staging: string,
   digest: string,
   root = defaultArtifactRoot()
-): FrizzArtifact {
+): NtwineArtifact {
   const dir = join(root, digest);
   try {
     renameSync(staging, dir);
@@ -967,7 +967,7 @@ export function publishFrizzArtifactStaging(
     if (!renameLostPublishRace(error, dir)) throw error;
     rmSync(staging, { recursive: true, force: true });
   }
-  return readFrizzArtifact(digest, root, { workerPluginClosure: false });
+  return readNtwineArtifact(digest, root, { workerPluginClosure: false });
 }
 
 /**
@@ -985,7 +985,7 @@ export function publishFrizzArtifactStaging(
  * or moved — falls back to the cold check of the snapshot itself, which stays the authority.
  */
 function typecheckCapturedSource(
-  snapshot: FrizzSourceSnapshot,
+  snapshot: NtwineSourceSnapshot,
   runCommand: (args: string[], source: string) => void
 ): void {
   try {
@@ -999,13 +999,13 @@ function typecheckCapturedSource(
   runCommand(["run", "typecheck"], snapshot.sourceDir);
 }
 
-export function buildFrizzArtifact(
+export function buildNtwineArtifact(
   sourceDir: string,
   root = defaultArtifactRoot(),
-  options: BuildFrizzArtifactOptions = {}
-): FrizzArtifact {
-  options.onProgress?.("Capturing current Frizz source");
-  const snapshot = captureFrizzSourceSnapshot(sourceDir, root);
+  options: BuildNtwineArtifactOptions = {}
+): NtwineArtifact {
+  options.onProgress?.("Capturing current Ntwine source");
+  const snapshot = captureNtwineSourceSnapshot(sourceDir, root);
   const source = snapshot.sourceDir;
   const workerPlugin = workerPluginSourceDir(source);
   const workerPluginBoardClosure = workerPluginBoardClosureSourceDir(source);
@@ -1020,18 +1020,18 @@ export function buildFrizzArtifact(
     // Vite/Rolldown transpiles TypeScript but does not typecheck it. Validate the coherent captured
     // snapshot — not the mutable checkout before capture — so an intermediate edit with a missing
     // import can never become a valid immutable artifact and fail later as a browser global.
-    options.onProgress?.("Type-checking captured Frizz source");
+    options.onProgress?.("Type-checking captured Ntwine source");
     typecheckCapturedSource(snapshot, runCommand);
     options.onProgress?.("Building immutable artifact: web UI");
-    runCommand(["run", "--filter", "@frizz/web", "build"], source);
+    runCommand(["run", "--filter", "@ntwine/web", "build"], source);
     const webSource = join(source, "packages", "web", "dist");
     if (!existsSync(webSource))
-      throw new Error("Frizz web build did not produce packages/web/dist");
+      throw new Error("Ntwine web build did not produce packages/web/dist");
     mkdirSync(staging, { mode: 0o700 });
-    // esbuild absorbs Frizz's CLI, server and workspace code into one Node 26 ESM entry. Only the
+    // esbuild absorbs Ntwine's CLI, server and workspace code into one Node 26 ESM entry. Only the
     // native loaders stay external; their complete host-specific closure lives in an immutable cell
     // below, never in the mutable source checkout or an enormous deploy tree. The detached daemons
-    // are the one exception: frizz spawns them as their own node processes, so each is bundled as a
+    // are the one exception: ntwine spawns them as their own node processes, so each is bundled as a
     // real file beside index.js and asserted below.
     options.onProgress?.("Building immutable artifact: bundled runtime");
     mkdirSync(join(staging, "runtime", "src"), { recursive: true, mode: 0o700 });
@@ -1045,7 +1045,7 @@ export function buildFrizzArtifact(
     );
     assertDetachedDaemonClosure(join(staging, "runtime", "src"));
     options.onProgress?.("Finalizing immutable artifact");
-    const cell = ensureFrizzDependencyCell(source, root);
+    const cell = ensureNtwineDependencyCell(source, root);
     symlinkSync(relative(join(staging, "runtime"), cell.modulesDir), join(staging, "runtime", "node_modules"), "dir");
     // dispatch.ts resolves four parents above the deployed server module, which lands at this
     // runtime root. Keep the plugin inside the verified runtime closure rather than pointing a
@@ -1082,9 +1082,9 @@ export function buildFrizzArtifact(
       // Same digest means same source, so this is our own artifact under another builder's hand — and
       // the closure question belongs to that source either way. Same reason as the publish read-back.
       rmSync(staging, { recursive: true, force: true });
-      return readFrizzArtifact(digest, root, { workerPluginClosure: false });
+      return readNtwineArtifact(digest, root, { workerPluginClosure: false });
     }
-    const manifest: FrizzArtifactManifest = {
+    const manifest: NtwineArtifactManifest = {
       version: 2,
       digest,
       createdAt: new Date().toISOString(),
@@ -1102,7 +1102,7 @@ export function buildFrizzArtifact(
       `${JSON.stringify(manifest, null, 2)}\n`,
       { mode: 0o400 }
     );
-    return publishFrizzArtifactStaging(staging, digest, root);
+    return publishNtwineArtifactStaging(staging, digest, root);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
     throw error;
@@ -1111,7 +1111,7 @@ export function buildFrizzArtifact(
   }
 }
 
-export interface ReadFrizzArtifactOptions {
+export interface ReadNtwineArtifactOptions {
   /**
    * Check the artifact against THIS build's WORKER_PLUGIN_REQUIRED_FILES. Default true, and right for
    * every boot-path read: the launcher is selecting an artifact to serve from, and an old one that
@@ -1129,23 +1129,23 @@ export interface ReadFrizzArtifactOptions {
   workerPluginClosure?: boolean;
 }
 
-export function readFrizzArtifact(
+export function readNtwineArtifact(
   digest: string,
   root = defaultArtifactRoot(),
-  options: ReadFrizzArtifactOptions = {}
-): FrizzArtifact {
+  options: ReadNtwineArtifactOptions = {}
+): NtwineArtifact {
   const checkWorkerPluginClosure = options.workerPluginClosure ?? true;
   if (!/^[a-f0-9]{64}$/.test(digest))
-    throw new Error("invalid Frizz artifact digest");
+    throw new Error("invalid Ntwine artifact digest");
   const dir = join(root, digest);
   const manifestPath = join(dir, "manifest.json");
-  let manifest: FrizzArtifactManifest;
+  let manifest: NtwineArtifactManifest;
   try {
     manifest = JSON.parse(
       readFileSync(manifestPath, "utf8")
-    ) as FrizzArtifactManifest;
+    ) as NtwineArtifactManifest;
   } catch {
-    throw new Error(`Frizz artifact ${digest} is missing its manifest`);
+    throw new Error(`Ntwine artifact ${digest} is missing its manifest`);
   }
   if (!validArtifactManifest(manifest, digest) ||
     (manifest.version === 2 && !manifest.dependencyCell) ||
@@ -1154,17 +1154,17 @@ export function readFrizzArtifact(
     !existsSync(join(dir, "web")) ||
     !existsSync(join(dir, "runtime", "src", "index.js"))
   ) {
-    throw new Error(`Frizz artifact ${digest} failed manifest validation`);
+    throw new Error(`Ntwine artifact ${digest} failed manifest validation`);
   }
   const calculated = artifactDigestFromIdentity(manifest);
   // Existing v1 artifacts used the checkout basename. They remain readable, but source matching
   // below still requires the canonical path, so a collision cannot be selected for a new checkout.
   if (calculated !== digest && legacyArtifactDigest(manifest) !== digest)
-    throw new Error(`Frizz artifact ${digest} failed root digest validation (calculated ${calculated})`);
+    throw new Error(`Ntwine artifact ${digest} failed root digest validation (calculated ${calculated})`);
   try {
     if (checkWorkerPluginClosure) assertWorkerPluginClosure(join(dir, "runtime"));
     const cell = manifest.dependencyCell
-      ? readFrizzDependencyCell(manifest.dependencyCell, root)
+      ? readNtwineDependencyCell(manifest.dependencyCell, root)
       : undefined;
     const modules = join(dir, "runtime", "node_modules");
     if (cell && (!lstatSync(modules).isSymbolicLink() ||
@@ -1173,7 +1173,7 @@ export function readFrizzArtifact(
     assertNoExternalArtifactSymlinks(join(dir, "runtime"), join(dir, "runtime"), cell?.modulesDir);
     assertNoExternalArtifactSymlinks(join(dir, "web"));
   } catch {
-    throw new Error(`Frizz artifact ${digest} failed immutable closure validation`);
+    throw new Error(`Ntwine artifact ${digest} failed immutable closure validation`);
   }
   for (const [file, expected] of Object.entries(manifest.webFiles)) {
     const path = join(dir, "web", file);
@@ -1191,7 +1191,7 @@ export function readFrizzArtifact(
       : existsSync(path) && digestFile(path) === expected;
     if (!valid)
       throw new Error(
-        `Frizz artifact ${digest} has a changed or missing web file: ${file}`
+        `Ntwine artifact ${digest} has a changed or missing web file: ${file}`
       );
   }
   for (const [file, expected] of Object.entries(manifest.runtimeFiles)) {
@@ -1210,7 +1210,7 @@ export function readFrizzArtifact(
       : existsSync(path) && digestFile(path) === expected;
     if (!valid)
       throw new Error(
-        `Frizz artifact ${digest} has a changed or missing runtime file: ${file}`
+        `Ntwine artifact ${digest} has a changed or missing runtime file: ${file}`
       );
   }
   return {
@@ -1225,14 +1225,14 @@ export function readFrizzArtifact(
 export function readStableArtifact(
   stateDir: string,
   root = defaultArtifactRoot()
-): FrizzArtifact | null {
+): NtwineArtifact | null {
   try {
     const pointer = JSON.parse(
       readFileSync(join(stateDir, "stable.json"), "utf8")
     ) as StableArtifactPointer;
     if (pointer.version !== 1 || typeof pointer.current !== "string")
       return null;
-    return readFrizzArtifact(pointer.current, root);
+    return readNtwineArtifact(pointer.current, root);
   } catch {
     return null;
   }
@@ -1248,7 +1248,7 @@ function currentSourceArtifactIdentity(sourceDir: string): SourceArtifactIdentit
 }
 
 function manifestMatchesSource(
-  manifest: Pick<FrizzArtifactManifest, "sourceDir" | "sourceRevision" | "sourceFingerprint">,
+  manifest: Pick<NtwineArtifactManifest, "sourceDir" | "sourceRevision" | "sourceFingerprint">,
   source: SourceArtifactIdentity
 ): boolean {
   return (
@@ -1262,11 +1262,11 @@ function manifestMatchesSource(
 function readArtifactManifestCandidate(
   digest: string,
   root: string
-): FrizzArtifactManifest | null {
+): NtwineArtifactManifest | null {
   try {
     const manifest = JSON.parse(
       readFileSync(join(root, digest, "manifest.json"), "utf8")
-    ) as FrizzArtifactManifest;
+    ) as NtwineArtifactManifest;
     return validArtifactManifest(manifest, digest) ? manifest : null;
   } catch {
     return null;
@@ -1278,11 +1278,11 @@ function readArtifactManifestCandidate(
  * A project-local pointer is deliberately not required: artifacts are content-addressed globally,
  * while the pointer only records this project's selected, rollback-safe version.
  */
-export function findReusableFrizzArtifact(
+export function findReusableNtwineArtifact(
   sourceDir: string,
   root = defaultArtifactRoot(),
   sourceIdentity?: SourceArtifactIdentity
-): FrizzArtifact | null {
+): NtwineArtifact | null {
   if (!existsSync(root)) return null;
   const source = sourceIdentity ?? currentSourceArtifactIdentity(sourceDir);
   const candidates: Array<{ digest: string; createdAt: string }> = [];
@@ -1303,7 +1303,7 @@ export function findReusableFrizzArtifact(
   );
   for (const candidate of candidates) {
     try {
-      const artifact = readFrizzArtifact(candidate.digest, root);
+      const artifact = readNtwineArtifact(candidate.digest, root);
       if (
         manifestMatchesSource(artifact.manifest, source) &&
         artifactHostMatches(artifact.manifest.host, currentArtifactHost())
@@ -1318,11 +1318,11 @@ export function findReusableFrizzArtifact(
 
 /**
  * A workspace pointer is a convenient rollback record, not permission to serve an old checkout.
- * Compare it to the source closure at each fresh supervisor launch so `frizz-dev` can keep its
+ * Compare it to the source closure at each fresh supervisor launch so `ntwine-dev` can keep its
  * no-HMR promise while still picking up edits after the user deliberately stops and relaunches.
  */
 export function artifactMatchesCurrentSource(
-  artifact: Pick<FrizzArtifact, "manifest">,
+  artifact: Pick<NtwineArtifact, "manifest">,
   sourceDir: string
 ): boolean {
   return artifactHostMatches(artifact.manifest.host, currentArtifactHost()) && manifestMatchesSource(
@@ -1337,12 +1337,12 @@ export function artifactMatchesCurrentSource(
  * only a verified artifact made from the checkout's current source closure. It reuses a global
  * candidate when possible, otherwise builds and atomically promotes a complete candidate.
  */
-export function ensureStableFrizzArtifact(
+export function ensureStableNtwineArtifact(
   stateDir: string,
   sourceDir: string,
   root = defaultArtifactRoot(),
   options: EnsureStableArtifactOptions = {}
-): FrizzArtifact {
+): NtwineArtifact {
   options.onProgress?.("Checking current workspace artifact");
   const source = currentSourceArtifactIdentity(sourceDir);
   const selected = readStableArtifact(stateDir, root);
@@ -1355,7 +1355,7 @@ export function ensureStableFrizzArtifact(
     return selected;
   }
   options.onProgress?.("Checking verified artifact cache");
-  const reusable = findReusableFrizzArtifact(sourceDir, root, source);
+  const reusable = findReusableNtwineArtifact(sourceDir, root, source);
   const artifact = reusable
     ? (() => {
         options.onProgress?.("Reusing cached immutable artifact");
@@ -1365,10 +1365,10 @@ export function ensureStableFrizzArtifact(
         options.onProgress?.("No matching artifact found; building immutable artifact");
         return options.build
           ? options.build(sourceDir, root)
-          : buildFrizzArtifact(sourceDir, root, { onProgress: options.onProgress });
+          : buildNtwineArtifact(sourceDir, root, { onProgress: options.onProgress });
       })();
   options.onProgress?.("Promoting verified immutable artifact");
-  promoteFrizzArtifact(stateDir, artifact.digest, root);
+  promoteNtwineArtifact(stateDir, artifact.digest, root);
   return artifact;
 }
 
@@ -1380,31 +1380,31 @@ export function ensureStableFrizzArtifact(
  * precondition. One built before source tightened artifact validation — a new
  * WORKER_PLUGIN_REQUIRED_FILES entry, say — stops verifying while its child keeps serving perfectly
  * happily, and refusing to update THEN disables the one control that moves the instance past it.
- * promoteFrizzArtifact takes the same position on a broken previous pointer.
+ * promoteNtwineArtifact takes the same position on a broken previous pointer.
  */
 export function promoteCurrentSourceArtifact(
   stateDir: string,
   sourceDir: string,
   root = defaultArtifactRoot(),
   options: EnsureStableArtifactOptions = {}
-): { candidate: FrizzArtifact; previous: FrizzArtifact | undefined } {
+): { candidate: NtwineArtifact; previous: NtwineArtifact | undefined } {
   const previous = readStableArtifact(stateDir, root) ?? undefined;
   options.onProgress?.("Building immutable artifact from current source");
   const candidate = options.build
     ? options.build(sourceDir, root)
-    : buildFrizzArtifact(sourceDir, root, { onProgress: options.onProgress });
+    : buildNtwineArtifact(sourceDir, root, { onProgress: options.onProgress });
   options.onProgress?.("Promoting verified immutable artifact");
-  promoteFrizzArtifact(stateDir, candidate.digest, root);
+  promoteNtwineArtifact(stateDir, candidate.digest, root);
   return { candidate, previous };
 }
 
 /** Atomically select a verified artifact. The old current digest remains the single rollback slot. */
-export function promoteFrizzArtifact(
+export function promoteNtwineArtifact(
   stateDir: string,
   digest: string,
   root = defaultArtifactRoot()
 ): StableArtifactPointer {
-  readFrizzArtifact(digest, root);
+  readNtwineArtifact(digest, root);
   let previous: string | undefined;
   try {
     const old = JSON.parse(
@@ -1412,7 +1412,7 @@ export function promoteFrizzArtifact(
     ) as StableArtifactPointer;
     // Do not retain a broken pointer as the rollback target when repairing a damaged selection.
     if (typeof old.current === "string")
-      previous = readFrizzArtifact(old.current, root).digest;
+      previous = readNtwineArtifact(old.current, root).digest;
   } catch {}
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   const pointer: StableArtifactPointer = {

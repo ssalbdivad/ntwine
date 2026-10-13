@@ -4,7 +4,7 @@
 // several projects with queued rests of every shape (a done card, a bare handoff, a registered
 // question), threads mid-turn, a snoozed one, archived ones — and one project that is entirely quiet.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads, and a
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads, and a
 // `thread_question` row for a registered ask (no human-facing RPC registers one — only a worker's
 // `ask` tool does — so the row IS the fixture and everything downstream of it runs for real).
 //
@@ -29,7 +29,7 @@ const line = readFileSync(flags.stack, "utf8").split("\n").find((l) => l.startsW
 if (!line) throw new Error(`no stack json line in ${flags.stack} — has the stack finished booting?`)
 const stack = JSON.parse(line)
 const home = stack.home
-const db = join(home, ".frizz", "ui.db")
+const db = join(home, ".ntwine", "ui.db")
 const WAIT_FOR_LOCK = ["-cmd", ".timeout 10000"]
 const projects = [
   { id: stack.launcher.id, slug: stack.launcher.slug, dir: stack.launcher.dir },
@@ -91,7 +91,7 @@ function seed(project, t) {
   const live = !t.archived
   const broker = live ? "'broker'" : "NULL"
   if (live) {
-    const stateDir = join(home, ".frizz", "projects", project.id)
+    const stateDir = join(home, ".ntwine", "projects", project.id)
     mkdirSync(join(stateDir, "claude-broker"), { recursive: true })
     const key = createHash("sha256").update(sessionId).digest("hex").slice(0, 16)
     writeFileSync(join(stateDir, "claude-broker", `${key}.json`), JSON.stringify({ sessionId, daemonPid: daemon.pid, socketPath: join(stateDir, "claude-broker", `${t.slug}.sock`) }))
@@ -102,7 +102,7 @@ function seed(project, t) {
     ...WAIT_FOR_LOCK,
     db,
     `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, title_auto, backend, claude_runtime, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-     VALUES (${q(project.id)}, ${q(t.slug)}, ${q(sessionId)}, ${q(`frizz-${t.slug}`)}, ${q(ago(started + 1))}, ${q(t.title)}, 0, 'claude', ${broker}, 'opus', 'high', 'default', ${t.archived ? "'archived'" : "'open'"}, ${t.unread ? 1 : 0}, 0, ${t.archived ? 1 : 0}, ${t.inFlight ? "NULL" : q(ago(t.rest))})`,
+     VALUES (${q(project.id)}, ${q(t.slug)}, ${q(sessionId)}, ${q(`ntwine-${t.slug}`)}, ${q(ago(started + 1))}, ${q(t.title)}, 0, 'claude', ${broker}, 'opus', 'high', 'default', ${t.archived ? "'archived'" : "'open'"}, ${t.unread ? 1 : 0}, 0, ${t.archived ? 1 : 0}, ${t.inFlight ? "NULL" : q(ago(t.rest))})`,
   ])
   if (t.question) {
     execFileSync("sqlite3", [

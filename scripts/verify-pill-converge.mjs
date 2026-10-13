@@ -17,8 +17,8 @@ const log = (...a) => console.log("[pill]", ...a)
 let failures = 0
 const check = (ok, label, detail = "") => { console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`); if (!ok) failures++ }
 
-const home = realpathSync(mkdtempSync(join(tmpdir(), "frizz-pill-home-")))
-mkdirSync(join(home, ".frizz"), { recursive: true })
+const home = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-pill-home-")))
+mkdirSync(join(home, ".ntwine"), { recursive: true })
 const api = createRpcClient(`http://127.0.0.1:${PORT}/`)
 let child
 

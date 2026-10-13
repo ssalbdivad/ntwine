@@ -54,7 +54,7 @@ test("allFencesShadowed is true only when every fence in the text restates a reg
   assert.equal(allFencesShadowed(one, []), false)
 })
 
-// The transcript shape of the report: a fence, two watcher wakes (user turns frizz wrote), the
+// The transcript shape of the report: a fence, two watcher wakes (user turns ntwine wrote), the
 // registration, then the final message with the fence again. The registration belongs to the rest the
 // final message ended, so every message of THAT rest sees it — and the first fence, one rest up, does not.
 const at = (min: number) => new Date(Date.UTC(2026, 7, 28, 17, min)).toISOString()

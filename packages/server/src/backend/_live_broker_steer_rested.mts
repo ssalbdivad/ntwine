@@ -1,4 +1,4 @@
-// LIVE probe: can frizz deliver an operator's message to a sub-agent that has already FINISHED,
+// LIVE probe: can ntwine deliver an operator's message to a sub-agent that has already FINISHED,
 // directly, without asking the parent model to relay it with SendMessage?
 //
 //   nub packages/server/src/backend/_live_broker_steer_rested.mts
@@ -9,7 +9,7 @@
 // writes, and router.ts subAgentSteerable refuses it for a settled child because an earlier
 // measurement saw the CLI fall it back onto the MAIN thread. The SDK exposes no control request that
 // resumes a task (stop_task is the only per-task control), so the addressed frame is the one direct
-// channel there is. This probe re-measures it on the CLI frizz runs today, with both handles the
+// channel there is. This probe re-measures it on the CLI ntwine runs today, with both handles the
 // frame could carry:
 //
 //   · P1 — parent_tool_use_id = the child's DISPATCH tool_use id (what steerSubAgent sends today)
@@ -138,7 +138,7 @@ const results: Record<string, unknown> = { claudeVersion }
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

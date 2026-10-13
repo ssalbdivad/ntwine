@@ -19,13 +19,13 @@ test("a RUNNING row gets the × only when the server says it can actually be sto
 
 test("a background SHELL is judged by the SAME rule as a sub-agent — no kind check anywhere", () => {
   // Until 2026-08-01 a running shell fell out here by CONSTRUCTION: BgShellView carried no `stoppable`
-  // field, because the server refused every shell stop on the belief that frizz held no handle on the
+  // field, because the server refused every shell stop on the belief that ntwine held no handle on the
   // process. Measured wrong — a background Bash is a task in the registry `Query.stopTask` addresses,
   // and killing it is as real as killing a sub-agent (server/backend/_live_shell_stop.mts). The field
   // now exists on both views, and this function still cannot tell the two apart. That is the design:
   // the ×'s availability is a property of the ROW, never of what kind of thing the row is.
   assert.equal(has({ id: "toolu_sh", state: "running", stoppable: true }), true, "the exact row the maintainer could not kill")
-  assert.equal(has({ id: "toolu_sh", state: "running" }), false, "a shell frizz holds no task handle for still shows no ×")
+  assert.equal(has({ id: "toolu_sh", state: "running" }), false, "a shell ntwine holds no task handle for still shows no ×")
   assert.equal(has({ id: "toolu_sh", state: "stale" }), true, "…and a finished shell can still be cleared")
 })
 

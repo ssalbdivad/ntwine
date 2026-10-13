@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { ThreadView } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
@@ -50,7 +50,7 @@ const thread = {
   sessionId: "sid-time-breaks",
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const today = new Date()
 const on = (daysAgo: number, h: number, m: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysAgo, h, m).toISOString()
@@ -59,7 +59,7 @@ const agent = (id: string, at: string, text: string) => ({ sourceId: id, role: "
 
 const messages = [
   user("u0", on(1, 15, 2), "Can you check whether the relay token file is encrypted at rest?"),
-  agent("a0", on(1, 15, 3), "It is not — `~/.frizz/relay-token` is plain text at `0600`. Encrypting it means a keychain read on every boot."),
+  agent("a0", on(1, 15, 3), "It is not — `~/.ntwine/relay-token` is plain text at `0600`. Encrypting it means a keychain read on every boot."),
   user("u1", on(0, 10, 51), "I don't want to give you m"),
   user("u2", on(0, 10, 51), "y macOS password."),
   agent("a1", on(0, 10, 52), "That's fine — the keychain read needs it once per boot, so the fallback is to skip encryption at rest and keep the token file at `0600`."),
@@ -69,13 +69,13 @@ const messages = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : ((input as Request).url ?? input.toString()), location.origin)
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(
       JSON.stringify({ result: { messages, transcriptKey: `${SLUG}-key`, hasEarlier: false, historyLoaded: true } }),
       { headers: { "content-type": "application/json" } },
     )
   }
-    if (url.pathname.startsWith("/_frizz/rpc/")) {
+    if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

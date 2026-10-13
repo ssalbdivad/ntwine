@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { optimisticallyArchived, ARCHIVE_OPTIMISM_MS } from "./optimisticArchive.ts"
 import { needsAction, sectionOf } from "../groups.ts"
 

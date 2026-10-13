@@ -253,7 +253,7 @@ function G3({ scen }: { scen: Scenario }) {
           {scen.pr ? <>, or any activity on <a href="#" className={CARD_LINK}>{scen.pr}</a></> : null}
         </span>
         <span className="text-[10.5px] uppercase leading-5 tracking-wide text-muted-45">park ends</span>
-        <span className="text-muted">{scen.parkUntil} — Frizz re-checks everything</span>
+        <span className="text-muted">{scen.parkUntil} — Ntwine re-checks everything</span>
       </div>
     </TranscriptCard>
   )
@@ -263,7 +263,7 @@ function G3({ scen }: { scen: Scenario }) {
 const VARIANTS: Array<{ id: string; title: string; note: string; render: (s: Scenario) => ReactNode }> = [
   { id: "Z3", title: "What ships today (the control)", note: "The screenshot: generic heading, the worker's prose, then the fence's machinery read back — \"a timer   for 2h\". Neither fragment answers when anything happens or what happens then.", render: (s) => <Z3 scen={s} /> },
   { id: "A3", title: "The footer becomes a sentence", note: "Same slot, but a sentence a person would say: what wakes it, and the latest it can sit. Cheapest real fix — needs only the timer's fireAt shipped to the board (it already exists server-side).", render: (s) => <A3 scen={s} /> },
-  { id: "B3", title: "The when rides the title", note: "\"wakes in 34m\" in the aside slot, where the PR ref already rides; the footer disappears. Quietest card of the set. The park ceiling goes unstated — arguably fine, since the ceiling is frizz's own safety net rather than information.", render: (s) => <B3 scen={s} /> },
+  { id: "B3", title: "The when rides the title", note: "\"wakes in 34m\" in the aside slot, where the PR ref already rides; the footer disappears. Quietest card of the set. The park ceiling goes unstated — arguably fine, since the ceiling is ntwine's own safety net rather than information.", render: (s) => <B3 scen={s} /> },
   { id: "C3", title: "Wait rows — the round-2 table, one level up", note: "The resting card's settled row idiom: one line per thing that can wake the thread, glyph for the kind, instant right-aligned. The ceiling closes the list as a dim sentence. Grows naturally if a fence names several timers or PRs.", render: (s) => <C3 scen={s} /> },
   { id: "D3", title: "Say what happens next", note: "Leads with the EFFECT: the timer's own prompt — text the worker already wrote when arming it — after a bold \"In 34m\". The strongest answer to \"what happens next\"; hostage to a lazy prompt. Needs the timer's prompt shipped to the board alongside fireAt.", render: (s) => <D3 scen={s} /> },
   { id: "E3", title: "No chrome at all", note: "The move the resting-card branch already made: kill the heading and the border, render the prose as the ordinary final message it is, one dim meta line stating the wait. The queue row already says the thread rests; the card was restating it.", render: (s) => <E3 scen={s} /> },

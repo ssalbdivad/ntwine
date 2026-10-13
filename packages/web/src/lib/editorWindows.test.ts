@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { EditorWindowSummary } from "@frizz/shared"
+import type { EditorWindowSummary } from "@ntwine/shared"
 import { codeFilesDestination, connectedOpeners, editorOffer, parseOffered } from "./editorWindows.ts"
 
 const vscode: EditorWindowSummary = { app: "Visual Studio Code", kind: "vscode", acceptsOpens: true }
@@ -48,14 +48,14 @@ test("where a code file goes: the Local file links app while that editor takes o
   assert.equal(to({}), "editor")
   assert.equal(to({ windows: [cursor], opener: "cursor" }), "editor")
   // Local file links is not the connected editor — nor an editor at all.
-  assert.equal(to({ opener: "cursor" }), "frizz")
-  assert.equal(to({ opener: "system" }), "frizz")
-  assert.equal(to({ opener: "editor" }), "frizz")
-  assert.equal(to({ opener: undefined }), "frizz")
+  assert.equal(to({ opener: "cursor" }), "ntwine")
+  assert.equal(to({ opener: "system" }), "ntwine")
+  assert.equal(to({ opener: "editor" }), "ntwine")
+  assert.equal(to({ opener: undefined }), "ntwine")
   // No window, or one that turned file opens off.
-  assert.equal(to({ windows: [] }), "frizz")
-  assert.equal(to({ windows: [closed] }), "frizz")
+  assert.equal(to({ windows: [] }), "ntwine")
+  assert.equal(to({ windows: [closed] }), "ntwine")
   // Never from the phone layout or a remote session: the open would land on the desk.
-  assert.equal(to({ phone: true }), "frizz")
-  assert.equal(to({ remote: true }), "frizz")
+  assert.equal(to({ phone: true }), "ntwine")
+  assert.equal(to({ remote: true }), "ntwine")
 })

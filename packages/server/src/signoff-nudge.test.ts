@@ -1,17 +1,17 @@
-// THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9) — frizz's own stop hook, always on and invisible.
+// THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9) — ntwine's own stop hook, always on and invisible.
 //
 // It exists to make ONE invariant true: every item in the queue is a question you can answer or a
 // checkmark you can archive. So it fires on exactly one thing — a rest that carried NO fence — and on
 // nothing else. Every test here is a way that could go wrong: nudging a thread that DID sign off (which
-// arrives after a ```done and reads as frizz not having noticed), or nudging one forever (a nag loop
-// frizz itself generates).
+// arrives after a ```done and reads as ntwine not having noticed), or nudging one forever (a nag loop
+// ntwine itself generates).
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createStorage, type SessionRow } from "./storage.ts"
-import { NEEDS_INPUT_REQUIRED_AT, QUESTION_FENCE_RETIRED_AT, retiredAwaitingKindsIn, SIGNOFF_NUDGE_MARKER, SIGNOFF_NUDGE_MESSAGE } from "@frizz/shared"
+import { NEEDS_INPUT_REQUIRED_AT, QUESTION_FENCE_RETIRED_AT, retiredAwaitingKindsIn, SIGNOFF_NUDGE_MARKER, SIGNOFF_NUDGE_MESSAGE } from "@ntwine/shared"
 import { Bus } from "./bus.ts"
 import type { Project } from "./project.ts"
 import { applyRecord, createTailer, newTailState, type SessionTelemetry, type Tailer } from "./tailer.ts"
@@ -30,11 +30,11 @@ import { createWakeDeliveryStore } from "./wake-store.ts"
 const LEGACY_SPAWN = new Date(Date.parse(NEEDS_INPUT_REQUIRED_AT) - 86_400_000).toISOString()
 
 function nudger(tele: Partial<SessionTelemetry>, opts: { setting?: string; runtime?: "alive" | "dead"; spawnedAt?: string } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-signoff-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-signoff-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "resting"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: opts.spawnedAt ?? new Date().toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: opts.spawnedAt ?? new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -48,8 +48,8 @@ function nudger(tele: Partial<SessionTelemetry>, opts: { setting?: string; runti
     tailer: {
       get: () => ({
         turn: "idle", lastActivityAt: "2026-08-12T00:00:00.000Z",
-        // The AGENT spoke last, which is the shape of a real fenceless rest — and the one thing frizz's
-        // own delivery cannot fake, since frizz only ever speaks as the user.
+        // The AGENT spoke last, which is the shape of a real fenceless rest — and the one thing ntwine's
+        // own delivery cannot fake, since ntwine only ever speaks as the user.
         lastAssistantAt: "2026-08-12T00:00:00.000Z",
         subAgents: [], bgShells: [], pendingQuestion: false, permPrompt: false,
         ...tele,
@@ -60,7 +60,7 @@ function nudger(tele: Partial<SessionTelemetry>, opts: { setting?: string; runti
     log: () => {},
   })
   // THE NUDGE'S OWN DELIVERIES. `delivered` is every wake the scheduler sent, and an awaiting fence
-  // frizz cannot honour legitimately draws SOURCE 12's correction on the same rest — so "the nudge held"
+  // ntwine cannot honour legitimately draws SOURCE 12's correction on the same rest — so "the nudge held"
   // has to be asked of the nudge's namespace, not of an empty array.
   const nudges = () => storage.db
     .prepare("SELECT message FROM wake_delivery WHERE thread_slug = ? AND fence_id LIKE 'signoff:%' AND state = 'delivered'")
@@ -155,14 +155,14 @@ test("a rest with no fence is told how to sign off, and the text names all three
     // the human must perform, an unsent draft, and discovered follow-up that is someone else's to do.
     // Two zod threads fenced `done` on exactly those on 2026-08-16 — see workerPrompt.ts above SIGNALS.
     assert.match(h.delivered[0], /STILL OWED counts things you are not going to do yourself/)
-    assert.match(h.delivered[0], /`frizzctl spawn-thread`/)
+    assert.match(h.delivered[0], /`ntwinectl spawn-thread`/)
     assert.match(h.delivered[0], /not\s+worth a card is not worth a SENTENCE/)
     assert.match(h.delivered[0], /the card is the ledger of what shipped/)
     // SELF-CONTAINEDNESS is the point the first version missed: the human has seen nothing since their
-    // own last message, and everything in between came from frizz. An agent that does not know that
+    // own last message, and everything in between came from ntwine. An agent that does not know that
     // writes a handoff about the last thing it touched.
     assert.match(h.delivered[0], /readable cold/i)
-    assert.match(h.delivered[0], /came from\s+frizz/)
+    assert.match(h.delivered[0], /came from\s+ntwine/)
     // THE HEADLINE INSTRUCTION: a thread whose handoff already stands alone should answer with the
     // fence and nothing else. Without this the agent restates its whole summary under the reminder and
     // the human reads it twice (maintainer 2026-08-12).
@@ -170,7 +170,7 @@ test("a rest with no fence is told how to sign off, and the text names all three
     // simply be premature, and a fence menu handed to a half-finished thread has no correct entry on it —
     // the agent picks the closest, which is `done`, which files the thread away. So the reminder tells it
     // to resume first and only then offers the shapes. The Goal arriving on the same rest says the same
-    // thing; two frizz deliveries pulling opposite ways is the failure this pins against.
+    // thing; two ntwine deliveries pulling opposite ways is the failure this pins against.
     assert.match(h.delivered[0], /THE FENCE IS NOT WHAT YOU OWE — THE WORK IS/)
     assert.ok(
       h.delivered[0].indexOf("THE WORK IS") < h.delivered[0].indexOf("```question"),
@@ -208,7 +208,7 @@ for (const [what, tele] of [
 
 // THE FREE-FORM FENCE IS RETIRED (2026-09-11; shared QUESTION_FENCE_RETIRED_AT). "A question fence" in
 // the table above is a sign-off only for a thread dispatched BEFORE the retirement, whose worker still
-// speaks that grammar. A thread dispatched after it asks only through `mcp__frizz__ask`, so a fence it
+// speaks that grammar. A thread dispatched after it asks only through `mcp__ntwine__ask`, so a fence it
 // writes with no registered row behind it is prose — a bare rest — and the nudge fires. Driven through
 // the REAL tailer rather than a hand-built telemetry, because the gate lives in the tailer's `get` and a
 // fake `get` would only prove the fake.
@@ -217,13 +217,13 @@ for (const [what, spawnedAt, nudged] of [
   ["a new-contract thread (dispatched after the retirement)", new Date(Date.parse(QUESTION_FENCE_RETIRED_AT) + 60_000).toISOString(), true],
 ] as const) {
   test(`${what} resting on a free-form \`\`\`question fence with no registered question: nudged=${nudged}`, async () => {
-    const dir = mkdtempSync(join(tmpdir(), "frizz-signoff-fence-"))
+    const dir = mkdtempSync(join(tmpdir(), "ntwine-signoff-fence-"))
     const logDir = join(dir, "-a-project")
     mkdirSync(logDir, { recursive: true })
     const storage = createStorage(join(dir, "ui.db"), "p")
     const slug = "resting"
     storage.upsertSession({
-      slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: spawnedAt,
+      slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: spawnedAt,
       last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
       title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
     } as SessionRow)
@@ -323,7 +323,7 @@ test("a question carried from an EARLIER rest is not this rest's sign-off — th
     assert.match(nudges[0].message, /A question you registered at an EARLIER rest is still open/)
     assert.match(nudges[0].message, /- `qst_old1` — SQLite or a JSON file\?/, "named, with its own words")
     assert.match(nudges[0].message, /`questions: \[qst_…\]`/)
-    assert.match(nudges[0].message, /`frizzctl unask <id>`/)
+    assert.match(nudges[0].message, /`ntwinectl unask <id>`/)
   } finally { h.close() }
 })
 
@@ -368,7 +368,7 @@ test("a registered watch alone is NOT a sign-off for an answer-required thread �
 // AND THE MOMENT THE HUMAN ANSWERS, EVERY GUARD ABOVE OPENS. The row leaves `open`, the done row is
 // still absent, no watch was ever armed — so on the next tick this thread looked exactly like one that
 // had rested saying nothing, and the nudge went out while the answer was still in the outbox. The
-// transcript read: the worker's rest, "FRIZZ ASKED FOR A SIGN-OFF", then the human's answer (maintainer
+// transcript read: the worker's rest, "NTWINE ASKED FOR A SIGN-OFF", then the human's answer (maintainer
 // 2026-08-27, on that exact sequence). It also spent one of the two nudges this thread will ever get.
 test("an answered question ON ITS WAY to the worker is a sign-off too, until the worker has it", async () => {
   const h = nudger({})
@@ -437,14 +437,14 @@ test("one nudge per rest, however many ticks run over it", async () => {
   } finally { h.close() }
 })
 
-// THE LOOP THIS ALMOST SHIPPED WITH. Frizz's own delivery lands as a USER record, so it advances both
+// THE LOOP THIS ALMOST SHIPPED WITH. Ntwine's own delivery lands as a USER record, so it advances both
 // `lastActivityAt` and `lastUserAt`. The first design keyed the delivery id on the former and the cap's
 // anchor on the latter, which meant the nudge minted a fresh id for a rest that never happened and reset
 // its own counter with its own message: 22 deliveries to one thread in four minutes, measured on a real
 // stack (the unit tests all passed, because they drove those fields by hand).
 //
-// The fix is to ask whether the AGENT spoke last, which nothing frizz says can affect.
-test("a thread whose last word is frizz's own nudge is not nudged again", async () => {
+// The fix is to ask whether the AGENT spoke last, which nothing ntwine says can affect.
+test("a thread whose last word is ntwine's own nudge is not nudged again", async () => {
   const h = nudger({
     lastAssistantAt: "2026-08-12T00:00:00.000Z",
     lastUserAt: "2026-08-12T00:00:30.000Z", // the delivery landed AFTER the agent's last word
@@ -475,7 +475,7 @@ test("the cap stops a nag loop, and only SIGNING OFF gives the allowance back", 
     assert.equal(h.delivered.length, 2, "capped at 2 consecutive")
     assert.equal(h.storage.getSession(h.slug)?.signoff_nudges, 2)
 
-    // A user record does NOT restore it — that is exactly what frizz's own delivery is.
+    // A user record does NOT restore it — that is exactly what ntwine's own delivery is.
     spokeAt = "2026-08-12T00:04:00.000Z"
     await h.s.tick()
     assert.equal(h.delivered.length, 2, "still capped")
@@ -549,7 +549,7 @@ test("a nudge to a LIVE runtime is counted against the cap, not just one to an u
 // cannot answer a reminder — nothing it writes reaches the model — and on a context-window 400 the
 // reminder is what keeps the conversation over the limit, so even the two the cap allows are two too
 // many. Each row is a REAL synthetic error record folded through the tailer, so what reaches the stub is
-// what the fold actually raises — for the category frizz already classified (a rate limit) and for the
+// what the fold actually raises — for the category ntwine already classified (a rate limit) and for the
 // one it could not see at all (a 400). The fold → `telemetry()` projection is pinned in tailer.test.ts.
 for (const [what, rec] of [
   ["a terminal 400 the classifiers do not recognise", {
@@ -595,18 +595,18 @@ for (const [what, rec] of [
 // Separating the reminder from the Goal (2026-08-12) means a thread WITH a Goal has two sources that
 // want one fenceless rest. Until 2026-08-28 both fired on it, as separate deliveries, on the reading
 // that "the deliveries serialise, and a fence supersedes whatever is still queued". They serialised in
-// the RUNTIME'S queue, not frizz's: both left in one tick, 5 ms apart, the worker answered the Goal with
+// the RUNTIME'S queue, not ntwine's: both left in one tick, 5 ms apart, the worker answered the Goal with
 // a ```done fence, and then read "you rested without a fence" — the supersession check ran at send,
 // before that reply existed — and fenced again. Two Done cards on one thread (`wrong-agent-id-re-fencing`,
 // maintainer: "Redundant Dones"). So now ONE source takes a bare rest: the reminder, which mints first
 // and already sends a half-finished thread back to the work; the Goal stands down on that rest and takes
 // the bare rests the reminder does not (its cap spent — see the test after next).
 test("a Goal and the reminder are due for one rest: the reminder goes, the Goal stands down, and a fence ends it", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-both-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-both-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "both"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -633,7 +633,7 @@ test("a Goal and the reminder are due for one rest: the reminder goes, the Goal 
   })
   try {
     await s.tick()
-    // ONE wake for this rest — frizz's protocol, not the operator's words.
+    // ONE wake for this rest — ntwine's protocol, not the operator's words.
     assert.equal(delivered.length, 1)
     assert.match(delivered[0], /without a fence/, "the reminder is what a bare rest draws")
     assert.doesNotMatch(delivered[0], /^keep going/, "and the Goal stands down on the rest the reminder took")
@@ -656,7 +656,7 @@ test("a Goal and the reminder are due for one rest: the reminder goes, the Goal 
 // ARMING A GOAL OVER AN OPEN QUESTION (maintainer 2026-09-02). The arming cancels the question for
 // autonomy (router.cancelQuestionsForAutonomy), which turned a rest that had signed off WITH a question
 // into what both sources read as a bare one: the reminder took it — "you rested without a fence", to a
-// worker whose question frizz itself had just cancelled — and the Goal stood down for it, while the
+// worker whose question ntwine itself had just cancelled — and the Goal stood down for it, while the
 // cancellation wake went out beside it as a second delivery. The dismissal-in-flight is a settlement on
 // its way (evalQuestionAnswers wakes on exactly this shape when the rest Goal is armed), so it holds
 // both sources the way an answer-in-flight already held the reminder, and the wake is the ONE delivery
@@ -702,7 +702,7 @@ test("a cancellation on its way holds BOTH sources — the wake is the one deliv
 })
 
 // THE FIELD SEQUENCE, END TO END, and the control that keeps the Goal a real trigger. Every rest here is
-// the AGENT'S (lastAssistantAt advances; frizz's own records are not modelled, which is the harder case
+// the AGENT'S (lastAssistantAt advances; ntwine's own records are not modelled, which is the harder case
 // for the hold — see the previous test).
 test("the Goal takes only the bare rests the reminder does not, so a worker never reads 'you rested without a fence' after fencing", async () => {
   let spokeAt = "2026-08-12T00:01:00.000Z"
@@ -808,7 +808,7 @@ test("a rest behind a running shell gets the short variant: the shell by its run
     await h.s.tick()
     assert.equal(h.nudges().length, 1)
     const msg = h.nudges()[0].message
-    assert.ok(msg.startsWith("**This message is from frizz, not from the user.**"), "the transcript collapses it on this marker")
+    assert.ok(msg.startsWith("**This message is from ntwine, not from the user.**"), "the transcript collapses it on this marker")
     assert.match(msg, /^- `bzvtnt3ig` — nub run typecheck$/m, "led by the shell, named by the id the runtime showed the worker")
     assert.match(msg, /```awaiting\nshells: \[bzvtnt3ig\]\nfor: 1h\n---\n/, "the fence, ready to copy")
     assert.match(msg, /```done instead/, "and the way out when the work is in fact finished")
@@ -819,7 +819,7 @@ test("a rest behind a running shell gets the short variant: the shell by its run
 })
 
 test("the fence the short variant hands over is one the real park check honours", async () => {
-  const { signoffNudgeMessage } = await import("@frizz/shared")
+  const { signoffNudgeMessage } = await import("@ntwine/shared")
   const { parseSignalFence } = await import("./tailer.ts")
   const { hasDeclaredBackgroundPark } = await import("./board.ts")
   const shells = [shell(), shell({ id: "toolu_shell2", taskId: "b7xq2pp0k", label: "vite dev" })]
@@ -834,7 +834,7 @@ test("the fence the short variant hands over is one the real park check honours"
 })
 
 test("the short variant offers armed timers and watched PRs as lines to add, never pre-filled into the fence", async () => {
-  const { signoffNudgeMessage } = await import("@frizz/shared")
+  const { signoffNudgeMessage } = await import("@ntwine/shared")
   const msg = signoffNudgeMessage({
     shells: [{ id: "bzvtnt3ig", label: "nub run test" }],
     subAgents: [],
@@ -966,7 +966,7 @@ test("a Goal thread resting behind a running child gets the short variant with i
 // string. A 9-char base36 runtime id that reads as a number (`1234e5678` → Infinity, `0x1a2b3c4` →
 // 27440068) came back as that number, and the park check — which matches strings — refused it.
 test("an id YAML would read as a number is quoted in the fence, and the park check honours it", async () => {
-  const { signoffNudgeMessage, fenceScalar } = await import("@frizz/shared")
+  const { signoffNudgeMessage, fenceScalar } = await import("@ntwine/shared")
   const { parseSignalFence } = await import("./tailer.ts")
   const { hasDeclaredBackgroundPark } = await import("./board.ts")
   assert.equal(fenceScalar("bzvtnt3ig"), "bzvtnt3ig", "an ordinary id stays bare")
@@ -988,7 +988,7 @@ test("an id YAML would read as a number is quoted in the fence, and the park che
 // rest, then landed after the worker's own reply to the child (1 of 25 real returns). Driven through the
 // REAL tailer folding a transcript shaped like the real one, because the window lives in the fold.
 test("a rest behind a child is not nudged in the window between the child's notification and the parent's wake", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-signoff-return-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-signoff-return-"))
   const logDir = join(dir, "-a-project")
   mkdirSync(logDir, { recursive: true })
   const storage = createStorage(join(dir, "ui.db"), "p")
@@ -1001,7 +1001,7 @@ test("a rest behind a child is not nudged in the window between the child's noti
   storage.upsertSession({
     // A legacy spawn: under `needs_input:` a running child no longer parks, so "not nudged while it runs"
     // would not hold — the window this pins is the one after it returns, which both contracts share.
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: LEGACY_SPAWN,
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: LEGACY_SPAWN,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -1049,11 +1049,11 @@ test("a nudge still undelivered when the child returns is superseded at send", a
   let nowMs = T0 + 5_000
   let retired: unknown[] = []
   let children: unknown[] = [child()]
-  const dir = mkdtempSync(join(tmpdir(), "frizz-signoff-send-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-signoff-send-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "resting"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: new Date(T0).toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: new Date(T0).toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)

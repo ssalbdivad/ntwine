@@ -1,4 +1,4 @@
-import { isDirectSubAgent, type ReturnedSubAgentView, type SubAgentView, type ThreadView } from "@frizz/shared"
+import { isDirectSubAgent, type ReturnedSubAgentView, type SubAgentView, type ThreadView } from "@ntwine/shared"
 
 // ── A QUEUED PARENT'S SUB-AGENT WAIT — what its card says about the batch it fanned out ──────────────
 //

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_RAIL_HOVER_NO_SHIFT_E2E_URL
+const baseUrl = process.env.NTWINE_RAIL_HOVER_NO_SHIFT_E2E_URL
 
 // NOTHING IN A RAIL ROW MOVES WHEN THE POINTER ARRIVES (maintainer 2026-09-03: "there should be no
 // layout shift here between these two versions on hover … it should be in the exact same place when

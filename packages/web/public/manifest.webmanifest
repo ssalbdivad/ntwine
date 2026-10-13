@@ -1,7 +1,7 @@
 {
-  "name": "Frizz",
-  "short_name": "Frizz",
-  "description": "frizz — local agent orchestration surface",
+  "name": "Ntwine",
+  "short_name": "Ntwine",
+  "description": "ntwine — local agent orchestration surface",
   "id": "/",
   "start_url": "/",
   "scope": "/",

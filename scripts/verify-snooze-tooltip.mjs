@@ -7,7 +7,7 @@
 // when it goes away.
 //
 // Run against snoozed-rows-fixture.html on a plain Vite dev server (fixtures are NOT servable through the
-// frizz stack — its Vite runs in middleware mode and falls back to index.html for every unknown path):
+// ntwine stack — its Vite runs in middleware mode and falls back to index.html for every unknown path):
 //   (cd packages/web && npx vite --port 5418 --strictPort)
 //   nub scripts/verify-snooze-tooltip.mjs --url=http://localhost:5418/snoozed-rows-fixture.html
 import { mkdirSync } from "node:fs"
@@ -22,7 +22,7 @@ const shots = opt("shots")
 // snooze sentence that now has to ride along with it.
 const CASES = [
   { slug: "seed-the-buried-question-queue", glyph: "working", state: "Working", park: /^Snoozed until /m },
-  // A snooze carrying a follow-up is an AUTO-snooze — frizz resumes the agent with that text — so it
+  // A snooze carrying a follow-up is an AUTO-snooze — ntwine resumes the agent with that text — so it
   // names the bump instead of promising the card back.
   { slug: "watch-the-release-workflow", glyph: "working", state: "Working", park: /^Auto-snoozed until .* — then: Check whether the release job/m },
   { slug: "dependabot-nub-ecosystem", glyph: "held", state: null, park: /^Snoozed until /m },

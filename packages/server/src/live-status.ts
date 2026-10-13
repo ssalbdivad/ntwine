@@ -1,4 +1,4 @@
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-oneshot.ts"
 import { operatorMessages } from "./periodic-status.ts"
 import { isBrokerClaudeRow, type SessionRow, type Storage } from "./storage.ts"
@@ -22,7 +22,7 @@ import { cleanThreadStatus } from "./thread-names.ts"
 // answered SAME 4 times in 22 and reworded a still-true status at almost every other check, which resets
 // the clock the status exists to carry; it also narrated ("The agent has…") about one check in ten.
 // Sonnet held the task through screenshot and typecheck steps and moved exactly when the developer's
-// follow-up or a landing did. FRIZZ_LIVE_STATUS_MODEL overrides it.
+// follow-up or a landing did. NTWINE_LIVE_STATUS_MODEL overrides it.
 // The model is asked a yes/no-shaped question ("still on this task? reply SAME") over a bounded window,
 // so a check is a few thousand input tokens and a handful out. The first check waits FIRST_MS into the
 // turn, so a quick answer that rests in seconds never pays for one. The one-shot spawns a throwaway CLI
@@ -60,7 +60,7 @@ export function liveActivity(messages: readonly TranscriptMessage[]): { request:
     if (m.boundary || m.queued) continue
     if (m.role === "user") {
       // A wake or a child's report can redirect the work as surely as the operator can.
-      if (m.wake || m.peerFrom) lines.push(`[${m.peerFrom ? "sub-agent report" : "Frizz"}] ${clip(m.displayText ?? m.text, ACTIVITY_LINE_CHARS)}`)
+      if (m.wake || m.peerFrom) lines.push(`[${m.peerFrom ? "sub-agent report" : "Ntwine"}] ${clip(m.displayText ?? m.text, ACTIVITY_LINE_CHARS)}`)
       continue
     }
     if (m.kind) continue
@@ -98,7 +98,7 @@ export function liveStatusRequest(input: { request: string; activity: string; cu
     "",
     input.current ? "Reply with SAME or the new status, and nothing else." : "Reply with the status alone.",
   ]
-  return { system: LIVE_SYSTEM, prompt: lines.join("\n"), model: process.env.FRIZZ_LIVE_STATUS_MODEL ?? "sonnet" }
+  return { system: LIVE_SYSTEM, prompt: lines.join("\n"), model: process.env.NTWINE_LIVE_STATUS_MODEL ?? "sonnet" }
 }
 
 /** A model's answer: `same` to keep the current status, a cleaned status, or undefined for neither. */

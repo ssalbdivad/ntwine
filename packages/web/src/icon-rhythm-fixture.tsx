@@ -2,10 +2,10 @@ import { useState } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { BrowserRouter } from "react-router"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import "./styles.css"
 
-// The measuring surface for the OPTICAL rhythm of frizz's icon strips — the thread HEADER's action
+// The measuring surface for the OPTICAL rhythm of ntwine's icon strips — the thread HEADER's action
 // row and the composer's right rail. Both are clusters of small marks whose CSS spacing is uniform and
 // whose PERCEIVED spacing was not, because every glyph wears a different amount of dead padding inside
 // its box (maintainer 2026-08-04: "I'm sure the spacing is consistent in terms of the CSS, but what
@@ -32,13 +32,13 @@ window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(requestUrl, window.location.href)
   // RestartWorkerButton is dev-build-only and asks the launcher at runtime (lib/devBuild.ts).
-  if (url.pathname === "/_frizz/control/status") {
+  if (url.pathname === "/_ntwine/control/status") {
     return new Response(JSON.stringify({ protocol: 1, state: "ready", dev: true }), {
       headers: { "content-type": "application/json" },
     })
   }
   // GithubTrigger renders only for an authed gh in a GitHub repo.
-  if (url.pathname === "/_frizz/rpc/githubStatus") {
+  if (url.pathname === "/_ntwine/rpc/githubStatus") {
     return new Response(JSON.stringify({ result: { inRepo: true, authed: true } }), {
       headers: { "content-type": "application/json" },
     })

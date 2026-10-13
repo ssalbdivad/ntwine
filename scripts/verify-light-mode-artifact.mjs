@@ -9,18 +9,18 @@ import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { request } from "node:http"
 import { launchHeadless } from "./lib/headless-browser.mjs"
-import { buildFrizzArtifact, defaultArtifactRoot, promoteFrizzArtifact } from "../src/artifacts.ts"
+import { buildNtwineArtifact, defaultArtifactRoot, promoteNtwineArtifact } from "../src/artifacts.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
-import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
+import { ntwinePaths } from "../packages/server/src/ntwine-paths.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 import { writeCloudConfig } from "../src/cloud.ts"
 import { measureTextContrast, measureControlContrast } from "./lib/light-mode-contrast.mjs"
 
 const source = resolve(fileURLToPath(new URL("..", import.meta.url)))
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-light-artifact-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-light-artifact-")))
 const home = join(root, "home")
 const project = join(root, "project")
-const state = join(home, ".frizz", "projects", randomUUID())
+const state = join(home, ".ntwine", "projects", randomUUID())
 const port = Number(process.env.THEME_ARTIFACT_PORT ?? 45905)
 const origin = `http://127.0.0.1:${port}`
 const out = resolve(process.env.THEME_EVIDENCE_DIR ?? join(source, ".adhoc-shots/light-mode"))
@@ -45,14 +45,14 @@ const waitUntil = async (predicate, label, timeout = 60_000) => {
 try {
   const artifactRoot = defaultArtifactRoot(home)
   console.log("Building the immutable artifact")
-  const artifact = buildFrizzArtifact(source, artifactRoot)
+  const artifact = buildNtwineArtifact(source, artifactRoot)
   evidence.digest = artifact.digest
-  promoteFrizzArtifact(state, artifact.digest, artifactRoot)
+  promoteNtwineArtifact(state, artifact.digest, artifactRoot)
   writeCloudConfig({ hostname: "light-mode.invalid", serve: "external", provider: "other" }, home)
   const target = { projectId: state.split("/").at(-1), projectDir: project, stateDir: state }
   owner = acquireProjectLaunchOwner(target, "launcher")
-  const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("FRIZZ_")))
-  const env = projectLaunchEnvironment({ ...clean, HOME: home, FRIZZ_DIRECT_SUPERVISOR: "1", FRIZZ_STABLE_ARTIFACT: artifact.digest, FRIZZ_STABLE_WEB_DIST: artifact.webDir, FRIZZ_RUNTIMES_DIR: join(frizzPaths({ home: homedir() }).cache, "runtimes"), FRIZZ_WAKERS_OFF: "1", FRIZZ_ORPHAN_REAPER_OFF: "1", FRIZZ_TENANT_PRIME_OFF: "1", BROWSER: "/usr/bin/true" }, target, owner.token)
+  const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("NTWINE_")))
+  const env = projectLaunchEnvironment({ ...clean, HOME: home, NTWINE_DIRECT_SUPERVISOR: "1", NTWINE_STABLE_ARTIFACT: artifact.digest, NTWINE_STABLE_WEB_DIST: artifact.webDir, NTWINE_RUNTIMES_DIR: join(ntwinePaths({ home: homedir() }).cache, "runtimes"), NTWINE_WAKERS_OFF: "1", NTWINE_ORPHAN_REAPER_OFF: "1", NTWINE_TENANT_PRIME_OFF: "1", BROWSER: "/usr/bin/true" }, target, owner.token)
   server = spawn(process.execPath, [join(artifact.runtimeDir, "src", "index.js"), "--no-app", `--port=${port}`], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] })
   for (const stream of [server.stdout, server.stderr]) stream.on("data", chunk => { logs += String(chunk) })
   const api = createRpcClient(origin)
@@ -64,7 +64,7 @@ try {
   page.on("pageerror", error => pageErrors.push(String(error)))
   await page.setViewport({ width: 1000, height: 800, deviceScaleFactor: 1 })
   await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "dark" }])
-  await page.evaluateOnNewDocument(() => localStorage.setItem("frizz-theme", "light"))
+  await page.evaluateOnNewDocument(() => localStorage.setItem("ntwine-theme", "light"))
   await page.goto(origin, { waitUntil: "networkidle2" })
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light")
   assert.equal(await page.evaluate(() => [...document.scripts].some(script => script.src.includes("/assets/"))), true)
@@ -81,7 +81,7 @@ try {
   renameSync(artifact.webDir, `${artifact.webDir}.unavailable`)
   process.kill(lock.pid, "SIGKILL")
   await waitUntil(async () => {
-    const response = await fetch(`${origin}/_frizz/control/status`, { headers: { origin } })
+    const response = await fetch(`${origin}/_ntwine/control/status`, { headers: { origin } })
     if (!response.ok) throw new Error(`Supervisor status refused: ${response.status} ${await response.text()}`)
     const status = await response.json()
     return status.state !== "ready"
@@ -100,7 +100,7 @@ try {
   check("Recovery paints persisted Light without web assets", { canvas, recovery })
   const darkPage = await browser.newPage()
   await darkPage.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }])
-  await darkPage.evaluateOnNewDocument(() => localStorage.setItem("frizz-theme", "dark"))
+  await darkPage.evaluateOnNewDocument(() => localStorage.setItem("ntwine-theme", "dark"))
   await darkPage.goto(origin, { waitUntil: "networkidle2" })
   assert.equal(await darkPage.evaluate(() => document.documentElement.dataset.theme), "dark")
   await darkPage.screenshot({ path: join(out, "dark-artifact-recovery.png") })
@@ -126,7 +126,7 @@ try {
   }
   const systemPage = await browser.newPage()
   systemPage.on('pageerror', error => pageErrors.push(String(error)))
-  await systemPage.evaluateOnNewDocument(() => localStorage.removeItem('frizz-theme'))
+  await systemPage.evaluateOnNewDocument(() => localStorage.removeItem('ntwine-theme'))
   for (const os of ['light', 'dark']) {
     await systemPage.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: os }])
     await systemPage.goto(origin, { waitUntil: 'networkidle2' })
@@ -139,7 +139,7 @@ try {
     req.end()
   })
   assert.equal(anonymous.status, 401)
-  assert.doesNotMatch(anonymous.body, /frizz|board|agent/i)
+  assert.doesNotMatch(anonymous.body, /ntwine|board|agent/i)
   await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }])
   await page.setContent(anonymous.body)
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light")

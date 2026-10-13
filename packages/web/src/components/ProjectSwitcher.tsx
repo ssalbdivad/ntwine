@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from "react"
 import { Bot, Check, ChevronDown, Layers, Plus } from "lucide-react"
-import type { ProjectCard } from "@frizz/shared"
+import type { ProjectCard } from "@ntwine/shared"
 import { ProjectSquare } from "./ProjectSquare.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 import { useTourHoldsSwitcher } from "../lib/tour.ts"

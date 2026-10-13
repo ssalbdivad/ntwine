@@ -8,8 +8,8 @@ import test from "node:test"
 // RELATIONS the card is built on, in a real browser — the cascade is the thing under test, and nothing
 // DOM-free computes it. Skipped unless a Vite URL serving the fixtures is provided:
 //   cd packages/web && nubx vite --port 5233 --strictPort --host 127.0.0.1 &
-//   FRIZZ_QUESTION_DETAIL_SCALE_E2E_URL=http://127.0.0.1:5233 nub --test src/components/questionDetailScale.e2e.test.ts
-const baseUrl = process.env.FRIZZ_QUESTION_DETAIL_SCALE_E2E_URL
+//   NTWINE_QUESTION_DETAIL_SCALE_E2E_URL=http://127.0.0.1:5233 nub --test src/components/questionDetailScale.e2e.test.ts
+const baseUrl = process.env.NTWINE_QUESTION_DETAIL_SCALE_E2E_URL
 
 test("an option's detail steps down from its label, and a trailing note from the question", { skip: !baseUrl, timeout: 60_000 }, async () => {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")

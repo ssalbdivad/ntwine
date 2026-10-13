@@ -1,4 +1,4 @@
-import type { LimitWindow, LiveTool, PermissionMode, ProviderError } from "@frizz/shared"
+import type { LimitWindow, LiveTool, PermissionMode, ProviderError } from "@ntwine/shared"
 import type { FenceView, SubAgentView, BgShellView, PendingAskData, TurnState } from "../tailer.ts"
 
 // A turn cut off by an exhausted SUBSCRIPTION window, as a backend's fold observed it. Carries only
@@ -105,11 +105,11 @@ export interface NormalizedTail {
   liveTool?: LiveTool
   aiTitle?: string
   lastUserAt?: string
-  // ISO8601 of the newest turn the HUMAN typed — lastUserAt minus every frizz wake delivery (a watcher,
+  // ISO8601 of the newest turn the HUMAN typed — lastUserAt minus every ntwine wake delivery (a watcher,
   // a timer, a nudge, and the one that carries their answers). The clock questionRepliedPast reads —
   // information only since 2026-09-29; it releases nothing.
   lastHumanAt?: string
-  // ISO8601 of the FIRST turn the human typed — the dispatch prompt, on a thread Frizz started. Tells a
+  // ISO8601 of the FIRST turn the human typed — the dispatch prompt, on a thread Ntwine started. Tells a
   // reply to that prompt (work the sign-off nudge still asks about) from a reply in a later conversation.
   firstHumanAt?: string
   lastToolCallAt?: string // ISO8601 of the agent's newest tool call — what tells a reply that did WORK from one that only talked
@@ -177,10 +177,10 @@ export interface FoldState {
   // second title candidate.
   titleCandidateFinalText?: string
   // Provenance for Codex's auto title. A bounded dispatch fallback exists only so an omitted in-band
-  // signal never leaves the board on an internal slug; a later valid Frizz signal may replace it.
+  // signal never leaves the board on an internal slug; a later valid Ntwine signal may replace it.
   // A generated signal or provider-native title is final for automatic naming (manual titles are
   // guarded separately by storage's title_auto CAS).
-  autoTitleSource?: "fallback" | "frizz" | "native"
+  autoTitleSource?: "fallback" | "ntwine" | "native"
   lastUserAt?: string // ISO8601 of the newest GENUINE (non-synthetic) human turn — the listing sort key
   // …and of the newest one the human actually TYPED: a scheduler wake delivery reaches the fold as a
   // genuine user turn (it bumps the row key like any delivery), so this skips every one of them — the
@@ -242,7 +242,7 @@ export interface FoldState {
   // Claude row has a numerator from its first assistant record but no denominator until its first turn
   // ends — and a pre-broker/foreign Claude row never gets one at all. Absent ⇒ NO reading is rendered.
   //
-  // "Runs in", not "the model's size", because a Claude worker's AUTO-COMPACT CEILING lowers it: frizz
+  // "Runs in", not "the model's size", because a Claude worker's AUTO-COMPACT CEILING lowers it: ntwine
   // dispatches at the 1M window and then hands the CLI a 500K CLAUDE_CODE_AUTO_COMPACT_WINDOW, and
   // Claude Code's effective window is `min` of the two — so the room this session has is 500K and
   // dividing by 1M reported it a comfortable 25% full at the moment it was half full (2026-09-01). The
@@ -285,36 +285,36 @@ export interface BuiltCommand {
   prewrite: PrewriteFile[]
 }
 
-// The ONE unified frizz MCP server every worker gets: mounted under the name `frizz`, so its tools are
-// addressed as `mcp__frizz__<tool>` (`spawn_thread`, `goal` and `timer` today — new
-// worker-facing frizz capabilities join the same server's registry in cc-worker/bin/frizz-mcp.mjs rather
-// than mounting a second server). The dispatch layer pre-approves it at SERVER level (`mcp__frizz`), so a
+// The ONE unified ntwine MCP server every worker gets: mounted under the name `ntwine`, so its tools are
+// addressed as `mcp__ntwine__<tool>` (`spawn_thread`, `goal` and `timer` today — new
+// worker-facing ntwine capabilities join the same server's registry in cc-worker/bin/ntwine-mcp.mjs rather
+// than mounting a second server). The dispatch layer pre-approves it at SERVER level (`mcp__ntwine`), so a
 // tool added there needs no allow-list change here.
-export const FRIZZ_MCP = {
-  name: "frizz",
-  script: "frizz-mcp.mjs", // resolved under <worker plugin dir>/bin/
+export const NTWINE_MCP = {
+  name: "ntwine",
+  script: "ntwine-mcp.mjs", // resolved under <worker plugin dir>/bin/
 } as const
 
-// Present ⇒ mount FRIZZ_MCP for this worker. Carries the abs path to the stdio MCP server script and
+// Present ⇒ mount NTWINE_MCP for this worker. Carries the abs path to the stdio MCP server script and
 // the project state dir it reads `server.lock` from. Computed by the dispatch layer
 // (resolveWorkerPluginDir + project.stateDir) and threaded through both backends; absent in tests /
 // when the plugin dir or script can't be resolved (→ no injection, worker simply lacks the tools).
-export interface FrizzMcp {
+export interface NtwineMcp {
   scriptPath: string
   stateDir: string
   // WHERE THE PORT ACTUALLY IS. `server.lock` is written for the project the singleton was LAUNCHED
   // from and for no other (index.ts, "status publication"), so a worker in any OTHER open project
-  // read its own project's state dir and found nothing — every frizz tool died on
-  // "could not read the frizz server lock … ENOENT", or worse, on a stale lock from the last time
+  // read its own project's state dir and found nothing — every ntwine tool died on
+  // "could not read the ntwine server lock … ENOENT", or worse, on a stale lock from the last time
   // that repo ran its own server (a dead port ⇒ "dispatch request failed: fetch failed"). Absent ⇒
   // the script falls back to `<stateDir>/server.lock`, which is what a pre-singleton server passed.
   serverLock?: string
   // WHICH PROJECT the tools act on, as the immutable registry id — the script addresses
-  // `/_frizz/<projectId>/rpc/…`. An UNPREFIXED `/_frizz/rpc/…` is the LAUNCHING project by design
+  // `/_ntwine/<projectId>/rpc/…`. An UNPREFIXED `/_ntwine/rpc/…` is the LAUNCHING project by design
   // (splitTenantRequest), so without this a worker in project B spawned its thread onto project A's
   // board. The id rather than the slug because a project can be renamed under a live detached worker.
   projectId?: string
-  // The thread this MCP server belongs to, passed through as FRIZZ_THREAD_SLUG so a tool CAN act on its
+  // The thread this MCP server belongs to, passed through as NTWINE_THREAD_SLUG so a tool CAN act on its
   // OWN thread. Nothing in the MCP protocol identifies the caller, and the server is spawned per worker,
   // so its env is the only channel for this.
   //
@@ -327,70 +327,70 @@ export interface FrizzMcp {
 }
 
 /**
- * The env the frizz MCP server process is spawned with — ONE builder, because both backends mount the
+ * The env the ntwine MCP server process is spawned with — ONE builder, because both backends mount the
  * same script and a field added on only one side is a capability that silently works under claude and
  * not under codex (or the reverse), discoverable only by running a worker.
  */
-export function frizzMcpEnv(mcp: FrizzMcp): Record<string, string> {
+export function ntwineMcpEnv(mcp: NtwineMcp): Record<string, string> {
   return {
-    FRIZZ_STATE_DIR: mcp.stateDir,
-    ...(mcp.serverLock ? { FRIZZ_SERVER_LOCK: mcp.serverLock } : {}),
-    ...(mcp.projectId ? { FRIZZ_PROJECT_ID: mcp.projectId } : {}),
-    ...(mcp.slug ? { FRIZZ_THREAD_SLUG: mcp.slug } : {}),
+    NTWINE_STATE_DIR: mcp.stateDir,
+    ...(mcp.serverLock ? { NTWINE_SERVER_LOCK: mcp.serverLock } : {}),
+    ...(mcp.projectId ? { NTWINE_PROJECT_ID: mcp.projectId } : {}),
+    ...(mcp.slug ? { NTWINE_THREAD_SLUG: mcp.slug } : {}),
   }
 }
 
 // ---- The worker command line ---------------------------------------------------------------------
-// `frizzctl` (cc-worker/bin/) is how a worker reaches Frizz: every worker capability is a command it
+// `ntwinectl` (cc-worker/bin/) is how a worker reaches Ntwine: every worker capability is a command it
 // runs from its own shell, on every backend, and none of them is a tool in the model's registry. So
 // what a backend owes a worker is no longer a mount; it is an ENVIRONMENT — the command on PATH, and
 // the handful of facts the command reads to find the server and to know who is calling.
-export const FRIZZ_CLI = {
-  name: "frizzctl", // resolved under <worker plugin dir>/bin/
+export const NTWINE_CLI = {
+  name: "ntwinectl", // resolved under <worker plugin dir>/bin/
 } as const
 
-// Present ⇒ this worker's shell can run FRIZZ_CLI. Computed by the dispatch layer (resolveFrizzCli)
+// Present ⇒ this worker's shell can run NTWINE_CLI. Computed by the dispatch layer (resolveNtwineCli)
 // and threaded through every backend; absent in tests / when the plugin dir can't be resolved.
-export interface FrizzCli {
+export interface NtwineCli {
   // The directory that goes on the worker's PATH: `<worker plugin dir>/bin`. The STABLE plugin path
   // where there is one (dispatch.ts launchableWorkerPluginDir), so a worker that outlives an update
   // runs the updated command — a shell resolves it per call, which is exactly what an MCP server
   // spawned once per session could not do.
   binDir: string
   stateDir: string
-  // See FrizzMcp: the machine address, and the immutable registry id the command addresses
-  // `/_frizz/<projectId>/rpc/…` by.
+  // See NtwineMcp: the machine address, and the immutable registry id the command addresses
+  // `/_ntwine/<projectId>/rpc/…` by.
   serverLock?: string
   projectId?: string
 }
 
 /**
- * What `frizzctl` reads, as the variables a worker's shell must hold — ONE builder for every backend,
- * for the reason frizzMcpEnv is one: a variable set on one side only is a capability that works under
+ * What `ntwinectl` reads, as the variables a worker's shell must hold — ONE builder for every backend,
+ * for the reason ntwineMcpEnv is one: a variable set on one side only is a capability that works under
  * claude and not under codex, discoverable only by running a worker.
  *
  * `slug` is the caller's identity and belongs here only where the process this environment is for
  * serves ONE thread (an ACP agent daemon, a codex thread's own shell). A codex app-server serves every
  * thread in its project, so its process environment cannot name one — see codexThreadShellConfig.
  *
- * IT IS FRIZZ_THREAD_SLUG, NEVER FRIZZ_THREAD. The two read the same to `frizzctl`, but FRIZZ_THREAD is
+ * IT IS NTWINE_THREAD_SLUG, NEVER NTWINE_THREAD. The two read the same to `ntwinectl`, but NTWINE_THREAD is
  * also the orphan reaper's ownership tag (orphan-reaper.ts): a process carrying it is reaped once it is
  * two minutes old unless a live `claude`/`codex` session root carries the same slug. A Claude worker
- * has that root, and its broker stamps FRIZZ_THREAD itself. A codex thread's shell runs under a
+ * has that root, and its broker stamps NTWINE_THREAD itself. A codex thread's shell runs under a
  * per-project app-server that carries no slug, and an ACP agent is neither `claude` nor `codex`, so the
  * tag there would have the reaper SIGKILL a codex thread's two-minute build and an ACP agent with its
  * whole subtree.
  *
- * FRIZZ_NODE is the node this server runs on: the command's launcher tries it before a bare `node`,
+ * NTWINE_NODE is the node this server runs on: the command's launcher tries it before a bare `node`,
  * because a worker's PATH varies by launch context and the launcher must not depend on it.
  */
-export function frizzCliEnv(cli: FrizzCli, slug?: string, nodeBin: string = process.execPath): Record<string, string> {
+export function ntwineCliEnv(cli: NtwineCli, slug?: string, nodeBin: string = process.execPath): Record<string, string> {
   return {
-    FRIZZ_STATE_DIR: cli.stateDir,
-    ...(cli.serverLock ? { FRIZZ_SERVER_LOCK: cli.serverLock } : {}),
-    ...(cli.projectId ? { FRIZZ_PROJECT_ID: cli.projectId } : {}),
-    FRIZZ_NODE: nodeBin,
-    ...(slug ? { FRIZZ_THREAD_SLUG: slug } : {}),
+    NTWINE_STATE_DIR: cli.stateDir,
+    ...(cli.serverLock ? { NTWINE_SERVER_LOCK: cli.serverLock } : {}),
+    ...(cli.projectId ? { NTWINE_PROJECT_ID: cli.projectId } : {}),
+    NTWINE_NODE: nodeBin,
+    ...(slug ? { NTWINE_THREAD_SLUG: slug } : {}),
   }
 }
 
@@ -402,7 +402,7 @@ export function frizzCliEnv(cli: FrizzCli, slug?: string, nodeBin: string = proc
  * Not needed for a Claude worker — Claude Code puts an enabled plugin's `bin/` on its Bash PATH
  * itself — and harmless there.
  */
-export function withFrizzCliOnPath(env: Record<string, string>, cli: FrizzCli, platform: NodeJS.Platform = process.platform): Record<string, string> {
+export function withNtwineCliOnPath(env: Record<string, string>, cli: NtwineCli, platform: NodeJS.Platform = process.platform): Record<string, string> {
   const key = Object.keys(env).find((k) => (platform === "win32" ? k.toUpperCase() === "PATH" : k === "PATH"))
   if (!key || !env[key]) return env
   const delimiter = platform === "win32" ? ";" : ":"
@@ -410,26 +410,26 @@ export function withFrizzCliOnPath(env: Record<string, string>, cli: FrizzCli, p
   return { ...env, [key]: `${cli.binDir}${delimiter}${env[key]}` }
 }
 
-// Frizz mounts NO browser. The only MCP server it injects into a worker is the unified `frizz`
+// Ntwine mounts NO browser. The only MCP server it injects into a worker is the unified `ntwine`
 // server above (claude: a `--mcp-config` file in dispatch.ts; codex: `-c` TOML overrides on the
 // app-server argv in codex-mcp.ts). A `chrome-devtools` mount used to ride every dispatch on both
 // backends, together with a lazy proxy in `cc-worker/bin/` that answered `tools/list` from a
 // committed schema snapshot; all of it was removed 2026-08-26. Two reasons: its 29 tool schemas cost
 // ~6,400 prefix tokens on EVERY worker session, and most workers never open a page — and mounting a
-// browser nobody asked for is an opinion Frizz has no business holding. A project or an operator that
+// browser nobody asked for is an opinion Ntwine has no business holding. A project or an operator that
 // wants one brings it themselves, the same way they would in any other Claude Code or codex session:
 // a project `.mcp.json` (this repo has one, pinned `--headless --isolated`). Since 2026-09-03 a worker
 // mounts under `--strict-mcp-config`, so `claude mcp add --scope user` reaches the operator's own
 // sessions but not the fleet — a user-scope stdio server was booting in every worker, twice over; see
 // project-mcp-servers.ts. Do not re-add a mount here.
 
-// The environment EVERY frizz Claude worker gets, on EVERY spawn path. Kept as one record with one
+// The environment EVERY ntwine Claude worker gets, on EVERY spawn path. Kept as one record with one
 // spread per call site (the bridge's `workerEnv` for the broker daemon, the SDK's key allowlist, and
 // claudeWorkerEnvironment() for the argv builder) so a new entry cannot reach one path and silently
 // miss the other. Spread it, never re-spell a key — a typo here is silent, and each failure mode
 // below is quiet.
 //
-// Distinct from claudeWorkerEnvironment()'s CAPS, which only ever reached a worker frizz launched as
+// Distinct from claudeWorkerEnvironment()'s CAPS, which only ever reached a worker ntwine launched as
 // its own `claude` process: these are settings a worker needs on whichever path it was dispatched
 // through.
 //
@@ -438,7 +438,7 @@ export function withFrizzCliOnPath(env: Record<string, string>, cli: FrizzCli, p
 // `<total_tokens>N tokens left</total_tokens>` block into the system prompt and after every
 // tool-result batch; `infinite` renders the literal `Infinite`. Default is `off` — no block at all.
 //
-// WHY A FRIZZ WORKER OVERRIDES THAT DEFAULT: with no block, the model has no signal about its budget
+// WHY A NTWINE WORKER OVERRIDES THAT DEFAULT: with no block, the model has no signal about its budget
 // and it GUESSES — badly, and always downward. Claude Code injects nothing else about context: no
 // system-reminder in cli 2.1.220 mentions tokens, and the "Context is N% full" warning is `/context`
 // TUI text the model never sees. Measured on a real worker (nub session 5258ebe4, transcript line
@@ -453,7 +453,7 @@ export function withFrizzCliOnPath(env: Record<string, string>, cli: FrizzCli, p
 // `infinite` and not `countdown`: a live remaining-token count is still a shrinking number, which is
 // the exact input to the bad inference. Claude Code's own autocompact system prompt already tells the
 // model "your conversation with the user is not limited by the context window" — `Infinite` restates
-// that in the one place the model looks for a budget, and it is TRUE for a frizz worker, whose session
+// that in the one place the model looks for a budget, and it is TRUE for a ntwine worker, whose session
 // compacts and continues rather than ending.
 //
 // The env var is the highest-precedence source, ahead of `totalTokensReminder` in settings and the
@@ -466,24 +466,24 @@ export function withFrizzCliOnPath(env: Record<string, string>, cli: FrizzCli, p
 // 2.1.293, and follows it if Claude Code moves it (maintainer 2026-10-10: "we should just let the
 // agent follow its own best practices here as much as possible").
 //
-// Frizz pinned it at 60_000 from 2026-08-01 until then, so that a call the worker had not thought
+// Ntwine pinned it at 60_000 from 2026-08-01 until then, so that a call the worker had not thought
 // about — a hung `curl` — bounced in a minute rather than sitting on the turn. Do not bring the pin
 // back to shorten a blocked turn: two minutes is the harness's own answer to that, and the ceiling
 // below governs the call a worker sized deliberately. With nothing set here, a value the operator
-// exported before launching Frizz reaches the worker like any other variable (see worker-env.ts).
+// exported before launching Ntwine reaches the worker like any other variable (see worker-env.ts).
 //
 // ── BASH_MAX_TIMEOUT_MS ────────────────────────────────────────────────────────────────────────
 // The ceiling on an EXPLICIT `timeout`, lifted from Claude Code's 600_000 to 24 hours on 2026-08-11
 // (maintainer: "lift the cap globally, so a worker can block on anything it chooses").
 //
 // A worker can now block for as long as the thing it is blocking on actually takes. The value that
-// makes this safe is not the ceiling, it is that a blocking wait is DELIBERATE: frizz's own watcher
+// makes this safe is not the ceiling, it is that a blocking wait is DELIBERATE: ntwine's own watcher
 // tools require a timeout, and a Bash call that names one has been sized by a worker that knew what it
 // was waiting for. The failure the old ceiling guarded — an opaque turn nobody can distinguish from a
 // wedged one — is answered instead by the live tool caption, which names what is running for as long as
 // it runs.
 //
-// 24 HOURS rather than "no limit", because that is already frizz's word for the longest thing a worker
+// 24 HOURS rather than "no limit", because that is already ntwine's word for the longest thing a worker
 // may ask for anywhere else (RECURRING_MAX_INTERVAL_SECONDS). One ceiling vocabulary, not two.
 //
 // The Bash tool's own description interpolates the default and this ceiling (`` `timeout` is in
@@ -491,13 +491,13 @@ export function withFrizzCliOnPath(env: Record<string, string>, cli: FrizzCli, p
 // pair.
 //
 // This does NOT relax the escaping-background-job rule that hooks/bash-background.mjs enforces. That
-// hook is about lifecycle identity (`cmd &` leaves a child frizz and Claude cannot wake on); this is
+// hook is about lifecycle identity (`cmd &` leaves a child ntwine and Claude cannot wake on); this is
 // only about how long a tracked foreground call is allowed to take before the harness backgrounds it
 // ITSELF, which keeps the task id and the wake. The two are independent.
 
 // Claude Code caps WebSearch at 200 calls per SESSION (verified in the 2.1.220 bundle:
 // `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION ?? 200`, enforced in the WebSearch tool against a
-// `taskRegistry` counter). A frizz worker is long-lived and research-heavy — it burns that budget on
+// `taskRegistry` counter). A ntwine worker is long-lived and research-heavy — it burns that budget on
 // work a chat session never would — and past the cap the tool stops searching and merely returns
 // "this session has used its web search budget", which reads to the model as a dead end rather than
 // as a quota. Raise it far enough that a real effort never hits it, while keeping a finite backstop
@@ -510,7 +510,7 @@ export const WORKER_MAX_WEB_SEARCHES = 10000
 //
 //   CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION  default 200 — TOTAL Task spawns for the whole session.
 //     Past it every spawn throws "Subagent spawn limit reached (N of 200 agents spawned)… ask the user
-//     to raise CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION". A frizz worker is long-lived and dispatches a
+//     to raise CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION". A ntwine worker is long-lived and dispatches a
 //     helper per prong across many turns, so it reaches 200 on work a chat session never would — and
 //     the failure reads to the model as "stop delegating", not as a quota. Lifted like the search
 //     budget: no machine cost to a high ceiling, since this counts spawns over time, not live ones.
@@ -524,7 +524,7 @@ export const WORKER_MAX_WEB_SEARCHES = 10000
 // NOT lifted: CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH. Its default is not a constant at all — it resolves
 // through a server-gated feature value — but the worker contract already tells workers to keep fan-out
 // shallow because a rested sub-agent is not reliably re-woken by grandchildren. Raising the nesting cap
-// would buy depth that frizz's own wake path cannot deliver on, so the cap and the contract agree.
+// would buy depth that ntwine's own wake path cannot deliver on, so the cap and the contract agree.
 export const WORKER_MAX_SUBAGENTS = 10000
 export const WORKER_MAX_CONCURRENT_SUBAGENTS = 100
 
@@ -537,7 +537,7 @@ function workerCap(name: string, lifted: number, env: NodeJS.ProcessEnv): string
   return String(lifted)
 }
 
-// Claude Code reads these inherited process variables as sub-agent profile defaults. A Frizz worker
+// Claude Code reads these inherited process variables as sub-agent profile defaults. A Ntwine worker
 // chooses its profile explicitly through the launch argv and plugin agent profiles, so let neither
 // a shell nor a globally configured Claude session silently replace that selection. An EMPTY entry
 // here overrides the inherited value while preserving every auth/config variable.
@@ -546,7 +546,7 @@ function workerCap(name: string, lifted: number, env: NodeJS.ProcessEnv): string
 // identity, but a cap is operator policy, so an explicitly configured one is passed through rather
 // than overridden. They are always set EXPLICITLY (never left to inheritance) because inheritance is
 // not a stable source: a worker used to be launched inside a long-lived multiplexer server whose own
-// environment was captured whenever IT first started, which could predate the current frizz process
+// environment was captured whenever IT first started, which could predate the current ntwine process
 // by days. Nothing inherits that way now, but an explicit value is still the only one that cannot
 // drift with the launch context.
 
@@ -564,7 +564,7 @@ export const CLAUDE_WORKER_ENV = {
 // the lifted caps above. One function, spread whole at each call site, because the caps spent their
 // whole life on the argv builder alone: `claudeWorkerEnvironment()` set them, nothing but the retired
 // argv path called it, and the broker — the only transport there is — spread CLAUDE_WORKER_ENV, which
-// did not carry them. So every lift documented above reached no worker at all, and a real frizz worker
+// did not carry them. So every lift documented above reached no worker at all, and a real ntwine worker
 // ran on Claude Code's own 200/200/20 defaults (found 2026-08-19 while clearing out the multiplexer's
 // remains). Add a cap HERE, never at a call site, and it cannot miss a path again.
 export function claudeWorkerEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
@@ -648,7 +648,7 @@ export function claudeCompactionWindowOf(env: Record<string, string> | undefined
 // its own interactive `claude` process answered it with a TUI dialog nobody was watching, and froze.
 // The broker kept it, rendering the call as a dashboard card through canUseTool — until a worker asked
 // for ten name suggestions offered three and "keep it", because the tool's own schema caps a question at
-// FOUR options and nothing in Frizz can widen that. `mcp__frizz__ask` has no cap and a lifecycle that
+// FOUR options and nothing in Ntwine can widen that. `mcp__ntwine__ask` has no cap and a lifecycle that
 // survives the turn, so it is the only way a worker asks. The bridge's card path for the native tool
 // stays as the fallback for a session that reaches it anyway.
 export const WORKER_DISALLOWED_TOOLS = ["AskUserQuestion"] as const
@@ -662,10 +662,10 @@ export interface SpawnOpts {
   permissionMode: PermissionMode
   model?: string
   effort?: string
-  frizzMcp?: FrizzMcp
+  ntwineMcp?: NtwineMcp
 }
 export interface ResumeOpts extends Omit<SpawnOpts, "prompt"> {
-  // Omitted when frizz is only re-attaching an idle saved conversation to apply a per-thread
+  // Omitted when ntwine is only re-attaching an idle saved conversation to apply a per-thread
   // permission change. Present for an ordinary dead-session follow-up.
   message?: string
 }

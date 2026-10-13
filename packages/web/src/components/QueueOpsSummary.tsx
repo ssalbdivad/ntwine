@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
 import { ExternalLink, FileText } from "lucide-react"
-import type { BgShellView, ThreadView } from "@frizz/shared"
+import type { BgShellView, ThreadView } from "@ntwine/shared"
 import { CHILD_RESTED_DOT_CLASS, CHILD_STALE_DOT_CLASS, type TranscriptShellRecord } from "../lib/childOps.ts"
 import { isRunningOperation } from "../lib/operationIndicators.ts"
 import { queueOpsCounts, type QueueOpsCount, type QueueOpsKind } from "../lib/queueOpsCounts.ts"
@@ -255,6 +255,6 @@ function CountMark({ kind, states }: { kind: QueueOpsKind; states: readonly (str
 }
 
 function Dot({ hue, states }: { hue: "agent" | "shell" | "github"; states: readonly (string | undefined)[] }) {
-  if (states.some(isRunningOperation)) return <span className={`frizz-live-dot frizz-live-dot--${hue}`} />
+  if (states.some(isRunningOperation)) return <span className={`ntwine-live-dot ntwine-live-dot--${hue}`} />
   return <span className={states.includes("rested") ? CHILD_RESTED_DOT_CLASS : CHILD_STALE_DOT_CLASS} />
 }

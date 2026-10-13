@@ -30,11 +30,11 @@ const exchanges = (from: number, n: number) => {
 }
 
 function harness() {
-  const slug = `-tmp-frizz-live-page-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+  const slug = `-tmp-ntwine-live-page-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
   const logDir = join(homedir(), ".claude", "projects", slug)
   mkdirSync(logDir, { recursive: true })
-  const store = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-live-page-")), "ui.db"), "p")
-  store.upsertSession({ slug: "t", session_id: "sid", thread_name: "frizz-t", spawned_at: new Date().toISOString(), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
+  const store = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-live-page-")), "ui.db"), "p")
+  store.upsertSession({ slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: new Date().toISOString(), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
   const project = { cwdSlug: slug } as unknown as Project
   const path = join(logDir, "sid.jsonl")
   return { store, project, path, cleanup: () => rmSync(logDir, { recursive: true, force: true }) }

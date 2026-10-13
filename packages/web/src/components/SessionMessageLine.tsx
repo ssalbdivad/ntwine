@@ -3,7 +3,7 @@
 //
 // It reached the chat as an ordinary user turn whose text was Claude Code's raw wrapper, so it rendered
 // in the human's own right-justified bubble with `<cross-session-message from="uds:/tmp/cc-socks/2908.sock"
-// from-name="frizz-11" from-mode="bypass">` printed above the body (maintainer 2026-10-08: "There should
+// from-name="ntwine-11" from-mode="bypass">` printed above the body (maintainer 2026-10-08: "There should
 // be a link to the originating thread, and it should not look like fucking XML"). The server now
 // unwraps it (`sessionPeer`, displayText = the body) and names the sending thread.
 //
@@ -19,9 +19,9 @@
 import { useId, useRef, useState } from "react"
 import { MessagesSquare } from "lucide-react"
 import { useSnapshot } from "valtio"
-import type { ThreadView, TranscriptMessage } from "@frizz/shared"
+import type { ThreadView, TranscriptMessage } from "@ntwine/shared"
 import { useMermaidIslands } from "./CodexRichOutput.tsx"
-import { DIVIDER_LINK } from "./FrizzWake.tsx"
+import { DIVIDER_LINK } from "./NtwineWake.tsx"
 import { QUEUE_WRAP } from "./TranscriptCard.tsx"
 import { WAKE_DIVIDER_WIDE_ONLY, WakeDivider } from "./WakeDivider.tsx"
 import { displayTitle } from "../groups.ts"
@@ -52,7 +52,7 @@ export function SessionMessageLine({ peer, text, queued, sourceId, at, wrap }: {
   const bodyRef = useRef<HTMLDivElement>(null)
   const diagrams = useMermaidIslands(bodyRef, html)
   return (
-    <div data-frizz-msg={sourceId} data-session-message className={`flex flex-col ${queued ? "opacity-50" : ""}`}>
+    <div data-ntwine-msg={sourceId} data-session-message className={`flex flex-col ${queued ? "opacity-50" : ""}`}>
       <WakeDivider icon={MessagesSquare} marker="session-message" at={at}>
         {sender ? (
           <>
@@ -70,7 +70,7 @@ export function SessionMessageLine({ peer, text, queued, sourceId, at, wrap }: {
             </span>
           </>
         ) : (
-          // Not a Frizz thread, or one that exited before Frizz could trace it: the session's own name is
+          // Not a Ntwine thread, or one that exited before Ntwine could trace it: the session's own name is
           // all there is, said as a name rather than dressed up as a link.
           <span className="min-w-0 truncate">{peer.name ? `Message from session ${peer.name}` : "Message from another session"}</span>
         )}

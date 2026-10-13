@@ -3,12 +3,12 @@ import type { Token, Tokens } from "marked"
 import { childArrays } from "./githubAutolink.ts"
 
 // A Windows path is written with backslashes, and CommonMark reads a backslash before punctuation as
-// an ESCAPE. `D:\Development\CloudIPMSjb\.frizz\threads\x.md` therefore renders as
-// `D:\Development\CloudIPMSjb.frizz\threads\x.md`: `\D`, `\t` and `\x` survive because a letter is
+// an ESCAPE. `D:\Development\CloudIPMSjb\.ntwine\threads\x.md` therefore renders as
+// `D:\Development\CloudIPMSjb.ntwine\threads\x.md`: `\D`, `\t` and `\x` survive because a letter is
 // not punctuation, while `\.` collapses to `.` — one directory silently fused with the next. marked
 // applies the rule in prose (an `escape` token) and in a link or image DESTINATION (the tokenizer
 // unescapes `href`), so both the label the reader sees and the path the click opens were wrong, and
-// the opener was handed a file that does not exist. Every scratch directory is `.frizz`, every
+// the opener was handed a file that does not exist. Every scratch directory is `.ntwine`, every
 // settings directory is `.claude`, so on Windows the mangled shape was the common case, not an edge.
 //
 // Inside a Windows path a backslash is a separator, never an escape, so this pass puts the byte back.
@@ -34,7 +34,7 @@ const LINK_RULE = Lexer.rules.inline.normal.link
 
 // The walk's view of the current whitespace-free run of prose: whether a drive has opened a path in it,
 // and its last three characters — enough for a drive whose letter, colon and backslash straddle tokens
-// (marked ends a text token before every backslash, and `C:\.frizz`'s only backslash IS the escape),
+// (marked ends a text token before every backslash, and `C:\.ntwine`'s only backslash IS the escape),
 // plus the character the letter must not follow. Constant-size on purpose: carrying the whole run and
 // re-scanning it per token made one long unbroken word quadratic (80k characters took 13s to render).
 type Run = { inPath: boolean; tail: string }
@@ -53,7 +53,7 @@ function extendRun(run: Run, raw: string): void {
 
 // A link or image whose destination is a Windows drive path: restore the destination as written. The
 // href is tested only for its drive letter, because the unescape it went through may have eaten the
-// backslash after the colon (`C:\.frizz\x` arrives as `C:.frizz\x`).
+// backslash after the colon (`C:\.ntwine\x` arrives as `C:.ntwine\x`).
 function restoreDestination(token: Tokens.Link | Tokens.Image): void {
   if (!/^[a-zA-Z]:/.test(token.href)) return
   const cap = LINK_RULE.exec(token.raw)

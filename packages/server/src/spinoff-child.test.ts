@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { DISPATCH_TASK_BANNER_MARKER, spinoffChildPrompt } from "@frizz/shared"
+import { DISPATCH_TASK_BANNER_MARKER, spinoffChildPrompt } from "@ntwine/shared"
 import { parseTranscript, projectCodexTranscript } from "./transcript.ts"
 import { projectAcpTranscript } from "./backend/acp-transcript.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -16,7 +16,7 @@ const INSTRUCTIONS = "Evaluate whether the sub-agent addresses feature is worth 
 const BRIEF = "Context: addresses landed in c47844bd.\n\nRead packages/shared/src/thread-handle.ts first."
 const HANDLE_PROMPT = spinoffChildPrompt({ parentSlug: "live-sub-agents", parentTitle: "Live sub-agents", parentHandle: "liveSubAgents", instructions: INSTRUCTIONS, brief: BRIEF })
 const LINK_PROMPT = spinoffChildPrompt({ parentSlug: "live-sub-agents", parentTitle: "Live sub-agents", instructions: INSTRUCTIONS, brief: BRIEF })
-const envelope = (task: string) => `Your scratchpad is \`.frizz/threads/sid/scratch.md\` — …${DISPATCH_TASK_BANNER_MARKER}${task}`
+const envelope = (task: string) => `Your scratchpad is \`.ntwine/threads/sid/scratch.md\` — …${DISPATCH_TASK_BANNER_MARKER}${task}`
 const ORIGIN = { instructions: INSTRUCTIONS, brief: BRIEF }
 const AT = "2026-09-30T03:44:00.000Z"
 
@@ -59,8 +59,8 @@ test("Codex: the opening turn projects its origin, and a spawn_thread call is an
   const line = (payload: Record<string, unknown>, type = "event_msg") => JSON.stringify({ timestamp: AT, type, payload })
   const msgs = projectCodexTranscript([
     line({ type: "user_message", message: envelope(HANDLE_PROMPT) }),
-    line({ type: "function_call", call_id: "call_1", name: "mcp__frizz__spawn_thread", arguments: JSON.stringify({ prompt: "brief", model: "gpt-5.6-sol", effort: "high", spinoff: "spn_0123456789abcdef" }) }, "response_item"),
-    line({ type: "function_call", call_id: "call_2", name: "mcp__frizz__spawn_thread", arguments: JSON.stringify({ prompt: "plain", model: "gpt-5.6-sol", effort: "high" }) }, "response_item"),
+    line({ type: "function_call", call_id: "call_1", name: "mcp__ntwine__spawn_thread", arguments: JSON.stringify({ prompt: "brief", model: "gpt-5.6-sol", effort: "high", spinoff: "spn_0123456789abcdef" }) }, "response_item"),
+    line({ type: "function_call", call_id: "call_2", name: "mcp__ntwine__spawn_thread", arguments: JSON.stringify({ prompt: "plain", model: "gpt-5.6-sol", effort: "high" }) }, "response_item"),
   ].join("\n"))
   const first = msgs.find((m) => m.role === "user")!
   assert.deepEqual(first.spinoffOrigin, ORIGIN)
@@ -73,9 +73,9 @@ test("ACP: the opening turn projects its origin, and a later one does not", () =
     { kind: "user-message", at: AT, text: HANDLE_PROMPT, synthetic: false },
     { kind: "turn-start", at: AT },
     // opencode titles an MCP tool `<server>_<tool>`; its input may only arrive on the completing update.
-    { kind: "tool-call", at: AT, id: "c1", name: "frizz_spawn_thread", input: { prompt: "b", model: "m", effort: "high", spinoff: "spn_0123456789abcdef" } },
-    { kind: "tool-call", at: AT, id: "c2", name: "frizz_spawn_thread", input: {} },
-    { kind: "tool-result", at: AT, id: "c2", text: "Spawned a new frizz thread `x`.", acp: { input: { prompt: "b", spinoff: "spn_00000000000000aa" } } },
+    { kind: "tool-call", at: AT, id: "c1", name: "ntwine_spawn_thread", input: { prompt: "b", model: "m", effort: "high", spinoff: "spn_0123456789abcdef" } },
+    { kind: "tool-call", at: AT, id: "c2", name: "ntwine_spawn_thread", input: {} },
+    { kind: "tool-result", at: AT, id: "c2", text: "Spawned a new ntwine thread `x`.", acp: { input: { prompt: "b", spinoff: "spn_00000000000000aa" } } },
     { kind: "turn-end", at: AT, finalText: "", successful: true },
     { kind: "user-message", at: AT, text: HANDLE_PROMPT, synthetic: false },
   ]
@@ -90,7 +90,7 @@ test("ACP: the opening turn projects its origin, and a later one does not", () =
 // ---- a forgotten child ------------------------------------------------------------------------------
 
 function sessionRow(slug: string, over: Partial<SessionRow> = {}): SessionRow {
-  return { slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-09-30T03:44:27.775Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: slug, state: "open", meta: null, seen_at: null, transcript_id: null, ...over }
+  return { slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-09-30T03:44:27.775Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: slug, state: "open", meta: null, seen_at: null, transcript_id: null, ...over }
 }
 
 const REQUEST_AT = Date.parse("2026-09-30T04:00:00.000Z")
@@ -99,7 +99,7 @@ const REQUEST_AT = Date.parse("2026-09-30T04:00:00.000Z")
 // slugified to it — the human re-dispatching the task by hand — used to inherit the dead child's edge, and
 // the board linked it back to a parent it never came from.
 test("forgetting a spinoff child drops its edge, so the next thread under its slug is nobody's spinoff", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-spinoff-child-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-spinoff-child-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   try {
     storage.upsertSession(sessionRow("parent"))
@@ -123,7 +123,7 @@ test("forgetting a spinoff child drops its edge, so the next thread under its sl
 // …and the edge a forget left behind BEFORE that fix is swept the next time the database is opened; a
 // live child's edge, and an older build's request that never started, are left exactly as they are.
 test("opening storage drops a spinoff edge whose child was already forgotten", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-spinoff-child-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-spinoff-child-"))
   try {
     const first = createStorage(join(dir, "ui.db"), "p")
     first.upsertSession(sessionRow("parent"))

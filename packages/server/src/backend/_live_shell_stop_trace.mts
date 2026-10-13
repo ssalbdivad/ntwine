@@ -4,7 +4,7 @@
 // WHY THIS EXISTS. The × kills the process (backend/_live_shell_stop.mts) and the row leaves the board
 // — but the row CAME BACK on the maintainer's real instance two days later, and reproducing it took one
 // cold fold of their transcript: the kill writes NOTHING to the session JSONL, so the tailer's
-// retirement is in-memory only and any re-prime (a frizz restart, which is exactly what happened)
+// retirement is in-memory only and any re-prime (a ntwine restart, which is exactly what happened)
 // resurrects the shell as live, forever, because its tool_use never gets a tool_result.
 //
 // Fixing that needs a signal the fold can read off DISK. There is a candidate: on the maintainer's
@@ -37,7 +37,7 @@ import { cwdSlug, type Project } from "../project.ts"
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const stateDir = mkdtempSync(join(tmpdir(), "shtrace-state-"))
 const cwd = realpathSync(mkdtempSync(join(tmpdir(), "shtrace-repo-"))); execFileSync("git", ["init", "-q", cwd])
-const MARKER = `FRIZZ_SHELL_TRACE_${randomUUID().slice(0, 8)}`
+const MARKER = `NTWINE_SHELL_TRACE_${randomUUID().slice(0, 8)}`
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -92,7 +92,7 @@ try {
     ].join("\n"),
   })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

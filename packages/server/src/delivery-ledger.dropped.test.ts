@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 import { createStorage } from "./storage.ts"
 import {
   appendDelivery,
@@ -29,11 +29,11 @@ const DICTATION = "A long steer the operator dictated while the agent was busy. 
 const REFUSAL = "Claude outstanding input limit exceeded"
 
 function ledger() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-dropped-ledger-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-dropped-ledger-"))
   const path = join(dir, "ui.db")
   let storage = createStorage(path, "p")
   storage.upsertSession({
-    slug: "t", session_id: "s", thread_name: "frizz-t", spawned_at: iso(T0), last_read_at: null,
+    slug: "t", session_id: "s", thread_name: "ntwine-t", spawned_at: iso(T0), last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null,
   })

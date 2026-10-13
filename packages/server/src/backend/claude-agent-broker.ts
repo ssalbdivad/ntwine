@@ -1,16 +1,16 @@
 // The Claude session broker DAEMON: a detached process that owns one Claude Agent SDK session and
 // relays it over a local socket. This is the piece Claude Code doesn't ship (codex's app-server is
-// the same shape): the session OUTLIVES frizz, so frizz reconnects to the LIVE session after a restart
+// the same shape): the session OUTLIVES ntwine, so ntwine reconnects to the LIVE session after a restart
 // instead of cold resume-from-disk, while keeping structured TYPED control (no TUI scraping, no PTY,
-// no terminal of any kind — stream-json over pipes). The SDK stays as this daemon's implementation detail; frizz speaks a
+// no terminal of any kind — stream-json over pipes). The SDK stays as this daemon's implementation detail; ntwine speaks a
 // small typed socket protocol (claude-broker-client.ts), never the SDK directly.
 //
 // Wire protocol — newline-delimited JSON frames:
-//   frizz -> broker:  {t:"input", message, requestId?} | {t:"permission", requestId, decision} | {t:"interrupt", ifQueued?} | {t:"set-mode", mode}
+//   ntwine -> broker:  {t:"input", message, requestId?} | {t:"permission", requestId, decision} | {t:"interrupt", ifQueued?} | {t:"set-mode", mode}
 //                  | {t:"cancel-input", requestId, id} | {t:"stop-task", requestId, taskId}
 //                  | {t:"reload-plugins", requestId} | {t:"rename", requestId, description} | {t:"list-skills", requestId}
-//   broker -> frizz:  {t:"hello", sessionId, generation} | {t:"event", event} | {t:"permission-request", requestId, request} | {t:"diagnostic", diagnostic}
-//                  | {t:"permission-withdrawn", requestId}   (a request frizz was shown that nothing can answer any more)
+//   broker -> ntwine:  {t:"hello", sessionId, generation} | {t:"event", event} | {t:"permission-request", requestId, request} | {t:"diagnostic", diagnostic}
+//                  | {t:"permission-withdrawn", requestId}   (a request ntwine was shown that nothing can answer any more)
 //                  | {t:"input-result", requestId, error?}   (only for an input that carried a requestId)
 //                  | {t:"cancel-result", requestId, cancelled, error?} | {t:"stop-result", requestId, error?}
 //                  | {t:"reload-result", requestId, reloaded?, error?} | {t:"rename-result", requestId, title?, error?} | {t:"skills-result", requestId, skills?, error?}
@@ -35,7 +35,7 @@ import { leaseRuntime } from "../runtime-lease.ts"
 import { daemonBirthMarker } from "./daemon-identity.ts"
 import { projectMcpServers, workerMcpServers, type StdioMcpServer, type WorkerMcpServers } from "./project-mcp-servers.ts"
 import { lazyMcpEnabled, startLazyMcpHost, type LazyMcpHost } from "./lazy-mcp-host.ts"
-import { frizzRoots } from "../frizz-paths.ts"
+import { ntwineRoots } from "../ntwine-paths.ts"
 import { WORKER_DISALLOWED_TOOLS, claudeCompactionWindowOf } from "./types.ts"
 import { socketPathOwnership } from "./socket-ownership.ts"
 import { createClaudeBrokerDiagnosticWriter, createClaudeBrokerExitWriter, type ClaudeBrokerExitReason } from "./claude-broker-diagnostics.ts"
@@ -59,7 +59,7 @@ export interface ClaudeBrokerConfig {
   permissionMode?: ClaudePermissionMode
   /** Allowlisted keys only — the SDK validates and rejects anything else. */
   env: Record<string, string>
-  /** Appended to Claude's default system prompt — carries the frizz worker contract. */
+  /** Appended to Claude's default system prompt — carries the ntwine worker contract. */
   appendSystemPrompt?: string
   model?: string
   effort?: string
@@ -71,11 +71,11 @@ export interface ClaudeBrokerConfig {
    *  start after a death sets `resume` on the child's own id, which wins, because by then the child's own
    *  transcript holds the copy and everything after it. */
   forkFrom?: string
-  /** The frizz WORKER ENVIRONMENT — the SDK equivalents of the argv path's --plugin-dir/--mcp-config
-   *  injection. Without these a broker worker is bare: no frizz sub-agent profiles, no frizz MCP,
+  /** The ntwine WORKER ENVIRONMENT — the SDK equivalents of the argv path's --plugin-dir/--mcp-config
+   *  injection. Without these a broker worker is bare: no ntwine sub-agent profiles, no ntwine MCP,
    *  no cc-worker hooks. `pluginDir` loads the local cc-worker plugin; `mcpServers`/`allowedTools` mount + pre-approve
-   *  the MCP servers; `workerEnv` carries the per-thread frizz vars the plugin hooks gate on (FRIZZ_THREAD,
-   *  FRIZZ_PERM_DIR) — merged into the SDK env AFTER the ambient allowlist. */
+   *  the MCP servers; `workerEnv` carries the per-thread ntwine vars the plugin hooks gate on (NTWINE_THREAD,
+   *  NTWINE_PERM_DIR) — merged into the SDK env AFTER the ambient allowlist. */
   pluginDir?: string
   mcpServers?: WorkerMcpServers
   allowedTools?: string[]
@@ -83,11 +83,11 @@ export interface ClaudeBrokerConfig {
   /** When set, the daemon writes a discovery record here after its socket is listening. */
   recordPath?: string
   /** When set, the daemon appends its OWN lifecycle/stderr diagnostics here, synchronously. This is
-   *  how a crash survives: relaying to an attached client loses every death that happens while frizz is
+   *  how a crash survives: relaying to an attached client loses every death that happens while ntwine is
    *  detached (a restart), and an in-memory backlog dies with the process it is recording. */
   diagnosticLogPath?: string
-  /** Stable identity of THIS app-server process — unchanged across frizz restarts, new only when the
-   *  session itself is re-forked. Lets frizz tell whether in-flight work survived a reconnect. */
+  /** Stable identity of THIS app-server process — unchanged across ntwine restarts, new only when the
+   *  session itself is re-forked. Lets ntwine tell whether in-flight work survived a reconnect. */
   generation?: string
 }
 
@@ -100,7 +100,7 @@ export interface BrokerRecord {
   capabilities?: string[]
   /** The auto-compact ceiling this daemon's worker environment actually carries
    *  (CLAUDE_CODE_AUTO_COMPACT_WINDOW), echoed onto the record because it is a FORK-TIME property: a
-   *  daemon keeps the value it was forked with while Settings moves on underneath it, and after a frizz
+   *  daemon keeps the value it was forked with while Settings moves on underneath it, and after a ntwine
    *  restart the record is the only thing left that remembers which value that was. Read by the bridge
    *  to give the board a denominator the session genuinely runs under. Absent ⇒ nothing was set, or the
    *  daemon predates this field. */
@@ -114,7 +114,7 @@ export interface BrokerRecord {
   processStart?: string
   /** The permission mode this daemon's session was launched under — a launch flag, so fixed for the
    *  daemon's life (a mode change retires it; see the bridge's retireDaemon). Echoed here for the same
-   *  reason as `compactionWindow`: after a frizz restart the record is all that remembers it, and the
+   *  reason as `compactionWindow`: after a ntwine restart the record is all that remembers it, and the
    *  bridge only holds an escalation back for the agent to reconsider when the mode was a permissive one.
    *  Absent ⇒ a daemon forked before 2026-10-06. */
   permissionMode?: ClaudeBrokerConfig["permissionMode"]
@@ -123,14 +123,14 @@ export interface BrokerRecord {
 // What THIS daemon build understands, stamped into its record so the bridge can tell an old surviving
 // daemon from a current one. The constant itself lives in the PROTOCOL module, not here: this file is
 // also the detached daemon's process entry point and throws at module scope when it is loaded as one
-// without FRIZZ_CLAUDE_BROKER. In the promoted artifact every module is one bundle, so a plain `import`
+// without NTWINE_CLAUDE_BROKER. In the promoted artifact every module is one bundle, so a plain `import`
 // of a VALUE from here — rather than an `import type` — initializes this module inside the server
 // process, where the entry-point check is satisfied by the bundle's own path and the guard fires. That
 // took down the whole control plane on the artifact while dev source (separate files) stayed green.
 const BROKER_CAPABILITIES = [CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_INPUT_ACK]
 
 const IDLE_EXIT_MS = 6 * 60 * 60 * 1000
-// How long a permission request waits in this process before frizz is shown it — long enough for the
+// How long a permission request waits in this process before ntwine is shown it — long enough for the
 // worker's PermissionRequest hook to settle it first (see canUseTool below), short enough that a
 // person never notices it on the way to a card.
 const PERMISSION_SHOW_HOLD_MS = 250
@@ -144,17 +144,17 @@ export interface RunningBroker { close: () => Promise<void>; sessionId: string; 
 
 export interface RunClaudeBrokerOptions {
   /** Serves the project's stdio MCP servers lazily (lazy-mcp-host.ts). Absent ⇒ the CLI starts them at
-   *  boot, as it does for any session — the embedded (test) form, and FRIZZ_LAZY_MCP_OFF=1. */
+   *  boot, as it does for any session — the embedded (test) form, and NTWINE_LAZY_MCP_OFF=1. */
   lazyMcpHost?: LazyMcpHost
 }
 
 /** The project's stdio servers, handed to the lazy host and replaced by its remote mounts. A name the
- *  frizz mount takes is left alone: workerMcpServers drops it anyway, and a slot nobody can reach is noise. */
-function mountLazily(project: WorkerMcpServers, frizz: WorkerMcpServers | undefined, host: LazyMcpHost | undefined, context: Parameters<LazyMcpHost["mount"]>[1]): WorkerMcpServers {
+ *  ntwine mount takes is left alone: workerMcpServers drops it anyway, and a slot nobody can reach is noise. */
+function mountLazily(project: WorkerMcpServers, ntwine: WorkerMcpServers | undefined, host: LazyMcpHost | undefined, context: Parameters<LazyMcpHost["mount"]>[1]): WorkerMcpServers {
   if (!host) return project
   const stdio: Record<string, StdioMcpServer> = {}
   for (const [name, server] of Object.entries(project)) {
-    if ((server.type === undefined || server.type === "stdio") && !(frizz && name in frizz)) stdio[name] = server as StdioMcpServer
+    if ((server.type === undefined || server.type === "stdio") && !(ntwine && name in ntwine)) stdio[name] = server as StdioMcpServer
   }
   return { ...project, ...host.mount(stdio, context) }
 }
@@ -168,7 +168,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
   const MAX_BACKLOG_BYTES = 64 * 1024 * 1024
   const eventBacklog: string[] = []
   let eventBacklogBytes = 0
-  // `shown` — frizz has been sent this request, so frizz has to be told if it is taken back.
+  // `shown` — ntwine has been sent this request, so ntwine has to be told if it is taken back.
   const pendingPermissions = new Map<string, { request: ClaudePermissionRequest; resolve: (d: ClaudePermissionDecision) => void; shown: boolean }>()
   // Set while an SDK interrupt is outstanding, and the input count when the last one was issued; see the
   // `interrupt` frame handler for why both exist.
@@ -187,7 +187,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
       // CAPPED ON BOTH AXES. The count cap alone bounds the wrong quantity: measured over 108,718 real
       // records of the maintainer's largest thread, a frame is 0.7 KB at p50 but 193 KB at p99 and
       // 568 KB at the max — so 20,000 frames is ~105 MB of backlog at the MEAN and ~500 MB at the
-      // large end, per detached session. And it only fills WHILE DETACHED, which is precisely a frizz
+      // large end, per detached session. And it only fills WHILE DETACHED, which is precisely a ntwine
       // restart, when several daemons are detached at once.
       const frame = JSON.stringify({ t: "event", event }) + "\n"
       eventBacklog.push(frame)
@@ -214,16 +214,16 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
     ? createClaudeBrokerExitWriter(config.diagnosticLogPath, { daemonPid: process.pid, generation })
     : undefined
 
-  // Tell a sweeping Frizz (runtimes.ts) that this daemon still runs out of that version directory.
+  // Tell a sweeping Ntwine (runtimes.ts) that this daemon still runs out of that version directory.
   // A daemon outlives the server that forked it, so the server's own lease is not enough.
   const releaseRuntimeLease = leaseRuntime(config.executablePath, "claude-broker")
   const factory = createClaudeQueryFactory({ enabled: true, executablePath: config.executablePath })
-  // The worker inherits frizz's environment minus frizz's own control plane (see worker-env.ts). The
-  // frizz worker vars it DOES need (FRIZZ_THREAD, FRIZZ_PERM_DIR) ride workerEnv and are merged on
+  // The worker inherits ntwine's environment minus ntwine's own control plane (see worker-env.ts). The
+  // ntwine worker vars it DOES need (NTWINE_THREAD, NTWINE_PERM_DIR) ride workerEnv and are merged on
   // top — which is also what gives them THIS thread's values instead of the server's.
   const env = { ...inheritWorkerEnvironment(config.env), ...(config.workerEnv ?? {}) }
   // Keeps this session on its plugin closure as it is on disk, re-reading it between turns when it
-  // moves (see claude-plugin-sync.ts): Frizz's plugin, and the project's and the operator's own
+  // moves (see claude-plugin-sync.ts): Ntwine's plugin, and the project's and the operator's own
   // skills, agents, commands and installed plugins. Built BEFORE the session starts, because the
   // fingerprint it takes now is its record of what the session is about to load. PERSISTED ONLY, like
   // `input received` below: a reload is forensics, not something the operator's thread should narrate.
@@ -255,7 +255,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
     effort: config.effort,
     pluginDir: config.pluginDir,
     // The WHOLE MCP surface of this thread, and STRICT so the CLI discovers nothing else: the project's
-    // approved `.mcp.json` (and the operator's remote user-scope servers) under the frizz mount, which
+    // approved `.mcp.json` (and the operator's remote user-scope servers) under the ntwine mount, which
     // wins a name collision. Read at every fork, not once per project, so a `.mcp.json` edit reaches the
     // next dispatch the way it reaches the next plain `claude`. project-mcp-servers.ts has the reasons.
     // Stdio servers are not started here: the lazy host stands in for each one and starts the real
@@ -275,14 +275,14 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
     // The same prohibition as the argv path (WORKER_DISALLOWED_TOOLS). This path kept AskUserQuestion
     // until 2026-09-30 because canUseTool could render it as a real dashboard card — but the tool's own
     // schema caps a question at FOUR options, and a worker asked to "suggest 10 names" answered with three
-    // and "keep it". `mcp__frizz__ask` has no cap, so the capped tool is taken away rather than rendered.
+    // and "keep it". `mcp__ntwine__ask` has no cap, so the capped tool is taken away rather than rendered.
     disallowedTools: WORKER_DISALLOWED_TOOLS,
     canUseTool: async (request, context) => {
       const requestId = `perm-${++permSeq}`
       return await new Promise<ClaudePermissionDecision>((resolve) => {
         // Abort-aware: interrupting the turn (or the session ending) aborts the SDK's permission
         // callback, and a request left in `pendingPermissions` after that is not merely a leak — the
-        // reconnect handler REPLAYS every pending request to the next frizz that attaches, which would
+        // reconnect handler REPLAYS every pending request to the next ntwine that attaches, which would
         // put a card in front of the operator for a tool call that no longer exists. So an abort
         // settles the waiter with a deny and drops it, exactly like an answer would.
         let settled = false
@@ -300,9 +300,9 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
         // nearly every request (cc-worker/hooks/perm-policy.mjs: approve, ~70ms), so an abort here is
         // the COMMON case, not just an interrupt. Two things follow, both measured against real claude
         // on 2026-10-10 (a bypass worker, a command Claude Code still prompts for):
-        //  * frizz must be TOLD. It was not, so the card it had already journaled stayed in front of the
+        //  * ntwine must be TOLD. It was not, so the card it had already journaled stayed in front of the
         //    operator until the turn ended — 23s in the measurement, Grant and Deny both dead.
-        //  * frizz should not be shown the request in the first place. Hence the short hold below: a
+        //  * ntwine should not be shown the request in the first place. Hence the short hold below: a
         //    request a hook settles inside it never leaves this process, so no card flashes and nothing
         //    queues the thread. A request that outlives the hold is one a person has to answer, and
         //    250ms on the way to a human is nothing.
@@ -324,14 +324,14 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
       })
     },
     // The account's plan windows, as every API response reports them to this session. Written by THIS
-    // process because it is the one that sees the stream and it outlives the Frizz server; the server
+    // process because it is the one that sees the stream and it outlives the Ntwine server; the server
     // only reads the file (claude-quota-observed.ts). Fire-and-forget: the recorder never rejects.
     onRateLimit: (info: unknown) => {
-      void recordObservedClaudeQuota(info, { cacheDir: join(frizzRoots().cache, "quota-cache"), configDir: closure.configDir })
+      void recordObservedClaudeQuota(info, { cacheDir: join(ntwineRoots().cache, "quota-cache"), configDir: closure.configDir })
     },
     onDiagnostic: (diagnostic: ClaudeDiagnostic) => {
       // Persist FIRST, then relay. A `crashed` diagnostic is emitted with the process seconds from
-      // gone, and relaying only reaches a frizz that happens to be attached right now.
+      // gone, and relaying only reaches a ntwine that happens to be attached right now.
       writeDiagnostic?.(diagnostic)
       if (client) write(client, { t: "diagnostic", diagnostic })
     },
@@ -340,14 +340,14 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
   // ASK Claude to name the session, once, from the dispatch prompt.
   //
   // Claude Code normally titles a session by itself on the first user message and appends an
-  // `ai-title` record to the session JSONL — the record frizz's tailer folds into the board's
+  // `ai-title` record to the session JSONL — the record ntwine's tailer folds into the board's
   // `aiTitle`, and without which the board shows "Spinning up a thread…" for 60s and then falls back
   // to a truncation of the raw dispatch prompt forever. That automatic titling is SUPPRESSED on the
-  // Agent-SDK (headless) transport whenever a `SessionStart` hook is registered — and frizz's broker
+  // Agent-SDK (headless) transport whenever a `SessionStart` hook is registered — and ntwine's broker
   // always loads the cc-worker plugin, whose hooks.json registers SessionStart. Bisected live against
   // 2.1.220: a plugin carrying ONLY a no-op `SessionStart` hook yields NO ai-title and never even
   // dispatches the titler's API request, while the same plugin carrying only PreToolUse / PostToolUse
-  // / PermissionRequest hooks titles normally. It is provider behavior frizz cannot switch off without
+  // / PermissionRequest hooks titles normally. It is provider behavior ntwine cannot switch off without
   // giving up the worker seeding, so the broker asks explicitly instead: the SDK's
   // `generate_session_title` control request with `persist: true` runs the SAME titler and writes the
   // SAME `ai-title` record, so nothing downstream of the JSONL changes.
@@ -377,7 +377,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
 
   // The session ending (claude exits) tears the daemon down — there is nothing left to hold. But an
   // error out of the ITERATOR is a different thing entirely and used to be conflated with it: any
-  // failure mapping one event to frizz's typed shape landed in this `.catch` and killed the daemon,
+  // failure mapping one event to ntwine's typed shape landed in this `.catch` and killed the daemon,
   // the claude process, and every in-flight sub-agent. Live on 2026-07-27 a single control character
   // in a Bash command did exactly that to a multi-hour orchestrator thread.
   //
@@ -452,7 +452,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
           // investigation on 2026-07-31: a thread whose agent never produced a transcript left a
           // diagnostics file containing one `started` line and nothing else, with no way to tell whether
           // the opening prompt had ever crossed this socket. One line per input settles it forever.
-          // PERSISTED ONLY, never relayed to frizz: this is forensics, not an event the operator needs,
+          // PERSISTED ONLY, never relayed to ntwine: this is forensics, not an event the operator needs,
           // and the relay channel surfaces as worker stderr. Ids and sizes only — the message TEXT is
           // the operator's content and must never land in a diagnostics file.
           writeDiagnostic?.({
@@ -462,7 +462,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
           })
           // NEVER swallow this. The `input` frame carried no reply (and still carries none to a bridge
           // that asks for no acknowledgement), so this catch was the only place a
-          // refused send existed at all — and it threw the evidence away. frizz had already answered the
+          // refused send existed at all — and it threw the evidence away. ntwine had already answered the
           // operator's RPC with success and opened an `enqueued` ledger item that by design never times
           // out, so the message rendered as delivered forever while the agent never saw a byte of it.
           // Measured live in _live_broker_input_drop.mts before the fix: zero diagnostics, zero errors,
@@ -483,17 +483,17 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
           }, (error: unknown) => {
             const detail = error instanceof Error ? error.message : String(error)
             if (requestId) write(sock, { t: "input-result", requestId, error: detail })
-            // NAME THE MESSAGE. The prefix alone told frizz that *something* was thrown away, which is
+            // NAME THE MESSAGE. The prefix alone told ntwine that *something* was thrown away, which is
             // one grep better than silence but still leaves the ledger unable to act: it cannot act on
             // a row it cannot identify, so a refused send sat at `enqueued` for the full hour
             // `ageDeliveries` grants a queue entry — pretending to be held by a daemon that had in fact
-            // refused it. The id is the DELIVERY id frizz opened the ledger row under, so carrying it here
+            // refused it. The id is the DELIVERY id ntwine opened the ledger row under, so carrying it here
             // is what lets the server mark exactly that row failed, its text on screen for a retry.
             // Ids only, never the text — same rule as the `input received` line above.
             const droppedId = typeof message?.id === "string" ? ` id=${message.id}` : ""
             const diagnostic = { kind: "stderr" as const, message: `${CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX}:${droppedId} ${detail}`, truncated: false }
             // Persist FIRST, then relay — same order and reasoning as the SDK's onDiagnostic above: a
-            // drop is worth attributing even when no frizz is attached to hear it right now.
+            // drop is worth attributing even when no ntwine is attached to hear it right now.
             writeDiagnostic?.(diagnostic)
             if (client) write(client, { t: "diagnostic", diagnostic })
           })
@@ -586,7 +586,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
         else if (msg.t === "set-mode") void handle.setPermissionMode(msg.mode as never).catch(() => {})
       }
     })
-    sock.on("close", () => { if (client === sock) { client = null; armIdle() } }) // frizz gone; the session stays alive
+    sock.on("close", () => { if (client === sock) { client = null; armIdle() } }) // ntwine gone; the session stays alive
     sock.on("error", () => {})
   })
 
@@ -662,7 +662,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
   if (reach.unref) reach.unref()
 
   // A bind failure used to be an UNHANDLED 'error' event: node prints a stack and exits, and the host
-  // spawns this daemon with stdio:"ignore" — so the stack goes nowhere, frizz sees only a 30s "did not
+  // spawns this daemon with stdio:"ignore" — so the stack goes nowhere, ntwine sees only a 30s "did not
   // become ready", and the operator gets "the thread went quiet". Note the `claude` child is already
   // running by this point, so this is also the moment it leaks. Record the cause, then shut down.
   // Reachable via a swept stateDir, EACCES, a >104-byte socket path on macOS, or an EADDRINUSE race.
@@ -683,7 +683,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
     armIdle()
   })
 
-  return { close: async () => { await shutdown(0, "frizz-requested") }, sessionId: handle.sessionId, generation }
+  return { close: async () => { await shutdown(0, "ntwine-requested") }, sessionId: handle.sessionId, generation }
 }
 
 /** Was node pointed AT THIS FILE, rather than this module being imported by something else?
@@ -703,11 +703,11 @@ function startedAsProcessEntry(): boolean {
   }
 }
 
-// Standalone daemon entry: `nub claude-agent-broker.ts` with config in FRIZZ_CLAUDE_BROKER.
-if (process.env.FRIZZ_CLAUDE_BROKER) {
-  const config = JSON.parse(process.env.FRIZZ_CLAUDE_BROKER) as ClaudeBrokerConfig
+// Standalone daemon entry: `nub claude-agent-broker.ts` with config in NTWINE_CLAUDE_BROKER.
+if (process.env.NTWINE_CLAUDE_BROKER) {
+  const config = JSON.parse(process.env.NTWINE_CLAUDE_BROKER) as ClaudeBrokerConfig
   // A signal exits IMMEDIATELY and deliberately — it must not wait on a teardown that can hang — so it
-  // never reaches shutdown()'s breadcrumb and used to leave no trace whatsoever. That covers frizz's own
+  // never reaches shutdown()'s breadcrumb and used to leave no trace whatsoever. That covers ntwine's own
   // killBroker (SIGTERM), an operator `kill`, and an OS shutdown: the three most common broker deaths
   // there are. Record the cause synchronously first; the handler is registered BEFORE the broker starts
   // (so a signal during startup is still attributed) and resolves the generation lazily.
@@ -730,7 +730,7 @@ if (process.env.FRIZZ_CLAUDE_BROKER) {
   // print a stack, exit 1 — writes that stack to a stdio the host set to "ignore". So the log simply
   // ended on `started`, which is byte-identical to what a SIGKILL leaves. Measured across this machine's
   // whole broker corpus 2026-08-02: 276 daemon starts against 223 recorded exits, so 53 deaths (~19%)
-  // had NO attribution at all, and no way to tell an external kill from frizz's own unhandled throw.
+  // had NO attribution at all, and no way to tell an external kill from ntwine's own unhandled throw.
   //
   // Deliberately preserves node's semantics rather than swallowing: record, then exit NON-ZERO, exactly
   // as an unhandled throw would have. Installing these handlers is what suppresses the default exit, so
@@ -747,16 +747,16 @@ if (process.env.FRIZZ_CLAUDE_BROKER) {
   // The lazy MCP host has to be LISTENING before the CLI starts, because its port is in the CLI's
   // config — and a listen only reports its port on a later tick. A host that fails to start costs the
   // laziness, never the session: the broker runs without one and the CLI starts the servers itself.
-  const lazyMcpHost = lazyMcpEnabled() ? startLazyMcpHost({ cacheDir: join(frizzRoots().data, "mcp-cache") }) : Promise.resolve(undefined)
+  const lazyMcpHost = lazyMcpEnabled() ? startLazyMcpHost({ cacheDir: join(ntwineRoots().data, "mcp-cache") }) : Promise.resolve(undefined)
   void lazyMcpHost.catch(() => undefined).then((host) => { running = runClaudeBroker(config, { lazyMcpHost: host }) })
 } else if (startedAsProcessEntry()) {
   // Node was pointed AT THIS FILE and there is no configuration to broker. Exiting 0 here reports
   // success for a session that never started — the silent-death shape the detached-daemon closure
   // test exists to catch, and the reason that test has been red. Codex's daemon already fails this
-  // way (readConfig throws when FRIZZ_CODEX_APP_SERVER_DAEMON is absent); match it.
+  // way (readConfig throws when NTWINE_CODEX_APP_SERVER_DAEMON is absent); match it.
   //
   // Gated on being the process ENTRY POINT, not merely on the env being absent: claude-broker-host
   // spawns `node <this file>` so argv[1] is exactly this module, while a test that IMPORTS
   // runClaudeBroker runs under the test runner's argv[1] and must keep loading cleanly.
-  throw new Error("claude session broker started without FRIZZ_CLAUDE_BROKER")
+  throw new Error("claude session broker started without NTWINE_CLAUDE_BROKER")
 }

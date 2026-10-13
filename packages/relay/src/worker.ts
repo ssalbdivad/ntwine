@@ -4,7 +4,7 @@ import {
   RELAY_KEEPALIVE_PONG,
   relayHandshakeInput,
   type RelayHandshake,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { BoardSocket } from "./board-socket.ts"
 
 /**
@@ -16,7 +16,7 @@ import { BoardSocket } from "./board-socket.ts"
  * tunnel design could never get past.
  *
  * WE ARE ON THE DATA PATH HERE, unlike the registrar. That is the trade this design makes deliberately:
- * unlimited names cost us the traffic. The visitor still meets Frizz's own single-use access gate on
+ * unlimited names cost us the traffic. The visitor still meets Ntwine's own single-use access gate on
  * the far side, but every byte passes through here in plaintext — the access code as it is redeemed,
  * the session cookie on every request after it, prompts, transcripts and terminal keystrokes. So
  * whoever controls this Worker controls every board behind it: between 2026-09-21 and 2026-10-08 a
@@ -28,7 +28,7 @@ import { BoardSocket } from "./board-socket.ts"
 export interface RelayEnv {
   BOARD: DurableObjectNamespace
   /** The apex boards hang off, e.g. `frizz.sh`. A hostname outside it is not ours to serve. */
-  FRIZZ_ZONE: string
+  NTWINE_ZONE: string
   /** Registry written by the registrar: `claim:<name>` → the record naming the owning pubkey. */
   CLAIMS: { get(key: string): Promise<string | null> }
 }
@@ -240,9 +240,9 @@ export class Board {
 
     // A visitor's WebSocket — a terminal. The board opens its own end locally and the two are linked
     // frame by frame. Without this a relayed board renders and streams but cannot be worked in, which
-    // is most of what Frizz is for.
+    // is most of what Ntwine is for.
     if (request.headers.get("upgrade") === "websocket") {
-      if (!this.relay.connected) return new Response("This Frizz board is not running right now.", { status: 502 })
+      if (!this.relay.connected) return new Response("This Ntwine board is not running right now.", { status: 502 })
       const pair = new WebSocketPair()
       const visitor = pair[1]!
       this.state.acceptWebSocket(visitor, ["visitor"])
@@ -265,7 +265,7 @@ export class Board {
     if (!this.relay.connected) {
       // The name exists but nothing is serving it. Said plainly, because "this board is offline" is a
       // different problem from "no such board" and the visitor can act on one of them.
-      return new Response("This Frizz board is not running right now.", {
+      return new Response("This Ntwine board is not running right now.", {
         status: 502,
         headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
       })
@@ -329,11 +329,11 @@ export class Board {
 export default {
   async fetch(request: Request, env: RelayEnv): Promise<Response> {
     const url = new URL(request.url)
-    const name = boardNameFor(url.hostname, env.FRIZZ_ZONE)
+    const name = boardNameFor(url.hostname, env.NTWINE_ZONE)
     if (!name) {
       // Name the host it refused. A bare "Not found" here is indistinguishable from an unclaimed name
       // and from a routing mistake, which is exactly the confusion worth spending a line to avoid.
-      return new Response(`${url.hostname} is not a board name under ${env.FRIZZ_ZONE}.`, {
+      return new Response(`${url.hostname} is not a board name under ${env.NTWINE_ZONE}.`, {
         status: 404,
         headers: { "content-type": "text/plain; charset=utf-8" },
       })
@@ -341,7 +341,7 @@ export default {
 
     const owner = await ownerPubkeyFor(env, name)
     if (!owner) {
-      return new Response("No Frizz board has claimed this name.", {
+      return new Response("No Ntwine board has claimed this name.", {
         status: 404,
         headers: { "content-type": "text/plain; charset=utf-8" },
       })

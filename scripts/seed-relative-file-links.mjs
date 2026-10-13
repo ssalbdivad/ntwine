@@ -1,13 +1,13 @@
 // Seed a disposable adhoc stack with a thread whose prose links a file the way a worker actually
-// writes one: RELATIVE to the project (`.frizz/threads/<id>/HANDOFF.md`) and home-anchored
+// writes one: RELATIVE to the project (`.ntwine/threads/<id>/HANDOFF.md`) and home-anchored
 // (`~/.claude/CLAUDE.md`). Neither has a base of its own, and chat prose used to supply none — so both
 // stayed relative anchors the browser resolved against the THREAD PAGE, and clicking a handoff link
-// navigated to `/project/<slug>/thread/<slug>/.frizz/threads/<id>/HANDOFF.md` and out of Frizz.
+// navigated to `/project/<slug>/thread/<slug>/.ntwine/threads/<id>/HANDOFF.md` and out of Ntwine.
 //
 // The link targets are REAL files under the project and under home, so the click has somewhere to land:
 // the point is not that the markup changed but that the reader opens the file the author meant.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: node scripts/seed-relative-file-links.mjs --home=/abs/temp-home [--project=/abs/dir]
 import { execFileSync } from "node:child_process"
@@ -18,7 +18,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, project = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, project = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-relative-file-links.mjs --home=/abs/temp-home [--project=/abs/dir]")
   process.exit(1)
@@ -42,12 +42,12 @@ const sessionId = `${slug}-0000-4000-8000-0000000000`.slice(0, 36)
 
 // The scratch directory a worker would have written into, inside the PROJECT — so the link below is
 // resolvable only if the renderer knows which project the page is showing.
-const scratch = ".frizz/threads/seed-relative-file-links"
+const scratch = ".ntwine/threads/seed-relative-file-links"
 mkdirSync(join(project, scratch), { recursive: true })
 writeFileSync(join(project, scratch, "HANDOFF.md"), [
   "# The handoff the link points at",
   "",
-  "If you are reading this INSIDE Frizz's reader drawer, the relative link resolved against the",
+  "If you are reading this INSIDE Ntwine's reader drawer, the relative link resolved against the",
   "project directory rather than against the thread page's URL.",
 ].join("\n"))
 
@@ -101,6 +101,6 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${now()}', 'relative file links', 'claude', 'opus', 'high', 'default', '${now()}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${now()}', 'relative file links', 'claude', 'opus', 'high', 'default', '${now()}')`,
 ])
 console.log(`seeded ${slug} → ${sessionId} (scratch ${join(project, scratch)})`)

@@ -41,9 +41,9 @@ test("the pre-paint resolver handles stored, denied-storage, and unavailable-med
 test("the runtime and pre-paint resolver share the dedicated preference key and canvas values", () => {
   const entry = readFileSync(new URL("../../index.html", import.meta.url), "utf8")
   const runtime = readFileSync(new URL("./theme.ts", import.meta.url), "utf8")
-  assert.match(entry, /frizz-theme/)
+  assert.match(entry, /ntwine-theme/)
   assert.match(entry, /#f7f7f7/)
-  assert.match(runtime, /THEME_STORAGE_KEY = "frizz-theme"/)
+  assert.match(runtime, /THEME_STORAGE_KEY = "ntwine-theme"/)
   assert.match(runtime, /LIGHT_CANVAS = "#f7f7f7"/)
 })
 
@@ -86,7 +86,7 @@ test("the approved light palette keeps questions neutral and actions subtly outl
   const css = readFileSync(new URL("../theme.css", import.meta.url), "utf8")
   const light = declarations(css.split(':root[data-theme="light"] {')[1]!.split("}")[0]!)
   for (const [name, value] of Object.entries({ bg: "#f7f7f7", question: "#ffffff", "question-border": "#dcdcdc", accent: "#416896", selection: "#f1f5fa", "selection-border": "#7891ad" })) {
-    assert.equal(light[`--frizz-${name}`], value)
+    assert.equal(light[`--ntwine-${name}`], value)
   }
   assert.equal(light["--shadow-ink"], "rgb(0 0 0 / .3)")
   assert.equal(declarations(css.split(':root, :root[data-theme="dark"] {')[1]!.split("}")[0]!)["--shadow-ink"], "#000000")
@@ -131,22 +131,22 @@ test("both palettes are complete, including OS fallback and recovery subset pari
   const recoveryLight = declarations(recovery.split(":root[data-theme=light]{")[1]!.split("}")[0]!)
   const normalize = (color: string) => color === "#fff" ? "#ffffff" : color
   for (const name of ["bg", "panel", "panel-2", "border", "border-strong", "control-border", "control-strong", "fg", "muted", "accent"]) {
-    assert.equal(normalize(recoveryDark[`--${name}`]!), dark[`--frizz-${name}`], `dark ${name}`)
-    assert.equal(normalize(recoveryLight[`--${name}`]!), light[`--frizz-${name}`], `light ${name}`)
+    assert.equal(normalize(recoveryDark[`--${name}`]!), dark[`--ntwine-${name}`], `dark ${name}`)
+    assert.equal(normalize(recoveryLight[`--${name}`]!), light[`--ntwine-${name}`], `light ${name}`)
   }
-  assert.doesNotMatch(unauthorizedPage(), /frizz|board|agent/i)
+  assert.doesNotMatch(unauthorizedPage(), /ntwine|board|agent/i)
 })
 
 test("dark palette preserves existing canvases, code, marks and indexed terminal colors", () => {
   const css = readFileSync(new URL("../theme.css", import.meta.url), "utf8")
   const dark = declarations(css.split(':root, :root[data-theme="dark"] {')[1]!.split("}")[0]!)
   const expected = {
-    "--frizz-bg": "#0d0e10", "--frizz-panel": "#131519", "--frizz-panel-2": "#181b20", "--frizz-elevated": "#1c1f25", "--frizz-inset": "#090b10",
-    "--frizz-provisional": "color-mix(in oklab, var(--frizz-fg) 50%, transparent)",
-    "--frizz-fg": "#e6e7e9", "--frizz-muted": "#8b8f96", "--frizz-accent": "#e8b923", "--frizz-user-bubble": "#202329", "--frizz-user-bubble-fg": "#e6e7e9",
-    "--frizz-control-border": "#26282d", "--frizz-control-strong": "#33363c", "--code-kw": "#f47067", "--code-com": "#768390", "--code-gutter": "#4b4f57",
+    "--ntwine-bg": "#0d0e10", "--ntwine-panel": "#131519", "--ntwine-panel-2": "#181b20", "--ntwine-elevated": "#1c1f25", "--ntwine-inset": "#090b10",
+    "--ntwine-provisional": "color-mix(in oklab, var(--ntwine-fg) 50%, transparent)",
+    "--ntwine-fg": "#e6e7e9", "--ntwine-muted": "#8b8f96", "--ntwine-accent": "#e8b923", "--ntwine-user-bubble": "#202329", "--ntwine-user-bubble-fg": "#e6e7e9",
+    "--ntwine-control-border": "#26282d", "--ntwine-control-strong": "#33363c", "--code-kw": "#f47067", "--code-com": "#768390", "--code-gutter": "#4b4f57",
     "--gh-fg-success": "#3fb950", "--gh-fg-danger": "#f85149", "--gh-fg-done": "#ab7df8", "--gh-neutral-border": "#3d444d", "--gh-label-fg-mix": "0%",
-    "--sidebar-dim-opacity": ".65", "--mobile-dim-opacity": ".6", "--row-dim-hover-opacity": ".9", "--viz-destructive": "#ef6461", "--frizz-danger-button": "var(--color-red-500)",
+    "--sidebar-dim-opacity": ".65", "--mobile-dim-opacity": ".6", "--row-dim-hover-opacity": ".9", "--viz-destructive": "#ef6461", "--ntwine-danger-button": "var(--color-red-500)",
     "--terminal-cursor": "#ffffff", "--terminal-cursor-accent": "#000000",
   }
   for (const [name, value] of Object.entries(expected)) assert.equal(dark[name], value, name)
@@ -176,7 +176,7 @@ test("actual startup scripts and runtime agree for the complete preference matri
       assert.equal(root.dataset.theme, expected)
       assert.equal(root.style.colorScheme, expected)
       const palette = css.split(expected === "dark" ? ':root, :root[data-theme="dark"] {' : ':root[data-theme="light"] {')[1]!.split("}")[0]!
-      assert.equal(meta.content, declarations(palette)["--frizz-bg"])
+      assert.equal(meta.content, declarations(palette)["--ntwine-bg"])
     }
   }
 })
@@ -222,11 +222,11 @@ test("runtime retains memory choices, stable snapshots and one disposable listen
     for (const listener of mediaEvents) listener(media)
     assert.equal(getThemeSnapshot().resolved, "dark")
     const beforeStorage = writes
-    events.get("storage")!({ key: "frizz-theme", newValue: "light", storageArea: {} })
+    events.get("storage")!({ key: "ntwine-theme", newValue: "light", storageArea: {} })
     assert.equal(getThemeSnapshot().resolved, "dark", "sessionStorage is not theme storage")
-    events.get("storage")!({ key: "frizz-theme", newValue: null, storageArea: storage })
+    events.get("storage")!({ key: "ntwine-theme", newValue: null, storageArea: storage })
     assert.deepEqual(getThemeSnapshot(), { preference: "system", resolved: "light" })
-    events.get("storage")!({ key: "frizz-theme", newValue: "dark", storageArea: storage })
+    events.get("storage")!({ key: "ntwine-theme", newValue: "dark", storageArea: storage })
     events.get("storage")!({ key: null, storageArea: storage })
     assert.deepEqual(getThemeSnapshot(), { preference: "system", resolved: "light" })
     assert.equal(writes, beforeStorage)

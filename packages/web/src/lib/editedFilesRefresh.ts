@@ -1,4 +1,4 @@
-import { shellWriteTargets } from "@frizz/shared"
+import { shellWriteTargets } from "@ntwine/shared"
 import { FILE_WRITING_TOOL_NAMES, normalizedToolName } from "./toolActivity.ts"
 
 // WHEN THE RAIL'S EDITED FILES ARE WORTH RE-READING. The list is computed by the server over the whole

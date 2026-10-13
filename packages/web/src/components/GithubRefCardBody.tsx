@@ -1,4 +1,4 @@
-import type { GithubRefCard } from "@frizz/shared"
+import type { GithubRefCard } from "@ntwine/shared"
 import {
   CircleCheck,
   CircleDot,

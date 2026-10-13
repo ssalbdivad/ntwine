@@ -2,7 +2,7 @@
 # Wait until the npm registry serves <name>@<version>, or fail at $RELEASE_DEADLINE (epoch seconds).
 #
 # A direct publish is not the end of it: npm holds a new version in automated review, and the
-# version does not exist on the registry until that finishes — 6m 40s for frizz 0.13.5
+# version does not exist on the registry until that finishes — 6m 40s for ntwine 0.13.5
 # (2026-09-14); pullfrog measured 3.5, ~54 and 236 minutes. None of those is an upper bound, so
 # release.yml sets the deadline as late as its six-hour job cap allows, and an expiry here means
 # something is wrong, not merely slow.

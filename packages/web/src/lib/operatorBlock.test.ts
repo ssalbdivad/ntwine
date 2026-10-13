@@ -4,9 +4,9 @@ import { drawsWorking, frozenPendingAsk } from "./operatorBlock.ts"
 
 const ask = { questions: [{ question: "Which channel?", header: "Channel", multiSelect: false, options: [] }] }
 
-test("the external-terminal question card is for a foreign session, and nothing Frizz runs", () => {
+test("the external-terminal question card is for a foreign session, and nothing Ntwine runs", () => {
   assert.equal(frozenPendingAsk({ foreign: true, runtime: "turn-idle", pendingAsk: ask }), ask)
-  // An owned thread's native ask is a card Frizz draws itself. In the instant before that card is
+  // An owned thread's native ask is a card Ntwine draws itself. In the instant before that card is
   // journaled, and the instant after it is answered, the fold still reports the ask — and that is
   // exactly when the terminal card used to flash.
   assert.equal(frozenPendingAsk({ runtime: "running", pendingAsk: ask }), undefined)

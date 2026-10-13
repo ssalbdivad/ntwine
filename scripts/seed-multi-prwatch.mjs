@@ -2,7 +2,7 @@
 // SEVERAL `pr-watch:` lines and a timer backstop. These scheduler instructions must remain parsed and
 // actionable without being echoed as a second imperative after the worker-authored card copy.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads,
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads,
 // so the fence is parsed by the production server parser and rendered by the production card — not by a
 // hand-built props fixture.
 //
@@ -15,7 +15,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-multi-prwatch.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -70,7 +70,7 @@ const CASES = [
 
 CASES.forEach((c, n) => {
   const sessionId = `${c.slug}-0000-4000-8000-000000000000`.slice(0, 36)
-  const threadName = `frizz-${c.slug}`
+  const threadName = `ntwine-${c.slug}`
   const at = ago(3)
   const records = [
     {

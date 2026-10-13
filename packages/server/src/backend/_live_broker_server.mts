@@ -1,5 +1,5 @@
 // LIVE end-to-end RUNTIME GATE for the broker CUTOVER through the REAL server wiring (not just the
-// bridge). Run:  FRIZZ_CLAUDE_BROKER_BRIDGE=1 nub \
+// bridge). Run:  NTWINE_CLAUDE_BROKER_BRIDGE=1 nub \
 //   packages/server/src/backend/_live_broker_server.mts
 //
 // Unlike _live_broker_bridge.mts (which drives the bridge directly), this exercises the code I wired
@@ -21,15 +21,15 @@ import { createRouter } from "../router.ts"
 import { resolveProject } from "../project.ts"
 import { claudeBrokerRecordPath, readBrokerRecord } from "./claude-broker-host.ts"
 
-process.env.FRIZZ_CLAUDE_BROKER_BRIDGE = "1"
+process.env.NTWINE_CLAUDE_BROKER_BRIDGE = "1"
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const repo = mkdtempSync(join(tmpdir(), "brk-srv-repo-"))
 execFileSync("git", ["init", "-q", repo])
 execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"])
-// A throwaway home for Frizz's own state. resolveProject REGISTERS the directory it resolves, and
+// A throwaway home for Ntwine's own state. resolveProject REGISTERS the directory it resolves, and
 // under the real home that is the operator's project list: every run left a dead card on their rail.
-const frizzHome = mkdtempSync(join(tmpdir(), "brk-srv-home-"))
-const project = resolveProject(repo, frizzHome)
+const ntwineHome = mkdtempSync(join(tmpdir(), "brk-srv-home-"))
+const project = resolveProject(repo, ntwineHome)
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -41,7 +41,7 @@ const waitFor = async (cond: () => boolean, ms = 120_000, label = "condition") =
 }
 
 // Full canonical context teardown (index.ts order), MINUS anything that kills the broker daemon —
-// broker.close() only DETACHES its sockets, exactly what a real frizz process exit does. The daemon lives on.
+// broker.close() only DETACHES its sockets, exactly what a real ntwine process exit does. The daemon lives on.
 async function teardown(ctx: Awaited<ReturnType<typeof createContext>>) {
   ctx.tailer.stop()
   ctx.stopSubscriptions()
@@ -87,7 +87,7 @@ try {
   // ---- RESTART: ctx1 down (daemon survives), ctx2 up on the SAME project --------------------------
   await teardown(ctx)
   await sleep(500)
-  ok("broker daemon SURVIVES frizz teardown", !!daemonPid && (() => { try { process.kill(daemonPid!, 0); return true } catch { return false } })())
+  ok("broker daemon SURVIVES ntwine teardown", !!daemonPid && (() => { try { process.kill(daemonPid!, 0); return true } catch { return false } })())
 
   ctx = await createContext({ project, claudeBin })
   router = createRouter(ctx)
@@ -115,7 +115,7 @@ try {
 } finally {
   try { if (daemonPid) process.kill(daemonPid, "SIGKILL") } catch {}
   rmSync(repo, { recursive: true, force: true })
-  try { rmSync(frizzHome, { recursive: true, force: true }) } catch {}
+  try { rmSync(ntwineHome, { recursive: true, force: true }) } catch {}
   try { rmSync(join(process.env.HOME ?? "", ".claude", "projects", project.cwdSlug), { recursive: true, force: true }) } catch {}
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`)
   process.exit(failures === 0 ? 0 : 1)

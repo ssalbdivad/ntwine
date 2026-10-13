@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { cityOfZone, compileSchedule, describeSchedule, scheduleEcho, type InterpretScheduleResult, type ScheduleEcho } from "@frizz/shared"
+import { cityOfZone, compileSchedule, describeSchedule, scheduleEcho, type InterpretScheduleResult, type ScheduleEcho } from "@ntwine/shared"
 import { spanUntil } from "../lib/activityTime.ts"
 import { isFailedRead, type ModelReadOk, type ModelReadView } from "../lib/scheduleModelRead.ts"
 

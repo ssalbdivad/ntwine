@@ -1,5 +1,5 @@
 import type { Project } from "./project.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 
 // ── OPENING EVERY REGISTERED PROJECT, IN THE BACKGROUND, AFTER BOOT ────────────────────────────────
 //
@@ -22,7 +22,7 @@ import { log as frizzLog } from "./logging.ts"
 //     inside PRIME_BUDGET_MS (tailer.ts) and hands the rest to later ticks, so activating a large board
 //     costs a few hundred ms here instead of the 1.5-7.5s it cost before that bound existed. The bound
 //     covers the whole per-row cost, not only the fold, since 2026-09-04 — see below.
-//   * SCHEDULERS FOR EVERY REGISTERED PROJECT IS THE DESIGN, not a side effect. plans/singleton-frizz.md
+//   * SCHEDULERS FOR EVERY REGISTERED PROJECT IS THE DESIGN, not a side effect. plans/singleton-ntwine.md
 //     §4 settles it: timers, `awaiting` wakes, snooze expiry, PR watches and limit auto-resume must not
 //     go quiet for a project you are not looking at. Lazy activation left them dead until you opened it.
 //
@@ -125,7 +125,7 @@ export interface TenantPrimeDeps {
    */
   activate: (project: Project) => Promise<unknown>
   /**
-   * The pid of another live Frizz already serving this project, if there is one (project-launch.ts).
+   * The pid of another live Ntwine already serving this project, if there is one (project-launch.ts).
    * Checked HERE as well as inside activation so the ordinary migration state — a per-project server
    * still running beside the singleton — logs one line per project instead of an error and a stack.
    */
@@ -145,7 +145,7 @@ export interface TenantPrimeDeps {
 export interface TenantPrimeResult {
   /** Project ids this pass opened. */
   opened: string[]
-  /** Already open, stale, or served by another live Frizz. */
+  /** Already open, stale, or served by another live Ntwine. */
   skipped: string[]
   /** Tried and would not open — reported by the tenant seam, one dead card each. */
   failed: string[]
@@ -173,7 +173,7 @@ export interface TenantPrimeRun {
 }
 
 export function startTenantPrime(deps: TenantPrimeDeps): TenantPrimeRun {
-  const log = deps.log ?? ((message: string) => frizzLog.info("tenants", message))
+  const log = deps.log ?? ((message: string) => ntwineLog.info("tenants", message))
   let stopped = false
   let interrupt: (() => void) | undefined
 
@@ -244,7 +244,7 @@ export function startTenantPrime(deps: TenantPrimeDeps): TenantPrimeRun {
       const other = deps.servedElsewhere?.(project)
       if (other !== undefined) {
         result.skipped.push(entry.id)
-        log(`${project.name} is served by another Frizz (pid ${other}) — leaving it closed here`)
+        log(`${project.name} is served by another Ntwine (pid ${other}) — leaving it closed here`)
         continue
       }
       const resolveMs = (deps.monotonicNow?.() ?? performance.now()) - resolveStartedAt

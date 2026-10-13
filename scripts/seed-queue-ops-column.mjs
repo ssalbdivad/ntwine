@@ -7,7 +7,7 @@
 // (the shell rows). This is the only state where their shared rhythm is visible, and it is the state
 // the maintainer screenshotted on 2026-07-30 when the agent→shell gap read as a group break.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer folds.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer folds.
 //
 // Usage: node scripts/seed-queue-ops-column.mjs --home=/abs/temp-home
 import { execFileSync } from "node:child_process"
@@ -34,12 +34,12 @@ mkdirSync(jsonlDir, { recursive: true })
 
 const SLUG = "queue-ops-column"
 const SESSION = "7c0110ff-0000-4000-8000-000000000001"
-const THREAD_NAME = `frizz-${SLUG}`
+const THREAD_NAME = `ntwine-${SLUG}`
 const now = () => new Date().toISOString()
 let n = 0
 const uuid = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`
 
-const AGENT = { id: "toolu_qoc_agent", agent: "qocA", type: "frizz:opus-xhigh", label: "Verify catalog override end-to-end" }
+const AGENT = { id: "toolu_qoc_agent", agent: "qocA", type: "ntwine:opus-xhigh", label: "Verify catalog override end-to-end" }
 const SHELLS = [
   { id: "toolu_qoc_sh1", op: "bgqoc001", label: "Restart the census sweep" },
   { id: "toolu_qoc_sh2", op: "bgqoc002", label: "Re-run remote test after reverting the catalog promotion" },

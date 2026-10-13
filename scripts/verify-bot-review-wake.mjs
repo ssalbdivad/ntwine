@@ -14,7 +14,7 @@ import { createStorage } from "../packages/server/src/storage.ts"
 
 const REF = process.env.PR_REF ?? "nubjs/nub#555"
 const SLUG = "bot-review-wake"
-const root = mkdtempSync(join(tmpdir(), "frizz-bot-wake-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-bot-wake-"))
 const storage = createStorage(join(root, "ui.db"))
 const fenceAt = new Date().toISOString()
 const resumes = []
@@ -51,7 +51,7 @@ function scheduler() {
 
 try {
   storage.upsertSession({
-    slug: SLUG, session_id: `sid-${SLUG}`, thread_name: `frizz-${SLUG}`, spawned_at: fenceAt,
+    slug: SLUG, session_id: `sid-${SLUG}`, thread_name: `ntwine-${SLUG}`, spawned_at: fenceAt,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

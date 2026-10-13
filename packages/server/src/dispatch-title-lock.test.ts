@@ -29,7 +29,7 @@ import type { ThreadNamer } from "./thread-names.ts"
 // be the default — a fourth transport has to answer the same question before it can ship.
 
 function harness(threadNamer?: Pick<ThreadNamer, "distinct" | "mint">) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-title-lock-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-title-lock-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = { dir, id: "title-lock", name: "t", label: "o/t", stateDir: dir, cwdSlug: cwdSlug(dir) }
   const board = {
@@ -66,14 +66,14 @@ const CALLER_TITLE = "Acme issue"
 
 for (const transport of ["claude-broker", "claude-cli", "codex"] as const) {
   test(`${transport}: a caller's dispatch title is shown as a name but never locked against the worker's own`, async (t) => {
-    // The broker is the DEFAULT claude transport (opt out with FRIZZ_CLAUDE_BROKER_BRIDGE=0), so the
+    // The broker is the DEFAULT claude transport (opt out with NTWINE_CLAUDE_BROKER_BRIDGE=0), so the
     // spawned-CLI case has to switch it off for the length of its own dispatch.
     if (transport === "claude-cli") {
-      const prior = process.env.FRIZZ_CLAUDE_BROKER_BRIDGE
-      process.env.FRIZZ_CLAUDE_BROKER_BRIDGE = "0"
+      const prior = process.env.NTWINE_CLAUDE_BROKER_BRIDGE
+      process.env.NTWINE_CLAUDE_BROKER_BRIDGE = "0"
       t.after(() => {
-        if (prior === undefined) delete process.env.FRIZZ_CLAUDE_BROKER_BRIDGE
-        else process.env.FRIZZ_CLAUDE_BROKER_BRIDGE = prior
+        if (prior === undefined) delete process.env.NTWINE_CLAUDE_BROKER_BRIDGE
+        else process.env.NTWINE_CLAUDE_BROKER_BRIDGE = prior
       })
     }
     const { storage, dispatcher } = harness()
@@ -104,7 +104,7 @@ test("a dispatch with NO caller title stores a guess that is likewise replaceabl
   assert.equal(row?.title_locked, 0)
 })
 
-// A SPINOFF's prompt opens with Frizz's own "A spinoff of @parent…" line, so naming the child from the
+// A SPINOFF's prompt opens with Ntwine's own "A spinoff of @parent…" line, so naming the child from the
 // prompt minted `a-spinoff-of-shell-budgets-thread-…` whenever the parent's worker gave no title or one
 // too long to type as a handle (2026-09-30). The router names it from the human's instructions and the
 // brief instead (`nameSource`), which feeds the fallback title, the slug, and the async mint alike.

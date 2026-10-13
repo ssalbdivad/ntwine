@@ -1,4 +1,4 @@
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 
 // The live-process MAINTENANCE verb — Restart worker — as the thread menu offers it. It was an icon in
 // the drawer header's action strip (2026-08-26 to 2026-09-29), and before that in the lifecycle footer;
@@ -11,7 +11,7 @@ import type { ThreadView } from "@frizz/shared"
 
 /** Restart worker replaces the live `claude` process, keeping the conversation (lib/restartWorker.ts).
  *  DEV BUILDS ONLY, and the gate is the launcher's runtime answer (lib/devBuild.ts), never
- *  `import.meta.env.DEV`, which is false in the production bundle frizz-dev actually serves. Claude only:
+ *  `import.meta.env.DEV`, which is false in the production bundle ntwine-dev actually serves. Claude only:
  *  a codex turn lives in the app-server and an ACP session in its agent's own child. Live process only:
  *  Retry already covers an exited thread. */
 export function offersRestartWorker(thread: ThreadView, devBuild: boolean): boolean {

@@ -13,13 +13,13 @@
 // interrupts once both are provably running, then watches the child's task_notification:
 //   CONTROL — raw SDK, flag absent   → expect the child reported killed/stopped right after the interrupt
 //   TEST    — raw SDK, flag true     → expect the child to run to `completed` after the turn was aborted
-//   BROKER  — frizz's own factory    → the same expectation as TEST, proving the plumbing carries it
+//   BROKER  — ntwine's own factory    → the same expectation as TEST, proving the plumbing carries it
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
-import { query, type SDKMessage, type SDKUserMessage } from "@frizz/claude-agent-sdk-runtime"
+import { query, type SDKMessage, type SDKUserMessage } from "@ntwine/claude-agent-sdk-runtime"
 import { forkBroker, killBroker } from "./claude-broker-host.ts"
 import { connectClaudeBroker } from "./claude-broker-client.ts"
 import type { ClaudeQueryEvent } from "./claude-agent-sdk-protocol.ts"
@@ -105,7 +105,7 @@ async function rawRun(label: string, perTaskStopAffordance: boolean | undefined)
   return out
 }
 
-// ── frizz broker run (the real path) ─────────────────────────────────────────────────────────────
+// ── ntwine broker run (the real path) ─────────────────────────────────────────────────────────────
 async function brokerRun(label: string): Promise<Outcome> {
   const stateDir = mkdtempSync(join(tmpdir(), `intsub-${label}-state-`))
   const cwd = realpathSync(mkdtempSync(join(tmpdir(), `intsub-${label}-repo-`)))
@@ -152,7 +152,7 @@ try {
   const control = await rawRun("CONTROL", undefined)
   console.log(`\n──────── TEST: raw SDK, perTaskStopAffordance:true ────────`)
   const test = await rawRun("TEST", true)
-  console.log(`\n──────── BROKER: frizz factory (the fix as shipped) ────────`)
+  console.log(`\n──────── BROKER: ntwine factory (the fix as shipped) ────────`)
   const broker = await brokerRun("BROKER")
 
   console.log("\n──────── ANALYSIS ────────")
@@ -162,7 +162,7 @@ try {
   ok("CONTROL: without the flag the interrupt ends the child (the harness can fail)", control.childStatus !== undefined && !survived(control), describe(control))
   ok("TEST: with the flag the child runs to completed after the interrupt", survived(test), describe(test))
   ok("TEST: the parent's turn was actually aborted before the child finished", test.parentResultAt !== undefined && test.childStatusAt !== undefined && test.parentResultAt < test.childStatusAt)
-  ok("BROKER: frizz's own factory carries the flag — the child survives", survived(broker), describe(broker))
+  ok("BROKER: ntwine's own factory carries the flag — the child survives", survived(broker), describe(broker))
   console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`)
 } catch (err) {
   console.log(`ERROR ${err instanceof Error ? err.stack : String(err)}`)

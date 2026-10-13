@@ -4,10 +4,10 @@
 // unchanged.
 //
 // The whole point is the lifetime split. `kill()` on this adapter DETACHES the socket; it never kills
-// the daemon. So when the disposable frizz runtime is recycled by Update & Restart, the app-server —
+// the daemon. So when the disposable ntwine runtime is recycled by Update & Restart, the app-server —
 // and every turn running inside it — keeps going, and the next runtime generation reattaches to the
 // SAME process. (A Claude thread gets the same immunity from its own session broker daemon, which holds
-// the SDK session outside frizz entirely — see claude-broker-host.ts. That job belonged to tmux until
+// the SDK session outside ntwine entirely — see claude-broker-host.ts. That job belonged to tmux until
 // the multiplexer was stripped on 2026-08-02; an earlier PTY session broker had been removed as dead
 // code before that.)
 //
@@ -17,7 +17,7 @@
 // See codex-app-server.ts's `connect()` / `ensureCurrentAuth()`. It ends the NATIVE listener too — the
 // bridge cannot tell the transports apart, and both kinds of cached process need the same replacement.
 //
-// Shutdown is deliberately NOT such a caller, for either transport. Recycling frizz must leave the
+// Shutdown is deliberately NOT such a caller, for either transport. Recycling ntwine must leave the
 // app-server (and its in-flight turns) running, which is the whole point of the split above.
 import { spawn } from "node:child_process"
 import { createConnection, type Socket } from "node:net"
@@ -30,16 +30,16 @@ import { resolveDetachedDaemonEntry } from "../detached-daemons.ts"
 import { endDaemonTree } from "./daemon-tree.ts"
 import { recordedDaemonIsLive } from "./daemon-identity.ts"
 import { stopNativeListener } from "./codex-app-server-native.ts"
-import { frizzIpcPath } from "./ipc-path.ts"
+import { ntwineIpcPath } from "./ipc-path.ts"
 import { codexAppServerArgv } from "./codex-mcp.ts"
-import type { FrizzMcp } from "./types.ts"
+import type { NtwineMcp } from "./types.ts"
 import type { CodexAppServerProcess } from "./codex-app-server.ts"
-import { log as frizzLog } from "../logging.ts"
+import { log as ntwineLog } from "../logging.ts"
 import { launchEnvironment } from "./worker-env.ts"
 
 export interface CodexAppServerDaemonRecord {
   projectId: string
-  /** Identity of the app-server PROCESS. Unchanged across a frizz restart; new only when the
+  /** Identity of the app-server PROCESS. Unchanged across a ntwine restart; new only when the
    *  app-server itself died and a fresh daemon replaced it. This is what tells the bridge whether
    *  in-flight turns survived. */
   generation: string
@@ -57,7 +57,7 @@ export interface CodexAppServerDaemonRecord {
 export interface CodexAppServerAttachment {
   process: CodexAppServerProcess
   generation: string
-  /** True when we joined an app-server that was ALREADY running (i.e. it outlived a frizz restart). */
+  /** True when we joined an app-server that was ALREADY running (i.e. it outlived a ntwine restart). */
   reattached: boolean
   daemonPid: number
   /** Lines the daemon had to DROP because its detached queue overflowed while nobody was attached.
@@ -78,9 +78,9 @@ export interface CodexAppServerHostOptions {
   capabilities: Record<string, unknown>
   /** ChatGPT account present in auth.json immediately before the process is obtained/spawned. */
   authAccountId?: string
-  /** Mounts the unified `frizz` MCP server into this app-server. Absent ⇒ frizz mounts nothing, the
+  /** Mounts the unified `ntwine` MCP server into this app-server. Absent ⇒ ntwine mounts nothing, the
    *  same degradation the claude side has when the descriptor cannot be resolved. */
-  frizzMcp?: FrizzMcp
+  ntwineMcp?: NtwineMcp
   /** Test seam: override the forked daemon entry. */
   daemonEntry?: string
   /** Test seam: how often the daemon re-checks that its record still names it (default 30s). */
@@ -110,7 +110,7 @@ function recordPath(stateDir: string, projectId: string): string {
  *  that name into the endpoint this platform can bind. */
 export function codexAppServerSocketPath(stateDir: string, projectId: string): string {
   const key = createHash("sha256").update(stateDir).update("\0").update(projectId).digest("hex").slice(0, 16)
-  return frizzIpcPath(`frizz-codex-${key}`)
+  return ntwineIpcPath(`ntwine-codex-${key}`)
 }
 
 function pidAlive(pid: number): boolean {
@@ -204,7 +204,7 @@ export function killCodexAppServerDaemon(stateDir: string, projectId: string): v
  * build can outlive an update, and the native listener is codex's own process; so the wait stays.)
  *
  * It covers BOTH transports because the bridge has no idea which one is in play, and neither stale
- * state is the daemon's alone. The native listener (FRIZZ_CODEX_NATIVE_LISTEN,
+ * state is the daemon's alone. The native listener (NTWINE_CODEX_NATIVE_LISTEN,
  * codex-app-server-native.ts) is a codex process spawned from the binary and credential snapshot as
  * they stood at spawn time. Leave it running after either one changes and the "refork" reattaches to
  * the stale process, reproducing the same version rejection or old-account selection indefinitely.
@@ -244,9 +244,9 @@ function forkDaemon(options: CodexAppServerHostOptions): Promise<CodexAppServerD
     env, generation, clientInfo: options.clientInfo, capabilities: options.capabilities,
     ...(options.authAccountId ? { authAccountId: options.authAccountId } : {}),
     // The argv is built HERE, not in the daemon: the daemon is a bare forked entry that should not have
-    // to resolve frizz's MCP descriptors, and building it once keeps this transport identical to the
+    // to resolve ntwine's MCP descriptors, and building it once keeps this transport identical to the
     // native listener's.
-    appServerArgs: codexAppServerArgv(["--stdio"], options.frizzMcp),
+    appServerArgs: codexAppServerArgv(["--stdio"], options.ntwineMcp),
     ...(options.reachabilityCheckMs === undefined ? {} : { reachabilityCheckMs: options.reachabilityCheckMs }),
   })
   const child = spawn(process.execPath, [options.daemonEntry ?? daemonEntry()], {
@@ -255,7 +255,7 @@ function forkDaemon(options: CodexAppServerHostOptions): Promise<CodexAppServerD
     // the payload and is applied by the daemon, keeping the audited env allowlist authoritative.
     // launchEnvironment, not process.env, so the daemon never carries what the dev server's Vite wrote
     // (worker-env.ts).
-    env: { ...launchEnvironment(), FRIZZ_CODEX_APP_SERVER_DAEMON: payload },
+    env: { ...launchEnvironment(), NTWINE_CODEX_APP_SERVER_DAEMON: payload },
     detached: true,
     stdio: "ignore",
     // Belt to the daemon's own braces: a detached process owns no console on Windows, so anything
@@ -339,7 +339,7 @@ function attach(record: CodexAppServerDaemonRecord, timeoutMs: number): Promise<
       kill() { socket.destroy(); return true },
     } as CodexAppServerProcess
 
-    // Control lines (a reserved `frizz` key) are the daemon's own; everything else is verbatim
+    // Control lines (a reserved `ntwine` key) are the daemon's own; everything else is verbatim
     // app-server JSON-RPC and must reach the bridge's parser untouched.
     const decoder = new StringDecoder("utf8")
     let buffer = ""
@@ -352,7 +352,7 @@ function attach(record: CodexAppServerDaemonRecord, timeoutMs: number): Promise<
         buffer = buffer.slice(index + 1)
         const trimmed = line.trim()
         if (!trimmed) continue
-        if (trimmed.startsWith("{\"frizz\":")) {
+        if (trimmed.startsWith("{\"ntwine\":")) {
           if (!settled) {
             settled = true
             clearTimeout(timer)
@@ -414,14 +414,14 @@ export const daemonCodexAppServerHost: CodexAppServerHost = async (options) => {
     // app-server was an ordinary child of this runtime. So a daemon that cannot start must cost the
     // survival property, never Codex. Without this, one packaging slip took out every Codex dispatch,
     // follow-up, steer and interrupt at once (2026-07-23) with only a cryptic toast to go on.
-    frizzLog.error("codex", `codex app-server daemon unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive a frizz restart`)
+    ntwineLog.error("codex", `codex app-server daemon unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive a ntwine restart`)
     return inProcessCodexAppServer(options)
   }
 }
 
 /** The pre-daemon transport: `codex app-server --stdio` as an ordinary child of this runtime. */
 function inProcessCodexAppServer(options: CodexAppServerHostOptions): CodexAppServerAttachment {
-  const child = spawn(options.codexBin, codexAppServerArgv(["--stdio"], options.frizzMcp), {
+  const child = spawn(options.codexBin, codexAppServerArgv(["--stdio"], options.ntwineMcp), {
     cwd: options.cwd,
     env: options.env,
     stdio: ["pipe", "pipe", "pipe"],
@@ -447,7 +447,7 @@ export function directChildHost(
   generationId: () => string = randomUUID,
 ): CodexAppServerHost {
   return async (options) => ({
-    process: spawnChild(options.codexBin, codexAppServerArgv(["--stdio"], options.frizzMcp), { cwd: options.cwd, env: options.env }),
+    process: spawnChild(options.codexBin, codexAppServerArgv(["--stdio"], options.ntwineMcp), { cwd: options.cwd, env: options.env }),
     generation: generationId(),
     reattached: false,
     daemonPid: process.pid,

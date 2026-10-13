@@ -11,7 +11,7 @@
 //   ─────
 //   ▸ SNOOZED     collapsed to start, each a header that opens its rows in place
 //   ▸ DONE        (virtualized once open: the one band that grows without bound)
-//   ▸ EXTERNAL    the project's own `claude`/`codex` terminals, which Frizz reads but does not drive
+//   ▸ EXTERNAL    the project's own `claude`/`codex` terminals, which Ntwine reads but does not drive
 //   ▸ SCHEDULES   the project's schedules
 //
 // Pinned, Queue and Running are never collapsible (upstream 2026-09-19: the Pinned, Queue and Running
@@ -42,7 +42,7 @@ import { Ellipsis } from "lucide-react"
 import { useNavigate } from "react-router"
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { displayTitle, queued } from "../groups.ts"
 import { threadKey, type QueuesProject } from "../lib/allQueues.ts"
@@ -482,7 +482,7 @@ export function BoardIdentity({ project, home }: { project: QueuesProject; home:
 }
 
 /**
- * `owner/repo` clipped from the START, so it is the owner that gives way — "…hacks/frizz", never
+ * `owner/repo` clipped from the START, so it is the owner that gives way — "…hacks/ntwine", never
  * "colinhacks/f…" (upstream StatusRow.tsx StartTruncated): `direction: rtl` moves the overflow and its
  * ellipsis to the left, and the text is re-isolated LTR so its letters and slash keep their order. A repo
  * name ends in a strong LTR character, which this needs.

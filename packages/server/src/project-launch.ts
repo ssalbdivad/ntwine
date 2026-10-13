@@ -32,11 +32,11 @@ const POLL_MS = 25
 const DELEGATE_DRAIN_TIMEOUT_MS = 6_000
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 
-export const FRIZZ_LAUNCH_OWNER_TOKEN = "FRIZZ_LAUNCH_OWNER_TOKEN"
-export const FRIZZ_LAUNCH_PROJECT_ID = "FRIZZ_LAUNCH_PROJECT_ID"
-export const FRIZZ_LAUNCH_PROJECT_DIR = "FRIZZ_LAUNCH_PROJECT_DIR"
-export const FRIZZ_LAUNCH_STATE_DIR = "FRIZZ_LAUNCH_STATE_DIR"
-export const FRIZZ_LAUNCH_IDENTITY_SCOPE = "FRIZZ_LAUNCH_IDENTITY_SCOPE"
+export const NTWINE_LAUNCH_OWNER_TOKEN = "NTWINE_LAUNCH_OWNER_TOKEN"
+export const NTWINE_LAUNCH_PROJECT_ID = "NTWINE_LAUNCH_PROJECT_ID"
+export const NTWINE_LAUNCH_PROJECT_DIR = "NTWINE_LAUNCH_PROJECT_DIR"
+export const NTWINE_LAUNCH_STATE_DIR = "NTWINE_LAUNCH_STATE_DIR"
+export const NTWINE_LAUNCH_IDENTITY_SCOPE = "NTWINE_LAUNCH_IDENTITY_SCOPE"
 
 export type ProjectLaunchRole = "launcher" | "supervisor" | "server"
 
@@ -101,8 +101,8 @@ export class ProjectLaunchConflictError extends Error {
 
   constructor(owner: ProjectLaunchOwnerRecord | null) {
     super(owner
-      ? `Frizz project launch is already owned by ${owner.role} pid ${owner.pid}; wait for it to become ready or stop that exact owner`
-      : "Frizz project launch ownership is being published; retry shortly")
+      ? `Ntwine project launch is already owned by ${owner.role} pid ${owner.pid}; wait for it to become ready or stop that exact owner`
+      : "Ntwine project launch ownership is being published; retry shortly")
     this.name = "ProjectLaunchConflictError"
     this.owner = owner
   }
@@ -248,7 +248,7 @@ export function acquireMutationGuard(
       ? processGenerationIsStale(current, adapter)
       : age !== undefined && (age >= PARTIAL_GRACE_MS || age < -PARTIAL_GRACE_MS)
     if (stale && quarantine(path, "stale")) continue
-    if (adapter.now() >= deadline) throw new Error("timed out waiting for the Frizz project ownership guard")
+    if (adapter.now() >= deadline) throw new Error("timed out waiting for the Ntwine project ownership guard")
     adapter.sleep(Math.min(POLL_MS, Math.max(1, deadline - adapter.now())))
   }
 }
@@ -360,9 +360,9 @@ function sameProjectIdentity(record: ProjectLaunchOwnerRecord, target: ProjectLa
 }
 
 export function projectLaunchTokenProof(target: ProjectLaunchTarget, token: string): string {
-  if (!UUID_RE.test(token)) throw new Error("invalid Frizz project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
   return createHash("sha256")
-    .update("frizz-project-launch-v2\0")
+    .update("ntwine-project-launch-v2\0")
     .update(target.projectId)
     .update("\0")
     .update(target.projectDir)
@@ -565,14 +565,14 @@ export function adoptProjectLaunchOwner(
   role: ProjectLaunchRole,
   protocol: ProjectLaunchProtocolOptions = {},
 ): ProjectLaunchLease {
-  if (!UUID_RE.test(token)) throw new Error("invalid Frizz project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
   const adapter = protocol.adapter ?? defaultProcessPlatformAdapter
   const unlock = acquireMutationGuard(target.stateDir, GUARD_TIMEOUT_MS, adapter)
   try {
     const path = projectLaunchOwnerPath(target.stateDir)
     const current = parseOwner(path)
     if (!current || !sameTarget(current, target) || current.token !== token || current.state !== "active") {
-      throw new Error("Frizz project launch ownership handoff no longer matches this project")
+      throw new Error("Ntwine project launch ownership handoff no longer matches this project")
     }
     const generation = currentProcessGeneration(adapter)
     const next: ProjectLaunchOwnerRecord = {
@@ -589,7 +589,7 @@ export function adoptProjectLaunchOwner(
       committed.token !== token ||
       committed.pid !== generation.pid ||
       committed.processStart !== generation.processStart
-    ) throw new Error("Frizz project launch ownership handoff was not committed")
+    ) throw new Error("Ntwine project launch ownership handoff was not committed")
     return makeLease(target, committed, adapter)
   } finally {
     unlock()
@@ -601,7 +601,7 @@ export function verifyProjectLaunchDelegate(
   token: string,
   protocol: ProjectLaunchProtocolOptions = {},
 ): ProjectLaunchOwnerRecord {
-  if (!UUID_RE.test(token)) throw new Error("invalid Frizz project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
   const adapter = protocol.adapter ?? defaultProcessPlatformAdapter
   const unlock = acquireMutationGuard(target.stateDir, GUARD_TIMEOUT_MS, adapter)
   try {
@@ -613,7 +613,7 @@ export function verifyProjectLaunchDelegate(
       current.state !== "active" ||
       processGenerationIsStale(current, adapter)
     ) {
-      throw new Error("Frizz control-plane child has no live matching project launch owner")
+      throw new Error("Ntwine control-plane child has no live matching project launch owner")
     }
     return current
   } finally {
@@ -627,7 +627,7 @@ export function registerProjectLaunchDelegate(
   role: ProjectLaunchDelegateRole = "control-plane",
   protocol: ProjectLaunchProtocolOptions = {},
 ): ProjectLaunchDelegateLease {
-  if (!UUID_RE.test(token)) throw new Error("invalid Frizz project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
   const adapter = protocol.adapter ?? defaultProcessPlatformAdapter
   const generation = currentProcessGeneration(adapter)
   const unlock = acquireMutationGuard(target.stateDir, GUARD_TIMEOUT_MS, adapter)
@@ -640,17 +640,17 @@ export function registerProjectLaunchDelegate(
       current.token !== token ||
       current.state !== "active" ||
       processGenerationIsStale(current, adapter)
-    ) throw new Error("Frizz control-plane child has no live matching project launch owner")
+    ) throw new Error("Ntwine control-plane child has no live matching project launch owner")
 
     const registeredAt = new Date(adapter.now()).toISOString()
     if (current.pid === generation.pid && current.processStart === generation.processStart) {
-      throw new Error("Frizz launch owner cannot register itself as a delegated control plane")
+      throw new Error("Ntwine launch owner cannot register itself as a delegated control plane")
     }
     const delegates = current.delegates.filter((delegate) => (
       !processGenerationIsStale(delegate, adapter)
       && (delegate.pid !== generation.pid || delegate.processStart !== generation.processStart)
     ))
-    if (delegates.length >= 64) throw new Error("Frizz project has too many live delegated control planes")
+    if (delegates.length >= 64) throw new Error("Ntwine project has too many live delegated control planes")
     delegates.push({ ...generation, role, registeredAt })
     const next: ProjectLaunchOwnerRecord = {
       ...current,
@@ -662,7 +662,7 @@ export function registerProjectLaunchDelegate(
     const committed = parseOwner(path)
     if (!committed || !committed.delegates.some((delegate) => (
       delegate.pid === generation.pid && delegate.processStart === generation.processStart && delegate.role === role
-    ))) throw new Error("Frizz control-plane delegate registration was not committed")
+    ))) throw new Error("Ntwine control-plane delegate registration was not committed")
 
     let released = false
     return {
@@ -710,11 +710,11 @@ export function projectLaunchEnvironment(
 ): NodeJS.ProcessEnv {
   return {
     ...env,
-    [FRIZZ_LAUNCH_OWNER_TOKEN]: token,
-    [FRIZZ_LAUNCH_PROJECT_ID]: target.projectId,
-    [FRIZZ_LAUNCH_PROJECT_DIR]: target.projectDir,
-    [FRIZZ_LAUNCH_STATE_DIR]: target.stateDir,
-    [FRIZZ_LAUNCH_IDENTITY_SCOPE]: target.identityScope ?? "repository",
+    [NTWINE_LAUNCH_OWNER_TOKEN]: token,
+    [NTWINE_LAUNCH_PROJECT_ID]: target.projectId,
+    [NTWINE_LAUNCH_PROJECT_DIR]: target.projectDir,
+    [NTWINE_LAUNCH_STATE_DIR]: target.stateDir,
+    [NTWINE_LAUNCH_IDENTITY_SCOPE]: target.identityScope ?? "repository",
   }
 }
 
@@ -723,7 +723,7 @@ export function projectLaunchEnvironment(
  *
  * `process.env` carries the launch identity of whichever project started this server, plus whatever
  * project- and thread-scoped variables that launch happened to be holding. That was harmless while a
- * server served exactly one project. Under one Frizz per machine it is project A identity leaking
+ * server served exactly one project. Under one Ntwine per machine it is project A identity leaking
  * into project B agent: a broker fork for B would report A project id, write permission markers into
  * A state directory, and log into A file.
  *
@@ -737,38 +737,38 @@ export function projectScopedEnvironment(
   token?: string,
 ): Record<string, string> {
   const scoped = new Set<string>([
-    FRIZZ_LAUNCH_OWNER_TOKEN,
-    FRIZZ_LAUNCH_PROJECT_ID,
-    FRIZZ_LAUNCH_PROJECT_DIR,
-    FRIZZ_LAUNCH_STATE_DIR,
-    FRIZZ_LAUNCH_IDENTITY_SCOPE,
+    NTWINE_LAUNCH_OWNER_TOKEN,
+    NTWINE_LAUNCH_PROJECT_ID,
+    NTWINE_LAUNCH_PROJECT_DIR,
+    NTWINE_LAUNCH_STATE_DIR,
+    NTWINE_LAUNCH_IDENTITY_SCOPE,
     // Not launch identity, but just as project- or thread-pinned: the state dir a worker MCP writes
     // through, the permission-marker directory, this run log, and the thread slug of whatever worker
     // may have started the server.
-    "FRIZZ_STATE_DIR",
-    "FRIZZ_PERM_DIR",
-    "FRIZZ_BOARD_ROOT",
-    "FRIZZ_LOG_FILE",
-    "FRIZZ_THREAD",
+    "NTWINE_STATE_DIR",
+    "NTWINE_PERM_DIR",
+    "NTWINE_BOARD_ROOT",
+    "NTWINE_LOG_FILE",
+    "NTWINE_THREAD",
   ])
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {
     if (value == null || scoped.has(key)) continue
     out[key] = value
   }
-  out[FRIZZ_LAUNCH_PROJECT_ID] = target.projectId
-  out[FRIZZ_LAUNCH_PROJECT_DIR] = target.projectDir
-  out[FRIZZ_LAUNCH_STATE_DIR] = target.stateDir
-  out[FRIZZ_LAUNCH_IDENTITY_SCOPE] = target.identityScope ?? "repository"
-  if (token) out[FRIZZ_LAUNCH_OWNER_TOKEN] = token
+  out[NTWINE_LAUNCH_PROJECT_ID] = target.projectId
+  out[NTWINE_LAUNCH_PROJECT_DIR] = target.projectDir
+  out[NTWINE_LAUNCH_STATE_DIR] = target.stateDir
+  out[NTWINE_LAUNCH_IDENTITY_SCOPE] = target.identityScope ?? "repository"
+  if (token) out[NTWINE_LAUNCH_OWNER_TOKEN] = token
   return out
 }
 
 export function projectLaunchTargetFromEnvironment(env: NodeJS.ProcessEnv): ProjectLaunchTarget | null {
-  const projectId = env[FRIZZ_LAUNCH_PROJECT_ID]
-  const projectDir = env[FRIZZ_LAUNCH_PROJECT_DIR]
-  const stateDir = env[FRIZZ_LAUNCH_STATE_DIR]
-  const scope = env[FRIZZ_LAUNCH_IDENTITY_SCOPE]
+  const projectId = env[NTWINE_LAUNCH_PROJECT_ID]
+  const projectDir = env[NTWINE_LAUNCH_PROJECT_DIR]
+  const stateDir = env[NTWINE_LAUNCH_STATE_DIR]
+  const scope = env[NTWINE_LAUNCH_IDENTITY_SCOPE]
   if (
     !projectId ||
     !UUID_RE.test(projectId) ||
@@ -787,7 +787,7 @@ export function projectLaunchTargetFromEnvironment(env: NodeJS.ProcessEnv): Proj
 }
 
 export function projectLaunchOwnerTokenFromEnvironment(env: NodeJS.ProcessEnv): string | null {
-  const token = env[FRIZZ_LAUNCH_OWNER_TOKEN]
+  const token = env[NTWINE_LAUNCH_OWNER_TOKEN]
   return token && UUID_RE.test(token) ? token : null
 }
 

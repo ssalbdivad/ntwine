@@ -14,11 +14,11 @@ test("absolute POSIX and file URLs become local targets with decoded proxy paths
   )
   assert.equal(
     localImageUrl("/Users/me/visual review/shot.png"),
-    "/_frizz/local-image?path=%2FUsers%2Fme%2Fvisual%20review%2Fshot.png",
+    "/_ntwine/local-image?path=%2FUsers%2Fme%2Fvisual%20review%2Fshot.png",
   )
   assert.equal(
     localImageUrlForTarget(localMarkdownTarget("/Users/me/visual%20review/shot.png")!),
-    "/_frizz/local-image?path=%2FUsers%2Fme%2Fvisual%20review%2Fshot.png",
+    "/_ntwine/local-image?path=%2FUsers%2Fme%2Fvisual%20review%2Fshot.png",
   )
 })
 
@@ -43,7 +43,7 @@ test("only server-supported local image extensions become proxy URLs", () => {
   // runs there, and dropping the image left a Windows write-up with no picture in it at all.
   assert.equal(
     localImageUrlForTarget(localMarkdownTarget("C:\\Users\\me\\shot.png")!),
-    "/_frizz/local-image?path=C%3A%5CUsers%5Cme%5Cshot.png",
+    "/_ntwine/local-image?path=C%3A%5CUsers%5Cme%5Cshot.png",
   )
 })
 
@@ -96,10 +96,10 @@ test("a Windows drive path is a file path the server can act on; a remote host i
   // button whose click did nothing and an inline screenshot vanish from the prose.
   assert.deepEqual(localMarkdownTarget("C:\\Users\\me\\shot.png"), { display: "C:\\Users\\me\\shot.png", filePath: "C:\\Users\\me\\shot.png" })
   assert.deepEqual(localMarkdownTarget("C:%5CUsers%5Cme%5Cshot.png"), { display: "C:\\Users\\me\\shot.png", filePath: "C:\\Users\\me\\shot.png" })
-  assert.deepEqual(localMarkdownTarget("D:/Development/frizz/AGENTS.md"), { display: "D:/Development/frizz/AGENTS.md", filePath: "D:/Development/frizz/AGENTS.md" })
+  assert.deepEqual(localMarkdownTarget("D:/Development/ntwine/AGENTS.md"), { display: "D:/Development/ntwine/AGENTS.md", filePath: "D:/Development/ntwine/AGENTS.md" })
   // Only the server knows whether the URL's leading slash belongs to a POSIX filename.
-  assert.deepEqual(localMarkdownTarget("file:///D:/Development/frizz/AGENTS.md"), { display: "/D:/Development/frizz/AGENTS.md", filePath: "/D:/Development/frizz/AGENTS.md" })
-  assert.deepEqual(localMarkdownTarget("/D:/Development/frizz/AGENTS.md"), { display: "/D:/Development/frizz/AGENTS.md", filePath: "/D:/Development/frizz/AGENTS.md" })
+  assert.deepEqual(localMarkdownTarget("file:///D:/Development/ntwine/AGENTS.md"), { display: "/D:/Development/ntwine/AGENTS.md", filePath: "/D:/Development/ntwine/AGENTS.md" })
+  assert.deepEqual(localMarkdownTarget("/D:/Development/ntwine/AGENTS.md"), { display: "/D:/Development/ntwine/AGENTS.md", filePath: "/D:/Development/ntwine/AGENTS.md" })
   assert.deepEqual(localMarkdownTarget("cursor://file//C:/Users/me/plan.md"), { display: "C:/Users/me/plan.md", filePath: "C:/Users/me/plan.md" })
   // A one-character URL scheme shares the drive path's prefix and must NOT become a file button. The
   // separator count is the whole difference: a path has one, a URL has two.
@@ -117,7 +117,7 @@ test("a POSIX directory named after a drive keeps its root in links and image UR
   }
   assert.equal(
     localImageUrlForTarget(localMarkdownTarget("/D:/docs/shot.png")!),
-    "/_frizz/local-image?path=%2FD%3A%2Fdocs%2Fshot.png",
+    "/_ntwine/local-image?path=%2FD%3A%2Fdocs%2Fshot.png",
   )
 })
 
@@ -163,7 +163,7 @@ test("an in-app link classifies the same on /, in a drawer and on /full", () => 
 // A project's board and the addresses under it (`/project/<slug>…`, live again since 2026-10-06), and the
 // retired bare `/status/<s>`: in-app, all of them — read as a file, each became a chip whose click asked
 // the server to open `/project/nub/thread/x`.
-test("a board's address, and a retired Frizz address, are in-app, not a file the server is asked to open", () => {
+test("a board's address, and a retired Ntwine address, are in-app, not a file the server is asked to open", () => {
   for (const href of [
     "/project/nub",
     "/project/nub/",
@@ -223,8 +223,8 @@ test("chat prose rebases a project-relative path the way a worker writes it", ()
   // project root, the anchor stayed relative, and the browser resolved it against the THREAD PAGE.
   const project = "/Users/me/projects/nub"
   assert.equal(
-    resolveRelativeLocalPath(".frizz/threads/6d56ea2f/HANDOFF.md", project),
-    "/Users/me/projects/nub/.frizz/threads/6d56ea2f/HANDOFF.md",
+    resolveRelativeLocalPath(".ntwine/threads/6d56ea2f/HANDOFF.md", project),
+    "/Users/me/projects/nub/.ntwine/threads/6d56ea2f/HANDOFF.md",
   )
   assert.equal(resolveRelativeLocalPath("packages/web/src/App.tsx", project), "/Users/me/projects/nub/packages/web/src/App.tsx")
 })

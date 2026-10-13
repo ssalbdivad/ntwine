@@ -15,7 +15,7 @@ function decision(command: string, worker = true, extra: Record<string, unknown>
     input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command, ...extra } }),
     encoding: "utf8",
     // The job gate rides this hook and would wrap `pnpm prChecks`; job-gate.test.ts covers it.
-    env: { ...process.env, FRIZZ_THREAD: worker ? "thread-under-test" : "", FRIZZ_GATE: "0" },
+    env: { ...process.env, NTWINE_THREAD: worker ? "thread-under-test" : "", NTWINE_GATE: "0" },
   })
   assert.equal(result.status, 0, result.stderr)
   return JSON.parse(result.stdout || "{}")
@@ -102,7 +102,7 @@ test("an untimed run_in_background call gets ONE non-blocking line; a timed one,
   // Claude Code stops an untimed background command at 30m; the hook lifts it to the 24h ceiling.
   assert.deepEqual(untimed.hookSpecificOutput?.updatedInput, { command: "npx vite --port 5231", run_in_background: true, timeout: 86_400_000 })
   assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /no `timeout`/)
-  assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /frizzctl extend-shell/)
+  assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /ntwinectl extend-shell/)
   assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /dev server or watcher/)
   assert.ok((untimed.hookSpecificOutput?.additionalContext ?? "").length < 500, "brief")
   // The negative controls: the same command, every way that must stay silent.
@@ -117,20 +117,20 @@ test("an untimed run_in_background call gets ONE non-blocking line; a timed one,
   assert.equal(decision("server &", true, { run_in_background: true }).hookSpecificOutput?.permissionDecision, "deny")
 })
 
-test("Bash background hook is inert outside a Frizz worker", () => {
+test("Bash background hook is inert outside a Ntwine worker", () => {
   assert.deepEqual(decision("cargo test &", false), {})
 })
 
 test("Bash denial tells the worker the tracked replacement", () => {
   const reason = decision("cargo test & disown").hookSpecificOutput?.permissionDecisionReason ?? ""
-  assert.match(reason, /^Frizz blocked an untracked shell background job/)
+  assert.match(reason, /^Ntwine blocked an untracked shell background job/)
   assert.match(reason, /run_in_background:true/)
   assert.match(reason, /Claude task ID/)
   assert.match(reason, /finish with `wait`/)
 })
 
 test("Codex Bash denial points at the managed yield_control lifecycle", () => {
-  const result = spawnSync(process.execPath, [hook, "--frizz-thread"], {
+  const result = spawnSync(process.execPath, [hook, "--ntwine-thread"], {
     input: JSON.stringify({
       hook_event_name: "PreToolUse",
       tool_name: "Bash",
@@ -138,7 +138,7 @@ test("Codex Bash denial points at the managed yield_control lifecycle", () => {
       model: "gpt-5.6-sol",
     }),
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: "" },
+    env: { ...process.env, NTWINE_THREAD: "" },
   })
   assert.equal(result.status, 0, result.stderr)
   const reason = JSON.parse(result.stdout).hookSpecificOutput?.permissionDecisionReason ?? ""
@@ -147,7 +147,7 @@ test("Codex Bash denial points at the managed yield_control lifecycle", () => {
   assert.doesNotMatch(reason, /run_in_background/)
 })
 
-test("bundling the detector into Frizz cannot turn the server entry into the hook executable", () => {
+test("bundling the detector into Ntwine cannot turn the server entry into the hook executable", () => {
   const serverEntry = "/artifact/runtime/src/index.js"
   assert.equal(isDirectHookExecution(serverEntry, "file:///artifact/runtime/src/index.js"), false)
   assert.equal(isDirectHookExecution(hook, pathToFileURL(hook).href), true)
@@ -158,13 +158,13 @@ test("bundling the detector into Frizz cannot turn the server entry into the hoo
 // URL comparison fails, and the hook silently allowed everything (Windows audit 2026-09-11,
 // finding 15). A symlink is the same divergence this machine can produce.
 test("an aliased plugin path (symlink, junction, 8.3 short name) still recognizes the hook as itself", () => {
-  const alias = join(mkdtempSync(join(tmpdir(), "frizz-hook-alias-")), "hooks")
+  const alias = join(mkdtempSync(join(tmpdir(), "ntwine-hook-alias-")), "hooks")
   symlinkSync(dirname(hook), alias, "dir")
   const viaAlias = join(alias, "bash-background.mjs")
   assert.notEqual(pathToFileURL(viaAlias).href, pathToFileURL(hook).href, "the control: the spellings really differ")
   assert.equal(isDirectHookExecution(viaAlias, pathToFileURL(hook).href), true)
   // A different file that merely shares the basename is still not this hook …
-  const impostor = join(mkdtempSync(join(tmpdir(), "frizz-hook-impostor-")), "bash-background.mjs")
+  const impostor = join(mkdtempSync(join(tmpdir(), "ntwine-hook-impostor-")), "bash-background.mjs")
   writeFileSync(impostor, "")
   assert.equal(isDirectHookExecution(impostor, pathToFileURL(hook).href), false)
   // … and a path that does not exist cannot be it either.
@@ -173,7 +173,7 @@ test("an aliased plugin path (symlink, junction, 8.3 short name) still recognize
   const result = spawnSync(process.execPath, [viaAlias], {
     input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "cargo test > /tmp/t.log 2>&1 &" } }),
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: "thread-under-test" },
+    env: { ...process.env, NTWINE_THREAD: "thread-under-test" },
   })
   assert.equal(result.status, 0, result.stderr)
   assert.equal(JSON.parse(result.stdout).hookSpecificOutput?.permissionDecision, "deny")
@@ -210,7 +210,7 @@ test("the long-foreground window is 15m, the value the POSIX-sh pre-filter hard-
 test("the long-foreground prompt is Claude-only: a codex exec has no run_in_background to point at", () => {
   const out = evaluateBashBackgroundHook(
     { model: "gpt-5", tool_input: { command: "pnpm prChecks", timeout: 3_600_000 } },
-    { FRIZZ_THREAD: "thread-under-test" },
+    { NTWINE_THREAD: "thread-under-test" },
   )
   assert.deepEqual(out, {})
 })
@@ -223,7 +223,7 @@ function subAgentDecision(command: string, extra: Record<string, unknown>, idKey
   const result = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", [idKey]: "a19ae4fa7706777f6", tool_input: { command, ...extra } }),
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: "thread-under-test", FRIZZ_GATE: "0" },
+    env: { ...process.env, NTWINE_THREAD: "thread-under-test", NTWINE_GATE: "0" },
   })
   assert.equal(result.status, 0, result.stderr)
   return JSON.parse(result.stdout || "{}")
@@ -231,7 +231,7 @@ function subAgentDecision(command: string, extra: Record<string, unknown>, idKey
 
 test("inside a sub-agent neither the no-timeout nor the long-foreground prompt fires; the deny still does", () => {
   // The positive controls: the identical calls from the THREAD do get their lines.
-  assert.match(decision("npx vite --port 5231", true, { run_in_background: true }).hookSpecificOutput?.additionalContext ?? "", /frizzctl extend-shell/)
+  assert.match(decision("npx vite --port 5231", true, { run_in_background: true }).hookSpecificOutput?.additionalContext ?? "", /ntwinectl extend-shell/)
   assert.match(decision("pnpm prChecks", true, { timeout: 3_600_000 }).hookSpecificOutput?.additionalContext ?? "", /run_in_background: true/)
   // From a sub-agent, nothing — either spelling of the id.
   assert.deepEqual(subAgentDecision("npx vite --port 5231", { run_in_background: true }), {})

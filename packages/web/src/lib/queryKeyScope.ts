@@ -3,7 +3,7 @@ import { projectSlug } from "./base-path.ts"
 
 // THE CACHE IS PER PROJECT, AND NOBODY HAS TO REMEMBER THAT.
 //
-// One Frizz serves every project on the machine from one origin, so `["transcript", "fix-auth"]` names
+// One Ntwine serves every project on the machine from one origin, so `["transcript", "fix-auth"]` names
 // a different thread depending on which project asked — thread slugs are unique only WITHIN a project
 // (see `rebindProject` in api/socket.ts). `["settingsGet"]` is worse: the server reads a per-project
 // blob (`getSettings` in packages/server/src/settings.ts), so the same key genuinely holds different

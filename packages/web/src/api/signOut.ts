@@ -1,12 +1,12 @@
-import type { FrizzSupervisorStatus } from "./restart.ts"
+import type { NtwineSupervisorStatus } from "./restart.ts"
 
 // ── "Sign out this device" ─────────────────────────────────────────────────────────────────────────────
 // Ends the remote-access session of the browser that asks, and no other. The supervisor reads the id
 // out of this request's own session cookie, so there is nothing here to name another device with — and
-// there must not be: signing out OTHER devices is `frizz --sign-out` on the host, loopback only, so a
+// there must not be: signing out OTHER devices is `ntwine --sign-out` on the host, loopback only, so a
 // stolen phone cannot evict the laptop (docs/remote-access.md).
 
-export const SIGN_OUT_THIS_DEVICE_PATH = "/_frizz/control/sign-out"
+export const SIGN_OUT_THIS_DEVICE_PATH = "/_ntwine/control/sign-out"
 
 /** Mirrors SignOutThisDeviceResult in packages/server/src/restart-supervisor.ts. */
 export type SignOutThisDeviceResult =
@@ -15,10 +15,10 @@ export type SignOutThisDeviceResult =
   | { protocol: 1; result: "no-remote-session" }
 
 /**
- * Is this page on a remote session it could sign out? Strict, like isDevFrizzBuild: an unreachable
+ * Is this page on a remote session it could sign out? Strict, like isDevNtwineBuild: an unreachable
  * supervisor, one that predates the field, and the operator's own loopback tab all read "no".
  */
-export function isRemoteSession(status: FrizzSupervisorStatus | null | undefined): boolean {
+export function isRemoteSession(status: NtwineSupervisorStatus | null | undefined): boolean {
   return status?.remoteSession === true
 }
 
@@ -50,7 +50,7 @@ export async function signOutThisDevice(fetcher: typeof fetch = fetch): Promise<
   }
   const known = body?.protocol === 1
     && (body.result === "signed-out" || body.result === "cookie-cleared" || body.result === "no-remote-session")
-  if (!known || !body) throw new Error("This Frizz cannot sign a device out from the browser")
+  if (!known || !body) throw new Error("This Ntwine cannot sign a device out from the browser")
   return { signedOut: signedOutOutcome(response.status, body), result: body }
 }
 

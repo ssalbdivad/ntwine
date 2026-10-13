@@ -3,8 +3,8 @@ import test from "node:test"
 
 // Opt-in, like every other e2e here: start `vite` in packages/web and point this at its origin.
 //   cd packages/web && nubx vite --port 5199 &
-//   FRIZZ_AWAITING_HOVERCARD_E2E_URL=http://127.0.0.1:5199 nub --test src/components/AwaitingBackgroundCard.hovercard.e2e.test.ts
-const baseUrl = process.env.FRIZZ_AWAITING_HOVERCARD_E2E_URL
+//   NTWINE_AWAITING_HOVERCARD_E2E_URL=http://127.0.0.1:5199 nub --test src/components/AwaitingBackgroundCard.hovercard.e2e.test.ts
+const baseUrl = process.env.NTWINE_AWAITING_HOVERCARD_E2E_URL
 
 // THE PR ROWS OF AN AWAITING CARD OPEN THE SAME HOVERCARD A `#123` IN PROSE DOES (maintainer 2026-08-25:
 // "add the PR hover popover to the PRs that are listed in the awaiting block"). The layer is one

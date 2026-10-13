@@ -25,7 +25,7 @@ fi
 
 # A merge's deletions are computed by git from the two sides, not by a hand-built index, so the bug
 # this guards against cannot arise here — while a conflicted delete/modify CAN legitimately leave a
-# staged deletion beside a file still on disk. FRIZZ.md mandates merging branches back into main, so
+# staged deletion beside a file still on disk. NTWINE.md mandates merging branches back into main, so
 # exempt merges rather than have the documented workflow trip a guard aimed at something else.
 if [ -e "$(git rev-parse --git-dir)/MERGE_HEAD" ]; then
 	exit 0

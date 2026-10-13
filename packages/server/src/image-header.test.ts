@@ -10,7 +10,7 @@ import { imageDimensions, svgDeclaresColour } from "./image-header.ts"
 // byte offsets, and a fixture whose bytes you cannot read in the diff pins nothing.
 
 function withFile(bytes: Buffer | string, name: string, assertion: (path: string) => void): void {
-  const directory = mkdtempSync(join(tmpdir(), "frizz-image-"))
+  const directory = mkdtempSync(join(tmpdir(), "ntwine-image-"))
   try {
     const path = join(directory, name)
     writeFileSync(path, bytes)

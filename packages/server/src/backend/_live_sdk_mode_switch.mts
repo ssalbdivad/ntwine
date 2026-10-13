@@ -9,7 +9,7 @@
 //   "Cannot set permission mode to bypassPermissions because the session was not launched with
 //    --dangerously-skip-permissions"
 //
-// So frizz applies a Claude permission change by RETIRING THE WORKER PROCESS instead — the mode is a
+// So ntwine applies a Claude permission change by RETIRING THE WORKER PROCESS instead — the mode is a
 // launch flag, and the next turn cold-resumes the same conversation under the new one (router
 // `setThreadPermission` → bridge `retireDaemon`). This probe is the evidence for that design, and the
 // regression guard on it: if a future `claude` starts ACCEPTING the flip, check 1 fails loudly and the
@@ -37,7 +37,7 @@ const ALLOWLIST = ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG",
 const env = Object.fromEntries(ALLOWLIST.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]!])) as Record<string, string>
 
 function makeSession(mode: ClaudePermissionMode) {
-  const cwd = mkdtempSync(join(tmpdir(), "frizz-mode-switch-"))
+  const cwd = mkdtempSync(join(tmpdir(), "ntwine-mode-switch-"))
   execFileSync("git", ["init", "-q", cwd])
   const asks: ClaudePermissionRequest[] = []
   const collected: ClaudeQueryEvent[] = []
@@ -70,7 +70,7 @@ try {
   ok("auto ⇒ bypass is REFUSED", refusal !== undefined, refusal ?? "it was ACCEPTED — re-examine whether the worker still needs a restart")
   ok("the refusal names the launch flag", /dangerously-skip-permissions/.test(refusal ?? ""), refusal ?? "")
   // The refusal arrives as a "Claude SDK process failed" REJECTION, which reads like a death. It is not
-  // one, and that matters: it is why frizz can leave the retired-daemon path as the only mechanism
+  // one, and that matters: it is why ntwine can leave the retired-daemon path as the only mechanism
   // without also having to guarantee the frame is never sent.
   await a.turn("Reply with only ALIVE.", 60_000).catch(() => {})
   ok("the session SURVIVED the refusal", a.said("ALIVE"))

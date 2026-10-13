@@ -1,38 +1,38 @@
-// THE EXTENSION, END TO END, IN A REAL VS CODE. Downloads VS Code (stable unless FRIZZ_E2E_VSCODE names
-// a version) into ~/.cache/frizz-vscode-e2e with @vscode/test-electron, runs it with the extension under
+// THE EXTENSION, END TO END, IN A REAL VS CODE. Downloads VS Code (stable unless NTWINE_E2E_VSCODE names
+// a version) into ~/.cache/ntwine-vscode-e2e with @vscode/test-electron, runs it with the extension under
 // development and e2e/suite.ts as its test runner, and drives both directions of the editor bridge.
 //
 //   nub packages/vscode/scripts/e2e.ts
-//       FAKE mode: an in-process fake Frizz (e2e/fake-frizz.ts) the suite asserts against frame by frame.
-//       FRIZZ_E2E_VSCODE=oldest runs it on the oldest VS Code the manifest's `engines.vscode` admits,
+//       FAKE mode: an in-process fake Ntwine (e2e/fake-ntwine.ts) the suite asserts against frame by frame.
+//       NTWINE_E2E_VSCODE=oldest runs it on the oldest VS Code the manifest's `engines.vscode` admits,
 //       which is how an API newer than that floor gets caught (focusWindow, 1.128, was one).
 //
 //   nub packages/vscode/scripts/e2e.ts --stack
-//       STACK mode: boots a disposable two-project Frizz itself (scripts/adhoc-stack.mjs: a sandbox HOME,
+//       STACK mode: boots a disposable two-project Ntwine itself (scripts/adhoc-stack.mjs: a sandbox HOME,
 //       a free port, two throwaway git repos), runs REAL mode against the TENANT project — the one the
 //       server did not launch from — with a headless page open on it (e2e/page-claim.ts) that must
-//       receive "Add to Frizz prompt" as a chip in its new-thread box. Every file opener the server
+//       receive "Add to Ntwine prompt" as a chip in its new-thread box. Every file opener the server
 //       could spawn is a stub on its PATH, and the run fails if one was spawned: the opens must all go
-//       over the editor connection. A worker's `editor` tool (the real cc-worker/bin/frizz-mcp.mjs, pointed
+//       over the editor connection. A worker's `editor` tool (the real cc-worker/bin/ntwine-mcp.mjs, pointed
 //       at the stack) must read this window's selection and a problem. Everything it started is torn
 //       down by exact pid, pass or fail.
-//       FRIZZ_E2E_DISPATCH=1 adds `--creds` and runs the steps that start a real agent.
+//       NTWINE_E2E_DISPATCH=1 adds `--creds` and runs the steps that start a real agent.
 //
-//   FRIZZ_E2E_ORIGIN=http://127.0.0.1:<port> FRIZZ_E2E_PROJECT_DIR=<a registered project's folder> \
+//   NTWINE_E2E_ORIGIN=http://127.0.0.1:<port> NTWINE_E2E_PROJECT_DIR=<a registered project's folder> \
 //     nub packages/vscode/scripts/e2e.ts
-//       REAL mode against a Frizz you started — a disposable one, since it writes a sample file into the
-//       project folder and, with FRIZZ_E2E_SET_OPENER=1, sets Local file links to VS Code for the run.
-//       FRIZZ_E2E_DISPATCH=1 (+ FRIZZ_E2E_THREAD=<slug>) also runs the steps that start or message a
-//       real agent. FRIZZ_E2E_PAGE_CLAIMS=1 leaves the prompt-box insert for a real page open on that
-//       Frizz to claim, instead of taking it itself.
+//       REAL mode against a Ntwine you started — a disposable one, since it writes a sample file into the
+//       project folder and, with NTWINE_E2E_SET_OPENER=1, sets Local file links to VS Code for the run.
+//       NTWINE_E2E_DISPATCH=1 (+ NTWINE_E2E_THREAD=<slug>) also runs the steps that start or message a
+//       real agent. NTWINE_E2E_PAGE_CLAIMS=1 leaves the prompt-box insert for a real page open on that
+//       Ntwine to claim, instead of taking it itself.
 //
 //   nub packages/vscode/scripts/e2e.ts --sidebar [--out=<dir>] [--dev] [--only=c1,c4]
 //       SIDEBAR mode: hands the run to scripts/e2e-sidebar.ts — the extension as its .vsix ships, the REAL
-//       Frizz page framed in the sidebar of a real VS Code, over a disposable two-project Frizz with a
+//       Ntwine page framed in the sidebar of a real VS Code, over a disposable two-project Ntwine with a
 //       simulated worker, every seam crossed with trusted mouse and keyboard input, and screenshots of
 //       each state. Its header lists the checks and its flags.
 //
-// FRIZZ_E2E_KEEP=1 keeps the scratch folder (editor logs, the page's screenshot) even when the run passes.
+// NTWINE_E2E_KEEP=1 keeps the scratch folder (editor logs, the page's screenshot) even when the run passes.
 //
 // NEVER ON THE REAL DISPLAY. On Linux the run re-executes itself under `xvfb-run -a` with DISPLAY and
 // WAYLAND_DISPLAY removed — on this machine DISPLAY=:0 is the maintainer's screen through WSLg, and a
@@ -46,9 +46,9 @@ import { homedir, tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { downloadAndUnzipVSCode, runTests } from "@vscode/test-electron"
-import type { EditorProject } from "@frizz/shared/editor-protocol"
+import type { EditorProject } from "@ntwine/shared/editor-protocol"
 import { Workbench } from "../e2e/cdp.ts"
-import { FakeFrizz } from "../e2e/fake-frizz.ts"
+import { FakeNtwine } from "../e2e/fake-ntwine.ts"
 import { watchPageClaim, type PageClaimResult } from "../e2e/page-claim.ts"
 import { seedReviewThread, type SeededReview } from "../e2e/review-seed.ts"
 import { bootStack, freePort, type StackProject } from "../e2e/stack.ts"
@@ -62,8 +62,8 @@ if (process.argv.includes("--sidebar")) {
   process.exit(child.status ?? 1)
 }
 
-if (process.platform === "linux" && process.env.FRIZZ_E2E_UNDER_XVFB !== "1") {
-  const env: NodeJS.ProcessEnv = { ...process.env, FRIZZ_E2E_UNDER_XVFB: "1" }
+if (process.platform === "linux" && process.env.NTWINE_E2E_UNDER_XVFB !== "1") {
+  const env: NodeJS.ProcessEnv = { ...process.env, NTWINE_E2E_UNDER_XVFB: "1" }
   delete env.DISPLAY
   delete env.WAYLAND_DISPLAY
   const child = spawnSync("xvfb-run", ["-a", "-s", "-screen 0 1600x1000x24", "nub", fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: "inherit", env })
@@ -79,15 +79,15 @@ if (process.platform === "linux" && (!process.env.DISPLAY || process.env.DISPLAY
 }
 
 const stackMode = process.argv.includes("--stack")
-if (stackMode && process.env.FRIZZ_E2E_ORIGIN) {
-  console.error("--stack boots its own Frizz; unset FRIZZ_E2E_ORIGIN.")
+if (stackMode && process.env.NTWINE_E2E_ORIGIN) {
+  console.error("--stack boots its own Ntwine; unset NTWINE_E2E_ORIGIN.")
   process.exit(1)
 }
-const dispatch = process.env.FRIZZ_E2E_DISPATCH === "1"
+const dispatch = process.env.NTWINE_E2E_DISPATCH === "1"
 
 /** `oldest` is the manifest's floor: `engines.vscode` "^1.90.0" → "1.90.0". */
 function vscodeVersion(): string {
-  const wanted = process.env.FRIZZ_E2E_VSCODE ?? "stable"
+  const wanted = process.env.NTWINE_E2E_VSCODE ?? "stable"
   if (wanted !== "oldest") return wanted
   const engines = (JSON.parse(readFileSync(join(pkg, "package.json"), "utf8")) as { engines: { vscode: string } }).engines.vscode
   return engines.replace(/^[\^~>=]+/u, "")
@@ -96,17 +96,17 @@ function vscodeVersion(): string {
 const build = spawnSync("nub", ["scripts/build.ts", "--e2e"], { cwd: pkg, stdio: "inherit" })
 if (build.status !== 0) process.exit(build.status ?? 1)
 
-const scratch = realpathSync(mkdtempSync(join(tmpdir(), "frizz-vscode-e2e-")))
-const log = (line: string) => console.log(`frizz e2e: ${line}`)
+const scratch = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-vscode-e2e-")))
+const log = (line: string) => console.log(`ntwine e2e: ${line}`)
 
-// ── STACK mode: a disposable two-project Frizz (e2e/stack.ts), run against its TENANT ─────────────────
+// ── STACK mode: a disposable two-project Ntwine (e2e/stack.ts), run against its TENANT ─────────────────
 
 interface Stack {
   origin: string
   /** The sandbox HOME the server runs with: its database, and the transcripts its tailer reads. */
   home: string
   tenant: StackProject
-  /** The server's lock file, which a worker's MCP server finds Frizz by. */
+  /** The server's lock file, which a worker's MCP server finds Ntwine by. */
   serverLock: string
   /** Every opener the server spawned; empty when every open went over the editor connection. */
   openers(): string
@@ -123,9 +123,9 @@ async function bootE2eStack(): Promise<Stack> {
 let stack: Stack | undefined
 /** The stack's teardown, set as soon as it is spawned; idempotent, so the boot's own failure path and the run's may both call it. */
 let stackTeardown: (() => Promise<void>) | undefined
-let fake: FakeFrizz | undefined
-/** A second fake on another port, which the sidebar's suite moves the window to, as a Frizz restarting elsewhere would. */
-let fakeElsewhere: FakeFrizz | undefined
+let fake: FakeNtwine | undefined
+/** A second fake on another port, which the sidebar's suite moves the window to, as a Ntwine restarting elsewhere would. */
+let fakeElsewhere: FakeNtwine | undefined
 let exitCode = 1
 let pageClaim: Promise<PageClaimResult> | undefined
 const stopPage = new AbortController()
@@ -167,10 +167,10 @@ try {
   // A thread that worked in a worktree of the tenant, for Review changes to open (e2e/review-seed.ts).
   let review: SeededReview | undefined
   if (stack) review = seedReviewThread({ home: stack.home, project: stack.tenant, log })
-  const realOrigin = stack?.origin ?? process.env.FRIZZ_E2E_ORIGIN
+  const realOrigin = stack?.origin ?? process.env.NTWINE_E2E_ORIGIN
   const mode = realOrigin ? "real" : "fake"
-  const projectDir = stack?.tenant.dir ?? process.env.FRIZZ_E2E_PROJECT_DIR
-  if (mode === "real" && !projectDir) throw new Error("REAL mode needs FRIZZ_E2E_PROJECT_DIR: a folder registered as a project in that Frizz.")
+  const projectDir = stack?.tenant.dir ?? process.env.NTWINE_E2E_PROJECT_DIR
+  if (mode === "real" && !projectDir) throw new Error("REAL mode needs NTWINE_E2E_PROJECT_DIR: a folder registered as a project in that Ntwine.")
 
   const workspace = mode === "real" ? realpathSync(projectDir!) : join(scratch, "workspace")
   sample = join(workspace, "src", "sample.ts")
@@ -194,15 +194,15 @@ try {
       { id: randomUUID(), slug: "e2e", name: "e2e", dir: workspace, ready: 0, working: 0 },
       { id: "686f6d65-0000-4000-8000-000000000000", slug: "home", name: "Home", dir: homedir(), home: true },
     ]
-    fake = await new FakeFrizz(projects).listen()
-    fakeElsewhere = await new FakeFrizz(structuredClone(projects)).listen()
+    fake = await new FakeNtwine(projects).listen()
+    fakeElsewhere = await new FakeNtwine(structuredClone(projects)).listen()
   }
   const origin = realOrigin ?? fake!.origin
 
   const userData = join(scratch, "user-data")
   mkdirSync(join(userData, "User"), { recursive: true })
   writeFileSync(join(userData, "User", "settings.json"), JSON.stringify({
-    "frizz.serverUrl": origin,
+    "ntwine.serverUrl": origin,
     "workbench.startupEditor": "none",
     "window.restoreWindows": "none",
     "security.workspace.trust.enabled": false,
@@ -213,9 +213,9 @@ try {
     "git.enabled": false,
   }, null, 2))
 
-  const pageClaims = stack ? true : process.env.FRIZZ_E2E_PAGE_CLAIMS === "1"
+  const pageClaims = stack ? true : process.env.NTWINE_E2E_PAGE_CLAIMS === "1"
   if (stack) {
-    // "Add to Frizz prompt" selects the sample's lines 2-3; the page must show that chip.
+    // "Add to Ntwine prompt" selects the sample's lines 2-3; the page must show that chip.
     pageClaim = watchPageClaim({
       origin,
       project: stack.tenant.slug,
@@ -245,7 +245,7 @@ try {
     }
   }
 
-  const vscodeExecutablePath = await downloadAndUnzipVSCode({ version: vscodeVersion(), cachePath: join(homedir(), ".cache", "frizz-vscode-e2e") })
+  const vscodeExecutablePath = await downloadAndUnzipVSCode({ version: vscodeVersion(), cachePath: join(homedir(), ".cache", "ntwine-vscode-e2e") })
   log(`${stack ? "stack" : mode} mode against ${origin}${stack ? ` (tenant ${stack.tenant.slug})` : ""}, VS Code ${vscodeExecutablePath}, DISPLAY=${process.env.DISPLAY ?? "(none)"}`)
   const suiteCode = await runTests({
     vscodeExecutablePath,
@@ -262,21 +262,21 @@ try {
       `--remote-debugging-port=${debuggingPort}`,
     ],
     extensionTestsEnv: {
-      FRIZZ_E2E_MODE: mode,
-      FRIZZ_E2E_WORKSPACE: workspace,
-      FRIZZ_E2E_CONTROL: fake?.origin,
-      FRIZZ_E2E_CONTROL_ELSEWHERE: fakeElsewhere?.origin,
-      FRIZZ_E2E_DISPATCH: process.env.FRIZZ_E2E_DISPATCH,
-      FRIZZ_E2E_THREAD: process.env.FRIZZ_E2E_THREAD,
-      FRIZZ_E2E_SET_OPENER: stack ? "1" : process.env.FRIZZ_E2E_SET_OPENER,
-      FRIZZ_E2E_PAGE_CLAIMS: pageClaims ? "1" : undefined,
-      FRIZZ_E2E_ONLY: process.env.FRIZZ_E2E_ONLY,
-      FRIZZ_E2E_REVIEW: review ? JSON.stringify(review) : undefined,
-      FRIZZ_E2E_SHOTS: scratch,
-      // A worker's view of this window: the REAL frizz-mcp.mjs, run by this node, finding the stack by its lock.
-      FRIZZ_E2E_MCP: stack ? join(repo, "cc-worker", "bin", "frizz-mcp.mjs") : undefined,
-      FRIZZ_E2E_SERVER_LOCK: stack?.serverLock,
-      FRIZZ_E2E_NODE: stack ? process.execPath : undefined,
+      NTWINE_E2E_MODE: mode,
+      NTWINE_E2E_WORKSPACE: workspace,
+      NTWINE_E2E_CONTROL: fake?.origin,
+      NTWINE_E2E_CONTROL_ELSEWHERE: fakeElsewhere?.origin,
+      NTWINE_E2E_DISPATCH: process.env.NTWINE_E2E_DISPATCH,
+      NTWINE_E2E_THREAD: process.env.NTWINE_E2E_THREAD,
+      NTWINE_E2E_SET_OPENER: stack ? "1" : process.env.NTWINE_E2E_SET_OPENER,
+      NTWINE_E2E_PAGE_CLAIMS: pageClaims ? "1" : undefined,
+      NTWINE_E2E_ONLY: process.env.NTWINE_E2E_ONLY,
+      NTWINE_E2E_REVIEW: review ? JSON.stringify(review) : undefined,
+      NTWINE_E2E_SHOTS: scratch,
+      // A worker's view of this window: the REAL ntwine-mcp.mjs, run by this node, finding the stack by its lock.
+      NTWINE_E2E_MCP: stack ? join(repo, "cc-worker", "bin", "ntwine-mcp.mjs") : undefined,
+      NTWINE_E2E_SERVER_LOCK: stack?.serverLock,
+      NTWINE_E2E_NODE: stack ? process.execPath : undefined,
     },
   }).catch((error: unknown) => {
     log(`the suite did not run: ${(error as Error).message}`)
@@ -312,7 +312,7 @@ try {
   exitCode ||= 1
 } finally {
   await teardown()
-  if (exitCode === 0 && process.env.FRIZZ_E2E_KEEP !== "1") rmSync(scratch, { recursive: true, force: true })
+  if (exitCode === 0 && process.env.NTWINE_E2E_KEEP !== "1") rmSync(scratch, { recursive: true, force: true })
   else log(`${exitCode === 0 ? "passed" : "failed"}; the editor's logs${stackMode ? ", the stack's log and the page's screenshot" : ""} are kept under ${scratch}`)
 }
 process.exit(exitCode)

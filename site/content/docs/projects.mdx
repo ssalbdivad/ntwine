@@ -3,11 +3,11 @@ title: Projects
 description: Every folder you add, each with its own board, served by one server.
 ---
 
-Every folder you add becomes a **project**. Frizz is a single server: one on your machine serves every project, and running `npx frizz` again joins the server already running rather than starting another.
+Every folder you add becomes a **project**. Ntwine is a single server: one on your machine serves every project, and running `npx ntwine` again joins the server already running rather than starting another.
 
 ## A board per project
 
-Each project has its own **board** at `/project/<name>`: its threads under the five named [bands](/docs/queue#the-bands), its cards beside them, and a prompt box that starts threads in it. A working thread's status shows when you point at it, and a thread's sub-agents list under it. `npx frizz` in a project opens its board, and a bare `http://127.0.0.1:9393/` opens whichever view this browser showed last.
+Each project has its own **board** at `/project/<name>`: its threads under the five named [bands](/docs/queue#the-bands), its cards beside them, and a prompt box that starts threads in it. A working thread's status shows when you point at it, and a thread's sub-agents list under it. `npx ntwine` in a project opens its board, and a bare `http://127.0.0.1:9393/` opens whichever view this browser showed last.
 
 The switcher above the prompt box moves between projects and counts each one's queued and running threads. <kbd>⌥</kbd><kbd>↑</kbd> and <kbd>⌥</kbd><kbd>↓</kbd> step between projects from anywhere, and <kbd>⌘</kbd><kbd>K</kbd> jumps to any of them.
 
@@ -25,7 +25,7 @@ To keep every project in view, switch on **Settings → Project sidebar**: a col
 
 ## What becomes a project
 
-Running `npx frizz` never makes a project by itself. In a folder that is already one it opens that board. In a repository (`.git`, `.jj`, `.hg`, `.svn`), or a folder with a `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml` and the like, it asks whether to add it, and adds it once you confirm. Anywhere else it opens **All projects**. **Add a project**, under the project switcher's list, takes any folder. Your home folder is never a project.
+Running `npx ntwine` never makes a project by itself. In a folder that is already one it opens that board. In a repository (`.git`, `.jj`, `.hg`, `.svn`), or a folder with a `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml` and the like, it asks whether to add it, and adds it once you confirm. Anywhere else it opens **All projects**. **Add a project**, under the project switcher's list, takes any folder. Your home folder is never a project.
 
 ## Home
 
@@ -33,8 +33,8 @@ Work that belongs to no project yet — cloning a repository, a question about y
 
 ## Project instructions
 
-A project's instructions are its [`FRIZZ.md`](/docs/frizz-md), injected into every thread. Edit them from the agent settings beside the model picker; they save to the repo root, where they can be committed and reviewed.
+A project's instructions are its [`NTWINE.md`](/docs/ntwine-md), injected into every thread. Edit them from the agent settings beside the model picker; they save to the repo root, where they can be committed and reviewed.
 
 ## State lives outside the repo
 
-Everything durable — threads, settings, logs — lives under your user directory, never in your checkout. All Frizz adds to a project is a `.frizz/` folder of per-thread [scratch directories](/docs/threads#scratch-directory) and a few small state files.
+Everything durable — threads, settings, logs — lives under your user directory, never in your checkout. All Ntwine adds to a project is a `.ntwine/` folder of per-thread [scratch directories](/docs/threads#scratch-directory) and a few small state files.

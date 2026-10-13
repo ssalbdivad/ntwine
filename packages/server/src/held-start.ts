@@ -1,4 +1,4 @@
-import type { DispatchInput } from "@frizz/shared"
+import type { DispatchInput } from "@ntwine/shared"
 import type { BackendKind } from "./backend/types.ts"
 import type { BoardManager } from "./board.ts"
 import type { Dispatcher } from "./dispatch.ts"

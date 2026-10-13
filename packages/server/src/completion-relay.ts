@@ -14,19 +14,19 @@
 // mentions those task-ids finds exactly those two records and nothing else. On the busier thread that
 // was 39 of 117 completed reports (33%); the dropped payloads ran 3.3k–23.6k characters and were
 // finished adversarial reviews — "3 HARD COMPILE breaks", "2 blocking, 2 should-fix", "Two hard
-// CI-gate breaks". The orchestrator landed those diffs believing they had been reviewed. Worse, frizz's
+// CI-gate breaks". The orchestrator landed those diffs believing they had been reviewed. Worse, ntwine's
 // own timeline rendered NOTHING for them, because the tailer retires a sub-agent row on any terminal
 // notification regardless of carrier — so the row simply vanished and the loss was invisible.
 //
 // Payload size was the obvious suspect and is NOT the mechanism: 3,318 chars was dropped on that same
-// thread while 12,299 was delivered. The drop is upstream of frizz, inside a dependency we do not own
-// (Claude Code's own queue, SDK stream-json under the broker — frizz only ever READS these records).
+// thread while 12,299 was delivered. The drop is upstream of ntwine, inside a dependency we do not own
+// (Claude Code's own queue, SDK stream-json under the broker — ntwine only ever READS these records).
 //
 // So this module does not try to explain the drop. It observes the model-facing carriers directly and
 // repairs on ABSENCE, which is correct whatever the upstream cause turns out to be.
 //
-// IDEMPOTENCE IS CARRIED BY THE TRANSCRIPT, not by a persisted flag. The repair frizz injects is itself
-// a user record, and it embeds `RELAY_MARKER` + the task-id. On any later re-fold — a frizz restart, a
+// IDEMPOTENCE IS CARRIED BY THE TRANSCRIPT, not by a persisted flag. The repair ntwine injects is itself
+// a user record, and it embeds `RELAY_MARKER` + the task-id. On any later re-fold — a ntwine restart, a
 // cold resume, a full re-read of the file — that record is model-facing evidence for exactly this
 // task-id, so the report resolves as delivered and is never repaired twice. Nothing to persist,
 // nothing to migrate, and the evidence lives in the same file as the thing it is evidence about.
@@ -51,37 +51,37 @@ export interface QueuedReport {
 /**
  * Marker opening every relayed completion.
  *
- * The `<frizz-…>` shape is deliberate and load-bearing TWICE. It is already in transcript.ts's
+ * The `<ntwine-…>` shape is deliberate and load-bearing TWICE. It is already in transcript.ts's
  * `NOISE_PREFIXES`, so `isInjectedNoise` skips the record and the relay never renders in the
- * timeline — the thread looks exactly as it did before, which is the point: frizz is repairing a
+ * timeline — the thread looks exactly as it did before, which is the point: ntwine is repairing a
  * runtime failure, not narrating one at the human. And because the marker carries the task id, the
  * same record is model-facing evidence for that id on any later re-fold, which is what makes the
  * relay idempotent with nothing persisted.
  */
-export const RELAY_MARKER = "frizz-relay"
+export const RELAY_MARKER = "ntwine-relay"
 
-// Bounds the tracking map. Sized GENEROUSLY on purpose: an evicted entry is a lost report that frizz
+// Bounds the tracking map. Sized GENEROUSLY on purpose: an evicted entry is a lost report that ntwine
 // then silently declines to repair, which is precisely the failure this module exists to end — so the
 // cap must not be the thing that reintroduces it. Entries are ~200 bytes, so even a long-lived
 // orchestrator costs tens of kilobytes. Measured against the corpus, one real thread accumulated 242
 // dropped reports over three days; at 64 the replay detected only 63 of them, at 256 it detects all.
 export const MAX_TRACKED_REPORTS = 256
-// How long a queued report may sit unresolved before frizz treats it as dropped. The runtime delivers
+// How long a queued report may sit unresolved before ntwine treats it as dropped. The runtime delivers
 // a queued notification at a TURN BOUNDARY, so the honest signal is "the agent came to rest and it
 // still is not in its context" — this timer is only the floor under that check, sized well past a
 // normal queue-to-delivery gap (35 ms on the measured cold-rest delivery, sub-second on every other
 // delivered sample in the corpus).
 export const RELAY_AFTER_MS = 90_000
 // ── THE WATERMARK ──────────────────────────────────────────────────────────────────────────────────
-// frizz relays only completions that were queued AFTER this process came up.
+// ntwine relays only completions that were queued AFTER this process came up.
 //
-// Without it, switching this on points frizz at every historical drop in the transcript — hundreds per
+// Without it, switching this on points ntwine at every historical drop in the transcript — hundreds per
 // long-lived thread — and the first thing a resumed agent would receive is a wall of notices about
 // work it finished days ago. An earlier draft tried to soften that with a per-tick cap, which was
 // treating the symptom: the backlog is not a rate problem, it is a relevance problem. A completion
 // that was lost last Tuesday is history, and replaying it teaches the agent nothing it can act on.
 //
-// Captured at module load, so it is the process start instant. A frizz restart moves it forward and
+// Captured at module load, so it is the process start instant. A ntwine restart moves it forward and
 // the (at most a few) completions dropped across the restart window are given up deliberately — that
 // is a far better trade than resurrecting a week of dead notifications.
 export const RELAY_EPOCH_MS = Date.now()
@@ -168,7 +168,7 @@ export function parseReportBlock(block: string, at?: string, taskId = ""): Omit<
 }
 
 /**
- * Does this model-facing record resolve a report frizz injected a repair for?
+ * Does this model-facing record resolve a report ntwine injected a repair for?
  *
  * The repair is not a `<task-notification>`, so the ordinary notification fold will never see it. This
  * is what closes the idempotence loop described at the top of the file.
@@ -179,7 +179,7 @@ export function relayedTaskIds(text: string): string[] {
 }
 
 /**
- * The message frizz injects when a report was dropped.
+ * The message ntwine injects when a report was dropped.
  *
  * A POINTER, never the payload. The child's transcript on disk already holds the full report — more
  * of it than the truncated `<result>` excerpt ever carried (one measured child's output file was
@@ -229,9 +229,9 @@ export function relayMessage(report: QueuedReport): string {
 // triggering" — after the only visible wake source on the thread had been switched off, leaving 55
 // relays as the sole driver and every one of them silent.
 //
-// The comment at RELAY_MARKER is still right that frizz should not NARRATE its own plumbing at the
+// The comment at RELAY_MARKER is still right that ntwine should not NARRATE its own plumbing at the
 // human. Showing that a background task finished is not narrating plumbing: that event is already a
-// first-class divider when the runtime delivers it, and hiding it only when frizz is the one carrying it
+// first-class divider when the runtime delivers it, and hiding it only when ntwine is the one carrying it
 // makes the timeline lie about why the agent moved.
 //
 // Rather than grow a second projection path, a relay is translated BACK into the notification it stands
@@ -243,7 +243,7 @@ const AGENT_SUMMARY_END = ", but its report never reached you."
 /** Rides the synthesized block so the wake label can say the completion was RECOVERED rather than
  * delivered — the one fact a reader cannot infer from the event itself, and the tell that the runtime
  * dropped something. */
-export const RELAYED_MARKER = "<frizz-relayed/>"
+export const RELAYED_MARKER = "<ntwine-relayed/>"
 
 /** The terminal status a summary implies. The corpus is narrow — 362 `Background command "…" completed
  * (exit code 0)`, 60 `Agent "…" finished`, 4 `Monitor "…" stream ended` across every relay in the logs —
@@ -287,7 +287,7 @@ export function relayNotificationBlock(text: string): string | undefined {
 /**
  * Which tracked reports are due for repair?
  *
- * Two conditions, and both matter. The age floor keeps frizz off a notification that is simply still
+ * Two conditions, and both matter. The age floor keeps ntwine off a notification that is simply still
  * in flight. `atRest` is the real discriminator: a queued notification is handed to the model at a
  * turn boundary, so once the agent has finished a turn and the report STILL is not in its context,
  * waiting longer cannot help — the delivery that was going to happen already didn't.

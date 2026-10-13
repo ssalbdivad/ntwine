@@ -4,7 +4,7 @@ import { threadHandle } from "./thread-handle.ts"
 import { ThreadSlug } from "./thread-slug.ts"
 
 // ---- SCHEDULED THREADS: THE CONTRACT ------------------------------------------------------------------
-// A schedule is a saved prompt plus a recurrence; at each occurrence Frizz starts a FRESH thread with that
+// A schedule is a saved prompt plus a recurrence; at each occurrence Ntwine starts a FRESH thread with that
 // prompt (ARCHITECTURE.md § Scheduled threads). This module is everything both sides of the wire share: the views
 // the web renders, every RPC's input and output, the echo the human confirms before saving, and the
 // header a run's prompt opens with. The recurrence engine itself is schedule-rule.ts; nothing here turns
@@ -41,7 +41,7 @@ export const ScheduleEffort = z.enum(["auto", "low", "medium", "high", "xhigh", 
 // ---- copy ------------------------------------------------------------------------------------------------
 
 export const SCHEDULE_NOT_FOUND_COPY = "Couldn't find a schedule in that. Try “every weekday at 9am”."
-export const SCHEDULE_PRESENCE_COPY = "Frizz can't tell when you're at the keyboard yet. Try hours instead, like “weekdays 9am–6pm”."
+export const SCHEDULE_PRESENCE_COPY = "Ntwine can't tell when you're at the keyboard yet. Try hours instead, like “weekdays 9am–6pm”."
 export const SCHEDULE_SPACING_COPY = "Runs can't be closer than 15m apart."
 export const SCHEDULE_CAP_COPY = `A project can hold ${SCHEDULES_PER_PROJECT_MAX} schedules. Delete one first.`
 
@@ -53,7 +53,7 @@ export function cityOfZone(tz: string): string {
 
 // ---- the echo ------------------------------------------------------------------------------------------
 
-/** What the human confirms before a schedule is saved, built from the rule Frizz will fire — never from
+/** What the human confirms before a schedule is saved, built from the rule Ntwine will fire — never from
  *  the model's summary of it. */
 export const ScheduleEcho = z.object({
   /** The rule in words: "every Monday at 9am", plus "New York time" when the schedule's zone is not the
@@ -142,7 +142,7 @@ export interface ScheduledRunHeaderInput {
   /** The occurrence this run is for, and the schedule's zone to say it in. */
   occurrenceAt: number
   tz: string
-  /** Set when the run starts late enough to mention, with why when Frizz knows. */
+  /** Set when the run starts late enough to mention, with why when Ntwine knows. */
   late?: { ms: number; cause?: "off" | "asleep" }
   /** The previous run, so "since the last run" works. */
   previous?: { title?: string | null; slug: string; at: number }
@@ -163,7 +163,7 @@ export function scheduledRunHeader(input: ScheduledRunHeaderInput): string {
   const when = formatOccurrence(input.occurrenceAt, input.tz)
   if (input.byHuman) lines.push(`This run is for ${when}; the user started it early.`)
   else if (input.late) {
-    const cause = input.late.cause === "off" ? ", because Frizz was off" : input.late.cause === "asleep" ? ", because the computer was asleep" : ""
+    const cause = input.late.cause === "off" ? ", because Ntwine was off" : input.late.cause === "asleep" ? ", because the computer was asleep" : ""
     lines.push(`This run is for ${when}. It started ${formatLateness(input.late.ms)} late${cause}.`)
   } else lines.push(`This run is for ${when}.`)
   if (input.previous) {
@@ -224,7 +224,7 @@ export const ScheduleRunView = z.object({
   when: z.string(),
   startedAt: z.string().optional(),
   state: ScheduleRunState,
-  /** Why it was skipped or did not start ("Frizz was off", "the last run was still working"), or a note
+  /** Why it was skipped or did not start ("Ntwine was off", "the last run was still working"), or a note
    *  on a started run ("ran 2h 10m late", "started by you"). */
   reason: z.string().optional(),
   /** A quiet finish's first line. */
@@ -234,7 +234,7 @@ export const ScheduleRunView = z.object({
   /** Where the run's thread is now. `deleted` once its row is gone. */
   threadState: z.enum(["open", "archived", "deleted"]).optional(),
   /** The line's text half, ready to render after `when`: "@triage-issues", "Nothing new — no issues since
-   *  Oct 5", "Skipped: Frizz was off", "Didn't start: Claude is signed out". */
+   *  Oct 5", "Skipped: Ntwine was off", "Didn't start: Claude is signed out". */
   label: z.string(),
 })
 export type ScheduleRunView = z.infer<typeof ScheduleRunView>
@@ -272,9 +272,9 @@ export const ScheduleView = z.object({
   backend: ScheduleBackend,
   state: ScheduleState,
   pausedReason: SchedulePausedReason.optional(),
-  /** The paused line when FRIZZ paused it ("Paused until you review 3 runs"); absent for a human pause. */
+  /** The paused line when NTWINE paused it ("Paused until you review 3 runs"); absent for a human pause. */
   pausedText: z.string().optional(),
-  /** Paused by Frizz, or a proposal waiting for Turn on — what turns the project row's count to warning. */
+  /** Paused by Ntwine, or a proposal waiting for Turn on — what turns the project row's count to warning. */
   attention: z.boolean(),
   nextRun: ScheduleNextRun.optional(),
   lastRun: ScheduleRunView.optional(),

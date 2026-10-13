@@ -17,7 +17,7 @@ import { CodexAppServerBridge } from "../packages/server/src/backend/codex-app-s
 // better-sqlite3 lives under the server package in pnpm's layout, not beside this script.
 const Database = createRequire(new URL("../packages/server/package.json", import.meta.url))("better-sqlite3")
 
-const dir = mkdtempSync(join(tmpdir(), "frizz-codex-stall-recovery-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-stall-recovery-"))
 const dbPath = join(dir, "ui.db")
 const db = new Database(dbPath)
 db.pragma("journal_mode = WAL")
@@ -66,7 +66,7 @@ function rolloutPath(codexSessionId) {
 const sizeOf = (p) => { try { return statSync(p).size } catch { return -1 } }
 
 const slug = "stall-recovery-thread"
-const sessionId = "frizz-stall-recovery-session"
+const sessionId = "ntwine-stall-recovery-session"
 let first = newBridge()
 let second
 try {
@@ -95,9 +95,9 @@ try {
   await sleep(2_000)
   const afterKill = sizeOf(path)
 
-  // A NEW frizz process picks the registry up. Its bridge inherits whatever the killed one left behind.
+  // A NEW ntwine process picks the registry up. Its bridge inherits whatever the killed one left behind.
   second = newBridge()
-  // (The still-live first bridge saw the child die and detached the row itself. The harder case — frizz
+  // (The still-live first bridge saw the child die and detached the row itself. The harder case — ntwine
   // ITSELF SIGKILLed, so no handler ever ran — is covered by the bridge's own boot-detach unit test.)
   const inherited = second.binding(slug, sessionId)
   check(inherited?.state === "detached", "the dead connection's binding is no longer active", String(inherited?.state))

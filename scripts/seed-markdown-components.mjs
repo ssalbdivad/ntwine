@@ -1,5 +1,5 @@
 // Seed a disposable adhoc stack with one thread whose assistant prose carries every Markdown
-// COMPONENT Frizz draws beyond plain CommonMark, in the two places a worker's Markdown is drawn in the
+// COMPONENT Ntwine draws beyond plain CommonMark, in the two places a worker's Markdown is drawn in the
 // transcript:
 //
 //   • plain prose — a callout of each kind, a `<details>` section, a second one holding a gallery, a
@@ -13,7 +13,7 @@
 // splitters — which is where a fence can be cut out of the prose, or a raw HTML tag split across two
 // blocks, before the Markdown renderer ever sees it whole.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: node scripts/seed-markdown-components.mjs --home=/abs/temp-home [--cwd=/abs/project] [--slug=markdown-components]
 import { execFileSync } from "node:child_process"
@@ -172,7 +172,7 @@ const records = [
   ].join("\n")),
 ]
 
-// The card's body is REGISTERED (`frizzctl done`), not written as a ```done fence: a signal fence
+// The card's body is REGISTERED (`ntwinectl done`), not written as a ```done fence: a signal fence
 // ends at the first bare ``` line, so a code fence cannot be written inside one at all.
 const doneBody = [
   "The retry backs off between attempts.",
@@ -197,7 +197,7 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${now()}', 'markdown components', 'claude', 'opus', 'high', 'default', '${now()}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${now()}', 'markdown components', 'claude', 'opus', 'high', 'default', '${now()}')`,
 ])
 // `thread_done` exists only on the unified schema, where every row carries its project.
 if (sandbox.hasProjectId) {

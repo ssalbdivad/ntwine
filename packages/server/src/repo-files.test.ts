@@ -11,15 +11,15 @@ import { resetCheckoutMemo } from "./thread-cwd.ts"
 // ever confirm what this file already believes. The force-added case below is exactly the one a
 // hand-rolled ignore matcher gets wrong.
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-repo-files-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-repo-files-"))
   const run = (args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" })
   run(["init", "-q", "-b", "main"])
   run(["config", "user.email", "t@example.com"])
   run(["config", "user.name", "t"])
-  writeFileSync(join(dir, ".gitignore"), ".frizz/\nnode_modules/\n*.log\n")
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
+  writeFileSync(join(dir, ".gitignore"), ".ntwine/\nnode_modules/\n*.log\n")
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
   mkdirSync(join(dir, "src"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", "notes.md"), "scratch\n")
+  writeFileSync(join(dir, ".ntwine", "notes.md"), "scratch\n")
   writeFileSync(join(dir, "src", "app.ts"), "export {}\n")
   writeFileSync(join(dir, "build.log"), "noise\n")
   writeFileSync(join(dir, "forced.log"), "kept anyway\n")
@@ -33,7 +33,7 @@ test("the rail keeps repo work and drops what git ignores", () => {
   const dir = repo()
   const kept = repoCarriedFiles(dir, [
     join(dir, "src/app.ts"),
-    join(dir, ".frizz/notes.md"),
+    join(dir, ".ntwine/notes.md"),
     join(dir, "build.log"),
   ])
   assert.deepEqual(kept, [join(dir, "src/app.ts")])
@@ -59,10 +59,10 @@ test("a path outside the project is passed through — git has no opinion on ano
   assert.deepEqual(repoCarriedFiles(dir, [outside]), [outside])
 })
 
-// A worktree Frizz's way: `.frizz/worktrees/<slug>`, INSIDE the project, whose `.gitignore` ignores all
-// of `.frizz/`. Asked in the project root, every one of these paths read as ignored and the rail of a
+// A worktree Ntwine's way: `.ntwine/worktrees/<slug>`, INSIDE the project, whose `.gitignore` ignores all
+// of `.ntwine/`. Asked in the project root, every one of these paths read as ignored and the rail of a
 // worktree thread was empty; asked in the worktree, its own rules apply.
-function worktreeOf(dir: string, slug: string, at = join(dir, ".frizz", "worktrees", slug)): string {
+function worktreeOf(dir: string, slug: string, at = join(dir, ".ntwine", "worktrees", slug)): string {
   execFileSync("git", ["worktree", "add", "-q", "-b", slug, at], { cwd: dir, stdio: "ignore" })
   mkdirSync(join(at, "node_modules", "pkg"), { recursive: true })
   writeFileSync(join(at, "node_modules", "pkg", "index.js"), "module.exports = 1\n")
@@ -72,20 +72,20 @@ function worktreeOf(dir: string, slug: string, at = join(dir, ".frizz", "worktre
   return at
 }
 
-test("a worktree under the project's ignored .frizz/ keeps its repo work and drops what IT ignores", () => {
+test("a worktree under the project's ignored .ntwine/ keeps its repo work and drops what IT ignores", () => {
   resetCheckoutMemo()
   const dir = repo()
   const wt = worktreeOf(dir, "feature")
   // The control: the project root really does ignore this path, which is the whole bug.
   const rootSays = execFileSync("git", ["check-ignore", join(wt, "src", "feature.ts")], { cwd: dir, encoding: "utf8" }).trim()
-  assert.equal(rootSays, join(wt, "src", "feature.ts"), "the project root ignores a path inside its .frizz/worktrees")
+  assert.equal(rootSays, join(wt, "src", "feature.ts"), "the project root ignores a path inside its .ntwine/worktrees")
   const kept = repoCarriedFiles(dir, [
     join(wt, "src", "feature.ts"),
     join(wt, "src", "app.ts"),
     join(wt, "node_modules", "pkg", "index.js"),
     join(wt, "debug.log"),
     join(dir, "src", "app.ts"),
-    join(dir, ".frizz", "notes.md"),
+    join(dir, ".ntwine", "notes.md"),
   ])
   assert.deepEqual(kept, [join(wt, "src", "feature.ts"), join(wt, "src", "app.ts"), join(dir, "src", "app.ts")])
 })
@@ -101,7 +101,7 @@ test("a sibling worktree outside the project is judged by its own checkout, not 
 test("an unrelated clone in the project's scratch is still the project's ignored scratch", () => {
   resetCheckoutMemo()
   const dir = repo()
-  const clone = join(dir, ".frizz", "scratch", "lib")
+  const clone = join(dir, ".ntwine", "scratch", "lib")
   mkdirSync(clone, { recursive: true })
   execFileSync("git", ["init", "-q"], { cwd: clone, stdio: "ignore" })
   writeFileSync(join(clone, "index.ts"), "export {}\n")
@@ -121,12 +121,12 @@ test("rows from two checkouts keep their order and diffstats", () => {
 })
 
 // THE WORKER CONTRACT'S OWN WORKTREE LOCATION, in the shape a real project has it: no top-level rule
-// for `.frizz/` at all, only the `*` Frizz writes inside it (project-root.ts). Asked from the project
+// for `.ntwine/` at all, only the `*` Ntwine writes inside it (project-root.ts). Asked from the project
 // root, git ignores every file in that checkout, so before this an isolated effort left the rail empty.
 function repoWithWorktree(): { dir: string; worktree: string } {
   const dir = repo()
-  writeFileSync(join(dir, ".frizz", ".gitignore"), "*\n")
-  const worktree = join(dir, ".frizz", "worktrees", "feature")
+  writeFileSync(join(dir, ".ntwine", ".gitignore"), "*\n")
+  const worktree = join(dir, ".ntwine", "worktrees", "feature")
   execFileSync("git", ["worktree", "add", "-q", "-b", "feature", worktree], { cwd: dir, stdio: "ignore" })
   return { dir, worktree }
 }
@@ -139,17 +139,17 @@ test("a file in a worktree inside the project is judged by that worktree's own i
     join(worktree, "src/app.ts"),
     join(worktree, "src/new.ts"),
     join(worktree, "build.log"),
-    join(dir, ".frizz/notes.md"),
+    join(dir, ".ntwine/notes.md"),
     join(dir, "src/app.ts"),
   ])
   assert.deepEqual(kept, [join(worktree, "src/app.ts"), join(worktree, "src/new.ts"), join(dir, "src/app.ts")])
 })
 
-test("a plain directory under .frizz/worktrees is still scratch — only a registered worktree answers for itself", () => {
+test("a plain directory under .ntwine/worktrees is still scratch — only a registered worktree answers for itself", () => {
   const { dir } = repoWithWorktree()
-  mkdirSync(join(dir, ".frizz", "worktrees", "not-a-checkout"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", "worktrees", "not-a-checkout", "a.ts"), "export {}\n")
-  assert.deepEqual(repoCarriedFiles(dir, [join(dir, ".frizz/worktrees/not-a-checkout/a.ts")]), [])
+  mkdirSync(join(dir, ".ntwine", "worktrees", "not-a-checkout"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", "worktrees", "not-a-checkout", "a.ts"), "export {}\n")
+  assert.deepEqual(repoCarriedFiles(dir, [join(dir, ".ntwine/worktrees/not-a-checkout/a.ts")]), [])
 })
 
 // Git will not judge a path spelled through a symlinked directory, and it fails the whole batch rather
@@ -158,7 +158,7 @@ test("a plain directory under .frizz/worktrees is still scratch — only a regis
 test("a path through a symlinked directory is judged where the file really is, and does not silence the rest", () => {
   const dir = repo()
   symlinkSync("src", join(dir, "linked-src"))
-  symlinkSync(".frizz", join(dir, "linked-scratch"))
+  symlinkSync(".ntwine", join(dir, "linked-scratch"))
   const kept = repoCarriedFiles(dir, [
     join(dir, "linked-src/app.ts"),
     join(dir, "linked-scratch/notes.md"),
@@ -168,7 +168,7 @@ test("a path through a symlinked directory is judged where the file really is, a
 })
 
 test("a project that is not a git repository filters nothing", () => {
-  const plain = mkdtempSync(join(tmpdir(), "frizz-not-a-repo-"))
+  const plain = mkdtempSync(join(tmpdir(), "ntwine-not-a-repo-"))
   writeFileSync(join(plain, "a.ts"), "export {}\n")
   assert.deepEqual(repoCarriedFiles(plain, [join(plain, "a.ts")]), [join(plain, "a.ts")])
 })
@@ -176,7 +176,7 @@ test("a project that is not a git repository filters nothing", () => {
 test("row order and diffstats survive the filter", () => {
   const dir = repo()
   const rows = [
-    { path: join(dir, ".frizz/notes.md"), edits: 1 },
+    { path: join(dir, ".ntwine/notes.md"), edits: 1 },
     { path: join(dir, "src/app.ts"), edits: 2, added: 7, removed: 1 },
     { path: join(dir, "build.log"), edits: 1 },
   ]

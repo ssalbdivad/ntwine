@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client"
 import { useSnapshot } from "valtio"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, ThreadView, TranscriptMessage, TranscriptToolCall } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView, TranscriptMessage, TranscriptToolCall } from "@ntwine/shared"
 import { AgentBlock, Message, ThreadSlugContext } from "./components/ChatView.tsx"
 import { QueueSubAgentLines } from "./components/QueueSubAgentLines.tsx"
 import { SubAgentSheet } from "./components/SubAgentSheet.tsx"
@@ -34,7 +34,7 @@ const GONE = new URLSearchParams(location.search).get("stale") === "1"
 
 const nativeFetch = window.fetch.bind(window)
 const rpcResult = (result: unknown) =>
-  new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-frizz-boot": "subagent-completion-fixture" } })
+  new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-ntwine-boot": "subagent-completion-fixture" } })
 
 // The CHILD's own transcript, as the drawer renders it: prose, a tool card, its OWN dispatch card, and
 // its OWN completion divider. Both of the last two were unclickable dead text before this change.
@@ -58,15 +58,15 @@ const childMessages: TranscriptMessage[] = [
     sourceId: "c-a3",
     role: "assistant",
     text: "",
-    tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", prompt: "Write property tests for every tier boundary.", subagentType: "frizz:sonnet-high", agentId: "grandchild-1", status: "completed" }],
-    parts: [{ kind: "tools", tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", prompt: "Write property tests for every tier boundary.", subagentType: "frizz:sonnet-high", agentId: "grandchild-1", status: "completed" }] }],
+    tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", prompt: "Write property tests for every tier boundary.", subagentType: "ntwine:sonnet-high", agentId: "grandchild-1", status: "completed" }],
+    parts: [{ kind: "tools", tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", prompt: "Write property tests for every tier boundary.", subagentType: "ntwine:sonnet-high", agentId: "grandchild-1", status: "completed" }] }],
   },
   {
     sourceId: "c-a4",
     role: "assistant",
     text: "",
-    tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", subagentType: "frizz:sonnet-high", agentId: "grandchild-1", agentStatus: "completed", agentElapsedMs: 420_000, agentCompletion: true, status: "completed" }],
-    parts: [{ kind: "tools", tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", subagentType: "frizz:sonnet-high", agentId: "grandchild-1", agentStatus: "completed", agentElapsedMs: 420_000, agentCompletion: true, status: "completed" }] }],
+    tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", subagentType: "ntwine:sonnet-high", agentId: "grandchild-1", agentStatus: "completed", agentElapsedMs: 420_000, agentCompletion: true, status: "completed" }],
+    parts: [{ kind: "tools", tools: [{ name: "Agent", detail: "Write property tests for the tier boundaries", subagentType: "ntwine:sonnet-high", agentId: "grandchild-1", agentStatus: "completed", agentElapsedMs: 420_000, agentCompletion: true, status: "completed" }] }],
   },
   // The child's OWN upward report, as a SendMessage tool call. In the DRAWER this must stay the bordered
   // card WITH its body: the chat's report divider says "click the title to read the whole message", and
@@ -90,7 +90,7 @@ const childMessages: TranscriptMessage[] = [
 
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input.toString(), window.location.origin)
-  if (url.pathname === "/_frizz/rpc/subAgentTranscript") {
+  if (url.pathname === "/_ntwine/rpc/subAgentTranscript") {
     const id = JSON.parse(new URL(url.href).searchParams.get("input") ?? "{}").id as string
     // An id the tailer can no longer resolve → "gone", which the drawer states plainly. That is the
     // required graceful degrade, and it is what a GRANDCHILD really hits today: the tailer keys every
@@ -122,19 +122,19 @@ const thread: ThreadView = {
   kind: "session",
   foreign: false,
   subAgents: [
-    { id: "agent-live", label: "Sweep the remaining call sites", startedAt: new Date(Date.now() - 190_000).toISOString(), state: "running", subagentType: "frizz:opus-high", lastActivityAt: new Date(Date.now() - 60_000).toISOString() },
-    { id: "agent-stale", label: "Prior investigation", startedAt: new Date(Date.now() - 4_000_000).toISOString(), state: "stale", subagentType: "frizz:haiku", lastActivityAt: new Date(Date.now() - 2_520_000).toISOString() },
+    { id: "agent-live", label: "Sweep the remaining call sites", startedAt: new Date(Date.now() - 190_000).toISOString(), state: "running", subagentType: "ntwine:opus-high", lastActivityAt: new Date(Date.now() - 60_000).toISOString() },
+    { id: "agent-stale", label: "Prior investigation", startedAt: new Date(Date.now() - 4_000_000).toISOString(), state: "stale", subagentType: "ntwine:haiku", lastActivityAt: new Date(Date.now() - 2_520_000).toISOString() },
   ],
   bgShells: [{ label: "vite dev --host", startedAt: new Date(Date.now() - 600_000).toISOString(), state: "running" }],
 } as unknown as ThreadView
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const dispatchCall: TranscriptToolCall = {
   name: "Agent",
   detail: "Audit the pricing parser for edge cases",
   prompt: "Audit the pricing parser for edge cases.\nReport every tier boundary that rounds the wrong way.",
-  subagentType: "frizz:opus-high",
+  subagentType: "ntwine:opus-high",
   agentId: "agent-done",
   agentStatus: "completed",
   agentElapsedMs: 2_100_000,

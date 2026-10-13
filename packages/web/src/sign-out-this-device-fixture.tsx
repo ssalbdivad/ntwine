@@ -17,12 +17,12 @@ const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(requestUrl, window.location.href)
-  if (url.pathname === "/_frizz/control/status") {
+  if (url.pathname === "/_ntwine/control/status") {
     return new Response(JSON.stringify({ protocol: 1, state: "ready", ...(params.has("loopback") ? {} : { remoteSession: true }) }), {
       headers: { "content-type": "application/json" },
     })
   }
-  if (url.pathname === "/_frizz/control/sign-out") {
+  if (url.pathname === "/_ntwine/control/sign-out") {
     const calls = JSON.parse(window.sessionStorage.getItem("signOutFixtureCalls") ?? "[]") as unknown[]
     calls.push({ method: init?.method ?? "GET", body: init?.body ?? null })
     window.sessionStorage.setItem("signOutFixtureCalls", JSON.stringify(calls))
@@ -43,7 +43,7 @@ createRoot(document.getElementById("root")!).render(
       {/* Scaffolding in the mockup's shape (v2.html, Settings frame): a section label, then the row. */}
       <div className="px-[18px] pt-[18px] pb-[6px] text-[12.5px] font-semibold text-muted">This device</div>
       <SignOutThisDeviceRow />
-      <div className="px-[18px] py-[14px] text-[12.5px] text-muted-60">Frizz 0.14.3</div>
+      <div className="px-[18px] py-[14px] text-[12.5px] text-muted-60">Ntwine 0.14.3</div>
     </main>
   </QueryClientProvider>,
 )

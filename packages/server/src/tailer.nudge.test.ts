@@ -23,7 +23,7 @@ const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 // one registry read, and the every-fifth-tick foreign scan costs a second. That is more than enough
 // resolution for what these tests are actually claiming: fifty events must not mean fifty ticks.
 function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-nudge-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-nudge-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const reads = { n: 0 }
   const allSessions = storage.allSessions.bind(storage)

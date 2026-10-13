@@ -13,7 +13,7 @@ import {
 const AT = 1_700_000_000_000
 
 test("a canonical ref parses into its owner, name and number or sha", () => {
-  assert.deepEqual(parseRef("colinhacks/frizz#123"), { key: "colinhacks/frizz#123", owner: "colinhacks", name: "frizz", number: 123 })
+  assert.deepEqual(parseRef("colinhacks/frizz#123"), { key: "colinhacks/frizz#123", owner: "colinhacks", name: "ntwine", number: 123 })
   assert.deepEqual(parseRef("nubjs/nub@92ed4cc"), { key: "nubjs/nub@92ed4cc", owner: "nubjs", name: "nub", sha: "92ed4cc" })
   assert.equal(parseRef("nubjs/nub#123")!.sha, undefined)
 })
@@ -21,7 +21,7 @@ test("a canonical ref parses into its owner, name and number or sha", () => {
 test("anything that is not a canonical ref is refused rather than guessed at", () => {
   // The refs arrive from the browser. None of this reaches GitHub as a bound variable, so refusing
   // here is about not burning a query slot — but it also means a bad key can never shape a request.
-  for (const bad of ["#123", "frizz#123", "owner/repo", "owner/repo#0", "owner/repo#abc", "owner/repo@xyz", "owner/repo@92ed4", "a/b#123 extra", "../../etc#1"]) {
+  for (const bad of ["#123", "ntwine#123", "owner/repo", "owner/repo#0", "owner/repo#abc", "owner/repo@xyz", "owner/repo@92ed4", "a/b#123 extra", "../../etc#1"]) {
     assert.equal(parseRef(bad), null, bad)
   }
 })
@@ -39,7 +39,7 @@ test("the batched query aliases every ref and binds each value as a variable", (
   // An abbreviated sha is not a GitObjectID — `object(oid:)` rejects it outright, so a commit is
   // looked up by EXPRESSION. Measured against the real API 2026-08-14.
   assert.match(query, /object\(expression: \$rev1\)/)
-  assert.deepEqual(variables, { owner0: "nubjs", name0: "nub", number0: 660, owner1: "colinhacks", name1: "frizz", rev1: "92ed4cc" })
+  assert.deepEqual(variables, { owner0: "nubjs", name0: "nub", number0: 660, owner1: "colinhacks", name1: "ntwine", rev1: "92ed4cc" })
   // Nothing foreign is concatenated into the document: every literal in it is an alias index.
   assert.equal(query.includes("nubjs"), false)
   assert.equal(query.includes("92ed4cc"), false)

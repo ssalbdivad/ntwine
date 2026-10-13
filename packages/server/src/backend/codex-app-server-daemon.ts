@@ -1,9 +1,9 @@
 // The detached Codex app-server daemon: ONE per project. It owns the `codex app-server --stdio`
-// child and serves its JSON-RPC over a local socket, so the app-server OUTLIVES the disposable frizz
+// child and serves its JSON-RPC over a local socket, so the app-server OUTLIVES the disposable ntwine
 // runtime that spawned it — which is what makes an in-flight codex turn survive Update & Restart.
 // It buys Codex the same immunity a Claude thread gets from ITS OWN detached daemon — the session
 // broker (claude-broker-host.ts), likewise forked with `detached: true` into its own process group and
-// likewise not a child of frizz. That is the mechanism today, and only today: until the multiplexer was
+// likewise not a child of ntwine. That is the mechanism today, and only today: until the multiplexer was
 // stripped on 2026-08-02 a Claude thread got the immunity from tmux instead, and an earlier PTY session
 // broker had been removed as dead code before that. Nothing here runs a multiplexer.
 //
@@ -13,7 +13,7 @@
 // and the same event on 2026-07-22 that killed four threads at once).
 //
 // Launched by ensureCodexAppServerDaemon() in codex-app-server-host.ts, which passes its whole config
-// as JSON in FRIZZ_CODEX_APP_SERVER_DAEMON. This process has no stdio (stdio:"ignore"); its only
+// as JSON in NTWINE_CODEX_APP_SERVER_DAEMON. This process has no stdio (stdio:"ignore"); its only
 // interface is the socket and the on-disk record file.
 import { spawn } from "node:child_process"
 import { createServer, type Socket } from "node:net"
@@ -38,7 +38,7 @@ interface DaemonConfig {
   /** Opaque ChatGPT account id present when the app-server child was spawned. */
   authAccountId?: string
   /** Full argv for the app-server, built by the host (codexAppServerArgv) so this daemon never has to
-   *  resolve frizz's MCP descriptors itself. Absent ⇒ a bare `app-server --stdio`, which is a worker
+   *  resolve ntwine's MCP descriptors itself. Absent ⇒ a bare `app-server --stdio`, which is a worker
    *  with NO mcp tools; kept as a fallback only so an older payload cannot fail to boot. */
   appServerArgs?: string[]
   /** Test seam only; production leaves this undefined and gets REACHABILITY_CHECK_MS. */
@@ -51,7 +51,7 @@ interface DaemonConfig {
 const MAX_QUEUED_LINES = 20_000
 const MAX_QUEUED_BYTES = 64 * 1024 * 1024
 const MAX_LINE_BYTES = 8 * 1024 * 1024
-// A daemon whose frizz never comes back must not live forever. Reattach happens within seconds of a
+// A daemon whose ntwine never comes back must not live forever. Reattach happens within seconds of a
 // real restart, so anything still unattached after this is genuinely abandoned.
 const IDLE_EXIT_MS = 6 * 60 * 60 * 1000
 const HANDSHAKE_TIMEOUT_MS = 30_000
@@ -62,8 +62,8 @@ const REACHABILITY_CHECK_MS = 30_000
 const REACHABILITY_STRIKES = 2
 
 function readConfig(): DaemonConfig {
-  const raw = process.env.FRIZZ_CODEX_APP_SERVER_DAEMON
-  if (!raw) throw new Error("codex app-server daemon started without FRIZZ_CODEX_APP_SERVER_DAEMON")
+  const raw = process.env.NTWINE_CODEX_APP_SERVER_DAEMON
+  if (!raw) throw new Error("codex app-server daemon started without NTWINE_CODEX_APP_SERVER_DAEMON")
   const config = JSON.parse(raw) as DaemonConfig
   if (!config.socketPath || !config.recordPath || !config.codexBin || !config.generation) {
     throw new Error("codex app-server daemon config is incomplete")
@@ -99,7 +99,7 @@ function lineReader(onLine: (line: string) => void, onOverflow: () => void): (ch
 
 function main(): void {
   const config = readConfig()
-  // Tell a sweeping Frizz (runtimes.ts) that this daemon still runs out of that version directory:
+  // Tell a sweeping Ntwine (runtimes.ts) that this daemon still runs out of that version directory:
   // the app-server spawns helpers (codex-code-mode-host) from beside its own binary long after boot,
   // so a retired directory breaks a daemon that looked perfectly alive.
   const releaseRuntimeLease = leaseRuntime(config.codexBin, "codex-app-server")
@@ -188,7 +188,7 @@ function main(): void {
   // that one path. So a daemon whose record has vanished — or has been overwritten by a successor —
   // can never be attached to by anyone, ever, and holding a `codex app-server` (~150 MB, still able
   // to edit the filesystem) for the remaining six hours of IDLE_EXIT_MS is pure waste. Nothing else
-  // collects these: the orphan reaper keys on FRIZZ_THREAD, which this per-PROJECT daemon does not
+  // collects these: the orphan reaper keys on NTWINE_THREAD, which this per-PROJECT daemon does not
   // carry, and it explicitly protects any process named `codex` as a session root
   // (orphan-reaper.ts). Daemons forked from an agent worktree that was later deleted leaked exactly
   // this way, in pairs, at ~150 MB each.
@@ -228,7 +228,7 @@ function main(): void {
     queuedLines.push(line)
     queuedBytes += Buffer.byteLength(line) + 1
   }
-  const control = (payload: Record<string, unknown>): string => JSON.stringify({ frizz: 1, ...payload })
+  const control = (payload: Record<string, unknown>): string => JSON.stringify({ ntwine: 1, ...payload })
 
   // ---- handshake ----------------------------------------------------------------------------------
   // The daemon performs `initialize` ITSELF, once, and caches the response. A reattaching client is
@@ -311,7 +311,7 @@ function main(): void {
   }
 
   const server = createServer((sock) => {
-    // One client at a time: a new frizz generation supersedes the old one's socket outright.
+    // One client at a time: a new ntwine generation supersedes the old one's socket outright.
     if (client) { try { client.destroy() } catch {} }
     client = sock
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
@@ -342,7 +342,7 @@ function main(): void {
   // reason connecting to one is itself destructive — live in stale-socket-sweep.ts, shared with the
   // Claude broker's sockets, which leak the same way for the same reasons.
   const sweepOwnFamily = (): void =>
-    sweepStaleSockets({ dir: dirname(config.socketPath), prefix: "frizz-codex-", keep: [config.socketPath] })
+    sweepStaleSockets({ dir: dirname(config.socketPath), prefix: "ntwine-codex-", keep: [config.socketPath] })
 
   const startListening = (): void => {
     // A stale unix socket from a crashed prior daemon would block listen(); named pipes need no unlink.

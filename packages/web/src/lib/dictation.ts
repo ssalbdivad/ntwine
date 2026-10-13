@@ -26,7 +26,7 @@ import { showToast } from "../store.ts"
 // Measured before building it (a spoken 70-word steer fed in as a MediaStreamTrack, Chrome 155, Apple
 // silicon): the on-device transcript was as accurate as the cloud one — both heard "cue card" for
 // "queue card" and "Maine" for "main" — with a first partial result inside ~1–4s. Neither engine
-// punctuates. The phrase hints below fixed most of the Frizz vocabulary it missed.
+// punctuates. The phrase hints below fixed most of the Ntwine vocabulary it missed.
 //
 // Two engine behaviours this module is shaped around, both observed, neither documented:
 //   - The LAST segment never becomes final when recognition is stopped: `stop()` ends the session with
@@ -82,7 +82,7 @@ export function languageCandidates(preferred: readonly string[]): string[] {
 export type DictationSupport = { lang: string; status: Exclude<Availability, "unavailable"> }
 
 const CRASHES_ON_PROBE = /\bHeadlessChrome\/|\bElectron\//
-const PROBE_MARKER = "frizz:dictation-probe"
+const PROBE_MARKER = "ntwine:dictation-probe"
 // A live probe answers in milliseconds; a marker this old outlived its tab.
 const PROBE_MARKER_STALE_MS = 60_000
 
@@ -131,7 +131,7 @@ export function detectDictation(): Promise<DictationSupport | null> {
 // Vocabulary the engine reliably mishears in this product ("cue" for queue, "tag check" for type
 // check). Boost 2 is deliberate: at 5 a two-letter hint ("PR") sent the on-device engine into a loop
 // that emitted it a hundred times, so nothing here is that short and nothing is boosted that hard.
-const PHRASES: ReadonlyArray<string> = ["Frizz", "queue", "pull request", "type check", "worktree", "sub-agent", "commit to main"]
+const PHRASES: ReadonlyArray<string> = ["Ntwine", "queue", "pull request", "type check", "worktree", "sub-agent", "commit to main"]
 const PHRASE_BOOST = 2
 
 // Words that keep their capital mid-sentence: the pronoun and its contractions. Anything whose second

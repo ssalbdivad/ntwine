@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { InteractionRecord, ListInteractionsResult, ServerEvent } from "@frizz/shared"
+import type { InteractionRecord, ListInteractionsResult, ServerEvent } from "@ntwine/shared"
 
 export const pendingInteractionsKey = (slug: string, sessionId: string) =>
   ["interactions", "pending", slug, sessionId] as const

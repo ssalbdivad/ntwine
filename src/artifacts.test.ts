@@ -22,16 +22,16 @@ import { basename, dirname, join, resolve } from "node:path";
 import { createServer } from "node:net";
 import { test } from "node:test";
 import {
-  buildFrizzArtifact,
-  captureFrizzSourceSnapshot,
+  buildNtwineArtifact,
+  captureNtwineSourceSnapshot,
   assertArtifactHostCompatible,
   currentArtifactHost,
-  ensureStableFrizzArtifact,
-  findReusableFrizzArtifact,
+  ensureStableNtwineArtifact,
+  findReusableNtwineArtifact,
   promoteCurrentSourceArtifact,
-  promoteFrizzArtifact,
-  publishFrizzArtifactStaging,
-  readFrizzArtifact,
+  promoteNtwineArtifact,
+  publishNtwineArtifactStaging,
+  readNtwineArtifact,
   readStableArtifact,
   relevantSourceFingerprint,
 } from "./artifacts.ts";
@@ -103,17 +103,17 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
   );
   writeFileSync(
     join(dir, "runtime", "cc-worker", ".claude-plugin", "plugin.json"),
-    '{"name":"frizz"}'
+    '{"name":"ntwine"}'
   );
   writeFileSync(join(dir, "runtime", "cc-worker", "hooks", "session-seed.mjs"), "seed");
   writeFileSync(join(dir, "runtime", "cc-worker", "hooks", "agent-bind.mjs"), "bind");
-  mkdirSync(join(dir, "runtime", "cc-worker", "scripts", "frizz"), { recursive: true });
-  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizz"), "board");
-  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizz-update"), "update");
+  mkdirSync(join(dir, "runtime", "cc-worker", "scripts", "ntwine"), { recursive: true });
+  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwine"), "board");
+  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwine-update"), "update");
   mkdirSync(join(dir, "runtime", "cc-worker", "lib"), { recursive: true });
-  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizzctl"), "launcher");
-  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizzctl.mjs"), "cli");
-  writeFileSync(join(dir, "runtime", "cc-worker", "lib", "frizz-tools.mjs"), "tools");
+  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwinectl"), "launcher");
+  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwinectl.mjs"), "cli");
+  writeFileSync(join(dir, "runtime", "cc-worker", "lib", "ntwine-tools.mjs"), "tools");
   writeFileSync(join(dir, "runtime", "board", "config.mjs"), "config");
   writeFileSync(join(dir, "runtime", "board", "agent-bindings.mjs"), "bindings");
   writeFileSync(join(dir, "runtime", "board", "index.mjs"), "index");
@@ -132,14 +132,14 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
       },
       runtimeFiles: {
         "src/index.js": hash("console.log('runtime')"),
-        "cc-worker/.claude-plugin/plugin.json": hash('{"name":"frizz"}'),
+        "cc-worker/.claude-plugin/plugin.json": hash('{"name":"ntwine"}'),
         "cc-worker/hooks/session-seed.mjs": hash("seed"),
         "cc-worker/hooks/agent-bind.mjs": hash("bind"),
-        "cc-worker/bin/frizz": hash("board"),
-        "cc-worker/bin/frizz-update": hash("update"),
-        "cc-worker/bin/frizzctl": hash("launcher"),
-        "cc-worker/bin/frizzctl.mjs": hash("cli"),
-        "cc-worker/lib/frizz-tools.mjs": hash("tools"),
+        "cc-worker/bin/ntwine": hash("board"),
+        "cc-worker/bin/ntwine-update": hash("update"),
+        "cc-worker/bin/ntwinectl": hash("launcher"),
+        "cc-worker/bin/ntwinectl.mjs": hash("cli"),
+        "cc-worker/lib/ntwine-tools.mjs": hash("tools"),
         "board/config.mjs": hash("config"),
         "board/agent-bindings.mjs": hash("bindings"),
         "board/index.mjs": hash("index"),
@@ -167,7 +167,7 @@ test("artifact host compatibility accepts the host that built it", () => {
 test("artifact host compatibility fails closed for a pre-portability manifest", () => {
   assert.throws(
     () => assertArtifactHostCompatible({ digest: "a".repeat(64), manifest: {} } as any),
-    /does not record host compatibility; stop Frizz and rerun frizz-dev/
+    /does not record host compatibility; stop Ntwine and rerun ntwine-dev/
   );
 });
 
@@ -177,7 +177,7 @@ for (const field of ["platform", "arch", "nodeMajor", "nodeModules"] as const) {
     const artifactHost = { ...host, [field]: `${host[field]}-other` };
     assert.throws(
       () => assertArtifactHostCompatible({ digest: "a".repeat(64), manifest: { host: artifactHost } } as any, host),
-      /incompatible with this host.*stop Frizz and rerun frizz-dev/
+      /incompatible with this host.*stop Ntwine and rerun ntwine-dev/
     );
   });
 }
@@ -256,16 +256,16 @@ function sourceFixture(root: string): string {
 }
 
 test("verified artifacts are selected atomically with a retained rollback digest", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-"));
   const state = join(root, "state");
   const first = fixture(root, "first");
   const second = fixture(root, "second");
   assert.equal(
-    readFrizzArtifact(first, root).runtimeDir,
+    readNtwineArtifact(first, root).runtimeDir,
     join(root, first, "runtime")
   );
-  assert.equal(promoteFrizzArtifact(state, first, root).current, first);
-  const promoted = promoteFrizzArtifact(state, second, root);
+  assert.equal(promoteNtwineArtifact(state, first, root).current, first);
+  const promoted = promoteNtwineArtifact(state, second, root);
   assert.equal(promoted.current, second);
   assert.equal(promoted.previous, first);
   assert.equal(readStableArtifact(state, root)?.digest, second);
@@ -276,12 +276,12 @@ test("verified artifacts are selected atomically with a retained rollback digest
 });
 
 test("artifact verification rejects modified web or runtime files before a stable pointer can select them", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-corrupt-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-corrupt-"));
   const webDigest = fixture(root, "known-good");
   writeFileSync(join(root, webDigest, "web", "index.html"), "tampered");
-  assert.throws(() => readFrizzArtifact(webDigest, root), /changed or missing/);
+  assert.throws(() => readNtwineArtifact(webDigest, root), /changed or missing/);
   assert.throws(
-    () => promoteFrizzArtifact(join(root, "state"), webDigest, root),
+    () => promoteNtwineArtifact(join(root, "state"), webDigest, root),
     /changed or missing/
   );
 
@@ -291,27 +291,27 @@ test("artifact verification rejects modified web or runtime files before a stabl
     "tampered"
   );
   assert.throws(
-    () => readFrizzArtifact(runtimeDigest, root),
+    () => readNtwineArtifact(runtimeDigest, root),
     /changed or missing/
   );
   assert.throws(
-    () => promoteFrizzArtifact(join(root, "state"), runtimeDigest, root),
+    () => promoteNtwineArtifact(join(root, "state"), runtimeDigest, root),
     /changed or missing/
   );
 });
 
 test("artifact verification rejects a worker closure omitted from the runtime manifest", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-worker-manifest-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-worker-manifest-"));
   const digest = fixture(root, "known-good");
   const manifestPath = join(root, digest, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   delete manifest.runtimeFiles["board/index.mjs"];
   writeFileSync(manifestPath, JSON.stringify(manifest));
-  assert.throws(() => readFrizzArtifact(digest, root), /failed manifest validation/);
+  assert.throws(() => readNtwineArtifact(digest, root), /failed manifest validation/);
 });
 
 test("reuse skips a host-incompatible candidate and rebuilds it", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-host-reuse-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-host-reuse-"));
   const source = sourceFixture(root);
   let stale = fixture(root, "shared");
   stale = markReusableArtifact(root, stale, source);
@@ -319,12 +319,12 @@ test("reuse skips a host-incompatible candidate and rebuilds it", () => {
     manifest.host.arch = `${manifest.host.arch}-other`;
   });
   let builds = 0;
-  const selected = ensureStableFrizzArtifact(join(root, "state"), source, root, {
+  const selected = ensureStableNtwineArtifact(join(root, "state"), source, root, {
     build: () => {
       builds++;
       let fresh = fixture(root, "fresh");
       fresh = markReusableArtifact(root, fresh, source);
-      return readFrizzArtifact(fresh, root);
+      return readNtwineArtifact(fresh, root);
     },
   });
   assert.equal(builds, 1);
@@ -332,7 +332,7 @@ test("reuse skips a host-incompatible candidate and rebuilds it", () => {
 });
 
 test("canonical checkout identity prevents same-content artifact collisions", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-source-identity-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-source-identity-"));
   const firstSource = sourceFixture(root);
   const secondSource = join(root, "second-source");
   cpSync(firstSource, secondSource, { recursive: true });
@@ -341,38 +341,38 @@ test("canonical checkout identity prevents same-content artifact collisions", ()
   let second = fixture(root, "shared");
   second = markReusableArtifact(root, second, secondSource);
   assert.notEqual(first, second);
-  assert.equal(findReusableFrizzArtifact(firstSource, root)?.digest, first);
-  assert.equal(findReusableFrizzArtifact(secondSource, root)?.digest, second);
+  assert.equal(findReusableNtwineArtifact(firstSource, root)?.digest, first);
+  assert.equal(findReusableNtwineArtifact(secondSource, root)?.digest, second);
 });
 
 test("manifest paths and root identity are validated before an artifact is selected", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-manifest-schema-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-manifest-schema-"));
   let traversal = fixture(root, "traversal");
   traversal = rewriteFixtureManifest(root, traversal, (manifest) => {
     manifest.webFiles["../outside"] = manifest.webFiles["index.html"];
   });
-  assert.throws(() => readFrizzArtifact(traversal, root), /failed manifest validation/);
+  assert.throws(() => readNtwineArtifact(traversal, root), /failed manifest validation/);
 
   const rootTamper = fixture(root, "root-tamper");
   const path = join(root, rootTamper, "manifest.json");
   const manifest = JSON.parse(readFileSync(path, "utf8"));
   manifest.sourceRevision = "changed-without-changing-directory";
   writeFileSync(path, JSON.stringify(manifest));
-  assert.throws(() => readFrizzArtifact(rootTamper, root), /failed root digest validation/);
+  assert.throws(() => readNtwineArtifact(rootTamper, root), /failed root digest validation/);
 });
 
 test("an EEXIST publish race re-reads the verified winner", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-publish-race-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-publish-race-"));
   const winner = fixture(root, "winner");
   const staging = join(root, ".staging-race");
   mkdirSync(staging);
-  const selected = publishFrizzArtifactStaging(staging, winner, root);
+  const selected = publishNtwineArtifactStaging(staging, winner, root);
   assert.equal(selected.digest, winner);
   assert.equal(existsSync(staging), false);
 });
 
 test("a first workspace launch reuses and promotes a verified canonical-source artifact", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-first-launch-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-first-launch-"));
   const state = join(root, "project-state");
   const source = join(root, "source");
   mkdirSync(join(source, ".git"), { recursive: true });
@@ -381,7 +381,7 @@ test("a first workspace launch reuses and promotes a verified canonical-source a
 
   let built = false;
   const progress: string[] = [];
-  const selected = ensureStableFrizzArtifact(state, source, root, {
+  const selected = ensureStableNtwineArtifact(state, source, root, {
     onProgress: (message) => progress.push(message),
     build: () => {
       built = true;
@@ -397,30 +397,30 @@ test("a first workspace launch reuses and promotes a verified canonical-source a
     "Reusing cached immutable artifact",
     "Promoting verified immutable artifact",
   ]);
-  assert.equal(findReusableFrizzArtifact(source, root)?.digest, digest);
+  assert.equal(findReusableNtwineArtifact(source, root)?.digest, digest);
 });
 
 test("a same-HEAD tracked source edit does not reuse a stale artifact", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-dirty-tracked-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-dirty-tracked-"));
   const source = sourceFixture(root);
   let digest = fixture(root, "shared");
   digest = markReusableArtifact(root, digest, source);
-  assert.equal(findReusableFrizzArtifact(source, root)?.digest, digest);
+  assert.equal(findReusableNtwineArtifact(source, root)?.digest, digest);
   writeFileSync(
     join(source, "packages", "server", "src", "entry.ts"),
     "export const version = 2\n"
   );
-  assert.equal(findReusableFrizzArtifact(source, root), null);
+  assert.equal(findReusableNtwineArtifact(source, root), null);
 });
 
 test("a stopped workspace refreshes its stable pointer to the current source fingerprint", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-refresh-stopped-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-refresh-stopped-"));
   const state = join(root, "project-state");
   const source = sourceFixture(root);
   let stale = fixture(root, "stale");
   let current: string;
   stale = markReusableArtifact(root, stale, source);
-  promoteFrizzArtifact(state, stale, root);
+  promoteNtwineArtifact(state, stale, root);
 
   writeFileSync(
     join(source, "packages", "server", "src", "entry.ts"),
@@ -430,7 +430,7 @@ test("a stopped workspace refreshes its stable pointer to the current source fin
   current = markReusableArtifact(root, current, source);
 
   let built = false;
-  const selected = ensureStableFrizzArtifact(state, source, root, {
+  const selected = ensureStableNtwineArtifact(state, source, root, {
     build: () => {
       built = true;
       throw new Error("the current verified artifact should be reused");
@@ -442,11 +442,11 @@ test("a stopped workspace refreshes its stable pointer to the current source fin
 });
 
 test("Update & Restart promotes even when the artifact it replaces no longer verifies", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-update-unverifiable-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-update-unverifiable-"));
   const state = join(root, "state");
   const source = sourceFixture(root);
   const stale = fixture(root, "stale");
-  promoteFrizzArtifact(state, stale, root);
+  promoteNtwineArtifact(state, stale, root);
 
   // Exactly how a live instance goes stale: source tightened WORKER_PLUGIN_REQUIRED_FILES after this
   // artifact was built, so its manifest no longer lists a now-required board closure entry. The
@@ -459,7 +459,7 @@ test("Update & Restart promotes even when the artifact it replaces no longer ver
 
   const built = fixture(root, "candidate");
   const { candidate, previous } = promoteCurrentSourceArtifact(state, source, root, {
-    build: () => readFrizzArtifact(built, root),
+    build: () => readNtwineArtifact(built, root),
   });
 
   // No rollback target survives an unverifiable predecessor, but the update itself must land — it is
@@ -474,14 +474,14 @@ test("Update & Restart promotes even when the artifact it replaces no longer ver
  * WIDENS the closure — the artifact it replaces stops verifying and the update lands anyway. Narrowing
  * had no such escape, and on 2026-08-26 it cost the maintainer their update: `dafe4309` deleted
  * cc-worker/bin/browser-mcp.mjs together with the closure entry requiring it, correctly and in one
- * commit, and every instance built before that refused to update — "Frizz worker plugin closure is
+ * commit, and every instance built before that refused to update — "Ntwine worker plugin closure is
  * missing cc-worker/bin/browser-mcp.mjs", naming a file the new source is right not to have.
  *
  * The building process is ALWAYS the older one during Update & Restart, so its list can only ever be
  * a stale opinion about the checkout it is staging. Nothing on that path may be gated on it.
  */
 test("an artifact built from source that NARROWED the closure still publishes and reads back", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-narrowed-closure-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-narrowed-closure-"));
   // The new source dropped this file and the entry that required it. THIS process has not caught up.
   const dropped = "cc-worker/hooks/agent-bind.mjs";
   assert.ok(WORKER_PLUGIN_REQUIRED_FILES.includes(dropped as (typeof WORKER_PLUGIN_REQUIRED_FILES)[number]));
@@ -489,32 +489,32 @@ test("an artifact built from source that NARROWED the closure still publishes an
 
   // The BOOT path is unchanged and still refuses it: there the launcher is choosing something to serve
   // from, and this build's list is a fact about the worker this build dispatches.
-  assert.throws(() => readFrizzArtifact(digest, root), /failed manifest validation/);
+  assert.throws(() => readNtwineArtifact(digest, root), /failed manifest validation/);
 
   // The BUILD path reads the same artifact back without complaint. Its closure was already asserted by
   // the only list entitled to judge it — the snapshot's, through the source-owned script.
-  const read = readFrizzArtifact(digest, root, { workerPluginClosure: false });
+  const read = readNtwineArtifact(digest, root, { workerPluginClosure: false });
   assert.equal(read.digest, digest);
   assert.equal(existsSync(join(read.runtimeDir, dropped)), false);
 });
 
 test("publishing a narrowed-closure staging tree is not gated on the publisher's own list", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-narrowed-publish-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-narrowed-publish-"));
   const dropped = "board/thread-update.mjs";
   const digest = fixture(root, "narrowed-publish", [dropped]);
-  // Back to a staging directory, so this is the real publish path buildFrizzArtifact ends on.
+  // Back to a staging directory, so this is the real publish path buildNtwineArtifact ends on.
   const staging = join(root, ".staging-narrowed");
   renameSync(join(root, digest), staging);
 
-  const published = publishFrizzArtifactStaging(staging, digest, root);
+  const published = publishNtwineArtifactStaging(staging, digest, root);
   assert.equal(published.digest, digest);
   assert.equal(existsSync(join(published.runtimeDir, dropped)), false);
   // …and the same artifact is still rejected by a boot-path read, which is what forces the rebuild.
-  assert.throws(() => readFrizzArtifact(digest, root), /failed manifest validation/);
+  assert.throws(() => readNtwineArtifact(digest, root), /failed manifest validation/);
 });
 
 test("capturing a snapshot never judges the checkout's worker plugin by THIS build's list", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-narrowed-capture-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-narrowed-capture-"));
   const source = sourceFixture(root);
   mkdirSync(join(source, "node_modules"));
   // A checkout that narrowed the closure looks EXACTLY like this to a build that has not caught up:
@@ -523,7 +523,7 @@ test("capturing a snapshot never judges the checkout's worker plugin by THIS bui
     mkdirSync(dirname(join(source, file)), { recursive: true });
     writeFileSync(join(source, file), "snapshot fixture\n");
   }
-  const snapshot = captureFrizzSourceSnapshot(source, root);
+  const snapshot = captureNtwineSourceSnapshot(source, root);
   try {
     assert.equal(existsSync(join(snapshot.sourceDir, WORKER_PLUGIN_REQUIRED_FILES[0]!)), false);
     assert.ok(existsSync(join(snapshot.sourceDir, WORKER_PLUGIN_REQUIRED_FILES[1]!)));
@@ -534,15 +534,15 @@ test("capturing a snapshot never judges the checkout's worker plugin by THIS bui
 });
 
 test("Update & Restart hands back the verified artifact it replaced as the rollback target", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-update-rollback-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-update-rollback-"));
   const state = join(root, "state");
   const source = sourceFixture(root);
   const current = fixture(root, "current");
-  promoteFrizzArtifact(state, current, root);
+  promoteNtwineArtifact(state, current, root);
 
   const built = fixture(root, "candidate");
   const { candidate, previous } = promoteCurrentSourceArtifact(state, source, root, {
-    build: () => readFrizzArtifact(built, root),
+    build: () => readNtwineArtifact(built, root),
   });
 
   assert.equal(candidate.digest, built);
@@ -551,7 +551,7 @@ test("Update & Restart hands back the verified artifact it replaced as the rollb
 });
 
 test("a relevant untracked source file does not reuse a stale artifact", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-dirty-untracked-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-dirty-untracked-"));
   const source = sourceFixture(root);
   let digest = fixture(root, "shared");
   digest = markReusableArtifact(root, digest, source);
@@ -559,11 +559,11 @@ test("a relevant untracked source file does not reuse a stale artifact", () => {
     join(source, "packages", "server", "src", "local-untracked.ts"),
     "export const local = true\n"
   );
-  assert.equal(findReusableFrizzArtifact(source, root), null);
+  assert.equal(findReusableNtwineArtifact(source, root), null);
 });
 
 test("an unchanged dirty source reuses the same verified artifact", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-dirty-reuse-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-dirty-reuse-"));
   const source = sourceFixture(root);
   writeFileSync(
     join(source, "packages", "server", "src", "local-untracked.ts"),
@@ -571,12 +571,12 @@ test("an unchanged dirty source reuses the same verified artifact", () => {
   );
   let digest = fixture(root, "shared");
   digest = markReusableArtifact(root, digest, source);
-  assert.equal(findReusableFrizzArtifact(source, root)?.digest, digest);
+  assert.equal(findReusableNtwineArtifact(source, root)?.digest, digest);
 });
 
 test("generated outputs and artifact evidence do not invalidate a reusable dirty-source artifact", () => {
   const root = mkdtempSync(
-    join(tmpdir(), "frizz-artifacts-fingerprint-ignore-")
+    join(tmpdir(), "ntwine-artifacts-fingerprint-ignore-")
   );
   const source = sourceFixture(root);
   let digest = fixture(root, "shared");
@@ -593,11 +593,11 @@ test("generated outputs and artifact evidence do not invalidate a reusable dirty
     "generated"
   );
   assert.equal(relevantSourceFingerprint(source), before);
-  assert.equal(findReusableFrizzArtifact(source, root)?.digest, digest);
+  assert.equal(findReusableNtwineArtifact(source, root)?.digest, digest);
 });
 
 test("a captured source snapshot remains usable after the checkout changes", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-snapshot-mutation-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-snapshot-mutation-"));
   const source = sourceFixture(root);
   mkdirSync(join(source, "node_modules"));
   for (const file of WORKER_PLUGIN_REQUIRED_FILES) {
@@ -606,7 +606,7 @@ test("a captured source snapshot remains usable after the checkout changes", () 
     mkdirSync(dirname(join(source, file)), { recursive: true });
     writeFileSync(join(source, file), "snapshot fixture\n");
   }
-  const snapshot = captureFrizzSourceSnapshot(source, root);
+  const snapshot = captureNtwineSourceSnapshot(source, root);
   try {
     const entry = join(source, "packages", "server", "src", "entry.ts");
     writeFileSync(entry, "export const version = 2\n");
@@ -617,13 +617,13 @@ test("a captured source snapshot remains usable after the checkout changes", () 
   }
 });
 
-// The artifact root lives under `~/.frizz`, which carries a `.gitignore` of `*` so the scratch tree
+// The artifact root lives under `~/.ntwine`, which carries a `.gitignore` of `*` so the scratch tree
 // stays out of any repo inited above it. Tailwind's scanner honours ancestor ignore files, so
 // without a repository boundary of its own the snapshot's `.tsx` is invisible to it and the web
 // build emits a stylesheet with zero utility classes — Vite exits 0 and the whole UI ships unstyled.
-// Measured on Tailwind 4.3.2: 114,660 bytes of CSS at a neutral path, 28,849 under `~/.frizz`.
+// Measured on Tailwind 4.3.2: 114,660 bytes of CSS at a neutral path, 28,849 under `~/.ntwine`.
 test("a captured source snapshot is its own scan root, so an ancestor .gitignore cannot starve the web build", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-snapshot-scan-root-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-snapshot-scan-root-"));
   // Reproduce the real ancestry: the artifact root sits inside a tree that ignores everything.
   writeFileSync(join(root, ".gitignore"), "*\n");
   const source = sourceFixture(root);
@@ -632,7 +632,7 @@ test("a captured source snapshot is its own scan root, so an ancestor .gitignore
     mkdirSync(dirname(join(source, file)), { recursive: true });
     writeFileSync(join(source, file), "snapshot fixture\n");
   }
-  const snapshot = captureFrizzSourceSnapshot(source, root);
+  const snapshot = captureNtwineSourceSnapshot(source, root);
   try {
     const marker = join(snapshot.sourceDir, ".git");
     assert.ok(existsSync(marker), "the snapshot must carry a .git marker to root the class scan");
@@ -661,13 +661,13 @@ test("a captured source snapshot is its own scan root, so an ancestor .gitignore
  * never become a valid immutable artifact and fail later as a browser global.
  */
 test("artifact creation checks the snapshot's own worker-plugin closure, then typechecks it, before either build", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-typecheck-order-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-typecheck-order-"));
   const source = resolve(import.meta.dirname, "..");
   const calls: Array<{ args: string[]; source: string }> = [];
   const failOn = (step: number) =>
     assert.throws(
       () =>
-        buildFrizzArtifact(source, root, {
+        buildNtwineArtifact(source, root, {
           runCommand: (args, snapshotSource) => {
             calls.push({ args, source: snapshotSource });
             if (calls.length >= step) throw new Error("build sentinel");
@@ -709,18 +709,18 @@ test("artifact creation checks the snapshot's own worker-plugin closure, then ty
  * the checkout's fingerprint still equals the snapshot's — anything else falls back to the snapshot.
  */
 function typecheckCalls(onCheckoutTypecheck: (checkout: string) => void): Array<{ args: string[]; source: string }> {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-checkout-typecheck-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-checkout-typecheck-"));
   const source = realpathSync(resolve(import.meta.dirname, ".."));
   const calls: Array<{ args: string[]; source: string }> = [];
   try {
     assert.throws(
       () =>
-        buildFrizzArtifact(source, root, {
+        buildNtwineArtifact(source, root, {
           runCommand: (args, cwd) => {
             calls.push({ args, source: cwd });
             if (args[0] === "run" && args[1] === "typecheck" && cwd === source) onCheckoutTypecheck(cwd);
             // Stop at the first step past the typecheck: the web build.
-            if (args.includes("@frizz/web")) throw new Error("build sentinel");
+            if (args.includes("@ntwine/web")) throw new Error("build sentinel");
           },
         }),
       /build sentinel/
@@ -793,7 +793,7 @@ async function waitForArtifactHealth(
     if (child.exitCode !== null || child.signalCode !== null)
       throw new Error(`bundled runtime exited before serving /health:\n${output()}`);
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/_frizz/health`);
+      const response = await fetch(`http://127.0.0.1:${port}/_ntwine/health`);
       const health = (await response.json()) as {
         ok?: unknown;
         projectId?: unknown;
@@ -827,15 +827,15 @@ async function stopArtifactChild(
 }
 
 test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads its immutable native cell", async () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-real-bundle-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-real-bundle-"));
   const source = resolve(import.meta.dirname, "..");
   let child: ReturnType<typeof spawnChild> | undefined;
   let releaseOwner: (() => boolean) | undefined;
   try {
-    const artifact = buildFrizzArtifact(source, root);
+    const artifact = buildNtwineArtifact(source, root);
     assert.match(
       execFileSync(process.execPath, [join(artifact.runtimeDir, "src", "index.js"), "--help"], { encoding: "utf8" }),
-      /Frizz source launcher/
+      /Ntwine source launcher/
     );
     assert.ok(artifact.manifest.dependencyCell, "runtime binds an immutable dependency cell");
     const modules = join(artifact.runtimeDir, "node_modules");
@@ -845,7 +845,7 @@ test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads i
     // must reach ITS OWN guard and refuse; MODULE_NOT_FOUND means it was never emitted, which is
     // precisely what silently killed every Codex turn on 2026-07-23.
     //
-    // The guards differ (the daemons want their FRIZZ_* config, dev-bootstrap wants a live project
+    // The guards differ (the daemons want their NTWINE_* config, dev-bootstrap wants a live project
     // launch owner), so assert the SHAPE rather than one message: it must fail from inside the emitted
     // file itself. A wrong-but-plausible message would otherwise pass a laxer check.
     for (const entry of DETACHED_DAEMON_ENTRIES) {
@@ -874,12 +874,12 @@ test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads i
         {
           ...process.env,
           HOME: join(root, "home"),
-          FRIZZ_DEV_CHILD: "1",
-          FRIZZ_DEV_PORT: String(port),
-          FRIZZ_STABLE_ARTIFACT: artifact.digest,
-          FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-          FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
-          FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
+          NTWINE_DEV_CHILD: "1",
+          NTWINE_DEV_PORT: String(port),
+          NTWINE_STABLE_ARTIFACT: artifact.digest,
+          NTWINE_STABLE_WEB_DIST: artifact.webDir,
+          NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
+          NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
         },
         target,
         owner.token
@@ -904,7 +904,7 @@ test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads i
       import { tmpdir } from "node:os";
       import { join } from "node:path";
       const db = new DatabaseSync(":memory:"); db.exec("create table t(x); insert into t values (1)"); if (db.prepare("select x from t").get().x !== 1) throw new Error("sqlite"); db.close();
-      const dir = mkdtempSync(join(tmpdir(), "frizz-watch-")); const sub = await watcher.subscribe(dir, () => {}); await sub.unsubscribe(); rmSync(dir, { recursive: true, force: true });
+      const dir = mkdtempSync(join(tmpdir(), "ntwine-watch-")); const sub = await watcher.subscribe(dir, () => {}); await sub.unsubscribe(); rmSync(dir, { recursive: true, force: true });
       // EXIT EXPLICITLY. On Windows node-pty used to leave live handles behind (4 of them, measured on
       // Windows Server 2022 / node 26.7.0), so the script never returned to the shell on its own and
       // wedged the suite; the pty is gone, and the explicit exit stays so no native handle can do that
@@ -925,7 +925,7 @@ test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads i
 });
 
 test.skip("legacy deploy snapshot harness is superseded by the real bundled-artifact smoke", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-source-snapshot-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-source-snapshot-"));
   const source = join(root, "ui");
   const versionFile = join(source, "packages", "web", "src", "version.txt");
   const bin = join(root, "bin");
@@ -933,12 +933,12 @@ test.skip("legacy deploy snapshot harness is superseded by the real bundled-arti
   mkdirSync(join(source, "src"), { recursive: true });
   mkdirSync(join(source, "packages", "shared"), { recursive: true });
   mkdirSync(join(source, "node_modules"), { recursive: true });
-  mkdirSync(join(source, "packages", "web", "node_modules", "@frizz"), {
+  mkdirSync(join(source, "packages", "web", "node_modules", "@ntwine"), {
     recursive: true,
   });
   symlinkSync(
     "../../../shared",
-    join(source, "packages", "web", "node_modules", "@frizz", "shared")
+    join(source, "packages", "web", "node_modules", "@ntwine", "shared")
   );
   writeFileSync(versionFile, "before\n");
   writeFileSync(join(source, "packages", "shared", "version.txt"), "snapshot workspace\n");
@@ -952,11 +952,11 @@ test.skip("legacy deploy snapshot harness is superseded by the real bundled-arti
     pnpm,
     `#!/bin/sh
 if [ "$5" = "build" ]; then
-  test -L "$2/packages/web/node_modules/@frizz/shared" || exit 21
-  test "$(cat "$2/packages/web/node_modules/@frizz/shared/version.txt")" = "snapshot workspace" || exit 22
+  test -L "$2/packages/web/node_modules/@ntwine/shared" || exit 21
+  test "$(cat "$2/packages/web/node_modules/@ntwine/shared/version.txt")" = "snapshot workspace" || exit 22
   version=$(cat "$2/packages/web/src/version.txt")
-  if [ "$FRIZZ_TEST_MUTATE_LIVE" = "1" ]; then
-    printf 'after\\n' > "$FRIZZ_TEST_LIVE_SOURCE/packages/web/src/version.txt"
+  if [ "$NTWINE_TEST_MUTATE_LIVE" = "1" ]; then
+    printf 'after\\n' > "$NTWINE_TEST_LIVE_SOURCE/packages/web/src/version.txt"
     sleep 1
   fi
   mkdir -p "$2/packages/web/dist"
@@ -965,30 +965,30 @@ if [ "$5" = "build" ]; then
 fi
 mkdir -p "$6/src" "$6/node_modules/.pnpm/node_modules"
 printf 'export const artifact = true\\n' > "$6/src/index.ts"
-ln -s "$2/packages/cli" "$6/node_modules/.pnpm/node_modules/frizz"
+ln -s "$2/packages/cli" "$6/node_modules/.pnpm/node_modules/ntwine"
 `
   );
   chmodSync(pnpm, 0o755);
   const oldPath = process.env.PATH;
-  const oldMutate = process.env.FRIZZ_TEST_MUTATE_LIVE;
-  const oldLiveSource = process.env.FRIZZ_TEST_LIVE_SOURCE;
+  const oldMutate = process.env.NTWINE_TEST_MUTATE_LIVE;
+  const oldLiveSource = process.env.NTWINE_TEST_LIVE_SOURCE;
   process.env.PATH = `${bin}:${oldPath ?? ""}`;
-  process.env.FRIZZ_TEST_MUTATE_LIVE = "1";
-  process.env.FRIZZ_TEST_LIVE_SOURCE = source;
+  process.env.NTWINE_TEST_MUTATE_LIVE = "1";
+  process.env.NTWINE_TEST_LIVE_SOURCE = source;
   const beforeFingerprint = relevantSourceFingerprint(source);
   try {
-    const first = buildFrizzArtifact(source, root);
+    const first = buildNtwineArtifact(source, root);
     assert.equal(readFileSync(join(first.webDir, "index.html"), "utf8"), "before\n");
     assert.equal(readFileSync(versionFile, "utf8"), "after\n");
     assert.equal(first.manifest.sourceFingerprint, beforeFingerprint);
-    const selfLink = join(first.runtimeDir, "node_modules", ".pnpm", "node_modules", "frizz");
+    const selfLink = join(first.runtimeDir, "node_modules", ".pnpm", "node_modules", "ntwine");
     assert.equal(
       resolve(dirname(selfLink), readlinkSync(selfLink)),
       first.runtimeDir,
       "the deploy self-link is sealed inside the immutable artifact"
     );
-    process.env.FRIZZ_TEST_MUTATE_LIVE = "0";
-    const second = buildFrizzArtifact(source, root);
+    process.env.NTWINE_TEST_MUTATE_LIVE = "0";
+    const second = buildNtwineArtifact(source, root);
     assert.notEqual(second.digest, first.digest);
     assert.equal(readFileSync(join(second.webDir, "index.html"), "utf8"), "after\n");
     assert.equal(second.manifest.sourceFingerprint, relevantSourceFingerprint(source));
@@ -998,15 +998,15 @@ ln -s "$2/packages/cli" "$6/node_modules/.pnpm/node_modules/frizz"
     );
   } finally {
     process.env.PATH = oldPath;
-    if (oldMutate === undefined) delete process.env.FRIZZ_TEST_MUTATE_LIVE;
-    else process.env.FRIZZ_TEST_MUTATE_LIVE = oldMutate;
-    if (oldLiveSource === undefined) delete process.env.FRIZZ_TEST_LIVE_SOURCE;
-    else process.env.FRIZZ_TEST_LIVE_SOURCE = oldLiveSource;
+    if (oldMutate === undefined) delete process.env.NTWINE_TEST_MUTATE_LIVE;
+    else process.env.NTWINE_TEST_MUTATE_LIVE = oldMutate;
+    if (oldLiveSource === undefined) delete process.env.NTWINE_TEST_LIVE_SOURCE;
+    else process.env.NTWINE_TEST_LIVE_SOURCE = oldLiveSource;
   }
 });
 
 test("an older verified manifest without a source fingerprint fails closed for new workspace reuse", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-old-manifest-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-old-manifest-"));
   const source = sourceFixture(root);
   const digest = fixture(root, "shared");
   const path = join(root, digest, "manifest.json");
@@ -1015,24 +1015,24 @@ test("an older verified manifest without a source fingerprint fails closed for n
   manifest.digest = legacy;
   writeFileSync(path, JSON.stringify(manifest));
   renameSync(join(root, digest), join(root, legacy));
-  assert.equal(readFrizzArtifact(legacy, root).digest, legacy);
-  assert.equal(findReusableFrizzArtifact(source, root), null);
+  assert.equal(readNtwineArtifact(legacy, root).digest, legacy);
+  assert.equal(findReusableNtwineArtifact(source, root), null);
 });
 
 test("a zero-artifact first launch builds then promotes only a complete verified candidate", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-zero-launch-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-zero-launch-"));
   const state = join(root, "project-state");
   const source = join(root, "source");
   mkdirSync(source);
   let digest = "";
   let builds = 0;
   const progress: string[] = [];
-  const selected = ensureStableFrizzArtifact(state, source, root, {
+  const selected = ensureStableNtwineArtifact(state, source, root, {
     onProgress: (message) => progress.push(message),
     build: () => {
       builds++;
       digest = fixture(root, "built");
-      return readFrizzArtifact(digest, root);
+      return readNtwineArtifact(digest, root);
     },
   });
   assert.equal(builds, 1);
@@ -1047,21 +1047,21 @@ test("a zero-artifact first launch builds then promotes only a complete verified
 });
 
 test("a stale source pointer reports an actual immutable rebuild before promotion", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-stale-progress-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-stale-progress-"));
   const state = join(root, "project-state");
   const source = sourceFixture(root);
   let stale = fixture(root, "stale");
   let rebuilt = "";
   stale = markReusableArtifact(root, stale, source);
-  promoteFrizzArtifact(state, stale, root);
+  promoteNtwineArtifact(state, stale, root);
   writeFileSync(join(source, "packages", "server", "src", "entry.ts"), "export const version = 2\n");
   const progress: string[] = [];
-  const selected = ensureStableFrizzArtifact(state, source, root, {
+  const selected = ensureStableNtwineArtifact(state, source, root, {
     onProgress: (message) => progress.push(message),
     build: () => {
       rebuilt = fixture(root, "rebuilt");
       rebuilt = markReusableArtifact(root, rebuilt, source);
-      return readFrizzArtifact(rebuilt, root);
+      return readNtwineArtifact(rebuilt, root);
     },
   });
   assert.equal(selected.digest, rebuilt);
@@ -1074,13 +1074,13 @@ test("a stale source pointer reports an actual immutable rebuild before promotio
 });
 
 test("a failed first-launch build never writes a partial candidate to workspace selection", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-build-rollback-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-build-rollback-"));
   const state = join(root, "project-state");
   const source = join(root, "source");
   mkdirSync(source);
   assert.throws(
     () =>
-      ensureStableFrizzArtifact(state, source, root, {
+      ensureStableNtwineArtifact(state, source, root, {
         build: () => {
           throw new Error("build failed");
         },
@@ -1092,7 +1092,7 @@ test("a failed first-launch build never writes a partial candidate to workspace 
 });
 
 test.skip("legacy deploy cleanup harness is superseded by the bundled-artifact smoke", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-build-cleanup-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-build-cleanup-"));
   const source = join(root, "source");
   const plugin = join(root, "cc-worker");
   const bin = join(root, "bin");
@@ -1103,8 +1103,8 @@ test.skip("legacy deploy cleanup harness is superseded by the bundled-artifact s
   for (const file of [
     "hooks/session-seed.mjs",
     "hooks/agent-bind.mjs",
-    "bin/frizz",
-    "bin/frizz-update",
+    "bin/ntwine",
+    "bin/ntwine-update",
   ]) {
     mkdirSync(dirname(join(plugin, file)), { recursive: true });
     writeFileSync(join(plugin, file), "export {}\n");
@@ -1131,7 +1131,7 @@ exit 12
   const oldPath = process.env.PATH;
   process.env.PATH = `${bin}:${oldPath ?? ""}`;
   try {
-    assert.throws(() => buildFrizzArtifact(source, root), /Command failed/);
+    assert.throws(() => buildNtwineArtifact(source, root), /Command failed/);
   } finally {
     process.env.PATH = oldPath;
   }
@@ -1146,7 +1146,7 @@ exit 12
 });
 
 test.skip("legacy deploy worker harness is superseded by the bundled-artifact smoke", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-artifacts-worker-plugin-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-artifacts-worker-plugin-"));
   const source = join(root, "ui");
   const plugin = join(root, "cc-worker");
   const bin = join(root, "bin");
@@ -1157,35 +1157,35 @@ test.skip("legacy deploy worker harness is superseded by the bundled-artifact sm
   mkdirSync(join(plugin, "skills", "gh", "scripts"), { recursive: true });
   mkdirSync(join(plugin, "hooks"), { recursive: true });
   mkdirSync(join(plugin, "bin"), { recursive: true });
-  mkdirSync(join(plugin, "scripts", "frizz"), { recursive: true });
+  mkdirSync(join(plugin, "scripts", "ntwine"), { recursive: true });
   mkdirSync(join(root, "board"), { recursive: true });
   mkdirSync(bin);
-  writeFileSync(join(plugin, ".claude-plugin", "plugin.json"), '{"name":"frizz"}\n');
+  writeFileSync(join(plugin, ".claude-plugin", "plugin.json"), '{"name":"ntwine"}\n');
   writeFileSync(join(plugin, "skills", "worker", "SKILL.md"), "worker\n");
   writeFileSync(join(plugin, "skills", "gh", "SKILL.md"), "gh\n");
   writeFileSync(join(plugin, "skills", "gh", "scripts", "ci-watch.mjs"), "watch\n");
   writeFileSync(
     join(plugin, "hooks", "session-seed.mjs"),
     `import { readFileSync } from "node:fs";
-import { currentSessionId, setSessionOverride } from "../scripts/frizz/config.mjs";
+import { currentSessionId, setSessionOverride } from "../scripts/ntwine/config.mjs";
 const input = JSON.parse(readFileSync(0, "utf8"));
 const sessionId = currentSessionId(input.session_id);
 setSessionOverride(process.env.CLAUDE_PROJECT_DIR, sessionId, "off");
-process.stdout.write(JSON.stringify({ scratch: ".frizz/threads/" + sessionId + "/scratch.md" }));
+process.stdout.write(JSON.stringify({ scratch: ".ntwine/threads/" + sessionId + "/scratch.md" }));
 `
   );
   writeFileSync(join(plugin, "hooks", "agent-bind.mjs"), "bind\n");
-  writeFileSync(join(plugin, "scripts", "frizz", "config.mjs"), `export * from "../../../board/config.mjs";\n`);
-  writeFileSync(join(plugin, "scripts", "frizz", "agent-bindings.mjs"), `export * from "../../../board/agent-bindings.mjs";\n`);
-  writeFileSync(join(plugin, "bin", "frizz"), `await import(new URL("../../board/index.mjs", import.meta.url));\n`);
-  writeFileSync(join(plugin, "bin", "frizz-update"), `await import(new URL("../../board/thread-update.mjs", import.meta.url));\n`);
+  writeFileSync(join(plugin, "scripts", "ntwine", "config.mjs"), `export * from "../../../board/config.mjs";\n`);
+  writeFileSync(join(plugin, "scripts", "ntwine", "agent-bindings.mjs"), `export * from "../../../board/agent-bindings.mjs";\n`);
+  writeFileSync(join(plugin, "bin", "ntwine"), `await import(new URL("../../board/index.mjs", import.meta.url));\n`);
+  writeFileSync(join(plugin, "bin", "ntwine-update"), `await import(new URL("../../board/thread-update.mjs", import.meta.url));\n`);
   writeFileSync(
     join(root, "board", "config.mjs"),
     `import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 export const currentSessionId = (explicit) => explicit || process.env.CLAUDE_CODE_SESSION_ID || null;
 export const setSessionOverride = (project, sessionId, state) => {
-  const dir = join(project, ".frizz", ".session-state");
+  const dir = join(project, ".ntwine", ".session-state");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, sessionId), state + "\\n");
 };
@@ -1203,16 +1203,16 @@ if [ "$5" = "build" ]; then
   printf '<!doctype html>' > "$2/packages/web/dist/index.html"
   exit 0
 fi
-mkdir -p "$6/src" "$6/node_modules/@frizz/server/src"
+mkdir -p "$6/src" "$6/node_modules/@ntwine/server/src"
 printf 'export const artifact = true\\n' > "$6/src/index.ts"
-printf 'export const dispatch = true\\n' > "$6/node_modules/@frizz/server/src/dispatch.ts"
+printf 'export const dispatch = true\\n' > "$6/node_modules/@ntwine/server/src/dispatch.ts"
 `
   );
   chmodSync(pnpm, 0o755);
   const oldPath = process.env.PATH;
   process.env.PATH = `${bin}:${oldPath ?? ""}`;
   try {
-    const artifact = buildFrizzArtifact(source, root);
+    const artifact = buildNtwineArtifact(source, root);
     const bundled = join(artifact.runtimeDir, "cc-worker");
     assert.equal(existsSync(join(bundled, ".claude-plugin", "plugin.json")), true);
     assert.equal(existsSync(join(bundled, "skills", "worker", "SKILL.md")), true);
@@ -1220,7 +1220,7 @@ printf 'export const dispatch = true\\n' > "$6/node_modules/@frizz/server/src/di
     assert.equal(existsSync(join(bundled, "hooks", "session-seed.mjs")), true);
     assert.equal(existsSync(join(artifact.runtimeDir, "board", "config.mjs")), true);
     assert.equal(
-      resolve(dirname(join(artifact.runtimeDir, "node_modules", "@frizz", "server", "src", "dispatch.js")), "../../../../cc-worker"),
+      resolve(dirname(join(artifact.runtimeDir, "node_modules", "@ntwine", "server", "src", "dispatch.js")), "../../../../cc-worker"),
       bundled,
       "the deployed workerPluginDir() resolver reaches the bundled plugin"
     );
@@ -1236,17 +1236,17 @@ printf 'export const dispatch = true\\n' > "$6/node_modules/@frizz/server/src/di
     );
     const cleanHome = join(root, "clean-home")
     const project = join(root, "project")
-    mkdirSync(join(project, ".frizz", "threads", "portable-session"), { recursive: true })
-    writeFileSync(join(project, ".frizz", "threads", "portable-session", "scratch.md"), "# scratch\n")
+    mkdirSync(join(project, ".ntwine", "threads", "portable-session"), { recursive: true })
+    writeFileSync(join(project, ".ntwine", "threads", "portable-session", "scratch.md"), "# scratch\n")
     // Erase the checkout closure before invoking the copied artifact. The hook and both executable
-    // shims must resolve only runtime/{cc-worker,board}, with no global Frizz config/plugin to help.
+    // shims must resolve only runtime/{cc-worker,board}, with no global Ntwine config/plugin to help.
     rmSync(source, { recursive: true, force: true })
     rmSync(plugin, { recursive: true, force: true })
     rmSync(join(root, "board"), { recursive: true, force: true })
     const cleanEnv = {
       PATH: process.env.PATH ?? "",
       HOME: cleanHome,
-      FRIZZ_THREAD: "portable-thread",
+      NTWINE_THREAD: "portable-thread",
       CLAUDE_PROJECT_DIR: project,
       CLAUDE_CODE_SESSION_ID: "portable-session",
       CLAUDE_CODE_SUBAGENT_MODEL: "foreign-model",
@@ -1258,10 +1258,10 @@ printf 'export const dispatch = true\\n' > "$6/node_modules/@frizz/server/src/di
       input: JSON.stringify({ session_id: "portable-session" }),
       encoding: "utf8",
     })
-    assert.deepEqual(JSON.parse(hook), { scratch: ".frizz/threads/portable-session/scratch.md" })
-    assert.equal(readFileSync(join(project, ".frizz", ".session-state", "portable-session"), "utf8"), "off\n")
-    assert.equal(execFileSync(process.execPath, [join(bundled, "bin", "frizz")], { cwd: project, env: cleanEnv, encoding: "utf8" }), "portable-board\n")
-    assert.equal(execFileSync(process.execPath, [join(bundled, "bin", "frizz-update")], { cwd: project, env: cleanEnv, encoding: "utf8" }), "portable-update\n")
+    assert.deepEqual(JSON.parse(hook), { scratch: ".ntwine/threads/portable-session/scratch.md" })
+    assert.equal(readFileSync(join(project, ".ntwine", ".session-state", "portable-session"), "utf8"), "off\n")
+    assert.equal(execFileSync(process.execPath, [join(bundled, "bin", "ntwine")], { cwd: project, env: cleanEnv, encoding: "utf8" }), "portable-board\n")
+    assert.equal(execFileSync(process.execPath, [join(bundled, "bin", "ntwine-update")], { cwd: project, env: cleanEnv, encoding: "utf8" }), "portable-update\n")
   } finally {
     process.env.PATH = oldPath;
   }

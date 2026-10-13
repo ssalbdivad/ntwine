@@ -29,7 +29,7 @@
 // `rpc` — on the cross-project page both name the FOCUSED project, which is usually not the card's. The
 // thread, the ×, and the drill-in all come from the CARD's own project here.
 import type { ReactNode } from "react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import type { Api } from "../api/rpc.ts"
 import { subAgentName } from "../groups.ts"
 import { projectSlug } from "../lib/base-path.ts"

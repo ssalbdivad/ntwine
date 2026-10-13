@@ -6,7 +6,7 @@
 //                             the reading can be watched climbing;
 //   2. a SILENT watcher     — an output file that exists and is EMPTY. This is the wedged case, and the
 //                             row must read "0 lines" rather than showing nothing;
-//   3. an UNREADABLE shell  — its launch ack names a path that does not exist (frizz's stand-in for a
+//   3. an UNREADABLE shell  — its launch ack names a path that does not exist (ntwine's stand-in for a
 //                             codex exec, whose output never reaches a file at all). No counter.
 //
 // A SECOND thread seeds the PRE-ACK window — the seconds between a shell's `tool_use` (its row
@@ -106,7 +106,7 @@ function seed({ slug, sessionId, title, records }) {
   execFileSync("sqlite3", [
     db,
     `INSERT INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived)
-     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
+     VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
   ])
   console.log(`seeded ${slug} (${sessionId})`)
 }

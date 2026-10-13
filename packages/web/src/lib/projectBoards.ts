@@ -1,5 +1,5 @@
 import { useQueries, useQuery, type QueryClient } from "@tanstack/react-query"
-import type { BoardSnapshot } from "@frizz/shared"
+import type { BoardSnapshot } from "@ntwine/shared"
 import { projectRpc } from "../api/rpc.ts"
 
 // ONE PROJECT'S WHOLE BOARD, read from a page that names another — Everything's project list, for the bands

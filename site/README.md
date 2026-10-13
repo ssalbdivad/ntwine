@@ -22,20 +22,20 @@ pnpm build
 | `public/img/` | Screenshots captured from a sandboxed `scripts/adhoc-stack.mjs` instance (seeded threads, no real data). The `README.md` at the repo root uses copies in `assets/`; re-shoot both together. |
 | `og/` | Source for `public/img/og.png`, the 1200×630 social card. Not deployed. |
 
-The remote-access guides (`content/docs/remote-access.mdx`, `frizz-sh.mdx`, `cloudflare-tunnel.mdx`, `tailscale.mdx`,
+The remote-access guides (`content/docs/remote-access.mdx`, `ntwine-sh.mdx`, `cloudflare-tunnel.mdx`, `tailscale.mdx`,
 `ssh.mdx`, `reverse-proxy.mdx`) mirror [`docs/remote-access.md`](../docs/remote-access.md). Change one and change the
 other.
 
 ## Why `/docs` and not `docs.frizz.sh`
 
 The relay Worker owns `*.frizz.sh/*`, and a workers route beats a custom domain — a subdomain here is
-answered by the relay with *No Frizz board has claimed this name*, which is exactly how `registrar.frizz.sh`
+answered by the relay with *No Ntwine board has claimed this name*, which is exactly how `registrar.frizz.sh`
 went down the day the relay shipped. A path on the apex is not covered by that wildcard. A subdomain would
 work only with its own more-specific route, the way the registrar has one.
 
 ## Deploying
 
-The Vercel project is `frizz` under the `colinhacks-projects` scope, deployed from this directory with the CLI:
+The Vercel project is `ntwine` under the `colinhacks-projects` scope, deployed from this directory with the CLI:
 
 ```sh
 vercel --cwd site --prod

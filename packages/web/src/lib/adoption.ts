@@ -1,4 +1,4 @@
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 
 const ADOPTABLE_STATUSES = new Set<ThreadView["status"]>(["planning", "planned", "active", "needs-human", "blocked"])
 

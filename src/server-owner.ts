@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { mkdirSync, readFileSync, realpathSync } from "node:fs"
 import { join } from "node:path"
-import { frizzPaths, type FrizzPaths } from "@frizz/server/frizz-paths"
+import { ntwinePaths, type NtwinePaths } from "@ntwine/server/ntwine-paths"
 import {
   processGenerationIsStale,
   readProjectLaunchOwner,
@@ -11,17 +11,17 @@ import {
   type ProjectLaunchLease,
   type ProjectLaunchOwnerRecord,
   type ProjectLaunchTarget,
-} from "@frizz/server/project-launch"
+} from "@ntwine/server/project-launch"
 
 /** Human-facing name for the machine-wide server lease. */
-export const STABLE_SERVER_OWNER_NAME = "frizz-server"
+export const STABLE_SERVER_OWNER_NAME = "ntwine-server"
 // Project-launch ownership deliberately requires a UUID to reject malformed/cross-project records.
-// This is the fixed UUID envelope for the one logical `frizz-server` target, never a repository id.
+// This is the fixed UUID envelope for the one logical `ntwine-server` target, never a repository id.
 export const STABLE_SERVER_OWNER_PROJECT_ID = "c1fd5810-0f8a-4c1d-91a0-6d7445d28e5a"
 const ADDRESS_NAME = "address.json"
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 
-type ServerOwnerRoots = Pick<FrizzPaths, "data" | "state">
+type ServerOwnerRoots = Pick<NtwinePaths, "data" | "state">
 
 export interface ServerOwnerLease {
   readonly target: ProjectLaunchTarget
@@ -50,10 +50,10 @@ interface ServerAddressRecord {
 }
 
 function rootsFor(roots: ServerOwnerRoots | undefined): ServerOwnerRoots {
-  return roots ?? frizzPaths()
+  return roots ?? ntwinePaths()
 }
 
-/** One stable-server target per Frizz home, independent of the repository that launched it. */
+/** One stable-server target per Ntwine home, independent of the repository that launched it. */
 export function stableServerOwnerTarget(roots?: ServerOwnerRoots): ProjectLaunchTarget {
   const resolved = rootsFor(roots)
   mkdirSync(resolved.data, { recursive: true, mode: 0o700 })
@@ -134,7 +134,7 @@ export function acquireStableServerOwner(roots?: ServerOwnerRoots): ServerOwnerA
 
 /** Publish the public listener only from the exact lease generation that acquired the global owner. */
 export function publishStableServerAddress(lease: ServerOwnerLease, port: number): void {
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(`invalid stable Frizz server port: ${port}`)
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(`invalid stable Ntwine server port: ${port}`)
   const owner = readProjectLaunchOwner(lease.target.stateDir)
   if (
     !owner ||
@@ -143,7 +143,7 @@ export function publishStableServerAddress(lease: ServerOwnerLease, port: number
     owner.pid !== lease.pid ||
     owner.processStart !== lease.processStart ||
     processGenerationIsStale(owner)
-  ) throw new Error("cannot publish an address without the exact live stable Frizz server owner")
+  ) throw new Error("cannot publish an address without the exact live stable Ntwine server owner")
   writeProjectStatus(join(lease.target.stateDir, ADDRESS_NAME), {
     version: 1,
     ownerToken: lease.token,

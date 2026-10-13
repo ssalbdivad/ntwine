@@ -1,4 +1,4 @@
-import type { GithubRefCard } from "@frizz/shared"
+import type { GithubRefCard } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 
 // The client half of the GitHub hovercards: one store holding every reference the page has rendered,

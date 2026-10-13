@@ -1,7 +1,7 @@
 import type { ClaudeOneShot } from "./backend/claude-oneshot.ts"
 
 // THE AUTO EFFORT. "auto" is the dispatch surfaces' default effort: rather than launching every thread on
-// one fixed level, Frizz reads the prompt and picks a level from the model's own ladder — low for a
+// one fixed level, Ntwine reads the prompt and picks a level from the model's own ladder — low for a
 // rename, ultracode for a codebase-wide audit. It is ONE short completion through the same one-shot
 // completer the thread namer uses (backend/claude-oneshot.ts): a throwaway SDK session on Haiku, no tools,
 // no settings, one turn.

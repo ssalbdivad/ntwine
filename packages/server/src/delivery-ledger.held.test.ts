@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 import { createStorage } from "./storage.ts"
 import {
   ageDeliveries,
@@ -24,7 +24,7 @@ import {
   type DeliveryLedgerItem,
 } from "./delivery-ledger.ts"
 
-// HELD: a message the operator sent TO THE QUEUE — Frizz keeps it until the agent rests, and until then
+// HELD: a message the operator sent TO THE QUEUE — Ntwine keeps it until the agent rests, and until then
 // no transport has been handed anything. Everything else in the ledger is a claim about a send some
 // provider has; these pin that a held one is inert to all the machinery built for those claims, because
 // each of them, applied here, would either lose the only copy of the words or deliver them early.
@@ -32,10 +32,10 @@ const T0 = Date.parse("2026-10-11T10:00:00.000Z")
 const iso = (ms: number) => new Date(ms).toISOString()
 
 function ledger() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-held-ledger-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-held-ledger-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.upsertSession({
-    slug: "t", session_id: "s", thread_name: "frizz-t", spawned_at: iso(T0), last_read_at: null,
+    slug: "t", session_id: "s", thread_name: "ntwine-t", spawned_at: iso(T0), last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -115,7 +115,7 @@ test("a run of ordinary sends never evicts a held one", () => {
     id: `d-${i}`, text: `send ${i}`, state: "enqueued", at: iso(T0 + 1_000 + i), updatedAt: iso(T0 + 1_000 + i),
   }))
   const trimmed = trimLedger([held(), ...live])
-  assert.ok(trimmed.some((i) => i.id === "d-held"), "Frizz is the only place its words exist")
+  assert.ok(trimmed.some((i) => i.id === "d-held"), "Ntwine is the only place its words exist")
 })
 
 test("a held send always projects its own gray bubble, never adopting one with the same words", () => {

@@ -8,7 +8,7 @@ import {
   threadProfileOptions,
   validateThreadProfile,
 } from "./thread-profiles.ts"
-import type { CodexModel } from "@frizz/shared"
+import type { CodexModel } from "@ntwine/shared"
 
 test("thread profile catalogues expose complete provider-owned pairs", () => {
   for (const backend of ["claude", "codex"] as const) {
@@ -82,7 +82,7 @@ test("Codex profile helpers share an explicitly version-checked catalogue", () =
 test("an observed 1M model collapses to the bare picker alias", () => {
   assert.equal(normalizeObservedThreadModel("claude", "claude-opus-5[1m]"), "opus")
   assert.equal(normalizeObservedThreadModel("claude", "claude-sonnet-5[1m]"), "sonnet")
-  // Measured on the provisioned 2.1.280: the pair frizz actually launches (`opus[1m]` + `--fallback-model
+  // Measured on the provisioned 2.1.280: the pair ntwine actually launches (`opus[1m]` + `--fallback-model
   // opus`) comes back as `claude-opus-5-5[1m]` — a minor version AND the suffix in one observed value.
   assert.equal(normalizeObservedThreadModel("claude", "claude-opus-5-5[1m]"), "opus")
   // Haiku asks for the window too since 2.1.293 (see claude-context-window.ts); measured reply id.

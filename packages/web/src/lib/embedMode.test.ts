@@ -8,7 +8,7 @@ import test from "node:test"
 
 const posted: unknown[] = []
 const session = new Map<string, string>()
-const local = new Map<string, string>([["frizz-theme", "light"]])
+const local = new Map<string, string>([["ntwine-theme", "light"]])
 const props = new Map<string, string>()
 const root = {
   dataset: {} as Record<string, string>,
@@ -47,7 +47,7 @@ const { hostKeyChord } = await import("./embed.ts")
 
 test("the address's embed mode is kept for the frame's session", () => {
   assert.equal(embedded(), true)
-  assert.deepEqual(JSON.parse(session.get("frizz.embed")!), { host: "vscode", theme: "dark" })
+  assert.deepEqual(JSON.parse(session.get("ntwine.embed")!), { host: "vscode", theme: "dark" })
 })
 
 test("a sidebar is never the phone, at any width", () => {
@@ -99,8 +99,8 @@ test("⌘L in the page goes back to the editor: forwarded to VS Code like its ow
   const key = (over: Partial<KeyboardEvent>) =>
     ({ key: "l", code: "KeyL", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, defaultPrevented: false, repeat: false, isComposing: false, ...over }) as KeyboardEvent
   // The page forwards it (the extension maps it to "focus the editor": packages/vscode embed.ts CHORDS)…
-  assert.deepEqual(hostKeyChord(key({})), { type: "frizz:key", key: "l", code: "KeyL", ctrl: true, meta: false, shift: false, alt: false })
-  assert.deepEqual(hostKeyChord(key({ ctrlKey: false, metaKey: true })), { type: "frizz:key", key: "l", code: "KeyL", ctrl: false, meta: true, shift: false, alt: false })
+  assert.deepEqual(hostKeyChord(key({})), { type: "ntwine:key", key: "l", code: "KeyL", ctrl: true, meta: false, shift: false, alt: false })
+  assert.deepEqual(hostKeyChord(key({ ctrlKey: false, metaKey: true })), { type: "ntwine:key", key: "l", code: "KeyL", ctrl: false, meta: true, shift: false, alt: false })
   // …unless a box here took it first.
   assert.equal(hostKeyChord(key({ defaultPrevented: true })), null)
 })
@@ -126,27 +126,27 @@ test("the title row hears the view only when it changes, and again after ready",
   reportRoute({ view: "queue", title: "acme-api", description: "1 needs you · 4 ready" })
   reportRoute({ view: "thread", title: "Split the constants" })
   assert.deepEqual(posted, [
-    { type: "frizz:route", view: "queue", title: "acme-api", description: "1 needs you · 4 ready" },
-    { type: "frizz:route", view: "thread", title: "Split the constants" },
+    { type: "ntwine:route", view: "queue", title: "acme-api", description: "1 needs you · 4 ready" },
+    { type: "ntwine:route", view: "thread", title: "Split the constants" },
   ])
   posted.length = 0
   repostRoute()
-  assert.deepEqual(posted, [{ type: "frizz:route", view: "thread", title: "Split the constants" }])
+  assert.deepEqual(posted, [{ type: "ntwine:route", view: "thread", title: "Split the constants" }])
 })
 
 test("a code file goes to the editor with its place, never to the reader or the server", async () => {
   posted.length = 0
   openLocalPath("/repo/src/a.ts", null, null, { line: 12, column: 3, endLine: 20 })
-  assert.deepEqual(posted, [{ type: "frizz:open-file", path: "/repo/src/a.ts", line: 12, column: 3, endLine: 20 }])
+  assert.deepEqual(posted, [{ type: "ntwine:open-file", path: "/repo/src/a.ts", line: 12, column: 3, endLine: 20 }])
   posted.length = 0
   openLocalPath("/repo/Makefile")
-  assert.deepEqual(posted, [{ type: "frizz:open-file", path: "/repo/Makefile" }])
+  assert.deepEqual(posted, [{ type: "ntwine:open-file", path: "/repo/Makefile" }])
   await new Promise((resolve) => setTimeout(resolve, 20))
   assert.equal(store.drawers.length, 0, "no reader opened")
   assert.deepEqual(fetched, [], "nothing asked of the server")
 })
 
-test("Markdown still opens in Frizz's reader", () => {
+test("Markdown still opens in Ntwine's reader", () => {
   posted.length = 0
   openLocalPath("/repo/README.md")
   assert.deepEqual(posted, [])
@@ -157,7 +157,7 @@ test("a web page opened from code goes to the editor, and only http(s) does", ()
   posted.length = 0
   openExternalUrl("https://github.com/acme/app/pull/12")
   openExternalUrl("javascript:alert(1)")
-  assert.deepEqual(posted, [{ type: "frizz:open-external", url: "https://github.com/acme/app/pull/12" }])
+  assert.deepEqual(posted, [{ type: "ntwine:open-external", url: "https://github.com/acme/app/pull/12" }])
 })
 
 test("the editor's theme wins for the session and never touches the stored preference", () => {
@@ -168,8 +168,8 @@ test("the editor's theme wins for the session and never touches the stored prefe
   assert.deepEqual(getThemeSnapshot(), { preference: "light", resolved: "light" })
   setHostTheme("dark")
   assert.equal(root.dataset.theme, "dark")
-  assert.equal(local.get("frizz-theme"), "light", "the preference is the human's, untouched")
-  assert.equal(JSON.parse(session.get("frizz.embed")!).theme, "dark", "a reload of this frame keeps the editor's latest")
+  assert.equal(local.get("ntwine-theme"), "light", "the preference is the human's, untouched")
+  assert.equal(JSON.parse(session.get("ntwine.embed")!).theme, "dark", "a reload of this frame keeps the editor's latest")
 })
 
 test("the editor's colours: worn on the root under VS Code's names while it sends them, gone when it stops", () => {
@@ -182,23 +182,23 @@ test("the editor's colours: worn on the root under VS Code's names while it send
   // The focus blue is 3.9:1 on that side bar; as text it is lifted toward the foreground to 4.5.
   assert.ok(props.get("--host-accent") && props.get("--host-accent") !== "#0078d4", props.get("--host-accent"))
   assert.ok(props.get("--host-muted"))
-  assert.deepEqual(JSON.parse(session.get("frizz.embed")!).palette, { colors }, "a reload of this frame paints them first")
+  assert.deepEqual(JSON.parse(session.get("ntwine.embed")!).palette, { colors }, "a reload of this frame paints them first")
   // An editor tab's frame takes the editor's background instead; high contrast is marked.
   setHostTheme("dark", { colors: { "editor-background": "#000000", foreground: "#ffffff" }, surface: "editor", contrast: true })
   assert.equal(root.dataset.hostColors, "editor")
   assert.equal(root.dataset.hostContrast, "")
   assert.equal(props.has("--vscode-sideBar-background"), false, "a colour the new theme lacks is not left over from the old")
-  // frizz.matchEditorTheme turned off: the next theme message has no colours.
+  // ntwine.matchEditorTheme turned off: the next theme message has no colours.
   setHostTheme("dark")
   assert.equal(root.dataset.hostColors, undefined)
   assert.equal(root.dataset.hostContrast, undefined)
   assert.deepEqual([...props.keys()], [])
-  assert.equal(JSON.parse(session.get("frizz.embed")!).palette, undefined)
+  assert.equal(JSON.parse(session.get("ntwine.embed")!).palette, undefined)
 })
 
 test("a sidebar never claims an item the server holds for a browser tab", async () => {
   // Focused, with a board in: everything a browser tab needs to claim on `compose-pending`. The extension
-  // posts its own selections into the sidebar (frizz:compose); a held item is a window WITHOUT a sidebar's.
+  // posts its own selections into the sidebar (ntwine:compose); a held item is a window WITHOUT a sidebar's.
   const document = globalThis.document as unknown as { hasFocus(): boolean }
   const hasFocus = document.hasFocus
   document.hasFocus = () => true

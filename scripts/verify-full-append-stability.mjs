@@ -13,7 +13,7 @@
 // It measures what the READER perceives — the viewport-relative Y of a named row on screen — not
 // scrollTop, which a virtualizer legitimately moves to hold rows still.
 //
-// Usage — boot a disposable stack first (see .agents/skills/frizz-stack), then:
+// Usage — boot a disposable stack first (see .agents/skills/ntwine-stack), then:
 //   node scripts/verify-full-append-stability.mjs --home=/abs/temp-home --url=http://127.0.0.1:PORT/
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs"
@@ -80,7 +80,7 @@ for (let i = 0; i < 14; i++) seed.push(assistant(prose(3 + (i % 4), `Working ste
 const TAIL_ID = `msg_${n}`
 writeFileSync(jsonl, seed.map((r) => JSON.stringify(r)).join("\n") + "\n")
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode)
-  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${now()}', 'Full append stability', 'claude', 'opus', 'high', 'default')`])
+  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${now()}', 'Full append stability', 'claude', 'opus', 'high', 'default')`])
 const append = (record) => appendFileSync(jsonl, JSON.stringify(record) + "\n")
 const api = createRpcClient(url)
 

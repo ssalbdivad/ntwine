@@ -138,7 +138,7 @@ test("a malformed or hostile request is rejected without throwing", async () => 
 test("the signing input is stable and separator-safe", async () => {
   const payload = { name: "colin", port: 9393, pubkey: "abc", issuedAt: NOW }
   const once = new TextDecoder().decode(claimSigningInput(payload))
-  assert.equal(once, `frizz-claim:v${CLAIM_PROTOCOL_VERSION}:colin:9393:abc:${NOW}:`)
+  assert.equal(once, `ntwine-claim:v${CLAIM_PROTOCOL_VERSION}:colin:9393:abc:${NOW}:`)
   // Field order is fixed rather than derived from object key order, so a second call with the keys
   // written differently produces identical bytes.
   const reordered = { issuedAt: NOW, pubkey: "abc", port: 9393, name: "colin" }
@@ -147,7 +147,7 @@ test("the signing input is stable and separator-safe", async () => {
   // The GitHub field is always in the string, empty when absent, so a claim carrying one can never
   // produce the same bytes as a claim without.
   const withToken = new TextDecoder().decode(claimSigningInput({ ...payload, github: "gho_abc" }))
-  assert.equal(withToken, `frizz-claim:v${CLAIM_PROTOCOL_VERSION}:colin:9393:abc:${NOW}:gho_abc`)
+  assert.equal(withToken, `ntwine-claim:v${CLAIM_PROTOCOL_VERSION}:colin:9393:abc:${NOW}:gho_abc`)
   assert.notEqual(withToken, once)
 })
 
@@ -165,7 +165,7 @@ test("a GitHub token cannot be swapped after signing", async () => {
 })
 
 test("a keypair survives being written to disk and read back", async () => {
-  // This is what `~/.frizz/identity.key` does on every launch; a key that cannot round-trip means the
+  // This is what `~/.ntwine/identity.key` does on every launch; a key that cannot round-trip means the
   // owner silently loses their name on the next renewal.
   const identity = await generateClaimIdentity()
   const pkcs8 = await exportClaimPrivateKey(identity.privateKey)

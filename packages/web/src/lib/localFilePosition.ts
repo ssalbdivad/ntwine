@@ -1,4 +1,4 @@
-import type { FilePosition } from "@frizz/shared"
+import type { FilePosition } from "@ntwine/shared"
 
 // THE PLACE IN A FILE a local-file link names, carried BESIDE its path on the element every producer
 // tags — `data-local-path` holds the bare path, these hold the line. A link written `a.ts:12`,

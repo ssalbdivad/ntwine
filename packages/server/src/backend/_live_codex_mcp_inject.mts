@@ -1,10 +1,10 @@
-// LIVE PROBE: how does frizz mount an MCP server into a CODEX worker?
+// LIVE PROBE: how does ntwine mount an MCP server into a CODEX worker?
 //   nub packages/server/src/backend/_live_codex_mcp_inject.mts
 //
-// Why this exists. `FRIZZ_MCP` is mounted only by `claudeMcpConfig` (dispatch.ts), so the codex dispatch
-// config carries no `mcp_servers` at all — while workerPrompt.ts claims frizz "injects the ONE unified
-// `frizz` MCP server into BOTH claude and codex workers" and WORKER_PROMPT.codex.golden.txt documents
-// `mcp__frizz__spawn_thread` to codex workers. Codex workers were told about a tool they did not have.
+// Why this exists. `NTWINE_MCP` is mounted only by `claudeMcpConfig` (dispatch.ts), so the codex dispatch
+// config carries no `mcp_servers` at all — while workerPrompt.ts claims ntwine "injects the ONE unified
+// `ntwine` MCP server into BOTH claude and codex workers" and WORKER_PROMPT.codex.golden.txt documents
+// `mcp__ntwine__spawn_thread` to codex workers. Codex workers were told about a tool they did not have.
 //
 // MEASURED 2026-07-31 against codex-cli 0.146.0, three findings:
 //
@@ -20,7 +20,7 @@
 //   3. Under a restrictive approval policy with no approval channel the mounted call is CANCELLED,
 //      not missing: the log reads `mcp: <server>/<tool> started` then `(failed)` +
 //      `user cancelled MCP tool call`. Do not read that as a mounting failure — it is the approval
-//      path, which frizz already owns separately (see "a worker NEVER stalls on an approval").
+//      path, which ntwine already owns separately (see "a worker NEVER stalls on an approval").
 //
 // The load-bearing evidence is the MARKER FILE, not the model's prose: the probe MCP server writes a
 // nonce to disk when its tool actually executes, so a model that merely CLAIMS to have called the tool
@@ -29,7 +29,7 @@
 // This probe drives `codex exec`, not the app-server bridge, deliberately: both resolve `-c` through
 // the same config loader, and the bridge arm needs a live app-server per arm, which made the probe
 // take >5min and hang on unrelated environment contention. A hanging probe is a bad regression
-// artifact. The app-server path is covered end-to-end by a real frizz dispatch instead.
+// artifact. The app-server path is covered end-to-end by a real ntwine dispatch instead.
 //
 // INSTRUMENT NOTE, because getting here cost two wrong turns.
 //
@@ -72,7 +72,7 @@ function runCodex(args: string[], cwd: string, timeoutMs = 180_000): Promise<str
   })
 }
 const nonce = `probe-${randomUUID().slice(0, 12)}`
-const dir = mkdtempSync(join(tmpdir(), "frizz-codex-mcp-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-mcp-"))
 const markerPath = join(dir, "marker.txt")
 const serverPath = join(dir, "probe-mcp.mjs")
 
@@ -83,7 +83,7 @@ const ok = (label: string, cond: boolean, detail = "") => {
 }
 
 // A dependency-free stdio MCP server exposing ONE tool, written at runtime so the probe stays a single
-// self-contained file. Mirrors cc-worker/bin/frizz-mcp.mjs's hand-rolled NDJSON JSON-RPC surface.
+// self-contained file. Mirrors cc-worker/bin/ntwine-mcp.mjs's hand-rolled NDJSON JSON-RPC surface.
 writeFileSync(serverPath, `
 import { writeFileSync } from "node:fs"
 const TOOL = {
@@ -100,7 +100,7 @@ function handle(msg) {
       return reply(id, {
         protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : "2025-06-18",
         capabilities: { tools: {} },
-        serverInfo: { name: "frizzprobe", version: "0.0.1" },
+        serverInfo: { name: "ntwineprobe", version: "0.0.1" },
       })
     case "notifications/initialized":
     case "initialized":
@@ -136,7 +136,7 @@ process.stdin.on("end", () => process.exit(0))
 `)
 
 // The exact override shape the fix installs on the app-server's argv.
-const override = `mcp_servers.frizzprobe={command=${JSON.stringify(process.execPath)},args=[${JSON.stringify(serverPath)}]}`
+const override = `mcp_servers.ntwineprobe={command=${JSON.stringify(process.execPath)},args=[${JSON.stringify(serverPath)}]}`
 
 ;(async () => {
   console.log(`probe dir: ${dir}`)
@@ -154,7 +154,7 @@ const override = `mcp_servers.frizzprobe={command=${JSON.stringify(process.execP
     "If no such tool exists, reply NOTOOL.",
   ], dir)
 
-  const started = /mcp:\s*frizzprobe\/probe_ping\s+started/.test(stdout)
+  const started = /mcp:\s*ntwineprobe\/probe_ping\s+started/.test(stdout)
   const cancelled = /user cancelled MCP tool call/.test(stdout)
   const marker = existsSync(markerPath) ? readFileSync(markerPath, "utf8").trim() : null
   console.log(`mounted(started)=${started}  cancelled=${cancelled}  marker=${marker ?? "(absent)"}\n`)

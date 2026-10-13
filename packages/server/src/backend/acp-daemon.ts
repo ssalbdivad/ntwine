@@ -1,10 +1,10 @@
 // The detached ACP agent daemon: ONE per ACP thread. It owns the agent child (`opencode acp`,
 // `gemini --acp`, …) and serves its JSON-RPC over a local socket, so the agent OUTLIVES the disposable
-// frizz runtime that spawned it — which is what lets an in-flight ACP turn, and every sub-agent the
-// agent runs inside its own process, survive a Frizz restart or crash. It buys an ACP thread the same
+// ntwine runtime that spawned it — which is what lets an in-flight ACP turn, and every sub-agent the
+// agent runs inside its own process, survive a Ntwine restart or crash. It buys an ACP thread the same
 // immunity a Codex thread gets from the app-server daemon (codex-app-server-daemon.ts) and a Claude
 // thread from its session broker (claude-agent-broker.ts): forked `detached: true` into its own process
-// group, not a child of frizz.
+// group, not a child of ntwine.
 //
 // Before this existed the agent was an ordinary stdio child of the runtime: every restart closed its
 // stdin and the agent exited with it (the protocol's own teardown), taking the running turn and its
@@ -25,7 +25,7 @@
 //     raised meanwhile are replayed, in order, the moment the next runtime attaches.
 //
 // Launched by forkAcpDaemon() in acp-host.ts, which passes its whole config as JSON in
-// FRIZZ_ACP_DAEMON. This process has no stdio (stdio:"ignore"); its only interface is the socket and
+// NTWINE_ACP_DAEMON. This process has no stdio (stdio:"ignore"); its only interface is the socket and
 // the on-disk record file.
 import { spawn } from "node:child_process"
 import { createServer, type Socket } from "node:net"
@@ -57,15 +57,15 @@ interface DaemonConfig {
 const MAX_QUEUED_LINES = 20_000
 const MAX_QUEUED_BYTES = 64 * 1024 * 1024
 const MAX_LINE_BYTES = 8 * 1024 * 1024
-// A daemon whose frizz never comes back must not live forever. Reattach happens within seconds of a
+// A daemon whose ntwine never comes back must not live forever. Reattach happens within seconds of a
 // real restart, so anything still unattached after this is genuinely abandoned.
 const IDLE_EXIT_MS = 6 * 60 * 60 * 1000
 const REACHABILITY_CHECK_MS = 30_000
 const REACHABILITY_STRIKES = 2
 
 function readConfig(): DaemonConfig {
-  const raw = process.env.FRIZZ_ACP_DAEMON
-  if (!raw) throw new Error("acp daemon started without FRIZZ_ACP_DAEMON")
+  const raw = process.env.NTWINE_ACP_DAEMON
+  if (!raw) throw new Error("acp daemon started without NTWINE_ACP_DAEMON")
   const config = JSON.parse(raw) as DaemonConfig
   if (!config.socketPath || !config.recordPath || !config.command || !config.generation || !config.sessionId) {
     throw new Error("acp daemon config is incomplete")
@@ -188,7 +188,7 @@ function main(): void {
     queuedLines.push(line)
     queuedBytes += Buffer.byteLength(line) + 1
   }
-  const control = (payload: Record<string, unknown>): string => JSON.stringify({ frizz: 1, ...payload })
+  const control = (payload: Record<string, unknown>): string => JSON.stringify({ ntwine: 1, ...payload })
 
   // ---- id bookkeeping -----------------------------------------------------------------------------
   // daemon id -> the client id that currently owns the request (rewritten by `adopt` after a restart),
@@ -243,7 +243,7 @@ function main(): void {
   const readClientLine = (line: string): void => {
     let message: Record<string, unknown>
     try { message = JSON.parse(line) as Record<string, unknown> } catch { return }
-    if (message.frizz === 1) {
+    if (message.ntwine === 1) {
       // `adopt`: a reattached client takes ownership of a request the dead client left in flight.
       const adopt = message.adopt as { daemonId?: unknown; clientId?: unknown } | undefined
       if (adopt && typeof adopt.daemonId === "number" && (typeof adopt.clientId === "number" || typeof adopt.clientId === "string")) {
@@ -286,7 +286,7 @@ function main(): void {
   }
 
   const server = createServer((sock) => {
-    // One client at a time: a new frizz generation supersedes the old one's socket outright.
+    // One client at a time: a new ntwine generation supersedes the old one's socket outright.
     if (client) { try { client.destroy() } catch {} }
     client = sock
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
@@ -325,7 +325,7 @@ function main(): void {
   })
 
   const sweepOwnFamily = (): void =>
-    sweepStaleSockets({ dir: dirname(config.socketPath), prefix: "frizz-acp-", keep: [config.socketPath] })
+    sweepStaleSockets({ dir: dirname(config.socketPath), prefix: "ntwine-acp-", keep: [config.socketPath] })
 
   const startListening = (): void => {
     if (process.platform !== "win32" && existsSync(config.socketPath)) { try { unlinkSync(config.socketPath) } catch {} }

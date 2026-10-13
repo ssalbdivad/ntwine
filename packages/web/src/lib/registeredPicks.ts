@@ -1,4 +1,4 @@
-import type { AskedQuestion } from "@frizz/shared"
+import type { AskedQuestion } from "@ntwine/shared"
 import type { BlockAnswer } from "./questionBlocks.ts"
 
 export type QuestionPick = Required<Pick<BlockAnswer, "chosen" | "chosenSet">>

@@ -5,8 +5,8 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { Readable } from "node:stream"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
-import { mountRouter } from "@frizz/rpc/server"
-import { DEFAULT_PORT, ATTACHMENT_MAX_BASE64_CHARS, attachmentExtension, isAllowedAttachmentName, type ServerEvent, frizzRoute } from "@frizz/shared"
+import { mountRouter } from "@ntwine/rpc/server"
+import { DEFAULT_PORT, ATTACHMENT_MAX_BASE64_CHARS, attachmentExtension, isAllowedAttachmentName, type ServerEvent, ntwineRoute } from "@ntwine/shared"
 import { createRouter } from "./router.ts"
 import type { AppContext } from "./context.ts"
 import { allowedLocalCorsOrigin, isTrustedLocalHttpRequest } from "./local-origin.ts"
@@ -33,7 +33,7 @@ export interface AppOptions {
   controlToken?: string
   /**
    * The machine-wide owner's token, when this server runs under the stable launcher. A second
-   * `frizz` typed in any folder holds it (it is in the address record that names this server), where
+   * `ntwine` typed in any folder holds it (it is in the address record that names this server), where
    * `controlToken` is known only to a launcher that can find the hosting project's own record.
    */
   machineToken?: string
@@ -48,7 +48,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
 
   // The API is a local control plane, not a public CORS service. Validate Host and require every present
   // Origin to name that SAME canonical loopback hostname + actual port, so an unrelated service on another
-  // loopback family cannot borrow Frizz's browser authority. Reject all forwarded authority (Frizz does not
+  // loopback family cannot borrow Ntwine's browser authority. Reject all forwarded authority (Ntwine does not
   // run behind a trusted proxy) and every non-local/mismatched Origin. Missing Origin is allowed
   // only for the read-only CLI health probe or a browser-forbidden `Sec-Fetch-Site: same-origin` request
   // (same-origin GET/fetch requests may omit Origin). Browser WebSockets use the stricter mandatory
@@ -56,9 +56,9 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   app.use("*", async (c, next) => {
     const origin = c.req.header("origin")
     const allowMissingOrigin = origin === undefined && (
-      (c.req.method === "GET" && c.req.path === frizzRoute("/health")) ||
-      (c.req.method === "POST" && c.req.path === frizzRoute("/control/stop")) ||
-      (c.req.method === "POST" && c.req.path === frizzRoute(LAUNCH_ROUTE_PATH)) ||
+      (c.req.method === "GET" && c.req.path === ntwineRoute("/health")) ||
+      (c.req.method === "POST" && c.req.path === ntwineRoute("/control/stop")) ||
+      (c.req.method === "POST" && c.req.path === ntwineRoute(LAUNCH_ROUTE_PATH)) ||
       c.req.header("sec-fetch-site") === "same-origin"
     )
     if (!isTrustedLocalHttpRequest({
@@ -80,37 +80,37 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
       origin: (origin) => allowedLocalCorsOrigin(origin, port),
       // Expose the boot-id header so the client can read it off /rpc responses. Today the web app is
       // same-origin to the API (Vite middleware in dev, static in prod) so this is moot — but if it is
-      // ever served cross-origin, without this the browser hides x-frizz-boot and the RPC restart-detection
+      // ever served cross-origin, without this the browser hides x-ntwine-boot and the RPC restart-detection
       // channel silently dies (SSE frames still carry the id, so detection degrades rather than breaks).
-      exposeHeaders: ["x-frizz-boot"],
+      exposeHeaders: ["x-ntwine-boot"],
     }),
   )
 
   // Stamp the server boot id on every /rpc response — a second, always-warm channel (besides the SSE
   // board frames) for the client to notice a restart even when the board is quiet but RPCs are flowing.
-  // `frizzRoute`, not a bare "/rpc/*": every route around this one moved under `/_frizz` and this
+  // `ntwineRoute`, not a bare "/rpc/*": every route around this one moved under `/_ntwine` and this
   // middleware did not, so it matched nothing and the header was never sent — while the CORS
   // `exposeHeaders` above kept advertising it. Verified absent on the live server before the fix.
-  app.use(`${frizzRoute("/rpc")}/*`, async (c, next) => {
-    c.header("x-frizz-boot", ctx.bootId)
+  app.use(`${ntwineRoute("/rpc")}/*`, async (c, next) => {
+    c.header("x-ntwine-boot", ctx.bootId)
     await next()
   })
 
   // Whether a `dispatch` came from the board or a worker's `spawn_thread`, read off the request itself so
   // a worker whose shim predates `spawnedFrom` is still checked (dispatch-caller.ts).
-  app.use(frizzRoute("/rpc/dispatch"), (c, next) =>
+  app.use(ntwineRoute("/rpc/dispatch"), (c, next) =>
     withDispatchCaller({ origin: c.req.header("origin"), userAgent: c.req.header("user-agent") }, next))
   // …and whether a deadline change came from the human's drawer: only the human may move a deadline the
   // human set, and a worker's shim is told to use its own verb (router setThreadDeadline).
-  app.use(frizzRoute("/rpc/setThreadDeadline"), (c, next) =>
+  app.use(ntwineRoute("/rpc/setThreadDeadline"), (c, next) =>
     withDispatchCaller({ origin: c.req.header("origin"), userAgent: c.req.header("user-agent") }, next))
-  app.use(frizzRoute("/rpc/setRunningDeadlines"), (c, next) =>
+  app.use(ntwineRoute("/rpc/setRunningDeadlines"), (c, next) =>
     withDispatchCaller({ origin: c.req.header("origin"), userAgent: c.req.header("user-agent") }, next))
   // Attribute every procedure this request runs to whoever sent it, for the audit trail (audit.ts). An
   // AsyncLocalStorage rather than a handler argument: procedures receive only `{ input }`, and only a
   // handful of them record anything. The launcher's proxy says who called in CALLER_HEADER; a request
   // without one reached this server directly, and `remoteAddress` is that caller (see pipeToApp).
-  app.use(`${frizzRoute("/rpc")}/*`, (c, next) =>
+  app.use(`${ntwineRoute("/rpc")}/*`, (c, next) =>
     withRequestOrigin(
       requestOriginFrom({
         caller: c.req.header(CALLER_HEADER),
@@ -126,7 +126,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   // connection through a tunnel, which is what made a remote board feel slow. Brotli q4 takes it to
   // ~150 KB for ~6 ms of CPU. Scoped to /rpc/* on purpose: the SSE stream must never be buffered by a
   // compressor. See compression.ts for the measurements behind the level choice.
-  app.use(`${frizzRoute("/rpc")}/*`, async (c, next) => {
+  app.use(`${ntwineRoute("/rpc")}/*`, async (c, next) => {
     await next()
     const encoding = negotiateEncoding(c.req.header("accept-encoding"))
     if (!encoding || !c.res.body) return
@@ -147,7 +147,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   // Launcher identity probe: a bare `{ok:true}` cannot distinguish two workspace servers that race
   // for a port or a stale lock whose PID was reused. Keep this small and non-secret; all fields are
   // already visible in the board keyframe/client URL.
-  app.get(frizzRoute("/health"), (c) => c.json({
+  app.get(ntwineRoute("/health"), (c) => c.json({
     ok: true as const,
     projectId: ctx.project.id,
     // The folder the project IS — for the Home workspace, its agents' folder rather than the state
@@ -159,8 +159,8 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
 
   // Cross-platform owner stop channel. The raw capability is never returned by /health; the CLI
   // reads it from the 0600 owner record and health proves only its project-bound SHA-256 digest.
-  app.post(frizzRoute("/control/stop"), (c) => {
-    const supplied = c.req.header("x-frizz-launch-token")
+  app.post(ntwineRoute("/control/stop"), (c) => {
+    const supplied = c.req.header("x-ntwine-launch-token")
     if (!options.controlToken || !supplied || supplied !== options.controlToken) return c.text("Forbidden", 403)
     if (!options.requestOwnerStop) return c.text("Owner control unavailable", 503)
     const stop = setTimeout(options.requestOwnerStop, 25)
@@ -168,11 +168,11 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
     return c.json({ accepted: true as const }, 202)
   })
 
-  // Where a `frizz` typed in some folder lands (launch-routing.ts). A launcher asks instead of
+  // Where a `ntwine` typed in some folder lands (launch-routing.ts). A launcher asks instead of
   // deciding, so the rule about folders changes with a server release. Token-bound like the stop
   // channel, because answering can register the folder as a project: only the OS user who started
-  // Frizz can read either token, and that user's launcher did exactly this itself until now.
-  app.post(frizzRoute(LAUNCH_ROUTE_PATH), async (c) => {
+  // Ntwine can read either token, and that user's launcher did exactly this itself until now.
+  app.post(ntwineRoute(LAUNCH_ROUTE_PATH), async (c) => {
     const supplied = c.req.header(LAUNCH_TOKEN_HEADER)
     const held = [options.controlToken, options.machineToken].filter((token): token is string => !!token)
     if (!supplied || !held.includes(supplied)) return c.text("Forbidden", 403)
@@ -196,7 +196,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   })
 
   // Pictures AND videos (a ```lightbox gallery plays both), in byte ranges — see local-image.ts.
-  app.get(frizzRoute("/local-image"), (c) => {
+  app.get(ntwineRoute("/local-image"), (c) => {
     const r = resolveLocalImage(c.req.query("path"), c.req.header("range"))
     if (r.status === 416) return c.body(null, 416, { "content-range": `bytes */${r.size}`, "accept-ranges": "bytes" })
     if (r.status === 400 || r.status === 404) return c.text(String(r.status), r.status)
@@ -213,7 +213,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   //
   // Cached hard on the client — a 404 included. Forty squares is forty requests on a cold load and
   // none at all thereafter, and the icons of a project on this machine do not change under anyone.
-  app.get(frizzRoute("/project-icon"), (c) => {
+  app.get(ntwineRoute("/project-icon"), (c) => {
     const r = resolveProjectIconResponse(c.req.query("id"))
     if (r.status !== 200) return c.text(String(r.status), r.status)
     return c.body(Uint8Array.from(r.body), 200, {
@@ -226,7 +226,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
     })
   })
 
-  app.get(frizzRoute("/local-visualization"), (c) => {
+  app.get(ntwineRoute("/local-visualization"), (c) => {
     const row = ctx.storage.getSession(c.req.query("slug") ?? "")
     const r = resolveLocalVisualization(ctx.project.dir, row?.session_id, c.req.query("file"))
     if (r.status !== 200) return c.text(String(r.status), r.status)
@@ -238,14 +238,14 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   })
 
   // Attachment intake for drag-and-dropped / pasted / picked files (images AND every document, office,
-  // data and archive format in @frizz/shared ATTACHMENT_EXTENSIONS): the file lands on DISK (outside
+  // data and archive format in @ntwine/shared ATTACHMENT_EXTENSIONS): the file lands on DISK (outside
   // the repo, under the project's state dir) and the client inserts the returned absolute path into
   // the message text.
   // Workers open it with their Read/file tool; the chat renders images via /local-image and non-image
   // files as an openable chip (both roots include the attachments dir). JSON base64 keeps the route
   // dependency-free. The extension allowlist + the char cap are the only trust gates; the on-disk name
   // is timestamped and stripped of every client path segment.
-  app.post(frizzRoute("/attach"), async (c) => {
+  app.post(ntwineRoute("/attach"), async (c) => {
     let body: { name?: string; data?: string }
     try {
       body = await c.req.json()
@@ -277,7 +277,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   // never lost — buffered deltas are all ≤ the keyframe's seq (the keyframe reflects the latest committed
   // state), so the client's dup-guard drops them. Without this, a lost delta would force an immediate
   // resync on connect.
-  app.get(frizzRoute("/events"), (c) =>
+  app.get(ntwineRoute("/events"), (c) =>
     streamSSE(c, async (stream) => {
       let id = 0
       const send = (event: unknown) => stream.writeSSE({ data: JSON.stringify(event), id: String(id++) })
@@ -311,6 +311,6 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
     }),
   )
 
-  mountRouter(app, frizzRoute("/rpc"), createRouter(ctx))
+  mountRouter(app, ntwineRoute("/rpc"), createRouter(ctx))
   return app
 }

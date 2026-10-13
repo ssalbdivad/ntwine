@@ -9,7 +9,7 @@ const renderText = () => {
   return render
 }
 
-// An ```awaiting fence that is not a LIVE wait never draws as a card. Two ways it stops being live: frizz
+// An ```awaiting fence that is not a LIVE wait never draws as a card. Two ways it stops being live: ntwine
 // REFUSED the park (the flag the server sets when it folds the correction out of the transcript,
 // transcript.ts markFenceRefused), which draws nothing at all, or the worker has SPOKEN since, which
 // settles by construction whatever the fence named — and keeps its prose as a muted note, because since
@@ -31,7 +31,7 @@ test("a fence that is not a live wait is skipped before it ever reaches a card",
     renderText().indexOf("staleAwaiting") < renderText().indexOf("<FenceCard"),
     "the skip must come before the push, so no block slot is spent on a fence that draws nothing",
   )
-  // …and `done` is untouched: a finished thread stays finished, whatever frizz thought of its last park
+  // …and `done` is untouched: a finished thread stays finished, whatever ntwine thought of its last park
   // and however long ago it was written.
   assert.doesNotMatch(renderText(), /(fenceRefused|staleAwaiting)[^\n]*"done"/)
 })

@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react"
 import { useSnapshot } from "valtio"
-import { awaitingSteps, expandUserCommandDraft, questionAnswerMessage, withAnswersNote, type AccountBackend, type ThreadView } from "@frizz/shared"
+import { awaitingSteps, expandUserCommandDraft, questionAnswerMessage, withAnswersNote, type AccountBackend, type ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, store } from "../store.ts"
 import { outgoingMessage } from "../lib/editorContext.ts"
@@ -167,7 +167,7 @@ export function ThreadComposerBox({
   // and two Done verbs one above the other on a phone read as the same button.
   const stepsOpen = thread?.lastFence?.kind === "awaiting" && awaitingSteps(thread.lastFence.hints).length > 0
   const canComplete = thread ? threadLifecycleAvailability(thread).archive && !turnRunning && !stepsOpen : false
-  // THE GOAL rides the rail on every desktop surface that steers a Frizz-owned session — the same
+  // THE GOAL rides the rail on every desktop surface that steers a Ntwine-owned session — the same
   // threads the lifecycle verbs in the header serve. The phone reaches it from the header's ⋯ sheet.
   const goal = thread && thread.kind === "session" && thread.foreign !== true ? <RecurringPromptControl thread={thread as ThreadView} /> : undefined
 
@@ -179,14 +179,14 @@ export function ThreadComposerBox({
     const answers = !phoneBar && registered && registered.slug === slug ? registered.take() : null
     const fenced = phoneBar ? null : scope?.takeFenced() ?? null
     if (!text && !answers && !fenced) return
-    // `/login` / `/logout` are frizz-owned account actions for THIS thread's backend — invoked
+    // `/login` / `/logout` are ntwine-owned account actions for THIS thread's backend — invoked
     // locally, never delivered to the worker as a prompt (a leading slash is not a stable provider
     // command transport across the live-paste vs dead-resume lifecycles).
     const alias = parseAccountAlias(text)
     if (alias) {
       clearMessage()
       if (thread?.backend === "acp") {
-        showToast("An ACP agent signs in through its own CLI — Frizz holds no account for it")
+        showToast("An ACP agent signs in through its own CLI — Ntwine holds no account for it")
         return
       }
       const backend: AccountBackend = thread?.backend === "codex" ? "codex" : "claude"
@@ -196,7 +196,7 @@ export function ThreadComposerBox({
     }
     // `$ npm test` is not a message: it opens a terminal on this thread, in the folder its agent is working
     // in, running that line — a bare `$` opens a shell there (lib/threadTerminals.ts composerTerminalLine).
-    // Only on a thread Frizz owns; the queue card's copy of this box stays a reply box.
+    // Only on a thread Ntwine owns; the queue card's copy of this box stays a reply box.
     const terminal = surface === "chatComposer" && thread?.kind === "session" && !thread.foreign ? composerTerminalLine(text) : undefined
     if (terminal) {
       clearMessage()
@@ -364,7 +364,7 @@ export function ThreadComposerBox({
         railLead={goal}
         fileDrop={fileDrop}
         // An external session keeps the ↑: sending there takes the session over, and there is no turn
-        // of Frizz's to steer or queue behind until it has.
+        // of Ntwine's to steer or queue behind until it has.
         send={thread?.foreign ? undefined : { mode, onMode: (next) => setSendMode(slug, next), running, staged }}
       />
       {controls.status}

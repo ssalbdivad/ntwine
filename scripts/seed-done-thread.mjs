@@ -12,7 +12,7 @@
 // the only writer of state='archived' in production, and using it keeps the fixture honest about the
 // board refresh + SSE delta that follow it.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the tailer reads.
 // Usage: node scripts/seed-done-thread.mjs --home=/abs/temp-home --port=NNNN
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -53,7 +53,7 @@ const FENCE = [
 ].join("\n")
 
 function seed({ slug, sessionId, title, prompt }) {
-  const threadName = `frizz-${slug}`
+  const threadName = `ntwine-${slug}`
   const records = [
     {
       parentUuid: null, isSidechain: false, type: "user", uuid: uuid(), timestamp: at(0), session_id: sessionId, cwd,

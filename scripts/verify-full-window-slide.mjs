@@ -10,7 +10,7 @@
 //
 // Every earlier harness seeded a transcript comfortably UNDER 300 messages, so none of them ever ran it.
 //
-// Usage — boot a disposable stack first (see .agents/skills/frizz-stack), then:
+// Usage — boot a disposable stack first (see .agents/skills/ntwine-stack), then:
 //   node scripts/verify-full-window-slide.mjs --home=… --url=… [--park=900] [--appends=25]
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs"
@@ -75,7 +75,7 @@ for (let i = 0; i < 12; i++) seed.push(assistant(prose(2 + (i % 3), `Working ste
 let tailId = `msg_${n}`
 writeFileSync(jsonl, seed.map((r) => JSON.stringify(r)).join("\n") + "\n")
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode)
-  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${now()}', 'Window slide', 'claude', 'opus', 'high', 'default')`])
+  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${now()}', 'Window slide', 'claude', 'opus', 'high', 'default')`])
 const append = (record) => appendFileSync(jsonl, JSON.stringify(record) + "\n")
 const api = createRpcClient(url)
 

@@ -14,7 +14,7 @@ tailscale serve status
 
 `status` reports the URL it is serving, in the form `https://<machine>.<tailnet>.ts.net`. Take the origin from there rather than composing it by hand — the MagicDNS name is not something you choose.
 
-## Tell Frizz the origin
+## Tell Ntwine the origin
 
 ```text
   press R, choose Tailscale
@@ -22,9 +22,9 @@ tailscale serve status
   Origin  https://your-machine.your-tailnet.ts.net
 ```
 
-Frizz reads your tailnet name while the pane is open, so the field is usually already filled in.
+Ntwine reads your tailnet name while the pane is open, so the field is usually already filled in.
 
-Frizz checks that a request's `Host` matches the origin it was given, so the value has to be the exact origin a browser sees — scheme included, no trailing slash.
+Ntwine checks that a request's `Host` matches the origin it was given, so the value has to be the exact origin a browser sees — scheme included, no trailing slash.
 
 ## Stop serving
 

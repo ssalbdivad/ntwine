@@ -120,7 +120,7 @@ const { db } = sandbox
 // such column. `sessionProjectColumns` yields the right prefix pair for whichever this sandbox is.
 const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
 const seed = (slug, sessionId, title, backend, model) => {
-  const threadName = `frizz-${slug}`
+  const threadName = `ntwine-${slug}`
   execFileSync("sqlite3", [db, `DELETE FROM session WHERE slug = '${slug}';`])
   execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session
     (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, unread, exited, archived, title_auto, runtime_generation, profile_revision)
@@ -172,8 +172,8 @@ try {
 
   const cardsSeen = await page.evaluate(() =>
     [...document.querySelectorAll("[data-drawer-layer] [data-todo-card]")].map((card) => {
-      const header = card.querySelector(".frizz-bash-header")
-      return { text: header.textContent.replace(/\s+/g, " ").trim(), marks: header.querySelectorAll("svg.frizz-todo-mark").length }
+      const header = card.querySelector(".ntwine-bash-header")
+      return { text: header.textContent.replace(/\s+/g, " ").trim(), marks: header.querySelectorAll("svg.ntwine-todo-mark").length }
     }))
   // ONE checklist card in this thread: the TaskList. The four creates and three updates carry no list, so
   // they must NOT be promoted into to-do cards — inventing a list for them is exactly what this doesn't do.
@@ -185,9 +185,9 @@ try {
 
   // The deltas: ordinary cards, titled by the CHANGE — and never by the 600-char description.
   const deltas = await page.evaluate(() =>
-    [...document.querySelectorAll("[data-drawer-layer] .frizz-bash")].map((c) => {
-      const h = c.querySelector(".frizz-bash-header")
-      return { label: h?.querySelector(".frizz-bash-label")?.textContent, text: h?.textContent.replace(/\s+/g, " ").trim() }
+    [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash")].map((c) => {
+      const h = c.querySelector(".ntwine-bash-header")
+      return { label: h?.querySelector(".ntwine-bash-label")?.textContent, text: h?.textContent.replace(/\s+/g, " ").trim() }
     }).filter((c) => c.label && /^Task(Create|Update|Get)$/.test(c.label)))
   check(deltas.length === 7, "every delta renders as an ordinary tool card", `saw ${deltas.length}`)
   check(!deltas.some((d) => d.text.includes("MAINTAINER RULING")), "NO card is titled by its task description",
@@ -201,10 +201,10 @@ try {
 
   // ---- the checklist body ----
   const listCard = (await page.$$("[data-drawer-layer] [data-todo-card]"))[0]
-  await listCard.$eval(".frizz-bash-header", (el) => el.click())
-  await page.waitForSelector("[data-drawer-layer] [data-todo-card] .frizz-todo-list", { timeout: 10_000 })
+  await listCard.$eval(".ntwine-bash-header", (el) => el.click())
+  await page.waitForSelector("[data-drawer-layer] [data-todo-card] .ntwine-todo-list", { timeout: 10_000 })
   const body = await page.evaluate(() =>
-    [...document.querySelectorAll("[data-drawer-layer] [data-todo-card] .frizz-todo-list .frizz-todo-row")].map((row) => ({
+    [...document.querySelectorAll("[data-drawer-layer] [data-todo-card] .ntwine-todo-list .ntwine-todo-row")].map((row) => ({
       text: row.textContent.replace(/\s+\u2014\s+(to do|in progress|done)$/, "").trim(),
       current: row.dataset.current === "true",
       status: row.textContent.match(/\u2014\s+(to do|in progress|done)$/)?.[1],
@@ -218,18 +218,18 @@ try {
 
   // The description is still REACHABLE — as the delta card's expandable body, just not as its title.
   const noteCard = await page.evaluateHandle(() =>
-    [...document.querySelectorAll("[data-drawer-layer] .frizz-bash")].find((c) => c.querySelector(".frizz-bash-label")?.textContent === "TaskCreate"))
-  await noteCard.asElement().$eval(".frizz-bash-header", (el) => el.click())
-  await page.waitForFunction(() => [...document.querySelectorAll("[data-drawer-layer] .frizz-bash-output-body")].some((p) => p.textContent.includes("MAINTAINER RULING")), { timeout: 10_000 })
+    [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash")].find((c) => c.querySelector(".ntwine-bash-label")?.textContent === "TaskCreate"))
+  await noteCard.asElement().$eval(".ntwine-bash-header", (el) => el.click())
+  await page.waitForFunction(() => [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash-output-body")].some((p) => p.textContent.includes("MAINTAINER RULING")), { timeout: 10_000 })
   check(true, "the description IS reachable, in the delta card's expandable body")
 
   // A row longer than the card WRAPS, and wraps under its own text — the checkbox keeps its column and the
-  // continuation lines stay indented past it. `.frizz-bash` is overflow:hidden, so the failure mode is a
+  // continuation lines stay indented past it. `.ntwine-bash` is overflow:hidden, so the failure mode is a
   // silently amputated task, with no ellipsis to admit it.
   const wrap = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll("[data-drawer-layer] [data-todo-card] .frizz-todo-list .frizz-todo-row")]
+    const rows = [...document.querySelectorAll("[data-drawer-layer] [data-todo-card] .ntwine-todo-list .ntwine-todo-row")]
     const long = rows.find((r) => r.textContent.includes("sandbox/integration"))
-    const list = long.closest(".frizz-todo-list").getBoundingClientRect()
+    const list = long.closest(".ntwine-todo-list").getBoundingClientRect()
     const text = [...long.children].find((c) => c.tagName === "SPAN" && !c.classList.contains("sr-only"))
     const lines = [...(() => { const r = document.createRange(); r.selectNodeContents(text); return r.getClientRects() })()]
     const glyph = long.querySelector("svg").getBoundingClientRect()
@@ -305,7 +305,7 @@ try {
       }
     }
     const card = document.querySelector("[data-drawer-layer] [data-todo-card]")
-    const rows = [...card.querySelectorAll(".frizz-todo-list .frizz-todo-row")]
+    const rows = [...card.querySelectorAll(".ntwine-todo-list .ntwine-todo-row")]
     const byStatus = (word) => rows.find((r) => r.textContent.trim().endsWith(word))
     // The header glyph aligns to the HEADLINE beside it, not to the petite-caps label (which carries its
     // own separate optical correction) — so measure inside the headline group specifically.
@@ -323,10 +323,10 @@ try {
   // ...and removed immediately after, by its own HANDLE. The screenshots are captured below, and a leaked
   // nowrap turns the long task into a clipped one in the evidence (it did — the shot showed "…per-OS ja"
   // against the card edge). Removing it by scanning `querySelectorAll("style")` for the text is NOT the
-  // way: in dev, Vite injects the whole app CSS as a <style>, and diff.css contains both "frizz-todo-row"
+  // way: in dev, Vite injects the whole app CSS as a <style>, and diff.css contains both "ntwine-todo-row"
   // and "nowrap" — that predicate deleted the entire stylesheet, which then showed up as a bogus
   // header-collision failure at 420px on an unstyled page.
-  const nowrapTag = await page.addStyleTag({ content: ".frizz-todo-row,.frizz-bash-header [data-todo-headline]{white-space:nowrap}" })
+  const nowrapTag = await page.addStyleTag({ content: ".ntwine-todo-row,.ntwine-bash-header [data-todo-headline]{white-space:nowrap}" })
   await new Promise((r) => setTimeout(r, 150))
   const align = await page.evaluate(measureInk)
   await nowrapTag.evaluate((el) => el.remove())
@@ -340,7 +340,7 @@ try {
     mkdirSync(shots, { recursive: true })
     await (await page.$("[data-drawer-layer] [data-todo-card]")).screenshot({ path: join(shots, "todo-list.png") })
     const deltaShot = await page.evaluateHandle(() =>
-      [...document.querySelectorAll("[data-drawer-layer] .frizz-bash")].find((c) => c.querySelector(".frizz-bash-label")?.textContent === "TaskCreate"))
+      [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash")].find((c) => c.querySelector(".ntwine-bash-label")?.textContent === "TaskCreate"))
     await deltaShot.asElement().screenshot({ path: join(shots, "todo-delta.png") })
     await page.screenshot({ path: join(shots, "todo-thread.png") })
     // The band at a narrow width: nothing may escape the card or collide with the counter.
@@ -353,9 +353,9 @@ try {
     const narrow = await page.evaluate(() => {
       const card = document.querySelector("[data-drawer-layer] [data-todo-card]")
       const b = card.getBoundingClientRect()
-      const head = card.querySelector(".frizz-bash-header").getBoundingClientRect()
-      const right = card.querySelector(".frizz-bash-header > span:last-child").getBoundingClientRect()
-      const left = card.querySelector(".frizz-bash-header > span:first-child").getBoundingClientRect()
+      const head = card.querySelector(".ntwine-bash-header").getBoundingClientRect()
+      const right = card.querySelector(".ntwine-bash-header > span:last-child").getBoundingClientRect()
+      const left = card.querySelector(".ntwine-bash-header > span:first-child").getBoundingClientRect()
       return { escapes: Math.round(head.right - b.right), collides: left.right > right.left + 1 }
     })
     check(narrow.escapes <= 1 && !narrow.collides, "the header holds at 420px — no escape, no collision", JSON.stringify(narrow))
@@ -374,10 +374,10 @@ try {
   // WRAPS, and `baselineOfTextNode` then reports the LAST line's baseline while the glyph aligns to the
   // first, which read as a 42px error on the first run.
   await page.reload({ waitUntil: "networkidle0" })
-  await page.addStyleTag({ content: "[data-todo-card]{font-size:25px !important}.frizz-todo-row{font-size:24px !important;white-space:nowrap}.frizz-bash-header .frizz-bash-label,.frizz-bash-header [data-todo-headline]{font-size:23px !important}" })
+  await page.addStyleTag({ content: "[data-todo-card]{font-size:25px !important}.ntwine-todo-row{font-size:24px !important;white-space:nowrap}.ntwine-bash-header .ntwine-bash-label,.ntwine-bash-header [data-todo-headline]{font-size:23px !important}" })
   await openEveryBand(page)
-  await (await page.$("[data-drawer-layer] [data-todo-card]")).$eval(".frizz-bash-header", (el) => el.click())
-  await page.waitForSelector("[data-drawer-layer] [data-todo-card] .frizz-todo-list", { timeout: 10_000 })
+  await (await page.$("[data-drawer-layer] [data-todo-card]")).$eval(".ntwine-bash-header", (el) => el.click())
+  await page.waitForSelector("[data-drawer-layer] [data-todo-card] .ntwine-todo-list", { timeout: 10_000 })
   const scaled = await page.evaluate(measureInk)
   for (const a of scaled) console.log(`      ink@2x  ${a.glyph.padEnd(20)} text ${a.fontSize}px  nudge ${a.nudgeDownPx > 0 ? "+" : ""}${a.nudgeDownPx}px`)
   // The ROWS are exactly scale-invariant, so they are held to the same tolerance as at 1x.
@@ -402,13 +402,13 @@ try {
   await openEveryBand(codex)
   const codexCards = await codex.$$("[data-drawer-layer] [data-todo-card]")
   check(codexCards.length === 2, "both codex update_plan shapes render a to-do card", `saw ${codexCards.length}`)
-  for (const card of codexCards) await card.$eval(".frizz-bash-header", (el) => el.click())
-  await codex.waitForFunction(() => document.querySelectorAll("[data-drawer-layer] [data-todo-card] .frizz-todo-list").length === 2, { timeout: 10_000 })
+  for (const card of codexCards) await card.$eval(".ntwine-bash-header", (el) => el.click())
+  await codex.waitForFunction(() => document.querySelectorAll("[data-drawer-layer] [data-todo-card] .ntwine-todo-list").length === 2, { timeout: 10_000 })
   const codexSeen = await codex.evaluate(() =>
     [...document.querySelectorAll("[data-drawer-layer] [data-todo-card]")].map((card) => ({
-      header: card.querySelector(".frizz-bash-header").textContent.replace(/\s+/g, " ").trim(),
-      rows: [...card.querySelectorAll(".frizz-todo-row")].map((r) => r.textContent.replace(/\s+/g, " ").trim()),
-      note: card.querySelector(".frizz-bash-output-body")?.textContent,
+      header: card.querySelector(".ntwine-bash-header").textContent.replace(/\s+/g, " ").trim(),
+      rows: [...card.querySelectorAll(".ntwine-todo-row")].map((r) => r.textContent.replace(/\s+/g, " ").trim()),
+      note: card.querySelector(".ntwine-bash-output-body")?.textContent,
     })))
   const [direct, wrapper] = codexSeen
   check(direct.header.includes("Inspect the PR context") && direct.header.includes("1/3"),

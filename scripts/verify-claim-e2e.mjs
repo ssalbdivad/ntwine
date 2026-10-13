@@ -17,7 +17,7 @@
  */
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { CLAIM_LEASE_MS } from "@frizz/shared";
+import { CLAIM_LEASE_MS } from "@ntwine/shared";
 import { handleClaim } from "../packages/registrar/src/claim-handler.ts";
 import { loadOrCreateClaimIdentity } from "../src/identity.ts";
 import { claimName, ClaimError } from "../src/registrar-client.ts";
@@ -112,7 +112,7 @@ function memoryStore() {
   };
 }
 
-const home = mkdtempSync(join(tmpdir(), "frizz-claim-e2e-"));
+const home = mkdtempSync(join(tmpdir(), "ntwine-claim-e2e-"));
 const cf = fakeCloudflare();
 const st = memoryStore();
 let clock = 1_800_000_000_000;
@@ -204,7 +204,7 @@ try {
   check("no second tunnel was created", cf.tunnels.size === 1, `${cf.tunnels.size} tunnels`);
 
   // 3. A DIFFERENT machine — a different key — cannot take the name.
-  const otherHome = mkdtempSync(join(tmpdir(), "frizz-claim-e2e-other-"));
+  const otherHome = mkdtempSync(join(tmpdir(), "ntwine-claim-e2e-other-"));
   try {
     const stranger = await loadOrCreateClaimIdentity(otherHome);
     let refused = null;
@@ -219,7 +219,7 @@ try {
       refused ? `${refused.code}: ${refused.message}` : "it was ALLOWED"
     );
     check("the owner still owns it", st.rows.get("colin")?.pubkey === (await (async () => {
-      const { exportClaimPublicKey } = await import("@frizz/shared");
+      const { exportClaimPublicKey } = await import("@ntwine/shared");
       return exportClaimPublicKey(identity.publicKey);
     })()));
 
@@ -245,8 +245,8 @@ try {
   // 6. THE AUTH-FREE PATH, over the same wire, with the GitHub gate UP: an anonymous name claims
   // with no token while a vanity name is still refused for lacking one.
   gate = async () => null; // every token is refused, so only the waiver can let a claim through
-  const { generateAnonymousClaimName } = await import("@frizz/shared");
-  const anonHome = mkdtempSync(join(tmpdir(), "frizz-claim-e2e-anon-"));
+  const { generateAnonymousClaimName } = await import("@ntwine/shared");
+  const anonHome = mkdtempSync(join(tmpdir(), "ntwine-claim-e2e-anon-"));
   try {
     const anonIdentity = await loadOrCreateClaimIdentity(anonHome);
     const anonName = generateAnonymousClaimName();
@@ -273,14 +273,14 @@ try {
   // is the real githubVerifier, asking the fake GitHub what the token is and what scopes it holds.
   // Custom names are withdrawn for now (CUSTOM_NAMES_OFFERED in src/cloud.ts), and establishCloudConfig
   // refuses a word up front while they are; the override turns the kept path back on for this process.
-  process.env.FRIZZ_CUSTOM_NAMES = "1";
+  process.env.NTWINE_CUSTOM_NAMES = "1";
   github.listen(0, "127.0.0.1");
   await once(github, "listening");
   const githubOrigin = `http://127.0.0.1:${github.address().port}`;
   gate = githubVerifier(fetch, githubOrigin);
   // establishCloudConfig signs with the real clock, so the registrar's clock joins it here.
   clock = Date.now();
-  const deviceHome = mkdtempSync(join(tmpdir(), "frizz-claim-e2e-device-"));
+  const deviceHome = mkdtempSync(join(tmpdir(), "ntwine-claim-e2e-device-"));
   try {
     const prompts = [];
     received.length = 0;
@@ -301,7 +301,7 @@ try {
     check("the name is bound to the account id", st.rows.get("device-word")?.githubId === 777, String(st.rows.get("device-word")?.githubId));
 
     // 8. AN OLD CLIENT, sending what `gh auth token` prints: the real verifier reads the scopes and refuses.
-    const oldHome = mkdtempSync(join(tmpdir(), "frizz-claim-e2e-old-"));
+    const oldHome = mkdtempSync(join(tmpdir(), "ntwine-claim-e2e-old-"));
     try {
       const oldIdentity = await loadOrCreateClaimIdentity(oldHome);
       let refused = null;
@@ -312,7 +312,7 @@ try {
       }
       check(
         "a gh-scoped token is refused, telling the person to update",
-        refused instanceof ClaimError && refused.code === "github-token-scoped" && /update Frizz/.test(refused.message),
+        refused instanceof ClaimError && refused.code === "github-token-scoped" && /update Ntwine/.test(refused.message),
         refused ? `${refused.code}: ${refused.message}` : "it was ALLOWED"
       );
       check("nothing was recorded for it", !st.rows.has("old-client"));

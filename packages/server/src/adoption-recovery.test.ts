@@ -27,7 +27,7 @@ function sessionRow(slug: string, sessionId: string): SessionRow {
   return {
     slug,
     session_id: sessionId,
-    thread_name: `frizz-${slug}`,
+    thread_name: `ntwine-${slug}`,
     spawned_at: "2026-07-13T00:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -120,7 +120,7 @@ class FakeRuntime implements AdoptionRecoveryRuntime {
 }
 
 function fixture(slug: string) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-adoption-recovery-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-adoption-recovery-"))
   const dbPath = join(dir, "ui.db")
   const storage = createStorage(dbPath, "p")
   const attemptToken = randomUUID()
@@ -136,7 +136,7 @@ function fixture(slug: string) {
 }
 
 function writeArtifacts(dir: string, sessionId: string): { scratch: string; staging: string; system: string } {
-  const scratchDir = join(dir, ".frizz", "threads", sessionId)
+  const scratchDir = join(dir, ".ntwine", "threads", sessionId)
   mkdirSync(scratchDir, { recursive: true })
   mkdirSync(SYSTEM_PROMPT_DIR, { recursive: true })
   const scratch = join(scratchDir, "scratch.md")
@@ -149,7 +149,7 @@ function writeArtifacts(dir: string, sessionId: string): { scratch: string; stag
 }
 
 test("adoption runtime binding rejects stale row snapshots before any legacy slug fallback", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-binding-aba-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-binding-aba-"))
   const s = createStorage(join(dir, "ui.db"), "p")
   const original = { ...sessionRow("binding-aba", "owner-a"), runtime_generation: 2 }
   s.upsertSession(original)

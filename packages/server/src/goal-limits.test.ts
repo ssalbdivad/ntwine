@@ -21,11 +21,11 @@ const T0 = Date.parse("2026-09-29T00:00:00.000Z")
 const iso = (ms: number) => new Date(ms).toISOString()
 
 function harness(write: Partial<RecurringWrite> = {}, opts: { busyAfterBump?: boolean; liveRuntimeAnswers?: boolean } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-goal-limits-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-goal-limits-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "looping"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: iso(T0),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: iso(T0),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)

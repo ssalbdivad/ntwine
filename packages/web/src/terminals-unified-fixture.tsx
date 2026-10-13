@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView } from "@frizz/shared"
+import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView } from "@ntwine/shared"
 import { FolderHintToken, ProcessRow, ThreadProcessStrip, folderHintTitle, processFolderHint } from "./components/ThreadTerminals.tsx"
 import { BgShellRow, TermWaitRow, WaitGrid } from "./components/AwaitingBackgroundCard.tsx"
 import { RAIL_WIDTH } from "./components/FocusRail.tsx"
@@ -18,7 +18,7 @@ import "./styles.css"
 
 // ONE STRIP, TWO OWNERS — every state a terminal row can be in, side by side, for the states a live stack
 // cannot reach on demand: a finished and a failed run of yours, an agent shell over its budget or quiet,
-// a Codex exec whose output Frizz cannot read, a monitor — once as the drawer draws them (every row) and once
+// a Codex exec whose output Ntwine cannot read, a monitor — once as the drawer draws them (every row) and once
 // as a queue card does (the live rows only). A row names its folder only when it is not where the header
 // token says the agent is (`?here=`); a row the server could not place names nothing.
 // `?mode=codex` / `?mode=gone` show the agent drawer's two empty states, `?mode=agent` a streaming one with a
@@ -34,7 +34,7 @@ const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(href, location.href)
-  if (!url.pathname.startsWith("/_frizz/rpc/")) return nativeFetch(input, init)
+  if (!url.pathname.startsWith("/_ntwine/rpc/")) return nativeFetch(input, init)
   const method = url.pathname.split("/").at(-1)
   if (method === "backgroundShellActivity") {
     // A query: its input rides the URL (`?input=<json>`), not a body.
@@ -46,10 +46,10 @@ window.fetch = async (input, init) => {
       const body = init?.body ? JSON.parse(String(init.body)) as { input?: { from?: number } } : {}
       const from = body.input?.from ?? 0
       const line = `\x1b[32mtick\x1b[0m ${Math.floor(from / 16) + 1}\n`
-      return json({ state: "running", command: "for i in $(seq 600); do printf '\\e[32mtick\\e[0m %s\\n' $i; sleep 1; done", output: from === 0 ? line.repeat(3) : line, truncated: false, stoppable: true, stopNote: null, end: from + 16, cwd: "/home/u/repo/.frizz/worktrees/probe", checkout: WT })
+      return json({ state: "running", command: "for i in $(seq 600); do printf '\\e[32mtick\\e[0m %s\\n' $i; sleep 1; done", output: from === 0 ? line.repeat(3) : line, truncated: false, stoppable: true, stopNote: null, end: from + 16, cwd: "/home/u/repo/.ntwine/worktrees/probe", checkout: WT })
     }
     return mode === "codex"
-      ? json({ state: "running", command: "cargo watch -x test", output: "", truncated: false, stoppable: true, stopNote: null, end: 0, outputUnavailable: true, cwd: "/home/u/repo/.frizz/worktrees/probe", checkout: { dir: "/home/u/repo/.frizz/worktrees/probe", kind: "worktree" } })
+      ? json({ state: "running", command: "cargo watch -x test", output: "", truncated: false, stoppable: true, stopNote: null, end: 0, outputUnavailable: true, cwd: "/home/u/repo/.ntwine/worktrees/probe", checkout: { dir: "/home/u/repo/.ntwine/worktrees/probe", kind: "worktree" } })
       : json({ state: "done", command: "nub run test", output: "", truncated: false, stoppable: false, stopNote: null, end: 0, missing: true, cwd: "/home/u/repo" })
   }
   return json({})
@@ -57,7 +57,7 @@ window.fetch = async (input, init) => {
 
 const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 const ahead = (m: number) => new Date(Date.now() + m * 60_000).toISOString()
-const WT = { dir: "/home/u/repo/.frizz/worktrees/probe", kind: "worktree" as const }
+const WT = { dir: "/home/u/repo/.ntwine/worktrees/probe", kind: "worktree" as const }
 // Where the header says the agent is working: `?here=probe` (the default) puts it in the worktree, so the
 // rows still at the root say `root`; `?here=root` puts it at the root, so the rows in `probe` say `probe`.
 const here = params.get("here") === "root" ? undefined : WT
@@ -69,7 +69,7 @@ const terminals: ThreadTerminal[] = [
   { id: "t-ok", command: "git status", cwd: ROOT, atRoot: true, state: "exited", exitCode: 0, runId: 1, startedAt: ago(9) },
   { id: "t-fail", command: "nub run typecheck-that-fails-on-purpose", cwd: ROOT, atRoot: true, state: "exited", exitCode: 2, runId: 1, startedAt: ago(5) },
   // Left in a worktree that has since been removed: the server has no reading, so it claims no place.
-  { id: "t-gone", command: "tail -f build.log", cwd: `${ROOT}/.frizz/worktrees/removed`, state: "running", runId: 1, startedAt: ago(30) },
+  { id: "t-gone", command: "tail -f build.log", cwd: `${ROOT}/.ntwine/worktrees/removed`, state: "running", runId: 1, startedAt: ago(30) },
 ]
 const bgShells: BgShellView[] = [
   { id: "s-root", label: "vite dev server", startedAt: ago(72), state: "running", stoppable: true, taskId: "b1", cwd: ROOT, atRoot: true },
@@ -143,7 +143,7 @@ createRoot(document.getElementById("root")!).render(
         {mode === "header" && (
           <div data-fixture-header className="fixed inset-x-0 top-0 bg-panel">
             <HumanTerminalHeader
-              terminal={{ id: "t-read", command: 'read -p "name? " x; echo "got $x"; sleep 600', cwd: "/tmp/tu-r3-v-repo/.frizz/worktrees/probe", checkout: { dir: "/tmp/tu-r3-v-repo/.frizz/worktrees/probe", kind: "worktree" }, state: "running", awaitingInput: true, awaitingSince: ago(4), runId: 1, startedAt: ago(4) }}
+              terminal={{ id: "t-read", command: 'read -p "name? " x; echo "got $x"; sleep 600', cwd: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", checkout: { dir: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", kind: "worktree" }, state: "running", awaitingInput: true, awaitingSince: ago(4), runId: 1, startedAt: ago(4) }}
               homeDir="/home/u"
               pending={null}
               onAct={() => {}}

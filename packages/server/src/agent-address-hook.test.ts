@@ -22,8 +22,8 @@ function runHook(event: Record<string, unknown>, env: Record<string, string>): P
   })
 }
 
-async function frizzRoot(answer: (url: URL) => unknown) {
-  const root = mkdtempSync(join(tmpdir(), "frizz-agent-address-"))
+async function ntwineRoot(answer: (url: URL) => unknown) {
+  const root = mkdtempSync(join(tmpdir(), "ntwine-agent-address-"))
   const permDir = join(root, "projects", PROJECT, "perm-requests")
   mkdirSync(permDir, { recursive: true })
   const seen: IncomingMessage[] = []
@@ -43,33 +43,33 @@ async function frizzRoot(answer: (url: URL) => unknown) {
 const dispatch = (over: Record<string, unknown> = {}) => ({ hook_event_name: "PostToolUse", tool_name: "Agent", tool_input: { description: "Spelling", prompt: "Check README.md." }, ...over })
 
 test("a thread's own dispatch is told the address its sub-agent answers to", async () => {
-  const root = await frizzRoot((url) => {
+  const root = await ntwineRoot((url) => {
     const input = JSON.parse(url.searchParams.get("input")!)
     return input.slug === "parser-port" && input.label === "Spelling" ? { address: "parser-port.spelling" } : {}
   })
   try {
-    const out = JSON.parse(await runHook(dispatch(), { FRIZZ_THREAD: "parser-port", FRIZZ_PERM_DIR: root.permDir }))
+    const out = JSON.parse(await runHook(dispatch(), { NTWINE_THREAD: "parser-port", NTWINE_PERM_DIR: root.permDir }))
     assert.equal(out.hookSpecificOutput.hookEventName, "PostToolUse")
     assert.match(out.hookSpecificOutput.additionalContext, /^This sub-agent is @parser-port\.spelling\./)
-    assert.equal(root.seen[0]!.url!.split("?")[0], `/_frizz/${PROJECT}/rpc/subAgentAddressFor`, "addressed to this worker's own project")
+    assert.equal(root.seen[0]!.url!.split("?")[0], `/_ntwine/${PROJECT}/rpc/subAgentAddressFor`, "addressed to this worker's own project")
     assert.equal(root.seen[0]!.headers["sec-fetch-site"], "same-origin")
   } finally { await root.close() }
 })
 
 test("silent when it cannot name the child: inside a sub-agent, no handle, not a worker, or no server", async () => {
-  const root = await frizzRoot(() => ({}))
+  const root = await ntwineRoot(() => ({}))
   try {
-    const env = { FRIZZ_THREAD: "parser-port", FRIZZ_PERM_DIR: root.permDir }
+    const env = { NTWINE_THREAD: "parser-port", NTWINE_PERM_DIR: root.permDir }
     assert.equal(await runHook(dispatch({ agent_id: "aChild" }), env), "", "a grandchild's address is not this thread's to state")
     assert.equal(await runHook(dispatch(), env), "", "a description with no handle gets no line")
-    assert.equal(await runHook(dispatch(), { FRIZZ_PERM_DIR: root.permDir }), "", "inert outside a frizz worker")
+    assert.equal(await runHook(dispatch(), { NTWINE_PERM_DIR: root.permDir }), "", "inert outside a ntwine worker")
     assert.equal(root.seen.length, 1, "only the one real lookup reached the server")
   } finally { await root.close() }
-  const gone = mkdtempSync(join(tmpdir(), "frizz-agent-address-gone-"))
+  const gone = mkdtempSync(join(tmpdir(), "ntwine-agent-address-gone-"))
   try {
     const permDir = join(gone, "projects", PROJECT, "perm-requests")
     mkdirSync(permDir, { recursive: true })
     writeFileSync(join(gone, "server.lock"), JSON.stringify({ port: 1, pid: process.pid }))
-    assert.equal(await runHook(dispatch(), { FRIZZ_THREAD: "parser-port", FRIZZ_PERM_DIR: permDir }), "", "a server that is not there fails open")
+    assert.equal(await runHook(dispatch(), { NTWINE_THREAD: "parser-port", NTWINE_PERM_DIR: permDir }), "", "a server that is not there fails open")
   } finally { rmSync(gone, { recursive: true, force: true }) }
 })

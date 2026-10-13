@@ -1,4 +1,4 @@
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 
 export type ThreadRouteResolution =
   | { kind: "loading" }

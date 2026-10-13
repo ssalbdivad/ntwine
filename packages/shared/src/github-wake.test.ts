@@ -93,7 +93,7 @@ test("github wake steer round-trips through its own parser", () => {
 //
 // The token used to make the parse FAIL, and that was asserted as the contract. It is not one worth
 // keeping: the only thing a refusal buys is that a missed strip degrades to the raw-text card WITH
-// `<!-- frizz-wake:… -->` showing, which is the very bug the strip exists to prevent. A parser that
+// `<!-- ntwine-wake:… -->` showing, which is the very bug the strip exists to prevent. A parser that
 // reads the steer either way is strictly better, and it falls out of dropping unrecognized lines.
 test("a delivered wake parses with or without its delivery token", () => {
   const delivered = `${formatGithubWakeSteer(burst)}\n\n${wakeDeliveryToken("a".repeat(64))}`
@@ -209,7 +209,7 @@ test("ordinary prose never masquerades as a wake card", () => {
 // runtime joins them and is never how prose quotes one.
 test("a coalesced record splits into its deliveries, and a quoted token is not a boundary", () => {
   const a = "KEEP GOING.\n\n(Recurring prompt — sent each time you come to rest. …)"
-  const b = `<frizz-relay:b7xm5f1db> Background command "trace" completed (exit code 0).`
+  const b = `<ntwine-relay:b7xm5f1db> Background command "trace" completed (exit code 0).`
   const ta = wakeDeliveryToken("a".repeat(64))
   const tb = wakeDeliveryToken("b".repeat(64))
   assert.deepEqual(splitWakeDeliveries(`${a}\n\n${ta}\n${b}\n\n${tb}`), [`${a}\n\n${ta}`, `${b}\n\n${tb}`])
@@ -225,7 +225,7 @@ test("a coalesced record splits into its deliveries, and a quoted token is not a
 })
 
 // The display strip is the BACKSTOP the split leans on. The split has to model how the RUNTIME joins
-// coalesced deliveries, which is not frizz's format to pin — so if a joiner change ever defeats it, a
+// coalesced deliveries, which is not ntwine's format to pin — so if a joiner change ever defeats it, a
 // token must still never reach the human's eyes. On its own line it is plumbing wherever it sits; only
 // a token quoted mid-sentence is the human's own words.
 test("a token on its own line is stripped from anywhere, quoted prose is not", () => {
@@ -304,7 +304,7 @@ test("a wake carrying CI and review activity yields both parts", () => {
   assert.deepEqual(parsePrWatchWake(text), { ref: "nubjs/nub#587", kind: "ci", verdict: "failing", failing: ["build"] })
   assert.deepEqual(parseGithubWakeSteer(text.slice(text.indexOf(formatGithubWakeSteer(single)))), single)
   // The STEER PARSER READS LINE 0 AND NOTHING ELSE, so a status line above one means the server serves
-  // no `wakeSteer` for this delivery. That is not an accident to be tidied up later — FrizzWake
+  // no `wakeSteer` for this delivery. That is not an accident to be tidied up later — NtwineWake
   // relies on it: it is what keeps an already-open tab on an older bundle rendering the whole text
   // rather than drawing the review hairline alone and silently dropping the CI verdict beside it.
   assert.equal(parseGithubWakeSteer(text), null, "a status line above the steer must defeat the served parse")
@@ -327,7 +327,7 @@ test("text with no pr-watch status line parses as none", () => {
 //
 // The third producer/parser pair, for the same reason as the other two. This one guards a distinction
 // the transcript should never have been drawing: the same shell finishing drew a hairline when the
-// worker was awake (the runtime reported it) and a card when it was resting (frizz reported it).
+// worker was awake (the runtime reported it) and a card when it was resting (ntwine reported it).
 test("a shell-done wake round-trips through its own parser", () => {
   for (const [name, shell, want] of [
     ["completed, with a task id", { taskId: "bzvtnt3ig", label: "the churn suite", status: "completed" },
@@ -420,9 +420,9 @@ test("the two limit wakes never read as each other", () => {
 // ---- parseParkWake / parsePrWatchExpiredWake ----
 //
 // The three formatters that stayed in the SERVER package until 2026-08-24 and so had no parser the chat
-// could reach. Every one fell through FrizzWake's legacy fallback and printed its whole agent-facing
-// body as a bordered "Frizz" card in the human's transcript — which tool to call, which fence to write
-// (maintainer: "frizz cards that seem to be exposing internals"). Measured across every transcript on
+// could reach. Every one fell through NtwineWake's legacy fallback and printed its whole agent-facing
+// body as a bordered "Ntwine" card in the human's transcript — which tool to call, which fence to write
+// (maintainer: "ntwine cards that seem to be exposing internals"). Measured across every transcript on
 // the machine: 73 of 12 891 delivered wakes drew that card, and every live one was one of these.
 //
 // Round-tripped against the REAL formatter, never a hand-written string, for the same reason every test
@@ -475,20 +475,20 @@ test("parsePrWatchExpiredWake: the lapsed watcher's ref is the whole of what a r
   assert.equal(parsePrWatchExpiredWake("I watched nubjs/nub#777 expire"), null)
 })
 
-// ---- THE FALLBACK IS FOR LEGACY TEXT, NOT FOR ANYTHING FRIZZ WRITES TODAY -------------------------
+// ---- THE FALLBACK IS FOR LEGACY TEXT, NOT FOR ANYTHING NTWINE WRITES TODAY -------------------------
 //
-// `FrizzWake` ends in a branch that prints an unrecognized wake VERBATIM in a bordered card, and that
-// branch is correct: a transcript written by an older frizz, or by a newer one, must never lose its
-// text. What is NOT correct is a formatter shipping into it — every one of them is frizz instructing
+// `NtwineWake` ends in a branch that prints an unrecognized wake VERBATIM in a bordered card, and that
+// branch is correct: a transcript written by an older ntwine, or by a newer one, must never lose its
+// text. What is NOT correct is a formatter shipping into it — every one of them is ntwine instructing
 // the WORKER about its own registrations, and the human reading the transcript has none of them.
 //
 // It happened three times, silently, because a formatter and its parser could live in different
 // packages: the park bumps and the lapsed-watcher notice sat in `scheduler.ts` where the chat could not
 // reach them, and printed "THE ONLY LINE KINDS NOW SUPPORTED" into a human's transcript for five days.
 //
-// THIS TABLE IS THE CONTRACT. A new frizz-composed wake adds a row here and a parser beside its
-// formatter, or this fails — which is the point. It is the machine-checked half of the `frizz-wake`
-// fixture's claim to hold "every wake frizz delivers".
+// THIS TABLE IS THE CONTRACT. A new ntwine-composed wake adds a row here and a parser beside its
+// formatter, or this fails — which is the point. It is the machine-checked half of the `ntwine-wake`
+// fixture's claim to hold "every wake ntwine delivers".
 const RECOGNIZERS = [
   parseShellDoneWake, parseTimerWake, parseLimitResumeWake, parseLimitModelSwitchWake, parsePrWatchWake, parseGithubWakeSteer,
   parseParkWake, parsePrWatchExpiredWake, parseOwnWatchExpiredWake, parsePrWatchStateWake, parseQuestionsCancelledWake,
@@ -515,7 +515,7 @@ const COMPOSED: [string, string][] = [
   ["questions cancelled", questionsCancelledWakeMessage(2)],
 ]
 
-test("every wake frizz composes is recognized by a parser — none may reach the verbatim fallback", () => {
+test("every wake ntwine composes is recognized by a parser — none may reach the verbatim fallback", () => {
   for (const [name, text] of COMPOSED) {
     assert.ok(RECOGNIZERS.some((parse) => parse(text)), `${name} falls through to the verbatim card`)
   }
@@ -526,7 +526,7 @@ test("every wake frizz composes is recognized by a parser — none may reach the
 // The table above was satisfied for five weeks while the commonest pair in it drew the verbatim card.
 // The scheduler merges everything waiting for a thread into ONE message, and its composer lived in the
 // server package, so the envelope was a shape with no row here and no parser anywhere: a park ending
-// beside the shell whose exit ended it printed both agent-facing bodies in a bordered "Frizz" card.
+// beside the shell whose exit ended it printed both agent-facing bodies in a bordered "Ntwine" card.
 // The envelope's contract is that it cuts back into exactly the wakes that went in.
 const NOW = Date.parse("2026-10-11T16:52:00Z")
 const stamped = (text: string) => `${text}\n\n${wakeTimeHeader(NOW - 60_000, "2026-10-11T16:40:00Z")}`
@@ -556,14 +556,14 @@ test("identical events fold into one part that says how many it stands for", () 
     { reason: "background shell finished (b1)", message: stamped(shell) },
     { reason: "pr-watch nubjs/nub#777 CI failing", message: stamped(ci) },
   ], NOW)
-  assert.match(merged, /^Frizz held 3 wakes /)
+  assert.match(merged, /^Ntwine held 3 wakes /)
   assert.deepEqual(parseMergedWake(merged), [{ body: ci, count: 2 }, { body: shell, count: 1 }])
 })
 
 // Byte for byte the delivery in the maintainer's screenshot, token and all — the releaser thread,
 // 2026-10-11 09:52. The park wake carries the "NOTHING running" paragraph the scheduler appends to it.
 test("the delivery that was reported cuts into its park and its shell", () => {
-  const record = "Frizz held 2 wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.\n\n### 1. awaiting park named 1 dead item(s)\n\n✅ The work you parked on has FINISHED, so the park is over and your thread is back in the queue.\n\n- `shells: [br6vpp762]` — FINISHED — its result is waiting for you\n\nREAD ITS OUTPUT AND CARRY ON. This is not a broken fence and there is nothing to fix: the wait\nyou declared simply ended. Do NOT relaunch the same work — its result is already on disk.\n\nThen park on whatever comes next, or end in ```done or a registered question (`mcp__frizz__ask`) if nothing is left.\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n```done, or register a question with `mcp__frizz__ask`.\n\n### 2. background shell finished (br6vpp762)\n\n⏰ Your background shell finished: `br6vpp762` — Running the update harness against the built shell and server.\n\n(Frizz sends this because it finished after you came to rest, where your runtime's own completion notification does not reach you. Read its output if you still need it.)\n\n⏱ 2026-10-11 09:52 — you last spoke 3m ago.\n\n<!-- frizz-wake:5d7e952abebe8b7153215553d6bc077258f6d28e3ca6e825cf93cbe8d97c3234 -->"
+  const record = "Ntwine held 2 wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.\n\n### 1. awaiting park named 1 dead item(s)\n\n✅ The work you parked on has FINISHED, so the park is over and your thread is back in the queue.\n\n- `shells: [br6vpp762]` — FINISHED — its result is waiting for you\n\nREAD ITS OUTPUT AND CARRY ON. This is not a broken fence and there is nothing to fix: the wait\nyou declared simply ended. Do NOT relaunch the same work — its result is already on disk.\n\nThen park on whatever comes next, or end in ```done or a registered question (`mcp__ntwine__ask`) if nothing is left.\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n```done, or register a question with `mcp__ntwine__ask`.\n\n### 2. background shell finished (br6vpp762)\n\n⏰ Your background shell finished: `br6vpp762` — Running the update harness against the built shell and server.\n\n(Ntwine sends this because it finished after you came to rest, where your runtime's own completion notification does not reach you. Read its output if you still need it.)\n\n⏱ 2026-10-11 09:52 — you last spoke 3m ago.\n\n<!-- ntwine-wake:5d7e952abebe8b7153215553d6bc077258f6d28e3ca6e825cf93cbe8d97c3234 -->"
   const parts = parseMergedWake(record)
   assert.equal(parts?.length, 2)
   assert.deepEqual(parseParkWake(parts![0].body), { kind: "finished", items: ["- `shells: [br6vpp762]` — FINISHED — its result is waiting for you"] })
@@ -584,7 +584,7 @@ test("a merged delivery that ends in the Goal's prompt still reads as one to the
   assert.ok(parseRecurringPrompt(parseMergedWake(display)![1].body), "and the Goal is still a Goal once it is cut out")
 })
 
-test("only the envelope frizz composes is a merged delivery", () => {
+test("only the envelope ntwine composes is a merged delivery", () => {
   const shell = shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })
   assert.equal(parseMergedWake(shell), null, "a lone wake")
   assert.equal(parseMergedWake("all clear"), null)
@@ -615,7 +615,7 @@ test("a body with numbered headings of its own is refused, never cut", () => {
 
 // …and the fallback still has to WORK, or the guard above would be satisfied by deleting it.
 test("a shape no parser knows still reaches the fallback, so its text survives", () => {
-  const future = "⏰ Frizz has invented a wake shape this build predates.\n\nAnd whatever it says, the text must survive."
+  const future = "⏰ Ntwine has invented a wake shape this build predates.\n\nAnd whatever it says, the text must survive."
   assert.ok(RECOGNIZERS.every((parse) => !parse(future)))
 })
 
@@ -670,16 +670,16 @@ test("prose that merely mentions a PR is not a state wake", () => {
 // ---- THE AGENT-FACING TRAILER NEVER REACHES THE OPERATOR (2026-09-04) -----------------------------
 //
 // The dividers drop the trailer by never rendering it — but that only holds for a delivery some parser
-// RECOGNIZED, and the browser is the half that routinely cannot. A tab is a build behind whenever frizz
+// RECOGNIZED, and the browser is the half that routinely cannot. A tab is a build behind whenever ntwine
 // restarts under it, so the first delivery in a shape its bundle predates falls through to the verbatim
-// card and prints "(Registered PR watcher — STILL ARMED … drop it with `mcp__frizz__watch_pr`)" at the
+// card and prints "(Registered PR watcher — STILL ARMED … drop it with `mcp__ntwine__watch_pr`)" at the
 // operator. That is exactly what happened to a conflict wake an hour after the state line shipped
 // (maintainer 2026-09-04: "why am I still seeing shit like this? This should just never show up").
 //
 // So the trailer comes off in the DISPLAY PROJECTION, on the side that composed it and can never be a
 // build behind itself — which makes the leak impossible for a tab of any age, and for wake shapes not
 // written yet. These pin that, and pin that stripping it costs no parser its anchor.
-test("every trailer frizz appends comes off the display projection", () => {
+test("every trailer ntwine appends comes off the display projection", () => {
   for (const [name, text, trailer] of [
     ["still armed", prWatchWakeMessage({ target: "nubjs/nub#879", changes: ["now CONFLICTS with the base branch"] }), PR_WATCH_ARMED_TRAILER],
     ["watcher spent", prWatchWakeMessage({ target: "nubjs/nub#879", merged: true }), PR_WATCH_SPENT_TRAILER],
@@ -692,25 +692,25 @@ test("every trailer frizz appends comes off the display projection", () => {
     assert.ok(text.includes(trailer), `${name}: the producer no longer writes the constant it is pinned by`)
     const shown = stripWakeTrailer(text)
     assert.ok(!shown.includes(trailer), `${name}: the trailer survived the projection`)
-    assert.doesNotMatch(shown, /frizzctl|mcp__frizz__/, `${name}: a raw command name reached the operator`)
+    assert.doesNotMatch(shown, /ntwinectl|mcp__ntwine__/, `${name}: a raw command name reached the operator`)
     assert.ok(shown.trim().length > 0, `${name}: the projection ate the news with the boilerplate`)
   }
 })
 
-// Frizz's worker-facing text said "the human" until 2026-10-08 and says "the user" now. A transcript
+// Ntwine's worker-facing text said "the human" until 2026-10-08 and says "the user" now. A transcript
 // written before that still carries the old bytes, so every recognizer keyed on one of those strings
 // must keep reading them. The old strings are spelled out literally here, not derived, so this fails if
 // the legacy reconstruction ever stops reproducing what was actually written.
-test("text frizz wrote in its old \"the human\" wording is still recognized", () => {
+test("text ntwine wrote in its old \"the human\" wording is still recognized", () => {
   const prOld = "(The human registered this PR watcher from your done card — STILL ARMED. It reports again on the next CI change, review, comment, label, conflict or review request. Leave it armed. The human chose to follow this, so put it in front of them: rest on it with `status: needs_input` and one or two sentences on what happened, unless it needs work from you first. It does not block `done`.)"
   const quietOld = "(The human registered this PR watcher from your done card — STILL ARMED. Green CI alone needs nothing from the human: rest on it with the fence alone, naming it under `prs:` with `status: watching` and a long `for:`. It does not block `done`.)"
   const issueOld = "(The human registered this issue watcher from your done card — STILL ARMED. It reports again on the next comment, label or assignee change, and once more when the issue closes. Leave it armed. The human chose to follow this, so put it in front of them: rest on it with `status: needs_input` and one or two sentences on what happened, unless it needs work from you first. It does not block `done`.)"
   for (const [now, old] of [[PR_WATCH_HUMAN_TRAILER, prOld], [PR_WATCH_HUMAN_QUIET_TRAILER, quietOld], [ISSUE_WATCH_HUMAN_TRAILER, issueOld]]) {
-    assert.ok(!now.includes("human"), "the trailer frizz writes now says the user")
+    assert.ok(!now.includes("human"), "the trailer ntwine writes now says the user")
     assert.equal(stripWakeTrailer(`📬 news\n\n${old}`), "📬 news")
   }
   assert.ok(SIGNOFF_NUDGE_MARKER.includes("not from the user"))
-  assert.equal(parseRecurringPrompt("**This message is from frizz, not from the human.** You rested without a fence.")?.kind, "signoff")
+  assert.equal(parseRecurringPrompt("**This message is from ntwine, not from the human.** You rested without a fence.")?.kind, "signoff")
   assert.equal(parseRecurringPrompt(`${SIGNOFF_NUDGE_MARKER} You rested without a fence.`)?.kind, "signoff")
   assert.equal(parseParkWake("👋 The human asked for an update before your wait ran out. Check back in on everything.\n\n- `agent:a1` — still running")?.kind, "requested")
   assert.equal(parseParkWake(parkExpiredWakeMessage(["`agent:a1` — still running"], false, true))?.kind, "requested")
@@ -745,7 +745,7 @@ test("the timer's trailer is left alone, because its parser is what drops it", (
 test("prose that merely quotes a trailer keeps it, and a trailer mid-message is not a trailer", () => {
   const quoted = `A worker asking about its own wake: ${PR_WATCH_ARMED_TRAILER} — what does that mean?`
   assert.equal(stripWakeTrailer(quoted), quoted)
-  assert.equal(stripWakeTrailer("nothing frizz composed"), "nothing frizz composed")
+  assert.equal(stripWakeTrailer("nothing ntwine composed"), "nothing ntwine composed")
   // Nothing composes a body-less trailer, but an empty bubble is a worse failure than the boilerplate.
   assert.equal(stripWakeTrailer(PR_WATCH_ARMED_TRAILER), PR_WATCH_ARMED_TRAILER)
 })
@@ -754,17 +754,17 @@ test("prose that merely quotes a trailer keeps it, and a trailer mid-message is 
 // ends with those bytes. The strip matches exact strings, so rewording the constants would have put the
 // old boilerplate back on the operator's screen for every wake already in a transcript.
 test("a watcher wake written before the command line still loses its trailer", () => {
-  const armedPr = "(Registered PR watcher — STILL ARMED. It reports again on the next CI change, review, comment, label, conflict or review request. Drop it with `mcp__frizz__watch_pr` when it stops mattering.)"
-  const armedIssue = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or assignee change, and once more when the issue closes. Drop it with `mcp__frizz__watch_issue` when it stops mattering.)"
+  const armedPr = "(Registered PR watcher — STILL ARMED. It reports again on the next CI change, review, comment, label, conflict or review request. Drop it with `mcp__ntwine__watch_pr` when it stops mattering.)"
+  const armedIssue = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or assignee change, and once more when the issue closes. Drop it with `mcp__ntwine__watch_issue` when it stops mattering.)"
   assert.notEqual(armedPr, PR_WATCH_ARMED_TRAILER, "the trailer a worker gets today names the command")
-  assert.match(PR_WATCH_ARMED_TRAILER, /Drop it with `frizzctl watch-pr drop <id>`/)
-  assert.match(ISSUE_WATCH_ARMED_TRAILER, /Drop it with `frizzctl watch-issue drop <id>`/)
+  assert.match(PR_WATCH_ARMED_TRAILER, /Drop it with `ntwinectl watch-pr drop <id>`/)
+  assert.match(ISSUE_WATCH_ARMED_TRAILER, /Drop it with `ntwinectl watch-issue drop <id>`/)
   for (const [now, then] of [[PR_WATCH_ARMED_TRAILER, armedPr], [ISSUE_WATCH_ARMED_TRAILER, armedIssue]]) {
     const wake = prWatchWakeMessage({ target: "nubjs/nub#879", changes: ["labels +blocked"] }).replace(PR_WATCH_ARMED_TRAILER, now)
     const old = wake.replace(now, then)
     assert.ok(old.endsWith(then))
     assert.equal(stripWakeTrailer(old), stripWakeTrailer(wake), "the old trailer comes off exactly as the new one does")
-    assert.doesNotMatch(stripWakeTrailer(old), /STILL ARMED|mcp__frizz__/)
+    assert.doesNotMatch(stripWakeTrailer(old), /STILL ARMED|mcp__ntwine__/)
   }
 })
 
@@ -792,8 +792,8 @@ test("prWatchExpiredWakeMessage: an issue's expiry parses through the same head 
   const text = prWatchExpiredWakeMessage("acme/app#7", "issue")
   assert.deepEqual(parsePrWatchExpiredWake(text), { ref: "acme/app#7" })
   assert.match(text, /nothing on that issue will wake/)
-  assert.match(text, /register it again with `frizzctl watch-issue add` and a fresh `--for`/)
-  assert.match(prWatchExpiredWakeMessage("acme/app#7"), /register it again with `frizzctl watch-pr add` and a fresh `--for`/, "the default is still a PR")
+  assert.match(text, /register it again with `ntwinectl watch-issue add` and a fresh `--for`/)
+  assert.match(prWatchExpiredWakeMessage("acme/app#7"), /register it again with `ntwinectl watch-pr add` and a fresh `--for`/, "the default is still a PR")
 })
 
 test("splitAwaitingFrontmatter: `issues:` is a structural key producing `issue` hints", () => {

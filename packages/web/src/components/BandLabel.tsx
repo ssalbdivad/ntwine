@@ -1,6 +1,6 @@
 import type { ComponentType } from "react"
 import { Bot, ExternalLink, Inbox, Pin, SquareCheck } from "lucide-react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { bandOf, type Band } from "../groups.ts"
 import { optimisticallyArchived, useArchivingAt } from "../lib/optimisticArchive.ts"
 import { optimisticallySteered, useSteeredAt } from "../lib/steering.ts"

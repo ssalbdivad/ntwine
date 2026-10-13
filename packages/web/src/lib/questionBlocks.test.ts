@@ -230,23 +230,23 @@ test("options that legitimately start at B are not re-read as question + list", 
 test("a group heading between C and D keeps ALL SIX options answerable", () => {
   const body =
     "Package name — brainstorm.\n\n" +
-    "Thread / loom family (frizz = a frizzed thread):\n" +
-    "- A. **frizzloom** — keeps the lineage\n" +
+    "Thread / loom family (ntwine = a ntwineed thread):\n" +
+    "- A. **ntwineloom** — keeps the lineage\n" +
     "- B. **warp** — the taut loom threads\n" +
-    "- C. **selvage** — the edge that doesn't frizz\n\n" +
-    "Melee family (frizz = a scrap/brawl of agents):\n" +
+    "- C. **selvage** — the edge that doesn't ntwine\n\n" +
+    "Melee family (ntwine = a scrap/brawl of agents):\n" +
     "- D. **melee** — a direct synonym\n" +
-    "- E. **fracas** — a noisy frizz\n" +
-    "- F. **tussle** — a scrappy frizz\n\n" +
-    "Also still open: `frizz`, `frizzhq`."
+    "- E. **fracas** — a noisy ntwine\n" +
+    "- F. **tussle** — a scrappy ntwine\n\n" +
+    "Also still open: `ntwine`, `ntwinehq`."
   const p = parseQuestionBlock(body, "question")
   assert.deepEqual(p.options.map(optionId), ["A", "B", "C", "D", "E", "F"])
   assert.equal(p.options[3], "D. **melee** — a direct synonym")
   // The heading rides WITH the option it introduces instead of being stranded below the chips.
-  assert.equal(p.optionHeadings?.[3], "Melee family (frizz = a scrap/brawl of agents):")
+  assert.equal(p.optionHeadings?.[3], "Melee family (ntwine = a scrap/brawl of agents):")
   assert.equal(p.optionHeadings?.[0], undefined)
-  assert.equal(p.contextMd, "Package name — brainstorm.\n\nThread / loom family (frizz = a frizzed thread):")
-  assert.equal(p.trailingMd, "Also still open: `frizz`, `frizzhq`.")
+  assert.equal(p.contextMd, "Package name — brainstorm.\n\nThread / loom family (ntwine = a ntwineed thread):")
+  assert.equal(p.trailingMd, "Also still open: `ntwine`, `ntwinehq`.")
 })
 
 test("a SECOND question's list restarts at A, so the run still ends at the first set", () => {
@@ -716,7 +716,7 @@ test("a marker a worker QUOTES — showing the form, or pasting the contract's o
   assert.deepEqual(splitQuestionBlocks(indented).map((s) => s.kind), ["prose"])
 })
 
-test("optionNumber: frizz-built options are numbered from 1, the key that picks them", () => {
+test("optionNumber: ntwine-built options are numbered from 1, the key that picks them", () => {
   assert.deepEqual([0, 1, 8, 9, 25].map(optionNumber), ["1.", "2.", "9.", "10.", "26."])
 })
 

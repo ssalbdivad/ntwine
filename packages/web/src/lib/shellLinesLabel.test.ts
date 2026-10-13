@@ -20,7 +20,7 @@ test("a busy shell reads by magnitude, not by digits", () => {
   assert.equal(shellLinesLabel(2_400_000), "2.4M lines")
 })
 
-test("no number ⇒ no reading — a shell whose output frizz cannot read shows nothing", () => {
+test("no number ⇒ no reading — a shell whose output ntwine cannot read shows nothing", () => {
   assert.equal(shellLinesLabel(undefined), undefined)
   assert.equal(shellLinesLabel(Number.NaN), undefined)
   assert.equal(shellLinesLabel(-1), undefined)

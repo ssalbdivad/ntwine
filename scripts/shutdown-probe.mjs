@@ -1,4 +1,4 @@
-// Shutdown diagnosis harness: boots a REAL frizz server on a fully-isolated stack, optionally puts
+// Shutdown diagnosis harness: boots a REAL ntwine server on a fully-isolated stack, optionally puts
 // live load on it (SSE board stream, /ws app socket, in-flight RPC), then closes it and reports how
 // long the shutdown barrier took plus every diagnostic it emitted.
 //
@@ -18,12 +18,12 @@ const port = Number(opt("port", "4941"))
 const load = new Set((opt("load", "none")).split(",").map((s) => s.trim()).filter(Boolean))
 const projectDir = process.cwd()
 
-const home = mkdtempSync(join(tmpdir(), "frizz-shutdown-probe-"))
-mkdirSync(join(home, ".frizz"), { recursive: true })
+const home = mkdtempSync(join(tmpdir(), "ntwine-shutdown-probe-"))
+mkdirSync(join(home, ".ntwine"), { recursive: true })
 process.env.HOME = home
-process.env.FRIZZ_SANDBOX_TAG = `frizz-probe-${port}-${process.pid}`
-process.env.FRIZZ_WAKERS_OFF = "1"
-process.env.FRIZZ_ORPHAN_REAPER_OFF = "1"
+process.env.NTWINE_SANDBOX_TAG = `ntwine-probe-${port}-${process.pid}`
+process.env.NTWINE_WAKERS_OFF = "1"
+process.env.NTWINE_ORPHAN_REAPER_OFF = "1"
 process.chdir(projectDir)
 
 const origin = `http://127.0.0.1:${port}`

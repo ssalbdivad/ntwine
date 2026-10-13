@@ -5,9 +5,9 @@ import type { ActionId, Chord, Platform } from "./keybindings.ts"
 // differences, said where the key is listed (ARCHITECTURE.md § VS Code extension).
 //
 // WHERE A KEY GOES. While the frame has focus no VS Code keybinding sees a key (the sidebar spike,
-// 2026-10-01), so every key reaches Frizz — and Frizz's chords that VS Code also binds (⌘K, its chord
-// prefix; ⌘, its settings; ⌘I, its inline chat) are Frizz's there and VS Code's from the editor. The page
-// forwards each Ctrl/Cmd chord it leaves alone (lib/embedHost.ts `frizz:key`), and the extension runs the
+// 2026-10-01), so every key reaches Ntwine — and Ntwine's chords that VS Code also binds (⌘K, its chord
+// prefix; ⌘, its settings; ⌘I, its inline chat) are Ntwine's there and VS Code's from the editor. The page
+// forwards each Ctrl/Cmd chord it leaves alone (lib/embedHost.ts `ntwine:key`), and the extension runs the
 // ones its allowlist names: HOST_CHORDS below, which must stay the list in packages/vscode/src/embed.ts
 // CHORDS (embedKeys.test.ts runs every one through the extension's own matcher).
 
@@ -43,7 +43,7 @@ export const SIDEBAR_KEY_NAMES: Partial<Record<ActionId, string>> = {
  * frame's own storage, which the browser partitions from a tab's: a key changed here is not changed in a
  * browser tab, and the reverse (ARCHITECTURE.md § VS Code extension).
  */
-export const SIDEBAR_KEYS_NOTE = "Keys reach Frizz while the sidebar has focus. Changes here stay in the sidebar."
+export const SIDEBAR_KEYS_NOTE = "Keys reach Ntwine while the sidebar has focus. Changes here stay in the sidebar."
 
 /** The Queue group's note in the sidebar, where the drawer is the card (lib/keyboardRuntime.ts openCurrent). */
 export const SIDEBAR_QUEUE_NOTE = "In the open thread. With none open, a key opens the one you're on."
@@ -53,7 +53,7 @@ export const SIDEBAR_QUEUE_NOTE = "In the open thread. With none open, a key ope
  * exists, so the sheet leads with them there. Cursor's ⌘L first, both its halves (the chord the context bar
  * names, lib/editorContext.ts editorAddChord): with a selection, add it; with none, go to the prompt box.
  * Claude Code's ⌥K last, and only while Claude Code's own extension does not hold it (`altK`: the sheet
- * drops the row then, since the key is not Frizz's in that editor). The app's own ⌘I is bound there too, and
+ * drops the row then, since the key is not Ntwine's in that editor). The app's own ⌘I is bound there too, and
  * listed where it always is, under Thread details with its sidebar hint. `command` and `when` are the
  * extension's keybinding, which embedKeys.test.ts finds in packages/vscode/package.json, so the sheet can
  * never teach a chord the editor does not have.
@@ -63,14 +63,14 @@ export interface EditorChord {
   chord: Chord
   command: string
   when: string
-  /** Shown only while Alt+K is Frizz's in this editor (the extension's `frizz:host-state`). */
+  /** Shown only while Alt+K is Ntwine's in this editor (the extension's `ntwine:host-state`). */
   altK?: true
 }
 
 export const EDITOR_CHORDS: readonly EditorChord[] = [
-  { label: "Add the selection", chord: { key: "l", mod: true, alt: false, shift: false }, command: "frizz.addToPrompt", when: "editorTextFocus && editorHasSelection" },
-  { label: "No selection: go to the prompt box", chord: { key: "l", mod: true, alt: false, shift: false }, command: "frizz.focusPrompt", when: "editorTextFocus && !editorHasSelection && config.frizz.useSidebar" },
-  { label: "Add the selection or file", chord: { key: "k", mod: false, alt: true, shift: false }, command: "frizz.addSelectionOrFile", when: "editorTextFocus && !frizz.claudeCodeInstalled", altK: true },
+  { label: "Add the selection", chord: { key: "l", mod: true, alt: false, shift: false }, command: "ntwine.addToPrompt", when: "editorTextFocus && editorHasSelection" },
+  { label: "No selection: go to the prompt box", chord: { key: "l", mod: true, alt: false, shift: false }, command: "ntwine.focusPrompt", when: "editorTextFocus && !editorHasSelection && config.ntwine.useSidebar" },
+  { label: "Add the selection or file", chord: { key: "k", mod: false, alt: true, shift: false }, command: "ntwine.addSelectionOrFile", when: "editorTextFocus && !ntwine.claudeCodeInstalled", altK: true },
 ]
 
 /** The note under the Editor group: where these are pressed, and the way back. */
@@ -125,7 +125,7 @@ export function hostChordKeycaps(chord: HostChord, platform: Platform): string[]
 }
 
 /**
- * A VS Code chord the human just pressed to rebind a Frizz key to, in the sidebar: that key is VS Code's
+ * A VS Code chord the human just pressed to rebind a Ntwine key to, in the sidebar: that key is VS Code's
  * there (the page forwards it, HOST_CHORDS), so the sheet refuses it saying so — not that it belongs to the
  * browser, which is the desktop's reason for most of them. Matched on the event as the page forwards it, so
  * Ctrl and ⌘ are told apart on a Mac the way the extension tells them apart.
@@ -139,7 +139,7 @@ export function hostChordProblem(event: { code: string; ctrlKey: boolean; metaKe
   return `${hostChordKeycaps(chord, platform).join(platform === "mac" ? "" : "+")} goes to VS Code`
 }
 
-/** The keydown a chord is on a platform, as the page forwards it (`frizz:key`) — for the pin test. */
+/** The keydown a chord is on a platform, as the page forwards it (`ntwine:key`) — for the pin test. */
 export function hostChordEvent(chord: HostChord, platform: Platform): { code: string; ctrl: boolean; meta: boolean; shift: boolean; alt: boolean } {
   const mac = platform === "mac"
   return { code: chord.code, ctrl: chord.ctrl || (!mac && chord.primary), meta: mac && chord.primary, shift: chord.shift, alt: false }

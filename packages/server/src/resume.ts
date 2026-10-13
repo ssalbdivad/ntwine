@@ -5,7 +5,7 @@ import {
   PermissionMode,
   type PermissionMode as PermissionModeValue,
   type Settings,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { PERM_DIR_ENV, permRequestDir, type Project } from "./project.ts"
 import {
   isBrokerClaudeRow,
@@ -24,9 +24,9 @@ import {
   claudeWorkerEnvironment,
   effectivePermissionMode,
   workerPluginDir,
-  resolveFrizzMcp,
+  resolveNtwineMcp,
   scratchpadOrientation,
-  frizzConfigBlock,
+  ntwineConfigBlock,
   loadWorkerPrompt,
 } from "./dispatch.ts"
 import {
@@ -56,7 +56,7 @@ export class TerminalDeliveryError extends Error {
 /**
  * A follow-up/wake that was refused BEFORE any byte of it could reach a worker, by a contention gate
  * that a later attempt can find open: a permission/profile handoff owning the runtime, a lost
- * runtime-control CAS (two follow-ups racing the same row), an adoption identity frizz could not verify
+ * runtime-control CAS (two follow-ups racing the same row), an adoption identity ntwine could not verify
  * this instant, or a lifecycle CAS that moved under us.
  *
  * The distinction that matters is DELIVERY SAFETY, not the sentence: every site raising this sits
@@ -76,7 +76,7 @@ export class RetryableDeliveryError extends Error {
 
 /**
  * A bump/resume REACTIVATES an archived thread: the maintainer messaging an Inactive (archived) thread
- * expects it back in Active. There is deliberately no Reopen verb anywhere in frizz — the composer under
+ * expects it back in Active. There is deliberately no Reopen verb anywhere in ntwine — the composer under
  * the "Done" readout IS the reopen affordance (see web ThreadLifecycle.tsx, DoneReadout) — so this un-archive is
  * the entire mechanism behind that promise, and every runtime has to honour it.
  *
@@ -320,7 +320,7 @@ function resumeThreadOwned(deps: ResumeDeps, slug: string, message: string, deli
   // (the followUp RPC, the wake scheduler) routes such a row to the bridge before reaching here. This
   // remains as the loud backstop so a future caller that forgets can never silently try to resume a
   // worker that does not exist, rather than as a path anything is expected to take.
-  throw new Error(`${slug} must resume through the session broker; frizz has no other claude transport`)
+  throw new Error(`${slug} must resume through the session broker; ntwine has no other claude transport`)
 }
 
 export function resumeThread(deps: ResumeDeps, slug: string, message: string, deliveryId?: string, opts: ResumeOptions = {}): void {

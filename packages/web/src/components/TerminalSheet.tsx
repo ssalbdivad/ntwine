@@ -1,6 +1,6 @@
 import { lazy, Suspense, useRef, useState, type ReactNode } from "react"
 import { Bot, Copy, RotateCcw, SquareTerminal, Trash2 } from "lucide-react"
-import type { BackgroundShellOutputResult, ThreadTerminal, WorkCheckout } from "@frizz/shared"
+import type { BackgroundShellOutputResult, ThreadTerminal, WorkCheckout } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, threadBySlug } from "../store.ts"
 import { useBoard, useShellLog } from "../hooks.ts"
@@ -74,7 +74,7 @@ export function splitFolder(path: string): { head: string; tail: string } {
 
 // THE SAME LINE, laid out so a narrow drawer loses the right part of it — and never the part that says where.
 // A path truncated at its END cut away both the folder that names the worktree and the ` · worktree` after it
-// (`/tmp/tu-v-repo/.frizz/worktr…`). So the path truncates at its START, by the right-to-left overflow idiom
+// (`/tmp/tu-v-repo/.ntwine/worktr…`). So the path truncates at its START, by the right-to-left overflow idiom
 // around an isolated left-to-right run (so the slashes stay where they are).
 //
 // AND ITS LAST SEGMENT IS KEPT, with the kind: the head shrinks to `…/` and no further, and the tail
@@ -274,7 +274,7 @@ export function agentTerminalEmpty(meta: Pick<BackgroundShellOutputResult, "stat
   if (received > 0) return undefined
   if (!meta) return error ? "Could not read this terminal's output. Retrying…" : "Waiting for the first output…"
   if (meta.state === "gone") return "This terminal is closed."
-  if (meta.outputUnavailable) return "Codex hands this command's output to the agent when it checks in, so Frizz can't show it here."
+  if (meta.outputUnavailable) return "Codex hands this command's output to the agent when it checks in, so Ntwine can't show it here."
   if (meta.missing) return "The output file is gone."
   return meta.state === "running" ? "Waiting for the first output…" : "No output was captured."
 }
@@ -400,7 +400,7 @@ function AgentTerminalSheet({ id, slug, shellId, label, startedAt, depth, widthD
             </Suspense>
           )}
           {/* Whose it is, said once, at the foot where your own terminal's next command would go. A running
-              shell Frizz cannot reach says why instead, because no control and no explanation is what sent
+              shell Ntwine cannot reach says why instead, because no control and no explanation is what sent
               the maintainer looking for a Stop in the first place. */}
           <footer
             data-agent-terminal-footer

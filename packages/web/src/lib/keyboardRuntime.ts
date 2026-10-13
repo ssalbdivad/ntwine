@@ -256,7 +256,7 @@ function focusReplyBoxOnceOpen(): void {
 
 /** Dispatched on a `data-command` control before the default press, so a control whose press is not
  *  a click (a Radix menu trigger opens on pointerdown/keydown) can claim it with preventDefault. */
-export const COMMAND_EVENT = "frizz:command"
+export const COMMAND_EVENT = "ntwine:command"
 
 export type ThreadCommand = "done" | "snooze" | "fullscreen" | "open" | "terminal" | "editor" | "menu" | "spinoff" | "reply"
 

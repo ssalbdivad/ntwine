@@ -24,14 +24,14 @@
     "keyboard",
     "---Remote access---",
     "remote-access",
-    "frizz-sh",
+    "ntwine-sh",
     "cloudflare-tunnel",
     "tailscale",
     "ssh",
     "reverse-proxy",
     "---Reference---",
     "cli",
-    "frizz-md",
+    "ntwine-md",
     "glossary",
     "faq"
   ]

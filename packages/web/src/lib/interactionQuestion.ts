@@ -21,7 +21,7 @@ import {
   type InteractionRecord,
   type InteractionValue,
   type InteractionValues,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { optionNumber, type BlockAnswer, type ParsedQuestion } from "./questionBlocks.ts"
 
 export interface InteractionQuestion {
@@ -53,7 +53,7 @@ function questionFor(optionField: InteractionField | undefined, notesField: Inte
       // draws the identifier as the keycap that picks it, and an operator answering in the composer
       // refers to options by number.
       options: options.map((option, index) => `${optionNumber(index)} ${option.label}`),
-      // A tool call has no notion of a recommended option — that is a frizz fence convention — so the
+      // A tool call has no notion of a recommended option — that is a ntwine fence convention — so the
       // badge simply does not appear rather than being faked.
       recommendedIdxs: [],
     },

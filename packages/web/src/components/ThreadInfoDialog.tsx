@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 import type { ReactNode } from "react"
-import type { ThreadStats, ThreadTokenUsage, ThreadView } from "@frizz/shared"
+import type { ThreadStats, ThreadTokenUsage, ThreadView } from "@ntwine/shared"
 import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
 import { displayTitle } from "../groups.ts"
 import { ageSpan, exactStamp } from "../lib/activityTime.ts"

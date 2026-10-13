@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { useQuery } from "@tanstack/react-query"
 import { AlarmClock, ArrowLeft, Check, Hourglass, Layers, Plus, Repeat, Settings as SettingsIcon } from "lucide-react"
-import type { ScheduleView, ThreadView } from "@frizz/shared"
+import type { ScheduleView, ThreadView } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
@@ -51,7 +51,7 @@ import { shortPath } from "./ProjectActions.tsx"
 // It is not a narrower desktop page. The desktop's two columns and its drawers beside them assume a
 // viewport that can hold more than one thing at once; 390pt cannot, so the phone gets a drill-down: the
 // projects, a view's list of threads, and a thread (its drawer, which a phone draws full-screen —
-// styles.css `.frizz-sheet-panel`).
+// styles.css `.ntwine-sheet-panel`).
 //
 // WHAT IS THE SAME, deliberately: the data. The page hands this its projects exactly as the desktop list
 // and queue draw them (lib/allQueues.ts), the tabs band them with the list's own `loudBands`
@@ -466,7 +466,7 @@ export function BandTabs({ tab, onTab, asks, queue, snoozed, schedules }: {
         <BandTab band="done" label="Done" active={tab === "done"} onClick={() => onTab("done")} />
         {/* SCHEDULES, after the bands, only while the view has any (or the tab is open, so deleting the
             last one does not pull the tab out from under the reader). Its count turns warning-toned
-            when one was paused by Frizz or a proposal waits — the desktop project row's fourth count. */}
+            when one was paused by Ntwine or a proposal waits — the desktop project row's fourth count. */}
         {schedules ? (
           <>
             {gap}
@@ -784,7 +784,7 @@ function useViewSchedules(shown: QueuesProject[], viewed: QueuesProject | undefi
 /**
  * One schedule, in the thread row's anatomy so the tab reads as more of the same list: the repeat glyph in
  * the mark column, the title with its next run at the right — `in 3h`, or `Paused` / `Proposed` when it will
- * not run on its own, warning-toned when that is Frizz's doing or a proposal waiting — and the rule under it,
+ * not run on its own, warning-toned when that is Ntwine's doing or a proposal waiting — and the rule under it,
  * after its project in All projects. Dimmed like a Snoozed row when it will not run on its own, unless that
  * wants the human. A tap opens its sheet.
  */
@@ -948,7 +948,7 @@ function PhoneProjects({ projects, focusedSlug: viewSlug, hidden, homeDir, onAll
 /** The squares' size: upstream's card icon, legible as a mark. */
 const PROJECT_SQUARE = 34
 
-/** All projects' square: the switcher's layers glyph on Home's neutral tile — the views that are Frizz's, not a project's. */
+/** All projects' square: the switcher's layers glyph on Home's neutral tile — the views that are Ntwine's, not a project's. */
 function AllProjectsSquare({ size }: { size: number }) {
   return (
     <span

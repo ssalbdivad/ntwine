@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { humanGapNote, type TranscriptMessage } from "@frizz/shared"
+import { humanGapNote, type TranscriptMessage } from "@ntwine/shared"
 import {
   parseDeliveryLedger,
   serializeDeliveryLedger,
@@ -94,7 +94,7 @@ test("an unconfirmed item is dropped after the drop window", () => {
 })
 
 // ---- merged submissions (the "Delivery unconfirmed" bug) ----
-// frizz pastes a follow-up into Claude Code's composer and sends Enter. When the TUI swallows that Enter
+// ntwine pastes a follow-up into Claude Code's composer and sends Enter. When the TUI swallows that Enter
 // mid-render the text STAYS in the composer, and the next follow-up's paste lands after it — so one
 // Enter submits the accumulation and Claude Code records ONE enqueue whose content is the concatenation.
 // Byte shapes below are taken from the maintainer's own transcript (2026-07-23, `why-when-i-try-to-change`),
@@ -147,7 +147,7 @@ test("a merged record leaves an item it does NOT contain alone", () => {
 test("a SHORT send is never resolved by merely appearing inside an unrelated message", () => {
   // The whole safety of the composition rule: a segment may only match mid-record when it is long
   // enough to be unambiguous. "continue" typed inside a human's own terminal message must not confirm
-  // a pending "continue" frizz sent.
+  // a pending "continue" ntwine sent.
   const items = [item({ text: "continue" })]
   const rec = { type: "user", timestamp: iso(T0 + 1000), message: { content: "ok, please continue with the plan" } }
   // Same array identity: nothing matched, so the caller writes nothing back to the row.
@@ -156,7 +156,7 @@ test("a SHORT send is never resolved by merely appearing inside an unrelated mes
 
 // ---- channel rewrites (the "Delivery unconfirmed" bug class) ----
 // The pre-broker steer channel pasted into Claude Code's TUI: an LF→CR paste boundary composed with the
-// TUI's own paste handler (CR/CRLF→LF, TAB→four spaces). Measured against a live claude 2.1.219 TUI driven through frizz's own
+// TUI's own paste handler (CR/CRLF→LF, TAB→four spaces). Measured against a live claude 2.1.219 TUI driven through ntwine's own
 // paste sequence: a tab becomes four spaces and a CRLF becomes TWO newlines. Both classes stranded a
 // send that the agent had already read. TABBED below is the maintainer's own stranded text
 // (2026-07-25, `were-taking-over-from-another-agent`).
@@ -244,7 +244,7 @@ test("a SHORT send is still never resolved by appearing inside an unrelated mess
 
 // ---- identity: the invisible delivery marker ----
 // Text correlation is inference over a channel that rewrites bytes. The marker replaces it with an id
-// lookup, so a send is confirmed even when the recorded text no longer resembles what frizz sent.
+// lookup, so a send is confirmed even when the recorded text no longer resembles what ntwine sent.
 const marked = (id: string, text: string) => text + encodeDeliveryMarker(id)
 
 test("a record whose TEXT was destroyed still delivers, because the marker identifies it", () => {
@@ -287,7 +287,7 @@ test("a marker is still refused when the record PREDATES the send (replay safety
 test("a MIXED record — one marked send glued ahead of an unmarked one — resolves both", () => {
   // The upgrade case: an item already in flight when this shipped carries no marker, and must still be
   // confirmed by text from the same record that identifies its marked neighbour by id.
-  const a = item({ id: "d-a", text: "the freshly marked follow-up that frizz stamped" })
+  const a = item({ id: "d-a", text: "the freshly marked follow-up that ntwine stamped" })
   const b = item({ id: "d-b", text: "an older in-flight send with no marker at all" })
   const glued = marked("d-a", a.text) + "\n" + b.text
   assert.deepEqual(correlateDeliveryRecord([a, b], { type: "user", timestamp: iso(T0 + 40), message: { content: glued } }, iso(T0 + 40)), [])
@@ -309,7 +309,7 @@ test("the projection dedups against a copy that STILL carries the raw marker", (
 // ---- dequeue ----
 // Claude Code emits `queue-operation remove` (content-bearing, 2398/2398 in the corpus) the moment it
 // takes a message OUT of its queue and into the turn — 1 to 19 records before the queued_command
-// attachment frizz used to wait for. For that window the send was already being worked on while frizz
+// attachment ntwine used to wait for. For that window the send was already being worked on while ntwine
 // still rendered it queued, which pins it below the working indicator.
 test("a content-bearing remove resolves the item at DEQUEUE, not at the later attachment", () => {
   const out = correlateDeliveryRecord(
@@ -477,8 +477,8 @@ test("two outstanding sends of the SAME text never collapse onto one bubble", ()
   assert.equal(out[1].queued, true)
 })
 
-// ---- identity: the broker echoes frizz's own input id back ----
-// frizz passes a uuid with every SDK input; the SDK returns it as the delivered `user` record's `uuid`
+// ---- identity: the broker echoes ntwine's own input id back ----
+// ntwine passes a uuid with every SDK input; the SDK returns it as the delivered `user` record's `uuid`
 // or the `queued_command` attachment's `source_uuid`. Verified byte-exact against a live claude 2.1.220
 // broker session. This is what makes two simultaneous dequeues resolve exactly instead of by prose.
 test("a queued_command attachment resolves the item whose id is its source_uuid", () => {
@@ -492,7 +492,7 @@ test("a queued_command attachment resolves the item whose id is its source_uuid"
 })
 
 test("identity resolves even when the delivered text no longer matches at all", () => {
-  const items = [item({ id: "33333333-3333-4333-8333-333333333333", text: "the words frizz sent" })]
+  const items = [item({ id: "33333333-3333-4333-8333-333333333333", text: "the words ntwine sent" })]
   const rec = {
     type: "attachment", timestamp: iso(T0 + 500),
     attachment: { type: "queued_command", commandMode: "prompt", source_uuid: "33333333-3333-4333-8333-333333333333", prompt: "something else entirely" },
@@ -520,7 +520,7 @@ test("an unrelated uuid degrades to the text path rather than resolving anything
 
 // ---- codex: the ledger as a RENDERING guarantee ----
 // Codex has no provider-side queue and no composer of its own, so its ledger entry exists only to keep the
-// queued bubble on screen until the rollout materialises the message. Measured against frizz's own
+// queued bubble on screen until the rollout materialises the message. Measured against ntwine's own
 // delivery records: 8 of 75 codex sends took longer than the client's 60s ghost floor to appear (steers
 // at 71s, 212s and 4.6h), so without this the only copy of the message could be retired from the drawer.
 const codexUser = (text: string, at: number) => ({

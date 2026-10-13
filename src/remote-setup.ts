@@ -1,6 +1,6 @@
-import { isAnonymousClaimName } from "@frizz/shared";
-import { renderQrSvg } from "@frizz/server/qr";
-import type { RemoteControlHandler, RemoteControlReply } from "@frizz/server/restart-supervisor";
+import { isAnonymousClaimName } from "@ntwine/shared";
+import { renderQrSvg } from "@ntwine/server/qr";
+import type { RemoteControlHandler, RemoteControlReply } from "@ntwine/server/restart-supervisor";
 import { type CloudConfig, isClaimedConfig, isExternalConfig, normalizeHostname } from "./cloud.ts";
 import type { DeviceCodePrompt } from "./github-device-flow.ts";
 import type { CloudflaredProbe, TailscaleProbe } from "./remote-detect.ts";
@@ -8,26 +8,26 @@ import type { CloudflaredProbe, TailscaleProbe } from "./remote-detect.ts";
 /**
  * Remote access as a set of CHOICES, shared by the two places an operator makes one: the R pane in
  * the launcher's terminal (remote-pane.ts) and Settings → Remote access in the browser, which reaches
- * the launcher through the supervisor's loopback-only `/_frizz/control/remote` (restart-supervisor.ts).
+ * the launcher through the supervisor's loopback-only `/_ntwine/control/remote` (restart-supervisor.ts).
  *
  * Both turn a choice into the same CloudConfig here, so a setup made in one reads as the same setup in
  * the other, and both apply it through the one RemoteController — which is what keeps a switch from one
  * setup to another leaving no tunnel behind, whichever surface asked for it.
  */
 
-export type RemoteKind = "private" | "frizz" | "cloudflare" | "tailscale" | "other" | "off";
+export type RemoteKind = "private" | "ntwine" | "cloudflare" | "tailscale" | "other" | "off";
 
 /** What an operator asked for, in the fields each setup actually takes. */
 export type RemoteChoice =
   | { kind: "off" }
   | { kind: "private" }
-  | { kind: "frizz"; name: string }
+  | { kind: "ntwine"; name: string }
   | { kind: "cloudflare"; hostname: string; tunnel: string }
   | { kind: "tailscale" | "other"; origin: string };
 
 export function kindOf(config: CloudConfig | null): RemoteKind {
   if (!config) return "off";
-  if (isClaimedConfig(config)) return isAnonymousClaimName(config.claim!) ? "private" : "frizz";
+  if (isClaimedConfig(config)) return isAnonymousClaimName(config.claim!) ? "private" : "ntwine";
   if (isExternalConfig(config)) return config.provider === "tailscale" ? "tailscale" : "other";
   return "cloudflare";
 }
@@ -69,9 +69,9 @@ export async function applyRemoteChoice(choice: RemoteChoice, deps: RemoteSetupD
   }
   let next: CloudConfig;
   let justClaimed = false;
-  if (choice.kind === "private" || choice.kind === "frizz") {
-    const name = choice.kind === "frizz" ? choice.name.trim() : "";
-    if (choice.kind === "frizz" && !name) throw new Error("a name is needed");
+  if (choice.kind === "private" || choice.kind === "ntwine") {
+    const name = choice.kind === "ntwine" ? choice.name.trim() : "";
+    if (choice.kind === "ntwine" && !name) throw new Error("a name is needed");
     deps.progress?.(name ? `claiming ${name}.frizz.sh…` : "claiming a private name on frizz.sh…");
     next = await deps.claim(name, deps.signIn ?? { signal: new AbortController().signal, onDeviceCode: () => {} });
     justClaimed = true;
@@ -97,15 +97,15 @@ export function parseRemoteChoice(body: unknown): RemoteChoice | string {
     case "off":
     case "private":
       return { kind: value.kind };
-    case "frizz":
-      return { kind: "frizz", name: text("name") };
+    case "ntwine":
+      return { kind: "ntwine", name: text("name") };
     case "cloudflare":
       return { kind: "cloudflare", hostname: text("hostname"), tunnel: text("tunnel") };
     case "tailscale":
     case "other":
       return { kind: value.kind, origin: text("origin") };
     default:
-      return "kind must be one of off, private, frizz, cloudflare, tailscale, other";
+      return "kind must be one of off, private, ntwine, cloudflare, tailscale, other";
   }
 }
 
@@ -126,7 +126,7 @@ export function viewOf(config: CloudConfig | null): RemoteSetupView {
   return {
     kind,
     origin: `https://${config.hostname}`,
-    ...(kind === "frizz" && config.claim ? { name: config.claim } : {}),
+    ...(kind === "ntwine" && config.claim ? { name: config.claim } : {}),
     ...(config.tunnel ? { tunnel: config.tunnel } : {}),
   };
 }

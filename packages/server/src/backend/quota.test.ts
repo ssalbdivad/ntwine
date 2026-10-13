@@ -7,7 +7,7 @@ import { tmpdir } from "node:os"
 import { parseCodexQuotaFromRollout, parseCodexQuotaFromRateLimits, readCodexQuota, resetCodexQuotaMemo } from "./codex-quota.ts"
 import { parseClaudeUsage, parseClaudeUsageOutput, tokenFromCredentialsJson, readClaudeQuota, refreshClaudeQuotaInBackground, claudeQuotaRefreshSettled, withObservedClaudeQuota, resolveConfiguredRoute } from "./claude-quota.ts"
 import { recordObservedClaudeQuota, resetObservedClaudeQuotaThrottle } from "./claude-quota-observed.ts"
-import { frizzRoots, resetFrizzRoots } from "../frizz-paths.ts"
+import { ntwineRoots, resetNtwineRoots } from "../ntwine-paths.ts"
 import { readQuota } from "../quota.ts"
 
 // ---- Codex rollout parsing ----
@@ -78,7 +78,7 @@ test("codex: no rate_limits anywhere → undefined", () => {
 // ---- Codex live app-server (account/rateLimits/read) parsing ----
 
 test("codex live: camelCase rateLimits → windows labeled by windowDurationMins", () => {
-  // Captured verbatim from codex-cli 0.146.0 (fields frizz ignores trimmed).
+  // Captured verbatim from codex-cli 0.146.0 (fields ntwine ignores trimmed).
   const q = parseCodexQuotaFromRateLimits({
     rateLimits: {
       limitId: "codex",
@@ -125,7 +125,7 @@ test("codex live: snake_case rollout spelling is NOT accepted here", () => {
 
 test("codex: a failed live read degrades to the rollout tail, labeled as unconfirmed", async () => {
   // `codexBin` points at a binary that cannot answer, so the live path resolves undefined.
-  const dir = await mkdtemp(join(tmpdir(), "frizz-codex-quota-"))
+  const dir = await mkdtemp(join(tmpdir(), "ntwine-codex-quota-"))
   try {
     const day = join(dir, "sessions", "2026", "07", "31")
     await mkdir(day, { recursive: true })
@@ -150,7 +150,7 @@ test("codex: a failed live read degrades to the rollout tail, labeled as unconfi
 })
 
 test("codex: a failed live read with no rollouts stays a clean unavailable", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "frizz-codex-quota-"))
+  const dir = await mkdtemp(join(tmpdir(), "ntwine-codex-quota-"))
   try {
     await writeFile(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "tok" } }))
     resetCodexQuotaMemo()
@@ -167,14 +167,14 @@ test("codex: the configured binary is spawned for the live quota read", { skip: 
   // A POSIX executable is intentional here. On Windows an arbitrary script cannot stand in for an
   // executable without adding a production-only cwd/argv seam; resolveCodexExecutable's Windows
   // launcher behavior is covered separately in codex-executable.test.ts.
-  const dir = await mkdtemp(join(tmpdir(), "frizz-codex-quota-"))
+  const dir = await mkdtemp(join(tmpdir(), "ntwine-codex-quota-"))
   const marker = join(dir, "spawned.txt")
   const bin = join(dir, "codex-stand-in")
-  const envNames = ["HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "XDG_CACHE_HOME", "FRIZZ_QUOTA_FIXTURE", "FRIZZ_TEST_CODEX_MARKER"] as const
+  const envNames = ["HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "XDG_CACHE_HOME", "NTWINE_QUOTA_FIXTURE", "NTWINE_TEST_CODEX_MARKER"] as const
   const savedEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]))
   try {
     await writeFile(bin, `#!/bin/sh
-printf '%s' "$*" > "$FRIZZ_TEST_CODEX_MARKER"
+printf '%s' "$*" > "$NTWINE_TEST_CODEX_MARKER"
 while IFS= read -r line; do
   case "$line" in
     *'"id":1'*) printf '%s\\n' '{"id":1,"result":{}}' ;;
@@ -190,10 +190,10 @@ done
     process.env.CODEX_HOME = dir
     process.env.CLAUDE_CONFIG_DIR = join(dir, "claude")
     process.env.XDG_CACHE_HOME = join(dir, "cache")
-    process.env.FRIZZ_TEST_CODEX_MARKER = marker
-    delete process.env.FRIZZ_QUOTA_FIXTURE
-    resetFrizzRoots()
-    const cacheDir = join(frizzRoots().cache, "quota-cache")
+    process.env.NTWINE_TEST_CODEX_MARKER = marker
+    delete process.env.NTWINE_QUOTA_FIXTURE
+    resetNtwineRoots()
+    const cacheDir = join(ntwineRoots().cache, "quota-cache")
     await mkdir(cacheDir, { recursive: true })
     const profile = createHash("sha256").update(process.env.CLAUDE_CONFIG_DIR).digest("hex").slice(0, 12)
     await writeFile(join(cacheDir, `claude-${profile}.json`), JSON.stringify({
@@ -215,7 +215,7 @@ done
       if (value === undefined) delete process.env[name]
       else process.env[name] = value
     }
-    resetFrizzRoots()
+    resetNtwineRoots()
     await rm(dir, { recursive: true, force: true })
   }
 })
@@ -231,7 +231,7 @@ async function withCodexStandIn(
   answers: boolean,
   run: (home: string, bin: string, starts: () => Promise<number>, signIn: (accountId: string) => Promise<void>) => Promise<void>,
 ) {
-  const home = await mkdtemp(join(tmpdir(), "frizz-codex-quota-"))
+  const home = await mkdtemp(join(tmpdir(), "ntwine-codex-quota-"))
   const log = join(home, "starts.log")
   const bin = join(home, "codex-stand-in")
   // A key in the environment is a Codex credential, so a machine that has one is never signed out.
@@ -459,7 +459,7 @@ test("claude CLI usage: a year-less date label crossing New Year resolves forwar
 })
 
 async function withCache(run: (cacheDir: string) => Promise<void>) {
-  const cacheDir = await mkdtemp(join(tmpdir(), "frizz-quota-test-"))
+  const cacheDir = await mkdtemp(join(tmpdir(), "ntwine-quota-test-"))
   try {
     await run(cacheDir)
   } finally {
@@ -876,11 +876,11 @@ async function withConfigDir(configDir: string, run: () => Promise<void>) {
   }
 }
 
-// THE TOKEN-BROKER MACHINE. Claude Code is signed in by a route that leaves no token where Frizz can
+// THE TOKEN-BROKER MACHINE. Claude Code is signed in by a route that leaves no token where Ntwine can
 // read one, so the endpoint cannot be asked — and until 2026-10-11 the only other source was starting
 // Claude Code, which is the process storm that route was removed for. The workers there report the
 // plan's windows on every turn; that report is the reading.
-test("claude quota: a machine whose token Frizz cannot read shows what its own sessions report — no request, no process", () => withCache(async (cacheDir) => {
+test("claude quota: a machine whose token Ntwine cannot read shows what its own sessions report — no request, no process", () => withCache(async (cacheDir) => {
   const configDir = join(cacheDir, "config")
   await withConfigDir(configDir, async () => {
     let requests = 0
@@ -985,7 +985,7 @@ test("claude quota: while the endpoint cannot be reached, the chip follows the s
 // ---- The configured route: a proxy or an environment token (resolveConfiguredRoute) ----
 
 async function withSettings(env: Record<string, string> | undefined, run: (configDir: string) => Promise<void>) {
-  const configDir = await mkdtemp(join(tmpdir(), "frizz-route-config-"))
+  const configDir = await mkdtemp(join(tmpdir(), "ntwine-route-config-"))
   try {
     if (env) await writeFile(join(configDir, "settings.json"), JSON.stringify({ env }))
     await run(configDir)
@@ -1075,7 +1075,7 @@ test("claude quota: with no readable token, the configured route is asked — ne
   })
 }))
 
-test("claude quota: a token Frizz can read is still the first source — the configured route is not consulted", () => withCache(async (cacheDir) => {
+test("claude quota: a token Ntwine can read is still the first source — the configured route is not consulted", () => withCache(async (cacheDir) => {
   let routeAsked = 0
   const q = await readClaudeQuota("claude-test", {
     cacheDir,

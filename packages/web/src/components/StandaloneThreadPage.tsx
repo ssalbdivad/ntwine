@@ -9,7 +9,7 @@ import { resolveThreadRoute } from "../lib/threadRouteState.ts"
 import { crossProjectHref } from "../lib/base-path.ts"
 import { setFaviconBadge } from "../lib/faviconBadge.ts"
 import { SHEET_BASE_WIDTH, SPLIT_MIN_PX } from "../lib/sheet.ts"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadView as ThreadViewSurface } from "./ChatView.tsx"
 import { DrawerStack } from "./DrawerStack.tsx"
 import { FileViewerPanel } from "./FileViewerPanel.tsx"
@@ -92,16 +92,16 @@ export function StandaloneThreadPage({ slug }: { slug: string }) {
     rpc.threadSeen({ slug }).catch(() => {})
   }, [atRest, slug, thread?.lastActivityAt])
 
-  // "<thread> · owner/repo — Frizz". The thread title LEADS because a tab truncates from the end and
+  // "<thread> · owner/repo — Ntwine". The thread title LEADS because a tab truncates from the end and
   // several of these are usually open on the same repo at once — the thread is what tells them apart.
-  // The workspace identity trails as "owner/repo — Frizz", the same mark the installed app window uses.
+  // The workspace identity trails as "owner/repo — Ntwine", the same mark the installed app window uses.
   useEffect(() => {
     const projectLabel = board?.projectLabel ?? board?.projectName
     const threadLabel = thread ? displayTitle(thread) : slug
-    document.title = projectLabel ? `${threadLabel} · ${projectLabel} — Frizz` : `${threadLabel} · Frizz`
+    document.title = projectLabel ? `${threadLabel} · ${projectLabel} — Ntwine` : `${threadLabel} · Ntwine`
     // An editor's sidebar names it in VS Code's title row instead (lib/embedRoute.ts); a no-op elsewhere.
     // The sidebar reaches this page only by a link to a thread's /full address (one in a transcript, or
-    // a `frizz:navigate`): its own fullscreen door opens the browser instead (ExpandThreadLink.tsx).
+    // a `ntwine:navigate`): its own fullscreen door opens the browser instead (ExpandThreadLink.tsx).
     reportRoute({ view: "thread", title: threadLabel })
   }, [board?.projectLabel, board?.projectName, slug, thread])
 
@@ -183,7 +183,7 @@ export function StandaloneThreadPage({ slug }: { slug: string }) {
           </div>
         </div>
         {/* The SAME drawer stack the queue mounts. Without it every drill-in this page renders — a
-            sub-agent row, a background-shell row, the frizz-doc button, a `[…](/thread/<slug>)` link —
+            sub-agent row, a background-shell row, the ntwine-doc button, a `[…](/thread/<slug>)` link —
             pushed a layer onto the store that nothing displayed, so the click was simply dead. Mounted
             OUTSIDE the transformed row: the sheets are `fixed inset-0`, and a transform on an ancestor
             is a containing block for them, which would drag every sheet along with the slide.

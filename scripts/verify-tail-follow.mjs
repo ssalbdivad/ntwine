@@ -11,7 +11,7 @@
 // row is present: without it the thread is idle, the last row IS the new message, the library follow
 // works on its own, and this harness passes while testing nothing. (It did, before a control run.)
 //
-// Usage — boot a disposable stack first (see .agents/skills/frizz-stack), then:
+// Usage — boot a disposable stack first (see .agents/skills/ntwine-stack), then:
 //   node scripts/verify-tail-follow.mjs --home=/abs/temp-home --url=http://127.0.0.1:PORT/
 import { execFileSync, spawn } from "node:child_process"
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs"
@@ -82,7 +82,7 @@ writeFileSync(join(brokerDir, `${createHash("sha256").update(SESSION).digest("he
   JSON.stringify({ sessionId: SESSION, daemonPid: standIn.pid, socketPath: join(brokerDir, `${SLUG}.sock`) }))
 execFileSync("sqlite3", [db, `DELETE FROM session WHERE slug = '${SLUG}';`])
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode)
-  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${now()}', 'Tail follow', 'claude', 'broker', 'opus', 'high', 'default')`])
+  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${now()}', 'Tail follow', 'claude', 'broker', 'opus', 'high', 'default')`])
 const append = (record) => appendFileSync(jsonl, JSON.stringify(record) + "\n")
 
 let failures = 0

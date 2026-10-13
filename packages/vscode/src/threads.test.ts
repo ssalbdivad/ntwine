@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { threadHandle as sharedThreadHandle } from "@frizz/shared"
+import { threadHandle as sharedThreadHandle } from "@ntwine/shared"
 // The page's originals, run beside the ports over the same rows (groups.ts loads under node).
 import { displayTitle as pageDisplayTitle, threadHandleOf as pageThreadHandleOf } from "../../web/src/groups.ts"
 import { bandOf, displayTitle, findThread, pickerThreads, threadHandle, threadHandleOf, threadItem, windowThread, windowThreadFirst, type PickerThread } from "./threads.ts"
@@ -45,13 +45,13 @@ test("thread names and @handles match the page's displayTitle / threadHandleOf o
   assert.ok(TITLE_ROWS.some((t) => threadHandleOf(t)) && TITLE_ROWS.some((t) => !threadHandleOf(t)))
 })
 
-test("threadHandle matches @frizz/shared's", () => {
+test("threadHandle matches @ntwine/shared's", () => {
   for (const name of ["Shell budgets", "ArkType perf", "GitHub", "dev-ops", "Café élan", "one two three four five", "one two three four five six", "", "  ", "x_y.z"]) {
     assert.equal(threadHandle(name), sharedThreadHandle(name), name)
   }
 })
 
-test("the picker offers open Frizz sessions only: Ready first, then working, then the rest, newest first in each", () => {
+test("the picker offers open Ntwine sessions only: Ready first, then working, then the rest, newest first in each", () => {
   const threads = [
     row("rest-old", { lastActivityAt: "2026-09-01T00:00:00Z" }),
     row("ready-old", { needsYou: true, lastActivityAt: "2026-09-02T00:00:00Z" }),
@@ -94,7 +94,7 @@ test("a picker row shows the @handle, where the thread stands, and what it is do
 // A window opened on a thread's worktree is about that thread: the sidebar opens on it and Send offers it
 // first. Matched by folder identity (the extension passes a realpath comparison), never by name.
 test("a window whose folder is a thread's worktree finds that thread; a window on the root finds none", () => {
-  const tree = "/repo/.frizz/worktrees/tidy"
+  const tree = "/repo/.ntwine/worktrees/tidy"
   const same = (a: string, b: string) => a.replace(/\/$/, "") === b.replace(/\/$/, "")
   const threads = [
     row("root-thread", { needsYou: true }),
@@ -102,7 +102,7 @@ test("a window whose folder is a thread's worktree finds that thread; a window o
     // A spinoff child working on in its parent's worktree, waiting on the human: listed first, so chosen.
     row("tidy-child", { checkout: { dir: tree, kind: "worktree" }, needsYou: true, lastActivityAt: "2026-08-01T00:00:00Z" }),
     row("tidy-done", { checkout: { dir: tree, kind: "worktree" }, state: "archived", needsYou: true }),
-    row("other", { checkout: { dir: "/repo/.frizz/worktrees/other", kind: "worktree" } }),
+    row("other", { checkout: { dir: "/repo/.ntwine/worktrees/other", kind: "worktree" } }),
   ]
   assert.equal(windowThread(threads, [`${tree}/`], same)?.id, "tidy-child")
   assert.equal(windowThread(threads.filter((t) => t.id !== "tidy-child"), [tree], same)?.id, "tidy")

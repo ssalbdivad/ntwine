@@ -4,7 +4,7 @@
 // "about 4px more padding above and below every user message"), 14px horizontal UNCHANGED.
 //
 // It drives the REAL pipeline — JSONL → tailer → transcript → ChatView — with a simulated worker, because
-// a fixture can't: the frizz server mounts Vite with appType "custom", so every *.html falls back to
+// a fixture can't: the ntwine server mounts Vite with appType "custom", so every *.html falls back to
 // index.html and only the real thread route renders a real transcript.
 //
 // Usage: nub scripts/verify-user-bubble-padding.mjs --port=4930 --home=/abs/temp-home
@@ -51,7 +51,7 @@ assistant("Both received. This reply gives the pinned bubble something to float 
 
 writeFileSync(join(logDir, `${SESSION_ID}.jsonl`), records.map((r) => JSON.stringify(r)).join("\n") + "\n")
 
-const threadName = `frizz-${SLUG}`
+const threadName = `ntwine-${SLUG}`
 
 const sandbox = resolveSandboxDb(home)
 const { db } = sandbox

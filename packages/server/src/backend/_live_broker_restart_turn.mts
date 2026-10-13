@@ -1,4 +1,4 @@
-// LIVE PROBE: what does a RESTED broker thread's turn read as AFTER frizz restarts and reattaches to
+// LIVE PROBE: what does a RESTED broker thread's turn read as AFTER ntwine restarts and reattaches to
 // the surviving daemon?
 //   nub packages/server/src/backend/_live_broker_restart_turn.mts
 //
@@ -66,7 +66,7 @@ interface TapeEntry { at: string; phase: string; kind: string; parent: string; e
 const tape: TapeEntry[] = []
 let phase = "pre-restart"
 
-// One wiring, built twice: once for the "original" frizz and once for the one that comes up after the
+// One wiring, built twice: once for the "original" ntwine and once for the one that comes up after the
 // restart. Everything but the ingest/bridge/tailer identity is shared, exactly as it is in production
 // (same state dir, same DB, same surviving daemon).
 function wire(): { ingest: ClaudeRuntimeIngest; bridge: ReturnType<typeof createClaudeAgentBrokerBridge>; tailer: Tailer } {
@@ -113,14 +113,14 @@ let two: ReturnType<typeof wire> | undefined
 try {
   await one.bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
   storage.setBackend(slug, "claude")
   storage.setClaudeRuntime(slug, "broker")
 
-  // ---- 1. wait for the thread to come to rest under the ORIGINAL frizz -------------------------
+  // ---- 1. wait for the thread to come to rest under the ORIGINAL ntwine -------------------------
   const restDeadline = Date.now() + REST_WAIT_MS
   let restedTurn: string | undefined
   while (Date.now() < restDeadline) {
@@ -133,7 +133,7 @@ try {
   ok("the thread came to rest before the restart", restedTurn === "idle",
     `turn=${restedTurn} liveness=${one.ingest.liveness(sessionId)?.turn ?? "(none)"}`)
 
-  // ---- 2. RESTART frizz, leaving the daemon running -------------------------------------------
+  // ---- 2. RESTART ntwine, leaving the daemon running -------------------------------------------
   // close() drops the client sockets and forgets the sessions; it deliberately does NOT kill a daemon
   // (that is releaseSession's job), so this is exactly what a control-plane restart leaves behind.
   phase = "restart"
@@ -146,7 +146,7 @@ try {
   await two.bridge.warmUp()
   console.log(`\n      reattached at ${rel()}; watching ${Math.round(WATCH_MS / 1000)}s…`)
 
-  // ---- 3. watch what the REATTACHED frizz derives ----------------------------------------------
+  // ---- 3. watch what the REATTACHED ntwine derives ----------------------------------------------
   const timeline: string[] = []
   const watchDeadline = Date.now() + WATCH_MS
   while (Date.now() < watchDeadline) {

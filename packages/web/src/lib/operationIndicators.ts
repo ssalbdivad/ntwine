@@ -22,12 +22,12 @@ export function runningOperations<T extends { state: string }>(operations: reado
 //
 // So detachment is no longer what the hue encodes — RUNTIME KIND is: blue for a shell, accent-yellow for
 // a sub-agent, whichever way the shell was launched. What detachment still decides is the reading beside
-// the dot ("running" vs "background running" in the tooltip) and, for a tracked op, whether frizz can
+// the dot ("running" vs "background running" in the tooltip) and, for a tracked op, whether ntwine can
 // observe it going quiet at all.
 //
 // `run_in_background` is read straight off the tool input at parse time (transcript.ts — Bash
 // `run_in_background: true`, and Monitor, which is always detached), so a detached op is known
-// definitively and marks itself the instant it starts: frizz has a real process to point at.
+// definitively and marks itself the instant it starts: ntwine has a real process to point at.
 export function hasRunningToolIndicator(status: "pending" | "completed" | "failed" | "cancelled" | undefined, backgroundState?: "background" | "unknown"): boolean {
   return status === "pending" && backgroundState === "background"
 }
@@ -40,7 +40,7 @@ export function hasRunningToolIndicator(status: "pending" | "completed" | "faile
 export const FOREGROUND_MARK_AFTER_MS = 2_000
 
 // In progress inside the turn that is running it, with no detached process behind it. "unknown" is
-// deliberately excluded: an orphaned poll is a process frizz cannot place, and marking it live would
+// deliberately excluded: an orphaned poll is a process ntwine cannot place, and marking it live would
 // assert something nobody has observed.
 export function isPendingForegroundTool(status: "pending" | "completed" | "failed" | "cancelled" | undefined, backgroundState?: "background" | "unknown"): boolean {
   return status === "pending" && backgroundState === undefined

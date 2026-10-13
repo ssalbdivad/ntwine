@@ -19,7 +19,7 @@ function harness() {
       config = next;
     },
     claim: async (name) => ({ hostname: `${name || "mk7w2qp9x4n3f6tbz5vh"}.frizz.sh`, claim: name || "mk7w2qp9x4n3f6tbz5vh", serve: "relay" }),
-    issueLink: () => (config ? { url: `https://${config.hostname}/?frizz_code=abc`, expiresAt: 1 } : null),
+    issueLink: () => (config ? { url: `https://${config.hostname}/?ntwine_code=abc`, expiresAt: 1 } : null),
     probes,
   });
   return { handler, applied };
@@ -71,7 +71,7 @@ test("a browser claim of a custom name shows its GitHub code through GET, and ca
   });
   // Negative control: nothing pending, nothing shown.
   assert.equal(((await handler.get()).body as { signIn: unknown }).signIn, null);
-  const pending = handler.post({ kind: "frizz", name: "ada" });
+  const pending = handler.post({ kind: "ntwine", name: "ada" });
   await new Promise((resolve) => setImmediate(resolve));
   const reading = (await handler.get()).body as { applying: boolean; signIn: unknown };
   assert.equal(reading.applying, true);

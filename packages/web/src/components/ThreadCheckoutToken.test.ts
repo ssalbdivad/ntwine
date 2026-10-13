@@ -18,7 +18,7 @@ test("no checkout, no token — and no dangling separator", () => {
 })
 
 test("a worktree reads as its folder's name beside the git-folder glyph", () => {
-  const html = token({ dir: "/home/u/frizz/.frizz/worktrees/rail-bands", kind: "worktree" })
+  const html = token({ dir: "/home/u/ntwine/.ntwine/worktrees/rail-bands", kind: "worktree" })
   assert.match(html, /^<span data-lead="">·<\/span>/, "the lead comes first, and only with the token")
   assert.match(html, /data-thread-checkout="worktree"/)
   assert.match(html, /lucide-folder-git/)
@@ -39,8 +39,8 @@ test("a folder outside the project takes the plain folder glyph", () => {
 
 test("the tooltip says where, in home-relative form, and that new terminals open there", () => {
   assert.equal(
-    checkoutTitle({ dir: "/home/u/frizz/.frizz/worktrees/rail-bands", kind: "worktree" }, "/home/u"),
-    "Agent is working in a worktree\n~/frizz/.frizz/worktrees/rail-bands\nNew terminals open here",
+    checkoutTitle({ dir: "/home/u/ntwine/.ntwine/worktrees/rail-bands", kind: "worktree" }, "/home/u"),
+    "Agent is working in a worktree\n~/ntwine/.ntwine/worktrees/rail-bands\nNew terminals open here",
   )
   assert.equal(checkoutTitle({ dir: "/home/u/other", kind: "folder" }, "/home/u"), "Agent is working in another folder\n~/other\nNew terminals open here")
   assert.equal(checkoutName("C:\\work\\probe"), "probe")

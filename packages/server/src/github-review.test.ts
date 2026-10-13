@@ -294,7 +294,7 @@ test("the snapshot carries the rollup, the gate, the labels and the review reque
 })
 
 // A SHAPE SURPRISE IS INDETERMINATE, never "open with no checks" — the same rule the `gh` path has read
-// by since 2026-08-25. Inventing a state here would arm a verdict on a PR frizz cannot actually see.
+// by since 2026-08-25. Inventing a state here would arm a verdict on a PR ntwine cannot actually see.
 test("a response with no usable pull request yields no snapshot, so the poll keeps its last reading", () => {
   for (const bad of [undefined, null, {}, { state: "" }, { state: 7 }, "OPEN"]) {
     assert.equal(parseGithubPrSnapshot(bad), undefined, JSON.stringify(bad))

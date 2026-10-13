@@ -9,10 +9,10 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
-const require = createRequire("/Users/colinmcd94/Documents/projects/frizz/packages/server/index.js")
+const require = createRequire("/Users/colinmcd94/Documents/projects/ntwine/packages/server/index.js")
 const WebSocket = require("ws")
 
-const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "frizz-nl2-"))
+const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "ntwine-nl2-"))
 const cwd = path.join(runDir, "work"); fs.mkdirSync(cwd)
 const sock = path.join(runDir, "as.sock")
 const logPath = path.join(runDir, "server.log")
@@ -23,7 +23,7 @@ process.on("exit", () => { try { child.kill("SIGKILL") } catch {} })
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
-const INIT = { clientInfo: { name: "frizz", title: "Frizz", version: "0.0.1" }, capabilities: { experimentalApi: true } }
+const INIT = { clientInfo: { name: "ntwine", title: "Ntwine", version: "0.0.1" }, capabilities: { experimentalApi: true } }
 
 class Conn {
   constructor(tag) { this.tag = tag; this.msgs = []; this.next = 1; this.pending = new Map() }

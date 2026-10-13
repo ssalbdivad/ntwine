@@ -13,7 +13,7 @@ import type { ChatMessage } from "./hooks.ts"
 // behind it (it also opens from file://), so those lookups answer "not found" locally instead of erroring.
 const serverFetch = window.fetch.bind(window)
 window.fetch = (input, init) =>
-  (input instanceof Request ? input.url : String(input)).includes("/_frizz/") ? Promise.resolve(new Response("", { status: 404 })) : serverFetch(input, init)
+  (input instanceof Request ? input.url : String(input)).includes("/_ntwine/") ? Promise.resolve(new Response("", { status: 404 })) : serverFetch(input, init)
 
 // ── the transcript every frame shows ──────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { LocalFileOpener } from "@frizz/shared"
+import type { LocalFileOpener } from "@ntwine/shared"
 import {
   MARKDOWN_READ_LIMIT,
   editorKindsForOpener,
@@ -27,7 +27,7 @@ import {
 interface SpawnCall { command: string; args: readonly string[]; options: Parameters<LocalFileSpawn>[2] }
 
 test("Windows URL-shaped paths read, watch and open without bypassing trusted roots", { skip: process.platform !== "win32" }, async (t) => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-url-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-url-")))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const trusted = join(root, "trusted")
   mkdirSync(trusted)
@@ -52,29 +52,29 @@ test("Windows URL-shaped paths read, watch and open without bypassing trusted ro
 
 test("a Windows root and a path spelled in another case are one directory", { skip: process.platform !== "win32" }, (t) => {
   // `d:\dev\…` under a root git reported as `D:\Development\…` is the same file, and refusing it as
-  // "outside Frizz's trusted roots" is how a live file link died for a difference of case alone.
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-case-")))
+  // "outside Ntwine's trusted roots" is how a live file link died for a difference of case alone.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-case-")))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const file = join(root, "Plan.md")
   writeFileSync(file, "# Plan\n")
   assert.equal(resolveLocalFile(file.toLowerCase(), [root.toUpperCase()]), realpathSync(file.toLowerCase()))
   assert.equal(readLocalMarkdown(file.toUpperCase(), [root.toLowerCase()]).markdown, "# Plan\n")
   // Containment itself still holds: a sibling of the root is out however it is spelled.
-  const outside = join(realpathSync(tmpdir()), `frizz-local-case-outside-${process.pid}.md`)
+  const outside = join(realpathSync(tmpdir()), `ntwine-local-case-outside-${process.pid}.md`)
   writeFileSync(outside, "secret")
   t.after(() => rmSync(outside, { force: true }))
   assert.throws(() => readLocalMarkdown(outside.toLowerCase(), [root]), /trusted roots/)
 })
 
 test("Windows containment rejects a case-distinct sibling and symlinks into it", { skip: process.platform !== "win32" }, async (t) => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-sensitive-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-sensitive-")))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   // This needs NTFS per-directory case sensitivity (the WSL optional feature). Verification
-  // hosts set FRIZZ_REQUIRE_CASE_SENSITIVE_FS=1 so unavailable coverage cannot look like a pass.
+  // hosts set NTWINE_REQUIRE_CASE_SENSITIVE_FS=1 so unavailable coverage cannot look like a pass.
   try {
     execFileSync("fsutil.exe", ["file", "setCaseSensitiveInfo", root, "enable"], { stdio: "pipe" })
   } catch (error) {
-    if (process.env.FRIZZ_REQUIRE_CASE_SENSITIVE_FS === "1") throw error
+    if (process.env.NTWINE_REQUIRE_CASE_SENSITIVE_FS === "1") throw error
     t.skip("NTFS per-directory case sensitivity is unavailable")
     return
   }
@@ -123,7 +123,7 @@ function fakeSpawn(calls: SpawnCall[], fail?: NodeJS.ErrnoException): LocalFileS
 }
 
 test("local opener canonicalizes a regular file inside its trusted root and uses fixed argv", async () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-file-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-file-"))
   const file = join(root, "space ; $(not-a-command).md")
   writeFileSync(file, "safe")
   const calls: SpawnCall[] = []
@@ -139,7 +139,7 @@ test("an opener that cannot start is the RPC's error, not an unhandled `error` e
   // Windows audit 2026-09-11, finding 1: `xdg-open` does not exist on Windows, so the spawn emitted
   // ENOENT with nobody listening and the control-plane child exited. Now it is a rejection the
   // router answers with.
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-file-enoent-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-file-enoent-"))
   const file = join(root, "README.md")
   writeFileSync(file, "safe")
   const enoent = Object.assign(new Error("spawn xdg-open ENOENT"), { code: "ENOENT" })
@@ -171,7 +171,7 @@ test("an opener counts as open when its launcher EXITS: non-zero is its error, e
 })
 
 test("Open in editor: a folder opens in the Local file links editor, else $EDITOR, else a reason", async (t) => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-folder-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-folder-")))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const open = async (opener: LocalFileOpener, env: NodeJS.ProcessEnv) => {
     const calls: SpawnCall[] = []
@@ -209,7 +209,7 @@ test("windows: explorer opens and reveals, an installed editor runs its exe, a m
 })
 
 test("windows: the cmd.exe shape reaches spawn with verbatim arguments, everything else without", async () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-file-win32-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-file-win32-"))
   const file = join(root, "app.ts")
   writeFileSync(file, "safe")
   const calls: SpawnCall[] = []
@@ -224,7 +224,7 @@ test("windows: the cmd.exe shape reaches spawn with verbatim arguments, everythi
 })
 
 test("each opener preference selects its own app, and an image ignores the preference entirely", async () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-file-opener-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-file-opener-"))
   const file = join(root, "app.ts")
   writeFileSync(file, "safe")
   const argvFor = async (opener: LocalFileOpener, forceSystem = false) => {
@@ -249,8 +249,8 @@ test("each opener preference selects its own app, and an image ignores the prefe
 })
 
 test("local opener refuses relative, outside, directory, and escaping symlink paths", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-file-root-"))
-  const outside = mkdtempSync(join(tmpdir(), "frizz-local-file-outside-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-file-root-"))
+  const outside = mkdtempSync(join(tmpdir(), "ntwine-local-file-outside-"))
   const outsideFile = join(outside, "secret.txt")
   writeFileSync(outsideFile, "no")
   const link = join(root, "escape.txt")
@@ -262,15 +262,15 @@ test("local opener refuses relative, outside, directory, and escaping symlink pa
 })
 
 test("copy preference returns only the canonical trusted path without spawning", async () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-file-copy-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-file-copy-"))
   const file = join(root, "artifact.txt")
   writeFileSync(file, "safe")
   assert.deepEqual(await openLocalFile(file, "copy", [root], { spawn: () => { throw new Error("must not spawn") } }), { action: "copy", path: realpathSync(file) })
 })
 
 test("resolveOpenableFile classifies references: home (~), project-relative, absolute, :line, and misses", () => {
-  const home = realpathSync(mkdtempSync(join(tmpdir(), "frizz-openable-home-")))
-  const project = realpathSync(mkdtempSync(join(tmpdir(), "frizz-openable-proj-")))
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-openable-home-")))
+  const project = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-openable-proj-")))
   const roots = [home, project]
   writeFileSync(join(home, "CLAUDE.md"), "cfg")
   mkdirSync(join(project, "packages", "web", "src"), { recursive: true })
@@ -294,8 +294,8 @@ test("resolveOpenableFile classifies references: home (~), project-relative, abs
 })
 
 test("the Markdown reader admits only Markdown, only inside the roots, and only as a real file", () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-md-")))
-  const outside = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-md-outside-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-md-")))
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-md-outside-")))
   writeFileSync(join(root, "README.md"), "# Title\n\nBody.\n")
   writeFileSync(join(root, "notes.txt"), "not markdown")
   writeFileSync(join(root, "post.mdx"), "import X from './x'\n\n# Post\n")
@@ -321,7 +321,7 @@ test("the Markdown reader admits only Markdown, only inside the roots, and only 
 })
 
 test("an oversized Markdown file is cut at a line boundary and reports the cut", () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-md-big-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-md-big-")))
   const file = join(root, "huge.md")
   const line = `${"x".repeat(99)}\n`
   writeFileSync(file, line.repeat(Math.ceil((MARKDOWN_READ_LIMIT * 1.5) / line.length)))
@@ -335,11 +335,11 @@ test("an oversized Markdown file is cut at a line boundary and reports the cut",
 })
 
 test("the text reader spans every openable root, not the project dir alone, and refuses binary", () => {
-  const project = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-text-project-")))
+  const project = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-text-project-")))
   // A worker's checkout is very often NOT the project directory — a git worktree, a sibling clone,
   // `/tmp` scratch. The viewer's gate is the reader's, so every one of those rows opens.
-  const worktree = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-text-worktree-")))
-  const untrusted = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-text-untrusted-")))
+  const worktree = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-text-worktree-")))
+  const untrusted = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-text-untrusted-")))
   const roots = [project, worktree]
   writeFileSync(join(project, "app.ts"), "export const a = 1\n")
   writeFileSync(join(worktree, "mod.rs"), "fn main() {}\n")
@@ -357,8 +357,8 @@ test("the text reader spans every openable root, not the project dir alone, and 
 })
 
 test("a watch attaches exactly where the read is allowed, and a decoy .md arms nothing", () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-watch-")))
-  const outside = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-watch-outside-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-watch-")))
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-watch-outside-")))
   writeFileSync(join(root, "README.md"), "# Title\n")
   writeFileSync(join(root, "app.ts"), "export const a = 1\n")
   writeFileSync(join(root, "real.conf"), "PASSWORD=hunter2")
@@ -469,7 +469,7 @@ test("the editor families the bridge may route to are the ones the Local file li
 })
 
 test("a path with a trailing position that does not exist as written opens the bare file AT that position", async (t) => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-file-position-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-file-position-")))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const file = join(root, "a.ts")
   writeFileSync(file, "x")
@@ -485,7 +485,7 @@ test("a path with a trailing position that does not exist as written opens the b
   assert.deepEqual(resolveLocalFileAt(named, [root]), { path: named })
   assert.throws(() => resolveLocalFileAt(join(root, "gone.ts:12"), [root]), /not found/)
   // The split path passes the same gate as any other.
-  const outside = realpathSync(mkdtempSync(join(tmpdir(), "frizz-local-file-position-out-")))
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-file-position-out-")))
   t.after(() => rmSync(outside, { recursive: true, force: true }))
   writeFileSync(join(outside, "b.ts"), "x")
   assert.throws(() => resolveLocalFileAt(join(outside, "b.ts:3"), [root]), /trusted roots/)
@@ -501,26 +501,26 @@ test("a path with a trailing position that does not exist as written opens the b
 // relative path in the main checkout is the file it meant (router.ts settleWorktreePath).
 test("mainCheckoutCopy: a file in one of the project's worktrees is the same path in the main checkout", () => {
   const root = "/repo"
-  const trees = "/repo/.frizz/worktrees"
-  assert.equal(mainCheckoutCopy("/repo/.frizz/worktrees/tidy/src/a.ts", root, trees), "/repo/src/a.ts")
-  assert.equal(mainCheckoutCopy("/repo/.frizz/worktrees/tidy/.frizz/threads/x/notes.md", root, trees), "/repo/.frizz/threads/x/notes.md")
-  assert.equal(mainCheckoutCopy("/repo/.frizz/worktrees/tidy/src/a.ts:12", root, trees), "/repo/src/a.ts:12", "a trailing position rides along")
+  const trees = "/repo/.ntwine/worktrees"
+  assert.equal(mainCheckoutCopy("/repo/.ntwine/worktrees/tidy/src/a.ts", root, trees), "/repo/src/a.ts")
+  assert.equal(mainCheckoutCopy("/repo/.ntwine/worktrees/tidy/.ntwine/threads/x/notes.md", root, trees), "/repo/.ntwine/threads/x/notes.md")
+  assert.equal(mainCheckoutCopy("/repo/.ntwine/worktrees/tidy/src/a.ts:12", root, trees), "/repo/src/a.ts:12", "a trailing position rides along")
   // The worktree folder, a worktree itself, and anything outside the worktree folder: nothing.
-  assert.equal(mainCheckoutCopy("/repo/.frizz/worktrees", root, trees), undefined)
-  assert.equal(mainCheckoutCopy("/repo/.frizz/worktrees/tidy", root, trees), undefined)
+  assert.equal(mainCheckoutCopy("/repo/.ntwine/worktrees", root, trees), undefined)
+  assert.equal(mainCheckoutCopy("/repo/.ntwine/worktrees/tidy", root, trees), undefined)
   assert.equal(mainCheckoutCopy("/repo/src/a.ts", root, trees), undefined)
-  assert.equal(mainCheckoutCopy("/elsewhere/.frizz/worktrees/tidy/a.ts", root, trees), undefined)
-  assert.equal(mainCheckoutCopy("/repo/.frizz/worktrees-old/tidy/a.ts", root, trees), undefined)
+  assert.equal(mainCheckoutCopy("/elsewhere/.ntwine/worktrees/tidy/a.ts", root, trees), undefined)
+  assert.equal(mainCheckoutCopy("/repo/.ntwine/worktrees-old/tidy/a.ts", root, trees), undefined)
   // The caller names the worktree folder, which need not be inside the project.
   assert.equal(mainCheckoutCopy("/trees/tidy/src/a.ts", root, "/trees"), "/repo/src/a.ts")
 })
 
 test("resolveOpenableFile lets the caller settle an absolute path before the gate", () => {
-  const project = realpathSync(mkdtempSync(join(tmpdir(), "frizz-openable-settle-")))
+  const project = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-openable-settle-")))
   writeFileSync(join(project, "a.ts"), "x")
-  const gone = join(project, ".frizz", "worktrees", "tidy", "a.ts")
+  const gone = join(project, ".ntwine", "worktrees", "tidy", "a.ts")
   assert.equal(resolveOpenableFile(gone, project, [project]), null, "negative control: the worktree's file is gone")
-  assert.equal(resolveOpenableFile(gone, project, [project], undefined, (abs) => mainCheckoutCopy(abs, project, join(project, ".frizz", "worktrees")) ?? abs), join(project, "a.ts"))
+  assert.equal(resolveOpenableFile(gone, project, [project], undefined, (abs) => mainCheckoutCopy(abs, project, join(project, ".ntwine", "worktrees")) ?? abs), join(project, "a.ts"))
   // The settled path still faces the gate.
   assert.equal(resolveOpenableFile(gone, project, [join(project, "nope")], undefined, () => join(project, "a.ts")), null)
 })

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
-import { GITHUB_DISPATCH_UI_BOUNDARY, type GithubItem } from "@frizz/shared"
+import { GITHUB_DISPATCH_UI_BOUNDARY, type GithubItem } from "@ntwine/shared"
 
 // gh-CLI wrapper. Design principles (matching project.ts / open-external.ts): every call is
 // execFile with an ARGS ARRAY, NEVER a shell string, so a repo/number can never be reinterpreted

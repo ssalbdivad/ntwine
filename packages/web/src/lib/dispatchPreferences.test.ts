@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { acpAgentIdFromModel, acpModelIdFromModel, acpModelPreset, acpModelSlug, type CodexModel, type DispatchPreferences } from "@frizz/shared"
+import { acpAgentIdFromModel, acpModelIdFromModel, acpModelPreset, acpModelSlug, type CodexModel, type DispatchPreferences } from "@ntwine/shared"
 import {
   applyDispatchPreferenceUpdate,
   dispatchModelGroups,

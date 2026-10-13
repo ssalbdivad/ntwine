@@ -8,10 +8,10 @@ import {
   EDITOR_STATE_MAX_OPEN,
   EDITOR_STATE_MAX_SELECTION_TEXT,
   type EditorSnapshot,
-} from "@frizz/shared/editor-protocol"
+} from "@ntwine/shared/editor-protocol"
 // The server's OWN frame rules (the extension never bundles these): every frame built here must be one
 // the server takes, or the socket is refused on every redial for as long as the human keeps the selection.
-import { EditorClientMessageSchema } from "@frizz/shared"
+import { EditorClientMessageSchema } from "@ntwine/shared"
 import { EDITOR_MAX_FRAME_BYTES } from "../../server/src/editor-bridge.ts"
 import { buildEditorSnapshot, encodedBytes, fitEditorSnapshot, unsharedSnapshot, type ActiveInput, type DiagnosticInput, type SnapshotInputs } from "./editor-state.ts"
 

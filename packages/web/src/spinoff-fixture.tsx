@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router"
-import { spinoffChildPrompt, spinoffContext, type BoardSnapshot, type SpinoffView, type ThreadHandoff, type ThreadView as ThreadViewModel, type TranscriptMessage } from "@frizz/shared"
+import { spinoffChildPrompt, spinoffContext, type BoardSnapshot, type SpinoffView, type ThreadHandoff, type ThreadView as ThreadViewModel, type TranscriptMessage } from "@ntwine/shared"
 import { AllQueuesCard } from "./components/AllQueuesCard.tsx"
 import { ThreadView } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -20,7 +20,7 @@ import "./styles.css"
 //                   a `<spinoff-request>` turn that never started: the envelope must draw as the card, and
 //                   the worker's failed spawn_thread call under it is an ordinary tool line.
 //   ?panel=child    the CHILD: the header's "Spinoff of @parent", then its first turn as the origin card
-//                   with the context Frizz assembled folded beneath (`&open=1` opens it on load).
+//                   with the context Ntwine assembled folded beneath (`&open=1` opens it on load).
 //   ?panel=queue    the child's QUEUE CARD, whose meta line names its parent too.
 //   (default)       all three, stacked.
 //   &w=<px>         the panel width — 560 is the drawer's, 420 a phone / narrow card. Default 560.
@@ -53,7 +53,7 @@ const A = edge("spn_a000000000000001", "sub-agent-liveness", "evaluate-addresses
 const B = edge("spn_b000000000000002", "sub-agent-liveness", "audit-projection-paths", "Audit every place the transcript projection reads a tool call's input.")
 const C = edge("spn_c000000000000003", "sub-agent-liveness", null, "Write a migration that backfills the child slugs.")
 
-// The parent's own words, as Frizz quotes them into the child's context (spinoffContext).
+// The parent's own words, as Ntwine quotes them into the child's context (spinoffContext).
 const REQUEST = "Why do live sub-agents read as not running in the rail?"
 const HANDOFF = `## Where this stands
 
@@ -75,7 +75,7 @@ const CHILD = thread("evaluate-addresses", "Evaluate sub-agent addresses", {
   spinoffs: [A], statusLine: "Counting dotted mentions", needsYou: true, humanBlocked: true, status: "needs-human", spawnedAt: at(18),
 })
 const LONG_CHILD = thread("audit-projection-paths", "Audit every transcript projection path", { spinoffs: [B], needsYou: true, humanBlocked: true, status: "needs-human" })
-store.board = { projectDir: "/fixture/frizz", projectSlug: "frizz", threads: [PARENT, CHILD, LONG_CHILD] } as unknown as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", projectSlug: "ntwine", threads: [PARENT, CHILD, LONG_CHILD] } as unknown as BoardSnapshot
 // The e2e reads which drawer a plain click on a thread link opened (Spinoff.e2e.test.ts).
 ;(window as unknown as { __store: typeof store }).__store = store
 
@@ -90,7 +90,7 @@ const card = (e: SpinoffView, minutesAgo: number): TranscriptMessage =>
 // …and one an older build DELIVERED to the worker: the turn's raw text is the envelope.
 const legacyRequest = (sourceId: string, e: SpinoffView, minutesAgo: number): TranscriptMessage =>
   user(sourceId, `<spinoff-request id="${e.id}">\nThe human asked to spinoff a NEW thread from this conversation. Their instructions for it:\n<instructions>\n${e.instructions}\n</instructions>\n\nDo this now, before anything else: …\n</spinoff-request>`, minutesAgo, { displayText: e.instructions, spinoff: { id: e.id, instructions: e.instructions } })
-const refusedSpawn = (e: SpinoffView) => ({ name: "mcp__frizz__spawn_thread", detail: "spawn thread", status: "failed" as const, input: JSON.stringify({ spinoff: e.id, prompt: "…" }), output: `Error: model "opus-9" is not available here — pick one of opus, sonnet, haiku.` })
+const refusedSpawn = (e: SpinoffView) => ({ name: "mcp__ntwine__spawn_thread", detail: "spawn thread", status: "failed" as const, input: JSON.stringify({ spinoff: e.id, prompt: "…" }), output: `Error: model "opus-9" is not available here — pick one of opus, sonnet, haiku.` })
 const read = (detail: string) => ({ name: "Read", detail, status: "completed" as const })
 
 const TRANSCRIPTS: Record<string, TranscriptMessage[]> = {
@@ -117,7 +117,7 @@ const json = (result: unknown) => new Response(JSON.stringify({ result }), { hea
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : ((input as Request).url ?? input.toString()), location.origin)
-  if (!url.pathname.startsWith("/_frizz/")) return originalFetch(input, init)
+  if (!url.pathname.startsWith("/_ntwine/")) return originalFetch(input, init)
   const rpc = /\/rpc\/([^/]+)$/.exec(url.pathname)?.[1]
   const raw = typeof init?.body === "string" ? init.body : url.searchParams.get("input")
   const body = raw ? (JSON.parse(raw) as { slug?: string }) : {}
@@ -152,8 +152,8 @@ function Drawer({ slug, label, height }: { slug: string; label: string; height: 
 
 function Queue() {
   const project: QueuesProject = useMemo(() => ({
-    id: "fixture-frizz", slug: "frizz", name: "frizz", card: undefined, open: true, stale: false,
-    projectDir: "/fixture/frizz", homeDir: "/fixture", githubRepo: undefined,
+    id: "fixture-ntwine", slug: "ntwine", name: "ntwine", card: undefined, open: true, stale: false,
+    projectDir: "/fixture/ntwine", homeDir: "/fixture", githubRepo: undefined,
     queued: [CHILD, LONG_CHILD], running: [], snoozed: [], pinnedDone: [], doneCount: 0,
   }), [])
   return (

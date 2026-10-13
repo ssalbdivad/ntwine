@@ -1,7 +1,7 @@
 import { Fragment, memo, useCallback, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { AlarmClock, Bot, Check, ChevronRight, Ellipsis, Github, Hourglass, Loader2, Pin, PinOff, Repeat, RotateCcw } from "lucide-react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { pushSubAgentDrawer, showToast } from "../store.ts"
 import { displayTitle, subAgentName, titleIsProvisional, isPinned, isSnoozed, sessionIndicatorKind, offersRetry, futureSnoozedUntil, queueLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents, restIsWorking, workingWithOpenQuestion } from "../groups.ts"
 import { ageSpan, relativeAge } from "../lib/activityTime.ts"
@@ -300,7 +300,7 @@ export function TitleWithTrailers({ title, children }: { title: string; children
 
 // One THREAD row: the derived session indicator, the title and the provider mark. NO Mark-as verb —
 // session threads use Archive in the persistent thread footer. A click opens the thread through the
-// row's scope (RowScope). A LEGACY `.frizz` row, with a status chip and the hover-revealed Mark-as split
+// row's scope (RowScope). A LEGACY `.ntwine` row, with a status chip and the hover-revealed Mark-as split
 // button, was drawn only by the project board's Legacy shelf, and went with it on 2026-09-28.
 //
 // MEMOIZED: board deltas REPLACE a changed thread's whole object, so `t` keeps snapshot identity iff
@@ -351,7 +351,7 @@ export const ThreadRow = memo(function ThreadRow({
   // doneButRunning) and is still Done — dimmed, and still the human's to uncheck.
   const done = t.state === "archived"
   const dim = snoozed || done
-  // The done CHECK is a real checkbox on a row frizz owns: unchecking it reopens the thread. A foreign
+  // The done CHECK is a real checkbox on a row ntwine owns: unchecking it reopens the thread. A foreign
   // row is read-only (the server has no session to write), so its check stays a plain mark.
   const uncheckable = done && !foreign
   const dimLabel = titleIsProvisional(t)
@@ -365,12 +365,12 @@ export const ThreadRow = memo(function ThreadRow({
   const inlineStatus = working?.status
   // The rows with an obvious single next action carry that verb INLINE, instead of making you open the
   // thread to find it. offersRetry (groups.ts) picks them: a STALLED row (the [!] mark — process
-  // exited) AND a row KILLED by a usage limit frizz will auto-resume (the yellow hourglass — a faster
+  // exited) AND a row KILLED by a usage limit ntwine will auto-resume (the yellow hourglass — a faster
   // door to the in-drawer "Continue now" than waiting for the window). The queue card and drawer header
   // read the SAME helper, so no surface can disagree with the rail about which threads offer Retry.
   const canRestart = offersRetry(t)
-  // Whether the row has any hover verb at all: the pin on every row frizz owns, Retry on a stalled one.
-  // A terminal thread frizz only reads offers neither, so it keeps its rest time under the pointer rather
+  // Whether the row has any hover verb at all: the pin on every row ntwine owns, Retry on a stalled one.
+  // A terminal thread ntwine only reads offers neither, so it keeps its rest time under the pointer rather
   // than trading it for an empty strip.
   const hoverActions = !foreign || canRestart
   // A pinned row wears the mark in its right-edge column AND places the unpin verb rightmost in the
@@ -378,7 +378,7 @@ export const ThreadRow = memo(function ThreadRow({
   const pinned = isPinned(t)
   // A ROW IS ITS TITLE, AND NOTHING ELSE (maintainer 2026-08-19: "there should never ever be any fucking
   // thing in the sidebar except for the fucking title"). There is no subtitle line on any row, in any
-  // state: not the fence's PR ref, not a snooze, not the legacy `.frizz` activity gloss, not a sub-agent
+  // state: not the fence's PR ref, not a snooze, not the legacy `.ntwine` activity gloss, not a sub-agent
   // count line. Every one of them was a second, competing status beside the row's own — the rail is a column
   // of NAMES you scan, and each caption added there made the next one harder to find.
   //
@@ -390,7 +390,7 @@ export const ThreadRow = memo(function ThreadRow({
   // sidebar, put them in hover states). The reveal is the same inline text, not a tooltip (David
   // 2026-10-07). Settings → Always show status lines (prefs `alwaysShowStatusLines`) keeps it drawn.
   //
-  // What frizz knows about the row still exists, one hover away: the indicator's popover composes it
+  // What ntwine knows about the row still exists, one hover away: the indicator's popover composes it
   // from the AWAITING BLOCK deterministically (awaitingWaitClause) plus the worker's own handoff prose, so
   // the detail is available on demand and never spends a line of the rail. Live sub-agents are the other
   // reading that costs no line: a quiet count in the right-edge column (SubAgentCount). That is the same call that
@@ -494,7 +494,7 @@ export const ThreadRow = memo(function ThreadRow({
           reachable from the keyboard: focus the row button and the next Tab lands here. */}
       {/* THE ROW'S HOVER ACTIONS, pinned to the right edge over the title's first line — exactly where
           the cue's rest time sits, which yields to them on hover (maintainer 2026-08-28: the expand icon
-          "should replace where the current time rest duration currently is"). A row frizz owns gets the
+          "should replace where the current time rest duration currently is"). A row ntwine owns gets the
           pin; a stalled/held row gets Retry after it, because recovery is the verb the row is pointing
           at. The fullscreen door stood between them until 2026-09-28, when /full became an option in
           the drawer's own menu (ThreadMenu.tsx) rather than a door on every row.
@@ -587,8 +587,8 @@ export function RestedAge({ t, yieldsToRetry }: { t: ThreadView; yieldsToRetry?:
 // The stalled row's recovery verb: a SMALL GREY icon button that restarts the exited session in ONE
 // click, without opening the thread. Deliberately the SAME verb, icon, message and RPC path as the
 // thread header's Retry (lib/retrySession) — the row is just a faster door to it. Named "Retry", not
-// "Restart", because "restart" already means the frizz control plane restarting itself
-// (RestartFrizzButton) and the two must not blur.
+// "Restart", because "restart" already means the ntwine control plane restarting itself
+// (RestartNtwineButton) and the two must not blur.
 function RowRetryButton({ t }: { t: ThreadView }) {
   const slug = t.id
   const queryClient = useQueryClient()
@@ -679,7 +679,7 @@ function PinnedMark({ besideClock = false }: { besideClock?: boolean }) {
 }
 
 // The pin/unpin verb — one of the row's hover actions (ThreadRow places it: leftmost to pin, rightmost to
-// unpin), on every row the server can pin: sessions frizz owns, in any state,
+// unpin), on every row the server can pin: sessions ntwine owns, in any state,
 // because the pin deliberately outranks Done and Snoozed alike. THE FILL IS THE STATE: an outline pin
 // offers to pin, and the solid body with the slash — the same solid pin the pinned row's mark wears —
 // offers to unpin, so a filled pin anywhere on the rail means "pinned" and nothing else (maintainer
@@ -792,7 +792,7 @@ function RowUncheckDone({ t }: { t: ThreadView }) {
  *
  *  The STATE leads because it is what the glyph you pointed at is claiming; the fence's clause follows
  *  because it says what that glyph means on THIS row; the worker's own prose takes a PARAGRAPH of its
- *  own, because it is the one line frizz did not write. The blank line is load-bearing: the sentence
+ *  own, because it is the one line ntwine did not write. The blank line is load-bearing: the sentence
  *  above it wraps, and a reason set directly under a wrapped line reads as its third line — which is
  *  exactly how it looked when they were merely stacked. Nulls and blanks drop out, so a row with no
  *  fence is just its state. */
@@ -973,7 +973,7 @@ function stackParked(tip: string | null, parked: string): string {
 }
 
 // THE ONE MARK FOR "A BACKGROUND SHELL IS ALIVE BEHIND THIS ROW" — the same blue and the same pulse as
-// the transcript's live-shell dot, sized to this box (styles.css .frizz-rail-dot), so both surfaces say
+// the transcript's live-shell dot, sized to this box (styles.css .ntwine-rail-dot), so both surfaces say
 // it in one language. It is drawn by BOTH background arms below, and that is the whole point: the
 // Active one (`kind === "background"` — resting on a live shell, undimmed) and the parked one (the same
 // thread after the human snoozed its resting card) are ONE fact about the process, and a park does not
@@ -1003,8 +1003,8 @@ function stackParked(tip: string | null, parked: string): string {
 // working when its worker had stopped for the human or parked on a watcher (maintainer 2026-10-03:
 // "it looks like it's actively working on stuff, but it's obviously not"). StatusBox and the spinner's
 // children slot share one 13px content box, so the dot lands on the same pixels in both frames.
-const shellDot = <BoxSpinner><span aria-hidden className="frizz-rail-dot" data-running-indicator="thread-background" /></BoxSpinner>
-const restingShellDot = <StatusBox><span aria-hidden className="frizz-rail-dot" /></StatusBox>
+const shellDot = <BoxSpinner><span aria-hidden className="ntwine-rail-dot" data-running-indicator="thread-background" /></BoxSpinner>
+const restingShellDot = <StatusBox><span aria-hidden className="ntwine-rail-dot" /></StatusBox>
 
 // THE OCTOCAT IS THE ONE MARK IN THIS FAMILY WHOSE INK IS NOT CENTRED IN ITS OWN VIEWBOX, so it is the
 // one that needs a correction rather than just an odd size. `items-center justify-center` centres the
@@ -1135,7 +1135,7 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
     // KILLED BY A USAGE LIMIT, auto-resume promised — the rail's OTHER yellow mark (2026-08-31). Accent
     // like the stalled [!] because both are dead threads carrying the same one-click Retry (offersRetry;
     // maintainer: every yellow row gets the hover Retry), but the glyph stays the hourglass because this
-    // one has a wake frizz itself delivers. Until 2026-08-31 it wore the MUTED hourglass in the Snoozed
+    // one has a wake ntwine itself delivers. Until 2026-08-31 it wore the MUTED hourglass in the Snoozed
     // band, which read as a calm intentional park over a whole limit-killed fleet (maintainer: "they
     // showed up and fucking snoozed"). The words are lib/limitPause's, shared with the drawer's and the
     // queue card's pause card, so no two surfaces can tell two stories about one thread. The kind is only
@@ -1198,7 +1198,7 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
     // the tooltip wording marks as an `auto` variant of the same word rather than a separate idea:
     //   • a user snooze re-surfaces the CARD for you  → "Snoozed until <wake>"       (you act next)
     //   • an ```awaiting park naming a timer / blocked+timer status auto-resumes the agent → "Auto-snoozed until <wake>"
-    // A user snooze that carries a PROMPT crosses that line by design — frizz resumes the agent with it —
+    // A user snooze that carries a PROMPT crosses that line by design — ntwine resumes the agent with it —
     // so formatUserSnooze reads it as the auto variant and names the follow-up it will send.
     const snoozedUntil = futureSnoozedUntil(t)
     if (snoozedUntil) {
@@ -1271,7 +1271,7 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
   // empty box and never a false check). We don't know the reason — the worker didn't fence — so: no
   // hint gloss (vs an ```awaiting fence, which names what it waits on AND dims + sinks the row). The
   // honest fix is the worker emitting ` ```awaiting ` when it's blocked on a machine.
-  // RESTED AND AWAITING lands here whenever the park is not Snoozed — the fence declared a wait but frizz
+  // RESTED AND AWAITING lands here whenever the park is not Snoozed — the fence declared a wait but ntwine
   // could not honour it (an item that is not running, no `for:`), so the row stays in the queue wearing
   // the ordinary at-rest mark. That row is exactly where the worker's own prose earns its place: the
   // glyph says "at rest" and the popover says what it thinks it is waiting for, which is the one thing
@@ -1301,11 +1301,11 @@ function Glyph({ ch, muted }: { ch: string; muted?: boolean }) {
   return (
     <span
       aria-hidden
-      // `frizz-rail-glyph` trims the span to the glyph's own cap band, so the box centres its INK rather
+      // `ntwine-rail-glyph` trims the span to the glyph's own cap band, so the box centres its INK rather
       // than its em box — the correction is the BROWSER's, holds in both of this app's fonts, and lives
       // with its readings in styles.css. It replaced `translateY(0.09em)`, a constant fitted on a fixture
       // that silently rendered mono while the app runs sans, which left both marks ~1.4px low on screen.
-      className={`frizz-rail-glyph font-bold leading-none ${muted ? "text-muted-70" : "text-accent"}`}
+      className={`ntwine-rail-glyph font-bold leading-none ${muted ? "text-muted-70" : "text-accent"}`}
       style={{ fontSize: 10 }}
     >
       {ch}

@@ -1,5 +1,5 @@
-import { query } from "@frizz/claude-agent-sdk-runtime"
-import { claudeFamilyLabel, parseClaudeWireId, type ClaudeModel, type ClaudeModelFamily } from "@frizz/shared"
+import { query } from "@ntwine/claude-agent-sdk-runtime"
+import { claudeFamilyLabel, parseClaudeWireId, type ClaudeModel, type ClaudeModelFamily } from "@ntwine/shared"
 import { sanitizeProviderChildEnvironment } from "./claude-agent-sdk.ts"
 import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
@@ -8,7 +8,7 @@ import { inheritWorkerEnvironment } from "./worker-env.ts"
 // Claude alias with the EDITION the pinned runtime resolves it to ("Opus 5.5", "Fable 5.1"), never with
 // the bare family word (maintainer 2026-09-24: "if we have the full resolved version of the model, like
 // Fable 5.1 or Opus 5.5, I think we should probably just put that in the model and effort selector …
-// We already do this for GPT"). Frizz keeps dispatching on the ALIAS — `claude --model opus` is what
+// We already do this for GPT"). Ntwine keeps dispatching on the ALIAS — `claude --model opus` is what
 // tracks a new Opus when the pin moves — so the alias is the value and only the label resolves.
 //
 // The resolution comes from the runtime itself, not a table: the SDK's `supportedModels()` answers from
@@ -19,7 +19,7 @@ import { inheritWorkerEnvironment } from "./worker-env.ts"
 // no API call, no session file — and it is memoised per executable for the server's life, because the
 // pin cannot change without a restart.
 
-/** The aliases Frizz offers, in capability order — the same order CLAUDE_THREAD_PROFILES keeps. */
+/** The aliases Ntwine offers, in capability order — the same order CLAUDE_THREAD_PROFILES keeps. */
 export const CLAUDE_MODEL_ALIASES = ["fable", "opus", "sonnet", "haiku"] as const satisfies readonly ClaudeModelFamily[]
 export type ClaudeModelAlias = (typeof CLAUDE_MODEL_ALIASES)[number]
 
@@ -28,8 +28,8 @@ export type ClaudeModelAlias = (typeof CLAUDE_MODEL_ALIASES)[number]
 // reads exactly these labels.
 export const CLAUDE_MODELS_FALLBACK: ClaudeModel[] = CLAUDE_MODEL_ALIASES.map((alias) => ({ alias, label: claudeFamilyLabel(alias) }))
 
-/** Map the runtime's `supportedModels()` rows onto Frizz's aliases. PURE and total: a row of any shape is
- *  tolerated, an alias no row resolves keeps its bare family label, and the order is Frizz's own. Exported
+/** Map the runtime's `supportedModels()` rows onto Ntwine's aliases. PURE and total: a row of any shape is
+ *  tolerated, an alias no row resolves keeps its bare family label, and the order is Ntwine's own. Exported
  *  for a fixture unit test over the real 2.1.281 answer. */
 export function resolveClaudeModels(rows: readonly unknown[]): ClaudeModel[] {
   const byAlias = new Map<ClaudeModelAlias, ClaudeModel>()

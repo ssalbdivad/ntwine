@@ -2,9 +2,9 @@
 // answer decides whether scratch-directory re-orientation can reach a Codex worker at all:
 //
 //   Do Codex lifecycle hooks fire when they are delivered through the per-conversation `config`
-//   override that frizz's CodexAppServerBridge already supports?
+//   override that ntwine's CodexAppServerBridge already supports?
 //
-// This matters because frizz drives Codex over `codex app-server`, NOT `codex exec`. Measured first:
+// This matters because ntwine drives Codex over `codex app-server`, NOT `codex exec`. Measured first:
 // in codex-cli 0.144.6 `codex exec` runs NO hooks at all — not from `<repo>/.codex/hooks.json`, not
 // from `$CODEX_HOME/hooks.json`, not from `-c hooks.…` overrides, with or without
 // `bypass_hook_trust=true`, in a git repo or out of one, even though the `hooks` feature flag reports
@@ -26,7 +26,7 @@ import { createInteractionStore } from "../interaction-store.ts"
 import { CodexAppServerBridge, type CodexAppServerSpawn } from "./codex-app-server.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const dir = mkdtempSync(join(tmpdir(), "frizz-live-codex-hooks-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-live-codex-hooks-"))
 const marker = join(dir, "RAN.log")
 const hook = join(dir, "hook.sh")
 const REAL_HOOK = join(process.cwd(), "../cc-worker/hooks/scratchpad.mjs")
@@ -50,9 +50,9 @@ const oneHook = { hooks: [{ type: "command", command: hook }] }
 // injection. THE SENTINEL IS THE FILENAME, deliberately: since 2026-08-06 the hook emits a LISTING and
 // never file content, so a token hidden INSIDE a file is one the model could not recite even with the
 // hook working perfectly — the probe would report a false negative and read as "codex hooks are dead".
-mkdirSync(join(dir, ".frizz", "threads", SID), { recursive: true })
+mkdirSync(join(dir, ".ntwine", "threads", SID), { recursive: true })
 writeFileSync(
-  join(dir, ".frizz", "threads", SID, "rollback-token-MARIGOLD-SABLE-7734.md"),
+  join(dir, ".ntwine", "threads", SID, "rollback-token-MARIGOLD-SABLE-7734.md"),
   "the plan, whose CONTENT the hook deliberately does not inject\n"
 )
 // No `--enabled`: the opt-in flag was removed when re-grounding became unconditional.
@@ -118,7 +118,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
       await sleep(250)
     }
 
-    console.log("\n=== PHASE 2: the REAL scratchpad.mjs, wired exactly as frizz wires it ===")
+    console.log("\n=== PHASE 2: the REAL scratchpad.mjs, wired exactly as ntwine wires it ===")
     await bridge.startDisposableSession({
       threadSlug: "real-probe", sessionId: SID, cwd: dir, sandbox: "read-only", ephemeral: false,
       config: {
@@ -135,7 +135,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
       if (bridge.binding("real-probe", SID)?.currentTurnId == null) break
       await sleep(250)
     }
-    const kept = readdirSync(join(dir, ".frizz", "threads", SID))
+    const kept = readdirSync(join(dir, ".ntwine", "threads", SID))
     console.log("  scratch dir still intact:", kept.some((f) => f.includes("MARIGOLD-SABLE-7734")))
 
     console.log("\n=== DID ANY HOOK RUN? ===")

@@ -4,7 +4,7 @@
 //   nub packages/server/src/backend/_live_broker_coalesce.mts [same]
 //
 // This is the shape the maintainer described ("two messages queued at once … dequeued simultaneously")
-// and the one the corpus proves frizz mis-renders. Pass `same` to queue two IDENTICAL texts.
+// and the one the corpus proves ntwine mis-renders. Pass `same` to queue two IDENTICAL texts.
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -81,7 +81,7 @@ function dump(phase: string): { a: number; b: number; gray: number; joined: numb
 
 try {
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

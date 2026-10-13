@@ -27,8 +27,8 @@
 // short as 0.13s. This card is what makes that alternation legible.)
 import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from "react"
 import { Bot, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleDot, CircleSlash, CircleX, Clock, GitMerge, GitPullRequestClosed, Hourglass, ListTodo, MessageSquare, SquareTerminal, TerminalSquare, X } from "lucide-react"
-import type { AwaitingHint, GithubIssueStatus, GithubWatchStatus, ThreadTerminal, ThreadView, ThreadWatchView } from "@frizz/shared"
-import { awaitingFenceTitle, awaitingSteps, isDirectSubAgent, replyWaitOf } from "@frizz/shared"
+import type { AwaitingHint, GithubIssueStatus, GithubWatchStatus, ThreadTerminal, ThreadView, ThreadWatchView } from "@ntwine/shared"
+import { awaitingFenceTitle, awaitingSteps, isDirectSubAgent, replyWaitOf } from "@ntwine/shared"
 import { subAgentName } from "../groups.ts"
 import { githubRefUrl } from "../lib/githubRef.ts"
 import { noteGithubRefs } from "../lib/githubHovercards.ts"
@@ -245,14 +245,14 @@ function WatchedRef({ watch }: { watch: { ref: string; url: string | null } }) {
 //   • the counts drop the prose headline that restated them.
 //   • the merge verdict joins the same line, and only when it is not already implied (below).
 //
-// AN UNPOLLED PR SAYS "Checking…", not "no checks". They are different facts — frizz has not looked yet
+// AN UNPOLLED PR SAYS "Checking…", not "no checks". They are different facts — ntwine has not looked yet
 // versus this PR has no CI — and only the second of them means the wait is nearly over. The same
 // distinction decides the queue rule server-side, where not-knowing never parks a thread.
 
 // The merge verdict, appended to the counts. Two of GitHub's four states are SILENT here, for two
 // different reasons:
 //   • UNKNOWN — GitHub computes mergeability asynchronously and reports it while still thinking, so a
-//     phrase for it would say "frizz has not heard back" in words that sound like a verdict.
+//     phrase for it would say "ntwine has not heard back" in words that sound like a verdict.
 //   • BLOCKED WHILE CI IS RED OR RUNNING — "blocked" is then just the checks restated, which is the
 //     doubling this row exists to remove. It survives on a GREEN PR, where it is the one thing the
 //     counts do not say: CI is done and something else (a review, a required branch) still holds it.
@@ -332,7 +332,7 @@ function ChecksInProgress() {
  *  renders `#00bc7d` — 32° of hue away, a teal beside a green (maintainer 2026-08-31: "These greens
  *  just don't match"). A bare 12px glyph takes the `fg*` family, never the `bg*Emphasis` fill.
  *
- *  The CircleDashed arms stay on the app's `muted`, deliberately: "frizz has not polled this PR yet" is
+ *  The CircleDashed arms stay on the app's `muted`, deliberately: "ntwine has not polled this PR yet" is
  *  not a GitHub state, so no Primer colour means it. */
 function ChecksGlyph({ status }: { status: GithubWatchStatus | undefined }) {
   if (!status) return <CircleDashed size={12} className={`${ON_CAP} text-muted-60`} />
@@ -378,7 +378,7 @@ export function checkCountLine(status: GithubWatchStatus): string {
  *  Merged/closed outrank everything — a merged PR's CI is history. Otherwise the counts speak and the
  *  glyph beside them carries the verdict they used to spell out in prose. */
 export function watchStatusLine(status: GithubWatchStatus | undefined): string {
-  if (!status) return "Checking…" // frizz has not polled yet — NOT "no checks"
+  if (!status) return "Checking…" // ntwine has not polled yet — NOT "no checks"
   if (status.state === "merged") return "Merged"
   if (status.state === "closed") return "Closed"
   const counts = checkCountLine(status)
@@ -500,7 +500,7 @@ function Chevron() {
   //   BEFORE, at `-mr-0.5` and the row's shared `gap-x-2.5`:
   //     ink to the card's content edge  3.88px   — while the mark on the left sits flush at 0
   //     status ink → chevron ink       14.88px   — wider than the 13.00px that got "fix the fucking
-  //                                                optical spacing on that chevron" (FRIZZ.md)
+  //                                                optical spacing on that chevron" (NTWINE.md)
   //   AFTER, with these two:            1.88px and  7.88px — identical in BOTH fonts, which is the point
   //                                     of setting them in px against an ink measurement rather than in
   //                                     em against a cap height that moves.
@@ -631,7 +631,7 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
 
 /** GITHUB'S OWN ISSUE MARKS, in its own colours: the green open dot, the purple "completed" check, the
  *  grey "not planned" slash — the three states its issue list draws. Unpolled reads as the same dashed
- *  circle a PR row uses, for the same reason: "frizz has not looked yet" is not a GitHub state. */
+ *  circle a PR row uses, for the same reason: "ntwine has not looked yet" is not a GitHub state. */
 function IssueGlyph({ status }: { status: GithubIssueStatus | undefined }) {
   if (!status) return <CircleDashed size={12} className={`${ON_CAP} text-muted-60`} />
   if (status.state === "closed") {
@@ -927,11 +927,11 @@ export function liveAgents(thread: Pick<ThreadView, "subAgents">) {
 export function AgentRow({ agent, slug, now, onDismiss }: { agent: ThreadView["subAgents"][number]; slug: string; now: number; onDismiss?: () => void }) {
   const elapsed = compactElapsedSince(agent.startedAt, now)
   const open = useContext(WaitRowOpenContext)
-  // The profile without its namespace: `frizz:opus-high` is how it is dispatched, `opus-high` is how the
+  // The profile without its namespace: `ntwine:opus-high` is how it is dispatched, `opus-high` is how the
   // maintainer says it. It lives in the TOOLTIP, not the status (maintainer 2026-10-08: "I don't think
   // the model and effort is very important") — the status track is width the title needs, and the
   // elapsed time is the one reading on this row that changes.
-  const profile = agent.subagentType?.replace(/^frizz:/, "")
+  const profile = agent.subagentType?.replace(/^ntwine:/, "")
   // STALE reaches the fullscreen rail only (this card's set is `liveAgents`): a child whose completion
   // never arrived and whose transcript has gone quiet past its window (tailer `quietPastWindow`). It does
   // not spin. It wears the flat dot every other surface gives a stale child, in a box the size of the

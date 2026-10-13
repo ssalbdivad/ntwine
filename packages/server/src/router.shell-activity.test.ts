@@ -22,7 +22,7 @@ function harness(shells: Record<string, { outputFile?: string; state: "running" 
 const SLUG = "counter-thread"
 
 test("the activity endpoint counts each named shell's output", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-shell-activity-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-shell-activity-"))
   try {
     const busy = join(dir, "busy.output")
     const silent = join(dir, "silent.output")
@@ -61,7 +61,7 @@ test("a shell the tailer no longer knows is omitted — it is gone, not pending"
 })
 
 test("a settled shell still reports its final count, marked not-running so the poll can stop", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-shell-activity-done-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-shell-activity-done-"))
   try {
     const path = join(dir, "done.output")
     writeFileSync(path, "finished\n")

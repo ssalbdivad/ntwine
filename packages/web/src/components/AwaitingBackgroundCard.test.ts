@@ -4,7 +4,7 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { AgentRow, AwaitingBackgroundCard, AwaitingWaitTable, BgShellRow, awaitingBackgroundLabel, awaitingBackgroundSubject, hasAwaitingWaitRows, restingOnSteps, showsRestingCard, stoppableShellIds } from "./AwaitingBackgroundCard.tsx"
 import { CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE } from "../lib/childOps.ts"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 
 // One card, three surfaces, and since 2026-08-15 one TABLE: every kind of live work the thread declared
 // gets a row, grouped by kind, with a light-gray status right-justified and a chevron
@@ -15,7 +15,7 @@ import type { ThreadView } from "@frizz/shared"
 // row entirely (which is how a declared shell watch went unrendered for a day), and the snooze leaking
 // onto a surface that must not offer it.
 
-const agent = (state: "running" | "stale") => ({ id: "toolu_a", label: "Audit the parser", subagentType: "frizz:opus-high", startedAt: "2026-07-28T09:00:00.000Z", state })
+const agent = (state: "running" | "stale") => ({ id: "toolu_a", label: "Audit the parser", subagentType: "ntwine:opus-high", startedAt: "2026-07-28T09:00:00.000Z", state })
 // A live sub-agent OF a sub-agent (depth 2 = a grandchild, 3 = a great-grandchild).
 const nested = (depth: number) => ({ id: `toolu_d${depth}`, label: "Trace the cache key", startedAt: "2026-07-28T09:00:00.000Z", state: "running" as const, depth })
 const shell = (state: "running") => ({ id: "toolu_s", taskId: "bzvtnt3ig", label: "vite dev", startedAt: "2026-07-28T09:00:00.000Z", state })
@@ -336,7 +336,7 @@ test("the sub-agent row keeps its profile in the tooltip, without the dispatch n
   const now = Date.parse("2026-07-28T09:30:00.000Z")
   const row = renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now }))
   assert.match(row, /title="Open this sub-agent \(opus-high\) — working for 30m"/)
-  assert.doesNotMatch(row, /frizz:opus-high/)
+  assert.doesNotMatch(row, /ntwine:opus-high/)
   assert.match(row, /data-wait-status[^>]*>30m</)
 })
 

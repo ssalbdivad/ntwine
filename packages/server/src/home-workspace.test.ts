@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
 import { test } from "node:test"
 import { workerScratchPath } from "./dispatch.ts"
-import { frizzPathsNow, legacyFrizzRoot, projectStateDir } from "./frizz-paths.ts"
+import { ntwinePathsNow, legacyNtwineRoot, projectStateDir } from "./ntwine-paths.ts"
 import {
   findWorkspaceById,
   findWorkspaceBySegment,
@@ -19,8 +19,8 @@ import {
 import { cwdSlug, workDirOf } from "./project.ts"
 import { registerProject, writeRegistry } from "./project-registry.ts"
 
-// These sandboxes run on the XDG layout, NOT the legacy `<home>/.frizz` collapse root the registry
-// tests use — the whole point here is that Home must never bring `<home>/.frizz` into existence, and a
+// These sandboxes run on the XDG layout, NOT the legacy `<home>/.ntwine` collapse root the registry
+// tests use — the whole point here is that Home must never bring `<home>/.ntwine` into existence, and a
 // sandbox that created it up front could not see that happen. An XDG variable inherited from the
 // developer's shell would move that layout out of the sandbox into their real data root, so drop them.
 for (const name of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) delete process.env[name]
@@ -30,30 +30,30 @@ const B = "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d"
 
 function sandbox(): string {
   // realpath'd: Home's folder is canonical, so an expectation built from a symlinked tmpdir would not match.
-  return realpathSync(mkdtempSync(join(tmpdir(), "frizz-home-ws-")))
+  return realpathSync(mkdtempSync(join(tmpdir(), "ntwine-home-ws-")))
 }
 
 /** A directory that looks like a registered project, registered in `home`'s sandbox registry. */
 function project(home: string, rel: string, id: string): string {
   const dir = join(home, rel)
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", ".id"), `${id}\n`)
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", ".id"), `${id}\n`)
   registerProject({ dir, id }, home)
   return dir
 }
 
 /** The invariant every case ends on: nothing created the home folder's board, and the layout did not flip. */
 function assertNoHomeBoard(home: string): void {
-  assert.equal(existsSync(legacyFrizzRoot(home)), false, "Home must never create <home>/.frizz")
+  assert.equal(existsSync(legacyNtwineRoot(home)), false, "Home must never create <home>/.ntwine")
   // Afresh, as the next boot would: this process's memo would answer from before the case ran.
-  assert.equal(frizzPathsNow({ home }).legacy, false)
+  assert.equal(ntwinePathsNow({ home }).legacy, false)
 }
 
 test("Home's slug is `home`, and a project already registered under it keeps it", () => {
   const home = sandbox()
   try {
     assert.equal(homeWorkspaceSlug(home), "home")
-    assert.equal(homeWorkspaceSlug(home, new Set(["frizz", "home"])), HOME_WORKSPACE_ID)
+    assert.equal(homeWorkspaceSlug(home, new Set(["ntwine", "home"])), HOME_WORKSPACE_ID)
 
     // Written directly: registerProject can no longer mint `home`, but a registry from before the name
     // was reserved can hold it, and a bookmarked URL must not change under that project.
@@ -143,8 +143,8 @@ test("reorderWorkspaces: Home holds the place it is dragged to, and later arriva
   }
 })
 
-// The split the whole feature rests on: agents run in the home folder, the board lives in Frizz's
-// state directory. `dir` being the home folder would make a worker's `.frizz/threads/…` be `~/.frizz`,
+// The split the whole feature rests on: agents run in the home folder, the board lives in Ntwine's
+// state directory. `dir` being the home folder would make a worker's `.ntwine/threads/…` be `~/.ntwine`,
 // which the next boot reads as the legacy data root.
 test("homeWorkspaceProject: the board is in Home's state dir, the agents in the folder", () => {
   const home = sandbox()
@@ -161,15 +161,15 @@ test("homeWorkspaceProject: the board is in Home's state dir, the agents in the 
     assert.equal(workspace.cwdSlug, cwdSlug(folder), "transcripts are sharded by where the agent runs")
     assert.equal(workspace.githubRepo, undefined, "a dotfiles repo in the home folder is not Home's GitHub")
 
-    // By default the folder is the home folder itself — and the board is still NOT <home>/.frizz.
+    // By default the folder is the home folder itself — and the board is still NOT <home>/.ntwine.
     const bare = homeWorkspaceProject(home)
     assert.equal(bare.workDir, home)
     assert.notEqual(bare.dir, home)
-    assert.ok(relative(legacyFrizzRoot(home), bare.dir).startsWith(".."), `${bare.dir} is outside <home>/.frizz`)
-    // A Home worker is told an ABSOLUTE scratch path in the state dir; the relative one would name <home>/.frizz.
+    assert.ok(relative(legacyNtwineRoot(home), bare.dir).startsWith(".."), `${bare.dir} is outside <home>/.ntwine`)
+    // A Home worker is told an ABSOLUTE scratch path in the state dir; the relative one would name <home>/.ntwine.
     const scratch = workerScratchPath(bare, "sid-1")
-    assert.equal(scratch, join(bare.dir, ".frizz", "threads", "sid-1"))
-    assert.ok(!scratch.startsWith(legacyFrizzRoot(home)))
+    assert.equal(scratch, join(bare.dir, ".ntwine", "threads", "sid-1"))
+    assert.ok(!scratch.startsWith(legacyNtwineRoot(home)))
     assertNoHomeBoard(home)
   } finally {
     rmSync(home, { recursive: true, force: true })

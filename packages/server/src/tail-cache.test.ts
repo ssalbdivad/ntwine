@@ -35,14 +35,14 @@ interface Harness {
 }
 
 function harness(): Harness {
-  const dir = tmp("frizz-tailcache-")
+  const dir = tmp("ntwine-tailcache-")
   const storage = createStorage(join(dir, "ui.db"), "p")
   return { dir, storage, bus: new Bus(), path: (id) => join(dir, `${id}.jsonl`) }
 }
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug: "t", session_id: "sid", thread_name: "frizz-t", spawned_at: "2026-07-01T00:00:00.000Z",
+    slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: null, meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -106,7 +106,7 @@ test("tail-cache codec: garbage decodes to null rather than throwing", () => {
 // ---- the file fence ----
 
 test("tail-cache fence: an append still matches; a truncation and a same-size rewrite do not", () => {
-  const dir = tmp("frizz-fence-")
+  const dir = tmp("ntwine-fence-")
   const path = join(dir, "a.jsonl")
   writeFileSync(path, "aaaa\nbbbb\ncccc\n")
   const at = statSync(path).size
@@ -137,7 +137,7 @@ test("tail-cache fence: an append still matches; a truncation and a same-size re
 })
 
 test("tail-cache fence: an offset of 0 or a missing file has no fence", () => {
-  const dir = tmp("frizz-fence-")
+  const dir = tmp("ntwine-fence-")
   const path = join(dir, "a.jsonl")
   writeFileSync(path, "aaaa\n")
   assert.equal(measureFence(path, 0), null)
@@ -251,7 +251,7 @@ test("tail-cache: a row with an OPEN delivery ledger keeps its full replay", () 
 test("tail-cache: an entry for a slug the registry no longer has is pruned", () => {
   const h = harness()
   h.storage.upsertSession(row())
-  h.storage.upsertSession(row({ slug: "u", session_id: "sid2", thread_name: "frizz-u" }))
+  h.storage.upsertSession(row({ slug: "u", session_id: "sid2", thread_name: "ntwine-u" }))
   writeFileSync(h.path("sid"), [user(1, "go"), assistant(2, "a")].map((l) => l + "\n").join(""))
   writeFileSync(h.path("sid2"), [user(1, "go"), assistant(2, "b")].map((l) => l + "\n").join(""))
   boot(h)
@@ -278,8 +278,8 @@ test("tail-cache: a MISSING table degrades to correct-but-slow rather than throw
 // for the same reason — and permPolicy was left out.
 //
 // It matters more than the usual staleness because the fold-schema digest CANNOT save us here. In a
-// promoted artifact the .ts sources are not shipped (verified: `find ~/.frizz/builds -name tailer.ts`
-// is empty), so foldSchemaDigest falls back to the fixed "frizz-tail-state-v1-unreadable" constant and
+// promoted artifact the .ts sources are not shipped (verified: `find ~/.ntwine/builds -name tailer.ts`
+// is empty), so foldSchemaDigest falls back to the fixed "ntwine-tail-state-v1-unreadable" constant and
 // every build's rows match every other build's. A state cached by the build that still retained
 // auto-APPROVALS would therefore be handed straight back to the build that removed them — resurrecting
 // the note ab774ee deleted, permanently, because nothing clears it.
@@ -316,7 +316,7 @@ test("tail-cache: marker-derived permission state is never restored from the cac
 test("tail-cache: an entry written before the project was renamed still hydrates (and rebinds the path)", () => {
   const h = harness()
   const oldBucket = join(h.dir, "-Users-me-projects-fray")
-  const newBucket = join(h.dir, "-Users-me-projects-frizz")
+  const newBucket = join(h.dir, "-Users-me-projects-ntwine")
   mkdirSync(oldBucket, { recursive: true })
   mkdirSync(newBucket, { recursive: true })
   h.storage.upsertSession(row())
@@ -357,19 +357,19 @@ test("tail-cache: an entry written before the project was renamed still hydrates
 test("tail-cache: a hydrated pre-rename entry keeps READING the bucket the file is really in", () => {
   const h = harness()
   const oldBucket = join(h.dir, "-Users-me-projects-fray")
-  const newBucket = join(h.dir, "-Users-me-projects-frizz")
+  const newBucket = join(h.dir, "-Users-me-projects-ntwine")
   mkdirSync(oldBucket, { recursive: true })
   mkdirSync(newBucket, { recursive: true })
   // Its OWN slug/session id. The pair above uses `t`/`sid`, and `assistant()`'s text is the only thing
   // distinguishing two otherwise identical fixtures — sharing the identity made this case read the
   // neighbour's cached prefix and pass or fail on test order.
-  h.storage.upsertSession(row({ slug: "reread", session_id: "reread-sid", thread_name: "frizz-reread" }))
+  h.storage.upsertSession(row({ slug: "reread", session_id: "reread-sid", thread_name: "ntwine-reread" }))
   const transcript = join(oldBucket, "reread-sid.jsonl")
   writeFileSync(transcript, [user(1, "go"), assistant(2, "the real answer")].map((l) => l + "\n").join(""))
 
   assert.equal(boot(h, { sessionLogDir: newBucket, slug: "reread" })?.lastAssistant, "the real answer", "boot 1 finds it one bucket over")
 
-  // The worker answers again while frizz is down — the ordinary case for a thread that outlives a restart.
+  // The worker answers again while ntwine is down — the ordinary case for a thread that outlives a restart.
   appendFileSync(transcript, assistant(3, "and the answer AFTER the restart") + "\n")
 
   assert.equal(

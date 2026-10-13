@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
-import type { BoardSnapshot, ThreadView, TranscriptToolCall } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView, TranscriptToolCall } from "@ntwine/shared"
 import { Message } from "./components/ChatView.tsx"
 import type { ChatMessage } from "./hooks.ts"
 import { store } from "./store.ts"
@@ -27,7 +27,7 @@ const thread: ThreadView = {
   unread: false, archived: false, hasPlan: false, pendingQuestion: false, kind: "session", foreign: false,
   backend: "claude", permissionMode: "default", subAgents: [], bgShells: [], watches: [], questions: [],
 }
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const BANNER_ASK = [{
   question: "Which colour should the banner be? The header sits over a photo, so contrast is the real constraint.",

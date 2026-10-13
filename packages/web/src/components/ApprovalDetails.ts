@@ -4,7 +4,7 @@ import type {
   InteractionCommandAction,
   InteractionFileChangeDisplay,
   InteractionPayload,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
 type ApprovalPayload = Extract<InteractionPayload, {
   kind: "command-approval" | "file-approval" | "permission-approval"

@@ -8,8 +8,8 @@ import test, { after, before } from "node:test"
 // into is offered last of all, and a sent `@handle` opens its thread.
 //
 // Skipped unless a Vite URL serving the fixtures is provided: start `vite` in packages/web and set
-// FRIZZ_MENTIONS_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_MENTIONS_E2E_URL
+// NTWINE_MENTIONS_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_MENTIONS_E2E_URL
 
 const BOX = 'textarea[data-surface="chatComposer"]'
 const MENU = "[data-mention-menu]"
@@ -250,7 +250,7 @@ test("`#` offers the projects, completes one, and tints it like a thread mention
   await open()
   await page!.type(BOX, "port it to #")
   await page!.waitForSelector(MENU)
-  assert.deepEqual(await menuRows(), ["#frizz", "#home", "#arktype", "#beanemachine"], "every project but the one whose folder is gone")
+  assert.deepEqual(await menuRows(), ["#ntwine", "#home", "#arktype", "#beanemachine"], "every project but the one whose folder is gone")
   assert.equal(await page!.$eval(MENU, (m) => m.getAttribute("aria-label")), "Projects")
   await page!.type(BOX, "bea")
   assert.deepEqual(await menuRows(), ["#beanemachine"])

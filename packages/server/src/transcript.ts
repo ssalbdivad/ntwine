@@ -32,7 +32,7 @@ import {
   type TranscriptToolCall,
   parseSpinoffRequest,
   parseSpinoffChildPrompt,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { projectTranscriptSessionPeers, type SessionPeerThread } from "./session-peer.ts"
 import { workDirOf, type Project } from "./project.ts"
 import type { Storage } from "./storage.ts"
@@ -43,13 +43,13 @@ import { editedFilesOf } from "./edited-files.ts"
 import { repoCarriedEditedFiles } from "./repo-files.ts"
 import { stripDeliveryMarkers } from "./delivery-marker.ts"
 import { RELAYED_MARKER, relayNotificationBlock } from "./completion-relay.ts"
-import { CODEX_FIRST_FINAL_TITLE_TRANSPORT, CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT, parseCodexLine, createCodexBackend, extractCodexFrizzTitle } from "./backend/codex.ts"
+import { CODEX_FIRST_FINAL_TITLE_TRANSPORT, CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT, parseCodexLine, createCodexBackend, extractCodexNtwineTitle } from "./backend/codex.ts"
 import { projectAcpTranscript, readAcpTranscriptFile } from "./backend/acp-transcript.ts"
 import { discoverTranscriptDir, discoverTranscriptId, DISCOVERY_GRACE_MS } from "./discover.ts"
 import { isClaudeAuthErrorText, isMonitorTimeoutEvent, parseSignalFence } from "./tailer.ts"
 import { ENCRYPTED_PAYLOAD, redactCredentialStructure, redactToolPayload } from "./credential-redaction.ts"
 import { hasEscapingBackgroundJob } from "../../../cc-worker/hooks/bash-background.mjs"
-import { frizzTempDir, isPromptAttachmentPath } from "./frizz-paths.ts"
+import { ntwineTempDir, isPromptAttachmentPath } from "./ntwine-paths.ts"
 import { dispatchProfileCell } from "./subagent-profile.ts"
 import { forkPointOf } from "./fork-point.ts"
 
@@ -79,7 +79,7 @@ export const LATEST_WINDOW_ASK_REACH_BYTES = 512 * 1024
 // the newest message, and "Load earlier messages" pages the rest exactly as it does past the count cap.
 export const LATEST_WINDOW_MAX_BYTES = 3 * 1024 * 1024
 
-// The runtime's own interrupt receipt — see isInterruptMarker (moved to @frizz/shared when the tailer
+// The runtime's own interrupt receipt — see isInterruptMarker (moved to @ntwine/shared when the tailer
 // needed it too). Dropped from the chat here; read as "the turn is over" by the fold there.
 
 // ---- context compaction ------------------------------------------------------------------------
@@ -137,7 +137,7 @@ function restMessage(sourceId: string, at: string | undefined): TranscriptMessag
 // into a run-on. Normalizing here fixes every downstream consumer at once (render, the answers-card
 // detection, AND the client's optimistic-vs-server text match, which compares raw strings).
 function normalizeNewlines(s: string): string {
-  // Also drop frizz's invisible delivery marker (delivery-marker.ts). Every path that turns a raw record
+  // Also drop ntwine's invisible delivery marker (delivery-marker.ts). Every path that turns a raw record
   // into rendered text funnels through here, so stripping once makes the marker unobservable to the
   // human — in the drawer, in search, in copied text — while the correlator upstream still reads it off
   // the RAW record. A no-op (single `includes`) for the overwhelming majority of text, which is unmarked.
@@ -163,9 +163,9 @@ export function githubDispatchDisplayText(text: string): string | undefined {
 // NEW dispatch whose task legitimately contains a "TASK:" line from being truncated at it.
 const LEGACY_TASK_MARKER = "\nTASK:\n"
 const LEGACY_BANNER_PREAMBLE =
-  "Everything ABOVE this line is frizz system orientation. Everything BELOW the `TASK:` marker is the human operator's own prompt, verbatim."
+  "Everything ABOVE this line is ntwine system orientation. Everything BELOW the `TASK:` marker is the human operator's own prompt, verbatim."
 
-// Display-only projection for the FIRST user turn of a frizz dispatch: strip frizz's own envelope
+// Display-only projection for the FIRST user turn of a ntwine dispatch: strip ntwine's own envelope
 // (scratchpad orientation + project instructions + the YOUR TASK banner) so the bubble is the human
 // operator's prompt and nothing else. Everything below DISPATCH_TASK_BANNER_MARKER is verbatim theirs.
 //
@@ -174,7 +174,7 @@ const LEGACY_BANNER_PREAMBLE =
 // resumed one as a `queued_command` attachment. The old cut lived inline in the plain-`user` arm alone,
 // so under the broker the whole composed prompt — orientation, instructions, banner and all — rendered
 // in the chat bubble. Returns undefined when `text` carries no envelope (any turn but the first).
-export function frizzDispatchDisplayText(text: string): string | undefined {
+export function ntwineDispatchDisplayText(text: string): string | undefined {
   const cut = text.indexOf(DISPATCH_TASK_BANNER_MARKER)
   if (cut === -1) {
     // Pre-banner dispatches carried the bare marker with no banner at all.
@@ -191,11 +191,11 @@ export function frizzDispatchDisplayText(text: string): string | undefined {
 
 // Where cc-worker/hooks/agent-dispatch.mjs's auto-appended helper epilogue begins in a SUB-AGENT's
 // dispatch prompt. The hook adds it to every Agent call a worker makes, so the child's first turn is the
-// worker's task and then two paragraphs of Frizz's rules for helpers. A reader opening the child — its
+// worker's task and then two paragraphs of Ntwine's rules for helpers. A reader opening the child — its
 // drawer, `read_thread thread.child` — wants what it was sent to do; the rules are the same every time.
 const SUBAGENT_EPILOGUE_MARK = "\n---\n[ORCHESTRATION EPILOGUE"
 
-/** The first turn of a sub-agent without Frizz's helper epilogue, or undefined when it carries none. */
+/** The first turn of a sub-agent without Ntwine's helper epilogue, or undefined when it carries none. */
 export function subAgentDispatchDisplayText(text: string): string | undefined {
   const cut = text.indexOf(SUBAGENT_EPILOGUE_MARK)
   return cut === -1 ? undefined : text.slice(0, cut).trimEnd()
@@ -203,13 +203,13 @@ export function subAgentDispatchDisplayText(text: string): string | undefined {
 
 // The display projection for ONE user turn — undefined when the stored text is already what to show.
 // Three independent reasons a user record can carry machine-facing text, composed in order:
-//   • frizz's own dispatch envelope (FIRST turn only — orientation + instructions above the banner);
+//   • ntwine's own dispatch envelope (FIRST turn only — orientation + instructions above the banner);
 //   • a generated GitHub dispatch (FIRST turn only — the envelope is what opens the thread). It sits
-//     BELOW frizz's banner, so it is peeled from the remainder, not from the raw record;
+//     BELOW ntwine's banner, so it is peeled from the remainder, not from the raw record;
 //   • the scheduler's wake-delivery token, which rides ANY turn a wake lands on. That's the case the
 //     old `out.length === 0` gate missed entirely: a wake is by definition a later turn, so its token
-//     reached the pre-wrap user bubble and rendered as literal `<!-- frizz-wake:… -->`;
-//   • the clock note frizz appends to a human follow-up after a long gap. The router adds it to the
+//     reached the pre-wrap user bubble and rendered as literal `<!-- ntwine-wake:… -->`;
+//   • the clock note ntwine appends to a human follow-up after a long gap. The router adds it to the
 //     worker's copy ONLY — but the chat renders this transcript, not the ledger the router wrote, so the
 //     note showed up inside the operator's own bubble underneath their own words.
 // `text` is never narrowed — the outbox acks a delivery by finding that token in the worker's own
@@ -218,7 +218,7 @@ export function subAgentDispatchDisplayText(text: string): string | undefined {
 function userDisplayText(text: string, first: boolean): string | undefined {
   let projected = text
   if (first) {
-    projected = frizzDispatchDisplayText(projected) ?? projected
+    projected = ntwineDispatchDisplayText(projected) ?? projected
     projected = githubDispatchDisplayText(projected) ?? projected
     projected = subAgentDispatchDisplayText(projected) ?? projected
   }
@@ -227,10 +227,10 @@ function userDisplayText(text: string, first: boolean): string | undefined {
   // (scheduler.withClock, then context's delivery token) and each is anchored to end-of-text.
   projected = stripWakeTimeHeader(projected)
   projected = stripFollowUpRiders(projected)
-  // And frizz's own agent-facing trailer LAST, once the two riders above have uncovered it. The dividers
+  // And ntwine's own agent-facing trailer LAST, once the two riders above have uncovered it. The dividers
   // never render it, but a divider only happens for a delivery the browser's parsers RECOGNIZE — and a
-  // tab is a build behind whenever frizz restarts under it, so a wake in a shape its bundle predates
-  // falls through to the raw-text card and prints "STILL ARMED … drop it with `mcp__frizz__watch_pr`" at
+  // tab is a build behind whenever ntwine restarts under it, so a wake in a shape its bundle predates
+  // falls through to the raw-text card and prints "STILL ARMED … drop it with `mcp__ntwine__watch_pr`" at
   // the operator. Stripping it HERE — on the side that composed it, and can never be behind itself —
   // makes that impossible for a tab of any age and for wake shapes not written yet.
   projected = stripWakeTrailer(projected)
@@ -241,7 +241,7 @@ function sessionPeerOf(session: { name?: string; socket?: string }): NonNullable
   return { ...(session.name ? { name: session.name } : {}), ...(session.socket ? { socket: session.socket } : {}) }
 }
 
-// The full presentation projection for one user turn: its display text, plus whether FRIZZ wrote it.
+// The full presentation projection for one user turn: its display text, plus whether NTWINE wrote it.
 // Both derive from the same raw record, and every site that pushes a user message needs both — keeping
 // them in one helper is what stops a new push site from shipping the display projection while silently
 // dropping the wake flag (which would put a scheduler steer back in the human's own bubble).
@@ -259,7 +259,7 @@ function userProjection(text: string, first: boolean): { displayText?: string; s
   if (peer) return { displayText: peer.body, peerFrom: peer.from }
   const displayText = userDisplayText(text, first)
   // A SPINOFF REQUEST an older build delivered to the parent's worker (parseSpinoffRequest). It is the
-  // human's (they asked for it), but its text was Frizz's errand for the worker, so the chat draws the
+  // human's (they asked for it), but its text was Ntwine's errand for the worker, so the chat draws the
   // human's instructions as the same spinoff card a request drawn from its row gets (withSpinoffCards).
   const spinoff = parseSpinoffRequest(displayText ?? text)
   if (spinoff) return { displayText: spinoff.instructions, spinoff }
@@ -290,13 +290,13 @@ function userProjection(text: string, first: boolean): { displayText?: string; s
 //
 // Normally that is one message and this is `out.push` with a projection. But the runtime merges
 // deliveries that land while the worker is mid-turn into a single record (see splitWakeDeliveries), and
-// a merged record must not render as one blob: its parts are separate frizz messages that happened to
+// a merged record must not render as one blob: its parts are separate ntwine messages that happened to
 // arrive together, and each has its own presentation — a recurring prompt collapses to a divider, a
 // relay is plumbing the chat drops, a GitHub wake gets its card. Every segment therefore takes the
 // SAME route a lone delivery takes, `isInjectedNoise` included, so a coalesced thread reads exactly
 // like one where the same messages arrived a second apart.
 //
-// A sourceId is the chat's per-message handle — the scroll anchor, `data-frizz-msg`, and the React key
+// A sourceId is the chat's per-message handle — the scroll anchor, `data-ntwine-msg`, and the React key
 // — so two rendered messages must never share one. The lone delivery keeps the record's bare sourceId
 // (it is the same one message it always was, and these anchors should not churn); anything beyond it
 // takes a `#u<i>` suffix. The `u` namespace matters: when this record ALSO drew completion dividers
@@ -502,7 +502,7 @@ export function peerSessionQueuedKey(deliveredText: string, pendingKeys: Iterabl
 // Parse only the exact, anchored provider shapes and only when the record itself says isSidechain. An
 // ordinary user quoting either phrase remains ordinary text, and main-session isMeta plumbing stays
 // invisible. Returning the authored BODY (not the provider framing) also lets the drawer-steer journal
-// dedupe a future provider record against the exact text Frizz sent.
+// dedupe a future provider record against the exact text Ntwine sent.
 const CLAUDE_COORDINATOR_INSTRUCTION_PREFIX = "The coordinator sent a message while you were working:\n"
 const CLAUDE_COORDINATOR_INSTRUCTION_SUFFIX = "\n\nAddress this before completing your current task."
 const CLAUDE_PEER_INSTRUCTION_PREFIX = "Another Claude session sent a message while you were working:\n"
@@ -640,7 +640,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
   // Relay task-ids whose uncorrelated divider has already been drawn. The correlated paths dedupe by
   // DELETING the map entry they matched ("the same completion arriving via two carriers is a no-op"), and
   // the uncorrelated one has no entry to delete — so it needs its own memory or it draws twice. It does:
-  // frizz writes each repair as BOTH a queue-operation and a user record, which is exactly two carriers.
+  // ntwine writes each repair as BOTH a queue-operation and a user record, which is exactly two carriers.
   const relayedWakesDrawn = new Set<string>()
   // A CHILD's own agentId → the tool_use id of the Agent dispatch that spawned it, captured from the
   // launch ack (see attachToolResults). An upward report names its sender by agentId but every drawer
@@ -652,7 +652,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
   // that re-notifies (see dispatches.delete in completionEvents), which silently took the child's title
   // with it: a child that FINISHES before its upward report is materialized into the parent's context
   // had its report relabelled against an entry that was already gone, so the divider fell back to
-  // `origin.from` and read «frizz:opus-high» — the profile, identical across every child sharing that
+  // `origin.from` and read «ntwine:opus-high» — the profile, identical across every child sharing that
   // cell. Measured on the maintainer's own thread, 2 of 11 reports landed after their child's
   // notification and lost their titles exactly this way. The two lifetimes are genuinely different —
   // completion correlation is one-shot, a title is wanted for as long as the transcript renders — so
@@ -936,7 +936,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
     // enough that the agent's REPLY routinely renders above a message still styled as "pending", which is
     // the "unnecessarily long delay before it renders as a real message" report. The counts: 1664 tui
     // prompt attachments carry origin.kind "human" and ALL 78 sdk ones carry none, while every sdk one
-    // carries `source_uuid` (the id frizz itself passed to sendInput) and no task-notification attachment
+    // carries `source_uuid` (the id ntwine itself passed to sendInput) and no task-notification attachment
     // ever does. So an origin-less prompt attachment bearing a source_uuid is the human delivery it says
     // it is. origin.kind "peer" (17 in the corpus) stays excluded from THIS human branch — it is a child's
     // upward SendMessage, not the operator's words — and is handled by its own branch just below.
@@ -985,8 +985,8 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
           // child's id. Stamping it on an unattributed bubble would assert an origin nothing established.
           if (dispatchId && entry.message.peerFrom) entry.message.peerDispatchId = dispatchId
           // RELABEL to the child's DESCRIPTION. `origin.from` is only ever the subagent_type, because
-          // frizz's own worker dispatch hook strips `name` — so an upward report rendered as
-          // «frizz:opus-xhigh», which names the profile rather than the work and is identical across
+          // ntwine's own worker dispatch hook strips `name` — so an upward report rendered as
+          // «ntwine:opus-xhigh», which names the profile rather than the work and is identical across
           // every child sharing that cell. `senderTaskId` is the child's agentId, and childDispatchIds
           // already translates that into the DISPATCH tool_use id — the same translation `dispatchId`
           // above performs.
@@ -1024,7 +1024,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
           // Same relabel as the resolved-bubble arm above, and it has to be repeated here rather than
           // hoisted: this branch BUILDS the message instead of stamping an existing one, so there is no
           // shared assignment to patch. The dispatch's description wins over `origin.from`, which is only
-          // ever the subagent_type once frizz's worker dispatch hook has stripped `name`.
+          // ever the subagent_type once ntwine's worker dispatch hook has stripped `name`.
           const describedHere = dispatchId ? dispatchLabels.get(dispatchId) : undefined
           const from = describedHere || str(peerOrigin.from) || str(peerOrigin.name) || parsed?.from || ""
           const body = parsed?.body ?? (typeof peerOrigin.body === "string" ? peerOrigin.body : "")
@@ -1115,7 +1115,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
       }
       let text = userText(rec)
       // Harness/orchestrator injections that arrive as ordinary user records (task-notifications,
-      // system reminders, frizz pulses) are ALSO not the human's words — drop them from the chat.
+      // system reminders, ntwine pulses) are ALSO not the human's words — drop them from the chat.
       if (text && isAllInjectedNoise(text)) return
       // …and so is the runtime's own interrupt receipt (see isInterruptMarker). Dropped BEFORE the
       // queued-bubble matching below: it resolves nothing, and every shape there keys on the human's
@@ -1199,7 +1199,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
           pushCommandOutput(sourceId, rec.timestamp, output)
           return
         }
-        // A command envelope nothing queued — a command in a session Frizz did not deliver into, or one
+        // A command envelope nothing queued — a command in a session Ntwine did not deliver into, or one
         // whose enqueue scrolled out of the window. Draw what the human TYPED, never the markup.
         if (isCommandEnvelopeOnly(text)) {
           pushUserRecord(out, sourceId, commandEnvelopeQueuedKey(text)!, rec.timestamp, dropCorrection, !drewEvents)
@@ -1513,7 +1513,7 @@ const IMAGE_MEDIA_EXT: Record<string, string> = {
 // Per-install: pruneScreenshotCache() unlinks the oldest entries past a cap across the WHOLE
 // directory, so a shared one means one install deleting another's cache. Filenames are id-hashed,
 // so nothing needs per-project isolation here — only the sweep does.
-const SCREENSHOT_CACHE_DIR = frizzTempDir("frizz-tool-images")
+const SCREENSHOT_CACHE_DIR = ntwineTempDir("ntwine-tool-images")
 // Defensive cap on retained decoded images: a long-lived server driving many screenshot QA loops would
 // otherwise grow the cache without bound. Oldest-by-mtime are pruned past this on the rare write path.
 const SCREENSHOT_CACHE_MAX = 200
@@ -1909,7 +1909,7 @@ function toolCalls(block: any, turn: { turnModel?: string; turnEffort?: string }
         desc,
         // A background Bash result only acknowledges that the child was launched. Keep the card live
         // until its later task-notification; no launch result can truthfully mean "done".
-        // Shell job control is visible immediately, even though no lifecycle id exists. Current Frizz
+        // Shell job control is visible immediately, even though no lifecycle id exists. Current Ntwine
         // workers reject the attempt before execution; historical calls that escaped the guard remain
         // honestly UNKNOWN instead of folding into an opaque "Ran N tool calls" disclosure.
         backgroundState,
@@ -1953,14 +1953,14 @@ function toolCalls(block: any, turn: { turnModel?: string; turnEffort?: string }
         return [{ name, detail: summary ?? to, sendTo: to, sendSummary: summary, sendBody: capSendBody(body), sendType }]
       }
     }
-    // A message to ANOTHER FRIZZ THREAD rides the same send fields, so the chat draws it as the same
+    // A message to ANOTHER NTWINE THREAD rides the same send fields, so the chat draws it as the same
     // outgoing agent message as a steer and never folds it into a run of tool calls. `sendTo` carries the
     // `@handle` the worker addressed (a leading `@` tells it from a child's agent id) and `sendType` says
     // whether the sender now waits on the reply.
     if (/(?:^|__)message_thread$/.test(name) && typeof input.handle === "string" && typeof input.message === "string") {
       const handle = input.handle.trim().replace(/^@/, "")
       if (handle && input.message.trim()) {
-        return [{ name, detail: `@${handle}`, sendTo: `@${handle}`, sendBody: capSendBody(normalizeNewlines(input.message)), sendType: input.await_reply === true ? "frizz_thread_await" : "frizz_thread" }]
+        return [{ name, detail: `@${handle}`, sendTo: `@${handle}`, sendBody: capSendBody(normalizeNewlines(input.message)), sendType: input.await_reply === true ? "ntwine_thread_await" : "ntwine_thread" }]
       }
     }
     // SendUserFile (Claude Code file delivery) → a SentFilesCard that shows the delivered files inline
@@ -2189,7 +2189,7 @@ function backgroundWakeLabel(call: TranscriptToolCall, status: string, raw: stri
     const code = raw.match(/exit code (\d+)/)?.[1]
     outcome = code ? `exited ${code}` : "failed"
   }
-  // A RECOVERED completion says so. The event is the same one either way, but "frizz had to carry this"
+  // A RECOVERED completion says so. The event is the same one either way, but "ntwine had to carry this"
   // is the tell that the runtime dropped a notification (upstream anthropics/claude-code#20754) — and it
   // is the difference between a reader trusting the timeline and hunting a log for why the agent moved.
   const relayed = raw.includes(RELAYED_MARKER) ? " (completion relayed)" : ""
@@ -2263,7 +2263,7 @@ function completionEvents(
   restEpoch: { n: number } = { n: 0 },
 ): TranscriptMessage[] {
   const carrier = notificationCarrierText(rec)
-  // A completion frizz REPAIRED arrives as prose, not as a notification (see relayNotificationBlock).
+  // A completion ntwine REPAIRED arrives as prose, not as a notification (see relayNotificationBlock).
   // Translating it back here — rather than teaching this function a second shape — is what makes a
   // relayed completion project identically to a delivered one: same divider, same card back-fill, same
   // broken merge chain, all from the code below that already does it.
@@ -2308,7 +2308,7 @@ function completionEvents(
     //
     // Scoped deliberately to relays. An uncorrelated notification on the DELIVERED path is usually an
     // unrelated process or an already-consumed child (see below), and drawing dividers for those would add
-    // noise and risk double-rendering. A relay is different by construction: frizz only relays an op it was
+    // noise and risk double-rendering. A relay is different by construction: ntwine only relays an op it was
     // tracking, and only after the agent came to rest without it — so it is always a real wake, and the
     // summary alone carries enough to name it.
     const relayedFallback = (): void => {
@@ -2408,7 +2408,7 @@ interface TranscriptCacheEntry {
 const TRANSCRIPT_CACHE_CAP = 16
 const transcriptCache = new Map<string, TranscriptCacheEntry>()
 // ~1/50 of cache-hit reads are re-parsed from scratch and deep-compared against the incremental result
-// when FRIZZ_TRANSCRIPT_PARSE_VERIFY=1 — a loud, non-throwing correctness net for the appended-bytes fold.
+// when NTWINE_TRANSCRIPT_PARSE_VERIFY=1 — a loud, non-throwing correctness net for the appended-bytes fold.
 const PARSE_VERIFY_SAMPLE = 1 / 50
 
 /** Bytes decoded to a string at once. Any value well under Node's ~512MB string cap will do. */
@@ -2509,7 +2509,7 @@ export function readTranscript(project: Project, sessionId: string, forkAnchor?:
     // size == bytesRead → no read, no ingest; the retained projection is already current.
 
     const messages = entry.fold.messages()
-    if (hit && process.env.FRIZZ_TRANSCRIPT_PARSE_VERIFY === "1" && Math.random() < PARSE_VERIFY_SAMPLE) {
+    if (hit && process.env.NTWINE_TRANSCRIPT_PARSE_VERIFY === "1" && Math.random() < PARSE_VERIFY_SAMPLE) {
       verifyIncrementalParse(path, identityPrefix, messages, entry.start)
     }
     // Defensive shallow slice: keeps per-message identity (all that matters downstream) while protecting
@@ -2625,7 +2625,7 @@ function logDirOf(project: Project): string {
 // and the drawer use) and the PAGED one below (sourceForThread → readLatestThreadTranscriptPage, which
 // the `threadTranscript` RPC serves to the queue card and the standalone /full page). The paged one built
 // `join(logDirOf(project), …)` by hand, so the rename recovery reached one producer and not the other:
-// measured on this machine, 386 of 430 frizz threads returned messages through readThreadTranscript and
+// measured on this machine, 386 of 430 ntwine threads returned messages through readThreadTranscript and
 // an EMPTY page through the RPC, which is exactly the "No message yet." / "No conversation yet." the
 // maintainer was looking at while the same thread's drawer rendered fine.
 function resolveTranscriptPath(project: Project, sessionId: string): string {
@@ -2728,7 +2728,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
   // Codex encrypts both payloads today, so sequence is the only honest distinction the projection can
   // make. The marker remains useful: it pins the arrival to the exact point in the child's timeline.
   let agentInstructionCount = 0
-  // Codex may omit Frizz's requested first-final marker, then provide one on a later finalized
+  // Codex may omit Ntwine's requested first-final marker, then provide one on a later finalized
   // response. Strip an exact first-line marker from every final so a valid recovery signal never
   // leaks into rendered prose. Ordinary examples remain literal unless they occupy that control slot.
 
@@ -2774,7 +2774,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           // New sessions send the invisible attribute comment in their first commentary message,
           // before any tool call. Strip that transport from every phase. Legacy H1/comment syntax is
           // final-only so normal commentary headings remain ordinary prose.
-          let text = extractCodexFrizzTitle(ev.text, ev.final).text
+          let text = extractCodexNtwineTitle(ev.text, ev.final).text
           if (text) {
             const m = openAssistant(ev.at, sourceId, true)
             pushTextPart(m, text)
@@ -2964,7 +2964,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           sawFinalAnswer = false
           let text = typeof ev.text === "string" ? normalizeNewlines(ev.text).trim() : ""
           // This must run before the general sentinel stripper: the strict complete suffix proves the
-          // title reminder was Frizz's append, rather than similarly-worded task prose.
+          // title reminder was Ntwine's append, rather than similarly-worded task prose.
           if (out.length === 0) text = stripCodexFirstPromptTitleTransport(text)
           text = stripCodexSentinel(text)
           if (!text || isAllInjectedNoise(text)) break
@@ -3030,7 +3030,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           turnReasoning = null
           const first = agentInstructionCount++ === 0
           const text = ev.text || (ev.encrypted
-            ? `${first ? "Task" : "Follow-up"} instructions received. Codex encrypted the message body, so Frizz can't display it.`
+            ? `${first ? "Task" : "Follow-up"} instructions received. Codex encrypted the message body, so Ntwine can't display it.`
             : `${first ? "Task" : "Follow-up"} instructions received.`)
           out.push({
             sourceId,
@@ -3077,7 +3077,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           // last_agent_message still surfaces it (commentary-only turns). The lastFinalText dedupe keeps
           // the ordinary case — where final_answer already rendered the identical text — from doubling.
           let finalText = ev.finalText
-          if (finalText !== undefined) finalText = extractCodexFrizzTitle(finalText).text
+          if (finalText !== undefined) finalText = extractCodexNtwineTitle(finalText).text
           const ft = finalText?.trim()
           if (ft && !sawFinalAnswer && ft !== lastFinalText?.trim()) {
             const m = openAssistant(ev.at, sourceId, true)
@@ -3142,10 +3142,10 @@ const MAX_PINNED_BACKGROUND_OPERATIONS = 128
 // boundary rule (pageProjectedTranscript); the latest reader was a blind `slice(-MAX_MESSAGES)`, so the
 // two disagreed about where a turn starts and only the paginated one was right.
 //
-// `role === "user"` alone is not the human — the same trap pageProjectedTranscript documents. Frizz
+// `role === "user"` alone is not the human — the same trap pageProjectedTranscript documents. Ntwine
 // writes as the user (Goal delivery, sign-off reminder, watcher wake), all carrying `wake`; a queued
 // send has not been delivered; `agentInstruction` is a coordinator/peer speaking into a CHILD's
-// user side; and `sessionPeer` is another thread messaging this one. The measured card had 14 user records in its window and 13 of them were Frizz's own; the
+// user side; and `sessionPeer` is another thread messaging this one. The measured card had 14 user records in its window and 13 of them were Ntwine's own; the
 // human's ask sat 13 messages above the head.
 //
 // THE REACH IS ALL-OR-NOTHING. A partial extension buys no anchor and still ships the extra megabyte, so
@@ -3431,7 +3431,7 @@ const CAPTION_MAX = 120
 // The body is usually unrecoverable: codex Fernet-encrypts inter-agent `message` payloads (821/821
 // across 386 real rollouts — send_message, followup_task AND spawn_agent alike), and the tool's own
 // result is an empty string, so there is no plaintext anywhere in the parent transcript to render.
-// Say so IN the card rather than leaving an empty row that reads like a frizz bug. A message that does
+// Say so IN the card rather than leaving an empty row that reads like a ntwine bug. A message that does
 // arrive in the clear (older/unencrypted codex builds) still renders verbatim.
 function codexPeerMessageCall(label: string, target: string | undefined, obj: Record<string, unknown>): TranscriptToolCall {
   // strField has ALREADY run redactToolPayload, so an encrypted body arrives here as the redaction
@@ -3765,7 +3765,7 @@ function jsNumberProperty(source: string, key: string): number | undefined {
 // of an apply_patch that adds a `const` line to some TS file — binds nothing; the old `\bconst` regex
 // read those too, which was harmless while a binding was only ever looked up by name and is not once it
 // is substituted into a path. A template-literal binding is filled from the bindings above it, so
-// `const s = \`${root}/.frizz\`` resolves when `root` was declared first.
+// `const s = \`${root}/.ntwine\`` resolves when `root` was declared first.
 function wrappedStringBindings(source: string): Map<string, string> {
   const out = new Map<string, string>()
   for (let i = 0; i < source.length; i++) {
@@ -3804,7 +3804,7 @@ function isTemplateLiteral(source: string, at: number): boolean {
 
 // `${name}` placeholders in a template literal, filled from the script's own const string bindings —
 // the ONE kind of interpolation a static reading can settle. Codex builds patch text this way when a
-// path repeats: `const s = "/p/zod/.frizz/threads/<id>"; tools.apply_patch(\`*** Begin Patch\n*** Add
+// path repeats: `const s = "/p/zod/.ntwine/threads/<id>"; tools.apply_patch(\`*** Begin Patch\n*** Add
 // File: ${s}/results.md …\`)`. Read verbatim (readJsString decodes escapes and nothing else), that
 // header named a file under a directory called `${s}`, and the rail drew it as one (maintainer
 // 2026-09-12: "what happened with these paths?") — a path no worker wrote, which the repo-carried filter
@@ -4015,18 +4015,18 @@ function patchSummary(patch: string): string {
   return m ? m[1].trim() : "apply_patch"
 }
 
-// Strip the trailing per-dispatch discovery sentinel (`<!-- frizz-session:… -->`) buildSpawn appends to
+// Strip the trailing per-dispatch discovery sentinel (`<!-- ntwine-session:… -->`) buildSpawn appends to
 // the FIRST codex prompt so post-spawn discovery can pin the rollout — plumbing the human never typed.
 function stripCodexSentinel(text: string): string {
-  return text.replace(/\n*<!--\s*frizz-session:[^>]*-->\s*$/, "").replace(/\s+$/, "")
+  return text.replace(/\n*<!--\s*ntwine-session:[^>]*-->\s*$/, "").replace(/\s+$/, "")
 }
 
-// The spawn path appends one of these exact contracts plus the Frizz-owned discovery sentinel after the
+// The spawn path appends one of these exact contracts plus the Ntwine-owned discovery sentinel after the
 // human's task. Strip only that complete suffix from the first projected prompt: similar ordinary prose,
-// or a title-transport sentence without the Frizz sentinel, remains the user's text.
+// or a title-transport sentence without the Ntwine sentinel, remains the user's text.
 function stripCodexFirstPromptTitleTransport(text: string): string {
   for (const transport of [CODEX_FIRST_FINAL_TITLE_TRANSPORT, CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT]) {
-    const marker = `\n\n${transport}\n\n<!-- frizz-session:`
+    const marker = `\n\n${transport}\n\n<!-- ntwine-session:`
     const at = text.lastIndexOf(marker)
     if (at === -1) continue
     const sentinel = text.slice(at + marker.length)
@@ -4350,7 +4350,7 @@ export function sourceForThread(
   const row = storage.getSession(slug)
   if (row) {
     const backend = row.backend === "codex" ? "codex" : row.backend === "acp" ? "acp" : "claude"
-    // An ACP transcript is FRIZZ-written and keyed by the frizz session id (acp-transcript.ts), so its
+    // An ACP transcript is NTWINE-written and keyed by the ntwine session id (acp-transcript.ts), so its
     // native id is the session id even though `agent_session_id` carries the agent's own.
     const nativeId = backend === "codex"
       ? row.agent_session_id ?? row.session_id
@@ -4372,7 +4372,7 @@ export function sourceForThread(
     }
   }
   if (!FOREIGN_SESSION_ID_RE.test(slug)) return undefined
-  // A FOREIGN thread — a terminal frizz did not start, so there is no row to read the backend off.
+  // A FOREIGN thread — a terminal ntwine did not start, so there is no row to read the backend off.
   // Both agents mint a bare uuid, so the id itself cannot say which one wrote it and the binding has
   // to be PROBED. Claude first because its probe is a single stat of a known path; codex's walks the
   // global sessions tree (~10ms warm on a 1,586-rollout corpus, and this runs per VIEW, not per tick).
@@ -4513,7 +4513,7 @@ function projectSnapshot(snapshot: FixedTranscriptSnapshot): TranscriptMessage[]
   // ages its own out), so the backstop is a no-op here — applied anyway so the guarantee is a property
   // of the reader rather than of one backend's current parser.
   if (snapshot.backend === "codex") return retireStaleQueuedBubbles(projectCodexTranscript(snapshot.raw, prefix))
-  // Same whole-file shape for an ACP transcript: frizz writes it, it is small, and its records are
+  // Same whole-file shape for an ACP transcript: ntwine writes it, it is small, and its records are
   // already NormalizedEvents (acp-transcript.ts), so there is no claude fold to retain.
   if (snapshot.backend === "acp") return retireStaleQueuedBubbles(projectAcpTranscript(snapshot.raw, prefix))
 
@@ -4659,7 +4659,7 @@ export function pageProjectedTranscript(
   }
   // THE BOUNDARY IS THE HUMAN'S LAST MESSAGE, not merely the last `user` record.
   //
-  // Frizz writes as the user — a Goal delivery, the sign-off reminder, a watcher wake are all `user`
+  // Ntwine writes as the user — a Goal delivery, the sign-off reminder, a watcher wake are all `user`
   // records (`wake: true`, set by the server that composed them). Stopping at one cuts the page in the
   // middle of a stretch the human has never seen, which is the opposite of what this page is for: the
   // reader is opening a card cold and needs everything back to the last thing THEY said (maintainer
@@ -4730,7 +4730,7 @@ function emptyTranscriptPage(source?: TranscriptSourceBinding): TranscriptPage {
 }
 
 // A SPINOFF'S REQUEST, IN THE PARENT'S CHAT. A spinoff sends the parent NOTHING (router.ts `spinoff`):
-// the child is a fork of its session, or a fresh thread on context Frizz assembled, and either way the
+// the child is a fork of its session, or a fresh thread on context Ntwine assembled, and either way the
 // parent's transcript holds no trace of the request. So the card the human expects where they asked is
 // drawn from the spinoff row instead, placed at the instant the human asked, so SpinoffCard renders it
 // linked forward.
@@ -4856,7 +4856,7 @@ export function readLatestThreadTranscriptPage(
     hasEarlier: canonicalStart > 0,
     reachedTurnBoundary: true,
     transcriptKey: snapshot.transcriptKey,
-    // Over the WHOLE projection, not the window — see EditedFile in @frizz/shared. The project dir is
+    // Over the WHOLE projection, not the window — see EditedFile in @ntwine/shared. The project dir is
     // what scopes the SHELL-write reading: a redirect names any path the worker felt like, and only the
     // ones inside this checkout belong on the rail (edited-files.ts). Then git drops whatever the
     // repository would not carry — scratch, build output — leaving the rail an account of repo work
@@ -4959,7 +4959,7 @@ function readThreadTranscriptMessages(
     // so the drawer renders codex messages + tool calls instead of an empty pane. The rollout id is
     // `agent_session_id` (the id codex minted, pinned post-discovery); until discovery pins it,
     // transcriptPath returns undefined → [] and the drawer keeps its spinner (the tailer catches up).
-    // An ACP thread's transcript is the file the bridge writes, keyed by the frizz session id; the
+    // An ACP thread's transcript is the file the bridge writes, keyed by the ntwine session id; the
     // ledger projects a queued follow-up (the bridge holds it until the turn ends) as its gray bubble.
     if (row.backend === "acp") {
       const path = backendFor?.("acp")?.transcriptPath(row.session_id)

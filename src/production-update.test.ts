@@ -29,7 +29,7 @@ import {
 
 const execFileP = promisify(execFile);
 
-const plan = { packageName: "frizz", currentVersion: "1.2.3", latestVersion: "1.3.0", packageSpec: "frizz@1.3.0" };
+const plan = { packageName: "ntwine", currentVersion: "1.2.3", latestVersion: "1.3.0", packageSpec: "ntwine@1.3.0" };
 // A file that exists, standing in for the successor's launcher bundle.
 const thisFile = fileURLToPath(import.meta.url);
 
@@ -74,15 +74,15 @@ function fakeWatch(answers: Array<{ version?: string } | undefined>) {
 }
 
 test("registry update does nothing when the installed version is current", async () => {
-  assert.equal(await planRegistryUpdate("frizz", "1.2.3", { latestVersion: async () => "1.2.3" }), null);
+  assert.equal(await planRegistryUpdate("ntwine", "1.2.3", { latestVersion: async () => "1.2.3" }), null);
 });
 
 test("registry update selects an immutable newer package spec", async () => {
-  assert.deepEqual(await planRegistryUpdate("frizz", "1.2.3", { latestVersion: async () => "1.3.0" }), plan);
+  assert.deepEqual(await planRegistryUpdate("ntwine", "1.2.3", { latestVersion: async () => "1.3.0" }), plan);
 });
 
 test("registry lookup failure leaves the healthy process untouched", async () => {
-  await assert.rejects(() => planRegistryUpdate("frizz", "1.2.3", { latestVersion: async () => { throw new Error("offline"); } }), /offline/);
+  await assert.rejects(() => planRegistryUpdate("ntwine", "1.2.3", { latestVersion: async () => { throw new Error("offline"); } }), /offline/);
 });
 
 // Semver §11.4. The raw-string comparison this replaced judged `rc.9` newer than `rc.10` (audit
@@ -134,7 +134,7 @@ test("a re-exec'd launcher drops the project directory an older launcher appends
 
 test("resolving the successor installs it through npm exec and reads its launcher entry off stdout", async () => {
   let captured: Parameters<RegistryReleaseAdapter["npmExec"]>[0] | undefined;
-  const successor = await resolveRegistrySuccessor(plan, { cwd: "/repo", env: { FRIZZ_LAUNCH_OWNER_TOKEN: "lease" } }, {
+  const successor = await resolveRegistrySuccessor(plan, { cwd: "/repo", env: { NTWINE_LAUNCH_OWNER_TOKEN: "lease" } }, {
     npmExec: async (request) => {
       captured = request;
       // npm may print its own lines first (a funding notice, a config warning); the entry is the last one.
@@ -143,29 +143,29 @@ test("resolving the successor installs it through npm exec and reads its launche
   });
   assert.equal(successor.entry, thisFile);
   assert.equal(successor.plan, plan);
-  assert.equal(captured?.packageSpec, "frizz@1.3.0");
+  assert.equal(captured?.packageSpec, "ntwine@1.3.0");
   // The invoked bin tracks the package name so a renamed release can't invoke a stale bin.
-  assert.equal(captured?.bin, "frizz");
+  assert.equal(captured?.bin, "ntwine");
   assert.deepEqual(captured?.args, [PRODUCTION_PRINT_LAUNCHER_FLAG]);
-  assert.equal(captured?.env.FRIZZ_LAUNCH_OWNER_TOKEN, "lease");
+  assert.equal(captured?.env.NTWINE_LAUNCH_OWNER_TOKEN, "lease");
 });
 
 test("a successor that npm cannot install or start fails the update BEFORE anything is drained, quoting stderr", async () => {
   await assert.rejects(
     () => resolveRegistrySuccessor(plan, { cwd: "/repo", env: {} }, {
-      npmExec: async () => ({ code: 1, signal: null, stdout: "", stderr: "npm error 404 Not Found\nnpm error frizz@1.3.0 is not in this registry\n" }),
+      npmExec: async () => ({ code: 1, signal: null, stdout: "", stderr: "npm error 404 Not Found\nnpm error ntwine@1.3.0 is not in this registry\n" }),
     }),
-    /npm exec frizz@1\.3\.0 failed \(exit 1\): npm error 404 Not Found\nnpm error frizz@1\.3\.0 is not in this registry/,
+    /npm exec ntwine@1\.3\.0 failed \(exit 1\): npm error 404 Not Found\nnpm error ntwine@1\.3\.0 is not in this registry/,
   );
   await assert.rejects(
     () => resolveRegistrySuccessor(plan, { cwd: "/repo", env: {} }, {
-      npmExec: async () => ({ code: 0, signal: null, stdout: "dist/frizz.js\n", stderr: "" }),
+      npmExec: async () => ({ code: 0, signal: null, stdout: "dist/ntwine.js\n", stderr: "" }),
     }),
     /did not report its launcher entry/,
   );
   await assert.rejects(
     () => resolveRegistrySuccessor(plan, { cwd: "/repo", env: {} }, {
-      npmExec: async () => ({ code: 0, signal: null, stdout: "/definitely/not/here/frizz.js\n", stderr: "" }),
+      npmExec: async () => ({ code: 0, signal: null, stdout: "/definitely/not/here/ntwine.js\n", stderr: "" }),
     }),
     /did not report its launcher entry/,
   );
@@ -175,16 +175,16 @@ test("the in-place handoff execve's node onto the resolved entry with the lease 
   const successor: RegistrySuccessor = { plan, entry: thisFile };
   let captured: { file: string; args: string[]; env: NodeJS.ProcessEnv } | undefined;
   assert.throws(() =>
-    reexecIntoRegistrySuccessor(successor, { port: 4917, env: { FRIZZ_LAUNCH_OWNER_TOKEN: "lease" } }, (file, args, env) => {
+    reexecIntoRegistrySuccessor(successor, { port: 4917, env: { NTWINE_LAUNCH_OWNER_TOKEN: "lease" } }, (file, args, env) => {
       captured = { file, args, env };
       throw new Error("execve stand-in");
     }),
   /execve stand-in/);
   assert.equal(captured?.file, process.execPath);
   assert.deepEqual(captured?.args, [process.execPath, thisFile, PRODUCTION_REEXEC_FLAG, "--port", "4917"]);
-  assert.equal(captured?.env.FRIZZ_LAUNCH_OWNER_TOKEN, "lease");
-  assert.equal(captured?.env.FRIZZ_REGISTRY_PACKAGE, "frizz");
-  assert.equal(captured?.env.FRIZZ_REGISTRY_VERSION, "1.3.0");
+  assert.equal(captured?.env.NTWINE_LAUNCH_OWNER_TOKEN, "lease");
+  assert.equal(captured?.env.NTWINE_REGISTRY_PACKAGE, "ntwine");
+  assert.equal(captured?.env.NTWINE_REGISTRY_VERSION, "1.3.0");
 });
 
 test("the detached fallback starts the resolved entry, not another npm exec, lets go of it, and hands it back", () => {
@@ -192,14 +192,14 @@ test("the detached fallback starts the resolved entry, not another npm exec, let
   let captured: Parameters<RegistryReleaseAdapter["spawnDetached"]>[0] | undefined;
   const returned = handoffToRegistrySuccessor(
     { plan, entry: thisFile },
-    { port: 4917, cwd: "/repo", env: { FRIZZ_LAUNCH_OWNER_TOKEN: "lease" } },
+    { port: 4917, cwd: "/repo", env: { NTWINE_LAUNCH_OWNER_TOKEN: "lease" } },
     { spawnDetached: (request) => { captured = request; return child as never; } },
   );
   assert.equal(returned, child as never);
   assert.equal(captured?.entry, thisFile);
   assert.deepEqual(captured?.args, [PRODUCTION_REEXEC_FLAG, "--port", "4917"]);
-  assert.equal(captured?.env.FRIZZ_LAUNCH_OWNER_TOKEN, "lease");
-  assert.equal(captured?.env.FRIZZ_REGISTRY_VERSION, "1.3.0");
+  assert.equal(captured?.env.NTWINE_LAUNCH_OWNER_TOKEN, "lease");
+  assert.equal(captured?.env.NTWINE_REGISTRY_VERSION, "1.3.0");
   assert.equal(child.unrefCalls, 1);
 });
 
@@ -209,7 +209,7 @@ test("a detached successor with no pid is refused on the spot, and its late erro
   const child = fakeChild(null);
   assert.throws(
     () => handoffToRegistrySuccessor({ plan, entry: thisFile }, { port: 4917, cwd: "/repo", env: {} }, { spawnDetached: () => child as never }),
-    /could not start Frizz 1\.3\.0 from /,
+    /could not start Ntwine 1\.3\.0 from /,
   );
   assert.equal(child.unrefCalls, 0);
   // The ENOENT arrives after the throw; an unhandled 'error' on a ChildProcess would take the old owner down.
@@ -230,8 +230,8 @@ test("a successor that never answers fails the handoff at the deadline, naming i
   const child = fakeChild();
   const { watch, polls } = fakeWatch([undefined]);
   await assert.rejects(
-    () => awaitRegistrySuccessor(child, { version: "1.3.0", port: 4917, logFile: "/logs/frizz-run.log" }, watch),
-    /Frizz 1\.3\.0 did not answer on port 4917 within 60s; its log is \/logs\/frizz-run\.log/,
+    () => awaitRegistrySuccessor(child, { version: "1.3.0", port: 4917, logFile: "/logs/ntwine-run.log" }, watch),
+    /Ntwine 1\.3\.0 did not answer on port 4917 within 60s; its log is \/logs\/ntwine-run\.log/,
   );
   assert.equal(polls.at(-1), 60_000);
   assert.equal(child.killCalls, 1, "a successor still starting must not bind the port under the restored board");
@@ -241,9 +241,9 @@ test("a successor that never answers fails the handoff at the deadline, naming i
 test("a successor that exits before answering fails the handoff with its exit and its log", async () => {
   const child = fakeChild();
   const { watch } = fakeWatch([undefined]);
-  const pending = awaitRegistrySuccessor(child, { version: "1.3.0", port: 4917, logFile: "/logs/frizz-run.log" }, watch);
+  const pending = awaitRegistrySuccessor(child, { version: "1.3.0", port: 4917, logFile: "/logs/ntwine-run.log" }, watch);
   child.emit("exit", 1, null);
-  await assert.rejects(pending, /Frizz 1\.3\.0 exited \(exit 1\) before it answered on port 4917; its log is \/logs\/frizz-run\.log/);
+  await assert.rejects(pending, /Ntwine 1\.3\.0 exited \(exit 1\) before it answered on port 4917; its log is \/logs\/ntwine-run\.log/);
   assert.equal(child.killCalls, 0, "nothing to kill: it is already gone");
   // A child that was already dead when the wait began is reported the same way, without a poll.
   const dead = fakeChild();
@@ -275,8 +275,8 @@ test("the status read used by the wait yields the version, and undefined for any
 // npm 12 answers `view <spec> version --json` with a one-element array; npm 11 answered the bare string.
 test("npm view's answer reads the same from npm 11 and npm 12", async () => {
   const printing = (stdout: string) => () => ({ command: process.execPath, prefixArgs: ["-e", `console.log(${JSON.stringify(stdout)})`] });
-  assert.equal(await createNpmRegistryReleaseAdapter({ npm: printing('"1.3.0"') }).latestVersion("frizz"), "1.3.0");
-  assert.equal(await createNpmRegistryReleaseAdapter({ npm: printing('[\n  "1.3.0"\n]') }).latestVersion("frizz"), "1.3.0");
+  assert.equal(await createNpmRegistryReleaseAdapter({ npm: printing('"1.3.0"') }).latestVersion("ntwine"), "1.3.0");
+  assert.equal(await createNpmRegistryReleaseAdapter({ npm: printing('[\n  "1.3.0"\n]') }).latestVersion("ntwine"), "1.3.0");
 });
 
 // A stalled registry held the probe for npm's own fetch timeout times its retries, and a source
@@ -285,14 +285,14 @@ test("npm view's answer reads the same from npm 11 and npm 12", async () => {
 test("npm view and npm exec are bounded, and the failure names the timeout", async () => {
   const sleeper = () => ({ command: process.execPath, prefixArgs: ["-e", "setTimeout(() => {}, 30000)"] });
   const adapter = createNpmRegistryReleaseAdapter({ viewTimeoutMs: 300, execTimeoutMs: 300, npm: sleeper });
-  await assert.rejects(() => adapter.latestVersion("frizz"), /could not check npm for frizz: npm view did not answer within 1s/);
-  const result = await adapter.npmExec({ packageSpec: "frizz@1.3.0", bin: "frizz", args: [], cwd: process.cwd(), env: process.env });
+  await assert.rejects(() => adapter.latestVersion("ntwine"), /could not check npm for ntwine: npm view did not answer within 1s/);
+  const result = await adapter.npmExec({ packageSpec: "ntwine@1.3.0", bin: "ntwine", args: [], cwd: process.cwd(), env: process.env });
   assert.notEqual(result.code, 0);
-  assert.match(result.stderr, /npm exec frizz@1\.3\.0 did not finish within 1s and was stopped/);
+  assert.match(result.stderr, /npm exec ntwine@1\.3\.0 did not finish within 1s and was stopped/);
   // The whole failure the operator reads, through the same path a real install failure takes.
   await assert.rejects(
     () => resolveRegistrySuccessor(plan, { cwd: process.cwd(), env: process.env }, adapter),
-    /npm exec frizz@1\.3\.0 failed \((signal SIGTERM|exit \d+)\): npm exec frizz@1\.3\.0 did not finish within 1s and was stopped/,
+    /npm exec ntwine@1\.3\.0 failed \((signal SIGTERM|exit \d+)\): npm exec ntwine@1\.3\.0 did not finish within 1s and was stopped/,
   );
 });
 
@@ -301,20 +301,20 @@ test("npm view and npm exec are bounded, and the failure names the timeout", asy
 // whose self-update does not survive the next launch (audit 2026-09-11, finding 9).
 test("a global install is told apart from npx, the execution cache and a source checkout", () => {
   const rows: Array<[string, NodeJS.ProcessEnv, boolean]> = [
-    ["/Users/ada/.nvm/versions/node/v24.0.0/lib/node_modules/frizz/dist", {}, true],
-    ["/opt/homebrew/lib/node_modules/frizz/dist", {}, true],
-    ["C:\\Users\\ada\\AppData\\Roaming\\npm\\node_modules\\frizz\\dist", {}, true],
+    ["/Users/ada/.nvm/versions/node/v24.0.0/lib/node_modules/ntwine/dist", {}, true],
+    ["/opt/homebrew/lib/node_modules/ntwine/dist", {}, true],
+    ["C:\\Users\\ada\\AppData\\Roaming\\npm\\node_modules\\ntwine\\dist", {}, true],
     // npx: the same layout under npm's execution cache, with npm's own hint in the environment.
-    ["/Users/ada/.npm/_npx/0123abcd/node_modules/frizz/dist", { npm_execpath: "/opt/node/lib/node_modules/npm/bin/npx-cli.js" }, false],
+    ["/Users/ada/.npm/_npx/0123abcd/node_modules/ntwine/dist", { npm_execpath: "/opt/node/lib/node_modules/npm/bin/npx-cli.js" }, false],
     // The cache without the hint — a successor started by an older launcher inherits a scrubbed env.
-    ["/Users/ada/.npm/_npx/0123abcd/node_modules/frizz/dist", {}, false],
-    ["C:\\Users\\ada\\AppData\\Local\\npm-cache\\_npx\\0123abcd\\node_modules\\frizz\\dist", {}, false],
-    // A global bin run THROUGH npm (`npm exec frizz` against the global tree) is npm's to re-resolve.
-    ["/opt/homebrew/lib/node_modules/frizz/dist", { npm_execpath: "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js" }, false],
-    ["/Users/ada/projects/frizz/dist", {}, false],
+    ["/Users/ada/.npm/_npx/0123abcd/node_modules/ntwine/dist", {}, false],
+    ["C:\\Users\\ada\\AppData\\Local\\npm-cache\\_npx\\0123abcd\\node_modules\\ntwine\\dist", {}, false],
+    // A global bin run THROUGH npm (`npm exec ntwine` against the global tree) is npm's to re-resolve.
+    ["/opt/homebrew/lib/node_modules/ntwine/dist", { npm_execpath: "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js" }, false],
+    ["/Users/ada/projects/ntwine/dist", {}, false],
   ];
   for (const [dir, env, expected] of rows) assert.equal(isGlobalInstall(dir, env), expected, dir);
-  assert.equal(keepUpdateHint("frizz", "1.3.0"), "this session only — run npm i -g frizz@1.3.0 to keep it");
+  assert.equal(keepUpdateHint("ntwine", "1.3.0"), "this session only — run npm i -g ntwine@1.3.0 to keep it");
 });
 
 test("npm runs as node + npm-cli.js — the bare `npm` name is only a `.cmd` shim on Windows", () => {

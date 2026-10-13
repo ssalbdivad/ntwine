@@ -12,7 +12,7 @@ const description =
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://frizz.sh"),
-  title: { default: "Frizz — an opinionated agent console", template: "%s · Frizz" },
+  title: { default: "Ntwine — an opinionated agent console", template: "%s · Ntwine" },
   description,
   icons: {
     icon: [
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: "Frizz",
+    siteName: "Ntwine",
     description,
     images: [{ url: "/img/og.png", width: 1200, height: 630 }],
   },

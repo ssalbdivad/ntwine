@@ -13,7 +13,7 @@ import {
 } from "./claude-broker-diagnostics.ts"
 import { CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX } from "./claude-agent-sdk-protocol.ts"
 
-const tmp = () => mkdtempSync(join(tmpdir(), "frizz-brokerdiag-"))
+const tmp = () => mkdtempSync(join(tmpdir(), "ntwine-brokerdiag-"))
 const meta = { daemonPid: 4242, generation: "gen-1" }
 
 test("the writer creates its directory and appends one JSON line per diagnostic", () => {
@@ -96,7 +96,7 @@ test("a dropped input and a daemon death earn a log line; ordinary provider stde
   assert.equal(describeClaudeBrokerDiagnostic({ kind: "lifecycle", phase: "closed" }), undefined)
 })
 
-// A log line told frizz that SOMETHING was thrown away; it could not say WHICH, so the ledger could not
+// A log line told ntwine that SOMETHING was thrown away; it could not say WHICH, so the ledger could not
 // act on the row and the operator's message sat at `enqueued` for the hour `ageDeliveries` grants a
 // queue entry — un-clickable, because unqueue asks the current daemon to cancel an id the dead one held.
 test("a drop names the delivery id it killed, so the ledger can mark exactly that row failed", () => {
@@ -110,7 +110,7 @@ test("a drop names the delivery id it killed, so the ledger can mark exactly tha
 })
 
 test("only a real drop yields an id — noise, deaths, and a pre-id daemon yield none", () => {
-  // A detached daemon outlives a frizz upgrade by hours, so the drop with no id is a shape that WILL be
+  // A detached daemon outlives a ntwine upgrade by hours, so the drop with no id is a shape that WILL be
   // seen in production. It must degrade to the old behaviour (log + slow age-out), never to a wrong id.
   const old = `${CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX}: Claude outstanding input limit exceeded`
   assert.equal(droppedDeliveryId({ kind: "stderr", message: old, truncated: false }), undefined)

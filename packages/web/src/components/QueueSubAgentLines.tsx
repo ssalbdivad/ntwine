@@ -1,4 +1,4 @@
-import type { ReturnedSubAgentView, SubAgentView } from "@frizz/shared"
+import type { ReturnedSubAgentView, SubAgentView } from "@ntwine/shared"
 import type { Api } from "../api/rpc.ts"
 import { subAgentName } from "../groups.ts"
 import { pushSubAgentDrawer } from "../store.ts"

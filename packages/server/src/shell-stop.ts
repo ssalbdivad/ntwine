@@ -4,7 +4,7 @@
 // runtime budget (scheduler SOURCE 13, shell-budget.ts). They lived as one set of closures inside the
 // router until the budget needed the same kill from the scheduler (2026-09-29), and a second copy would
 // have been a second place to forget the notice — the half the provider does not do for us, whose
-// absence left a worker waiting on a watcher frizz had already killed. So the closures moved here, and
+// absence left a worker waiting on a watcher ntwine had already killed. So the closures moved here, and
 // the only thing a caller chooses is the REASON the worker is told.
 import type { AppContext } from "./context.ts"
 import { claudeWorkerSystemPrompt, coldResumePermission, workerCapabilities } from "./dispatch.ts"
@@ -19,7 +19,7 @@ export type ShellStopDeps = Pick<AppContext, "project" | "storage" | "tailer" | 
 // step). Undefined for every other kind of row, so the Claude path below is reached unchanged.
 //
 // It reads the BOARD's live shell list rather than the fold, because that list IS the app-server's
-// item stream — a codex exec's processId never reaches the rollout frizz folds (measured in
+// item stream — a codex exec's processId never reaches the rollout ntwine folds (measured in
 // backend/_live_codex_bgterm_match.mts, where the rollout-projected row carried no handle at all).
 export function codexShellTarget(deps: ShellStopDeps, slug: string, id: string): { sessionId: string; processId: string; label: string } | undefined {
   if (!deps.codexAppServer) return undefined
@@ -30,12 +30,12 @@ export function codexShellTarget(deps: ShellStopDeps, slug: string, id: string):
   return { sessionId: row.session_id, processId: id, label: shell.label }
 }
 
-// Can frizz END this live op, and if not, why not — for a sub-agent AND for a background shell.
+// Can ntwine END this live op, and if not, why not — for a sub-agent AND for a background shell.
 //
-// A SHELL used to be refused here categorically: "frizz tracks a background shell by reading the
+// A SHELL used to be refused here categorically: "ntwine tracks a background shell by reading the
 // worker's transcript and holds no handle on its process". That was measured wrong. A background
 // `Bash` is a TASK in the very registry `Query.stopTask` addresses — the SDK's own
-// `backgroundTasks()` says as much ("Bash commands and subagents") — and frizz has been recording its
+// `backgroundTasks()` says as much ("Bash commands and subagents") — and ntwine has been recording its
 // task id all along, off the launch ack ("Command running in background with ID: …") and off the
 // `task_started` stream. `backend/_live_shell_stop.mts` drove the production path end to end: the
 // shell's OS process was gone within a second of the stop and the row left the board on its own.
@@ -69,7 +69,7 @@ export function backgroundOpStoppable(deps: ShellStopDeps, slug: string, id: str
   if (row.backend === "codex") {
     return blocked(shell
       ? "Codex runs its background commands inside its own process and exposes no way to end one, so this terminal can't be stopped from here."
-      : "Codex does not expose per-sub-agent interruption to Frizz, so this child can't be stopped from here.")
+      : "Codex does not expose per-sub-agent interruption to Ntwine, so this child can't be stopped from here.")
   }
   if (row.claude_runtime !== "broker" || !deps.claudeBroker) {
     return blocked(`Stopping a ${noun} needs the Claude session broker; this thread predates it.`)
@@ -99,10 +99,10 @@ export function claudeShellLabel(deps: ShellStopDeps, slug: string, id: string):
 // before it finished, so it never reported back"). Stopping a background SHELL injects NOTHING — the
 // transcript gains not one record — and asked afterwards the model still believed its shell was
 // "presumably still running … I have received no completion notification". A worker left waiting on a
-// watcher frizz already killed is the exact stall the × is meant to end, so frizz supplies the missing
+// watcher ntwine already killed is the exact stall the × is meant to end, so ntwine supplies the missing
 // notice itself. Shell-only, deliberately: adding one on the sub-agent path would say it twice.
 //
-// `[frizz]` is the established prefix for a machine notice to a worker — transcript.ts NOISE_PREFIXES
+// `[ntwine]` is the established prefix for a machine notice to a worker — transcript.ts NOISE_PREFIXES
 // keeps it out of the human's chat, so this reaches the model without becoming a bubble the operator
 // never typed.
 //
@@ -127,14 +127,14 @@ export async function noticeClaudeShellStopped(deps: ShellStopDeps, slug: string
       // Claude's `default` — see coldResumePermission.
       permissionMode: coldResumePermission(row, deps.getSettings()),
       // …and the same contract: a cold resume with no appendSystemPrompt rebuilt the worker with no
-      // Frizz contract, scratch line or FRIZZ.md (upstream affc40a2).
+      // Ntwine contract, scratch line or NTWINE.md (upstream affc40a2).
       appendSystemPrompt: claudeWorkerSystemPrompt(row.session_id, deps.project, {
         capabilities: workerCapabilities(deps.editors, workDirOf(deps.project)),
         deadline: deadlineSection(row),
       }),
       model: row.model ?? undefined,
       effort: row.effort ?? undefined,
-      // Frizz's own notice, not the operator's reply to anything: an open card stays open.
+      // Ntwine's own notice, not the operator's reply to anything: an open card stays open.
       keepOpenCards: true,
     })
     return null
@@ -150,13 +150,13 @@ export interface ShellStopResult {
   dismissed: boolean
   /** Something the caller must pass on: the refusal's reason, or a notice that did not land. */
   note: string | null
-  /** Frizz holds no way to end this shell (legacy transport, no task id yet, already finished) and did
+  /** Ntwine holds no way to end this shell (legacy transport, no task id yet, already finished) and did
    *  NOTHING. The operator's × still retires such a row as a phantom; the budget leaves it alone. */
   refused?: true
 }
 
 /** STOP ONE BACKGROUND SHELL: the provider's own kill, then the notice telling the worker why, then the
- *  row retired from tracking. Undefined when `id` names no shell frizz tracks, so the caller can fall
+ *  row retired from tracking. Undefined when `id` names no shell ntwine tracks, so the caller can fall
  *  through to the sub-agent path.
  *
  *  A kill that THROWS throws through, and nothing is retired: a failed stop means the shell is still

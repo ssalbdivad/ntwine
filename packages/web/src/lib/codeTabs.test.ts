@@ -33,7 +33,7 @@ test("fence options are never mistaken for a label", () => {
   assert.equal(parseFenceLabel(`ts ${"word ".repeat(30)}`), null, "a sentence is not a name")
 })
 
-test("the fences Frizz draws as something else are never tabs", () => {
+test("the fences Ntwine draws as something else are never tabs", () => {
   for (const name of ["lightbox", "mermaid", "question", "done", "awaiting"]) {
     assert.equal(parseFenceLabel(`${name} qst_ab12cd34`), null, name)
   }
@@ -41,7 +41,7 @@ test("the fences Frizz draws as something else are never tabs", () => {
 
 test("consecutive labelled fences become one block with a tab each", () => {
   forgetCodeTabs()
-  const html = render([fence("bash npm", "npm install frizz"), "", fence("bash pnpm", "pnpm add frizz"), "", fence("bash yarn", "yarn add frizz")].join("\n"))
+  const html = render([fence("bash npm", "npm install ntwine"), "", fence("bash pnpm", "pnpm add ntwine"), "", fence("bash yarn", "yarn add ntwine")].join("\n"))
   assert.equal(count(html, `class="md-code md-code-frame md-code-tabs"`), 1)
   assert.equal(count(html, `class="md-code-copy"`), 1, "one copy button for the group")
   assert.match(html, /<span class="md-code-tablist" role="tablist"><button type="button" class="md-code-tab is-active" role="tab" aria-selected="true">npm<\/button><button type="button" class="md-code-tab" role="tab" aria-selected="false">pnpm<\/button>/)

@@ -24,7 +24,7 @@
 import { useEffect, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { AwaitingHint, BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { AwaitingHint, BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { AwaitingBackgroundCard } from "./components/AwaitingBackgroundCard.tsx"
 import { FenceCard, ThreadSlugContext } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -38,7 +38,7 @@ document.documentElement.dataset.font = params.get("font") === "mono" ? "mono" :
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input.toString(), window.location.origin)
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return nativeFetch(input, init)
@@ -97,7 +97,7 @@ const CASES: Case[] = [
     body: "Waiting for `main` to stabilize before cutting the 0.6.0 release that carries the acme/app#22 fix.\n\n- an hourly timer re-checks: tip quiet, frozen-lockfile install green, typecheck green\n- once the release publishes, the approved comment goes on acme/app#22 with the version number\n- the unbreakable token release/2026-08-27-hotfix-abcdefghijklmnopqrst is what the wrap rule has to survive",
     hints: [{ kind: "title", value: "0.6.0 release hold" }, { kind: "timer", value: "tmr_a1" }, { kind: "for", value: "2h" }],
     live: {
-      subAgents: [{ id: "toolu_a", label: "Audit the parser for edge cases", subagentType: "frizz:opus-high", startedAt: ago(2), state: "running" }],
+      subAgents: [{ id: "toolu_a", label: "Audit the parser for edge cases", subagentType: "ntwine:opus-high", startedAt: ago(2), state: "running" }],
       bgShells: [{ id: "toolu_ci", taskId: "bzvtnt3ig", label: "gh run watch 1842", startedAt: ago(4), state: "running" }],
       watches: [
         { id: "shell:parity:bzvtnt3ig", kind: "shell", target: "bzvtnt3ig", state: "armed", createdAt: ago(4) },

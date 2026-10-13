@@ -1,4 +1,4 @@
-import type { FilePosition } from "@frizz/shared"
+import type { FilePosition } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { openImageViewer, pushFileReader, showToast } from "../store.ts"
 import { copyTextToClipboard } from "./clipboard.ts"
@@ -35,7 +35,7 @@ export function installLocalFileLinkInterceptor(): () => void {
 
 // A markdown screenshot whose file is gone — a /tmp shot that was cleaned up, a removed worktree,
 // a path from another machine. `/local-image` 404s, and Chrome then paints its own broken-image glyph
-// beside the alt text, which reads as a rendering fault in Frizz rather than as a missing file. Swap the
+// beside the alt text, which reads as a rendering fault in Ntwine rather than as a missing file. Swap the
 // dead <img> for the plain path, exactly as BlockImage's onError fallback does for the React-rendered
 // case — nothing is silently swallowed, and the replacement holds one stable line instead of the
 // zero-height-then-glyph box that made the whole message reflow.
@@ -66,7 +66,7 @@ function imageFailureHandler(): (event: Event) => void {
   }
 }
 
-// Act on a vetted local path, in Frizz whenever Frizz can show it (lib/localViewer.ts): a picture opens
+// Act on a vetted local path, in Ntwine whenever Ntwine can show it (lib/localViewer.ts): a picture opens
 // in the picture viewer, stepping through the pictures rendered beside the one clicked; a `.md` file in
 // the reader, rendered; any other text file in the reader as source (the split panel beside the thread
 // on /full, a drawer everywhere else). Only a format the page cannot draw — a PDF, a spreadsheet, an
@@ -96,15 +96,15 @@ export function openLocalPath(path: string, from?: Element | null, scope?: Markd
   }
   // IN AN EDITOR'S SIDEBAR a code file opens in that editor, at the place the link names, whatever the
   // Local file links setting says: the human is sitting in the editor they want it in
-  // (embed-protocol.ts `frizz:open-file`). Not through the server, whose opener would
+  // (embed-protocol.ts `ntwine:open-file`). Not through the server, whose opener would
   // pick a window by its own rules, and not into the reader, which a sidebar has no room beside.
   if (viewer === "text" && embedded()) {
     openInHostEditor(path, at)
     return
   }
-  // ON A PHONE the external app is the wrong machine: it launches on the computer Frizz runs on, which
+  // ON A PHONE the external app is the wrong machine: it launches on the computer Ntwine runs on, which
   // from a phone is somewhere else entirely, and the tap appears to do nothing. So every other file opens
-  // in Frizz's own reader instead, as source when it is not one the reader renders.
+  // in Ntwine's own reader instead, as source when it is not one the reader renders.
   if (isMobileViewport()) {
     pushFileReader(path, scope)
     return
@@ -129,7 +129,7 @@ export function openLocalPath(path: string, from?: Element | null, scope?: Markd
 
 /** Hand a file to the editor framing this page, at a place in it (lib/embed.ts). */
 export function openInHostEditor(path: string, position?: FilePosition): void {
-  postToHost({ type: "frizz:open-file", path, ...(position ? { line: position.line, ...(position.column ? { column: position.column } : {}), ...(position.endLine ? { endLine: position.endLine } : {}) } : {}) })
+  postToHost({ type: "ntwine:open-file", path, ...(position ? { line: position.line, ...(position.column ? { column: position.column } : {}), ...(position.endLine ? { endLine: position.endLine } : {}) } : {}) })
 }
 
 // The surfaces a picture's gallery stays inside: a queue card, a drawer, the /full page's reader slot,

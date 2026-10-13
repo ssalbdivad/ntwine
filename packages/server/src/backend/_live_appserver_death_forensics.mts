@@ -17,7 +17,7 @@ import { killCodexAppServerDaemon, liveDaemonRecord, readDaemonExitBreadcrumb } 
 import { createCodexDiagnosticSink, codexDiagnosticLogPath } from "./codex-app-server-diagnostics.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const root = mkdtempSync(join(tmpdir(), "frizz-death-forensics-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-death-forensics-"))
 const dbPath = join(root, "ui.db")
 const PROJECT = "forensics"
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -68,7 +68,7 @@ function makeBridge(label: string) {
     const priorGeneration = record.generation
     console.log(`  daemon pid=${record.daemonPid} app-server child pid=${record.childPid} generation=${priorGeneration}`)
 
-    // Kill the codex app-server CHILD directly (SIGKILL) — a codex crash, NOT a frizz restart. The
+    // Kill the codex app-server CHILD directly (SIGKILL) — a codex crash, NOT a ntwine restart. The
     // daemon observes child.on("exit") and self-terminates, leaving the breadcrumb behind.
     console.log("  --- SIGKILL the app-server child (simulated codex crash) ---")
     process.kill(record.childPid, "SIGKILL")

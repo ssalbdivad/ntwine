@@ -1,15 +1,15 @@
 // DECISIVE probe: does a turn started on connection A survive A's death, and can a LATER connection
-// C rejoin it and observe `turn/completed`? This is exactly frizz's Update & Restart case.
+// C rejoin it and observe `turn/completed`? This is exactly ntwine's Update & Restart case.
 // One billed turn. Throwaway cwd.
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
-const require = createRequire("/Users/colinmcd94/Documents/projects/frizz/packages/server/index.js")
+const require = createRequire("/Users/colinmcd94/Documents/projects/ntwine/packages/server/index.js")
 const WebSocket = require("ws")
 
-const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "frizz-nl3-"))
+const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "ntwine-nl3-"))
 const cwd = path.join(runDir, "work"); fs.mkdirSync(cwd)
 const sock = path.join(runDir, "as.sock")
 const logPath = path.join(runDir, "server.log")
@@ -19,7 +19,7 @@ console.log("[p3] runDir", runDir, "serverPid", child.pid)
 process.on("exit", () => { try { child.kill("SIGKILL") } catch {} })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
-const INIT = { clientInfo: { name: "frizz", title: "Frizz", version: "0.0.1" }, capabilities: { experimentalApi: true } }
+const INIT = { clientInfo: { name: "ntwine", title: "Ntwine", version: "0.0.1" }, capabilities: { experimentalApi: true } }
 
 class Conn {
   constructor(tag) { this.tag = tag; this.notes = []; this.next = 1; this.pending = new Map() }

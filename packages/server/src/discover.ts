@@ -6,9 +6,9 @@ import { dirname, join } from "node:path"
 // The tailer and the transcript renderer bind a thread to `<session_id>.jsonl` — the pinned id. That
 // binding is reliable in the normal case (proven: neither compaction nor resume re-ids a session), but
 // when the file is ABSENT (a worker that failed to write it) or, hypothetically, MOVED (a `--fork-session`
-// re-id, which frizz does not use today), the read side has no recovery and the row strands.
+// re-id, which ntwine does not use today), the read side has no recovery and the row strands.
 //
-// Every frizz worker's transcript CONTENT carries a built-in discovery key: its scratchpad path
+// Every ntwine worker's transcript CONTENT carries a built-in discovery key: its scratchpad path
 // `threads/<pinnedId>/scratch.md`, baked into the first user message (dispatch.ts composePrompt) AND re-injected
 // in the per-turn system prompt (scratchpadOrientation), so it survives compaction and would survive a
 // fork. The pinnedId there is the ORIGINAL session id regardless of any filename drift. So to find a
@@ -114,11 +114,11 @@ export function discoverTranscriptId(logDir: string, sessionId: string, opts: Di
 // Everything above assumes the transcript is SOMEWHERE IN `logDir`. That assumption breaks the moment
 // the operator renames or moves the checkout, because Claude Code shards its store by the cwd a session
 // was BORN in — `~/.claude/projects/<cwd with every non-alphanumeric character replaced by ->/` — and a resumed session KEEPS
-// WRITING TO ITS BIRTH BUCKET FOREVER. Frizz derives that bucket from the project's CURRENT path
+// WRITING TO ITS BIRTH BUCKET FOREVER. Ntwine derives that bucket from the project's CURRENT path
 // (project.ts cwdSlug), so after a rename every pre-existing thread points at a file that will never
 // exist, the crash-net reads it as "no transcript after 60s — likely a boot failure", and the board
-// strands the whole history behind a yellow [!] whose Retry can only ever start more work frizz cannot
-// see. Measured on this machine 2026-08-11: `.../projects/fray` → `.../projects/frizz` stranded 417
+// strands the whole history behind a yellow [!] whose Retry can only ever start more work ntwine cannot
+// see. Measured on this machine 2026-08-11: `.../projects/fray` → `.../projects/ntwine` stranded 417
 // transcripts and froze five live threads.
 //
 // Measured, on the real `claude` CLI with throwaway projects (2026-08-11), because the fix depends on
@@ -128,7 +128,7 @@ export function discoverTranscriptId(logDir: string, sessionId: string, opts: Di
 //   • `mv` the jsonl into the `-beta` bucket first, THEN `--resume` → it follows the file and appends there.
 //   • but `mv` it out from under a LIVE session and that session RE-CREATES the file at the old path,
 //     splitting the transcript in two.
-// The third reading is why frizz must never migrate Claude Code's files to repair this: the threads that
+// The third reading is why ntwine must never migrate Claude Code's files to repair this: the threads that
 // need repair most are exactly the ones with a live daemon holding the transcript. So the fix is on the
 // READ side — find the bucket that actually holds the file and bind it — and `~/.claude` is never written.
 //

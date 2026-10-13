@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { CodexModel } from "@frizz/shared"
+import type { CodexModel } from "@ntwine/shared"
 import { CODEX_CONTEXT_WINDOW_DEFAULT, codexContextWindowOptions, formatTokens } from "./codexContextWindow.ts"
 
 const model = (slug: string, displayName: string, contextWindow?: number, maxContextWindow?: number): CodexModel => ({

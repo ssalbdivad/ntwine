@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * frizz — "rest-on-waiter" detection. PURE, dependency-free, and unit-tested
- * (rest-detect.test.mjs) so the SubagentStop guard (hooks/frizz-rest-guard.mjs)
+ * ntwine — "rest-on-waiter" detection. PURE, dependency-free, and unit-tested
+ * (rest-detect.test.mjs) so the SubagentStop guard (hooks/ntwine-rest-guard.mjs)
  * can stay a thin I/O shell around this judgment.
  *
  * THE PROBLEM it detects: a background sub-agent backgrounds a long op (a build, a

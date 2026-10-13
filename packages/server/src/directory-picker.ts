@@ -9,7 +9,7 @@ const run = promisify(execFile)
 // It has to be the server, and that is not a shortcut. The browser's own File System Access API
 // (`showDirectoryPicker`) hands back a FileSystemDirectoryHandle carrying the directory's NAME and
 // nothing else — deliberately, since exposing absolute paths to a web page is the thing it exists to
-// prevent. Frizz needs the path: a project IS a path. So the process that already lives on the
+// prevent. Ntwine needs the path: a project IS a path. So the process that already lives on the
 // machine, and already opens browsers and app windows, opens the picker too.
 //
 // A picker is not available everywhere, which is why every caller keeps a typed path as a fallback
@@ -41,7 +41,7 @@ const unanswered = (what: "folder" | "image"): DirectoryPick => ({
 
 // THE MACOS PANELS ARE BUILT BEFORE THE CLICK THAT SHOWS THEM.
 //
-// Building one takes most of a second, and almost none of that is Frizz. Measured 2026-10-03 on macOS
+// Building one takes most of a second, and almost none of that is Ntwine. Measured 2026-10-03 on macOS
 // 26.6 against the live server: the request reached the server and spawned the helper in ~0.1s, and the
 // dialog then took 0.8-1.0s to draw. The unified log of the operator's own three adds that afternoon
 // has the same split: osascript and AppKit up in ~0.18s, then ~0.6s waiting on
@@ -272,7 +272,7 @@ export function warmImagePicker(
  * The rail used a browser `<input type="file">`, which cannot be aimed anywhere — the OS decides,
  * and it lands wherever you last were. A project's icon almost always lives in the project (a logo in
  * the repo, a screenshot you just took of it), so opening the picker anywhere else means navigating
- * back to a directory Frizz already knows the path of.
+ * back to a directory Ntwine already knows the path of.
  *
  * The starting directory is a hint, not a jail: the operator can still browse anywhere, which is why
  * a missing or unreadable startIn simply falls back to the OS default rather than failing.
@@ -306,7 +306,7 @@ export async function pickImageFile(
 }
 
 export async function pickDirectory(
-  prompt = "Choose a folder to open in Frizz",
+  prompt = "Choose a folder to open in Ntwine",
   platform: NodeJS.Platform = process.platform,
   open: () => NativePanel = () => openPanel("folder"),
 ): Promise<DirectoryPick> {
@@ -360,7 +360,7 @@ export async function pickDirectory(
 const WINDOWS_PICKER_EDITIONS = ["pwsh", "powershell"] as const
 
 const WINDOWS_RAISE_NATIVE =
-  "Add-Type -Namespace Frizz -Name Native -MemberDefinition '" +
+  "Add-Type -Namespace Ntwine -Name Native -MemberDefinition '" +
   '[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow();' +
   '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, System.IntPtr pid);' +
   '[DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();' +
@@ -394,13 +394,13 @@ const WINDOWS_RAISE_OWNER =
   " Location = (New-Object System.Drawing.Point(-32000, -32000)); Size = (New-Object System.Drawing.Size(1, 1)) };" +
   "$o.Text = $d.Description;" +
   "$o.Show();" +
-  "$fg = [Frizz.Native]::GetForegroundWindow();" +
-  "[void][Frizz.Native]::SetForegroundWindow($o.Handle);" +
-  "if ([Frizz.Native]::GetForegroundWindow() -ne $o.Handle) {" +
-  " $theirs = [Frizz.Native]::GetWindowThreadProcessId($fg, [IntPtr]::Zero); $mine = [Frizz.Native]::GetCurrentThreadId();" +
-  " $attached = ($theirs -ne 0) -and ($theirs -ne $mine) -and -not [Frizz.Native]::IsHungAppWindow($fg) -and [Frizz.Native]::AttachThreadInput($theirs, $mine, $true);" +
-  " foreach ($try in 1..4) { [void][Frizz.Native]::SetForegroundWindow($o.Handle); if ([Frizz.Native]::GetForegroundWindow() -eq $o.Handle) { break }; Start-Sleep -Milliseconds 50 };" +
-  " if ($attached) { [void][Frizz.Native]::AttachThreadInput($theirs, $mine, $false) } };"
+  "$fg = [Ntwine.Native]::GetForegroundWindow();" +
+  "[void][Ntwine.Native]::SetForegroundWindow($o.Handle);" +
+  "if ([Ntwine.Native]::GetForegroundWindow() -ne $o.Handle) {" +
+  " $theirs = [Ntwine.Native]::GetWindowThreadProcessId($fg, [IntPtr]::Zero); $mine = [Ntwine.Native]::GetCurrentThreadId();" +
+  " $attached = ($theirs -ne 0) -and ($theirs -ne $mine) -and -not [Ntwine.Native]::IsHungAppWindow($fg) -and [Ntwine.Native]::AttachThreadInput($theirs, $mine, $true);" +
+  " foreach ($try in 1..4) { [void][Ntwine.Native]::SetForegroundWindow($o.Handle); if ([Ntwine.Native]::GetForegroundWindow() -eq $o.Handle) { break }; Start-Sleep -Milliseconds 50 };" +
+  " if ($attached) { [void][Ntwine.Native]::AttachThreadInput($theirs, $mine, $false) } };"
 
 /**
  * A PowerShell single-quoted literal: nothing inside it is expanded, and `'` is doubled. The curly
@@ -414,7 +414,7 @@ function powershellLiteral(text: string): string {
  * The picked path is the one stdout line carrying this prefix. Anything else on stdout — a WARNING
  * both editions write there when redirected, a stray Add-Type line — is not mistaken for the path.
  */
-const WINDOWS_PICKED_PREFIX = "frizz-picked:"
+const WINDOWS_PICKED_PREFIX = "ntwine-picked:"
 
 function windowsFolderScript(prompt: string): string {
   // `Description` is the only prompt the old dialog has; the modern one shows it as a label beside the

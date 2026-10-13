@@ -3,7 +3,7 @@ import test from "node:test"
 
 // Browser coverage for SPINOFFS' own UI (Spinoff.tsx), driven through the real drawer — ThreadView with
 // the virtualized transcript — on spinoff-fixture.html. Skipped unless a Vite URL serving the fixtures is
-// provided: start `vite` in packages/web and set FRIZZ_SPINOFF_E2E_URL to its origin (or run it through
+// provided: start `vite` in packages/web and set NTWINE_SPINOFF_E2E_URL to its origin (or run it through
 // `nub run test:e2e`, which does both).
 //
 // What only a browser settles: that the whole pipeline (not the card alone) draws each request as its card
@@ -11,7 +11,7 @@ import test from "node:test"
 // never the envelope; that the context stays folded until asked for and then renders as markdown; and the
 // thread link's click contract — a plain click opens the drawer in place, a modified click is left to the
 // browser.
-const baseUrl = process.env.FRIZZ_SPINOFF_E2E_URL
+const baseUrl = process.env.NTWINE_SPINOFF_E2E_URL
 
 async function launch() {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -151,8 +151,8 @@ test("a spinoff child's queue card names its parent in the card's own project", 
     await page.waitForSelector("[data-xq-card-root] [data-spinoff-of]")
     const read = await page.evaluate(() => [...document.querySelectorAll("[data-xq-card-root] [data-spinoff-of] a")].map((a) => ({ text: a.textContent, href: a.getAttribute("href") })))
     assert.deepEqual(read, [
-      { text: "@sub-agent-liveness", href: "/all/frizz/thread/sub-agent-liveness" },
-      { text: "@sub-agent-liveness", href: "/all/frizz/thread/sub-agent-liveness" },
+      { text: "@sub-agent-liveness", href: "/all/ntwine/thread/sub-agent-liveness" },
+      { text: "@sub-agent-liveness", href: "/all/ntwine/thread/sub-agent-liveness" },
     ])
     assert.deepEqual(errors, [])
   } finally {

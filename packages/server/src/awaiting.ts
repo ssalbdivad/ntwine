@@ -1,5 +1,5 @@
 import { threadAwaitKey } from "./thread-mentions.ts"
-import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, type AwaitingHint, type AwaitingItemKind } from "@frizz/shared"
+import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, type AwaitingHint, type AwaitingItemKind } from "@ntwine/shared"
 
 // The PR-reference vocabulary shared by the PR-watching scheduler and the board. It lives here rather
 // than in scheduler.ts so a reader can resolve a ref without pulling in the whole waker; scheduler.ts
@@ -85,7 +85,7 @@ export function readAwaitingPark(hints: readonly AwaitingHint[]): AwaitingPark {
   return { items, forMs, steps: awaitingSteps(hints), questions: awaitingQuestions(hints) }
 }
 
-/** What frizz can see running for one thread, in the shape the check needs. Every id a fence may name
+/** What ntwine can see running for one thread, in the shape the check needs. Every id a fence may name
  *  comes from one of these four sets, and each is authoritative for its own kind. */
 export interface LiveActivity {
   /** Every handle a live background shell answers to — its runtime task id, its launch id, its label. */
@@ -119,7 +119,7 @@ interface LiveHandleRow {
   label?: string
 }
 
-/** What frizz can actually see running for this thread, in the shape `unaccountedItems` checks against.
+/** What ntwine can actually see running for this thread, in the shape `unaccountedItems` checks against.
  *  Here rather than in the scheduler since 2026-10-01, because the BOARD reads it too: a
  *  `status: working`/`watching` park keeps its thread out of the queue only while it is honoured, and the board
  *  and the scheduler's integrity pass must agree on what "honoured" means (needsInputParkHolds).
@@ -152,12 +152,12 @@ export function liveActivityOf(
   return { shells, agents, timers: armedTimerIds, prs: registeredPrWatches, issues: registeredIssueWatches, commands: armedCommandWatches }
 }
 
-/** The items this fence names that frizz CANNOT account for — dead, unknown, or another thread's.
+/** The items this fence names that ntwine CANNOT account for — dead, unknown, or another thread's.
  *
  *  This is the whole safety property of the grammar. A park is honoured only when this comes back empty;
  *  anything in it means the worker declared a wait that cannot resolve, and gets bumped rather than
  *  parked. Three separate stalls in one day came from the old grammar having no equivalent (see the
- *  AwaitingHint doc block in @frizz/shared). */
+ *  AwaitingHint doc block in @ntwine/shared). */
 export function unaccountedItems(items: readonly AwaitingItem[], live: LiveActivity): AwaitingItem[] {
   return items.filter((i) => !live[LIVE_SET[i.kind]]?.has(liveKey(i)))
 }
@@ -166,7 +166,7 @@ export function unaccountedItems(items: readonly AwaitingItem[], live: LiveActiv
  *  (`owner/repo#N` — registeredPrWatchesOf) while the fence holds whatever the worker wrote, and
  *  `watch_pr` itself advertises "owner/repo#123 or a PR URL". A raw string match called a registered
  *  PR named by URL unaccounted, so the worker was bumped "NOT REGISTERED", re-registered (idempotent),
- *  re-fenced the same spelling, and went round again. Every other kind's id is minted by frizz and
+ *  re-fenced the same spelling, and went round again. Every other kind's id is minted by ntwine and
  *  matches byte-for-byte or not at all. */
 function liveKey(i: AwaitingItem): string {
   if (i.kind === "pr") {
@@ -182,13 +182,13 @@ function liveKey(i: AwaitingItem): string {
   return i.value
 }
 
-/** Is this a park frizz will honour — at least one item, every item live, and a usable `for:`?
+/** Is this a park ntwine will honour — at least one item, every item live, and a usable `for:`?
  *
  *  AT LEAST ONE ITEM is not pedantry. An awaiting fence naming nothing is a worker claiming to wait with
  *  no way to be woken, which is precisely the silent stall the grammar exists to make impossible.
  *
  *  STEPS ARE THE ONE WAIT THAT NEEDS NEITHER (2026-10-03). A fence listing `steps:` waits on the HUMAN,
- *  and the human is the one party frizz never has to watch: the thread sits in their queue
+ *  and the human is the one party ntwine never has to watch: the thread sits in their queue
  *  (awaitingNeedsInput reads steps as `true`), and their reply — the card's Done, or anything they
  *  type — is itself the wake. Any item named beside the steps must still be live, and a
  *  `for:` beside them still runs out (parkExpiresAt), as a re-check the worker asked for.
@@ -210,8 +210,8 @@ export function parkOnHuman(park: AwaitingPark): boolean {
 }
 
 /** Does this fence keep a NEW-CONTRACT thread out of the queue (see `needsInputRequired` in
- *  @frizz/shared)? The worker answered `status: working` or `status: watching` (or the older
- *  `needs_input: false`), and the park is one frizz can honour and has not run out. Anything less —
+ *  @ntwine/shared)? The worker answered `status: working` or `status: watching` (or the older
+ *  `needs_input: false`), and the park is one ntwine can honour and has not run out. Anything less —
  *  `needs_input`, no answer, a dead name, an elapsed `for:` — and the thread queues, which is the safe
  *  direction: a wrong answer must never be a way to disappear. Which band it sits in once out of the
  *  queue is board.deriveWaitStatus's call, not this one's.
@@ -272,7 +272,7 @@ export type GithubStatusBook = Record<string, GithubWatchStatus>
 
 /** The book as stored, validated entry by entry. A malformed entry is DROPPED rather than failing the
  *  whole read: this decides a queue rule, and one bad row must not take a whole board's worth of PR
- *  status with it. An older frizz's book simply reads as fewer entries. */
+ *  status with it. An older ntwine's book simply reads as fewer entries. */
 export function readGithubStatusBook(raw: unknown): GithubStatusBook {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {}
   const out: GithubStatusBook = {}

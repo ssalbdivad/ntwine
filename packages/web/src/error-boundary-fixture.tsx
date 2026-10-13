@@ -7,7 +7,7 @@ import "./styles.css"
 
 // Browser QA for the render-error boundaries. The thing being proved is a NEGATIVE — that a throwing
 // component no longer blanks the window — so the fixture has to actually throw, in the actual shape
-// that took frizz down: a FREE IDENTIFIER left in the bundle by an artifact built from a torn working
+// that took ntwine down: a FREE IDENTIFIER left in the bundle by an artifact built from a torn working
 // tree (ChatView.tsx's unqueue hooks were called one edit before their `import` line was written, and
 // a free identifier is legal JS, so rolldown emitted the calls without a word).
 //

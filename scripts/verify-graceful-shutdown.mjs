@@ -1,4 +1,4 @@
-// End-to-end proof that a REAL frizz launcher shuts down gracefully and leaves nothing behind.
+// End-to-end proof that a REAL ntwine launcher shuts down gracefully and leaves nothing behind.
 //
 // Boots the actual dev supervisor + forked control-plane child on a fully-ISOLATED stack (temp HOME,
 // unique port, wakers/reaper off), puts REAL load on it (an open /events SSE board
@@ -35,8 +35,8 @@ const opt = (k, d) => {
 // ── launcher role ────────────────────────────────────────────────────────────────────────────────────
 // Same topology as packages/server/src/dev.ts, but on a caller-chosen port so a verification run can
 // never collide with the operator's live boards.
-if (process.env.FRIZZ_SHUTDOWN_HARNESS === "launcher") {
-  const port = Number(process.env.FRIZZ_SHUTDOWN_HARNESS_PORT)
+if (process.env.NTWINE_SHUTDOWN_HARNESS === "launcher") {
+  const port = Number(process.env.NTWINE_SHUTDOWN_HARNESS_PORT)
   const { projectLaunchTarget, resolveProject } = await import("../packages/server/src/project.ts")
   const { acquireProjectLaunchOwner, projectLaunchEnvironment } = await import("../packages/server/src/project-launch.ts")
   const project = resolveProject()
@@ -60,7 +60,7 @@ if (process.env.FRIZZ_SHUTDOWN_HARNESS === "launcher") {
     launchOwner.release()
     throw error
   }
-  console.log(`FRIZZ_HARNESS_READY ${JSON.stringify({ port, pid: process.pid })}`)
+  console.log(`NTWINE_HARNESS_READY ${JSON.stringify({ port, pid: process.pid })}`)
   const stop = createSupervisorShutdownHandler({
     close: () => supervisor.close(),
     force: () => supervisor.forceStop(),
@@ -75,8 +75,8 @@ if (process.env.FRIZZ_SHUTDOWN_HARNESS === "launcher") {
   // ── driver role ────────────────────────────────────────────────────────────────────────────────────
   const port = Number(opt("port", "4952"))
   const mode = opt("mode", "sigint")
-  const home = mkdtempSync(join(tmpdir(), "frizz-shutdown-verify-"))
-  mkdirSync(join(home, ".frizz"), { recursive: true })
+  const home = mkdtempSync(join(tmpdir(), "ntwine-shutdown-verify-"))
+  mkdirSync(join(home, ".ntwine"), { recursive: true })
 
   const descendants = (root) => {
     const seen = new Set()
@@ -119,12 +119,12 @@ if (process.env.FRIZZ_SHUTDOWN_HARNESS === "launcher") {
     env: {
       ...process.env,
       HOME: home,
-      FRIZZ_SHUTDOWN_HARNESS: "launcher",
-      FRIZZ_SHUTDOWN_HARNESS_PORT: String(port),
-      FRIZZ_SANDBOX_TAG: `frizz-shutdown-verify-${port}-${process.pid}`,
-      FRIZZ_WAKERS_OFF: "1",
-      FRIZZ_ORPHAN_REAPER_OFF: "1",
-      FRIZZ_DIRECT_SUPERVISOR: "1",
+      NTWINE_SHUTDOWN_HARNESS: "launcher",
+      NTWINE_SHUTDOWN_HARNESS_PORT: String(port),
+      NTWINE_SANDBOX_TAG: `ntwine-shutdown-verify-${port}-${process.pid}`,
+      NTWINE_WAKERS_OFF: "1",
+      NTWINE_ORPHAN_REAPER_OFF: "1",
+      NTWINE_DIRECT_SUPERVISOR: "1",
     },
   })
   const transcript = []
@@ -148,7 +148,7 @@ if (process.env.FRIZZ_SHUTDOWN_HARNESS === "launcher") {
   }
 
   const readyDeadline = Date.now() + 180_000
-  while (!transcript.some((l) => l.includes("FRIZZ_HARNESS_READY"))) {
+  while (!transcript.some((l) => l.includes("NTWINE_HARNESS_READY"))) {
     if (Date.now() > readyDeadline) await fail("launcher never became ready")
     if (child.exitCode !== null) await fail(`launcher exited early (${child.exitCode})`)
     await new Promise((r) => setTimeout(r, 200))
@@ -199,9 +199,9 @@ if (process.env.FRIZZ_SHUTDOWN_HARNESS === "launcher") {
   // The Codex app-server daemon is DELIBERATELY detached and MUST outlive a shutdown — an in-flight
   // Codex turn survives a restart precisely because nothing here kills it. Record it so this harness
   // asserts survival rather than absence, and so the run cleans up its own daemon afterwards.
-  const stateDirs = readdirSync(join(home, ".frizz", "projects"), { withFileTypes: true })
+  const stateDirs = readdirSync(join(home, ".ntwine", "projects"), { withFileTypes: true })
     .filter((e) => e.isDirectory())
-    .map((e) => join(home, ".frizz", "projects", e.name))
+    .map((e) => join(home, ".ntwine", "projects", e.name))
   let codexDaemon = null
   for (const stateDir of stateDirs) {
     const dir = join(stateDir, "codex-app-server")
@@ -221,7 +221,7 @@ if (process.env.FRIZZ_SHUTDOWN_HARNESS === "launcher") {
   // the process-tree walk. It is NOT an owned process to reap — exclude it from the accounting.
   const group = descendants(child.pid).filter((pid) => pid !== codexDaemon?.daemonPid)
   const owned = [child.pid, ...group]
-  const launcherPid = JSON.parse(transcript.find((l) => l.includes("FRIZZ_HARNESS_READY")).split("FRIZZ_HARNESS_READY ")[1]).pid
+  const launcherPid = JSON.parse(transcript.find((l) => l.includes("NTWINE_HARNESS_READY")).split("NTWINE_HARNESS_READY ")[1]).pid
   const childProcessPid = Number(transcript.find((l) => /control plane ready \(pid (\d+)/.test(l)).match(/control plane ready \(pid (\d+)/)[1])
   console.log(`[verify] launcher process tree before signal: ${owned.join(", ")} (control plane ${childProcessPid})`)
 

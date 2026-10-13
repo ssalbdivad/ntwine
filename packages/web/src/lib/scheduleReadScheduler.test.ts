@@ -2,7 +2,7 @@
 // word or after 500ms of rest, whichever comes first — never per keystroke, never for words with no schedule word.
 import assert from "node:assert/strict"
 import test from "node:test"
-import { hasScheduleTrigger } from "@frizz/shared"
+import { hasScheduleTrigger } from "@ntwine/shared"
 import { READ_IDLE_MS, classifyEdit, createReadScheduler } from "./scheduleReadScheduler.ts"
 
 /** A scheduler on a hand-driven clock, recording what it asked for and what it cancelled. */

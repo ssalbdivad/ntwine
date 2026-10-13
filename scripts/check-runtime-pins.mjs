@@ -4,7 +4,7 @@
 //   nub scripts/check-runtime-pins.mjs            a human-readable verdict
 //   nub scripts/check-runtime-pins.mjs --json     the same thing for a script to read
 //
-// Frizz pins ONE Claude Code and ONE Codex (packages/server/src/runtimes.ts) and provisions that exact
+// Ntwine pins ONE Claude Code and ONE Codex (packages/server/src/runtimes.ts) and provisions that exact
 // binary from the vendor's own npm package. A stale pin is not a conservative one — it is a broken
 // worker: the first provisioned Claude Code refused the default model outright because a model's
 // minimum CLI is enforced server-side, and the 0.146 Codex pin could never offer gpt-6-astra because
@@ -32,7 +32,7 @@
 //
 // So the age is REPORTED and never blocks. The gate stays on for the rest of the tree; the install a
 // runtime bump performs passes `--minimum-release-age-exclude "@anthropic-ai/*"` to step around it for
-// these packages only. Codex was never gated at all — Frizz's own provisioner fetches it, not the
+// these packages only. Codex was never gated at all — Ntwine's own provisioner fetches it, not the
 // package manager.
 //
 // EXIT CODES, so a caller can branch without parsing prose:
@@ -42,7 +42,7 @@
 
 import { CLAUDE_AGENT_SDK_VERSION, CLAUDE_CODE_VERSION, CODEX_VERSION } from "../packages/server/src/runtimes.ts"
 
-const REGISTRY = process.env.FRIZZ_NPM_REGISTRY ?? "https://registry.npmjs.org"
+const REGISTRY = process.env.NTWINE_NPM_REGISTRY ?? "https://registry.npmjs.org"
 const json = process.argv.includes("--json")
 
 /** The platform coordinates provisioning would fetch. Mirrors runtimeCoordinates(), which is not

@@ -27,7 +27,7 @@ const SCRIPT = `export const meta = {
 const r = await agent('do it', { label: 'impl:S1', phase: 'Implement', name: 'not-the-meta' })`
 
 function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-workflow-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-workflow-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const runDir = join(dir, SESSION, "subagents", "workflows", "wf_45e1076e-215")
   mkdirSync(runDir, { recursive: true })
@@ -57,7 +57,7 @@ function fixture() {
   ].map((r) => JSON.stringify(r)).join("\n") + "\n")
 
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: new Date().toISOString(),
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

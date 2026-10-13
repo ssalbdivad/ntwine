@@ -1,6 +1,6 @@
 # Updating a LIVE worker — finishing option A
 
-Written 2026-08-08, after the singleton broke every non-launching project's frizz MCP tools and the fix could not reach a single already-running worker. Maintainer, the same day: *"The whole fucking point is that my update frizz button is supposed to just update everything. The fact that there are these stateful daemons that are blocking us from properly updating is unfortunate. Is there no more complete solution here?"*
+Written 2026-08-08, after the singleton broke every non-launching project's ntwine MCP tools and the fix could not reach a single already-running worker. Maintainer, the same day: *"The whole fucking point is that my update ntwine button is supposed to just update everything. The fact that there are these stateful daemons that are blocking us from properly updating is unfortunate. Is there no more complete solution here?"*
 
 **Partly. Hooks, skills, agents and commands can be updated in a LIVE worker; the MCP servers cannot.** That split is measured, not reasoned — see §0 — and it is the single fact this plan turns on.
 
@@ -20,27 +20,27 @@ Two staged copies of the worker plugin (`v1`, `v2`), each declaring a marker MCP
 
 | step | result |
 | --- | --- |
-| worker dispatched against `current -> v1` | marker server MOUNTED and callable, as `mcp__plugin_frizz_marker__which_plugin` (pid 21779) |
-| repoint `current -> v2`, then `reloadThreadPlugins` on the LIVE thread | reload reports `mcpServers: ["plugin:frizz:marker", …]`, `plugins: 1, commands: 50, agents: 21` — **but pid 21779 is untouched and no v2 process is spawned** |
+| worker dispatched against `current -> v1` | marker server MOUNTED and callable, as `mcp__plugin_ntwine_marker__which_plugin` (pid 21779) |
+| repoint `current -> v2`, then `reloadThreadPlugins` on the LIVE thread | reload reports `mcpServers: ["plugin:ntwine:marker", …]`, `plugins: 1, commands: 50, agents: 21` — **but pid 21779 is untouched and no v2 process is spawned** |
 | control: a FRESH session against `current -> v2` | v2 spawned immediately (pid 41537) — so the v2 copy is fine, and the failure is specific to reload |
 
 **`reloadPlugins()` re-reads the plugin and REPORTS its MCP servers; it does not re-spawn one that is already connected.** The report is what makes this trap expensive: it looks like success.
 
 Two consequences:
 
-- **Moving the frizz MCP into the plugin buys nothing for live updates.** Cut from this plan. (It would also rename every tool from `mcp__frizz__spawn_thread` to `mcp__plugin_frizz_frizz__spawn_thread`, breaking every prompt, doc and allow-list that names them — a second, independent reason not to.)
-- **A worker's MCP shim can only change when its session's MCP child is re-spawned, i.e. on a NEW session.** No repointing, no reload, no server-side change reaches it. That is a property of the SDK, not of frizz.
+- **Moving the ntwine MCP into the plugin buys nothing for live updates.** Cut from this plan. (It would also rename every tool from `mcp__ntwine__spawn_thread` to `mcp__plugin_ntwine_ntwine__spawn_thread`, breaking every prompt, doc and allow-list that names them — a second, independent reason not to.)
+- **A worker's MCP shim can only change when its session's MCP child is re-spawned, i.e. on a NEW session.** No repointing, no reload, no server-side change reaches it. That is a property of the SDK, not of ntwine.
 
-So the shim's own logic is the thing that must be right the first time, because it cannot be patched later — which is exactly why `c5784a1` moved it from being TOLD its server address to DISCOVERING it (the machine address, then any live project lock, skipping dead pids) and its project (the stamp, else `.frizz/.id` walked up from cwd). Those are the two facts that would otherwise go stale, and they now re-resolve per call from the filesystem. A shim shipped today survives every future restart without an update; only a change to the shim's own code needs a new session.
+So the shim's own logic is the thing that must be right the first time, because it cannot be patched later — which is exactly why `c5784a1` moved it from being TOLD its server address to DISCOVERING it (the machine address, then any live project lock, skipping dead pids) and its project (the stamp, else `.ntwine/.id` walked up from cwd). Those are the two facts that would otherwise go stale, and they now re-resolve per call from the filesystem. A shim shipped today survives every future restart without an update; only a change to the shim's own code needs a new session.
 
 **What is still worth building** is §1 alone: stage the plugin and launch workers against the stable path, so hooks, skills, sub-agent profiles and commands — everything except MCP servers — reach a live worker on reload. That is a real capability, it is measured above (`plugins: 1, commands: 50, agents: 21` reloaded), and it is what `4857ee8` set out to finish.
 
 ## The problem, precisely
 
-A worker is a DETACHED daemon that outlives frizz restart after restart. Two things about it are frozen the moment it forks, and an update reaches neither:
+A worker is a DETACHED daemon that outlives ntwine restart after restart. Two things about it are frozen the moment it forks, and an update reaches neither:
 
-1. **Its plugin directory** — hooks, sub-agent profiles, skills and commands all come from the path it was launched against. Every one of frizz's paths is immutable and version-specific (`~/.frizz/builds/<sha>/runtime/cc-worker` in dev, `<npm package>/runtime/cc-worker` in production), so `reloadPlugins()` — which takes no arguments and re-reads whatever path the session started with — re-reads the same bytes. **This one is fixable**, and §1 is the fix.
-2. **Its MCP server processes**, including `bin/frizz-mcp.mjs` — spawned once, at session start. **This one is not fixable in place**, per §0: a reload does not re-spawn a connected server, whichever way it was mounted.
+1. **Its plugin directory** — hooks, sub-agent profiles, skills and commands all come from the path it was launched against. Every one of ntwine's paths is immutable and version-specific (`~/.ntwine/builds/<sha>/runtime/cc-worker` in dev, `<npm package>/runtime/cc-worker` in production), so `reloadPlugins()` — which takes no arguments and re-reads whatever path the session started with — re-reads the same bytes. **This one is fixable**, and §1 is the fix.
+2. **Its MCP server processes**, including `bin/ntwine-mcp.mjs` — spawned once, at session start. **This one is not fixable in place**, per §0: a reload does not re-spawn a connected server, whichever way it was mounted.
 
 So an "Update & Restart" today leaves every live worker on the old plugin indefinitely. One of those two is a missing wire; the other is a property of the SDK, and the honest answer for it is that a shim change costs a new session.
 
@@ -54,12 +54,12 @@ So an "Update & Restart" today leaves every live worker on the old plugin indefi
 
 ### 1. Launch every worker against the stable path
 
-`workerPluginDir()` (`dispatch.ts:622`) is the single chokepoint — the `--plugin-dir` flag, the broker's `workerEnv.pluginDir`, and `resolveFrizzMcp`'s script path all come from it. Stage the resolved immutable directory on boot and return the stable path instead.
+`workerPluginDir()` (`dispatch.ts:622`) is the single chokepoint — the `--plugin-dir` flag, the broker's `workerEnv.pluginDir`, and `resolveNtwineMcp`'s script path all come from it. Stage the resolved immutable directory on boot and return the stable path instead.
 
 The one real decision is the **version identity**, which must change whenever the plugin content changes or a worker reloads and sees the same bytes:
 
 - production → the package version;
-- a promoted artifact → the build digest, which is already in the path (`~/.frizz/builds/<sha>/…`), so it needs no new plumbing;
+- a promoted artifact → the build digest, which is already in the path (`~/.ntwine/builds/<sha>/…`), so it needs no new plumbing;
 - a DEV SOURCE checkout → neither works, because `cc-worker/` is edited constantly under a fixed `plugin.json` version. Use a content digest of the directory, or accept that dev does not hot-reload and skip staging there. **Decide this explicitly** — a silently-never-restaging dev path is exactly the failure this whole plan exists to remove.
 
 ### 2. Then: reload on update
@@ -68,9 +68,9 @@ With the wire in, an update becomes *repoint the link, then ask live threads to 
 
 ## Verification, before this goes anywhere near the maintainer's board
 
-Use `frizz-stack` with `--creds` (isolated, real credentials, real dispatch):
+Use `ntwine-stack` with `--creds` (isolated, real credentials, real dispatch):
 
-1. dispatch a real worker; confirm it HAS `mcp__frizz__*` and that a tool call succeeds;
+1. dispatch a real worker; confirm it HAS `mcp__ntwine__*` and that a tool call succeeds;
 2. edit the staged plugin to a NEW version identity and repoint the link;
 3. call `reloadThreadPlugins` on that live thread;
 4. confirm a HOOK or sub-agent profile that exists only in the new version is now live — a marker the old copy cannot produce, so "it still works" cannot be confused with "it never reloaded";
@@ -78,4 +78,4 @@ Use `frizz-stack` with `--creds` (isolated, real credentials, real dispatch):
 
 ## Blast radius, and why this was not done on 2026-08-08
 
-`workerPluginDir()` feeds every worker spawn. A staging bug takes out hooks, sub-agent profiles and the frizz tools for every thread at once. On the day this was written the maintainer's machine had ~15 live workers mid-triage-sweep, so re-plumbing it in the same session as three other worker-spawn changes was the wrong trade. It wants its own session, with the verification above run first.
+`workerPluginDir()` feeds every worker spawn. A staging bug takes out hooks, sub-agent profiles and the ntwine tools for every thread at once. On the day this was written the maintainer's machine had ~15 live workers mid-triage-sweep, so re-plumbing it in the same session as three other worker-spawn changes was the wrong trade. It wants its own session, with the verification above run first.

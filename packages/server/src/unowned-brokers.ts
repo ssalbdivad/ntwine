@@ -1,4 +1,4 @@
-// Unowned broker daemons — the ones a booting Frizz finds running under a project's state dir and does
+// Unowned broker daemons — the ones a booting Ntwine finds running under a project's state dir and does
 // NOT adopt.
 //
 // A broker daemon is forked detached into its own process group, so it outlives the server on purpose:
@@ -10,7 +10,7 @@
 // Found on the maintainer's machine 2026-10-08: the supervisor force-stopped a wedged server one minute
 // after it forked a dispatch's daemon. Dispatch writes the thread's row only once `spawnDispatch`
 // resolves, so the row never landed; the human re-sent the prompt, which minted a new session under the
-// SAME slug, and the first daemon sat there with its `claude` (~155 MB) and frizz MCP server (~50 MB),
+// SAME slug, and the first daemon sat there with its `claude` (~155 MB) and ntwine MCP server (~50 MB),
 // unattached and unreferenced, with no transcript — it never received its prompt. Nothing logged it.
 //
 // So every boot now LISTS each unowned daemon in the server log — session id, pid, why no row claims it,
@@ -35,7 +35,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { formatElapsed } from "@frizz/shared"
+import { formatElapsed } from "@ntwine/shared"
 import type { BrokerRecord } from "./backend/claude-agent-broker.ts"
 import { isBrokerClaudeRow, type SessionRow } from "./storage.ts"
 

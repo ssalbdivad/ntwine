@@ -9,7 +9,7 @@
 //      in idle time (`step`, below), so a page left alone ends up with every card built and find-in-page
 //      reaching every word.
 //   2. A built card far from the screen is SKIPPED by the browser: `content-visibility: auto` (styles.css
-//      `.frizz-card-slot`) — no style, layout or paint — and sized from the height it had the last time it
+//      `.ntwine-card-slot`) — no style, layout or paint — and sized from the height it had the last time it
 //      was drawn (`contain-intrinsic-size: auto`).
 //
 // WHY: with hundreds of cards the page was bound by building them and laying them out. Measured 2026-10-02
@@ -63,7 +63,7 @@ import { flushSync } from "react-dom"
 import { glideTo, gliding } from "./viewportLock.ts"
 
 /** The card slot (AllQueuesCard.tsx). */
-const SLOT = ".frizz-card-slot"
+const SLOT = ".ntwine-card-slot"
 /** Set on a slot near the screen, where content-visibility is off (styles.css). Never rendered by React. */
 const NEAR = "data-near"
 /** How far past the top and bottom of the window a card counts as near. */

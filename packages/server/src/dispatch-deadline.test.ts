@@ -13,7 +13,7 @@ import type { BoardManager } from "./board.ts"
 import type { ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-bridge.ts"
 
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-dispatch-deadline-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-dispatch-deadline-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = { dir, id: "dispatch-deadline", name: "t", label: "o/t", stateDir: dir, cwdSlug: cwdSlug(dir) }
   const board = {

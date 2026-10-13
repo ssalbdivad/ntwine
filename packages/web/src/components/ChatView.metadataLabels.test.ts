@@ -29,7 +29,7 @@ test("minimal tool activity is settled history with no live shimmer or spinner i
   assert.match(block, /data-tool-activity-label[\s\S]*className="min-w-0 truncate text-muted"/, "the label shrinks before the adjacent chevron")
   assert.match(block, /data-tool-activity-chevron[^\n]*transcriptMetaChevronClass\(expanded\)/, "the adjacent chevron takes the column's shared, measured treatment")
   assert.doesNotMatch(block, /ml-auto/, "the chevron must stay beside the digest label instead of jumping to the far edge")
-  assert.doesNotMatch(block, /frizz-tool-spinner|data-running-indicator|w-2\.5/, "no spinner or reserved mark slot may indent the label")
+  assert.doesNotMatch(block, /ntwine-tool-spinner|data-running-indicator|w-2\.5/, "no spinner or reserved mark slot may indent the label")
 })
 
 test("the live row leads with typing dots, and the gerund or run count follows them", () => {

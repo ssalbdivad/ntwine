@@ -9,13 +9,13 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Me
 
 // THE CONTEXT BAR — the top strip inside a prompt box in an editor's sidebar (ARCHITECTURE.md § VS Code extension
 // § The editor in the sidebar). It shows what the editor around the sidebar has in front, live from
-// `frizz:editor-context` (lib/editorContext.ts): the file, and when code is selected, its range and size.
+// `ntwine:editor-context` (lib/editorContext.ts): the file, and when code is selected, its range and size.
 //
 // IT SAYS WHAT THE NEXT SEND CARRIES. A message sent from this box takes the selection with it — or, with
 // nothing selected, the file's name and the caret's line — as Claude Code's VS Code extension and Cursor
 // do (lib/editorContext.ts outgoingMessage), so the reading here is not a suggestion but the attachment
-// itself. The EYE before it is the one switch for the editor reaching Frizz on its own — the extension's
-// `frizz.shareEditorState`, which also keeps the agents' editor tool out (lib/editorContext.ts
+// itself. The EYE before it is the one switch for the editor reaching Ntwine on its own — the extension's
+// `ntwine.shareEditorState`, which also keeps the agents' editor tool out (lib/editorContext.ts
 // setShareEditor): off, the reading is struck through and dimmed, so whether the code is going is legible
 // without hovering anything. A click on the reading still adds it as a chip in THIS box, for the human who
 // wants it placed in their sentence; the other open files are behind the control's chevron.
@@ -165,22 +165,22 @@ function LeaveOutToggle({ reading, leftOut }: { reading: ContextBarReading; left
 }
 
 /**
- * The eye: whether the editor reaches Frizz on its own — a send from this box carrying what the editor has
- * in front, and Frizz's agents reading it through their editor tool. One switch for both, the extension's
- * `frizz.shareEditorState`: an eye that kept the selection out of the message while an agent could still
+ * The eye: whether the editor reaches Ntwine on its own — a send from this box carrying what the editor has
+ * in front, and Ntwine's agents reading it through their editor tool. One switch for both, the extension's
+ * `ntwine.shareEditorState`: an eye that kept the selection out of the message while an agent could still
  * read it through the tool would promise a privacy it did not keep. Every box with a bar shows the same
  * one — it is a habit of how the human works beside this editor, not a choice per message, as Claude Code's
  * toggle is — and, being a VS Code setting, it holds across reloads and in every window. Its glyph shows
  * the state (open: shared; struck: kept to yourself); its tooltip says what a click will do.
  */
 function SendToggle({ sending }: { sending: boolean }) {
-  const title = sending ? "Stop sharing the editor with Frizz" : "Share the editor with Frizz"
+  const title = sending ? "Stop sharing the editor with Ntwine" : "Share the editor with Ntwine"
   return (
     <button
       type="button"
       data-editor-context-toggle
       aria-pressed={sending}
-      aria-label="Share the editor with Frizz"
+      aria-label="Share the editor with Ntwine"
       title={title}
       // Keep the caret in the box: the human is mid-sentence, deciding what goes with it.
       onMouseDown={(e) => e.preventDefault()}

@@ -3,15 +3,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node
 import { createInterface } from "node:readline/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { frizzPaths } from "@frizz/server/frizz-paths";
-import { claimNameIsValid, generateAnonymousClaimName, isAnonymousClaimName, normalizeClaimName } from "@frizz/shared";
+import { ntwinePaths } from "@ntwine/server/ntwine-paths";
+import { claimNameIsValid, generateAnonymousClaimName, isAnonymousClaimName, normalizeClaimName } from "@ntwine/shared";
 import { loadOrCreateClaimIdentity } from "./identity.ts";
 import { deviceCodeMessage, githubDeviceFlow, type GithubAuthorizer } from "./github-device-flow.ts";
 import { ClaimError, claimName } from "./registrar-client.ts";
 import { connectRelay } from "./relay-connection.ts";
 
 /**
- * `frizz up` — one command for "start the server and reach it from anywhere".
+ * `ntwine up` — one command for "start the server and reach it from anywhere".
  *
  * Before this, reaching a board from a phone meant two terminals and three flags: a launch with
  * `--public-origin https://…`, a separate `cloudflared tunnel … run …` in another window, and
@@ -21,7 +21,7 @@ import { connectRelay } from "./relay-connection.ts";
  * So the tunnel becomes a supervised CHILD of the board. One process to start, one to stop, and the two
  * halves cannot drift out of sync because they share a lifetime.
  *
- * Deliberately does NOT ask about the port. There is a default, and `FRIZZ_PORT` overrides it for the
+ * Deliberately does NOT ask about the port. There is a default, and `NTWINE_PORT` overrides it for the
  * few people who care — a prompt for it would be a question almost nobody has an answer to.
  *
  * Three ways to have a hostname, told apart by the shape of the answer:
@@ -30,7 +30,7 @@ import { connectRelay } from "./relay-connection.ts";
  *   colin              -> CLAIM `colin.frizz.sh` from the registrar, bound to your GitHub account
  *                         through a no-permission GitHub sign-in (github-device-flow.ts). PAUSED
  *                         while CUSTOM_NAMES_OFFERED is false: the answer is refused up front.
- *   board.example.com  -> a tunnel you made yourself, which Frizz only runs
+ *   board.example.com  -> a tunnel you made yourself, which Ntwine only runs
  *
  * The claimed path exists because creating a tunnel and its DNS record needs a zone-scoped Cloudflare
  * token, and that token can never live on a user's machine. The registrar holds it and hands back a
@@ -59,7 +59,7 @@ export interface CloudConfig {
    * `tunnel` — the older path, where the registrar provisioned a Cloudflare tunnel per name.
    *
    * `external` — the operator runs the transport (Tailscale Serve, a proxy, a tunnel started by hand)
-   * and Frizz runs nothing: it only knows the origin, gates it, and prints links for it.
+   * and Ntwine runs nothing: it only knows the origin, gates it, and prints links for it.
    *
    * Absent on an existing config means tunnel, so an upgrade does not silently change how a board that
    * already works is served.
@@ -69,7 +69,7 @@ export interface CloudConfig {
   provider?: "tailscale" | "other";
 }
 
-/** A config Frizz serves by knowing the origin alone — nothing to start, nothing to renew. */
+/** A config Ntwine serves by knowing the origin alone — nothing to start, nothing to renew. */
 export function isExternalConfig(config: CloudConfig): boolean {
   return config.serve === "external";
 }
@@ -88,7 +88,7 @@ export function describeCloudConfig(config: CloudConfig): string {
  * against real Cloudflare and real GitHub. Set this back to `false` to withdraw the offer — it is the
  * whole gate, and a bare name then refuses up front instead of failing at a connection error.
  *
- * Setting `FRIZZ_REGISTRAR` points the CLI at a different registrar, which is how a deployment gets
+ * Setting `NTWINE_REGISTRAR` points the CLI at a different registrar, which is how a deployment gets
  * tested before it takes the default hostname.
  */
 export const REGISTRAR_IS_LIVE = true;
@@ -96,7 +96,7 @@ export const REGISTRAR_IS_LIVE = true;
 /**
  * Are CUSTOM names (`colin.frizz.sh`, bound to a GitHub account) offered?
  *
- * No, as of 2026-10-08, until Frizz's GitHub OAuth app is registered: the client id in
+ * No, as of 2026-10-08, until Ntwine's GitHub OAuth app is registered: the client id in
  * github-device-flow.ts is still the placeholder, so a custom claim could only refuse with
  * "not-configured" after the person had already picked it. While this is false the R pane does not
  * list "Custom name", the prompt does not mention it, and a word answer refuses before any GitHub
@@ -106,15 +106,15 @@ export const REGISTRAR_IS_LIVE = true;
  * removed. A name already claimed keeps renewing either way: a renewal is signed by the keypair and
  * never touches GitHub (resolveRunToken).
  *
- * `FRIZZ_CUSTOM_NAMES=1` turns the offer on for one process, which is how the tests and
+ * `NTWINE_CUSTOM_NAMES=1` turns the offer on for one process, which is how the tests and
  * scripts/verify-claim-e2e.mjs keep driving the path while it is withdrawn. Read through
  * customNamesOffered, never directly.
  */
 export const CUSTOM_NAMES_OFFERED = false;
 
-/** CUSTOM_NAMES_OFFERED, or the `FRIZZ_CUSTOM_NAMES=1` override. */
+/** CUSTOM_NAMES_OFFERED, or the `NTWINE_CUSTOM_NAMES=1` override. */
 export function customNamesOffered(env: NodeJS.ProcessEnv = process.env): boolean {
-  return CUSTOM_NAMES_OFFERED || env.FRIZZ_CUSTOM_NAMES === "1";
+  return CUSTOM_NAMES_OFFERED || env.NTWINE_CUSTOM_NAMES === "1";
 }
 
 /** Why a word answer is refused while custom names are withdrawn. */
@@ -155,12 +155,12 @@ export function zoneClaimLabel(hostname: string): string | null {
 /**
  * Bring a saved config in line with how its name is actually served today.
  *
- * Nobody claims a name by hand: `frizz up` is the whole procedure. So when the saved config names a
+ * Nobody claims a name by hand: `ntwine up` is the whole procedure. So when the saved config names a
  * host inside the zone but is not a relay claim — a tunnel written by hand before names could be
  * claimed at all, or a claim issued while the registrar still provisioned tunnels — this claims the
  * label now, through the same call a first launch makes, and hands back the relay config to save.
  * The board then serves through the relay on this very launch. Before this, the launcher ran the old
- * tunnel faithfully and the phone that scanned the QR read "No Frizz board has claimed this name."
+ * tunnel faithfully and the phone that scanned the QR read "No Ntwine board has claimed this name."
  * (2026-08-25), with no step anywhere that would ever have claimed it.
  *
  * A hostname outside the zone is the operator's own tunnel and is never touched; a relay config is
@@ -187,30 +187,30 @@ export async function reconcileCloudConfig(
   if (!label) return config;
   if (!isAnonymousClaimName(label) && !customNamesOffered()) {
     throw new Error(
-      `${config.hostname} needs moving onto the Frizz relay, which means claiming it again, and custom frizz.sh names are paused for now — press R to pick a private name or another setup`,
+      `${config.hostname} needs moving onto the Ntwine relay, which means claiming it again, and custom frizz.sh names are paused for now — press R to pick a private name or another setup`,
     );
   }
   onNotice?.(
     isClaimedConfig(config)
-      ? `${config.hostname} is served by the Frizz relay now; moving this board off its tunnel`
+      ? `${config.hostname} is served by the Ntwine relay now; moving this board off its tunnel`
       : `${config.hostname} is inside ${CLAIM_ZONE}, where names are claimed, not tunnelled; claiming ${label}`,
   );
   return establishCloudConfig(label, port, home, origin, github);
 }
 
 /**
- * Where the saved setup lives: `cloud.json` under the data root frizz-paths.ts resolves, beside the
- * registry and `server.lock` — NOT a literal `~/.frizz`.
+ * Where the saved setup lives: `cloud.json` under the data root ntwine-paths.ts resolves, beside the
+ * registry and `server.lock` — NOT a literal `~/.ntwine`.
  *
- * It was the literal until 2026-09-23, and on a machine that had never had a `~/.frizz` (every fresh
+ * It was the literal until 2026-09-23, and on a machine that had never had a `~/.ntwine` (every fresh
  * macOS, Windows or XDG install since the roots split) the first remote-access setup CREATED one.
- * frizz-paths.ts reads that directory's existence as "legacy install" and routes every root there
+ * ntwine-paths.ts reads that directory's existence as "legacy install" and routes every root there
  * from the next launch on, so the board came back with none of its projects — the same trap the claim
  * identity fell into and was pulled out of on 2026-08-28 (identity.ts). A machine that already has
- * `~/.frizz` resolves to the same file as before.
+ * `~/.ntwine` resolves to the same file as before.
  */
 export function cloudConfigPath(home = homedir()): string {
-  return join(frizzPaths({ home }).data, "cloud.json");
+  return join(ntwinePaths({ home }).data, "cloud.json");
 }
 
 export function readCloudConfig(home = homedir()): CloudConfig | null {
@@ -246,7 +246,7 @@ export function readCloudConfig(home = homedir()): CloudConfig | null {
  * beside the claim identity key, for the reason given on `cloudConfigPath`.
  */
 export function tunnelTokenPath(home = homedir()): string {
-  return join(frizzPaths({ home }).state, "tunnel-token");
+  return join(ntwinePaths({ home }).state, "tunnel-token");
 }
 
 export function readTunnelToken(home = homedir()): string | null {
@@ -346,7 +346,7 @@ export async function establishCloudConfig(
     return { hostname, tunnel };
   }
 
-  if (!REGISTRAR_IS_LIVE && !origin && !process.env.FRIZZ_REGISTRAR) {
+  if (!REGISTRAR_IS_LIVE && !origin && !process.env.NTWINE_REGISTRAR) {
     throw new Error(
       "claiming a name on frizz.sh is not available yet.\n" +
         "       Reach this board through a tunnel of your own instead — see docs/remote-access.md — and\n" +
@@ -427,7 +427,7 @@ export async function resolveRunToken(
     return result.token;
   } catch (error) {
     if (cached && error instanceof ClaimError && error.code === "unreachable") {
-      onWarning?.(`could not reach the Frizz registrar to renew ${config.hostname}; using the token from last time`);
+      onWarning?.(`could not reach the Ntwine registrar to renew ${config.hostname}; using the token from last time`);
       return cached;
     }
     throw error;
@@ -437,7 +437,7 @@ export async function resolveRunToken(
 /** Where cloudflared's config for this tunnel lives, unless the operator named one. */
 export function resolveTunnelConfigPath(config: CloudConfig, home = homedir()): string | null {
   if (config.config) return config.config;
-  const candidate = join(home, ".cloudflared", "frizz.yml");
+  const candidate = join(home, ".cloudflared", "ntwine.yml");
   return existsSync(candidate) ? candidate : null;
 }
 
@@ -475,7 +475,7 @@ export async function startRelay(
     ...(onStatus
       ? {
           onStatus: (status, detail) => {
-            if (status === "connected") onStatus(`connected to the Frizz relay for ${config.hostname}`);
+            if (status === "connected") onStatus(`connected to the Ntwine relay for ${config.hostname}`);
             else if (status === "retrying") onStatus(`relay: ${detail ?? "reconnecting"}`);
           },
         }
@@ -512,7 +512,7 @@ export function startTunnel(
       ];
   const child = spawn("cloudflared", args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
   // ENOENT arrives as an 'error' event, and an unhandled one on a ChildProcess THROWS — so without
-  // this, `frizz up` on a machine without cloudflared crashed with a stack trace instead of saying
+  // this, `ntwine up` on a machine without cloudflared crashed with a stack trace instead of saying
   // which program to install. That is the first thing a new user hits, so it is the last thing that
   // should be a crash.
   child.once("error", (error: NodeJS.ErrnoException) => {

@@ -9,7 +9,7 @@
 // Driven through the REAL pipeline — JSONL → tailer → transcript projection → ChatView → the real
 // thread drawer (`/all/<project>/thread/<slug>`) — with real mouse clicks at real coordinates, because this is pointer
 // behavior and nothing short of a browser can observe it. The fixture `.html` files in packages/web
-// are NOT servable through the frizz server (appType:"custom" sends every path to index.html).
+// are NOT servable through the ntwine server (appType:"custom" sends every path to index.html).
 //
 // Every card carries its own in-frame control: a Bash card (already row-clickable before this change)
 // proves the probe can see a toggle at all, so a Read/Edit/Agent failure is about the change and not
@@ -56,7 +56,7 @@ assistant("Reading the disclosure header first.")
 // READ — its header carries a `cursor://` PathLink to the file it read.
 toolCall("t_read", "Read", { file_path: TARGET })
 toolResult("t_read", "export function ToolDisclosureHeader({\n  children,\n  className,\n}: Props) {\n  return createElement(\"div\", …)\n}")
-// EDIT — the diff card, same PathLink treatment in a different header class (.frizz-diff-header).
+// EDIT — the diff card, same PathLink treatment in a different header class (.ntwine-diff-header).
 toolCall("t_edit", "Edit", {
   file_path: TARGET,
   old_string: '{ className: `${className} w-full text-left`, "data-expanded": expanded }',
@@ -72,7 +72,7 @@ assistant("Dispatching a reviewer over the diff.")
 // half of "unless there's some kind of link within it": a link by behavior, not by tag name.
 toolCall("t_agent", "Agent", {
   prompt: "Read the diff on ToolDisclosureHeader.ts and attack the click guard: name every element in a tool header that owns its own click and would break if the row swallowed it.",
-  subagent_type: "frizz:opus-high",
+  subagent_type: "ntwine:opus-high",
   description: "Attack the click guard",
 })
 assistant("Waiting on the reviewer.")
@@ -84,7 +84,7 @@ const { db } = sandbox
 // The unified schema keys every row by project and the column is NOT NULL; the legacy one has no
 // such column. `sessionProjectColumns` yields the right prefix pair for whichever this sandbox is.
 const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
-const threadName = `frizz-${SLUG}`
+const threadName = `ntwine-${SLUG}`
 execFileSync("sqlite3", [db, `DELETE FROM session WHERE slug = '${SLUG}';`])
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session
   (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, unread, exited, archived, title_auto, runtime_generation, profile_revision)
@@ -112,22 +112,22 @@ const check = (ok, label, detail) => { console.log(`${ok ? "PASS" : "FAIL"}  ${l
 const CARD_GEOMETRY = (label) => {
   const column = [...document.querySelectorAll("[data-drawer-layer]")].sort((a, b) => Number(a.dataset.drawerLayer) - Number(b.dataset.drawerLayer))[0]
   if (!column) return null
-  const cards = [...column.querySelectorAll(".frizz-bash, .frizz-diff")]
-  const card = cards.find((c) => c.querySelector(".frizz-bash-label")?.textContent?.trim() === label)
+  const cards = [...column.querySelectorAll(".ntwine-bash, .ntwine-diff")]
+  const card = cards.find((c) => c.querySelector(".ntwine-bash-label")?.textContent?.trim() === label)
   if (!card) return null
-  const header = card.querySelector(".frizz-bash-header, .frizz-diff-header")
+  const header = card.querySelector(".ntwine-bash-header, .ntwine-diff-header")
   const left = header.children[0]
   const right = header.children[1]
   const disclosure = header.querySelector("[data-tool-disclosure]") ?? header
   // The header's own action: the sub-agent drill-in, or the file path. The path was
   // `<a href="cursor://…">` until 489b231f (2026-08-19) made it PathLink's <button title={path}>, which
-  // opens the file IN Frizz (a reader layer) through openLocalPath. A button in the LEFT group that is
+  // opens the file IN Ntwine (a reader layer) through openLocalPath. A button in the LEFT group that is
   // not the disclosure chevron is exactly that.
   const link = header.querySelector('button[aria-label^="Open sub-agent transcript"]') ?? left.querySelector("button[title]:not([data-tool-disclosure])")
   const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, cx: r.x + r.width / 2, cy: r.y + r.height / 2 } }
   return {
     header: box(header),
-    labelBox: box(header.querySelector(".frizz-bash-label")),
+    labelBox: box(header.querySelector(".ntwine-bash-label")),
     left: box(left),
     right: right ? box(right) : null,
     disclosure: box(disclosure),
@@ -136,7 +136,7 @@ const CARD_GEOMETRY = (label) => {
     // family 2 puts it on the chevron and mirrors it onto the row as data-expanded.
     expanded: (header.getAttribute("data-expanded") ?? header.getAttribute("aria-expanded") ?? disclosure.getAttribute("aria-expanded")) === "true",
     cursor: getComputedStyle(header).cursor,
-    bodyVisible: !!card.querySelector(".frizz-bash-body, .frizz-diff-body .frizz-diff-line"),
+    bodyVisible: !!card.querySelector(".ntwine-bash-body, .ntwine-diff-body .ntwine-diff-line"),
   }
 }
 
@@ -166,17 +166,17 @@ try {
     // The thread's drawer on the one page (rpc-client threadUrl); the bare `/thread/<slug>` it opened until
     // 2026-09-28 now lands on `/`.
     await page.goto(await api.threadUrl(SLUG), { waitUntil: "networkidle0" })
-    await page.waitForSelector("[data-drawer-layer] .frizz-bash, [data-drawer-layer] [data-tool-activity]", { timeout: 20_000 })
+    await page.waitForSelector("[data-drawer-layer] .ntwine-bash, [data-drawer-layer] [data-tool-activity]", { timeout: 20_000 })
     // Ordinary calls fold behind an "N tool calls" band; open every one so all four cards mount.
     for (const toggle of await page.$$('[data-drawer-layer] [data-tool-activity] > button[aria-expanded="false"]')) await toggle.click()
-    await page.waitForFunction(() => [...document.querySelectorAll("[data-drawer-layer] .frizz-bash-label")].some((l) => l.textContent.trim() === "Agent"), { timeout: 10_000 })
+    await page.waitForFunction(() => [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash-label")].some((l) => l.textContent.trim() === "Agent"), { timeout: 10_000 })
   }
   await openThread()
 
   const geom = async (label) => page.evaluate(CARD_GEOMETRY, label)
   const clickAt = async (x, y) => { await page.mouse.click(x, y); await new Promise((r) => setTimeout(r, 160)) }
 
-  const seen = await page.evaluate(() => [...document.querySelectorAll("[data-drawer-layer] .frizz-bash-label")].map((l) => l.textContent.trim()))
+  const seen = await page.evaluate(() => [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash-label")].map((l) => l.textContent.trim()))
   check(["Read", "Edit", "Bash", "Agent"].every((l) => seen.includes(l)), "the four card families render", JSON.stringify(seen))
 
   // ── 1. the row reads as clickable ────────────────────────────────────────────────────────────────
@@ -228,8 +228,8 @@ try {
   for (const label of ["Read", "Edit", "Agent"]) {
     const body = await page.evaluate((l) => {
       const column = [...document.querySelectorAll("[data-drawer-layer]")].sort((a, b) => Number(a.dataset.drawerLayer) - Number(b.dataset.drawerLayer))[0]
-      const card = [...column.querySelectorAll(".frizz-bash, .frizz-diff")].find((c) => c.querySelector(".frizz-bash-label")?.textContent?.trim() === l)
-      const el = card?.querySelector(".frizz-bash-body, .frizz-diff-line")
+      const card = [...column.querySelectorAll(".ntwine-bash, .ntwine-diff")].find((c) => c.querySelector(".ntwine-bash-label")?.textContent?.trim() === l)
+      const el = card?.querySelector(".ntwine-bash-body, .ntwine-diff-line")
       if (!el) return null
       const r = el.getBoundingClientRect()
       return { cx: r.x + r.width / 2, cy: r.y + r.height / 2, h: r.height }
@@ -244,8 +244,8 @@ try {
   // Its title button is `flex-1`, so if it stretches past its own text there is nothing left to click
   // for "anywhere else" on an Agent card — the one card where the exception could swallow the rule.
   const agentSpan = await page.evaluate(() => {
-    const card = [...document.querySelectorAll("[data-drawer-layer] .frizz-bash")].find((c) => c.querySelector(".frizz-bash-label")?.textContent?.trim() === "Agent")
-    const header = card.querySelector(".frizz-bash-header")
+    const card = [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash")].find((c) => c.querySelector(".ntwine-bash-label")?.textContent?.trim() === "Agent")
+    const header = card.querySelector(".ntwine-bash-header")
     const btn = header.querySelector('button[aria-label^="Open sub-agent transcript"]')
     const range = document.createRange()
     range.selectNodeContents(btn)
@@ -266,7 +266,7 @@ try {
     // A 26px pill inside a 1400px frame cannot be judged, so crop to the card stack at 2x and let the
     // row's own proportions be readable.
     const strip = await page.evaluate(() => {
-      const cards = [...document.querySelectorAll("[data-drawer-layer] .frizz-bash, [data-drawer-layer] .frizz-diff")]
+      const cards = [...document.querySelectorAll("[data-drawer-layer] .ntwine-bash, [data-drawer-layer] .ntwine-diff")]
       const boxes = cards.map((c) => c.getBoundingClientRect())
       const x = Math.min(...boxes.map((b) => b.x)), right = Math.max(...boxes.map((b) => b.right))
       const y = Math.min(...boxes.map((b) => b.y)), bottom = Math.max(...boxes.map((b) => b.bottom))
@@ -284,7 +284,7 @@ try {
   // ── 7. clicking a FILE PATH does NOT toggle ──────────────────────────────────────────────────────
   // Half the point of the exception: Read and Edit each carry the file's path in the header. It was an
   // <a href="cursor://…"> when this was written; since 489b231f (2026-08-19) it is PathLink's <button>,
-  // which opens the file in Frizz's own reader. That makes the click OBSERVABLE, so, like the sub-agent
+  // which opens the file in Ntwine's own reader. That makes the click OBSERVABLE, so, like the sub-agent
   // name below, it gets a differential: a guard that swallowed the click would pass "does not toggle" by
   // doing nothing, and the reader layer mounting is what tells the two apart. Still one card per fresh
   // tab — a reader layer over the thread is state the next card's probe should not start from.

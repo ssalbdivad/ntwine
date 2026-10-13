@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_LOCAL_FILE_MARKDOWN_E2E_URL
+const baseUrl = process.env.NTWINE_LOCAL_FILE_MARKDOWN_E2E_URL
 
 // A REAL 1x1 PNG. This used to be the 8-byte PNG signature alone, which is not a decodable image —
 // Chrome fired `error` on it, lib/local-file-links.ts's missing-image handler (correctly) swapped the
@@ -27,8 +27,8 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
     page.on("request", (request) => {
       // Both shots: the POSIX one and the Windows one. A proxy URL that 404s is swapped for the plain
       // path by the missing-image handler, so an un-served fixture image measures nothing.
-      if (request.url().includes("/_frizz/local-image?path=%2Ffixture%2Fshot.png")
-        || request.url().includes("/_frizz/local-image?path=D%3A%2Ffixture%2Fwin-shot.png")) {
+      if (request.url().includes("/_ntwine/local-image?path=%2Ffixture%2Fshot.png")
+        || request.url().includes("/_ntwine/local-image?path=D%3A%2Ffixture%2Fwin-shot.png")) {
         void request.respond({ status: 200, contentType: "image/png", body: PIXEL_PNG })
       } else {
         void request.continue()
@@ -41,7 +41,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
       return {
         buttons: [...node.querySelectorAll("button")].map((b) => b.getAttribute("data-local-path")),
         // The failure this whole page exists to catch is an anchor SURVIVING: a local path left as an
-        // href is a same-origin URL, and one click leaves Frizz for a 404. Nothing here may be one.
+        // href is a same-origin URL, and one click leaves Ntwine for a 404. Nothing here may be one.
         anchors: [...node.querySelectorAll("a")].map((a) => a.getAttribute("href")),
         imageSrc: img?.getAttribute("src"),
         imagePath: img?.getAttribute("data-local-path"),
@@ -64,7 +64,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
       buttons: [
         "/fixture/report.md",
         "/fixture/contract.pdf",
-        "/fixture/.frizz/threads/6d56ea2f/HANDOFF.md",
+        "/fixture/.ntwine/threads/6d56ea2f/HANDOFF.md",
         "/fixture/home/.claude/CLAUDE.md",
         // The editor deep links: a `cursor://file/…` anchor used to be handed to the OS, which opened
         // Cursor no matter what "Local file links" said. Both slash forms arrive as the path they name.
@@ -75,22 +75,22 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
         "D:/fixture/win-report.md",
         "D:\\fixture\\win-trace.json",
         "/D:/fixture/win-plan.md",
-        // The `\.` in `fixture\.frizz` is a separator, not a CommonMark escape: the path the button
+        // The `\.` in `fixture\.ntwine` is a separator, not a CommonMark escape: the path the button
         // carries is the one the worker wrote, dot-directory and all.
-        "D:\\fixture\\.frizz\\threads\\8e51437e\\build-gap.md",
+        "D:\\fixture\\.ntwine\\threads\\8e51437e\\build-gap.md",
       ],
       anchors: [],
-      imageSrc: "/_frizz/local-image?path=%2Ffixture%2Fshot.png",
+      imageSrc: "/_ntwine/local-image?path=%2Ffixture%2Fshot.png",
       imagePath: "/fixture/shot.png",
       imageAlt: "descriptive alt",
-      winImageSrc: "/_frizz/local-image?path=D%3A%2Ffixture%2Fwin-shot.png",
+      winImageSrc: "/_ntwine/local-image?path=D%3A%2Ffixture%2Fwin-shot.png",
       framedIn: "SPAN",
       frameInsideParagraph: true,
-      winProse: "It also lives at D:\\fixture\\.frizz\\threads\\8e51437e\\build-gap.md in prose.",
+      winProse: "It also lives at D:\\fixture\\.ntwine\\threads\\8e51437e\\build-gap.md in prose.",
     })
 
     // The ROUTING split, which the markup above deliberately cannot show: every link is the same
-    // `data-local-path` button, and only the click decides where each one goes. A file Frizz can show —
+    // `data-local-path` button, and only the click decides where each one goes. A file Ntwine can show —
     // the `.md` prose and the `.json` capture alike — must push the reader drawer and never reach the
     // desktop opener, while a format the page cannot draw (the PDF) must still be handed to the opener
     // and open no drawer.
@@ -98,7 +98,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
     await page.click('button[data-local-path="/fixture/contract.pdf"]')
     // And the rebased one routes by the SAME rule — the click handler never learns which syntax the
     // author used, only the path it holds.
-    await page.click('button[data-local-path="/fixture/.frizz/threads/6d56ea2f/HANDOFF.md"]')
+    await page.click('button[data-local-path="/fixture/.ntwine/threads/6d56ea2f/HANDOFF.md"]')
     // And the editor-scheme pair routes by the same rule: the click handler never learns the author
     // wrote a `cursor://`/`vscode://` destination, only the path it named.
     await page.click('button[data-local-path="/fixture/plan.md"]')
@@ -109,7 +109,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
     await page.click('button[data-local-path="D:\\\\fixture\\\\win-trace.json"]')
     await page.click('button[data-local-path="/D:/fixture/win-plan.md"]')
     // And the dot-directory path reaches the reader with its separator intact.
-    await page.click('button[data-local-path="D:\\\\fixture\\\\.frizz\\\\threads\\\\8e51437e\\\\build-gap.md"]')
+    await page.click('button[data-local-path="D:\\\\fixture\\\\.ntwine\\\\threads\\\\8e51437e\\\\build-gap.md"]')
     const routed = await page.evaluate(() => ({
       opened: (window as unknown as { __localFileFixtureOpened?: string[] }).__localFileFixtureOpened ?? [],
       drawers: (window as unknown as { __localFileFixtureDrawers: () => unknown[] }).__localFileFixtureDrawers(),
@@ -118,17 +118,17 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
       opened: ["/fixture/contract.pdf"],
       drawers: [
         { kind: "file", path: "/fixture/report.md" },
-        { kind: "file", path: "/fixture/.frizz/threads/6d56ea2f/HANDOFF.md" },
+        { kind: "file", path: "/fixture/.ntwine/threads/6d56ea2f/HANDOFF.md" },
         { kind: "file", path: "/fixture/plan.md" },
         { kind: "file", path: "/fixture/trace.json" },
         { kind: "file", path: "D:/fixture/win-report.md" },
         { kind: "file", path: "D:\\fixture\\win-trace.json" },
         { kind: "file", path: "/D:/fixture/win-plan.md" },
-        { kind: "file", path: "D:\\fixture\\.frizz\\threads\\8e51437e\\build-gap.md" },
+        { kind: "file", path: "D:\\fixture\\.ntwine\\threads\\8e51437e\\build-gap.md" },
       ],
     })
 
-    // A rendered picture opens in Frizz's picture viewer — never the desktop opener, which on a WSL box
+    // A rendered picture opens in Ntwine's picture viewer — never the desktop opener, which on a WSL box
     // meant a browser tab — among the pictures rendered beside it, in reading order.
     await page.click('img[data-local-path="D:/fixture/win-shot.png"]')
     assert.deepEqual(await page.evaluate(() => (window as unknown as { __localFileFixtureViewer: () => unknown }).__localFileFixtureViewer()), {
@@ -144,24 +144,24 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
 
     // It routes by the same rules as the markdown links, and — because the header it sits in is also
     // the disclosure control — the click must open the file and leave the block's state alone.
-    const expandedBefore = await page.$eval(".frizz-diff-header", (n) => n.getAttribute("data-expanded"))
-    await page.click('.frizz-diff-header button[title="/fixture/src/app.ts"]')
-    await page.click('.frizz-diff-header button[title="/fixture/notes.md"]')
+    const expandedBefore = await page.$eval(".ntwine-diff-header", (n) => n.getAttribute("data-expanded"))
+    await page.click('.ntwine-diff-header button[title="/fixture/src/app.ts"]')
+    await page.click('.ntwine-diff-header button[title="/fixture/notes.md"]')
     const fromHeaders = await page.evaluate(() => ({
       opened: (window as unknown as { __localFileFixtureOpened?: string[] }).__localFileFixtureOpened ?? [],
       drawers: (window as unknown as { __localFileFixtureDrawers: () => unknown[] }).__localFileFixtureDrawers(),
-      expanded: document.querySelector(".frizz-diff-header")?.getAttribute("data-expanded"),
+      expanded: document.querySelector(".ntwine-diff-header")?.getAttribute("data-expanded"),
     }))
     assert.deepEqual(fromHeaders.opened, ["/fixture/contract.pdf"])
     assert.deepEqual(fromHeaders.drawers, [
       { kind: "file", path: "/fixture/report.md" },
-      { kind: "file", path: "/fixture/.frizz/threads/6d56ea2f/HANDOFF.md" },
+      { kind: "file", path: "/fixture/.ntwine/threads/6d56ea2f/HANDOFF.md" },
       { kind: "file", path: "/fixture/plan.md" },
       { kind: "file", path: "/fixture/trace.json" },
       { kind: "file", path: "D:/fixture/win-report.md" },
       { kind: "file", path: "D:\\fixture\\win-trace.json" },
       { kind: "file", path: "/D:/fixture/win-plan.md" },
-      { kind: "file", path: "D:\\fixture\\.frizz\\threads\\8e51437e\\build-gap.md" },
+      { kind: "file", path: "D:\\fixture\\.ntwine\\threads\\8e51437e\\build-gap.md" },
       { kind: "file", path: "/fixture/src/app.ts" },
       { kind: "file", path: "/fixture/notes.md" },
     ])
@@ -223,7 +223,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
       '[data-positioned] [data-local-path="/fixture/src/f.ts"]',
       '[data-positioned] [data-local-path="/fixture/App.tsx"]',
       '[data-positioned] [data-local-path="/fixture/src/g.ts"]',
-      // Markdown always opens in Frizz, line or no line — it never reaches the RPC.
+      // Markdown always opens in Ntwine, line or no line — it never reaches the RPC.
       '[data-positioned] [data-local-path="/fixture/guide.md"]',
       '[data-positioned] [data-local-path="/fixture/src/raw.ts"]',
       '[data-codex-finding] [data-local-path="/fixture/src/h.ts"]',
@@ -293,7 +293,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
     assert.deepEqual(await clickAuto(a5, { windows: [{ ...vscodeWindow, acceptsOpens: false }], opener: "vscode" }), { to: "reader", path: "/fixture/src/a.ts", alsoEditor: false })
     // A remote session: an open would land in a window on the desk nobody there can see.
     assert.deepEqual(await clickAuto(a5, { windows: [vscodeWindow], remote: true }), { to: "reader", path: "/fixture/src/a.ts", alsoEditor: false })
-    // And Markdown always opens in Frizz, editor or not.
+    // And Markdown always opens in Ntwine, editor or not.
     assert.deepEqual(await clickAuto('[data-positioned] [data-local-path="/fixture/guide.md"]', {}), { to: "reader", path: "/fixture/guide.md", alsoEditor: false })
 
     assert.deepEqual(pageErrors, [])

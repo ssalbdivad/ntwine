@@ -5,7 +5,7 @@
 // THE BUG (measured live 2026-07-30, five threads). A `claude` process that takes a usage-limit 429
 // LATCHES: every later input is refused by the process itself, in ~1s, with a byte-identical synthetic
 // record naming the same reset clock, until that reset arrives. Nothing delivered over the existing
-// session clears it — not a "continue", not a rotated credential. Meanwhile frizz's account-headroom
+// session clears it — not a "continue", not a rotated credential. Meanwhile ntwine's account-headroom
 // auto-resume trigger reads the ACCOUNT (which a credential rotator had just made healthy), so it kept
 // firing a resume into that deaf process every 2 minutes for half an hour, writing 184 limit records
 // into one worker's transcript and never recovering the thread.
@@ -62,7 +62,7 @@ writeFileSync(jsonl, [
 
 const storage = createStorage(join(root, "ui.db"))
 storage.upsertSession({
-  slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: FAULT_AT,
+  slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: FAULT_AT,
   last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
   title: "latched", state: "open", meta: null, seen_at: null, transcript_id: null,
 })
@@ -136,7 +136,7 @@ try {
   const second = recordOf()
   check("the limit wake SWAPS the process", !!second && second.daemonPid !== first.daemonPid,
     `${first.daemonPid} → ${second?.daemonPid}`)
-  check("…under a new generation, so frizz knows the runtime changed", second?.generation !== first.generation)
+  check("…under a new generation, so ntwine knows the runtime changed", second?.generation !== first.generation)
   check("…keeping the thread's session identity", second?.sessionId === SESSION)
   check("…and a second claude actually started", (await waitForStartups(2)) === 2)
   const replacement = startups()[1]

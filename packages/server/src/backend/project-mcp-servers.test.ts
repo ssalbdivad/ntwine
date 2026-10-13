@@ -9,7 +9,7 @@ import { expandMcpEnvRefs, normalizeMcpServer, projectMcpServers, workerMcpServe
 // so no test ever reads the operator's REAL `~/.claude.json`. Under an override dir, `.claude.json` and
 // `settings.json` both live inside it — the layout auth-status.ts follows for CLAUDE_CONFIG_DIR.
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "frizz-project-mcp-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-project-mcp-"))
   const cwd = join(root, "repo")
   const configDir = join(root, "claude-config")
   mkdirSync(cwd, { recursive: true })
@@ -66,16 +66,16 @@ test("user scope: REMOTE servers ride along, stdio ones are exactly what a worke
   })
 })
 
-test("precedence: the project shadows a user-scope remote of the same name, and frizz shadows everything", () => {
+test("precedence: the project shadows a user-scope remote of the same name, and ntwine shadows everything", () => {
   const f = fixture()
   f.write(join(f.configDir, ".claude.json"), { mcpServers: { Neon: { type: "http", url: "https://user/mcp" } } })
-  f.write(join(f.cwd, ".mcp.json"), { mcpServers: { Neon: { type: "http", url: "https://project/mcp" }, frizz: { command: "/not/frizz" } } })
+  f.write(join(f.cwd, ".mcp.json"), { mcpServers: { Neon: { type: "http", url: "https://project/mcp" }, ntwine: { command: "/not/ntwine" } } })
   f.write(join(f.cwd, ".claude", "settings.json"), { enableAllProjectMcpServers: true })
   const project = f.read()
   assert.equal((project.Neon as { url: string }).url, "https://project/mcp")
-  const frizz = { frizz: { command: process.execPath, args: ["/abs/frizz-mcp.mjs"] } }
-  assert.deepEqual(workerMcpServers(project, frizz).frizz, frizz.frizz)
-  assert.deepEqual(workerMcpServers(undefined, frizz), frizz)
+  const ntwine = { ntwine: { command: process.execPath, args: ["/abs/ntwine-mcp.mjs"] } }
+  assert.deepEqual(workerMcpServers(project, ntwine).ntwine, ntwine.ntwine)
+  assert.deepEqual(workerMcpServers(undefined, ntwine), ntwine)
   assert.deepEqual(workerMcpServers(project, undefined), project)
 })
 

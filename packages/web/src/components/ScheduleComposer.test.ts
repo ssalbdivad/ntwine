@@ -4,7 +4,7 @@
 // itself is driven in a real browser (composerScheduleLive.e2e.test.ts).
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { ScheduleView } from "@frizz/shared"
+import type { ScheduleView } from "@ntwine/shared"
 import { CHECKING_COPY, UNDONE_COPY, eachRun, startsNow, toastDetail, vetter } from "./ScheduleComposer.tsx"
 import { NO_TASK_COPY } from "../lib/scheduleIntent.ts"
 import { UNPHRASABLE_COPY } from "./SchedulePreview.tsx"

@@ -5,8 +5,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { Hono } from "hono"
-import { mountRouter } from "@frizz/rpc/server"
-import { DISPATCH_TASK_BANNER_MARKER, openQuestionsNote, spinoffChildPrompt, stripFollowUpRiders, type BoardSnapshot, type Settings, type ThreadView, type TranscriptMessage } from "@frizz/shared"
+import { mountRouter } from "@ntwine/rpc/server"
+import { DISPATCH_TASK_BANNER_MARKER, openQuestionsNote, spinoffChildPrompt, stripFollowUpRiders, type BoardSnapshot, type Settings, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { appendDelivery, parseDeliveryLedger, projectDeliveryLedger } from "./delivery-ledger.ts"
 import { createWakeDeliveryStore } from "./wake-store.ts"
@@ -117,7 +117,7 @@ function row(slug: string): SessionRow {
   return {
     slug,
     session_id: `sid-${slug}`,
-    thread_name: `frizz-${slug}`,
+    thread_name: `ntwine-${slug}`,
     spawned_at: "2026-07-12T00:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -135,7 +135,7 @@ function row(slug: string): SessionRow {
 }
 
 function harness(tailer: Tailer = noopTailer) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-router-permission-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-router-permission-"))
   const project: Project = { dir, id: "router-permission", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = {
@@ -244,14 +244,14 @@ test("archiveThread archives the row a dispatch actually creates, not just the l
 
 test("auto-titled sessions never read or mutate a same-slug legacy file through RPCs", async () => {
   const h = harness()
-  const frizz = join(h.dir, ".frizz")
-  const regular = join(frizz, "auto-file.md")
-  const repair = join(frizz, "auto-repair.md")
+  const ntwine = join(h.dir, ".ntwine")
+  const regular = join(ntwine, "auto-file.md")
+  const repair = join(ntwine, "auto-repair.md")
   const external = join(h.dir, "outside.md")
-  const linked = join(frizz, "auto-link.md")
+  const linked = join(ntwine, "auto-link.md")
   const regularBody = "---\ntitle: Planted\nstatus: active\n---\nregular sentinel\n"
   try {
-    mkdirSync(frizz)
+    mkdirSync(ntwine)
     writeFileSync(regular, regularBody)
     writeFileSync(repair, "repair sentinel\n")
     writeFileSync(external, "external sentinel\n")
@@ -315,9 +315,9 @@ test("adoptThread RPC rejects malformed or extended identities before handler di
 test("mounted adoptThread HTTP RPC returns 400 with zero dispatcher calls for hostile input", async () => {
   const h = harness()
   const app = new Hono()
-  mountRouter(app, "/_frizz/rpc", h.router)
+  mountRouter(app, "/_ntwine/rpc", h.router)
   for (const input of [{ slug: "../escape" }, { slug: "safe", extra: true }, { slug: "a".repeat(201) }]) {
-    const response = await app.request("http://localhost/_frizz/rpc/adoptThread", {
+    const response = await app.request("http://localhost/_ntwine/rpc/adoptThread", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
@@ -356,7 +356,7 @@ test("aiRenameThread RPC: only a running broker-backed Claude thread can be rena
 // description must also be the operator's task alone — the dispatch envelope above the banner is
 // boilerplate shared by every dispatched thread, so the titler must not see it.
 test("aiRenameThread RPC: the title request carries the opening task, not the last assistant reply", async () => {
-  const cwdSlug = `-tmp-frizz-rename-test-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+  const cwdSlug = `-tmp-ntwine-rename-test-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
   const logDir = join(homedir(), ".claude", "projects", cwdSlug)
   mkdirSync(logDir, { recursive: true })
   const lastAssistant = "Ran the focused tests; all green."
@@ -405,7 +405,7 @@ test("aiRenameThread RPC: the title request carries the opening task, not the la
 // often subject-less: naming from them alone gave the titler "evaluate whether this is a good idea" and
 // nothing about WHAT.
 test("aiRenameThread RPC: a spinoff child is named from its instructions and its context", async () => {
-  const cwdSlug = `-tmp-frizz-rename-spinoff-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+  const cwdSlug = `-tmp-ntwine-rename-spinoff-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
   const logDir = join(homedir(), ".claude", "projects", cwdSlug)
   mkdirSync(logDir, { recursive: true })
   const h = harness()
@@ -441,7 +441,7 @@ test("aiRenameThread RPC: a spinoff child is named from its instructions and its
 })
 
 // NAMES ARE NEVER DUPLICATED (thread-names.ts), and every writer is held to it — here the two the router
-// owns: a human's rename (an inline error in the header editor) and the worker's `mcp__frizz__title`
+// owns: a human's rename (an inline error in the header editor) and the worker's `mcp__ntwine__title`
 // (a refusal that names the holder). Each has its negative control: a distinct name goes straight in.
 test("renameThread RPC: a human rename that duplicates an open thread's name is refused; a distinct one locks", async () => {
   const h = harness()
@@ -507,7 +507,7 @@ test("setOwnThreadTitle RPC: a duplicate is refused NAMING its holder, a distinc
 })
 
 test("aiRenameThread RPC: a collision is retried once naming it, then falls back to a distinguishing word", async () => {
-  const cwdSlug = `-tmp-frizz-rename-dupe-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+  const cwdSlug = `-tmp-ntwine-rename-dupe-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
   const logDir = join(homedir(), ".claude", "projects", cwdSlug)
   mkdirSync(logDir, { recursive: true })
   const h = harness()
@@ -653,7 +653,7 @@ test("followUp yields to a live external writer but still answers a thread whose
       bgShells: [],
       watches: [],
       pendingQuestion: false,
-      // The external writer is still appending; the stalled one froze before frizz took the thread.
+      // The external writer is still appending; the stalled one froze before ntwine took the thread.
       lastActivityAt: slug === external ? new Date().toISOString() : "2026-07-09T09:59:00.000Z",
     }),
   }
@@ -662,9 +662,9 @@ test("followUp yields to a live external writer but still answers a thread whose
   install({ bridgeTurn: false, ownedSince: new Date().toISOString() }, yielded)
   await assert.rejects(
     h.router.followUp.handler({ input: { slug: external, sessionId: `sid-${external}`, message: "hello" } }),
-    /driven outside Frizz/,
+    /driven outside Ntwine/,
   )
-  assert.deepEqual(yielded, [], "frizz must not race a second writer onto a live external turn")
+  assert.deepEqual(yielded, [], "ntwine must not race a second writer onto a live external turn")
 
   const delivered: string[] = []
   install({ bridgeTurn: false, ownedSince }, delivered)
@@ -702,7 +702,7 @@ test("followUp wakes a snoozed thread and disarms the bump it owed", async () =>
   assert.equal(h.storage.getSession(slug)?.snooze_prompt, null, "and so is the bump it owed at that deadline")
   h.storage.close()
 })
-// A TYPED MESSAGE LEAVES THE OPEN QUESTIONS OPEN, and reaches the worker with frizz's note naming each, by
+// A TYPED MESSAGE LEAVES THE OPEN QUESTIONS OPEN, and reaches the worker with ntwine's note naming each, by
 // the id `questions:` and `unask` take, so its next rest names the ones it still needs and withdraws the
 // rest. The bubble keeps the human's bare words; only the worker's copy carries the note.
 test("a typed follow-up to a thread with questions open names them, by id, and says the next rest names or withdraws each", async () => {
@@ -739,7 +739,7 @@ test("a typed follow-up to a thread with questions open names them, by id, and s
 })
 
 // (A test for a deleted awaiting-hint kind was removed here on 2026-08-15. See the AwaitingHint doc
-// block in @frizz/shared for why `human:`, `timer: <instant>` and `pr-watch:` no longer exist.)
+// block in @ntwine/shared for why `human:`, `timer: <instant>` and `pr-watch:` no longer exist.)
 
 test("setThreadPermission RPC safety: running and stale background entries are unresolved", () => {
   assert.equal(hasUnresolvedBackgroundOps({ subAgents: [{ state: "stale" }], bgShells: [{ state: "stale" }] }), true)
@@ -1076,7 +1076,7 @@ test("legacy teardown retains name behavior while an absent finalized owner is a
 })
 
 test("router teardown never downgrades a stale replaced row to reusable-name control", () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-router-aba-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-router-aba-")), "ui.db"), "p")
   const slug = "router-stale-row"
   const stale = row(slug)
   storage.upsertSession(stale)
@@ -1088,7 +1088,7 @@ test("router teardown never downgrades a stale replaced row to reusable-name con
 })
 
 test("rowless reserved/spawned adoption claims fail closed without a name or exact kill", async () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-rowless-adopt-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-rowless-adopt-")), "ui.db"), "p")
   const slug = "rowless-adoption"
   assert.equal(storage.reserveAdoptionClaim({
     slug,
@@ -1135,7 +1135,7 @@ test("rowless adoption claim blocks kill, dismiss-status, and forget RPC handler
 })
 
 test("stale forget loses to a finalized successor token and preserves its row and pane binding", async () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-forget-rotation-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-forget-rotation-")), "ui.db"), "p")
   const slug = "forget-successor"
   const original = finalizedClaim(slug)
   const saved = row(slug)
@@ -1196,10 +1196,10 @@ test("stale forget loses to a finalized successor token and preserves its row an
 
 // ── Stopping an app-server Codex thread (2026-07-23) ───────────────────────────────────────────────
 // An app-server Codex thread has NO worker process of its own: its worker is a turn inside the shared
-// codex app-server, which now lives in a DETACHED daemon that outlives the frizz runtime. Routed through
+// codex app-server, which now lives in a DETACHED daemon that outlives the ntwine runtime. Routed through
 // the registered-runtime terminator every stop verb took stopRegisteredRuntime's `unbound` branch, issued kill-session
 // for a session that never existed, and reported "stopped" — while the turn kept running, burning
-// tokens and touching the repo with no frizz-side owner. Before the daemon worked this was masked,
+// tokens and touching the repo with no ntwine-side owner. Before the daemon worked this was masked,
 // because the app-server died with the runtime.
 function codexSessionRow(
   storage: ReturnType<typeof createStorage>,
@@ -1275,7 +1275,7 @@ test("stopping a Codex thread with no active turn is a no-op, not an error", asy
 })
 
 test("a LEGACY pre-app-server Codex row keeps the registered-runtime terminator and never reaches the bridge", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-legacy-codex-stop-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-legacy-codex-stop-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "legacy-codex"
   // Dispatched pre-cutover: backend=codex but codex_runtime is NULL, so it really does own a pane and
@@ -1348,8 +1348,8 @@ test("dismissing a Codex thread stops its turn through the bridge", async () => 
   const h = harness()
   const slug = "codex-dismiss"
   codexSessionRow(h.storage, slug, "app-server")
-  mkdirSync(join(h.dir, ".frizz"), { recursive: true })
-  writeFileSync(join(h.dir, ".frizz", `${slug}.md`), `---\nstatus: active\n---\n\n# ${slug}\n`)
+  mkdirSync(join(h.dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(h.dir, ".ntwine", `${slug}.md`), `---\nstatus: active\n---\n\n# ${slug}\n`)
   const stub = bridgeStub({ turnLive: true })
   ;(h.ctx as { codexAppServer?: unknown }).codexAppServer = stub.bridge
 
@@ -1361,7 +1361,7 @@ test("dismissing a Codex thread stops its turn through the bridge", async () => 
 
 // ── Restart worker (the operator-driven freshProcess) ────────────────────────────────────────────
 // A worker reads its plugin (hooks) and system prompt ONCE, at process start, so the only way to move a
-// running one onto a newer frizz build is to replace the process. `freshProcess` is how the operator
+// running one onto a newer ntwine build is to replace the process. `freshProcess` is how the operator
 // asks; these pin the two refusals, because a restart that quietly degrades to an ordinary follow-up is
 // worse than an error — the operator would believe their worker came back on the new build when it is
 // still the old process.
@@ -1564,8 +1564,8 @@ test("an ordinary follow-up leaves earlier outstanding sends queued", async () =
 // 2026-08-01: the completion invariant (an agent runs to its terminal return) was read as covering an
 // explicit human instruction, so the verb threw whenever a child was live — which fenced off the one
 // recovery affordance in exactly the state that motivates reaching for it, a worker stuck behind
-// background work that will not finish. The invariant governs frizz's own initiative
-// (needsFreshProcessForLimit still spares a live child when FRIZZ chooses the restart); an operator
+// background work that will not finish. The invariant governs ntwine's own initiative
+// (needsFreshProcessForLimit still spares a live child when NTWINE chooses the restart); an operator
 // asking outright is not that.
 test("Restart worker proceeds even while sub-agents are still running", async () => {
   const { h, slug, calls } = restartHarness([{ state: "running" }])
@@ -1710,8 +1710,8 @@ test("push-it-now reports a thread with no running turn instead of throwing", as
 })
 
 // A pre-broker Claude row's follow-up was typed into Claude Code's own TUI composer and a codex steer
-// went straight into the running turn — neither leaves frizz a turn it can preempt.
-test("push-it-now refuses a runtime frizz holds no control channel into", async () => {
+// went straight into the running turn — neither leaves ntwine a turn it can preempt.
+test("push-it-now refuses a runtime ntwine holds no control channel into", async () => {
   const { h, slug } = interruptHarness()
   h.storage.setClaudeRuntime(slug, "legacy")
   const result = await h.router.deliverQueuedNow.handler({ input: { slug, sessionId: `sid-${slug}` } })
@@ -1732,7 +1732,7 @@ test("push-it-now fails closed for a stale session id", async () => {
 })
 
 // ── Reopening an archived thread by messaging it (every runtime) ─────────────────────────────────
-// There is no Reopen verb in frizz: an archived thread's header states "Done" and the composer under it
+// There is no Reopen verb in ntwine: an archived thread's header states "Done" and the composer under it
 // IS the reopen affordance ("Marked done — send a message to reopen it"). The un-archive that backs that
 // promise lived inside resumeThread, which ONLY the spawned-CLI path reaches — so a broker-backed Claude row
 // and an app-server Codex row resumed their WORKER and left their ROW archived. The thread then executed
@@ -1809,8 +1809,8 @@ test("Restart worker is refused on a thread that is not a broker-backed Claude w
 })
 
 // ---- The superseded worker procedures ------------------------------------------------------------
-// A worker's `frizz-mcp.mjs` is spawned once from the build its session was dispatched with and outlives
-// every server restart, so `/_frizz/rpc` is a versioned contract between two independently-updated processes.
+// A worker's `ntwine-mcp.mjs` is spawned once from the build its session was dispatched with and outlives
+// every server restart, so `/_ntwine/rpc` is a versioned contract between two independently-updated processes.
 // Merging the old `stop_hook` + `heartbeat` tools into `recurring_prompt` renamed the procedure and gave
 // every in-flight worker a bare 404 from the one tool that keeps a long effort moving. These pin that
 // each superseded name still lands on the merged row.
@@ -1905,8 +1905,8 @@ test("an unknown RPC procedure answers 404 NAMING it, so the next version skew d
   const h = harness()
   try {
     const app = new Hono()
-    mountRouter(app, "/_frizz/rpc", h.router)
-    const res = await app.request("/_frizz/rpc/setOwnThreadPreviousName", {
+    mountRouter(app, "/_ntwine/rpc", h.router)
+    const res = await app.request("/_ntwine/rpc/setOwnThreadPreviousName", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ slug: "legacy-thread" }),
@@ -1915,10 +1915,10 @@ test("an unknown RPC procedure answers 404 NAMING it, so the next version skew d
     const body = await res.json() as { error: string }
     // A bare `404 Not Found` naming nothing is what cost a live worker three silent retries.
     assert.match(body.error, /setOwnThreadPreviousName/)
-    assert.match(body.error, /different version of frizz/)
+    assert.match(body.error, /different version of ntwine/)
 
     // And the catch-all must not shadow a real procedure registered before it.
-    const real = await app.request("/_frizz/rpc/setOwnThreadStopHook", {
+    const real = await app.request("/_ntwine/rpc/setOwnThreadStopHook", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ slug: "never-dispatched", prompt: "go", enabled: true }),
@@ -1929,7 +1929,7 @@ test("an unknown RPC procedure answers 404 NAMING it, so the next version skew d
   }
 })
 
-// ---- PROMOTION: steering an EXTERNAL session turns it into a frizz thread ----
+// ---- PROMOTION: steering an EXTERNAL session turns it into a ntwine thread ----
 //
 // The External band's rows carry an ordinary composer, and sending the first message is the whole
 // ceremony (maintainer 2026-08-24). It runs inside followUp rather than behind a verb of its own so
@@ -1951,7 +1951,7 @@ test("followUp on an EXTERNAL session registers it first, keeping its id, then d
     // The real dispatcher writes the row; the fake writes the same one, because everything after the
     // promotion in this handler reads the REGISTRY, not the return value.
     h.storage.upsertSession({
-      slug: input.sessionId, session_id: input.sessionId, thread_name: `frizz-${input.sessionId}`,
+      slug: input.sessionId, session_id: input.sessionId, thread_name: `ntwine-${input.sessionId}`,
       spawned_at: "2026-08-24T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0,
       rested_at: null, title_auto: 0, title: input.title ?? null, transcript_id: null, state: "open",
       meta: null, seen_at: null,
@@ -1986,7 +1986,7 @@ test("followUp on an EXTERNAL session registers it first, keeping its id, then d
 
 // The promotion is UN-FORGEABLE by construction: it adopts only a transcript the server can see for
 // itself in this project's own log directory, right now. Without that check a crafted request could
-// talk frizz into minting a row for any uuid at all.
+// talk ntwine into minting a row for any uuid at all.
 test("followUp refuses an unregistered slug the tailer does not currently list as external", async () => {
   const h = harness()
   const promoted: unknown[] = []
@@ -2088,7 +2088,7 @@ test("a codex follow-up opens the ledger entry delivered — its receipt names t
 // empty folder under it "added" documents — the picker navigated to another project's board, and no
 // flow could create the new project at all.
 test("projectAdd: a picked folder under an adopted plain directory becomes its own project", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-add-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-add-"))
   try {
     const umbrella = join(home, "Documents")
     const picked = join(umbrella, "projects", "kirby")
@@ -2111,7 +2111,7 @@ test("projectAdd: a picked folder under an adopted plain directory becomes its o
 // The silent-reopen bug (2026-09-28): adding ~/app/yes — a folder with no marker of its own inside the
 // ~/app checkout — reopened ~/app and navigated to its board, which read as the add doing nothing.
 test("projectAdd: a folder inside a checkout answers enclosed, and exact adopts the folder itself", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-add-enclosed-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-add-enclosed-"))
   try {
     const repo = join(home, "app")
     const picked = join(repo, "yes")
@@ -2120,12 +2120,12 @@ test("projectAdd: a folder inside a checkout answers enclosed, and exact adopts 
     // The repository's id lives only in git config, as an established pre-gitless board's does. It must
     // never leak into the subfolder: `git config` run there answers for the enclosing repository.
     const repoId = "5d0b8a0e-3c55-4a7e-9d8e-0f4f6b7c2a11"
-    execFileSync("git", ["-C", repo, "config", "frizz.id", repoId])
+    execFileSync("git", ["-C", repo, "config", "ntwine.id", repoId])
     registerProject({ dir: repo, id: repoId }, home)
 
     const asked = addProjectAtPath(picked, home)
     assert.deepEqual(asked, { kind: "enclosed", path: realpathSync(picked), root: realpathSync(repo), rootName: "app", rootRegistered: true })
-    assert.equal(existsSync(join(picked, ".frizz")), false, "asking writes nothing")
+    assert.equal(existsSync(join(picked, ".ntwine")), false, "asking writes nothing")
 
     const added = addProjectAtPath(picked, home, { exact: true })
     const card = added.kind === "added" ? added.project : assert.fail("not added")
@@ -2152,7 +2152,7 @@ test("projectAdd: a folder inside a checkout answers enclosed, and exact adopts 
 // but the operator knows the folder as part of their `app` project — the dialog must name that, and
 // its "open" answer must open `app` rather than add `action`.
 test("projectAdd: a folder under a nested package root names the enclosing registered project", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-add-nested-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-add-nested-"))
   try {
     const repo = join(home, "app")
     const pkg = join(repo, "action")
@@ -2170,7 +2170,7 @@ test("projectAdd: a folder under a nested package root names the enclosing regis
       rootRegistered: true,
     })
     // Negative control: with nothing registered, the nearest root is still what it names.
-    const bare = mkdtempSync(join(tmpdir(), "frizz-add-nested-bare-"))
+    const bare = mkdtempSync(join(tmpdir(), "ntwine-add-nested-bare-"))
     try {
       const asked = addProjectAtPath(picked, bare)
       assert.equal(asked.kind === "enclosed" ? asked.rootName : undefined, "action")
@@ -2183,13 +2183,13 @@ test("projectAdd: a folder under a nested package root names the enclosing regis
   }
 })
 
-// Minting an id in $HOME writes a project into ~/.frizz, Frizz's own state root, and every unmarked
+// Minting an id in $HOME writes a project into ~/.ntwine, Ntwine's own state root, and every unmarked
 // directory under home then resolves to it. The launcher refuses this (2026-08-06); the grid must too.
 test("projectAdd: the home directory itself is refused, and nothing is written", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-add-home-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-add-home-"))
   try {
     assert.throws(() => addProjectAtPath(home, home), /home folder/u)
-    assert.equal(existsSync(join(home, ".frizz", ".id")), false)
+    assert.equal(existsSync(join(home, ".ntwine", ".id")), false)
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
@@ -2201,7 +2201,7 @@ test("projectAdd: the home directory itself is refused, and nothing is written",
 // refuse every repo on a Windows drive under WSL, where a folder shows one set of bits for user,
 // group and other (Microsoft, "File Permissions for WSL").
 test("projectAdd: a folder every account can write to is an ordinary project", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-add-shared-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-add-shared-"))
   try {
     const shared = join(home, "shared")
     mkdirSync(shared)
@@ -2312,7 +2312,7 @@ test("followUp with interrupt:true on an ACP row queues behind the turn and neve
 })
 
 // ---- MARK AS DONE ENDS AN IDLE ACP AGENT ----
-// An ACP agent lives in a detached daemon (acp-host.ts) that outlives frizz, so "live" for Mark as done
+// An ACP agent lives in a detached daemon (acp-host.ts) that outlives ntwine, so "live" for Mark as done
 // is "an agent process exists", idle or mid-turn — the broker Claude reading. Reading only the turn
 // let an idle agent outlive its archived thread (promoted-artifact run, 2026-09-24).
 test("Mark as done on an idle ACP thread whose agent is alive asks first, then releases the agent", async () => {
@@ -2443,7 +2443,7 @@ test("dispatch treats a stale spawn_thread's spinoff id as a plain spawn", async
 })
 
 // The RPC the thread's menu calls never reaches the thread's own worker: a Claude parent with no
-// transcript yet gets a fresh child on Frizz's own context (router.spinoff-fork.test.ts covers its prompt).
+// transcript yet gets a fresh child on Ntwine's own context (router.spinoff-fork.test.ts covers its prompt).
 test("spinoff starts the child itself and delivers nothing to the thread's worker", async () => {
   const { h, slug, calls } = restartHarness()
   try {
@@ -2499,7 +2499,7 @@ test("Compact now refuses a turn in flight rather than splicing /compact into it
   h.storage.close()
 })
 
-test("Compact now refuses a runtime Frizz cannot compact", async () => {
+test("Compact now refuses a runtime Ntwine cannot compact", async () => {
   const { h, slug, calls } = compactHarness()
   h.storage.setBackend(slug, "acp")
   await assert.rejects(h.router.compactThread.handler({ input: { slug, sessionId: `sid-${slug}` } }), /can't be compacted/)
@@ -2522,9 +2522,9 @@ test("Compact now asks an app-server codex thread for thread/compact/start", asy
   h.storage.close()
 })
 
-// ── "Send to queue": Frizz HOLDS the message until the agent rests ───────────────────────────────
+// ── "Send to queue": Ntwine HOLDS the message until the agent rests ───────────────────────────────
 // The prompt box's Send menu has two rows (maintainer 2026-10-11): "Send as steer", which is the
-// follow-up above, and "Send to queue" — "Frizz maintains that in memory until the agent comes to rest,
+// follow-up above, and "Send to queue" — "Ntwine maintains that in memory until the agent comes to rest,
 // and then it pushes it". Held means no transport has been handed anything, so these pin both halves:
 // nothing reaches the runtime while the turn runs, and the same send — same id, same bubble — is what
 // goes out when it ends.
@@ -2604,7 +2604,7 @@ test("steering past a held message leaves it held", async () => {
 
 test("a held message is taken back without asking the runtime, on any backend", async () => {
   const { h, slug, sid, cancelled, ledger, sent, rest } = holdHarness()
-  h.storage.setBackend(slug, "codex") // a runtime whose own queue Frizz cannot reach into
+  h.storage.setBackend(slug, "codex") // a runtime whose own queue Ntwine cannot reach into
   await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "never mind", deliveryId: "d-hold", hold: true } })
   const result = await h.router.unqueueFollowUp.handler({ input: { slug, sessionId: sid, deliveryId: "d-hold" } })
   assert.deepEqual(result, { unqueued: true })

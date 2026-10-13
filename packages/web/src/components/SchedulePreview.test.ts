@@ -4,7 +4,7 @@
 // The rendered pixels are checked in a real browser, not here.
 import assert from "node:assert/strict"
 import test from "node:test"
-import { SCHEDULE_NOT_FOUND_COPY, type InterpretScheduleResult } from "@frizz/shared"
+import { SCHEDULE_NOT_FOUND_COPY, type InterpretScheduleResult } from "@ntwine/shared"
 import { CHANGE_WHEN_BUDGET_COPY, CHANGE_WHEN_FAILED_COPY, UNPHRASABLE_COPY, changeWhenView, describeRule, schedulePreviewModel, unphrasableRule } from "./SchedulePreview.tsx"
 import type { ModelReadOk } from "../lib/scheduleModelRead.ts"
 

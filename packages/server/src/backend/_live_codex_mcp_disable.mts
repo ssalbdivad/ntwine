@@ -1,66 +1,66 @@
 // LIVE probe (not a unit test; excluded from the *.test.ts glob). Can a NEW Codex thread switch off
-// the `frizz` MCP server that an app-server started BEFORE the update mounted on its own argv?
+// the `ntwine` MCP server that an app-server started BEFORE the update mounted on its own argv?
 //
 //   env -u NODE_COMPAT nub packages/server/src/backend/_live_codex_mcp_disable.mts
-//   CODEX_BIN=/path/to/codex overrides the binary (default: Frizz's own provisioned pin, then PATH)
+//   CODEX_BIN=/path/to/codex overrides the binary (default: Ntwine's own provisioned pin, then PATH)
 //   PROBE_MODEL=<slug> overrides the model slug the tool list is built for (default gpt-5.6-sol)
 //
-// Why it exists. Until this branch every app-server was started with a process-wide `frizz` MCP
-// mount on its argv (`-c mcp_servers.frizz={command, args, cwd, env, …}`, codexMcpConfigArgs). The
-// branch stops passing it, but an app-server started BEFORE the update survives it (Frizz reattaches),
-// so a NEW thread started there still gets `mcp__frizz__*` from the argv, with no thread identity in
+// Why it exists. Until this branch every app-server was started with a process-wide `ntwine` MCP
+// mount on its argv (`-c mcp_servers.ntwine={command, args, cwd, env, …}`, codexMcpConfigArgs). The
+// branch stops passing it, but an app-server started BEFORE the update survives it (Ntwine reattaches),
+// so a NEW thread started there still gets `mcp__ntwine__*` from the argv, with no thread identity in
 // the child's env, and every call that acts on the caller's own thread fails. The question is whether
 // the new thread's OWN config bag can switch that mount off, and in a spelling that also starts on a
-// post-update app-server that has no `frizz` entry at all.
+// post-update app-server that has no `ntwine` entry at all.
 //
 // NEEDS NO CODEX SIGN-IN and spends no quota: the instrument of `_live_codex_shell_identity.mts`. The
 // REAL `codex app-server --stdio`, driven over raw JSON-RPC, argv from the real codexAppServerArgv
-// (with and without a FrizzMcp), against a mock Responses provider. The mounted server is this
-// checkout's real `cc-worker/bin/frizz-mcp.mjs` (it lists its 16 tools without reaching any server)
+// (with and without a NtwineMcp), against a mock Responses provider. The mounted server is this
+// checkout's real `cc-worker/bin/ntwine-mcp.mjs` (it lists its 16 tools without reaching any server)
 // behind a wrapper that logs every start. CODEX_HOME's config.toml also mounts the same script as an
-// `operator` server: whatever switches Frizz's mount off must leave an operator's own server alone.
+// `operator` server: whatever switches Ntwine's mount off must leave an operator's own server alone.
 //
 // WHAT "CALLABLE" MEANS here. gpt-5.6-sol runs in code mode and the request lists NO MCP tool at all
 // ("Some deferred nested tools may be omitted from this description"), so its reading is the `exec`
 // isolate's own `ALL_TOOLS`, which the mock's script prints. `PROBE_MODEL=mock-model` is offered MCP
-// tools in the request itself (as `mcp__frizz.<tool>`) and gave the same 28 readings.
+// tools in the request itself (as `mcp__ntwine.<tool>`) and gave the same 28 readings.
 //
 // MEASURED 2026-10-11 against codex-cli 0.161.0 (macOS arm64). Every line is a `finding()` below and
 // the run exits 1 if one stops holding:
 //
 //   1. Control: a thread with no MCP keys on the pre-update app-server can call all 16
-//      `mcp__frizz__*` tools, and its child was started with no FRIZZ_THREAD_SLUG.
-//   2. `config: { "mcp_servers.frizz.enabled": false }` on that app-server: thread/start succeeds, no
-//      frizz tool is callable, and no frizz process starts. The operator's server is untouched.
+//      `mcp__ntwine__*` tools, and its child was started with no NTWINE_THREAD_SLUG.
+//   2. `config: { "mcp_servers.ntwine.enabled": false }` on that app-server: thread/start succeeds, no
+//      ntwine tool is callable, and no ntwine process starts. The operator's server is untouched.
 //   3. The same bag on a post-update app-server (no argv entry) is REFUSED by thread/start:
-//      `-32600: failed to load configuration: invalid transport\nin \`mcp_servers.frizz\``. Nothing
+//      `-32600: failed to load configuration: invalid transport\nin \`mcp_servers.ntwine\``. Nothing
 //      else reports it: no stderr line, no notification. A dotted key MERGES into an existing entry,
 //      and with nothing to merge into, `{enabled: false}` alone is not a server.
 //   4. Per spelling (pre-update / post-update):
-//        "mcp_servers.frizz.enabled": false                       OFF     / REFUSED
-//        mcp_servers: { frizz: { enabled: false } }                REFUSED / REFUSED
-//        "mcp_servers.frizz.enabled_tools": []                     OFF     / REFUSED  (process still starts)
-//        "mcp_servers.frizz.disabled_tools": [all 16]              OFF     / REFUSED  (process still starts)
-//        "mcp_servers.frizz": {}                                   REFUSED / REFUSED
+//        "mcp_servers.ntwine.enabled": false                       OFF     / REFUSED
+//        mcp_servers: { ntwine: { enabled: false } }                REFUSED / REFUSED
+//        "mcp_servers.ntwine.enabled_tools": []                     OFF     / REFUSED  (process still starts)
+//        "mcp_servers.ntwine.disabled_tools": [all 16]              OFF     / REFUSED  (process still starts)
+//        "mcp_servers.ntwine": {}                                   REFUSED / REFUSED
 //        mcp_servers: {}                                           OFF     / OFF
-//        "mcp_servers.frizz.enabled": false + ".command": "/usr/bin/true"   OFF / OFF
+//        "mcp_servers.ntwine.enabled": false + ".command": "/usr/bin/true"   OFF / OFF
 //      A NESTED `mcp_servers` table in the bag REPLACES the argv's whole `mcp_servers` layer (so `{}`
-//      drops the argv mount, and `{frizz: {enabled: false}}` is an entry with no transport), while
+//      drops the argv mount, and `{ntwine: {enabled: false}}` is an entry with no transport), while
 //      config.toml's servers survive every spelling. The two that work on BOTH shapes are
-//      `mcp_servers: {}` and `enabled: false` with a command of its own; neither starts a frizz process.
+//      `mcp_servers: {}` and `enabled: false` with a command of its own; neither starts a ntwine process.
 //      Also: the argv's top-level `default_tools_approval_mode="approve"` is IGNORED by 0.161.0, with
 //      a `warning` notification on every thread ("session-flags: `default_tools_approval_mode` is
 //      ignored"); only the per-entry key does anything.
 //   5. Both working spellings survive `thread/resume` on a FRESH pre-update app-server when the bag is
-//      re-sent, and a `spawn_agent` child of such a thread has no frizz tool either. Resumed WITHOUT
+//      re-sent, and a `spawn_agent` child of such a thread has no ntwine tool either. Resumed WITHOUT
 //      the bag, a thread gets all 16 back: the switch is not in the rollout. Controls: the no-bag
 //      thread's resume and its child both have all 16.
 //
-//   6. THE BAG FRIZZ SHIPS for a thread taught frizzctl, `{ ...codexThreadMcpOff(), ...codexThreadShellConfig(…) }`
+//   6. THE BAG NTWINE SHIPS for a thread taught ntwinectl, `{ ...codexThreadMcpOff(), ...codexThreadShellConfig(…) }`
 //      imported and sent untouched, on BOTH a pre-update app-server (argv mount) and a post-update one:
-//      thread/start succeeds, no frizz tool is callable (the operator's 16 are), and the thread's shell
-//      runs bare `frizzctl title "…"` from this checkout, exit 0, with exactly one setOwnThreadTitle
-//      reaching the fake Frizz under that thread's slug. The process PATH carries no `cc-worker/bin`.
+//      thread/start succeeds, no ntwine tool is callable (the operator's 16 are), and the thread's shell
+//      runs bare `ntwinectl title "…"` from this checkout, exit 0, with exactly one setOwnThreadTitle
+//      reaching the fake Ntwine under that thread's slug. The process PATH carries no `cc-worker/bin`.
 //
 // NOT covered: the `--listen unix://` (native) transport, which shares the argv builder; a thread
 // that should KEEP the per-thread mount (codexThreadMcpConfig) while a sibling switches the argv one
@@ -76,48 +76,48 @@ import { provisionedBinary, runtimesRoot } from "../runtimes.ts"
 import { CLIENT_CAPABILITIES, CLIENT_INFO, CODEX_APP_SERVER_SUPPORTED_VERSION } from "./codex-app-server.ts"
 import { codexAppServerArgv, codexThreadMcpOff } from "./codex-mcp.ts"
 import { codexThreadShellConfig } from "./codex-shell-env.ts"
-import type { FrizzCli, FrizzMcp } from "./types.ts"
+import type { NtwineCli, NtwineMcp } from "./types.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
 
-// The binary Frizz itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
+// The binary Ntwine itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
 const CODEX_BIN = process.env.CODEX_BIN
   || provisionedBinary("codex", runtimesRoot(), CODEX_APP_SERVER_SUPPORTED_VERSION)
   || "codex"
 const MODEL = process.env.PROBE_MODEL || "gpt-5.6-sol"
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-codex-mcp-disable-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-codex-mcp-disable-")))
 const codexHome = join(root, "codex-home")
-const stateDir = join(root, "frizz-root", "projects", "proj-1")
+const stateDir = join(root, "ntwine-root", "projects", "proj-1")
 for (const dir of [codexHome, stateDir]) mkdirSync(dir, { recursive: true })
 
 // ---- the MCP server the old argv mounted --------------------------------------------------------------
-// This checkout's real `frizz-mcp.mjs` (it answers `tools/list` without reaching any server), behind a
+// This checkout's real `ntwine-mcp.mjs` (it answers `tools/list` without reaching any server), behind a
 // two-line wrapper that records every start with the thread identity it was given, if any.
-const realMcp = realpathSync(fileURLToPath(new URL("../../../../cc-worker/bin/frizz-mcp.mjs", import.meta.url)))
+const realMcp = realpathSync(fileURLToPath(new URL("../../../../cc-worker/bin/ntwine-mcp.mjs", import.meta.url)))
 const mcpStarts = join(root, "mcp-starts.jsonl")
-const wrapper = join(root, "frizz-mcp-wrapper.mjs")
+const wrapper = join(root, "ntwine-mcp-wrapper.mjs")
 writeFileSync(wrapper, [
   `import { appendFileSync } from "node:fs"`,
-  `appendFileSync(${JSON.stringify(mcpStarts)}, JSON.stringify({ pid: process.pid, slug: process.env.FRIZZ_THREAD_SLUG ?? null }) + "\\n")`,
+  `appendFileSync(${JSON.stringify(mcpStarts)}, JSON.stringify({ pid: process.pid, slug: process.env.NTWINE_THREAD_SLUG ?? null }) + "\\n")`,
   `await import(${JSON.stringify(pathToFileURL(realMcp).href)})`,
   ``,
 ].join("\n"))
 const mcpStartCount = (): number => (existsSync(mcpStarts) ? readFileSync(mcpStarts, "utf8").trim().split("\n").filter(Boolean).length : 0)
-const frizzMcp: FrizzMcp = { scriptPath: wrapper, stateDir, projectId: "proj-1" }
+const ntwineMcp: NtwineMcp = { scriptPath: wrapper, stateDir, projectId: "proj-1" }
 // THE TWO ARGVS, from the real builder. Before the update every app-server was started with the
 // process-wide mount; after it, with none.
-const PRE_ARGV = codexAppServerArgv(["--stdio"], frizzMcp)
+const PRE_ARGV = codexAppServerArgv(["--stdio"], ntwineMcp)
 
-// ---- the bag Frizz now sends a thread taught frizzctl -----------------------------------------------
+// ---- the bag Ntwine now sends a thread taught ntwinectl -----------------------------------------------
 // codexThreadMcpOff + codexThreadShellConfig, imported and sent untouched, with this checkout's command
-// and a fake Frizz that records what reaches it (the instrument of `_live_codex_frizzctl.mts`).
+// and a fake Ntwine that records what reaches it (the instrument of `_live_codex_ntwinectl.mts`).
 const markers = join(root, "markers")
 mkdirSync(markers)
-const cli: FrizzCli = { binDir: realpathSync(fileURLToPath(new URL("../../../../cc-worker/bin", import.meta.url))), stateDir, projectId: "proj-1" }
+const cli: NtwineCli = { binDir: realpathSync(fileURLToPath(new URL("../../../../cc-worker/bin", import.meta.url))), stateDir, projectId: "proj-1" }
 interface Seen { url: string; body: any }
 const seen: Seen[] = []
-const fakeFrizz = createServer((req, res) => {
+const fakeNtwine = createServer((req, res) => {
   let raw = ""
   req.on("data", (chunk) => { raw += chunk })
   req.on("end", () => {
@@ -141,9 +141,9 @@ interface ResponsesBody { input?: Array<Record<string, any>>; tools?: Array<Reco
 const toolOutputs = new Map<string, string>()
 const toolsOffered = new Set<string>()
 // What ONE turn's first request offered, by probe id: every tool name, flattened out of its namespace,
-// and separately every `mcp__frizz__*` name anywhere in the body (code mode lists a nested tool only
+// and separately every `mcp__ntwine__*` name anywhere in the body (code mode lists a nested tool only
 // inside the `exec` description).
-interface Offered { tools: string[]; frizzMentions: string[] }
+interface Offered { tools: string[]; ntwineMentions: string[] }
 const offeredTo = new Map<string, Offered>()
 const shellToolsUsed = new Set<string>()
 // A sub-agent's task arrives as an `agent_message` whose payload sits in `encrypted_content` (the real
@@ -177,7 +177,7 @@ const mock = createServer((req, res) => {
       if (offeredTo.has(id)) return
       offeredTo.set(id, {
         tools: tools.map((tool) => `${tool.namespace ? `${tool.namespace}.` : ""}${tool.name ?? tool.type}`),
-        frizzMentions: [...new Set(raw.match(/mcp__frizz__[a-z_]+/g) ?? [])].sort(),
+        ntwineMentions: [...new Set(raw.match(/mcp__ntwine__[a-z_]+/g) ?? [])].sort(),
       })
     }
     const functionCall = (name: RegExp, args: Record<string, unknown>) => {
@@ -261,10 +261,10 @@ const mockPort = (mock.address() as { port: number }).port
 writeFileSync(join(codexHome, "config.toml"), [
   `model = ${JSON.stringify(MODEL)}`, `model_provider = "mock"`,
   `[model_providers.mock]`, `name = "mock"`, `base_url = "http://127.0.0.1:${mockPort}/v1"`, `wire_api = "responses"`, ``,
-  // An MCP server the OPERATOR configured: whatever switches Frizz's mount off must leave this alone.
+  // An MCP server the OPERATOR configured: whatever switches Ntwine's mount off must leave this alone.
   // The same script, so it needs nothing of its own; its tools are `mcp__operator__*`.
   `[mcp_servers.operator]`, `command = ${JSON.stringify(process.execPath)}`, `args = [${JSON.stringify(wrapper)}]`,
-  `env = { FRIZZ_STATE_DIR = ${JSON.stringify(stateDir)} }`, `default_tools_approval_mode = "approve"`, ``,
+  `env = { NTWINE_STATE_DIR = ${JSON.stringify(stateDir)} }`, `default_tools_approval_mode = "approve"`, ``,
 ].join("\n"))
 
 
@@ -340,7 +340,7 @@ class AppServer {
     return String(response.userAgent)
   }
 
-  /** The thread-level params Frizz sends on `thread/start` (startDisposableSession), plus this bag. */
+  /** The thread-level params Ntwine sends on `thread/start` (startDisposableSession), plus this bag. */
   async startThread(cwd: string, sandbox: string, config?: Record<string, unknown>): Promise<{ id: string; sessionId: string }> {
     const response = await this.request("thread/start", {
       cwd, model: null, approvalPolicy: "never", approvalsReviewer: "user", sandbox,
@@ -391,7 +391,7 @@ function callable(label: string): string[] {
   const nested = (toolOutputs.get(label) ?? "").match(/ALL_TOOLS=(\[[^\]]*\])/)?.[1]?.replace(/\\"/g, '"')
   let inside: string[] = []
   try { inside = nested ? JSON.parse(nested) as string[] : [] } catch { inside = [] }
-  return [...new Set([...(offeredTo.get(label)?.tools ?? []), ...(offeredTo.get(label)?.frizzMentions ?? []), ...inside])]
+  return [...new Set([...(offeredTo.get(label)?.tools ?? []), ...(offeredTo.get(label)?.ntwineMentions ?? []), ...inside])]
 }
 const named = (label: string, server: string) => callable(label).filter((name) => new RegExp(`mcp__${server}`).test(name)).sort()
 
@@ -407,7 +407,7 @@ interface Arm { label: string; bag?: Record<string, unknown> }
 interface Reading {
   label: string; server: string; bag: Record<string, unknown> | undefined
   started: boolean; error?: string; threadId?: string; status?: string
-  frizz: string[]; operator: string[]; toolCount: number; mcpStarts: number; notes: string[]; stderr: string[]
+  ntwine: string[]; operator: string[]; toolCount: number; mcpStarts: number; notes: string[]; stderr: string[]
 }
 const readings: Reading[] = []
 const NOISE = /^(thread\/started|thread\/status\/changed|turn\/|item\/|thread\/tokenUsage|account\/|thread\/name|serverRequest\/)/
@@ -417,7 +417,7 @@ async function arm(server: AppServer, { label, bag }: Arm, sandbox = "danger-ful
   const notesFrom = server.notifications.length
   const stderrFrom = server.stderrLines.length
   const startsFrom = mcpStartCount()
-  const reading: Reading = { label, server: server.label, bag, started: false, frizz: [], operator: [], toolCount: 0, mcpStarts: 0, notes: [], stderr: [] }
+  const reading: Reading = { label, server: server.label, bag, started: false, ntwine: [], operator: [], toolCount: 0, mcpStarts: 0, notes: [], stderr: [] }
   const cwd = join(root, `cwd-${label}`)
   mkdirSync(cwd, { recursive: true })
   try {
@@ -429,12 +429,12 @@ async function arm(server: AppServer, { label, bag }: Arm, sandbox = "danger-ful
     reading.error = (error as Error).message
   }
   await sleep(300)
-  reading.frizz = named(label, "frizz")
+  reading.ntwine = named(label, "ntwine")
   reading.operator = named(label, "operator")
   reading.toolCount = callable(label).length
   reading.mcpStarts = mcpStartCount() - startsFrom
   reading.notes = server.notifications.slice(notesFrom).filter((note) => !NOISE.test(note.method)).map((note) => `${note.method} ${JSON.stringify(note.params).slice(0, 400)}`)
-  reading.stderr = server.stderrLines.slice(stderrFrom).filter((line) => /mcp|frizz|warn|error|invalid|config/i.test(line)).map((line) => line.slice(0, 400))
+  reading.stderr = server.stderrLines.slice(stderrFrom).filter((line) => /mcp|ntwine|warn|error|invalid|config/i.test(line)).map((line) => line.slice(0, 400))
   readings.push(reading)
   report(reading)
   return reading
@@ -442,41 +442,41 @@ async function arm(server: AppServer, { label, bag }: Arm, sandbox = "danger-ful
 function report(reading: Reading): void {
   console.log(`\n--- ${reading.label} on app-server ${reading.server} · bag ${JSON.stringify(reading.bag ?? null)} ---`)
   console.log(reading.started ? `thread/start: ok (${reading.threadId}); turn ${reading.status}` : `thread/start: REFUSED — ${reading.error}`)
-  console.log(`frizz tools callable (${reading.frizz.length} of ${reading.toolCount} tools): ${reading.frizz.join(", ") || "none"}`)
+  console.log(`ntwine tools callable (${reading.ntwine.length} of ${reading.toolCount} tools): ${reading.ntwine.join(", ") || "none"}`)
   console.log(`operator's config.toml server: ${reading.operator.length} tools`)
-  console.log(`frizz MCP processes started meanwhile: ${reading.mcpStarts}`)
+  console.log(`ntwine MCP processes started meanwhile: ${reading.mcpStarts}`)
   if (reading.notes.length) console.log(`notifications: \n  ${reading.notes.join("\n  ")}`)
-  if (reading.stderr.length) console.log(`app-server stderr (mcp/frizz/warn/error/config lines): \n  ${reading.stderr.join("\n  ")}`)
+  if (reading.stderr.length) console.log(`app-server stderr (mcp/ntwine/warn/error/config lines): \n  ${reading.stderr.join("\n  ")}`)
 }
 
 let harnessError = false
 try {
   console.log(`[mcp-disable] codex ${CODEX_BIN}\n[mcp-disable] ${execFileSync(CODEX_BIN, ["--version"]).toString().trim()} · model slug ${MODEL} · workspace ${root}`)
   console.log(`[mcp-disable] the MCP script: ${realMcp}\n[mcp-disable] pre-update argv:  ${JSON.stringify(PRE_ARGV)}\n[mcp-disable] post-update argv: ${JSON.stringify(POST_ARGV)}`)
-  if (!PRE_ARGV.some((arg) => arg.startsWith("mcp_servers.frizz="))) throw new Error("codexAppServerArgv no longer builds the argv mount this probe is about")
+  if (!PRE_ARGV.some((arg) => arg.startsWith("mcp_servers.ntwine="))) throw new Error("codexAppServerArgv no longer builds the argv mount this probe is about")
   const env: Record<string, string> = { ...inheritWorkerEnvironment(process.env) }
   for (const key of Object.keys(env)) if (key.startsWith("CODEX_")) delete env[key]
   env.CODEX_HOME = codexHome
-  // No Frizz's `cc-worker/bin` on the process PATH (a probe run from inside a Frizz worker inherits the
-  // installed one's), so a bare `frizzctl` can only come from the bag.
+  // No Ntwine's `cc-worker/bin` on the process PATH (a probe run from inside a Ntwine worker inherits the
+  // installed one's), so a bare `ntwinectl` can only come from the bag.
   env.PATH = (env.PATH ?? "").split(":").filter((entry) => !/cc-worker\/bin\/?$/.test(entry)).join(":")
-  await listen(fakeFrizz, 0, "127.0.0.1")
-  writeFileSync(join(stateDir, "server.lock"), JSON.stringify({ port: (fakeFrizz.address() as { port: number }).port }))
+  await listen(fakeNtwine, 0, "127.0.0.1")
+  writeFileSync(join(stateDir, "server.lock"), JSON.stringify({ port: (fakeNtwine.address() as { port: number }).port }))
 
   const ALL_TOOLS = ["spawn_thread", "goal", "timer", "watch_pr", "watch", "unwatch", "ask", "unask", "done", "title", "activity", "link", "unlink", "watch_issue", "secret", "steer"]
   // Every per-thread spelling that might switch the mount off. The config keys are the ones the
   // 0.161.0 binary's RawMcpServerConfig names (`enabled`, `enabled_tools`, `disabled_tools`), plus the
   // two "empty" shapes a merge could read as a removal.
   const spellings: Arm[] = [
-    { label: "enabled-false", bag: { "mcp_servers.frizz.enabled": false } },
-    { label: "enabled-false-nested", bag: { mcp_servers: { frizz: { enabled: false } } } },
-    { label: "enabled-tools-empty", bag: { "mcp_servers.frizz.enabled_tools": [] } },
-    { label: "disabled-tools-all", bag: { "mcp_servers.frizz.disabled_tools": ALL_TOOLS } },
-    { label: "frizz-empty-table", bag: { "mcp_servers.frizz": {} } },
+    { label: "enabled-false", bag: { "mcp_servers.ntwine.enabled": false } },
+    { label: "enabled-false-nested", bag: { mcp_servers: { ntwine: { enabled: false } } } },
+    { label: "enabled-tools-empty", bag: { "mcp_servers.ntwine.enabled_tools": [] } },
+    { label: "disabled-tools-all", bag: { "mcp_servers.ntwine.disabled_tools": ALL_TOOLS } },
+    { label: "ntwine-empty-table", bag: { "mcp_servers.ntwine": {} } },
     { label: "servers-empty-table", bag: { mcp_servers: {} } },
     // `enabled: false` with a transport of its own, so the entry is valid whether or not the process
-    // has a `frizz` entry to merge it into.
-    { label: "enabled-false-with-command", bag: { "mcp_servers.frizz.enabled": false, "mcp_servers.frizz.command": "/usr/bin/true" } },
+    // has a `ntwine` entry to merge it into.
+    { label: "enabled-false-with-command", bag: { "mcp_servers.ntwine.enabled": false, "mcp_servers.ntwine.command": "/usr/bin/true" } },
   ]
 
   // ==== 1, 2, 4: the app-server that predates the update ==============================================
@@ -497,7 +497,7 @@ try {
   for (const spelling of spellings) postArms[spelling.label] = await arm(post, { ...spelling, label: `post-${spelling.label}` })
   await post.stop()
 
-  // ==== 6: the bag Frizz ships (codexThreadMcpOff + codexThreadShellConfig) ===========================
+  // ==== 6: the bag Ntwine ships (codexThreadMcpOff + codexThreadShellConfig) ===========================
   console.log("\n======== 6: the shipped bag, on a pre-update and a post-update app-server ========")
   const shipped: Record<string, { reading: Reading; slug: string; marker: string }> = {}
   const post2 = new AppServer("post-2", env, POST_ARGV)
@@ -506,13 +506,13 @@ try {
     const slug = `probe-${shape}-update`
     const bag = { ...codexThreadMcpOff(), ...codexThreadShellConfig(cli, slug, env) }
     const file = join(markers, `${slug}.txt`)
-    const cmd = `{ echo "resolved=$(command -v frizzctl)"; frizzctl title "Probe ${slug}"; echo "exit=$?"; } > ${file} 2>&1`
+    const cmd = `{ echo "resolved=$(command -v ntwinectl)"; ntwinectl title "Probe ${slug}"; echo "exit=$?"; } > ${file} 2>&1`
     const reading = await arm(server, { label: `shipped-${shape}`, bag }, "danger-full-access", cmd)
     const marker = existsSync(file) ? readFileSync(file, "utf8") : "(absent)"
     shipped[shape] = { reading, slug, marker }
     console.log(`bag keys: ${Object.keys(bag).join(", ")}`)
     console.log(`marker (written by the thread's shell):\n  ${marker.trim().split("\n").join("\n  ")}`)
-    console.log(`fake Frizz saw for "Probe ${slug}": ${JSON.stringify(seen.filter((request) => request.body?.title === `Probe ${slug}`))}`)
+    console.log(`fake Ntwine saw for "Probe ${slug}": ${JSON.stringify(seen.filter((request) => request.body?.title === `Probe ${slug}`))}`)
   }
   await post2.stop()
 
@@ -525,10 +525,10 @@ try {
     const status = await pre.run(parent.threadId!, label, "true", { verb: "PROBE_SPAWN" })
     for (const start = Date.now(); Date.now() - start < 30_000 && !toolOutputs.has(label); await sleep(200)) { /* the child runs on */ }
     await sleep(300)
-    const reading: Reading = { label, server: "pre", bag: undefined, started: offeredTo.has(label), status, frizz: named(label, "frizz"), operator: named(label, "operator"), toolCount: callable(label).length, mcpStarts: 0, notes: [], stderr: [] }
+    const reading: Reading = { label, server: "pre", bag: undefined, started: offeredTo.has(label), status, ntwine: named(label, "ntwine"), operator: named(label, "operator"), toolCount: callable(label).length, mcpStarts: 0, notes: [], stderr: [] }
     readings.push(reading)
     console.log(`\n--- ${label}: a spawn_agent child (parent turn ${status}) ---`)
-    console.log(`the child could call frizz tools (${reading.frizz.length} of ${reading.toolCount}): ${reading.frizz.join(", ") || "none"}; operator tools: ${reading.operator.length}`)
+    console.log(`the child could call ntwine tools (${reading.ntwine.length} of ${reading.toolCount}): ${reading.ntwine.join(", ") || "none"}; operator tools: ${reading.operator.length}`)
     console.log(`what the parent's spawn_agent / wait_agent returned: ${(toolOutputs.get(`${label}:parent`) ?? "").replace(/\n/g, " | ")}`)
     return reading
   }
@@ -541,7 +541,7 @@ try {
   await fresh.initialize()
   const resumeRun = async (label: string, threadId: string, bag?: Record<string, unknown>) => {
     const startsFrom = mcpStartCount()
-    const reading: Reading = { label, server: fresh.label, bag, started: false, frizz: [], operator: [], toolCount: 0, mcpStarts: 0, notes: [], stderr: [] }
+    const reading: Reading = { label, server: fresh.label, bag, started: false, ntwine: [], operator: [], toolCount: 0, mcpStarts: 0, notes: [], stderr: [] }
     try {
       await fresh.resumeThread(threadId, "danger-full-access", bag)
       reading.started = true
@@ -549,7 +549,7 @@ try {
       reading.status = await fresh.run(threadId, label, "true")
     } catch (error) { reading.error = (error as Error).message }
     await sleep(300)
-    reading.frizz = named(label, "frizz")
+    reading.ntwine = named(label, "ntwine")
     reading.operator = named(label, "operator")
     reading.toolCount = callable(label).length
     reading.mcpStarts = mcpStartCount() - startsFrom
@@ -565,28 +565,28 @@ try {
 
   // ==== what held =====================================================================================
   console.log("")
-  const FRIZZ_16 = ALL_TOOLS.map((tool) => `mcp__frizz__${tool}`).sort().join(",")
-  const allSixteen = (reading: Reading) => reading.frizz.map((name) => name.replace("mcp__frizz.", "mcp__frizz__")).sort().join(",") === FRIZZ_16
-  finding("1. control: a thread with no MCP keys on the pre-update app-server can call all 16 frizz tools", control.started && allSixteen(control), control.frizz)
+  const NTWINE_16 = ALL_TOOLS.map((tool) => `mcp__ntwine__${tool}`).sort().join(",")
+  const allSixteen = (reading: Reading) => reading.ntwine.map((name) => name.replace("mcp__ntwine.", "mcp__ntwine__")).sort().join(",") === NTWINE_16
+  finding("1. control: a thread with no MCP keys on the pre-update app-server can call all 16 ntwine tools", control.started && allSixteen(control), control.ntwine)
   finding("   and a second control after every arm still can: no arm changed the process's mount", allSixteen(controlAfter))
   finding("   the operator's own config.toml server is there in every thread that started", readings.filter((reading) => reading.started).every((reading) => reading.operator.length === 16))
   const e = preArms["enabled-false"]!
-  finding("2. `\"mcp_servers.frizz.enabled\": false` on the pre-update app-server: thread/start succeeds and no frizz tool is callable", e.started && e.frizz.length === 0, e.frizz)
-  finding("2. and no frizz MCP process is started for it (the one start is the operator's)", e.mcpStarts === 1)
+  finding("2. `\"mcp_servers.ntwine.enabled\": false` on the pre-update app-server: thread/start succeeds and no ntwine tool is callable", e.started && e.ntwine.length === 0, e.ntwine)
+  finding("2. and no ntwine MCP process is started for it (the one start is the operator's)", e.mcpStarts === 1)
   const p = postArms["enabled-false"]!
-  finding("3. on the post-update app-server, `enabled: false` ALONE is REFUSED by thread/start: \"invalid transport in `mcp_servers.frizz`\"",
-    !p.started && /invalid transport/.test(p.error ?? "") && /mcp_servers\.frizz/.test(p.error ?? ""), p.error ?? "it started")
+  finding("3. on the post-update app-server, `enabled: false` ALONE is REFUSED by thread/start: \"invalid transport in `mcp_servers.ntwine`\"",
+    !p.started && /invalid transport/.test(p.error ?? "") && /mcp_servers\.ntwine/.test(p.error ?? ""), p.error ?? "it started")
   finding("3. and nothing else says so: no stderr line, no notification", p.stderr.length === 0 && p.notes.length === 0, { stderr: p.stderr, notes: p.notes })
-  finding("3. post-update control: no frizz tool without any bag", postControl.started && postControl.frizz.length === 0, postControl.frizz)
-  const outcome = (reading: Reading) => (reading.started ? (reading.frizz.length ? "frizz tools ON" : "frizz tools OFF") : "REFUSED")
+  finding("3. post-update control: no ntwine tool without any bag", postControl.started && postControl.ntwine.length === 0, postControl.ntwine)
+  const outcome = (reading: Reading) => (reading.started ? (reading.ntwine.length ? "ntwine tools ON" : "ntwine tools OFF") : "REFUSED")
   const expected: Record<string, [string, string]> = {
-    "enabled-false": ["frizz tools OFF", "REFUSED"],
+    "enabled-false": ["ntwine tools OFF", "REFUSED"],
     "enabled-false-nested": ["REFUSED", "REFUSED"],
-    "enabled-tools-empty": ["frizz tools OFF", "REFUSED"],
-    "disabled-tools-all": ["frizz tools OFF", "REFUSED"],
-    "frizz-empty-table": ["REFUSED", "REFUSED"],
-    "servers-empty-table": ["frizz tools OFF", "frizz tools OFF"],
-    "enabled-false-with-command": ["frizz tools OFF", "frizz tools OFF"],
+    "enabled-tools-empty": ["ntwine tools OFF", "REFUSED"],
+    "disabled-tools-all": ["ntwine tools OFF", "REFUSED"],
+    "ntwine-empty-table": ["REFUSED", "REFUSED"],
+    "servers-empty-table": ["ntwine tools OFF", "ntwine tools OFF"],
+    "enabled-false-with-command": ["ntwine tools OFF", "ntwine tools OFF"],
   }
   for (const spelling of spellings) {
     const [onPre, onPost] = expected[spelling.label]!
@@ -594,17 +594,17 @@ try {
       outcome(preArms[spelling.label]!) === onPre && outcome(postArms[spelling.label]!) === onPost,
       `measured: pre ${outcome(preArms[spelling.label]!)}, post ${outcome(postArms[spelling.label]!)}`)
   }
-  finding("4. `enabled_tools: []` and `disabled_tools` hide the tools but STILL START the frizz process; the others start none",
+  finding("4. `enabled_tools: []` and `disabled_tools` hide the tools but STILL START the ntwine process; the others start none",
     preArms["enabled-tools-empty"]!.mcpStarts === 2 && preArms["disabled-tools-all"]!.mcpStarts === 2
       && ["enabled-false", "servers-empty-table", "enabled-false-with-command"].every((label) => preArms[label]!.mcpStarts === 1),
     Object.fromEntries(spellings.map((spelling) => [spelling.label, preArms[spelling.label]!.mcpStarts])))
   finding("   the argv's top-level `default_tools_approval_mode` is IGNORED by 0.161.0, with a warning notification on every thread",
     control.notes.some((note) => note.startsWith("warning ") && note.includes("`default_tools_approval_mode` is ignored")))
   for (const spelling of carried) {
-    finding(`5. ${JSON.stringify(spelling.bag)}: resumed on a fresh pre-update app-server WITH the bag re-sent, still no frizz tool`,
-      resumed[spelling.label]!.started && resumed[spelling.label]!.frizz.length === 0, resumed[spelling.label]!.frizz)
-    finding(`5. ${JSON.stringify(spelling.bag)}: a spawn_agent child of that thread has no frizz tool either`,
-      children[spelling.label]!.started && children[spelling.label]!.frizz.length === 0, children[spelling.label]!.frizz)
+    finding(`5. ${JSON.stringify(spelling.bag)}: resumed on a fresh pre-update app-server WITH the bag re-sent, still no ntwine tool`,
+      resumed[spelling.label]!.started && resumed[spelling.label]!.ntwine.length === 0, resumed[spelling.label]!.ntwine)
+    finding(`5. ${JSON.stringify(spelling.bag)}: a spawn_agent child of that thread has no ntwine tool either`,
+      children[spelling.label]!.started && children[spelling.label]!.ntwine.length === 0, children[spelling.label]!.ntwine)
   }
   finding("5. control: the resumed no-bag thread gets all 16 back from the argv mount", allSixteen(resumed.control!))
   finding("5. a thread that hid them, resumed WITHOUT its bag, gets all 16 back: the switch is not in the rollout", allSixteen(resumed.withoutBag!))
@@ -612,15 +612,15 @@ try {
 
   for (const shape of ["pre", "post"] as const) {
     const { reading, slug, marker } = shipped[shape]!
-    const requests = seen.filter((request) => request.url === "/_frizz/proj-1/rpc/setOwnThreadTitle" && request.body?.title === `Probe ${slug}`)
-    finding(`6. ${shape}-update app-server, the shipped bag: thread/start succeeds, no frizz tool is callable and no frizz process starts (the operator's one does)`,
-      reading.started && reading.frizz.length === 0 && reading.operator.length === 16 && reading.mcpStarts === 1, reading.error ?? { frizz: reading.frizz, mcpStarts: reading.mcpStarts })
-    finding(`6. ${shape}-update app-server: bare \`frizzctl title\` resolves to this checkout's command, exits 0, and Frizz gets ONE setOwnThreadTitle as ${slug}`,
-      marker.includes(`resolved=${join(cli.binDir, "frizzctl")}`) && /\nexit=0/.test(marker) && requests.length === 1 && requests[0]!.body.slug === slug,
+    const requests = seen.filter((request) => request.url === "/_ntwine/proj-1/rpc/setOwnThreadTitle" && request.body?.title === `Probe ${slug}`)
+    finding(`6. ${shape}-update app-server, the shipped bag: thread/start succeeds, no ntwine tool is callable and no ntwine process starts (the operator's one does)`,
+      reading.started && reading.ntwine.length === 0 && reading.operator.length === 16 && reading.mcpStarts === 1, reading.error ?? { ntwine: reading.ntwine, mcpStarts: reading.mcpStarts })
+    finding(`6. ${shape}-update app-server: bare \`ntwinectl title\` resolves to this checkout's command, exits 0, and Ntwine gets ONE setOwnThreadTitle as ${slug}`,
+      marker.includes(`resolved=${join(cli.binDir, "ntwinectl")}`) && /\nexit=0/.test(marker) && requests.length === 1 && requests[0]!.body.slug === slug,
       requests.map((request) => request.body))
   }
   console.log("\n======== summary ========")
-  for (const reading of readings) console.log(`${reading.label.padEnd(30)} ${reading.server.padEnd(10)} start=${reading.started ? "ok" : "REFUSED"} frizz=${reading.frizz.length} operator=${reading.operator.length} tools=${reading.toolCount} mcpStarts=${reading.mcpStarts}${reading.error ? ` error=${reading.error}` : ""}`)
+  for (const reading of readings) console.log(`${reading.label.padEnd(30)} ${reading.server.padEnd(10)} start=${reading.started ? "ok" : "REFUSED"} ntwine=${reading.ntwine.length} operator=${reading.operator.length} tools=${reading.toolCount} mcpStarts=${reading.mcpStarts}${reading.error ? ` error=${reading.error}` : ""}`)
   console.log(`\nshell tool the mock called: ${[...shellToolsUsed].join(", ")}`)
   console.log(`MCP starts, with the slug each was given: ${existsSync(mcpStarts) ? readFileSync(mcpStarts, "utf8").trim().split("\n").join(" ") : "(none)"}`)
   for (const server of servers) if (server.serverRequests.length) console.log(`app-server ${server.label} sent requests the probe refused: ${server.serverRequests.join(", ")}`)
@@ -632,7 +632,7 @@ try {
   for (const server of servers) if (server.stderr.trim()) console.error(`\napp-server ${server.label} stderr (tail):\n${server.stderr.slice(-3_000)}`)
 } finally {
   for (const server of servers) await server.stop()
-  for (const server of [mock, fakeFrizz]) await new Promise<void>((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()) })
+  for (const server of [mock, fakeNtwine]) await new Promise<void>((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()) })
   console.log(`\n${harnessError ? "THE PROBE COULD NOT FINISH" : drift === 0 ? "EVERY READING IS AS RECORDED" : `${drift} READING(S) DIFFER FROM THE RECORD`}`)
   process.exit(harnessError ? 2 : drift === 0 ? 0 : 1)
 }

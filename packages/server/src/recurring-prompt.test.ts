@@ -57,11 +57,11 @@ test("fold: the normalized event path derives ALLDONE from the final text too", 
 })
 
 function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-stophook-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-stophook-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "stophook-t"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -126,7 +126,7 @@ test("storage: a null prompt clears the whole row, and a stale session/generatio
 })
 
 // ---- The worker's own path to the same row ------------------------------------------------------
-// `mcp__frizz__goal` writes by SLUG ALONE, with no session/generation guard, because the MCP server
+// `mcp__ntwine__goal` writes by SLUG ALONE, with no session/generation guard, because the MCP server
 // cannot satisfy one: it is spawned with its thread's slug and keeps it across every resume while the
 // session id bumps underneath. These pin that the unguarded path behaves identically to the operator's
 // on everything EXCEPT the guard — same generation semantics, same clear.
@@ -135,7 +135,7 @@ test("storage: the worker path writes by slug alone, across a session change the
   try {
     // A resume: the row now belongs to a new session and generation, exactly as after a restart.
     f.storage.upsertSession({
-      slug: f.slug, session_id: "sid-2", thread_name: `frizz-${f.slug}`, spawned_at: new Date().toISOString(),
+      slug: f.slug, session_id: "sid-2", thread_name: `ntwine-${f.slug}`, spawned_at: new Date().toISOString(),
       last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
       title: f.slug, state: "open", meta: null, seen_at: null, transcript_id: null,
     } as SessionRow)
@@ -196,15 +196,15 @@ function scheduler(
   tele: Partial<SessionTelemetry>,
   opts: { lastFiredAt?: string; now?: () => number } = {},
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-hb-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-hb-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "hooked"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
-  // Frizz's built-in sign-off reminder (SOURCE 9) now fires on EVERY fenceless rest, independently of
+  // Ntwine's built-in sign-off reminder (SOURCE 9) now fires on EVERY fenceless rest, independently of
   // the Goal — so it would add a second delivery to every count in this file. Silenced so these stay
   // about the Goal; the reminder has signoff-nudge.test.ts.
   storage.setSetting("signoffNudge", "off")
@@ -220,8 +220,8 @@ function scheduler(
     tailer: {
       get: () => ({
         turn: "idle", lastActivityAt: "2026-08-02T00:00:00.000Z",
-        // The AGENT spoke last — the shape of a real rest, and the one thing frizz cannot fake, since
-        // frizz only ever speaks as the user. Without it the trigger cannot tell "you stopped" from
+        // The AGENT spoke last — the shape of a real rest, and the one thing ntwine cannot fake, since
+        // ntwine only ever speaks as the user. Without it the trigger cannot tell "you stopped" from
         // "nothing is happening", which is how a worker-less thread was bumped every tick.
         lastAssistantAt: "2026-08-02T00:00:00.000Z",
         subAgents: [], bgShells: [], pendingQuestion: false, permPrompt: false,
@@ -305,12 +305,12 @@ test("heartbeat: live sub-agents and background shells are IRRELEVANT to firing"
 })
 
 // THE LOOP THIS TRIGGER SHIPPED WITH FOR MONTHS, and which only became dangerous when every dispatched
-// thread started carrying a Goal. Frizz speaks as the USER, so its own bump lands in the transcript and
+// thread started carrying a Goal. Ntwine speaks as the USER, so its own bump lands in the transcript and
 // advances `lastActivityAt` — the field the delivery id used to key on — minting a "rest" nobody rested.
 // A thread whose worker is gone stays idle forever, so it was bumped every tick: 10 in 100 seconds,
 // measured on a real stack. `turn === "idle"` cannot tell "you stopped" from "nothing is happening";
 // only the agent having spoken LAST can.
-test("a thread whose last word is frizz's own bump is not bumped again", async () => {
+test("a thread whose last word is ntwine's own bump is not bumped again", async () => {
   const h = scheduler({
     lastAssistantAt: "2026-08-02T00:00:00.000Z",
     lastUserAt: "2026-08-02T00:00:30.000Z", // the bump landed after the agent's last word
@@ -349,7 +349,7 @@ test("an awaiting fence on a PR the scheduler is watching holds the bump", async
   const h = scheduler({ lastFence: awaiting({ kind: "pr", value: "colinhacks/zod#6382" }) }, { now: at("2026-08-02T00:00:05.000Z") })
   try {
     // REGISTERED, which is what makes a wake actually coming. Since 2026-08-14 the fence line alone arms
-    // nothing — `mcp__frizz__watch_pr` does — so the hold reads the registry rather than the hint.
+    // nothing — `mcp__ntwine__watch_pr` does — so the hold reads the registry rather than the hint.
     h.storage.armPrWatch({ id: "prw_1", slug: h.slug, owner: "colinhacks", repo: "zod", number: 6382, createdAtMs: 1, expiresAtMs: Date.parse("2099-01-01T00:00:00.000Z") })
     await h.s.tick()
     assert.deepEqual(h.delivered, [], "the waker already owns this thread's next wake")
@@ -363,11 +363,11 @@ function heartbeatScheduler(
   tele: Partial<SessionTelemetry>,
   opts: { intervalMs?: number; armedAt?: string; lastFiredAt?: string; now?: () => number; tailerMiss?: boolean } = {},
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-beat-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-beat-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "beating"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -559,17 +559,17 @@ function compactScheduler(
   tele: Partial<SessionTelemetry>,
   opts: { armedAt?: string; now?: () => number } = {},
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-compact-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-compact-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const slug = "compacting"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
   storage.setSetting("signoffNudge", "off")
   storage.setRecurringPromptBySlug(slug, {
-    prompt: "Re-read .frizz/threads/sid/plan.md before continuing",
+    prompt: "Re-read .ntwine/threads/sid/plan.md before continuing",
     stopHook: false, heartbeat: false, postCompaction: true,
     intervalMs: null, armedAt: opts.armedAt ?? "2026-08-02T00:00:00.000Z",
   })
@@ -581,8 +581,8 @@ function compactScheduler(
     tailer: {
       get: () => ({
         turn: "idle", lastActivityAt: "2026-08-02T00:00:00.000Z",
-        // The AGENT spoke last — the shape of a real rest, and the one thing frizz cannot fake, since
-        // frizz only ever speaks as the user. Without it the trigger cannot tell "you stopped" from
+        // The AGENT spoke last — the shape of a real rest, and the one thing ntwine cannot fake, since
+        // ntwine only ever speaks as the user. Without it the trigger cannot tell "you stopped" from
         // "nothing is happening", which is how a worker-less thread was bumped every tick.
         lastAssistantAt: "2026-08-02T00:00:00.000Z",
         subAgents: [], bgShells: [], pendingQuestion: false, permPrompt: false,
@@ -600,7 +600,7 @@ test("post-compaction: a compaction after arming delivers the linked doc, once, 
   try {
     await h.s.tick()
     assert.equal(h.delivered.length, 1)
-    assert.match(h.delivered[0], /Re-read \.frizz\/threads\/sid\/plan\.md before continuing/)
+    assert.match(h.delivered[0], /Re-read \.ntwine\/threads\/sid\/plan\.md before continuing/)
     // The trailer is what tells the worker WHERE it is; the rest trigger's "sent each time you come to
     // rest" would be a lie here, and the chat parses these two apart into different dividers.
     assert.match(h.delivered[0], /your context was just compacted/)
@@ -662,7 +662,7 @@ test("post-compaction: switching the trigger off supersedes a queued delivery", 
   const h = compactScheduler({ lastCompactionAt: "2026-08-02T01:00:00.000Z" })
   try {
     h.storage.setRecurringPromptBySlug(h.slug, {
-      prompt: "Re-read .frizz/threads/sid/plan.md before continuing",
+      prompt: "Re-read .ntwine/threads/sid/plan.md before continuing",
       stopHook: false, heartbeat: false, postCompaction: false,
       intervalMs: null, armedAt: "2026-08-02T00:00:00.000Z",
     })
@@ -681,7 +681,7 @@ test("post-compaction: switching the trigger off supersedes a queued delivery", 
 // could just drop the AutonomousMode toggle… If somebody enables the stop hook goal, then that kind of
 // implies to me that they don't really want to answer any more questions."
 //
-// WHAT SURVIVES is the fence rule and only the fence rule: a ```done, or an ```awaiting on a wake frizz
+// WHAT SURVIVES is the fence rule and only the fence rule: a ```done, or an ```awaiting on a wake ntwine
 // itself will deliver, still holds the stop hook — pinned by the test below, which is also this section's
 // failing control. Without it these tests would pass against a scheduler that had simply started firing
 // at everything.
@@ -703,7 +703,7 @@ test("stop hook: a rest that ends in a question fence is bumped", async () => {
 })
 
 // The extra clause is for the crossing ONLY. A worker bumped on an ordinary rest is mid-work and has no
-// question outstanding; telling it not to re-ask one would be frizz inventing a state it is not in.
+// question outstanding; telling it not to re-ask one would be ntwine inventing a state it is not in.
 test("stop hook: an ordinary rest is bumped with the plain trailer", async () => {
   const quiet = scheduler({ pendingQuestion: false }, { now: at("2026-08-02T00:00:05.000Z") })
   try {
@@ -714,7 +714,7 @@ test("stop hook: an ordinary rest is bumped with the plain trailer", async () =>
 })
 
 // THE FENCE RULE IS UNTOUCHED, and this is the section's failing control: `done` is the loop's off switch,
-// and a park on a wake frizz itself will deliver is a duplicate wake rather than a rescue. Neither became
+// and a park on a wake ntwine itself will deliver is a duplicate wake rather than a rescue. Neither became
 // negotiable when the question hold was deleted — they answer the trigger's own question rather than
 // saying who is waiting on whom.
 test("stop hook: dropping the question hold does NOT reopen the done fence or a scheduler-owned park", async () => {
@@ -724,7 +724,7 @@ test("stop hook: dropping the question hold does NOT reopen the done fence or a 
     assert.deepEqual(done.delivered, [], "a finished thread is finished")
   } finally { done.close() }
 
-  // A REAL park: the fence names a shell this thread actually has running, so frizz can see the wait is
+  // A REAL park: the fence names a shell this thread actually has running, so ntwine can see the wait is
   // honest. (It used to name a `human:` gate — that kind is deleted, and a name matching nothing live is
   // no longer a park at all, so the case has to be built out of something checkable.)
   const parked = scheduler({
@@ -734,12 +734,12 @@ test("stop hook: dropping the question hold does NOT reopen the done fence or a 
   }, { now: at("2026-08-02T00:00:05.000Z") })
   try {
     await parked.s.tick()
-    assert.deepEqual(parked.delivered, [], "bumping a park frizz can verify is measured harm")
+    assert.deepEqual(parked.delivered, [], "bumping a park ntwine can verify is measured harm")
   } finally { parked.close() }
 })
 
 // THE VERB IS THE FENCE'S EQUAL HERE, and it has to be. Since 2026-08-27 a worker signs off by calling
-// `mcp__frizz__done`, and a tool call cannot write the tailer's `lastFence` — so without the registry
+// `mcp__ntwine__done`, and a tool call cannot write the tailer's `lastFence` — so without the registry
 // read in `threadSaidDone` the arrangement outlived the sign-off it exists to end, and a worker that
 // used the verb instead of the fence was woken at every rest forever by a Goal it had finished with.
 test("stop hook: a REGISTERED done ends the arrangement exactly as the fence does", async () => {

@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { GITHUB_DISPATCH_UI_BOUNDARY } from "@frizz/shared"
+import { GITHUB_DISPATCH_UI_BOUNDARY } from "@ntwine/shared"
 import {
   reactionCount,
   commentCount,

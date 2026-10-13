@@ -27,14 +27,14 @@ const PNG_1x1 = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HA
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.href)
-  if (url.pathname === "/_frizz/local-image") {
+  if (url.pathname === "/_ntwine/local-image") {
     return new Response(PNG_1x1, { headers: { "content-type": "image/png" } })
   }
-  if (url.pathname === "/_frizz/rpc/openLocalFile") {
+  if (url.pathname === "/_ntwine/rpc/openLocalFile") {
     ;(window as Window & { __openedLocalPath?: string }).__openedLocalPath =
       JSON.parse((init?.body as string) ?? "{}").path
     return new Response(JSON.stringify({ result: { action: "opened", path: "opened" } }), {
-      headers: { "content-type": "application/json", "x-frizz-boot": "attach-fixture" },
+      headers: { "content-type": "application/json", "x-ntwine-boot": "attach-fixture" },
     })
   }
   return nativeFetch(input, init)
@@ -50,11 +50,11 @@ window.fetch = async (input, init) => {
 // are seen as their two FALLBACKS (see the PNG note above); the frames themselves need a real stack.
 const message = [
   "Please review these attachments before we start.",
-  "/tmp/frizz-att/spec-notes.pdf",
-  "/tmp/frizz-att/diagram.png",
-  "/tmp/frizz-att/logo.svg",
+  "/tmp/ntwine-att/spec-notes.pdf",
+  "/tmp/ntwine-att/diagram.png",
+  "/tmp/ntwine-att/logo.svg",
   "And the same picture again, written as Markdown rather than as a bare path:",
-  "![the same diagram, via markdown](/tmp/frizz-att/diagram.png)",
+  "![the same diagram, via markdown](/tmp/ntwine-att/diagram.png)",
   "Here is the file listing I ran:",
   "```",
   "/Users/foo/project/src/main.rs",

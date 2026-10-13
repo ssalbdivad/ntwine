@@ -1,12 +1,12 @@
 // WHERE A SANDBOX'S DATABASE IS — the one answer, for every seed and verify script.
 //
-// Frizz kept one SQLite file per project until 2026-08-27 (`~/.frizz/projects/<id>/ui.db`); the
+// Ntwine kept one SQLite file per project until 2026-08-27 (`~/.ntwine/projects/<id>/ui.db`); the
 // singleton made that a vestige of the one-server-per-repo era and it became ONE file for the machine
-// at `~/.frizz/ui.db`, every row tagged with its `project_id` (packages/server/src/frizz-db.ts).
+// at `~/.ntwine/ui.db`, every row tagged with its `project_id` (packages/server/src/ntwine-db.ts).
 //
 // Fifty-three scripts under `scripts/` each carried their own hand-written copy of the old path — three
 // different spellings of it — so the cutover moved the database and left every one of them throwing
-// "no ui.db under …/.frizz/projects — is the stack booted?" against any current sandbox. That is the
+// "no ui.db under …/.ntwine/projects — is the stack booted?" against any current sandbox. That is the
 // same failure as the awaiting card's two renderers, one layer down: a fact duplicated by hand in N
 // places, and the source of truth moved out from under all of them. The fix is not to sweep the new
 // path into fifty-three files, which rebuilds the problem — it is for the fact to have one home.
@@ -36,14 +36,14 @@ import { basename, join } from "node:path"
  */
 export function resolveSandboxDb(home) {
   if (!home) throw new Error("resolveSandboxDb: no --home given")
-  const unifiedDb = join(home, ".frizz/ui.db")
+  const unifiedDb = join(home, ".ntwine/ui.db")
   const unified = existsSync(unifiedDb)
-  const db = unified ? unifiedDb : globSync(join(home, ".frizz/projects/*/ui.db"))[0]
-  if (!db) throw new Error(`no ui.db under ${home}/.frizz — is the stack booted?`)
+  const db = unified ? unifiedDb : globSync(join(home, ".ntwine/projects/*/ui.db"))[0]
+  if (!db) throw new Error(`no ui.db under ${home}/.ntwine — is the stack booted?`)
   // The broker records, sockets and per-project state live under `projects/<id>/` in BOTH layouts; only
   // the database moved. Under the legacy one that directory is the database's own parent.
-  const stateDir = unified ? globSync(join(home, ".frizz/projects/*"))[0] : join(db, "..")
-  if (!stateDir) throw new Error(`no project state dir under ${home}/.frizz/projects — is the stack booted?`)
+  const stateDir = unified ? globSync(join(home, ".ntwine/projects/*"))[0] : join(db, "..")
+  if (!stateDir) throw new Error(`no project state dir under ${home}/.ntwine/projects — is the stack booted?`)
   const projectId = basename(stateDir)
   const hasProjectId = execFileSync("sqlite3", [db, "PRAGMA table_info(session)"], { encoding: "utf8" }).includes("|project_id|")
   return { db, stateDir, projectId, hasProjectId, unified }

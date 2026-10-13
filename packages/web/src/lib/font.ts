@@ -5,7 +5,7 @@ export function initFont() {
   document.body.style.fontFamily =
     'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
   try {
-    localStorage.removeItem("frizz-font")
+    localStorage.removeItem("ntwine-font")
   } catch {
     // Typography does not depend on browser storage.
   }

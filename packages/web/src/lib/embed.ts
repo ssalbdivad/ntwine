@@ -22,7 +22,7 @@ import {
   type EmbedSurface,
   type EmbedTheme,
   type EmbedThemeColors,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
 // THE PAGE INSIDE AN EDITOR'S SIDEBAR — embed mode's state and its wire (packages/shared/src/
 // embed-protocol.ts is the contract; design in ARCHITECTURE.md § VS Code extension). The VS Code
@@ -41,7 +41,7 @@ import {
 // This module is the state and the pure halves, with no app imports, so the theme module, the layout
 // hook and the link interceptors can all ask `embedded()` without an import cycle through the store.
 
-const SESSION_KEY = "frizz.embed"
+const SESSION_KEY = "ntwine.embed"
 
 export interface EmbedState {
   /** The host framing this page; the only one there is. */
@@ -52,7 +52,7 @@ export interface EmbedState {
   palette?: HostPalette
 }
 
-/** The editor's colours as the page holds them: `frizz:theme`'s `colors`, `surface` and `contrast`, checked. */
+/** The editor's colours as the page holds them: `ntwine:theme`'s `colors`, `surface` and `contrast`, checked. */
 export interface HostPalette {
   colors: EmbedThemeColors
   surface?: EmbedSurface
@@ -135,7 +135,7 @@ export function embedPalette(): HostPalette | undefined {
   return load()?.palette
 }
 
-/** A `frizz:theme` from the host: kept for a reload of this frame, never in localStorage. */
+/** A `ntwine:theme` from the host: kept for a reload of this frame, never in localStorage. */
 export function rememberEmbedTheme(theme: EmbedTheme, palette?: HostPalette): void {
   const current = load()
   if (!current) return
@@ -153,7 +153,7 @@ export function postToHost(message: EmbedPageMessage): void {
   window.parent.postMessage(message, "*")
 }
 
-export const EMBED_READY: EmbedPageMessage = { type: "frizz:ready", v: EMBED_PROTOCOL_VERSION }
+export const EMBED_READY: EmbedPageMessage = { type: "ntwine:ready", v: EMBED_PROTOCOL_VERSION }
 
 /**
  * Where to run a command the page asks the human to run "in a terminal" (sign-in, `gh auth login`): in
@@ -186,20 +186,20 @@ function nonEmpty(value: unknown, max: number): value is string {
  */
 export function parseHostMessage(data: unknown): EmbedHostMessage | null {
   if (!isRecord(data)) return null
-  if (data.type === "frizz:theme") {
+  if (data.type === "ntwine:theme") {
     const theme = parseTheme(data.theme)
     if (!theme) return null
     const palette = parsePalette(data)
-    return palette ? { type: "frizz:theme", theme, ...palette } : { type: "frizz:theme", theme }
+    return palette ? { type: "ntwine:theme", theme, ...palette } : { type: "ntwine:theme", theme }
   }
-  if (data.type === "frizz:navigate") {
+  if (data.type === "ntwine:navigate") {
     const to = data.to
-    if (to === "queue") return { type: "frizz:navigate", to }
+    if (to === "queue") return { type: "ntwine:navigate", to }
     if (!isRecord(to) || !nonEmpty(to.project, 200)) return null
-    if (to.thread === undefined) return { type: "frizz:navigate", to: { project: to.project } }
-    return nonEmpty(to.thread, 200) ? { type: "frizz:navigate", to: { thread: to.thread, project: to.project } } : null
+    if (to.thread === undefined) return { type: "ntwine:navigate", to: { project: to.project } }
+    return nonEmpty(to.thread, 200) ? { type: "ntwine:navigate", to: { thread: to.thread, project: to.project } } : null
   }
-  if (data.type === "frizz:compose") {
+  if (data.type === "ntwine:compose") {
     const { id, item, target, focus } = data
     if (!nonEmpty(id, 200) || typeof focus !== "boolean" || !isRecord(item)) return null
     if (!nonEmpty(item.path, EDITOR_MAX_PATH) || typeof item.app !== "string") return null
@@ -208,12 +208,12 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
     if (!optionalLine(item.startLine) || !optionalLine(item.endLine)) return null
     const { note } = data
     if (note !== undefined && (typeof note !== "string" || note.length > EMBED_MAX_NOTE)) return null
-    let to: Extract<EmbedHostMessage, { type: "frizz:compose" }>["target"]
+    let to: Extract<EmbedHostMessage, { type: "ntwine:compose" }>["target"]
     if (target === "front" || target === "new") to = target
     else if (isRecord(target) && nonEmpty(target.thread, 200) && nonEmpty(target.project, 200)) to = { thread: target.thread, project: target.project }
     else return null
     return {
-      type: "frizz:compose",
+      type: "ntwine:compose",
       id,
       item: {
         path: item.path,
@@ -228,7 +228,7 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
       ...(note ? { note: note.replace(/\s+/g, " ") } : {}),
     }
   }
-  if (data.type === "frizz:editor-context") {
+  if (data.type === "ntwine:editor-context") {
     const { active, open } = data
     if (!Array.isArray(open) || open.length > EMBED_MAX_OPEN_FILES) return null
     const files: EmbedEditorFile[] = []
@@ -237,7 +237,7 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
       if (!file) return null
       files.push(file)
     }
-    if (active === null) return { type: "frizz:editor-context", active: null, open: files }
+    if (active === null) return { type: "ntwine:editor-context", active: null, open: files }
     const base = editorFile(active)
     if (!base || !isRecord(active)) return null
     // The flags the block reads (an untitled buffer, unsaved changes, text withheld): `true` or absent, as
@@ -254,7 +254,7 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
       // The caret's line rides only a file with nothing selected; a bad one is dropped with the message,
       // like any other field that is not the contract's.
       if (!optionalLine(cursorLine)) return null
-      return { type: "frizz:editor-context", active: { ...file, ...(cursorLine !== undefined ? { cursorLine: cursorLine as number } : {}) }, open: files }
+      return { type: "ntwine:editor-context", active: { ...file, ...(cursorLine !== undefined ? { cursorLine: cursorLine as number } : {}) }, open: files }
     }
     if (!isRecord(selection)) return null
     const { startLine, endLine, chars, text } = selection
@@ -266,20 +266,20 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
     if (text !== undefined && (typeof text !== "string" || text.length > EMBED_MAX_SELECTION_TEXT)) return null
     if (flags.withheld && text !== undefined) return null
     return {
-      type: "frizz:editor-context",
+      type: "ntwine:editor-context",
       active: { ...file, selection: { startLine: startLine as number, endLine: endLine as number, chars: chars as number, ...(text !== undefined ? { text: text as string } : {}) } },
       open: files,
     }
   }
-  if (data.type === "frizz:host-state") {
+  if (data.type === "ntwine:host-state") {
     const { shareEditor, altK } = data
-    return typeof shareEditor === "boolean" && typeof altK === "boolean" ? { type: "frizz:host-state", shareEditor, altK } : null
+    return typeof shareEditor === "boolean" && typeof altK === "boolean" ? { type: "ntwine:host-state", shareEditor, altK } : null
   }
-  if (data.type === "frizz:command") {
+  if (data.type === "ntwine:command") {
     const { command } = data
-    return HOST_COMMANDS.has(command as EmbedCommandMessage["command"]) ? { type: "frizz:command", command: command as EmbedCommandMessage["command"] } : null
+    return HOST_COMMANDS.has(command as EmbedCommandMessage["command"]) ? { type: "ntwine:command", command: command as EmbedCommandMessage["command"] } : null
   }
-  if (data.type === "frizz:context-picks") {
+  if (data.type === "ntwine:context-picks") {
     const { id, files } = data
     if (!nonEmpty(id, 200) || !Array.isArray(files) || files.length > EMBED_MAX_PICKS) return null
     const picked: EmbedPickedFile[] = []
@@ -288,11 +288,11 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
       if (!file || !isRecord(entry) || (entry.folder !== undefined && entry.folder !== true)) return null
       picked.push(entry.folder ? { ...file, folder: true } : file)
     }
-    return { type: "frizz:context-picks", id, files: picked }
+    return { type: "ntwine:context-picks", id, files: picked }
   }
-  if (data.type === "frizz:editor-extras") {
+  if (data.type === "ntwine:editor-extras") {
     const { problems, terminal } = data
-    const out: EmbedEditorExtrasMessage = { type: "frizz:editor-extras" }
+    const out: EmbedEditorExtrasMessage = { type: "ntwine:editor-extras" }
     if (problems !== undefined) {
       if (!isRecord(problems) || !nonEmpty(problems.label, EDITOR_MAX_PATH)) return null
       const counts = [problems.errors, problems.warnings, problems.infos]
@@ -313,7 +313,7 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
 
 const HOST_COMMANDS = new Set<EmbedCommandMessage["command"]>(["new-thread", "queue", "jump", "settings", "shortcuts", "prompt"])
 
-/** One open file of a `frizz:editor-context`, with only the contract's fields, or null. */
+/** One open file of a `ntwine:editor-context`, with only the contract's fields, or null. */
 function editorFile(value: unknown): EmbedEditorFile | null {
   if (!isRecord(value) || !nonEmpty(value.path, EDITOR_MAX_PATH) || !nonEmpty(value.label, EDITOR_MAX_PATH)) return null
   if (value.projectId !== undefined && !nonEmpty(value.projectId, 200)) return null
@@ -340,7 +340,7 @@ function editingChord(event: KeyLike): boolean {
 }
 
 /**
- * The `frizz:key` for a keydown, or null when it is not the host's: no Ctrl or Cmd held, a page handler
+ * The `ntwine:key` for a keydown, or null when it is not the host's: no Ctrl or Cmd held, a page handler
  * already took it, a bare modifier, an auto-repeat (holding ⌘⇧P must not open the palette forty times),
  * mid-IME composition, or an editing chord (above). Nothing is prevented here: a chord the host ignores
  * (Ctrl+← in a text box, Ctrl+Shift+C) must still do what it does natively.
@@ -348,5 +348,5 @@ function editingChord(event: KeyLike): boolean {
 export function hostKeyChord(event: KeyLike): EmbedKeyMessage | null {
   if (!(event.ctrlKey || event.metaKey) || event.defaultPrevented || event.repeat || event.isComposing) return null
   if (MODIFIER_KEYS.has(event.key) || editingChord(event)) return null
-  return { type: "frizz:key", key: event.key, code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey }
+  return { type: "ntwine:key", key: event.key, code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey }
 }

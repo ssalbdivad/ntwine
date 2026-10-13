@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * frizz — status-vocab normalization + reconcile forcing-function tests.
+ * ntwine — status-vocab normalization + reconcile forcing-function tests.
  * Run with: `node --test 'board/*.test.mjs'`.
  *
  * Covers the two coupled changes:
@@ -136,7 +136,7 @@ test('reconcileBackstopMin: default, config override, and bad values fall back',
 });
 
 test('writeLastReconcile/readLastReconcile round-trip; absent reads null', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-reconcile-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-reconcile-'));
   try {
     assert.equal(readLastReconcile(dir), null, 'absent → null');
     const ts = 1_700_000_000_000;
@@ -149,11 +149,11 @@ test('writeLastReconcile/readLastReconcile round-trip; absent reads null', () =>
 
 // ── end-to-end: legacy `todo`/`needs-decision` normalize through the board read path ─────
 test('board --json: legacy `todo`→planned; `needs-decision`→needs-human (human-blocked)', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-board-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-board-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
-    writeFileSync(join(dir, '.frizz', 'legacy-todo.md'), '---\ntitle: t\nstatus: todo\n---\nbody\n');
-    writeFileSync(join(dir, '.frizz', 'legacy-nd.md'), '---\ntitle: n\nstatus: needs-decision\nstatus_text: "the open question"\n---\nbody\n');
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
+    writeFileSync(join(dir, '.ntwine', 'legacy-todo.md'), '---\ntitle: t\nstatus: todo\n---\nbody\n');
+    writeFileSync(join(dir, '.ntwine', 'legacy-nd.md'), '---\ntitle: n\nstatus: needs-decision\nstatus_text: "the open question"\n---\nbody\n');
     const out = execFileSync(process.execPath, [INDEX, '--json'], {
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: 'utf8',
@@ -171,11 +171,11 @@ test('board --json: legacy `todo`→planned; `needs-decision`→needs-human (hum
 
 // ── needs-human as a first-class status through the board read + validator ──
 test('board --json: a canonical needs-human thread emits status needs-human + humanBlocked; missing status_text errors', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-nh-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-nh-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
-    writeFileSync(join(dir, '.frizz', 'ask.md'), '---\ntitle: a\nstatus: needs-human\nstatus_text: "approve the API shape?"\n---\nbody\n');
-    writeFileSync(join(dir, '.frizz', 'noask.md'), '---\ntitle: n\nstatus: needs-human\n---\nbody\n');
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
+    writeFileSync(join(dir, '.ntwine', 'ask.md'), '---\ntitle: a\nstatus: needs-human\nstatus_text: "approve the API shape?"\n---\nbody\n');
+    writeFileSync(join(dir, '.ntwine', 'noask.md'), '---\ntitle: n\nstatus: needs-human\n---\nbody\n');
     const out = execFileSync(process.execPath, [INDEX, '--json'], { env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8' });
     const { threads, errors } = JSON.parse(out);
     const byId = Object.fromEntries(threads.map((t) => [t.id, t]));
@@ -189,21 +189,21 @@ test('board --json: a canonical needs-human thread emits status needs-human + hu
   }
 });
 
-// ── block-form deps: board + `frizz decisions` agree (parseDeps, not a flat read) ──
-test('block-form blocking_threads → machine-blocked (NOT needs-human), excluded from `frizz decisions`', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-bf-'));
+// ── block-form deps: board + `ntwine decisions` agree (parseDeps, not a flat read) ──
+test('block-form blocking_threads → machine-blocked (NOT needs-human), excluded from `ntwine decisions`', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-bf-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
     // A YAML BLOCK-form dep list (not inline `[..]`) + status blocked → a MACHINE wait.
-    writeFileSync(join(dir, '.frizz', 'blockform.md'), '---\ntitle: b\nstatus: blocked\nstatus_text: "waiting on dep"\nblocking_threads:\n  - dep-thread\n---\n## Next step\nwait\n');
-    writeFileSync(join(dir, '.frizz', 'dep-thread.md'), '---\ntitle: d\nstatus: active\nstatus_text: "on it"\n---\n## Next step\ngo\n');
-    writeFileSync(join(dir, '.frizz', 'ask.md'), '---\ntitle: a\nstatus: needs-human\nstatus_text: "which default?"\n---\n## Next step\nask\n');
+    writeFileSync(join(dir, '.ntwine', 'blockform.md'), '---\ntitle: b\nstatus: blocked\nstatus_text: "waiting on dep"\nblocking_threads:\n  - dep-thread\n---\n## Next step\nwait\n');
+    writeFileSync(join(dir, '.ntwine', 'dep-thread.md'), '---\ntitle: d\nstatus: active\nstatus_text: "on it"\n---\n## Next step\ngo\n');
+    writeFileSync(join(dir, '.ntwine', 'ask.md'), '---\ntitle: a\nstatus: needs-human\nstatus_text: "which default?"\n---\n## Next step\nask\n');
     // Board (parseDeps, block-form aware): the block-form thread is machine-`blocked`, not needs-human.
     const board = JSON.parse(execFileSync(process.execPath, [INDEX, '--json'], { env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8' }));
     const byId = Object.fromEntries(board.threads.map((t) => [t.id, t]));
     assert.equal(byId['blockform'].status, 'blocked', 'block-form deps → machine-blocked, not needs-human');
     assert.equal(byId['blockform'].humanBlocked, false);
-    // `frizz decisions` (decisions.mjs, now parseDeps-based) must AGREE: exclude the block-form thread,
+    // `ntwine decisions` (decisions.mjs, now parseDeps-based) must AGREE: exclude the block-form thread,
     // include the canonical needs-human one.
     const dec = execFileSync(process.execPath, [DECISIONS], { env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8' });
     assert.doesNotMatch(dec, /\[blockform\]/, 'a block-form machine-blocked thread is NOT a pending decision');
@@ -215,15 +215,15 @@ test('block-form blocking_threads → machine-blocked (NOT needs-human), exclude
 
 // ── STRUCTURED errorItems: the --json branch classifies a missing-frontmatter file as REPAIRABLE ──
 test('board --json: errorItems classifies a no-frontmatter file as `no-frontmatter`, others as `other`', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-erritems-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-erritems-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
     // The incident shape: metadata in bold prose, NO YAML frontmatter → repairable.
-    writeFileSync(join(dir, '.frizz', 'no-fm.md'), '**Status: DONE**\n\nbody with no frontmatter\n');
+    writeFileSync(join(dir, '.ntwine', 'no-fm.md'), '**Status: DONE**\n\nbody with no frontmatter\n');
     // A well-formed thread but with an INVALID status → an error, but NOT frontmatter-repairable.
-    writeFileSync(join(dir, '.frizz', 'bad-status.md'), '---\ntitle: b\nstatus: bogus\nstatus_text: "x"\n---\nbody\n');
+    writeFileSync(join(dir, '.ntwine', 'bad-status.md'), '---\ntitle: b\nstatus: bogus\nstatus_text: "x"\n---\nbody\n');
     // A clean thread → no error item at all.
-    writeFileSync(join(dir, '.frizz', 'ok.md'), '---\ntitle: o\nstatus: active\nstatus_text: "fine"\n---\n## Next step\ngo\n');
+    writeFileSync(join(dir, '.ntwine', 'ok.md'), '---\ntitle: o\nstatus: active\nstatus_text: "fine"\n---\n## Next step\ngo\n');
     const board = JSON.parse(execFileSync(process.execPath, [INDEX, '--json'], { env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8' }));
     assert.ok(Array.isArray(board.errorItems), 'errorItems is emitted as an array');
     const byFile = Object.fromEntries(board.errorItems.map((e) => [e.file, e]));
@@ -240,11 +240,11 @@ test('board --json: errorItems classifies a no-frontmatter file as `no-frontmatt
 
 // ── `activity` (the UI listing-row gerund gloss) passes through --json, distinct from status_text ──
 test('board --json: `activity` frontmatter passes through; absent → undefined; distinct from status_text', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-activity-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-activity-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
-    writeFileSync(join(dir, '.frizz', 'has-activity.md'), '---\ntitle: h\nstatus: active\nstatus_text: "full board gloss"\nactivity: "Awaiting CI on PR #391"\n---\nbody\n');
-    writeFileSync(join(dir, '.frizz', 'no-activity.md'), '---\ntitle: n\nstatus: active\nstatus_text: "just a gloss"\n---\nbody\n');
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
+    writeFileSync(join(dir, '.ntwine', 'has-activity.md'), '---\ntitle: h\nstatus: active\nstatus_text: "full board gloss"\nactivity: "Awaiting CI on PR #391"\n---\nbody\n');
+    writeFileSync(join(dir, '.ntwine', 'no-activity.md'), '---\ntitle: n\nstatus: active\nstatus_text: "just a gloss"\n---\nbody\n');
     const out = execFileSync(process.execPath, [INDEX, '--json'], {
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: 'utf8',
@@ -260,13 +260,13 @@ test('board --json: `activity` frontmatter passes through; absent → undefined;
 
 // ── derived `hasPlan` (a `## Plan` section) passes through --json — NO frontmatter flag ──
 test('board --json: `hasPlan` is derived from a `## Plan` body section; validator ignores it', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-hasplan-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-hasplan-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
     // A design thread with a `## Plan` section → hasPlan true. Heading match is word-bounded.
-    writeFileSync(join(dir, '.frizz', 'with-plan.md'), '---\ntitle: w\nstatus: planning\nstatus_text: "designing"\n---\n## Goal\ng\n\n## Plan\n1. do a thing\n');
+    writeFileSync(join(dir, '.ntwine', 'with-plan.md'), '---\ntitle: w\nstatus: planning\nstatus_text: "designing"\n---\n## Goal\ng\n\n## Plan\n1. do a thing\n');
     // No `## Plan` section → hasPlan false. A `## Planning` heading must NOT count (word boundary).
-    writeFileSync(join(dir, '.frizz', 'no-plan.md'), '---\ntitle: n\nstatus: active\nstatus_text: "building"\n---\n## Planning notes\nnope\n');
+    writeFileSync(join(dir, '.ntwine', 'no-plan.md'), '---\ntitle: n\nstatus: active\nstatus_text: "building"\n---\n## Planning notes\nnope\n');
     const out = execFileSync(process.execPath, [INDEX, '--json'], { env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8' });
     const byId = Object.fromEntries(JSON.parse(out).threads.map((t) => [t.id, t]));
     assert.equal(byId['with-plan'].hasPlan, true, '`## Plan` section → hasPlan true');
@@ -281,15 +281,15 @@ test('board --json: `hasPlan` is derived from a `## Plan` body section; validato
 
 // ── 2026-07-01 unified model: the ⚖ queue is HUMAN-blocked; machine-blocked renders LAST ──
 test('board: ⚖ hoists human-blocked (no machine field); machine-blocked renders LAST', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-vocab-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-vocab-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
     // human-blocked — no blocking_threads / revalidate_at → the ⚖ awaiting-you queue.
-    writeFileSync(join(dir, '.frizz', 'decide.md'), '---\ntitle: d\nstatus: blocked\nstatus_text: "which default?"\n---\n## Next step\nask\n');
-    writeFileSync(join(dir, '.frizz', 'build.md'), '---\ntitle: b\nstatus: active\nstatus_text: "on it"\n---\n## Next step\ngo\n');
+    writeFileSync(join(dir, '.ntwine', 'decide.md'), '---\ntitle: d\nstatus: blocked\nstatus_text: "which default?"\n---\n## Next step\nask\n');
+    writeFileSync(join(dir, '.ntwine', 'build.md'), '---\ntitle: b\nstatus: active\nstatus_text: "on it"\n---\n## Next step\ngo\n');
     // machine-blocked — waits on a still-active thread → rendered in the blocked group, NOT ⚖.
-    writeFileSync(join(dir, '.frizz', 'dep.md'), '---\ntitle: dep\nstatus: active\nstatus_text: "running"\n---\n## Next step\ngo\n');
-    writeFileSync(join(dir, '.frizz', 'wait.md'), '---\ntitle: w\nstatus: blocked\nstatus_text: "waiting on dep"\nblocking_threads: [dep]\n---\n## Next step\nwait\n');
+    writeFileSync(join(dir, '.ntwine', 'dep.md'), '---\ntitle: dep\nstatus: active\nstatus_text: "running"\n---\n## Next step\ngo\n');
+    writeFileSync(join(dir, '.ntwine', 'wait.md'), '---\ntitle: w\nstatus: blocked\nstatus_text: "waiting on dep"\nblocking_threads: [dep]\n---\n## Next step\nwait\n');
     const out = execFileSync(process.execPath, [INDEX], { env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8' });
     // The ⚖ awaiting-you queue is needs-human only — decide (legacy blocked-no-field) is in, wait is NOT.
     assert.match(out, /⚖ awaiting you \(1\) — needs-human/);

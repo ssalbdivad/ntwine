@@ -1,21 +1,21 @@
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
-import type { ThreadWorkingDir, TranscriptMessage, WorkCheckout } from "@frizz/shared"
+import type { ThreadWorkingDir, TranscriptMessage, WorkCheckout } from "@ntwine/shared"
 import { isDirectory } from "./path-probe.ts"
 
 // WHERE A THREAD IS WORKING NOW — the folder a terminal opened on it starts in (thread-terminals.ts).
 //
-// Frizz records only where a thread was LAUNCHED (project.ts workDirOf), and that stops being the answer
-// the moment an agent moves: Frizz deliberately stays out of the worktree decision, so an agent that
-// wants isolation makes its own worktree (`git worktree add .frizz/worktrees/x`, Claude Code's
+// Ntwine records only where a thread was LAUNCHED (project.ts workDirOf), and that stops being the answer
+// the moment an agent moves: Ntwine deliberately stays out of the worktree decision, so an agent that
+// wants isolation makes its own worktree (`git worktree add .ntwine/worktrees/x`, Claude Code's
 // EnterWorktree) and works there. A terminal that opened in the project root then ran `npm test` against
 // the wrong checkout — Colin's objection to the standalone Terminal tab upstream. So the terminal asks
 // the agent's OWN latest reading of where it is:
 //
 //   CLAUDE — every transcript record carries the session's `cwd`, and it moves. Checked against real
 //     transcripts on 2026-09-29 (~/.claude/projects): a Bash `cd` into a folder inside the project
-//     moves it and keeps it moved (e.g. `cd .frizz/worktrees/pre-queue-check` → every later record's
+//     moves it and keeps it moved (e.g. `cd .ntwine/worktrees/pre-queue-check` → every later record's
 //     `cwd` is that worktree); a `cd` OUTSIDE the project does not stick, because Claude Code resets the
 //     shell to the project and says so; and EnterWorktree moves it for the rest of the session (a live
 //     `claude -p` run: `cwd` went from the repo to `<repo>/.claude/worktrees/probe` on the first record
@@ -34,7 +34,7 @@ import { isDirectory } from "./path-probe.ts"
 
 // WHERE A SHELL STARTS when its command opens with a `cd`. The launch record's `cwd` is where the SESSION
 // was; `cd /home/ssalb/frizz/packages/web && nubx vite` runs the server somewhere else, and a worktree
-// shell is very often exactly `cd .frizz/worktrees/x && …`. Deliberately NARROW: one leading `cd` to a
+// shell is very often exactly `cd .ntwine/worktrees/x && …`. Deliberately NARROW: one leading `cd` to a
 // literal path, then `&&` or `;`. A bare token with no `$`, backtick, glob or subshell character, or the
 // same wrapped in plain quotes; `~` is the home folder and a relative path resolves against `base`.
 // Anything cleverer (`cd "$D"`, `pushd`, a `cd` mid-command, a subshell) answers undefined and the shell

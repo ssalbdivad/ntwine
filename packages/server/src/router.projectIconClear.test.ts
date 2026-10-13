@@ -16,8 +16,8 @@ const LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect 
  * run rewrites the maintainer's own registry. node's runner gives each test FILE its own process.
  */
 function homeSandbox(t: { after: (fn: () => void) => void }): { home: string; dir: string } {
-  const home = mkdtempSync(join(tmpdir(), "frizz-icon-clear-"))
-  mkdirSync(join(home, ".frizz"), { recursive: true })
+  const home = mkdtempSync(join(tmpdir(), "ntwine-icon-clear-"))
+  mkdirSync(join(home, ".ntwine"), { recursive: true })
   const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE }
   process.env.HOME = home
   process.env.USERPROFILE = home
@@ -27,8 +27,8 @@ function homeSandbox(t: { after: (fn: () => void) => void }): { home: string; di
     rmSync(home, { recursive: true, force: true })
   })
   const dir = join(home, "code", "keyward")
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", ".id"), `${A}\n`)
   registerProject({ dir, id: A }, home)
   return { home, dir }
 }

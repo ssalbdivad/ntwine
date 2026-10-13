@@ -4,9 +4,9 @@ import { mkdirSync } from "node:fs"
 
 // Real server, real transcript, real file reads; only the absent launcher status probe is stubbed.
 // Boot scripts/adhoc-stack.mjs, then scripts/seed-file-panel-stack.mjs --home=<its HOME>.
-// FRIZZ_FILE_STACK_E2E_URL=http://127.0.0.1:<port> nub --test <this file>
-const baseUrl = process.env.FRIZZ_FILE_STACK_E2E_URL
-const shots = process.env.FRIZZ_FILE_STACK_SHOTS
+// NTWINE_FILE_STACK_E2E_URL=http://127.0.0.1:<port> nub --test <this file>
+const baseUrl = process.env.NTWINE_FILE_STACK_E2E_URL
+const shots = process.env.NTWINE_FILE_STACK_SHOTS
 
 test("full-screen file links push readers and Escape restores the reader underneath", { skip: !baseUrl, timeout: 120_000 }, async () => {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -18,7 +18,7 @@ test("full-screen file links push readers and Escape restores the reader underne
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
     await page.setRequestInterception(true)
     page.on("request", (r) => {
-      if (new URL(r.url()).pathname === "/_frizz/control/status") {
+      if (new URL(r.url()).pathname === "/_ntwine/control/status") {
         void r.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ protocol: 1, state: "ready", updateRestart: false }) })
       } else void r.continue()
     })
@@ -99,15 +99,15 @@ test("full-screen file links push readers and Escape restores the reader underne
       // Shrinking uses the existing Markdown drawers without destroying the hidden split stack.
       await page.setViewport({ width: 390, height: 844 })
       await page.click(firstLink)
-      await page.waitForSelector(".frizz-sheet-panel .md-body [data-local-path]")
-      await page.waitForFunction(() => [...document.querySelectorAll(".frizz-sheet-panel")].every((el) => el.classList.contains("translate-x-0") && el.getAnimations().length === 0))
-      await page.click('.frizz-sheet-panel [data-local-path$="/second.md"]')
-      await page.waitForFunction(() => document.querySelectorAll(".frizz-sheet-panel").length === 2)
+      await page.waitForSelector(".ntwine-sheet-panel .md-body [data-local-path]")
+      await page.waitForFunction(() => [...document.querySelectorAll(".ntwine-sheet-panel")].every((el) => el.classList.contains("translate-x-0") && el.getAnimations().length === 0))
+      await page.click('.ntwine-sheet-panel [data-local-path$="/second.md"]')
+      await page.waitForFunction(() => document.querySelectorAll(".ntwine-sheet-panel").length === 2)
       await page.keyboard.press("Escape")
-      await page.waitForFunction(() => document.querySelectorAll(".frizz-sheet-panel").length === 1)
+      await page.waitForFunction(() => document.querySelectorAll(".ntwine-sheet-panel").length === 1)
       if (shots) await page.screenshot({ path: `${shots}/file-stack-narrow-${width}.png` })
       await page.keyboard.press("Escape")
-      await page.waitForFunction(() => !document.querySelector(".frizz-sheet-panel"))
+      await page.waitForFunction(() => !document.querySelector(".ntwine-sheet-panel"))
       assert.equal(await page.$$eval(slot, (els) => els.length), 1, "drawers unwind before split readers")
       await page.setViewport({ width, height: 900 })
       await page.keyboard.press("Escape")

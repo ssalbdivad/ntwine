@@ -14,7 +14,7 @@ import { createClaudeQueryFactory } from "./claude-agent-sdk.ts"
 import type { ClaudePermissionRequest, ClaudePermissionDecision, ClaudeQueryEvent } from "./claude-agent-sdk-protocol.ts"
 
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
-const cwd = mkdtempSync(join(tmpdir(), "frizz-sdk-perm-"))
+const cwd = mkdtempSync(join(tmpdir(), "ntwine-sdk-perm-"))
 execFileSync("git", ["init", "-q", cwd])
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }

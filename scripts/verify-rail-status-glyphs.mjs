@@ -118,7 +118,7 @@ try {
   // attribute, every lookup below found the FIRST `snoozed` twice and the alarm clock was never measured
   // — it printed the hourglass's numbers under its own row. The fixture wraps each slot in a
   // `title`, so that is the name; the calibration span has none and keeps its attribute.
-  const sizes = await page.$$eval("[data-rail-glyph] svg, [data-rail-glyph] .frizz-rail-dot", (marks) =>
+  const sizes = await page.$$eval("[data-rail-glyph] svg, [data-rail-glyph] .ntwine-rail-dot", (marks) =>
     marks.map((s) => {
       const host = s.closest("[data-rail-glyph]")
       return { name: host.closest("[title]")?.getAttribute("title") ?? host.getAttribute("data-rail-glyph"), w: s.getBoundingClientRect().width }
@@ -144,7 +144,7 @@ try {
     await mark.evaluate((root) => {
       for (const el of [root, ...root.querySelectorAll("*")]) el.style.borderColor = "transparent"
       const frames = [...root.querySelectorAll('svg[viewBox="0 0 15 15"]')]
-      const inner = [...root.querySelectorAll("svg, .frizz-rail-dot, .frizz-rail-glyph")].filter((el) => !frames.includes(el))
+      const inner = [...root.querySelectorAll("svg, .ntwine-rail-dot, .ntwine-rail-glyph")].filter((el) => !frames.includes(el))
       if (inner.length) for (const f of frames) f.style.visibility = "hidden"
     })
     await new Promise((r) => setTimeout(r, 60))

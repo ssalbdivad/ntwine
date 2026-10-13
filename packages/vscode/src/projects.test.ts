@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { EditorProject } from "@frizz/shared/editor-protocol"
+import type { EditorProject } from "@ntwine/shared/editor-protocol"
 import { projectForPath, relativeWithin, workspaceProjects } from "./projects.ts"
 
 const identity = (path: string) => path
@@ -33,7 +33,7 @@ test("Home is last: it takes only what no registered project holds, however deep
 })
 
 test("a file opened through a symlink matches the project by its real path, and says so", () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-vscode-projects-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-vscode-projects-")))
   try {
     mkdirSync(join(root, "real", "proj", "src"), { recursive: true })
     writeFileSync(join(root, "real", "proj", "src", "a.ts"), "")

@@ -10,7 +10,7 @@
 //
 // Proves, against a real session driven through the real bridge + a real InteractionStore:
 //   1. AskUserQuestion reaches canUseTool at all (the cc-worker PreToolUse deny hook stands down when
-//      FRIZZ_NATIVE_ASK=1, which the bridge stamps whenever a store is wired)
+//      NTWINE_NATIVE_ASK=1, which the bridge stamps whenever a store is wired)
 //   2. it is journaled as an `agent-question` interaction — NOT "Approve AskUserQuestion?" — with one
 //      select/multi-select field per question, carrying the real options
 //   3. resolving with `answer` returns {questions, answers} and the model RECEIVES the chosen labels
@@ -25,7 +25,7 @@ import Database from "../sqlite.ts"
 import { createInteractionStore } from "../interaction-store.ts"
 import { createClaudeAgentBrokerBridge } from "./claude-agent-broker-bridge.ts"
 import { readClaudeBrokerDiagnostics } from "./claude-broker-diagnostics.ts"
-import type { InteractionRecord } from "@frizz/shared"
+import type { InteractionRecord } from "@ntwine/shared"
 
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const stateDir = mkdtempSync(join(tmpdir(), "ask-state-"))
@@ -42,7 +42,7 @@ const slug = "ask-live"
 const sessionId = randomUUID()
 const scope = { projectId, threadSlug: slug, sessionId }
 
-// The worker plugin is what makes this a REAL frizz worker session: its PreToolUse hook is the thing
+// The worker plugin is what makes this a REAL ntwine worker session: its PreToolUse hook is the thing
 // that used to deny AskUserQuestion outright, so pointing at it is load-bearing, not decoration.
 const pluginDir = join(import.meta.dirname, "..", "..", "..", "..", "..", "cc-worker")
 ok("cc-worker plugin dir resolves (the deny-ask hook is in play)", existsSync(join(pluginDir, "hooks", "deny-ask.mjs")), pluginDir)

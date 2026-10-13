@@ -5,12 +5,12 @@ it. One wildcard DNS record covers every name, so a claim creates no infrastruct
 what removed the 200-name ceiling the original tunnel design could never get past.
 
 It runs during signup and never again. **It is not on the data plane** — a board that is already
-running keeps working whether or not this Worker is up, and nothing in Frizz has to reach it to stay
+running keeps working whether or not this Worker is up, and nothing in Ntwine has to reach it to stay
 reachable. Protect that property above anything else here.
 
 ## How a name is owned
 
-A name belongs to whoever holds an Ed25519 private key, kept at `identity.key` under Frizz's state root (`~/.frizz/` on an install that has that directory, the platform's state directory otherwise) on the
+A name belongs to whoever holds an Ed25519 private key, kept at `identity.key` under Ntwine's state root (`~/.ntwine/` on an install that has that directory, the platform's state directory otherwise) on the
 claiming machine. Every claim is signed; the signature covers the public key, so a request cannot be
 re-attributed by swapping it. Ownership moves between machines the way an SSH key does: copy the file.
 
@@ -18,11 +18,11 @@ re-attributed by swapping it. Ownership moves between machines the way an SSH ke
 registrar recognizes that shape and waives the GitHub gate. Unauthenticated creation is capped at 10
 names an hour per network address, and renewals never count against it.
 
-**Claiming a custom name also needs a GitHub account, and that is the only thing standing between this and a squatter.** The CLI signs the person in through GitHub's device flow against Frizz's own OAuth App, which requests no scopes, and sends the resulting token with the first claim. The registrar spends it on `api.github.com/user`, keeps the numeric id and discards the token. One name per account, and an account younger than 30 days cannot claim. Nothing afterwards touches GitHub — the keypair alone renews the lease, so a name keeps working whether or not GitHub does. Set `REQUIRE_GITHUB=0` to lift the gate on a test deployment; never on the one anybody can reach.
+**Claiming a custom name also needs a GitHub account, and that is the only thing standing between this and a squatter.** The CLI signs the person in through GitHub's device flow against Ntwine's own OAuth App, which requests no scopes, and sends the resulting token with the first claim. The registrar spends it on `api.github.com/user`, keeps the numeric id and discards the token. One name per account, and an account younger than 30 days cannot claim. Nothing afterwards touches GitHub — the keypair alone renews the lease, so a name keeps working whether or not GitHub does. Set `REQUIRE_GITHUB=0` to lift the gate on a test deployment; never on the one anybody can reach.
 
 **Only a token with no scopes is accepted.** Until 2026-10-08 the CLI sent its `gh auth token`, which can push to every repository its owner can, and a compromised build of this Worker collected those tokens. The verifier (`githubVerifier` in [`worker.ts`](src/worker.ts)) now refuses, as `github-token-scoped`, any token that is not an OAuth App user token (`gho_…`) without sending it anywhere, and any token whose `X-OAuth-Scopes` header lists a scope. An old CLI is told to update.
 
-The OAuth App's client id lives in [`src/github-device-flow.ts`](../../src/github-device-flow.ts) (`FRIZZ_GITHUB_CLIENT_ID`; the `FRIZZ_GITHUB_CLIENT_ID` environment variable overrides it). It is public, and device flow needs no client secret, so this Worker holds no GitHub credential at all.
+The OAuth App's client id lives in [`src/github-device-flow.ts`](../../src/github-device-flow.ts) (`NTWINE_GITHUB_CLIENT_ID`; the `NTWINE_GITHUB_CLIENT_ID` environment variable overrides it). It is public, and device flow needs no client secret, so this Worker holds no GitHub credential at all.
 
 A name is a **30-day lease**, renewed on every launch. An unrenewed name is released — on demand when
 someone else asks for it, and by a daily sweep for names nobody wants.
@@ -44,7 +44,7 @@ The registry is one KV namespace, created once and already in `wrangler.toml`. T
 Three things that will waste your time otherwise:
 
 - **A WORKERS ROUTE BEATS A CUSTOM DOMAIN.** The relay owns `*.frizz.sh/*`, which swallowed
-  `registrar.frizz.sh` the day it shipped and took signup down — the wildcard answered "No Frizz board
+  `registrar.frizz.sh` the day it shipped and took signup down — the wildcard answered "No Ntwine board
   has claimed this name." to every claim. `wrangler.toml` therefore declares BOTH the custom domain and
   a more specific `registrar.frizz.sh/*` route; the route is what wins. Do not remove either.
 - **The deploy exits 1 unless the token can read Workers Routes.** Wrangler reconciles routes *after*
@@ -52,14 +52,14 @@ Three things that will waste your time otherwise:
   a failed deploy. Add **Zone → Workers Routes → Edit** to the token for a clean exit.
 - **Deleting a secret needs `--name`.** Plain `wrangler secret delete X --force` prints usage and
   silently does nothing, so a temporary override outlives the test that set it. Use
-  `wrangler secret delete X --name frizz-registrar`, then `wrangler secret list --name frizz-registrar`
+  `wrangler secret delete X --name ntwine-registrar`, then `wrangler secret list --name ntwine-registrar`
   to confirm.
 
-Then point the CLI at it. The default is `https://registrar.frizz.sh`; override with `FRIZZ_REGISTRAR`
+Then point the CLI at it. The default is `https://registrar.frizz.sh`; override with `NTWINE_REGISTRAR`
 to test against a deployment before it takes that name.
 
 ```sh
-FRIZZ_REGISTRAR=https://frizz-registrar.<subdomain>.workers.dev frizz --cloud
+NTWINE_REGISTRAR=https://ntwine-registrar.<subdomain>.workers.dev ntwine --cloud
 ```
 
 ## The limits that shape this

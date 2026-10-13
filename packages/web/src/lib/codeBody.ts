@@ -74,7 +74,7 @@ function escapeHtml(text: string): string {
     char === "&" ? "&amp;" : char === "<" ? "&lt;" : char === ">" ? "&gt;" : char === '"' ? "&quot;" : "&#39;")
 }
 
-export const CODE_GUTTER_CLASS = "frizz-code-gutter"
+export const CODE_GUTTER_CLASS = "ntwine-code-gutter"
 
 // The markup for one code body. `language` is the grammar to use; "plaintext" escapes and returns the
 // text unchanged, which is the honest result for anything we have no grammar for.

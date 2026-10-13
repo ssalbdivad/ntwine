@@ -10,7 +10,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { NEEDS_INPUT_REQUIRED_AT, parseCommandWatchWake } from "@frizz/shared"
+import { NEEDS_INPUT_REQUIRED_AT, parseCommandWatchWake } from "@ntwine/shared"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
 import { createScheduler, MID_TURN_HOLD_MAX_MS } from "./scheduler.ts"
 import { deriveAwaitingBackground, deriveNeedsYou, deriveWaitStatus } from "./board.ts"
@@ -23,7 +23,7 @@ const NEW_CONTRACT = new Date(Date.parse(NEEDS_INPUT_REQUIRED_AT) + 60_000).toIS
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-10-11T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-10-11T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
     backend: "claude", permission_mode: "bypassPermissions", ...over,
@@ -60,7 +60,7 @@ function fakeService() {
 }
 
 function harness() {
-  const storage: Storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-cmw-sched-")), "ui.db"), "p")
+  const storage: Storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-cmw-sched-")), "ui.db"), "p")
   const teleMap = new Map<string, SessionTelemetry>()
   const tailer: Tailer = {
     get: (slug: string) => teleMap.get(slug), foreignIds: () => [], subAgent: () => undefined,
@@ -173,7 +173,7 @@ test("expiry kills a check in flight, settles the watch and wakes the worker onc
   assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "expired", id })
   assert.match(h.resumes[0].message, /Its last check exited 1, ending:/)
   assert.match(h.resumes[0].message, /npm error 404/)
-  assert.match(h.resumes[0].message, /`frizzctl watch-command add`/)
+  assert.match(h.resumes[0].message, /`ntwinectl watch-command add`/)
   h.clock.ms += 60_000
   await h.cycle()
   assert.equal(h.resumes.length, 1)
@@ -305,7 +305,7 @@ test("a rest on `commands:` naming an ARMED watch is honoured; an unknown id is 
   h.tele.set("t", parkedOn([{ kind: "command", value: "cmw_000000000bad" }, { kind: "status", value: "watching" }, { kind: "for", value: "6h" }], new Date(h.clock.ms - 30_000).toISOString()))
   await h.s.tick()
   assert.equal(h.resumes.length, 1)
-  assert.match(h.resumes[0].message, /`commands: \[cmw_000000000bad\]` — NOT REGISTERED — register it with `frizzctl watch-command add` first/)
+  assert.match(h.resumes[0].message, /`commands: \[cmw_000000000bad\]` — NOT REGISTERED — register it with `ntwinectl watch-command add` first/)
   // …and the correction hands back the id it should have named.
   assert.ok(h.resumes[0].message.includes(id))
   await h.s.stop()

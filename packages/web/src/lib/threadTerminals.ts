@@ -1,4 +1,4 @@
-import type { ThreadTerminal, ThreadView } from "@frizz/shared"
+import type { ThreadTerminal, ThreadView } from "@ntwine/shared"
 
 // A THREAD'S TERMINALS — ptys the human opened on a thread, running in the folder its agent works in
 // (server thread-terminals.ts). They are not threads: no row, no card of their own. They ride
@@ -12,7 +12,7 @@ export function terminalStateLabel(terminal: ThreadTerminal): string {
   if (terminal.state === "running" && terminal.awaitingInput) return "waiting for input"
   if (terminal.state === "running") return "running"
   if (terminal.stopped) return "stopped"
-  // No code means the server went away under the process (a Frizz restart takes its children with it).
+  // No code means the server went away under the process (a Ntwine restart takes its children with it).
   if (terminal.exitCode === undefined) return "interrupted"
   return terminal.exitCode === 0 ? "finished" : `exit ${terminal.exitCode}`
 }

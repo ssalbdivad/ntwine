@@ -6,12 +6,12 @@ import { acquireNamedLaunchLockSync, readGitProjectId, validateProjectId } from 
 
 // WHAT A PROJECT IS, WITHOUT ASKING GIT.
 //
-// Frizz used to define a project as a Git repository: the root came from `rev-parse --show-toplevel`
-// and the id from `git config --local frizz.id`. That made Git a hard requirement to LAUNCH, which
-// contradicts the product's own position — Frizz has no opinion about version control — and locked
+// Ntwine used to define a project as a Git repository: the root came from `rev-parse --show-toplevel`
+// and the id from `git config --local ntwine.id`. That made Git a hard requirement to LAUNCH, which
+// contradicts the product's own position — Ntwine has no opinion about version control — and locked
 // out anyone on jj (a non-colocated repo has no `.git` at all), hg, or nothing.
 //
-// So the id lives in the project instead, at `.frizz/.id`, beside the scratchpads Frizz already
+// So the id lives in the project instead, at `.ntwine/.id`, beside the scratchpads Ntwine already
 // writes there. Two of the four properties `git config` was buying (project-identity.ts) come free
 // that way: a directory that MOVES keeps its id because the id moved with it, and an alias resolves
 // to the same id because it resolves to the same directory. The other two — atomic creation under a
@@ -19,18 +19,18 @@ import { acquireNamedLaunchLockSync, readGitProjectId, validateProjectId } from 
 // and by the walk-up below.
 //
 // THE ONE HAZARD, AND WHY IT IS NOT ONE. Unlike `git config --local`, a file in the working tree can
-// be committed, and two clones of that repo on one machine would then share an id. `.frizz/.gitignore`
+// be committed, and two clones of that repo on one machine would then share an id. `.ntwine/.gitignore`
 // containing `*` removes that outright: the directory ignores ITSELF and everything under it, so
 // `git add -A` cannot stage any of it (verified in a repo with no top-level .gitignore at all —
 // `git status --porcelain` is empty and `check-ignore` reports the id and the .gitignore as ignored).
 // Writing it is not an opinion about the user's version control, it is the ordinary convention for a
 // tool's own scratch directory: `.venv/.gitignore` and `.swc/.gitignore` are exactly this file.
 
-const FRIZZ_DIR = ".frizz"
+const NTWINE_DIR = ".ntwine"
 const ID_FILE = ".id"
 const SELF_IGNORE = ".gitignore"
 
-/** Any of these makes a directory the project root. A Frizz project wins over the VCS it sits in. */
+/** Any of these makes a directory the project root. A Ntwine project wins over the VCS it sits in. */
 const REPO_MARKERS = [".git", ".jj", ".hg", ".svn"]
 const PROJECT_MARKERS = [
   "package.json",
@@ -47,16 +47,16 @@ const PROJECT_MARKERS = [
 ]
 
 export function projectIdPath(root: string): string {
-  return join(root, FRIZZ_DIR, ID_FILE)
+  return join(root, NTWINE_DIR, ID_FILE)
 }
 
 /** The id recorded in this exact directory, or undefined. A malformed file is refused, never guessed at. */
 /**
- * The id in `.frizz/.id`, and ONLY there.
+ * The id in `.ntwine/.id`, and ONLY there.
  *
  * This is a FILE reader, not the answer to "what id does this project have" — use existingProjectId
  * for that. The distinction is not pedantic: a repository that predates the gitless change carries
- * its id in `git config frizz.id` and has no file at all, so asking this one and treating `undefined`
+ * its id in `git config ntwine.id` and has no file at all, so asking this one and treating `undefined`
  * as "no project" makes an established board look like a brand-new directory. That mistake shipped
  * three times in one change (registry backfill, launch intent, and the grid's add path) and made two
  * of the maintainer's four live projects invisible.
@@ -82,7 +82,7 @@ export function readProjectIdFile(root: string): string | undefined {
  * file or the complete new one, never a half-written id.
  */
 export function writeProjectIdFile(root: string, id: string): string {
-  const dir = join(root, FRIZZ_DIR)
+  const dir = join(root, NTWINE_DIR)
   mkdirSync(dir, { recursive: true })
   // Written before the id, so the id is never briefly visible to `git add -A`.
   const ignore = join(dir, SELF_IGNORE)
@@ -116,12 +116,12 @@ export function projectRootLockName(root: string): string {
 /**
  * The project's durable id, minting one only if the project has never had it.
  *
- * `seed` is the id an existing store already committed to — today that is `git config frizz.id`, so a
+ * `seed` is the id an existing store already committed to — today that is `git config ntwine.id`, so a
  * repository that predates this file ADOPTS its own id rather than being handed a new one and losing
  * its board. Nothing is ever removed from the old store: it stays readable, and stays the answer if
  * this file is deleted.
  *
- * The lock is what makes two `frizz` processes starting at once commit exactly ONE id — the property
+ * The lock is what makes two `ntwine` processes starting at once commit exactly ONE id — the property
  * `git config`'s own lock used to provide, and the one a bare "write if missing" would lose.
  */
 export function ensureProjectIdFile(root: string, home = homedir(), seed?: string): string {
@@ -162,7 +162,7 @@ function hasAny(dir: string, names: readonly string[]): boolean {
  * The project root for `cwd`, without running `git`.
  *
  * Walks UP, because sub-directory equivalence is the property a naive "just use cwd" loses and the
- * one users notice: `frizz` in `~/proj` and in `~/proj/src` must open the same board, not two boards
+ * one users notice: `ntwine` in `~/proj` and in `~/proj/src` must open the same board, not two boards
  * with two thread histories and nothing explaining why.
  *
  * Stops at `$HOME` and never returns it. A stray `~/package.json` would otherwise make a user's whole
@@ -171,9 +171,9 @@ function hasAny(dir: string, names: readonly string[]): boolean {
 /**
  * THE HOME DIRECTORY IS NOT A PROJECT, and adopting it is not merely untidy.
  *
- * Frizz's own global state lives in `~/.frizz` — the registry, every project's state dir, the launch
- * locks. Making $HOME a project writes `~/.frizz/.id` and `~/.frizz/.gitignore` INTO that state
- * root, and from then on the walk-up below finds that `.frizz/.id` from any unmarked directory under
+ * Ntwine's own global state lives in `~/.ntwine` — the registry, every project's state dir, the launch
+ * locks. Making $HOME a project writes `~/.ntwine/.id` and `~/.ntwine/.gitignore` INTO that state
+ * root, and from then on the walk-up below finds that `.ntwine/.id` from any unmarked directory under
  * $HOME, so every one of them resolves to the home "project". That happened (2026-08-06).
  *
  * discoverProjectRoot still ANSWERS with the directory it was given — "where would the root be" has
@@ -201,8 +201,8 @@ export function isHomeDirectory(dir: string, home = homedir()): boolean {
 /**
  * The id this directory ALREADY claims, from either store — or undefined if it claims none.
  *
- * Both stores count, and checking only the file is a bug that has now bitten twice. `.frizz/.id` is
- * where an id lives once a current Frizz has opened the project; `git config frizz.id` is where it
+ * Both stores count, and checking only the file is a bug that has now bitten twice. `.ntwine/.id` is
+ * where an id lives once a current Ntwine has opened the project; `git config ntwine.id` is where it
  * lived before, and a repository that has not been reopened since the gitless change still carries
  * only that. On this machine boron and pullfrog/app were both in that state — established boards with
  * 15 and 85 threads — so a file-only check made them invisible to the registry backfill AND made the
@@ -229,8 +229,8 @@ export function isExistingProjectRoot(dir: string): boolean {
  * Whether this directory is a project in its own right — a VCS checkout, or a language manifest.
  *
  * The markers discoverProjectRoot walks UP for, asked about ONE directory. That is what separates the
- * two cases the launcher has to tell apart: `frizz` in a repository is someone opening that
- * repository, and Frizz adopts it on the spot; `frizz` in `~/Downloads` is a command typed in the
+ * two cases the launcher has to tell apart: `ntwine` in a repository is someone opening that
+ * repository, and Ntwine adopts it on the spot; `ntwine` in `~/Downloads` is a command typed in the
  * wrong terminal, and gets offered rather than adopted. Never a substitute for isHomeDirectory —
  * $HOME frequently carries a marker and is still never a project.
  */
@@ -253,7 +253,7 @@ export function discoverProjectRoot(cwd = process.cwd(), home = homedir()): stri
     // $HOME — the loop simply breaks and the launch directory is returned unchanged. Whether that is
     // adoptable is isHomeDirectory's question, asked by the launcher, not answered here.
     if (at === stop || at === filesystemRoot) break
-    // An existing Frizz project wins over the VCS or manifest it happens to sit in.
+    // An existing Ntwine project wins over the VCS or manifest it happens to sit in.
     if (existsSync(projectIdPath(at))) return at
     if (hasAny(at, REPO_MARKERS)) return at
     if (hasAny(at, PROJECT_MARKERS)) return at
@@ -267,7 +267,7 @@ export function discoverProjectRoot(cwd = process.cwd(), home = homedir()): stri
  *
  * The walk-up above exists so a folder inside a checkout resolves to the checkout instead of
  * fragmenting it, and that reasoning is about directories that are projects IN THEIR OWN RIGHT — a
- * VCS root, a manifest root. An ancestor whose only claim is `.frizz/.id` — an adopted plain
+ * VCS root, a manifest root. An ancestor whose only claim is `.ntwine/.id` — an adopted plain
  * directory, e.g. ~/Documents opened as a project once — is no checkout, and letting it capture a
  * pick turned "add ~/Documents/projects/kirby", a brand-new empty folder, into "reopen documents":
  * the picker navigated to another project's board, and no flow could create the new project at all

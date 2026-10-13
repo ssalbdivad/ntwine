@@ -1,4 +1,4 @@
-// LIVE PROBE: can frizz take BACK a follow-up it already pushed into the Agent SDK, while the queue
+// LIVE PROBE: can ntwine take BACK a follow-up it already pushed into the Agent SDK, while the queue
 // still holds it?  This is the empirical foundation for "click a queued bubble to unqueue it".
 //   nub packages/server/src/backend/_live_sdk_cancel_queued.mts
 //
@@ -13,7 +13,7 @@
 //  3. Does cancelling ONE of two co-queued messages leave the OTHER intact? (the d.ts warns that
 //     cancelling a coalesced batch's representative uuid drops the WHOLE batch)
 //  4. What comes back for a uuid that is NOT in the queue (already delivered / never sent)?
-import { query } from "@frizz/claude-agent-sdk-runtime"
+import { query } from "@ntwine/claude-agent-sdk-runtime"
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
@@ -21,7 +21,7 @@ import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 
 const claude = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
-const cwd = realpathSync(mkdtempSync(join(tmpdir(), "frizz-cancel-")))
+const cwd = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-cancel-")))
 execFileSync("git", ["init", "-q", cwd])
 const env = Object.fromEntries(["PATH", "HOME", "USER", "LANG", "SHELL", "TMPDIR", "CLAUDE_CODE_OAUTH_TOKEN"].filter((k) => process.env[k]).map((k) => [k, process.env[k]!]))
 

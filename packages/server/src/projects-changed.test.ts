@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
-import type { ServerEvent } from "@frizz/shared"
+import type { ServerEvent } from "@ntwine/shared"
 import { Bus } from "./bus.ts"
 import { listProjects, registerProject, registryPath, renameProject, reorderProjects } from "./project-registry.ts"
 import { announceProjectListChanges } from "./projects-changed.ts"
@@ -13,8 +13,8 @@ import { announceProjectListChanges } from "./projects-changed.ts"
 // is the part that matters, since a tab is subscribed to the board it is showing and nothing else.
 
 function sandbox(): { home: string; ids: string[]; cleanup: () => void } {
-  const home = mkdtempSync(join(tmpdir(), "frizz-projects-changed-"))
-  mkdirSync(join(home, ".frizz"), { recursive: true }) // legacy collapse root, so data lands under it
+  const home = mkdtempSync(join(tmpdir(), "ntwine-projects-changed-"))
+  mkdirSync(join(home, ".ntwine"), { recursive: true }) // legacy collapse root, so data lands under it
   const ids = ["alpha", "beta", "gamma"].map((name, index) => {
     const dir = join(home, name)
     mkdirSync(dir)

@@ -7,7 +7,7 @@
 //
 // This drives the REAL pipeline for that fix — JSONL → tailer → transcript → ChatView → /local-image —
 // with a simulated worker, and asserts the five shapes that matter, including the two CONTROLS that
-// must not change. A fixture can't cover this: the frizz server mounts Vite with appType "custom", so
+// must not change. A fixture can't cover this: the ntwine server mounts Vite with appType "custom", so
 // every *.html falls back to index.html and only the real thread route renders a real transcript.
 //
 // Usage: nub scripts/verify-user-attachment-render.mjs --port=4931 --home=/abs/temp-home
@@ -34,7 +34,7 @@ const SESSION_ID = randomUUID()
 const now = new Date().toISOString()
 
 // A real PNG the unconfined /local-image resolver can serve, plus two safe-tier docs for the chips.
-const assets = join(tmpdir(), "frizz-user-attachment-verify")
+const assets = join(tmpdir(), "ntwine-user-attachment-verify")
 mkdirSync(assets, { recursive: true })
 const SHOT = join(assets, "shot.png")
 const PDF = join(assets, "spec.pdf")
@@ -72,7 +72,7 @@ user("No attachments here — just the ordinary bubble, unchanged.")            
 
 writeFileSync(join(logDir, `${SESSION_ID}.jsonl`), records.map((r) => JSON.stringify(r)).join("\n") + "\n")
 
-const threadName = `frizz-${SLUG}`
+const threadName = `ntwine-${SLUG}`
 
 const sandbox = resolveSandboxDb(home)
 const { db } = sandbox
@@ -116,7 +116,7 @@ try {
       chips: all(".local-file-action").map((b) => ({ path: b.dataset.localPath, top: Math.round(rect(b).top), right: Math.round(rect(b).right) })),
       bubbleRights: all(".bg-user-bubble").map((b) => Math.round(rect(b).right)),
       // The FRAME's edge, not the <img>'s. Every rendered image sits in ImageFrame (2026-08-02, 8c3eeb03):
-      // a 1px `frizz-bash` border around a p-1.5 mat, the picture centered inside it. The frame is the
+      // a 1px `ntwine-bash` border around a p-1.5 mat, the picture centered inside it. The frame is the
       // visible object that lines up with the bubble; the <img> sits 7px inside it by design.
       imageRights: all("img[data-local-image]").map((i) => Math.round(rect(i.closest("figure") ?? i).right)),
     }

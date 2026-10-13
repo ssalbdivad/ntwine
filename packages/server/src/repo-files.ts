@@ -7,7 +7,7 @@ import { liftRepoWorktree } from "./thread-cwd.ts"
 //
 // The rail lists what a worker wrote (edited-files.ts). Restricting it to files git is not ignoring is
 // the maintainer's product call (2026-09-04): "it's fine to only track changes that are tracked in git
-// here". The rail becomes an account of work on the REPOSITORY, and a thread's scratch — `.frizz/`
+// here". The rail becomes an account of work on the REPOSITORY, and a thread's scratch — `.ntwine/`
 // notes, plans, research docs — drops out of it along with build output and `node_modules`.
 //
 // It is deliberately a FILTER and never a SOURCE. Attribution stays with the transcript, which is the
@@ -24,10 +24,10 @@ import { liftRepoWorktree } from "./thread-cwd.ts"
 // ignored: build output, `node_modules`, and the thread scratch this rule is aimed at.
 //
 // ASKED OF THE CHECKOUT THE FILE IS IN. A worker that isolates itself works in a linked worktree, and a
-// common place for one is `.frizz/worktrees/<slug>` INSIDE the project — which the project's
-// `.gitignore` ignores, as it ignores all of `.frizz/`. Asked in the project root, `check-ignore` read
+// common place for one is `.ntwine/worktrees/<slug>` INSIDE the project — which the project's
+// `.gitignore` ignores, as it ignores all of `.ntwine/`. Asked in the project root, `check-ignore` read
 // every file of every worktree thread as ignored, so the rail of a thread that worked in one was empty
-// (review-final #11, 2026-10-02: 22 of 144 sessions in a week ran in `.frizz/worktrees`). The worktree is
+// (review-final #11, 2026-10-02: 22 of 144 sessions in a week ran in `.ntwine/worktrees`). The worktree is
 // a checkout of the same repository with its own ignore rules applied from its own root, so each path is
 // probed there: grouped by the worktree that holds it (thread-cwd.ts liftRepoWorktree — only a worktree
 // of the PROJECT'S repository, so an unrelated clone a worker made in its scratch is still judged by the

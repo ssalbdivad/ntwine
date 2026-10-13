@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
-import type { GithubRefCard } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
+import type { GithubRefCard } from "@ntwine/shared"
 import { GithubHovercards } from "./components/GithubHovercards.tsx"
 import { ThreadView } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -100,8 +100,8 @@ const thread = {
   backend: "claude",
   permissionMode: "default",
   subAgents: !wantAgents ? [] : [
-    { id: "agent-a", label: "Audit the parser for edge cases", subagentType: "frizz:opus-high", startedAt: ago(2), state: "running" },
-    { id: "agent-b", label: "Write property tests for the tiers", subagentType: "frizz:sonnet-high", startedAt: ago(6), state: "running" },
+    { id: "agent-a", label: "Audit the parser for edge cases", subagentType: "ntwine:opus-high", startedAt: ago(2), state: "running" },
+    { id: "agent-b", label: "Write property tests for the tiers", subagentType: "ntwine:sonnet-high", startedAt: ago(6), state: "running" },
   ],
   // BOTH shells are always present; only ONE is declared (the fence's `shells:` below). That pairing is the
   // point — the card must list the declared one and say nothing about the dev server nobody tore down.
@@ -111,7 +111,7 @@ const thread = {
       ],
   // ?watch=1|both seeds FOUR PRs, one per check state, so the row's whole vocabulary is on screen at
   // once: running with counts, all-green-and-mergeable, red (whose failing jobs are now a `view failures`
-  // link rather than a listed second line), and one frizz has not polled yet ("Checking…", which must not
+  // link rather than a listed second line), and one ntwine has not polled yet ("Checking…", which must not
   // read as "no checks").
   //
   // THE DECLARED SHELL WAIT rides the same array — a `watch: bzvtnt3ig` fence hint becomes a
@@ -185,7 +185,7 @@ const thread = {
   lastActivityAt: ago(1),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const transcriptPage = { messages, transcriptKey: "fixture-key", hasEarlier: false, historyLoaded: false }
 
@@ -210,27 +210,27 @@ const HOVER_CARDS: GithubRefCard[] = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  if (url.pathname === "/_frizz/rpc/githubRefPreview") {
+  if (url.pathname === "/_ntwine/rpc/githubRefPreview") {
     const refs: string[] = JSON.parse(url.searchParams.get("input") ?? "{}").refs ?? []
     const cards = HOVER_CARDS.filter((card) => refs.includes(card.ref)).map((card) => ({ ...card, fetchedAt: Date.now() }))
     const missing = refs.filter((ref) => !cards.some((card) => card.ref === ref))
     return new Response(JSON.stringify({ result: { cards, missing } }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(JSON.stringify({ result: transcriptPage }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname === "/_frizz/rpc/snoozeAwaitingBackground") {
+  if (url.pathname === "/_ntwine/rpc/snoozeAwaitingBackground") {
     window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc: "snoozeAwaitingBackground", body: JSON.parse(String(init?.body ?? "{}")) } }))
     // A void mutation serializes as {result:null} (rpc/server.ts) — mirror that so the web client parses success.
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   // Ask for update (2026-10-03): announced for a harness to count, answered as a void mutation.
-  if (url.pathname === "/_frizz/rpc/requestParkCheckIn") {
+  if (url.pathname === "/_ntwine/rpc/requestParkCheckIn") {
     window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc: "requestParkCheckIn", body: JSON.parse(String(init?.body ?? "{}")) } }))
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   // The footer's Stop (2026-09-29): answered as a real stop, and announced for a harness to count.
-  if (url.pathname === "/_frizz/rpc/stopBackgroundOp") {
+  if (url.pathname === "/_ntwine/rpc/stopBackgroundOp") {
     window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc: "stopBackgroundOp", body: JSON.parse(String(init?.body ?? "{}")) } }))
     return new Response(JSON.stringify({ result: { stopped: true, dismissed: true, note: null, descendantsStopped: 0 } }), { headers: { "content-type": "application/json" } })
   }
@@ -238,12 +238,12 @@ window.fetch = async (input, init) => {
   // the exact message, so the e2e can read the words the worker would receive.
   // The reply starts the worker's turn in production, which takes the thread out of the queue; model
   // that by pruning it, so the queue's 8s un-hide guard does not bring the card back.
-  if (url.pathname === "/_frizz/rpc/followUp") {
+  if (url.pathname === "/_ntwine/rpc/followUp") {
     window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc: "followUp", body: JSON.parse(String(init?.body ?? "{}")) } }))
     if (store.board) store.board = { ...store.board, threads: store.board.threads.filter((t) => t.id !== SLUG) } as BoardSnapshot
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { EditorFront } from "@frizz/shared"
+import type { EditorFront } from "@ntwine/shared"
 import { editorLineReading, editorLineWanted, editorName } from "./editorFront.ts"
 
 const front: EditorFront = { app: "Visual Studio Code", kind: "vscode", path: "/work/alpha/src/lib/a.ts", cursorLine: 20, selection: { startLine: 12, endLine: 20 } }

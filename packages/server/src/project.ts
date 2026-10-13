@@ -10,7 +10,7 @@ import {
 import type { ProjectLaunchTarget } from "./project-launch.ts"
 import { discoverProjectRoot, ensureProjectIdFile, writeProjectIdFile } from "./project-root.ts"
 import { registerProject } from "./project-registry.ts"
-import { projectStateDir } from "./frizz-paths.ts"
+import { projectStateDir } from "./ntwine-paths.ts"
 import { originRemoteUrl, parseRepoLabel, resolveProjectLabel } from "./project-identity.ts"
 import { githubRemoteNameWithOwner } from "./github.ts"
 
@@ -39,12 +39,12 @@ export function projectRepoIdentity(dir: string, name: string): { label: string;
 }
 
 export interface Project {
-  dir: string // repo root (git toplevel of the server's cwd) — and always where the board's `.frizz/` lives
+  dir: string // repo root (git toplevel of the server's cwd) — and always where the board's `.ntwine/` lives
   id: string // stable checkout UUID; common config for main, private Git metadata for linked worktrees
   name: string // basename of dir, for display
   label: string // "owner/repo" from the git origin remote, else name (repos with no remote)
   githubRepo?: string // "owner/repo" ONLY when that origin remote is github.com — see projectRepoIdentity
-  stateDir: string // ~/.frizz/projects/<id>/ — SQLite + server.lock live here
+  stateDir: string // ~/.ntwine/projects/<id>/ — SQLite + server.lock live here
   cwdSlug: string // ~/.claude/projects/<slug>/ session-log dir name — of workDirOf(project), not dir
   // Present for linked worktrees; ordinary/main worktrees use the repository-scoped identity.
   identityScope?: Extract<GitProjectIdentityScope, "worktree">
@@ -52,7 +52,7 @@ export interface Project {
    * Where this project's AGENTS run, when that is not `dir`. Absent for every registered project,
    * whose agents run in the checkout that also holds its board. Set only for the Home workspace
    * (home-workspace.ts): its agents run in the operator's home folder, but its board cannot live in
-   * `~/.frizz` — that path is Frizz's own legacy data root — so `dir` is its state directory instead.
+   * `~/.ntwine` — that path is Ntwine's own legacy data root — so `dir` is its state directory instead.
    * Read it through workDirOf; a site that means "the board" keeps reading `dir`.
    */
   workDir?: string
@@ -63,7 +63,7 @@ export interface Project {
  * transcripts are sharded by, and the base its relative paths resolve against. `dir` for every
  * registered project; the Home workspace's folder for Home.
  *
- * The split exists so a site that is really asking "where is the board" (`.frizz/`, FRIZZ.md, the
+ * The split exists so a site that is really asking "where is the board" (`.ntwine/`, NTWINE.md, the
  * scratch directories) and one asking "where is the agent" can no longer be the same read of `dir`.
  */
 export function workDirOf(project: Pick<Project, "dir" | "workDir">): string {
@@ -76,7 +76,7 @@ export function workDirOf(project: Pick<Project, "dir" | "workDir">): string {
 // defense-in-depth gate that keeps those endpoints from becoming arbitrary file read. Both temp trees are
 // trusted, not just the per-user one (os.tmpdir() → /var/folders on macOS): agents write screenshots into
 // the shared temp tree too — Claude Code's own per-session scratchpad lives at /tmp/claude-<uid>/…, and
-// frizz's disposable-stack scratch under /tmp/frizz-* — so `/tmp` (realpath-normalized by the caller's
+// ntwine's disposable-stack scratch under /tmp/ntwine-* — so `/tmp` (realpath-normalized by the caller's
 // isUnder check, e.g. → /private/tmp on macOS) covers every worker + subagent scratchpad without coupling
 // to Claude Code's internal path convention. Intentionally permissive within the temp/screenshot space.
 export function trustedLocalFileRoots(project: Pick<Project, "dir" | "stateDir" | "workDir">): string[] {
@@ -133,16 +133,16 @@ function isMissingGitBinary(error: unknown): boolean {
   return code === "ENOENT" || code === "EACCES"
 }
 
-// THE ID LIVES IN THE PROJECT, at `.frizz/.id` (project-root.ts), for a repository and a plain
+// THE ID LIVES IN THE PROJECT, at `.ntwine/.id` (project-root.ts), for a repository and a plain
 // directory alike. Git is still consulted when it is there, for two things a file cannot answer:
 // which directory is the repository root, and whether this is a LINKED WORKTREE — worktree isolation
 // is a Git concept, so reading it needs Git.
 //
-// A repository that predates the file keeps its exact id: `git config frizz.id` SEEDS the file, and
+// A repository that predates the file keeps its exact id: `git config ntwine.id` SEEDS the file, and
 // stays readable forever. Nothing migrates away from it, so a board cannot be lost by this.
 //
 // A plain directory used to get `randomUUID()` per launch — a fresh, empty board every time you ran
-// Frizz there. That is what made a non-repo unusable rather than merely unsupported.
+// Ntwine there. That is what made a non-repo unusable rather than merely unsupported.
 function resolveProjectIdentity(
   dir: string,
   home = homedir(),
@@ -163,7 +163,7 @@ function resolveProjectIdentity(
     }
   }
   // Deliberately OUTSIDE the probe's catch. This call fails closed with a precise message — a
-  // duplicated or malformed `frizz.id` must surface as itself, not be flattened into "unable to
+  // duplicated or malformed `ntwine.id` must surface as itself, not be flattened into "unable to
   // inspect", and must never fall through to minting a fresh id beside a real board.
   const git = insideWorktree ? resolveGitProjectIdentity(dir, home) : undefined
   const root = git?.root ?? dir
@@ -174,13 +174,13 @@ function resolveProjectIdentity(
 // A–Z, a–z or 0–9 replaced by '-', and then capped at 200 characters (CWD_SLUG_MAX, below — that half
 // of the rule is easy to miss and fails the same way). Verified empirically against ~/.claude/projects:
 // /Users/x/.workshell → -Users-x--workshell, D:\Development\Feature3 → D--Development-Feature3, and
-// D:\Development\frizz\slug_probe dir → D--Development-frizz-slug-probe-dir (claude 2.1.257).
+// D:\Development\ntwine\slug_probe dir → D--Development-ntwine-slug-probe-dir (claude 2.1.257).
 //
 // Until 2026-09-01 this replaced only '/' and '.', which is the same thing for a plain POSIX path and
 // a different thing for everything else. A Windows path has neither, so it came back UNCHANGED and the
 // tailer watched ~/.claude/projects/D:\Development\Feature3/<id>.jsonl — a path that never exists.
 // Sixty seconds later every Windows thread was reported as "no transcript 60s after dispatch — likely
-// a boot failure" and shown dead on the board, while claude was still mid-turn in a transcript frizz
+// a boot failure" and shown dead on the board, while claude was still mid-turn in a transcript ntwine
 // never opened. '_' and ' ' in a POSIX path went wrong the same way, just more rarely.
 // Used later by the JSONL tailer; computed here so the rule lives once.
 export function cwdSlug(absPath: string): string {
@@ -193,12 +193,12 @@ export function cwdSlug(absPath: string): string {
 // claude cuts the slug and names the bucket with a hash of the WHOLE path instead. Read out of the
 // shipped CLI (2.1.263, `s.length <= 200 ? s : s.slice(0, 200) + "-" + Math.abs(hash(path)).toString(36)`)
 // and then measured — a 215-character cwd produced exactly the directory the test pins. Without this a
-// checkout nested deeply enough fails the same way Windows did: frizz watches the untruncated name,
+// checkout nested deeply enough fails the same way Windows did: ntwine watches the untruncated name,
 // nothing ever appears there, and the crash-net calls a working thread dead.
 const CWD_SLUG_MAX = 200
 
 // Claude Code's own string hash — h*31 + charCode, kept in int32 — reproduced rather than replaced,
-// because the suffix has to name the bucket claude actually writes to, not one frizz finds reasonable.
+// because the suffix has to name the bucket claude actually writes to, not one ntwine finds reasonable.
 function cwdSlugHash(absPath: string): number {
   let hash = 0
   for (let i = 0; i < absPath.length; i++) hash = ((hash << 5) - hash + absPath.charCodeAt(i)) | 0
@@ -214,7 +214,7 @@ export { parseRepoLabel, resolveProjectLabel } from "./project-identity.ts"
  * Record this project in the machine's registry, silently — running the CLI inside a directory IS the
  * authorization, so there is no prompt (plan §4b).
  *
- * The one case that needs a decision is a COPIED checkout: `cp -R` brings `.frizz/.id` along, so two
+ * The one case that needs a decision is a COPIED checkout: `cp -R` brings `.ntwine/.id` along, so two
  * directories claim one id. The registry spots it (the id is registered at another path that still
  * exists) and refuses; the copy then gets a fresh id of its own rather than adopting the original's
  * threads. That is the duplicate self-heal the id-in-the-tree design cannot do unaided.
@@ -297,11 +297,11 @@ export function resolveProject(
 // Where a worker's PermissionRequest hook (cc-worker/hooks/perm-policy.mjs) drops its durable
 // permission-request marker — the policy decision plus the request it decided about — and where the
 // tailer reads it (only a DEFERRED decision counts as a human block). Injected to the worker as env
-// `FRIZZ_PERM_DIR` at spawn; the hook appends `<slug>.json`. Co-located under the per-project stateDir
+// `NTWINE_PERM_DIR` at spawn; the hook appends `<slug>.json`. Co-located under the per-project stateDir
 // (server-owned, worktree-independent) so the exact dir the server scans is the exact dir the worker
 // writes. The CONTRACT with the plugin hook is only (env var name, `<slug>.json` filename) — the hook
 // cannot import this module.
-export const PERM_DIR_ENV = "FRIZZ_PERM_DIR"
+export const PERM_DIR_ENV = "NTWINE_PERM_DIR"
 export function permRequestDir(project: Pick<Project, "stateDir">): string {
   return join(project.stateDir, "perm-requests")
 }
@@ -327,9 +327,9 @@ export function projectFromLaunchTarget(
   try {
     dir = realpathSync(target.projectDir)
   } catch {
-    throw new Error("pinned Frizz project directory is no longer available")
+    throw new Error("pinned Ntwine project directory is no longer available")
   }
-  if (dir !== target.projectDir) throw new Error("pinned Frizz project directory is not canonical")
+  if (dir !== target.projectDir) throw new Error("pinned Ntwine project directory is not canonical")
   const name = basename(dir) || dir
   return {
     dir,

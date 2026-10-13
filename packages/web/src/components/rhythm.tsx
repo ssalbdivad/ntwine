@@ -1,7 +1,7 @@
 // THE TRANSCRIPT'S VERTICAL RHYTHM — the between-block units and the spacer element that draws them.
 //
 // Extracted from ChatView so any surface can charge the same gaps without importing the whole thread
-// view, and specifically so the frizz wake renderer can: ChatView imports that renderer, so it cannot
+// view, and specifically so the ntwine wake renderer can: ChatView imports that renderer, so it cannot
 // reach back into ChatView for a number (the same reason WakeDivider lives in its own file). ChatView
 // re-exports everything here, so no existing call site had to move.
 

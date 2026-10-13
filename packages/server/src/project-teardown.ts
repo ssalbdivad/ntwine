@@ -2,8 +2,8 @@ import { rmSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, resolve } from "node:path"
 import type { AppContext } from "./context.ts"
-import { projectStateDir } from "./frizz-paths.ts"
-import { log as frizzLog } from "./logging.ts"
+import { projectStateDir } from "./ntwine-paths.ts"
+import { log as ntwineLog } from "./logging.ts"
 import { stopThreadRuntime } from "./router.ts"
 
 // TAKING A PROJECT APART — the two destructive halves of `projectRemove` that are not the registry.
@@ -19,7 +19,7 @@ import { stopThreadRuntime } from "./router.ts"
 /**
  * Kill every live worker daemon in one project.
  *
- * A Frizz worker is a DETACHED daemon in its own process group — that is the whole point, and it is
+ * A Ntwine worker is a DETACHED daemon in its own process group — that is the whole point, and it is
  * why Ctrl-C on the server leaves a running turn alone. Deactivating a tenant therefore stops the
  * board, the tailer and the scheduler and touches no worker at all, which is exactly right for a
  * shutdown and exactly wrong for a delete: the daemon keeps running against a state directory that
@@ -41,26 +41,26 @@ export async function stopProjectWorkers(ctx: AppContext): Promise<number> {
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
-      frizzLog.warn("project-teardown", `${ctx.project.name}: ${row.slug} did not stop cleanly: ${detail}`)
+      ntwineLog.warn("project-teardown", `${ctx.project.name}: ${row.slug} did not stop cleanly: ${detail}`)
     }
   }
   return stopped
 }
 
 /**
- * Delete everything Frizz holds ON DISK for one project: `~/.frizz/projects/<id>/`.
+ * Delete everything Ntwine holds ON DISK for one project: `~/.ntwine/projects/<id>/`.
  *
  * ONE DIRECTORY IS THE FILES — attachments, logs, permission markers, the broker's and app-server's
  * sockets and records, and the pre-unification `ui.db` if the project predates the unified
- * database (left in place for an older build to find — see frizz-db.ts). The project's ROWS live in that database (frizz-db.ts) and are purged by the caller
+ * database (left in place for an older build to find — see ntwine-db.ts). The project's ROWS live in that database (ntwine-db.ts) and are purged by the caller
  * through `purgeProject`, before this runs; the registry index is forgotten separately too.
  *
- * THE PROJECT'S OWN FOLDER IS NEVER TOUCHED. Deleting a project deletes Frizz's record of it, not the
- * operator's code; `.frizz/.id` is left in the tree, so adding the folder back keeps the same id and
+ * THE PROJECT'S OWN FOLDER IS NEVER TOUCHED. Deleting a project deletes Ntwine's record of it, not the
+ * operator's code; `.ntwine/.id` is left in the tree, so adding the folder back keeps the same id and
  * simply starts a fresh board under it.
  *
  * The id is spliced into a path, so it is checked rather than trusted: a caller passing `..`, a slash,
- * or an empty string would otherwise aim `rm -rf` at the projects root, or at `~/.frizz` itself.
+ * or an empty string would otherwise aim `rm -rf` at the projects root, or at `~/.ntwine` itself.
  */
 export function deleteProjectState(projectId: string, home = homedir()): void {
   const target = projectStateDir(projectId, home)

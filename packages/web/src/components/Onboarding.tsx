@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom"
 import { useNavigate } from "react-router"
 import { Plus } from "lucide-react"
-import type { ProjectCard } from "@frizz/shared"
+import type { ProjectCard } from "@ntwine/shared"
 import { ProjectSquare } from "./ProjectSquare.tsx"
 import { homeOf, shortPath, useAddProject, warmProjectPicker } from "./ProjectActions.tsx"
 import { projectViewHref } from "../lib/pageView.ts"
@@ -272,14 +272,14 @@ export function Tour() {
     >
       <svg className="pointer-events-none absolute inset-0 h-full w-full" width={viewport.width} height={viewport.height} aria-hidden>
         <defs>
-          <mask id="frizz-tour-holes">
+          <mask id="ntwine-tour-holes">
             <rect width="100%" height="100%" fill="white" />
             {holes.map((hole, i) => (
               <rect key={i} x={hole.left - PAD} y={hole.top - PAD} width={hole.width + 2 * PAD} height={hole.height + 2 * PAD} rx={10} fill="black" />
             ))}
           </mask>
         </defs>
-        <rect width="100%" height="100%" className="fill-scrim-55" mask="url(#frizz-tour-holes)" />
+        <rect width="100%" height="100%" className="fill-scrim-55" mask="url(#ntwine-tour-holes)" />
         {holes.map((hole, i) => (
           <rect key={i} x={hole.left - PAD} y={hole.top - PAD} width={hole.width + 2 * PAD} height={hole.height + 2 * PAD} rx={10} fill="none" className="stroke-accent" strokeOpacity={0.55} strokeWidth={1.5} />
         ))}

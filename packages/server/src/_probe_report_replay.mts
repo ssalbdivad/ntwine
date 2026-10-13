@@ -12,7 +12,7 @@
 //     tailer, so agreement is real corroboration rather than a tautology.
 //   • FOLD — the shipping tailer, driven exactly as the server drives it, reporting `droppedReports`.
 //
-// A false POSITIVE here is the expensive failure: it would make frizz tell an agent that a report it
+// A false POSITIVE here is the expensive failure: it would make ntwine tell an agent that a report it
 // actually read was lost. So the probe reports both directions separately and treats any false
 // positive as fatal.
 import { readFileSync, existsSync } from "node:fs"
@@ -98,7 +98,7 @@ function fold(path: string): Set<string> {
     const slug = "replay"
     const sessionId = path.split("/").pop()!.replace(/\.jsonl$/, "")
     storage.upsertSession({
-      slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(), // NOT epoch: an ancient stamp trips the tailer boot-failure bail and the fold never reads a byte
+      slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(), // NOT epoch: an ancient stamp trips the tailer boot-failure bail and the fold never reads a byte
       last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
       title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
     })
@@ -142,7 +142,7 @@ for (const path of files) {
   const auditDropped = new Set(allDropped.slice(-MAX_TRACKED_REPORTS))
   // A FALSE POSITIVE is judged against the FULL audit set, never the window: the fold and the audit
   // evict on slightly different orders, so an id just outside one window is a windowing artifact, not
-  // frizz telling an agent it lost a report it read. The real error — flagging something the audit
+  // ntwine telling an agent it lost a report it read. The real error — flagging something the audit
   // never saw dropped at all — is exactly what this catches.
   const everDropped = new Set(allDropped)
   const falsePos = [...f].filter((id) => !everDropped.has(id))

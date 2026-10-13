@@ -38,15 +38,15 @@ test("mergeOptimistic: the server's OWN queued copy also consumes the optimistic
   assert.equal(out.length, 1)
 })
 
-// FRIZZ'S OWN RIDERS MUST NOT DEFEAT CONSUMPTION. The copy handed to the worker carries the clock note
+// NTWINE'S OWN RIDERS MUST NOT DEFEAT CONSUMPTION. The copy handed to the worker carries the clock note
 // and the wake token, and the transcript is read from the WORKER's record — so the server's report of the
 // human's send is their text PLUS those. Compared raw it consumed nothing and the optimistic bubble was
 // re-appended: two identical gray bubbles of the operator's own message (reported 2026-09-01, alongside
 // the answers-card twin). The server hit the same thing in its ledger projection — see renderMatchKey.
-const GAP_NOTE = "⏱ Frizz: the message above arrived 4h 9m after your last one. It is now 2026-09-01 07:09."
-const WAKE_TOKEN = `<!-- frizz-wake:${"a".repeat(64)} -->`
+const GAP_NOTE = "⏱ Ntwine: the message above arrived 4h 9m after your last one. It is now 2026-09-01 07:09."
+const WAKE_TOKEN = `<!-- ntwine-wake:${"a".repeat(64)} -->`
 
-test("mergeOptimistic: the clock note frizz appends does not stop the server's copy consuming the bubble", () => {
+test("mergeOptimistic: the clock note ntwine appends does not stop the server's copy consuming the bubble", () => {
   const typed = "please also handle the empty case"
   const out = mergeOptimistic(
     [user(typed, { queued: true })],

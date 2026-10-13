@@ -11,7 +11,7 @@ import {
   type InteractionPayload,
   type InteractionRecord,
   type InteractionRequest as InteractionRequestType,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import {
   INTERACTION_DB_SCHEMA_VERSION,
   InteractionStoreError,
@@ -122,7 +122,7 @@ function providerBinding(over: Record<string, unknown> = {}) {
 }
 
 function dbHarness() {
-  const path = join(mkdtempSync(join(tmpdir(), "frizz-interactions-")), "ui.db")
+  const path = join(mkdtempSync(join(tmpdir(), "ntwine-interactions-")), "ui.db")
   const db = new Database(path)
   db.pragma("journal_mode = WAL")
   let current = new Date(T0)
@@ -481,7 +481,7 @@ test("provider RPC ids and send claims remain single-owner across SQLite connect
 })
 
 test("generated interaction id collisions never masquerade as successful creates", () => {
-  const path = join(mkdtempSync(join(tmpdir(), "frizz-interaction-id-collision-")), "ui.db")
+  const path = join(mkdtempSync(join(tmpdir(), "ntwine-interaction-id-collision-")), "ui.db")
   const db = new Database(path)
   const store = createInteractionStore(db, { now: () => new Date(T0), id: () => "fixed-interaction-id" })
   const changes: string[] = []
@@ -866,7 +866,7 @@ function sessionRow(over: Partial<SessionRow> = {}): SessionRow {
   return {
     slug: "thread-1",
     session_id: "session-1",
-    thread_name: "frizz-thread-1",
+    thread_name: "ntwine-thread-1",
     spawned_at: T0,
     last_read_at: null,
     unread: 0,
@@ -884,7 +884,7 @@ function sessionRow(over: Partial<SessionRow> = {}): SessionRow {
 }
 
 test("session replacement and deletion cancel the old session's pending interactions atomically", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-interaction-session-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-interaction-session-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.upsertSession(sessionRow())
   const oldScope = { projectId: "project-1", threadSlug: "thread-1", sessionId: "session-1" }
@@ -908,7 +908,7 @@ test("session replacement and deletion cancel the old session's pending interact
 })
 
 test("interaction schema migration is additive/idempotent and refuses a newer incompatible journal", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-interaction-migrate-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-interaction-migrate-"))
   const path = join(dir, "ui.db")
   const storage = createStorage(path, "p")
   const version = storage.db.prepare<[], { version: number }>(

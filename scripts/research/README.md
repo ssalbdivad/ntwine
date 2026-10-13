@@ -1,6 +1,6 @@
 # `codex app-server --listen unix://PATH` transport probes
 
-Evidence for whether frizz's hand-rolled Codex daemon (`backend/codex-app-server-daemon.ts` +
+Evidence for whether ntwine's hand-rolled Codex daemon (`backend/codex-app-server-daemon.ts` +
 `codex-app-server-host.ts`) can be replaced by the app-server's own unix-socket listener. Run against
 codex-cli 0.144.6 on 2026-07-23. Each script spawns its OWN app-server on a temp socket and SIGKILLs
 only that pid; none of them touch a live board.
@@ -30,7 +30,7 @@ The listener was never at fault.
 
 **`initialize` is per-CONNECTION, not per-process.** A second and third connection each initialize
 successfully and get the real `userAgent`; only a repeat `initialize` on the SAME connection is
-rejected (`-32600 Already initialized`). frizz's daemon caches and replays the handshake because it
+rejected (`-32600 Already initialized`). ntwine's daemon caches and replays the handshake because it
 multiplexes one process behind one stdio pipe — the native listener needs none of that.
 
 **The process outlives its clients.** Hard-terminating every attached WebSocket leaves the app-server
@@ -41,13 +41,13 @@ started on connection A, with A hard-killed 6s in, ran to completion; connection
 resumed the thread, and received the live stream through `turn/completed` (`status: "completed"`,
 `durationMs: 27666`).
 
-**Events are DROPPED, not queued, while nobody is attached — but the two things frizz's queue exists to
+**Events are DROPPED, not queued, while nobody is attached — but the two things ntwine's queue exists to
 protect are recoverable from authoritative server state, and one of them is actively re-delivered.**
 
 - A turn that completed ENTIRELY while detached replays nothing. But `thread/resume` reports
   `thread.status = {"type":"idle"}` and `thread/turns/list` reports that turn as
   `status: "completed"` with a `completedAt`. Reconciling from that state is strictly more reliable
-  than frizz's queue, which silently overflows past `MAX_QUEUED_LINES`/`MAX_QUEUED_BYTES`.
+  than ntwine's queue, which silently overflows past `MAX_QUEUED_LINES`/`MAX_QUEUED_BYTES`.
 - A pending approval is RE-ISSUED. With an `item/commandExecution/requestApproval` outstanding, the
   client was killed without answering; `thread/resume` on a new connection reported
   `thread.status = {"type":"active","activeFlags":["waitingOnApproval"]}` and the server re-sent the

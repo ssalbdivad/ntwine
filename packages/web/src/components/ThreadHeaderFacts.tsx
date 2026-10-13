@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { lastActiveLabelAt } from "../groups.ts"
 import { goalLoopParts } from "../lib/goalLoop.ts"
 import { useNowMs } from "../lib/liveClock.ts"

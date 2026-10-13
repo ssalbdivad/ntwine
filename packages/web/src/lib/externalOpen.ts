@@ -1,6 +1,6 @@
 import { showToast, store } from "../store.ts"
 
-// FEEDBACK FOR A SLOW OPEN OUTSIDE FRIZZ — an editor on a thread's folder, a file in the Local file links app.
+// FEEDBACK FOR A SLOW OPEN OUTSIDE NTWINE — an editor on a thread's folder, a file in the Local file links app.
 // The window can take seconds to appear (VS Code over WSL routinely does), and until 2026-09-30 nothing
 // on the page moved in between: a press looked like a miss, so it got pressed again, and every press
 // opened another window.

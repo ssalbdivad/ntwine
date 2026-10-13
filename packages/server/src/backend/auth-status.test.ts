@@ -12,7 +12,7 @@ const CODEX_ENV_KEYS = ["OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"]
 function withTmp(fn: (dir: string) => void): void {
   const saved = CODEX_ENV_KEYS.map((k) => [k, process.env[k]] as const)
   for (const k of CODEX_ENV_KEYS) delete process.env[k]
-  const dir = mkdtempSync(join(tmpdir(), "frizz-auth-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-auth-"))
   try {
     fn(dir)
   } finally {
@@ -57,7 +57,7 @@ test("codex: unparseable auth.json → unknown (fail open, never signed-out)", (
   })
 })
 
-test("codex: env key present with no auth.json → authed (frizz forwards OPENAI_API_KEY et al.)", () => {
+test("codex: env key present with no auth.json → authed (ntwine forwards OPENAI_API_KEY et al.)", () => {
   withTmp((dir) => {
     process.env.OPENAI_API_KEY = "sk-env"
     // No auth.json in dir — env auth must still read as authed, not signed-out.
@@ -106,34 +106,34 @@ test("claude: credentials file with token → authed", async () => {
 })
 
 test("claude: no file + Keychain disabled → signed-out", async () => {
-  const prev = process.env.FRIZZ_KEYCHAIN_DISABLED
-  process.env.FRIZZ_KEYCHAIN_DISABLED = "1"
+  const prev = process.env.NTWINE_KEYCHAIN_DISABLED
+  process.env.NTWINE_KEYCHAIN_DISABLED = "1"
   try {
     await withTmpAsync(async (dir) => {
       assert.equal(await readClaudeAuthState(dir), "signed-out")
     })
   } finally {
-    if (prev === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED
-    else process.env.FRIZZ_KEYCHAIN_DISABLED = prev
+    if (prev === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED
+    else process.env.NTWINE_KEYCHAIN_DISABLED = prev
   }
 })
 
 test("claude: file present but tokenless + Keychain disabled → signed-out", async () => {
-  const prev = process.env.FRIZZ_KEYCHAIN_DISABLED
-  process.env.FRIZZ_KEYCHAIN_DISABLED = "1"
+  const prev = process.env.NTWINE_KEYCHAIN_DISABLED
+  process.env.NTWINE_KEYCHAIN_DISABLED = "1"
   try {
     await withTmpAsync(async (dir) => {
       writeFileSync(join(dir, ".credentials.json"), JSON.stringify({ claudeAiOauth: {} }))
       assert.equal(await readClaudeAuthState(dir), "signed-out")
     })
   } finally {
-    if (prev === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED
-    else process.env.FRIZZ_KEYCHAIN_DISABLED = prev
+    if (prev === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED
+    else process.env.NTWINE_KEYCHAIN_DISABLED = prev
   }
 })
 
 async function withTmpAsync(fn: (dir: string) => Promise<void>): Promise<void> {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-auth-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-auth-"))
   try {
     await fn(dir)
   } finally {
@@ -208,11 +208,11 @@ test("parseClaudeAuthStatusJson: strict positive-signal parsing", () => {
 // the file/keychain reader doesn't cover).
 test("readAuthSnapshot: CLI overrides a local signed-out; local verdict stands when CLI agrees or is unknown", async () => {
   const savedConfig = process.env.CLAUDE_CONFIG_DIR
-  const savedKeychain = process.env.FRIZZ_KEYCHAIN_DISABLED
+  const savedKeychain = process.env.NTWINE_KEYCHAIN_DISABLED
   try {
     await withTmpAsync(async (dir) => {
       process.env.CLAUDE_CONFIG_DIR = dir // empty → local reader: signed-out
-      process.env.FRIZZ_KEYCHAIN_DISABLED = "1"
+      process.env.NTWINE_KEYCHAIN_DISABLED = "1"
       // The two stub arms only (see posixOnlyStub) — the CLI-unavailable arm below is the one that
       // needs no child process, and it is asserted on every platform.
       if (process.platform !== "win32") {
@@ -229,8 +229,8 @@ test("readAuthSnapshot: CLI overrides a local signed-out; local verdict stands w
   } finally {
     if (savedConfig === undefined) delete process.env.CLAUDE_CONFIG_DIR
     else process.env.CLAUDE_CONFIG_DIR = savedConfig
-    if (savedKeychain === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED
-    else process.env.FRIZZ_KEYCHAIN_DISABLED = savedKeychain
+    if (savedKeychain === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED
+    else process.env.NTWINE_KEYCHAIN_DISABLED = savedKeychain
   }
 })
 
@@ -239,11 +239,11 @@ test("readAuthSnapshot: CLI overrides a local signed-out; local verdict stands w
 // number here is a number of Claude Code processes.
 test("readAuthSnapshot: a signed-out machine starts the Claude CLI once per window, not once per poll", posixOnlyStub, async () => {
   const savedConfig = process.env.CLAUDE_CONFIG_DIR
-  const savedKeychain = process.env.FRIZZ_KEYCHAIN_DISABLED
+  const savedKeychain = process.env.NTWINE_KEYCHAIN_DISABLED
   try {
     await withTmpAsync(async (dir) => {
       process.env.CLAUDE_CONFIG_DIR = dir // empty → local reader: signed-out
-      process.env.FRIZZ_KEYCHAIN_DISABLED = "1"
+      process.env.NTWINE_KEYCHAIN_DISABLED = "1"
       const log = join(dir, "starts.log")
       const starts = () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean).length : 0)
       await withStub(`echo start >> '${log}'; echo '{"loggedIn": false}'; exit 1`, async (bin) => {
@@ -278,8 +278,8 @@ test("readAuthSnapshot: a signed-out machine starts the Claude CLI once per wind
     resetClaudeCliConfirm()
     if (savedConfig === undefined) delete process.env.CLAUDE_CONFIG_DIR
     else process.env.CLAUDE_CONFIG_DIR = savedConfig
-    if (savedKeychain === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED
-    else process.env.FRIZZ_KEYCHAIN_DISABLED = savedKeychain
+    if (savedKeychain === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED
+    else process.env.NTWINE_KEYCHAIN_DISABLED = savedKeychain
   }
 })
 
@@ -308,11 +308,11 @@ test("readClaudePreflightAuth: a local credential answers alone; the CLI is neve
 
 test("readClaudePreflightAuth: a positive local signed-out is confirmed against the CLI, which fails open on unknown", async () => {
   const savedConfig = process.env.CLAUDE_CONFIG_DIR
-  const savedKeychain = process.env.FRIZZ_KEYCHAIN_DISABLED
+  const savedKeychain = process.env.NTWINE_KEYCHAIN_DISABLED
   try {
     await withTmpAsync(async (dir) => {
       process.env.CLAUDE_CONFIG_DIR = dir // empty → local reader: signed-out
-      process.env.FRIZZ_KEYCHAIN_DISABLED = "1"
+      process.env.NTWINE_KEYCHAIN_DISABLED = "1"
       // The two stub arms only (see posixOnlyStub); the inconclusive-CLI arm below runs everywhere.
       if (process.platform !== "win32") {
         // A credential the file/keychain reader cannot see must not block a dispatch.
@@ -331,8 +331,8 @@ test("readClaudePreflightAuth: a positive local signed-out is confirmed against 
   } finally {
     if (savedConfig === undefined) delete process.env.CLAUDE_CONFIG_DIR
     else process.env.CLAUDE_CONFIG_DIR = savedConfig
-    if (savedKeychain === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED
-    else process.env.FRIZZ_KEYCHAIN_DISABLED = savedKeychain
+    if (savedKeychain === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED
+    else process.env.NTWINE_KEYCHAIN_DISABLED = savedKeychain
   }
 })
 
@@ -363,7 +363,7 @@ test("readCodexBinaryState: present, ENOENT→missing, everything-else→unknown
 // ---- Account emails (the quota popover's "signed in as who?") ----
 
 // A JWT the way Codex stores one: three dot-separated base64url segments, of which only the payload is
-// ever read. Signed with nothing — frizz does not verify it (see readCodexAccountEmail).
+// ever read. Signed with nothing — ntwine does not verify it (see readCodexAccountEmail).
 function idToken(payload: unknown): string {
   return `hdr.${Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")}.sig`
 }
@@ -420,7 +420,7 @@ test("claude account email: read from .claude.json's oauthAccount, memoized unti
 
 test("readAuthSnapshot: never labels a signed-out provider with a leftover email", async () => {
   const savedConfig = process.env.CLAUDE_CONFIG_DIR
-  const savedKeychain = process.env.FRIZZ_KEYCHAIN_DISABLED
+  const savedKeychain = process.env.NTWINE_KEYCHAIN_DISABLED
   const savedCodexHome = process.env.CODEX_HOME
   const savedCodexEnv = CODEX_ENV_KEYS.map((k) => [k, process.env[k]] as const)
   try {
@@ -429,7 +429,7 @@ test("readAuthSnapshot: never labels a signed-out provider with a leftover email
       // Both providers signed out, yet both account records still name an account — exactly the state
       // a `claude auth logout` leaves behind, since it clears the credential and not the config file.
       process.env.CLAUDE_CONFIG_DIR = dir
-      process.env.FRIZZ_KEYCHAIN_DISABLED = "1"
+      process.env.NTWINE_KEYCHAIN_DISABLED = "1"
       process.env.CODEX_HOME = dir
       writeFileSync(join(dir, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: "stale@example.com" } }))
       writeFileSync(join(dir, "auth.json"), JSON.stringify({ tokens: { id_token: idToken({ email: "stale-codex@example.com" }) } }))
@@ -449,8 +449,8 @@ test("readAuthSnapshot: never labels a signed-out provider with a leftover email
     for (const [k, v] of savedCodexEnv) if (v === undefined) delete process.env[k]; else process.env[k] = v
     if (savedConfig === undefined) delete process.env.CLAUDE_CONFIG_DIR
     else process.env.CLAUDE_CONFIG_DIR = savedConfig
-    if (savedKeychain === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED
-    else process.env.FRIZZ_KEYCHAIN_DISABLED = savedKeychain
+    if (savedKeychain === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED
+    else process.env.NTWINE_KEYCHAIN_DISABLED = savedKeychain
     if (savedCodexHome === undefined) delete process.env.CODEX_HOME
     else process.env.CODEX_HOME = savedCodexHome
   }

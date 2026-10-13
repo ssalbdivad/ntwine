@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
-import type { AccountLogoutResult, Backend, ThreadView } from "@frizz/shared"
+import type { AccountLogoutResult, Backend, ThreadView } from "@ntwine/shared"
 import { readAuthSnapshot } from "./auth-status.ts"
 
 const execFileAsync = promisify(execFile)
@@ -46,9 +46,9 @@ export async function runProviderLogout(opts: {
   timeoutMs?: number
   liveThreads: number
 }): Promise<AccountLogoutResult> {
-  // An ACP agent's credentials belong to the agent's own CLI; Frizz has no logout for it and no
+  // An ACP agent's credentials belong to the agent's own CLI; Ntwine has no logout for it and no
   // credential to read. Report that rather than running a command it does not know.
-  if (opts.backend === "acp") return { status: "failed", detail: "Log out with the agent's own CLI; Frizz holds no credential for an ACP agent.", auth: "unknown" }
+  if (opts.backend === "acp") return { status: "failed", detail: "Log out with the agent's own CLI; Ntwine holds no credential for an ACP agent.", auth: "unknown" }
   if (opts.liveThreads > 0) {
     return { status: "blocked", activeThreads: opts.liveThreads, auth: (await readAuthSnapshot({ claudeBin: opts.claudeBin }))[opts.backend] }
   }

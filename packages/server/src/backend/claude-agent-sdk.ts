@@ -10,7 +10,7 @@ import {
   type SDKControlInitializeResponse,
   type SDKMessage,
   type SDKUserMessage,
-} from "@frizz/claude-agent-sdk-runtime"
+} from "@ntwine/claude-agent-sdk-runtime"
 import { claudeUltracodeSettings, resolveClaudeEffort } from "./claude-effort.ts"
 import { resolveClaudeLaunchModel } from "./claude-context-window.ts"
 import { writeMcpConfigFile } from "../session-files.ts"
@@ -53,10 +53,10 @@ import {
 import { inheritWorkerEnvironment } from "./worker-env.ts"
 import type { WorkerMcpServers } from "./project-mcp-servers.ts"
 import { redactCredentialSyntax } from "../credential-redaction.ts"
-import type { ThreadSkillSource } from "@frizz/shared"
+import type { ThreadSkillSource } from "@ntwine/shared"
 
-export const CLAUDE_AGENT_SDK_FOUNDATION_FLAG = "FRIZZ_CLAUDE_AGENT_SDK_FOUNDATION"
-export const CLAUDE_AGENT_SDK_CLIENT_APP = "frizz/claude-agent-sdk-foundation"
+export const CLAUDE_AGENT_SDK_FOUNDATION_FLAG = "NTWINE_CLAUDE_AGENT_SDK_FOUNDATION"
+export const CLAUDE_AGENT_SDK_CLIENT_APP = "ntwine/claude-agent-sdk-foundation"
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -69,7 +69,7 @@ export const CLAUDE_SDK_CANCEL_METHOD = "cancelAsyncMessage"
 // 64-bit Windows environment contains `ProgramFiles(x86)` and `CommonProgramFiles(x86)`, and the
 // broker daemon passes the whole inherited environment to buildEnvironment() as overrides — so on
 // Windows the daemon threw here on startup, never published its record, and every Claude dispatch
-// timed out with "did not become ready" (measured on Windows Server 2022, frizz 0.8.1: three broker
+// timed out with "did not become ready" (measured on Windows Server 2022, ntwine 0.8.1: three broker
 // deaths in a row, each `uncaught-exception: Claude environment contains an invalid key`). Node
 // itself spawns a child with such a key without complaint; only this check refused it. cmd.exe's
 // hidden `=C:` drive variables never reach process.env (node drops them), so a leading `=` needs no
@@ -86,7 +86,7 @@ const MAX_SESSION_TITLE_BYTES = 2 * 1024
 // How many completed main-thread turns must pass under an unechoed input before its outstanding slot
 // is presumed dead and reclaimed. ONE is the honest floor — an input sent mid-turn is consumed at that
 // turn's end, so its echo lands after exactly one `result` — and TWO leaves a whole turn of slack for
-// an echo frizz simply failed to match, which is a cheaper mistake than reclaiming a live slot.
+// an echo ntwine simply failed to match, which is a cheaper mistake than reclaiming a live slot.
 const UNECHOABLE_AFTER_RESULTS = 2
 const NUB_NODE_SHIM_PATH_SEGMENT = /(?:^|[\\/])nub-node-shim-[^\\/]+$/
 
@@ -115,14 +115,14 @@ export interface ClaudeQueryStartOptions {
   // exact file the tailer reads for liveness + the UI transcript. The broker sets this; the default
   // stays false so nothing that used this as a standalone foundation starts persisting unexpectedly.
   persistSession?: boolean
-  // Text APPENDED to Claude's default (preset) system prompt — how the frizz worker contract rides the
+  // Text APPENDED to Claude's default (preset) system prompt — how the ntwine worker contract rides the
   // SDK path, the equivalent of the retired argv path's --append-system-prompt-file.
   appendSystemPrompt?: string
   model?: string
   effort?: string
-  // The frizz WORKER ENVIRONMENT — the SDK equivalents of the argv path's --plugin-dir / --mcp-config /
-  // --allowedTools. Without these a broker session is a bare SDK worker: no frizz:<effort>
-  // sub-agent profiles, no frizz MCP (spawn_thread), and none of the cc-worker hooks
+  // The ntwine WORKER ENVIRONMENT — the SDK equivalents of the argv path's --plugin-dir / --mcp-config /
+  // --allowedTools. Without these a broker session is a bare SDK worker: no ntwine:<effort>
+  // sub-agent profiles, no ntwine MCP (spawn_thread), and none of the cc-worker hooks
   // (deny-ask/deny-plan/agent-bind). `pluginDir` loads the local cc-worker plugin
   // (agents + hooks); `mcpServers` mounts the stdio MCP servers; `allowedTools` pre-approves them so a
   // headless worker never blocks on a tool it has nobody to approve.
@@ -140,11 +140,11 @@ export interface ClaudeQueryStartOptions {
   // the PROJECT's `CLAUDE.md` / `AGENTS.md` and `.claude/skills` at all.
   //
   // Default `["user", "project", "local"]` — every scope, which is what a plain `claude` in the same
-  // cwd reads. A frizz thread is the operator's OWN session on their OWN machine, so anything they
+  // cwd reads. A ntwine thread is the operator's OWN session on their OWN machine, so anything they
   // configured for `claude` has to reach it: `env` (an API-proxy front-end writes its base-URL/token
   // pair there, so dropping the scope authenticates a worker differently from the CLI beside it),
   // `autoCompactWindow`, permissions, hooks and enabled plugins. `cc-worker/DECISIONS.md` already
-  // states the policy this restores: frizz deliberately does not isolate `HOME`, `CLAUDE_CONFIG_DIR`
+  // states the policy this restores: ntwine deliberately does not isolate `HOME`, `CLAUDE_CONFIG_DIR`
   // or Claude's settings sources, because doing so silently changes auth, user-approved permissions,
   // MCP config and plugin behavior.
   //
@@ -184,14 +184,14 @@ export interface ClaudeQueryHandle extends AsyncIterable<ClaudeQueryEvent> {
   reloadPlugins(): Promise<ClaudePluginReload>
   /**
    * The session's invocable skills, as the harness itself reports them — names from the init frame,
-   * descriptions from `supportedCommands()`. Frizz deliberately implements NO skill discovery of its
+   * descriptions from `supportedCommands()`. Ntwine deliberately implements NO skill discovery of its
    * own: the CLI already resolves plugins, project and global skill roots and their enable state, and
-   * a frizz-side re-implementation could only ever drift from it.
+   * a ntwine-side re-implementation could only ever drift from it.
    */
   listSkills(): Promise<ClaudeSkillInfo[]>
   setPermissionMode(mode: ClaudePermissionMode): Promise<void>
   // Ask the provider to name the session from `description` and PERSIST the name as the `ai-title`
-  // record frizz's tailer reads. See CLAUDE_TITLE_NEEDS_EXPLICIT_REQUEST below for why the broker has
+  // record ntwine's tailer reads. See CLAUDE_TITLE_NEEDS_EXPLICIT_REQUEST below for why the broker has
   // to ask instead of letting Claude title the session on its own.
   generateSessionTitle(description: string): Promise<string | undefined>
   close(): Promise<void>
@@ -490,7 +490,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
   async reloadPlugins(): Promise<ClaudePluginReload> {
     this.assertOpen()
     if (typeof this.sdkQuery.reloadPlugins !== "function") {
-      throw new Error("this Claude Agent SDK build has no reloadPlugins(); frizz cannot reload plugins in place")
+      throw new Error("this Claude Agent SDK build has no reloadPlugins(); ntwine cannot reload plugins in place")
     }
     await this.ready()
     this.assertOpen()
@@ -520,7 +520,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
   // its description (mapped and bounded above in mapControlInitialization — the same data the SDK's
   // `supportedCommands()` would re-serve from its cache), and the init frame's `skills` array is the
   // harness's own verdict on which of those are skills rather than built-in commands. The intersection
-  // is exactly "what `/name` invokes a skill", with descriptions, and zero frizz-side discovery.
+  // is exactly "what `/name` invokes a skill", with descriptions, and zero ntwine-side discovery.
   //
   // Where each one CAME FROM is a second question, and claude answers it in exactly one place:
   // `getContextUsage().skills.skillFrontmatter[].source`. Not in `SlashCommand`, which carries only
@@ -531,9 +531,9 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
   // "(resumable with /resume)", `/fast` "(Opus 4.8)"). A wrong label is worse than none.
   //
   // The BUILT-IN commands ride along too (2026-10-02): the initialize list is the SDK's own answer to
-  // "what can this session run", and a typed `/context` or `/usage` works through Frizz exactly as it does
+  // "what can this session run", and a typed `/context` or `/usage` works through Ntwine exactly as it does
   // in the CLI, its output drawn under the command in the transcript. What is left out is the handful a
-  // Frizz thread must not run (see FRIZZ_EXCLUDED_COMMANDS) and the CLI's own retired and internal rows.
+  // Ntwine thread must not run (see NTWINE_EXCLUDED_COMMANDS) and the CLI's own retired and internal rows.
   // A built-in is tagged `builtin` when claude names no source for it, which is what it is.
   //
   // A command FILE (`.claude/commands/commit.md`, a plugin's `commands/`) is missing from the init
@@ -633,7 +633,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
       throw new ClaudeAgentSdkProtocolError("Claude queued-input cancellation is unavailable")
     }
     const answer = await this.awaitOpenControl(provider[CLAUDE_SDK_CANCEL_METHOD](messageUuid))
-    // STRICT, and never coerced. Anything but a boolean means frizz cannot tell whether the provider
+    // STRICT, and never coerced. Anything but a boolean means ntwine cannot tell whether the provider
     // dropped the message, and the two readings have opposite consequences — so refuse to guess and
     // let the caller surface a failure instead of inventing a verdict.
     if (typeof answer !== "boolean") {
@@ -706,7 +706,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
   private async pump(): Promise<void> {
     try {
       for await (const raw of this.sdkQuery) {
-        // MAPPING is not OWNERSHIP. A frame frizz cannot represent in its typed shape is a TELEMETRY
+        // MAPPING is not OWNERSHIP. A frame ntwine cannot represent in its typed shape is a TELEMETRY
         // loss; a frame that names someone else's session is a breach. Only the second may be fatal.
         //
         // These were conflated, and the conflation cost hours of live work. `mapSdkMessage` throwing
@@ -720,7 +720,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
         // here: by the time an error surfaces to it, this catch has already closed the query. The
         // chokepoint is here, so the repair belongs here — drop the frame and keep going.
         //
-        // Dropping is cheap precisely because this stream is not frizz's system of record: the tailer
+        // Dropping is cheap precisely because this stream is not ntwine's system of record: the tailer
         // reads the session JSONL directly, so the board still sees what the agent did. Ownership
         // checks below stay fatal, unchanged.
         //
@@ -758,11 +758,11 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
           // only place the session's resolved model is named — and that alias is what picks this thread's
           // row out of `result.modelUsage`, the sole source of the context meter's denominator
           // (claude-runtime-ingest.ts pickWindow). Swallowing it announced the alias exactly ONCE per
-          // DAEMON lifetime, to whichever frizz process happened to be attached at the time; since a broker
-          // daemon OUTLIVES the frizz server, every thread frizz reattached after a restart could never
+          // DAEMON lifetime, to whichever ntwine process happened to be attached at the time; since a broker
+          // daemon OUTLIVES the ntwine server, every thread ntwine reattached after a restart could never
           // relearn it, and a turn that bills more than one model (any sub-agent on another model) then has
           // no denominator that pickWindow is willing to name. Measured on the maintainer's own board:
-          // 42 of 323 claude threads carried a reading, and the split was exactly which frizz process had
+          // 42 of 323 claude threads carried a reading, and the split was exactly which ntwine process had
           // forked the daemon. `sessionModel` is a plain overwrite of an unchanged value, so relaying it
           // every turn costs one map write per turn.
           if (this.initialized) {
@@ -865,7 +865,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
    * The CLI consumes a queued input at a TURN BOUNDARY: send it to an idle session and the echo comes
    * back on the turn that starts immediately; send it mid-turn and it is consumed when that turn ends.
    * So an input still unechoed after TWO main-thread `result` frames have passed under it was either
-   * consumed without an echo frizz could match or lost outright — either way its echo is never coming,
+   * consumed without an echo ntwine could match or lost outright — either way its echo is never coming,
    * and holding its slot for the life of the session is a pure leak. Measured on the session in the
    * `send` comment: 349 inputs accepted in one daemon generation, 36 of them never echoed.
    *
@@ -943,7 +943,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
       // Fail closed AND alive. It also matches what the bridge already does one layer up when it
       // cannot build an approval card: deny with a plain message rather than take anything down.
       // CONTENT vs PROTOCOL, and the distinction is the whole point:
-      //  - an INPUT frizz cannot represent is a content problem. Deny this one call; the session lives.
+      //  - an INPUT ntwine cannot represent is a content problem. Deny this one call; the session lives.
       //  - a malformed control frame (no requestId, no toolUseId) is a protocol violation. There is no
       //    correlation id to answer against, so a deny would go nowhere — that still fails hard, and
       //    the "without requestId" test pins it.
@@ -963,7 +963,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
         // No correlation id to answer against ⇒ a deny would go nowhere; that stays fatal, and the
         // ORIGINAL error is re-thrown so the diagnostic still names the actual missing field.
         if (!context.requestId || !context.toolUseID) throw error
-        return { behavior: "deny", message: "This tool call could not be represented for approval, so frizz denied it." } as SdkPermissionResult
+        return { behavior: "deny", message: "This tool call could not be represented for approval, so ntwine denied it." } as SdkPermissionResult
       }
       const fingerprint = canonicalFingerprint(request)
       return permissionRequests.resolve(request.requestId, fingerprint, async () => {
@@ -1025,7 +1025,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
       // EVERY scope by default — see ClaudeQueryStartOptions.settingSources. `[]` was correct while this
       // was a standalone foundation nothing dispatched through; once the broker became the DEFAULT
       // Claude transport it silently stopped every worker from seeing the repo's own `CLAUDE.md` /
-      // `AGENTS.md` and its `.claude/skills`. Measured differential in the frizz repo, one variable:
+      // `AGENTS.md` and its `.claude/skills`. Measured differential in the ntwine repo, one variable:
       // this factory answered `NO-CLAUDE-MD` where a plain `claude -p` in the same cwd answered
       // "# No pull requests — land on local `main`". That fix restored PROJECT + LOCAL and left USER
       // out, which kept a second, quieter half of the same regression: the retired transport ran plain
@@ -1034,9 +1034,9 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
       // config, one variable: `--setting-sources=project,local` reported their `env` block UNSET where
       // `user,project,local` reported it applied.
       settingSources: options.settingSources ?? ["user", "project", "local"],
-      // The frizz worker environment (see ClaudeQueryStartOptions): load the local cc-worker plugin so a
-      // broker session gets the frizz sub-agent profiles + hooks, mount the frizz MCP server, and
-      // pre-approve it. EMPTY is skipped, not passed: since frizz stopped mounting a browser (2026-08-26)
+      // The ntwine worker environment (see ClaudeQueryStartOptions): load the local cc-worker plugin so a
+      // broker session gets the ntwine sub-agent profiles + hooks, mount the ntwine MCP server, and
+      // pre-approve it. EMPTY is skipped, not passed: since ntwine stopped mounting a browser (2026-08-26)
       // a resolved-nothing worker env is a real state, and `{}`/`[]` are truthy — handing the SDK an
       // empty allowlist is not the same as handing it none. The project's own `.mcp.json` servers arrive
       // INSIDE `mcpServers` — the broker daemon merges them (project-mcp-servers.ts) — because
@@ -1050,7 +1050,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
       ...(options.allowedTools?.length ? { allowedTools: options.allowedTools } : {}),
       ...(options.disallowedTools?.length ? { disallowedTools: [...options.disallowedTools] } : {}),
       persistSession: options.persistSession ?? false,
-      // Keep Claude's default (preset) system prompt and APPEND the frizz worker contract, the SDK
+      // Keep Claude's default (preset) system prompt and APPEND the ntwine worker contract, the SDK
       // equivalent of the argv path's --append-system-prompt-file.
       ...(options.appendSystemPrompt ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: options.appendSystemPrompt } } : {}),
       // The 1M context window rides the MODEL value as a `[1m]` suffix, always paired with the bare
@@ -1068,7 +1068,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
       // consumer declares that it renders a per-task stop control wired to `stop_task`, every
       // interrupt (the ⌘-Enter "interrupt and send", the queued bubble's push-now, a "pause now")
       // aborts the turn AND kills every background agent under it — because a consumer with no way
-      // to stop a runaway child must not be left with one it cannot end. Frizz HAS that control (the
+      // to stop a runaway child must not be left with one it cannot end. Ntwine HAS that control (the
       // sub-agent row's stop → `Query.stopTask`, see router.ts / board.ts), so it declares it, and an
       // interrupt then aborts only the turn: the children keep running and their notifications land
       // as usual. Measured 2026-09-24 (_live_broker_interrupt_subagent.mts), one variable: the flag
@@ -1120,7 +1120,7 @@ function mapPermissionRequest(
     input: boundedJsonObject(rawInput, "permission.input"),
     blockedPath: optionalExactText(context.blockedPath, "permission.blockedPath", 8 * 1024),
     decisionReason: optionalExactText(context.decisionReason, "permission.decisionReason", 8 * 1024),
-    // Advisory: these only shape the hint frizz gives the agent, never whether authority is granted, so a
+    // Advisory: these only shape the hint ntwine gives the agent, never whether authority is granted, so a
     // value that is not what the CLI documents is dropped rather than turned into a denied tool call.
     decisionReasonType: typeof context.decisionReasonType === "string" && /^[A-Za-z]{1,64}$/.test(context.decisionReasonType)
       ? context.decisionReasonType
@@ -1527,7 +1527,7 @@ function finiteNumber(value: unknown): number | undefined {
  * strict validators still run (they are what bounds what reaches the wire); a rejection just drops
  * that ONE field to `undefined` instead of taking the frame, and therefore the session, down with it.
  *
- * Note the deliberate absence of `boundedId`. A task id / tool_use id whose shape frizz's opaque-id
+ * Note the deliberate absence of `boundedId`. A task id / tool_use id whose shape ntwine's opaque-id
  * pattern rejects costs this event its CORRELATION — the board shows an unenriched child — and not one
  * thing more. `boundedId` throws, so it must not be on this path.
  */
@@ -1600,9 +1600,9 @@ function mapSessionInit(raw: Record<string, unknown>): ClaudeSessionInitEvent {
   // string, a tool list, a mode name — and is degraded rather than allowed to take the session down.
   //
   // Two triggers were proven against the real daemon before this was written, each with a one-variable
-  // control: `init.tools` of 129 entries (the default boundedStringArray cap is 128, and frizz dispatches
+  // control: `init.tools` of 129 entries (the default boundedStringArray cap is 128, and ntwine dispatches
   // into arbitrary repos where one MCP server of the Neon/better-stack size clears it on its own), and a
-  // permissionMode string outside the six frizz currently knows — `dontAsk` and `auto` are recent
+  // permissionMode string outside the six ntwine currently knows — `dontAsk` and `auto` are recent
   // additions to that list, so the NEXT one claude ships would otherwise be a fleet-wide outage on
   // upgrade. That is the same failure mode as the codex version pin, on the Claude side.
   const soft = <T,>(read: () => T, fallback: T): T => { try { return read() } catch { return fallback } }
@@ -1614,7 +1614,7 @@ function mapSessionInit(raw: Record<string, unknown>): ClaudeSessionInitEvent {
     claudeCodeVersion: soft(() => safeText(raw.claude_code_version, "init.claudeCodeVersion", 512), ""),
     cwd: soft(() => safeText(raw.cwd, "init.cwd", 8 * 1024), ""),
     model: soft(() => safeText(raw.model, "init.model", 512), ""),
-    // An unknown mode reports as "default" rather than killing the session. frizz never ACTS on this
+    // An unknown mode reports as "default" rather than killing the session. ntwine never ACTS on this
     // value — it sends the mode it wants; this is the provider's echo, for display.
     permissionMode: soft(() => validatePermissionMode(raw.permissionMode), "default"),
     tools: soft(() => boundedStringArray(raw.tools, "init.tools", 4096), []),
@@ -1641,8 +1641,8 @@ export function mapAssistant(raw: Record<string, unknown>): ClaudeQueryEvent {
       if (textBytes > CLAUDE_AGENT_SDK_MAX_EVENT_TEXT_BYTES) throw new ClaudeAgentSdkProtocolError("assistant text exceeds its aggregate limit")
       text.push(value)
     } else if (block.type === "tool_use") {
-      // A tool input frizz cannot REPRESENT must never be a fatal error. This is outbound TELEMETRY —
-      // frizz's own view of what the agent is doing — and the agent's actual tool call has already been
+      // A tool input ntwine cannot REPRESENT must never be a fatal error. This is outbound TELEMETRY —
+      // ntwine's own view of what the agent is doing — and the agent's actual tool call has already been
       // made either way. Throwing here propagates out of the event iterator, and the broker daemon's
       // pump treats any iterator error as terminal (claude-agent-broker.ts), so it kills the daemon,
       // the `claude` process, and every in-flight sub-agent with it.
@@ -1661,7 +1661,7 @@ export function mapAssistant(raw: Record<string, unknown>): ClaudeQueryEvent {
       try {
         input = boundedJsonObject(block.input, `assistant.content[${index}].input`)
       } catch (error) {
-        input = { __frizzUnrepresentable: error instanceof Error ? safeText(error.message, "unrepresentable", 512) : "tool input could not be represented" }
+        input = { __ntwineUnrepresentable: error instanceof Error ? safeText(error.message, "unrepresentable", 512) : "tool input could not be represented" }
       }
       toolUses.push({
         id: boundedId(block.id, `assistant.content[${index}].id`),
@@ -1763,16 +1763,16 @@ function mapModelContextWindows(raw: unknown): Record<string, number> | undefine
 }
 
 // Claude appends its own source to a skill's description as a trailing parenthetical — measured on
-// 2.1.246, ` (user)` on 24 of 77 commands and ` (project)` on 6. Once frizz renders the source as its
+// 2.1.246, ` (user)` on 24 of 77 commands and ` (project)` on 6. Once ntwine renders the source as its
 // own column that suffix is not just redundant but CONTRADICTORY, because the column says "global"
 // where the sentence says "(user)".
 //
-// Dropped only when the suffix and the source frizz is about to render are the SAME claim — the
+// Dropped only when the suffix and the source ntwine is about to render are the SAME claim — the
 // parenthetical must match the very root `getContextUsage` reported for that skill. That is what makes
 // this safe where a bare regex is not: `/deep-research` ends "(dynamic workflow)" and `/fast` ends
 // "(Opus 4.8)", and neither is a source, so neither can match. The one measured case where the two
 // disagree — a plugin skill whose description still ends "(user)" — keeps its text untouched, which is
-// the right answer for a claim frizz cannot confirm.
+// the right answer for a claim ntwine cannot confirm.
 const CLAUDE_SOURCE_SUFFIX: Partial<Record<ThreadSkillSource, string>> = { user: " (user)", project: " (project)" }
 function withoutRedundantSource(description: string, source: ThreadSkillSource | undefined): string {
   const suffix = source && CLAUDE_SOURCE_SUFFIX[source]
@@ -1780,7 +1780,7 @@ function withoutRedundantSource(description: string, source: ThreadSkillSource |
   return description.slice(0, -suffix.length).trimEnd()
 }
 
-// Claude's skill-source vocabulary → frizz's. Measured against claude 2.1.246 / SDK 0.3.207, where
+// Claude's skill-source vocabulary → ntwine's. Measured against claude 2.1.246 / SDK 0.3.207, where
 // `getContextUsage().skills.skillFrontmatter[].source` reported exactly these four across 48 skills.
 // Anything else answers undefined, so a CLI that grows a fifth root leaves the row unlabelled rather
 // than mislabelled — which is the whole point of the source being optional on the wire.
@@ -1803,9 +1803,9 @@ function mapControlInitialization(raw: SDKControlInitializeResponse): ClaudeCont
     }
   })
   // The init `agents` array shape varies by claude version: newer builds emit a bare string per agent
-  // name (e.g. "frizz:haiku"), older ones an object {name, description, model}. Handle both, or a
+  // name (e.g. "ntwine:haiku"), older ones an object {name, description, model}. Handle both, or a
   // string-shaped build silently reports 16 empty-name agents (which is exactly what masked the loaded
-  // frizz sub-agent profiles during the broker worker-environment bring-up).
+  // ntwine sub-agent profiles during the broker worker-environment bring-up).
   const agents: ClaudeAgentCapability[] = boundedArray(raw.agents, "initialization.agents", 128).map((entry, index) => {
     if (typeof entry === "string") {
       return { name: safeText(entry, `initialization.agents[${index}]`, 512), description: "", model: undefined }
@@ -1840,7 +1840,7 @@ function mapControlInitialization(raw: SDKControlInitializeResponse): ClaudeCont
 }
 
 function buildEnvironment(overrides: Readonly<Record<string, string | undefined>> | undefined): Record<string, string | undefined> {
-  // Inherit frizz's environment minus frizz's own control plane — see worker-env.ts for why this is a
+  // Inherit ntwine's environment minus ntwine's own control plane — see worker-env.ts for why this is a
   // denylist rather than the allowlist it replaced. The caps below DEGRADE (skip the offending entry)
   // instead of throwing: this runs inside the broker daemon during startup, and a throw here kills it
   // before it publishes its record, which the operator sees only as every dispatch timing out "did not
@@ -1855,21 +1855,21 @@ function buildEnvironment(overrides: Readonly<Record<string, string | undefined>
     budget -= cost
     env[key] = value
   }
-  // Overrides are NOT "frizz's own bounded handful" any more, and every guard below has to be read that
+  // Overrides are NOT "ntwine's own bounded handful" any more, and every guard below has to be read that
   // way. The session broker is the sole claude transport, and its daemon hands start() the WHOLE
-  // inherited environment as overrides with the per-thread frizz vars merged on top
+  // inherited environment as overrides with the per-thread ntwine vars merged on top
   // (claude-agent-broker.ts) — so what these lines judge is the operator's shell.
   //
-  // Which means a THROW here is not "loud about a frizz bug": it kills the daemon before it publishes
+  // Which means a THROW here is not "loud about a ntwine bug": it kills the daemon before it publishes
   // its record, exactly like the inherit caps above would, and the operator sees every dispatch time out
   // with "did not become ready" and nothing naming the cause. That is how `ProgramFiles(x86)` bricked
   // Windows (see ENV_KEY_PATTERN) — and `SKIP_AUTH=1` or a 200 KB ambient value in an ordinary shell
   // reached the same dead end by the same route. So the VALUE-shaped limits DEGRADE like the inherit
-  // loop's. What still throws is only what frizz's own code can produce and process.env cannot: a
+  // loop's. What still throws is only what ntwine's own code can produce and process.env cannot: a
   // malformed key, and a value that is not text.
   //
-  // The entry cap trims from the FRONT because the caller merges frizz's own vars LAST: an over-full
-  // shell loses its oldest ambient entries, never FRIZZ_THREAD or the plugin dir, without which a
+  // The entry cap trims from the FRONT because the caller merges ntwine's own vars LAST: an over-full
+  // shell loses its oldest ambient entries, never NTWINE_THREAD or the plugin dir, without which a
   // worker cannot run at all.
   const overrideEntries = Object.entries(overrides ?? {}).slice(-MAX_ENV_ENTRIES)
   for (const [key, value] of overrideEntries) {
@@ -2069,17 +2069,17 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-// Built-in commands the composer's `/` menu never offers on a Frizz thread. Each one fights something
-// Frizz owns, so offering it would invite the operator to break their own thread:
-// - `clear` starts a NEW session, and a Frizz thread is bound to the one it was dispatched as.
+// Built-in commands the composer's `/` menu never offers on a Ntwine thread. Each one fights something
+// Ntwine owns, so offering it would invite the operator to break their own thread:
+// - `clear` starts a NEW session, and a Ntwine thread is bound to the one it was dispatched as.
 // - `model`, `effort`, `fast` change the live profile behind the thread's own model and effort control,
 //   which then reads a setting the session no longer runs.
-// - `rename` has Frizz's own title editor; `color`, `focus` and `heapdump` drive or dump the CLI's own
-//   terminal UI, which a Frizz thread does not have.
+// - `rename` has Ntwine's own title editor; `color`, `focus` and `heapdump` drive or dump the CLI's own
+//   terminal UI, which a Ntwine thread does not have.
 // Typing one is still sent as written — this filters the MENU, never the message.
-const FRIZZ_EXCLUDED_COMMANDS: ReadonlySet<string> = new Set(["clear", "model", "effort", "fast", "rename", "color", "focus", "heapdump"])
+const NTWINE_EXCLUDED_COMMANDS: ReadonlySet<string> = new Set(["clear", "model", "effort", "fast", "rename", "color", "focus", "heapdump"])
 export function offeredBuiltinCommand(command: { name: string; description: string }): boolean {
-  if (FRIZZ_EXCLUDED_COMMANDS.has(command.name)) return false
+  if (NTWINE_EXCLUDED_COMMANDS.has(command.name)) return false
   // The CLI's internal plumbing (`__remote-workflow`, `workflow-launch-exec`) and the rows it keeps only
   // to point at a successor ("(removed) …", "Renamed to /usage-credits").
   if (command.name.startsWith("_") || command.name === "workflow-launch-exec") return false

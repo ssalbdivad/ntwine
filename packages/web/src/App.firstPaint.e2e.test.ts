@@ -1,12 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// Opt-in like the other *.e2e.test.ts here. Needs a REAL Frizz with a project, so `/` is the page rather
+// Opt-in like the other *.e2e.test.ts here. Needs a REAL Ntwine with a project, so `/` is the page rather
 // than the welcome, which one command builds:
 //   nub scripts/adhoc-stack.mjs --port=45783 --project=/abs/repo > /tmp/stack.log 2>&1 &
-//   FRIZZ_FIRST_PAINT_E2E_URL=http://127.0.0.1:45783 nub --test --test-force-exit \
+//   NTWINE_FIRST_PAINT_E2E_URL=http://127.0.0.1:45783 nub --test --test-force-exit \
 //     packages/web/src/App.firstPaint.e2e.test.ts
-const baseUrl = process.env.FRIZZ_FIRST_PAINT_E2E_URL
+const baseUrl = process.env.NTWINE_FIRST_PAINT_E2E_URL
 
 // THE FIRST FRAME IS THE FINAL LAYOUT, on a reload in a browser that has seen this machine before.
 // Two things the page is built from arrive AFTER React's first render — the font and the project rail,
@@ -32,7 +32,7 @@ test("a reload paints the font and the project rail in their final state on the 
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
-  const rpc = `${baseUrl}/_frizz/rpc`
+  const rpc = `${baseUrl}/_ntwine/rpc`
   const headers = { origin: baseUrl!, "content-type": "application/json" }
   const current = (await (await fetch(`${rpc}/settingsGet`, { headers })).json()) as { result: Record<string, unknown> }
   const set = async (patch: Record<string, unknown>) => {
@@ -94,7 +94,7 @@ test("a reload paints the font and the project rail in their final state on the 
     // Old Mono settings and cache must not change the font. Clearing the rail's mirror
     // remains the negative control: the sampler must see the rail arrive and the workpane move.
     await set({ font: "mono", projectRail: true })
-    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("frizz-font", "mono") })
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("ntwine-font", "mono") })
     const control = await load()
     const controlPainted = control.filter((s) => s.workpaneLeft !== null)
     assert.deepEqual(new Set(control.map((s) => s.font)), new Set(["sans"]), `obsolete Mono settings cannot change the font: ${JSON.stringify(control)}`)

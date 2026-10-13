@@ -75,7 +75,7 @@ async function open(context, url, { width = 1440, height = 1000 } = {}) {
   page.on("console", (message) => { if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) errors.push(`console: ${message.text()}`) })
   // A disposable stack runs no supervisor, so its control endpoint 404s on every page, and a project with no
   // icon answers its square's request with a 404 (the square falls back to its monogram); nothing else may.
-  page.on("response", (response) => { if (response.status() >= 400 && !/\/_frizz\/control\/status$|\/_frizz\/project-icon\?/.test(response.url())) errors.push(`${response.status()} ${response.url()}`) })
+  page.on("response", (response) => { if (response.status() >= 400 && !/\/_ntwine\/control\/status$|\/_ntwine\/project-icon\?/.test(response.url())) errors.push(`${response.status()} ${response.url()}`) })
   page.on("request", (request) => { const path = new URL(request.url()).pathname; if (path.endsWith("/rpc/board")) boardReads.push(path) })
   if (url) await page.goto(url, { waitUntil: "networkidle2" })
   return page
@@ -140,8 +140,8 @@ try {
   await step("the page project is the focused one, so a new thread starts there", async () => {
     // The page project is whichever project the page's own client reads its board from — by slug; the
     // list reads other projects' boards by id (lib/projectBoards.ts).
-    const boards = boardReads.filter((p) => !/\/_frizz\/[0-9a-f]{8}-/.test(p))
-    check("the page is bound to the focused project", boards.at(-1) === `/_frizz/${A.slug}/rpc/board`, boards.join(", "))
+    const boards = boardReads.filter((p) => !/\/_ntwine\/[0-9a-f]{8}-/.test(p))
+    check("the page is bound to the focused project", boards.at(-1) === `/_ntwine/${A.slug}/rpc/board`, boards.join(", "))
   })
 
   // ── the board's bands ──────────────────────────────────────────────────────────────────────────────

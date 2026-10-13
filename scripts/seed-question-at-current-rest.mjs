@@ -14,7 +14,7 @@
 //   • q-fresh-ask    — the control: asked at the newest rest with nothing since. This one already
 //                      rendered at the tail and must not move.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads. The `thread_question`
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads. The `thread_question`
 // row is the same kind of fixture as the session row — there is no human-facing RPC that registers a
 // question (only a worker's `ask` MCP tool does), so the row IS the fixture and everything downstream
 // of it — board projection, push, render — runs for real.
@@ -31,10 +31,10 @@ const cwdSlug = projectDir.replace(/[/.]/g, "-")
 const transcriptDir = path.join(home, ".claude", "projects", cwdSlug)
 fs.mkdirSync(transcriptDir, { recursive: true })
 
-// ONE server, EVERY project: the tables live in the unified `~/.frizz/ui.db` and are scoped by
+// ONE server, EVERY project: the tables live in the unified `~/.ntwine/ui.db` and are scoped by
 // `project_id`, not in a per-project file. This script takes its project id as an argument, so it
 // names the file directly; the seeds that have to DISCOVER one go through scripts/lib/sandbox-db.mjs.
-const db = path.join(home, ".frizz", "ui.db")
+const db = path.join(home, ".ntwine", "ui.db")
 
 const T = (n) => new Date(Date.UTC(2026, 7, 31, 19, n, 0)).toISOString()
 const MS = (n) => Date.UTC(2026, 7, 31, 19, n, 0)
@@ -62,7 +62,7 @@ function write(slug, sessionId, title, records) {
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-     VALUES ('${projectId}', '${slug}', '${sessionId}', 'frizz-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'default', 'open', 0, 0, 0, '${T(clock)}')`,
+     VALUES ('${projectId}', '${slug}', '${sessionId}', 'ntwine-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'default', 'open', 0, 0, 0, '${T(clock)}')`,
   ])
   console.log(`seeded ${slug} (${sessionId})`)
 }

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { parseCodexModelsCache, readCodexModels, CODEX_MODELS_FALLBACK } from "./codex-models.ts"
-import { CODEX_MODELS_FALLBACK_VERSION } from "@frizz/shared"
+import { CODEX_MODELS_FALLBACK_VERSION } from "@ntwine/shared"
 import { CODEX_APP_SERVER_SUPPORTED_VERSION } from "./codex-app-server.ts"
 
 // A REAL snippet of ~/.codex/models_cache.json (codex-cli 0.144.1, fields verbatim; the gpt-6-astra
@@ -13,7 +13,7 @@ import { CODEX_APP_SERVER_SUPPORTED_VERSION } from "./codex-app-server.ts"
 // sets (astra/sol → …/ultra, luna → …/max, 5.5 → …/xhigh), OUT-OF-ORDER priorities (5.5 before sol,
 // astra LAST in the array but priority 1) to prove the ascending sort, a hidden model (codex-auto-review)
 // to prove the visibility filter drops it, an api=false-but-listed model (spark) to prove it is KEPT
-// (frizz spawns the TUI, not the Responses API), and the newer sidecar fields astra ships with
+// (ntwine spawns the TUI, not the Responses API), and the newer sidecar fields astra ships with
 // (`minimal_client_version`, `service_tiers`, `additional_speed_tiers`) to prove the parser ignores
 // them rather than tripping on them. Otherwise trimmed of the fat sidecar fields the parser ignores.
 //
@@ -143,7 +143,7 @@ const REAL_CACHE = JSON.stringify({
   ],
 })
 
-test("the degraded catalogue is re-read whenever Frizz's pinned Codex runtime moves", () => {
+test("the degraded catalogue is re-read whenever Ntwine's pinned Codex runtime moves", () => {
   assert.equal(CODEX_MODELS_FALLBACK_VERSION, CODEX_APP_SERVER_SUPPORTED_VERSION)
 })
 
@@ -170,7 +170,7 @@ test("parseCodexModelsCache: lists visible models priority-ASC with EXACT per-mo
   assert.equal(bySlug["gpt-6-sol"]!.displayName, "GPT-6-Sol")
   assert.equal(bySlug["gpt-6-sol"]!.contextWindow, 272_000)
   assert.equal(bySlug["gpt-6-sol"]!.maxContextWindow, 872_000)
-  // An api=false model is TUI-selectable (frizz spawns the TUI) — kept, not filtered.
+  // An api=false model is TUI-selectable (ntwine spawns the TUI) — kept, not filtered.
   assert.ok(bySlug["gpt-5.3-codex-spark"])
 })
 
@@ -247,7 +247,7 @@ test("a foreign Codex client's cache cannot make the pinned runtime's models dis
   assert.deepEqual(
     parseCodexModelsCache(foreign, "0.156.1", pinned),
     pinned,
-    "an older writer retains the last catalogue read from Frizz's pinned runtime",
+    "an older writer retains the last catalogue read from Ntwine's pinned runtime",
   )
   assert.deepEqual(
     parseCodexModelsCache(foreign, "0.156.1"),

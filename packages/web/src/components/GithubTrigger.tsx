@@ -13,7 +13,7 @@ import { openGithubPicker } from "../store.ts"
 // answer FOREVER. Measured 2026-08-04 against a live stack: server flipped to authed:true, the icon
 // stayed absent for 15s and through focus/visibility events, and only a reload brought it back.
 // `staleTime` throttles the refetch so a burst of tab switches can't spawn a `gh` per switch.
-// (Signing in from frizz's OWN terminal never blurs the window — that one still needs a reload.)
+// (Signing in from ntwine's OWN terminal never blurs the window — that one still needs a reload.)
 export function useGithubStatus() {
   return useQuery({
     queryKey: ["githubStatus"],

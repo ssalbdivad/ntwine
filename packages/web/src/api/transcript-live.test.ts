@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { initTranscriptLive, _transcriptLiveState, _resetTranscriptLive } from "./transcript-live.ts"
 import { store } from "../store.ts"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 
 // The drip flushes every 700ms; wait one beat past it.
 const DRIP_WAIT = 850

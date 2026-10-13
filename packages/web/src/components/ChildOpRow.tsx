@@ -146,13 +146,13 @@ export function ChildOpRow({
   const running = isRunningOperation(state)
   // ONE HUE PER RUNTIME CONCERN, and the row is the only place they are named. A sub-agent pulses the
   // accent-yellow, a background shell the azure blue, a PR watcher the green.
-  const LIVE_DOT_HUE = { AGENT: "frizz-live-dot--agent", WORKFLOW: "frizz-live-dot--agent", SHELL: "frizz-live-dot--shell", GITHUB: "frizz-live-dot--github" } as const
+  const LIVE_DOT_HUE = { AGENT: "ntwine-live-dot--agent", WORKFLOW: "ntwine-live-dot--agent", SHELL: "ntwine-live-dot--shell", GITHUB: "ntwine-live-dot--github" } as const
   // THE TAG IS FIVE CHARACTERS ON EVERY KIND. `GITHUB` is six, and before this column had a track of
   // its own it pushed that row's label 4.3px right of every other row under the mono stack (where
   // five-letter tags are pixel-identical at 21.39px). `WATCH` is also the more accurate word: the row is
   // a watch on a PR, and the green dot beside it already says which service.
   //
-  // The column IS a shared track now: CHILD_KIND_TAG_CLASS carries `.frizz-kind-tag` (styles.css), a
+  // The column IS a shared track now: CHILD_KIND_TAG_CLASS carries `.ntwine-kind-tag` (styles.css), a
   // fixed per-font width, so the labels line up whatever a tag measures — on these rows and on the
   // File/Link rows that share the strip beneath them. That is what closed the ~2px AGENT-vs-SHELL
   // raggedness the sans stack used to carry. Keep the words five letters anyway: the mono track is
@@ -192,15 +192,15 @@ export function ChildOpRow({
       {running ? <BoxSpinner size={12} /> : quiet}
     </span>
   ) : (
-    // THE DOT IS LIFTED OFF THE FLEX CENTRE — see `.frizz-op-dot-slot` in styles.css for the readings
+    // THE DOT IS LIFTED OFF THE FLEX CENTRE — see `.ntwine-op-dot-slot` in styles.css for the readings
     // and for why the correction is font-scoped. `items-center` centres the dot's BOX on the line; the
     // eye reads it against the CAP BAND of the label beside it, and the two are not the same place.
-    <span className={`frizz-op-dot-slot ${CHILD_MARK_SLOT_CLASS}`}>
+    <span className={`ntwine-op-dot-slot ${CHILD_MARK_SLOT_CLASS}`}>
       {running ? (
         // A running SHELL pulses blue, a running sub-AGENT pulses the accent-yellow.
         <span
           aria-hidden
-          className={`frizz-live-dot ${LIVE_DOT_HUE[kind]}`}
+          className={`ntwine-live-dot ${LIVE_DOT_HUE[kind]}`}
           data-running-indicator={density === "card" ? "queue-subagent" : "operation"}
         />
       ) : returned ? (

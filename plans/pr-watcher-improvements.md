@@ -2,7 +2,7 @@
 
 Status: ASSESSMENT + PROPOSALS. Written 2026-09-04 after the maintainer reported that the watcher on thread `clone-node-and-find-the-least` (project `nub`) had let reviews and CI failures pass without notifying the worker.
 
-**FOUR OF THE EIGHT WERE BUILT the same day** — the maintainer picked P2, P4 (its board half only), P6 and P7, and they landed as `262037ab`, `18b5bc10`, `df645e07` and `24cec001`. What each one turned out to be is recorded under its own heading below; the root cause of the false green (D2) is not what this document first guessed, and that correction is the most important thing here. **P1, P3, P5 and P4's progress-report half were NOT built** and are still live proposals. Every figure below was read off this machine's own `~/.frizz/ui.db`, the thread's transcript, and GitHub's API for the two PRs involved.
+**FOUR OF THE EIGHT WERE BUILT the same day** — the maintainer picked P2, P4 (its board half only), P6 and P7, and they landed as `262037ab`, `18b5bc10`, `df645e07` and `24cec001`. What each one turned out to be is recorded under its own heading below; the root cause of the false green (D2) is not what this document first guessed, and that correction is the most important thing here. **P1, P3, P5 and P4's progress-report half were NOT built** and are still live proposals. Every figure below was read off this machine's own `~/.ntwine/ui.db`, the thread's transcript, and GitHub's API for the two PRs involved.
 
 The headline: the watcher's polling is fine — it caught a CI failure 48s after the job went red. The defects are in **when the news is allowed to reach the worker**, in **what counts as a verdict**, and in **what the watcher is blind to**. Two of the three reports it did send on the day were factually wrong, and the one that mattered arrived 10m late.
 
@@ -10,7 +10,7 @@ The headline: the watcher's polling is fine — it caught a CI failure 48s after
 
 ## 1. The trace
 
-Two PRs against `nodejs/node`, both opened by the worker at 15:15Z on 2026-09-04, both registered with `mcp__frizz__watch_pr` for 180d:
+Two PRs against `nodejs/node`, both opened by the worker at 15:15Z on 2026-09-04, both registered with `mcp__ntwine__watch_pr` for 180d:
 
 - [#65795](https://github.com/nodejs/node/pull/65795) — watcher `prw_2033cc5165df`
 - [#65796](https://github.com/nodejs/node/pull/65796) — watcher `prw_66da4f676f55`
@@ -31,7 +31,7 @@ Two PRs against `nodejs/node`, both opened by the worker at 15:15Z on 2026-09-04
 | 16:54:11.371 | — | report 3 finally released into the runtime's queue |
 | 16:54:11.582 | **the maintainer types "There are already reviews. Why don't you incorporate them?"** | — |
 
-The maintainer's message and Frizz's own wake landed in the same queue drain, 211ms apart. He had been looking at a PR page showing a red build and an unanswered review while the thread worked on something else, with no way to tell whether the watcher was alive.
+The maintainer's message and Ntwine's own wake landed in the same queue drain, 211ms apart. He had been looking at a PR page showing a red build and an unanswered review while the thread worked on something else, with no way to tell whether the watcher was alive.
 
 ---
 
@@ -49,7 +49,7 @@ The asymmetry is stark. A shell the worker started reaches it in seconds. A buil
 
 ### D2 — The first report on a fresh PR is a false green
 
-> **BUILT (`262037ab`), and the cause was NOT what this section first said.** The skip count is only half of it. The other half is that Node's real 29-check matrix was held at GitHub's fork-approval gate: a gated workflow concludes `ACTION_REQUIRED` at the check SUITE and produces **no check run at all**, so it is absent from `statusCheckRollup` entirely. The rollup did not look complete because the checks had finished — it looked complete because the missing half was invisible. Frizz was already fetching the answer (`gh run list --commit <sha>` lists all 8, and `failedCheckNames` was skipping past them). `skipped` is now counted apart from `passed`, a pass needs a real `SUCCESS`, and a gated head reads as running and reports in its own right.
+> **BUILT (`262037ab`), and the cause was NOT what this section first said.** The skip count is only half of it. The other half is that Node's real 29-check matrix was held at GitHub's fork-approval gate: a gated workflow concludes `ACTION_REQUIRED` at the check SUITE and produces **no check run at all**, so it is absent from `statusCheckRollup` entirely. The rollup did not look complete because the checks had finished — it looked complete because the missing half was invisible. Ntwine was already fetching the answer (`gh run list --commit <sha>` lists all 8, and `failedCheckNames` was skipping past them). `skipped` is now counted apart from `passed`, a pass needs a real `SUCCESS`, and a gated head reads as running and reports in its own right.
 
 `githubWatchStatus` ([`scheduler.ts:226`](../packages/server/src/scheduler.ts)) reduces the rollup to `entries.length === 0 ? "none" : failed > 0 ? "failing" : running > 0 ? "running" : "passing"`. Every terminal entry that did not fail counts as passed — including `skipped`.
 
@@ -62,7 +62,7 @@ success  Apply contributor guidance     skipped  stale-comment   (x3)
                                         skipped  Notify on Review Wanted (x3)
 ```
 
-Not one build. Not one test. Node's real CI — 29 checks across eight platforms — never ran on that commit at all; it started at 15:39Z on the next head. Frizz's first word to the worker was **"✅ CI PASSED on nodejs/node#65795 — 15 checks green."**
+Not one build. Not one test. Node's real CI — 29 checks across eight platforms — never ran on that commit at all; it started at 15:39Z on the next head. Ntwine's first word to the worker was **"✅ CI PASSED on nodejs/node#65795 — 15 checks green."**
 
 #65796 got the same treatment with 11 checks. Both reports were wrong, both burned a wake, and both left a worker holding a green verdict for a commit that was never built.
 
@@ -82,7 +82,7 @@ The head is already carried in the CI stamp (`<head>:<verdict>:<failing jobs>`),
 
 `running` is deliberately not news, and on a small repo that is right — the verdict lands in a couple of minutes. On nodejs/node the matrix takes about 1h 30m. #65795 has been running since 15:39Z with no report, and the next one is due whenever all 29 checks settle.
 
-For 1h 40m, a worker resting on that watcher and a maintainer reading the board see the same thing from Frizz: silence. There is no reading that separates "CI is grinding, 15 of 29 done" from "the watcher is dead." That ambiguity *is* the complaint.
+For 1h 40m, a worker resting on that watcher and a maintainer reading the board see the same thing from Ntwine: silence. There is no reading that separates "CI is grinding, 15 of 29 done" from "the watcher is dead." That ambiguity *is* the complaint.
 
 The board can already draw the distinction — `AwaitingBackgroundCard` renders "1 failing · 2 in progress · 31 successful" plus the merge verdict, off a status book the poller publishes for every watched PR ([`scheduler.ts:1072`](../packages/server/src/scheduler.ts)). But that card is drawn for a thread that is **parked**. This thread was spinning, so the maintainer saw none of it.
 
@@ -90,7 +90,7 @@ The board can already draw the distinction — `AwaitingBackgroundCard` renders 
 
 The report read, in full: `❌ CI FAILED on nodejs/node#65796: x86_64-darwin: with shared libraries / build.`
 
-What the worker did next, from the transcript: `gh api …/pulls/65796/reviews`, then `gh run view 33888697242 --json …` (55.6 KB, large enough that the harness spilled it to a file), then two `grep` passes over that file to locate the failing step. About 1m of wall clock and a large context hit to answer "why did it fail", which Frizz was one API call away from answering when it minted the wake.
+What the worker did next, from the transcript: `gh api …/pulls/65796/reviews`, then `gh run view 33888697242 --json …` (55.6 KB, large enough that the harness spilled it to a file), then two `grep` passes over that file to locate the failing step. About 1m of wall clock and a large context hit to answer "why did it fail", which Ntwine was one API call away from answering when it minted the wake.
 
 ### D6 — The watcher is blind to most of a PR's state machine
 
@@ -144,7 +144,7 @@ Two independent halves, and the second is cheaper and helps the human directly:
 
 ### P5 — Carry the failure, not just the job name (fixes D5)
 
-When the verdict turns red, fetch the failed job's failing step and the last ~40 lines of its log, and inline them under a cap. Frizz already has the run id. This is the single biggest per-wake saving in the list — it removes three or four tool calls and a 55 KB log spill from the worker's first move after every red build.
+When the verdict turns red, fetch the failed job's failing step and the last ~40 lines of its log, and inline them under a cap. Ntwine already has the run id. This is the single biggest per-wake saving in the list — it removes three or four tool calls and a 55 KB log spill from the worker's first move after every red build.
 
 ### P6 — Widen the event set (fixes D6)
 

@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import type { ChatMessage } from "./hooks.ts"
 import { Message, ThreadSlugContext } from "./components/ChatView.tsx"
 import { store } from "./store.ts"

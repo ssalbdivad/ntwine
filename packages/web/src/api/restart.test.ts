@@ -3,39 +3,39 @@ import { test } from "node:test"
 import {
   canRestart,
   canUpdateRestart,
-  frizzBuildIdentity,
-  getFrizzSupervisorStatus,
+  ntwineBuildIdentity,
+  getNtwineSupervisorStatus,
   IDLE_RESTART_HOLD,
-  isDevFrizzBuild,
+  isDevNtwineBuild,
   nextControlPlane,
   nextRestartHold,
   readyBelieved,
-  requestFrizzRestart,
-  requestFrizzUpdateRestart,
+  requestNtwineRestart,
+  requestNtwineUpdateRestart,
   RESTART_HOLD_DEADLINE_MS,
   restartFailureCopy,
   restartFailureOutcome,
   shouldReloadForNewBuild,
   type ControlPlane,
-  type FrizzSupervisorStatus,
+  type NtwineSupervisorStatus,
   type StampedSupervisorStatus,
 } from "./restart.ts"
 
 const response = (body: string, status = 200, contentType = "application/json") => new Response(body, { status, headers: { "content-type": contentType } })
 
 test("restart controls negotiate an explicit JSON protocol and reject SPA HTML fallbacks", async () => {
-  const html = async () => response("<!doctype html><title>Frizz</title>", 200, "text/html")
-  assert.equal(await getFrizzSupervisorStatus(html as typeof fetch), null)
-  await assert.rejects(requestFrizzUpdateRestart(html as typeof fetch), /unavailable/)
+  const html = async () => response("<!doctype html><title>Ntwine</title>", 200, "text/html")
+  assert.equal(await getNtwineSupervisorStatus(html as typeof fetch), null)
+  await assert.rejects(requestNtwineUpdateRestart(html as typeof fetch), /unavailable/)
 })
 
 test("restart controls reject stale protocol, missing routes, and network failures", async () => {
   const stale = async () => response(JSON.stringify({ protocol: 0, state: "ready" }))
   const missing = async () => response("missing", 404, "text/plain")
   const failed = async () => { throw new Error("network down") }
-  assert.equal(await getFrizzSupervisorStatus(stale as typeof fetch), null)
-  assert.equal(await getFrizzSupervisorStatus(missing as typeof fetch), null)
-  assert.equal(await getFrizzSupervisorStatus(failed as typeof fetch), null)
+  assert.equal(await getNtwineSupervisorStatus(stale as typeof fetch), null)
+  assert.equal(await getNtwineSupervisorStatus(missing as typeof fetch), null)
+  assert.equal(await getNtwineSupervisorStatus(failed as typeof fetch), null)
   assert.equal(canRestart(null), false)
   assert.equal(canRestart({ protocol: 1, state: "ready" }), true)
   assert.equal(canUpdateRestart({ protocol: 1, state: "ready" }), false)
@@ -48,8 +48,8 @@ test("ordinary restart remains available without the update capability", async (
     request = { input, init }
     return response(JSON.stringify({ protocol: 1, state: "ready" }), 202)
   }
-  await requestFrizzRestart(supported as typeof fetch)
-  assert.equal(request?.input, "/_frizz/control/restart")
+  await requestNtwineRestart(supported as typeof fetch)
+  assert.equal(request?.input, "/_ntwine/control/restart")
   assert.equal(request?.init?.method, "POST")
 })
 
@@ -59,14 +59,14 @@ test("update and restart requires an explicit supervisor capability and uses its
     request = { input, init }
     return response(JSON.stringify({ protocol: 1, state: "ready", artifactDigest: "a".repeat(64), updateRestart: true }))
   }
-  assert.equal((await getFrizzSupervisorStatus(supported as typeof fetch))?.artifactDigest, "a".repeat(64))
-  assert.equal((await getFrizzSupervisorStatus(supported as typeof fetch))?.updateRestart, true)
-  await requestFrizzUpdateRestart(supported as typeof fetch)
-  assert.equal(request?.input, "/_frizz/control/update-restart")
+  assert.equal((await getNtwineSupervisorStatus(supported as typeof fetch))?.artifactDigest, "a".repeat(64))
+  assert.equal((await getNtwineSupervisorStatus(supported as typeof fetch))?.updateRestart, true)
+  await requestNtwineUpdateRestart(supported as typeof fetch)
+  assert.equal(request?.input, "/_ntwine/control/update-restart")
   assert.equal(request?.init?.method, "POST")
 
   const failure = async () => response(JSON.stringify({ protocol: 1, state: "failed", message: "candidate rejected" }), 503)
-  await assert.rejects(requestFrizzUpdateRestart(failure as typeof fetch), /candidate rejected/)
+  await assert.rejects(requestNtwineUpdateRestart(failure as typeof fetch), /candidate rejected/)
 })
 
 test("supervisor status distinguishes the active server from its stable launcher", async () => {
@@ -77,7 +77,7 @@ test("supervisor status distinguishes the active server from its stable launcher
     launcherVersion: "0.13.0",
     updateVersion: "0.13.2",
   }))
-  assert.deepEqual(await getFrizzSupervisorStatus(split as typeof fetch), {
+  assert.deepEqual(await getNtwineSupervisorStatus(split as typeof fetch), {
     protocol: 1,
     state: "ready",
     version: "0.13.1",
@@ -88,11 +88,11 @@ test("supervisor status distinguishes the active server from its stable launcher
 
 test("an accepted update transition is not misreported as a restart failure", async () => {
   const accepted = async () => response(JSON.stringify({ protocol: 1, state: "restarting" }), 202)
-  assert.equal((await requestFrizzUpdateRestart(accepted as typeof fetch)).state, "restarting")
+  assert.equal((await requestNtwineUpdateRestart(accepted as typeof fetch)).state, "restarting")
 })
 
 // The two conditions behind the Update-vs-Restart label. Conflating them shipped: production reported
-// only the CAPABILITY, so a fully current Frizz still offered "Update Frizz" and a click reinstalled its
+// only the CAPABILITY, so a fully current Ntwine still offered "Update Ntwine" and a click reinstalled its
 // own version and restarted the app for nothing.
 test("the update label needs the verb wired AND a newer artifact to actually exist", () => {
   const status = (over: Record<string, unknown>) =>
@@ -105,7 +105,7 @@ test("the update label needs the verb wired AND a newer artifact to actually exi
   )
   assert.equal(
     canUpdateRestart(status({ updateRestart: true })), true,
-    "absent ⇒ assume available, so frizz-dev (which can always rebuild from source) is unchanged",
+    "absent ⇒ assume available, so ntwine-dev (which can always rebuild from source) is unchanged",
   )
   assert.equal(
     canUpdateRestart(status({ updateRestart: false, updateAvailable: true })), false,
@@ -114,26 +114,26 @@ test("the update label needs the verb wired AND a newer artifact to actually exi
 })
 
 // Why a field at all: the client cannot see this. `import.meta.env.DEV` is a Vite COMPILE-TIME
-// constant, false in the production bundle every frizz-dev artifact serves — so the dev-only
+// constant, false in the production bundle every ntwine-dev artifact serves — so the dev-only
 // Restart-worker verb was eliminated from the build it exists for. The launcher answers instead.
 test("a development build is only ever what the supervisor explicitly reports", async () => {
   const status = (over: Record<string, unknown>) =>
-    ({ protocol: 1, state: "ready", ...over }) as Parameters<typeof isDevFrizzBuild>[0]
+    ({ protocol: 1, state: "ready", ...over }) as Parameters<typeof isDevNtwineBuild>[0]
 
-  assert.equal(isDevFrizzBuild(status({ dev: true })), true, "frizz-dev / pnpm dev")
+  assert.equal(isDevNtwineBuild(status({ dev: true })), true, "ntwine-dev / pnpm dev")
   assert.equal(
-    isDevFrizzBuild(status({})), false,
-    "a published Frizz, and any supervisor predating the field, must never show a dev-only verb",
+    isDevNtwineBuild(status({})), false,
+    "a published Ntwine, and any supervisor predating the field, must never show a dev-only verb",
   )
   assert.equal(
-    isDevFrizzBuild(status({ updateRestart: true })), false,
+    isDevNtwineBuild(status({ updateRestart: true })), false,
     "Update & Restart is wired in PRODUCTION too — it can never stand in for a dev signal",
   )
-  assert.equal(isDevFrizzBuild(null), false, "an unreachable supervisor is not a licence to show one")
+  assert.equal(isDevNtwineBuild(null), false, "an unreachable supervisor is not a licence to show one")
 
   // And it has to survive the wire, not just the predicate.
   const dev = async () => response(JSON.stringify({ protocol: 1, state: "ready", dev: true }))
-  assert.equal(isDevFrizzBuild(await getFrizzSupervisorStatus(dev as typeof fetch)), true)
+  assert.equal(isDevNtwineBuild(await getNtwineSupervisorStatus(dev as typeof fetch)), true)
 })
 
 // ── Finding 1 (audit 2026-09-11): the restart hold has a deadline ────────────────────────────────────
@@ -178,13 +178,13 @@ test("any protocol answer resets the hold's clock, and nothing accrues without a
 
 // ── Finding 8: every tab reloads onto a new build, not just the one that clicked ─────────────────────
 test("a ready answer from a different build than this page first saw means reload", () => {
-  const ready = (over: Record<string, unknown>) => ({ protocol: 1, state: "ready", ...over }) as FrizzSupervisorStatus
-  // frizz-dev's durable owner names an artifact digest; the registry launcher names a version.
-  assert.equal(frizzBuildIdentity(ready({ artifactDigest: "a".repeat(64) })), "a".repeat(64))
-  assert.equal(frizzBuildIdentity(ready({ version: "0.4.2" })), "0.4.2")
-  assert.equal(frizzBuildIdentity(ready({ artifactDigest: "d", version: "0.4.2" })), "d", "the digest is the finer identity when both are sent")
-  assert.equal(frizzBuildIdentity(ready({})), null)
-  assert.equal(frizzBuildIdentity(null), null)
+  const ready = (over: Record<string, unknown>) => ({ protocol: 1, state: "ready", ...over }) as NtwineSupervisorStatus
+  // ntwine-dev's durable owner names an artifact digest; the registry launcher names a version.
+  assert.equal(ntwineBuildIdentity(ready({ artifactDigest: "a".repeat(64) })), "a".repeat(64))
+  assert.equal(ntwineBuildIdentity(ready({ version: "0.4.2" })), "0.4.2")
+  assert.equal(ntwineBuildIdentity(ready({ artifactDigest: "d", version: "0.4.2" })), "d", "the digest is the finer identity when both are sent")
+  assert.equal(ntwineBuildIdentity(ready({})), null)
+  assert.equal(ntwineBuildIdentity(null), null)
 
   assert.equal(shouldReloadForNewBuild("0.4.2", ready({ version: "0.5.0" })), true, "the other tabs' case: same server slot, new version")
   assert.equal(shouldReloadForNewBuild("0.4.2", ready({ version: "0.4.2" })), false, "an ordinary Restart keeps the build")
@@ -199,19 +199,19 @@ test("a ready answer from a different build than this page first saw means reloa
 // ── Finding 11: "kept running the previous version" is only true when it did ────────────────────────
 test("a failed answer naming the version we clicked on means the old launcher gave up; a newer one means the successor failed", () => {
   assert.deepEqual(restartFailureOutcome("0.4.2", { version: "0.4.2" }), { kind: "previous-kept" })
-  assert.deepEqual(restartFailureOutcome(undefined, {}), { kind: "previous-kept" }, "frizz-dev names no version and rolls back in place")
+  assert.deepEqual(restartFailureOutcome(undefined, {}), { kind: "previous-kept" }, "ntwine-dev names no version and rolls back in place")
   assert.deepEqual(restartFailureOutcome("0.4.2", { version: "0.5.0" }), { kind: "successor-failed", version: "0.5.0" })
   assert.deepEqual(restartFailureOutcome("0.4.2", {}), { kind: "successor-failed", version: undefined }, "a different answerer that names nothing is still not the one we clicked on")
 
   const kept = restartFailureCopy({ kind: "previous-kept" })
-  assert.equal(kept.detail, "Frizz kept running the previous version, and your threads are unaffected.")
-  assert.equal(kept.summary, "Frizz kept running the previous version")
+  assert.equal(kept.detail, "Ntwine kept running the previous version, and your threads are unaffected.")
+  assert.equal(kept.summary, "Ntwine kept running the previous version")
   const successor = restartFailureCopy({ kind: "successor-failed", version: "0.5.0" })
-  assert.equal(successor.summary, "Frizz 0.5.0 failed to start")
-  assert.match(successor.detail, /^Frizz 0\.5\.0 came up but could not start its board, and the previous version is gone\./)
-  assert.match(successor.detail, /npx frizz/)
+  assert.equal(successor.summary, "Ntwine 0.5.0 failed to start")
+  assert.match(successor.detail, /^Ntwine 0\.5\.0 came up but could not start its board, and the previous version is gone\./)
+  assert.match(successor.detail, /npx ntwine/)
   assert.doesNotMatch(successor.detail, /kept running/)
-  assert.match(restartFailureCopy({ kind: "successor-failed" }).summary, /^The new version of Frizz failed to start$/)
+  assert.match(restartFailureCopy({ kind: "successor-failed" }).summary, /^The new version of Ntwine failed to start$/)
 })
 
 // ── pullfrog on #35 (2026-09-11): only an answer requested after the ack can settle an attempt ──────
@@ -286,10 +286,10 @@ test("retrying from failed with an old poll in flight never reloads onto the old
 // answer, and it must settle the attempt or the tab waits out the whole hold under an overlay while
 // the new build serves (seen on the Windows run, 2026-09-11).
 test("a post-ack ready naming a different build settles the attempt; the same build's ready does not", () => {
-  const attempt = { startedAt: 1_000, ackedAt: 1_500, build: "npm:frizz@0.12.12" }
+  const attempt = { startedAt: 1_000, ackedAt: 1_500, build: "npm:ntwine@0.12.12" }
   const pending = { state: "restarting" as const, message: null, attempt }
-  const same = { state: "ready" as const, message: undefined, requestedAt: 1_600, artifactDigest: "npm:frizz@0.12.12", version: "0.12.12" }
-  const successor = { state: "ready" as const, message: undefined, requestedAt: 1_700, artifactDigest: "npm:frizz@0.12.13", version: "0.12.13" }
+  const same = { state: "ready" as const, message: undefined, requestedAt: 1_600, artifactDigest: "npm:ntwine@0.12.12", version: "0.12.12" }
+  const successor = { state: "ready" as const, message: undefined, requestedAt: 1_700, artifactDigest: "npm:ntwine@0.12.13", version: "0.12.13" }
   assert.equal(nextControlPlane(pending, same), pending)
   assert.deepEqual(nextControlPlane(pending, successor), { state: "ready", message: null, attempt: null })
   // Before the ack even the successor's answer cannot speak for the attempt.

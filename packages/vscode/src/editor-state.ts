@@ -1,13 +1,13 @@
 // THE EDITOR, AS AN AGENT READS IT — the pure half of the `editor` frame (packages/shared/src/
 // editor-protocol.ts EditorSnapshot): the file in front with its selection and the selected text, the
-// other open tabs, and the editor's errors and warnings, built from plain inputs and FITTED to what Frizz
-// takes. A worker reads it through `mcp__frizz__editor`, the way Claude Code's own agent reads its IDE
+// other open tabs, and the editor's errors and warnings, built from plain inputs and FITTED to what Ntwine
+// takes. A worker reads it through `mcp__ntwine__editor`, the way Claude Code's own agent reads its IDE
 // (getCurrentSelection, getOpenEditors, getDiagnostics). editor-state-feed.ts reads the inputs out of
 // VS Code; connection.ts sends the result. No `vscode` here, so every rule is a unit test under plain
 // node (editor-state.test.ts).
 //
 // Two rules carry the weight:
-//   - NOTHING GOES OUT THAT FRIZZ WILL REFUSE. A refused frame closes the socket 4401, and the same frame
+//   - NOTHING GOES OUT THAT NTWINE WILL REFUSE. A refused frame closes the socket 4401, and the same frame
 //     is refused again on every redial — forever, for as long as the human keeps that selection. So every
 //     count and length is capped here to the server's schema, and the whole frame is fitted into
 //     EDITOR_STATE_MAX_BYTES encoded, trimming in the order that loses the least: the diagnostics from the
@@ -29,7 +29,7 @@ import {
   type EditorDiagnostic,
   type EditorOpenFile,
   type EditorSnapshot,
-} from "@frizz/shared/editor-protocol"
+} from "@ntwine/shared/editor-protocol"
 import { lineSpan, type Position } from "./editor-context.ts"
 import { normalizeNewlines } from "./message.ts"
 
@@ -65,7 +65,7 @@ export interface DiagnosticInput {
 }
 
 export interface SnapshotInputs {
-  /** The window's `frizz.shareEditorState`. Off: nothing but `shared: false` goes out. */
+  /** The window's `ntwine.shareEditorState`. Off: nothing but `shared: false` goes out. */
   shared: boolean
   active: ActiveInput | undefined
   /** Every file open in a tab, in the order the feed ranks them (most recently in front first). */
@@ -74,7 +74,7 @@ export interface SnapshotInputs {
   diagnostics: readonly DiagnosticInput[]
 }
 
-/** The frame for a window that does not share its editor: it tells Frizz to forget what it had. */
+/** The frame for a window that does not share its editor: it tells Ntwine to forget what it had. */
 export function unsharedSnapshot(): EditorSnapshot {
   return { t: "editor", shared: false, active: null, open: [], diagnostics: [], problems: { errors: 0, warnings: 0 } }
 }
@@ -141,7 +141,7 @@ function diagnostic(input: DiagnosticInput): EditorDiagnostic {
 
 /**
  * The frame, capped to the server's schema (but not yet fitted to its byte ceiling: fitEditorSnapshot).
- * The file in front is left out of the open tabs; a path longer than Frizz takes is left out wherever it
+ * The file in front is left out of the open tabs; a path longer than Ntwine takes is left out wherever it
  * appears — the file in front included, which then reads as no file at all rather than get the frame refused.
  */
 export function buildEditorSnapshot(inputs: SnapshotInputs): EditorSnapshot {

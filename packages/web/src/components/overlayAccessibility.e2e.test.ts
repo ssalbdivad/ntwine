@@ -2,17 +2,17 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { MOBILE_MAX_PX } from "../lib/mobile.ts"
 
-// Opt-in because this drives a real Frizz server and Chrome. Normal unit runs record the regression
+// Opt-in because this drives a real Ntwine server and Chrome. Normal unit runs record the regression
 // without requiring a listener; local/live verification supplies a disposable URL and session rows.
 //
-// FRIZZ_OVERLAY_E2E_URL is a PROJECT's board, not the server root: one server serves every project,
+// NTWINE_OVERLAY_E2E_URL is a PROJECT's board, not the server root: one server serves every project,
 // and the bare origin is the project grid, which has no board and no Settings button. Working
 // invocation (from the repo root, against a disposable stack):
 //
 //   nub scripts/adhoc-stack.mjs --port=47451            # first JSON line names `home` and `url`
 //   nub scripts/seed-nested-subagents.mjs --home=<home>  # the nested sub-agent thread (first test)
 //   nub scripts/seed-overlay-e2e.mjs --home=<home>       # the "Overlay E2E" thread (second test)
-//   FRIZZ_OVERLAY_E2E_URL=http://127.0.0.1:47451/project/frizz FRIZZ_OVERLAY_E2E_NESTED_SLUG=nested-subagents \
+//   NTWINE_OVERLAY_E2E_URL=http://127.0.0.1:47451/project/ntwine NTWINE_OVERLAY_E2E_NESTED_SLUG=nested-subagents \
 //     nub run test packages/web/src/components/overlayAccessibility.e2e.test.ts
 //
 // While the Mac sits idle, new headless Chrome can stop drawing frames after a tab's second
@@ -21,14 +21,14 @@ import { MOBILE_MAX_PX } from "../lib/mobile.ts"
 // (measured 2026-10-05: 3 of 6 runs, the sheet already closed and the route already rewritten).
 // puppeteer's chrome-headless-shell keeps drawing (6 of 6), and since 2026-10-11 it is the only browser
 // `launchHeadless()` starts.
-const baseUrl = process.env.FRIZZ_OVERLAY_E2E_URL
-const threadSlug = process.env.FRIZZ_OVERLAY_E2E_SLUG ?? "overlay-e2e"
-const nestedThreadSlug = process.env.FRIZZ_OVERLAY_E2E_NESTED_SLUG
-// The board's own path ("/project/frizz"): where closing the last sheet leaves the address bar.
+const baseUrl = process.env.NTWINE_OVERLAY_E2E_URL
+const threadSlug = process.env.NTWINE_OVERLAY_E2E_SLUG ?? "overlay-e2e"
+const nestedThreadSlug = process.env.NTWINE_OVERLAY_E2E_NESTED_SLUG
+// The board's own path ("/project/ntwine"): where closing the last sheet leaves the address bar.
 const boardPath = baseUrl ? new URL(baseUrl).pathname.replace(/\/$/, "") || "/" : "/"
 
 type AppStore = typeof import("../store.ts")
-type StoreHandle = { frizzOverlayE2eStore: () => Promise<AppStore> }
+type StoreHandle = { ntwineOverlayE2eStore: () => Promise<AppStore> }
 
 // The tests reach the app's store to open and read drawers. A bare `import("/src/store.ts")` is NOT
 // the app's store once vite has hot-updated anything since it started — the app then holds
@@ -38,7 +38,7 @@ type StoreHandle = { frizzOverlayE2eStore: () => Promise<AppStore> }
 // vite's dev graph is far past the default 250 entries). Serialized into the page, so self-contained.
 function installStoreHandle(): void {
   performance.setResourceTimingBufferSize(100_000)
-  ;(globalThis as unknown as StoreHandle).frizzOverlayE2eStore = () => {
+  ;(globalThis as unknown as StoreHandle).ntwineOverlayE2eStore = () => {
     const loaded = performance.getEntriesByType("resource").map((entry) => entry.name)
       .filter((name) => new URL(name).pathname === "/src/store.ts")
     return import(loaded.at(-1) ?? "/src/store.ts")
@@ -50,14 +50,14 @@ function installStoreHandle(): void {
 async function stubSupervisorStatus(page: import("puppeteer").Page): Promise<void> {
   await page.setRequestInterception(true)
   page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/_frizz/control/status") {
+    if (new URL(request.url()).pathname === "/_ntwine/control/status") {
       void request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ protocol: 1, state: "ready", updateRestart: false }) })
     } else void request.continue()
   })
 }
 
 // Seed with scripts/seed-nested-subagents.mjs against the disposable stack's HOME, then set
-// FRIZZ_OVERLAY_E2E_NESTED_SLUG=nested-subagents alongside FRIZZ_OVERLAY_E2E_URL.
+// NTWINE_OVERLAY_E2E_NESTED_SLUG=nested-subagents alongside NTWINE_OVERLAY_E2E_URL.
 test("Escape unwinds nested subagent drawers without dismissing their session", {
   skip: !baseUrl || !nestedThreadSlug,
   timeout: 90_000,
@@ -72,7 +72,7 @@ test("Escape unwinds nested subagent drawers without dismissing their session", 
     page.on("pageerror", (error) => errors.push(String(error)))
     page.on("console", (message) => { if (message.type() === "error") errors.push(`${message.text()} ${message.location().url}`) })
     const drawers = () => page.evaluate(async () => {
-      const { store } = await (globalThis as unknown as StoreHandle).frizzOverlayE2eStore()
+      const { store } = await (globalThis as unknown as StoreHandle).ntwineOverlayE2eStore()
       return store.drawers.map((drawer: { kind: string; closing?: boolean }) => ({ kind: drawer.kind, closing: !!drawer.closing }))
     })
     for (const [width, font] of [[1440, "sans"], [390, "sans"], [1440, "mono"], [390, "mono"]] as const) {
@@ -91,26 +91,26 @@ test("Escape unwinds nested subagent drawers without dismissing their session", 
       // (store.resolveRoutedThread); open the session drawer explicitly. Where the route already
       // opened it (the phone), this raises the same layer rather than stacking a second.
       await page.evaluate(async (slug) => {
-        const { pushDrawer } = await (globalThis as unknown as StoreHandle).frizzOverlayE2eStore()
+        const { pushDrawer } = await (globalThis as unknown as StoreHandle).ntwineOverlayE2eStore()
         pushDrawer("thread", slug)
       }, nestedThreadSlug!)
       const child = '[role="dialog"] [aria-label^="Open sub-agent transcript:"]'
       await page.waitForSelector(child)
       await page.click(child)
       await page.waitForFunction(async () => {
-        const { store } = await (globalThis as unknown as StoreHandle).frizzOverlayE2eStore()
+        const { store } = await (globalThis as unknown as StoreHandle).ntwineOverlayE2eStore()
         return store.drawers.length === 2
       })
       await page.keyboard.press("Escape")
       await page.waitForFunction(async () => {
-        const { store } = await (globalThis as unknown as StoreHandle).frizzOverlayE2eStore()
+        const { store } = await (globalThis as unknown as StoreHandle).ntwineOverlayE2eStore()
         return store.drawers.length < 2
       })
       assert.deepEqual(await drawers(), [{ kind: "thread", closing: false }], "one Escape leaves the session drawer open")
       assert.ok(await page.$('[role="dialog"]'))
       assert.ok(new URL(page.url()).pathname.endsWith(`/thread/${nestedThreadSlug}`))
-      if (process.env.FRIZZ_OVERLAY_E2E_SHOTS) {
-        await page.screenshot({ path: `${process.env.FRIZZ_OVERLAY_E2E_SHOTS}/escape-${width}-${font}.png` })
+      if (process.env.NTWINE_OVERLAY_E2E_SHOTS) {
+        await page.screenshot({ path: `${process.env.NTWINE_OVERLAY_E2E_SHOTS}/escape-${width}-${font}.png` })
       }
       await page.keyboard.press("Escape")
       await page.waitForFunction(() => !document.querySelector('[role="dialog"]'))
@@ -194,7 +194,7 @@ test("dialog portals, nested Select Escape, and thread sheets keep their keyboar
     // Open from a real focused control so the close path can prove restoration.
     await page.focus('button[title="Settings"]')
     await page.evaluate(async () => {
-      const { openNewThread } = await (globalThis as unknown as StoreHandle).frizzOverlayE2eStore()
+      const { openNewThread } = await (globalThis as unknown as StoreHandle).ntwineOverlayE2eStore()
       openNewThread()
     })
     await page.waitForSelector('[role="dialog"][aria-modal="true"]')

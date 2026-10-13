@@ -1,4 +1,4 @@
-import type { BackgroundShellOutputResult } from "@frizz/shared"
+import type { BackgroundShellOutputResult } from "@ntwine/shared"
 
 // AN AGENT TERMINAL'S LOG, AS A STREAM — what the drawer's poll turns the server's offset reads into, for
 // the read-only xterm to write (components/ShellLogPane.tsx). Pure, so the reset / resume / replay rules

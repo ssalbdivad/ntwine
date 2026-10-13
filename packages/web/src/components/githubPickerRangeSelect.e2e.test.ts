@@ -5,7 +5,7 @@ import test from "node:test"
 // reflex. Unit tests pin the reducer, but only a real browser proves the wiring — that shift reaches
 // the handler, that the row's title link doesn't swallow the click, and that dragging across rows
 // doesn't paint a text selection over the list. Drive the real component in the fixture page.
-const baseUrl = process.env.FRIZZ_GITHUB_PICKER_RANGE_E2E_URL
+const baseUrl = process.env.NTWINE_GITHUB_PICKER_RANGE_E2E_URL
 
 test("shift-clicking two rows in the GitHub picker selects every row in between, across pages and uncapped", {
   skip: !baseUrl,

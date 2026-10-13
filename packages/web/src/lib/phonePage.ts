@@ -1,4 +1,4 @@
-import { activeBandThread, type BoardSnapshot, type ThreadView } from "@frizz/shared"
+import { activeBandThread, type BoardSnapshot, type ThreadView } from "@ntwine/shared"
 import { isPinned, orderByInteraction, orderQueue, queued, sectionThreads, sessionIndicatorKind, type QueueDirection } from "../groups.ts"
 import { isBusy, threadKey, type QueuesProject } from "./allQueues.ts"
 import { loudBands } from "./listBands.ts"

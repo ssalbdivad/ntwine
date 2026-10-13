@@ -10,7 +10,7 @@
 // The point of the layout is ADJACENCY: a `const` in the fence, in the Read card and in the diff all
 // sit within one scroll, and before this change they were three different colours.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: node scripts/seed-syntax-highlighting.mjs --home=/abs/temp-home
 import { execFileSync } from "node:child_process"
@@ -21,7 +21,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-syntax-highlighting.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -90,7 +90,7 @@ jobs:
 
 // No extension and not a known filename — the control. There is no grammar for it, so it must render
 // plain rather than be guessed into one.
-const PLAIN_SOURCE = `frizz build manifest
+const PLAIN_SOURCE = `ntwine build manifest
 generated 2026-08-13
 entries 412
 `
@@ -169,7 +169,7 @@ const records = [
       '# Every shell construct that carries colour, on one card.',
       'for pkg in web server shared; do',
       '  if [[ -d "packages/$pkg" ]]; then',
-      '    pnpm --filter "@frizz/$pkg" typecheck 2>&1 | tee "/tmp/tc-$pkg.log"',
+      '    pnpm --filter "@ntwine/$pkg" typecheck 2>&1 | tee "/tmp/tc-$pkg.log"',
       '  fi',
       'done',
       'echo "checked ${#pkg} packages" && exit 0',
@@ -184,7 +184,7 @@ const records = [
   // An auto-backgrounded Bash, so the background-shell DRAWER has a real command to render. That
   // drawer is the fourth code surface, and it is not reachable from the transcript cards.
   ...pair("c7", "Bash", {
-    command: "until grep -q '^READY' /tmp/frizz-boot.log; do sleep 5; done\necho \"up after ${SECONDS}s\"",
+    command: "until grep -q '^READY' /tmp/ntwine-boot.log; do sleep 5; done\necho \"up after ${SECONDS}s\"",
     description: "Waiting for the stack to report ready",
     timeout: 590000,
   }, `Command did not complete within its 590s timeout and was moved to the background (ID: shfixture1). Output is being written to: ${home}/tasks/shfixture1.output. You will be notified when it completes.`),
@@ -224,7 +224,7 @@ const records = [
     "",
     "```bash",
     'for pkg in web server shared; do',
-    '  pnpm --filter "@frizz/$pkg" typecheck',
+    '  pnpm --filter "@ntwine/$pkg" typecheck',
     "done",
     "```",
   ].join("\n")),
@@ -235,6 +235,6 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${now()}', 'syntax highlighting', 'claude', 'opus', 'high', 'default', '${now()}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${now()}', 'syntax highlighting', 'claude', 'opus', 'high', 'default', '${now()}')`,
 ])
 console.log(`seeded ${slug} → ${sessionId}`)

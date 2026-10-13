@@ -1,14 +1,14 @@
 import { join } from "node:path"
-import { frizzRoots } from "../frizz-paths.ts"
+import { ntwineRoots } from "../ntwine-paths.ts"
 import { homedir, platform } from "node:os"
 import { createHash } from "node:crypto"
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
-import type { ProviderQuota, QuotaWindow } from "@frizz/shared"
+import type { ProviderQuota, QuotaWindow } from "@ntwine/shared"
 import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
 import { readObservedClaudeQuota, type ObservedClaudeQuota, type ObservedWindow } from "./claude-quota-observed.ts"
-import { log as frizzLog } from "../logging.ts"
+import { log as ntwineLog } from "../logging.ts"
 
 const execFileAsync = promisify(execFile)
 
@@ -31,7 +31,7 @@ const execFileAsync = promisify(execFile)
 // the refresh and starts nothing, because the CLI makes this same request with this same credential
 // and fails the same way. Until 2026-10-11 all of those fell through to the CLI and nothing
 // remembered that it had failed, so a machine that was not signed in to Claude started a Claude Code
-// process on every refresh attempt, for as long as Frizz ran (maintainer: "That's fucking nuts. We
+// process on every refresh attempt, for as long as Ntwine ran (maintainer: "That's fucking nuts. We
 // can't do that."). Measured that day: a real signed-out server with an empty board started one every
 // 30s off the heartbeat alone, and with a chip polling every 15s beside it the same reader started
 // 362 in a simulated hour — six a minute. Offline and a dead credential cost the same. The one start
@@ -70,7 +70,7 @@ const STALE_MAX_AGE_MS = 24 * 60 * 60_000
 // past 12s, and a too-tight bound here is indistinguishable from a broken credential.
 const CLI_TIMEOUT_MS = 30_000
 // HOW OFTEN THAT PROCESS MAY START: once, then no sooner than 15m later, then 30m, 1h … doubling to
-// one a day. The count is persisted beside the reading (`cli`), so it holds across every Frizz
+// one a day. The count is persisted beside the reading (`cli`), so it holds across every Ntwine
 // process on the machine and across a restart, it binds the heartbeat, a stale read and a forced
 // recheck alike, and ONLY THE ENDPOINT ACCEPTING THE TOKEN resets it — a usage reading the CLI printed
 // proves nothing about the token this reader holds. A refresh that worked buys hours of valid token,
@@ -80,7 +80,7 @@ const CLI_TIMEOUT_MS = 30_000
 const CLI_BACKOFF_BASE_MS = 15 * 60_000
 const CLI_BACKOFF_MAX_MS = 24 * 60 * 60_000
 // The lock must outlive the slowest refresh (the 30s CLI fallback), and followers must be willing to
-// wait through most of that bound. Otherwise a merely slow first process would make every other Frizz
+// wait through most of that bound. Otherwise a merely slow first process would make every other Ntwine
 // window give up early.
 const LOCK_STALE_MS = 40_000
 const LOCK_WAIT_MS = 15_000
@@ -274,14 +274,14 @@ export interface ClaudeQuotaDeps {
 // environment: a token in CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`'s), or a PROXY in front of the
 // API — ANTHROPIC_BASE_URL — that holds the real sign-in itself and adds it to every request passing
 // through, while Claude Code holds only a placeholder (ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY, or the
-// OAuth variable). That is what a "token broker" usually is. The pair lives in the environment Frizz
+// OAuth variable). That is what a "token broker" usually is. The pair lives in the environment Ntwine
 // was started with, or in the `env` block of Claude Code's user settings, which is where a proxy's
 // installer writes it and which wins when both name one (measured 2026-10-11: a real `claude -p` with a
 // different proxy in each called the settings' one). The workers inherit both, so this IS their route.
 //
 // The usage request goes exactly where Claude Code's own requests go, carrying exactly the credential
 // Claude Code would send, in the same header. Through a proxy it is decorated like any other request:
-// Frizz never holds the real token and sends nothing anywhere Claude Code does not.
+// Ntwine never holds the real token and sends nothing anywhere Claude Code does not.
 //
 // It is the ONLY reading a proxied machine can have when the placeholder is ANTHROPIC_AUTH_TOKEN:
 // measured the same day through a stand-in proxy, Anthropic's rate-limit headers came back to Claude
@@ -503,7 +503,7 @@ async function refreshQuota(
     // on a click. The record rides through untouched: only the endpoint accepting the token resets it,
     // and this start is not a repair of a rejection, so it does not count toward the backoff either.
     if (cli && now < cli.retryAt) throw new Error("Claude credential rejected")
-    frizzLog.warn("quota", "a manual quota refresh inside the usage endpoint's rate-limit window; starting Claude Code to read it")
+    ntwineLog.warn("quota", "a manual quota refresh inside the usage endpoint's rate-limit window; starting Claude Code to read it")
     const quota = parseClaudeUsageOutput(await (deps.execUsage ?? runClaudeUsage)(claudeBin), now)
     if (quota.status !== "ok") throw new Error(quota.detail)
     return { quota, ...(cli ? { cli } : {}) }
@@ -535,7 +535,7 @@ async function refreshQuota(
   const runs = (cli?.runs ?? 0) + 1
   const started: CliRuns = { runs, retryAt: now + Math.min(CLI_BACKOFF_BASE_MS * 2 ** (runs - 1), CLI_BACKOFF_MAX_MS) }
   // The only place a quota read costs a process, and rare by construction — so it always says so.
-  frizzLog.warn("quota", `the usage endpoint rejected the Claude credential (${res.status}); starting Claude Code to refresh it (start ${runs} since the endpoint last accepted one)`)
+  ntwineLog.warn("quota", `the usage endpoint rejected the Claude credential (${res.status}); starting Claude Code to refresh it (start ${runs} since the endpoint last accepted one)`)
   try {
     const quota = parseClaudeUsageOutput(await (deps.execUsage ?? runClaudeUsage)(claudeBin), now)
     if (quota.status !== "ok") throw new Error(quota.detail)
@@ -602,7 +602,7 @@ const MONTH_INDEX: Record<string, number> = {
 
 function parseResetLabel(label: string | undefined, now: number): number | undefined {
   if (!label) return undefined
-  // Claude Code and Frizz run on the same machine, so its explicit IANA suffix names the local timezone
+  // Claude Code and Ntwine run on the same machine, so its explicit IANA suffix names the local timezone
   // already in effect here. Remove only that redundant suffix; never reinterpret it as UTC.
   const text = label.replace(/\s+\([^)]+\)\s*$/, "").trim()
   // The live label shapes: "3pm", "Jul 23 at 3pm", "Jul 27 at 12:59am", optionally with a year.
@@ -639,7 +639,7 @@ function parseResetLabel(label: string | undefined, now: number): number | undef
 }
 
 // Claude Code intentionally formats this output as a small line-oriented contract for non-interactive
-// callers. Preserve its percentages and turn its local reset labels back into the unix instants Frizz's
+// callers. Preserve its percentages and turn its local reset labels back into the unix instants Ntwine's
 // display and subscription-limit scheduler already consume.
 export function parseClaudeUsageOutput(stdout: string, now = Date.now()): ProviderQuota {
   let text = stdout
@@ -734,7 +734,7 @@ function refreshSharedInBackground(paths: { data: string; lock: string }, claude
     const release = await tryAcquireLock(paths.lock)
     if (!release) return
     try {
-      // Read again under the lock: another Frizz process may have failed this same refresh a moment ago.
+      // Read again under the lock: another Ntwine process may have failed this same refresh a moment ago.
       const held = await readShared(paths.data)
       if (recentlyFailed(held, now)) return
       try {
@@ -768,7 +768,7 @@ export async function claudeQuotaRefreshSettled(): Promise<void> {
 // TTL or the endpoint's `retryAt` has not passed.
 //
 // It uses the SAME non-blocking background path a stale read kicks — one in-flight refresh per process,
-// a cross-process lock so N Frizz processes make one request per window per account, and Claude Code
+// a cross-process lock so N Ntwine processes make one request per window per account, and Claude Code
 // started only for a rejected credential, inside its own backoff. It NEVER blocks the caller and
 // swallows every failure (the last known-good reading rides until the next success). It is armed once
 // per project, so on a machine that is not signed in to Claude — or is offline — the ticks of every open
@@ -776,7 +776,7 @@ export async function claudeQuotaRefreshSettled(): Promise<void> {
 export async function refreshClaudeQuotaInBackground(claudeBin = "claude", deps: ClaudeQuotaDeps = {}): Promise<void> {
   const now = (deps.now ?? Date.now)()
   const configDir = claudeConfigDir()
-  const cacheDir = deps.cacheDir ?? join(frizzRoots().cache, "quota-cache")
+  const cacheDir = deps.cacheDir ?? join(ntwineRoots().cache, "quota-cache")
   try {
     await mkdir(cacheDir, { recursive: true, mode: 0o700 })
   } catch {
@@ -790,7 +790,7 @@ export async function refreshClaudeQuotaInBackground(claudeBin = "claude", deps:
   refreshSharedInBackground(paths, claudeBin, deps, now)
 }
 
-// The healthy cache is shared under ~/.frizz so three project windows make one usage request, not
+// The healthy cache is shared under ~/.ntwine so three project windows make one usage request, not
 // three simultaneous requests to the same account. A failed refresh serves the last known-good
 // reading (clearly labeled in the popover) for at most one day instead of erasing useful data.
 //
@@ -806,7 +806,7 @@ async function readEndpointQuota(
 ): Promise<ProviderQuota> {
   const now = (deps.now ?? Date.now)()
   const configDir = claudeConfigDir()
-  const cacheDir = deps.cacheDir ?? join(frizzRoots().cache, "quota-cache")
+  const cacheDir = deps.cacheDir ?? join(ntwineRoots().cache, "quota-cache")
   const paths = cachePaths(cacheDir, configDir)
   try {
     await mkdir(cacheDir, { recursive: true, mode: 0o700 })
@@ -847,7 +847,7 @@ async function readEndpointQuota(
     release = await acquireLock(paths.lock)
     const afterLock = await readShared(paths.data)
     if (rateLimited(afterLock, now)) retryAt = afterLock.retryAt
-    // Another Frizz process may have completed the requested refresh while this process waited.
+    // Another Ntwine process may have completed the requested refresh while this process waited.
     if (afterLock && afterLock.at !== initial?.at && now - afterLock.at < OK_TTL_MS) return afterLock.quota
 
     let refreshed: { quota: ProviderQuota; cli?: CliRuns }
@@ -897,7 +897,7 @@ function agoLabel(ms: number): string {
  * The endpoint's reading with what Claude Code's own sessions have reported laid over it
  * (claude-quota-observed.ts). `servedAt` is the instant (ms) the endpoint's reading was taken.
  *
- *  • NO ENDPOINT READING — the machine a token broker signs in, where Frizz finds no credential to ask
+ *  • NO ENDPOINT READING — the machine a token broker signs in, where Ntwine finds no credential to ask
  *    with, and equally a rejected or unreachable one with nothing cached: the sessions' report IS the
  *    reading, and its note says where it came from.
  *  • AN ENDPOINT READING OLDER THAN A REPORT: the windows that report names take its numbers — both are
@@ -944,7 +944,7 @@ export async function readClaudeQuota(
   try {
     const now = (deps.now ?? Date.now)()
     const configDir = claudeConfigDir()
-    const cacheDir = deps.cacheDir ?? join(frizzRoots().cache, "quota-cache")
+    const cacheDir = deps.cacheDir ?? join(ntwineRoots().cache, "quota-cache")
     const observed = await readObservedClaudeQuota(cacheDir, configDir, now)
     if (!observed) return served
     const shared = served.status === "ok" ? await readShared(cachePaths(cacheDir, configDir).data) : undefined

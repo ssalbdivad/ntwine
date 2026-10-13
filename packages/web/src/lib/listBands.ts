@@ -1,4 +1,4 @@
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { isPinned, orderByInteraction, queued, sectionOf } from "../groups.ts"
 import { threadKey, type QueuesProject } from "./allQueues.ts"
 import { optimisticallyArchived } from "./optimisticArchive.ts"

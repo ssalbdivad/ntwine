@@ -1,10 +1,10 @@
 // @ts-check
 /**
- * frizz — thread-excerpt: read a `.frizz/<slug>.md` and render a capped, key-section
+ * ntwine — thread-excerpt: read a `.ntwine/<slug>.md` and render a capped, key-section
  * excerpt for the ORCHESTRATOR to read.
  *
  * WHY THIS EXISTS / where it's used. When a dispatched sub-agent FINISHES and the
- * orchestrator goes idle, the Stop hook (frizz-stop-reminder.mjs) rest-reconciliation
+ * orchestrator goes idle, the Stop hook (ntwine-stop-reminder.mjs) rest-reconciliation
  * guard hands the orchestrator the CONTENTS of that agent's bound thread — so it can
  * square the agent's REPORTED results (the task return) against what the thread now
  * SAYS (the agent should have updated its own thread before resting; this is the
@@ -20,7 +20,7 @@
  *
  * CAPPING — a huge thread must never blow up the orchestrator's context: each thread
  * is capped to PER_THREAD_CAP chars and the combined surface to TOTAL_CAP; on either
- * cap we truncate and note the `.frizz/<slug>.md` path for the full read.
+ * cap we truncate and note the `.ntwine/<slug>.md` path for the full read.
  *
  * FAIL-OPEN ABSOLUTELY: a missing/unreadable file, an unresolved slug, or any parse
  * error yields no excerpt for that thread (the caller degrades to the bare pointer).
@@ -78,17 +78,17 @@ function frontmatter(src) {
 /**
  * Build a capped excerpt of one thread's current truth, or null if the file can't be
  * read / has no useful content. The returned string is the BODY only (the caller adds
- * the `--- .frizz/<slug>.md ---` banner) so callers can frame it uniformly.
+ * the `--- .ntwine/<slug>.md ---` banner) so callers can frame it uniformly.
  * @param {string} projectDir
  * @param {string} slug
  * @returns {string|null}
  */
 export function threadExcerpt(projectDir, slug) {
   if (!slug || typeof slug !== 'string') return null;
-  const rel = `.frizz/${slug}.md`;
+  const rel = `.ntwine/${slug}.md`;
   let src;
   try {
-    src = readFileSync(join(projectDir, '.frizz', `${slug}.md`), 'utf8');
+    src = readFileSync(join(projectDir, '.ntwine', `${slug}.md`), 'utf8');
   } catch {
     return null; // missing/unreadable → caller degrades to the bare pointer
   }
@@ -140,7 +140,7 @@ export function threadExcerptsBlock(projectDir, slugs) {
       if (!slug || seen.has(slug)) continue;
       seen.add(slug);
       const ex = threadExcerpt(projectDir, slug);
-      const rel = `.frizz/${slug}.md`;
+      const rel = `.ntwine/${slug}.md`;
       if (!ex) continue; // unreadable/empty → silently skip (bare pointer still names the thread)
       const rendered = `--- ${rel} ---\n${ex}`;
       if (used + rendered.length > TOTAL_CAP && blocks.length) {
@@ -152,7 +152,7 @@ export function threadExcerptsBlock(projectDir, slugs) {
     }
     if (!blocks.length) return '';
     let out =
-      '\n\nfrizz — thread contents for the agent(s) that just finished (the agent should have updated its thread before resting; square its reported results against what the thread now says):\n\n' +
+      '\n\nntwine — thread contents for the agent(s) that just finished (the agent should have updated its thread before resting; square its reported results against what the thread now says):\n\n' +
       blocks.join('\n\n');
     if (overflow.length) out += `\n\n… also finished (read in full): ${overflow.join(', ')}`;
     return out;

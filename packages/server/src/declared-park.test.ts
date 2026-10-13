@@ -6,7 +6,7 @@
 //
 // THE FENCE REGISTERS NOTHING — it is display-only, and exists so a worker can rest without being bumped
 // for a handoff. A background shell already wakes its agent when it finishes, and a sub-agent's return
-// re-invokes its parent, so there was never anything for frizz to arm (maintainer 2026-08-14: "Both
+// re-invokes its parent, so there was never anything for ntwine to arm (maintainer 2026-08-14: "Both
 // subagents and background shells should be display-only here").
 //
 // So what these pin is the INTEGRITY CHECK: every name in the fence has to correspond to something the
@@ -16,7 +16,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { declaredWaitIds, hasDeclaredBackgroundPark, hasDeclaredWait } from "./board.ts"
 import { parkExpiresAt, parkForMaxMs, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems } from "./awaiting.ts"
-import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PARK_CORRECTION_NEEDS_INPUT_LEAD, PR_WATCH_FOR_MAX_MS } from "@frizz/shared"
+import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PARK_CORRECTION_NEEDS_INPUT_LEAD, PR_WATCH_FOR_MAX_MS } from "@ntwine/shared"
 import { createScheduler } from "./scheduler.ts"
 import type { FenceView, SessionTelemetry } from "./tailer.ts"
 import { mkdtempSync, rmSync } from "node:fs"
@@ -223,10 +223,10 @@ test("own background work does both — it cards AND it leaves the queue", () =>
 // The two ways an awaiting fence goes stale, and the property that matters is that NEITHER is silent.
 // Every stall this grammar replaced was silent: a watcher matched on ids the worker never saw, a
 // blocking call that starved its own notification, a timer written in the past. Each one left a thread
-// looking parked forever, and frizz said nothing.
+// looking parked forever, and ntwine said nothing.
 
 function parkHarness(hints: FenceView["hints"], opts: { shells?: any[]; agents?: any[]; restedAt?: string; body?: string; retired?: any[]; prWatch?: { owner: string; repo: string; number: number }; lastHumanAt?: string; spawnedAt?: string; now?: () => number } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-park-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-park-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.setSetting("signoffNudge", "off") // isolate SOURCE 12 from the nudge
   const slug = "parked"
@@ -241,7 +241,7 @@ function parkHarness(hints: FenceView["hints"], opts: { shells?: any[]; agents?:
   storage.upsertSession({
     // A LEGACY dispatch unless a case says otherwise: these cases pin the item checks, and a thread under
     // the answer-required contract owes a `status:` they are not about (see the answer cases below).
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: opts.spawnedAt ?? "2026-08-15T11:00:00.000Z",
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: opts.spawnedAt ?? "2026-08-15T11:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: restedAt, title_auto: 0,
     title: null, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -304,13 +304,13 @@ test("a park naming something that is NOT running bumps the worker, and says whi
     // has already lost, which is how it got the id wrong in the first place.
     assert.match(rows[0].message, /bGONE.*NOT RUNNING/s)
     assert.match(rows[0].message, /bzvtnt3ig.*still running/s)
-    assert.match(rows[0].message, /`frizzctl activity`/, "…and points at the command that hands the ids back")
+    assert.match(rows[0].message, /`ntwinectl activity`/, "…and points at the command that hands the ids back")
   } finally { h.close() }
 })
 
 // A PR NAMED BUT NEVER REGISTERED IS BUMPED, BY NAME — and this is a DELIBERATE design choice, not a
 // gap. The maintainer was asked (2026-08-24) whether a `prs:` entry should simply arm the watcher itself,
-// making `mcp__frizz__watch_pr` optional, and chose to keep declaration and registration strictly
+// making `mcp__ntwine__watch_pr` optional, and chose to keep declaration and registration strictly
 // separate: "a fence naming an unregistered PR keeps getting bumped, and the worker learns to call the
 // tool first."
 //
@@ -327,8 +327,8 @@ test("a PR named in the fence but never registered is refused, and the correctio
     await h.s.tick()
     const rows = h.queued()
     assert.equal(rows.length, 1, "a park on an unregistered PR is never silent")
-    assert.match(rows[0].message, /acme\/app#391/, "the worker is told WHICH ref frizz could not find")
-    assert.match(rows[0].message, /`frizzctl watch-pr add`/, "…and that registering it is the missing step")
+    assert.match(rows[0].message, /acme\/app#391/, "the worker is told WHICH ref ntwine could not find")
+    assert.match(rows[0].message, /`ntwinectl watch-pr add`/, "…and that registering it is the missing step")
   } finally { h.close() }
 })
 
@@ -374,7 +374,7 @@ test("a fence with items but no `for:` is left to the sign-off nudge", async () 
 // THE FENCE THAT NAMES NOTHING — the shape the maintainer caught in the wild (2026-08-16): `for: 24h`
 // plus "TypeScript legs still running … waiting on the checks and your merge", and no item at all. The
 // worker could have registered a PR watcher and been woken the moment CI settled; instead it waited on
-// nothing, and frizz — which correctly refused the park — said nothing about why for a whole day.
+// nothing, and ntwine — which correctly refused the park — said nothing about why for a whole day.
 //
 // It is now the most explicit of the three bumps, because it is the one where the worker has the most to
 // gain from being told: it does not need to fix an id, it needs to register something at all.
@@ -388,9 +388,9 @@ test("an awaiting fence naming NOTHING is bumped, with how to register a real wa
     assert.match(rows[0].message, /names nothing to wait on/)
     // It has to say HOW, naming the tool for each kind — a worker told only "that is wrong" writes the
     // same fence again.
-    assert.match(rows[0].message, /`frizzctl watch-pr add`/, "the PR case, which is the one it had")
-    assert.match(rows[0].message, /`frizzctl timer set`/)
-    assert.match(rows[0].message, /`frizzctl activity`/, "…and where to get the ids")
+    assert.match(rows[0].message, /`ntwinectl watch-pr add`/, "the PR case, which is the one it had")
+    assert.match(rows[0].message, /`ntwinectl timer set`/)
+    assert.match(rows[0].message, /`ntwinectl activity`/, "…and where to get the ids")
     // …and the other honest exit: if it is not waiting, it is done.
     assert.match(rows[0].message, /you are not awaiting — you are done/)
   } finally { h.close() }
@@ -411,7 +411,7 @@ test("the nameless bump fires once per rest, and does not collide with the other
 //
 // A worker's contract is frozen at dispatch, so every session started before the 2026-08-15 cut keeps
 // writing the old kinds. A deleted kind does not parse, so it falls into the fence BODY as prose and the
-// fence silently becomes a park naming nothing — and the worker cannot see WHICH line frizz ignored, so
+// fence silently becomes a park naming nothing — and the worker cannot see WHICH line ntwine ignored, so
 // it writes the same one again. That produced three separate bug reports in two days, one of them a Goal
 // loop re-writing `pr-watch:` every six seconds.
 test("a fence using a RETIRED kind is bumped by name, with what replaced it", async () => {
@@ -423,9 +423,9 @@ test("a fence using a RETIRED kind is bumped by name, with what replaced it", as
     assert.equal(rows.length, 1)
     assert.match(rows[0].fence_id, /^park:retired:/, "its own cause, so it cannot collide with the others")
     // NAMES THE OFFENDING LINE. "Your fence names nothing" was true but not actionable — the worker
-    // could not tell which of its lines frizz had dropped.
+    // could not tell which of its lines ntwine had dropped.
     assert.match(rows[0].message, /`pr-watch:` is GONE/)
-    assert.match(rows[0].message, /`frizzctl watch-pr add`/, "…and what to do instead")
+    assert.match(rows[0].message, /`ntwinectl watch-pr add`/, "…and what to do instead")
     // AND THE WHOLE SUPPORTED SET, so the answer does not depend on the worker's frozen contract — which
     // is the entire point of this correction, and never more so than right after the 2026-08-24 cutover,
     // when every worker in flight has the retired SINGULAR keys frozen into its system prompt.
@@ -440,7 +440,7 @@ test("a fence using a RETIRED kind is bumped by name, with what replaced it", as
   } finally { h.close() }
 })
 
-// A CORRECTION CARRIES THE IDS, not a tool name. A worker dispatched before `mcp__frizz__activity`
+// A CORRECTION CARRIES THE IDS, not a tool name. A worker dispatched before `mcp__ntwine__activity`
 // existed cannot call it — its MCP server is frozen at dispatch — and those are exactly the threads still
 // writing fences this check refuses. Telling them to call it was pointing the whole affected population
 // at a remedy they do not have.
@@ -468,7 +468,7 @@ test("a nameless fence with nothing running is told it is not awaiting at all", 
     const msg = h.queued()[0].message
     assert.match(msg, /You have NOTHING running right now/)
     // The question fence is retired (2026-09-11); a registered question is the other way out.
-    assert.match(msg, /finish in\s*```done, or register a question with `frizzctl ask`/s)
+    assert.match(msg, /finish in\s*```done, or register a question with `ntwinectl ask`/s)
   } finally { h.close() }
 })
 
@@ -483,12 +483,12 @@ test("a nameless fence with nothing running is told it is not awaiting at all", 
 // 4h45m, one every ~28 seconds, and two more threads were doing the same. Every other parked thread on
 // that board had taken exactly one.
 function loopHarness(body: string) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-parkloop-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-parkloop-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.setSetting("signoffNudge", "off")
   const slug = "looping"
   storage.upsertSession({
-    slug, session_id: "sid", thread_name: `frizz-${slug}`, spawned_at: "2026-08-17T11:00:00.000Z",
+    slug, session_id: "sid", thread_name: `ntwine-${slug}`, spawned_at: "2026-08-17T11:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: new Date().toISOString(),
     title_auto: 0, title: null, state: "open", meta: null, seen_at: null,
     transcript_id: null,
@@ -733,8 +733,8 @@ test("a correction for a rest the worker has already moved past is not delivered
 // FINISHED IS NOT MISSING, and the difference is the whole message.
 //
 // `read-the-file-read-up` wrote 284 awaiting fences. Each one parked on a build; the build FINISHED; and
-// frizz answered "NOT RUNNING", which reads as "your fence is broken" — so the worker relaunched the work
-// instead of reading the output it had been waiting for, and went round again. Frizz has always known the
+// ntwine answered "NOT RUNNING", which reads as "your fence is broken" — so the worker relaunched the work
+// instead of reading the output it had been waiting for, and went round again. Ntwine has always known the
 // difference: the fold retires a shell with its finish instant.
 test("a park whose work simply FINISHED is told to read the result, not that its fence is wrong", async () => {
   const h = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "2h" }], {
@@ -806,10 +806,10 @@ test("a park on a timer that already FIRED says so, not the wrong-fence wording"
   } finally { h.close() }
 })
 
-// A DEMOTED shell is neither finished nor a typo: frizz has its launch and saw no completion notice, but
+// A DEMOTED shell is neither finished nor a typo: ntwine has its launch and saw no completion notice, but
 // can no longer find its process. "nothing by that name" sent the worker hunting for a mistake in an id it
 // had copied exactly (2026-10-03, on a shell the probe had wrongly demoted while it ran).
-test("a park on a shell frizz demoted to stale says it is gone without a notice, not that the id is unknown", async () => {
+test("a park on a shell ntwine demoted to stale says it is gone without a notice, not that the id is unknown", async () => {
   const h = parkHarness([{ kind: "shell", value: "bv8wnkd2q" }, { kind: "for", value: "2h" }], {
     shells: [{ id: "toolu_e2e", taskId: "bv8wnkd2q", label: "Running the released e2e", startedAt: AT, state: "stale" }],
   })
@@ -829,12 +829,12 @@ test("a park naming something that never existed still reads as a wrong fence", 
     await h.s.tick()
     const msg = h.queued()[0].message
     assert.match(msg, /nothing by that name/, "an id matching nothing is a typo, not a finished job")
-    assert.match(msg, /`frizzctl activity`/, "…so it is pointed at the ids it actually has")
+    assert.match(msg, /`ntwinectl activity`/, "…so it is pointed at the ids it actually has")
     assert.doesNotMatch(msg, /has FINISHED/)
   } finally { h.close() }
 })
 
-// THE CLOCK, on frizz's own correction only.
+// THE CLOCK, on ntwine's own correction only.
 //
 // A broker-run worker is told neither the date nor the time by its runtime — measured 2026-08-19 on
 // `read-the-file-read-up` (`claude_runtime = broker`, as 181 of that project's 338 sessions are): ZERO
@@ -842,8 +842,8 @@ test("a park naming something that never existed still reads as a wrong fence", 
 // estimating badly; it has no clock to estimate against, and no way to notice that its last four parks
 // each lasted four minutes.
 //
-// It rides ONLY on messages frizz itself authors. Two pinned invariants forbid the blanket version — "the
-// operator's text leads, verbatim" (Goal/heartbeat) and "the prompt VERBATIM" (snooze) — and frizz's own
+// It rides ONLY on messages ntwine itself authors. Two pinned invariants forbid the blanket version — "the
+// operator's text leads, verbatim" (Goal/heartbeat) and "the prompt VERBATIM" (snooze) — and ntwine's own
 // corrections are in any case the only deliveries that discuss the fence.
 test("a park correction tells the worker what time it is and how long it has been gone", async () => {
   const h = parkHarness([{ kind: "for", value: "24h" }], { body: "waiting",
@@ -855,12 +855,12 @@ test("a park correction tells the worker what time it is and how long it has bee
     assert.match(msg, /⏱ \d{4}-\d{2}-\d{2} \d{2}:\d{2}/, "an absolute wall clock…")
     assert.match(msg, /you last spoke 3h 12m ago/, "…and the ELAPSED number, which is the one that teaches")
     // At the FOOT: the correction's own instruction is what the worker must act on first.
-    assert.ok(msg.trimEnd().endsWith("ago."), "the clock is frizz's footnote, not its headline")
+    assert.ok(msg.trimEnd().endsWith("ago."), "the clock is ntwine's footnote, not its headline")
   } finally { h.close() }
 })
 
 // THE RUNTIME AGENT ID IS THE ONE A WORKER ACTUALLY HAS. The Agent tool's launch ack hands the model
-// `agentId: a01b2d20b32feab11`; the dispatch tool_use id frizz keys the child by never appears in its
+// `agentId: a01b2d20b32feab11`; the dispatch tool_use id ntwine keys the child by never appears in its
 // context. A shell has answered to its runtime handle (`taskId`) since 2026-08-14; a sub-agent answered
 // to only its tool_use id and label until 2026-08-28, when a worker that fenced the id it was handed was
 // bumped "NOT RUNNING (nothing by that name)", re-fenced with the `toolu_…` the correction printed, and
@@ -900,12 +900,12 @@ test("a park on a RETURNED sub-agent named by its runtime agentId reads as finis
   } finally { h.close() }
 })
 
-// SILENT IS NOT MISSING (2026-09-29). A sub-agent past its allowance reads `stale`: frizz knows the id, and
+// SILENT IS NOT MISSING (2026-09-29). A sub-agent past its allowance reads `stale`: ntwine knows the id, and
 // what it knows about the child is that it has written nothing for longer than its pending call declared.
 // "NOT RUNNING (nothing by that name)" sent a parent hunting for a typo while the child's processes were
 // alive (thread think-hard-about-this-conversation-between, three times in one evening). The wake stays —
 // it is how a parent hears that a child went quiet past its word — but it says what is true.
-test("a park naming a SILENT sub-agent wakes the parent with what frizz saw, not 'nothing by that name'", async () => {
+test("a park naming a SILENT sub-agent wakes the parent with what ntwine saw, not 'nothing by that name'", async () => {
   const h = parkHarness([{ kind: "agent", value: "a2d303d9459d3b0fe" }, { kind: "for", value: "2h" }], {
     agents: [{ id: "toolu_S", taskId: "a2d303d9459d3b0fe", label: "sweep agent", startedAt: AT, state: "stale", lastActivityAt: "2026-09-29T23:11:46.530Z" }],
   })
@@ -914,13 +914,13 @@ test("a park naming a SILENT sub-agent wakes the parent with what frizz saw, not
     const msg = h.queued()[0].message
     assert.match(msg, /gone silent past what it declared/)
     assert.match(msg, /a2d303d9459d3b0fe.*SILENT — nothing from it since 2026-09-29T23:11:46\.530Z/s)
-    assert.match(msg, /frizz stopped nothing/)
+    assert.match(msg, /ntwine stopped nothing/)
     assert.doesNotMatch(msg, /nothing by that name/)
     assert.equal(isParkCorrection(msg), true, "still a correction the transcript folds away")
   } finally { h.close() }
 })
 
-// …and the correction's own listing prints THAT id, so what frizz tells a worker to copy is the string it
+// …and the correction's own listing prints THAT id, so what ntwine tells a worker to copy is the string it
 // already recognises from its ack — not a second id it has never seen, which is what produced "why are
 // there 2 ids?". The tool_use id remains accepted, since the listing printed it for two weeks.
 test("the correction lists a running sub-agent by its runtime agentId, not its tool_use id", async () => {
@@ -954,11 +954,11 @@ test("a park that leaves an OPEN registered question unnamed is refused, even wh
     const rows = h.queued()
     assert.equal(rows.length, 1, "a live park is still not a park while it leaves a question out")
     assert.match(rows[0].fence_id, /^park:question:/)
-    // NAMED, with the question's own words: the worker never saw the id frizz minted, so the id alone
+    // NAMED, with the question's own words: the worker never saw the id ntwine minted, so the id alone
     // would not tell it which question is meant.
     assert.match(rows[0].message, /Open, and not named under `questions:`:\n- `qst_6506c36d2f28` — Nub still breaks Electron 34/)
     assert.match(rows[0].message, /`questions: \[qst_…\]`/, "…says how to keep the question")
-    assert.match(rows[0].message, /`frizzctl unask <id>`/, "…and how to drop it")
+    assert.match(rows[0].message, /`ntwinectl unask <id>`/, "…and how to drop it")
     assert.doesNotMatch(rows[0].message, /NOT RUNNING|still running/, "the live shell is not the news")
     // The transcript reads this delivery as a correction, so the refused fence stops drawing.
     assert.equal(isParkCorrection(rows[0].message), true)
@@ -1032,7 +1032,7 @@ test("an ANSWERED question no longer refuses the park", async () => {
 
 // A TYPED MESSAGE LEAVES A QUESTION OPEN AND OWED. The human wrote past it, the worker rested again with a
 // fence that leaves it out: refused, exactly like any open question. Naming it takes the park, and so does
-// withdrawing it — the worker's own act, never Frizz's.
+// withdrawing it — the worker's own act, never Ntwine's.
 test("a question the human typed past still refuses a later fence that leaves it out", async () => {
   const typedPast = { shells: [LIVE_SHELL], lastHumanAt: new Date(Date.now() - 30 * 60_000).toISOString() }
   const askedAtMs = Date.now() - 90 * 60_000
@@ -1088,7 +1088,7 @@ test("a `threads:` name matching no live await is refused, and the correction sa
     const rows = h.queued()
     assert.equal(rows.length, 1, "a dead name is refused, a live wait on ANOTHER thread notwithstanding")
     assert.equal(isParkCorrection(rows[0].message), true)
-    assert.match(rows[0].message, /`threads: \[@focus-mode\]` — NOT AWAITED — ask it with `frizzctl message-thread` and `--await-reply` first/)
+    assert.match(rows[0].message, /`threads: \[@focus-mode\]` — NOT AWAITED — ask it with `ntwinectl message-thread` and `--await-reply` first/)
     assert.match(rows[0].message, /In a fence: `threads: \[@shell-budgets\]`/, "the live one is printed for the re-fence")
   } finally { h.close() }
 })
@@ -1170,7 +1170,7 @@ test("a new-contract park that gives no answer is corrected for exactly that lin
   } finally { h.close() }
 })
 
-test("an answer frizz cannot read is quoted back — the `status:` line it wrote, else the older one", async () => {
+test("an answer ntwine cannot read is quoted back — the `status:` line it wrote, else the older one", async () => {
   for (const [hint, quoted] of [
     [{ kind: "status" as const, value: "wrking" }, "status: wrking"],
     [{ kind: "needs_input" as const, value: "yes" }, "needs_input: yes"],
@@ -1219,7 +1219,7 @@ test("a legacy park owes no answer", async () => {
 })
 
 // ---- STEPS FOR THE HUMAN (2026-10-03) --------------------------------------------------------------
-// `steps:` NAME THE HUMAN as the wait. The human is the one party frizz never has to watch: the thread
+// `steps:` NAME THE HUMAN as the wait. The human is the one party ntwine never has to watch: the thread
 // sits in their queue, and their reply is the wake — so a fence carrying only steps needs no item and no
 // `for:`, and must not be bumped as one that "names nothing".
 

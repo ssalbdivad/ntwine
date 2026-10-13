@@ -1,14 +1,14 @@
 import { noteServerBootId } from "./boot.ts"
 import { store } from "../store.ts"
 import { PROCEDURES, type Api, type ProcType, type RpcCallOpts } from "./contract.ts"
-import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
+import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 import { apiBase, isUnboundHome } from "../lib/base-path.ts"
 import { noteRpcMutation } from "../lib/humanActs.ts"
 
 export type { Api, ProcType, RpcCallOpts } from "./contract.ts"
 export { PROCEDURES } from "./contract.ts"
 
-export const CONTROL_PLANE_RESTARTING_MESSAGE = "Frizz is updating and restarting. Your draft is preserved; wait until it is ready before sending or changing settings."
+export const CONTROL_PLANE_RESTARTING_MESSAGE = "Ntwine is updating and restarting. Your draft is preserved; wait until it is ready before sending or changing settings."
 
 // A failure the caller may safely REPLAY, because the request provably took no effect: either the
 // server refused it at a contention gate upstream of any side effect (`retryable` in the error
@@ -50,7 +50,7 @@ export async function parseRpcResponse(res: Response, name: string): Promise<unk
     json = JSON.parse(body) as { result?: unknown; error?: unknown; retryable?: unknown; kept?: unknown }
   } catch {
     if (res.status === 404 || res.status === 405) {
-      throw new Error("Frizz server restart required — this control is newer than the running server")
+      throw new Error("Ntwine server restart required — this control is newer than the running server")
     }
     // SAY THE STATUS. A non-JSON body is always something OTHER than the RPC answering, and which
     // something is the entire diagnosis — 403 is the local-origin gate refusing (a stale tab, a
@@ -58,7 +58,7 @@ export async function parseRpcResponse(res: Response, name: string): Promise<unk
     // the SPA shell. Reporting all of them as "invalid response" sent one debugging session down the
     // wrong path entirely (2026-08-15: a 403 read as a schema problem and cost half an hour).
     if (res.status === 403) {
-      throw new Error(`RPC ${name} was refused (403) — the page's origin does not match the server it is talking to. Reload from the URL frizz is actually serving.`)
+      throw new Error(`RPC ${name} was refused (403) — the page's origin does not match the server it is talking to. Reload from the URL ntwine is actually serving.`)
     }
     throw new Error(`RPC ${name} returned a non-JSON response (HTTP ${res.status})`)
   }
@@ -74,7 +74,7 @@ export async function parseRpcResponse(res: Response, name: string): Promise<unk
 //
 // The page says (`apiBase()`): its board's project, the drawer's, or the pick All projects is bound to. A
 // page that names none and has none bound — `/all` or `/` before its pick, or with nothing to pick — makes
-// `apiBase()` answer the unprefixed `/_frizz`, the project that LAUNCHED the server, so a call there that
+// `apiBase()` answer the unprefixed `/_ntwine`, the project that LAUNCHED the server, so a call there that
 // needed a project would read or write a stranger's state and look like it worked. Here that call throws
 // instead. (Upstream's routeCall, 759c3255, written for its Console; a call that NAMES its project goes
 // through `projectRpc` and never reaches this.)
@@ -127,7 +127,7 @@ async function call(base: string, name: string, type: ProcType, input?: unknown,
     const url = new URL(`${base}/rpc/${name}`, location.origin)
     if (input !== undefined) url.searchParams.set("input", JSON.stringify(input))
     const res = await fetch(url.toString(), { signal: opts?.signal })
-    noteServerBootId(res.headers.get("x-frizz-boot")) // notice a server restart on any RPC roundtrip
+    noteServerBootId(res.headers.get("x-ntwine-boot")) // notice a server restart on any RPC roundtrip
     return parseRpcResponse(res, name)
   }
   // Before the send, so a board push that lands while the request is in flight already knows the human
@@ -139,7 +139,7 @@ async function call(base: string, name: string, type: ProcType, input?: unknown,
     body: JSON.stringify(input ?? {}),
     signal: opts?.signal,
   })
-  noteServerBootId(res.headers.get("x-frizz-boot"))
+  noteServerBootId(res.headers.get("x-ntwine-boot"))
   const result = await parseRpcResponse(res, name)
   // And the thread it ANSWERS with: a dispatch names its new thread only in its result, and that thread is
   // the human's as much as one they replied to — the project list draws it at once rather than holding it
@@ -205,7 +205,7 @@ export function rpcAtBase(base: string): Api {
   return client
 }
 
-/** `apiBase()` for a project named explicitly — its `/_frizz/<id>` routes (`/rpc`, `/attach`, …). */
+/** `apiBase()` for a project named explicitly — its `/_ntwine/<id>` routes (`/rpc`, `/attach`, …). */
 export function projectApiBase(projectId: string): string {
-  return `${FRIZZ_ROUTE_PREFIX}/${encodeURIComponent(projectId)}`
+  return `${NTWINE_ROUTE_PREFIX}/${encodeURIComponent(projectId)}`
 }

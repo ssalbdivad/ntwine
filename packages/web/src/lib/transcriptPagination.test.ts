@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { TranscriptMessage, TranscriptPage } from "@frizz/shared"
+import type { TranscriptMessage, TranscriptPage } from "@ntwine/shared"
 import { prependEarlierPage, reconcileLatestPage, reconcileLiveMessages } from "./transcriptPagination.ts"
 
 const message = (role: "user" | "assistant", sourceId: string): TranscriptMessage => ({

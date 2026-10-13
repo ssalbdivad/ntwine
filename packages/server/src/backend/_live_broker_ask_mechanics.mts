@@ -7,8 +7,8 @@
 // turn and hands off. So the question is what that blocked turn survives.
 //
 // Three scenarios, each measured rather than assumed:
-//   1. FRIZZ RESTARTS while the question is open. The daemon is detached, so it outlives frizz; on
-//      reconnect it re-delivers the pending permission. Does a NEW frizz re-bind and can the operator
+//   1. NTWINE RESTARTS while the question is open. The daemon is detached, so it outlives ntwine; on
+//      reconnect it re-delivers the pending permission. Does a NEW ntwine re-bind and can the operator
 //      still answer?
 //   2. THE DAEMON DIES while the question is open. Is the interaction answerable afterwards, and what
 //      is left in the transcript?
@@ -22,7 +22,7 @@ import Database from "../sqlite.ts"
 import { createInteractionStore } from "../interaction-store.ts"
 import { createClaudeAgentBrokerBridge } from "./claude-agent-broker-bridge.ts"
 import { claudeBrokerRecordPath, readBrokerRecord } from "./claude-broker-host.ts"
-import type { InteractionRecord } from "@frizz/shared"
+import type { InteractionRecord } from "@ntwine/shared"
 
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const stateDir = mkdtempSync(join(tmpdir(), "askmech-state-"))
@@ -114,7 +114,7 @@ async function waitForReply(sessionId: string, needle: string, timeoutMs = 180_0
 const sessions: Array<{ slug: string; sessionId: string }> = []
 
 try {
-  // ---- 1. FRIZZ RESTARTS with the question open ---------------------------------------------------
+  // ---- 1. NTWINE RESTARTS with the question open ---------------------------------------------------
   {
     const slug = "askmech-restart", sessionId = randomUUID()
     sessions.push({ slug, sessionId })
@@ -124,14 +124,14 @@ try {
     const before = await waitForQuestion(scope)
     ok("[restart] the question is journaled", before !== undefined)
 
-    // frizz dies: drop every socket WITHOUT killing the detached daemon. This is the frizz-restart shape.
+    // ntwine dies: drop every socket WITHOUT killing the detached daemon. This is the ntwine-restart shape.
     bridge.close()
     await sleep(1_500)
     const record = readBrokerRecord(claudeBrokerRecordPath(stateDir, sessionId))
     const daemonAlive = !!record && (() => { try { process.kill(record.daemonPid, 0); return true } catch { return false } })()
-    ok("[restart] the daemon outlives frizz (it is detached)", daemonAlive)
+    ok("[restart] the daemon outlives ntwine (it is detached)", daemonAlive)
 
-    // a NEW frizz attaches: the daemon re-delivers the still-pending permission on reconnect.
+    // a NEW ntwine attaches: the daemon re-delivers the still-pending permission on reconnect.
     bridge = newBridge()
     await bridge.followUp({ threadSlug: slug, sessionId, cwd, text: "" }).catch(() => {})
     await sleep(4_000)
@@ -139,7 +139,7 @@ try {
     ok("[restart] the question is STILL pending after the restart (SQLite kept it)", after !== undefined)
     if (after) {
       answer(scope, after, { q0: "Blue" })
-      ok("[restart] answering AFTER a frizz restart still reaches the model", await waitForReply(sessionId, "PICKED=Blue"), assistantText(sessionId).slice(-200))
+      ok("[restart] answering AFTER a ntwine restart still reaches the model", await waitForReply(sessionId, "PICKED=Blue"), assistantText(sessionId).slice(-200))
     }
     bridge.releaseSession(slug, sessionId, "session-deleted")
     bridge.close()
@@ -173,7 +173,7 @@ try {
       // on its own. An operator cannot tell which happened from the dashboard: the card looks the
       // same either way. A fence question has no such race — the answer is just the next user message.
       note("[daemon-death] did the model end up hearing anything?", heard ? "yes (claude self-resolved the tool)" : "no (the answer went nowhere)")
-      note("[daemon-death] either way", "the answer frizz delivered was written to a dead socket; the outcome is a race")
+      note("[daemon-death] either way", "the answer ntwine delivered was written to a dead socket; the outcome is a race")
     }
     // What is left in the DURABLE transcript — the thing a cold resume replays and the thing the
     // operator can still read. MEASURED, not assumed: the answer decides how recoverable this is.

@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ProjectCard, ThreadView } from "@frizz/shared"
+import type { ProjectCard, ThreadView } from "@ntwine/shared"
 import { sameProjectAddress, type QueuesProject } from "./allQueues.ts"
 
 // A queue card compares its project by ADDRESS, not identity: the poll rebuilds every project each tick

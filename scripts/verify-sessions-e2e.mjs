@@ -3,7 +3,7 @@
  * Per-device sign-out, end to end, across processes.
  *
  * The store's unit tests prove the denylist. They cannot prove the thing that matters: that a cookie
- * held by a real browser stops working after an operator runs `frizz --sign-out` in a different
+ * held by a real browser stops working after an operator runs `ntwine --sign-out` in a different
  * process, and that the sign-out survives the restart a board performs constantly. Three programs have
  * to agree — the launcher's CLI, the running board's supervisor, and the directory on disk — and the
  * seams between them are the whole feature.
@@ -48,18 +48,18 @@ const ask = (path, { host = "board.example.com", cookie, ua, method = "GET", ori
 const json = (text) => { try { return JSON.parse(text); } catch { return undefined; } };
 const idOf = (cookie) => cookie.split("=")[1]?.split(".")[1];
 
-const home = mkdtempSync(join(tmpdir(), "frizz-sessions-e2e-"));
+const home = mkdtempSync(join(tmpdir(), "ntwine-sessions-e2e-"));
 // `--public-origin` was retired: how a board is reached is the saved setup the R pane writes, and a plain
-// launch serves it. An `external` setup is the one that starts nothing — Frizz only knows and gates the
+// launch serves it. An `external` setup is the one that starts nothing — Ntwine only knows and gates the
 // origin — which is exactly the gate this run is about, with no relay or tunnel in the way.
 const cloudJson = cloudConfigPath(home);
 mkdirSync(dirname(cloudJson), { recursive: true });
 writeFileSync(cloudJson, JSON.stringify({ hostname: new URL(ORIGIN).hostname, serve: "external", provider: "other" }));
 let board = null;
 const startBoard = async () => {
-  const child = spawn(process.execPath, ["dist/frizz.js", "--port", String(PORT), "--no-app"], {
+  const child = spawn(process.execPath, ["dist/ntwine.js", "--port", String(PORT), "--no-app"], {
     cwd: process.cwd(),
-    env: { ...process.env, HOME: home, FRIZZ_WAKERS_OFF: "1" },
+    env: { ...process.env, HOME: home, NTWINE_WAKERS_OFF: "1" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   const code = await new Promise((resolve, reject) => {
@@ -71,7 +71,7 @@ const startBoard = async () => {
     child.once("exit", (code) => fail(`the board exited (${code}) before printing a link`));
     const onData = (d) => {
       buf += d;
-      const m = buf.match(/frizz_code=([A-Za-z0-9_-]+)/);
+      const m = buf.match(/ntwine_code=([A-Za-z0-9_-]+)/);
       if (m) { clearTimeout(timer); resolve(m[1]); }
     };
     child.stdout.on("data", onData);
@@ -83,9 +83,9 @@ const startBoard = async () => {
 /** Run the launcher's own CLI, the way an operator does. */
 const cli = (...args) =>
   new Promise((resolve) => {
-    const child = spawn(process.execPath, ["dist/frizz.js", ...args], {
+    const child = spawn(process.execPath, ["dist/ntwine.js", ...args], {
       cwd: process.cwd(),
-      env: { ...process.env, HOME: home, FRIZZ_WAKERS_OFF: "1" },
+      env: { ...process.env, HOME: home, NTWINE_WAKERS_OFF: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let out = "";
@@ -95,7 +95,7 @@ const cli = (...args) =>
   });
 
 const redeem = async (code, ua) => {
-  const res = await ask(`/?frizz_code=${encodeURIComponent(code)}`, { ua });
+  const res = await ask(`/?ntwine_code=${encodeURIComponent(code)}`, { ua });
   return res.setCookie.map((c) => c.split(";")[0]).join("; ");
 };
 
@@ -106,46 +106,46 @@ try {
 
   // Two devices, so the test can prove signing out one leaves the other alone.
   const phone = await redeem(first.code, "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15 Safari/604.1");
-  check("a phone redeems a link and gets a session", phone.includes("frizz_session="));
+  check("a phone redeems a link and gets a session", phone.includes("ntwine_session="));
 
   const second = await cli("--link");
-  const laptopCode = (second.out.match(/frizz_code=([A-Za-z0-9_-]+)/) ?? [])[1];
+  const laptopCode = (second.out.match(/ntwine_code=([A-Za-z0-9_-]+)/) ?? [])[1];
   const laptop = laptopCode ? await redeem(laptopCode, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120 Safari/537.36") : "";
-  check("a second device redeems its own link", laptop.includes("frizz_session="), laptopCode ? "" : second.out.slice(0, 120));
+  check("a second device redeems its own link", laptop.includes("ntwine_session="), laptopCode ? "" : second.out.slice(0, 120));
 
   check("both devices reach the board", (await ask("/", { cookie: phone })).status === 200 && (await ask("/", { cookie: laptop })).status === 200);
 
   // THE CONTROL PLANE IS GATED TOO. A request through the tunnel with no session used to reach
-  // /_frizz/control/* straight past the session gate — restart, update-restart and status all answered
+  // /_ntwine/control/* straight past the session gate — restart, update-restart and status all answered
   // to anyone who set the right Host and Origin, which a non-browser client does freely.
-  const bareRestart = await ask("/_frizz/control/restart", { method: "POST", origin: ORIGIN });
+  const bareRestart = await ask("/_ntwine/control/restart", { method: "POST", origin: ORIGIN });
   check("a no-cookie restart through the tunnel is refused", bareRestart.status === 401 && bareRestart.body === "", `HTTP ${bareRestart.status} ${bareRestart.body.slice(0, 80)}`);
-  const bareStatus = await ask("/_frizz/control/status", { origin: ORIGIN });
+  const bareStatus = await ask("/_ntwine/control/status", { origin: ORIGIN });
   check("and so is a no-cookie status read", bareStatus.status === 401 && bareStatus.body === "", `HTTP ${bareStatus.status}`);
-  const afterBare = json((await ask("/_frizz/control/status", { cookie: laptop, origin: ORIGIN })).body);
+  const afterBare = json((await ask("/_ntwine/control/status", { cookie: laptop, origin: ORIGIN })).body);
   check("the refused restart did not start one", afterBare?.state === "ready", JSON.stringify(afterBare ?? {}).slice(0, 80));
 
   // "SIGN OUT THIS DEVICE" — a third device ends its own session from the tunnel. The body names the
   // LAPTOP's id and asks for all; both must be ignored, because the id comes from the cookie alone.
-  const tabletCode = ((await cli("--link")).out.match(/frizz_code=([A-Za-z0-9_-]+)/) ?? [])[1];
+  const tabletCode = ((await cli("--link")).out.match(/ntwine_code=([A-Za-z0-9_-]+)/) ?? [])[1];
   const tablet = tabletCode ? await redeem(tabletCode, "Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile Safari/537.36") : "";
-  check("a third device redeems its own link", tablet.includes("frizz_session="));
-  const tabletStatus = json((await ask("/_frizz/control/status", { cookie: tablet, origin: ORIGIN })).body);
+  check("a third device redeems its own link", tablet.includes("ntwine_session="));
+  const tabletStatus = json((await ask("/_ntwine/control/status", { cookie: tablet, origin: ORIGIN })).body);
   check("status tells the tablet it holds a remote session", tabletStatus?.remoteSession === true, JSON.stringify(tabletStatus ?? {}).slice(0, 120));
-  const loopbackStatus = json((await ask("/_frizz/control/status", { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}` })).body);
+  const loopbackStatus = json((await ask("/_ntwine/control/status", { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}` })).body);
   check("and tells the operator's loopback tab it does not", loopbackStatus !== undefined && loopbackStatus.remoteSession === undefined);
-  const crossSite = await ask("/_frizz/control/sign-out", { method: "POST", cookie: tablet, origin: "https://evil.example" });
+  const crossSite = await ask("/_ntwine/control/sign-out", { method: "POST", cookie: tablet, origin: "https://evil.example" });
   check("a cross-site POST cannot sign the tablet out", crossSite.status === 403, `HTTP ${crossSite.status}`);
-  const self = await ask("/_frizz/control/sign-out", {
+  const self = await ask("/_ntwine/control/sign-out", {
     method: "POST", cookie: tablet, origin: ORIGIN, body: JSON.stringify({ id: idOf(laptop), all: true }),
   });
   const selfBody = json(self.body);
   check("the tablet signs itself out", self.status === 200 && selfBody?.result === "signed-out" && selfBody?.id === idOf(tablet), self.body);
-  check("and is told to drop its cookie", self.setCookie.some((c) => /^frizz_session=;.*Max-Age=0/.test(c)), self.setCookie.join(" | "));
+  check("and is told to drop its cookie", self.setCookie.some((c) => /^ntwine_session=;.*Max-Age=0/.test(c)), self.setCookie.join(" | "));
   check("the tablet is refused on its next request", (await ask("/", { cookie: tablet })).status === 401);
   check("the laptop its body named is untouched", (await ask("/", { cookie: laptop })).status === 200);
   check("and so is the phone", (await ask("/", { cookie: phone })).status === 200);
-  const localNoop = await ask("/_frizz/control/sign-out", { method: "POST", host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}` });
+  const localNoop = await ask("/_ntwine/control/sign-out", { method: "POST", host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}` });
   check("on loopback with no session it is a clear no-op", localNoop.status === 200 && json(localNoop.body)?.result === "no-remote-session", localNoop.body);
 
   // The operator's view.
@@ -173,9 +173,9 @@ try {
 
   // A STOLEN SESSION MUST NOT BE ABLE TO EVICT THE OWNER. The endpoint is loopback-only for the same
   // reason minting is: being at the machine — or on it over ssh — is the proof it requires.
-  const remoteList = await ask("/_frizz/control/sessions", { cookie: laptop });
+  const remoteList = await ask("/_ntwine/control/sessions", { cookie: laptop });
   check("a remote visitor cannot list the signed-in devices", remoteList.status === 403, `HTTP ${remoteList.status}`);
-  const remoteEvict = await ask("/_frizz/control/sessions", { method: "POST", cookie: laptop, origin: ORIGIN, body: JSON.stringify({ all: true }) });
+  const remoteEvict = await ask("/_ntwine/control/sessions", { method: "POST", cookie: laptop, origin: ORIGIN, body: JSON.stringify({ all: true }) });
   check("nor sign any other device out", remoteEvict.status === 403, `HTTP ${remoteEvict.status}`);
 
   const all = await cli("--sign-out", "all");

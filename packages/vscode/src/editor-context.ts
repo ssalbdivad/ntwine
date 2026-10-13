@@ -1,13 +1,13 @@
-// THE EDITOR, AS THE SIDEBAR SEES IT — the pure half of what the extension tells the Frizz sidebar about
-// the editor around it (`frizz:editor-context`: the file in front, its selection with the selection's text
+// THE EDITOR, AS THE SIDEBAR SEES IT — the pure half of what the extension tells the Ntwine sidebar about
+// the editor around it (`ntwine:editor-context`: the file in front, its selection with the selection's text
 // or else the caret's line, the other open files) and of the ways a piece of the editor gets into the
 // sidebar's prompt (a problem's quick fix, a terminal selection). No `vscode` here, so every rule is a
 // unit test under plain node (editor-context.test.ts); context-feed.ts and app.ts are the glue. Design:
 // ARCHITECTURE.md § VS Code extension; the wire: packages/shared/src/embed-protocol.ts.
 
 import { basename, isAbsolute } from "node:path"
-import { EDITOR_MAX_PATH } from "@frizz/shared/editor-protocol"
-import { EMBED_MAX_NOTE, EMBED_MAX_OPEN_FILES, EMBED_MAX_SELECTION_TEXT, type EmbedEditorContextMessage, type EmbedEditorFile, type EmbedEditorSelection } from "@frizz/shared/embed-protocol"
+import { EDITOR_MAX_PATH } from "@ntwine/shared/editor-protocol"
+import { EMBED_MAX_NOTE, EMBED_MAX_OPEN_FILES, EMBED_MAX_SELECTION_TEXT, type EmbedEditorContextMessage, type EmbedEditorFile, type EmbedEditorSelection } from "@ntwine/shared/embed-protocol"
 import type { EditorFront } from "./editor-front.ts"
 import { composable, normalizeNewlines } from "./message.ts"
 
@@ -20,7 +20,7 @@ export interface Position {
 /**
  * The 1-based, inclusive lines a range covers, as the chip it would make reads them. A range that ends at
  * column 1 of a line — a whole-line drag, shift+down — does not include that line: the caret sits at its
- * start and nothing of it is selected. The context bar, "Add to Frizz prompt" and the quick fix all count
+ * start and nothing of it is selected. The context bar, "Add to Ntwine prompt" and the quick fix all count
  * lines with this, so the bar never promises a range the chip then disagrees with.
  */
 export function lineSpan(start: Position, end: Position): { startLine: number; endLine: number } {
@@ -111,7 +111,7 @@ export function openFiles(tabs: readonly string[], active: string | undefined, r
  * lines, every selection's characters and — when `read` is given, the primary's characters are within the
  * feed's ceiling and the text is not withheld — its text; else the caret's line. Plus what the block must
  * say about the copy on disk: an untitled buffer has none, a dirty one differs. `read` is the glue's to
- * withhold: it passes none while the human does not share the editor (frizz.shareEditorState).
+ * withhold: it passes none while the human does not share the editor (ntwine.shareEditorState).
  */
 export function pageActive(front: EditorFront, file: EmbedEditorFile, read: (() => string) | undefined): NonNullable<EmbedEditorContextMessage["active"]> {
   const flags = { ...(front.untitled ? { untitled: true as const } : {}), ...(front.dirty ? { dirty: true as const } : {}), ...(front.withheld ? { withheld: true as const } : {}) }
@@ -135,13 +135,13 @@ export function editorContextMessage(active: EmbedEditorContextMessage["active"]
   const flags = (entry: NonNullable<EmbedEditorContextMessage["active"]>) =>
     ({ ...(entry.untitled ? { untitled: true as const } : {}), ...(entry.dirty ? { dirty: true as const } : {}), ...(entry.withheld ? { withheld: true as const } : {}) })
   return {
-    type: "frizz:editor-context",
+    type: "ntwine:editor-context",
     active: active && sendable(active.path) ? { ...file(active), ...where(active), ...flags(active) } : null,
     open: open.filter((entry) => sendable(entry.path)).slice(0, EMBED_MAX_OPEN_FILES).map(file),
   }
 }
 
-// ── "Ask Frizz to fix" ─────────────────────────────────────────────────────────────────────────────
+// ── "Ask Ntwine to fix" ─────────────────────────────────────────────────────────────────────────────
 
 /** What a quick fix knows of a problem (vscode.Diagnostic, with `code` as the API spells it). */
 export interface Problem {
@@ -169,12 +169,12 @@ export function fixNote(problem: Problem): string {
 }
 
 /**
- * The quick fix's title. One problem under the caret is "Ask Frizz to fix"; several each get their own
+ * The quick fix's title. One problem under the caret is "Ask Ntwine to fix"; several each get their own
  * entry, told apart by the start of their message — a list of identical titles would make the human
  * guess which problem each one sends.
  */
 export function fixTitle(problem: Problem, several: boolean): string {
-  return several ? `Ask Frizz to fix: ${clip(oneLine(problem.message), 60)}` : "Ask Frizz to fix"
+  return several ? `Ask Ntwine to fix: ${clip(oneLine(problem.message), 60)}` : "Ask Ntwine to fix"
 }
 
 // ── the terminal ───────────────────────────────────────────────────────────────────────────────────
@@ -187,7 +187,7 @@ export function fixTitle(problem: Problem, several: boolean): string {
  */
 export function terminalText(raw: string): { ok: true; text: string } | { ok: false; why: string } {
   const text = normalizeNewlines(raw).replace(/\s+$/u, "")
-  if (!text.trim()) return { ok: false, why: "Select text in the terminal to add it to Frizz's prompt box." }
+  if (!text.trim()) return { ok: false, why: "Select text in the terminal to add it to Ntwine's prompt box." }
   const lines = text.split("\n").length
   if (!composable({ text, startLine: 1, endLine: lines })) return { ok: false, why: "That terminal selection is too long to add. Select less of it." }
   return { ok: true, text }

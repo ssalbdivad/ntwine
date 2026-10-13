@@ -40,7 +40,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { X } from "lucide-react"
-import { type QuestionAnswer, type RegisteredQuestionView, type SettledQuestionView, type ThreadView } from "@frizz/shared"
+import { type QuestionAnswer, type RegisteredQuestionView, type SettledQuestionView, type ThreadView } from "@ntwine/shared"
 import { rpc, type Api } from "../api/rpc.ts"
 import { draftKey, draftStore, useDraftValues, useProjectDir } from "../lib/drafts.ts"
 import { clearSteered, clearSteeredIn, markSteered, markSteeredIn } from "../lib/steering.ts"
@@ -79,7 +79,7 @@ export interface RegisteredAnswering {
   dismissing: boolean
   /** Questions the × took off the card, ahead of the board read that drops them. */
   dismissed: ReadonlySet<string>
-  /** The countdown's ×: Frizz takes no recommended option on any of the thread's questions; they wait. */
+  /** The countdown's ×: Ntwine takes no recommended option on any of the thread's questions; they wait. */
   cancelDefault: () => void
   /** The thread's questions default together (shared threadQuestionDefaults), so ONE countdown speaks for
    *  them, under the last of them: `ownerId` is the card that draws it, `count` how many it will answer. */

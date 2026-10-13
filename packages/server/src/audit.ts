@@ -3,23 +3,23 @@ import { createHash } from "node:crypto"
 import { appendFileSync, chmodSync, mkdirSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { describeDevice } from "./access-codes.ts"
-import { serverAddressPathForStateDir } from "./frizz-paths.ts"
-import { log as frizzLog } from "./logging.ts"
+import { serverAddressPathForStateDir } from "./ntwine-paths.ts"
+import { log as ntwineLog } from "./logging.ts"
 
 // ── The audit trail of high-impact board actions ────────────────────────────────────────────────────
 // On 2026-10-08 a board session stolen through a backdoored frizz.sh relay was used to add
 // `/private/tmp` as a project, dispatch about 13 workers into it, and later remove the project with
-// its data. Frizz had logged none of it: no line said a project was added or removed, that a thread
+// its data. Ntwine had logged none of it: no line said a project was added or removed, that a thread
 // was dispatched or messaged, whether the request came over loopback or through the relay, or which
 // signed-in device sent it. Nothing could be attributed.
 //
-// So every action that can start work on this machine, or destroy Frizz's record of it, writes one
+// So every action that can start work on this machine, or destroy Ntwine's record of it, writes one
 // JSON line here: when, what, which project and thread, whether it was refused, and WHO — the request
 // origin the launcher's proxy saw (CALLER_HEADER) plus the board session it verified. Never a
-// secret: a session is named by its record id (what `frizz --sessions` lists), never its cookie, and
+// secret: a session is named by its record id (what `ntwine --sessions` lists), never its cookie, and
 // prompt, message and answer text are recorded as a character count and a SHA-256, never the words.
 //
-// Machine-wide and append-only, at `<data>/logs/audit.jsonl` (`~/.frizz/logs/audit.jsonl` on a
+// Machine-wide and append-only, at `<data>/logs/audit.jsonl` (`~/.ntwine/logs/audit.jsonl` on a
 // legacy layout) at 0600: one file answers "what did this board do" across every project, and the
 // per-run logs beside it are pruned by count and age where this one is not. Each record is also
 // summarized as one line in the ordinary run log, so it is in front of whoever reads that first.
@@ -34,7 +34,7 @@ import { log as frizzLog } from "./logging.ts"
  * place that judged the real authority and verified the session cookie, so it says what it saw here.
  * It DELETES any copy the client sent before setting its own, so a visitor cannot forge one.
  */
-export const CALLER_HEADER = "x-frizz-caller"
+export const CALLER_HEADER = "x-ntwine-caller"
 
 /**
  * How a request reached the launcher's proxy.
@@ -93,7 +93,7 @@ export function decodeCallerStamp(value: string | undefined): CallerStamp | unde
  * Who sent the request an audited action is running under.
  *
  * `direct` means it reached the application server WITHOUT passing the launcher's proxy: a worker's
- * frizz MCP server, a script against the child's port, or a server started on its own (`pnpm dev`,
+ * ntwine MCP server, a script against the child's port, or a server started on its own (`pnpm dev`,
  * an ad-hoc stack). `internal` is an action with no request behind it at all.
  */
 export type RequestOrigin =
@@ -167,7 +167,7 @@ export interface AuditLog {
   append(record: AuditRecord): void
 }
 
-/** `<data>/logs/audit.jsonl` for the Frizz root a project state dir lives under (`../..` from it). */
+/** `<data>/logs/audit.jsonl` for the Ntwine root a project state dir lives under (`../..` from it). */
 export function auditLogPathForStateDir(stateDir: string): string {
   return join(dirname(serverAddressPathForStateDir(stateDir)), "logs", "audit.jsonl")
 }
@@ -177,7 +177,7 @@ export function auditLogPathForStateDir(stateDir: string): string {
  * the action.
  *
  * One `appendFileSync` per record: O_APPEND writes of one short line land whole even with several
- * Frizz processes appending (the run log relies on the same guarantee; see logging.ts).
+ * Ntwine processes appending (the run log relies on the same guarantee; see logging.ts).
  */
 export function fileAuditLog(path: string): AuditLog {
   let secured = false
@@ -239,12 +239,12 @@ export function recordAudit(log: AuditLog | undefined, build: () => AuditEntry):
       ...(servedBy !== undefined ? { servedBy } : {}),
       ...(detail !== undefined ? { detail } : {}),
     }
-    frizzLog.info("audit", auditSummary(record))
+    ntwineLog.info("audit", auditSummary(record))
     log?.append(record)
   } catch (error) {
     try {
       const what = record ? `${record.action} (${record.outcome})` : "an action"
-      frizzLog.error("audit", `could not record ${what}: ${error instanceof Error ? error.message : String(error)}`)
+      ntwineLog.error("audit", `could not record ${what}: ${error instanceof Error ? error.message : String(error)}`)
     } catch {
       // The run log is the last place to say so; if it cannot, the action still stands.
     }

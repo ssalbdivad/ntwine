@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { shellWriteTargets, type EditedFile, type TranscriptMessage } from "@frizz/shared"
+import { shellWriteTargets, type EditedFile, type TranscriptMessage } from "@ntwine/shared"
 import { expandHome } from "./path-probe.ts"
 
 // THE FILES A THREAD'S WORKER HAS WRITTEN, derived from its projected transcript — the fullscreen
@@ -14,7 +14,7 @@ import { expandHome } from "./path-probe.ts"
 //     kept in step by construction (the same name set, the same fallback order).
 //  2. SHELL WRITES. A Bash call's own command text, parsed for redirects and in-place editors
 //     (shared/shell-writes.ts). Added 2026-09-04 after a real doc a nub thread authored with
-//     `cat > .frizz/sandbox-direction-decisions.md <<'MD'` never reached the rail: Claude Code's
+//     `cat > .ntwine/sandbox-direction-decisions.md <<'MD'` never reached the rail: Claude Code's
 //     `auto` permission mode TELLS the worker to edit with "sed, heredocs, or short scripts, rather
 //     than using the dedicated Read, Edit, or Write tools", so on the maintainer's own threads the
 //     tool-call reading alone is blind by design, not by worker error.
@@ -78,7 +78,7 @@ export function editedFilePath(tool: ToolLike): string | null {
 // redirect is a far weaker signal of intent than an Edit: a worker writes `/tmp` scratch, capture logs
 // and probe fixtures all day, and the corpus behind the parser is 77,541 redirect targets of which
 // 66,705 are `/dev/null` or `/tmp`. Everything outside the project is that noise; everything inside it
-// is work the maintainer has a reason to look at, INCLUDING the thread's own `.frizz/` scratch — which
+// is work the maintainer has a reason to look at, INCLUDING the thread's own `.ntwine/` scratch — which
 // is exactly where the file that prompted this was written.
 function shellWrittenPaths(tool: ToolLike, projectDir: string): string[] {
   if (normalizedToolName(tool.name) !== "bash" || !tool.command) return []

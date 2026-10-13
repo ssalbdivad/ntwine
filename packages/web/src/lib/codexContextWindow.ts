@@ -1,4 +1,4 @@
-import type { CodexModel } from "@frizz/shared"
+import type { CodexModel } from "@ntwine/shared"
 
 // Codex accepts intermediate windows, not just the catalogue's default and maximum. Offer 472k and
 // 672k between those endpoints. Unset still means the model's own default; a stored custom value stays

@@ -30,7 +30,7 @@ import tailwindcss from "@tailwindcss/vite"
  */
 function devRenderScanScript(): Plugin {
   return {
-    name: "frizz:dev-render-scan",
+    name: "ntwine:dev-render-scan",
     apply: "serve",
     transformIndexHtml: () => [
       { tag: "script", attrs: { type: "module", src: "/src/perf-scan.ts" }, injectTo: "head-prepend" },
@@ -54,13 +54,13 @@ export default defineConfig({
   // open tab still holds the old React chunk, so the next lazily loaded module (the terminal drawer's
   // TerminalPane) pulls in the rewritten one: two Reacts, and the drawer dies on "resolveDispatcher()
   // is null" (2026-09-23). Throwaway servers (scripts/adhoc-stack.mjs, dev-test.mjs, e2e-web.mjs) set
-  // FRIZZ_VITE_CACHE_DIR to a scratch cache of their own.
-  cacheDir: process.env.FRIZZ_VITE_CACHE_DIR || "node_modules/.vite",
+  // NTWINE_VITE_CACHE_DIR to a scratch cache of their own.
+  cacheDir: process.env.NTWINE_VITE_CACHE_DIR || "node_modules/.vite",
   // The browser e2e suite (scripts/e2e-web.mjs) boots this vite over a working tree other agents are
   // often editing mid-run. With the watcher on, each of those edits becomes an HMR update or full
   // reload in the middle of a test — a fixture that mounts its root at module top level re-evaluates
   // and the test fails on React's "createRoot() on a container that has already been passed to
   // createRoot()" console error, a flake with nothing behind it. The suite never edits files, so its
   // server neither watches nor pushes.
-  ...(process.env.FRIZZ_E2E_STATIC_VITE ? { server: { hmr: false, watch: null } } : {}),
+  ...(process.env.NTWINE_E2E_STATIC_VITE ? { server: { hmr: false, watch: null } } : {}),
 })

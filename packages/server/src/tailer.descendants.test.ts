@@ -7,7 +7,7 @@
 // the sidecar bodies are that run's verbatim, only the ids shortened.
 //
 // The counterpart property matters just as much and is asserted alongside every positive case: an id
-// frizz genuinely cannot place must keep returning undefined (the router maps that to "gone", the drawer
+// ntwine genuinely cannot place must keep returning undefined (the router maps that to "gone", the drawer
 // states it plainly). This path may add resolutions; it may never invent one.
 import { test } from "node:test"
 import assert from "node:assert/strict"
@@ -33,7 +33,7 @@ function assistant(content: unknown[]): string {
  * the ROOT session's dir, beside a `agent-<id>.meta.json` sidecar naming its dispatch tool_use id.
  */
 function fixture(runtimeTasks?: readonly ClaudeRuntimeTask[]) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-descendants-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-descendants-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const subagents = join(dir, SESSION, "subagents")
   mkdirSync(subagents, { recursive: true })
@@ -57,7 +57,7 @@ function fixture(runtimeTasks?: readonly ClaudeRuntimeTask[]) {
   transcript("aGreat", [assistant([{ type: "text", text: "LEAF-DONE" }])])
 
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: new Date().toISOString(),
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -572,16 +572,16 @@ test("subtree: a SETTLED descendant is not stopped again, and an unknown id reso
 
 // D3 from the rename audit, closed. Claude Code pins a session's transcript to the bucket for the cwd
 // it was BORN in, so renaming the checkout leaves the transcript — AND the `<sessionId>/subagents/` tree
-// beside it — in a bucket frizz no longer derives. On the real board that is 610 sidecar files, 310 MB.
+// beside it — in a bucket ntwine no longer derives. On the real board that is 610 sidecar files, 310 MB.
 // The claim was that the sibling sweep (discover.ts) covers this for free, because `sessionDirOf` builds
 // the sidecar dir from `state.path` and the sweep rebinds `state.path`. That was a CODE READING and the
 // auditor flagged it as the surface most worth running. It could not be settled against the real board
 // (every registered thread with stranded sidecars is archived, so the tailer never tails it), so it is
 // settled here: the whole tree one bucket over, resolved through the drawer's own lookup.
 function strandedFixture() {
-  const root = mkdtempSync(join(tmpdir(), "frizz-stranded-sidecars-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-stranded-sidecars-"))
   const born = join(root, "-Users-me-projects-fray") // where the session was born, and still writes
-  const derived = join(root, "-Users-me-projects-frizz") // what frizz derives from the CURRENT path
+  const derived = join(root, "-Users-me-projects-ntwine") // what ntwine derives from the CURRENT path
   mkdirSync(born, { recursive: true })
   mkdirSync(derived, { recursive: true })
   const storage = createStorage(join(root, "ui.db"), "p")
@@ -600,7 +600,7 @@ function strandedFixture() {
   writeFileSync(join(subagents, "agent-aGrand.jsonl"), `${assistant([{ type: "text", text: "LEAF-DONE" }])}\n`)
 
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: "2026-07-01T00:00:00.000Z",
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -609,7 +609,7 @@ function strandedFixture() {
 
   const tailer = createTailer({
     project: { cwdSlug: "x" } as Project,
-    storage, bus: new Bus(), sessionLogDir: derived, // frizz looks HERE; nothing of this session is here
+    storage, bus: new Bus(), sessionLogDir: derived, // ntwine looks HERE; nothing of this session is here
     onChange: () => {}, paneDead: () => false,
     now: () => Date.parse("2026-07-01T01:00:00.000Z"), // past the discovery grace window
   })
@@ -621,7 +621,7 @@ function strandedFixture() {
 test("descendants: a sub-agent tree stranded in the PRE-RENAME bucket still resolves through the drawer", () => {
   const f = strandedFixture()
   try {
-    // The precondition that makes the assertion mean something: the bucket frizz derives holds nothing.
+    // The precondition that makes the assertion mean something: the bucket ntwine derives holds nothing.
     assert.deepEqual(readdirSync(f.derived), [], "the current-path bucket is empty — the pre-fix derivation had nowhere to look")
 
     // The DESCENDANT is the witness: nothing in this thread's own transcript mentions `toolu_grand`, so

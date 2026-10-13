@@ -1,5 +1,5 @@
 // WHAT THE REAL-PAGE SIDEBAR RUN SEEDS — a board that looks like an operator's, in the stack e2e/stack.ts
-// booted, the frizz-stack way: session rows and JSONL transcripts the REAL tailer reads, never a worker.
+// booted, the ntwine-stack way: session rows and JSONL transcripts the REAL tailer reads, never a worker.
 //
 //  - scripts/seed-all-queues.mjs: every project's queue — handoffs, done cards, a registered question,
 //    threads mid-turn, archived ones (it knows `acme-api` and `marketing-site` by slug).
@@ -29,7 +29,7 @@ export const SAMPLE = [
   "",
 ].join("\n")
 
-/** The TypeScript error the run asks Frizz to fix, at line 3 (1-based). */
+/** The TypeScript error the run asks Ntwine to fix, at line 3 (1-based). */
 export const BROKEN = ["// A real type error for the quick fix.", "", 'export const count: number = "three"', ""].join("\n")
 
 export interface SeededThread {
@@ -57,7 +57,7 @@ export async function seedSidebarStack(options: { stack: Stack; workspace: Stack
   const { home } = stack.info
   const repo = join(import.meta.dirname, "..", "..", "..")
   const env: NodeJS.ProcessEnv = { ...process.env, HOME: home, PATH: stubbedPath(stack.stubs) }
-  delete env.FRIZZ_E2E_UNDER_XVFB
+  delete env.NTWINE_E2E_UNDER_XVFB
 
   // The workspace's files, before anything reads the project.
   const dir = workspace.dir
@@ -122,17 +122,17 @@ export async function seedSidebarStack(options: { stack: Stack; workspace: Stack
     if (broker.exitCode !== null || Date.now() > deadline) throw new Error(`the simulated worker did not listen; see ${join(scratch, "fake-broker.log")}`)
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  const stateDir = join(home, ".frizz", "projects", workspace.id)
+  const stateDir = join(home, ".ntwine", "projects", workspace.id)
   const key = createHash("sha256").update(thread.sessionId).digest("hex").slice(0, 16)
   mkdirSync(join(stateDir, "claude-broker"), { recursive: true })
   writeFileSync(join(stateDir, "claude-broker", `${key}.json`), JSON.stringify({ daemonPid: broker.pid, socketPath, sessionId: thread.sessionId, generation: "e2e-simulated", createdAt: at(14), capabilities: [] }))
-  execFileSync("sqlite3", ["-cmd", ".timeout 10000", join(home, ".frizz", "ui.db"),
+  execFileSync("sqlite3", ["-cmd", ".timeout 10000", join(home, ".ntwine", "ui.db"),
     `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, title_auto, backend, claude_runtime, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-     VALUES (${q(workspace.id)}, ${q(thread.slug)}, ${q(thread.sessionId)}, ${q(`frizz-${thread.slug}`)}, ${q(at(15))}, ${q(thread.title)}, 0, 'claude', 'broker', 'opus', 'high', 'default', 'open', 1, 0, 0, ${q(at(5))})`])
+     VALUES (${q(workspace.id)}, ${q(thread.slug)}, ${q(thread.sessionId)}, ${q(`ntwine-${thread.slug}`)}, ${q(at(15))}, ${q(thread.title)}, 0, 'claude', 'broker', 'opus', 'high', 'default', 'open', 1, 0, 0, ${q(at(5))})`])
   log(`seeded ${workspace.slug}/${thread.slug}, its simulated worker pid ${broker.pid} on ${socketPath}`)
 
   // The board reads it in.
-  const board = await fetch(`${stack.origin}/_frizz/${workspace.id}/rpc/board`, { headers: { "sec-fetch-site": "same-origin" } })
+  const board = await fetch(`${stack.origin}/_ntwine/${workspace.id}/rpc/board`, { headers: { "sec-fetch-site": "same-origin" } })
   const body = (await board.json()) as { result?: { threads?: { id: string }[] } }
   if (!body.result?.threads?.some((t) => t.id === thread.slug)) {
     // The tailer picks a new row up on its own pass; give it one.
@@ -142,7 +142,7 @@ export async function seedSidebarStack(options: { stack: Stack; workspace: Stack
 }
 
 /**
- * A thread working in its OWN git worktree of the workspace, at `.frizz/worktrees/<slug>` as Frizz's
+ * A thread working in its OWN git worktree of the workspace, at `.ntwine/worktrees/<slug>` as Ntwine's
  * worktree hook makes one — for the run whose window is opened ON that worktree (e2e-sidebar.ts
  * `--worktree`, check c12). No worker: the transcript's `cwd` is the worktree, and that is what the REAL
  * tailer lifts into the thread's `checkout`, exactly as it does for a Claude worker that works there.
@@ -157,9 +157,9 @@ export async function seedWorktreeThread(options: { stack: Stack; workspace: Sta
   const { home } = stack.info
   const thread: SeededThread & { dir: string } = {
     slug: "polish-pricing", title: "Polish the pricing page", handle: "polish-the-pricing-page",
-    sessionId: "e2e5170e-0000-4000-8000-00000000017e", jsonl: "", dir: join(workspace.dir, ".frizz", "worktrees", "polish-pricing"),
+    sessionId: "e2e5170e-0000-4000-8000-00000000017e", jsonl: "", dir: join(workspace.dir, ".ntwine", "worktrees", "polish-pricing"),
   }
-  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=frizz e2e", "-c", "user.email=e2e@frizz.invalid", "-C", workspace.dir, ...args], { stdio: "ignore" })
+  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=ntwine e2e", "-c", "user.email=e2e@ntwine.invalid", "-C", workspace.dir, ...args], { stdio: "ignore" })
   git("worktree", "add", "-q", thread.dir, "-b", thread.slug)
   const onlyMain = { linked: join(thread.dir, "src", "only-main.ts"), main: join(workspace.dir, "src", "only-main.ts") }
   mkdirSync(join(workspace.dir, "src"), { recursive: true })
@@ -173,12 +173,12 @@ export async function seedWorktreeThread(options: { stack: Stack; workspace: Sta
     { type: "assistant", sessionId: thread.sessionId, cwd: thread.dir, timestamp: at(20), message: { role: "assistant", id: "m-polish", stop_reason: "end_turn", content: [{ type: "text", text: `The pricing page is polished in this worktree; the flag is in [only-main.ts](${onlyMain.linked}#L2).` }], usage: { input_tokens: 2, output_tokens: 12 } } },
   ]
   writeFileSync(thread.jsonl, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`)
-  execFileSync("sqlite3", ["-cmd", ".timeout 10000", join(home, ".frizz", "ui.db"),
+  execFileSync("sqlite3", ["-cmd", ".timeout 10000", join(home, ".ntwine", "ui.db"),
     `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, title_auto, backend, claude_runtime, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-     VALUES (${q(workspace.id)}, ${q(thread.slug)}, ${q(thread.sessionId)}, ${q(`frizz-${thread.slug}`)}, ${q(at(31))}, ${q(thread.title)}, 0, 'claude', 'broker', 'opus', 'high', 'default', 'open', 0, 0, 0, ${q(at(20))})`])
+     VALUES (${q(workspace.id)}, ${q(thread.slug)}, ${q(thread.sessionId)}, ${q(`ntwine-${thread.slug}`)}, ${q(at(31))}, ${q(thread.title)}, 0, 'claude', 'broker', 'opus', 'high', 'default', 'open', 0, 0, 0, ${q(at(20))})`])
   const deadline = Date.now() + 60_000
   for (;;) {
-    const board = await fetch(`${stack.origin}/_frizz/${workspace.id}/rpc/board`, { headers: { "sec-fetch-site": "same-origin" } })
+    const board = await fetch(`${stack.origin}/_ntwine/${workspace.id}/rpc/board`, { headers: { "sec-fetch-site": "same-origin" } })
     const body = (await board.json()) as { result?: { threads?: { id: string; checkout?: { dir: string } }[] } }
     if (body.result?.threads?.some((t) => t.id === thread.slug && t.checkout?.dir === thread.dir)) break
     if (Date.now() > deadline) throw new Error(`the board never read ${thread.slug} as working in ${thread.dir}`)

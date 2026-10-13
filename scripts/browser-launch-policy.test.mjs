@@ -52,7 +52,7 @@ test("no second automation library arrives without the launcher's decisions", ()
 
 test("no automation names the installed Google Chrome", () => {
   // `src/browser.ts` is the PRODUCT opening the human's own browser for them, at their request
-  // (`frizz --app`). It is not automation, and it is the only code here that may name that binary.
+  // (`ntwine --app`). It is not automation, and it is the only code here that may name that binary.
   const installed = /Google Chrome(?! for Testing)[^"'`\n]*\.app\b|\bCHROME_PATH\b|channel\s*:\s*["'`]chrome/
   assert.deepEqual(offenders(installed, ["src/browser.ts", "src/browser.test.ts", HELPER, MCP_WRAPPER]), [])
 })

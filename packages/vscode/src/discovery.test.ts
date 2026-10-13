@@ -6,11 +6,11 @@ import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { frizzPaths, type FrizzPaths } from "@frizz/server/frizz-paths"
-import { acquireProjectLaunchOwner, processStartTime, projectLaunchTokenProof } from "@frizz/server/project-launch"
+import { ntwinePaths, type NtwinePaths } from "@ntwine/server/ntwine-paths"
+import { acquireProjectLaunchOwner, processStartTime, projectLaunchTokenProof } from "@ntwine/server/project-launch"
 // The launcher's own reader and writer: the extension's replica is pinned to both.
 import { acquireStableServerOwner, publishStableServerAddress, readStableServerOwner, releaseStableServerOwner, type ServerOwnerLease } from "../../../src/server-owner.ts"
-import { discoverFrizz, launchTokenProof, observeGeneration, originFromSetting, ownedFrizz, pageAddressNote, psGeneration, readOwnerAddress } from "./discovery.ts"
+import { discoverNtwine, launchTokenProof, observeGeneration, originFromSetting, ownedNtwine, pageAddressNote, psGeneration, readOwnerAddress } from "./discovery.ts"
 
 interface Health {
   ok: true
@@ -20,10 +20,10 @@ interface Health {
   ownerProof?: string
 }
 
-/** A real listener answering /_frizz/health the way the server does (app.ts), and 404 for anything else. */
+/** A real listener answering /_ntwine/health the way the server does (app.ts), and 404 for anything else. */
 async function healthServer(health: () => Health): Promise<{ port: number; server: Server }> {
   const server = createServer((request, response) => {
-    if (request.url !== "/_frizz/health") {
+    if (request.url !== "/_ntwine/health") {
       response.statusCode = 404
       response.end("Not Found")
       return
@@ -44,9 +44,9 @@ async function deadPort(): Promise<number> {
   return port
 }
 
-function fixtureRoots(): { home: string; roots: FrizzPaths } {
-  const home = mkdtempSync(join(tmpdir(), "frizz-vscode-discovery-"))
-  return { home, roots: frizzPaths({ home, env: {}, platform: "linux" }) }
+function fixtureRoots(): { home: string; roots: NtwinePaths } {
+  const home = mkdtempSync(join(tmpdir(), "ntwine-vscode-discovery-"))
+  return { home, roots: ntwinePaths({ home, env: {}, platform: "linux" }) }
 }
 
 function writeJson(path: string, value: unknown): void {
@@ -59,7 +59,7 @@ function readJsonFile(path: string): Record<string, unknown> {
 }
 
 /** This process as the published launcher: the machine-wide owner lease and its address record, written by the server's own code. */
-function publishOwner(roots: FrizzPaths, port: number): ServerOwnerLease {
+function publishOwner(roots: NtwinePaths, port: number): ServerOwnerLease {
   const acquired = acquireStableServerOwner(roots)
   assert.equal(acquired.kind, "acquired")
   if (acquired.kind !== "acquired") throw new Error("unreachable")
@@ -78,15 +78,15 @@ test("the launch-token proof is byte-for-byte the server's projectLaunchTokenPro
   }
 })
 
-test("frizz.serverUrl is read as an origin, and loopback is always spelled 127.0.0.1", () => {
+test("ntwine.serverUrl is read as an origin, and loopback is always spelled 127.0.0.1", () => {
   assert.equal(originFromSetting(""), undefined)
   assert.equal(originFromSetting("   "), undefined)
   assert.equal(originFromSetting("9393"), "http://127.0.0.1:9393")
   assert.equal(originFromSetting("localhost:9393"), "http://127.0.0.1:9393")
-  assert.equal(originFromSetting("http://localhost:9393/?project=frizz"), "http://127.0.0.1:9393")
+  assert.equal(originFromSetting("http://localhost:9393/?project=ntwine"), "http://127.0.0.1:9393")
   assert.equal(originFromSetting("http://[::1]:19393"), "http://127.0.0.1:19393")
   assert.equal(originFromSetting("http://127.0.0.1:9494/all/x"), "http://127.0.0.1:9494")
-  assert.equal(originFromSetting("https://frizz.example.com"), "https://frizz.example.com")
+  assert.equal(originFromSetting("https://ntwine.example.com"), "https://ntwine.example.com")
   assert.equal(originFromSetting("ftp://127.0.0.1:9393"), undefined)
   assert.equal(originFromSetting("http://"), undefined)
 })
@@ -94,10 +94,10 @@ test("frizz.serverUrl is read as an origin, and loopback is always spelled 127.0
 test("the setting wins outright — nothing on disk is read and no port is probed", async () => {
   const { home, roots } = fixtureRoots()
   try {
-    writeJson(join(roots.state, "frizz-server", "address.json"), { version: 1, port: 1 })
-    const result = await discoverFrizz({ serverUrl: "localhost:4567", roots, ports: [], pidAlive: () => assert.fail("no pid is checked") })
+    writeJson(join(roots.state, "ntwine-server", "address.json"), { version: 1, port: 1 })
+    const result = await discoverNtwine({ serverUrl: "localhost:4567", roots, ports: [], pidAlive: () => assert.fail("no pid is checked") })
     assert.deepEqual(result.found, { origin: "http://127.0.0.1:4567", port: 4567, source: "setting" })
-    assert.equal((await discoverFrizz({ serverUrl: "ftp://nope", roots })).found, undefined, "a setting that names no http address finds nothing rather than falling back")
+    assert.equal((await discoverNtwine({ serverUrl: "ftp://nope", roots })).found, undefined, "a setting that names no http address finds nothing rather than falling back")
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
@@ -108,12 +108,12 @@ test("the launcher's address record is taken while its port answers health, and 
   const { port, server } = await healthServer(() => ({ ok: true, bootId: "boot" }))
   const lease = publishOwner(roots, port)
   try {
-    const live = await discoverFrizz({ roots, ports: [] })
+    const live = await discoverNtwine({ roots, ports: [] })
     assert.deepEqual(live.found, { origin: `http://127.0.0.1:${port}`, port, source: "owner-record" })
 
     // Negative control: the same live owner's record over a dead listener finds nothing.
     publishStableServerAddress(lease, await deadPort())
-    const dead = await discoverFrizz({ roots, ports: [] })
+    const dead = await discoverNtwine({ roots, ports: [] })
     assert.equal(dead.found, undefined)
     assert.match(dead.notes.join("\n"), /does not answer/)
   } finally {
@@ -125,15 +125,15 @@ test("the launcher's address record is taken while its port answers health, and 
 
 test("an address record a crash left behind is not trusted, even when something answers health on its port", async () => {
   // The case the record's own comment warns about: the launcher was SIGKILLed (or WSL shut down), the
-  // record stayed, and a `frizz --sandbox` or another account's Frizz now holds the port.
+  // record stayed, and a `ntwine --sandbox` or another account's Ntwine now holds the port.
   const { home, roots } = fixtureRoots()
   const foreign = await healthServer(() => ({ ok: true, bootId: "foreign" }))
-  const addressPath = join(roots.state, "frizz-server", "address.json")
+  const addressPath = join(roots.state, "ntwine-server", "address.json")
   mkdirSync(roots.data, { recursive: true })
   try {
     // A record with no owner beside it, and one whose owner pid is gone.
     writeJson(addressPath, { version: 1, ownerToken: randomUUID(), pid: 999_999, processStart: "linux:x:1", publisherToken: randomUUID(), port: foreign.port })
-    const orphan = await discoverFrizz({ roots, ports: [], pidAlive: () => false })
+    const orphan = await discoverNtwine({ roots, ports: [], pidAlive: () => false })
     assert.equal(orphan.found, undefined)
     assert.match(orphan.notes.join("\n"), /no owner record behind it/)
 
@@ -141,13 +141,13 @@ test("an address record a crash left behind is not trusted, even when something 
     releaseStableServerOwner(lease)
     // The release removed both; put back what a crash leaves: the owner record and the address, pid dead.
     const ownerToken = randomUUID()
-    writeJson(join(roots.state, "frizz-server", "project-launch.owner"), {
+    writeJson(join(roots.state, "ntwine-server", "project-launch.owner"), {
       version: 2, token: ownerToken, projectId: "c1fd5810-0f8a-4c1d-91a0-6d7445d28e5a", projectDir: realpath(roots.data), role: "server",
       state: "active", delegates: [], acquiredAt: "t", updatedAt: "t", pid: 999_999, processStart: "linux:x:1",
     })
     writeJson(addressPath, { version: 1, ownerToken, pid: 999_999, processStart: "linux:x:1", publisherToken: randomUUID(), port: foreign.port })
-    const crashed = await discoverFrizz({ roots, ports: [], pidAlive: () => false })
-    assert.equal(crashed.found, undefined, "a dead owner's port is not this user's Frizz any more")
+    const crashed = await discoverNtwine({ roots, ports: [], pidAlive: () => false })
+    assert.equal(crashed.found, undefined, "a dead owner's port is not this user's Ntwine any more")
     assert.match(crashed.notes.join("\n"), /its owner, pid 999999, is gone/)
   } finally {
     foreign.server.close()
@@ -159,8 +159,8 @@ test("an address record a crash left behind is not trusted, even when something 
 // would carry the wrong platform tag, which both readers rightly decline to compare.
 test("the address-record verdict is readStableServerOwner's, case by case, over files the server's own writer wrote", { skip: process.platform !== "linux" && "Linux process-start markers" }, async () => {
   const { home, roots } = fixtureRoots()
-  const ownerPath = join(roots.state, "frizz-server", "project-launch.owner")
-  const addressPath = join(roots.state, "frizz-server", "address.json")
+  const ownerPath = join(roots.state, "ntwine-server", "project-launch.owner")
+  const addressPath = join(roots.state, "ntwine-server", "address.json")
   const lease = publishOwner(roots, 4321)
   const owner = readJsonFile(ownerPath)
   const address = readJsonFile(addressPath)
@@ -218,18 +218,18 @@ test("a well-known port is joined only when its health proves THIS user's launch
   const { port, server } = await healthServer(() => health)
   const closed = await deadPort()
   try {
-    assert.equal(await ownedFrizz(port, roots.data), true)
-    const found = await discoverFrizz({ roots, ports: [closed, port] })
+    assert.equal(await ownedNtwine(port, roots.data), true)
+    const found = await discoverNtwine({ roots, ports: [closed, port] })
     assert.deepEqual(found.found, { origin: `http://127.0.0.1:${port}`, port, source: "well-known-port" })
 
-    // Another account's Frizz or a --sandbox one: the same health shape, a token we do not hold.
+    // Another account's Ntwine or a --sandbox one: the same health shape, a token we do not hold.
     health = { ...health, ownerProof: projectLaunchTokenProof({ projectId, projectDir, stateDir }, randomUUID()) }
-    assert.equal(await ownedFrizz(port, roots.data), false)
-    assert.equal((await discoverFrizz({ roots, ports: [port] })).found, undefined)
+    assert.equal(await ownedNtwine(port, roots.data), false)
+    assert.equal((await discoverNtwine({ roots, ports: [port] })).found, undefined)
 
     // A listener naming a project id that is not a uuid never gets to aim a path at our data root.
     health = { ok: true, bootId: "boot", projectId: "../../etc", projectDir, ownerProof: "0".repeat(64) }
-    assert.equal(await ownedFrizz(port, roots.data), false)
+    assert.equal(await ownedNtwine(port, roots.data), false)
   } finally {
     server.close()
     lease.release()
@@ -237,7 +237,7 @@ test("a well-known port is joined only when its health proves THIS user's launch
   }
 })
 
-test("frizz-dev's public port beats server.lock's private one; server.lock is the last resort, while its pid lives", async () => {
+test("ntwine-dev's public port beats server.lock's private one; server.lock is the last resort, while its pid lives", async () => {
   const { home, roots } = fixtureRoots()
   const projectId = randomUUID()
   const publicSide = await healthServer(() => ({ ok: true, bootId: "boot" }))
@@ -246,20 +246,20 @@ test("frizz-dev's public port beats server.lock's private one; server.lock is th
     writeJson(join(roots.data, "server.lock"), { pid: 4242, port: privateSide.port, projectId })
     const alive = new Set([4242, 5151])
 
-    const lockOnly = await discoverFrizz({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })
+    const lockOnly = await discoverNtwine({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })
     assert.deepEqual(lockOnly.found, { origin: `http://127.0.0.1:${privateSide.port}`, port: privateSide.port, source: "server-lock" })
 
     writeJson(join(roots.data, "projects", projectId, "dev-supervisor.lock"), { pid: 5151, port: publicSide.port })
-    const dev = await discoverFrizz({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })
+    const dev = await discoverNtwine({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })
     assert.deepEqual(dev.found, { origin: `http://127.0.0.1:${publicSide.port}`, port: publicSide.port, source: "dev-supervisor" })
 
     // A dead supervisor's record is skipped for the control plane's own port.
     alive.delete(5151)
-    assert.equal((await discoverFrizz({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })).found?.source, "server-lock")
+    assert.equal((await discoverNtwine({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })).found?.source, "server-lock")
 
     // Negative control: a lock whose writer is gone is not an address, even though the port answers.
     alive.delete(4242)
-    const stale = await discoverFrizz({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })
+    const stale = await discoverNtwine({ roots, ports: [], pidAlive: (pid) => alive.has(pid) })
     assert.equal(stale.found, undefined)
     assert.match(stale.notes.join("\n"), /pid 4242, which is gone/)
   } finally {
@@ -272,7 +272,7 @@ test("frizz-dev's public port beats server.lock's private one; server.lock is th
 test("with nothing on disk and nothing listening, discovery finds nothing and says where it looked", async () => {
   const { home, roots } = fixtureRoots()
   try {
-    const result = await discoverFrizz({ roots, ports: [await deadPort()] })
+    const result = await discoverNtwine({ roots, ports: [await deadPort()] })
     assert.equal(result.found, undefined)
     assert.equal(result.notes.length, 3)
   } finally {
@@ -289,6 +289,6 @@ test("a page opened on server.lock's port is logged as such; every other source 
   const lock = pageAddressNote("server-lock")
   assert.equal(lock.level, "warn")
   assert.match(lock.note, /lock file/)
-  assert.match(lock.note, /only when Frizz runs without its restart supervisor/)
-  assert.match(lock.note, /frizz\.serverUrl/)
+  assert.match(lock.note, /only when Ntwine runs without its restart supervisor/)
+  assert.match(lock.note, /ntwine\.serverUrl/)
 })

@@ -1,10 +1,10 @@
-import { EMBED_PARAM, EMBED_THEME_PARAM, type EmbedRouteMessage } from "@frizz/shared"
+import { EMBED_PARAM, EMBED_THEME_PARAM, type EmbedRouteMessage } from "@ntwine/shared"
 import { embedded, postToHost } from "./embed.ts"
 
-// WHERE THE SIDEBAR IS, said to VS Code's title row (`frizz:route`, packages/shared/src/embed-protocol.ts).
+// WHERE THE SIDEBAR IS, said to VS Code's title row (`ntwine:route`, packages/shared/src/embed-protocol.ts).
 // An editor's sidebar draws no header of its own (ARCHITECTURE.md § VS Code extension):
 // the row VS Code already draws above the frame is the header, so the page tells it the view's name and
-// the reading beside it, and the row's buttons come back as `frizz:command` (lib/embedCommand.ts).
+// the reading beside it, and the row's buttons come back as `ntwine:command` (lib/embedCommand.ts).
 //
 // The page's own surfaces decide the reading (AllQueues.tsx SidebarPage, StandaloneThreadPage.tsx); this
 // module is what they share — the pure choice of what the row says, and a poster that says it only when
@@ -70,7 +70,7 @@ let last: EmbedRouteMessage | null = null
 export function reportRoute(route: EmbedRoute): void {
   if (!embedded()) return
   const message: EmbedRouteMessage = {
-    type: "frizz:route",
+    type: "ntwine:route",
     view: route.view,
     title: route.title,
     ...(route.description ? { description: route.description } : {}),
@@ -82,7 +82,7 @@ export function reportRoute(route: EmbedRoute): void {
 }
 
 /**
- * Say the last reading again — right after `frizz:ready` (lib/embedHost.ts): the page renders its first
+ * Say the last reading again — right after `ntwine:ready` (lib/embedHost.ts): the page renders its first
  * view before the board it waits on for ready has come, and an extension that listens only once the page
  * is ready would otherwise keep its default title until the reading next moved.
  */

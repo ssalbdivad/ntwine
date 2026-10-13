@@ -3,14 +3,14 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadRow, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
 // Where a click would lead. Nothing here clicks; the prop is required because every real row has one.
 const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
-// An EXTERNAL row (the human's own `claude`/`codex` session) once wore a `terminal` pill. In Frizz
+// An EXTERNAL row (the human's own `claude`/`codex` session) once wore a `terminal` pill. In Ntwine
 // "terminal" names a live pty the human opened on a thread (thread-terminals.ts), so the pill claimed
 // something the row is not. The External band's header already says where the row came from, so the
 // row carries no tag of its own.

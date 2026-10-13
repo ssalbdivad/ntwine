@@ -1,7 +1,7 @@
 // Verify that a worker's SUPERSEDED MCP server can still arm its recurring prompt against a CURRENT
-// frizz server — the exact seam that broke, driven end to end with nothing stubbed.
+// ntwine server — the exact seam that broke, driven end to end with nothing stubbed.
 //
-// The bug: a worker's `frizz-mcp.mjs` is spawned once, out of the promoted build its session was
+// The bug: a worker's `ntwine-mcp.mjs` is spawned once, out of the promoted build its session was
 // dispatched with, and it lives as long as that session — across every server restart. The server
 // meanwhile gets restarted from newer source. Merging the old `stop_hook` + `heartbeat` tools into one
 // `recurring_prompt` renamed the RPC procedure, so every in-flight worker's tool started answering
@@ -9,7 +9,7 @@
 //
 // Testing the pieces would prove nothing here: the router's own tests already pass against the shapes I
 // BELIEVE those builds send. What this script does instead is spawn the REAL old binaries out of
-// `~/.frizz/builds/*/runtime/cc-worker/bin/frizz-mcp.mjs`, speak their REAL stdio JSON-RPC transport, and
+// `~/.ntwine/builds/*/runtime/cc-worker/bin/ntwine-mcp.mjs`, speak their REAL stdio JSON-RPC transport, and
 // assert the row a REAL server's REAL sqlite ends up holding. Old client, new server, no mocks.
 //
 // Usage (against a booted adhoc stack — see scripts/adhoc-stack.mjs):
@@ -34,14 +34,14 @@ const { db } = sandbox
 // The unified schema keys every row by project and the column is NOT NULL; the legacy one has no
 // such column. `sessionProjectColumns` yields the right prefix pair for whichever this sandbox is.
 const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
-// The MCP server locates the running frizz from `<state-dir>/server.lock`, so this must be the sandbox's
+// The MCP server locates the running ntwine from `<state-dir>/server.lock`, so this must be the sandbox's
 // project dir, not the maintainer's real one.
 const stateDir = dirname(db)
 
 // Pick the binaries by what they actually CALL rather than by a pinned hash — promoted builds get
 // garbage-collected, and a hash that has aged out would turn this into a silent skip.
 function findBuild(procedure) {
-  for (const script of globSync(join(homedir(), ".frizz/builds/*/runtime/cc-worker/bin/frizz-mcp.mjs"))) {
+  for (const script of globSync(join(homedir(), ".ntwine/builds/*/runtime/cc-worker/bin/ntwine-mcp.mjs"))) {
     if (readFileSync(script, "utf8").includes(`callRpc("${procedure}"`)) return script
   }
   return null
@@ -51,9 +51,9 @@ function findBuild(procedure) {
 function mcp(script, env) {
   const child = spawn(process.execPath, [script], {
     stdio: ["pipe", "pipe", "inherit"],
-    // The running shell's Frizz identity is blanked first: from a worker's shell it names the REAL
-    // server, project and thread, and FRIZZ_SERVER_LOCK would outrank the state dir this script passes.
-    env: { ...process.env, FRIZZ_THREAD: "", FRIZZ_THREAD_SLUG: "", FRIZZ_STATE_DIR: "", FRIZZ_PERM_DIR: "", FRIZZ_SERVER_LOCK: "", FRIZZ_PROJECT_ID: "", ...env },
+    // The running shell's Ntwine identity is blanked first: from a worker's shell it names the REAL
+    // server, project and thread, and NTWINE_SERVER_LOCK would outrank the state dir this script passes.
+    env: { ...process.env, NTWINE_THREAD: "", NTWINE_THREAD_SLUG: "", NTWINE_STATE_DIR: "", NTWINE_PERM_DIR: "", NTWINE_SERVER_LOCK: "", NTWINE_PROJECT_ID: "", ...env },
   })
   const pending = new Map()
   let buf = ""
@@ -97,11 +97,11 @@ const slug = "legacy-mcp-thread"
 const at = new Date().toISOString()
 sql(
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '33333333-3333-4333-8333-333333333333', 'frizz-${slug}', '${at}', 'Legacy MCP thread', 'claude', 'opus', 'high', 'default', '${at}')`,
+   VALUES (${sessionVals}'${slug}', '33333333-3333-4333-8333-333333333333', 'ntwine-${slug}', '${at}', 'Legacy MCP thread', 'claude', 'opus', 'high', 'default', '${at}')`,
 )
 
 async function callTool(script, name, args) {
-  const rpc = mcp(script, { FRIZZ_STATE_DIR: stateDir, FRIZZ_THREAD_SLUG: slug })
+  const rpc = mcp(script, { NTWINE_STATE_DIR: stateDir, NTWINE_THREAD_SLUG: slug })
   try {
     await rpc.call("initialize", { protocolVersion: "2025-06-18" })
     const res = await rpc.call("tools/call", { name, arguments: args })

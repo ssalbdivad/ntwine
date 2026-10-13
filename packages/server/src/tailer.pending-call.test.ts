@@ -2,7 +2,7 @@
 //
 // Observed three times on 2026-09-29 (session 054bee45): a sub-agent running `timeout 2400 nub …` in the
 // foreground writes its tool_use, two PreToolUse hook records, and then nothing until the call returns —
-// so 15 minutes in, the tailer called it stale, `mcp__frizz__activity` dropped it, and the park check
+// so 15 minutes in, the tailer called it stale, `mcp__ntwine__activity` dropped it, and the park check
 // refused its parent's fence "NOT RUNNING (nothing by that name)" while its processes were alive in `ps`.
 // A workflow read the same way with three verifier agents mid-call. The fixtures are those bytes, shortened.
 import { test } from "node:test"
@@ -27,7 +27,7 @@ const lines = (...recs: object[]) => recs.map((r) => JSON.stringify(r) + "\n").j
 const IN_FLIGHT = { type: "user", timestamp: "2026-07-01T00:00:00.000Z", message: { role: "user", content: "go" } }
 const dispatch = (id: string) => ({
   type: "assistant", timestamp: "2026-07-01T00:00:01.000Z",
-  message: { id: "msg_p1", stop_reason: "tool_use", content: [{ type: "tool_use", name: "Agent", id, input: { description: "goal-limits", run_in_background: true, subagent_type: "frizz:high" } }] },
+  message: { id: "msg_p1", stop_reason: "tool_use", content: [{ type: "tool_use", name: "Agent", id, input: { description: "goal-limits", run_in_background: true, subagent_type: "ntwine:high" } }] },
 })
 const launch = (id: string, outputFile: string) => ({
   type: "user", timestamp: "2026-07-01T00:00:01.500Z",
@@ -47,11 +47,11 @@ const hook = { type: "attachment", timestamp: "2026-07-01T00:01:00.050Z", attach
 const answered = { type: "user", timestamp: CALL_AT, message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_long", content: "EXIT=0" }] } }
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
-  return { slug: "t", session_id: "sid", thread_name: "frizz-t", spawned_at: "2026-07-01T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null, ...over }
+  return { slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: "2026-07-01T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null, ...over }
 }
 
 function harness(childTail: object[], over: { awakeBetween?: (a: number, b: number) => number } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "frizz-pending-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-pending-"))
   const logDir = join(root, "-a-project")
   mkdirSync(logDir, { recursive: true })
   const child = join(logDir, "sid", "subagents", "agent-a93a2fe4400f31533.jsonl")
@@ -157,7 +157,7 @@ test("host sleep is not silence: 60 wall minutes with 50 of them suspended reads
 // ---- a WORKFLOW: its run is live while any running agent is, by that agent's own reading ----
 
 test("a workflow whose only running agent is deep in a long call stays running, and goes stale past its bound", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-pending-wf-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-pending-wf-"))
   const logDir = join(root, "-a-project")
   const runDir = join(logDir, "sid", "subagents", "workflows", "wf_8a4833df-387")
   mkdirSync(runDir, { recursive: true })

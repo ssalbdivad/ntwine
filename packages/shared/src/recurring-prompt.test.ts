@@ -73,7 +73,7 @@ for (const [label, message] of [
     assert.ok(message.startsWith("keep fixing the failing tests"), "the operator's text leads, verbatim and trimmed")
     assert.ok(message.includes("```done"), "the trailer names the exact sign-off the scheduler reads")
     assert.match(message, /ONLY when the work is genuinely finished/, "and warns, in the same breath as the offer")
-    // The trailer does NOT carry the sign-off protocol: frizz's reminder is its own delivery now
+    // The trailer does NOT carry the sign-off protocol: ntwine's reminder is its own delivery now
     // (scheduler SOURCE 9), and a copy here would be exactly the repetition it was separated to avoid.
     assert.doesNotMatch(message, /```question/)
     // The RETIRED sentinel must not appear: it is still HONOURED for sessions that predate the change
@@ -84,7 +84,7 @@ for (const [label, message] of [
     // the operator's actual instruction for the worker's attention.
     //
     // The ceiling briefly moved to 400 when this trailer carried the sign-off protocol; it is back at
-    // 240 now that frizz's reminder is its own delivery.
+    // 240 now that ntwine's reminder is its own delivery.
     const trailer = message.slice(message.indexOf("("))
     assert.ok(trailer.length < 240, `trailer should stay a footnote, got ${trailer.length} chars`)
   })
@@ -103,7 +103,7 @@ test("restPromptMessage says why the bump crosses a pending question", () => {
   assert.ok(crossing.includes("```done"), "the opt-out survives the longer note")
 
   // OPT-IN, and the plain trailer is unchanged: a worker bumped mid-work has no question outstanding,
-  // and telling it not to re-ask one would be frizz inventing a state the thread is not in.
+  // and telling it not to re-ask one would be ntwine inventing a state the thread is not in.
   assert.doesNotMatch(restPromptMessage("keep going"), /not waiting|re-ask/)
   assert.equal(restPromptMessage("keep going", {}), restPromptMessage("keep going"))
 
@@ -174,7 +174,7 @@ test("parseRecurringPrompt still reads the PRE-MERGE trailers", () => {
 // ---- The one field kept alive purely for a stale caller ---------------------------------------------
 // `pauseOnQuestions` was the question hold, deleted 2026-08-16 with the panel switch that inverted it.
 // The WORKER input still ACCEPTS it, because the caller on that end is a detached daemon holding the
-// `frizz-mcp.mjs` it was spawned with — those outlive a server restart by design, so a strict refusal
+// `ntwine-mcp.mjs` it was spawned with — those outlive a server restart by design, so a strict refusal
 // would fail a pre-change worker's `start` on a field its model cannot see it is sending. This is what
 // stops the tolerance being deleted as dead code, and what says when it may go.
 test("a pre-2026-08-16 worker's `start` still parses, and the hold is dropped rather than stored", () => {
@@ -214,7 +214,7 @@ test("a human reply after a long gap carries the gap; a fast one carries nothing
   assert.match(note ?? "", /arrived 3h 12m after your last one/)
   assert.match(note ?? "", /It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\./)
   // ATTRIBUTED: it rides on the HUMAN's message, so it must not read as something the human wrote.
-  assert.match(note ?? "", /^⏱ Frizz:/)
+  assert.match(note ?? "", /^⏱ Ntwine:/)
 
   // NO ANCHOR, NO GUESS — a thread whose worker has never spoken gets nothing rather than a fabricated
   // elapsed time.
@@ -223,11 +223,11 @@ test("a human reply after a long gap carries the gap; a fast one carries nothing
 })
 
 // The note is appended to the WORKER's copy only, but the chat renders the worker's transcript — so the
-// display projection is the only thing standing between frizz's clock line and the operator's own bubble
+// display projection is the only thing standing between ntwine's clock line and the operator's own bubble
 // ("can we make these invisible? they're showing up in my own user messages", 2026-08-20). Producer and
 // stripper are pinned to each other here: a wording change on one that the other does not follow fails
 // this test instead of silently reappearing over the human's words.
-test("the gap note is stripped back off for display, and only when frizz wrote it", () => {
+test("the gap note is stripped back off for display, and only when ntwine wrote it", () => {
   const spoke = "2026-08-19T06:00:00.000Z"
   const note = humanGapNote(Date.parse(spoke) + 192 * 60_000, spoke)
   assert.ok(note)
@@ -241,7 +241,7 @@ test("the gap note is stripped back off for display, and only when frizz wrote i
   // describes the note stays in the bubble intact — including the report that produced this fix.
   const quoting = `why does "${note}" show up in my own messages?`
   assert.equal(stripHumanGapNote(quoting), quoting)
-  const truncated = "ship it\n\n⏱ Frizz: the message above arrived 3h12m after your last one."
+  const truncated = "ship it\n\n⏱ Ntwine: the message above arrived 3h12m after your last one."
   assert.equal(stripHumanGapNote(truncated), truncated)
   assert.equal(stripHumanGapNote("ship it"), "ship it")
 })
@@ -251,7 +251,7 @@ test("the gap note is stripped back off for display, and only when frizz wrote i
 // prints at the foot of the card a human reads. On the one wake that carries the human's OWN words (an
 // answer to a registered question) it is worse than clutter: the answers reader treats a trailing line as
 // a continuation of the last answer, so it lands INSIDE the chip holding what they chose.
-test("the wake clock line is stripped back off for display, and only when frizz wrote it", () => {
+test("the wake clock line is stripped back off for display, and only when ntwine wrote it", () => {
   const spoke = "2026-08-27T06:00:00.000Z"
   const header = wakeTimeHeader(Date.parse(spoke) + 249 * 60_000, spoke)
   assert.match(header, /you last spoke/)

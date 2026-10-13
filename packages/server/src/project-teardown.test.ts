@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
 import type { AppContext } from "./context.ts"
-import { projectStateDir } from "./frizz-paths.ts"
+import { projectStateDir } from "./ntwine-paths.ts"
 import { listProjects, registerProject } from "./project-registry.ts"
 import { deleteProjectState } from "./project-teardown.ts"
 import { createRouter } from "./router.ts"
@@ -13,8 +13,8 @@ const A = "029a30af-f126-40e3-b04c-d80e74e3e090"
 const B = "50577e5e-802f-4567-bd0e-cf7cbf3d2ed5"
 
 function sandbox(): string {
-  const home = mkdtempSync(join(tmpdir(), "frizz-teardown-"))
-  mkdirSync(join(home, ".frizz"), { recursive: true }) // legacy collapse root, so data lands under it
+  const home = mkdtempSync(join(tmpdir(), "ntwine-teardown-"))
+  mkdirSync(join(home, ".ntwine"), { recursive: true }) // legacy collapse root, so data lands under it
   return home
 }
 
@@ -32,7 +32,7 @@ test("deleting a project's state takes the whole directory and nothing above it"
   deleteProjectState(A, home)
   assert.equal(existsSync(a), false)
   assert.equal(existsSync(b), true, "its neighbour is untouched")
-  assert.equal(existsSync(join(home, ".frizz", "projects")), true, "and so is the root they sit in")
+  assert.equal(existsSync(join(home, ".ntwine", "projects")), true, "and so is the root they sit in")
   deleteProjectState(A, home) // idempotent — force:true, so a second delete is not an error
 })
 
@@ -44,7 +44,7 @@ for (const id of ["..", ".", "", "../..", "a/../..", "/"]) {
     const kept = stateDir(home, A)
     assert.throws(() => deleteProjectState(id, home), /Refusing to delete/)
     assert.equal(existsSync(kept), true)
-    assert.equal(existsSync(join(home, ".frizz", "projects")), true)
+    assert.equal(existsSync(join(home, ".ntwine", "projects")), true)
   })
 }
 
@@ -99,9 +99,9 @@ function harness(options: {
 test("removing a project forgets the registry entry and leaves its threads alone by default", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
-  // `.frizz/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
+  // `.ntwine/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", ".id"), `${A}\n`)
   writeFileSync(join(dir, "README.md"), "theirs, not ours")
   registerProject({ dir, id: A }, home)
   const state = stateDir(home, A)
@@ -112,16 +112,16 @@ test("removing a project forgets the registry entry and leaves its threads alone
   assert.deepEqual(result, { removed: true, deletedData: false, stoppedWorkers: 2 })
   assert.deepEqual(calls, [{ id: A, stopWorkers: false, deleteState: false }])
   assert.equal(existsSync(state), true, "its threads survive, so re-adding the folder restores the board")
-  assert.equal(existsSync(join(dir, ".frizz", ".id")), true, "the project's own directory is never touched")
+  assert.equal(existsSync(join(dir, ".ntwine", ".id")), true, "the project's own directory is never touched")
   assert.equal(existsSync(join(dir, "README.md")), true)
 })
 
-test("deleteData stops the project's workers and removes everything Frizz holds for it", async (t) => {
+test("deleteData stops the project's workers and removes everything Ntwine holds for it", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
-  // `.frizz/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
+  // `.ntwine/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", ".id"), `${A}\n`)
   writeFileSync(join(dir, "README.md"), "theirs, not ours")
   registerProject({ dir, id: A }, home)
   const state = stateDir(home, A)
@@ -132,16 +132,16 @@ test("deleteData stops the project's workers and removes everything Frizz holds 
   assert.deepEqual(result, { removed: true, deletedData: true, stoppedWorkers: 2 })
   assert.deepEqual(calls, [{ id: A, stopWorkers: true, deleteState: true }])
   assert.equal(existsSync(state), false)
-  assert.equal(existsSync(join(dir, ".frizz", ".id")), true, "the folder itself is still not touched")
+  assert.equal(existsSync(join(dir, ".ntwine", ".id")), true, "the folder itself is still not touched")
   assert.equal(existsSync(join(dir, "README.md")), true)
 })
 
-test("deleting the data of the project Frizz is hosted on is refused, and nothing is torn down", async (t) => {
+test("deleting the data of the project Ntwine is hosted on is refused, and nothing is torn down", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
-  // `.frizz/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
+  // `.ntwine/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", ".id"), `${A}\n`)
   writeFileSync(join(dir, "README.md"), "theirs, not ours")
   registerProject({ dir, id: A }, home)
   const state = stateDir(home, A)
@@ -156,14 +156,14 @@ test("deleting the data of the project Frizz is hosted on is refused, and nothin
   assert.equal(existsSync(state), true)
 })
 
-// A `frizz` run from $HOME was hosted on the most recently opened project until 2026-10-11, so the
+// A `ntwine` run from $HOME was hosted on the most recently opened project until 2026-10-11, so the
 // host was routinely a project nobody launched from — and refusing to forget it left a card the
 // operator could not remove by any restart that did not start inside a DIFFERENT project (2026-10-10).
-test("the project Frizz is hosted on can still be forgotten, without a teardown", async (t) => {
+test("the project Ntwine is hosted on can still be forgotten, without a teardown", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", ".id"), `${A}\n`)
   registerProject({ dir, id: A }, home)
   const state = stateDir(home, A)
 
@@ -192,9 +192,9 @@ test("a server with no tenant map still forgets the entry", async (t) => {
   // there is to do. The alternative — refusing — would make the card unremovable.
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
-  // `.frizz/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  writeFileSync(join(dir, ".frizz", ".id"), `${A}\n`)
+  // `.ntwine/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  writeFileSync(join(dir, ".ntwine", ".id"), `${A}\n`)
   writeFileSync(join(dir, "README.md"), "theirs, not ours")
   registerProject({ dir, id: A }, home)
   const ctx = {

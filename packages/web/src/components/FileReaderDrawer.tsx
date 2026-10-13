@@ -20,10 +20,10 @@ import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 
 // The BUILT-IN FILE READER: a right side sheet (the same slide/backdrop family as the plan and
-// frizz-document drawers) showing a file that lives on disk — a `.md` rendered, anything else as
+// ntwine-document drawers) showing a file that lives on disk — a `.md` rendered, anything else as
 // highlighted source. Every link to one lands here instead of launching the desktop opener — a worker
 // citing `AGENTS.md`, a backticked path that resolved to a file, an attached log — because throwing
-// the user out of Frizz into an editor to read two paragraphs is the wrong answer to "what does that
+// the user out of Ntwine into an editor to read two paragraphs is the wrong answer to "what does that
 // file say?". It was Markdown-only until 2026-09-28, when every file the page can show at all came
 // in-app (lib/localViewer.ts decides which).
 //
@@ -45,7 +45,7 @@ export const FOOTER_STYLE = { paddingBottom: "max(0.75rem, env(safe-area-inset-b
 // `project` opens through that project rather than the page's, for a file cited on its card.
 //
 // IN AN EDITOR'S SIDEBAR (lib/embed.ts) everything opens in that editor's window, a picture too, and the
-// button's title says so. The OS's viewer is on the machine running Frizz, which under Remote-SSH has no
+// button's title says so. The OS's viewer is on the machine running Ntwine, which under Remote-SSH has no
 // display at all — while VS Code previews PNG, JPG, GIF, WebP and SVG itself — and a Markdown file opens
 // there as much as source, since Open is how a file gets EDITED.
 export function OpenAction({ path, image, project, onOpen, className = "" }: { path: string; image?: boolean; project?: string; onOpen?: () => void; className?: string }) {
@@ -70,7 +70,7 @@ export function OpenAction({ path, image, project, onOpen, className = "" }: { p
       onClick={open}
       onMouseDown={(e) => e.preventDefault()}
       className={`flex items-center gap-1.5 rounded-md border border-border-strong bg-panel-2/60 px-2.5 py-1 text-[12px] font-medium text-fg/80 outline-none transition-colors hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 ${className}`}
-      title={inEditor ? `Open ${path} in this window` : `Open ${path} outside Frizz`}
+      title={inEditor ? `Open ${path} in this window` : `Open ${path} outside Ntwine`}
       aria-label="Open"
     >
       <ExternalLink size={12} aria-hidden="true" /> Open
@@ -135,7 +135,7 @@ export function FileReaderDrawer({ scope, ...props }: ReaderProps & { scope?: Ma
 function FileReader({ id, path, title, depth, widthDepth }: ReaderProps) {
   const scope = useContext(MarkdownScopeContext)
   // ON A PHONE THERE IS NO OPEN (upstream db0e7568, "the reader's Open footer is not shown on the phone").
-  // Its Open launches the file on the machine Frizz runs on — the desktop opener, or the Local file links app —
+  // Its Open launches the file on the machine Ntwine runs on — the desktop opener, or the Local file links app —
   // which from a phone is somewhere else entirely: the tap did nothing anyone holding the phone could
   // see. The phone routes every file here for exactly that reason (lib/local-file-links.ts openLocalPath),
   // so the reader is the end of the line there, and a button that leads off it is a dead end.
@@ -186,7 +186,7 @@ function FileReader({ id, path, title, depth, widthDepth }: ReaderProps) {
     <Sheet id={id} depth={depth} widthDepth={widthDepth}>
       {(close) => (
         <>
-          {/* No leading icon, like every other SUBTITLED sheet here (plan, frizz-doc). SheetHeader centers
+          {/* No leading icon, like every other SUBTITLED sheet here (plan, ntwine-doc). SheetHeader centers
               an icon on the whole title+subtitle block, so beside a two-line header a 14px glyph measured
               7.00px below the title's cap band and read as floating between the lines. The basename is the
               title and the path is the subtitle; neither needs a glyph to say "file". */}
@@ -195,7 +195,7 @@ function FileReader({ id, path, title, depth, widthDepth }: ReaderProps) {
             {body.isLoading ? (
               <div className="text-[13px] text-muted">Loading…</div>
             ) : body.error ? (
-              // The gate's own words — "outside Frizz's trusted roots", "is not a text file" — say more
+              // The gate's own words — "outside Ntwine's trusted roots", "is not a text file" — say more
               // than a generic failure would, and (off a phone) the footer still offers the desktop opener.
               <div className="text-[13px] text-danger-90">Couldn’t read this file: {(body.error as Error).message}</div>
             ) : markdown && html ? (

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_DRAWER_COMPOSER_INSET_E2E_URL
+const baseUrl = process.env.NTWINE_DRAWER_COMPOSER_INSET_E2E_URL
 
 test("thread drawer counts its ops over the prompt box and keeps the box inset evenly", {
   skip: !baseUrl,

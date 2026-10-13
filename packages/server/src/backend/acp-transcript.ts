@@ -1,11 +1,11 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { parseSpinoffChildPrompt, parseSpinoffRequest, type TranscriptMessage, type TranscriptToolCall } from "@frizz/shared"
+import { parseSpinoffChildPrompt, parseSpinoffRequest, type TranscriptMessage, type TranscriptToolCall } from "@ntwine/shared"
 import type { AgentBackend, BuiltCommand, FoldState, NormalizedEvent, ResumeOpts, SpawnOpts } from "./types.ts"
 import { applyEvent } from "../tailer.ts"
 
-// The ACP backend's transcript: a JSONL file FRIZZ writes, one per thread, at
-// `<stateDir>/acp/<frizzSessionId>.jsonl`.
+// The ACP backend's transcript: a JSONL file NTWINE writes, one per thread, at
+// `<stateDir>/acp/<ntwineSessionId>.jsonl`.
 //
 // Claude and Codex tail a transcript the PROVIDER writes (a Claude Code JSONL, a Codex rollout). An ACP
 // agent keeps its history wherever it likes and only streams `session/update` notifications at us, so
@@ -83,7 +83,7 @@ export function createAcpBackend(opts: AcpBackendOptions): AgentBackend {
     kind: "acp",
     buildSpawn(_o: SpawnOpts): BuiltCommand { throw new Error("acp runs via the ACP bridge; this argv builder has no live caller") },
     buildResume(_o: ResumeOpts): BuiltCommand { throw new Error("acp runs via the ACP bridge; this argv builder has no live caller") },
-    // Deterministic: the bridge names the file after the frizz session id, so no discovery step.
+    // Deterministic: the bridge names the file after the ntwine session id, so no discovery step.
     transcriptPath(sessionId: string): string | undefined { return acpTranscriptPath(opts.stateDir, sessionId) },
     parseLine: parseAcpLine,
     foldLine(state: FoldState, line: string): void {

@@ -35,7 +35,7 @@ test("a detached call marks instantly; a foreground one marks on elapsed time", 
   assert.equal(isPendingForegroundTool("pending"), true, "…it is the other pending kind")
   assert.equal(isPendingForegroundTool("pending", "background"), false, "a detached op is never both")
 
-  // An orphaned Codex poll is a process frizz cannot place — it claims neither liveness nor progress.
+  // An orphaned Codex poll is a process ntwine cannot place — it claims neither liveness nor progress.
   assert.equal(hasRunningToolIndicator("pending", "unknown"), false)
   assert.equal(isPendingForegroundTool("pending", "unknown"), false)
 
@@ -53,16 +53,16 @@ test("a detached call marks instantly; a foreground one marks on elapsed time", 
 // is somebody reintroducing a glyph that cannot go false.
 test("no second liveness glyph exists — the left-hand mark is the only one", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8")
-  assert.doesNotMatch(css, /^\.frizz-tool-spinner \{/m, "the dispatch spinner must stay removed")
-  assert.doesNotMatch(css, /@keyframes frizz-tool-spin\b/, "…along with its animation")
-  assert.doesNotMatch(css, /^\.frizz-live-dot-done/m, "a completed op is marked by the ABSENCE of a mark")
+  assert.doesNotMatch(css, /^\.ntwine-tool-spinner \{/m, "the dispatch spinner must stay removed")
+  assert.doesNotMatch(css, /@keyframes ntwine-tool-spin\b/, "…along with its animation")
+  assert.doesNotMatch(css, /^\.ntwine-live-dot-done/m, "a completed op is marked by the ABSENCE of a mark")
   // The genuinely-live glyph remains: pulsing for running.
-  assert.match(css, /\.frizz-live-dot \{[^}]*animation: frizz-live-pulse/)
+  assert.match(css, /\.ntwine-live-dot \{[^}]*animation: ntwine-live-pulse/)
   // …and NOTHING breathes for a shell any more. The only shell that is not running is one the OS has
   // confirmed gone (tailer `shellIsGone`), and the breathing mark drew that dead process as a live one
   // on the card, the drawer and the transcript, titled "running — no recent output", until 2026-10-05.
   for (const file of ["ChildOpRow.tsx", "ChatView.tsx"]) {
-    assert.doesNotMatch(readFileSync(new URL(`./${file}`, import.meta.url), "utf8"), /frizz-live-dot-quiet/, `${file} must not draw a breathing mark`)
+    assert.doesNotMatch(readFileSync(new URL(`./${file}`, import.meta.url), "utf8"), /ntwine-live-dot-quiet/, `${file} must not draw a breathing mark`)
   }
 })
 
@@ -112,31 +112,31 @@ test("reduced motion keeps live work visible as a static ring in its own hue", (
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
   // The static ring is recolored through the same --live-dot variable as the animated dot, so a
   // reduced-motion shell keeps its blue ring and a sub-agent its accent-yellow one.
-  assert.match(css, /\.frizz-live-dot \{ animation: none; background: transparent; border: 2px solid var\(--live-dot\); box-shadow: none; \}/)
+  assert.match(css, /\.ntwine-live-dot \{ animation: none; background: transparent; border: 2px solid var\(--live-dot\); box-shadow: none; \}/)
 })
 
 test("running shells pulse blue and running sub-agents pulse the accent-yellow", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8")
   // A distinct blue token, kept separate from the accent.
   const palette = readFileSync(new URL("../theme.css", import.meta.url), "utf8")
-  assert.match(palette, /--color-shell:\s*var\(--frizz-shell\);/)
-  assert.match(palette, /--frizz-shell:\s*#4a9eff;/)
+  assert.match(palette, /--color-shell:\s*var\(--ntwine-shell\);/)
+  assert.match(palette, /--ntwine-shell:\s*#4a9eff;/)
   // The live dot defaults to the accent-yellow (sub-agent) and the --shell modifier swaps in the blue.
-  assert.match(css, /\.frizz-live-dot \{[^}]*--live-dot: var\(--color-accent\)/)
-  assert.match(css, /\.frizz-live-dot--shell \{ --live-dot: var\(--color-shell\); \}/)
-  assert.match(css, /\.frizz-live-dot--agent \{ --live-dot: var\(--color-accent\); \}/)
+  assert.match(css, /\.ntwine-live-dot \{[^}]*--live-dot: var\(--color-accent\)/)
+  assert.match(css, /\.ntwine-live-dot--shell \{ --live-dot: var\(--color-shell\); \}/)
+  assert.match(css, /\.ntwine-live-dot--agent \{ --live-dot: var\(--color-accent\); \}/)
 })
 
 // The product no longer draws the quiet dot (see the test above); the mobile mockup kit's `LiveDot quiet`
 // still does, so its look stays pinned for that design record.
 test("the mockup kit's quiet dot breathes in the shell blue, and stays visible as a static ring under reduced motion", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8")
-  assert.match(css, /\.frizz-live-dot-quiet--shell \{ --live-dot: var\(--color-shell\); \}/)
+  assert.match(css, /\.ntwine-live-dot-quiet--shell \{ --live-dot: var\(--color-shell\); \}/)
   // It must ANIMATE (breathe) rather than sit as a flat gray dot…
-  assert.match(css, /\.frizz-live-dot-quiet \{[^}]*animation: frizz-live-breathe/)
-  assert.match(css, /@keyframes frizz-live-breathe/)
+  assert.match(css, /\.ntwine-live-dot-quiet \{[^}]*animation: ntwine-live-breathe/)
+  assert.match(css, /@keyframes ntwine-live-breathe/)
   // …and degrade to a static ring (never fully disappear) when motion is reduced.
-  assert.match(css, /\.frizz-live-dot-quiet \{ animation: none;[^}]*border: 1\.5px solid/)
+  assert.match(css, /\.ntwine-live-dot-quiet \{ animation: none;[^}]*border: 1\.5px solid/)
 })
 
 // A process row's OWNER GLYPH carries the same two live states by motion (ThreadTerminals.tsx PROCESS_HUE):
@@ -146,7 +146,7 @@ test("reduced motion keeps a quiet process glyph distinct from a running one", (
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8")
   const reduced = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]).join("\n")
   const opacity = (selector: string) => Number(new RegExp(`\\${selector} \\{ animation: none; opacity: ([\\d.]+); \\}`).exec(reduced)?.[1])
-  assert.equal(opacity(".frizz-live-glyph"), 1, "running: still, at full strength")
-  const quiet = opacity(".frizz-live-glyph-quiet")
+  assert.equal(opacity(".ntwine-live-glyph"), 1, "running: still, at full strength")
+  const quiet = opacity(".ntwine-live-glyph-quiet")
   assert.ok(quiet > 0.3 && quiet < 0.8, `quiet: still, visibly calmer, never gone (${quiet})`)
 })

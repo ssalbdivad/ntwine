@@ -1,13 +1,13 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { SocketClientMsg, SocketServerMsg, TranscriptMessage, TranscriptPushPage } from "@frizz/shared"
-import { applyTranscriptPatch } from "@frizz/shared"
+import type { SocketClientMsg, SocketServerMsg, TranscriptMessage, TranscriptPushPage } from "@ntwine/shared"
+import { applyTranscriptPatch } from "@ntwine/shared"
 import { store } from "../store.ts"
 import { BoardStream, refreshProjectList } from "./board-stream.ts"
 import { connectSSE, onForeignSSEFrame, rebindSSEProject } from "./sse.ts"
 import { mergeOptimistic, preserveMessageIdentity, type QueuedMessage } from "../lib/transcript-sync.ts"
 import { reconcileLatestPage, reconcileLiveMessages, type PaginatedTranscriptData } from "../lib/transcriptPagination.ts"
 import { invalidateInteractionQueries } from "./interaction-cache.ts"
-import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
+import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 import { apiBase, projectSlug } from "../lib/base-path.ts"
 import { localFileQueryKey } from "../lib/localFileQuery.ts"
 
@@ -357,7 +357,7 @@ function handle(msg: SocketServerMsg): boolean {
     case "payload-too-large":
       if (msg.channel === "board") {
         if (!store.socketBoardFallback) {
-          console.warn("[frizz] live board payload exceeded the socket limit; using SSE", {
+          console.warn("[ntwine] live board payload exceeded the socket limit; using SSE", {
             actualBytes: msg.actualBytes,
             maxBytes: msg.maxBytes,
           })
@@ -365,7 +365,7 @@ function handle(msg: SocketServerMsg): boolean {
         fallBackToSSE({ actualBytes: msg.actualBytes, maxBytes: msg.maxBytes })
       } else {
         if (!store.socketTranscriptFallbacks[msg.slug]) {
-          console.warn("[frizz] live transcript payload exceeded the socket limit; updates paused", {
+          console.warn("[ntwine] live transcript payload exceeded the socket limit; updates paused", {
             slug: msg.slug,
             actualBytes: msg.actualBytes,
             maxBytes: msg.maxBytes,
@@ -380,7 +380,7 @@ function handle(msg: SocketServerMsg): boolean {
       return false
     case "resource-limited":
       if (!store.socketTranscriptFallbacks[msg.slug]) {
-        console.warn("[frizz] live transcript read budget reached; updates paused", {
+        console.warn("[ntwine] live transcript read budget reached; updates paused", {
           slug: msg.slug,
           scope: msg.scope,
           retryAfterMs: msg.retryAfterMs,

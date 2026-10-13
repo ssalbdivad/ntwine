@@ -22,7 +22,7 @@ const REAL_CMD_SHIM = [
 ].join("\r\n")
 
 function binDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-claude-bin-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-claude-bin-"))
   // POSIX npm symlinks the bare name to the JS entry; WINDOWS npm cannot, so it writes a shell script
   // by that name instead. Either way the bare name exists — which is exactly why the old scan was
   // fooled into returning it.
@@ -95,7 +95,7 @@ test("the search path is found under any spelling of its name, not just PATH", (
 })
 
 test("an unresolvable name fails loudly rather than handing the SDK a bare name", () => {
-  const empty = mkdtempSync(join(tmpdir(), "frizz-claude-empty-"))
+  const empty = mkdtempSync(join(tmpdir(), "ntwine-claude-empty-"))
   try {
     assert.throws(() => resolveClaudeExecutableAbsolute("definitely-not-installed", { PATH: empty }), /could not resolve/)
   } finally {
@@ -109,12 +109,12 @@ test("an unresolvable name fails loudly rather than handing the SDK a bare name"
 // daemon died in under a second with "Claude executable is not executable" — written to its own
 // diagnostics log — and the operator saw only "did not become ready" after the full deadline.
 
-/** A scratch daemon entry. The script reads FRIZZ_CLAUDE_BROKER like the real one and does `body`. */
+/** A scratch daemon entry. The script reads NTWINE_CLAUDE_BROKER like the real one and does `body`. */
 function scratchDaemon(dir: string, name: string, body: string): string {
   const entry = join(dir, `${name}.mjs`)
   writeFileSync(entry, [
     'import { appendFileSync, writeFileSync } from "node:fs"',
-    "const config = JSON.parse(process.env.FRIZZ_CLAUDE_BROKER)",
+    "const config = JSON.parse(process.env.NTWINE_CLAUDE_BROKER)",
     body,
     "",
   ].join("\n"))
@@ -126,7 +126,7 @@ function forkOptions(dir: string, daemonEntry: string) {
 }
 
 test("forkBroker: a daemon that dies with an exit record rejects at once and quotes the cause", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-broker-fork-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-broker-fork-"))
   try {
     const entry = scratchDaemon(dir, "dies", [
       'appendFileSync(config.diagnosticLogPath, JSON.stringify({ at: new Date().toISOString(), daemonPid: process.pid, generation: config.generation, exit: { reason: "uncaught-exception", detail: "Claude executable is not executable" } }) + "\\n")',
@@ -146,7 +146,7 @@ test("forkBroker: a daemon that dies with an exit record rejects at once and quo
 })
 
 test("forkBroker: a daemon that exits without writing anything still fails fast, and says the record is missing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-broker-fork-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-broker-fork-"))
   try {
     const entry = scratchDaemon(dir, "silent", "process.exit(0)")
     const started = Date.now()
@@ -162,7 +162,7 @@ test("forkBroker: a daemon that exits without writing anything still fails fast,
 })
 
 test("forkBroker: control — a daemon that publishes its record and stays up resolves", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-broker-fork-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-broker-fork-"))
   let daemonPid: number | undefined
   try {
     const entry = scratchDaemon(dir, "lives", [
@@ -186,15 +186,15 @@ test("forkBroker: control — a daemon that publishes its record and stays up re
 // in a worker then failed). The daemon must see this process's launch value, whatever was written since.
 
 test("forkBroker: a NODE_ENV written into the server after launch does not reach the daemon", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-broker-fork-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-broker-fork-"))
   const launch = captureLaunchEnvironment().get("NODE_ENV")
   const before = process.env.NODE_ENV
   let daemonPid: number | undefined
   try {
-    process.env.NODE_ENV = "frizz-test-vite-wrote-this"
+    process.env.NODE_ENV = "ntwine-test-vite-wrote-this"
     const reportPath = join(dir, "env.json")
     const entry = scratchDaemon(dir, "reports-env", [
-      `writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify({ nodeEnv: process.env.NODE_ENV ?? null, hasConfig: typeof process.env.FRIZZ_CLAUDE_BROKER === "string" }))`,
+      `writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify({ nodeEnv: process.env.NODE_ENV ?? null, hasConfig: typeof process.env.NTWINE_CLAUDE_BROKER === "string" }))`,
       "writeFileSync(config.recordPath, JSON.stringify({ daemonPid: process.pid, socketPath: config.socketPath, sessionId: config.sessionId, generation: config.generation, createdAt: new Date().toISOString() }))",
       "setInterval(() => {}, 1000)",
     ].join("\n"))
@@ -202,7 +202,7 @@ test("forkBroker: a NODE_ENV written into the server after launch does not reach
     daemonPid = record.daemonPid
     const report = JSON.parse(readFileSync(reportPath, "utf8")) as { nodeEnv: string | null; hasConfig: boolean }
     assert.equal(report.hasConfig, true, "control: the daemon got its config handoff")
-    assert.notEqual(report.nodeEnv, "frizz-test-vite-wrote-this", "the value written after launch leaked into the daemon")
+    assert.notEqual(report.nodeEnv, "ntwine-test-vite-wrote-this", "the value written after launch leaked into the daemon")
     assert.equal(report.nodeEnv, launch ?? null, "the daemon sees exactly what this process was launched with")
   } finally {
     if (before === undefined) delete process.env.NODE_ENV
@@ -217,7 +217,7 @@ test("forkBroker: a NODE_ENV written into the server after launch does not reach
 test("killBroker: win32 routes through taskkill /T /F and drops the record; posix signals the daemon", (t) => {
   // Windows audit 2026-09-11, finding 5: process.kill(pid, "SIGTERM") on win32 is TerminateProcess of
   // the daemon alone, and claude.exe under it kept running its turn.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-kill-broker-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-kill-broker-"))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const sessionId = "11111111-2222-4333-8444-555555555555"
   const recordPath = claudeBrokerRecordPath(dir, sessionId)
@@ -253,7 +253,7 @@ test("killBroker: win32 routes through taskkill /T /F and drops the record; posi
 // The board's per-assemble liveness probe answers from one directory listing per turn (2026-10-01).
 // It must give liveBrokerRecord's answer for every row: a live record, an absent one, a stale one.
 test("liveBrokerRecordListed answers as liveBrokerRecord does, from one listing per turn", async () => {
-  const stateDir = mkdtempSync(join(tmpdir(), "frizz-broker-listed-"))
+  const stateDir = mkdtempSync(join(tmpdir(), "ntwine-broker-listed-"))
   const live = claudeBrokerRecordPath(stateDir, "live-session")
   const stale = claudeBrokerRecordPath(stateDir, "stale-session")
   const absent = claudeBrokerRecordPath(stateDir, "absent-session")
@@ -282,7 +282,7 @@ test("liveBrokerRecordListed answers as liveBrokerRecord does, from one listing 
 // no handler, so a requested teardown there left no line at all. The sender's record is the only
 // attribution that survives both.
 test("killBroker: writes the cause and the daemon's generation before it signals, even where the daemon cannot", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-kill-cause-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-kill-cause-"))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const sessionId = "11111111-2222-4333-8444-555555555555"
   const recordPath = claudeBrokerRecordPath(dir, sessionId)

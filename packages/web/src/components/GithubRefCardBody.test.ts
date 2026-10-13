@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { GithubRefCard } from "@frizz/shared"
+import type { GithubRefCard } from "@ntwine/shared"
 import { coarseAgo, diffBlocks, renderExcerpt, shortDate, stateKey } from "./GithubRefCardBody.tsx"
 
 const card = (over: Partial<GithubRefCard>): GithubRefCard => ({

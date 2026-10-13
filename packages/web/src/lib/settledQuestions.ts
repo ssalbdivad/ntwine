@@ -46,7 +46,7 @@ function prefixLength(messages: readonly AnchorMessage[], settledAtMs: number): 
   return messages.length
 }
 
-/** The anchor moved up past the frizz event rows that close its rest ("Agent rested" above all). While
+/** The anchor moved up past the ntwine event rows that close its rest ("Agent rested" above all). While
  *  the card was open that row was the transcript's tail and drew nothing, so the card sat directly under
  *  the handoff; once the human's answer lands after it the divider draws, and a card anchored ON it
  *  would fall below the divider — outside the rest it was asked at. */

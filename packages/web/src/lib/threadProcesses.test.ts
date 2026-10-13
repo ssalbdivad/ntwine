@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { BgShellView, ThreadTerminal } from "@frizz/shared"
+import type { BgShellView, ThreadTerminal } from "@ntwine/shared"
 import { collapseFinished, FINISHED_SHOWN, threadProcesses } from "./threadProcesses.ts"
 
 // ONE LIST for every process on a thread — yours and the agent's — in the order every surface draws it.
@@ -57,11 +57,11 @@ test("a finished agent terminal stays in the list with your finished ones, newes
 
 test("a Codex exec's board row and its transcript copy are ONE row, and the copy's folder fills in", () => {
   const board = shell({ id: "p1", label: "nub test --watch", command: "nub test --watch", stoppable: true, outputUnavailable: true })
-  const transcript = [{ label: "Watching the tests", startedAt: at("01"), state: "running" as const, command: "nub test --watch", cwd: "/repo/.frizz/worktrees/cx" }]
+  const transcript = [{ label: "Watching the tests", startedAt: at("01"), state: "running" as const, command: "nub test --watch", cwd: "/repo/.ntwine/worktrees/cx" }]
   const list = threadProcesses({ bgShells: [board] }, transcript, { now: NOW })
   assert.equal(list.length, 1)
   assert.equal(list[0]!.key, "s:p1")
-  assert.equal(list[0]!.cwd, "/repo/.frizz/worktrees/cx")
+  assert.equal(list[0]!.cwd, "/repo/.ntwine/worktrees/cx")
   assert.equal(list[0]!.outputUnavailable, true)
 })
 
@@ -76,13 +76,13 @@ test("a sub-agent's strip lists that child's own shells and none of yours", () =
 
 test("a row carries what its surfaces read: the checkout, the budget, the monitor flag", () => {
   const [agent, human] = threadProcesses({
-    terminals: [term({ id: "t", startedAt: at("10"), checkout: { dir: "/repo/.frizz/worktrees/x", kind: "worktree" } })],
+    terminals: [term({ id: "t", startedAt: at("10"), checkout: { dir: "/repo/.ntwine/worktrees/x", kind: "worktree" } })],
     bgShells: [shell({ id: "m", monitor: true, cwd: "/repo", budgetEndsAt: at("45") })],
   }, [], { now: NOW })
   assert.equal(agent!.monitor, true)
   assert.equal(agent!.budget?.text, "times out in 15m")
   assert.equal(agent!.checkout, undefined, "the root carries no checkout")
-  assert.deepEqual(human!.checkout, { dir: "/repo/.frizz/worktrees/x", kind: "worktree" })
+  assert.deepEqual(human!.checkout, { dir: "/repo/.ntwine/worktrees/x", kind: "worktree" })
 })
 
 test("a long strip folds its finished rows past the newest few; live rows never fold; one extra is drawn, not folded", () => {

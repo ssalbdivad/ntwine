@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadLifecycleActions } from "./ThreadLifecycle.tsx"
 import { ThreadHeaderFacts } from "./ThreadHeaderFacts.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
@@ -67,8 +67,8 @@ test("an open thread keeps the verbs — bare icons, named for the screen reader
   assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), /Mark as done|Snooze/, "the verbs are icons, not labelled buttons")
 })
 
-// The readout asserts a completion frizz itself recorded. A foreign/legacy thread has no such record,
-// so it gets no cluster at all rather than a "Done" frizz cannot vouch for.
+// The readout asserts a completion ntwine itself recorded. A foreign/legacy thread has no such record,
+// so it gets no cluster at all rather than a "Done" ntwine cannot vouch for.
 test("an unowned thread gets no cluster, done-looking or not", () => {
   for (const extra of [
     { foreign: true },

@@ -1,4 +1,4 @@
-import type { DevSupervisor } from "@frizz/server/dev-supervisor";
+import type { DevSupervisor } from "@ntwine/server/dev-supervisor";
 import { type AccessLink, type AccessPane, createAccessPane } from "./access-pane.ts";
 import { type CloudConfig, establishCloudConfig } from "./cloud.ts";
 import { installPaneHost, type PaneHost } from "./pane-host.ts";
@@ -9,8 +9,8 @@ import { createRemotePane } from "./remote-pane.ts";
 import { type ClaimSignIn, createRemoteControlHandler } from "./remote-setup.ts";
 
 /**
- * Remote access on a running board, wired the same way by every launcher that owns one: `frizz-dev`
- * (src/index.ts), the published `frizz` (src/production.ts), and `nub run dev` (src/dev.ts).
+ * Remote access on a running board, wired the same way by every launcher that owns one: `ntwine-dev`
+ * (src/index.ts), the published `ntwine` (src/production.ts), and `nub run dev` (src/dev.ts).
  *
  * In one order, once the supervisor listens: serve the saved setup, offer it to Settings → Remote
  * access (the supervisor answers that over loopback only), and bind L and R in the terminal when there

@@ -1,9 +1,9 @@
-import { formatFileReference, type EditorComposeInput, type ProjectCard, type ProjectQueue } from "@frizz/shared"
+import { formatFileReference, type EditorComposeInput, type ProjectCard, type ProjectQueue } from "@ntwine/shared"
 import { contextChipLabel, contextDisplayPath, insertTokenIntoProse, isTerminalPath, uniqueToken, type ComposerContextItem } from "./composerContext.ts"
 import { draftKey } from "./drafts.ts"
 import { joinComposerValue, splitComposerValue } from "./imagePaths.ts"
 
-// WHAT AN EDITOR SENT TO THE PROMPT BOX, put into one — the pure half. "Add to Frizz prompt" in a VS Code,
+// WHAT AN EDITOR SENT TO THE PROMPT BOX, put into one — the pure half. "Add to Ntwine prompt" in a VS Code,
 // Cursor or Windsurf window (packages/vscode) hands the server a selection or a file reference; the page
 // in front claims it (lib/editorBridge.ts) and this decides WHICH box it goes into and WHAT the box's
 // draft becomes. The runtime half writes the draft, stages the chip, moves the page and places the caret.
@@ -82,7 +82,7 @@ export function composeTarget({ item, thread, board, pageSlug, view, projects }:
   if (!project) {
     // No project named, and the project list could not say which the page is: its live board is the box.
     if (item.projectId === undefined && board) return { kind: "new", key: draftKey.dispatch(board.projectDir), projectDir: board.projectDir, move: { kind: "stay" } }
-    return { kind: "refused", reason: "Its project isn't in Frizz." }
+    return { kind: "refused", reason: "Its project isn't in Ntwine." }
   }
   // The page's own board is the freshest reading of its directory; the poll's is the same snapshot value.
   const projectDir = project.slug === here && board ? board.projectDir : project.projectDir
@@ -102,14 +102,14 @@ export interface ComposeEdit {
 
 /**
  * The draft after one item: a selection becomes an `@a.ts:12-20` chip — the ⌘I token, so it serializes
- * and renders exactly as a selection made in Frizz's own viewer (composerContext.ts) — and a reference
+ * and renders exactly as a selection made in Ntwine's own viewer (composerContext.ts) — and a reference
  * with no text becomes `` `src/a.ts:12` `` as inline code. Either goes at the END of the prose, after a
  * space where it would glue to a word, with a space after it so typing straight on reads as a sentence:
  * the human was in their editor, not in this box, so there is no caret of theirs to honour. Spliced into
  * the prose, never appended to the raw value: a draft's trailing lines may be attachment paths
  * (imagePaths.ts), and those must stay trailing.
  *
- * `note` is prose the editor wants after the reference, as if typed there ("Ask Frizz to fix" sends the
+ * `note` is prose the editor wants after the reference, as if typed there ("Ask Ntwine to fix" sends the
  * problem's message: `@a.ts:12 Fix: Cannot find name 'foo'. ts(2304)`). One space between, one after,
  * and the caret after that, so the human's own words carry straight on. A terminal selection
  * (`isTerminalPath`) drops its lines: they are the terminal buffer's, not a file's.

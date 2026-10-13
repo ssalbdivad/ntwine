@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { ThreadTerminal, ThreadView } from "@frizz/shared"
+import type { ThreadTerminal, ThreadView } from "@ntwine/shared"
 import { createBoard, endedShellViews, withThreadTerminals } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -38,7 +38,7 @@ test("withThreadTerminals: terminals ride the row, and only one at a prompt queu
 })
 
 test("a terminal at a prompt queues its RUNNING thread through the real board, and leaves once answered", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-terminals-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-terminals-"))
   const project: Project = { dir, id: "project-terminals", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   // The agent is mid-turn: on its own it would never be in the queue.
   const telemetry: SessionTelemetry = { turn: "in-flight", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") }
@@ -55,7 +55,7 @@ test("a terminal at a prompt queues its RUNNING thread through the real board, a
   let terminals = new Map<string, ThreadTerminal[]>([["busy", [terminal({ awaitingInput: true, awaitingSince: at("09:58") })]]])
   const storage = createStorage(join(dir, "ui.db"), "p")
   const row: SessionRow = {
-    slug: "busy", session_id: "busy-session", thread_name: "frizz-busy", spawned_at: at("08:00"), last_read_at: null,
+    slug: "busy", session_id: "busy-session", thread_name: "ntwine-busy", spawned_at: at("08:00"), last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null,
   }
@@ -84,16 +84,16 @@ test("a terminal at a prompt queues its RUNNING thread through the real board, a
 // ONE RULE FOR THE FOLDER HINT, both owners: shown iff the row runs off the project root. A terminal is
 // classified through the same lift as an agent's shell, and the agent's own checkout rides the row.
 test("the board stamps each terminal's checkout, and carries the agent's own, only when off the root", async () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-board-checkout-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-board-checkout-")))
   mkdirSync(join(dir, ".git"))
   mkdirSync(join(dir, "packages", "web"), { recursive: true })
-  const worktree = join(dir, ".frizz", "worktrees", "probe")
+  const worktree = join(dir, ".ntwine", "worktrees", "probe")
   mkdirSync(worktree, { recursive: true })
   writeFileSync(join(worktree, ".git"), "gitdir: x\n")
   resetCheckoutMemo()
   // Pure: the lift decides, per terminal — the root is CLAIMED (`atRoot`) only for a folder that was read,
   // so a terminal left in a worktree removed since claims no place, rather than the root.
-  const gone = join(dir, ".frizz", "worktrees", "removed")
+  const gone = join(dir, ".ntwine", "worktrees", "removed")
   const stamped = withThreadTerminals(view(), [terminal({ id: "t-root", cwd: join(dir, "packages", "web") }), terminal({ id: "t-wt", cwd: worktree }), terminal({ id: "t-gone", cwd: gone })], dir)
   assert.deepEqual(stamped.terminals?.map((t) => [t.id, t.checkout, t.atRoot]), [
     ["t-root", undefined, true],
@@ -113,7 +113,7 @@ test("the board stamps each terminal's checkout, and carries the agent's own, on
     tick: () => {},
   } satisfies Tailer
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession({ slug: "wt", session_id: "wt-session", thread_name: "frizz-wt", spawned_at: at("08:00"), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
+  storage.upsertSession({ slug: "wt", session_id: "wt-session", thread_name: "ntwine-wt", spawned_at: at("08:00"), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
   const board = createBoard(project, storage, new Bus(), tailer, "checkout-boot", { now: () => Date.parse(at("10:00")), threadTerminals: () => new Map([["wt", [terminal({ cwd: worktree })]]]) })
   try {
     const row = board.refresh().threads.find((t) => t.id === "wt")
@@ -134,10 +134,10 @@ test("endedShellViews: the retired ring, newest first, without the cleared ones"
   const ended = endedShellViews([
     { id: "old", label: "lint", status: "failed", startedAt: at("09:00"), finishedAt: at("09:01"), cwd: "/repo", atRoot: true },
     { id: "gone", label: "watcher", status: "killed", finishedAt: at("09:02"), dismissed: true },
-    { id: "new", label: "quick build", status: "completed", taskId: "b1", monitor: true, finishedAt: at("09:03"), cwd: "/repo/.frizz/worktrees/p", checkout: { dir: "/repo/.frizz/worktrees/p", kind: "worktree" } },
+    { id: "new", label: "quick build", status: "completed", taskId: "b1", monitor: true, finishedAt: at("09:03"), cwd: "/repo/.ntwine/worktrees/p", checkout: { dir: "/repo/.ntwine/worktrees/p", kind: "worktree" } },
   ])
   assert.deepEqual(ended.map((e) => e.id), ["new", "old"])
-  assert.deepEqual(ended[0], { id: "new", label: "quick build", status: "completed", finishedAt: at("09:03"), taskId: "b1", monitor: true, cwd: "/repo/.frizz/worktrees/p", checkout: { dir: "/repo/.frizz/worktrees/p", kind: "worktree" } })
+  assert.deepEqual(ended[0], { id: "new", label: "quick build", status: "completed", finishedAt: at("09:03"), taskId: "b1", monitor: true, cwd: "/repo/.ntwine/worktrees/p", checkout: { dir: "/repo/.ntwine/worktrees/p", kind: "worktree" } })
   assert.equal(ended[1]!.atRoot, true)
   assert.deepEqual(endedShellViews(undefined), [])
 })

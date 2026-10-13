@@ -1,4 +1,4 @@
-// `mcp__frizz__extend_shell` AT THE RPC BOUNDARY — the real router against real SQLite.
+// `mcp__ntwine__extend_shell` AT THE RPC BOUNDARY — the real router against real SQLite.
 //
 // The answer to a background shell's over-budget warning (shell-budget.ts). Every refusal here is a
 // worker that would otherwise believe it bought time for a shell it did not extend.
@@ -7,7 +7,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, Settings } from "@frizz/shared"
+import type { BoardSnapshot, Settings } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { createRouter } from "./router.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -17,7 +17,7 @@ import type { BgShellView, SessionTelemetry, SubAgentView, Tailer } from "./tail
 import { liveShellBudget } from "./shell-budget.ts"
 
 function harness(tele: Partial<SessionTelemetry> = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-extend-shell-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-extend-shell-rpc-"))
   const project: Project = { dir, id: "exts", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -36,7 +36,7 @@ function harness(tele: Partial<SessionTelemetry> = {}) {
 
 function row(slug: string): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-09-29T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-09-29T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   }

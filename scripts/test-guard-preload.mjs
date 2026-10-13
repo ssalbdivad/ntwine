@@ -19,7 +19,7 @@
 
 import fs from "node:fs";
 
-const ledgerPath = process.env.FRIZZ_TEST_LEDGER;
+const ledgerPath = process.env.NTWINE_TEST_LEDGER;
 const entry = process.argv[1] ?? "";
 
 // Only ever act in a test-runner child running one of our own test files. NODE_TEST_CONTEXT is
@@ -28,11 +28,11 @@ const entry = process.argv[1] ?? "";
 if (process.env.NODE_TEST_CONTEXT && ledgerPath && /\.test\.(mjs|ts)$/.test(entry)) {
   // `capable` says the remedy is available at all — setBlocking is private API, so a future node
   // could take it away, and run-tests.mjs turns that into a loud failure rather than a quiet return
-  // to dropped tests. FRIZZ_TEST_GUARD_NO_BLOCKING=1 leaves it capable but unapplied, which is the
+  // to dropped tests. NTWINE_TEST_GUARD_NO_BLOCKING=1 leaves it capable but unapplied, which is the
   // negative control: it truncates on purpose so the reconciliation can be shown to go red.
   const handle = process.stdout._handle;
   const capable = typeof handle?.setBlocking === "function";
-  const applied = capable && process.env.FRIZZ_TEST_GUARD_NO_BLOCKING !== "1";
+  const applied = capable && process.env.NTWINE_TEST_GUARD_NO_BLOCKING !== "1";
   if (applied) handle.setBlocking(true);
 
   // A verdict crosses the pipe as a v8-serialized event whose `type` is the string "test:pass" or

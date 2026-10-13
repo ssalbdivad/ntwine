@@ -2,12 +2,12 @@ import { projectSlug } from "./base-path.ts"
 
 // DATA CARRIES ITS PROJECT, AND WE CHECK IT AT THE DOOR.
 //
-// One Frizz serves every project on the machine from one origin, and the client switches between them
+// One Ntwine serves every project on the machine from one origin, and the client switches between them
 // WITHOUT a document load. So at any moment there may be a response, a socket frame or a seed in flight
 // that was asked for by the project you just left. Nothing about such a payload looks wrong — a board is
 // a board, and thread slugs are only unique WITHIN a project — so it lands, renders, and the operator is
 // looking at another project's work under this project's URL. That is not a hypothetical: it shipped
-// (2026-08-11, `/project/frizz` rendering the zod board, fixed in `0fb8574`), and the two mechanisms that
+// (2026-08-11, `/project/ntwine` rendering the zod board, fixed in `0fb8574`), and the two mechanisms that
 // were supposed to prevent it — re-deriving `apiBase()` per call, and re-binding on switch — are both
 // bookkeeping. Bookkeeping is exactly what failed.
 //

@@ -18,18 +18,18 @@ const marked = new Marked({
 const inline = (md: string) => marked.parseInline(md, { async: false }) as string
 const block = (md: string) => (marked.parse(md, { async: false }) as string).trim()
 
-const PATH = String.raw`D:\Development\CloudIPMSjb\.frizz\threads\8e51437e\build-gap-7.0.13980-sjb.md`
+const PATH = String.raw`D:\Development\CloudIPMSjb\.ntwine\threads\8e51437e\build-gap-7.0.13980-sjb.md`
 // marked encodes a backslash in a destination as `%5C`; the sanitizer decodes it back.
-const ENCODED = "D:%5CDevelopment%5CCloudIPMSjb%5C.frizz%5Cthreads%5C8e51437e%5Cbuild-gap-7.0.13980-sjb.md"
+const ENCODED = "D:%5CDevelopment%5CCloudIPMSjb%5C.ntwine%5Cthreads%5C8e51437e%5Cbuild-gap-7.0.13980-sjb.md"
 
-// The reported bug (2026-09-18): `CloudIPMSjb\.frizz` rendered as `CloudIPMSjb.frizz` — the folder
-// and its `.frizz` child fused — in the link a worker wrote AND in the same path written in prose.
+// The reported bug (2026-09-18): `CloudIPMSjb\.ntwine` rendered as `CloudIPMSjb.ntwine` — the folder
+// and its `.ntwine` child fused — in the link a worker wrote AND in the same path written in prose.
 test("a link destination keeps the separator before a dot-directory", () => {
   assert.equal(inline(`[build-gap](${PATH})`), `<a href="${ENCODED}">build-gap</a>`)
   assert.equal(inline(`[build-gap](<${PATH}>)`), `<a href="${ENCODED}">build-gap</a>`)
   assert.equal(inline(`[build-gap](${PATH} "the gap")`), `<a href="${ENCODED}" title="the gap">build-gap</a>`)
-  assert.equal(inline(String.raw`![shot](C:\Users\me\.frizz\shot.png)`),
-    `<img src="C:%5CUsers%5Cme%5C.frizz%5Cshot.png" alt="shot">`)
+  assert.equal(inline(String.raw`![shot](C:\Users\me\.ntwine\shot.png)`),
+    `<img src="C:%5CUsers%5Cme%5C.ntwine%5Cshot.png" alt="shot">`)
 })
 
 test("a Windows path in prose keeps every separator", () => {
@@ -47,8 +47,8 @@ test("a Windows path in prose keeps every separator", () => {
 // A dot-directory straight under the drive root: the backslash after the colon is itself the escape,
 // so the run holds no separator yet when the escape arrives, and the href has lost it after unescape.
 test("a dot-directory at the drive root keeps its separator", () => {
-  assert.equal(inline(String.raw`see C:\.frizz\x.md now`), String.raw`see C:\.frizz\x.md now`)
-  assert.equal(inline(String.raw`[x](C:\.frizz\x.md)`), `<a href="C:%5C.frizz%5Cx.md">x</a>`)
+  assert.equal(inline(String.raw`see C:\.ntwine\x.md now`), String.raw`see C:\.ntwine\x.md now`)
+  assert.equal(inline(String.raw`[x](C:\.ntwine\x.md)`), `<a href="C:%5C.ntwine%5Cx.md">x</a>`)
 })
 
 // The pass keeps constant-size state per run. Carrying the whole run and re-scanning it per token made
@@ -68,7 +68,7 @@ test("an escape outside a Windows path is still an escape", () => {
   // A forward-slash drive path carries no backslash to restore, and a URL scheme is not a drive.
   assert.equal(inline(String.raw`C:/a/.b \. x://h/\.p`), "C:/a/.b . x://h/.p")
   // A doubled backslash is an author writing Markdown on purpose; it renders as one, as before.
-  assert.equal(inline(String.raw`C:\\Users\\me\\.frizz`), String.raw`C:\Users\me\.frizz`)
+  assert.equal(inline(String.raw`C:\\Users\\me\\.ntwine`), String.raw`C:\Users\me\.ntwine`)
   // A POSIX destination is untouched, and so is a Windows one that needed nothing.
   assert.equal(inline("[x](/a/.b)"), `<a href="/a/.b">x</a>`)
   assert.equal(inline(String.raw`[x](C:\a\b.md)`), `<a href="C:%5Ca%5Cb.md">x</a>`)

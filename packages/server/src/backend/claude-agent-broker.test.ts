@@ -11,17 +11,17 @@ import net from "node:net"
 import { afterEach, test } from "node:test"
 import assert from "node:assert/strict"
 import { runClaudeBroker } from "./claude-agent-broker.ts"
-import { frizzIpcPath } from "./ipc-path.ts"
+import { ntwineIpcPath } from "./ipc-path.ts"
 import { connectClaudeBroker, type ClaudeBrokerClient } from "./claude-broker-client.ts"
 import { CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX, type ClaudeDiagnostic, type ClaudePermissionRequest, type ClaudeQueryEvent } from "./claude-agent-sdk-protocol.ts"
 
 const fakeCli = fileURLToPath(new URL("./claude-agent-sdk.fixtures/fake-claude-cli.mjs", import.meta.url))
 
-// Short endpoint name (macOS unix sockets cap at ~104 bytes); frizzIpcPath spells it as a unix socket
+// Short endpoint name (macOS unix sockets cap at ~104 bytes); ntwineIpcPath spells it as a unix socket
 // on POSIX and a named pipe on Windows, which has no filesystem sockets at all — binding one there
 // fails `listen EACCES` and every test below then times out waiting for a broker that never listened.
 function shortSocket(): string {
-  return frizzIpcPath(`cbt-${createHash("sha256").update(randomUUID()).digest("hex").slice(0, 16)}`)
+  return ntwineIpcPath(`cbt-${createHash("sha256").update(randomUUID()).digest("hex").slice(0, 16)}`)
 }
 
 // Every client a test opens, closed after it whether or not it passed. A connected client reconnects
@@ -116,7 +116,7 @@ test("the daemon records every input frame on receipt, without the message text"
 })
 
 // A refused input has to reach the ATTACHED CLIENT, not just the diagnostics file on disk. The `input`
-// frame carries no reply by design, so this relay is the only channel by which the frizz server can
+// frame carries no reply by design, so this relay is the only channel by which the ntwine server can
 // ever learn that a message it recorded as delivered was in fact thrown away — and until 2026-08-05 the
 // server's own handler discarded every diagnostic that was not a daemon crash, so the channel ran into
 // a wall. Thread `are-taking-over-an-in-flight-epic` refused every input for over two hours and said
@@ -211,9 +211,9 @@ test("broker relays a typed permission request and forwards the decision", { tim
 
 // The SDK asks the host AND runs the PermissionRequest hooks side by side, and takes the host's copy
 // back when a hook settles the request first — which the worker's policy hook does for nearly every
-// request. Measured against real claude 2026-10-10: frizz was never told, so the card it had journaled
+// request. Measured against real claude 2026-10-10: ntwine was never told, so the card it had journaled
 // sat in front of the operator, dead, until the turn ended.
-test("a request the CLI settles inside the hold never reaches frizz at all", { timeout: 15_000 }, async () => {
+test("a request the CLI settles inside the hold never reaches ntwine at all", { timeout: 15_000 }, async () => {
   const b = startBroker("permission-settled-fast")
   try {
     const c = clientWith(b.socketPath)
@@ -226,7 +226,7 @@ test("a request the CLI settles inside the hold never reaches frizz at all", { t
   } finally { await b.close() }
 })
 
-test("a request frizz WAS shown is taken back when the CLI settles it", { timeout: 15_000 }, async () => {
+test("a request ntwine WAS shown is taken back when the CLI settles it", { timeout: 15_000 }, async () => {
   const b = startBroker("permission-settled-late")
   try {
     const c = clientWith(b.socketPath)
@@ -234,7 +234,7 @@ test("a request frizz WAS shown is taken back when the CLI settles it", { timeou
     c.client.sendInput({ id: randomUUID(), text: "do the thing" })
     const perm = await c.waitPerm()
     await c.waitEvent((e) => e.kind === "result")
-    assert.deepEqual(c.cap.withdrawn, [perm.requestId], "frizz is told the request it is showing no longer exists")
+    assert.deepEqual(c.cap.withdrawn, [perm.requestId], "ntwine is told the request it is showing no longer exists")
     c.client.close()
   } finally { await b.close() }
 })
@@ -247,10 +247,10 @@ test("a pending permission is re-delivered to a client that reconnects (the brok
     c1.client.sendInput({ id: randomUUID(), text: "do the thing" })
     const perm1 = await c1.waitPerm()
     assert.ok(perm1.requestId)
-    // frizz "dies" mid-permission — drop the client WITHOUT answering.
+    // ntwine "dies" mid-permission — drop the client WITHOUT answering.
     c1.client.close()
     await new Promise((r) => setTimeout(r, 300))
-    // frizz "restarts" — a fresh client reconnects to the SAME live broker.
+    // ntwine "restarts" — a fresh client reconnects to the SAME live broker.
     const c2 = clientWith(b.socketPath)
     const helloAgain = await new Promise<boolean>((res) => { const t = setTimeout(() => res(false), 5_000); const iv = setInterval(() => { if (c2.cap.hellos.length) { clearInterval(iv); clearTimeout(t); res(true) } }, 50) })
     assert.ok(helloAgain, "reconnected client got a hello")
@@ -280,7 +280,7 @@ test("the broker asks Claude to title the session from the first dispatch prompt
     const titles = rows.filter((row) => row.kind === "session-title")
     assert.equal(titles.length, 1, "exactly one title request")
     assert.equal(titles[0].description, "Fix the login button on mobile", "titled from the dispatch prompt")
-    assert.equal(titles[0].persist, true, "persisted — an unpersisted title never reaches the transcript frizz reads")
+    assert.equal(titles[0].persist, true, "persisted — an unpersisted title never reaches the transcript ntwine reads")
     c.client.close()
   } finally { await b.close() }
 })
@@ -506,7 +506,7 @@ test("a plugin that changed while the session was idle is reloaded BEFORE the ne
 // The other half of the closure: what the OPERATOR adds. A live session does not notice a new project
 // skill by itself (measured against real claude), so this reaches it the same way the plugin does.
 test("a skill added to the project while the session was idle is picked up before the next input", { timeout: 20_000 }, async () => {
-  const b = startBroker("basic") // no Frizz plugin at all: the closure is still worth keeping current
+  const b = startBroker("basic") // no Ntwine plugin at all: the closure is still worth keeping current
   try {
     const c = clientWith(b.socketPath)
     await c.waitEvent((e) => e.kind === "init")
@@ -561,14 +561,14 @@ test("a reload the session refuses still lets the input through", { timeout: 20_
   } finally { await b.close(); plugin.remove() }
 })
 
-test("FRIZZ_PLUGIN_SYNC_OFF=1 leaves the session on the plugin it started with", { timeout: 20_000 }, async () => {
+test("NTWINE_PLUGIN_SYNC_OFF=1 leaves the session on the plugin it started with", { timeout: 20_000 }, async () => {
   const plugin = tempPlugin()
-  const before = process.env.FRIZZ_PLUGIN_SYNC_OFF
-  process.env.FRIZZ_PLUGIN_SYNC_OFF = "1"
+  const before = process.env.NTWINE_PLUGIN_SYNC_OFF
+  process.env.NTWINE_PLUGIN_SYNC_OFF = "1"
   let b: ReturnType<typeof startBroker>
   try { b = startBroker("basic", { pluginDir: plugin.dir }) } finally {
-    if (before === undefined) delete process.env.FRIZZ_PLUGIN_SYNC_OFF
-    else process.env.FRIZZ_PLUGIN_SYNC_OFF = before
+    if (before === undefined) delete process.env.NTWINE_PLUGIN_SYNC_OFF
+    else process.env.NTWINE_PLUGIN_SYNC_OFF = before
   }
   try {
     const c = clientWith(b.socketPath)

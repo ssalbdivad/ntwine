@@ -99,7 +99,7 @@ function fixedPsGeneration(pid: number): ProcessGenerationObservation | null {
  * that FILETIME rendered as a LOCAL DateTime, and `ToFileTimeUtc()` converts it straight back, so
  * the two conversions cancel and the marker survives a timezone or DST change unchanged. That
  * matters more than it looks: a marker that moved with the clock would read as `mismatch` and let
- * Frizz steal a LIVE owner. The round trip is lossy only inside a fall-back's repeated hour, where
+ * Ntwine steal a LIVE owner. The round trip is lossy only inside a fall-back's repeated hour, where
  * .NET resolves the ambiguity to standard time — deterministically, so the value is still stable;
  * the residue is that two creations exactly one hour apart could collide, which fails toward
  * RETAINING an owner.
@@ -113,7 +113,7 @@ function windowsGeneration(pid: number): ProcessGenerationObservation | null {
   if (!Number.isInteger(pid) || pid <= 0) return null
   try {
     // Anchored to %SystemRoot% instead of resolved through PATH: Windows searches the CURRENT
-    // DIRECTORY first, and that directory is a project checkout whose contents Frizz does not own.
+    // DIRECTORY first, and that directory is a project checkout whose contents Ntwine does not own.
     const shell = join(
       process.env.SystemRoot ?? "C:\\Windows",
       "System32", "WindowsPowerShell", "v1.0", "powershell.exe",

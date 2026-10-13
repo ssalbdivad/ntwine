@@ -7,7 +7,7 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 
 // Both page shells must mount the SAME drawer stack. The standalone `/thread/<slug>/full` page did
 // not, and because every drill-in affordance simply pushes onto `store.drawers`, the sub-agent rows,
-// the background-shell rows, the frizz-doc action and `[…](/thread/<slug>)` links were all DEAD CLICKS
+// the background-shell rows, the ntwine-doc action and `[…](/thread/<slug>)` links were all DEAD CLICKS
 // there — state changed, nothing rendered. Pin the invariant so the two shells can't drift again.
 test("the queue shell and the standalone /full page both mount the drawer stack", () => {
   for (const shell of ["../App.tsx", "./StandaloneThreadPage.tsx"]) {

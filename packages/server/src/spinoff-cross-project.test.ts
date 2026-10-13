@@ -1,7 +1,7 @@
 // A SPINOFF INTO ANOTHER PROJECT (2026-09-30) — the real router and real SQLite, two projects in ONE
 // database the way the singleton serves them, with only the session broker and the dispatchers stubbed.
 //
-// The edge is filed under the PARENT's project and names the child's. Frizz dispatches the child through
+// The edge is filed under the PARENT's project and names the child's. Ntwine dispatches the child through
 // the chosen project's own dispatcher, on context it assembles from the parent, and sends the parent
 // nothing. Each end of the edge then shows on its own project's board, and nowhere else.
 import { test } from "node:test"
@@ -9,7 +9,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { type BoardSnapshot, type DispatchInput, type Settings } from "@frizz/shared"
+import { type BoardSnapshot, type DispatchInput, type Settings } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { Emitter } from "./bus.ts"
 import { createClaudeBackend } from "./backend/claude.ts"
@@ -21,7 +21,7 @@ import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
 
 const sessionRow = (slug: string): SessionRow => ({
-  slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-09-30T08:00:00.000Z", last_read_at: null,
+  slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-09-30T08:00:00.000Z", last_read_at: null,
   unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: slug, state: "open", meta: null, seen_at: null,
   transcript_id: null,
 })
@@ -62,8 +62,8 @@ function tenant(root: string, db: Database, id: string) {
 }
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), "frizz-spinoff-cross-"))
-  const db = new Database(join(root, "frizz.db"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-spinoff-cross-"))
+  const db = new Database(join(root, "ntwine.db"))
   const alpha = tenant(root, db, "alpha")
   const beta = tenant(root, db, "beta")
   const open = [alpha, beta].map((t) => ({ project: t.ctx.project, board: t.ctx.board, ctx: t.ctx }))
@@ -77,7 +77,7 @@ function harness() {
   }
 }
 
-test("a spinoff into another project starts there on Frizz's context, and each end shows on its own project's board", async () => {
+test("a spinoff into another project starts there on Ntwine's context, and each end shows on its own project's board", async () => {
   const h = harness()
   try {
     const { id } = await h.router.spinoff.handler({ input: { slug: "parent", sessionId: "sid-parent", instructions: "port it to beta", project: "beta" } })
@@ -115,7 +115,7 @@ test("a spinoff that names this project, or none, starts here; one naming a proj
 
     await assert.rejects(
       h.router.spinoff.handler({ input: { slug: "parent", sessionId: "sid-parent", instructions: "nowhere", project: "gamma" } }),
-      /not open in Frizz/,
+      /not open in Ntwine/,
     )
     assert.equal(h.alpha.storage.spinoffsBySlug().get("parent")?.length, 1, "a refused request leaves no row")
     assert.deepEqual(h.alpha.sent, [])
@@ -125,8 +125,8 @@ test("a spinoff that names this project, or none, starts here; one naming a proj
 })
 
 test("storage: a cross-project edge's child end is found only in the child's project", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-spinoff-cross-storage-"))
-  const db = new Database(join(root, "frizz.db"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-spinoff-cross-storage-"))
+  const db = new Database(join(root, "ntwine.db"))
   const a: Storage = createStorage(db, "a")
   const b: Storage = createStorage(db, "b")
   try {

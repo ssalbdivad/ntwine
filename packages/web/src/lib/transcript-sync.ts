@@ -1,11 +1,11 @@
-import { stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@frizz/shared"
+import { stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@ntwine/shared"
 
 // A transcript message that may carry the client-only/queued flag (server pending OR local optimistic).
 export type QueuedMessage = TranscriptMessage & { queued?: boolean }
 
 // The canonical form for matching an OPTIMISTIC bubble against the server's own record of that send.
 //
-// The worker's copy of a follow-up is not byte-identical to what the human typed: frizz appends its own
+// The worker's copy of a follow-up is not byte-identical to what the human typed: ntwine appends its own
 // machine-facing riders — the clock note (humanGapNote, on any reply landing ≥20min after the agent last
 // spoke) and the wake delivery token — and the transcript is read from the WORKER's record, so those are
 // part of `text`. Comparing raw text therefore fails to consume the optimistic copy of the very send the
@@ -125,7 +125,7 @@ function retainOptimistic(message: QueuedMessage, serverNow: number, atSend: num
     return retainOptimistic(message, serverNow, atSend)
   }
   if (serverNow - anchor <= GHOST_GRACE_MS) return true
-  console.warn("[frizz] retiring a stranded optimistic send: the transcript advanced past it without ever recording it", {
+  console.warn("[ntwine] retiring a stranded optimistic send: the transcript advanced past it without ever recording it", {
     text: message.text.slice(0, 120),
     advancedMs: serverNow - anchor,
   })

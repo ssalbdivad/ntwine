@@ -8,7 +8,7 @@
 // the exact case the guard exists for, missed because the caller was too old to say it was a worker.
 //
 // The transport says it regardless of the shim's age. Only two clients POST `dispatch`: the board, from a
-// browser, and the shim (cc-worker/bin/frizz-mcp.mjs), whose node fetch sends no `Origin` and
+// browser, and the shim (cc-worker/bin/ntwine-mcp.mjs), whose node fetch sends no `Origin` and
 // `user-agent: node`. A browser attaches `Origin` to every POST (Fetch spec, even same-origin) and every
 // browser's user agent opens `Mozilla/` — app.test.ts keeps a no-Origin same-origin PWA path open, so a
 // request counts as a worker's only when BOTH say so: a browser misread as a worker would have the human's

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // @ts-check
-// PreToolUse hook on `Bash` (frizz-worker). Claude's native `run_in_background` flag registers a
+// PreToolUse hook on `Bash` (ntwine-worker). Claude's native `run_in_background` flag registers a
 // task, output file, terminal notification, and wake. Shell job control (`cmd &`) does none of those:
-// the child can survive after the Bash tool returns, but Claude and frizz have no lifecycle identity
+// the child can survive after the Bash tool returns, but Claude and ntwine have no lifecycle identity
 // for it. A worker can then rest forever waiting for a notification that cannot exist.
 //
 // Block only an ESCAPING local background job. Self-contained shell concurrency remains valid when
 // the command explicitly waits for its children or owns them with an EXIT trap before Bash returns.
 //
-// GATE: inert unless FRIZZ_THREAD is set (ordinary Claude sessions keep their native behavior).
+// GATE: inert unless NTWINE_THREAD is set (ordinary Claude sessions keep their native behavior).
 // FAIL OPEN: malformed hook input allows the command rather than wedging a worker.
 import { readFileSync, realpathSync } from 'node:fs';
 import { basename } from 'node:path';
@@ -200,12 +200,12 @@ export function hasEscapingBackgroundJob(raw, depth = 0) {
 }
 
 // THE SPAWN-TIME BUDGET PROMPT. A background shell has a runtime budget only when one is DECLARED
-// (server shell-budget.ts): the `timeout` on this very call, or `frizzctl extend-shell` later. No
+// (server shell-budget.ts): the `timeout` on this very call, or `ntwinectl extend-shell` later. No
 // default — a dev server and a CI poller look identical from outside, and a universal clock killed a
 // real shell its worker had registered a 20h watch on (2026-09-29). So the worker is ASKED, once, at
 // the one moment it knows what the shell is for: a `run_in_background` call with no `timeout` gets one
 // line of context. Never on a call that carries a timeout, never on a foreground call, never a block.
-// It arrives after the call is committed, so it points at the in-the-moment command (`frizzctl extend-shell`) for
+// It arrives after the call is committed, so it points at the in-the-moment command (`ntwinectl extend-shell`) for
 // this shell and at `timeout` for the next.
 //
 // THE CALL ALSO GETS THE LONGEST `timeout` CLAUDE CODE ALLOWS. "No timeout" does not mean "no clock" to
@@ -213,13 +213,13 @@ export function hasEscapingBackgroundJob(raw, depth = 0) {
 // launched exactly as the contract says died half an hour in (yes thread 4f19c4e3, 2026-10-08). The
 // hook raises it to the ceiling through `updatedInput`, with no permission decision — measured on
 // 2.1.287 under `--permission-mode default`: a hook-set 61s cap killed an untimed `sleep 200` at 61s, and
-// the transcript kept the model's original input, so Frizz still reads the shell as unbudgeted
+// the transcript kept the model's original input, so Ntwine still reads the shell as unbudgeted
 // (shell-budget.ts). 24h is a hard ceiling here; nothing longer can be asked for.
 export const BACKGROUND_UNTIMED_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 export const BACKGROUND_NO_TIMEOUT_CONTEXT =
-  '⟦background shell with no `timeout`⟧ Frizz never stops this shell on a clock; Claude Code stops it after 24h. ' +
+  '⟦background shell with no `timeout`⟧ Ntwine never stops this shell on a clock; Claude Code stops it after 24h. ' +
   'Right for a dev server or watcher meant to keep running. If it is a poller, build or one-off check, give it an end — ' +
-  '`frizzctl extend-shell <id> --for <duration>` sized to it now (Frizz warns you past it, then stops it), or a ' +
+  '`ntwinectl extend-shell <id> --for <duration>` sized to it now (Ntwine warns you past it, then stops it), or a ' +
   '`timeout` (ms, max 24h) on the call next time. Either way, `TaskStop` it once you no longer need it.';
 
 /** @param {unknown} toolInput */
@@ -230,7 +230,7 @@ function isUntimedBackgroundCall(toolInput) {
   return !(typeof timeout === 'number' && Number.isFinite(timeout) && timeout > 0);
 }
 
-// THE LONG-FOREGROUND PROMPT. Frizz lifted the foreground ceiling to 24h on purpose (server
+// THE LONG-FOREGROUND PROMPT. Ntwine lifted the foreground ceiling to 24h on purpose (server
 // backend/types.ts BASH_MAX_TIMEOUT_MS: "a worker can block on anything it chooses"), so a long call is
 // never refused. But a foreground call holds the whole turn: no transcript record until it returns, so
 // the thread sits in Running with nothing moving, and the human reads a worker that is running a gate
@@ -278,7 +278,7 @@ function longForegroundTimeout(toolInput) {
 //   transcript (router extendOwnShell → tailer bgShells, which skips sidechain records), so a sub-agent's
 //   shell is never found. Both `extend_shell` failures in three days of worker transcripts (2026-09-29..
 //   10-01) were sub-agents obeying this line 3s after launching the shell, told "it has already finished
-//   … or the id is wrong" about a shell that was running. Nor does Frizz own that shell's clock: Claude
+//   … or the id is wrong" about a shell that was running. Nor does Ntwine own that shell's clock: Claude
 //   itself kills a sub-agent's background shell when the sub-agent returns.
 // - the long-foreground line says "run it with `run_in_background: true`", while the sub-agent's own
 //   dispatch epilogue (agent-dispatch.mjs) tells it the opposite — "run long commands in the FOREGROUND",
@@ -293,7 +293,7 @@ function isSubAgentCall(input) {
 }
 
 export function evaluateBashBackgroundHook(input, env = process.env) {
-  if (!String(env.FRIZZ_THREAD ?? '').trim()) return {};
+  if (!String(env.NTWINE_THREAD ?? '').trim()) return {};
   const command = input && typeof input === 'object'
     ? String(input.tool_input?.command ?? '')
     : '';
@@ -316,8 +316,8 @@ export function evaluateBashBackgroundHook(input, env = process.env) {
       permissionDecision: 'deny',
       permissionDecisionReason:
         codex
-          ? 'Frizz blocked an untracked shell background job (`&`). Shell job control can return without a Codex lifecycle handle, so Frizz cannot report completion or wake this agent. For work that must continue while you do something else, remove `&` and use the managed unified exec pattern: start `tools.exec_command(...)`, call `yield_control()`, then await and fully drain that same process. A returned `session_id` alone is only foreground continuation. For bounded parallel work inside one shell call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.'
-          : 'Frizz blocked an untracked shell background job (`&`). Shell job control can return from Bash without a Claude task ID, so Frizz cannot report completion or wake this agent. For a long-running local command, remove `&` and call Bash with `run_in_background:true`. For bounded parallel work inside one Bash call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.',
+          ? 'Ntwine blocked an untracked shell background job (`&`). Shell job control can return without a Codex lifecycle handle, so Ntwine cannot report completion or wake this agent. For work that must continue while you do something else, remove `&` and use the managed unified exec pattern: start `tools.exec_command(...)`, call `yield_control()`, then await and fully drain that same process. A returned `session_id` alone is only foreground continuation. For bounded parallel work inside one shell call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.'
+          : 'Ntwine blocked an untracked shell background job (`&`). Shell job control can return from Bash without a Claude task ID, so Ntwine cannot report completion or wake this agent. For a long-running local command, remove `&` and call Bash with `run_in_background:true`. For bounded parallel work inside one Bash call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.',
     },
   };
 }
@@ -348,8 +348,8 @@ if (isDirectHookExecution(process.argv[1], import.meta.url)) {
   /** @type {Record<string, any>} */
   let result = {};
   try {
-    const env = process.argv.includes('--frizz-thread')
-      ? { ...process.env, FRIZZ_THREAD: process.env.FRIZZ_THREAD || 'codex-worker' }
+    const env = process.argv.includes('--ntwine-thread')
+      ? { ...process.env, NTWINE_THREAD: process.env.NTWINE_THREAD || 'codex-worker' }
       : process.env;
     input = JSON.parse(readFileSync(0, 'utf8'));
     result = evaluateBashBackgroundHook(input, env);
@@ -361,11 +361,11 @@ if (isDirectHookExecution(process.argv[1], import.meta.url)) {
   // It is a `.ts` module loaded on demand, and every way that can fail — a Node that cannot strip
   // types, a copy installed under node_modules (where Node refuses to), a throw inside the rewrite —
   // lands in the catch and emits this hook's own result unchanged. Never for a denied call, never for
-  // Codex (`--frizz-thread`: it has no `updatedInput`), never outside a Frizz thread.
+  // Codex (`--ntwine-thread`: it has no `updatedInput`), never outside a Ntwine thread.
   if (
     result.hookSpecificOutput?.permissionDecision === 'deny' ||
-    process.argv.includes('--frizz-thread') ||
-    !String(process.env.FRIZZ_THREAD ?? '').trim()
+    process.argv.includes('--ntwine-thread') ||
+    !String(process.env.NTWINE_THREAD ?? '').trim()
   ) emit(result);
   import(new URL('../job-gate/hook.ts', import.meta.url).href)
     .then((gate) => {

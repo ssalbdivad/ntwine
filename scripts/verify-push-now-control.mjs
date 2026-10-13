@@ -15,7 +15,7 @@
 //    preempted, which is exactly what this fixture is.
 //
 // Run against queued-spacing-fixture.html on a plain Vite dev server (fixtures are NOT servable through
-// the frizz stack — its Vite runs in middleware mode and falls back to index.html for every unknown path):
+// the ntwine stack — its Vite runs in middleware mode and falls back to index.html for every unknown path):
 //   (cd packages/web && nubx vite --port 5412 --strictPort)
 //   nub scripts/verify-push-now-control.mjs --url=http://localhost:5412/queued-spacing-fixture.html
 import { mkdirSync } from "node:fs"
@@ -37,7 +37,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol
 
 // The queued bubbles are the last three user bubbles in the transcript; each one's control is the
 // `Send now` button inside its own hover group.
-const GROUPS = `[data-frizz-msg] .group`
+const GROUPS = `[data-ntwine-msg] .group`
 
 try {
   const page = await browser.newPage()

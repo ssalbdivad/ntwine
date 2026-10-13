@@ -5,7 +5,7 @@
 // `status=completed` sub-agent notifications were enqueued into Claude Code's queue and then removed
 // WITHOUT ever materializing into the model's context — no user record, no `queued_command`
 // attachment, nothing. 39/117 on one thread. Those were finished review reports (3k–24k chars of real
-// verdicts) that the orchestrator never read, while frizz's timeline rendered no completion at all.
+// verdicts) that the orchestrator never read, while ntwine's timeline rendered no completion at all.
 //
 // Size was the obvious suspect and is NOT the mechanism: 3,318 chars was dropped while 12,299 was
 // delivered. What the corpus DOES show is that drops arrive in BATCHES — several ids removed at one
@@ -126,7 +126,7 @@ const PROMPT = [
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

@@ -1,13 +1,13 @@
 // @ts-check
 /**
- * frizz — the SHARED, type-safe config + vocab module. Every frizz hook
- * (hooks/*.mjs) and the board tool (scripts/frizz/index.mjs) import from here, so
+ * ntwine — the SHARED, type-safe config + vocab module. Every ntwine hook
+ * (hooks/*.mjs) and the board tool (scripts/ntwine/index.mjs) import from here, so
  * there is exactly ONE source of truth for: the activation gate, the config schema
  * + parse, and the thread-status vocabulary.
  *
  * Dependency-free by design (no `yaml` package): Node ships no built-in YAML
- * parser, and frizz must stay portable + runnable by bare `node` with zero install.
- * We hand-parse the SMALL, FLAT shape of `.frizz/config.yml` (top-level scalars
+ * parser, and ntwine must stay portable + runnable by bare `node` with zero install.
+ * We hand-parse the SMALL, FLAT shape of `.ntwine/config.yml` (top-level scalars
  * plus the one nested `state:` block) — not a general YAML parser, just enough.
  */
 
@@ -15,21 +15,21 @@ import { existsSync, readFileSync, readdirSync, statSync, mkdirSync, writeFileSy
 import { join } from 'node:path';
 
 /**
- * THE PER-SESSION SENTINEL — how frizz is toggled on/off for ONE Claude Code session.
+ * THE PER-SESSION SENTINEL — how ntwine is toggled on/off for ONE Claude Code session.
  *
- * frizz enablement is keyed on the Claude Code SESSION ID, not a repo-global flag, so
+ * ntwine enablement is keyed on the Claude Code SESSION ID, not a repo-global flag, so
  * it can be scoped to (and toggled mid-) a single session without affecting other
  * concurrent sessions in the same repo. The session id is the same value the hooks
  * receive in their stdin JSON (`session_id`) AND that a Bash/Write tool call reads from
  * `process.env.CLAUDE_CODE_SESSION_ID` — verified equal — so an agent or human can flip
  * the current session by writing/removing the sentinel via a single tool call.
  *
- * Sentinel path: `.frizz/.session-state/<session_id>`. Its presence + content encodes an
+ * Sentinel path: `.ntwine/.session-state/<session_id>`. Its presence + content encodes an
  * EXPLICIT per-session override:
- *   - file contains `off` (or `false`/`no`/`0`/`disabled`) → frizz FORCED OFF this session
- *   - file contains `on`  (or `true`/`yes`/`1`/`enabled`)  → frizz FORCED ON  this session
+ *   - file contains `off` (or `false`/`no`/`0`/`disabled`) → ntwine FORCED OFF this session
+ *   - file contains `on`  (or `true`/`yes`/`1`/`enabled`)  → ntwine FORCED ON  this session
  *   - file ABSENT → no override → fall back to the default (DORMANT — opt-in: a session
- *     is active only after it explicitly runs `frizz on`)
+ *     is active only after it explicitly runs `ntwine on`)
  *
  * @param {string} projectDir
  * @param {string|undefined|null} sessionId
@@ -38,7 +38,7 @@ import { join } from 'node:path';
 export function sessionOverride(projectDir, sessionId) {
   if (!projectDir || !sessionId) return null;
   try {
-    const f = join(projectDir, '.frizz', '.session-state', sessionId);
+    const f = join(projectDir, '.ntwine', '.session-state', sessionId);
     if (!existsSync(f)) return null;
     const v = readFileSync(f, 'utf8').trim().toLowerCase();
     if (v === 'off' || v === 'false' || v === 'no' || v === '0' || v === 'disabled') return 'off';
@@ -51,15 +51,15 @@ export function sessionOverride(projectDir, sessionId) {
 }
 
 /**
- * Write the per-session sentinel for `sessionId` to force frizz ON or OFF this session.
- * Creates `.frizz/.session-state/` as needed. Returns the sentinel path.
+ * Write the per-session sentinel for `sessionId` to force ntwine ON or OFF this session.
+ * Creates `.ntwine/.session-state/` as needed. Returns the sentinel path.
  * @param {string} projectDir
  * @param {string} sessionId
  * @param {'on'|'off'} state
  * @returns {string}
  */
 export function setSessionOverride(projectDir, sessionId, state) {
-  const dir = join(projectDir, '.frizz', '.session-state');
+  const dir = join(projectDir, '.ntwine', '.session-state');
   mkdirSync(dir, { recursive: true });
   const f = join(dir, sessionId);
   writeFileSync(f, state + '\n');
@@ -73,33 +73,33 @@ export function setSessionOverride(projectDir, sessionId, state) {
  */
 export function clearSessionOverride(projectDir, sessionId) {
   try {
-    rmSync(join(projectDir, '.frizz', '.session-state', sessionId), { force: true });
+    rmSync(join(projectDir, '.ntwine', '.session-state', sessionId), { force: true });
   } catch {
     /* already gone */
   }
 }
 
 // ── PER-SESSION LIVENESS HEARTBEAT — the crux of thread OWNERSHIP ───────────────────
-// A frizz thread can be OWNED by a session (frontmatter `owner_session: <id>`), so several
+// A ntwine thread can be OWNED by a session (frontmatter `owner_session: <id>`), so several
 // sessions can share one repo, each driving its own set of threads (see ownership.mjs). The
 // failure to avoid: a thread owned by a session that then TERMINATES → nobody can touch it.
 // Claude Code's `SessionEnd` hook is a best-effort eager signal but is NOT guaranteed on a
 // crash / kill / terminal-close (verified against the hooks docs), so it cannot be the SOLE
-// liveness signal. The robust fallback is a HEARTBEAT: every frizz-active session stamps a
+// liveness signal. The robust fallback is a HEARTBEAT: every ntwine-active session stamps a
 // `.seen` sidecar each turn, and ownership liveness is DERIVED from its freshness (never a
 // stored "alive" flag — same compute-don't-store discipline as agent liveness). A dead owner's
 // heartbeat goes stale → its threads read as ORPHANED → freely claimable. The heartbeat lives
-// ALONGSIDE the on/off sentinel under `.frizz/.session-state/` (a sibling `<id>.seen` file), so
+// ALONGSIDE the on/off sentinel under `.ntwine/.session-state/` (a sibling `<id>.seen` file), so
 // it composes with — and never collides with — the activation sentinel `<id>`.
 
 /**
- * Path to a session's liveness heartbeat sidecar: `.frizz/.session-state/<sid>.seen`.
+ * Path to a session's liveness heartbeat sidecar: `.ntwine/.session-state/<sid>.seen`.
  * @param {string} projectDir
  * @param {string} sessionId
  * @returns {string}
  */
 export function sessionHeartbeatPath(projectDir, sessionId) {
-  return join(projectDir, '.frizz', '.session-state', `${sessionId}.seen`);
+  return join(projectDir, '.ntwine', '.session-state', `${sessionId}.seen`);
 }
 
 /**
@@ -113,7 +113,7 @@ export function sessionHeartbeatPath(projectDir, sessionId) {
 export function touchSessionHeartbeat(projectDir, sessionId, ts = Date.now()) {
   if (!projectDir || !sessionId) return;
   try {
-    const dir = join(projectDir, '.frizz', '.session-state');
+    const dir = join(projectDir, '.ntwine', '.session-state');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, `${sessionId}.seen`), String(ts) + '\n');
   } catch {
@@ -144,7 +144,7 @@ export function readSessionHeartbeat(projectDir, sessionId) {
 
 /**
  * Remove `sessionId`'s heartbeat (mark it dead IMMEDIATELY). Called by the SessionEnd hook
- * (graceful exit) and by `frizz off`/`frizz reset`. No-op if absent.
+ * (graceful exit) and by `ntwine off`/`ntwine reset`. No-op if absent.
  * @param {string} projectDir
  * @param {string} sessionId
  */
@@ -167,7 +167,7 @@ export const DEFAULT_OWNER_STALE_MIN = 180;
 /**
  * Resolve the owner-staleness window (minutes) from config's `state.owner_stale_min`, falling
  * back to {@link DEFAULT_OWNER_STALE_MIN}. Non-positive / unparseable → the default.
- * @param {FrizzConfig} cfg
+ * @param {NtwineConfig} cfg
  * @returns {number}
  */
 export function ownerStaleMin(cfg) {
@@ -208,45 +208,45 @@ export function currentSessionId(explicit) {
 }
 
 /**
- * THE ACTIVATION GATE — is frizz active in this project, FOR THIS SESSION?
+ * THE ACTIVATION GATE — is ntwine active in this project, FOR THIS SESSION?
  *
- * frizz ships as a GLOBALLY-loaded Claude Code plugin, so its hooks fire in EVERY
+ * ntwine ships as a GLOBALLY-loaded Claude Code plugin, so its hooks fire in EVERY
  * project. They must be a SILENT no-op until a project opts in, or a virgin repo
- * gets frizz noise it never asked for.
+ * gets ntwine noise it never asked for.
  *
  * The gate, in order:
- *   1. `.frizz/` directory EXISTS — the project has been bootstrapped (the `/frizz`
- *      skill creates it on first invocation). No `.frizz/` → frizz is dormant here.
- *   2. The PER-SESSION SENTINEL (`.frizz/.session-state/<session_id>`) — the EXPLICIT
- *      per-session opt-in. `on` → frizz active for THIS session; `off` → silenced.
+ *   1. `.ntwine/` directory EXISTS — the project has been bootstrapped (the `/ntwine`
+ *      skill creates it on first invocation). No `.ntwine/` → ntwine is dormant here.
+ *   2. The PER-SESSION SENTINEL (`.ntwine/.session-state/<session_id>`) — the EXPLICIT
+ *      per-session opt-in. `on` → ntwine active for THIS session; `off` → silenced.
  *      ABSENT → the default below.
- *   3. DEFAULT (no sentinel): frizz is DORMANT — activation is OPT-IN PER SESSION. A
- *      fresh session in a `.frizz/` repo stays silent (every hook a no-op) until it
- *      explicitly opts in via an `on` sentinel — written by the `/frizz` skill's step 0
- *      or a manual `frizz on`. No sentinel → dormant, EVEN THOUGH `.frizz/` exists. (This
- *      is the opt-IN model; the former default was opt-OUT — active whenever `.frizz/`
- *      existed — which contradicted the plugin's "dormant until you run /frizz" contract.)
+ *   3. DEFAULT (no sentinel): ntwine is DORMANT — activation is OPT-IN PER SESSION. A
+ *      fresh session in a `.ntwine/` repo stays silent (every hook a no-op) until it
+ *      explicitly opts in via an `on` sentinel — written by the `/ntwine` skill's step 0
+ *      or a manual `ntwine on`. No sentinel → dormant, EVEN THOUGH `.ntwine/` exists. (This
+ *      is the opt-IN model; the former default was opt-OUT — active whenever `.ntwine/`
+ *      existed — which contradicted the plugin's "dormant until you run /ntwine" contract.)
  *
- * This replaces the former repo-global `enabled:` flag in `.frizz/config.yml`: that
+ * This replaces the former repo-global `enabled:` flag in `.ntwine/config.yml`: that
  * flag was repo-wide (hit every concurrent session, couldn't be scoped) and could
  * not be toggled mid-session. The sentinel is per-session and writable by a tool
  * call, so a session can be activated (or quieted) without a relaunch.
  *
  * @param {string} projectDir  The repo root (e.g. `process.env.CLAUDE_PROJECT_DIR`).
  * @param {string} [sessionId]  The session id (defaults to `CLAUDE_CODE_SESSION_ID`).
- * @returns {boolean} whether frizz is active here, for this session.
+ * @returns {boolean} whether ntwine is active here, for this session.
  */
-export function frizzActive(projectDir, sessionId) {
+export function ntwineActive(projectDir, sessionId) {
   if (!projectDir) return false;
   try {
-    if (!existsSync(join(projectDir, '.frizz'))) return false; // not bootstrapped → dormant
+    if (!existsSync(join(projectDir, '.ntwine'))) return false; // not bootstrapped → dormant
   } catch {
     return false; // unreadable → treat as dormant (silent, fail-safe for a virgin repo)
   }
   const override = sessionOverride(projectDir, currentSessionId(sessionId));
   if (override === 'off') return false; // explicit per-session silence
   if (override === 'on') return true; // explicit per-session enable
-  return false; // DEFAULT: OPT-IN — dormant until this session runs `frizz on`
+  return false; // DEFAULT: OPT-IN — dormant until this session runs `ntwine on`
 }
 
 /**
@@ -254,7 +254,7 @@ export function frizzActive(projectDir, sessionId) {
  * written to disk going forward; legacy spellings (`todo`/`plan`/`enqueued`/`needs-decision`)
  * are accepted on read via {@link STATUS_ALIASES} + {@link normalizeStatus}, never written.
  *
- * SCOPE — THIS GOVERNS `.frizz/<slug>.md` THREAD FILES, WHICH IS FRIZZ CLASSIC. A thread the Frizz
+ * SCOPE — THIS GOVERNS `.ntwine/<slug>.md` THREAD FILES, WHICH IS NTWINE CLASSIC. A thread the Ntwine
  * APP dispatches writes no such file, so none of the machinery narrated below (the nag, the pulse,
  * the Stop-hook pop, the `⚖ awaiting you` queue) runs for it: the server synthesizes its `status` as
  * "active" and never reads it back, and its place in the board's queue comes from `deriveNeedsYou`
@@ -359,10 +359,10 @@ export const TERMINAL = ['done', 'dismissed'];
 
 /**
  * The PARKED (non-terminal but not-yet-actively-worked) subset of canonical {@link STATUS}:
- * just `planned`. It is a real, live status the on-demand `frizz` board DOES show — but it is
+ * just `planned`. It is a real, live status the on-demand `ntwine` board DOES show — but it is
  * EXCLUDED from the AUTO-INJECTED per-turn / stop-hook "pending threads" nag, because nagging
  * the orchestrator every turn about parked work is noise. Pull parked work up deliberately
- * via `frizz` when you choose to action it. (`planning` is NOT parked — active design counts
+ * via `ntwine` when you choose to action it. (`planning` is NOT parked — active design counts
  * as in-flight and IS surfaced.)
  * @type {readonly string[]}
  */
@@ -421,7 +421,7 @@ export function isHumanBlocked(f) {
  * needs the fields: a legacy `blocked` thread with NO machine field (the old pre-`needs-human`
  * human-wait encoding) reads as `needs-human`. A `blocked` thread WITH a machine field stays
  * `blocked` (a machine wait). Everything else passes through its normalized form. This is the
- * single predicate the board, `frizz decisions`, the reminder/stop hooks, and the statusline share
+ * single predicate the board, `ntwine decisions`, the reminder/stop hooks, and the statusline share
  * so "awaiting a human" can never drift between them — a thread is awaiting-you IFF
  * `effectiveStatus(...) === 'needs-human'`.
  * @param {string|undefined|null} rawStatus
@@ -435,20 +435,20 @@ export function effectiveStatus(rawStatus, { hasBlockingThreads, hasTimer } = {}
 }
 
 /**
- * @typedef {Object} FrizzConfig
+ * @typedef {Object} NtwineConfig
  * @property {boolean} autonomousMode  Whether autonomous mode is on. Default `false`.
  * @property {Record<string, string>} state  The `state:` block — cross-cutting "what's true now" globals. Default `{}`.
  */
 
 /**
- * The type-safe DEFAULTS, returned when `.frizz/config.yml` is absent. Individual
+ * The type-safe DEFAULTS, returned when `.ntwine/config.yml` is absent. Individual
  * malformed lines are simply skipped (we keep whatever parsed), so a partially
  * broken file still yields a fully-populated config.
  *
  * NOTE: enablement is NO LONGER a config field. It moved to the per-session sentinel
- * (see {@link frizzActive} / {@link sessionOverride}). config.yml carries only
+ * (see {@link ntwineActive} / {@link sessionOverride}). config.yml carries only
  * `autonomous_mode` + the `state:` block now.
- * @returns {FrizzConfig}
+ * @returns {NtwineConfig}
  */
 function defaults() {
   return { autonomousMode: false, state: {} };
@@ -456,7 +456,7 @@ function defaults() {
 
 /**
  * Coerce a YAML-ish scalar to a boolean. Accepts the YAML 1.1 truthy/falsey
- * spellings frizz actually uses (`true`/`false`, `on`/`off`, `yes`/`no`).
+ * spellings ntwine actually uses (`true`/`false`, `on`/`off`, `yes`/`no`).
  * Anything else returns `fallback` so an unparseable value can't flip a default.
  * @param {string} raw
  * @param {boolean} fallback
@@ -482,28 +482,28 @@ function scalar(raw) {
 }
 
 /**
- * Read + parse `.frizz/config.yml` from `projectDir` into a fully-populated,
- * type-safe {@link FrizzConfig}. The file is absent/unreadable → DEFAULTS.
+ * Read + parse `.ntwine/config.yml` from `projectDir` into a fully-populated,
+ * type-safe {@link NtwineConfig}. The file is absent/unreadable → DEFAULTS.
  * A single malformed line → that line is skipped; everything else still parses.
  *
  * ENABLEMENT is NOT read here — it lives in the per-session sentinel now (see
- * {@link frizzActive}). This parses only `autonomous_mode` + the `state:` block.
+ * {@link ntwineActive}). This parses only `autonomous_mode` + the `state:` block.
  *
- * Parser shape (intentionally narrow — matches frizz's flat config, NOT general YAML):
+ * Parser shape (intentionally narrow — matches ntwine's flat config, NOT general YAML):
  *   - `key: value`         top-level scalar (e.g. `autonomous_mode: off`)
  *   - `state:`             opens the one nested block
  *     `  key: "value"`     two-space-indented entries become `state[key] = value`
  *   - `# …` lines + blanks are ignored.
  *
  * @param {string} projectDir  The repo root (e.g. `process.env.CLAUDE_PROJECT_DIR`).
- * @returns {FrizzConfig}
+ * @returns {NtwineConfig}
  */
 export function loadConfig(projectDir) {
   const cfg = defaults();
 
   let src;
   try {
-    src = readFileSync(join(projectDir, '.frizz', 'config.yml'), 'utf8');
+    src = readFileSync(join(projectDir, '.ntwine', 'config.yml'), 'utf8');
   } catch {
     return cfg; // absent / unreadable → type-safe defaults
   }
@@ -550,7 +550,7 @@ export function loadConfig(projectDir) {
 // truth until SOMETHING re-grounds it. "Reconcile" historically only meant "fold agent
 // returns" — nothing forced a periodic re-grounding of the whole board against the actual
 // code/PRs. This forcing-function fixes that: a LAST-COMPLETE-RECONCILE timestamp persists
-// in `.frizz/.last-reconcile` (gitignored runtime, like the rest of `.frizz`); the per-turn
+// in `.ntwine/.last-reconcile` (gitignored runtime, like the rest of `.ntwine`); the per-turn
 // hook decides whether to nag via a TWO-TRIGGER gate (see shouldNagReconcile) and, when hot,
 // emits a LOUD instruction to spin up a reconcile sub-agent. The hook does only mtime/timestamp
 // math — the actual PR-liveness checking belongs to the dispatched reconcile sub-agent, NEVER
@@ -579,7 +579,7 @@ export const DEFAULT_RECONCILE_BACKSTOP_MIN = 120;
  * non-positive / unparseable value falls back too. (The config KEY keeps its historical name
  * `reconcile_threshold_min` — it now tunes the backstop half of the gate; the dirty-gate is a
  * strict mtime comparison and is NOT time-configurable.)
- * @param {FrizzConfig} cfg
+ * @param {NtwineConfig} cfg
  * @returns {number}
  */
 export function reconcileBackstopMin(cfg) {
@@ -589,12 +589,12 @@ export function reconcileBackstopMin(cfg) {
 }
 
 /**
- * Path to the last-complete-reconcile timestamp file (epoch-ms) under `.frizz/`.
+ * Path to the last-complete-reconcile timestamp file (epoch-ms) under `.ntwine/`.
  * @param {string} projectDir
  * @returns {string}
  */
 export function lastReconcilePath(projectDir) {
-  return join(projectDir, '.frizz', '.last-reconcile');
+  return join(projectDir, '.ntwine', '.last-reconcile');
 }
 
 /**
@@ -608,7 +608,7 @@ export function readLastReconcile(projectDir) {
     // Canonical form is epoch-ms (what writeLastReconcile emits). Match it strictly — a bare
     // parseInt would accept an ISO string like "2026-07-01T..." as 2026 (parseInt stops at the
     // '-'), yielding a ~56-year-stale age that nags every turn. Agents demonstrably hand-write
-    // this file instead of running `frizz reconcile`, so also accept a parseable ISO date.
+    // this file instead of running `ntwine reconcile`, so also accept a parseable ISO date.
     if (/^\d+$/.test(raw)) {
       const n = parseInt(raw, 10);
       return Number.isFinite(n) ? n : null;
@@ -621,14 +621,14 @@ export function readLastReconcile(projectDir) {
 }
 
 /**
- * Stamp the last-complete-reconcile timestamp to `ts` (default now). Creates `.frizz/` as
+ * Stamp the last-complete-reconcile timestamp to `ts` (default now). Creates `.ntwine/` as
  * needed. Returns the file path.
  * @param {string} projectDir
  * @param {number} [ts]
  * @returns {string}
  */
 export function writeLastReconcile(projectDir, ts = Date.now()) {
-  const dir = join(projectDir, '.frizz');
+  const dir = join(projectDir, '.ntwine');
   mkdirSync(dir, { recursive: true });
   const f = lastReconcilePath(projectDir);
   writeFileSync(f, String(ts) + '\n');
@@ -667,8 +667,8 @@ export function shouldNagReconcile({ newestNonTerminalMtimeMs, lastReconcileMs, 
  * The STAMP-LAST instruction — shared by every surface that nudges a reconcile (the
  * UserPromptSubmit backstop AND the Stop-hook rest path) so the ordering rule never drifts
  * between them. The reconcile agent EDITS threads (flips drifted statuses), which bumps their
- * mtime; if it stamped `.frizz/.last-reconcile` BEFORE those edits, its own edits would leave
- * the board dirty forever (the dirty-gate would re-fire next turn). So `frizz reconcile` (the
+ * mtime; if it stamped `.ntwine/.last-reconcile` BEFORE those edits, its own edits would leave
+ * the board dirty forever (the dirty-gate would re-fire next turn). So `ntwine reconcile` (the
  * stamp) MUST be its LAST action, after every thread edit. Reconcile is a JUDGMENT task →
  * dispatch at Opus, high effort.
  *
@@ -683,11 +683,11 @@ export function reconcileStampLastInstruction(scopeSlugs) {
   const scope = Array.isArray(scopeSlugs) && scopeSlugs.length
     ? `re-ground ${scopeSlugs.join(', ')} (plus any thread whose EXTERNAL state — a referenced PR/CI — moved)`
     : 're-ground EVERY non-terminal thread';
-  return `AUTO-DISPATCH a BACKGROUND reconcile sub-agent (reflexively — don't deliberate; reconcile is a JUDGMENT task → Opus, high effort): ${scope} against ground truth (PR merged? symbol exists? work shipped?), flip drifted statuses to match, then — as its LAST step, AFTER every thread edit — run \`frizz reconcile\` to stamp \`.frizz/.last-reconcile\`. Stamping LAST is REQUIRED: the agent's own edits bump thread mtimes, so stamping before them leaves the board dirty forever.`;
+  return `AUTO-DISPATCH a BACKGROUND reconcile sub-agent (reflexively — don't deliberate; reconcile is a JUDGMENT task → Opus, high effort): ${scope} against ground truth (PR merged? symbol exists? work shipped?), flip drifted statuses to match, then — as its LAST step, AFTER every thread edit — run \`ntwine reconcile\` to stamp \`.ntwine/.last-reconcile\`. Stamping LAST is REQUIRED: the agent's own edits bump thread mtimes, so stamping before them leaves the board dirty forever.`;
 }
 
 // ── STAMP-ON-AGENT-COMPLETION — the write-ownership treadmill fix (2026-07-06) ──────
-// frizz MANDATES write-ownership: a dispatched agent edits its OWN thread. But every such edit
+// ntwine MANDATES write-ownership: a dispatched agent edits its OWN thread. But every such edit
 // bumps that thread's mtime past `.last-reconcile`, so the dirty-gate reads the board stale and
 // nags the orchestrator to re-ground a thread the agent JUST reconciled — the system fighting its
 // own design. Fix: when a thread-bound agent rests, the SubagentStop hook records the thread's
@@ -696,9 +696,9 @@ export function reconcileStampLastInstruction(scopeSlugs) {
 // edit is folded via the REST path, never the reconcile path). Only NON-owning drift — an
 // orchestrator edit, or external state moving a referenced PR/CI — trips the reconcile nag.
 
-/** Path to the per-thread owner-reconcile marks: `{ [slug]: mtimeMs }` under `.frizz/`. */
+/** Path to the per-thread owner-reconcile marks: `{ [slug]: mtimeMs }` under `.ntwine/`. */
 export function ownerReconciledPath(projectDir) {
-  return join(projectDir, '.frizz', '.owner-reconciled.json');
+  return join(projectDir, '.ntwine', '.owner-reconciled.json');
 }
 
 /** Read the `{ [slug]: mtimeMs }` owner-reconcile map, or `{}` when absent/unreadable/garbage. */
@@ -725,7 +725,7 @@ export function stampOwnerReconciled(projectDir, slug, mtimeMs) {
     const capped = entries.length > 400
       ? Object.fromEntries(entries.sort((a, b) => b[1] - a[1]).slice(0, 400))
       : map;
-    mkdirSync(join(projectDir, '.frizz'), { recursive: true });
+    mkdirSync(join(projectDir, '.ntwine'), { recursive: true });
     writeFileSync(ownerReconciledPath(projectDir), JSON.stringify(capped) + '\n');
   } catch {
     /* best-effort — a missed stamp just risks one spurious reconcile nag */
@@ -790,7 +790,7 @@ export function assessDrift({ records, ownerReconciled, lastReconcileMs, backsto
 
 /**
  * COMPUTE BOARD DRIFT — the I/O wrapper over {@link assessDrift} the STOP hook uses (the per-turn
- * reminder reuses its own richer scan). Scans `.frizz/*.md`, builds records (status + mtime),
+ * reminder reuses its own richer scan). Scans `.ntwine/*.md`, builds records (status + mtime),
  * flags un-drained queued follow-ups ({@link hasQueuedFollowup}), and returns the drift verdict
  * plus the queued slugs — the "is there GENUINE work before idle?" signal for the self-satisfying
  * stop. Fail-open: any error → clean ({nag:false, empty lists}).
@@ -801,10 +801,10 @@ export function computeBoardDrift(projectDir, { backstopMin, now = Date.now() })
   const lastReconcileMs = readLastReconcile(projectDir);
   try {
     const ownerReconciled = readOwnerReconciled(projectDir);
-    const frizzDir = join(projectDir, '.frizz');
+    const ntwineDir = join(projectDir, '.ntwine');
     let files;
     try {
-      files = readdirSync(frizzDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
+      files = readdirSync(ntwineDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
     } catch {
       return { nag: false, reason: null, dirtySlugs: [], queuedSlugs: [], lastReconcileMs };
     }
@@ -817,7 +817,7 @@ export function computeBoardDrift(projectDir, { backstopMin, now = Date.now() })
       let src;
       let mtimeMs = 0;
       try {
-        const fp = join(frizzDir, f);
+        const fp = join(ntwineDir, f);
         src = readFileSync(fp, 'utf8');
         mtimeMs = statSync(fp).mtimeMs;
       } catch {
@@ -871,7 +871,7 @@ export function debounceReconcileNag({ reason, now, turns, state, debounceMin, d
 // silently or need a brittle live-polling shell (which dies on session end). Instead it
 // carries a DURABLE `revalidate_at: <ISO8601 UTC>` frontmatter timestamp: while that time
 // is in the FUTURE the thread is "parked on a timer" (quiet — NOT in the per-turn nag); once
-// `now ≥ revalidate_at` it is "due" and the frizz-reminder hook + board surface it LOUDLY for
+// `now ≥ revalidate_at` it is "due" and the ntwine-reminder hook + board surface it LOUDLY for
 // a recheck. The optional `last_checked: <ISO8601>` records the previous poll. This is the
 // SINGLE source of the timer semantics, shared by the hook and the board so they never drift.
 
@@ -890,7 +890,7 @@ export function debounceReconcileNag({ reason, now, turns, state, debounceMin, d
  * value degrades to not-set rather than crashing the hook. (The board separately surfaces a
  * present-but-unparseable value as a non-fatal warning so a typo'd timestamp isn't silently
  * swallowed.) Quotes are stripped to match the frontmatter quoter; `Date.parse` accepts the
- * ISO-8601 UTC form frizz writes.
+ * ISO-8601 UTC form ntwine writes.
  * @param {string|undefined|null} revalidateAtRaw  raw `revalidate_at` scalar (ISO-8601 UTC)
  * @param {string|undefined|null} lastCheckedRaw   raw optional `last_checked` scalar
  * @param {number} [now]
@@ -922,7 +922,7 @@ export function formatEta(etaMin) {
 
 // ── depends_on classification — thread-slug deps vs typed EXTERNAL deps ─────────────
 // `depends_on` was historically an array of THREAD SLUGS only. It is now LOOSENED to also
-// express dependencies on state OUTSIDE the frizz board — a GitHub PR/issue, an external CI
+// express dependencies on state OUTSIDE the ntwine board — a GitHub PR/issue, an external CI
 // run, or a free-form gate — via a `<type>:<ref>` PREFIX on the entry. Backward-compat is the
 // contract: a BARE entry (no recognized prefix) stays a thread slug and behaves exactly as
 // before. A thread slug is a filename base and cannot contain a colon, so a recognized
@@ -931,7 +931,7 @@ export function formatEta(etaMin) {
 //     goes terminal, and the validator flags a dangling thread-slug dep.
 //   - EXTERNAL deps PARK the thread ("waiting on <ext>") — they have no in-board terminal
 //     signal, so they resolve via `revalidate_at` re-polling or a manual edit (drop the dep).
-//     They are NEVER flagged as dangling (there is nothing in `.frizz/` to resolve them to).
+//     They are NEVER flagged as dangling (there is nothing in `.ntwine/` to resolve them to).
 
 /**
  * Recognized EXTERNAL dep types. An entry prefixed with one of these is an external dep;
@@ -971,7 +971,7 @@ export function classifyDep(raw) {
  * the inline-array form (`[a, b]`) and the YAML block form (`- a` on following indented lines) —
  * the flat `key: value` frontmatter reader drops block-form list items, so dep-reading MUST go
  * through this src-level parser, not the flat map. This is the SINGLE source of dep-parse truth
- * shared by the board (`index.mjs`) and the reminder hook (`frizz-reminder.mjs`) so the two can
+ * shared by the board (`index.mjs`) and the reminder hook (`ntwine-reminder.mjs`) so the two can
  * never disagree on whether a thread is machine- vs human-blocked (the statusline keeps its own
  * inlined copy — it is deployed standalone and cannot import from the plugin). Entries may be
  * bare thread slugs OR typed external gates; classification is {@link classifyDep}'s job.

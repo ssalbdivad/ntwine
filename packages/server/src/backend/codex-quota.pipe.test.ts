@@ -12,7 +12,7 @@ import { queryCodexRateLimits } from "./codex-quota.ts"
 // The stand-in answers the handshake with its stdin already closed, so the two requests that follow
 // the reply are written to a pipe with no reader.
 test("codex: a quota read whose app-server has stopped reading resolves, and throws nothing past itself", { skip: process.platform === "win32" }, async () => {
-  const dir = await mkdtemp(join(tmpdir(), "frizz-codex-quota-pipe-"))
+  const dir = await mkdtemp(join(tmpdir(), "ntwine-codex-quota-pipe-"))
   const bin = join(dir, "codex-stand-in")
   const uncaught: unknown[] = []
   const onUncaught = (error: unknown) => { uncaught.push(error) }

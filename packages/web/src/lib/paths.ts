@@ -103,7 +103,7 @@ function escapeRe(text: string): string {
  * A pattern for `root` followed by a separator, at every position in a string (`g`), that reads either
  * separator between the root's segments and either letter case for its drive. Null for a root that
  * would eat every leading separator (``, `/`, `C:\`). The trailing separator is part of the needle so a
- * sibling checkout (`…/frizz-old/a.ts`) never matches.
+ * sibling checkout (`…/ntwine-old/a.ts`) never matches.
  */
 export function pathPrefixPattern(root: string, flags = "g"): RegExp | null {
   const trimmed = root.trim().replace(/[\\/]+$/, "")

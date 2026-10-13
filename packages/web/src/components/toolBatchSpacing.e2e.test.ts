@@ -3,12 +3,12 @@ import test from "node:test"
 
 // Runtime coverage for the TOOL-ROW RHYTHM. Skipped unless a Vite URL serving the fixtures is provided
 // (same pattern as the other *.e2e.test.ts here): start `vite` in packages/web and set
-// FRIZZ_TOOL_BATCH_SPACING_E2E_URL to its origin.
+// NTWINE_TOOL_BATCH_SPACING_E2E_URL to its origin.
 //
 // The invariant after the minimal renderer: provider batching is invisible while collapsed, and after
 // explicit expansion the detailed cards still use one 6px pitch. Measured in the browser rather than
 // asserted on the tree because both disclosure grouping and card spacing are layout behavior.
-const baseUrl = process.env.FRIZZ_TOOL_BATCH_SPACING_E2E_URL
+const baseUrl = process.env.NTWINE_TOOL_BATCH_SPACING_E2E_URL
 
 const TIGHT = 6
 // Prose controls: boundaries on either side of a prose-bearing message must NOT be tight. Their exact
@@ -38,7 +38,7 @@ async function launch() {
 async function gaps(page: import("puppeteer").Page, nth: number) {
   return page.evaluate((idx) => {
     const scope = document.querySelectorAll("[data-transcript-column]")[idx]
-    const cards = [...scope.querySelectorAll(".frizz-bash")]
+    const cards = [...scope.querySelectorAll(".ntwine-bash")]
     // Classified by what is PAINTED in the gap, found by geometry — the fixture's prose shares a message
     // root with its own tool band, so "a prose-only message root" would find nothing.
     //   • a digest HEADER is a real row, so a seam spanning one is legitimately taller than the pitch;
@@ -60,7 +60,7 @@ async function gaps(page: import("puppeteer").Page, nth: number) {
       // intra-batch seam a digest span and left the tight-pitch assertion measuring one lonely gap.
       const hasDigest = occupants.some((n) => n.matches("[data-tool-activity] button") || n.querySelector("[data-tool-activity] button") !== null)
       const hasProse = occupants.some(
-        (n) => (n.textContent ?? "").trim() !== "" && !n.closest("[data-tool-activity]") && !n.closest(".frizz-bash"),
+        (n) => (n.textContent ?? "").trim() !== "" && !n.closest("[data-tool-activity]") && !n.closest(".ntwine-bash"),
       )
       out.push({
         gap: Math.round((bottom - top) * 10) / 10,
@@ -117,7 +117,7 @@ for (const [surface, query, column] of [
         const scope = document.querySelectorAll("[data-transcript-column]")[idx]
         const disclosures = [...scope.querySelectorAll<HTMLElement>("[data-tool-activity] button")]
         const labels = disclosures.map((button) => button.getAttribute("aria-label") ?? "")
-        const visibleCards = [...scope.querySelectorAll<HTMLElement>(".frizz-bash")].filter((card) => card.offsetParent !== null).length
+        const visibleCards = [...scope.querySelectorAll<HTMLElement>(".ntwine-bash")].filter((card) => card.offsetParent !== null).length
         const working = scope.querySelector<HTMLElement>("[data-working-indicator]")
         const shimmer = working?.querySelector<HTMLElement>("[data-working-label]")
         return {
@@ -194,7 +194,7 @@ for (const [surface, query, column] of [
             trailingSpace: Math.round((buttonRect.right - chevronRect.right) * 10) / 10,
           }
         })
-        const visibleCards = [...scope.querySelectorAll<HTMLElement>(".frizz-bash")].filter((card) => card.offsetParent !== null).length
+        const visibleCards = [...scope.querySelectorAll<HTMLElement>(".ntwine-bash")].filter((card) => card.offsetParent !== null).length
         const hasWorkingIndicator = scope.querySelector("[data-working-indicator]") !== null
         disclosures.forEach((button) => button.click())
         return { labels, disclosureGeometry, visibleCards, hasWorkingIndicator }
@@ -211,7 +211,7 @@ for (const [surface, query, column] of [
         assert.ok(geometry.inkGap >= 5.5 && geometry.inkGap <= 8.5, `digest chevron must sit beside its label in INK, got ${geometry.inkGap}px`)
         assert.ok(geometry.trailingSpace > 20, "the full transcript row remains the click target after moving the chevron")
       }
-      await page.waitForSelector(".frizz-bash")
+      await page.waitForSelector(".ntwine-bash")
       await new Promise((r) => setTimeout(r, 600))
 
       const measured = await gaps(page, column)
@@ -247,7 +247,7 @@ for (const [surface, query, column] of [
       const folded = await page.evaluate((idx) => {
         const scope = document.querySelectorAll("[data-transcript-column]")[idx]
         const labels = [...scope.querySelectorAll<HTMLElement>("[data-tool-activity] button")].map((button) => button.getAttribute("aria-label") ?? "")
-        const visibleCards = [...scope.querySelectorAll<HTMLElement>(".frizz-bash")].filter((card) => card.offsetParent !== null).length
+        const visibleCards = [...scope.querySelectorAll<HTMLElement>(".ntwine-bash")].filter((card) => card.offsetParent !== null).length
         return { labels, visibleCards }
       }, column)
       assert.equal(folded.visibleCards, 0, "a finished background shell keeps no card of its own")

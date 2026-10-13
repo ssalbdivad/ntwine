@@ -53,7 +53,7 @@ import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { prefs } from "../lib/prefs.ts"
 import { recentOf } from "../lib/recentThreads.ts"
-import type { BoardSnapshot, ProjectCard, ScheduleView, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ProjectCard, ScheduleView, ThreadView } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { displayTitle, externalThreads, isPinned, queued, sectionThreads } from "../groups.ts"
@@ -730,7 +730,7 @@ interface QuietBands {
   external: ThreadView[]
   /** The project's schedules — the poll's count; the rows are read when the band opens (ScheduleRows). */
   schedules: number
-  /** One of them wants the human: paused by Frizz, or a proposal waiting for Turn on. */
+  /** One of them wants the human: paused by Ntwine, or a proposal waiting for Turn on. */
   schedulesAttention: boolean
 }
 
@@ -1030,7 +1030,7 @@ function QuietToggles({ project, quiet, opened, pinned = 0, working = 0 }: { pro
         // The work in flight's counts only unfold: their rows are the project's own list, not a band to open.
         const inFlight = band === "pinned" || band === "working"
         const isOpen = !inFlight && opened.includes(band as QuietBandKey)
-        // THE WARNING TONE, on the schedules count alone: one was paused by Frizz, or a worker's proposal is
+        // THE WARNING TONE, on the schedules count alone: one was paused by Ntwine, or a worker's proposal is
         // waiting for Turn on — the "it stopped two weeks ago and I never noticed" failure, said on the row.
         const attention = band === "schedules" && quiet.schedulesAttention
         const label = inFlight
@@ -1149,7 +1149,7 @@ function PinCountGlyph({ size = 10 }: { size?: number }) {
  * A row is the thread row's anatomy (Sidebar.tsx ThreadRow) so the band reads as more of the same list: the
  * repeat glyph in the indicator column, the title, the rule inline in grey after it the way a working
  * thread's status sits, and the next run in the rest-time column — `in 3h`, or `Paused` / `Proposed` when it
- * will not run on its own, warning-toned when that is Frizz's doing or a proposal's. A click opens the
+ * will not run on its own, warning-toned when that is Ntwine's doing or a proposal's. A click opens the
  * schedule's drawer.
  */
 export function ScheduleRows({ project, count, attention }: { project: QueuesProject; count: number; attention: boolean }) {

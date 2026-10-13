@@ -60,7 +60,7 @@ test("NDJSON reports have a versioned status or terminal schema", () => {
 })
 
 function fakeGhDir(state = "SUCCESS") {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-monitor-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-monitor-"))
   const gh = join(dir, "gh")
   writeFileSync(gh, `#!/bin/sh
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then echo '{"headRefOid":"abc"}'; exit 0; fi
@@ -108,7 +108,7 @@ test("CI failure exits 2 and --once pending emits one status event with exit 0",
 })
 
 test("CI auth or missing-gh failures are terminal error exit 3", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-monitor-empty-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-monitor-empty-"))
   try {
     const result = spawnSync(process.execPath, [fileURLToPath(new URL("./ci-watch.mjs", import.meta.url)), "--repo", "acme/app", "--pr", "42", "--once"], { encoding: "utf8", env: { ...process.env, PATH: dir } })
     assert.equal(result.status, 3)
@@ -153,7 +153,7 @@ test("CI SIGTERM emits one cancelled terminal event and exits 130", async () => 
 })
 
 function fakeReviewGhDir() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-review-monitor-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-review-monitor-"))
   const gh = join(dir, "gh")
   writeFileSync(gh, `#!/bin/sh
 count_file="$0.count"
@@ -194,7 +194,7 @@ test("review --once emits an armed status and a live watch wakes for any new act
 
 test("review errors and cancellation emit a terminal NDJSON event", async () => {
   const review = fileURLToPath(new URL("./review-watch.mjs", import.meta.url))
-  const empty = mkdtempSync(join(tmpdir(), "frizz-review-empty-"))
+  const empty = mkdtempSync(join(tmpdir(), "ntwine-review-empty-"))
   try {
     const result = spawnSync(process.execPath, [review, "--repo", "acme/app", "--pr", "42", "--once"], { encoding: "utf8", env: { ...process.env, PATH: empty } })
     assert.equal(result.status, 3)
@@ -216,7 +216,7 @@ test("review errors and cancellation emit a terminal NDJSON event", async () => 
 })
 
 test("gh calls time out and back off without a platform shell timeout", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-gh-timeout-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-gh-timeout-"))
   const executable = join(dir, "gh")
   writeFileSync(executable, "#!/bin/sh\n/bin/sleep 2\n")
   chmodSync(executable, 0o755)

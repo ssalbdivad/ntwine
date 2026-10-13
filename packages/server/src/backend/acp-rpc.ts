@@ -8,7 +8,7 @@ import {
 
 // The JSON-RPC 2.0 transport under the ACP backend: newline-delimited JSON on a child's stdio, client
 // speaks first. Hand-rolled rather than `@agentclientprotocol/sdk` (plans/acp-backend.md, decision 1):
-// the wire is sixty lines, and what Frizz actually needs from the transport is the part no SDK gives it —
+// the wire is sixty lines, and what Ntwine actually needs from the transport is the part no SDK gives it —
 //
 //   - a BOUNDED line reader that SKIPS what it cannot parse. In ACP mode fd 1 IS the transport, and the
 //     most common failure in the field is a dependency, a banner or an update notice writing to stdout

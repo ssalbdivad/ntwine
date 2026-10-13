@@ -1,8 +1,8 @@
 // One local IPC endpoint address, spelled the way the running platform can actually bind it.
 //
-// Frizz's detached daemons — the Claude session broker, the codex app-server daemon, the codex native
+// Ntwine's detached daemons — the Claude session broker, the codex app-server daemon, the codex native
 // listener — each talk to the server over a local socket whose path is DERIVED from the identity they
-// serve (state dir + session/project id), so a restarted frizz can find a daemon it did not spawn
+// serve (state dir + session/project id), so a restarted ntwine can find a daemon it did not spawn
 // without a registry. That derivation is what this module owns.
 //
 // POSIX gets a filesystem unix socket under the OS temp dir. The name is hashed short because unix
@@ -28,13 +28,13 @@
 import { join } from "node:path"
 
 /**
- * Address a local IPC endpoint by NAME — `frizz-claude-<key>`, `frizz-codex-<key>`, … — and get back
+ * Address a local IPC endpoint by NAME — `ntwine-claude-<key>`, `ntwine-codex-<key>`, … — and get back
  * the platform's spelling of it: `$TMPDIR/<name>.sock` on POSIX, `\\.\pipe\<name>` on Windows.
  *
  * `name` must already be short and collision-resistant (hash the identity into it), because the POSIX
  * spelling inherits the ~104-byte unix socket path limit.
  */
-export function frizzIpcPath(name: string): string {
+export function ntwineIpcPath(name: string): string {
   if (process.platform === "win32") return `\\\\.\\pipe\\${name}`
   return join(process.env.TMPDIR ?? "/tmp", `${name}.sock`)
 }

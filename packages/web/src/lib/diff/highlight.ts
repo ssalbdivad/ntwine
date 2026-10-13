@@ -1,4 +1,4 @@
-// A tiny, dependency-free syntax highlighter — the "custom highlighter" frizz uses instead of a
+// A tiny, dependency-free syntax highlighter — the "custom highlighter" ntwine uses instead of a
 // WASM grammar engine (Shiki) or a server round-trip (Pierre). It is deliberately approximate: a
 // single stateful character scan driven by a per-language config (comments / strings / keywords),
 // classifying each run into a coarse token kind. Not grammar-accurate, but O(n) over the text with

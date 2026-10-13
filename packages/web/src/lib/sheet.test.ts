@@ -10,7 +10,7 @@ test("sheetWidth steps each stacked layer 28px / 4vw narrower", () => {
 })
 
 test("sheetWidth with the ThreadDrawer flip offset renders at the width of the layer beneath", () => {
-  // The frizz-doc is a flip surface of the chat drawer for the same thread, not a real extra layer, so
+  // The ntwine-doc is a flip surface of the chat drawer for the same thread, not a real extra layer, so
   // it passes offset=1: at widthDepth 0 or 1 it stays the base 720px (matching the chat drawer it flips
   // from / sits beside), and only a genuine extra layer below (widthDepth 2) steps it one notch narrower.
   assert.equal(sheetWidth(0, 1), "min(720px, 80vw)")

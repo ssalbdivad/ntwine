@@ -142,7 +142,7 @@ test("several questions each get their own field and their own answer key", () =
 })
 
 test("FREE TEXT rides the SDK's own annotations, with claude's notes-only sentinel in answers", () => {
-  // The fence card's free-text box is not a frizz convention bolted onto a tool call: claude's own
+  // The fence card's free-text box is not a ntwine convention bolted onto a tool call: claude's own
   // AskUserQuestion input schema carries `annotations[questionText].notes`, and its result mapper
   // special-cases the literal "(notes only)" answer. Picking an option AND typing sends both.
   const spec = parseClaudeAskUserQuestion(CHANNEL_INPUT)!
@@ -252,10 +252,10 @@ test("an oversized option preview degrades to a minimal echo instead of failing 
 // home prefix opens with `\` on Windows, and the old `/`-only check showed those in full (Windows
 // audit 2026-09-11, finding 14).
 test("tildePath collapses the home prefix under either separator, and never a sibling that merely shares the prefix", () => {
-  assert.equal(tildePath("/Users/op/code/frizz", "/Users/op"), "~/code/frizz")
+  assert.equal(tildePath("/Users/op/code/ntwine", "/Users/op"), "~/code/ntwine")
   assert.equal(tildePath("/Users/op", "/Users/op"), "~")
   assert.equal(tildePath("/Users/operator/x", "/Users/op"), "/Users/operator/x", "a longer sibling is not under home")
-  assert.equal(tildePath("C:\\Users\\op\\code\\frizz", "C:\\Users\\op"), "~\\code\\frizz")
+  assert.equal(tildePath("C:\\Users\\op\\code\\ntwine", "C:\\Users\\op"), "~\\code\\ntwine")
   assert.equal(tildePath("C:\\Users\\op", "C:\\Users\\op"), "~")
   assert.equal(tildePath("C:\\Users\\operator\\x", "C:\\Users\\op"), "C:\\Users\\operator\\x")
   assert.equal(tildePath("/elsewhere/op", "/Users/op"), "/elsewhere/op")

@@ -1,4 +1,4 @@
-import type { ProviderError } from "@frizz/shared"
+import type { ProviderError } from "@ntwine/shared"
 import { redactCredentialSyntax } from "../credential-redaction.ts"
 
 function errorText(text: string): string {

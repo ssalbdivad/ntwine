@@ -3,7 +3,7 @@ import test from "node:test"
 
 // Runtime coverage for the LIVE TAIL's rhythm — the shimmer that closes a running
 // transcript. Skipped unless a Vite URL serving the fixtures is provided (same pattern as the other
-// *.e2e.test.ts here): start `vite` in packages/web and set FRIZZ_WORKING_TAIL_SPACING_E2E_URL to its
+// *.e2e.test.ts here): start `vite` in packages/web and set NTWINE_WORKING_TAIL_SPACING_E2E_URL to its
 // origin.
 //
 // The invariant (maintainer 2026-07-31: "there's more space above the working shimmer than there is
@@ -15,7 +15,7 @@ import test from "node:test"
 // Measured in the browser rather than asserted on the tree because this is layout, and specifically
 // because the box gap alone is not the claim — a line box 1.4px shorter than its peers put the shimmer's
 // INK nearer the card above while every box reading said the gaps agreed.
-const baseUrl = process.env.FRIZZ_WORKING_TAIL_SPACING_E2E_URL
+const baseUrl = process.env.NTWINE_WORKING_TAIL_SPACING_E2E_URL
 
 // The tight run needs a CARD on at least one side: two bordered blocks 6px apart still read as two.
 // Two bare LABEL rows do not — a label has no inset, so the gap is the only separation there is, and
@@ -48,13 +48,13 @@ async function tailGap(page: import("puppeteer").Page, drawer: boolean) {
       ? document.querySelector("[data-transcript-column]")
       : document.querySelector("[data-virtualized-transcript]")
     if (!scope) return { error: "surface not mounted" }
-    const rows = [...scope.querySelectorAll("[data-frizz-msg]")]
+    const rows = [...scope.querySelectorAll("[data-ntwine-msg]")]
     const working = scope.querySelector("[data-working-indicator]")
     if (!working || rows.length === 0) return { error: "no live tail" }
     const last = rows[rows.length - 1]
     const round = (n: number) => Math.round(n * 10) / 10
     return {
-      lastRow: last.getAttribute("data-frizz-msg"),
+      lastRow: last.getAttribute("data-ntwine-msg"),
       aboveWorking: round(working.getBoundingClientRect().top - last.getBoundingClientRect().bottom),
       betweenRows: rows.slice(1).map((r, i) => round(r.getBoundingClientRect().top - rows[i].getBoundingClientRect().bottom)),
     }
@@ -83,7 +83,7 @@ test("the live row joins the meta run, and its typing dots sit like the next car
     // its edge is its ink, so under a card it stands the tight run's own distance away, exactly as the
     // next card would. (A label's cap-top white is the wrong reference for a filled mark.)
     const dotsWhite = await page.evaluate(() => {
-      const card = document.querySelector('[data-frizz-msg="a2"]')!.getBoundingClientRect()
+      const card = document.querySelector('[data-ntwine-msg="a2"]')!.getBoundingClientRect()
       const dots = document.querySelector("[data-working-indicator] .typing-dots")?.getBoundingClientRect()
       return dots ? Math.round((dots.top - card.bottom) * 100) / 100 : null
     })
@@ -91,7 +91,7 @@ test("the live row joins the meta run, and its typing dots sit like the next car
     near(dotsWhite!, TIGHT, "the typing dots under a card, as the next card would sit")
 
     await page.goto(fixtureUrl("?tail=meta"), { waitUntil: "domcontentloaded" })
-    await page.waitForSelector('[data-frizz-msg="m1"]')
+    await page.waitForSelector('[data-ntwine-msg="m1"]')
     // The same page also holds the OTHER pair: that settled label is itself a bare row, and the shimmer
     // sits under IT — two labels, so the ordinary step rather than the card run.
     const metaTail = await tailGap(page, false)

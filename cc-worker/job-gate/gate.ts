@@ -4,16 +4,16 @@
 // WHY. RAM is the bottleneck on a box running a dozen agent sessions. An arktype mocha suite peaks at
 // 2.2–3.2GB RSS, a native tsc at 1.3–2.4GB, and one session launching four suites at once sent a 31GiB
 // WSL box into swap thrash that stalled every other agent. Each agent sees only its own commands, so
-// the only place a "not now" can be said is the host. Nothing here talks to the Frizz server: the
+// the only place a "not now" can be said is the host. Nothing here talks to the Ntwine server: the
 // state is a directory every wrapper on the machine reads and writes under one lock.
 //
-// STATE DIRECTORY: `$FRIZZ_GATE_DIR`, else `$XDG_STATE_HOME/frizz/job-gate`, else
-// `~/.local/state/frizz/job-gate`. Durable, so the per-command history survives a reboot (/tmp does
+// STATE DIRECTORY: `$NTWINE_GATE_DIR`, else `$XDG_STATE_HOME/ntwine/job-gate`, else
+// `~/.local/state/ntwine/job-gate`. Durable, so the per-command history survives a reboot (/tmp does
 // not on this WSL machine). It holds:
 //
 //   lock          O_EXCL lock file, `<pid> <epoch ms>`. Held for one read-modify-write (~ms). A holder
 //                 that died leaves it behind; a lock older than 5s or whose pid is gone is stale.
-//   state.json    The live queue — the file a `frizz top` view reads. Format (version 1):
+//   state.json    The live queue — the file a `ntwine top` view reads. Format (version 1):
 //                 {
 //                   "version": 1,
 //                   "updatedAt": <epoch ms>,
@@ -21,7 +21,7 @@
 //                     "id": "<8 hex>",
 //                     "pid": <wrapper pid>, "pidStart": <wrapper starttime, clock ticks since boot>,
 //                     "childPid": <job pid once running>,
-//                     "session": "<FRIZZ_THREAD, else CLAUDE_CODE_SESSION_ID, else ppid:<n>>",
+//                     "session": "<NTWINE_THREAD, else CLAUDE_CODE_SESSION_ID, else ppid:<n>>",
 //                     "signature": "<repo>:<path>|<command words>",   see signatureOf()
 //                     "cmd": "<argv joined, ≤300 chars>", "cwd": "<cwd>",
 //                     "heavy": <bool>,              light jobs skip the slot caps and the FIFO
@@ -37,21 +37,21 @@
 //                 starttime no longer matches) is pruned by the next reader.
 //   history.json  { "<signature>": [{ "peakMB", "at", "exit", "capMB"?, "oom"? }, …last 5] }
 //   jobs.jsonl    One telemetry line per finished job: see Telemetry below.
-//   config.json   Optional. The same keys as the environment (`{"FRIZZ_GATE": "0"}`), read on every
+//   config.json   Optional. The same keys as the environment (`{"NTWINE_GATE": "0"}`), read on every
 //                 decision, so a running fleet can be retuned or switched off without restarting it.
-//                 The environment wins over it, except that EITHER saying `FRIZZ_GATE=0` turns the
+//                 The environment wins over it, except that EITHER saying `NTWINE_GATE=0` turns the
 //                 gate off.
 //
 // SETTINGS (environment, or config.json):
-//   FRIZZ_GATE=0                 off: the hook stops wrapping, and a wrapper already queued runs at once
-//   FRIZZ_GATE_RESERVE_GB=6      memory kept free for everything that is not a gated job
-//   FRIZZ_GATE_MAX_PER_SESSION=2 heavy jobs one thread may run at once
-//   FRIZZ_GATE_MAX_HEAVY         heavy jobs the host runs at once; default min(cpus, MemTotal/4GB), ≥ 2
-//   FRIZZ_GATE_PSI=10            hold while /proc/pressure/memory `some avg10` ≥ this (when PSI exists)
-//   FRIZZ_GATE_SWAPIN_MBPS=10    without PSI: hold while swap-in runs faster than this
-//   FRIZZ_GATE_HEAP_FLOOR_MB     the lowest --max-old-space-size the gate ever sets (A3 measurement)
-//   FRIZZ_GATE_CAPS=0            do not inject NODE_OPTIONS / GOMEMLIMIT
-//   FRIZZ_GATE_SCOPE=0           do not run jobs in a systemd memory scope
+//   NTWINE_GATE=0                 off: the hook stops wrapping, and a wrapper already queued runs at once
+//   NTWINE_GATE_RESERVE_GB=6      memory kept free for everything that is not a gated job
+//   NTWINE_GATE_MAX_PER_SESSION=2 heavy jobs one thread may run at once
+//   NTWINE_GATE_MAX_HEAVY         heavy jobs the host runs at once; default min(cpus, MemTotal/4GB), ≥ 2
+//   NTWINE_GATE_PSI=10            hold while /proc/pressure/memory `some avg10` ≥ this (when PSI exists)
+//   NTWINE_GATE_SWAPIN_MBPS=10    without PSI: hold while swap-in runs faster than this
+//   NTWINE_GATE_HEAP_FLOOR_MB     the lowest --max-old-space-size the gate ever sets (A3 measurement)
+//   NTWINE_GATE_CAPS=0            do not inject NODE_OPTIONS / GOMEMLIMIT
+//   NTWINE_GATE_SCOPE=0           do not run jobs in a systemd memory scope
 import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync } from "node:fs"
 import { cpus, homedir, totalmem } from "node:os"
 import { basename, dirname, join, relative } from "node:path"
@@ -62,9 +62,9 @@ import { DEFAULT_ESTIMATE_MB, type Classified } from "./classify.ts"
 export type Env = Record<string, string | undefined>
 
 export function stateDir(env: Env = process.env): string {
-  if (env.FRIZZ_GATE_DIR) return env.FRIZZ_GATE_DIR
+  if (env.NTWINE_GATE_DIR) return env.NTWINE_GATE_DIR
   const xdg = env.XDG_STATE_HOME || join(env.HOME || homedir(), ".local", "state")
-  return join(xdg, "frizz", "job-gate")
+  return join(xdg, "ntwine", "job-gate")
 }
 
 function readConfigFile(dir: string): Env {
@@ -72,7 +72,7 @@ function readConfigFile(dir: string): Env {
     const parsed = JSON.parse(readFileSync(join(dir, "config.json"), "utf8"))
     if (!parsed || typeof parsed !== "object") return {}
     const out: Env = {}
-    for (const [k, v] of Object.entries(parsed)) if (k.startsWith("FRIZZ_GATE")) out[k] = String(v)
+    for (const [k, v] of Object.entries(parsed)) if (k.startsWith("NTWINE_GATE")) out[k] = String(v)
     return out
   } catch {
     return {}
@@ -121,27 +121,27 @@ const num = (v: string | undefined, fallback: number) => {
 export function readSettings(env: Env = process.env, opts: { honorEnvOffSwitch?: boolean } = {}): Settings {
   const dir = stateDir(env)
   const file = readConfigFile(dir)
-  const merged: Env = { ...file, ...Object.fromEntries(Object.entries(env).filter(([k]) => k.startsWith("FRIZZ_GATE"))) }
-  const off = file.FRIZZ_GATE === "0" || ((opts.honorEnvOffSwitch ?? true) && env.FRIZZ_GATE === "0")
+  const merged: Env = { ...file, ...Object.fromEntries(Object.entries(env).filter(([k]) => k.startsWith("NTWINE_GATE"))) }
+  const off = file.NTWINE_GATE === "0" || ((opts.honorEnvOffSwitch ?? true) && env.NTWINE_GATE === "0")
   const memTotalGB = totalmem() / 2 ** 30
   return {
     enabled: !off,
     dir,
-    reserveMB: num(merged.FRIZZ_GATE_RESERVE_GB, 6) * 1024,
-    maxPerSession: Math.max(1, num(merged.FRIZZ_GATE_MAX_PER_SESSION, 2)),
-    maxHeavy: Math.max(1, num(merged.FRIZZ_GATE_MAX_HEAVY, Math.max(2, Math.min(cpus().length, Math.floor(memTotalGB / 4))))),
-    psiThreshold: num(merged.FRIZZ_GATE_PSI, 10),
-    swapinMBps: num(merged.FRIZZ_GATE_SWAPIN_MBPS, 10),
-    heapFloorMB: num(merged.FRIZZ_GATE_HEAP_FLOOR_MB, HEAP_FLOOR_MB),
-    caps: merged.FRIZZ_GATE_CAPS !== "0",
-    scope: merged.FRIZZ_GATE_SCOPE !== "0",
+    reserveMB: num(merged.NTWINE_GATE_RESERVE_GB, 6) * 1024,
+    maxPerSession: Math.max(1, num(merged.NTWINE_GATE_MAX_PER_SESSION, 2)),
+    maxHeavy: Math.max(1, num(merged.NTWINE_GATE_MAX_HEAVY, Math.max(2, Math.min(cpus().length, Math.floor(memTotalGB / 4))))),
+    psiThreshold: num(merged.NTWINE_GATE_PSI, 10),
+    swapinMBps: num(merged.NTWINE_GATE_SWAPIN_MBPS, 10),
+    heapFloorMB: num(merged.NTWINE_GATE_HEAP_FLOOR_MB, HEAP_FLOOR_MB),
+    caps: merged.NTWINE_GATE_CAPS !== "0",
+    scope: merged.NTWINE_GATE_SCOPE !== "0",
     heavyMB: 1024,
   }
 }
 
-/** Who a job belongs to for the per-session cap: the Frizz thread (sub-agents share it), else the Claude session. */
+/** Who a job belongs to for the per-session cap: the Ntwine thread (sub-agents share it), else the Claude session. */
 export function sessionOf(env: Env = process.env, ppid = process.ppid): string {
-  return env.FRIZZ_THREAD?.trim() || env.CLAUDE_CODE_SESSION_ID?.trim() || `ppid:${ppid}`
+  return env.NTWINE_THREAD?.trim() || env.CLAUDE_CODE_SESSION_ID?.trim() || `ppid:${ppid}`
 }
 
 // ───────────────────────────── /proc
@@ -255,7 +255,7 @@ export function isAlive(pid: number, start?: number): boolean {
 
 /**
  * Where a command runs, as `<repo>:<path inside it>`, so every worktree of one repo shares a history:
- * `~/arktype/.frizz/worktrees/jsi-rev2-val/ark/schema` and `~/arktype/ark/schema` are both
+ * `~/arktype/.ntwine/worktrees/jsi-rev2-val/ark/schema` and `~/arktype/ark/schema` are both
  * `arktype:ark/schema`. A linked worktree's `.git` is a FILE naming `<main>/.git/worktrees/<name>`.
  */
 export function repoKey(cwd: string, read = (p: string) => readFileSync(p, "utf8"), isDir = (p: string) => statSync(p).isDirectory()): string {

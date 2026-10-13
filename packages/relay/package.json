@@ -1,9 +1,9 @@
 {
-  "name": "@frizz/relay",
+  "name": "@ntwine/relay",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": { ".": "./src/worker.ts" },
-  "dependencies": { "@frizz/shared": "workspace:*" },
+  "dependencies": { "@ntwine/shared": "workspace:*" },
   "devDependencies": { "typescript": "^5.7", "wrangler": "4.147.0" }
 }

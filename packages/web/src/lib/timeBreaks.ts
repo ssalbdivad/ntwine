@@ -7,7 +7,7 @@
 // a five-variant sheet as the iMessage/Slack pattern: always on, no hover, and it takes a row of its own
 // inside the message row it heads, so it can never collide with anything.
 //
-// A burst shares one reading on purpose. A frizz thread is read in bursts separated by long parks —
+// A burst shares one reading on purpose. A ntwine thread is read in bursts separated by long parks —
 // a worker can sit on a PR watcher for days — so what a reader needs is where the stretches begin, not
 // the minute of every line.
 

@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react"
 import { House } from "lucide-react"
-import type { ProjectCard } from "@frizz/shared"
+import type { ProjectCard } from "@ntwine/shared"
 
 // A PROJECT'S SQUARE — its icon, its monogram, or Home's house — at any size, wherever a project is
 // named by picture: the switcher, the project list, the All projects cards, the prompt box's picker.
@@ -35,7 +35,7 @@ export function monogram(name: string): string {
 /** The icon URL for a project, versioned so a replaced icon is a different URL. See ProjectCard. */
 export function projectIconSrc(project: ProjectCard): string {
   const version = project.iconVersion ? `&v=${encodeURIComponent(project.iconVersion)}` : ""
-  return `/_frizz/project-icon?id=${encodeURIComponent(project.id)}${version}`
+  return `/_ntwine/project-icon?id=${encodeURIComponent(project.id)}${version}`
 }
 
 /** The square for any card: the Home workspace's house, or a project's icon or monogram. */
@@ -47,7 +47,7 @@ export function ProjectSquare({ project, size }: { project: ProjectCard; size: n
  * The Home workspace's square — a house, on the monogram's own tile with the hue taken out.
  *
  * Home has no folder of its own to find an icon in and no name worth two letters, and it is the one
- * square that is Frizz's rather than the operator's, so it is the one without a colour. The glyph is
+ * square that is Ntwine's rather than the operator's, so it is the one without a colour. The glyph is
  * 60% of the tile where a monogram's letters are 40%: a house's ink is a thin outline in a square box,
  * and at 40% it read as a speck beside the letters. Its stroke is set in PIXELS (`absoluteStrokeWidth`)
  * so the outline holds its weight from a 40px square down to the picker's 12px one.

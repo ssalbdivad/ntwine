@@ -1,4 +1,4 @@
-// The ONE node-side client for frizz's RPC surface. Every harness and verify script must use this
+// The ONE node-side client for ntwine's RPC surface. Every harness and verify script must use this
 // instead of hand-rolling `fetch`.
 //
 // Two pieces of knowledge live here and nowhere else, because getting either wrong produces a
@@ -17,13 +17,13 @@
 //
 // Loopback `Origin` is required or the server 403s a cross-origin write.
 //
-//   3. THE `/_frizz` PREFIX (c34a7e2). Everything frizz serves lives under it, and every other
+//   3. THE `/_ntwine` PREFIX (c34a7e2). Everything ntwine serves lives under it, and every other
 //      top-level path is a project slug that falls through to the SPA shell — with a 200 and an HTML
 //      body. So an unprefixed `/rpc/board` does not 404 either: it reads back as "rpc board failed
 //      (200): <!doctype html>", and an unprefixed `/health` probe resolves TRUE against the shell
-//      before the server is anywhere near ready. Build every URL through FRIZZ_ROUTE_PREFIX.
+//      before the server is anywhere near ready. Build every URL through NTWINE_ROUTE_PREFIX.
 
-const FRIZZ_ROUTE_PREFIX = "/_frizz"
+const NTWINE_ROUTE_PREFIX = "/_ntwine"
 
 export class RpcError extends Error {
   constructor(method, status, message) {
@@ -34,10 +34,10 @@ export class RpcError extends Error {
   }
 }
 
-/** A client bound to one running Frizz server, optionally its project id/slug. Results are UNWRAPPED. */
+/** A client bound to one running Ntwine server, optionally its project id/slug. Results are UNWRAPPED. */
 export function createRpcClient(baseUrl, project) {
   const origin = new URL(baseUrl).origin
-  const prefix = project ? `${FRIZZ_ROUTE_PREFIX}/${encodeURIComponent(project)}` : FRIZZ_ROUTE_PREFIX
+  const prefix = project ? `${NTWINE_ROUTE_PREFIX}/${encodeURIComponent(project)}` : NTWINE_ROUTE_PREFIX
 
   const send = async (method, init, url) => {
     const res = await fetch(url, { ...init, headers: { ...(init.headers ?? {}), origin } })
@@ -62,7 +62,7 @@ export function createRpcClient(baseUrl, project) {
 
   return {
     origin,
-    /** GET /_frizz/rpc/<method>?input=… — for router `query` procedures. */
+    /** GET /_ntwine/rpc/<method>?input=… — for router `query` procedures. */
     query,
     /**
      * The address of a thread's DRAWER on the one page — `/all/<project slug>/thread/<slug>` — for the
@@ -75,7 +75,7 @@ export function createRpcClient(baseUrl, project) {
       if (!board?.projectSlug) throw new RpcError("board", 200, "the board names no projectSlug, so no drawer address can be built")
       return `${origin}/all/${encodeURIComponent(board.projectSlug)}/thread/${encodeURIComponent(slug)}`
     },
-    /** POST /_frizz/rpc/<method> — for router `mutation` procedures. */
+    /** POST /_ntwine/rpc/<method> — for router `mutation` procedures. */
     mutate(method, input) {
       return send(
         method,
@@ -83,7 +83,7 @@ export function createRpcClient(baseUrl, project) {
         new URL(`${prefix}/rpc/${method}`, baseUrl),
       )
     },
-    /** Resolves once /_frizz/health answers with the health JSON, or gives up after `timeoutMs`. */
+    /** Resolves once /_ntwine/health answers with the health JSON, or gives up after `timeoutMs`. */
     async waitForHealth(timeoutMs = 30_000) {
       const deadline = Date.now() + timeoutMs
       for (;;) {

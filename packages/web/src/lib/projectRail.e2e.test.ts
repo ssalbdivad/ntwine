@@ -1,13 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// Opt-in like the other *.e2e.test.ts here. Needs a REAL Frizz serving at least two projects — the bug
+// Opt-in like the other *.e2e.test.ts here. Needs a REAL Ntwine serving at least two projects — the bug
 // is in the seam between a client-side project switch and the per-project query cache — which
 // `scripts/adhoc-stack.mjs` builds in one command:
 //   nub scripts/adhoc-stack.mjs --port=45782 --project=/abs/a --also-project=/abs/b > /tmp/stack.log 2>&1 &
-//   FRIZZ_PROJECT_RAIL_E2E_URL=http://127.0.0.1:45782 nub --test --test-force-exit \
+//   NTWINE_PROJECT_RAIL_E2E_URL=http://127.0.0.1:45782 nub --test --test-force-exit \
 //     packages/web/src/lib/projectRail.e2e.test.ts
-const baseUrl = process.env.FRIZZ_PROJECT_RAIL_E2E_URL
+const baseUrl = process.env.NTWINE_PROJECT_RAIL_E2E_URL
 
 // THE RAIL FOLLOWS THE SETTING WITHOUT A RELOAD, after a client-side project switch. `["settingsGet"]`
 // hashes under the page's project at render time (lib/queryKeyScope.ts), and the layout that hosts the
@@ -30,7 +30,7 @@ test("flipping 'Project sidebar' after switching the page to another project sho
 }, async () => {
   // Start from HIDDEN, whatever the sandbox was left at. `projectRail` is a machine setting, so the
   // unprefixed (launching-project) write is the one every project reads.
-  const rpc = `${baseUrl}/_frizz/rpc`
+  const rpc = `${baseUrl}/_ntwine/rpc`
   const headers = { origin: baseUrl!, "content-type": "application/json" }
   const current = (await (await fetch(`${rpc}/settingsGet`, { headers })).json()) as { result: Record<string, unknown> }
   const reset = await fetch(`${rpc}/settingsSet`, { method: "POST", headers, body: JSON.stringify({ ...current.result, projectRail: false }) })
@@ -40,7 +40,7 @@ test("flipping 'Project sidebar' after switching the page to another project sho
   const listed = (await (await fetch(`${rpc}/projectsList`, { headers })).json()) as { result: Array<{ slug: string; home?: boolean; stale?: boolean }> }
   const slugs = listed.result.filter((p) => !p.home && !p.stale).map((p) => p.slug)
   assert.ok(slugs.length >= 2, `needs a stack serving ≥2 projects, saw: ${slugs.join(", ") || "none"}`)
-  for (const slug of slugs) await fetch(`${baseUrl}/_frizz/${slug}/rpc/board`, { headers })
+  for (const slug of slugs) await fetch(`${baseUrl}/_ntwine/${slug}/rpc/board`, { headers })
 
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
   const browser = await launchHeadless()
@@ -115,7 +115,7 @@ test("reloading with the rail on renders it before settingsGet answers, from the
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
-  const rpc = `${baseUrl}/_frizz/rpc`
+  const rpc = `${baseUrl}/_ntwine/rpc`
   const headers = { origin: baseUrl!, "content-type": "application/json" }
   const current = (await (await fetch(`${rpc}/settingsGet`, { headers })).json()) as { result: Record<string, unknown> }
   const set = async (projectRail: boolean) => {
@@ -137,7 +137,7 @@ test("reloading with the rail on renders it before settingsGet answers, from the
     // the other view the rail shows on.
     await page.goto(`${baseUrl}/all`, { waitUntil: "networkidle2" })
     assert.equal(await rail(), true, "the rail shows once settings have loaded")
-    assert.equal(await page.evaluate(() => localStorage.getItem("frizz-project-rail")), "shown", "the mirror recorded the answer")
+    assert.equal(await page.evaluate(() => localStorage.getItem("ntwine-project-rail")), "shown", "the mirror recorded the answer")
 
     // From here every settingsGet is HELD: the page renders, mounts, and never hears from the server.
     let held: Array<{ continue: () => Promise<void> }> = []
@@ -161,7 +161,7 @@ test("reloading with the rail on renders it before settingsGet answers, from the
     // The held requests are NOT released first: the answer would land in the old document and the
     // hook would write the mirror straight back, after this has cleared it. The reload cancels them.
     held = []
-    await page.evaluate(() => localStorage.removeItem("frizz-project-rail"))
+    await page.evaluate(() => localStorage.removeItem("ntwine-project-rail"))
     await page.reload({ waitUntil: "domcontentloaded" })
     await mounted()
     await new Promise((r) => setTimeout(r, 500))

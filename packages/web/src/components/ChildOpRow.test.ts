@@ -81,10 +81,10 @@ test("a child with a drill-in is a real button carrying the open title and label
 })
 
 test("the rail keeps its checkbox spinner, its indent and its tooltip override", () => {
-  const running = render({ density: "rail", onOpen: () => {}, parentSlug: "parent-thread", title: "[frizz:opus-high] Audit the drawer ops strip" })
+  const running = render({ density: "rail", onOpen: () => {}, parentSlug: "parent-thread", title: "[ntwine:opus-high] Audit the drawer ops strip" })
   assert.match(running, /<svg /, "a running rail row uses the BoxSpinner, never the pulsing dot")
   assert.match(running, /pl-\[26px\]/)
-  assert.match(running, /title="\[frizz:opus-high\] Audit the drawer ops strip"/)
+  assert.match(running, /title="\[ntwine:opus-high\] Audit the drawer ops strip"/)
   assert.match(running, /data-subagent-parent="parent-thread"/)
   // The rail is not an operations surface: no kind tag, no drill-in arrow.
   assert.doesNotMatch(running, /petite-caps/)
@@ -93,7 +93,7 @@ test("the rail keeps its checkbox spinner, its indent and its tooltip override",
 test("the card keeps the pulsing queue indicator and carries the kind tag the sheet does", () => {
   const html = render({ density: "card", onOpen: () => {}, parentSlug: "parent-thread", startedAt: TWELVE_MIN_AGO })
   assert.match(html, /data-running-indicator="queue-subagent"/)
-  assert.match(html, /frizz-live-dot--agent/)
+  assert.match(html, /ntwine-live-dot--agent/)
   assert.match(html, /data-subagent-parent="parent-thread"/)
   // The shell, watcher and File/Link rows beneath these lines on a queue card are tagged, and so is
   // this same row in the drawer (maintainer 2026-10-03: "sometimes that little small caps AGENT label
@@ -182,10 +182,10 @@ test("a stale SHELL goes flat on every density, and its words say the process ex
     const html = render({ density, kind: "SHELL", state: "stale" })
     assert.ok(html.includes(`class="${CHILD_STALE_DOT_CLASS}"`), `${density}: the flat stale dot`)
     assert.ok(html.includes(`title="${CHILD_STALE_SHELL_TITLE}"`), `${density}: the shell's own words`)
-    assert.doesNotMatch(html, /frizz-live-dot|data-running-indicator/, `${density}: nothing that reads as live`)
+    assert.doesNotMatch(html, /ntwine-live-dot|data-running-indicator/, `${density}: nothing that reads as live`)
     assert.doesNotMatch(html, new RegExp(CHILD_STALE_TITLE), `${density}: not the agent's "no recent output"`)
   }
-  assert.match(render({ density: "sheet", kind: "SHELL", state: "running" }), /frizz-live-dot--shell/)
+  assert.match(render({ density: "sheet", kind: "SHELL", state: "running" }), /ntwine-live-dot--shell/)
 })
 
 test("the dismiss × exists only when onDismiss is supplied, and sits directly after the title", () => {

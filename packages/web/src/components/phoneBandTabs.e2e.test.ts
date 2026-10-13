@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// FRIZZ_PHONE_BAND_TABS_E2E_URL=<vite origin> — `nub run test:e2e` sets it.
-const baseUrl = process.env.FRIZZ_PHONE_BAND_TABS_E2E_URL
+// NTWINE_PHONE_BAND_TABS_E2E_URL=<vite origin> — `nub run test:e2e` sets it.
+const baseUrl = process.env.NTWINE_PHONE_BAND_TABS_E2E_URL
 
 // The phone page's band tabs (PhonePage.tsx BandTabs). With a question waiting, 15 queued and a schedule,
 // the Queue tab broke "Queue 1 · 15" across two lines and the strip ran 4px off a 390px screen (QA

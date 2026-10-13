@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { ThreadView } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
@@ -44,7 +44,7 @@ document.documentElement.dataset.font = PARAMS.get("font") === "mono" ? "mono" :
 
 const thread = {
   id: SLUG,
-  title: "npx frizz tmux socket ownership failure",
+  title: "npx ntwine tmux socket ownership failure",
   status: SETTLED ? "idle" : "running",
   statusText: SETTLED ? "Idle" : "Working",
   mechanism: null,
@@ -72,7 +72,7 @@ const thread = {
   spawnedAt: AGO(400),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/Users/colinmcd94/Documents/projects/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/Users/colinmcd94/Documents/projects/ntwine", threads: [thread] } as BoardSnapshot
 
 const bash = (desc: string, command: string, status?: string) => ({ name: "Bash", detail: command, command, desc, status })
 
@@ -80,7 +80,7 @@ const messages = [
   {
     sourceId: "m0",
     role: "user",
-    text: "A user hit this on `npx frizz`: a tmux socket ownership failure — the socket exists but is owned by another uid, or a canonical-root collision.",
+    text: "A user hit this on `npx ntwine`: a tmux socket ownership failure — the socket exists but is owned by another uid, or a canonical-root collision.",
     tools: [],
     parts: [],
     at: AGO(400),
@@ -88,10 +88,10 @@ const messages = [
   {
     sourceId: "m1",
     role: "assistant",
-    text: "I'll start by understanding this error — a user hit a tmux socket ownership failure on `npx frizz`.",
+    text: "I'll start by understanding this error — a user hit a tmux socket ownership failure on `npx ntwine`.",
     tools: [],
     parts: [
-      { kind: "text", text: "I'll start by understanding this error — a user hit a tmux socket ownership failure on `npx frizz`." },
+      { kind: "text", text: "I'll start by understanding this error — a user hit a tmux socket ownership failure on `npx ntwine`." },
       {
         kind: "tools",
         tools: [
@@ -103,7 +103,7 @@ const messages = [
     at: AGO(390),
   },
   { sourceId: "m2", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [bash("Searching for the ownership error string", "grep -rn 'is owned by uid' packages/server/src")] }], at: AGO(380) },
-  { sourceId: "m3", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [{ name: "Read", detail: "/Users/colinmcd94/Documents/projects/frizz/packages/server/src/tmux.ts" }] }], at: AGO(360) },
+  { sourceId: "m3", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [{ name: "Read", detail: "/Users/colinmcd94/Documents/projects/ntwine/packages/server/src/tmux.ts" }] }], at: AGO(360) },
   {
     sourceId: "m5",
     role: "assistant",
@@ -156,7 +156,7 @@ const messages = [
       {
         kind: "tools",
         tools: [
-          bash("Locating the CLI entry point", "ls src/ 2>/dev/null | head -40; grep -rn 'frizz.js' package.json", SETTLED ? "completed" : "pending"),
+          bash("Locating the CLI entry point", "ls src/ 2>/dev/null | head -40; grep -rn 'ntwine.js' package.json", SETTLED ? "completed" : "pending"),
           bash("Finding callers of the socket resolver", "grep -rn 'resolveProjectTmuxSocket' --include='*.ts' packages/ | head -30", SETTLED ? "completed" : "pending"),
         ],
       },
@@ -179,7 +179,7 @@ const messages = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : ((input as Request).url ?? input.toString()), location.origin)
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(
       JSON.stringify({ result: { messages, transcriptKey: `${SLUG}-key`, hasEarlier: false, historyLoaded: true } }),
       { headers: { "content-type": "application/json" } },
@@ -187,14 +187,14 @@ window.fetch = async (input, init) => {
   }
   // The transcript reads its settled registered questions; `{}` would leave that query's data undefined,
   // which React Query reports to the console and the no-errors assertion trips on.
-  if (url.pathname === "/_frizz/rpc/threadSettledQuestions") {
+  if (url.pathname === "/_ntwine/rpc/threadSettledQuestions") {
     return new Response(JSON.stringify({ result: { questions: [] } }), { headers: { "content-type": "application/json" } })
   }
   // Lists too: the spinoff dialog iterates both.
-  if (url.pathname === "/_frizz/rpc/projectsQueues" || url.pathname === "/_frizz/rpc/projectsList") {
+  if (url.pathname === "/_ntwine/rpc/projectsQueues" || url.pathname === "/_ntwine/rpc/projectsList") {
     return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

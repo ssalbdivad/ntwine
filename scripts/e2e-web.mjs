@@ -3,7 +3,7 @@
 // `*.e2e.test.ts` at it, runs them ONE AT A TIME, and tears the server back down.
 //
 // It exists because the suite had rotted in place with nothing on screen to say so. Each of these
-// files gates itself on its OWN env var (`skip: !process.env.FRIZZ_<SOMETHING>_E2E_URL`), and NOTHING
+// files gates itself on its OWN env var (`skip: !process.env.NTWINE_<SOMETHING>_E2E_URL`), and NOTHING
 // in the repo has ever set one — not `run-tests.mjs`, not CI. The files match the `packages/web/src/**
 // /*.test.ts` glob, so they were IN the default run the whole time, reporting `skipped` and counting
 // as green. Twenty-eight browser tests can go stale for months that way, and two of them had
@@ -26,7 +26,7 @@
 //   nub run test:e2e -- --url=http://…   against a vite you already have running
 //   nub run test:e2e -- <file> <file>    just these, still serial, still against a fresh vite
 //
-// NOT EVERY e2e FILE IS HERE. `lib/projectSwitch.e2e.test.ts` needs a real multi-project Frizz rather
+// NOT EVERY e2e FILE IS HERE. `lib/projectSwitch.e2e.test.ts` needs a real multi-project Ntwine rather
 // than a plain vite over the fixtures — see its own header for the `adhoc-stack.mjs` invocation. It is
 // excluded by name below rather than silently missing, so the exclusion is a decision you can find.
 import { spawn } from "node:child_process";
@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(here);
 
-// NOT EVERY e2e FILE BELONGS HERE. Several drive the REAL APP at `/` — a running Frizz with a
+// NOT EVERY e2e FILE BELONGS HERE. Several drive the REAL APP at `/` — a running Ntwine with a
 // board, a project and a seeded thread behind it — rather than a fixture page, and a plain vite serves
 // them an app with no server to talk to. Each documents its own `adhoc-stack.mjs` invocation in its
 // header; two also want a thread slug this script has no way to invent.
@@ -61,7 +61,7 @@ const NEEDS_REAL_STACK = [
   // Steps the real picker through ≥3 projects with icons, which only an `adhoc-stack.mjs` serves.
   "packages/web/src/components/projectPickerIcon.e2e.test.ts",
   // Boots, seeds and tears down its OWN three stacks (17 projects at the heaviest), so it needs nothing
-  // from this script and is too slow for it: `FRIZZ_CAPACITY_E2E=1 nub run test <file>`, see its header.
+  // from this script and is too slow for it: `NTWINE_CAPACITY_E2E=1 nub run test <file>`, see its header.
   "packages/web/src/capacityParity.e2e.test.ts",
   "packages/web/src/components/mobileThreadBack.e2e.test.ts",
   "packages/web/src/components/mobileUpdate.e2e.test.ts",
@@ -74,7 +74,7 @@ const files = args.filter((a) => !a.startsWith("--"));
 // Every e2e file, and the env var each one gates itself on. Read out of the SOURCE rather than kept in
 // a list here: a list would drift the moment someone renames a variable, and the failure mode of that
 // drift is a file that silently skips — the exact thing this script exists to end.
-const GATE = /process\.env\.(FRIZZ_[A-Z0-9_]*_E2E_URL)/;
+const GATE = /process\.env\.(NTWINE_[A-Z0-9_]*_E2E_URL)/;
 // The structural tell: a fixture-driven file names at least one `*-fixture.html`. One that names none
 // is navigating to the app itself, which is what a plain vite cannot serve meaningfully.
 const DRIVES_REAL_APP = (source) => !/-fixture\.html/.test(source);
@@ -105,7 +105,7 @@ function discover() {
   if (ungated.length > 0) {
     // A file with no recognizable gate would run with no server behind it and fail confusingly, or —
     // worse — pass because it asserts nothing. Name it and stop.
-    console.error("✖ these e2e files declare no FRIZZ_*_E2E_URL gate, so this script cannot point them anywhere:");
+    console.error("✖ these e2e files declare no NTWINE_*_E2E_URL gate, so this script cannot point them anywhere:");
     for (const f of ungated) console.error(`  ${f.file}`);
     process.exit(1);
   }
@@ -179,7 +179,7 @@ if (!url) {
     // No watcher, no HMR (see vite.config.ts): a concurrent agent editing the tree mid-run must not
     // reload a fixture page in the middle of a test.
     // A scratch dep cache too, so this Vite never rewrites the one a running dev server serves from.
-    env: { ...process.env, FRIZZ_E2E_STATIC_VITE: "1", FRIZZ_VITE_CACHE_DIR: process.env.FRIZZ_VITE_CACHE_DIR || "node_modules/.vite-scratch" },
+    env: { ...process.env, NTWINE_E2E_STATIC_VITE: "1", NTWINE_VITE_CACHE_DIR: process.env.NTWINE_VITE_CACHE_DIR || "node_modules/.vite-scratch" },
   });
   const viteLog = [];
   vite.stdout.on("data", (d) => viteLog.push(String(d)));

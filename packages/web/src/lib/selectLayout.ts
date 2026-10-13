@@ -14,7 +14,7 @@ interface SelectDisplayGroup {
   options: readonly SelectDisplayOption[]
 }
 
-// Radix reserves the empty string for its placeholder state, while Frizz also has real empty-value
+// Radix reserves the empty string for its placeholder state, while Ntwine also has real empty-value
 // rows (for example Settings' "Default"). The Select wrapper maps that value to a sentinel, which
 // means Radix cannot decide whether to show a placeholder on its own. Resolve the visible text here:
 // an exact option label wins, an unavailable-but-saved value stays visible verbatim, and only a truly

@@ -166,7 +166,7 @@ test("consumedBytes is monotonic and reaches the full stream length after finali
 
 // ── cache behavior via readTranscript (real ~/.claude/projects/<slug>/<id>.jsonl layout) ─────────────
 function cacheHarness() {
-  const slug = `-tmp-frizz-incr-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+  const slug = `-tmp-ntwine-incr-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
   const logDir = join(homedir(), ".claude", "projects", slug)
   mkdirSync(logDir, { recursive: true })
   const sessionId = "sess"
@@ -244,7 +244,7 @@ test("readTranscript: a long-stale enqueue is never rendered as still-waiting, w
 
 test("readTranscript: a missing file returns [] (agent still booting)", () => {
   __clearTranscriptCacheForTests()
-  const project = { cwdSlug: `-tmp-frizz-incr-missing-${process.pid}` } as unknown as Project
+  const project = { cwdSlug: `-tmp-ntwine-incr-missing-${process.pid}` } as unknown as Project
   assert.deepEqual(readTranscript(project, "nope"), [])
 })
 

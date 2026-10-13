@@ -2,7 +2,7 @@
 // one off as an answerable card WITHIN the message's narrative flow (prose stays in place). Pure
 // string logic, no DOM — unit-testable.
 
-import { insideFence } from "@frizz/shared"
+import { insideFence } from "@ntwine/shared"
 
 // The two answer MODES a ```question block can carry (the info-string picks one):
 //   question — single-select (radio feel) OR freetext; the default.
@@ -209,7 +209,7 @@ export function hasQuestionBlock(text: string): boolean {
 export interface ParsedQuestion {
   kind: QuestionKind
   danger: boolean
-  // A SECRET request (registered via `frizzctl secret`): the free-text box is masked, and what is
+  // A SECRET request (registered via `ntwinectl secret`): the free-text box is masked, and what is
   // typed in it never enters the draft store. Only a registered question carries it.
   secret?: boolean
   contextMd: string
@@ -247,7 +247,7 @@ export interface ParsedQuestion {
 }
 
 // An option line: an optional markdown list marker (workers write options as `- A. …`), then a single
-// uppercase letter or a number, then `.`/`)`, then a space. Matches the frizz worker convention.
+// uppercase letter or a number, then `.`/`)`, then a space. Matches the ntwine worker convention.
 const OPTION_RE = /^\s*(?:[-*+]\s+)?([A-Z]|\d+)[.)]\s+\S/
 const REC_RE = /^\s*recommendation\b/i
 
@@ -470,7 +470,7 @@ export function recommendedIndex(recommendation: string | undefined, options: st
   return idx === -1 ? null : idx
 }
 
-// THE identifier every frizz-built option carries: `1.`, `2.`, `3.` (letters until 2026-10-07). Numbers
+// THE identifier every ntwine-built option carries: `1.`, `2.`, `3.` (letters until 2026-10-07). Numbers
 // because a number is a KEY: the card binds 1–9 to its options, and the identifier on screen is the key
 // that picks it (requested 2026-10-07, so an option can be picked straight from the keyboard). A
 // worker-written fence keeps whatever it wrote — its text is the worker's — and the card shows its

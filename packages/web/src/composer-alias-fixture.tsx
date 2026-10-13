@@ -2,7 +2,7 @@ import { useState } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router"
-import type { BoardSnapshot, ThreadHandoff, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadHandoff, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { AllQueuesCard } from "./components/AllQueuesCard.tsx"
 import { QueueOpsSummary } from "./components/QueueOpsSummary.tsx"
 import { ThreadActionBar } from "./components/ThreadActionBar.tsx"
@@ -16,7 +16,7 @@ import "./styles.css"
 // CARD (components/AllQueuesCard.tsx ReplyBox). Two things are proven here, both of which have differed
 // between the surfaces:
 //
-//   D7 — `/login` and `/logout` are FRIZZ-OWNED aliases. They must open the sign-in / sign-out modal and
+//   D7 — `/login` and `/logout` are NTWINE-OWNED aliases. They must open the sign-in / sign-out modal and
 //        must NEVER be delivered to the worker's stdin. Before the box was shared this only worked in
 //        the drawer; the board's queue card injected the literal "/login" string into the running agent.
 //        It happened AGAIN with the board's deletion (2026-09-28): the page's card had its own send path
@@ -24,7 +24,7 @@ import "./styles.css"
 //   D8 — an ordinary follow-up still reaches the worker.
 //
 // The REAL ThreadActionBar / ThreadComposerBox and AllQueuesCard render; only the network is stubbed.
-// Every followUp the app attempts — unprefixed from the drawer, `/_frizz/<project id>/rpc/followUp` from
+// Every followUp the app attempts — unprefixed from the drawer, `/_ntwine/<project id>/rpc/followUp` from
 // the card, which addresses its own project — is recorded on window.__worker.sent. That array IS the
 // worker's stdin as far as this fixture is concerned, so "the alias never reached the worker" is a
 // direct assertion, not an inference.
@@ -80,7 +80,7 @@ const thread = {
   spawnedAt: new Date().toISOString(),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const ASK = [
   "I can rotate the key in place or stage a second key first.",
@@ -108,12 +108,12 @@ const worker: WorkerTelemetry = { sent: [], rpc: [] }
 // The card as the page would build it: this thread, Ready in its project's queue.
 const project: QueuesProject = {
   id: "fixture",
-  slug: "frizz",
-  name: "frizz",
+  slug: "ntwine",
+  name: "ntwine",
   card: undefined,
   open: true,
   stale: false,
-  projectDir: "/fixture/frizz",
+  projectDir: "/fixture/ntwine",
   homeDir: "/fixture",
   githubRepo: undefined,
   queued: [thread],
@@ -129,9 +129,9 @@ const handoff: ThreadHandoff = { asked: messages[0]!.text, askedAt: new Date(Dat
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  // `/_frizz/rpc/<name>` from the drawer (the page's project), `/_frizz/<project id>/rpc/<name>` from the
+  // `/_ntwine/rpc/<name>` from the drawer (the page's project), `/_ntwine/<project id>/rpc/<name>` from the
   // card: routed on the procedure's name alone.
-  const rpc = /^\/_frizz\/(?:[^/]+\/)?rpc\/([^/]+)$/.exec(url.pathname)?.[1]
+  const rpc = /^\/_ntwine\/(?:[^/]+\/)?rpc\/([^/]+)$/.exec(url.pathname)?.[1]
   if (!rpc) return originalFetch(input, init)
   worker.rpc.push(rpc)
   if (rpc === "threadHandoff") {
@@ -154,7 +154,7 @@ window.fetch = async (input, init) => {
   }
   // The queue card reads its settled registered questions; an empty `{}` leaves the query's data
   // undefined, which React Query reports to the console and the no-errors assertion then trips on.
-  if (url.pathname === "/_frizz/rpc/threadSettledQuestions") {
+  if (url.pathname === "/_ntwine/rpc/threadSettledQuestions") {
     return new Response(JSON.stringify({ result: { questions: [] } }), { headers: { "content-type": "application/json" } })
   }
   // The `@` typeahead reads every project's queue (lib/threadMentions), and iterates the result: `{}` threw

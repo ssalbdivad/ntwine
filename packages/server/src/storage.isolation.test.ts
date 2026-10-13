@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
-import { threadIdentityName } from "@frizz/shared"
+import { threadIdentityName } from "@ntwine/shared"
 import Database from "./sqlite.ts"
 import { STORAGE_TABLES, createStorage, type SessionRow, type Storage } from "./storage.ts"
 import type { ThreadScheduleRow } from "./schedule-store.ts"
@@ -100,7 +100,7 @@ function snapshot(db: Database, projectId: string): Record<string, unknown[]> {
 }
 
 function twoProjects(): { db: Database; a: Storage; b: Storage } {
-  const db = new Database(join(mkdtempSync(join(tmpdir(), "frizz-isolation-")), "ui.db"))
+  const db = new Database(join(mkdtempSync(join(tmpdir(), "ntwine-isolation-")), "ui.db"))
   const a = createStorage(db, "project-a")
   const b = createStorage(db, "project-b")
   seed(a)
@@ -259,7 +259,7 @@ test("another project's storage on the shared connection compiles no statements 
   // Each project used to compile its own copy of every statement — ~190 of them, ~1.4 MB of SQLite
   // malloc per project the server serves. They share one copy per SQL text now (sqlite.ts #compiled),
   // and the isolation above is what proves sharing the text did not share the rows.
-  const db = new Database(join(mkdtempSync(join(tmpdir(), "frizz-storage-share-")), "ui.db"))
+  const db = new Database(join(mkdtempSync(join(tmpdir(), "ntwine-storage-share-")), "ui.db"))
   try {
     const first = createStorage(db, "project-0")
     first.allSessions()

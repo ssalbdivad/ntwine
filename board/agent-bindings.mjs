@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * frizz — the AUTOMATIC, ephemeral thread↔agent binding.
+ * ntwine — the AUTOMATIC, ephemeral thread↔agent binding.
  *
  * REPLACES the old hand-maintained `agents: [{id, label}]` thread frontmatter (a
  * drift-prone ledger the orchestrator had to write by hand on every dispatch). The
@@ -10,8 +10,8 @@
  * the moment a background sub-agent is launched, the hook records `agentId → thread`
  * here. The orchestrator records NOTHING by hand; there is no frontmatter to drift.
  *
- * EPHEMERAL ROUTING STATE, NOT DUPLICATED TRUTH. This file (`.frizz/.agent-bindings.jsonl`)
- * is transient routing info under the already-gitignored `.frizz/` — the same class as
+ * EPHEMERAL ROUTING STATE, NOT DUPLICATED TRUTH. This file (`.ntwine/.agent-bindings.jsonl`)
+ * is transient routing info under the already-gitignored `.ntwine/` — the same class as
  * `.dispatch-ledger.jsonl` / `.rested-agents.jsonl`. It maps an instance id to the thread
  * it serves so consumers can RECONNECT a return/rest to its thread; it is never the source
  * of a thread's truth (that's the thread's own `status:` + body). Append-only; a binding is
@@ -27,20 +27,20 @@ import { join } from 'node:path';
 
 /** @param {string} projectDir */
 export function bindingsPath(projectDir) {
-  return join(projectDir, '.frizz', '.agent-bindings.jsonl');
+  return join(projectDir, '.ntwine', '.agent-bindings.jsonl');
 }
 
 /**
  * Extract the `THREAD: <slug>` tag from a dispatch prompt — the SAME shape the dispatch
- * hook enforces (a `.frizz/<slug>.md`-backed tag at the top of the prompt). Returns the
- * normalized slug (no `.frizz/` prefix, no `.md` suffix) or null for an untagged one-shot.
+ * hook enforces (a `.ntwine/<slug>.md`-backed tag at the top of the prompt). Returns the
+ * normalized slug (no `.ntwine/` prefix, no `.md` suffix) or null for an untagged one-shot.
  * @param {string} prompt
  * @returns {string|null}
  */
 export function threadFromPrompt(prompt) {
   if (typeof prompt !== 'string') return null;
   const m = prompt.match(/^THREAD:\s*([\w./-]+)/m);
-  return m ? m[1].replace(/^\.frizz\//, '').replace(/\.md$/, '') : null;
+  return m ? m[1].replace(/^\.ntwine\//, '').replace(/\.md$/, '') : null;
 }
 
 /**
@@ -167,7 +167,7 @@ export function newestBindingByThread(projectDir) {
 }
 
 /**
- * Threads with a PR landing in flight via the merge cascade (`.frizz/merge-queue.jsonl`).
+ * Threads with a PR landing in flight via the merge cascade (`.ntwine/merge-queue.jsonl`).
  *
  * Such a thread is LEGITIMATELY `active` while its PR merges — the agent that produced the
  * work has finished and its output is reconciled; the thread stays active purely for the
@@ -181,7 +181,7 @@ export function downstreamThreads(projectDir) {
   /** @type {Set<string>} */
   const out = new Set();
   try {
-    const raw = readFileSync(join(projectDir, '.frizz', 'merge-queue.jsonl'), 'utf8');
+    const raw = readFileSync(join(projectDir, '.ntwine', 'merge-queue.jsonl'), 'utf8');
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
       try {
@@ -198,7 +198,7 @@ export function downstreamThreads(projectDir) {
 }
 
 /**
- * agent_ids that have recorded at least one SubagentStop (rest) in `.frizz/.rested-agents.jsonl`
+ * agent_ids that have recorded at least one SubagentStop (rest) in `.ntwine/.rested-agents.jsonl`
  * — i.e. reached a clean stopping point at least once (ended a turn).
  *
  * This is the signal that separates a TERMINATED/parked agent from one still grinding inside a
@@ -213,7 +213,7 @@ export function restedAgentIds(projectDir) {
   /** @type {Set<string>} */
   const out = new Set();
   try {
-    const raw = readFileSync(join(projectDir, '.frizz', '.rested-agents.jsonl'), 'utf8');
+    const raw = readFileSync(join(projectDir, '.ntwine', '.rested-agents.jsonl'), 'utf8');
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
       try {
@@ -241,7 +241,7 @@ export function restedAgentIds(projectDir) {
  *   - NESTED / worker-spawned sub-agents (e.g. a landing agent's own fresh-context self-review
  *     sub-agents): no THREAD tag → no binding → unbound. Their results fold into the parent's
  *     report; they are the worker's internal business. This is the class that drove the nag.
- *   - UNTAGGED orchestrator one-shots: also unbound (no thread), and they have no `.frizz/<slug>.md`
+ *   - UNTAGGED orchestrator one-shots: also unbound (no thread), and they have no `.ntwine/<slug>.md`
  *     to fold into — the result returns as the tool result, with nothing to reconcile.
  *   - ANON rests (no `agent_id`): inherently unbindable, so never the orchestrator's to reconcile.
  * The bound, THREAD-owned agent that genuinely rested and hasn't been folded STILL counts — the
@@ -264,7 +264,7 @@ export function newBoundRestsSince(projectDir, sinceMs, surfacedAgents = []) {
   /** @type {Set<string>} */
   const threads = new Set();
   try {
-    const raw = readFileSync(join(projectDir, '.frizz', '.rested-agents.jsonl'), 'utf8');
+    const raw = readFileSync(join(projectDir, '.ntwine', '.rested-agents.jsonl'), 'utf8');
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
       try {

@@ -1,4 +1,4 @@
-// Drive the profile-grid ceiling fixture in a real browser and MEASURE the matrix, with no frizz server.
+// Drive the profile-grid ceiling fixture in a real browser and MEASURE the matrix, with no ntwine server.
 //
 // The bug: codex's top rung is "ultra" and Claude Code's is "ultracode", so the union of effort names
 // gave each its own column and every Claude row ghosted a hole where "ultra" sits — ULTRACODE rendered a
@@ -16,7 +16,7 @@ import { launchHeadless } from "./lib/headless-browser.mjs"
 const flags = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")))
 const port = Number(flags.port ?? 5203)
 const font = flags.font === "mono" ? "mono" : "sans"
-const shotDir = flags.shots ?? join(tmpdir(), "frizz-profile-grid-ceiling")
+const shotDir = flags.shots ?? join(tmpdir(), "ntwine-profile-grid-ceiling")
 mkdirSync(shotDir, { recursive: true })
 
 let failures = 0

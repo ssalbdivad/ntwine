@@ -1,4 +1,4 @@
-// USER SLASH COMMANDS on disk — see UserCommand in @frizz/shared for the format and the three places
+// USER SLASH COMMANDS on disk — see UserCommand in @ntwine/shared for the format and the three places
 // they are read from. Read on every listing rather than watched: a folder of small markdown files is
 // cheap to scan, the composer asks once per page, and a command written by hand (or by another agent
 // tool) then shows up without a restart.
@@ -6,19 +6,19 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { UserCommandName, type SaveUserCommandInput, type UserCommand, type UserCommandSource } from "@frizz/shared"
-import { frizzRoots } from "./frizz-paths.ts"
+import { UserCommandName, type SaveUserCommandInput, type UserCommand, type UserCommandSource } from "@ntwine/shared"
+import { ntwineRoots } from "./ntwine-paths.ts"
 
-/** Where Frizz's own commands live: beside its other data, wherever this machine resolved that to. */
-export function frizzCommandsDir(): string {
-  return join(frizzRoots().data, "commands")
+/** Where Ntwine's own commands live: beside its other data, wherever this machine resolved that to. */
+export function ntwineCommandsDir(): string {
+  return join(ntwineRoots().data, "commands")
 }
 
-/** The three folders, in precedence order: one written in Frizz wins over a project's, which wins over
+/** The three folders, in precedence order: one written in Ntwine wins over a project's, which wins over
  *  the machine-wide one, so the operator's own edit is always what runs. */
 export function userCommandDirs(projectDir: string | undefined, home = homedir()): Array<{ source: UserCommandSource; dir: string }> {
   return [
-    { source: "frizz", dir: frizzCommandsDir() },
+    { source: "ntwine", dir: ntwineCommandsDir() },
     ...(projectDir ? [{ source: "project" as const, dir: join(projectDir, ".agents", "commands") }] : []),
     { source: "global", dir: join(home, ".agents", "commands") },
   ]
@@ -83,10 +83,10 @@ export async function listUserCommands(projectDir: string | undefined, home = ho
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Write a Frizz command, atomically, and drop the file it was renamed from. Only Frizz's own folder is
+/** Write a Ntwine command, atomically, and drop the file it was renamed from. Only Ntwine's own folder is
  *  ever written: a project's or the machine-wide commands are read, never edited from here. */
 export async function saveUserCommand(input: SaveUserCommandInput): Promise<void> {
-  const dir = frizzCommandsDir()
+  const dir = ntwineCommandsDir()
   await mkdir(dir, { recursive: true })
   const path = join(dir, `${input.name}.md`)
   const tmp = `${path}.${process.pid}.tmp`
@@ -96,5 +96,5 @@ export async function saveUserCommand(input: SaveUserCommandInput): Promise<void
 }
 
 export async function deleteUserCommand(name: string): Promise<void> {
-  await rm(join(frizzCommandsDir(), `${name}.md`), { force: true })
+  await rm(join(ntwineCommandsDir(), `${name}.md`), { force: true })
 }

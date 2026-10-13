@@ -7,8 +7,8 @@ import test from "node:test"
 // did, opening the "End this session?" confirmation over a scrolled queue moved the whole sidebar
 // column `scrollY` pixels above the fold and it read as gone (2026-08-26). Skipped unless a Vite URL
 // serving the fixtures is provided (same pattern as the other *.e2e.test.ts here): start `vite` in
-// packages/web and set FRIZZ_STICKY_SCROLL_LOCK_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_STICKY_SCROLL_LOCK_E2E_URL
+// packages/web and set NTWINE_STICKY_SCROLL_LOCK_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_STICKY_SCROLL_LOCK_E2E_URL
 
 const SCROLL_TO = 600
 

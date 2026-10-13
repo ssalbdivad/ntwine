@@ -184,7 +184,7 @@ async function scenarioSocketLost() {
     await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: box.dir, prompt: "start", permissionMode: "default" })
     const daemon = track(box.dir, sessionId)
     await waitFor(() => box.startups() >= 1, 10_000, "the dispatch's claude")
-    // Detach (a frizz restart), then the socket file disappears under the idle daemon.
+    // Detach (a ntwine restart), then the socket file disappears under the idle daemon.
     bridge.close()
     unlinkSync(claudeBrokerSocketPath(box.dir, sessionId))
     const bridge2 = createClaudeAgentBrokerBridge({ stateDir: box.dir, executablePath: box.exe, env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" } })

@@ -51,11 +51,11 @@ assistant([{ type: "text", text: "Fanning this out: one lane for the pkg-config 
 // an AgentBlock (the card that carries the correlation id and joins the live board row) when the
 // dispatch carries one. Without it the card degrades to a generic tool row with no agentId, and the
 // header's live state can never resolve — which is exactly what a first pass at this fixture proved.
-assistant([{ type: "tool_use", id: "toolu_live", name: "Agent", input: { description: "Audit parser panic/DoS surface", subagent_type: "frizz:opus-high", run_in_background: true, prompt: "Audit the parser for panic and DoS surface. Report every unchecked index and unbounded allocation." } }], at(-870))
+assistant([{ type: "tool_use", id: "toolu_live", name: "Agent", input: { description: "Audit parser panic/DoS surface", subagent_type: "ntwine:opus-high", run_in_background: true, prompt: "Audit the parser for panic and DoS surface. Report every unchecked index and unbounded allocation." } }], at(-870))
 user([{ type: "tool_result", tool_use_id: "toolu_live", content: [{ type: "text", text: `Async agent launched successfully.\nagentId: aLive\noutput_file: ${join(subagents, "agent-aLive.jsonl")}` }] }], at(-869))
 
 // The child at the centre of the bug: dispatched, launched, fanned out, then STOPPED.
-assistant([{ type: "tool_use", id: "toolu_sweep", name: "Agent", input: { description: "Sweep corpus for system-library grants", subagent_type: "frizz:sonnet-high", run_in_background: true, prompt: "Determine which npm packages need read access to SYSTEM library paths outside the project to build, and what exact paths." } }], at(-800))
+assistant([{ type: "tool_use", id: "toolu_sweep", name: "Agent", input: { description: "Sweep corpus for system-library grants", subagent_type: "ntwine:sonnet-high", run_in_background: true, prompt: "Determine which npm packages need read access to SYSTEM library paths outside the project to build, and what exact paths." } }], at(-800))
 user([{ type: "tool_result", tool_use_id: "toolu_sweep", content: [{ type: "text", text: `Async agent launched successfully.\nagentId: aSweep\noutput_file: ${join(subagents, "agent-aSweep.jsonl")}` }] }], at(-799))
 
 // Its terminal notification — verbatim shape, including the note that says outright that `completed`
@@ -95,16 +95,16 @@ const transcript = (agentId, text, ageSec = 0) => {
   if (ageSec) { const t = (Date.now() - ageSec * 1000) / 1000; utimesSync(path, t, t) }
 }
 
-sidecar("aLive", { agentType: "frizz:opus-high", description: "Audit parser panic/DoS surface", toolUseId: "toolu_live", spawnDepth: 1 }, 870)
+sidecar("aLive", { agentType: "ntwine:opus-high", description: "Audit parser panic/DoS surface", toolUseId: "toolu_live", spawnDepth: 1 }, 870)
 transcript("aLive", "still reading the parser")
 
-sidecar("aSweep", { agentType: "frizz:sonnet-high", description: "Sweep corpus for system-library grants", toolUseId: "toolu_sweep", spawnDepth: 1 }, 800)
+sidecar("aSweep", { agentType: "ntwine:sonnet-high", description: "Sweep corpus for system-library grants", toolUseId: "toolu_sweep", spawnDepth: 1 }, 800)
 // The rested child's own transcript stopped when it stopped — 2 minutes ago.
 transcript("aSweep", "I've launched five parallel sweep agents plus a Monitor.", 120)
 
 // Its five shard children, all still appending RIGHT NOW.
 for (const n of [1, 2, 3, 4, 6]) {
-  sidecar(`aShard${n}`, { agentType: "frizz:sonnet-high", description: `System-lib sweep shard ${n}`, toolUseId: `toolu_shard${n}`, parentAgentId: "aSweep", spawnDepth: 2 }, 600 - n * 15)
+  sidecar(`aShard${n}`, { agentType: "ntwine:sonnet-high", description: `System-lib sweep shard ${n}`, toolUseId: `toolu_shard${n}`, parentAgentId: "aSweep", spawnDepth: 2 }, 600 - n * 15)
   transcript(`aShard${n}`, `grepping binding.gyp for pkg-config in shard ${n}`)
 }
 
@@ -114,7 +114,7 @@ const sandbox = resolveSandboxDb(home)
 // such column. `sessionProjectColumns` yields the right prefix pair for whichever this sandbox is.
 const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
 const db = sandbox.db
-execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, state, backend, model, effort, permission_mode, title_auto, unread, exited, archived) VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${at(-900)}', 'Sweep the grants corpus', 'open', 'claude', 'opus', 'high', 'bypassPermissions', 0, 0, 0, 0)`])
+execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, state, backend, model, effort, permission_mode, title_auto, unread, exited, archived) VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${at(-900)}', 'Sweep the grants corpus', 'open', 'claude', 'opus', 'high', 'bypassPermissions', 0, 0, 0, 0)`])
 
 // ── let the tailer fold it, then report what the BOARD says ───────────────────────────────────────
 const api = createRpcClient(`http://127.0.0.1:${port}/`)

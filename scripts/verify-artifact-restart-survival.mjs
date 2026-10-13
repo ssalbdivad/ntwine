@@ -1,4 +1,4 @@
-// The detached daemon exists for exactly ONE reason: an in-flight Codex turn must SURVIVE the frizz
+// The detached daemon exists for exactly ONE reason: an in-flight Codex turn must SURVIVE the ntwine
 // runtime being recycled (Update & Restart). Before it, a restart SIGTERMed the app-server and every
 // running turn died mid-sentence — no task_complete, no turn_aborted, no resume; the thread just went
 // quiet until a human poked it (that is the "agents shutting down and pausing" complaint).
@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { buildFrizzArtifact } from "../src/artifacts.ts"
+import { buildNtwineArtifact } from "../src/artifacts.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
@@ -32,11 +32,11 @@ const check = (ok, label, detail = "") => {
 }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch (e) { return e.code === "EPERM" } }
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-survival-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-survival-")))
 const home = join(root, "home")
 const stateDir = join(root, "state")
 const PROJECT_DIR = join(root, "project")
-for (const d of [join(home, ".frizz"), stateDir, PROJECT_DIR]) mkdirSync(d, { recursive: true })
+for (const d of [join(home, ".ntwine"), stateDir, PROJECT_DIR]) mkdirSync(d, { recursive: true })
 execFileSync("git", ["init", "-q"], { cwd: PROJECT_DIR })
 writeFileSync(join(PROJECT_DIR, "README.md"), "# survival fixture\n")
 
@@ -54,15 +54,15 @@ function bootServer(artifact, target, token, label) {
         ...process.env,
         HOME: home,
         CODEX_HOME: join(homedir(), ".codex"),
-        FRIZZ_DEV_CHILD: "1",
-        FRIZZ_DEV_PORT: String(PORT),
-        FRIZZ_WAKERS_OFF: "1",
-        FRIZZ_ORPHAN_REAPER_OFF: "1",
-        FRIZZ_SANDBOX_TAG: `frizz-survival-${PORT}-${process.pid}`,
-        FRIZZ_STABLE_ARTIFACT: artifact.digest,
-        FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-        FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
-        FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
+        NTWINE_DEV_CHILD: "1",
+        NTWINE_DEV_PORT: String(PORT),
+        NTWINE_WAKERS_OFF: "1",
+        NTWINE_ORPHAN_REAPER_OFF: "1",
+        NTWINE_SANDBOX_TAG: `ntwine-survival-${PORT}-${process.pid}`,
+        NTWINE_STABLE_ARTIFACT: artifact.digest,
+        NTWINE_STABLE_WEB_DIST: artifact.webDir,
+        NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
+        NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
       },
       target,
       token,
@@ -76,12 +76,12 @@ function bootServer(artifact, target, token, label) {
   return { child, out: () => output }
 }
 
-// FRIZZ_CODEX_NATIVE_LISTEN=1 swaps the hand-written daemon for `codex app-server --listen unix://`
+// NTWINE_CODEX_NATIVE_LISTEN=1 swaps the hand-written daemon for `codex app-server --listen unix://`
 // (codex-app-server-native.ts). It reaches the booted runtimes through the `...process.env` spread in
 // bootServer, so running this harness with the flag set exercises that transport instead. The native
 // listener is ONE process rather than a daemon wrapping a child, so its pid stands in for both — every
 // assertion below then reads "the app-server outlived the runtime" exactly as it does for the daemon.
-const NATIVE = process.env.FRIZZ_CODEX_NATIVE_LISTEN === "1" || process.env.FRIZZ_CODEX_NATIVE_LISTEN === "true"
+const NATIVE = process.env.NTWINE_CODEX_NATIVE_LISTEN === "1" || process.env.NTWINE_CODEX_NATIVE_LISTEN === "true"
 const readRecord = () => {
   const dir = join(stateDir, NATIVE ? "codex-app-server-native" : "codex-app-server")
   const files = existsSync(dir) ? readdirSync(dir) : []
@@ -92,7 +92,7 @@ const readRecord = () => {
 
 try {
   log("building a real artifact…")
-  const artifact = buildFrizzArtifact(SOURCE, join(root, "artifacts"))
+  const artifact = buildNtwineArtifact(SOURCE, join(root, "artifacts"))
   log("artifact", artifact.digest)
 
   const target = { projectId: randomUUID(), projectDir: PROJECT_DIR, stateDir }
@@ -114,7 +114,7 @@ try {
 
 
   // A turn long enough to still be running when the runtime dies under it. `sleep` needs a real
-  // sandbox, which a frizz-dispatched codex worker gets (danger-full-access).
+  // sandbox, which a ntwine-dispatched codex worker gets (danger-full-access).
   log("dispatching a codex turn that will still be in flight when we kill the server…")
   const { slug, sessionId } = await api.mutate("dispatch", {
     title: "restart survival",
@@ -137,10 +137,10 @@ try {
   check(!!running, "the turn is in flight before the restart", running ? `runtime=${running.runtime}` : "never went running")
 
   // ---- the actual event: a HARD kill of the runtime, mid-turn -------------------------------------
-  log("SIGKILLing the frizz runtime mid-turn (the harshest form of Update & Restart)…")
+  log("SIGKILLing the ntwine runtime mid-turn (the harshest form of Update & Restart)…")
   process.kill(first.child.pid, "SIGKILL")
   await sleep(2500)
-  check(!alive(first.child.pid), "the frizz runtime is gone")
+  check(!alive(first.child.pid), "the ntwine runtime is gone")
   check(alive(daemonRecord.daemonPid), "the DETACHED daemon outlived it", `daemonPid=${daemonRecord.daemonPid}`)
   check(alive(daemonRecord.childPid), "and so did the codex app-server running the turn", `childPid=${daemonRecord.childPid}`)
 

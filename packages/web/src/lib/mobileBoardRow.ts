@@ -1,4 +1,4 @@
-import { futureSnoozedUntil, type ThreadView } from "@frizz/shared"
+import { futureSnoozedUntil, type ThreadView } from "@ntwine/shared"
 import type { SessionIndicatorKind } from "../groups.ts"
 import { awaitingProse, awaitingWaitClause, hintGloss } from "./awaitingPresentation.ts"
 import { toolActivityLabel } from "./toolActivity.ts"
@@ -145,7 +145,7 @@ export function rowSecondLine(
   // The live line is the call the agent is waiting on, labelled exactly as the chat's working indicator
   // labels it (toolActivityLabel: the Bash call's own description, else "Reading <path>", "Searching for
   // <pattern>", …), paths made project-relative the same way. Between calls there is none, and the line
-  // is the newest thing the agent said. `activity` is the legacy `.frizz` thread file's gerund (frizz.ts);
+  // is the newest thing the agent said. `activity` is the legacy `.ntwine` thread file's gerund (ntwine.ts);
   // no session thread's view carries it.
   if (inMotion) {
     if (t.liveTool) return { text: toolActivityLabel(t.liveTool, projectDir) }

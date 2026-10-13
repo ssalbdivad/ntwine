@@ -9,7 +9,7 @@ test("the interface is sans-serif despite old Mono preferences or unavailable st
   try {
     for (const denied of [false, true]) {
       const document = { documentElement: { dataset: { font: "mono" } }, body: { style: { fontFamily: "" } } }
-      const cache = new Map([["frizz-font", "mono"]])
+      const cache = new Map([["ntwine-font", "mono"]])
       Object.defineProperty(globalThis, "document", { configurable: true, value: document })
       Object.defineProperty(globalThis, "localStorage", {
         configurable: true,
@@ -18,7 +18,7 @@ test("the interface is sans-serif despite old Mono preferences or unavailable st
       initFont()
       assert.equal(document.documentElement.dataset.font, "sans")
       assert.match(document.body.style.fontFamily, /^system-ui,.*sans-serif$/)
-      if (!denied) assert.equal(cache.has("frizz-font"), false)
+      if (!denied) assert.equal(cache.has("ntwine-font"), false)
     }
   } finally {
     for (const [key, descriptor] of [["document", originalDocument], ["localStorage", originalStorage]] as const) {
@@ -32,7 +32,7 @@ test("first paint and code typography do not depend on a font preference", () =>
   const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8")
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8")
   assert.match(html, /<html[^>]*data-font="sans"/)
-  assert.doesNotMatch(html, /frizz-font/)
+  assert.doesNotMatch(html, /ntwine-font/)
   assert.match(css, /body\s*\{[^}]*font-family: var\(--font-sans\)/)
   assert.match(css, /\.font-mono-keep\s*\{\s*font-family: var\(--font-mono\)/)
   assert.doesNotMatch(css, /html\[data-font=/)

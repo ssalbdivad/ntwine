@@ -1,5 +1,5 @@
 // LIVE proof for A+B (not a unit test; excluded from the *.test.ts glob). The counterpart to
-// _live_appserver_restart_repro.mts, which showed a frizz runtime restart silently killing an
+// _live_appserver_restart_repro.mts, which showed a ntwine runtime restart silently killing an
 // in-flight codex turn. Run:
 //   nub packages/server/src/backend/_live_appserver_daemon_survival.mts
 //
@@ -16,7 +16,7 @@ import { CodexAppServerBridge } from "./codex-app-server.ts"
 import { killCodexAppServerDaemon, liveDaemonRecord } from "./codex-app-server-host.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const root = mkdtempSync(join(tmpdir(), "frizz-daemon-survival-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-daemon-survival-"))
 const dbPath = join(root, "ui.db")
 const PROJECT = "survival"
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -66,7 +66,7 @@ const check = (label: string, ok: boolean) => { console.log(`  ${ok ? "PASS" : "
 
 ;(async () => {
   try {
-    // ================= A: the turn survives a frizz runtime restart =================
+    // ================= A: the turn survives a ntwine runtime restart =================
     console.log("\n======== A — runtime restart must NOT kill the turn ========")
     const slugA = "survive-a", sessionA = "session-a"
     const one = makeBridge("gen1")
@@ -81,7 +81,7 @@ const check = (label: string, ok: boolean) => { console.log(`  ${ok ? "PASS" : "
     console.log(`  daemon pid=${record.daemonPid} app-server pid=${record.childPid} generation=${record.generation}`)
     console.log(`  MID-TURN rows: ${JSON.stringify(bindingRow())}`)
 
-    console.log("  --- recycling the frizz runtime (bridge.close() + drop the db handle) ---")
+    console.log("  --- recycling the ntwine runtime (bridge.close() + drop the db handle) ---")
     one.bridge.close()
     await one.bridge.shutdown().catch(() => {})
     try { one.interactions.dispose(); one.db.close() } catch {}
@@ -90,7 +90,7 @@ const check = (label: string, ok: boolean) => { console.log(`  ${ok ? "PASS" : "
     check("the daemon outlived the runtime", alive(record.daemonPid))
     check("the app-server outlived the runtime", alive(record.childPid))
 
-    console.log("  --- new frizz runtime generation boots and warms up ---")
+    console.log("  --- new ntwine runtime generation boots and warms up ---")
     const two = makeBridge("gen2")
     await two.bridge.warmUp()
     const rejoined = two.bridge.binding(slugA, sessionA)
@@ -129,7 +129,7 @@ const check = (label: string, ok: boolean) => { console.log(`  ${ok ? "PASS" : "
     await sleep(5000)
     const recordB = liveDaemonRecord(root, PROJECT)!
 
-    console.log("  --- killing the daemon outright (an app-server crash, not a frizz restart) ---")
+    console.log("  --- killing the daemon outright (an app-server crash, not a ntwine restart) ---")
     killCodexAppServerDaemon(root, PROJECT)
     await sleep(1500)
     check("the app-server is gone", !alive(recordB.childPid))

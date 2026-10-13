@@ -1,5 +1,5 @@
-// THE one rule for what a dispatched worker's process environment contains: everything frizz itself was
-// started with, MINUS frizz's own control-plane variables. One module, used by every transport, because
+// THE one rule for what a dispatched worker's process environment contains: everything ntwine itself was
+// started with, MINUS ntwine's own control-plane variables. One module, used by every transport, because
 // the thing this replaced was three independent ALLOWLISTS that had already drifted apart.
 //
 // ── WHY THIS IS A DENYLIST NOW ─────────────────────────────────────────────────────────────────
@@ -24,34 +24,34 @@
 // t3code, the closest comparable tool (a GUI wrapping the same provider CLIs), passes process.env
 // through verbatim and merges user overrides on top — see mergeProviderInstanceEnvironment. So does
 // essentially every other developer tool. Matching that is the least-surprise behavior: if you export
-// something before launching frizz, your agents see it.
+// something before launching ntwine, your agents see it.
 //
 // ── WHAT IS STILL DENIED, AND WHY ──────────────────────────────────────────────────────────────
-// Frizz's OWN variables, by the `FRIZZ_` prefix. These are control plane, not developer environment:
-//   · FRIZZ_CLAUDE_BROKER / FRIZZ_CODEX_APP_SERVER_DAEMON carry a daemon's entire config as JSON,
+// Ntwine's OWN variables, by the `NTWINE_` prefix. These are control plane, not developer environment:
+//   · NTWINE_CLAUDE_BROKER / NTWINE_CODEX_APP_SERVER_DAEMON carry a daemon's entire config as JSON,
 //     including socket paths and the record path it publishes to.
-//   · FRIZZ_LAUNCH_OWNER_TOKEN, FRIZZ_SERVER_LOCK and the FRIZZ_LAUNCH_* set are the launch identity that
+//   · NTWINE_LAUNCH_OWNER_TOKEN, NTWINE_SERVER_LOCK and the NTWINE_LAUNCH_* set are the launch identity that
 //     decides which server owns which project.
-//   · FRIZZ_THREAD / FRIZZ_PERM_DIR / FRIZZ_NATIVE_ASK / FRIZZ_PERM_POLICY are what the cc-worker hooks
-//     gate on. A worker dispatched to work ON frizz would otherwise inherit the SERVER's values and the
+//   · NTWINE_THREAD / NTWINE_PERM_DIR / NTWINE_NATIVE_ASK / NTWINE_PERM_POLICY are what the cc-worker hooks
+//     gate on. A worker dispatched to work ON ntwine would otherwise inherit the SERVER's values and the
 //     hooks would read another thread's identity.
 // Denying the whole prefix rather than a hand-kept list is deliberate: it is the same "cannot drift"
-// property the allowlists failed to hold, pointing the other way. The handful of FRIZZ_ variables a
+// property the allowlists failed to hold, pointing the other way. The handful of NTWINE_ variables a
 // worker genuinely needs are re-added explicitly afterwards, because every caller merges its own
 // `workerEnv` ON TOP of this (see the broker's `env:` and the bridge's `attach`).
 //
-// ── WHAT FRIZZ ITSELF WROTE, AND WHY IT IS RESET RATHER THAN DENIED ────────────────────────────
-// "What you exported" is the LAUNCH environment, and process.env is not that once frizz is running:
+// ── WHAT NTWINE ITSELF WROTE, AND WHY IT IS RESET RATHER THAN DENIED ────────────────────────────
+// "What you exported" is the LAUNCH environment, and process.env is not that once ntwine is running:
 // the dev server creates Vite in-process, and Vite 8's resolveConfig does
 // `if (!isNodeEnvSet) process.env.NODE_ENV = defaultNodeEnv` (vite/dist/node/chunks/node.js), so
-// every worker of a `nub run dev` frizz started with NODE_ENV=development nobody exported. That broke
+// every worker of a `nub run dev` ntwine started with NODE_ENV=development nobody exported. That broke
 // real work: `next build` in a worker died prerendering /_global-error with "Cannot read properties of
 // null (reading 'useContext')", because Next keeps a non-standard NODE_ENV (2026-09-30).
 //
 // Denying NODE_ENV would fix that and break the rule above — an operator who DID export
-// NODE_ENV=production before launching frizz must still see it. So the keys frizz's own in-process
+// NODE_ENV=production before launching ntwine must still see it. So the keys ntwine's own in-process
 // tooling writes are instead taken from a snapshot of this process's environment at module load, which
-// is before anything runs: an operator's value comes through, a value frizz injected does not, and a
+// is before anything runs: an operator's value comes through, a value ntwine injected does not, and a
 // key absent at launch is absent in the worker. The list is exactly what Vite writes into process.env
 // (NODE_ENV in resolveConfig; VITE_USER_NODE_ENV, BROWSER and BROWSER_ARGS from a `.env` file in
 // loadEnv); add a key here when another in-process dependency starts writing one.
@@ -61,25 +61,25 @@
 // server's live env would snapshot Vite's value as its own launch value, and the Claude SDK builds the
 // worker's env inside the broker from the broker's own process.env.
 //
-// This is NOT a secrets boundary and must not be described as one. It keeps frizz's plumbing out of a
+// This is NOT a secrets boundary and must not be described as one. It keeps ntwine's plumbing out of a
 // worker's environment; it does not keep the operator's credentials out, and it never could.
-const FRIZZ_INTERNAL_PREFIX = "FRIZZ_"
+const NTWINE_INTERNAL_PREFIX = "NTWINE_"
 
-/** Whether `key` is one of frizz's own control-plane variables — never inherited by a worker. Exported so
+/** Whether `key` is one of ntwine's own control-plane variables — never inherited by a worker. Exported so
  *  the transports and their tests share one predicate rather than three. */
-export function isFrizzInternalEnvKey(key: string): boolean {
-  return key.startsWith(FRIZZ_INTERNAL_PREFIX)
+export function isNtwineInternalEnvKey(key: string): boolean {
+  return key.startsWith(NTWINE_INTERNAL_PREFIX)
 }
 
 // ── THE HUMAN'S EDITOR IS NOT A WORKER'S ─────────────────────────────────────────────────────────
-// Launch Frizz from a terminal inside VS Code, Cursor or Windsurf with Claude Code's extension installed
+// Launch Ntwine from a terminal inside VS Code, Cursor or Windsurf with Claude Code's extension installed
 // and the shell carries that window's address: the extension writes CLAUDE_CODE_SSE_PORT, the port of
 // its own IDE server, into every terminal it can reach (`environmentVariableCollection.replace`, read out
 // of anthropic.claude-code 2.1.287), and older releases also wrote ENABLE_IDE_INTEGRATION=true. Claude
 // Code treats either as "you are running in that editor" (its `MNe` auto-connect check, 2.1.287: the
 // port alone is enough), so every BACKGROUND worker would attach to the human's editor and could open
 // diffs in it, steal focus, or read its selection as though the human had pointed at it — from a thread
-// they are not looking at. Frizz's own window onto the editor is `mcp__frizz__editor`, which reads and
+// they are not looking at. Ntwine's own window onto the editor is `mcp__ntwine__editor`, which reads and
 // never drives; a worker must not hold a second, driving one.
 //
 // So the variables that POINT a process at an editor are not inherited: the port, the legacy switch,
@@ -108,7 +108,7 @@ export function isEditorAttachEnvKey(key: string): boolean {
   return key.startsWith(EDITOR_ATTACH_PREFIX) && !EDITOR_ATTACH_KEPT.has(key)
 }
 
-/** Keys frizz's own in-process dependencies write into process.env at runtime — see the header. */
+/** Keys ntwine's own in-process dependencies write into process.env at runtime — see the header. */
 export const RUNTIME_WRITTEN_ENV_KEYS = ["NODE_ENV", "VITE_USER_NODE_ENV", "BROWSER", "BROWSER_ARGS"] as const
 
 let launchValues: ReadonlyMap<string, string | undefined> | undefined
@@ -123,7 +123,7 @@ captureLaunchEnvironment()
 
 /** A copy of `source` with every runtime-written key it carries reset to this process's launch value
  *  (deleted if it was unset at launch). A key `source` does not carry stays absent: a caller that scoped
- *  its env down is not handed one back. Unlike inheritWorkerEnvironment it keeps FRIZZ_ variables, so it
+ *  its env down is not handed one back. Unlike inheritWorkerEnvironment it keeps NTWINE_ variables, so it
  *  is what a daemon's OWN environment is spawned from. */
 export function launchEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...source }
@@ -135,15 +135,15 @@ export function launchEnvironment(source: NodeJS.ProcessEnv = process.env): Node
   return env
 }
 
-/** The environment a dispatched worker starts from: `source` (frizz's own process env by default) with
- *  the runtime-written keys put back to their launch values (see launchEnvironment), frizz's
+/** The environment a dispatched worker starts from: `source` (ntwine's own process env by default) with
+ *  the runtime-written keys put back to their launch values (see launchEnvironment), ntwine's
  *  control-plane variables and the editor-attach variables removed, and undefined values dropped.
- *  Callers merge their per-thread `workerEnv` on top — that is what puts the FRIZZ_ variables a worker
+ *  Callers merge their per-thread `workerEnv` on top — that is what puts the NTWINE_ variables a worker
  *  DOES need back, with this thread's values rather than the server's. */
 export function inheritWorkerEnvironment(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(launchEnvironment(source))) {
-    if (value === undefined || isFrizzInternalEnvKey(key) || isEditorAttachEnvKey(key)) continue
+    if (value === undefined || isNtwineInternalEnvKey(key) || isEditorAttachEnvKey(key)) continue
     env[key] = value
   }
   return env

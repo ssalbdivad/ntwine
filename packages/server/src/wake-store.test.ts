@@ -11,7 +11,7 @@ import { createWakeDeliveryStore, isQuietWindowExempt, WAKE_QUIET_WINDOW_MS, typ
 // claimed one. The scheduler's half — the merge itself — is pinned in scheduler.test.ts ("coalesce:").
 
 function store(quietWindowMs?: number) {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "frizz-wake-")), "ui.db"), "p")
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-wake-")), "ui.db"), "p")
   return { storage, outbox: createWakeDeliveryStore(storage.scope, quietWindowMs === undefined ? {} : { quietWindowMs }) }
 }
 

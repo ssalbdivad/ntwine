@@ -126,7 +126,7 @@ test("a new hostname is CREATED, an existing one is UPDATED", async () => {
   const created = withFetch([success([]), success({ id: "rec-1" })])
   try {
     await createCloudflareApi(CONFIG).upsertDnsRecord("colin.frizz.sh", "t1.cfargotunnel.com")
-    assert.match(created.calls[0]!.url, /dns_records\?name=colin\.frizz\.sh/)
+    assert.match(created.calls[0]!.url, /dns_records\?name=colin\.ntwine\.sh/)
     assert.equal(created.calls[1]!.method, "POST")
     assert.match(created.calls[1]!.url, /\/zones\/zone-1\/dns_records$/)
   } finally {

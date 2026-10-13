@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto"
 import { basename } from "node:path"
 import type { IPty, IPtyForkOptions } from "node-pty"
-import type { ThreadTerminal } from "@frizz/shared"
+import type { ThreadTerminal } from "@ntwine/shared"
 import type { ThreadTerminalRow, Storage } from "./storage.ts"
 import type { TerminalAttachment } from "./terminal.ts"
 import { launchEnvironment } from "./backend/worker-env.ts"
@@ -18,7 +18,7 @@ import { launchEnvironment } from "./backend/worker-env.ts"
 // own queue card and its own Done. That was reversed on 2026-09-29 (maintainer: prompt threads are the
 // only top-level thread kind; terminals hang off a thread), for two reasons Colin raised upstream: a
 // standalone terminal ran in the project root and so ignored which worktree an agent was actually in —
-// Frizz deliberately leaves the worktree choice to the agent, so the terminal has to follow it — and
+// Ntwine deliberately leaves the worktree choice to the agent, so the terminal has to follow it — and
 // every terminal was one more row in a sidebar whose whole value is density. The table, `thread_terminal`,
 // was named `command_thread` until 2026-10-06 (storage.ts renameCommandThreadTable); `parent_slug` is what
 // makes a row a thread's terminal, and a row without one is a pre-2026-09-29 command thread, archived at boot.
@@ -35,7 +35,7 @@ import { launchEnvironment } from "./backend/worker-env.ts"
 //
 // WHAT IS DURABLE AND WHAT IS NOT. The row — its thread, the command, the folder, how its last run ended —
 // lives in SQLite, so the thread keeps it across a restart. The process does not: a pty is a child of this
-// server, and replacing the control plane (Restart Frizz, an update) closes the pty master and hangs the
+// server, and replacing the control plane (Restart Ntwine, an update) closes the pty master and hangs the
 // process up. Boot records every run that never reported an exit as interrupted, so the strip says
 // "interrupted" and offers Restart rather than showing a process that is not there.
 //
@@ -180,10 +180,10 @@ export async function loadNodePty(): Promise<SpawnPty> {
 export function startFailureScreen(what: "load" | "spawn", cause: unknown): string {
   const detail = (cause instanceof Error ? cause.message : String(cause)).trim().split("\n").slice(0, 6).join("\r\n")
   const head = what === "load"
-    ? "Frizz could not start this terminal: the node-pty native module did not load."
-    : "Frizz could not start this terminal: the shell did not spawn."
+    ? "Ntwine could not start this terminal: the node-pty native module did not load."
+    : "Ntwine could not start this terminal: the shell did not spawn."
   const hint = what === "load"
-    ? `\r\n\r\nTerminals need node-pty's prebuilt binary for ${process.platform}-${process.arch}.\r\nEverything else in Frizz works without it.`
+    ? `\r\n\r\nTerminals need node-pty's prebuilt binary for ${process.platform}-${process.arch}.\r\nEverything else in Ntwine works without it.`
     : ""
   return `\x1b[31m${head}\x1b[0m\r\n\r\n\x1b[2m${detail}\x1b[22m${hint}\r\n`
 }
@@ -219,15 +219,15 @@ export function shellLabel(env: NodeJS.ProcessEnv, platform = process.platform):
   return basename(platform === "win32" ? env.ComSpec || "cmd.exe" : env.SHELL || "/bin/sh")
 }
 
-/** The environment a terminal runs in: the server's, minus every FRIZZ_* variable. Those name the
- *  running server's own project, state dir and log — a `npm run dev` of Frizz itself inside Frizz would
+/** The environment a terminal runs in: the server's, minus every NTWINE_* variable. Those name the
+ *  running server's own project, state dir and log — a `npm run dev` of Ntwine itself inside Ntwine would
  *  otherwise obey them and write into the live server's files. The keys Vite writes into the dev
  *  server's process.env go back to their launch values first, exactly as for a worker
  *  (backend/worker-env.ts): a `next build` typed here must not inherit NODE_ENV=development. */
 export function commandEnvironment(env: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(launchEnvironment(env))) {
-    if (value == null || key.startsWith("FRIZZ_")) continue
+    if (value == null || key.startsWith("NTWINE_")) continue
     out[key] = value
   }
   out.TERM = "xterm-256color"

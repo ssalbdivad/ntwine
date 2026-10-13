@@ -18,7 +18,7 @@ function step(name: string): string {
 }
 
 // GitHub refuses the workflow's own token a tag whose commit carries a different workflow file than
-// the run's checkout (frizz 0.13.13, 2026-10-12), so the releaser tags from its own `gh` session and
+// the run's checkout (ntwine 0.13.13, 2026-10-12), so the releaser tags from its own `gh` session and
 // the job keeps read-only access to the repository.
 test("the workflow neither tags nor creates GitHub releases, and cannot write to the repository", () => {
   const code = workflow.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
@@ -28,22 +28,22 @@ test("the workflow neither tags nor creates GitHub releases, and cannot write to
 });
 
 function tagRelease(t: TestContext, existing: { ref?: string; release?: boolean } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-tag-release-"));
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-tag-release-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const log = join(dir, "gh.log");
   // A `gh` that records every call and answers the few the script reads.
   writeFileSync(join(dir, "gh"), `#!/bin/sh
 printf '%s\\n' "$*" >> "${log}"
 case "$*" in
-  "api repos/acme/frizz/git/ref/tags/"*) ${existing.ref ? `echo "${existing.ref}"` : "exit 1"} ;;
-  "api repos/acme/frizz/git/tags/tagobj"*) echo "${"a".repeat(40)}" ;;
-  "api -X POST repos/acme/frizz/git/tags"*) cat > "${dir}/tag.json"; echo tagobj ;;
-  "api -X POST repos/acme/frizz/git/refs"*) cat > "${dir}/ref.json"; echo refs/tags/v1.2.3 ;;
+  "api repos/acme/ntwine/git/ref/tags/"*) ${existing.ref ? `echo "${existing.ref}"` : "exit 1"} ;;
+  "api repos/acme/ntwine/git/tags/tagobj"*) echo "${"a".repeat(40)}" ;;
+  "api -X POST repos/acme/ntwine/git/tags"*) cat > "${dir}/tag.json"; echo tagobj ;;
+  "api -X POST repos/acme/ntwine/git/refs"*) cat > "${dir}/ref.json"; echo refs/tags/v1.2.3 ;;
   "release view"*) ${existing.release ? "exit 0" : "exit 1"} ;;
 esac
 `, { mode: 0o755 });
   const server = createServer((request, response) => {
-    if (request.url === "/frizz/1.2.3") response.end(JSON.stringify({ name: "frizz", version: "1.2.3", gitHead: "a".repeat(40) }));
+    if (request.url === "/ntwine/1.2.3") response.end(JSON.stringify({ name: "ntwine", version: "1.2.3", gitHead: "a".repeat(40) }));
     else { response.statusCode = 404; response.end(); }
   });
   return { dir, log, server, run: async () => {
@@ -52,7 +52,7 @@ esac
     const { port } = server.address() as { port: number };
     // Asynchronously: this process serves the registry the script reads, so it must not block.
     const child = spawn(process.execPath, [join(repo, "scripts", "tag-release.mjs"), "1.2.3"], {
-      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, FRIZZ_RELEASE_REPO: "acme/frizz", FRIZZ_NPM_REGISTRY: `http://127.0.0.1:${port}/` },
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, NTWINE_RELEASE_REPO: "acme/ntwine", NTWINE_NPM_REGISTRY: `http://127.0.0.1:${port}/` },
     });
     let stderr = "";
     child.stderr.on("data", (bytes) => { stderr += bytes; });
@@ -65,9 +65,9 @@ test("tag-release.mjs tags npm's gitHead and creates the release, once", async (
   const fresh = tagRelease(t);
   const made = await fresh.run();
   assert.equal(made.status, 0, made.stderr);
-  assert.deepEqual(JSON.parse(readFileSync(join(fresh.dir, "tag.json"), "utf8")), { tag: "v1.2.3", message: "frizz v1.2.3", object: "a".repeat(40), type: "commit" });
+  assert.deepEqual(JSON.parse(readFileSync(join(fresh.dir, "tag.json"), "utf8")), { tag: "v1.2.3", message: "ntwine v1.2.3", object: "a".repeat(40), type: "commit" });
   assert.deepEqual(JSON.parse(readFileSync(join(fresh.dir, "ref.json"), "utf8")), { ref: "refs/tags/v1.2.3", sha: "tagobj" });
-  assert.match(readFileSync(fresh.log, "utf8"), /release create v1\.2\.3 --repo acme\/frizz --title frizz v1\.2\.3 .*--verify-tag/);
+  assert.match(readFileSync(fresh.log, "utf8"), /release create v1\.2\.3 --repo acme\/ntwine --title ntwine v1\.2\.3 .*--verify-tag/);
 
   const done = tagRelease(t, { ref: "tagobj tag", release: true });
   const rerun = await done.run();
@@ -82,10 +82,10 @@ test("tag-release.mjs tags npm's gitHead and creates the release, once", async (
 });
 
 test("the release publishes the server, waits for npm to serve it, then publishes the shell", () => {
-  const server = step("Build and publish frizz-server to npm");
-  const serverWait = step("Wait for npm to serve frizz-server");
-  const shell = step("Publish the frizz shell to npm");
-  const shellWait = step("Wait for npm to serve frizz");
+  const server = step("Build and publish ntwine-server to npm");
+  const serverWait = step("Wait for npm to serve ntwine-server");
+  const shell = step("Publish the ntwine shell to npm");
+  const shellWait = step("Wait for npm to serve ntwine");
 
   // Staged publishing was dropped on 2026-09-30; a leftover `npm stage` would hang every release on
   // an approval nobody is asked for. The header still names it as history, so comments are skipped.
@@ -93,9 +93,9 @@ test("the release publishes the server, waits for npm to serve it, then publishe
   assert.doesNotMatch(code, /npm stage|npm-stage-publish/, "the release path publishes directly");
   assert.match(server, /npm-publish\.sh \.\/packages\/server-release --ignore-scripts/);
   assert.match(shell, /npm-publish\.sh \.$/m);
-  assert.match(shell, /frizzServer\.version/, "the shell refuses to publish over a pinned server npm does not serve");
-  assert.match(serverWait, /npm-wait-served\.sh frizz-server "\$SERVER_VERSION"/);
-  assert.match(shellWait, /npm-wait-served\.sh frizz "\$VERSION"/);
+  assert.match(shell, /ntwineServer\.version/, "the shell refuses to publish over a pinned server npm does not serve");
+  assert.match(serverWait, /npm-wait-served\.sh ntwine-server "\$SERVER_VERSION"/);
+  assert.match(shellWait, /npm-wait-served\.sh ntwine "\$VERSION"/);
   // A retry finds a version an earlier run published and npm may still hold in review, so neither
   // wait may be skipped just because this run published nothing.
   assert.doesNotMatch(serverWait, /\n\s+if:/, "the server wait must run on a retry");
@@ -106,10 +106,10 @@ test("the release publishes the server, waits for npm to serve it, then publishe
   // A shell fetches its pinned server from the registry on first boot, so the server must be served
   // before the shell publishes; a green run means npm serves the shell the releaser then tags.
   const order = [
-    "- name: Build and publish frizz-server to npm",
-    "- name: Wait for npm to serve frizz-server",
-    "- name: Publish the frizz shell to npm",
-    "- name: Wait for npm to serve frizz\n",
+    "- name: Build and publish ntwine-server to npm",
+    "- name: Wait for npm to serve ntwine-server",
+    "- name: Publish the ntwine shell to npm",
+    "- name: Wait for npm to serve ntwine\n",
   ].map((name) => workflow.indexOf(name));
   assert.ok(!order.includes(-1), "every release step is present");
   assert.deepEqual([...order].sort((a, b) => a - b), order, "server, server wait, shell, shell wait, tag, release");
@@ -131,7 +131,7 @@ interface FakeRegistry {
 }
 
 function runScript(script: string, args: string[], fake: FakeRegistry) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-release-script-"));
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-release-script-"));
   const bin = join(dir, "bin");
   mkdirSync(bin);
   const versions = fake.versions === undefined ? ["9.9.8"] : fake.versions;
@@ -149,7 +149,7 @@ function runScript(script: string, args: string[], fake: FakeRegistry) {
   );
   const pkg = join(dir, "pkg");
   mkdirSync(pkg);
-  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "frizz-server", version: fake.version ?? "9.9.9" }));
+  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "ntwine-server", version: fake.version ?? "9.9.9" }));
   const result = spawnSync("bash", [join(repo, ".github", "scripts", script), ...args.map((a) => (a === "<pkg>" ? pkg : a))], {
     encoding: "utf8",
     env: {
@@ -196,17 +196,17 @@ test("npm-publish.sh skips a served version, tolerates a re-run during npm's rev
 });
 
 test("npm-wait-served.sh returns once npm serves the version and fails at the deadline", () => {
-  const served = runScript("npm-wait-served.sh", ["frizz", "9.9.9"], { served: true });
+  const served = runScript("npm-wait-served.sh", ["ntwine", "9.9.9"], { served: true });
   assert.equal(served.status, 0, served.out);
 
-  const missing = runScript("npm-wait-served.sh", ["frizz", "9.9.9"], { served: false, deadline: 1 });
+  const missing = runScript("npm-wait-served.sh", ["ntwine", "9.9.9"], { served: false, deadline: 1 });
   assert.equal(missing.status, 1, missing.out);
-  assert.match(missing.out, /npm still does not serve frizz@9\.9\.9/);
+  assert.match(missing.out, /npm still does not serve ntwine@9\.9\.9/);
 });
 
 test("a publish is refused unless it directly follows the highest version npm serves", () => {
   const order = (version: string, versions: string[] | null, allowGap = false) =>
-    runScript("npm-refuse-overtake.sh", ["frizz", version], { served: false, versions, allowGap });
+    runScript("npm-refuse-overtake.sh", ["ntwine", version], { served: false, versions, allowGap });
 
   // The next patch, and the first release of the next minor or major, have nothing in between.
   for (const next of ["0.13.12", "0.14.0", "1.0.0"]) assert.equal(order(next, ["0.13.9", "0.13.11", "0.13.10"]).status, 0, next);
@@ -217,16 +217,16 @@ test("a publish is refused unless it directly follows the highest version npm se
   // npm served them the other way round.
   const overtaking = order("0.13.11", ["0.13.8", "0.13.9"]);
   assert.equal(overtaking.status, 1, overtaking.out);
-  assert.match(overtaking.out, /npm serves frizz up to 0\.13\.9, and this run would publish 0\.13\.11/);
+  assert.match(overtaking.out, /npm serves ntwine up to 0\.13\.9, and this run would publish 0\.13\.11/);
   assert.match(overtaking.out, /allow_version_gap=true/, "the refusal names the way past a number that was never published");
   for (const gap of ["0.13.13", "0.14.1", "2.0.0", "0.13.10"]) assert.equal(order(gap, ["0.13.11"]).status, 1, gap);
 
-  // A number skipped on purpose (frizz-server 0.15.21, whose run was cancelled before it published).
+  // A number skipped on purpose (ntwine-server 0.15.21, whose run was cancelled before it published).
   assert.equal(order("0.15.22", ["0.15.20"], true).status, 0);
   // A registry that cannot be read proves nothing about order, so the publish does not go ahead.
   const unreadable = order("0.13.12", null);
   assert.equal(unreadable.status, 1, unreadable.out);
-  assert.match(unreadable.out, /could not read frizz from the npm registry/);
+  assert.match(unreadable.out, /could not read ntwine from the npm registry/);
 });
 
 test("both packages are checked for order before npm is asked to publish", () => {
@@ -249,11 +249,11 @@ test("both packages are checked for order before npm is asked to publish", () =>
 
   // The flag reaches the script only through the dispatch input, on both publish steps.
   assert.match(workflow, /^  workflow_dispatch:\n    inputs:\n(?:      #.*\n)*      allow_version_gap:\n/m);
-  for (const name of ["Build and publish frizz-server to npm", "Publish the frizz shell to npm"])
+  for (const name of ["Build and publish ntwine-server to npm", "Publish the ntwine shell to npm"])
     assert.match(step(name), /ALLOW_VERSION_GAP: \$\{\{ inputs\.allow_version_gap \}\}/, name);
 });
 
-// npm's trusted publishers for `frizz` and `frizz-server` name this environment, and GitHub admits
+// npm's trusted publishers for `ntwine` and `ntwine-server` name this environment, and GitHub admits
 // only the `release` branch to it (2026-10-12). Dropping or renaming it here breaks every publish.
 test("the release job runs in the npm-publish environment its trusted publishers name", () => {
   assert.match(workflow, /\n  release:\n(?:    .*\n)*?    environment: npm-publish\n/);

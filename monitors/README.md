@@ -1,6 +1,6 @@
 # Portable GitHub monitors
 
-`monitors/` is Frizz's canonical, dependency-free Node.js implementation of active GitHub CI and
+`monitors/` is Ntwine's canonical, dependency-free Node.js implementation of active GitHub CI and
 human-review waits. It requires only Node.js and a logged-in `gh`; it never reads or prints a token.
 The shipped copies in `cc-worker/skills/gh/scripts/` are generated from this directory by
 `node scripts/sync-portable-monitors.mjs`. Verify them without writing with
@@ -22,7 +22,7 @@ or shadow it. Use these bundled scripts only when no declared project monitor ex
 
 ## NDJSON protocol
 
-Each stdout line is a JSON object with `protocol: "frizz.github-monitor/v1"`, an ISO `at`, a `kind`,
+Each stdout line is a JSON object with `protocol: "ntwine.github-monitor/v1"`, an ISO `at`, a `kind`,
 and `type`: `status` or `terminal`. `status` is non-terminal (`pending` CI or armed review);
 `terminal` is a final verdict. CI exits 0 on a complete successful exact-head set, 2 on a failure,
 and 3 for an invocation, missing-`gh`, or GitHub/auth error. Those errors are terminal rather than a

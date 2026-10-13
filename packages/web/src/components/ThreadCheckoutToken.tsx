@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { Folder, FolderGit2 } from "lucide-react"
-import type { WorkCheckout } from "@frizz/shared"
+import type { WorkCheckout } from "@ntwine/shared"
 import { abbreviateHome } from "../lib/paths.ts"
 
 // WHERE THE AGENT IS WORKING, WHEN THAT IS NOT THE PROJECT ROOT — one quiet token on a thread's meta line
@@ -31,7 +31,7 @@ export function checkoutName(dir: string): string {
 
 /** What the token means, in the words a human acts on: where, and that a new terminal starts there. */
 export function checkoutTitle(checkout: WorkCheckout, homeDir: string | undefined): string {
-  // Not "outside the project": a `folder` checkout can sit inside the root (a nested clone, or `~/frizz`
+  // Not "outside the project": a `folder` checkout can sit inside the root (a nested clone, or `~/ntwine`
   // in the Home workspace, whose root is the home folder). The path on the next line says which.
   const head = checkout.kind === "worktree" ? "Agent is working in a worktree" : "Agent is working in another folder"
   return `${head}\n${abbreviateHome(checkout.dir, homeDir)}\nNew terminals open here`

@@ -13,7 +13,7 @@ test("expandHome: `~` and `~/…` are HOME; every other spelling is left as type
 })
 
 test("isDirectory: a folder is; a file, a missing path and an empty one are not", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-path-probe-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-path-probe-"))
   try {
     writeFileSync(join(dir, "f"), "x")
     assert.equal(isDirectory(dir), true)

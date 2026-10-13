@@ -29,7 +29,7 @@ import "./styles.css"
 
 const CONTEXT =
   "A NEW OpenRouter management key for Pullfrog production: open https://openrouter.ai/settings/management-keys, click Create New Key, name it vercel-production-2026-10-09, and paste the key here."
-const TODAY = "Held in memory on the machine running Frizz and handed to one command, once. The worker never sees it."
+const TODAY = "Held in memory on the machine running Ntwine and handed to one command, once. The worker never sees it."
 
 type Row = {
   id: string

@@ -1,0 +1,26 @@
+---
+title: NTWINE.md
+description: Your repo's own norms, injected into every thread.
+---
+
+`NTWINE.md` is an optional file at the root of a project. Its contents are injected into the system prompt of every thread in that project, Claude Code and Codex alike, and they take precedence over Ntwine's own defaults for how a worker goes about its job.
+
+Use it for what you want every agent here to do: how to land work, what to verify before calling something done, how much to ask before acting.
+
+```md title="NTWINE.md"
+# Worker norms for this repo
+
+- Land finished work on `main` yourself; never open a pull request.
+- Run `pnpm test` before you call anything done, and say what you ran.
+- Decide reversible calls yourself. Ask only before something destructive.
+```
+
+Ntwine has no opinion about your git workflow, so this is where you give it one. By default a worker commits, pushes or opens a pull request only when your request or this file asks it to.
+
+## Editing it
+
+Open the agent settings beside the model picker and edit **Project instructions**. They save to `NTWINE.md` at the repo root, where they can be committed and reviewed, and take effect on the next thread you start and on any thread when it next resumes.
+
+## Alongside AGENTS.md and CLAUDE.md
+
+A worker still reads your `AGENTS.md`, `CLAUDE.md` and skills as it would in a session you started yourself. `NTWINE.md` is for what only applies when an agent runs under Ntwine. Ntwine's own repository keeps [its `NTWINE.md`](https://github.com/colinhacks/frizz/blob/main/NTWINE.md) as a worked example.

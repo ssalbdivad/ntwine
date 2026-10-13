@@ -43,8 +43,8 @@ test("an unsafe call runs alone: what follows it waits, and so does it, behind a
     { name: "Read", status: "pending" },
   ]
   assert.deepEqual(toolSchedule(mixed), [{}, { queued: true }, { queued: true }])
-  // Frizz's own MCP tools carry no readOnlyHint, so they run one at a time too.
-  assert.deepEqual(toolSchedule([{ name: "mcp__frizz__title", status: "pending" }, { name: "mcp__frizz__done", status: "pending" }]), [{}, { queued: true }])
+  // Ntwine's own MCP tools carry no readOnlyHint, so they run one at a time too.
+  assert.deepEqual(toolSchedule([{ name: "mcp__ntwine__title", status: "pending" }, { name: "mcp__ntwine__done", status: "pending" }]), [{}, { queued: true }])
 })
 
 // A pending card is not always a call that has not returned: these stay "pending" for the life of what

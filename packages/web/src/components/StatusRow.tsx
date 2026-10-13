@@ -5,7 +5,7 @@ import { store } from "../store.ts"
 import { ALL_PROJECTS_HREF } from "../lib/pageView.ts"
 import { STATUS_ROW_ACTION, STATUS_ROW_ICON } from "../lib/statusRow.ts"
 import { QuotaChips, useQuotaChipsVisible } from "./QuotaBar.tsx"
-import { RestartFrizzButton } from "./RestartFrizzButton.tsx"
+import { RestartNtwineButton } from "./RestartNtwineButton.tsx"
 import { RunningTimeLimitButton } from "./RunningTimeLimitDialog.tsx"
 import { KeyboardShortcutsButton } from "./KeyboardShortcuts.tsx"
 import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
@@ -70,7 +70,7 @@ function Divider() {
  * drop the gear and the ⌨: in an editor's sidebar the title row VS Code draws over the frame carries both
  * (Settings as a button, Keyboard shortcuts under its ⋯), and the page's name (SidebarPage.tsx), so the
  * row there is the rest of it, at the right end — and NOTHING when there is no rest. With no supervisor to
- * restart (a Frizz run from source) and no quota to read, the ⌨ stood alone on a 36px row above the prompt
+ * restart (a Ntwine run from source) and no quota to read, the ⌨ stood alone on a 36px row above the prompt
  * box, a stray glyph the real-page run flagged as debris (scripts/e2e-sidebar.ts, 2026-10-01); a row of
  * nothing would still hold the box 10px down, so the row is not drawn at all.
  */
@@ -88,7 +88,7 @@ export function StatusRow({ title, identity, crumb = false, settings = true, sho
   // with nothing after it.
   const quotaVisible = useQuotaChipsVisible()
   const settingsKeys = useShortcutLabel("app.settings")
-  // RestartFrizzButton's own test, on the poll it shares (api/supervisorStatus.ts): one request however
+  // RestartNtwineButton's own test, on the poll it shares (api/supervisorStatus.ts): one request however
   // many read it.
   const restartVisible = canRestart(useSupervisorStatus().data ?? null)
   if (!title && !settings && !shortcuts && !restartVisible && !quotaVisible) return null
@@ -138,7 +138,7 @@ export function StatusRow({ title, identity, crumb = false, settings = true, sho
       {/* A time limit on every running thread, the wind-down before a machine restart — beside the restart
           button. Off in an editor's sidebar with the gear: that row is VS Code's to fill. */}
       {settings && <RunningTimeLimitButton />}
-      <RestartFrizzButton />
+      <RestartNtwineButton />
       {quotaVisible && (
         <>
           <Divider />

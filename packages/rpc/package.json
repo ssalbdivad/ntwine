@@ -1,5 +1,5 @@
 {
-  "name": "@frizz/rpc",
+  "name": "@ntwine/rpc",
   "version": "0.0.1",
   "private": true,
   "type": "module",

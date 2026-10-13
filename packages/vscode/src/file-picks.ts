@@ -3,8 +3,8 @@
 //
 // WHICH FILES. What VS Code's own quick open (Ctrl+P) offers: the workspace's files less `files.exclude`,
 // `search.exclude` and what git ignores. `workspace.findFiles` alone honours only the first — it
-// disregards ignore files and search.exclude by design — and in a Frizz checkout that is ruinous: every
-// thread's worktree lives under `.frizz/worktrees/<slug>/`, gitignored, so `@App` offered twenty-six
+// disregards ignore files and search.exclude by design — and in a Ntwine checkout that is ruinous: every
+// thread's worktree lives under `.ntwine/worktrees/<slug>/`, gitignored, so `@App` offered twenty-six
 // copies of App.tsx before the real one (26 worktrees in the maintainer's checkout, 2026-10-02). So a
 // folder in a git repository is listed by git (`ls-files --cached --others --exclude-standard`), and
 // both exclude settings are applied here with `globMatcher`; anywhere else, by findFiles with the same

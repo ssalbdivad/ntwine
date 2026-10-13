@@ -69,7 +69,7 @@ function seedOrphan(
 // an unrepresentable-question refusal both answer the daemon directly, leaving anything already
 // journaled for that escalation with nothing left to resolve it.
 //
-// The seeded row stands in for the card a PREVIOUS frizz journaled for a turn this one knows nothing
+// The seeded row stands in for the card a PREVIOUS ntwine journaled for a turn this one knows nothing
 // about, which is exactly what the live thread was carrying. A plain turn (the `basic` scenario, which
 // reaches `result` unaided) is deliberate: this test is about the SWEEP, and driving it through a
 // scenario that has to be un-blocked first only couples it to whatever that block currently is. It was
@@ -106,7 +106,7 @@ test("a turn's result retires the interactions it left pending", { timeout: 30_0
   }
 })
 
-// The other half: a card journaled by a frizz that is GONE. The canUseTool promise lived in that
+// The other half: a card journaled by a ntwine that is GONE. The canUseTool promise lived in that
 // daemon's process, `pendingPerms` is memory this bridge never had, and a cold resume re-asks inside a
 // new turn under a new request id — so nothing can ever route an answer to it. This boot is the only
 // thing that will notice, which is why it must sweep rather than skip.
@@ -146,7 +146,7 @@ test("warmUp retires the interactions of an owned session whose daemon is gone",
 })
 
 // The regression guard for the sweep itself: warmUp used to bail on `live.size === 0`, which is the
-// single most common boot there is — every frizz start after every daemon has aged out. If that early
+// single most common boot there is — every ntwine start after every daemon has aged out. If that early
 // return comes back, the sweep silently never runs on exactly the boots that need it, and this is the
 // only test that would notice. A second owned session with a still-pending card and no daemon anywhere
 // makes the zero-live-daemons path explicit rather than incidental.
@@ -190,7 +190,7 @@ test("warmUp leaves the interactions of a session whose daemon is still alive al
   const projectId = "proj-sweep-live"
   const scope = { projectId, threadSlug: slug, sessionId }
   const store = createInteractionStore(new Database(":memory:"))
-  // frizz #1 raises a real escalation and journals a real card, then goes away leaving the daemon up.
+  // ntwine #1 raises a real escalation and journals a real card, then goes away leaving the daemon up.
   const first = createClaudeAgentBrokerBridge({
     stateDir: dir, executablePath: exe, env, interactions: store, projectId,
   })
@@ -201,7 +201,7 @@ test("warmUp leaves the interactions of a session whose daemon is still alive al
     const [live] = store.listPending(scope)
     first.close()
     await sleep(300)
-    assert.ok(readBrokerRecord(claudeBrokerRecordPath(dir, sessionId)), "the daemon outlived frizz #1")
+    assert.ok(readBrokerRecord(claudeBrokerRecordPath(dir, sessionId)), "the daemon outlived ntwine #1")
 
     second = createClaudeAgentBrokerBridge({
       stateDir: dir, executablePath: exe, env, interactions: store, projectId,

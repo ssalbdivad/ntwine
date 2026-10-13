@@ -20,7 +20,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-watched-pr-checks.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -149,7 +149,7 @@ for (const [n, c] of CASES.entries()) {
     // record whose pid is alive, or the daemon probe answers "gone" and drops the thread's background
     // shells — correctly, which is exactly why this seeder writes one (see brokerRecord below).
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at)
-     VALUES (${sessionVals}'${c.slug}', '${sessionId}', 'frizz-${c.slug}', '${at}', '${c.title}', 'claude', 'broker', 'opus', 'high', 'default', '${at}')`,
+     VALUES (${sessionVals}'${c.slug}', '${sessionId}', 'ntwine-${c.slug}', '${at}', '${c.title}', 'claude', 'broker', 'opus', 'high', 'default', '${at}')`,
   ])
   console.log(`seeded ${c.slug}`)
 }

@@ -4,7 +4,7 @@ import { outerPath } from "./base-path.ts"
  * The href for a thread's standalone `/full` page — an OUTER path, because it goes straight into an
  * `<a href>` and the browser resolves it against the origin, not against the router.
  *
- * It MUST carry the project prefix. One Frizz serves every project on the machine now, so the
+ * It MUST carry the project prefix. One Ntwine serves every project on the machine now, so the
  * unprefixed `/thread/<slug>/full` resolves against whichever project happened to launch the server:
  * the ↗ button on a thread in any OTHER project opened a page that either showed the wrong project's
  * thread of the same name or dead-ended in <MissingThread> (maintainer 2026-08-07, on the ↗ button:

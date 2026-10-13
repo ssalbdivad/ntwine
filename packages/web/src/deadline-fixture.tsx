@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import * as RadixTabs from "@radix-ui/react-tabs"
-import type { BoardSnapshot, CodexModel, DispatchInput, DispatchPreferences, SetThreadDeadlineInput, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, CodexModel, DispatchInput, DispatchPreferences, SetThreadDeadlineInput, ThreadView } from "@ntwine/shared"
 import { ThreadHeader } from "./components/ChatView.tsx"
 import { DispatchForm } from "./components/NewThreadModal.tsx"
 import { ThreadRow, type RowScope } from "./components/Sidebar.tsx"
@@ -79,11 +79,11 @@ const recorded = { dispatches: [] as DispatchInput[], deadlines: [] as SetThread
 ;(window as unknown as { deadlineFixture: typeof recorded }).deadlineFixture = recorded
 const failing = params.get("outcome") === "failure"
 
-const json = (result: unknown) => new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-frizz-boot": "fixture" } })
+const json = (result: unknown) => new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-ntwine-boot": "fixture" } })
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin)
-  if (!url.pathname.startsWith("/_frizz/")) return nativeFetch(input, init)
+  if (!url.pathname.startsWith("/_ntwine/")) return nativeFetch(input, init)
   const rpc = /\/rpc\/([^/]+)$/.exec(url.pathname)?.[1]
   const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
   if (rpc === "dispatchPreferencesGet") return json(preferences)

@@ -106,7 +106,7 @@ const concepts = [
     idea: "Identical letter with the terminals extended. The further the tails run, the more the pair reads as a deliberate crossbar and the less it reads as two loose ends — the sketch sits somewhere in this range, so it is worth seeing both limits.",
     small: "Fails at this weight like every fine variant. The tails survive longest, being the only near-horizontal ink.",
     risk: "Long tails need horizontal room, so this wants to be a wide lockup rather than a square tile.",
-    verdict: "Use this if the mark will usually sit beside the word Frizz; the tails give the wordmark a line to sit on.",
+    verdict: "Use this if the mark will usually sit beside the word Ntwine; the tails give the wordmark a line to sit on.",
     mark: `<path d="${body({ tail: 1.3 })}" stroke-width="${FINE}"/>`,
   },
   {

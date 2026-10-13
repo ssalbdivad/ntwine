@@ -67,7 +67,7 @@ function seed({ slug, title, prompt, closing, archived = false }) {
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at, archived, state)
-     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${at(0)}', '${title}', 'claude', 'broker', 'opus', 'high', 'default', '${at(2)}', ${archived ? 1 : 0}, '${archived ? "archived" : "active"}')`,
+     VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${at(0)}', '${title}', 'claude', 'broker', 'opus', 'high', 'default', '${at(2)}', ${archived ? 1 : 0}, '${archived ? "archived" : "active"}')`,
   ])
   console.log(`seeded ${slug} → ${sessionId}`)
 }

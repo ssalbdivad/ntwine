@@ -8,9 +8,9 @@ import test from "node:test"
 // mutation's lifecycle and Radix popovers — runtime pieces no source test can pin.
 //
 // Drives deadline-fixture, which records every dispatch body and every setThreadDeadline call and applies the
-// latter to its board as the server's push would. Skipped unless FRIZZ_DEADLINE_E2E_URL names a vite serving
+// latter to its board as the server's push would. Skipped unless NTWINE_DEADLINE_E2E_URL names a vite serving
 // the fixtures (scripts/e2e-web.mjs sets it).
-const baseUrl = process.env.FRIZZ_DEADLINE_E2E_URL
+const baseUrl = process.env.NTWINE_DEADLINE_E2E_URL
 
 type Page = import("puppeteer").Page
 type Recorded = { dispatches: { prompt?: string; deadline?: string }[]; deadlines: { slug: string; deadline: string | null }[] }

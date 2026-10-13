@@ -55,7 +55,7 @@ if (usingDefaults) {
   }
 }
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "frizz-test-guard-"));
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ntwine-test-guard-"));
 const ledgerPath = path.join(scratch, "emitted.jsonl");
 const receivedPath = path.join(scratch, "received.json");
 fs.writeFileSync(ledgerPath, "");
@@ -81,8 +81,8 @@ const runner = spawn(
     // A suite must never provision a runtime: that is half a gigabyte per pin into whatever HOME the
     // test sandboxed. Every server a test boots runs the machine's PATH `claude`/`codex` unless the
     // test names a stand-in, exactly as before 2026-09-04; runtimes.test.ts covers the provisioner
-    // itself against a local registry. Set FRIZZ_RUNTIMES yourself to override.
-    env: { FRIZZ_RUNTIMES: "path", ...process.env, FRIZZ_TEST_LEDGER: ledgerPath },
+    // itself against a local registry. Set NTWINE_RUNTIMES yourself to override.
+    env: { NTWINE_RUNTIMES: "path", ...process.env, NTWINE_TEST_LEDGER: ledgerPath },
   },
 );
 

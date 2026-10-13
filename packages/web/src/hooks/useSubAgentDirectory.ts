@@ -1,5 +1,5 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query"
-import type { SubAgentDirectory } from "@frizz/shared"
+import type { SubAgentDirectory } from "@ntwine/shared"
 import type { Api } from "../api/rpc.ts"
 import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
 import { resolveSubAgentMention } from "../lib/threadMentions.ts"

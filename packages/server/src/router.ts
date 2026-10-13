@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, statSync, type Stats } from "node:fs"
 import { join, resolve } from "node:path"
 import { randomBytes, randomUUID } from "node:crypto"
 import { z } from "zod"
-import { query, mutation } from "@frizz/rpc/server"
+import { query, mutation } from "@ntwine/rpc/server"
 import {
   BoardSnapshot,
   AdoptThreadInput,
@@ -201,7 +201,7 @@ import {
   spinoffForkPrompt,
   spinoffNameSource,
   parseRecurringPrompt,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { type AppContext } from "./context.ts"
 import { listAcpAgentsCached } from "./backend/acp-agents.ts"
 import { secretFilePath, serveSecret } from "./secret-files.ts"
@@ -213,7 +213,7 @@ import { deadlineNoticeMessage, deadlineSection, deadlineViewOf, rowDeadline } f
 import { editedFilesOf } from "./edited-files.ts"
 import { mayHaveLiveBackgroundWork, needsFreshProcessForLimit } from "./backend/usage-limit.ts"
 import { appServerTurnStalled, registeredDoneFence, resolveLiveWatchTarget, resolveRecurringPrompt } from "./board.ts"
-import { runThreadUpdate } from "./frizz.ts"
+import { runThreadUpdate } from "./ntwine.ts"
 import { repairThreadFile } from "./repair.ts"
 import { reopenArchivedThreadForFollowUp, resumeThread, wakeParkedThreadForFollowUp } from "./resume.ts"
 import { appendDelivery, beginDelivery, cancelDelivery, deliverOutstandingDeliveries, deliveryItem, dismissFailedDelivery, dropHeldDelivery, heldDeliveries, holdDelivery, recordDeliveryFailure, retireOutstandingDeliveries } from "./delivery-ledger.ts"
@@ -240,13 +240,13 @@ import { dispatchCaller } from "./dispatch-caller.ts"
 import { resolveThreadLink, threadLinkView } from "./thread-links.ts"
 import { ghInstalled, ghAuthed, ghRepo, gitGithubRemote, listItems, hydrateIssue, hydratePr, renderGithubPrompt, effectiveTemplate, DEFAULT_GITHUB_PROMPT } from "./github.ts"
 import { createGithubHovercardService } from "./github-hovercard.ts"
-import { slugify, resolveSlug, resolveLegacyThreadFile, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, frizzConfigBlock, coldResumePermission, scratchDirRelPath, workerScratchPath } from "./dispatch.ts"
+import { slugify, resolveSlug, resolveLegacyThreadFile, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, coldResumePermission, scratchDirRelPath, workerScratchPath } from "./dispatch.ts"
 import { backgroundOpStoppable, claudeShellLabel, noticeClaudeShellStopped, stopBackgroundShell } from "./shell-stop.ts"
 import { liveShellBudget, SHELL_BUDGET_MAX_MS } from "./shell-budget.ts"
 import { readCodexModels } from "./backend/codex-models.ts"
 import { peekClaudeModels, readClaudeModels } from "./backend/claude-models.ts"
 import { claudeModelStanding, claudeModelUpgradeBlock, claudeModelUpgradeDue, claudeModelUpgradeRefusal, claudeUpgradeCandidate, SERVER_STARTED_AT_MS } from "./backend/claude-model-upgrade.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 import { expiredDoneThreads } from "./thread-retention.ts"
 import type { FolderInUse } from "./worktree-sweep.ts"
 import { readProjectInstructions, writeProjectInstructions } from "./project-instructions.ts"
@@ -272,8 +272,8 @@ import { clearProjectIcon, customIconPath, findById, forgetProject, listProjects
 import { HOME_WORKSPACE_NAME, isHomeWorkspace, listWorkspaces, reorderWorkspaces } from "./home-workspace.ts"
 import { basename, dirname, isAbsolute, relative } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, ProjectRailCounts, activeBandThread, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@frizz/shared"
-import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@frizz/shared"
+import { ProjectCard, ProjectQueue, ProjectRailCounts, activeBandThread, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
+import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@ntwine/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
 import { chosenProjectRoot, ensureProjectIdFile, existingProjectId, isHomeDirectory, writeProjectIdFile } from "./project-root.ts"
@@ -283,8 +283,8 @@ import { detectProjectIcon } from "./project-icon.ts"
 import { pickDirectory, pickImageFile, warmDirectoryPicker, warmImagePicker } from "./directory-picker.ts"
 import { completePath } from "./path-complete.ts"
 import Database from "./sqlite.ts"
-import { projectStateDir } from "./frizz-paths.ts"
-import { deleteUserCommand, frizzCommandsDir, listUserCommands, saveUserCommand } from "./user-commands.ts"
+import { projectStateDir } from "./ntwine-paths.ts"
+import { deleteUserCommand, ntwineCommandsDir, listUserCommands, saveUserCommand } from "./user-commands.ts"
 
 const SlugInput = z.object({ slug: ThreadSlug }).strict()
 
@@ -371,9 +371,9 @@ const cachedLivenessTerminator: RegisteredRuntimeTerminator = {
 
 // The other terminator. An app-server Codex thread has NO runtime of its own to kill: its worker is a
 // TURN running inside the shared codex app-server, which now lives in a DETACHED daemon that
-// deliberately outlives the frizz runtime. Routed through the registered-runtime terminator it takes
+// deliberately outlives the ntwine runtime. Routed through the registered-runtime terminator it takes
 // stopRegisteredRuntime's `unbound` branch, kills a session that never existed, and reports "stopped" —
-// while the turn keeps running, burning tokens and touching the repo with no frizz-side owner and no UI
+// while the turn keeps running, burning tokens and touching the repo with no ntwine-side owner and no UI
 // trace. Before the daemon worked this was masked, because the app-server died with the runtime.
 // `turn/interrupt` over the bridge is the only thing that actually stops it. (Subset of
 // CodexAppServerBridge so the router does not depend on the whole bridge and a test can substitute a
@@ -388,7 +388,7 @@ export interface CodexTurnTerminator {
 export interface AcpTurnTerminator {
   turnLiveness(threadSlug: string, sessionId: string): { turnActive: boolean } | undefined
   interruptTurn(threadSlug: string, sessionId: string): Promise<{ interrupted: boolean }>
-  /** End the agent itself — its daemon outlives frizz (acp-host.ts), so a stop that only cancelled
+  /** End the agent itself — its daemon outlives ntwine (acp-host.ts), so a stop that only cancelled
    *  the turn would leave the agent running for nobody. */
   releaseSession(threadSlug: string, sessionId: string, reason: "session-replaced" | "session-deleted"): void
   /** Whether an agent process exists for this session at all — attached or not, mid-turn or idle. The
@@ -409,11 +409,11 @@ export function isAppServerCodexRow(row: Pick<SessionRow, "backend" | "codex_run
 }
 
 // The Claude twin of the codex turn terminator. A broker-backed Claude row also has NO runtime of its
-// own to kill: its worker is a Claude session owned by a DETACHED daemon that outlives frizz. Routed
+// own to kill: its worker is a Claude session owned by a DETACHED daemon that outlives ntwine. Routed
 // through the registered-runtime terminator it would take stopRegisteredRuntime's `unbound` branch, kill
 // a session that never existed, and report "stopped" while the ownerless daemon keeps running — the same
 // phantom-stop the codex terminator exists to prevent. releaseSession SIGTERMs the daemon by record
-// (even when this frizz process holds no live socket, e.g. after a restart); isDaemonAlive reports
+// (even when this ntwine process holds no live socket, e.g. after a restart); isDaemonAlive reports
 // whether one was there to stop. (Subset of ClaudeAgentBrokerBridge so the router needn't depend on the
 // whole bridge.)
 export interface ClaudeBrokerTerminator {
@@ -483,7 +483,7 @@ export async function stopThreadRuntime(
 // after the owner exited. Verify token + full tuple, kill that tuple only, then prove it disappeared
 // before deleting registry ownership or reporting the worker stopped. Adoption spawns through the broker
 // now, so a live claim carries no runtime tuple and every lookup answers "absent" (see
-// adoption-recovery.ts); the protocol is kept because a claim written by a PRE-cutover frizz still has
+// adoption-recovery.ts); the protocol is kept because a claim written by a PRE-cutover ntwine still has
 // to be refused safely rather than resolved to a name someone else may hold.
 export function stopRegisteredRuntime(
   storage: Pick<Storage, "getAdoptionClaim"> & Partial<Pick<Storage, "getSession" | "getAdoptionRuntimeSnapshot">>,
@@ -761,13 +761,13 @@ export async function stopAndForgetRegisteredRuntime(
 /**
  * DELETE ONE THREAD — the one body behind the ⋯ menu's Delete, the Settings drawer's bulk delete and the
  * retention sweep (thread-retention.ts). Stops its worker if one is still running (the same stop Mark as
- * done performs), then drops every row Frizz keeps for it (storage `forgetOwnedRow`) and tombstones its
+ * done performs), then drops every row Ntwine keeps for it (storage `forgetOwnedRow`) and tombstones its
  * transcript so discovery cannot bring it back, stops its terminals, drops the tailer's state and removes
  * its scratch directory. Its slug and `@handle` are free the moment this returns: the next thread named
  * like it gets the bare slug, and a mention no longer finds it.
  *
  * The provider's own transcript is left where the provider wrote it — it belongs to Claude or Codex,
- * not to Frizz. The caller refreshes the board, so a bulk delete rebuilds it once.
+ * not to Ntwine. The caller refreshes the board, so a bulk delete rebuilds it once.
  */
 export async function deleteOwnedThread(
   ctx: Pick<AppContext, "storage" | "tailer" | "terminalRunner" | "project" | "codexAppServer" | "claudeBroker" | "acpBridge">,
@@ -806,7 +806,7 @@ export async function deleteExpiredDoneThreads(
     try {
       if (await deleteOwnedThread(ctx, row.slug)) deleted++
     } catch (error) {
-      frizzLog.warn("thread-retention", `${ctx.project.name}: ${row.slug} was not deleted: ${error instanceof Error ? error.message : String(error)}`)
+      ntwineLog.warn("thread-retention", `${ctx.project.name}: ${row.slug} was not deleted: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
   if (deleted) ctx.board.refresh()
@@ -862,21 +862,21 @@ export async function threadFoldersInUse(
       if (source && backend === "claude") for (const folder of subAgentFolders(source.path, workDir)) add(folder.dir)
     } catch (error) {
       // An unreadable transcript is no reading; the project root, where every thread starts, is not a worktree.
-      frizzLog.debug("worktrees", `${ctx.project.name}/${t.id}: could not read its working folder: ${String(error)}`)
+      ntwineLog.debug("worktrees", `${ctx.project.name}/${t.id}: could not read its working folder: ${String(error)}`)
     }
   }
   return out
 }
 
-// The typed RPC surface. Every handler is thin: state mutations go through frizz scripts
+// The typed RPC surface. Every handler is thin: state mutations go through ntwine scripts
 // (thread files) or a worker daemon's bridge (agents), then rebuild the board so a fresh snapshot fans
 // out on SSE.
 /**
  * Register a folder as a project: the one implementation behind both the picker and a typed path.
  *
  * Almost everything it does is what the CLI already does on every launch — mint or adopt
- * `.frizz/.id`, write the index — and it dispatches nothing, which is what makes it a strictly
- * smaller authority than running `frizz` in that directory. The one deliberate divergence is the
+ * `.ntwine/.id`, write the index — and it dispatches nothing, which is what makes it a strictly
+ * smaller authority than running `ntwine` in that directory. The one deliberate divergence is the
  * root: an explicit choice resolves through chosenProjectRoot, not the launcher's cwd walk-up.
  */
 // A place in a file as `openLocalFile` takes it (shared file-position.ts): 1-based, whole numbers.
@@ -1005,11 +1005,11 @@ export function addProjectAtPath(
     }
   }
   const root = options.exact ? absolute : enclosing
-  // Minting an id in $HOME writes a project into ~/.frizz — Frizz's own state root — and every
+  // Minting an id in $HOME writes a project into ~/.ntwine — Ntwine's own state root — and every
   // unmarked directory under home then resolves to it. The launcher refuses this; so does the add-project dialog.
   if (isHomeDirectory(root, home)) throw new Error("The home folder cannot be a project — choose a folder inside it.")
   // SEEDED, exactly as the launcher seeds it: an established repository whose id lives only in
-  // `git config frizz.id` keeps that id, so adding it from the page finds its existing board instead
+  // `git config ntwine.id` keeps that id, so adding it from the page finds its existing board instead
   // of minting a fresh one and orphaning every thread on it. NOT for a folder adopted inside another
   // root: `git config` there answers for the ENCLOSING repository, and seeding from it would hand the
   // subfolder the checkout's id — and with it, the checkout's board.
@@ -1017,7 +1017,7 @@ export function addProjectAtPath(
   const remoteOwner = resolveProjectLabel(root)?.split("/")[0]
   let registered = registerProject({ dir: root, id, remoteOwner }, home)
   if (registered.action === "duplicate") {
-    // A copied checkout brought another project's `.frizz/.id` with it; give it one of its own
+    // A copied checkout brought another project's `.ntwine/.id` with it; give it one of its own
     // rather than letting it adopt the original's threads.
     registered = registerProject({ dir: root, id: writeProjectIdFile(root, randomUUID()), remoteOwner }, home)
   }
@@ -1064,7 +1064,7 @@ function storeProjectIcon(id: string, name: string, bytes: Buffer): ProjectCard 
   writeFileSync(path, bytes)
   if (!imageDimensions(path)) {
     rmSync(path, { force: true })
-    throw new Error("That file does not look like an image Frizz can draw.")
+    throw new Error("That file does not look like an image Ntwine can draw.")
   }
   // A previous upload in a DIFFERENT format would otherwise sit beside this one and win nothing, but
   // it would linger forever; the registry only ever points at the newest.
@@ -1103,7 +1103,7 @@ function setProjectIconFromFile(id: string, file: string): ProjectCard {
   return storeProjectIcon(id, file, bytes)
 }
 
-// MODULE level, not per-router: one Frizz serves N projects, each with its own router instance, and
+// MODULE level, not per-router: one Ntwine serves N projects, each with its own router instance, and
 // every cache key here is a fully-qualified `owner/repo#N` — so sharing the cache across tenants is
 // both safe and the point (a monorepo's threads and a sibling project's threads referencing the same
 // upstream issue pay for it once).
@@ -1115,7 +1115,7 @@ function mergeSubAgentSteers(messages: TranscriptMessage[], steers: SubAgentStee
   for (const steer of steers) {
     const at = new Date(steer.sent_at).toISOString()
     // Future broker versions may start persisting addressed input. Prefer the provider's native record
-    // when the same text appears at the same instant rather than rendering Frizz's journal copy too.
+    // when the same text appears at the same instant rather than rendering Ntwine's journal copy too.
     const duplicate = messages.some((message) => {
       if (message.role !== "user" || message.text.trim() !== steer.message.trim() || !message.at) return false
       return Math.abs(Date.parse(message.at) - steer.sent_at) <= 5_000
@@ -1147,10 +1147,10 @@ const HANDOFF_ASKED_MAX = 1200
  * (web lib/messagePresentation.ts `lastHumanTurnIndex`), so the card on All queues and the card on the
  * board open on the same exchange.
  *
- * "The human" skips everything Frizz or another agent put in the worker's composer — a wake, a
+ * "The human" skips everything Ntwine or another agent put in the worker's composer — a wake, a
  * sub-agent steer, a peer's report, a queued send not yet delivered — because a card that answered
  * "what did you ask for?" with a PR-watcher status line would be quoting the wrong author. EXCEPT the one
- * wake the human wrote: the answer to a registered question, which Frizz delivers as a wake because the
+ * wake the human wrote: the answer to a registered question, which Ntwine delivers as a wake because the
  * worker may have been down when it was given. Skipping it anchored the card on the message BEFORE the
  * answer, so a card answered on All queues came back quoting the original task.
  *
@@ -1369,7 +1369,7 @@ export function createRouter(ctx: AppContext) {
     const messages = info?.outputFile ? read(info.outputFile) : []
     const said = (m: (typeof messages)[number]) => (m.displayText ?? m.text).trim()
     const opening = messages.find((m) => m.role === "user" && !m.kind && said(m))
-    // The dispatch prompt as the WORKER wrote it: the transcript projection already cut Frizz's helper
+    // The dispatch prompt as the WORKER wrote it: the transcript projection already cut Ntwine's helper
     // epilogue off it (transcript.ts subAgentDispatchDisplayText), the same cut the drawer reads.
     const request = opening ? said(opening) : ""
     const spoken = messages.filter((m) => m.role === "assistant" && !m.kind && said(m))
@@ -1436,7 +1436,7 @@ export function createRouter(ctx: AppContext) {
     return attempt
   }
 
-  const frizzDir = join(ctx.project.dir, ".frizz")
+  const ntwineDir = join(ctx.project.dir, ".ntwine")
   // Where this project's agents RUN — the checkout for every registered project, the configured folder
   // for the Home workspace (project.ts workDirOf). Every cwd below, and every path a worker wrote
   // relative to its cwd, goes through this; `ctx.project.dir` is kept for what lives on the board.
@@ -1550,7 +1550,7 @@ export function createRouter(ctx: AppContext) {
     onResult?: (result: T) => AuditFields,
   ): Promise<T> => audited(ctx.audit, action, base, run, { onResult, servedBy: ctx.project.id })
 
-  // An auto-titled registry row is session-first authority. A same-slug `.frizz/<slug>.md` may have
+  // An auto-titled registry row is session-first authority. A same-slug `.ntwine/<slug>.md` may have
   // been planted independently and is never a readable or writable extension of that session.
   function isAutoTitledSession(slug: string): boolean {
     return ctx.storage.getSession(slug)?.title_auto === 1
@@ -1572,7 +1572,7 @@ export function createRouter(ctx: AppContext) {
    *  because that is the only shape an external row ever has — a promoted thread keeps the id it was
    *  discovered under, so a request naming two different values did not come from this band. And the
    *  tailer must still be listing it as external RIGHT NOW, which is what makes this un-forgeable:
-   *  the caller cannot talk frizz into adopting an arbitrary uuid, only a transcript the server can
+   *  the caller cannot talk ntwine into adopting an arbitrary uuid, only a transcript the server can
    *  see for itself in this project's own log directory. */
   async function promoteExternalSession(slug: string, sessionId: string): Promise<boolean> {
     if (slug !== sessionId) return false
@@ -1613,7 +1613,7 @@ export function createRouter(ctx: AppContext) {
   // A LINK INTO A WORKTREE THAT IS GONE OPENS THE MAIN CHECKOUT'S COPY. An agent working in a worktree
   // names its files there — absolute paths in its tool calls and prose, relative ones the page resolves
   // against its worktree (lib/useMarkdown.ts CheckoutBaseContext) — and the worktree is usually removed
-  // once its branch is merged. Only `<project>/.frizz/worktrees/` is recognized: Frizz mandates no
+  // once its branch is merged. Only `<project>/.ntwine/worktrees/` is recognized: Ntwine mandates no
   // worktree folder, and that is the one convention it already knows (board.ts ignores it too). Every
   // way the page opens a local file (the editor, the reader, inline-code links, the sidebar's own opener
   // through `settleLocalPath`) passes the path through here: as asked while it exists, else the main
@@ -1621,7 +1621,7 @@ export function createRouter(ctx: AppContext) {
   // missing file gets is unchanged. A trailing `:12` the opener strips later is carried along.
   function settleWorktreePath(path: string): string {
     if (!isAbsolute(path) || existsOrPositioned(path)) return path
-    const copy = mainCheckoutCopy(path, workDir, join(workDir, ".frizz", "worktrees"))
+    const copy = mainCheckoutCopy(path, workDir, join(workDir, ".ntwine", "worktrees"))
     return copy && existsOrPositioned(copy) ? copy : path
   }
   function existsOrPositioned(path: string): boolean {
@@ -1666,7 +1666,7 @@ export function createRouter(ctx: AppContext) {
       // The row is bound to the CALLER's session id (origin/main's staleness guard): a stale tab must
       // not deliver a follow-up into a thread that has since been re-dispatched.
       // PROMOTION. Steering an EXTERNAL session — one of the human's own terminals, listed in the
-      // rail's External band — is what turns it into a frizz thread (maintainer 2026-08-24). It runs
+      // rail's External band — is what turns it into a ntwine thread (maintainer 2026-08-24). It runs
       // here, inside the follow-up, rather than behind a button of its own: one round trip, so the
       // message and the row it belongs to can never end up on opposite sides of a failure.
       //
@@ -1698,8 +1698,8 @@ export function createRouter(ctx: AppContext) {
         }
         // Running sub-agents do NOT refuse this. They used to: the completion invariant says an agent
         // runs to its terminal return, and a restart kills the parent's in-memory children. But that
-        // invariant binds frizz's OWN initiative — needsFreshProcessForLimit below still declines to
-        // kill a live child when FRIZZ is the one deciding to restart — and `freshProcess` is not frizz
+        // invariant binds ntwine's OWN initiative — needsFreshProcessForLimit below still declines to
+        // kill a live child when NTWINE is the one deciding to restart — and `freshProcess` is not ntwine
         // deciding, it is the operator instructing. Refusing it made the recovery verb unavailable in
         // precisely the state that motivates it: a worker wedged behind background work that will not
         // finish (maintainer 2026-08-01: "do not disable the button when there are sub-agents
@@ -1724,12 +1724,12 @@ export function createRouter(ctx: AppContext) {
       //
       // The BUBBLE and the delivery LEDGER keep the human's text untouched (see the `input.message`
       // uses below): what the human typed is what the board shows. Only the copy handed to the worker
-      // carries the note, and the note names frizz as its author because the message it rides on is
-      // not frizz's.
+      // carries the note, and the note names ntwine as its author because the message it rides on is
+      // not ntwine's.
       const gapNote = humanGapNote(Date.now(), ctx.tailer.get(input.slug)?.lastAssistantAt)
       // …AND THE QUESTIONS STILL OPEN, the same way and for the same reader. A typed message changes
       // nothing about them: each stays open until it is answered, dismissed or withdrawn. The worker —
-      // which reads the message, as frizz cannot — decides which it still needs, so it is told, here,
+      // which reads the message, as ntwine cannot — decides which it still needs, so it is told, here,
       // which are open and by what id, and that its next rest names the ones it needs under
       // `questions:` and `unask`s the rest. Appended AFTER the gap note, so that note's "the message
       // above" still means the human's words.
@@ -1776,7 +1776,7 @@ export function createRouter(ctx: AppContext) {
         const binding = bridge.binding(input.slug, row.session_id)
         // Writer-yield: if the rollout shows an in-flight turn the bridge does NOT hold (it has no
         // current turn of its own), someone is driving this thread in their own terminal via
-        // `codex resume`. Frizz keeps MIRRORING that turn (the tailer follows the same rollout), but it
+        // `codex resume`. Ntwine keeps MIRRORING that turn (the tailer follows the same rollout), but it
         // must not start/steer a second turn and race two writers. Yield until the external turn rests.
         // A turn the app-server opens on its own — a codex thread goal's continuation — is NOT this
         // case: the bridge adopts it from `turn/started` (codex-app-server.ts), so it holds a current
@@ -1794,7 +1794,7 @@ export function createRouter(ctx: AppContext) {
         const turnLive = ctx.tailer.get(input.slug)?.turn === "in-flight" && !stalled
         if (turnLive && (!binding || binding.currentTurnId === null)) {
           // Under 160 characters: sendEagerFollowUp toasts this after "Steer failed — " and cuts the rest.
-          throw new Error("This thread is being driven outside Frizz. Wait for that turn to end, then resend.")
+          throw new Error("This thread is being driven outside Ntwine. Wait for that turn to end, then resend.")
         }
         if (!binding || binding.state !== "active") {
           await bridge.resumeOwnedSession(input.slug, row.session_id)
@@ -1811,7 +1811,7 @@ export function createRouter(ctx: AppContext) {
         // guess: the bridge already dedups on deliveryId and its return IS the receipt. Without it the
         // ONLY thing rendering a just-sent codex steer is the client's optimistic bubble, and
         // mergeOptimistic's ghost floor retires that once the transcript advances 60s past it —
-        // measured against frizz's own delivery records, 8 of 75 codex sends took longer than that to
+        // measured against ntwine's own delivery records, 8 of 75 codex sends took longer than that to
         // appear in the rollout (steers at 71s, 212s and 4.6h), so the message could vanish from the
         // drawer entirely. The tailer drops the item the moment the rollout materialises the message.
         //
@@ -1848,7 +1848,7 @@ export function createRouter(ctx: AppContext) {
         const appendSystemPrompt = [
           loadWorkerPrompt("claude", workerCapabilities(ctx.editors, workDir)),
           scratchpadOrientation(row.session_id, "claude", workerScratchPath(ctx.project, row.session_id)),
-          frizzConfigBlock(ctx.project.dir),
+          ntwineConfigBlock(ctx.project.dir),
           deadlineSection(row),
         ].filter(Boolean).join("\n\n")
         // Is this thread MID-TURN right now? Sampled BEFORE the bridge call on purpose: a cold resume
@@ -1866,7 +1866,7 @@ export function createRouter(ctx: AppContext) {
         const upgrade = upgradeCandidate
           ? claudeModelUpgradeDue(upgradeCandidate, { catalogue: peekClaudeModels(), nowMs: Date.now(), serverStartedAtMs: SERVER_STARTED_AT_MS })
           : undefined
-        if (upgrade?.due) frizzLog.info("server", `${input.slug}: compacted on ${upgrade.from}; this follow-up starts a fresh worker on ${upgrade.to}`)
+        if (upgrade?.due) ntwineLog.info("server", `${input.slug}: compacted on ${upgrade.from}; this follow-up starts a fresh worker on ${upgrade.to}`)
         await bridge.followUp({
           threadSlug: input.slug,
           sessionId: row.session_id,
@@ -1884,7 +1884,7 @@ export function createRouter(ctx: AppContext) {
           // The pause card's "Continue now" is the same act as the scheduler's auto-resume, so it
           // needs the same treatment: while the process is still latched on its own 429, delivering
           // into it does nothing at all. Restart it instead — otherwise the button is a no-op and
-          // reads as frizz having ignored the click.
+          // reads as ntwine having ignored the click.
           //
           // `input.freshProcess` is the operator asking for it OUTRIGHT (the "Restart worker" verb),
           // which the server cannot derive: only the human knows they want the worker back on a newer
@@ -1951,7 +1951,7 @@ export function createRouter(ctx: AppContext) {
         const preempted = input.interrupt === true && bridge.interruptTurn({ threadSlug: input.slug, sessionId: row.session_id })
         if (preempted) {
           void noteSubAgentsEndedByInterrupt(
-            { tailer: ctx.tailer, storage: ctx.storage, log: (line) => frizzLog.info("interrupt", line) },
+            { tailer: ctx.tailer, storage: ctx.storage, log: (line) => ntwineLog.info("interrupt", line) },
             { slug: input.slug, sessionId: row.session_id, before: childrenBefore, interruptedAtMs: Date.now() },
           )
         }
@@ -1988,7 +1988,7 @@ export function createRouter(ctx: AppContext) {
       // cutover. The deliveryId rides along because the old terminal transport stamped each send with
       // an invisible marker (delivery-marker.ts) — that is what let the tailer confirm delivery by
       // IDENTITY instead of by comparing prose a paste channel was free to rewrite. Codex never takes
-      // this path, and frizz has no transport left for the rows that do: resumeThread refuses every one
+      // this path, and ntwine has no transport left for the rows that do: resumeThread refuses every one
       // of them by design (see resume.ts), so this is a loud backstop, not a delivery.
       resumeThread({ project: ctx.project, storage: ctx.storage, board: ctx.board, getSettings: ctx.getSettings, backendFor: ctx.backendFor }, input.slug, messageForWorker,
         input.deliveryId && row?.backend !== "codex" ? input.deliveryId : undefined,
@@ -2049,7 +2049,7 @@ export function createRouter(ctx: AppContext) {
         const retryable = (error as { retryableDelivery?: unknown } | null)?.retryableDelivery === true
         const message = error instanceof Error ? error.message : String(error)
         if (recordDeliveryFailure(ctx.storage, input.slug, input.deliveryId, { error: message, retryable })) {
-          frizzLog.warn("server", `${input.slug}: follow-up ${input.deliveryId} failed and is kept for the operator: ${message}`)
+          ntwineLog.warn("server", `${input.slug}: follow-up ${input.deliveryId} failed and is kept for the operator: ${message}`)
           ctx.transcriptChange.emit([input.slug])
           ctx.board.refresh()
           if (error && typeof error === "object") Object.defineProperty(error, "deliveryKept", { value: true, enumerable: false })
@@ -2160,7 +2160,7 @@ export function createRouter(ctx: AppContext) {
     return deliverFollowUp(send)
   }
 
-  // RELEASE WHAT FRIZZ IS HOLDING FOR THIS THREAD'S REST, oldest first, through the ordinary follow-up
+  // RELEASE WHAT NTWINE IS HOLDING FOR THIS THREAD'S REST, oldest first, through the ordinary follow-up
   // path and under each message's own id — so the gray bubble the operator has been looking at is the
   // one that becomes the delivered message. The first one opens the next turn; any after it land in
   // that turn as it starts, in order.
@@ -2187,7 +2187,7 @@ export function createRouter(ctx: AppContext) {
           await deliverFollowUp({ slug, sessionId: row.session_id, message: item.text, deliveryId: item.id }, { release: true })
           released++
         } catch (error) {
-          frizzLog.warn("server", `${slug}: releasing held follow-up ${item.id} failed: ${error instanceof Error ? error.message : String(error)}`)
+          ntwineLog.warn("server", `${slug}: releasing held follow-up ${item.id} failed: ${error instanceof Error ? error.message : String(error)}`)
         }
       }
     } finally {
@@ -2605,7 +2605,7 @@ export function createRouter(ctx: AppContext) {
   //    someone else. (In that run the token did reach the grandchild — because the root model read the
   //    misdelivered steer and chose to relay it down with SendMessage, root → child → grandchild. A
   //    model being helpful is not a transport, and nothing may be built on it.)
-  //  - the child must be RUNNING. `stale` means frizz has seen no output for a long while and the
+  //  - the child must be RUNNING. `stale` means ntwine has seen no output for a long while and the
   //    completion record was probably missed; addressing a finished child MISDELIVERS to the parent's
   //    main thread rather than failing, so "probably finished" has to be treated as finished.
   //  - the PARENT's own main-thread turn must be IDLE. The CLI's addressed routing only exists at the
@@ -2662,7 +2662,7 @@ export function createRouter(ctx: AppContext) {
     return { sessionId: row.session_id }
   }
 
-  // Can frizz END this live op, and why not — shell-stop.ts, shared with the runtime budget's kill.
+  // Can ntwine END this live op, and why not — shell-stop.ts, shared with the runtime budget's kill.
   const subAgentStoppable = (slug: string, id: string) => backgroundOpStoppable(ctx, slug, id)
 
   // Apply the operator's retirements to a transcript page. Two surfaces render a background op and BOTH
@@ -2700,7 +2700,7 @@ export function createRouter(ctx: AppContext) {
   //    already-stopped parent.
   //  · A DESCENDANT stop that throws is COUNTED, never swallowed and never fatal. The common cause is
   //    benign — it settled between the sidecar read and the stop — but a genuine failure means live
-  //    work frizz failed to end, and the operator has to hear that rather than read "stopped" over it.
+  //    work ntwine failed to end, and the operator has to hear that rather than read "stopped" over it.
   //  · The TARGET's stop still throws through to the caller, which is what keeps `stopBackgroundOp`
   //    from retiring a row whose work is still going.
   //  · A SHELL has no subtree — its dispatch leaves no sidecar, so `subAgentDescendantTasks` answers
@@ -2737,7 +2737,7 @@ export function createRouter(ctx: AppContext) {
 
   // FAILURE ONLY. A successful fan-out is already fully described by `descendantsStopped`, and saying
   // it twice on the wire invites the two to drift; the note exists for the one thing a count cannot
-  // express — a descendant frizz asked to stop and could not, which is live work the operator is about
+  // express — a descendant ntwine asked to stop and could not, which is live work the operator is about
   // to lose sight of when the row leaves the board. A shell notice that did not land joins it on the
   // same terms: the operator believes the worker was told, and only this says otherwise.
   function subtreeNote(result: { descendantsFailed: number; noticeFailed?: string | null }): string | null {
@@ -2784,7 +2784,7 @@ export function createRouter(ctx: AppContext) {
   // without a server restart. Never throws (ghRepo swallows failures → null).
   // `installed` is boot-cached like the repo — and, like the repo, a cached NEGATIVE is not trusted.
   // A `gh --version` that timed out at boot (busy machine, cold keyring), or a gh installed after
-  // frizz started, would otherwise hide the whole GitHub feature for the process lifetime with no way
+  // ntwine started, would otherwise hide the whole GitHub feature for the process lifetime with no way
   // back but a restart. A positive is stable, so this re-probes only while the answer is still no —
   // and a missing binary fails as an instant ENOENT spawn, not a network call.
   async function resolveInstalled(): Promise<boolean> {
@@ -2823,7 +2823,7 @@ export function createRouter(ctx: AppContext) {
   function spinoffTarget(projectId: string | null | undefined): AppContext | undefined {
     if (!projectId || projectId === ctx.project.id) return undefined
     const open = (ctx.activeTenants?.() ?? []).find((t) => t.project.id === projectId)?.ctx
-    if (!open) throw new Error("That project is not open in Frizz right now, so a thread cannot start there")
+    if (!open) throw new Error("That project is not open in Ntwine right now, so a thread cannot start there")
     return open
   }
 
@@ -2851,7 +2851,7 @@ export function createRouter(ctx: AppContext) {
     }
     const all = [...candidates.values()]
     const here = candidates.get(ctx.project.id)!
-    const listing = `Projects in Frizz:\n${spawnProjectList(all, here)}`
+    const listing = `Projects in Ntwine:\n${spawnProjectList(all, here)}`
     let chosen: SpawnProject | undefined
     if (project !== undefined) {
       chosen = resolveSpawnProject(project, all)
@@ -2878,7 +2878,7 @@ export function createRouter(ctx: AppContext) {
     }
     if (chosen.id === ctx.project.id) return undefined
     const target = tenants.get(chosen.id)?.ctx ?? (await ctx.openProject?.(chosen.id))
-    if (!target) throw new Error(`${chosen.name} could not be opened in Frizz right now, so a thread cannot start there`)
+    if (!target) throw new Error(`${chosen.name} could not be opened in Ntwine right now, so a thread cannot start there`)
     return { ctx: target, slug: chosen.slug }
   }
 
@@ -2893,7 +2893,7 @@ export function createRouter(ctx: AppContext) {
   // parent's prompt cache) and was ~1.1-2x faster.
   //
   // THE SUMMARY (David 2026-10-07, summarySpinoff below), everywhere else — a fresh thread whose opening
-  // prompt is the human's instructions over context Frizz assembles from what it already stores:
+  // prompt is the human's instructions over context Ntwine assembles from what it already stores:
   //   • Codex and ACP threads — nothing here can fork their sessions.
   //   • A CROSS-PROJECT spinoff. The Claude CLI finds a session to fork from any cwd (measured on 2.1.284),
   //     but the conversation it would copy is full of paths relative to ANOTHER checkout, and the target's
@@ -2929,7 +2929,7 @@ export function createRouter(ctx: AppContext) {
         ...(parent.model ? { model: parent.model } : {}),
         ...(effort.success && effort.data !== undefined ? { effort: effort.data } : {}),
       },
-      // Named from the human's words — the prompt opens on Frizz's "A spinoff of @parent…" boilerplate.
+      // Named from the human's words — the prompt opens on Ntwine's "A spinoff of @parent…" boilerplate.
       { backend: "claude", nameSource: spinoffNameSource({ instructions, brief: "" }), fork: { sessionId: fromSessionId } },
     )
     // The edge is written only once the child exists, and complete from birth: a forked request is never
@@ -2945,7 +2945,7 @@ export function createRouter(ctx: AppContext) {
     return { id }
   }
 
-  // THE SUMMARY ROUTE: a fresh thread on context Frizz assembles from the parent (spinoffContext) — its
+  // THE SUMMARY ROUTE: a fresh thread on context Ntwine assembles from the parent (spinoffContext) — its
   // original request, its latest handoff and, across projects, where it lives. Until 2026-10-07 this was a
   // `<spinoff-request>` message to the parent's worker, which wrote a brief and dispatched it: a model call
   // inside the parent's conversation that took ~800 lines to keep out of the parent's chat, rest and queue
@@ -3305,7 +3305,7 @@ export function createRouter(ctx: AppContext) {
               deliveryId,
             })
           }
-          // The provider deliberately does not write addressed input into the child's transcript. Frizz
+          // The provider deliberately does not write addressed input into the child's transcript. Ntwine
           // has the plaintext here, so journal it only after delivery succeeds and merge it into future
           // drawer reads. INSERT OR IGNORE makes a retried transport id one visible message.
           ctx.storage.recordSubAgentSteer({
@@ -3337,7 +3337,7 @@ export function createRouter(ctx: AppContext) {
 
     // ONE AGENT TERMINAL'S LOG — the drawer's read of a background shell, and the whole of its ownership
     // check. Only `slug` and `id` come from the client, and every other link is the server's own:
-    //   1. TENANT — this router is one project's (`/_frizz/<project>/rpc/…`), so is everything below.
+    //   1. TENANT — this router is one project's (`/_ntwine/<project>/rpc/…`), so is everything below.
     //   2. THREAD — `tailer.backgroundShell(slug, id)` looks only in that thread's fold (live ops, then
     //      the retired ring); another thread's id resolves to nothing and the answer is "gone".
     //   3. PATH — never input: the one the harness's ack named, or a Monitor's log beside it.
@@ -3437,7 +3437,7 @@ export function createRouter(ctx: AppContext) {
     //     task id) → the real provider control, `Query.stopTask`, awaited to the daemon's answer. Then
     //     retire, so the row leaves every live surface on this click's own board frame instead of
     //     waiting for the fold. A SHELL additionally gets the notice the provider does not send (see
-    //     shell-stop.ts noticeClaudeShellStopped), so the worker is not left waiting on a watcher frizz already killed.
+    //     shell-stop.ts noticeClaudeShellStopped), so the worker is not left waiting on a watcher ntwine already killed.
     //  2. The stop THREW → do NOT retire. A failed stop means the child is still working, and hiding
     //     it is exactly the bug above; the row stays and the error reaches the operator.
     //  3. NOT stoppable (a legacy claude thread, a codex thread, a stale/finished op) → retire anyway,
@@ -3499,7 +3499,7 @@ export function createRouter(ctx: AppContext) {
             // A TIME LIMIT IS THE HUMAN'S TO SET at dispatch (deadline.ts). A worker's `spawn_thread` cannot
             // pass one — the shim sends none — and one that arrives from a worker's transport anyway is dropped
             // rather than refused, so the spawn itself still goes through. The spawned thread's own worker may
-            // set a deadline with `frizzctl deadline`.
+            // set a deadline with `ntwinectl deadline`.
             const { deadline: askedDeadline, ...undated } = dispatched
             const rest = dispatchCaller() === "worker" ? undated : dispatched
             void askedDeadline
@@ -3547,7 +3547,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // SPINOFF a new thread from this one (SpinoffInput): a fork of this thread's session where one can be
-    // made, else a fresh thread on context Frizz assembles. Either way this thread is sent nothing.
+    // made, else a fresh thread on context Ntwine assembles. Either way this thread is sent nothing.
     spinoff: mutation({
       input: SpinoffInput,
       output: SpinoffResult,
@@ -3607,10 +3607,10 @@ export function createRouter(ctx: AppContext) {
     // the words back in the prompt box. The whole value of this is that it is TRUTHFUL: it reports
     // whether the provider actually removed the message, and never claims a retraction it did not get.
     //
-    // Only a broker-backed Claude row can do it, because only there does frizz hold a control channel
+    // Only a broker-backed Claude row can do it, because only there does ntwine hold a control channel
     // into a queue that still exists. A LEGACY row's text was typed into Claude Code's own TUI composer
-    // back when frizz drove one, and a codex app-server steer goes straight into the running turn — in
-    // both cases the message has left every surface frizz can address, and the honest answer is
+    // back when ntwine drove one, and a codex app-server steer goes straight into the running turn — in
+    // both cases the message has left every surface ntwine can address, and the honest answer is
     // "too late", not a silent no-op.
     unqueueFollowUp: mutation({
       input: UnqueueFollowUpInput,
@@ -3618,8 +3618,8 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
         if (!row) throw new Error("This thread is no longer the session this tab is looking at")
-        // A message Frizz is HOLDING for the agent's rest was never handed to any runtime, so taking it
-        // back is Frizz's alone to do, on every backend: drop the entry and the words go back to the
+        // A message Ntwine is HOLDING for the agent's rest was never handed to any runtime, so taking it
+        // back is Ntwine's alone to do, on every backend: drop the entry and the words go back to the
         // prompt box. A null here means it was released in the meantime, and the ordinary rules below
         // decide what can still be done about it.
         if (dropHeldDelivery(ctx.storage, input.slug, input.deliveryId) !== null) {
@@ -3636,15 +3636,15 @@ export function createRouter(ctx: AppContext) {
         // the message was DELIVERED, which is what it used to say.
         //
         // `cancelled: false` proves exactly one thing: the message is not in the queue any more. The
-        // obvious reading is "the agent picked it up", and that is what happens in every state frizz has
+        // obvious reading is "the agent picked it up", and that is what happens in every state ntwine has
         // been able to reach. But the SDK documents another: once a batch is dequeued and coalesced,
         // cancelling a member answers false whether its content still runs or the whole batch was
         // dropped. Probed hard for that (_live_sdk_cancel_coalesced.mts) and could not reach it — which
-        // is not the same as proving it absent, so the wording must not depend on the answer. What frizz
+        // is not the same as proving it absent, so the wording must not depend on the answer. What ntwine
         // knows is that the message left the queue and is beyond its reach; the bubbles it could not
         // retract stay gray rather than flipping to delivered, so an undelivered message keeps LOOKING
         // undelivered whichever reading is true.
-        const tooLate = { unqueued: false, reason: "Too late — that message has already left the queue, so frizz can't take it back" }
+        const tooLate = { unqueued: false, reason: "Too late — that message has already left the queue, so ntwine can't take it back" }
         const item = deliveryItem(ctx.storage, input.slug, input.deliveryId)
         // Already retracted — a double click, or a second tab clicking the same bubble. Idempotent
         // rather than "too late": the message really is gone, and saying otherwise would be a lie in
@@ -3655,8 +3655,8 @@ export function createRouter(ctx: AppContext) {
         if (item?.state === "sending") return { unqueued: false, reason: "That message is still being sent — try again in a moment" }
         if (item?.state === "failed") return { unqueued: false, reason: "That message was never delivered — use Edit on it to get the text back" }
         // A retired ledger row means the tailer already correlated this send's delivery evidence — the
-        // agent has it. It is also where a deliveryId frizz never sent lands, which the UI cannot
-        // produce (every clickable bubble is one frizz itself projected from a ledger row).
+        // agent has it. It is also where a deliveryId ntwine never sent lands, which the UI cannot
+        // produce (every clickable bubble is one ntwine itself projected from a ledger row).
         //
         // The row is also what makes a successful cancel SAFE to perform: without it there is nothing
         // to tombstone, and the orphaned JSONL enqueue bubble would stay on screen — which reads
@@ -3667,7 +3667,7 @@ export function createRouter(ctx: AppContext) {
           sessionId: row.session_id,
           deliveryId: input.deliveryId,
         })
-        // ORDER: tombstone only AFTER the provider confirms. Recording a cancellation frizz did not get
+        // ORDER: tombstone only AFTER the provider confirms. Recording a cancellation ntwine did not get
         // would hide a message the agent is about to read — the one failure this feature must not have.
         if (!cancelled) return tooLate
         cancelDelivery(ctx.storage, input.slug, input.deliveryId)
@@ -3682,8 +3682,8 @@ export function createRouter(ctx: AppContext) {
     // interrupt does not discard queued input (see the ORDER IS THE CONTRACT note on interruptTurn), so
     // the next turn opens on what is queued — which is exactly what the operator is asking for.
     //
-    // Same gates as unqueueFollowUp, and for the same reason: only a broker-backed Claude row gives frizz
-    // a control channel into a live turn. A legacy row and a codex steer have no interrupt frizz can
+    // Same gates as unqueueFollowUp, and for the same reason: only a broker-backed Claude row gives ntwine
+    // a control channel into a live turn. A legacy row and a codex steer have no interrupt ntwine can
     // send, and the honest answer is to say so rather than no-op.
     deliverQueuedNow: mutation({
       input: DeliverQueuedNowInput,
@@ -3691,7 +3691,7 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
         if (!row) throw new Error("This thread is no longer the session this tab is looking at")
-        // What Frizz was HOLDING for the rest goes to the runtime first — the operator has just said not
+        // What Ntwine was HOLDING for the rest goes to the runtime first — the operator has just said not
         // to wait — and then the interrupt below pushes the whole queue through, those included. On a
         // runtime with no interrupt the release is the entire act, and it is a steer there, read at the
         // agent's next step.
@@ -3702,7 +3702,7 @@ export function createRouter(ctx: AppContext) {
         if (row.backend !== "claude" || row.claude_runtime !== "broker") {
           return released > 0
             ? { interrupted: false, released }
-            : { interrupted: false, reason: "This thread's runtime can't be interrupted from frizz" }
+            : { interrupted: false, reason: "This thread's runtime can't be interrupted from ntwine" }
         }
         const bridge = ctx.claudeBroker
         if (!bridge) throw new Error("Claude session broker is unavailable; cannot interrupt this turn")
@@ -3721,7 +3721,7 @@ export function createRouter(ctx: AppContext) {
             : { interrupted: false, reason: "Nothing to interrupt — this thread has no turn running" }
         }
         void noteSubAgentsEndedByInterrupt(
-          { tailer: ctx.tailer, storage: ctx.storage, log: (line) => frizzLog.info("interrupt", line) },
+          { tailer: ctx.tailer, storage: ctx.storage, log: (line) => ntwineLog.info("interrupt", line) },
           { slug: input.slug, sessionId: row.session_id, before: childrenBefore, interruptedAtMs: Date.now() },
         )
         // The next turn opens on the queue, so those messages are read rather than waiting — say so now
@@ -3765,7 +3765,7 @@ export function createRouter(ctx: AppContext) {
           return
         }
         if (row.backend !== "claude" || row.claude_runtime !== "broker") {
-          throw new Error("This thread's runtime can't be compacted from Frizz")
+          throw new Error("This thread's runtime can't be compacted from Ntwine")
         }
         const bridge = ctx.claudeBroker
         if (!bridge) throw new Error("Claude session broker is unavailable; cannot compact this thread")
@@ -3774,7 +3774,7 @@ export function createRouter(ctx: AppContext) {
         const appendSystemPrompt = [
           loadWorkerPrompt("claude", workerCapabilities(ctx.editors, workDir)),
           scratchpadOrientation(row.session_id, "claude"),
-          frizzConfigBlock(ctx.project.dir),
+          ntwineConfigBlock(ctx.project.dir),
           deadlineSection(row),
         ].filter(Boolean).join("\n\n")
         await bridge.followUp({
@@ -3810,7 +3810,7 @@ export function createRouter(ctx: AppContext) {
         // Codex TUI as a Claude composer. That controller is gone (see the Claude branch below), but the
         // BACKEND test stays: followUp branches the same way and migrates such a row on contact.
         const permRow = ctx.storage.getSession(input.slug)
-        if (permRow?.backend === "acp") throw new Error("An ACP agent enforces its own permissions; Frizz has no mode to set on it")
+        if (permRow?.backend === "acp") throw new Error("An ACP agent enforces its own permissions; Ntwine has no mode to set on it")
         if (permRow?.backend === "codex") {
           // Persist FIRST and unconditionally: the registry is the operator's stated intent, it is what
           // every later cold resume now carries (resumeSandboxOverride), and it must survive even if the
@@ -3885,12 +3885,12 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // USER SLASH COMMANDS — the markdown prompts in Frizz's own folder, this project's `.agents/commands`
+    // USER SLASH COMMANDS — the markdown prompts in Ntwine's own folder, this project's `.agents/commands`
     // and `~/.agents/commands` (user-commands.ts). Read fresh on every ask; the composer offers them beside
     // the harness's skills and expands them itself, so they work on every backend.
     userCommands: query({
       output: UserCommandsResult,
-      handler: async () => ({ commands: await listUserCommands(workDir), frizzDir: frizzCommandsDir() }),
+      handler: async () => ({ commands: await listUserCommands(workDir), ntwineDir: ntwineCommandsDir() }),
     }),
     saveUserCommand: mutation({
       input: SaveUserCommandInput,
@@ -3906,9 +3906,9 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // The composer's `/` typeahead asks the thread's HARNESS for its skills — the broker daemon's
-    // `supportedCommands()` for Claude, the app-server's `skills/list` for Codex. Frizz owns no skill
+    // `supportedCommands()` for Claude, the app-server's `skills/list` for Codex. Ntwine owns no skill
     // discovery of its own, on purpose: the harness already resolves plugins, project and global roots
-    // and enable state, and a frizz-side scan could only drift from what the session actually loaded.
+    // and enable state, and a ntwine-side scan could only drift from what the session actually loaded.
     // Unavailability (no live daemon, a legacy row, an old broker) THROWS with a reason; the web treats
     // any failure as "no suggestions" rather than surfacing an error.
     threadSkills: query({
@@ -3992,7 +3992,7 @@ export function createRouter(ctx: AppContext) {
       output: UpgradeThreadModelResult,
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
-        if (!row || !isBrokerClaudeRow(row)) throw new Error("Only a Claude thread Frizz runs can be upgraded")
+        if (!row || !isBrokerClaudeRow(row)) throw new Error("Only a Claude thread Ntwine runs can be upgraded")
         const telemetry = ctx.tailer.get(input.slug)
         const newer = claudeModelStanding(telemetry?.model, peekClaudeModels())?.newer
         if (!newer) throw new Error("This thread already runs the newest edition of its model")
@@ -4007,7 +4007,7 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // Archive = hide the row (UI flag) AND settle the frizz doc: a non-terminal thread gets
+    // Archive = hide the row (UI flag) AND settle the ntwine doc: a non-terminal thread gets
     // status: done written to its frontmatter. Respawn/resume un-archives the row.
     archiveThread: mutation({
       input: SlugInput,
@@ -4025,7 +4025,7 @@ export function createRouter(ctx: AppContext) {
         if (!isAutoTitledSession(input.slug) && t && t.status !== "done" && t.status !== "dismissed") {
           await runThreadUpdate(ctx.project.dir, input.slug, ["--status", "done"]).catch(() => {})
         }
-        void ctx.board.rebuild().catch(() => {}) // .frizz changed; respond now, snapshot lands via SSE (watcher also fires)
+        void ctx.board.rebuild().catch(() => {}) // .ntwine changed; respond now, snapshot lands via SSE (watcher also fires)
       },
     }),
 
@@ -4053,7 +4053,7 @@ export function createRouter(ctx: AppContext) {
 
     // Explicit lifecycle write for session threads: Archive (the done-card button / row action) and
     // Reopen. This is the ONLY writer of state='archived' — the done fence itself mutates nothing
-    // (maintainer-settled). Touches only ui.db; never the .frizz legacy files.
+    // (maintainer-settled). Touches only ui.db; never the .ntwine legacy files.
     setThreadState: mutation({
       input: z.object({ slug: ThreadSlug, state: z.enum(["open", "archived"]) }).strict(),
       handler: async ({ input }) => {
@@ -4186,14 +4186,14 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // The WORKER arming its own, from `frizzctl goal`. Same row the Goal panel writes;
+    // The WORKER arming its own, from `ntwinectl goal`. Same row the Goal panel writes;
     // different caller, and therefore a different guard.
     //
     // Unguarded on session/generation ON PURPOSE — see SetOwnThreadRecurringPromptInput. The MCP server
-    // knows only its slug, which frizz stamped into its env at spawn and which survives every resume,
+    // knows only its slug, which ntwine stamped into its env at spawn and which survives every resume,
     // while the session id underneath it does not. It is not attacker-supplied: a model can choose the
     // TEXT but never the thread, so there is deliberately no slug parameter it could aim elsewhere. One
-    // agent making a DIFFERENT thread loop forever is not a capability frizz hands out.
+    // agent making a DIFFERENT thread loop forever is not a capability ntwine hands out.
     setOwnThreadRecurringPrompt: mutation({
       input: SetOwnThreadRecurringPromptInput,
       output: SetOwnThreadRecurringPromptResult,
@@ -4247,7 +4247,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // ---- THE WORKER'S ONE-OFF TIMERS (scheduler SOURCE 6) ----------------------------------------
-    // Three mutations, from `frizzctl timer`. Same caller as the recurring prompt above and therefore
+    // Three mutations, from `ntwinectl timer`. Same caller as the recurring prompt above and therefore
     // the same guard: keyed on the slug alone, because the MCP server keeps its slug across every resume
     // while the session id underneath it bumps.
     //
@@ -4316,7 +4316,7 @@ export function createRouter(ctx: AppContext) {
     //
     // The fence is structural — it references live things by id — so a worker that no longer has those
     // ids to hand cannot write a correct fence at all, and the failure is silent: it names something
-    // wrong, frizz refuses the park, and the thread queues. That is the exact stall the grammar exists
+    // wrong, ntwine refuses the park, and the thread queues. That is the exact stall the grammar exists
     // to prevent, so the ids have to be RETRIEVABLE rather than remembered. Same list the sign-off nudge
     // prints, from the same source, so the two can never tell a worker different things.
     //
@@ -4432,7 +4432,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // ---- REGISTERED PR WATCHERS (add / drop / list) ---------------------------------------------
-    // The worker's own PR watchers, from `frizzctl watch-pr`. Same caller and therefore the same rules
+    // The worker's own PR watchers, from `ntwinectl watch-pr`. Same caller and therefore the same rules
     // as the timers above: slug-only (the MCP server outlives the session ids underneath it), and no
     // thread parameter a model could aim elsewhere.
     addOwnPrWatch: mutation({
@@ -4444,11 +4444,11 @@ export function createRouter(ctx: AppContext) {
         if (row.state === "archived" || row.archived === 1) {
           throw new Error("Reopen this thread before registering a watcher on it")
         }
-        // A PULL REQUEST unless the caller says `issue` (2026-09-14, `frizzctl watch-issue`). Same
+        // A PULL REQUEST unless the caller says `issue` (2026-09-14, `ntwinectl watch-issue`). Same
         // registry and same rules below; the ref grammar, the probe and the refusal wording branch.
         const kind = input.kind ?? "pull"
         const noun = kind === "issue" ? "issue" : "pull request"
-        // REFUSED, not stored. A watcher on a ref frizz cannot parse is one that can never fire, and a
+        // REFUSED, not stored. A watcher on a ref ntwine cannot parse is one that can never fire, and a
         // worker that registers one comes to rest believing it is covered.
         const ref = kind === "issue" ? parseIssueRef(input.target) : parsePrRef(input.target)
         if (!ref) {
@@ -4496,7 +4496,7 @@ export function createRouter(ctx: AppContext) {
         if (!probe.ok) {
           throw new Error(
             `\`${target}\` cannot be watched as ${kind === "issue" ? "an issue" : "a pull request"} — the server's \`gh\` could not read it: ${probe.reason}. ` +
-            "Frizz polls with the `gh` of the process it runs as, not yours: check `gh auth status` there and that the repo is " +
+            "Ntwine polls with the `gh` of the process it runs as, not yours: check `gh auth status` there and that the repo is " +
             "reachable, then register again. If GitHub itself was briefly down, registering again in a minute is enough.",
           )
         }
@@ -4586,9 +4586,9 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // ---- REGISTERED COMMAND WATCHES (add / drop / list) -------------------------------------------
-    // `frizzctl watch-command`: a shell command the SERVER re-runs on a cadence until it exits 0 (scheduler
+    // `ntwinectl watch-command`: a shell command the SERVER re-runs on a cadence until it exits 0 (scheduler
     // SOURCE 16, command-watch.ts). Slug-only like every worker registry. The GATE runs before anything
-    // else, the idempotent short-circuit included: whether Frizz may run commands for this thread at all
+    // else, the idempotent short-circuit included: whether Ntwine may run commands for this thread at all
     // is the first question, and a thread that has lost the right must not be told its old watch stands.
     addOwnCommandWatch: mutation({
       input: AddOwnCommandWatchInput,
@@ -4602,7 +4602,7 @@ export function createRouter(ctx: AppContext) {
         const service = ctx.commandWatches
         const refusal = service ? service.refusal(row) : `this server cannot run command watches. ${COMMAND_WATCH_FALLBACK}`
         if (refusal) {
-          return { refused: `Frizz will not run a command watch for this thread: ${refusal}`, alreadyArmed: false, passed: false, watches: armedCommandWatchViews(input.slug) }
+          return { refused: `Ntwine will not run a command watch for this thread: ${refusal}`, alreadyArmed: false, passed: false, watches: armedCommandWatchViews(input.slug) }
         }
         const command = input.command.trim()
         const armed = ctx.storage.listCommandWatches(input.slug, { armedOnly: true })
@@ -4646,7 +4646,7 @@ export function createRouter(ctx: AppContext) {
         if (first && (first.outcome === "error" || (first.outcome === "exit" && (first.exitCode === 126 || first.exitCode === 127)))) {
           return {
             refused:
-              `Frizz ran your command once to check it, and it could not run here (${first.outcome === "error" ? "the shell did not start" : `\`/bin/sh\` exited ${first.exitCode}`}). ` +
+              `Ntwine ran your command once to check it, and it could not run here (${first.outcome === "error" ? "the shell did not start" : `\`/bin/sh\` exited ${first.exitCode}`}). ` +
               `The server runs it with \`/bin/sh -c\` in ${ctx.project.dir}, with the server's own PATH, not your shell's: ` +
               `use absolute paths, or ${COMMAND_WATCH_FALLBACK.charAt(0).toLowerCase()}${COMMAND_WATCH_FALLBACK.slice(1)}`,
             alreadyArmed: false, passed: false, firstRun, watches: armedCommandWatchViews(input.slug),
@@ -4692,7 +4692,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // ---- THE WORKER'S OWN WATCHES on its own running work (add / drop) --------------------------
-    // `frizzctl watch` and `frizzctl unwatch`. A wait stops being a line the worker restates in a
+    // `ntwinectl watch` and `ntwinectl unwatch`. A wait stops being a line the worker restates in a
     // fence at every rest and becomes a row it creates once — see plans/rest-by-registration.md. Same
     // caller and therefore the same rules as the PR watchers above: slug-only, no thread parameter.
     addOwnWatch: mutation({
@@ -4719,7 +4719,7 @@ export function createRouter(ctx: AppContext) {
         if (!live) {
           throw new Error(
             `nothing running on this thread answers to \`${target}\` — a watch only ever names work that is ` +
-            "already live, and work that has already finished needs no watch at all. Run `frizzctl activity` for the " +
+            "already live, and work that has already finished needs no watch at all. Run `ntwinectl activity` for the " +
             "exact ids of everything you have running.",
           )
         }
@@ -4729,7 +4729,7 @@ export function createRouter(ctx: AppContext) {
         if (live.kind !== input.kind) {
           const said = input.kind === "agent" ? "sub-agent" : "background shell"
           const is = live.kind === "agent" ? "sub-agent" : "background shell"
-          throw new Error(`\`${target}\` is a ${is}, not a ${said} — register it with \`frizzctl watch ${live.kind}\`.`)
+          throw new Error(`\`${target}\` is a ${is}, not a ${said} — register it with \`ntwinectl watch ${live.kind}\`.`)
         }
         const armed = ctx.storage.listThreadWatches(input.slug, { armedOnly: true })
         if (armed.length >= OWN_WATCH_MAX_ARMED) {
@@ -4755,7 +4755,7 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // ---- A BACKGROUND SHELL'S RUNTIME BUDGET (`frizzctl extend-shell`) -----------------------------
+    // ---- A BACKGROUND SHELL'S RUNTIME BUDGET (`ntwinectl extend-shell`) -----------------------------
     // Sets a shell's budget to end `for` from NOW — moving a declared one, or giving one to a shell that
     // was launched without (shell-budget.ts: there is no default). Same caller and
     // same rules as the watches around it: slug-only, and the handle checked against what is actually
@@ -4804,7 +4804,7 @@ export function createRouter(ctx: AppContext) {
     // Two doors onto one row, because the rule between them is the point: ONLY THE HUMAN may move or
     // clear a deadline the human set. `setThreadDeadline` is the drawer's (and refuses a worker's
     // transport, which app.ts records for this route — dispatch-caller.ts); `ownDeadline` is
-    // `frizzctl deadline`, which may read any deadline, set one where there is none, and move or clear
+    // `ntwinectl deadline`, which may read any deadline, set one where there is none, and move or clear
     // only one the worker set itself. Every write is a new GENERATION (`deadline_set_at`), so the
     // check-ins start over against the new budget.
     setThreadDeadline: mutation({
@@ -4812,7 +4812,7 @@ export function createRouter(ctx: AppContext) {
       output: z.object({ deadline: ThreadDeadlineView.nullable() }),
       handler: async ({ input }) => {
         if (dispatchCaller() === "worker") {
-          throw new Error("A worker sets its own time limit with `frizzctl deadline`; this control is the user's.")
+          throw new Error("A worker sets its own time limit with `ntwinectl deadline`; this control is the user's.")
         }
         const row = ctx.storage.getSession(input.slug)
         if (!row) throw new Error(`thread ${input.slug} is not registered`)
@@ -4839,7 +4839,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // THE MACHINE-WIDE WRAP-UP: one deadline, and the human's note, on every Running thread in every open
-    // project — the way to say "restarting in 15m" before a reboot ends the broker daemons a Frizz restart
+    // project — the way to say "restarting in 15m" before a reboot ends the broker daemons a Ntwine restart
     // would not. Running means the rail's own band (`activeBandThread`): a queued thread is already at rest
     // and a snoozed one is parked on a registration that outlives the reboot, so neither is woken. A thread
     // already due SOONER keeps its time, but still gets a new generation so the note reaches it.
@@ -4970,7 +4970,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // ---- THE WORKER'S REGISTERED QUESTIONS (ask / unask) + the human's answer -------------------
-    // `frizzctl ask` and `frizzctl unask`, plus the two the CARD calls. See
+    // `ntwinectl ask` and `ntwinectl unask`, plus the two the CARD calls. See
     // plans/rest-by-registration.md: a question stops being a fenced block with the lifetime of the
     // message carrying it and becomes a row that survives the worker saying anything else.
     //
@@ -5119,7 +5119,7 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // ---- `done`: the completion verb, and the one call frizz can REFUSE --------------------------
+    // ---- `done`: the completion verb, and the one call ntwine can REFUSE --------------------------
     markOwnDone: mutation({
       input: MarkOwnDoneInput,
       output: MarkOwnDoneResult,
@@ -5132,7 +5132,7 @@ export function createRouter(ctx: AppContext) {
         // a sentence in a message, so by the time anything could object the card has already rendered.
         //
         // REGISTRATIONS ONLY, deliberately. A background shell or a sub-agent the worker never
-        // registered does not block this: frizz cannot tell a build from a dev server, only the worker
+        // registered does not block this: ntwine cannot tell a build from a dev server, only the worker
         // can, and the registration IS that judgement. Gating on raw liveness would make `done`
         // unreachable for any thread that left a log tail running.
         const blockingQuestions = heldQuestions(input.slug)
@@ -5406,7 +5406,7 @@ export function createRouter(ctx: AppContext) {
     //
     // `base` is the folder the prose's author worked in when that is not the project root — a thread in a
     // worktree, whose `src/a.ts` means its worktree's copy. A relative candidate is tried there first, then
-    // at the project root, so a file only the main checkout has (`.frizz/threads/<id>/notes.md`) still
+    // at the project root, so a file only the main checkout has (`.ntwine/threads/<id>/notes.md`) still
     // links; the openable-roots gate judges the result either way, so a base outside them resolves nothing.
     resolveLocalPaths: query({
       input: z.object({ paths: z.array(z.string().max(1024)).max(128), base: z.string().max(4096).optional() }).strict(),
@@ -5450,14 +5450,14 @@ export function createRouter(ctx: AppContext) {
       handler: async () => ({ windows: ctx.editors?.windows() ?? [] }),
     }),
 
-    // WHAT THE HUMAN HAS IN FRONT OF THEM, for a worker (`frizzctl editor`, cc-worker/lib/frizz-tools.mjs):
+    // WHAT THE HUMAN HAS IN FRONT OF THEM, for a worker (`ntwinectl editor`, cc-worker/lib/ntwine-tools.mjs):
     // the editor windows that have THIS project's folder open — the file in front, the selection and its
     // text, the open tabs, the errors and warnings — the one the human was in last first, and how many
     // windows are connected at all, so "no editor has this project open" can be told from "no editor".
     // Project-scoped by the URL prefix like every worker call. A mutation only because the worker's MCP
     // server POSTs every procedure it calls; it changes nothing.
     //
-    // `slug` is the CALLING thread (the worker's MCP server stamps its own, FRIZZ_THREAD_SLUG; a model never
+    // `slug` is the CALLING thread (the worker's MCP server stamps its own, NTWINE_THREAD_SLUG; a model never
     // names it). When that thread works in a checkout of its own — a worktree — the answer says where
     // (`checkout`), so the tool can tell the worker that the file the human has selected is the main
     // checkout's copy and name its own; and a window opened on that checkout counts as this project's even
@@ -5473,9 +5473,9 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // WHICH GATED TOOLS A WORKER'S MCP SERVER LISTS (cc-worker/bin/frizz-mcp.mjs): a tool whose capability
+    // WHICH GATED TOOLS A WORKER'S MCP SERVER LISTS (cc-worker/bin/ntwine-mcp.mjs): a tool whose capability
     // is absent is left out of `tools/list` rather than paid for on every turn (plans/upstream-superset.md
-    // §5). frizz-mcp asks at its first `tools/list` and then polls, announcing a change with
+    // §5). ntwine-mcp asks at its first `tools/list` and then polls, announcing a change with
     // `notifications/tools/list_changed`, so the list follows the human opening and closing their editor.
     // The same predicate gates the contract's sections at a worker's start (dispatch.ts workerCapabilities).
     // `slug` is the calling thread, as for `editorState`: a window on its own checkout counts. A mutation
@@ -5493,7 +5493,7 @@ export function createRouter(ctx: AppContext) {
     // WHAT A BROWSER TAB SHOWS OF THE EDITOR BESIDE IT (shared editor-protocol.ts EditorFront): the file
     // in front of the window this project's agents' `editor` tool would read, and its selection's lines,
     // for the quiet `VS Code: a.ts:12-20` line over the tab's prompt boxes (web EditorLine.tsx). Never the
-    // text, until the human clicks the line: `text: true` adds `item`, what an editor's own "Add to Frizz
+    // text, until the human clicks the line: `text: true` adds `item`, what an editor's own "Add to Ntwine
     // prompt" would send, which the page turns into the same chip. The `editor-front` event says when to
     // ask again. Project-scoped by the URL prefix, like `editorState`, so the window is the one that has
     // THIS project open.
@@ -5510,7 +5510,7 @@ export function createRouter(ctx: AppContext) {
     // A THREAD'S CHANGES AS VS CODE'S MULTI-FILE DIFF (review-target.ts; packages/vscode review.ts).
     //
     // `reviewTarget` is what the editor extension reads when the human asks from the SIDEBAR: the page
-    // there names the thread to its host (`frizz:review`), and the host asks this — so the page never
+    // there names the thread to its host (`ntwine:review`), and the host asks this — so the page never
     // hands the extension a folder. `reviewInEditor` is the ask from a BROWSER TAB: the same target,
     // pushed over the editor bridge to the window that has the thread's checkout (or the project) open,
     // which opens the diff and comes to the front. The page offers it only while a window that can is
@@ -5529,7 +5529,7 @@ export function createRouter(ctx: AppContext) {
         const target = reviewTarget(input.slug, input.title)
         if (target.checkouts.length === 0) throw new Error("This thread hasn't changed any files yet.")
         if (!ctx.editors || !(await ctx.editors.review(target, workDir))) {
-          throw new Error("No editor window can show the changes. Open the project in VS Code with the Frizz extension.")
+          throw new Error("No editor window can show the changes. Open the project in VS Code with the Ntwine extension.")
         }
         return { ok: true as const }
       },
@@ -5550,11 +5550,11 @@ export function createRouter(ctx: AppContext) {
         assertLegacyMutationAllowed(input.slug)
         await runThreadUpdate(ctx.project.dir, input.slug, ["--status", "done"])
         ctx.storage.markRead(input.slug)
-        void ctx.board.rebuild().catch(() => {}) // .frizz changed; respond now, snapshot lands via SSE (watcher also fires)
+        void ctx.board.rebuild().catch(() => {}) // .ntwine changed; respond now, snapshot lands via SSE (watcher also fires)
       },
     }),
 
-    // Assign ANY status (the "Mark as <status>" split button): the exact frizz status the human picks.
+    // Assign ANY status (the "Mark as <status>" split button): the exact ntwine status the human picks.
     // Dismissing also ends the live agent session (same side-effect the Dismiss verb carries).
     setThreadStatus: mutation({
       input: z.object({ slug: ThreadSlug, status: z.enum(["active", "planning", "planned", "needs-human", "blocked", "done", "dismissed"]) }).strict(),
@@ -5573,7 +5573,7 @@ export function createRouter(ctx: AppContext) {
         }
         await runThreadUpdate(ctx.project.dir, input.slug, ["--status", input.status])
         if (input.status === "done" || input.status === "dismissed") ctx.storage.markRead(input.slug)
-        void ctx.board.rebuild().catch(() => {}) // .frizz changed; respond now, snapshot lands via SSE (watcher also fires)
+        void ctx.board.rebuild().catch(() => {}) // .ntwine changed; respond now, snapshot lands via SSE (watcher also fires)
       },
     }),
 
@@ -5587,8 +5587,8 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const candidate = input.file.match(/^([a-z0-9][a-z0-9-]*)\.md$/)?.[1]
         if (candidate) assertLegacyMutationAllowed(candidate)
-        const { slug } = repairThreadFile(frizzDir, input.file)
-        void ctx.board.rebuild().catch(() => {}) // .frizz changed; respond now, fresh snapshot fans out on SSE (watcher also fires)
+        const { slug } = repairThreadFile(ntwineDir, input.file)
+        void ctx.board.rebuild().catch(() => {}) // .ntwine changed; respond now, fresh snapshot fans out on SSE (watcher also fires)
         return { slug }
       },
     }),
@@ -5598,11 +5598,11 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         assertLegacyMutationAllowed(input.slug)
         await runThreadUpdate(ctx.project.dir, input.slug, ["--status", "dismissed"])
-        void ctx.board.rebuild().catch(() => {}) // .frizz changed; respond now, snapshot lands via SSE (watcher also fires)
+        void ctx.board.rebuild().catch(() => {}) // .ntwine changed; respond now, snapshot lands via SSE (watcher also fires)
       },
     }),
 
-    // Persist a HUMAN display title in Frizz's session registry. This deliberately does not inject a
+    // Persist a HUMAN display title in Ntwine's session registry. This deliberately does not inject a
     // backend slash command: Codex and Claude expose different rename behavior, the process need not
     // be idle/live, and transcript ai-title records must never be allowed to replace explicit intent.
     renameThread: mutation({
@@ -5620,14 +5620,14 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // The WORKER naming its own thread, from `frizzctl title`. Same row `renameThread` writes;
+    // The WORKER naming its own thread, from `ntwinectl title`. Same row `renameThread` writes;
     // different caller, and therefore a weaker claim: this name is machine-authored, so it does NOT
     // lock, and a human rename outranks it both before and after. It only NAMES a thread that has no
     // name yet — never renames one, because a name is the `@handle` the board has already shown and a
     // handle never changes once shown (thread-names.ts).
     //
     // Unguarded on session/generation ON PURPOSE, exactly as `setOwnThreadRecurringPrompt` is: the MCP
-    // server knows only the slug frizz stamped into its env, and a model may choose the TEXT but never
+    // server knows only the slug ntwine stamped into its env, and a model may choose the TEXT but never
     // the thread — there is deliberately no slug parameter it could aim at someone else's row.
     setOwnThreadTitle: mutation({
       input: SetOwnThreadTitleInput,
@@ -5663,7 +5663,7 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // ONE THREAD READING ANOTHER BY HANDLE (`frizzctl read-thread`, thread-mentions.ts): its opening
+    // ONE THREAD READING ANOTHER BY HANDLE (`ntwinectl read-thread`, thread-mentions.ts): its opening
     // request, its status line and its newest handoff — what "ask @x for context" or "reconcile with @x"
     // needs first, without waking @x at all. Read-only, so it reaches finished threads too.
     readThread: mutation({
@@ -5711,7 +5711,7 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // ONE THREAD MESSAGING ANOTHER (`frizzctl message-thread`). Delivered through the wake outbox, so
+    // ONE THREAD MESSAGING ANOTHER (`ntwinectl message-thread`). Delivered through the wake outbox, so
     // it survives a restart and a busy recipient exactly as a timer does, and joins a running turn the
     // way a typed steer does (scheduler THREAD_MESSAGE_FENCE_PREFIX). Refusals are answers, not throws:
     // a worker told "error" retries, and every refusal here says what to do instead.
@@ -5746,13 +5746,13 @@ export function createRouter(ctx: AppContext) {
             const child = resolveSubAgent(childPath, agents)
             if (!child) return { sent: false, handle: address, refusal: `@${threadHandle} has no sub-agent called ${childPath.join(".")}.`, known: subAgentAddresses(threadHandle, agents) }
             const named = agents.find((a) => a.id === child.id)?.address ?? address
-            if (input.awaitReply) return { sent: false, handle: named, refusal: "a sub-agent answers in its report to its own thread, not to you, so there is no reply to wait for. Send without --await-reply, and read its report later with `frizzctl read-thread`." }
+            if (input.awaitReply) return { sent: false, handle: named, refusal: "a sub-agent answers in its report to its own thread, not to you, so there is no reply to wait for. Send without --await-reply, and read its report later with `ntwinectl read-thread`." }
             if (ctx.tailer.subAgent(hit.slug, child.id)?.workflow) {
               const inRun = agents.filter((a) => a.parentId === child.id && a.state === "running" && a.address).map((a) => `@${a.address}`)
               return { sent: false, handle: named, refusal: `@${named} is a Workflow run, not an agent; message one of its agents instead${inRun.length ? `: ${inRun.join(", ")}` : ", but none is running now"}.` }
             }
             const box = childMailbox(hit.slug, child.id)
-            if (!box) return { sent: false, handle: named, refusal: `@${named} is not running, so there is nobody to deliver to. Read its report with \`frizzctl read-thread\`.` }
+            if (!box) return { sent: false, handle: named, refusal: `@${named} is not running, so there is nobody to deliver to. Read its report with \`ntwinectl read-thread\`.` }
             const nowMs = Date.now()
             const pair = `${input.slug}\u0000${ctx.project.id}\u0000${hit.slug}\u0000${child.id}`
             const recent = (threadMessageLog.get(pair) ?? []).filter((at) => nowMs - at < 3_600_000)
@@ -5773,7 +5773,7 @@ export function createRouter(ctx: AppContext) {
           const handle = handleOf(hit)
           if (!elsewhere && hit.slug === input.slug) return { sent: false, handle, refusal: "that is this thread." }
           if (target.state === "archived" || target.archived === 1) {
-            return { sent: false, handle, refusal: `@${handle} is done, and a message would reopen it. Read it with \`frizzctl read-thread\` instead; only the user reopens a finished thread.` }
+            return { sent: false, handle, refusal: `@${handle} is done, and a message would reopen it. Read it with \`ntwinectl read-thread\` instead; only the user reopens a finished thread.` }
           }
           const nowMs = Date.now()
           const pair = `${input.slug}\u0000${home.project.id}\u0000${hit.slug}`
@@ -5857,7 +5857,7 @@ export function createRouter(ctx: AppContext) {
         // thread is a side conversation rather than the work — until 2026-08-24 this read the tail's
         // `lastAssistant` (a ~200-char preview of the NEWEST reply), which is how issue #22's titles
         // came out naming "the very last agent action". `displayText` is the opening prompt with
-        // frizz's dispatch envelope peeled off, so the titler summarizes the operator's task rather
+        // ntwine's dispatch envelope peeled off, so the titler summarizes the operator's task rather
         // than boilerplate shared by every dispatched thread.
         //
         // A SPINOFF CHILD is the exception (2026-09-30): its opening turn's `displayText` is the human's
@@ -5867,7 +5867,7 @@ export function createRouter(ctx: AppContext) {
         const opening = readTranscript(ctx.project, row.session_id, row.fork_anchor).find((m) => m.role === "user")
         const description = (opening?.spinoffOrigin && spinoffNameSource(opening.spinoffOrigin)) ||
           opening?.displayText?.trim() || opening?.text?.trim() || row.title?.trim() || input.slug
-        // Frizz's own namer, not the provider's titler (`bridge.renameSession`): that one runs Claude
+        // Ntwine's own namer, not the provider's titler (`bridge.renameSession`): that one runs Claude
         // Code's fixed prompt — two to five words, every instruction in its input treated as data — so it
         // can neither keep a name to one or two words nor be told which names are taken (thread-names.ts).
         const named = await namer.name(description, input.slug)
@@ -5911,10 +5911,10 @@ export function createRouter(ctx: AppContext) {
     // runtime itself once per server life; the bare family words while it answers (claude-models.ts).
     claudeModels: query({
       output: z.array(ClaudeModel),
-      handler: async () => readClaudeModels({ claudeBin: ctx.claudeBin, cwd: workDir, log: (message) => frizzLog.warn("server", message) }),
+      handler: async () => readClaudeModels({ claudeBin: ctx.claudeBin, cwd: workDir, log: (message) => ntwineLog.warn("server", message) }),
     }),
 
-    // The ACP agents Frizz knows how to launch, with `available` for the ones on this machine's PATH.
+    // The ACP agents Ntwine knows how to launch, with `available` for the ones on this machine's PATH.
     // The composer lists the available ones as `acp:<id>` models (plans/acp-backend.md, decision 9).
     acpAgents: query({
       output: z.array(AcpAgent),
@@ -5933,7 +5933,7 @@ export function createRouter(ctx: AppContext) {
 
     // Provider subscription quota (5h + weekly rate-limit windows) for the sidebar status bar. Codex
     // reads live from the app-server's `account/rateLimits/read`, falling back to the rollout JSONL
-    // frizz already tails; Claude reads the OAuth usage endpoint with the machine's own credential
+    // ntwine already tails; Claude reads the OAuth usage endpoint with the machine's own credential
     // (claude-quota.ts — which also says when, and how rarely, it may start Claude Code instead).
     // Never throws — degrades to per-provider "unavailable".
     quota: query({
@@ -6079,7 +6079,7 @@ export function createRouter(ctx: AppContext) {
      * Every registered project IS opened, so absent is the exception rather than the rule: the server
      * primes the ones the operator has not visited within about a second of boot (tenant-prime.ts), which is
      * what stopped the badges from appearing only after you clicked into each square. What stays absent
-     * is a project another live Frizz is serving, one whose directory is gone, and one that would not
+     * is a project another live Ntwine is serving, one whose directory is gone, and one that would not
      * open — plus every project for the first seconds of a boot, before the pass reaches it.
      *
      * Kept OFF `projectsList` on purpose: that list is one registry-file read, cheap enough to be the
@@ -6200,16 +6200,16 @@ export function createRouter(ctx: AppContext) {
     }),
 
     /**
-     * Delete a project — Frizz's record of it, never the folder it names.
+     * Delete a project — Ntwine's record of it, never the folder it names.
      *
      * TWO LEVELS, and the difference is the whole design. The default forgets the registry entry and
      * closes the tenant: the project leaves the project list and the rail, and everything it ever held is
-     * still sitting in `~/.frizz/projects/<id>/`, so adding the folder back restores the same board
+     * still sitting in `~/.ntwine/projects/<id>/`, so adding the folder back restores the same board
      * under the same id. `deleteData` is the irreversible one — it stops that project's live workers
      * and removes that directory.
      *
-     * WHAT IS NEVER TOUCHED is the project's own directory. Not its files, not its `.frizz/.id`.
-     * Frizz is an index over folders somebody else owns, and a "delete" that reached into a working
+     * WHAT IS NEVER TOUCHED is the project's own directory. Not its files, not its `.ntwine/.id`.
+     * Ntwine is an index over folders somebody else owns, and a "delete" that reached into a working
      * tree would be a different product.
      *
      * THE LAUNCHING PROJECT CAN BE FORGOTTEN, BUT ITS DATA CANNOT BE DELETED. This process publishes
@@ -6219,8 +6219,8 @@ export function createRouter(ctx: AppContext) {
      * every live worker losing the server, so `deleteData` is refused there.
      *
      * Forgetting it was refused too until 2026-10-10, and the operator could not act on the refusal:
-     * a `frizz` run from `$HOME` or an unadopted folder was then hosted on the most recently opened
-     * project (launcher.ts `resolveLaunchIntent`; Frizz's own folder since 2026-10-11), so "the
+     * a `ntwine` run from `$HOME` or an unadopted folder was then hosted on the most recently opened
+     * project (launcher.ts `resolveLaunchIntent`; Ntwine's own folder since 2026-10-11), so "the
      * launching project" was routinely one nobody chose, and "restart from another folder" picked the
      * same one again. Forgetting needs none of what the
      * refusal protects — only the registry entry goes. The tenant itself stays open until the process
@@ -6243,17 +6243,17 @@ export function createRouter(ctx: AppContext) {
         // Read BEFORE the removal, which forgets the very entry that names the folder.
         () => ({ project: { id: input.id, dir: findById(input.id)?.path ?? null }, detail: { deleteData: input.deleteData === true } }),
         async () => {
-          if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Frizz, so it cannot be deleted.`)
+          if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Ntwine, so it cannot be deleted.`)
           const entry = findById(input.id)
           if (!entry) return { removed: false, deletedData: false, stoppedWorkers: 0 }
           const deleteData = input.deleteData === true
           if (ctx.launchProjectId === entry.id) {
             // The message deliberately does NOT name the project: the confirmation's title already
-            // does, and naming it here reads "Frizz is running from frizz" in this very repository.
+            // does, and naming it here reads "Ntwine is running from ntwine" in this very repository.
             // It names another PROJECT's folder because any other folder is hosted on the most
             // recently opened project, which is this one.
             if (deleteData) {
-              throw new Error("Frizz keeps its own running state with this project, so its threads and history cannot be deleted right now. Delete it without them, or quit Frizz and start it from inside another project's folder.")
+              throw new Error("Ntwine keeps its own running state with this project, so its threads and history cannot be deleted right now. Delete it without them, or quit Ntwine and start it from inside another project's folder.")
             }
             // No teardown: the tenant is the server's own (see above), and the state dir is kept.
             return { removed: forgetProject(entry.id), deletedData: false, stoppedWorkers: 0 }
@@ -6275,7 +6275,7 @@ export function createRouter(ctx: AppContext) {
      * Give a project an icon of the operator's choosing.
      *
      * The bytes land in the project's STATE DIR, never in the repository: a picture chosen for a rail
-     * square is Frizz's business, and writing one into someone's working tree would show up in their
+     * square is Ntwine's business, and writing one into someone's working tree would show up in their
      * `git status` for a UI preference they set in another app.
      *
      * Same trust gates as `/attach` — an extension allowlist and a size cap, and the on-disk name is
@@ -6287,7 +6287,7 @@ export function createRouter(ctx: AppContext) {
      *
      * A browser file input cannot be aimed anywhere — the OS picks, and it lands wherever you last
      * were. A project's icon is nearly always inside the project (a logo in the repo, a screenshot of
-     * it), so the picker should open where Frizz already knows the project lives. The browser input
+     * it), so the picker should open where Ntwine already knows the project lives. The browser input
      * stays as the fallback for a platform with no native dialog.
      */
     projectIconPick: mutation({
@@ -6351,7 +6351,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     /**
-     * Rename a project — the name Frizz shows and the URL it answers on, and, only when asked, the
+     * Rename a project — the name Ntwine shows and the URL it answers on, and, only when asked, the
      * folder itself.
      *
      * The name is the registry's display override, cleared again when it matches the folder so the
@@ -6375,18 +6375,18 @@ export function createRouter(ctx: AppContext) {
       }).strict(),
       output: ProjectCard,
       handler: async ({ input }) => {
-        if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Frizz, so it cannot be renamed.`)
+        if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Ntwine, so it cannot be renamed.`)
         const entry = findById(input.id)
         if (!entry) throw new Error("No such project.")
         const name = input.name.trim()
         let path = entry.path
         if (input.renameDirectory && name !== basename(entry.path)) {
           if (ctx.launchProjectId === entry.id) {
-            throw new Error("Frizz is running from this project's folder, so the folder cannot be renamed right now. Quit Frizz and start it from inside another project's folder first.")
+            throw new Error("Ntwine is running from this project's folder, so the folder cannot be renamed right now. Quit Ntwine and start it from inside another project's folder first.")
           }
           path = moveProjectDirectory(entry.id, name).path
           // Detached workers keep running through the rename (their cwd follows the inode); only
-          // Frizz's own view of the project has to be rebuilt, and the slug route does that lazily.
+          // Ntwine's own view of the project has to be rebuilt, and the slug route does that lazily.
           await ctx.teardownProject?.(entry.id, {})
         }
         const updated = renameProject(entry.id, { name: name === basename(path) ? null : name, slug: name })
@@ -6435,7 +6435,7 @@ export function createRouter(ctx: AppContext) {
     /**
      * Register a directory as a project, from the add-project dialog (a typed path).
      *
-     * The same authority as running `frizz` in that directory, and strictly less: this registers and
+     * The same authority as running `ntwine` in that directory, and strictly less: this registers and
      * resolves an id, it dispatches nothing. The root comes from chosenProjectRoot — a folder inside
      * a checkout resolves to the checkout, but an adopted plain-directory ancestor never captures the
      * pick. When that resolution would swap in an enclosing root, the answer is `enclosed` and nothing
@@ -6504,7 +6504,7 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => ctx.setSettings(input),
     }),
 
-    // The project's FRIZZ.md, read and written by the agent settings panel's "Project instructions"
+    // The project's NTWINE.md, read and written by the agent settings panel's "Project instructions"
     // editor. The file IS the setting (see project-instructions.ts): a write names the revision it was
     // based on and is refused, with the file's current content, if a worker changed it meanwhile.
     projectInstructionsGet: query({
@@ -6595,7 +6595,7 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => await githubHovercards.preview(input.refs, { refresh: input.refresh }),
     }),
 
-    // Spin up one frizz thread per checked item: hydrate each fresh from gh, template a server-side
+    // Spin up one ntwine thread per checked item: hydrate each fresh from gh, template a server-side
     // prompt (single source of truth, unit-tested), then REUSE ctx.dispatcher.dispatch (no new spawn
     // logic). SEQUENTIAL — a burst of 20 concurrent worker spawns would hammer the box (risk 5). A
     // per-item failure is captured in `failed[]` and never aborts the rest of the batch.
@@ -6616,12 +6616,12 @@ export function createRouter(ctx: AppContext) {
         for (const it of input.items) {
           try {
             // Explicit title skips the fallback-chop so the slug reads investigate-owner-repo-N. RESERVE
-            // the slug here with the SAME predicate dispatch uses (existing .frizz file / registry row)
+            // the slug here with the SAME predicate dispatch uses (existing .ntwine file / registry row)
             // and pass it EXPLICITLY, so the prompt's THREAD tag equals the real dispatched slug even on
             // a collision (re-dispatch / duplicate items) — otherwise the worker would write a ghost
-            // .frizz/<base>.md disjoint from the -2 registry row (resolveSlug is idempotent on a free slug).
+            // .ntwine/<base>.md disjoint from the -2 registry row (resolveSlug is idempotent on a free slug).
             const title = `${it.kind === "issue" ? "Investigate" : "Review"} ${repo}#${it.number}`
-            const slug = resolveSlug(frizzDir, slugify(title), (s) => ctx.storage.getSession(s) !== undefined)
+            const slug = resolveSlug(ntwineDir, slugify(title), (s) => ctx.storage.getSession(s) !== undefined)
             const hydrated = it.kind === "issue" ? await hydrateIssue(repo, it.number) : await hydratePr(repo, it.number)
             const prompt = renderGithubPrompt(template, repo, hydrated, slug, it.kind)
             const request = githubDispatcherRequest(input, { prompt, title, slug })

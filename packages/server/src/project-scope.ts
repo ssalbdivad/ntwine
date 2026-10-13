@@ -3,7 +3,7 @@ import { namedParameters, type Statement } from "./sqlite.ts"
 
 // ONE DATABASE, EVERY PROJECT — the seam that keeps a project's rows its own (2026-08-27).
 //
-// Frizz kept one SQLite file per project until this landed: `~/.frizz/projects/<id>/ui.db`, fifty-four
+// Ntwine kept one SQLite file per project until this landed: `~/.ntwine/projects/<id>/ui.db`, fifty-four
 // of them on the maintainer's machine, each carrying its own copy of every table and its own unversioned
 // migration state. A bad migration (the retired thread_watch table coming back with a new shape) left
 // seven of them unopenable at once and the launch project among them, which aborted a restart; the

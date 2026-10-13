@@ -31,13 +31,13 @@ const round = (n) => (n === null || n === undefined ? null : +n.toFixed(1))
 const health = []
 for (let i = 0; i < 60; i++) {
   const t = performance.now()
-  try { await fetch(new URL("/_frizz/health", url)) } catch {}
+  try { await fetch(new URL("/_ntwine/health", url)) } catch {}
   health.push(performance.now() - t)
   await new Promise((r) => setTimeout(r, 50))
 }
 
 // ── SSE subscription (before any mutation, so no delta can be missed) ──────────────────────────────
-const res = await fetch(new URL("/_frizz/events", url), { headers: { origin: new URL(url).origin } })
+const res = await fetch(new URL("/_ntwine/events", url), { headers: { origin: new URL(url).origin } })
 const reader = res.body.getReader()
 const decoder = new TextDecoder()
 let buf = ""

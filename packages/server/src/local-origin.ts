@@ -2,7 +2,7 @@ import { isIP } from "node:net"
 import type { IncomingMessage } from "node:http"
 import type { Duplex } from "node:stream"
 
-// Frizz deliberately binds its control plane to loopback. These are the only browser authorities the
+// Ntwine deliberately binds its control plane to loopback. These are the only browser authorities the
 // product serves; DNS names that merely begin with "localhost" and alternate 127/8 spellings are not
 // equivalent trust identities. Browser Origin serialization is canonical, so requiring the exact
 // serialized origin also rejects paths, credentials, trailing dots, and numeric-IP tricks.
@@ -40,14 +40,14 @@ export interface ParsedLocalAuthority {
 /**
  * Which browser authorities this server answers to.
  *
- * Omitted (or `exposed: false`) is Frizz's historical and default posture: loopback only, because the
+ * Omitted (or `exposed: false`) is Ntwine's historical and default posture: loopback only, because the
  * port is bound to 127.0.0.1 and nothing else can reach it. `--host` deliberately breaks that
  * assumption, so an exposed server has to decide what a legitimate authority looks like without the
  * kernel deciding for it.
  *
  * The rule is Vite's `allowedHosts` rule, and for the same reason: the attack a non-loopback bind
  * newly enables is DNS rebinding, where an attacker's DOMAIN is made to resolve to this machine so a
- * victim's browser treats an attacker page as same-origin with Frizz. That requires a NAME. An IP
+ * victim's browser treats an attacker page as same-origin with Ntwine. That requires a NAME. An IP
  * literal cannot be rebound — the browser never asks a resolver — so every IP literal is accepted and
  * every DNS name must be named explicitly, except the ones this machine is itself known by (see
  * machineHostNames), which the launcher lists on the operator's behalf.
@@ -63,7 +63,7 @@ export interface LocalAuthorityPolicy {
    * This is the ONE thing that admits an `https` authority and a port that is not this server's own,
    * because a proxy terminates TLS on 443 and forwards to a loopback port the browser never sees. It
    * is also the only thing that tolerates `X-Forwarded-*`: those headers are somebody else's claim
-   * about who called, and Frizz refuses them until the operator names the somebody.
+   * about who called, and Ntwine refuses them until the operator names the somebody.
    */
   publicOrigin?: string
 }
@@ -214,7 +214,7 @@ function hasForwardedAuthority(headers: LocalRequestHeaders): boolean {
 /**
  * May this request carry `X-Forwarded-*` at all?
  *
- * Those headers are someone else's assertion about who called, and Frizz's default answer is no —
+ * Those headers are someone else's assertion about who called, and Ntwine's default answer is no —
  * it does not run behind a trusted proxy, so their presence is a laundering attempt. `--public-origin`
  * changes the answer for exactly the requests that ARRIVED as that origin. A caller who reaches the
  * loopback port directly and merely *claims* the proxy's authority still fails the Host check above,
@@ -280,7 +280,7 @@ export function isTrustedLocalWebSocketRequest(
   return !!origin && host.hostname === origin.hostname && host.port === origin.port
 }
 
-/** Frizz's default bind address. Nothing off this machine can reach a port bound here. */
+/** Ntwine's default bind address. Nothing off this machine can reach a port bound here. */
 export const LOOPBACK_BIND_HOST = "127.0.0.1"
 /** What a bare `--host` means, matching Vite, Next, and every other dev server: every interface. */
 export const ALL_INTERFACES_BIND_HOST = "0.0.0.0"
@@ -290,7 +290,7 @@ export const ALL_INTERFACES_BIND_HOST = "0.0.0.0"
 const LOOPBACK_BIND_HOSTS = new Set(["127.0.0.1", "::1", "localhost", "[::1]"])
 
 /**
- * Validate an operator-supplied `--host` / `FRIZZ_HOST` value and canonicalize it for `listen()`.
+ * Validate an operator-supplied `--host` / `NTWINE_HOST` value and canonicalize it for `listen()`.
  *
  * Deliberately narrow: an IP literal or one of the loopback spellings. A DNS name is rejected rather
  * than resolved, because `listen()` would silently pick one A record and the operator would have no
@@ -308,13 +308,13 @@ export function normalizeBindHost(value: string): string {
   return bare
 }
 
-/** Does binding here put Frizz on a network any other machine can reach? */
+/** Does binding here put Ntwine on a network any other machine can reach? */
 export function bindHostIsExposed(host: string): boolean {
   return !LOOPBACK_BIND_HOSTS.has(host.trim().toLowerCase())
 }
 
 /**
- * Validate an operator-supplied `--public-origin` / `FRIZZ_PUBLIC_ORIGIN` value and canonicalize it.
+ * Validate an operator-supplied `--public-origin` / `NTWINE_PUBLIC_ORIGIN` value and canonicalize it.
  *
  * Deliberately an ORIGIN and not a URL. A path, a query, or a trailing slash means the operator has
  * pasted something the browser will never send as `Origin`, and the failure that produces is a blanket
@@ -328,7 +328,7 @@ export function normalizePublicOrigin(value: string): string {
   try {
     url = new URL(trimmed)
   } catch {
-    throw invalid("use a full URL such as https://frizz.example.com")
+    throw invalid("use a full URL such as https://ntwine.example.com")
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") throw invalid("only http and https are supported")
   if (url.username || url.password) throw invalid("an origin carries no credentials")
@@ -359,7 +359,7 @@ export function machineHostNames(hostname: string): string[] {
   return [...new Set([full, short, `${short}.local`])].filter((name) => name !== "localhost" && name !== "localhost.local")
 }
 
-/** Parse `--allowed-host a --allowed-host b` / `FRIZZ_ALLOWED_HOSTS=a,b` into a deduped lowercase list. */
+/** Parse `--allowed-host a --allowed-host b` / `NTWINE_ALLOWED_HOSTS=a,b` into a deduped lowercase list. */
 export function normalizeAllowedHosts(values: readonly string[]): string[] {
   const seen = new Set<string>()
   for (const value of values) {

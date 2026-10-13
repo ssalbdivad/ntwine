@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// A packed Frizz on a clean Linux box: the real launcher (`npm exec frizz`) installs the real server
+// A packed Ntwine on a clean Linux box: the real launcher (`npm exec ntwine`) installs the real server
 // generation from a registry, boots it, and answers a real RPC. scripts/verify-server-package.mjs is
 // the full macOS run (browser, update, worker); this is the part nothing else ran on Linux, where
 // node-pty's missing prebuild killed every boot (#42). The server resolves the provider CLIs from PATH
-// here (`FRIZZ_RUNTIMES=path`), which is why the image installs Claude Code first.
+// here (`NTWINE_RUNTIMES=path`), which is why the image installs Claude Code first.
 //
 // node-pty is back in the server package since 2026-09-29, for thread terminals only, and loaded LAZILY
 // (server/src/thread-terminals.ts): nothing imports it at boot. So this checks both halves on a box with
@@ -15,9 +15,9 @@
 //
 //   docker run --rm --tmpfs /tmp:rw,exec,size=3g -e HOME=/tmp/root -v "$PWD":/repo:ro -v /abs/tgz:/t:ro node:22-slim sh -c \
 //     'npm i -g --prefix /tmp/g @anthropic-ai/claude-code >/dev/null && PATH=/tmp/g/bin:$PATH \
-//      node /repo/scripts/verify-linux-package.mjs --shell=/t/frizz-X.tgz --server=/t/frizz-server-Y.tgz'
+//      node /repo/scripts/verify-linux-package.mjs --shell=/t/ntwine-X.tgz --server=/t/ntwine-server-Y.tgz'
 //
-// `--public=<frizz version>` runs a published shell from npmjs instead — the negative control: frizz@0.13.1
+// `--public=<ntwine version>` runs a published shell from npmjs instead — the negative control: ntwine@0.13.1
 // dies at boot with "Failed to load native module: pty.node" here.
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
@@ -32,17 +32,17 @@ import { createRpcClient } from "./lib/rpc-client.mjs"
 
 const arg = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
 const publicVersion = arg("public")
-const root = mkdtempSync("/tmp/frizz-linux-e2e-")
+const root = mkdtempSync("/tmp/ntwine-linux-e2e-")
 const home = join(root, "home"), project = join(root, "project")
 mkdirSync(home); mkdirSync(project)
-writeFileSync(join(project, "FRIZZ.md"), "Disposable Linux test.\n")
+writeFileSync(join(project, "NTWINE.md"), "Disposable Linux test.\n")
 // A project marker: the slim image has no git to `git init` with, and package.json is one too.
 writeFileSync(join(project, "package.json"), '{"private":true}\n')
-const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(FRIZZ_|npm_|NPM_|NODE_OPTIONS|XDG_|HOME|CLAUDE_CONFIG_DIR)/u.test(key)))
+const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(NTWINE_|npm_|NPM_|NODE_OPTIONS|XDG_|HOME|CLAUDE_CONFIG_DIR)/u.test(key)))
 Object.assign(env, {
   HOME: home, XDG_CONFIG_HOME: join(home, "config"), XDG_DATA_HOME: join(home, "data"), XDG_STATE_HOME: join(home, "state"),
   XDG_CACHE_HOME: join(home, "cache"), npm_config_cache: join(root, "npm-cache"), npm_config_userconfig: join(root, "npmrc"),
-  npm_config_audit: "false", npm_config_fund: "false", FRIZZ_ORPHAN_REAPER_OFF: "1", FRIZZ_RUNTIMES: "path",
+  npm_config_audit: "false", npm_config_fund: "false", NTWINE_ORPHAN_REAPER_OFF: "1", NTWINE_RUNTIMES: "path",
 })
 writeFileSync(env.npm_config_userconfig, "")
 
@@ -76,10 +76,10 @@ try {
     shellVersion = publicVersion
   } else {
     const shell = packed(resolve(arg("shell"))), server = packed(resolve(arg("server")))
-    assert.equal(shell.manifest.frizzServer?.version, server.manifest.version, "the shell pins this server")
+    assert.equal(shell.manifest.ntwineServer?.version, server.manifest.version, "the shell pins this server")
     assert.equal(server.manifest.dependencies?.["node-pty"], "1.2.0-beta.15", "the server package pins the node-pty that ships Linux prebuilds")
     shellVersion = shell.manifest.version
-    const packages = new Map([["frizz", shell], ["frizz-server", server]])
+    const packages = new Map([["ntwine", shell], ["ntwine-server", server]])
     registry = createServer(async (request, response) => {
       const pathname = decodeURIComponent(new URL(request.url, "http://registry").pathname)
       const name = pathname.split("/")[1]
@@ -101,16 +101,16 @@ try {
 
   const port = await freePort(), base = `http://127.0.0.1:${port}`
   const started = Date.now()
-  launcher = spawn("npm", ["exec", "--yes", `--package=frizz@${shellVersion}`, "--", "frizz", "--no-app", "--port", String(port)], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] })
+  launcher = spawn("npm", ["exec", "--yes", `--package=ntwine@${shellVersion}`, "--", "ntwine", "--no-app", "--port", String(port)], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] })
   launcher.stdout.on("data", (b) => { launcherLog += b }); launcher.stderr.on("data", (b) => { launcherLog += b })
   const status = await until("a ready server", async () => {
     if (launcher.exitCode !== null) throw Object.assign(new Error(`launcher exited ${launcher.exitCode}`), { fatal: true })
-    const response = await fetch(`${base}/_frizz/control/status`, { headers: { origin: base }, signal: AbortSignal.timeout(2000) })
+    const response = await fetch(`${base}/_ntwine/control/status`, { headers: { origin: base }, signal: AbortSignal.timeout(2000) })
     const state = await response.json(); return state.state === "ready" ? state : undefined
   }).catch((error) => { check("the server boots on this host", false, String(error.message)); throw error })
-  check("the server boots on this host", true, `frizz-server ${status.version} ready in ${Math.round((Date.now() - started) / 1000)}s`)
+  check("the server boots on this host", true, `ntwine-server ${status.version} ready in ${Math.round((Date.now() - started) / 1000)}s`)
 
-  const generations = join(home, "cache", "frizz", "server-releases")
+  const generations = join(home, "cache", "ntwine", "server-releases")
   const key = readdirSync(generations)[0]
   const generation = readdirSync(join(generations, key)).find((id) => !id.endsWith(".staging"))
   // Thread terminals: the addon is installed with the generation, carries this platform's prebuild, and

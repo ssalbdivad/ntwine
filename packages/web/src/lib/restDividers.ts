@@ -13,12 +13,12 @@ import { agentCompletionCall } from "./subAgentCompletion.ts"
 //     WorkingIndicator there; a rested one draws nothing (or the awaiting-background card). "The agent
 //     is not spinning" is therefore already on screen, and the hairline is a second copy of it.
 //   · ABOVE ANOTHER DIVIDER, it restates the divider. Nothing can WAKE an agent that had not come to
-//     rest, so "Agent rested" / "Frizz asked for a sign-off" is one fact drawn twice — two hairlines
+//     rest, so "Agent rested" / "Ntwine asked for a sign-off" is one fact drawn twice — two hairlines
 //     stacked with nothing between them (maintainer 2026-08-13: "we're just getting these back-to-back
 //     hairlines that are kind of unnecessary").
 //
-// A frizz wake DELIVERY counts as a divider even though it is a `role: "user"` record: `wake: true`
-// messages render as a FrizzWake or a RecurringPromptLine, never as a plain bubble, so they
+// A ntwine wake DELIVERY counts as a divider even though it is a `role: "user"` record: `wake: true`
+// messages render as a NtwineWake or a RecurringPromptLine, never as a plain bubble, so they
 // carry the seam themselves. The human's own messages are the only `user` records that do not.
 //
 // So does a SUB-AGENT COMPLETION, which is an assistant message carrying one flagged call

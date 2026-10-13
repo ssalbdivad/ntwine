@@ -4,11 +4,11 @@ import test from "node:test"
 // Runtime coverage for the Settings drawer's AUTOSAVE. There is no Save button any more, so the only
 // thing that can prove a change persisted is watching the settingsSet requests leave the page. Skipped
 // unless a Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts here):
-// start `vite` in packages/web and set FRIZZ_SETTINGS_AUTOSAVE_E2E_URL to its origin.
+// start `vite` in packages/web and set NTWINE_SETTINGS_AUTOSAVE_E2E_URL to its origin.
 //
 // settings-formatting-fixture records every write on window.__settingsWrites and echoes the payload
 // back, so these assertions read the real wire traffic of a real drawer, not a stub of it.
-const baseUrl = process.env.FRIZZ_SETTINGS_AUTOSAVE_E2E_URL
+const baseUrl = process.env.NTWINE_SETTINGS_AUTOSAVE_E2E_URL
 
 type Write = { at: number; body: Record<string, unknown>; ok: boolean }
 
@@ -72,7 +72,7 @@ test("the drawer offers no Save or Cancel — a toggle writes on the click", { s
 
 // Removing the Save button removed the operator's own retry. A mutation refused mid-update is
 // certified side-effect-free (`retryable` in the envelope), so the drawer has to replay it — otherwise
-// restarting Frizz while Settings is open silently discards whatever was changed in that window.
+// restarting Ntwine while Settings is open silently discards whatever was changed in that window.
 test("a replayable refusal is replayed until it lands, and says so meanwhile", { skip: !baseUrl, timeout: 60_000 }, async () => {
   const { browser, page, errors } = await launch("?retryableFailures=1")
   try {

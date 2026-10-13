@@ -9,7 +9,7 @@ import {
   validateServerGeneration, type ServerCompatibility, type ServerPackageInstaller, type ServerReleaseSpec,
 } from "./server-release.ts";
 
-const baseline: ServerReleaseSpec = { package: "frizz-server", version: "1.0.0", protocol: 1, dataEpoch: 1 };
+const baseline: ServerReleaseSpec = { package: "ntwine-server", version: "1.0.0", protocol: 1, dataEpoch: 1 };
 const epochTwo: ServerReleaseSpec = { ...baseline, version: "2.0.0", dataEpoch: 2 };
 const epochTwoCompatibility: ServerCompatibility = { protocol: 1, dataEpoch: 2 };
 const files = ["dist/dev-child.js", "dist/codex-app-server-daemon.js", "dist/claude-agent-broker.js", "web-dist/index.html", "runtime/board/index.mjs", "runtime/cc-worker/.claude-plugin/plugin.json"];
@@ -19,12 +19,12 @@ function fixture(prefix: string, spec: ServerReleaseSpec): string {
     mkdirSync(dirname(join(root, name)), { recursive: true });
     writeFileSync(join(root, name), name);
   }
-  writeFileSync(join(root, "package.json"), JSON.stringify({ name: spec.package, version: spec.version, frizzServer: { protocol: spec.protocol, dataEpoch: spec.dataEpoch } }));
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: spec.package, version: spec.version, ntwineServer: { protocol: spec.protocol, dataEpoch: spec.dataEpoch } }));
   return root;
 }
 
 function setup(t: TestContext) {
-  const root = mkdtempSync(join(tmpdir(), "frizz-release-test-"));
+  const root = mkdtempSync(join(tmpdir(), "ntwine-release-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const installs: string[] = [];
   const installer: ServerPackageInstaller = {
@@ -36,9 +36,9 @@ function setup(t: TestContext) {
 }
 
 test("boot metadata rejects unknown protocol, data epoch and non-exact package versions", () => {
-  assert.deepEqual(serverReleaseSpec({ frizzServer: baseline }), baseline);
+  assert.deepEqual(serverReleaseSpec({ ntwineServer: baseline }), baseline);
   for (const patch of [{ protocol: 2 }, { dataEpoch: 2 }, { version: "latest" }, { package: "file:../../repo" }])
-    assert.throws(() => serverReleaseSpec({ frizzServer: { ...baseline, ...patch } }));
+    assert.throws(() => serverReleaseSpec({ ntwineServer: { ...baseline, ...patch } }));
 });
 
 test("a server that can boot but cannot dispatch either provider is rejected before selection", async (t) => {
@@ -67,8 +67,8 @@ test("preparation is immutable and does not commit until the server is ready", a
   assert.equal(existsSync(first.entry), true, "old worker runtime must be retained");
   const launch = serverGenerationLaunch(candidate);
   assert.equal(launch.entry, candidate.entry);
-  assert.equal(launch.environment.FRIZZ_STABLE_ARTIFACT, "npm:frizz-server@1.1.0");
-  assert.equal(launch.environment.FRIZZ_WORKER_PLUGIN_DIR, join(candidate.root, "runtime/cc-worker"));
+  assert.equal(launch.environment.NTWINE_STABLE_ARTIFACT, "npm:ntwine-server@1.1.0");
+  assert.equal(launch.environment.NTWINE_WORKER_PLUGIN_DIR, join(candidate.root, "runtime/cc-worker"));
 });
 
 test("an interrupted or failed install leaves the active release and no partially selectable generation", async (t) => {
@@ -129,8 +129,8 @@ test("the minimum never moves a server that is new enough, and a shell without o
 });
 
 test("a shell's minimum must be an exact version its own pinned server satisfies", () => {
-  const manifest = (minimum: unknown) => ({ frizzServer: { ...baseline, version: "1.3.0", minimum } });
-  assert.equal(serverReleaseMinimum({ frizzServer: baseline }), undefined);
+  const manifest = (minimum: unknown) => ({ ntwineServer: { ...baseline, version: "1.3.0", minimum } });
+  assert.equal(serverReleaseMinimum({ ntwineServer: baseline }), undefined);
   assert.equal(serverReleaseMinimum(manifest("1.3.0")), "1.3.0");
   assert.equal(serverReleaseMinimum(manifest("1.2.9")), "1.2.9");
   for (const bad of ["1.3.1", "2.0.0", "latest", "^1.2.0", 1, null]) assert.throws(() => serverReleaseMinimum(manifest(bad)), String(bad));
@@ -189,7 +189,7 @@ test("a malformed global compatibility marker fails closed for every package sel
   writeFileSync(store.compatibilityMarker, "{");
   await assert.rejects(() => store.load(), /data compatibility marker/);
 
-  const override = new ServerReleaseStore({ ...baseline, package: "frizz-server-preview" }, {
+  const override = new ServerReleaseStore({ ...baseline, package: "ntwine-server-preview" }, {
     async install(prefix, spec) { fixture(prefix, spec); },
     async latestVersion() { return "1.0.0"; },
   }, roots);
@@ -283,8 +283,8 @@ test("the npm adapter executes a real JS child with isolated prefix and scripts 
   assert.equal(cwd, realpathSync(prefix));
   assert.deepEqual(argv.slice(0, 4), ["install", "--prefix", prefix, "--global=false"]);
   assert.equal(argv.includes("--ignore-scripts"), true);
-  assert.equal(argv.at(-1), "frizz-server@1.0.0");
-  assert.equal(await installer.latestVersion("frizz-server"), "1.1.0");
+  assert.equal(argv.at(-1), "ntwine-server@1.0.0");
+  assert.equal(await installer.latestVersion("ntwine-server"), "1.1.0");
 });
 
 // The launcher's cwd is the folder it was started from. Once that is deleted, a child that inherits
@@ -295,13 +295,13 @@ test("the latest-version probe answers after the folder the launcher was started
   const cli = join(root, "npm-cli.js");
   writeFileSync(cli, `process.cwd(); console.log('"1.1.0"')`);
   const installer = npmServerPackageInstaller({ ...process.env, npm_execpath: cli });
-  const launchFolder = mkdtempSync(join(tmpdir(), "frizz-launch-folder-"));
+  const launchFolder = mkdtempSync(join(tmpdir(), "ntwine-launch-folder-"));
   const original = process.cwd();
   process.chdir(launchFolder);
   try {
     rmSync(launchFolder, { recursive: true });
     assert.throws(() => process.cwd(), /uv_cwd/, "this process now has the deleted cwd a child would inherit");
-    assert.equal(await installer.latestVersion("frizz-server"), "1.1.0");
+    assert.equal(await installer.latestVersion("ntwine-server"), "1.1.0");
   } finally {
     process.chdir(original);
   }
@@ -324,15 +324,15 @@ test("a failed npm operation reports the error that caused it, not only the end 
     ...Array.from({ length: 9 }, (_, frame) => `    at frame${frame} (node:internal/modules/cjs/loader:${frame}:1)`),
     "  errno: -2,", "  code: 'ENOENT',", "  syscall: 'uv_cwd'", "}", "", "Node.js v26.11.1",
   ];
-  await assert.rejects(() => failing("crash", crash).latestVersion("frizz-server"), (error: Error) => {
-    assert.match(error.message, /^Frizz server npm operation failed: Error: ENOENT: process\.cwd failed/);
+  await assert.rejects(() => failing("crash", crash).latestVersion("ntwine-server"), (error: Error) => {
+    assert.match(error.message, /^Ntwine server npm operation failed: Error: ENOENT: process\.cwd failed/);
     assert.match(error.message, /Node\.js v26\.11\.1$/, "the tail is still there under the cause");
     return true;
   });
   // npm's own failures already end in their summary; nothing is added or repeated.
-  const npmError = ["npm error code E404", "npm error 404 Not Found - GET https://registry.npmjs.org/frizz-server - Not found"];
-  await assert.rejects(() => failing("e404", npmError).latestVersion("frizz-server"), (error: Error) => {
-    assert.equal(error.message, `Frizz server npm operation failed: ${npmError.join("\n")}`);
+  const npmError = ["npm error code E404", "npm error 404 Not Found - GET https://registry.npmjs.org/ntwine-server - Not found"];
+  await assert.rejects(() => failing("e404", npmError).latestVersion("ntwine-server"), (error: Error) => {
+    assert.equal(error.message, `Ntwine server npm operation failed: ${npmError.join("\n")}`);
     return true;
   });
 });
@@ -342,7 +342,7 @@ test("an npm operation that never finishes is stopped and says how long it was g
   const cli = join(root, "npm-cli.js");
   writeFileSync(cli, "setInterval(() => {}, 1000)");
   const installer = npmServerPackageInstaller({ ...process.env, npm_execpath: cli }, { timeoutMs: 300 });
-  await assert.rejects(() => installer.latestVersion("frizz-server"), /npm view did not finish within 1s and was stopped/);
+  await assert.rejects(() => installer.latestVersion("ntwine-server"), /npm view did not finish within 1s and was stopped/);
 });
 
 // npm 12 answers `view <spec> version --json` with a one-element array; npm 11 answered the bare
@@ -357,8 +357,8 @@ test("the latest-version probe reads npm 12's one-element array and still refuse
     writeFileSync(cli, `console.log(${JSON.stringify(stdout)})`);
     return npmServerPackageInstaller({ ...process.env, npm_execpath: cli });
   };
-  assert.equal(await answering("npm11", '"1.1.0"').latestVersion("frizz-server"), "1.1.0");
-  assert.equal(await answering("npm12", '[\n  "1.1.0"\n]').latestVersion("frizz-server"), "1.1.0");
-  await assert.rejects(() => answering("two", '["1.1.0", "1.2.0"]').latestVersion("frizz-server"), /npm returned an invalid Frizz server version/);
-  await assert.rejects(() => answering("empty", "[]").latestVersion("frizz-server"), /npm returned an invalid Frizz server version/);
+  assert.equal(await answering("npm11", '"1.1.0"').latestVersion("ntwine-server"), "1.1.0");
+  assert.equal(await answering("npm12", '[\n  "1.1.0"\n]').latestVersion("ntwine-server"), "1.1.0");
+  await assert.rejects(() => answering("two", '["1.1.0", "1.2.0"]').latestVersion("ntwine-server"), /npm returned an invalid Ntwine server version/);
+  await assert.rejects(() => answering("empty", "[]").latestVersion("ntwine-server"), /npm returned an invalid Ntwine server version/);
 });

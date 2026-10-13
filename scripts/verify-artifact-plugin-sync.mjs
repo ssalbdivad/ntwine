@@ -3,7 +3,7 @@
 // The pieces are each proved elsewhere: `_live_plugin_sync.mts` shows real claude re-reading a plugin
 // that moved, and the broker tests show the daemon asking for it between turns. What neither can see
 // is the seam between them, and that seam only exists in an artifact launch: the launcher names an
-// immutable plugin directory (FRIZZ_WORKER_PLUGIN_DIR), the server stages it and hands the daemon the
+// immutable plugin directory (NTWINE_WORKER_PLUGIN_DIR), the server stages it and hands the daemon the
 // STABLE path instead, the daemon is the BUNDLED detached entry rather than a source file, and the
 // "update" is a second server process booting with a different directory while the first server's
 // worker lives on. A source-run stack takes none of those branches.
@@ -13,7 +13,7 @@
 // The worker must have been launched against the stable path, must survive, and must re-read its
 // plugin before the follow-up reaches it.
 //
-// The Claude CLI is the protocol stand-in the SDK contract tests use (FRIZZ_CLAUDE_BIN): it records
+// The Claude CLI is the protocol stand-in the SDK contract tests use (NTWINE_CLAUDE_BIN): it records
 // its own argv and every control request and input it receives, which is exactly the evidence wanted
 // here, and it needs no credential — so this runs under a temp HOME, where real claude cannot sign in.
 //
@@ -25,7 +25,7 @@ import { randomUUID } from "node:crypto"
 import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { buildFrizzArtifact } from "../src/artifacts.ts"
+import { buildNtwineArtifact } from "../src/artifacts.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
@@ -40,16 +40,16 @@ const check = (ok, label, detail = "") => {
 }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch (e) { return e.code === "EPERM" } }
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-plugin-sync-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-plugin-sync-")))
 const home = join(root, "home")
 const stateDir = join(root, "state")
 const PROJECT_DIR = join(root, "project")
-// `<home>/.frizz` existing makes it the legacy root, so the cache this server stages under is
-// `<home>/.frizz` — nothing here can reach the machine's real stable path.
-for (const d of [join(home, ".frizz"), stateDir, PROJECT_DIR, join(root, "bin")]) mkdirSync(d, { recursive: true })
+// `<home>/.ntwine` existing makes it the legacy root, so the cache this server stages under is
+// `<home>/.ntwine` — nothing here can reach the machine's real stable path.
+for (const d of [join(home, ".ntwine"), stateDir, PROJECT_DIR, join(root, "bin")]) mkdirSync(d, { recursive: true })
 execFileSync("git", ["init", "-q"], { cwd: PROJECT_DIR })
 writeFileSync(join(PROJECT_DIR, "README.md"), "# plugin sync fixture\n")
-const stablePath = join(home, ".frizz", "current", "cc-worker")
+const stablePath = join(home, ".ntwine", "current", "cc-worker")
 
 // The stand-in CLI names its scenario in its file name and writes `capture.jsonl` beside itself.
 const fakeClaude = join(root, "bin", "fake-claude--basic.mjs")
@@ -76,26 +76,26 @@ let daemonPid
 function bootServer(artifact, pluginDir, target, token, label) {
   let output = ""
   const env = { ...process.env }
-  // This harness is usually run BY a Frizz worker, whose own identity must not reach the server it boots.
-  for (const key of ["FRIZZ_THREAD", "FRIZZ_PERM_DIR", "FRIZZ_PLUGIN_SYNC_OFF", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "NODE_COMPAT"]) delete env[key]
+  // This harness is usually run BY a Ntwine worker, whose own identity must not reach the server it boots.
+  for (const key of ["NTWINE_THREAD", "NTWINE_PERM_DIR", "NTWINE_PLUGIN_SYNC_OFF", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "NODE_COMPAT"]) delete env[key]
   const child = spawn(process.execPath, [join(artifact.runtimeDir, "src", "index.js")], {
     cwd: PROJECT_DIR,
     env: projectLaunchEnvironment(
       {
         ...env,
         HOME: home,
-        FRIZZ_DEV_CHILD: "1",
-        FRIZZ_DEV_PORT: String(PORT),
-        FRIZZ_WAKERS_OFF: "1",
-        FRIZZ_ORPHAN_REAPER_OFF: "1",
-        FRIZZ_SANDBOX_TAG: `frizz-plugin-sync-${PORT}-${process.pid}`,
-        FRIZZ_RUNTIMES: "path",
-        FRIZZ_CLAUDE_BIN: fakeClaude,
-        FRIZZ_STABLE_ARTIFACT: artifact.digest,
-        FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-        FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
+        NTWINE_DEV_CHILD: "1",
+        NTWINE_DEV_PORT: String(PORT),
+        NTWINE_WAKERS_OFF: "1",
+        NTWINE_ORPHAN_REAPER_OFF: "1",
+        NTWINE_SANDBOX_TAG: `ntwine-plugin-sync-${PORT}-${process.pid}`,
+        NTWINE_RUNTIMES: "path",
+        NTWINE_CLAUDE_BIN: fakeClaude,
+        NTWINE_STABLE_ARTIFACT: artifact.digest,
+        NTWINE_STABLE_WEB_DIST: artifact.webDir,
+        NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
         // What the launcher names: an immutable, version-specific directory.
-        FRIZZ_WORKER_PLUGIN_DIR: pluginDir,
+        NTWINE_WORKER_PLUGIN_DIR: pluginDir,
       },
       target,
       token,
@@ -117,7 +117,7 @@ const brokerRecord = () => {
 
 try {
   log("building a real artifact…")
-  const artifact = buildFrizzArtifact(SOURCE, join(root, "artifacts"))
+  const artifact = buildNtwineArtifact(SOURCE, join(root, "artifacts"))
   log("artifact", artifact.digest)
   const generationOne = join(artifact.runtimeDir, "cc-worker")
   // The next version's plugin: the same closure with one more skill, at its own immutable path.
@@ -135,7 +135,7 @@ try {
   check(await api.waitForHealth(40_000), "the artifact server booted", `port ${PORT}`)
   check(existsSync(stablePath) && lstatSync(stablePath).isSymbolicLink(), "booting published the plugin at the stable path", stablePath)
   const stagedOne = existsSync(stablePath) ? realpathSync(stablePath) : ""
-  check(stagedOne.startsWith(join(realpathSync(home), ".frizz", "plugins")) && !existsSync(join(stagedOne, "skills", "added-by-the-update")),
+  check(stagedOne.startsWith(join(realpathSync(home), ".ntwine", "plugins")) && !existsSync(join(stagedOne, "skills", "added-by-the-update")),
     "and it leads to a staged copy of the first generation", stagedOne)
 
   log("dispatching a claude thread…")

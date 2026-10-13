@@ -33,7 +33,7 @@ const HOUR = 60 * MIN
 const T0 = 1791750000 * SEC
 
 async function withDir(run: (cacheDir: string) => Promise<void>) {
-  const cacheDir = await mkdtemp(join(tmpdir(), "frizz-observed-quota-"))
+  const cacheDir = await mkdtemp(join(tmpdir(), "ntwine-observed-quota-"))
   resetObservedClaudeQuotaThrottle()
   try {
     await run(cacheDir)

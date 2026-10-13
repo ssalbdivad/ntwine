@@ -13,13 +13,13 @@
 //      unanswered, and the card exits through the same dissolve an answer send uses
 //   4. desktop + narrow widths, no console/page errors
 //
-// Seed a stack + an open-ask thread first (see .agents/skills/frizz-stack; scripts/seed-open-ask.mjs
+// Seed a stack + an open-ask thread first (see .agents/skills/ntwine-stack; scripts/seed-open-ask.mjs
 // seeds the thread and prints its slug), then:
 //   node scripts/verify-open-ask-composer.mjs --url=http://127.0.0.1:5399 --slug=… [--shots=/tmp/…]
 // The card is the one page's queue card (AllQueuesCard, `[data-xq-card="<project id>/<slug>"]`) since
 // 2026-09-28, when the project board and its `[data-queue-card-root]` card went away.
 //
-// The ask is REGISTERED questions (`mcp__frizz__ask` rows), not ```question fences, since 2026-09-28. The
+// The ask is REGISTERED questions (`mcp__ntwine__ask` rows), not ```question fences, since 2026-09-28. The
 // fence was retired as a way to ask on 2026-09-11, and the one page's card draws a fence read-only (only
 // the drawer still answers one), so a fence here tested an ask no worker makes on a card that no longer
 // answers it. Everything this gate is about holds for the registered stack the same way: its chips, its

@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BgShellView, ThreadTerminal, ThreadView } from "@frizz/shared"
+import type { BgShellView, ThreadTerminal, ThreadView } from "@ntwine/shared"
 import { ROOT_CHECKOUT_WORD, ProcessRow, QUIET_TITLE, TerminalPromptPane, ThreadProcessStrip, cardProcesses, folderHintTitle, processFolderHint, processTitle } from "./ThreadTerminals.tsx"
 import { threadProcesses, type ThreadProcess } from "../lib/threadProcesses.ts"
 import { AGENT_GLYPH_STROKE, CHILD_MARK_SLOT_CLASS } from "../lib/childOps.ts"
@@ -31,7 +31,7 @@ const withQuery = (node: ReturnType<typeof createElement>) =>
 test("the owner glyph sits IN the mark slot: a bot for the agent's, the terminal square for yours", () => {
   const [agent] = processes({ bgShells: [shell()] })
   const [human] = processes({ terminals: [term()] })
-  const slot = (html: string) => html.slice(html.indexOf(`class="${CHILD_MARK_SLOT_CLASS} items-center"`), html.indexOf("frizz-kind-tag"))
+  const slot = (html: string) => html.slice(html.indexOf(`class="${CHILD_MARK_SLOT_CLASS} items-center"`), html.indexOf("ntwine-kind-tag"))
   assert.match(slot(row(agent!)), /lucide-bot/)
   assert.match(slot(row(human!)), /lucide-square-terminal/)
   assert.doesNotMatch(slot(row(agent!)), /lucide-square-terminal/)
@@ -41,7 +41,7 @@ test("every row has exactly one TERM tag and nothing extra before its label — 
   const all = processes({ terminals: [term(), term({ id: "t2", state: "exited", exitCode: 1 })], bgShells: [shell(), shell({ id: "m", monitor: true })] })
   for (const p of all) {
     const html = row(p, { onOpen: () => {} })
-    assert.equal(html.split("frizz-kind-tag").length - 1, 1, `${p.key}: one kind tag`)
+    assert.equal(html.split("ntwine-kind-tag").length - 1, 1, `${p.key}: one kind tag`)
     assert.match(html, />TERM<\/span>/)
     // Between the button's start and the label: the arrow, the one slot holding the glyph, the tag —
     // nothing else, so every label on the strip starts at one x.
@@ -99,8 +99,8 @@ test("the agent's label is its description in the row's sans; yours is the comma
 
 test("the hue is the row's liveness", () => {
   const cases: [ThreadProcess, RegExp, string | undefined][] = [
-    [processes({ bgShells: [shell()] })[0]!, /text-shell frizz-live-glyph"/, "operation"],
-    [processes({ bgShells: [shell({ state: "stale" })] })[0]!, /text-shell frizz-live-glyph-quiet/, "operation-quiet"],
+    [processes({ bgShells: [shell()] })[0]!, /text-shell ntwine-live-glyph"/, "operation"],
+    [processes({ bgShells: [shell({ state: "stale" })] })[0]!, /text-shell ntwine-live-glyph-quiet/, "operation-quiet"],
     [processes({ terminals: [term({ awaitingInput: true })] })[0]!, /text-attention/, "prompt"],
     [processes({ terminals: [term({ state: "exited", exitCode: 0 })] })[0]!, /text-muted-45/, undefined],
     // The ops strip's own red (PRIMER.fgDanger), the one "over budget" and a failed sub-agent wear too.
@@ -116,9 +116,9 @@ test("the hue is the row's liveness", () => {
 })
 
 test("the folder hint names a row's checkout only when it is NOT where the header says the agent is", () => {
-  const probe = { dir: "/repo/.frizz/worktrees/probe", kind: "worktree" as const }
-  const other = { dir: "/repo/.frizz/worktrees/other", kind: "worktree" as const }
-  const inProbe = processes({ bgShells: [shell({ cwd: "/repo/.frizz/worktrees/probe/packages/web", checkout: probe })] })[0]!
+  const probe = { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" as const }
+  const other = { dir: "/repo/.ntwine/worktrees/other", kind: "worktree" as const }
+  const inProbe = processes({ bgShells: [shell({ cwd: "/repo/.ntwine/worktrees/probe/packages/web", checkout: probe })] })[0]!
   const atRoot = processes({ bgShells: [shell()] })[0]!
   const humanAtRoot = processes({ terminals: [term({ cwd: "/repo/packages/web" })] })[0]!
   const inOther = processes({ terminals: [term({ checkout: other })] })[0]!
@@ -146,12 +146,12 @@ test("the folder hint names a row's checkout only when it is NOT where the heade
 // said `root` beside a terminal left in a worktree removed since, and beside a Codex exec whose item named
 // no folder while the agent's own workdir was a worktree.
 test("a row the server could not place claims no folder, even while the agent is elsewhere", () => {
-  const probe = { dir: "/repo/.frizz/worktrees/probe", kind: "worktree" as const }
-  const removed = processes({ terminals: [term({ cwd: "/repo/.frizz/worktrees/gone", atRoot: undefined })] })[0]!
+  const probe = { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" as const }
+  const removed = processes({ terminals: [term({ cwd: "/repo/.ntwine/worktrees/gone", atRoot: undefined })] })[0]!
   const bareCodex = processes({ bgShells: [shell({ id: "p-bare", cwd: undefined, atRoot: undefined, outputUnavailable: true })] })[0]!
   // A transcript copy can fill in the board row's folder (mergeBackgroundShells) — for the tooltip only.
-  const backfilled = threadProcesses({ bgShells: [shell({ id: "p-bf", command: "cargo watch", cwd: undefined, atRoot: undefined })] }, [{ label: "cargo watch", command: "cargo watch", startedAt: at("00"), state: "running", cwd: "/repo/.frizz/worktrees/probe" }], { now: NOW })[0]!
-  assert.equal(backfilled.cwd, "/repo/.frizz/worktrees/probe", "the tooltip still says where the transcript ran it")
+  const backfilled = threadProcesses({ bgShells: [shell({ id: "p-bf", command: "cargo watch", cwd: undefined, atRoot: undefined })] }, [{ label: "cargo watch", command: "cargo watch", startedAt: at("00"), state: "running", cwd: "/repo/.ntwine/worktrees/probe" }], { now: NOW })[0]!
+  assert.equal(backfilled.cwd, "/repo/.ntwine/worktrees/probe", "the tooltip still says where the transcript ran it")
   for (const p of [removed, bareCodex, backfilled]) {
     assert.equal(p.placed, false, p.key)
     assert.equal(processFolderHint(p, probe), undefined, p.key)
@@ -160,13 +160,13 @@ test("a row the server could not place claims no folder, even while the agent is
 })
 
 test("the hint's tooltip names the place in words, then in full", () => {
-  assert.equal(folderHintTitle({ text: "root", kind: "root" }, "/home/u/frizz", "/home/u"), "Runs in the project root\n~/frizz")
-  assert.equal(folderHintTitle({ text: "probe", kind: "worktree", dir: "/home/u/frizz/.frizz/worktrees/probe" }, "/home/u/frizz", "/home/u"), "Runs in the probe worktree\n~/frizz/.frizz/worktrees/probe")
-  assert.equal(folderHintTitle({ text: "other", kind: "folder", dir: "/srv/other" }, "/home/u/frizz", "/home/u"), "Runs in another folder\n/srv/other")
+  assert.equal(folderHintTitle({ text: "root", kind: "root" }, "/home/u/ntwine", "/home/u"), "Runs in the project root\n~/ntwine")
+  assert.equal(folderHintTitle({ text: "probe", kind: "worktree", dir: "/home/u/ntwine/.ntwine/worktrees/probe" }, "/home/u/ntwine", "/home/u"), "Runs in the probe worktree\n~/ntwine/.ntwine/worktrees/probe")
+  assert.equal(folderHintTitle({ text: "other", kind: "folder", dir: "/srv/other" }, "/home/u/ntwine", "/home/u"), "Runs in another folder\n/srv/other")
 })
 
 test("a strip whose rows all run where the agent is shows no hints — the header said it once", () => {
-  const probe = { dir: "/repo/.frizz/worktrees/probe", kind: "worktree" as const }
+  const probe = { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" as const }
   const strip = (thread: Partial<ThreadView>) =>
     withQuery(createElement(ThreadProcessStrip, { thread: { id: "t", watches: [], terminals: [], bgShells: [], ...thread } as ThreadView, surface: "drawer" }))
   // The verifier's drawer: the agent in probe and five rows there. Every one of them used to end in `probe`.
@@ -186,7 +186,7 @@ test("a strip whose rows all run where the agent is shows no hints — the heade
 // a flex line always keeps) and GIVE reserves exactly its 1em; the word and everything after it lead with
 // their own `·`, so the glyph stands alone with nothing dangling.
 test("at a narrow width the counter and then the hint's word give way before the label, and its glyph never does", () => {
-  const probe = { dir: "/repo/.frizz/worktrees/probe", kind: "worktree" as const }
+  const probe = { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" as const }
   const html = row(processes({ bgShells: [shell({ label: "Test watch in the probe worktree", budgetEndsAt: at("45") })] })[0]!, { here: probe, lines: 54 })
   const classOf = (marker: string) => new RegExp(`<span ${marker}[^>]*class="([^"]*)"`).exec(html)?.[1]?.split(" ") ?? []
   // The label's box has no width cap: it truncates only when the row cannot hold it.
@@ -259,7 +259,7 @@ test("a Codex exec's row opens like every other; a transcript-only row has nothi
     withQuery(createElement(ThreadProcessStrip, { thread, surface: "card", transcriptShells: transcript }))
   const codex = strip({ id: "t", bgShells: [shell({ id: "p1", outputUnavailable: true, stoppable: true })], watches: [] })
   assert.match(codex, /<button[^>]*aria-label="Open agent terminal: vite dev server"/)
-  assert.doesNotMatch(codex, /lines/, "no line counter for output Frizz cannot read")
+  assert.doesNotMatch(codex, /lines/, "no line counter for output Ntwine cannot read")
   const orphan = strip({ id: "t", bgShells: [], watches: [] }, [{ label: "child's watcher", startedAt: at("01"), state: "running" }])
   assert.doesNotMatch(orphan, /aria-label="Open agent terminal/)
   assert.match(orphan, /child&#x27;s watcher|child's watcher/)
@@ -332,7 +332,7 @@ test("the card's prompt pane wears its terminal's row as its caption, and the st
 // its rule; they read `1m · 13m left` with no hint beside a strip reading `root · 13m left · 1m`.
 test("the rail's terminal rows read the strip's order, and its folder hint", () => {
   const started = new Date(Date.now() - 12 * 60_000 - 30_000).toISOString()
-  const probe = { dir: "/repo/.frizz/worktrees/probe", kind: "worktree" as const }
+  const probe = { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" as const }
   const agent = processes({ bgShells: [shell({ startedAt: started, budgetEndsAt: new Date(Date.now() + 15 * 60_000 + 20_000).toISOString() })] })[0]!
   const where = processFolderHint(agent, probe)!
   const hint = createElement(FolderHintToken, { hint: where, title: folderHintTitle(where, "/repo", undefined) })
@@ -354,7 +354,7 @@ test("the rail's terminal rows read the strip's order, and its folder hint", () 
 // And the hint's glyph never wraps away: its box reserves the glyph's 1em, so a `root` row whose word cannot
 // fit still says it is not where the header says.
 test("every rail row is one layout, and a rail hint's word gives way before the name while its glyph never does", () => {
-  const where = processFolderHint(processes({ bgShells: [shell()] })[0]!, { dir: "/repo/.frizz/worktrees/probe", kind: "worktree" })!
+  const where = processFolderHint(processes({ bgShells: [shell()] })[0]!, { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" })!
   const hint = createElement(FolderHintToken, { hint: where, title: "t" })
   const html = renderToStaticMarkup(createElement(TermWaitRow, { terminal: term({ awaitingInput: true }), slug: "t", now: Date.now(), hint }))
   // On the row's one line: the name (natural width, truncating), the hint's box and its `·`, the status.

@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * frizz — orchestration-hardening tests (2026-07-06). Run: `node --test 'board/*.test.mjs'`.
+ * ntwine — orchestration-hardening tests (2026-07-06). Run: `node --test 'board/*.test.mjs'`.
  *
  * Covers the anti-treadmill / anti-drop PREDICATES the board exports. (The orchestrator hooks that
- * consumed them — frizz-stop-reminder, frizz-subagent-rest — retired with the plugin; only the pure
+ * consumed them — ntwine-stop-reminder, ntwine-subagent-rest — retired with the plugin; only the pure
  * functions survive, so only those are tested here.)
  *   #1 OWNER-CLEAN — an owning-agent thread edit is owner-clean, NOT drift (ownerCleanMtime /
  *      assessDrift / computeBoardDrift).
@@ -35,7 +35,7 @@ import { DEFAULT_LONG_RUNTIME_MIN, DEFAULT_DROPPED_MIN } from './agent-status.mj
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BACKSTOP = 120;
 
-/** A throwaway ACTIVATED `.frizz/` project (session sentinel ON). */
+/** A throwaway ACTIVATED `.ntwine/` project (session sentinel ON). */
 
 // ── #1 owner-clean predicate + owner-filtered drift ─────────────────────────────────
 test('ownerCleanMtime: a mark ≥ current mtime is clean; no mark / stale mark is not', () => {
@@ -125,18 +125,18 @@ function longRunningFixture({ runtimeMin, outputAgeMin, status = 'active' }) {
   // concurrent fixtures sharing an agentId/proj/session would cross-read each other's output.
   const uid = `${process.pid}-${fixtureSeq++}`;
   const agentId = `WATCH_${uid}`;
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-dropguard-'));
-  mkdirSync(join(dir, '.frizz'), { recursive: true });
-  writeFileSync(join(dir, '.frizz', 'watch.md'), `---\ntitle: w\nstatus: ${status}\n---\nbody\n`);
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-dropguard-'));
+  mkdirSync(join(dir, '.ntwine'), { recursive: true });
+  writeFileSync(join(dir, '.ntwine', 'watch.md'), `---\ntitle: w\nstatus: ${status}\n---\nbody\n`);
   const now = Date.now();
   const dispatchedIso = new Date(now - runtimeMin * 60_000).toISOString();
-  writeFileSync(join(dir, '.frizz', '.agent-bindings.jsonl'),
+  writeFileSync(join(dir, '.ntwine', '.agent-bindings.jsonl'),
     JSON.stringify({ ts: dispatchedIso, agent_id: agentId, thread: 'watch', label: 'ci-watch' }) + '\n');
 
   const projSlug = `proj-${uid}`, session = `sess-${uid}`;
   // deriveTasksDir globs exactly ['/tmp','/private/tmp'], so the fixture MUST live under one of
   // them — os.tmpdir() would not be found. macOS has both (/tmp -> /private/tmp); Linux only /tmp.
-  const claudeRoot = mkdtempSync(join(existsSync('/private/tmp') ? '/private/tmp' : '/tmp', 'claude-frizztest-'));
+  const claudeRoot = mkdtempSync(join(existsSync('/private/tmp') ? '/private/tmp' : '/tmp', 'claude-ntwinetest-'));
   const tasksDir = join(claudeRoot, projSlug, session, 'tasks');
   mkdirSync(tasksDir, { recursive: true });
   const p = join(tasksDir, `${agentId}.output`);
@@ -154,7 +154,7 @@ function longRunningFixture({ runtimeMin, outputAgeMin, status = 'active' }) {
  *  past a new drop-guard tier without re-creating the whole fixture (state persists across runs). */
 function ageFixture(fx, runtimeMin, outputAgeMin) {
   const now = Date.now();
-  writeFileSync(join(fx.dir, '.frizz', '.agent-bindings.jsonl'),
+  writeFileSync(join(fx.dir, '.ntwine', '.agent-bindings.jsonl'),
     JSON.stringify({ ts: new Date(now - runtimeMin * 60_000).toISOString(), agent_id: fx.agentId, thread: 'watch', label: 'ci-watch' }) + '\n');
   const t = (now - outputAgeMin * 60_000) / 1000;
   utimesSync(fx.outputPath, t, t);

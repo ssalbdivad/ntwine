@@ -70,7 +70,7 @@ writeFileSync(join(jsonlDir, `${SESSION}.jsonl`), records.map((r) => JSON.string
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at, claude_runtime)
-   VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${at}', 'Icon rhythm', 'claude', 'opus', 'high', 'default', '${at}', 'broker')`,
+   VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${at}', 'Icon rhythm', 'claude', 'opus', 'high', 'default', '${at}', 'broker')`,
 ])
 
 const api = createRpcClient(`http://127.0.0.1:${port}/`)

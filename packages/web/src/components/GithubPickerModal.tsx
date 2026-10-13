@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import { keepPreviousData, useIsMutating, useMutation, useQuery } from "@tanstack/react-query"
 import { ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleCheck, CircleDot, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, Github, Inbox, Loader2, MessageSquare } from "lucide-react"
-import { type DispatchProfileSnapshot, type GithubBatchInput, type GithubItem } from "@frizz/shared"
+import { type DispatchProfileSnapshot, type GithubBatchInput, type GithubItem } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { Overlay } from "./NewThreadModal.tsx"
@@ -29,7 +29,7 @@ const PAGE_SIZE = 30
 
 // THE GitHub picker: a wider anywhere-modal (reusing NewThreadModal's Overlay) that lists the repo's
 // Issues or PRs (tabs), sortable by recency or reactions, with multi-select checkboxes and the
-// ordinary model/effort selector in its bottom-left corner. "Dispatch N thread(s)" spins up one frizz
+// ordinary model/effort selector in its bottom-left corner. "Dispatch N thread(s)" spins up one ntwine
 // thread per checked item
 // (each ISSUE an investigate/reproduce/recommend thread, each PR a review thread) via
 // rpc.githubDispatchBatch — the server hydrates + templates each fresh, reusing the normal dispatch

@@ -1,6 +1,6 @@
-// THE EDITOR, REPORTED TO FRIZZ FOR ITS AGENTS — reads what this window shows (the file in front, its
+// THE EDITOR, REPORTED TO NTWINE FOR ITS AGENTS — reads what this window shows (the file in front, its
 // selection and text, the tabs, the errors and warnings) and has the connection send it as the `editor`
-// frame whenever it changes, so a worker's `mcp__frizz__editor` always reads the current picture. The
+// frame whenever it changes, so a worker's `mcp__ntwine__editor` always reads the current picture. The
 // rules — what is carried, the caps, the order, the fitting — are pure, in editor-state.ts; this is the
 // glue. Only `import type` from vscode, like app.ts.
 //
@@ -15,11 +15,11 @@
 //
 // When it sends: after DEBOUNCE_MS of quiet following any change of the editor in front, its selection,
 // what is on screen, the tabs, a document's text or dirty state, or the diagnostics — and at once on a
-// change of `frizz.shareEditorState`. The connection sends it once more on every connect and drops a frame
+// change of `ntwine.shareEditorState`. The connection sends it once more on every connect and drops a frame
 // identical to the last it sent (connection.ts sendEditor).
 
 import type * as vscode from "vscode"
-import { EDITOR_STATE_MAX_SELECTION_TEXT, type EditorSnapshot } from "@frizz/shared/editor-protocol"
+import { EDITOR_STATE_MAX_SELECTION_TEXT, type EditorSnapshot } from "@ntwine/shared/editor-protocol"
 import { documentPath, readableUri, selectedText } from "./editor-front.ts"
 import { buildEditorSnapshot, unsharedSnapshot, type ActiveInput, type DiagnosticInput } from "./editor-state.ts"
 import type { EditorWatcher } from "./editor-watcher.ts"
@@ -33,7 +33,7 @@ export const SHARE_SETTING = "shareEditorState"
 export interface EditorStateFeedHost {
   /** Send the current snapshot now (the connection pulls it through `snapshot()`). */
   send(): void
-  /** Whether the human shares the editor with Frizz (frizz.shareEditorState). */
+  /** Whether the human shares the editor with Ntwine (ntwine.shareEditorState). */
   shared(): boolean
 }
 

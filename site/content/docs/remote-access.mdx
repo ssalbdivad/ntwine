@@ -3,11 +3,11 @@ title: Remote access
 description: Reach your board from a phone or another machine.
 ---
 
-Frizz binds `127.0.0.1` and has no login of its own. To reach the board from a phone or another machine, something in front of it carries the traffic, and Frizz gates the first visit from every device with a single-use sign-in link.
+Ntwine binds `127.0.0.1` and has no login of its own. To reach the board from a phone or another machine, something in front of it carries the traffic, and Ntwine gates the first visit from every device with a single-use sign-in link.
 
 ## Set it up
 
-Press <kbd>R</kbd> in the terminal running Frizz, or open **Settings → Remote access** on that machine, and pick how:
+Press <kbd>R</kbd> in the terminal running Ntwine, or open **Settings → Remote access** on that machine, and pick how:
 
 ```text
   Reach this board from anywhere
@@ -15,14 +15,14 @@ Press <kbd>R</kbd> in the terminal running Frizz, or open **Settings → Remote 
   ❯ Private name        an unguessable name on frizz.sh — no account, nothing to install
     Cloudflare Tunnel   a domain you own on Cloudflare; cloudflared on this machine
     Tailscale           your tailnet; tailscale serve does the TLS
-    Something else      any proxy or tunnel you run — tell Frizz its address
+    Something else      any proxy or tunnel you run — tell Ntwine its address
     Off                 loopback only  (current)
 ```
 
-The walkthrough checks what each choice needs before it accepts it, and remembers the answer, so a plain `npx frizz` serves it from then on. **Off** goes back to loopback only.
+The walkthrough checks what each choice needs before it accepts it, and remembers the answer, so a plain `npx ntwine` serves it from then on. **Off** goes back to loopback only.
 
 <Cards>
-  <Card title="A name on frizz.sh" href="/docs/frizz-sh">
+  <Card title="A name on frizz.sh" href="/docs/ntwine-sh">
     Nothing to set up, no account.
   </Card>
   <Card title="Cloudflare Tunnel" href="/docs/cloudflare-tunnel">
@@ -39,38 +39,38 @@ The walkthrough checks what each choice needs before it accepts it, and remember
   </Card>
 </Cards>
 
-## Frizz does the authenticating
+## Ntwine does the authenticating
 
 Whichever you pick, the board stays on loopback, and a tunnel or proxy only adds TLS and a hostname. Every request and every socket has to carry a session, and a device that has not redeemed a sign-in link is refused no matter what sits in front.
 
 The readout shows the link as a QR code. Scanning it trades a single-use code for a session cookie, so the link stops working the moment it is used. Press <kbd>L</kbd> for a fresh one at any time, or run this from another shell — over SSH, for a headless machine:
 
 ```bash
-npx frizz --link
+npx ntwine --link
 ```
 
 Sessions are per device:
 
 ```bash
-npx frizz --sessions          # the devices holding a session
-npx frizz --sign-out <id>     # sign one out
-npx frizz --sign-out all      # or every one
+npx ntwine --sessions          # the devices holding a session
+npx ntwine --sign-out <id>     # sign one out
+npx ntwine --sign-out all      # or every one
 ```
 
 A device can also sign itself out from its own **Settings**. Signing out any other device runs only on the host, so a stolen phone cannot sign out the laptop.
 
 ## Every project at once
 
-There is one Frizz server per machine, so remote access exposes every project on it, not just the one you launched from.
+There is one Ntwine server per machine, so remote access exposes every project on it, not just the one you launched from.
 
 ## Staying reachable
 
-While remote access is on and the machine is plugged in, Frizz keeps it from idle-sleeping, so the board doesn't go dark overnight. Closing the lid or pressing sleep still works.
+While remote access is on and the machine is plugged in, Ntwine keeps it from idle-sleeping, so the board doesn't go dark overnight. Closing the lid or pressing sleep still works.
 
 ## Try it without touching your board
 
 ```bash
-npx frizz --sandbox
+npx ntwine --sandbox
 ```
 
-A second Frizz that shares nothing with yours: a throwaway home and project on its own port, deleted on <kbd>Ctrl</kbd><kbd>C</kbd>. Press <kbd>R</kbd> in it and walk through any setup. Credentials come along, so every screen sees what your real board sees.
+A second Ntwine that shares nothing with yours: a throwaway home and project on its own port, deleted on <kbd>Ctrl</kbd><kbd>C</kbd>. Press <kbd>R</kbd> in it and walk through any setup. Credentials come along, so every screen sees what your real board sees.

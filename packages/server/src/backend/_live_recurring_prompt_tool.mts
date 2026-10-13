@@ -1,15 +1,15 @@
-// LIVE: the REAL `mcp__frizz__recurring_prompt` tool arming a REAL session row, through the whole chain a
+// LIVE: the REAL `mcp__ntwine__recurring_prompt` tool arming a REAL session row, through the whole chain a
 // worker actually uses.
 //   nub packages/server/src/backend/_live_stop_hook_tool.mts
 //
 // The other two halves of this feature are already proven elsewhere and are NOT re-proven here:
-// frizz-mcp.test.ts drives the real MCP server over real stdio and asserts the exact RPC body it emits,
+// ntwine-mcp.test.ts drives the real MCP server over real stdio and asserts the exact RPC body it emits,
 // and _live_stop_hook.mts drives a real Claude worker being bumped at rest and closing the loop with
-// AWAITING. What neither covers is the SEAM between them — the tool's HTTP call reaching frizz's real
+// AWAITING. What neither covers is the SEAM between them — the tool's HTTP call reaching ntwine's real
 // router and actually landing on the row — which is exactly where a wrong guard or a mistyped procedure
 // name would hide, and would look to the worker like success.
 //
-// So this runs: the real frizz MCP server process → its real stdio JSON-RPC → its real `fetch` at the
+// So this runs: the real ntwine MCP server process → its real stdio JSON-RPC → its real `fetch` at the
 // port it reads out of a real `server.lock` → the real Hono app → the real router mutation → real
 // SQLite. No model, because no model is needed to test a seam; the tool call is issued directly.
 //
@@ -22,7 +22,7 @@ import { join } from "node:path"
 import { serve } from "@hono/node-server"
 import { createApp } from "../app.ts"
 import { createStorage } from "../storage.ts"
-import { resolveFrizzMcp } from "../dispatch.ts"
+import { resolveNtwineMcp } from "../dispatch.ts"
 import type { AppContext } from "../context.ts"
 
 let failures = 0
@@ -36,7 +36,7 @@ const storage = createStorage(join(stateDir, "ui.db"), "p")
 const now = new Date().toISOString()
 for (const slug of ["mine", "someone-else"]) {
   storage.upsertSession({
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: now,
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: now,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as Parameters<typeof storage.upsertSession>[0])
@@ -63,14 +63,14 @@ const app = createApp(ctx, { port: PORT })
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT })
 writeFileSync(join(stateDir, "server.lock"), JSON.stringify({ port: PORT }))
 
-const descriptor = resolveFrizzMcp(stateDir)
-if (!descriptor) throw new Error("the packaged frizz MCP script must be resolvable")
+const descriptor = resolveNtwineMcp(stateDir)
+if (!descriptor) throw new Error("the packaged ntwine MCP script must be resolvable")
 
 /** Drive the REAL MCP server over its real stdio transport, as its worker does. */
 function mcp(env: Record<string, string>) {
   const child = spawn(process.execPath, [descriptor!.scriptPath], {
     stdio: ["pipe", "pipe", "inherit"],
-    env: { ...process.env, FRIZZ_STATE_DIR: stateDir, ...env },
+    env: { ...process.env, NTWINE_STATE_DIR: stateDir, ...env },
   })
   const pending = new Map<number, (v: any) => void>()
   let buf = ""
@@ -105,7 +105,7 @@ function mcp(env: Record<string, string>) {
 const row = (slug: string) => storage.getSession(slug)!
 
 try {
-  const worker = mcp({ FRIZZ_THREAD_SLUG: "mine" })
+  const worker = mcp({ NTWINE_THREAD_SLUG: "mine" })
   await worker.init()
 
   // ---- ARM, through the whole real chain --------------------------------------------------------
@@ -143,7 +143,7 @@ try {
   worker.kill()
 
   // ---- A server with no thread identity must FAIL, never guess ----------------------------------
-  const anonymous = mcp({ FRIZZ_THREAD_SLUG: "", FRIZZ_THREAD: "" })
+  const anonymous = mcp({ NTWINE_THREAD_SLUG: "", NTWINE_THREAD: "" })
   await anonymous.init()
   const refused = await anonymous.call(1, "recurring_prompt", { action: "start", prompt: "x" })
   ok("an MCP server with no stamped thread refuses rather than guessing",

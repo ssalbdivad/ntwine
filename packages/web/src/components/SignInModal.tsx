@@ -2,7 +2,7 @@ import * as RadixDialog from "@radix-ui/react-dialog"
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Copy, Check, Loader2 } from "lucide-react"
-import type { AccountBackend, AccountLogoutResult, AuthSnapshot } from "@frizz/shared"
+import type { AccountBackend, AccountLogoutResult, AuthSnapshot } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { copyTextToClipboard } from "../lib/clipboard.ts"
@@ -12,7 +12,7 @@ import { SIGN_IN_COMMAND, PROVIDER_LABEL } from "../lib/signIn.ts"
 
 // The sign-in gate modal. Shown when a dispatch targets a signed-out provider or the runtime 401
 // classifier flags a rejected credential. It hands the human the provider's own login command to run
-// in a terminal on the machine Frizz runs on, then re-reads the credential on Retry. Frizz does not run
+// in a terminal on the machine Ntwine runs on, then re-reads the credential on Retry. Ntwine does not run
 // the login itself: it embedded `claude auth login` in a terminal pane here until 2026-09-24, and the
 // maintainer chose the command alone over keeping that pane and its /term transport alive (#42).
 // Fails open — the gate only ever reaches here on a positive "signed-out". In an editor's sidebar a line
@@ -70,8 +70,8 @@ export function SignInModal({
           <RadixDialog.Title className="mb-1 text-[14px] font-medium">Signed out of {label}</RadixDialog.Title>
 
           <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
-            Frizz can't start a {label} thread until you're signed in. Run this command in a terminal on
-            the machine running Frizz, then retry:
+            Ntwine can't start a {label} thread until you're signed in. Run this command in a terminal on
+            the machine running Ntwine, then retry:
           </p>
 
           <div className={`${embedded() ? "mb-2" : "mb-4"} flex items-center gap-2 rounded-lg border border-border bg-panel-2 px-3 py-2`}>

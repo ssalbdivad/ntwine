@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_MARKDOWN_SANITIZER_E2E_URL
+const baseUrl = process.env.NTWINE_MARKDOWN_SANITIZER_E2E_URL
 
 // lib/markdown.ts sanitizes in a real DOM, so this is the only place its behaviour can be pinned.
 // Half the value is the XSS battery: `walk` UNWRAPS a disallowed tag rather than deleting its subtree

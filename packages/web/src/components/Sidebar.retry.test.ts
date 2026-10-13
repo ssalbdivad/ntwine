@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadRow, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
@@ -12,7 +12,7 @@ const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
 // The sidebar's one-click recovery verb. It appears on the rows offersRetry picks: a session whose
 // PROCESS EXITED (mid-turn or at bare rest without a done fence — the yellow [!] stalled mark), AND a
-// session HELD on a usage limit frizz will auto-resume (which keeps its hourglass mark — the verb is
+// session HELD on a usage limit ntwine will auto-resume (which keeps its hourglass mark — the verb is
 // shared, the glyph is not). Never on a row that is working, needs-input ([?], answered not retried),
 // held for some OTHER reason (a user snooze, a timer wait), done, archived, or read-only-foreign — on
 // those "retry" either means nothing, has a better-suited affordance, or would interrupt live work.
@@ -84,7 +84,7 @@ const STALLED_MARK = /border-accent\/90[\s\S]*?text-accent[^>]*>!</
 
 test("a usage-limit-HELD row gets the Retry button but keeps its HELD (hourglass) mark, not [!]", () => {
   // The maintainer's ask (2026-07-23): a thread held because it hit its session limit should get the
-  // same one-click Retry as a stalled row. But it is a genuine wait (frizz auto-resumes it), so it must
+  // same one-click Retry as a stalled row. But it is a genuine wait (ntwine auto-resumes it), so it must
   // NOT flip to the yellow [!] stall mark — the verb is shared, the glyph stays the held hourglass.
   const limitHeld = { runtime: "exited", limitPause: { backend: "claude", window: "session", at: "2026-07-23T00:00:00.000Z", autoResume: true } } as Partial<ThreadView>
   const html = row(limitHeld)

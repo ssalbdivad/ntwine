@@ -58,13 +58,13 @@ const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.href)
   const json = (result: unknown) =>
-    new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-frizz-boot": "question-links-fixture" } })
-  if (url.pathname === "/_frizz/rpc/resolveLocalPaths") {
+    new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-ntwine-boot": "question-links-fixture" } })
+  if (url.pathname === "/_ntwine/rpc/resolveLocalPaths") {
     const { paths } = JSON.parse(url.searchParams.get("input") ?? "{}") as { paths: string[] }
     w.__resolveCalls!.push(paths)
     return json({ resolved: paths.map((p) => ({ input: p, path: REAL[p] ?? null })) })
   }
-  if (url.pathname === "/_frizz/rpc/openLocalFile") {
+  if (url.pathname === "/_ntwine/rpc/openLocalFile") {
     const body = JSON.parse(String(init?.body ?? "{}")) as { path?: string }
     w.__opened!.push(body.path ?? "")
     return json({ action: "copy", path: body.path })

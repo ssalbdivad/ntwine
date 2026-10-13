@@ -22,9 +22,9 @@ import {
 } from "./project-launch.ts"
 import type { SessionDirectory } from "./access-codes.ts"
 import { RestartSupervisorProxy, type RemoteControlHandler, type RestartResult } from "./restart-supervisor.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 import { startRemoteWake, type RemoteWake } from "./remote-wake.ts"
-import { withRootsPin } from "./frizz-paths.ts"
+import { withRootsPin } from "./ntwine-paths.ts"
 import { BOOT_HARD_TIMEOUT_MS, BOOT_STALL_TIMEOUT_MS, readBootProgress } from "./boot-progress.ts"
 
 export const DEV_RESTART_DEBOUNCE_MS = 180
@@ -57,16 +57,16 @@ const GENERATED_DIRS = new Set([
   ".vite",
 ])
 // The watch root is the repo root now that the workspace is hoisted there, and the repo root holds
-// far more than source: `.frizz/worktrees` (where the worker contract sends every git worktree) and
+// far more than source: `.ntwine/worktrees` (where the worker contract sends every git worktree) and
 // `.claude/worktrees` contain entire sibling checkouts that other agents edit constantly. Those are
-// never frizz source, so keep the recursive watcher out of them rather than paying to walk them and
+// never ntwine source, so keep the recursive watcher out of them rather than paying to walk them and
 // filtering the events afterwards. The globs below are matched RELATIVE to the watch root, so a dev
 // server started from inside one of those checkouts still watches its own source (probed 2026-10-11
-// from a worktree at `.frizz/worktrees/<slug>`).
+// from a worktree at `.ntwine/worktrees/<slug>`).
 const NON_SOURCE_ROOT_DIRS = new Set([
   ".claude",
   ".agents",
-  ".frizz",
+  ".ntwine",
   "artifacts",
   "attachments",
   "qa-evidence",
@@ -94,7 +94,7 @@ export interface DevBoot {
  *
  * Deliberately NOT the same channel as `log`/`error`, which carry the run log's full record: this is
  * the short list of moments a person watching the launcher must not miss, and every one of them is a
- * state change they did not start from that terminal. Restart Frizz and Update Frizz are clicked in a
+ * state change they did not start from that terminal. Restart Ntwine and Update Ntwine are clicked in a
  * browser, and a control-plane crash is nobody's click at all — before this, all three left the
  * foreground process silent while the board went down and came back, so the terminal that owns the
  * board said less about it than the tab did.
@@ -103,7 +103,7 @@ export interface DevBoot {
  */
 export interface SupervisorActivity {
   kind: "restarting" | "updating" | "ready" | "failed"
-  /** One line, sentence case, already stripped of the "[frizz] " framing. */
+  /** One line, sentence case, already stripped of the "[ntwine] " framing. */
   message: string
   /** Wall time of the restart this beat ends. */
   ms?: number
@@ -172,7 +172,7 @@ export interface DevSupervisorOptions {
   launcherVersion?: string
   /** Cheap CACHED read of the newer registry version, when observed; see RestartSupervisorProxy. */
   updateVersion?: () => string | undefined
-  /** Launched from a source checkout (frizz-dev / `pnpm dev`)? See RestartSupervisorProxy. */
+  /** Launched from a source checkout (ntwine-dev / `pnpm dev`)? See RestartSupervisorProxy. */
   dev?: boolean
   /** Restore the known-good artifact selection if its replacement cannot become ready. */
   rollbackUpdate?: () => Promise<void> | void
@@ -190,7 +190,7 @@ export interface DevSupervisorOptions {
   /**
    * What follows the runtime's own flags when a launcher edit re-execs the parent: the entry script and
    * its arguments. Defaults to this process's own (`process.argv.slice(1)`), which is right for an entry
-   * that needs nothing more — `dev.ts`. The `frizz-dev` launcher must pass its own: its internal re-entry
+   * that needs nothing more — `dev.ts`. The `ntwine-dev` launcher must pass its own: its internal re-entry
    * requires the `--port` it allocated, which no operator ever typed (see devLauncherReexecArgs).
    */
   reexecArgs?: string[]
@@ -280,9 +280,9 @@ export const SUPERVISOR_DRAIN_DEADLINE_MS = CHILD_STOP_TIMEOUT_MS + CHILD_KILL_G
  * launcher that ignores Ctrl-C. Escalation still releases the tokenized launch owner — a forced exit
  * must not strand the project — and reports a non-zero code because the drain did not complete.
  */
-/** Call sites still build "[frizz] …" strings; the logger owns that framing now. */
+/** Call sites still build "[ntwine] …" strings; the logger owns that framing now. */
 function stripPrefix(line: string): string {
-  return line.startsWith("[frizz] ") ? line.slice("[frizz] ".length) : line
+  return line.startsWith("[ntwine] ") ? line.slice("[ntwine] ".length) : line
 }
 
 export function createSupervisorShutdownHandler(options: SupervisorShutdownHandlerOptions): () => void {
@@ -301,16 +301,16 @@ export function createSupervisorShutdownHandler(options: SupervisorShutdownHandl
     } catch (error) {
       // An abandoned drain can still hold the project's ownership guard. Releasing is best-effort;
       // a failure here must never replace the exit with an unhandled stack over the operator's prompt.
-      options.error?.(`[frizz] could not release launch ownership: ${error instanceof Error ? error.message : error}`)
+      options.error?.(`[ntwine] could not release launch ownership: ${error instanceof Error ? error.message : error}`)
     }
     options.exit(code)
   }
   const abandon = (reason: string) => {
-    options.error?.(`[frizz] ${reason} — abandoning the graceful drain`)
+    options.error?.(`[ntwine] ${reason} — abandoning the graceful drain`)
     try {
       options.force?.()
     } catch (error) {
-      options.error?.(`[frizz] forced supervisor stop failed: ${error instanceof Error ? error.message : error}`)
+      options.error?.(`[ntwine] forced supervisor stop failed: ${error instanceof Error ? error.message : error}`)
     }
     decide(1)
   }
@@ -331,7 +331,7 @@ export function createSupervisorShutdownHandler(options: SupervisorShutdownHandl
     void options.close().then(
       () => decide(0),
       (error) => {
-        options.error?.(`[frizz] supervisor shutdown failed: ${error instanceof Error ? error.message : error}`)
+        options.error?.(`[ntwine] supervisor shutdown failed: ${error instanceof Error ? error.message : error}`)
         decide(1)
       },
     )
@@ -451,7 +451,7 @@ export function devConfigSyntaxError(path: string): string | null {
 
 /** A child gets a copy of the caller's complete environment; only the private dev port marker is added. */
 export function devChildEnv(env: NodeJS.ProcessEnv, port: number): NodeJS.ProcessEnv {
-  return { ...env, FRIZZ_DEV_PORT: String(port), FRIZZ_DEV_CHILD: "1" }
+  return { ...env, NTWINE_DEV_PORT: String(port), NTWINE_DEV_CHILD: "1" }
 }
 
 /** Allocate a disposable control-plane port. The durable proxy keeps the public port throughout. */
@@ -467,14 +467,14 @@ async function allocatePrivateDevPort(publicPort: number): Promise<number> {
     })
     if (candidate > 0 && candidate !== publicPort) return candidate
   }
-  throw new Error("could not allocate a private Frizz control-plane port")
+  throw new Error("could not allocate a private Ntwine control-plane port")
 }
 
 export function devReexecEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const next = Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
-  delete next.FRIZZ_DEV_CHILD
-  delete next.FRIZZ_DEV_PORT
-  next.FRIZZ_DEV_REEXEC = "1"
+  delete next.NTWINE_DEV_CHILD
+  delete next.NTWINE_DEV_PORT
+  next.NTWINE_DEV_REEXEC = "1"
   return next
 }
 
@@ -549,22 +549,22 @@ export function probeLauncherSource(options: {
   })
 }
 
-type ReadyMessage = { type: "frizz-ready"; pid: number; processStart: string; port: number; bootId: string }
+type ReadyMessage = { type: "ntwine-ready"; pid: number; processStart: string; port: number; bootId: string }
 function readyMessage(value: unknown): value is ReadyMessage {
   if (!value || typeof value !== "object") return false
   const msg = value as Partial<ReadyMessage>
-  return msg.type === "frizz-ready"
+  return msg.type === "ntwine-ready"
     && typeof msg.pid === "number"
     && typeof msg.processStart === "string"
     && typeof msg.port === "number"
     && typeof msg.bootId === "string"
 }
 
-type StopOwnerMessage = { type: "frizz-stop-owner"; token: string }
+type StopOwnerMessage = { type: "ntwine-stop-owner"; token: string }
 function stopOwnerMessage(value: unknown): value is StopOwnerMessage {
   if (!value || typeof value !== "object") return false
   const msg = value as Partial<StopOwnerMessage>
-  return msg.type === "frizz-stop-owner" && typeof msg.token === "string"
+  return msg.type === "ntwine-stop-owner" && typeof msg.token === "string"
 }
 
 class Supervisor implements DevSupervisor {
@@ -655,8 +655,8 @@ class Supervisor implements DevSupervisor {
     this.cwd = resolve(opts.cwd ?? opts.launchTarget.projectDir)
     if (this.cwd !== opts.launchTarget.projectDir) throw new Error("dev supervisor cwd does not match its owned project")
     // Every child generation and every re-exec of this supervisor inherits THIS process's data-root
-    // decision (frizz-paths.ts `withRootsPin`). Without it each forked child resolved afresh at boot,
-    // so a stray `~/.frizz/registry.json` written under a running board took effect at the next source
+    // decision (ntwine-paths.ts `withRootsPin`). Without it each forked child resolved afresh at boot,
+    // so a stray `~/.ntwine/registry.json` written under a running board took effect at the next source
     // edit or crash restart — the 2026-10-02 incident, deferred by one restart instead of prevented.
     this.parentEnv = withRootsPin(projectLaunchEnvironment(opts.env ?? process.env, opts.launchTarget, opts.launchOwnerToken))
     this.roots = (opts.watchRoots ?? defaultDevWatchRoots()).map((root) => resolve(root))
@@ -664,7 +664,7 @@ class Supervisor implements DevSupervisor {
     this.childEnvironment = opts.childEnvironment ?? (() => ({}))
     this.debounceMs = opts.debounceMs ?? DEV_RESTART_DEBOUNCE_MS
     // EXEMPT from the sibling-.ts ban (detached-daemons.test.ts allowlists this line). The dev
-    // supervisor is the SOURCE launcher: `frizz-dev` always runs from a checkout, where this file is
+    // supervisor is the SOURCE launcher: `ntwine-dev` always runs from a checkout, where this file is
     // really on disk. Emitting dev-bootstrap.js into artifacts to "fix" the dangling path made things
     // strictly worse — it woke a control-plane fork that had been failing fast in every artifact ever
     // built, and the woken path crashed on an unguarded IPC send (EPIPE) and left delegates
@@ -693,8 +693,8 @@ class Supervisor implements DevSupervisor {
     // Default to the run log, NOT the terminal. The launcher repaints a region there and cannot
     // clear writes it did not make; every supervisor record the operator actually needs is either
     // surfaced through the readout or streamed by `--debug`.
-    this.logLine = opts.log ?? ((line) => frizzLog.info("supervisor", stripPrefix(line)))
-    this.errorLine = opts.error ?? ((line) => frizzLog.error("supervisor", stripPrefix(line)))
+    this.logLine = opts.log ?? ((line) => ntwineLog.info("supervisor", stripPrefix(line)))
+    this.errorLine = opts.error ?? ((line) => ntwineLog.error("supervisor", stripPrefix(line)))
     this.onActivity = opts.onActivity
     this.onChildExit = opts.onChildExit
     this.updateRestart = opts.updateRestart
@@ -727,9 +727,9 @@ class Supervisor implements DevSupervisor {
         // flight: only this supervisor knows when the prepare phase ends and the drain begins.
         if (this.handoffDraining || this.browserRestart || this.restartRunning) return { state: "restarting" as const }
         const failed = this.child === null && this.boot === null
-        const artifactDigest = this.activeChildEnvironment.FRIZZ_STABLE_ARTIFACT
+        const artifactDigest = this.activeChildEnvironment.NTWINE_STABLE_ARTIFACT
         return failed
-          ? { state: "failed" as const, message: "Frizz application server is not ready", ...(artifactDigest ? { artifactDigest } : {}) }
+          ? { state: "failed" as const, message: "Ntwine application server is not ready", ...(artifactDigest ? { artifactDigest } : {}) }
           : { state: "ready" as const, ...(artifactDigest ? { artifactDigest } : {}) }
       },
     })
@@ -748,7 +748,7 @@ class Supervisor implements DevSupervisor {
   /** Mint a single-use access link for the public origin, or null when none is declared. */
   setPublicOrigin(origin: string | undefined): void {
     this.publicProxy.setPublicOrigin(origin)
-    if (origin && !this.remoteWake && !this.closed && process.env.FRIZZ_WAKE_LOCK_OFF !== "1") this.remoteWake = startRemoteWake()
+    if (origin && !this.remoteWake && !this.closed && process.env.NTWINE_WAKE_LOCK_OFF !== "1") this.remoteWake = startRemoteWake()
     this.remoteWake?.setRemote(origin !== undefined)
   }
 
@@ -779,9 +779,9 @@ class Supervisor implements DevSupervisor {
         )
         for (const result of settled) {
           if (result.status === "fulfilled") this.subscriptions.push(result.value)
-          else this.errorLine(`[frizz] dev watch failed: ${result.reason instanceof Error ? result.reason.message : result.reason}`)
+          else this.errorLine(`[ntwine] dev watch failed: ${result.reason instanceof Error ? result.reason.message : result.reason}`)
         }
-        if (this.subscriptions.length === 0) throw new Error("no Frizz server source tree could be watched")
+        if (this.subscriptions.length === 0) throw new Error("no Ntwine server source tree could be watched")
       }
     } catch (err) {
       await this.publicProxy.close().catch(() => undefined)
@@ -794,7 +794,7 @@ class Supervisor implements DevSupervisor {
 
   private onWatch(err: Error | null, events: WatchEvent[]): void {
     if (err) {
-      this.errorLine(`[frizz] dev watch error: ${err.message}`)
+      this.errorLine(`[ntwine] dev watch error: ${err.message}`)
       this.writeStatus("degraded", `watch error: ${err.message}`)
       return
     }
@@ -818,7 +818,7 @@ class Supervisor implements DevSupervisor {
         const syntaxError = devConfigSyntaxError(path)
         if (!syntaxError) continue
         const message = `dev config invalid: ${syntaxError}; watching for a corrective edit`
-        this.errorLine(`[frizz] dev ${message}`)
+        this.errorLine(`[ntwine] dev ${message}`)
         this.writeStatus("failed", message)
         return
       }
@@ -845,8 +845,8 @@ class Supervisor implements DevSupervisor {
       // reads like something already went wrong. On the first boot there is nothing to restart.
       this.logLine(
         reason === INITIAL_BOOT_REASON
-          ? `[frizz] starting Frizz`
-          : `[frizz] restarting ${scope} — ${reason}`,
+          ? `[ntwine] starting Ntwine`
+          : `[ntwine] restarting ${scope} — ${reason}`,
       )
       this.writeStatus("restarting", reason)
       void this.restart()
@@ -910,7 +910,7 @@ class Supervisor implements DevSupervisor {
    */
   private missingLaunchFolder(): string | undefined {
     if (existsSync(this.cwd)) return undefined
-    return `Frizz is running on ${this.cwd}, which no longer exists, so a new server cannot start there. Stop Frizz and start it again.`
+    return `Ntwine is running on ${this.cwd}, which no longer exists, so a new server cannot start there. Stop Ntwine and start it again.`
   }
 
   /** Called only by the public supervisor control endpoint, never by ordinary document reloads. */
@@ -921,7 +921,7 @@ class Supervisor implements DevSupervisor {
     const previousBoot = this.boot?.bootId
     const work = (async (): Promise<RestartResult> => {
       this.lastRestartFailure = undefined
-      this.requestRestart("Restart Frizz requested from browser", true)
+      this.requestRestart("Restart Ntwine requested from browser", true)
       const deadline = Date.now() + 30_000
       while (!this.closed && Date.now() < deadline) {
         const boot = this.boot
@@ -933,8 +933,8 @@ class Supervisor implements DevSupervisor {
         await new Promise((resolveWait) => setTimeout(resolveWait, 50))
       }
       const message = this.closed
-        ? "Frizz supervisor stopped while restarting"
-        : "Frizz application server did not become ready within 30 seconds"
+        ? "Ntwine supervisor stopped while restarting"
+        : "Ntwine application server did not become ready within 30 seconds"
       this.writeStatus("failed", message)
       return { state: "failed", message }
     })().finally(() => { this.browserRestart = null })
@@ -952,12 +952,12 @@ class Supervisor implements DevSupervisor {
     // candidate reaches the controlled restart path, so a failed build never takes the board down.
     //
     // Announced BEFORE the await, not through writeStatus like every other beat: preparing a
-    // candidate is the longest step of an update (a source build in frizz-dev, an npm install in the
+    // candidate is the longest step of an update (a source build in ntwine-dev, an npm install in the
     // registry launcher) and it writes no status at all, so the terminal would otherwise sit silent
     // for a minute and then jump straight to "restarting". The copy names neither, because this
     // beat cannot know which: it read "preparing the new build" for the registry launcher's npm
     // install (audit 2026-09-11, finding 6). The hook's own message, which does know, follows it.
-    this.emitActivity("updating", "preparing the update — the running Frizz is untouched until it is ready")
+    this.emitActivity("updating", "preparing the update — the running Ntwine is untouched until it is ready")
     const candidate = await this.updateRestart()
     if (candidate.state !== "ready") {
       this.emitActivity("failed", candidate.message ?? "the update could not be prepared")
@@ -992,7 +992,7 @@ class Supervisor implements DevSupervisor {
 
   /**
    * Update only the disposable application server while retaining the public listener and launcher.
-   * There is deliberately no blue/green overlap: a Frizz child opens SQLite, tailers and schedulers
+   * There is deliberately no blue/green overlap: a Ntwine child opens SQLite, tailers and schedulers
    * before it can report ready, so a candidate is started only after the old child is fully gone.
    */
   private async updateChildFromBrowser(): Promise<RestartResult> {
@@ -1016,13 +1016,13 @@ class Supervisor implements DevSupervisor {
       if (prepared.state !== "ready") {
         return this.failChildUpdate(prepared.message ?? "the update could not be prepared", false)
       }
-      if (this.closed) return this.failChildUpdate("Frizz supervisor stopped while preparing the update", false)
+      if (this.closed) return this.failChildUpdate("Ntwine supervisor stopped while preparing the update", false)
       if (prepared.message) this.emitActivity("updating", prepared.message)
       // Do not run two server children. The old generation owns the shared runtime resources until
       // this exact drain completes; only then may the prepared launch provider select its candidate.
       this.handoffDraining = true
       await this.stopChild()
-      if (this.closed) return this.failChildUpdate("Frizz supervisor stopped while starting the update", true)
+      if (this.closed) return this.failChildUpdate("Ntwine supervisor stopped while starting the update", true)
       const ready = await this.spawnChild({
         updateCandidate: true,
         readinessTimeoutMs: this.updateReadyTimeoutMs,
@@ -1111,7 +1111,7 @@ class Supervisor implements DevSupervisor {
       failures.push("control plane was not restarted because rollback did not restore a known-good selection")
     }
     const detail = failures.length > 0 ? `${message}; ${failures.join("; ")}` : message
-    this.errorLine(`[frizz] ${detail}`)
+    this.errorLine(`[ntwine] ${detail}`)
     // `close()` has removed the owner status and public listener. A late prepare/commit completion
     // must not resurrect either observability state or a child after that shutdown boundary.
     if (!this.closed) this.writeStatus("failed", detail, this.boot)
@@ -1145,7 +1145,7 @@ class Supervisor implements DevSupervisor {
     }
 
     const detail = failures.length > 0 ? `${message}; ${failures.join("; ")}` : message
-    this.errorLine(`[frizz] ${detail}`)
+    this.errorLine(`[ntwine] ${detail}`)
     this.writeStatus("failed", detail, this.boot)
     return { state: "failed", message: detail }
   }
@@ -1183,7 +1183,7 @@ class Supervisor implements DevSupervisor {
     } catch (error) {
       const message = `child launch selection failed: ${error instanceof Error ? error.message : error}; watching for a corrective edit`
       this.lastRestartFailure = message
-      this.errorLine(`[frizz] ${message}`)
+      this.errorLine(`[ntwine] ${message}`)
       this.writeStatus("failed", message, null)
       return false
     }
@@ -1208,7 +1208,7 @@ class Supervisor implements DevSupervisor {
       } catch (error) {
         const message = `child spawn failed: ${error instanceof Error ? error.message : error}; watching for a corrective edit`
         this.lastRestartFailure = message
-        this.errorLine(`[frizz] ${message}`)
+        this.errorLine(`[ntwine] ${message}`)
         this.writeStatus("failed", message, null)
         settled(false)
         return
@@ -1256,7 +1256,7 @@ class Supervisor implements DevSupervisor {
             : `update candidate made no boot progress for ${stallMs}ms`
           const message = lastPhase ? `${reason}; last boot step: ${lastPhase}` : reason
           this.lastRestartFailure = message
-          this.errorLine(`[frizz] ${message}`)
+          this.errorLine(`[ntwine] ${message}`)
           this.writeStatus("failed", message, null)
           try { child.kill("SIGTERM") } catch { /* exit handler owns cleanup */ }
           settleSpawn(false)
@@ -1282,7 +1282,7 @@ class Supervisor implements DevSupervisor {
         ) {
           const detail = "control plane reported ready without a registered owner-bound generation"
           ownershipRejected = true
-          this.errorLine(`[frizz] dev ${detail}`)
+          this.errorLine(`[ntwine] dev ${detail}`)
           this.writeStatus("failed", detail)
           child.kill("SIGTERM")
           settleSpawn(false)
@@ -1294,7 +1294,7 @@ class Supervisor implements DevSupervisor {
         this.activeChildEnvironment = launch?.environment ?? this.childEnvironment()
         this.lastRestartFailure = undefined
         this.resolveFirstBoot(boot)
-        this.logLine(`[frizz] dev control plane ready (pid ${boot.pid}, boot ${boot.bootId.slice(0, 8)})`)
+        this.logLine(`[ntwine] dev control plane ready (pid ${boot.pid}, boot ${boot.bootId.slice(0, 8)})`)
         this.writeStatus("ready", "control plane ready", boot)
         this.armCrashStability(child)
         settleSpawn(true)
@@ -1302,7 +1302,7 @@ class Supervisor implements DevSupervisor {
       child.once("error", (err) => {
         const message = `child spawn failed: ${err.message}; watching for a corrective edit`
         this.lastRestartFailure = message
-        this.errorLine(`[frizz] ${message}`)
+        this.errorLine(`[ntwine] ${message}`)
         this.writeStatus("failed", message)
         settleSpawn(false)
       })
@@ -1329,7 +1329,7 @@ class Supervisor implements DevSupervisor {
             ? `control plane stopped (${why}); retry ${this.crashAttempts} in ${retryDelay}ms`
             : `control plane stopped (${why}) before ready; watching for a corrective edit`
           if (!started) this.lastRestartFailure = message
-          this.errorLine(`[frizz] dev ${message}`)
+          this.errorLine(`[ntwine] dev ${message}`)
           this.writeStatus("failed", message)
           // A previously-ready control plane crash is transient until proved otherwise. Restart it;
           // pre-ready syntax/import failures stay quiet under the healthy old watcher until an edit.
@@ -1391,11 +1391,11 @@ class Supervisor implements DevSupervisor {
         state,
         message,
         updatedAt: new Date().toISOString(),
-        ...(this.activeChildEnvironment.FRIZZ_STABLE_ARTIFACT ? { artifactDigest: this.activeChildEnvironment.FRIZZ_STABLE_ARTIFACT } : {}),
+        ...(this.activeChildEnvironment.NTWINE_STABLE_ARTIFACT ? { artifactDigest: this.activeChildEnvironment.NTWINE_STABLE_ARTIFACT } : {}),
         ...(boot ? { childPid: boot.pid, bootId: boot.bootId } : {}),
       })
     } catch (err) {
-      this.errorLine(`[frizz] could not write dev status: ${err instanceof Error ? err.message : err}`)
+      this.errorLine(`[ntwine] could not write dev status: ${err instanceof Error ? err.message : err}`)
     }
   }
 
@@ -1425,8 +1425,8 @@ class Supervisor implements DevSupervisor {
 
   private async reexecLauncher(): Promise<void> {
     if (!this.reexec) {
-      const message = "launcher source changed, but this Node runtime cannot re-exec; restart Frizz once"
-      this.errorLine(`[frizz] ${message}`)
+      const message = "launcher source changed, but this Node runtime cannot re-exec; restart Ntwine once"
+      this.errorLine(`[ntwine] ${message}`)
       this.writeStatus("degraded", message)
       return
     }
@@ -1444,11 +1444,11 @@ class Supervisor implements DevSupervisor {
     if (this.closed) return
     if (problem) {
       const message = `launcher source does not load, so this board keeps running the previous one: ${problem}; watching for a corrective edit`
-      this.errorLine(`[frizz] dev ${message}`)
+      this.errorLine(`[ntwine] dev ${message}`)
       this.writeStatus("failed", message)
       return
     }
-    this.logLine(`[frizz] dev launcher validated; reloading in place (pid ${process.pid})`)
+    this.logLine(`[ntwine] dev launcher validated; reloading in place (pid ${process.pid})`)
     this.closed = true
     if (this.debounce) clearTimeout(this.debounce)
     this.debounce = null
@@ -1467,12 +1467,12 @@ class Supervisor implements DevSupervisor {
         env: devReexecEnv(this.parentEnv),
       })
     } catch (error) {
-      this.errorLine(`[frizz] dev launcher re-exec failed: ${error instanceof Error ? error.message : error}`)
+      this.errorLine(`[ntwine] dev launcher re-exec failed: ${error instanceof Error ? error.message : error}`)
     }
     // execve never returns. A failed/injected return must release ownership through the caller's one
     // shutdown path; otherwise this live but watcherless PID would strand the project indefinitely.
     this.removeStatus()
-    this.errorLine("[frizz] dev launcher re-exec returned unexpectedly; restart Frizz once")
+    this.errorLine("[ntwine] dev launcher re-exec returned unexpectedly; restart Ntwine once")
     // `closed` is already set, so close() would return without reaching the listener.
     await this.publicProxy.close().catch(() => undefined)
     this.resolveStopRequested()
@@ -1516,7 +1516,7 @@ class Supervisor implements DevSupervisor {
       // kill() is false once the process has already exited; the 'exit' listener below then never
       // fires (it already did), so a false return is the signal to finish here.
       const signal = (name: NodeJS.Signals | undefined, why: string) => {
-        this.errorLine(`[frizz] ${who} ${why}; ${name === "SIGTERM" ? "sending SIGTERM to" : "killing"} the control plane only`)
+        this.errorLine(`[ntwine] ${who} ${why}; ${name === "SIGTERM" ? "sending SIGTERM to" : "killing"} the control plane only`)
         if (!child.kill(name)) finish()
       }
       const escalate = (why: string) => {
@@ -1545,7 +1545,7 @@ class Supervisor implements DevSupervisor {
   /**
    * Second-Ctrl-C escalation. `stopChild` waits up to CHILD_STOP_TIMEOUT_MS for a clean drain; an
    * operator who signals again has withdrawn that patience, so take the control plane down now. The
-   * child owns only Frizz's own handles — the detached worker daemons (a Claude thread's session
+   * child owns only Ntwine's own handles — the detached worker daemons (a Claude thread's session
    * broker, the Codex app-server) are keyed project resources in their own process groups and
    * deliberately survive this.
    */
@@ -1553,7 +1553,7 @@ class Supervisor implements DevSupervisor {
     this.closed = true
     const child = this.child
     if (!child) return
-    this.errorLine(`[frizz] force-stopping control plane (pid ${child.pid ?? "?"})`)
+    this.errorLine(`[ntwine] force-stopping control plane (pid ${child.pid ?? "?"})`)
     try {
       child.kill("SIGKILL")
     } catch {

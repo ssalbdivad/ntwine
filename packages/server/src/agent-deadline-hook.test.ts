@@ -12,7 +12,7 @@ import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { childDeadlineMs as sharedChild, DEADLINE_STAGES, deadlineStageAtMs, parseDeadlineInput, preciseSpanLabel as sharedPrecise, spanLabel as sharedSpan, TIME_LIMIT_LINE as SHARED_LINE } from "@frizz/shared"
+import { childDeadlineMs as sharedChild, DEADLINE_STAGES, deadlineStageAtMs, parseDeadlineInput, preciseSpanLabel as sharedPrecise, spanLabel as sharedSpan, TIME_LIMIT_LINE as SHARED_LINE } from "@ntwine/shared"
 import * as twin from "../../../cc-worker/hooks/agent-deadline.mjs"
 
 const HOOKS = join(dirname(fileURLToPath(import.meta.url)), "../../../cc-worker/hooks")
@@ -21,15 +21,15 @@ const M = 60_000
 
 function runHook(name: string, event: Record<string, unknown>, env: Record<string, string> = {}): Promise<Record<string, any>> {
   return new Promise((resolve, reject) => {
-    const child = execFile(process.execPath, [join(HOOKS, name)], { env: { PATH: dirname(process.execPath), FRIZZ_THREAD: "thread-under-test", ...env }, encoding: "utf8" }, (error, stdout) =>
+    const child = execFile(process.execPath, [join(HOOKS, name)], { env: { PATH: dirname(process.execPath), NTWINE_THREAD: "thread-under-test", ...env }, encoding: "utf8" }, (error, stdout) =>
       error ? reject(error) : resolve(stdout ? JSON.parse(stdout) : {}))
     child.stdin!.end(JSON.stringify(event))
   })
 }
 
-/** A frizz root whose server answers `threadDeadline` with `at` (or no deadline). */
-async function frizzRoot(at: number | undefined) {
-  const root = mkdtempSync(join(tmpdir(), "frizz-agent-deadline-"))
+/** A ntwine root whose server answers `threadDeadline` with `at` (or no deadline). */
+async function ntwineRoot(at: number | undefined) {
+  const root = mkdtempSync(join(tmpdir(), "ntwine-agent-deadline-"))
   const permDir = join(root, "projects", PROJECT, "perm-requests")
   mkdirSync(permDir, { recursive: true })
   const asked: string[] = []
@@ -41,14 +41,14 @@ async function frizzRoot(at: number | undefined) {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
   writeFileSync(join(root, "server.lock"), JSON.stringify({ port: (server.address() as AddressInfo).port, pid: process.pid }))
   return {
-    env: { FRIZZ_PERM_DIR: permDir }, asked,
+    env: { NTWINE_PERM_DIR: permDir }, asked,
     close: async () => { await new Promise((resolve) => server.close(resolve)); rmSync(root, { recursive: true, force: true }) },
   }
 }
 
 /** A session dir with one sub-agent whose transcript's first record is `prompt`, written at `startMs`. */
 function session(agents: Array<{ id: string; prompt: string; startMs?: number; workflowRun?: string }>) {
-  const root = mkdtempSync(join(tmpdir(), "frizz-agent-deadline-session-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-agent-deadline-session-"))
   const transcript = join(root, "6962af17-1cb2-44fa-8e3f-c5bd405f4fa1.jsonl")
   writeFileSync(transcript, "")
   const sessionDir = transcript.slice(0, -".jsonl".length)
@@ -69,7 +69,7 @@ const childTool = (transcript: string, agentId: string, agentType = "general-pur
 })
 const promptOf = (out: Record<string, any>) => out.hookSpecificOutput?.updatedInput?.prompt as string
 const markerOf = (prompt: string) => {
-  const m = [...prompt.matchAll(/⟦frizz-deadline⟧ (\S+) (\S+)/g)].at(-1)
+  const m = [...prompt.matchAll(/⟦ntwine-deadline⟧ (\S+) (\S+)/g)].at(-1)
   return m ? { atMs: Date.parse(m[1]!), setAtMs: Date.parse(m[2]!) } : undefined
 }
 const contextOf = (out: Record<string, any>) => out.hookSpecificOutput?.additionalContext as string | undefined
@@ -99,7 +99,7 @@ test("the hook's arithmetic is the shared module's, over a grid of budgets and l
 
 test("a thread with a deadline: its child gets the remaining time minus a reserve, stated above the epilogue", async () => {
   const deadline = Date.now() + 2 * 60 * M
-  const root = await frizzRoot(deadline)
+  const root = await ntwineRoot(deadline)
   try {
     const before = Date.now()
     const prompt = promptOf(await runHook("agent-dispatch.mjs", dispatch("Survey the cache keys."), root.env))
@@ -111,7 +111,7 @@ test("a thread with a deadline: its child gets the remaining time minus a reserv
     assert.ok(prompt.indexOf("[TIME LIMIT") < prompt.indexOf("ORCHESTRATION EPILOGUE"), "above the epilogue, so its idempotence holds")
     assert.match(prompt, /Your final message is due by then/)
     assert.equal(root.asked.length, 1)
-    assert.match(decodeURIComponent(root.asked[0]!), new RegExp(`/_frizz/${PROJECT}/rpc/threadDeadline\\?input=\\{"slug":"thread-under-test"\\}`))
+    assert.match(decodeURIComponent(root.asked[0]!), new RegExp(`/_ntwine/${PROJECT}/rpc/threadDeadline\\?input=\\{"slug":"thread-under-test"\\}`))
   } finally {
     await root.close()
   }
@@ -119,7 +119,7 @@ test("a thread with a deadline: its child gets the remaining time minus a reserv
 
 test("a declared Time limit is honoured under the ceiling, clamped above it, and stripped either way", async () => {
   const deadline = Date.now() + 30 * M // 30m left: reserve 6m → ceiling 24m out
-  const root = await frizzRoot(deadline)
+  const root = await ntwineRoot(deadline)
   try {
     const short = promptOf(await runHook("agent-dispatch.mjs", dispatch("Survey the cache keys.\nTime limit: 10m\nReport the hit rate."), root.env))
     assert.ok(Math.abs(markerOf(short)!.atMs - (Date.now() + 10 * M)) < 3_000)
@@ -135,7 +135,7 @@ test("a declared Time limit is honoured under the ceiling, clamped above it, and
 })
 
 test("negative control: no deadline and no Time limit line, no share; a Time limit line alone sets one", async () => {
-  const root = await frizzRoot(undefined)
+  const root = await ntwineRoot(undefined)
   try {
     const none = promptOf(await runHook("agent-dispatch.mjs", dispatch("Survey the cache keys."), root.env))
     assert.equal(markerOf(none), undefined)
@@ -154,7 +154,7 @@ test("negative control: no deadline and no Time limit line, no share; a Time lim
 test("a nested dispatch is carved from the dispatching child's own deadline, not the thread's", async () => {
   const childAt = Date.now() + 10 * M
   const s = session([{ id: "achild0000000001", prompt: `Do it.${twin.deadlineParagraph(childAt, Date.now() - 10 * M)}` }])
-  const root = await frizzRoot(Date.now() + 5 * 60 * M)
+  const root = await ntwineRoot(Date.now() + 5 * 60 * M)
   try {
     const prompt = promptOf(await runHook("agent-dispatch.mjs", dispatch("Help me.", { agent_id: "achild0000000001", transcript_path: s.transcript }), root.env))
     // 10m left for the child: reserve max(2m, 5m) = 5m → the grandchild's deadline is 5m out.
@@ -211,7 +211,7 @@ test("a Workflow agent's share is worked out from its own Time limit line and st
     { id: "awf0000000000001", prompt: wrapped, startMs: start, workflowRun: "wf_152a4514-9fb" },
     { id: "awf0000000000002", prompt: "[Workflow harness — computed task]\n  Audit the cache.", startMs: start, workflowRun: "wf_152a4514-9fb" },
   ])
-  const root = await frizzRoot(undefined)
+  const root = await ntwineRoot(undefined)
   try {
     const first = contextOf(await runHook("agent-inbox.mjs", childTool(s.transcript, "awf0000000000001", "workflow-subagent"), root.env))!
     assert.match(first, /^⏰ Your time limit: \d\d:\d\d \(a 2m budget/, "introduced, since its prompt never said")
@@ -230,7 +230,7 @@ test("a Workflow agent's share is worked out from its own Time limit line and st
 test("a Workflow agent in a thread with a deadline gets its share of it with no line at all", async () => {
   const start = Date.now() - 60_000
   const s = session([{ id: "awf0000000000003", prompt: "[Workflow harness — computed task]\n  Audit the cache.", startMs: start, workflowRun: "wf_152a4514-9fb" }])
-  const root = await frizzRoot(start + 10 * M) // 10m left at its start: reserve 5m → a 5m budget, 1m in
+  const root = await ntwineRoot(start + 10 * M) // 10m left at its start: reserve 5m → a 5m budget, 1m in
   try {
     const first = contextOf(await runHook("agent-inbox.mjs", childTool(s.transcript, "awf0000000000003", "workflow-subagent"), root.env))!
     assert.match(first, /\(a 5m budget/)

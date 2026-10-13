@@ -34,7 +34,7 @@ const CARET_PAD_LEFT = 4.5
 
 const ROWS: readonly { mode: SendMode; name: string; says: string }[] = [
   { mode: "steer", name: "Send as steer", says: "The agent reads it at its next step." },
-  { mode: "queue", name: "Send to queue", says: "Frizz holds it until the agent comes to rest." },
+  { mode: "queue", name: "Send to queue", says: "Ntwine holds it until the agent comes to rest." },
 ]
 const ROW_NAME: Record<SendMode, string> = { steer: "Send as steer", queue: "Send to queue" }
 

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { questionAnswerMessage, secretAnswerText } from "@frizz/shared"
+import { questionAnswerMessage, secretAnswerText } from "@ntwine/shared"
 import { QuestionBlockCard } from "./components/QuestionBlockCard.tsx"
 import { AnswersCard } from "./components/AnswersCard.tsx"
 import { parseAnswersCard } from "./lib/answersMessage.ts"
@@ -9,10 +9,10 @@ import type { ParsedQuestion } from "./lib/questionBlocks.ts"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { RegisteredAnswerSheet } from "./components/RegisteredAnswerSheet.tsx"
 import { RegisteredAnsweringContext, type RegisteredAnswering } from "./components/RegisteredQuestionCards.tsx"
-import type { RegisteredQuestionView } from "@frizz/shared"
+import type { RegisteredQuestionView } from "@ntwine/shared"
 import "./styles.css"
 
-// A SECRET question (`frizzctl secret`) in its three readings: open with the locked caption under its
+// A SECRET question (`ntwinectl secret`) in its three readings: open with the locked caption under its
 // password field, settled after the send, and the human's Answers card. The settled card and the
 // Answers card must draw a mask, never the delivery note the worker reads (where the value went).
 // `?case=sheet` draws the PHONE's reading instead: the real answer sheet on the secret step, over a stub
@@ -27,7 +27,7 @@ const question: ParsedQuestion = {
   recommendedIdxs: [],
 }
 
-const stored = secretAnswerText("/Users/someone/.frizz/projects/029a30af/secrets/a-thread/qst_d792566b3316")
+const stored = secretAnswerText("/Users/someone/.ntwine/projects/029a30af/secrets/a-thread/qst_d792566b3316")
 const answers = parseAnswersCard(questionAnswerMessage([{ questionId: "qst_d792566b3316", question: "OpenRouter management key", chosen: [], text: stored }])) ?? []
 
 function Open() {

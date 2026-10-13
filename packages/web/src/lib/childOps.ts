@@ -1,4 +1,4 @@
-import type { BgShellView, TranscriptMessage, TranscriptToolCall } from "@frizz/shared"
+import type { BgShellView, TranscriptMessage, TranscriptToolCall } from "@ntwine/shared"
 
 // ── THE CHILD-OPERATION ROW VOCABULARY ───────────────────────────────────────────────────────────
 //
@@ -26,12 +26,12 @@ export const CHILD_ARROW_CLASS = "shrink-0 text-[11px] leading-none text-muted-4
 // THE KIND TAG on an operations row — `AGENT` / `SHELL` / `WATCH` on ChildOpRow's card and sheet
 // densities, `File` / `Link` on ThreadLinks. One class, because the two surfaces render one under the
 // other beneath the prompt box and the eye runs down ONE label column: the tag's SIZE (9.5px petite
-// caps) and its COLUMN (`.frizz-kind-tag` in styles.css — a fixed, per-font width) are what put every
+// caps) and its COLUMN (`.ntwine-kind-tag` in styles.css — a fixed, per-font width) are what put every
 // label at the same x.
 // The saved-reference rows had a 9px tag of their own in a 33px column, which put their labels 14.1px
 // right of the rows above them in mono and 7.2px in sans (maintainer 2026-09-11: "The label is further
 // to the right. Why? There's no reason for that at all").
-export const CHILD_KIND_TAG_CLASS = "frizz-kind-tag petite-caps shrink-0 text-[9.5px] text-muted-45"
+export const CHILD_KIND_TAG_CLASS = "ntwine-kind-tag petite-caps shrink-0 text-[9.5px] text-muted-45"
 
 // THE MARK SLOT between the arrow and the tag — 9px, the liveness dot plus its halo — on the same two
 // surfaces. A saved-reference row puts its 1em icon in this same slot (it overflows by 1.25px a side,
@@ -111,7 +111,7 @@ export function childProgressLabel(toolUses?: number, tokens?: number): string |
 //
 // ZERO is a real reading here and renders as "0 lines", never as nothing. A shell that has printed
 // nothing in twelve minutes is exactly the case this counter exists to expose, and an absent counter
-// would be indistinguishable from "frizz cannot read this shell's output" (a codex exec), which is the
+// would be indistinguishable from "ntwine cannot read this shell's output" (a codex exec), which is the
 // one situation that genuinely has no number. Compare `childProgressLabel`, where zero really does mean
 // "the provider has not reported yet".
 export function shellLinesLabel(lines: number | undefined): string | undefined {

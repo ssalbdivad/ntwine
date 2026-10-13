@@ -1,5 +1,5 @@
 // The parent side of the Claude session broker: derive its socket/record paths, fork it as a detached
-// daemon, and — after a frizz restart — ADOPT an already-running one instead of cold-starting. Mirrors
+// daemon, and — after a ntwine restart — ADOPT an already-running one instead of cold-starting. Mirrors
 // codex-app-server-host.ts (fork/record/adopt), keyed per Claude session id (one broker per thread).
 import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
@@ -9,7 +9,7 @@ import { resolveDetachedDaemonEntry } from "../detached-daemons.ts"
 import type { BrokerRecord, ClaudeBrokerConfig } from "./claude-agent-broker.ts"
 import { claudeBrokerDiagnosticLogPath, describeClaudeBrokerExit, readClaudeBrokerExit, recordClaudeBrokerTermination, type ClaudeBrokerTerminationCause } from "./claude-broker-diagnostics.ts"
 import { endDaemonTree, type EndDaemonTreeDeps } from "./daemon-tree.ts"
-import { frizzIpcPath } from "./ipc-path.ts"
+import { ntwineIpcPath } from "./ipc-path.ts"
 import { recordedDaemonIsLive } from "./daemon-identity.ts"
 import type { WorkerMcpServers } from "./project-mcp-servers.ts"
 import { launchEnvironment } from "./worker-env.ts"
@@ -87,7 +87,7 @@ export function resolveClaudeExecutableAbsolute(bin: string | undefined, env: No
  *  See ipc-path.ts for why the two spellings exist and what each one costs. */
 export function claudeBrokerSocketPath(stateDir: string, sessionId: string): string {
   const key = createHash("sha256").update(stateDir).update("\0").update(sessionId).digest("hex").slice(0, 16)
-  return frizzIpcPath(`frizz-claude-${key}`)
+  return ntwineIpcPath(`ntwine-claude-${key}`)
 }
 
 /** The discovery record lives under the project state dir (long paths are fine here). */
@@ -134,7 +134,7 @@ export function liveBrokerRecordListed(recordPath: string): BrokerRecord | null 
   return recordListed(recordPath) ? liveBrokerRecord(recordPath) : null
 }
 
-/** Why frizz retired a daemon ON PURPOSE, while keeping the conversation. Every one of these ends a
+/** Why ntwine retired a daemon ON PURPOSE, while keeping the conversation. Every one of these ends a
  *  PROCESS, never a session: the transcript is on disk and the next input cold-resumes it.
  *   - `retire`        — a launch flag changed (permission mode / restart worker), so the next turn
  *                       has to start under a new process. See the bridge's retireDaemon.
@@ -166,7 +166,7 @@ export function claudeBrokerRetirementPath(stateDir: string, sessionId: string):
   return join(stateDir, "claude-broker", `${key}.retired`)
 }
 
-/** Record that the daemon about to die is dying because frizz asked. Best-effort: a mark that cannot
+/** Record that the daemon about to die is dying because ntwine asked. Best-effort: a mark that cannot
  *  be written costs one spurious "the thread crashed" log line, never the teardown itself. */
 export function markBrokerRetired(stateDir: string, sessionId: string, reason: BrokerRetirementReason, generation: string): void {
   const mark: BrokerRetirementMark = { at: new Date().toISOString(), generation, reason }
@@ -195,7 +195,7 @@ export function takeBrokerRetirement(stateDir: string, sessionId: string): Broke
 
 /** Where the bridge records that one agent in a session has had its first approval held back (see
  *  `claudeFirstApprovalHint`). Per AGENT, because a sub-agent never sees the note its parent was given.
- *  On disk because the daemon — and so the conversation that read the note — outlives a frizz restart,
+ *  On disk because the daemon — and so the conversation that read the note — outlives a ntwine restart,
  *  and a second "first time" after every restart would be the noise the note exists to spare. Not a
  *  `.json` name, for the reason claudeBrokerRetirementPath gives. */
 export function claudePermissionHintPath(stateDir: string, sessionId: string, agentId: string | undefined): string {
@@ -236,7 +236,7 @@ export function readBrokerRecord(recordPath: string): BrokerRecord | null {
  *  "exited (signal-SIGTERM) at 21:55:46"). Both deletion sites below write it, so no path loses it. */
 export function brokerLastKnownPath(recordPath: string): string { return `${recordPath}.last` }
 
-/** The identity of the last daemon frizz knew for this session, alive or dead. Outlives the record. */
+/** The identity of the last daemon ntwine knew for this session, alive or dead. Outlives the record. */
 export function lastKnownBrokerDaemon(stateDir: string, sessionId: string): BrokerRecord | null {
   return readBrokerRecord(brokerLastKnownPath(claudeBrokerRecordPath(stateDir, sessionId)))
 }
@@ -256,7 +256,7 @@ export function liveBrokerRecord(recordPath: string): BrokerRecord | null {
   return null
 }
 
-/** Every broker daemon under this state dir that is still running — the set a booting frizz can adopt.
+/** Every broker daemon under this state dir that is still running — the set a booting ntwine can adopt.
  *
  *  Enumerates the record DIRECTORY rather than probing one path per registry row: the record filename
  *  is a hash of the session id and cannot be inverted, and at boot the live set (a handful of daemons)
@@ -290,7 +290,7 @@ export interface ForkBrokerOptions {
   resume?: boolean
   /** Fork this session into `sessionId` on first start — see ClaudeBrokerConfig.forkFrom. */
   forkFrom?: string
-  /** The frizz worker environment (plugin + MCP + per-thread frizz vars) — see ClaudeBrokerConfig. */
+  /** The ntwine worker environment (plugin + MCP + per-thread ntwine vars) — see ClaudeBrokerConfig. */
   pluginDir?: string
   mcpServers?: WorkerMcpServers
   allowedTools?: string[]
@@ -324,7 +324,7 @@ export function forkBroker(options: ForkBrokerOptions): Promise<BrokerRecord> {
     // launchEnvironment, not process.env: the daemon snapshots its own launch env, and the Claude SDK
     // builds the worker's env from it — a live spread would hand every worker the NODE_ENV Vite wrote
     // into the dev server (worker-env.ts).
-    env: { ...launchEnvironment(), FRIZZ_CLAUDE_BROKER: JSON.stringify(config) },
+    env: { ...launchEnvironment(), NTWINE_CLAUDE_BROKER: JSON.stringify(config) },
     detached: true,
     stdio: "ignore",
     // A detached process owns no console on Windows; keep the daemon from ever being handed a
@@ -354,7 +354,7 @@ export function forkBroker(options: ForkBrokerOptions): Promise<BrokerRecord> {
       if (record && record.generation === generation && pidAlive(record.daemonPid)) return settle(() => resolve(record))
       if (Date.now() > deadline) {
         // A daemon that died AND wrote its exit record is named here too: the deadline path is what
-        // an operator sees when the exit event was missed (a frizz restart between fork and death).
+        // an operator sees when the exit event was missed (a ntwine restart between fork and death).
         const exit = recordedCause()
         return settle(() => reject(new Error(
           `Claude broker for session ${options.sessionId} did not become ready${exit ? `: ${describeClaudeBrokerExit(exit)}` : ""}`,
@@ -389,7 +389,7 @@ export function forkBroker(options: ForkBrokerOptions): Promise<BrokerRecord> {
   })
 }
 
-/** Reattach to a live broker if one exists (frizz restart), else fork a fresh one. */
+/** Reattach to a live broker if one exists (ntwine restart), else fork a fresh one. */
 export async function adoptOrForkBroker(options: ForkBrokerOptions): Promise<{ record: BrokerRecord; reattached: boolean }> {
   const existing = liveBrokerRecord(claudeBrokerRecordPath(options.stateDir, options.sessionId))
   if (existing) return { record: existing, reattached: true }
@@ -402,12 +402,12 @@ export async function adoptOrForkBroker(options: ForkBrokerOptions): Promise<{ r
  *  `cause` is why, and it is written into the daemon's diagnostics log BEFORE the signal (see
  *  ClaudeBrokerTerminationRecord): the daemon's own breadcrumb can only ever say `signal-SIGTERM`.
  *
- *  A RETIREMENT cause (`retire` / `fresh-process` / `hibernate`) says this teardown is one frizz CHOSE
+ *  A RETIREMENT cause (`retire` / `fresh-process` / `hibernate`) says this teardown is one ntwine CHOSE
  *  while keeping the conversation, and also leaves the mark that stops the cold resume behind it being
  *  reported to the operator as a crash. Any other cause ends the session itself (a stop, a completion,
  *  a replaced session): there is no later resume to explain, and no death to suppress — and any mark an
  *  EARLIER retirement left is void, so this clears it rather than leaving a promise of a resume that is
- *  never coming. The mark is written BEFORE the signal so a frizz that dies mid-teardown still leaves
+ *  never coming. The mark is written BEFORE the signal so a ntwine that dies mid-teardown still leaves
  *  the truth on disk.
  *
  *  The signal goes through endDaemonTree (daemon-tree.ts): SIGTERM on POSIX, where the daemon's own

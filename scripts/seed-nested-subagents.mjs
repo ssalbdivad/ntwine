@@ -13,7 +13,7 @@
 //       great-gr.   "Diff the two key shapes"    toolu_n3 / agent-nC   depth 3  (parent nB)
 //   child       "Sweep every call site"         toolu_n4 / agent-nD   depth 1  (no children)
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer folds.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer folds.
 //
 // Usage: node scripts/seed-nested-subagents.mjs --home=/abs/temp-home
 import { execFileSync } from "node:child_process"
@@ -40,23 +40,23 @@ mkdirSync(jsonlDir, { recursive: true })
 
 const SLUG = "nested-subagents"
 const SESSION = "9e57ed00-0000-4000-8000-000000000001"
-const THREAD_NAME = `frizz-${SLUG}`
+const THREAD_NAME = `ntwine-${SLUG}`
 const now = () => new Date().toISOString()
 let n = 0
 const uuid = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`
 
 // The DEPTH-1 dispatches — the only ones that appear in the thread's own transcript.
 const DISPATCHES = [
-  { id: "toolu_n1", agent: "nA", type: "frizz:opus-medium", label: "Review the resolver diff" },
-  { id: "toolu_n4", agent: "nD", type: "frizz:sonnet-medium", label: "Sweep every call site of the renamed helper" },
+  { id: "toolu_n1", agent: "nA", type: "ntwine:opus-medium", label: "Review the resolver diff" },
+  { id: "toolu_n4", agent: "nD", type: "ntwine:sonnet-medium", label: "Sweep every call site of the renamed helper" },
 ]
 
 // Every descendant of every depth, flat — exactly how claude writes them.
 const SIDECARS = [
-  { agent: "nA", meta: { agentType: "frizz:opus-medium", description: "Review the resolver diff", toolUseId: "toolu_n1", spawnDepth: 1 } },
-  { agent: "nB", meta: { agentType: "frizz:sonnet-medium", description: "Trace the cache key through the resolver", toolUseId: "toolu_n2", parentAgentId: "nA", spawnDepth: 2 } },
-  { agent: "nC", meta: { agentType: "frizz:haiku", description: "Diff the two key shapes", toolUseId: "toolu_n3", parentAgentId: "nB", spawnDepth: 3 } },
-  { agent: "nD", meta: { agentType: "frizz:sonnet-medium", description: "Sweep every call site of the renamed helper", toolUseId: "toolu_n4", spawnDepth: 1 } },
+  { agent: "nA", meta: { agentType: "ntwine:opus-medium", description: "Review the resolver diff", toolUseId: "toolu_n1", spawnDepth: 1 } },
+  { agent: "nB", meta: { agentType: "ntwine:sonnet-medium", description: "Trace the cache key through the resolver", toolUseId: "toolu_n2", parentAgentId: "nA", spawnDepth: 2 } },
+  { agent: "nC", meta: { agentType: "ntwine:haiku", description: "Diff the two key shapes", toolUseId: "toolu_n3", parentAgentId: "nB", spawnDepth: 3 } },
+  { agent: "nD", meta: { agentType: "ntwine:sonnet-medium", description: "Sweep every call site of the renamed helper", toolUseId: "toolu_n4", spawnDepth: 1 } },
 ]
 
 const subagentsDir = join(jsonlDir, SESSION, "subagents")

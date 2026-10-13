@@ -1,11 +1,11 @@
-// Frizz normally runs in an ordinary browser tab. External http(s) anchors should therefore stay in
+// Ntwine normally runs in an ordinary browser tab. External http(s) anchors should therefore stay in
 // the browser's native click path: target=_blank opens a normal tab synchronously from the user
 // gesture, preserves modifier-key behavior, and cannot be stranded behind an async RPC. Internal
 // links and non-http schemes are left untouched so local navigation remains local.
 //
 // IN AN EDITOR'S SIDEBAR (lib/embed.ts) there is no new tab to open: a VS Code webview cannot open a
 // window, so a `target=_blank` click and a `window.open` both do nothing at all. There the same external
-// anchors are cancelled and handed to the editor (`frizz:open-external`), which opens them in the
+// anchors are cancelled and handed to the editor (`ntwine:open-external`), which opens them in the
 // system browser. Still decided in the CAPTURE phase, before any component sees the click: several of
 // these anchors stop the click's propagation in their own onClick (ThreadLinks, the GitHub picker's
 // rows), so a listener that waited for the bubble would never hear them.
@@ -75,7 +75,7 @@ export function createExternalLinkClickHandler(
 }
 
 function hostOpens(url: string): void {
-  postToHost({ type: "frizz:open-external", url })
+  postToHost({ type: "ntwine:open-external", url })
 }
 
 /** What a sidebar does with a click on an anchor the browser would otherwise have opened in a tab. */
@@ -94,7 +94,7 @@ export type EmbedLinkAction = { kind: "navigate"; path: string } | { kind: "exte
  *   any other in-app page (`/`, `/project/…`) here, in the frame — the tab it would have opened
  *
  * A plain click on a thread's address is not here: lib/thread-links.ts opens its drawer. Same-origin
- * paths under `/_frizz/` are Frizz's API, not the app, and are left alone, as is everything cross-origin
+ * paths under `/_ntwine/` are Ntwine's API, not the app, and are left alone, as is everything cross-origin
  * (createExternalLinkClickHandler). Null when the click is not one of these. Pure, for its test.
  */
 export function embedLinkAction(
@@ -111,7 +111,7 @@ export function embedLinkAction(
     return null
   }
   if (url.protocol === "mailto:") return click.button === 0 || click.button === 1 ? { kind: "external", url: url.toString() } : null
-  if (url.origin !== current.origin || url.pathname.startsWith("/_frizz/")) return null
+  if (url.origin !== current.origin || url.pathname.startsWith("/_ntwine/")) return null
   if (click.button === 1 || (click.button === 0 && (click.metaKey || click.ctrlKey || click.shiftKey || click.altKey))) return { kind: "external", url: url.toString() }
   if (click.button !== 0 || !click.blank) return null
   const inner = innerPath(url.pathname)

@@ -1,4 +1,4 @@
-// Exercise the real Frizz bridge against a real Codex app-server with no credentials. The harmless
+// Exercise the real Ntwine bridge against a real Codex app-server with no credentials. The harmless
 // request must fail visibly, including retry notifications that Codex omits from its rollout.
 // Usage: nub scripts/verify-codex-native-errors.mjs /absolute/path/to/codex
 import assert from "node:assert/strict"
@@ -13,7 +13,7 @@ import { parseCodexTranscript } from "../packages/server/src/transcript.ts"
 
 assert.ok(process.argv[2], "Pass an installed Codex binary")
 const bin = resolve(process.argv[2])
-const root = mkdtempSync(join(tmpdir(), "frizz-codex-native-error-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-codex-native-error-"))
 const home = join(root, "home")
 console.log(`Isolated probe ${root}`)
 mkdirSync(join(home, ".codex"), { recursive: true })
@@ -61,7 +61,7 @@ try {
   assert.ok(rollout, "Codex wrote a durable rollout")
   const messages = parseCodexTranscript(readFileSync(join(home, ".codex", "sessions", rollout), "utf8"))
   assert.ok(messages.some((message) => message.providerError?.message === error.message), "the terminal error survives in the real rollout")
-  console.log("PASS real Codex app-server → Frizz bridge → live retry/terminal notifications → durable error transcript")
+  console.log("PASS real Codex app-server → Ntwine bridge → live retry/terminal notifications → durable error transcript")
 } catch (error) {
   console.error(error, stderr)
   throw error

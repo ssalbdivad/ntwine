@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadRow, awaitingReason, sessionIndicatorFor, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
@@ -13,7 +13,7 @@ const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 // A RAIL ROW IS ITS TITLE, AND EVERYTHING ELSE IS ONE HOVER AWAY (maintainer 2026-08-19: "there should
 // never ever be any fucking thing in the sidebar except for the fucking title"). The row has no
 // subtitle line in any state — no PR ref, no snooze, no activity gloss — and the indicator's popover is
-// where what frizz knows about the wait now lives.
+// where what ntwine knows about the wait now lives.
 //
 // That popover is ONE SENTENCE, not a stack of facts. Its first cut printed a fragment per hint kind,
 // which read as a machine dumping its record (same day: "that popover text looks fucking terrible"), so
@@ -37,7 +37,7 @@ const base = {
 } as unknown as ThreadView
 
 // What the worker WROTE, and what the popover SETS — a fence's reason arrives as a lowercase fragment
-// (frizz's own contract modelled one until 2026-08-19), and every surface that draws it standing alone
+// (ntwine's own contract modelled one until 2026-08-19), and every surface that draws it standing alone
 // presents it as the sentence it is. reasonSentence owns that, and only the first letter moves.
 const REASON = "waiting on the three-platform run before porting the v2 drivers"
 const SET = "Waiting on the three-platform run before porting the v2 drivers"
@@ -60,16 +60,16 @@ const WAIT = [{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "2h" 
 test("a parked awaiting thread reads as one sentence, with the worker's own line under it", () => {
   const t = thread([...WAIT], {}, REASON)
   // The band the row is IN leads — that is what the glyph you pointed at is claiming — and what the
-  // fence names finishes the sentence. The reason is the only line frizz did not write, so it is the
+  // fence names finishes the sentence. The reason is the only line ntwine did not write, so it is the
   // only one set off on its own: a PARAGRAPH, because the sentence above it wraps and a reason tucked
   // straight under a wrapped line reads as its third line.
   assert.deepEqual((sessionIndicatorFor(t).tip ?? "").split("\n\n"), ["Snoozed — waiting on an agent terminal", SET])
 })
 
-// The same fence frizz could NOT honour (nothing running behind it) leaves the row in the queue wearing
+// The same fence ntwine could NOT honour (nothing running behind it) leaves the row in the queue wearing
 // the at-rest ellipsis. The popover keeps its shape: only the state word changes, so the two rows never
 // mean different things by the same lines.
-test("a fence frizz did not park on swaps the state word and nothing else", () => {
+test("a fence ntwine did not park on swaps the state word and nothing else", () => {
   // needsYou keeps the row in the queue (isSnoozed refuses it), which is the shape of a park the server
   // could not honour: the fence still says what it thinks it is waiting on, and the popover still says it.
   const t = thread([...WAIT], { needsYou: true } as Partial<ThreadView>, REASON)

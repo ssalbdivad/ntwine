@@ -22,7 +22,7 @@ import {
 // merge-bases, rename pairing, ignore rules — and a mocked git would only repeat what this module assumes.
 
 function repo() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-review-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-review-")))
   const git = (cwd: string, ...args: string[]) =>
     execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@e", "-c", "commit.gpgsign=false", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
   const write = (path: string, text: string | Buffer) => {
@@ -30,7 +30,7 @@ function repo() {
     writeFileSync(path, text)
   }
   git(dir, "init", "-q", "-b", "main")
-  write(join(dir, ".gitignore"), ".frizz/\nnode_modules/\n")
+  write(join(dir, ".gitignore"), ".ntwine/\nnode_modules/\n")
   write(join(dir, "README.md"), "# readme\n")
   write(join(dir, "src", "a.ts"), "export const a = 1\nexport const shared = 'a long enough line for rename pairing'\n")
   write(join(dir, "docs", "old.md"), "old\n")
@@ -41,7 +41,7 @@ function repo() {
     git(cwd, "commit", "-qm", message)
     return git(cwd, "rev-parse", "HEAD")
   }
-  const worktree = (slug: string, start = "main", at = join(dir, ".frizz", "worktrees", slug)) => {
+  const worktree = (slug: string, start = "main", at = join(dir, ".ntwine", "worktrees", slug)) => {
     git(dir, "worktree", "add", "-q", "-b", slug, at, start)
     return realpathSync(at)
   }
@@ -134,7 +134,7 @@ test("a worktree made from another branch is reviewed from where it left THAT br
 
 test("a detached worktree with no reflog of its own falls back to where it left the project folder's branch", async () => {
   const r = repo()
-  const at = join(r.dir, ".frizz", "worktrees", "detached")
+  const at = join(r.dir, ".ntwine", "worktrees", "detached")
   r.git(r.dir, "worktree", "add", "-q", "--detach", at, "main")
   const wt = realpathSync(at)
   const start = r.git(wt, "rev-parse", "HEAD")
@@ -176,10 +176,10 @@ test("a file whose name looks like a pathspec is that file", async () => {
 })
 
 test("no repository, or one with no commits, is said in words", async () => {
-  const plain = realpathSync(mkdtempSync(join(tmpdir(), "frizz-review-plain-")))
+  const plain = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-review-plain-")))
   const none = await reviewCheckout({ dir: plain, scope: "branch", files: [] })
   assert.ok("error" in none && /isn't a git repository/.test(none.error))
-  const empty = realpathSync(mkdtempSync(join(tmpdir(), "frizz-review-empty-")))
+  const empty = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-review-empty-")))
   execFileSync("git", ["init", "-q"], { cwd: empty })
   const unborn = await reviewCheckout({ dir: empty, scope: "branch", files: [] })
   assert.ok("error" in unborn && /no commits yet/.test(unborn.error))

@@ -1,6 +1,6 @@
 /**
  * The GitHub identity behind a custom-name claim, taken through GitHub's OAuth DEVICE FLOW against
- * Frizz's own OAuth App, which asks for NO scopes.
+ * Ntwine's own OAuth App, which asks for NO scopes.
  *
  * WHY A TOKEN AND NOT JUST A USERNAME. Reading a username locally proves nothing — the CLI could send
  * any string, so a loop could claim a name per invented account and the limit would mean exactly
@@ -11,7 +11,7 @@
  * can. A compromised registrar collected those tokens (2026-09-21 to 2026-10-08), and at least one
  * leaked. A token from an app that requests no scopes can read only what anyone can read about the
  * account — its public profile — so a leaked one is worth nothing. The registrar now refuses any token
- * that carries a scope, so even an old Frizz cannot hand it a powerful one again.
+ * that carries a scope, so even an old Ntwine cannot hand it a powerful one again.
  *
  * The token is sent ONCE, at the first claim. The registrar exchanges it for a numeric user id, keeps
  * the id, and discards the token; renewals afterwards carry no token at all, because the keypair
@@ -23,21 +23,21 @@
  */
 
 /**
- * The client id of Frizz's GitHub OAuth App — public by design: device flow has no secret.
+ * The client id of Ntwine's GitHub OAuth App — public by design: device flow has no secret.
  *
  * Still the placeholder until the maintainer registers the app (see the registrar README). While it is,
  * custom names are withdrawn altogether (CUSTOM_NAMES_OFFERED in cloud.ts, false since 2026-10-08), so
  * nobody is offered a claim that would end here; registering the app means setting this AND flipping
- * that. A claim that reaches this anyway (`FRIZZ_CUSTOM_NAMES=1`) refuses up front with a clear message
- * rather than sending GitHub an id it does not know. `FRIZZ_GITHUB_CLIENT_ID` overrides it, for tests
+ * that. A claim that reaches this anyway (`NTWINE_CUSTOM_NAMES=1`) refuses up front with a clear message
+ * rather than sending GitHub an id it does not know. `NTWINE_GITHUB_CLIENT_ID` overrides it, for tests
  * and for a self-hosted registrar.
  */
-export const GITHUB_CLIENT_ID_PLACEHOLDER = "frizz-oauth-app-client-id-not-set";
-export const FRIZZ_GITHUB_CLIENT_ID: string = GITHUB_CLIENT_ID_PLACEHOLDER;
+export const GITHUB_CLIENT_ID_PLACEHOLDER = "ntwine-oauth-app-client-id-not-set";
+export const NTWINE_GITHUB_CLIENT_ID: string = GITHUB_CLIENT_ID_PLACEHOLDER;
 
 /** The configured client id, or null while it is still the placeholder. */
 export function githubClientId(env: NodeJS.ProcessEnv = process.env): string | null {
-  const id = env.FRIZZ_GITHUB_CLIENT_ID?.trim() || FRIZZ_GITHUB_CLIENT_ID;
+  const id = env.NTWINE_GITHUB_CLIENT_ID?.trim() || NTWINE_GITHUB_CLIENT_ID;
   return id === GITHUB_CLIENT_ID_PLACEHOLDER ? null : id;
 }
 
@@ -119,7 +119,7 @@ async function postForm(
       headers: {
         accept: "application/json",
         "content-type": "application/x-www-form-urlencoded",
-        "user-agent": "frizz",
+        "user-agent": "ntwine",
       },
       body: new URLSearchParams(fields).toString(),
       ...(signal ? { signal } : {}),
@@ -152,7 +152,7 @@ export async function runDeviceFlow(options: DeviceFlowOptions): Promise<GithubA
   const clientId = options.clientId === undefined ? githubClientId() : options.clientId;
   if (!clientId) {
     throw new GithubSignInError(
-      "custom frizz.sh names are not available in this version of Frizz yet: its GitHub sign-in is not set up. A private frizz.sh name needs no account and works today.",
+      "custom frizz.sh names are not available in this version of Ntwine yet: its GitHub sign-in is not set up. A private frizz.sh name needs no account and works today.",
       "not-configured",
     );
   }
@@ -210,7 +210,7 @@ export async function runDeviceFlow(options: DeviceFlowOptions): Promise<GithubA
     const scope = typeof poll.body.scope === "string" ? poll.body.scope.trim() : "";
     if (scope) {
       throw new GithubSignInError(
-        `GitHub granted this sign-in more access than a name needs (${scope}), so Frizz did not use it`,
+        `GitHub granted this sign-in more access than a name needs (${scope}), so Ntwine did not use it`,
         "scoped",
       );
     }
@@ -222,7 +222,7 @@ export async function runDeviceFlow(options: DeviceFlowOptions): Promise<GithubA
 async function readLogin(fetchImpl: typeof fetch, apiOrigin: string, token: string): Promise<string | null> {
   try {
     const response = await fetchImpl(`${apiOrigin}/user`, {
-      headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "frizz" },
+      headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "ntwine" },
     });
     if (!response.ok) return null;
     const user = (await response.json()) as { login?: unknown };
@@ -234,7 +234,7 @@ async function readLogin(fetchImpl: typeof fetch, apiOrigin: string, token: stri
 
 /** The line a terminal shows for the code. One sentence, so it reads the same in a log as on screen. */
 export function deviceCodeMessage(prompt: DeviceCodePrompt): string {
-  return `to confirm your GitHub account, open ${prompt.verificationUri} and enter ${prompt.userCode} (Frizz asks GitHub for no permissions)`;
+  return `to confirm your GitHub account, open ${prompt.verificationUri} and enter ${prompt.userCode} (Ntwine asks GitHub for no permissions)`;
 }
 
 /** The real thing, showing its code through `onPrompt` — the terminal by default. */

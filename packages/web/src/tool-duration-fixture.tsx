@@ -6,19 +6,19 @@ import "./lib/diff/diff.css"
 
 function Card({ expanded, status, name = "Bash", summary = "Re-run pnpm probe synchronously with exit code", input = "pnpm probe --sync --exit-code" }: { expanded: boolean; status: "completed" | "cancelled" | "pending"; name?: string; summary?: string; input?: string }) {
   return (
-    <div className="frizz-bash">
+    <div className="ntwine-bash">
       <ToolDisclosureHeader
-        className="frizz-bash-header"
+        className="ntwine-bash-header"
         controls={`body-${status}-${expanded}`}
         expanded={expanded}
         label={`${expanded ? "Collapse" : "Expand"} ${name}: ${summary}`}
         onToggle={() => {}}
         meta={<ToolStatusMeta status={status} durationMs={128 * 60_000} />}
       >
-        <span className="petite-caps frizz-bash-label shrink-0">{name}</span>
+        <span className="petite-caps ntwine-bash-label shrink-0">{name}</span>
         <span className="min-w-0 truncate text-[11.5px] text-muted">{summary}</span>
       </ToolDisclosureHeader>
-      {expanded && <pre id={`body-${status}-${expanded}`} className="frizz-bash-body">{input}</pre>}
+      {expanded && <pre id={`body-${status}-${expanded}`} className="ntwine-bash-body">{input}</pre>}
     </div>
   )
 }

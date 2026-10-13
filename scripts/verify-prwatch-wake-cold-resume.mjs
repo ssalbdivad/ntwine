@@ -1,4 +1,4 @@
-// Real-subsystem reproduction for a PR-watch wake that frizz records as DELIVERED while the worker never
+// Real-subsystem reproduction for a PR-watch wake that ntwine records as DELIVERED while the worker never
 // receives it — the shape a user's board showed 2026-08-25: a thread parked on a registered PR watcher,
 // CI green and three reviews posted, nothing woke the worker for 12h+, and the human's own message
 // cold-resumed it fine afterwards.
@@ -127,7 +127,7 @@ const cursorOf = (id) => JSON.parse(storage.getPrWatch(id)?.cursor ?? "null")
 async function thread(slug, ref) {
   const session = randomUUID()
   storage.upsertSession({
-    slug, session_id: session, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: session, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -185,7 +185,7 @@ try {
   console.log(`  outbox: ${JSON.stringify(row)}  cursor: ${JSON.stringify(cursor)}  inputs received: ${received}`)
   check("the claude child never received the wake", received === 0, `received=${received}`)
   const lost = row?.state === "delivered" && received === 0
-  check(expectBug ? "REPRODUCED: frizz recorded the wake as delivered anyway" : "frizz does NOT record an unreceived wake as delivered",
+  check(expectBug ? "REPRODUCED: ntwine recorded the wake as delivered anyway" : "ntwine does NOT record an unreceived wake as delivered",
     expectBug ? lost : !lost, `state=${row?.state} attempts=${row?.attempts} error=${row?.last_error ?? "-"}`)
   check(expectBug ? "REPRODUCED: the watcher's cursor moved past the event, so it can never be re-reported" : "the event is still reportable or was retried",
     expectBug ? cursor?.checks?.startsWith("bbbbbbb:passing") === true && received === 0 : received > 0 || row?.state !== "delivered",

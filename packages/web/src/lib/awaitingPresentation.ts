@@ -1,4 +1,4 @@
-import { awaitingQuestions, awaitingSteps, RETIRED_AWAITING_KINDS, type AwaitingHint } from "@frizz/shared"
+import { awaitingQuestions, awaitingSteps, RETIRED_AWAITING_KINDS, type AwaitingHint } from "@ntwine/shared"
 import { githubRefUrl } from "./githubRef.ts"
 
 /** AN ```awaiting FENCE THAT NAMES QUESTIONS DRAWS NO CARD (maintainer 2026-10-08: "if there are
@@ -40,7 +40,7 @@ export const AWAITING_NO_PROSE = "Waiting for an external update."
 export const STEPS_CHIP = "Awaiting human"
 
 /** The steps card's one verb, and EXACTLY the message it sends — an ordinary reply from the human, the
- *  same thing typing the word would send. Nothing marks it as frizz's, because nothing about it is: the
+ *  same thing typing the word would send. Nothing marks it as ntwine's, because nothing about it is: the
  *  worker reads it as the human's own answer to the steps it just posted, and the transcript draws it as
  *  their bubble. Anything more the human has to say goes through the prompt box. */
 export const STEPS_DONE = "Done"
@@ -69,7 +69,7 @@ export function prWatchRefs(hints: readonly AwaitingHint[]): { ref: string; url:
  *
  *  An awaiting fence is FRONTMATTER, then Markdown (2026-08-17; the frontmatter itself became YAML on
  *  2026-08-24): structural keys, a `---` delimiter, and below it as much prose as the worker wants —
- *  OPTIONAL prose, since what frizz actually requires is a live item and a `for:`. `reason:` is the
+ *  OPTIONAL prose, since what ntwine actually requires is a live item and a `for:`. `reason:` is the
  *  one-line form that shape replaced, and it was retired outright at the YAML cutover; it survives here
  *  only to read a fence stored before then. Reading only `reason:` therefore drops the handoff of every
  *  fence written the CURRENT way, which is what the rail popover did until this existed.
@@ -96,10 +96,10 @@ function capForHover(prose: string): string {
 
 const HOVER_PROSE_MAX = 240
 
-/** THE WORKER'S OWN PROSE, PRESENTED AS A SENTENCE — capitalized, because everywhere frizz draws it, it
+/** THE WORKER'S OWN PROSE, PRESENTED AS A SENTENCE — capitalized, because everywhere ntwine draws it, it
  *  stands alone: its own paragraph under the rail popover's sentence, its own line in the awaiting card.
  *
- *  Workers write it lowercase, and that is frizz's own doing — the shipped contract's example read
+ *  Workers write it lowercase, and that is ntwine's own doing — the shipped contract's example read
  *  `reason: what you are waiting for, in one line`, so a fence arrived as a fragment and rendered as one
  *  ("At rest — waiting on acme/app#391" over "the tap submission is queued…", maintainer 2026-08-19:
  *  "why is that second sentence fucking lowercase?"). The example now models a sentence, but a worker's
@@ -146,7 +146,7 @@ export function awaitingProseBlock(body: string | undefined): string | null {
  *  awaiting block looking like this?").
  *
  *  A line the parser refused lands in the BODY, which is exactly right for the WORKER — it has to see
- *  what frizz ignored — and exactly wrong for the human, who is being shown machinery. Until 2026-08-24
+ *  what ntwine ignored — and exactly wrong for the human, who is being shown machinery. Until 2026-08-24
  *  the card dodged this by preferring the `reason:` hint over the body; `reason:` is retired, so the
  *  filter has to be explicit.
  *
@@ -188,7 +188,7 @@ function stripFenceSyntax(body: string): string {
 export function awaitingWaitClause(hints: readonly AwaitingHint[]): string | null {
   const count = (kind: AwaitingHint["kind"]) => hints.filter((h) => h.kind === kind && h.value.trim()).length
   const parts = [
-    // Steps first: the reader is the one being waited on, which outranks anything frizz is watching.
+    // Steps first: the reader is the one being waited on, which outranks anything ntwine is watching.
     plural(count("step"), "step from you", "steps from you"),
     plural(count("question"), "answer from you", "answers from you"),
     ...prWatchRefs(hints).map((pr) => pr.ref),
@@ -215,7 +215,7 @@ function joinList(parts: readonly string[]): string {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`
 }
 
-/** THE MOBILE BOARD'S one-line gloss, and the LAST inline caption frizz draws under a thread title.
+/** THE MOBILE BOARD'S one-line gloss, and the LAST inline caption ntwine draws under a thread title.
  *
  *  The desktop rail dropped its subtitle entirely (maintainer 2026-08-19) and moved every fence detail
  *  into the row's hover popover. A phone has no hover, so the mobile row keeps the one fragment worth a

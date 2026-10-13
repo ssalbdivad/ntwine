@@ -226,7 +226,7 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
   await page.goto(url, { waitUntil: "networkidle2" })
   await page.evaluate(async () => { (await import("/src/store.ts")).store.showSettings = true })
   await page.waitForSelector('button[aria-label="Appearance"]')
-  await page.waitForFunction(() => getComputedStyle(document.querySelector(".frizz-sheet-panel").parentElement).opacity === "1")
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".ntwine-sheet-panel").parentElement).opacity === "1")
   let serverWrites = 0
   const request = req => { if (req.url().includes("settingsSet")) serverWrites++ }
   page.on("request", request)
@@ -245,7 +245,7 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
   await settle()
   const formEdges = await page.evaluate(() => {
     const dropdown = document.querySelector('button[aria-label="Appearance"]')
-    const segments = [...document.querySelectorAll('.frizz-sheet-panel button[aria-pressed]')]
+    const segments = [...document.querySelectorAll('.ntwine-sheet-panel button[aria-pressed]')]
     return { dropdown: getComputedStyle(dropdown).borderTopColor, segments: segments.map(el => ({ border: getComputedStyle(el).borderTopWidth, ring: getComputedStyle(el).getPropertyValue('--tw-inset-ring-shadow'), group: getComputedStyle(el.parentElement).borderTopColor })) }
   })
   assert.ok(formEdges.segments.length >= 6)
@@ -254,7 +254,7 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
     assert.doesNotMatch(segment.ring, /inset/, 'Segments do not own inset outlines')
     assert.equal(segment.group, formEdges.dropdown, 'Dropdown and segmented group share one border tone')
   }
-  assert.equal(await page.$$eval('.frizz-sheet-panel button', buttons => buttons.some(el => ['Mono', 'Sans'].includes(el.textContent.trim()))), false, 'There is no font setting')
+  assert.equal(await page.$$eval('.ntwine-sheet-panel button', buttons => buttons.some(el => ['Mono', 'Sans'].includes(el.textContent.trim()))), false, 'There is no font setting')
   for (const choice of ['Off', 'On']) {
     const saved = page.waitForResponse(response => response.url().includes('/rpc/settingsSet') && response.ok())
     await page.evaluate(choice => {
@@ -366,8 +366,8 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
   const refused = await refusal
   assert.equal(refused.status(), 500, 'The real server refuses moving its own launching directory')
   // Expect the refusal at the address it was actually sent to. The rename addresses the project by its
-  // own prefix, `/_frizz/<slug>/rpc/…`, since the one page made every per-project call name its project;
-  // this line hardcoded the unprefixed `/_frizz/rpc/projectRename` and so rejected its own refusal.
+  // own prefix, `/_ntwine/<slug>/rpc/…`, since the one page made every per-project call name its project;
+  // this line hardcoded the unprefixed `/_ntwine/rpc/projectRename` and so rejected its own refusal.
   result.expectedConsoleErrors ??= []
   result.expectedConsoleErrors.push(`Failed to load resource: the server responded with a status of 500 (Internal Server Error) ${refused.url()}`)
   await page.waitForFunction(() => document.querySelector('#rename-project')?.textContent.includes('cannot be renamed'))
@@ -389,13 +389,13 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
 
   await page.goto(`${url}/thread/theme-rich/full`, { waitUntil: "networkidle2" })
   await page.evaluate(() => [...document.querySelectorAll('button[aria-expanded="false"]')].find(el => el.textContent.includes("Ran 3 tool calls"))?.click())
-  await page.waitForSelector(".frizz-diff")
+  await page.waitForSelector(".ntwine-diff")
   await page.$eval('[data-drawer-transcript-scroll]', el => { el.scrollTop = 0 })
   await page.evaluate(() => {
-    for (const button of document.querySelectorAll('.frizz-diff-header button[aria-expanded="false"],.frizz-bash-header button[aria-expanded="false"],button.frizz-bash-header[aria-expanded="false"]')) button.click()
+    for (const button of document.querySelectorAll('.ntwine-diff-header button[aria-expanded="false"],.ntwine-bash-header button[aria-expanded="false"],button.ntwine-bash-header[aria-expanded="false"]')) button.click()
   })
-  await page.waitForSelector('.frizz-diff-body:not([hidden])')
-  await page.waitForFunction(() => [...document.querySelectorAll('.frizz-bash-body')].some(el => el.textContent.includes('const palette')))
+  await page.waitForSelector('.ntwine-diff-body:not([hidden])')
+  await page.waitForFunction(() => [...document.querySelectorAll('.ntwine-bash-body')].some(el => el.textContent.includes('const palette')))
   await contrast("tool-diff")
   await shot("tool-diff")
   check(`${name} real Edit diff, Read excerpt and failed tool`)

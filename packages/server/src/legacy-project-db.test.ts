@@ -4,24 +4,24 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import Database from "./sqlite.ts"
-import { openFrizzDatabase } from "./frizz-db.ts"
+import { openNtwineDatabase } from "./ntwine-db.ts"
 import { createStorage, type Storage, type SessionRow } from "./storage.ts"
 
 // THE PER-PROJECT FILE'S REPAIRS, exercised the only way they run now: on a legacy file, once, as
-// it is imported into the unified database (frizz-db.ts). Each case writes the fixture where a
-// pre-unification Frizz kept it, rewinds it raw to the older shape, and "restarts" by opening the
+// it is imported into the unified database (ntwine-db.ts). Each case writes the fixture where a
+// pre-unification Ntwine kept it, rewinds it raw to the older shape, and "restarts" by opening the
 // unified database for that home — which imports the file, renames it, and hands back the rows.
 // These lived in storage.test.ts while createStorage ran the repairs itself on every open.
 
 /** Where a pre-unification project kept its file, under a sandbox home. */
 function legacyPath(home: string): string {
-  mkdirSync(join(home, ".frizz", "projects", "p"), { recursive: true })
-  return join(home, ".frizz", "projects", "p", "ui.db")
+  mkdirSync(join(home, ".ntwine", "projects", "p"), { recursive: true })
+  return join(home, ".ntwine", "projects", "p", "ui.db")
 }
 
 /** The unified file the import lands in. */
 function unifiedPath(home: string): string {
-  return join(home, ".frizz", "ui.db")
+  return join(home, ".ntwine", "ui.db")
 }
 
 /**
@@ -48,7 +48,7 @@ function rewindToLegacyShape(path: string): void {
 function openImported(home: string): Storage {
   const legacy = legacyPath(home)
   if (existsSync(legacy)) rewindToLegacyShape(legacy)
-  const opened = openFrizzDatabase({ home })
+  const opened = openNtwineDatabase({ home })
   const storage = createStorage(opened.db, "p")
   return { ...storage, close: () => { storage.close(); opened.close() } }
 }
@@ -57,7 +57,7 @@ function row(over: Partial<SessionRow> = {}): SessionRow {
   const result = {
     slug: "t",
     session_id: "sid",
-    thread_name: "frizz-t",
+    thread_name: "ntwine-t",
     spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -72,7 +72,7 @@ function row(over: Partial<SessionRow> = {}): SessionRow {
     transcript_id: null,
     ...over,
   }
-  if (over.slug !== undefined && over.thread_name === undefined) result.thread_name = `frizz-${result.slug}`
+  if (over.slug !== undefined && over.thread_name === undefined) result.thread_name = `ntwine-${result.slug}`
   return result
 }
 
@@ -81,7 +81,7 @@ function row(over: Partial<SessionRow> = {}): SessionRow {
 // runtimeControlPending forever — permanently fencing that thread's composer, model, and sandbox
 // controls with nothing left in the product able to clear it. Boot releases it exactly once.
 test("boot releases a stranded 'codex-input' runtime lock left by the retired Codex composer", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-codex-input-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-codex-input-"))
   const path = legacyPath(dir)
   const s = createStorage(path, "p")
   s.upsertSession(row({ slug: "stranded" }))
@@ -90,7 +90,7 @@ test("boot releases a stranded 'codex-input' runtime lock left by the retired Co
   s.close()
 
   // Forge the pre-upgrade state directly: 'codex-input' is no longer a RuntimeControlKind, so this is
-  // exactly how a db written by a pre-cutover frizz looks on disk.
+  // exactly how a db written by a pre-cutover ntwine looks on disk.
   const sqlite = new Database(path)
   sqlite.exec("UPDATE session SET runtime_control = 'codex-input' WHERE slug = 'stranded'")
   sqlite.close()
@@ -107,7 +107,7 @@ test("boot releases a stranded 'codex-input' runtime lock left by the retired Co
 // progress" forever. Unlike 'codex-input' this kind is still LIVE, so the sweep has to be a boot-time
 // one (a stale lock is unrepresentable at boot) and must not touch the durable 'profile' handoff.
 test("boot releases a 'follow-up' lock a hard kill stranded, and never the durable profile handoff", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-followup-lock-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-followup-lock-"))
   const path = legacyPath(dir)
   const s = createStorage(path, "p")
   s.upsertSession(row({ slug: "killed-mid-send" }))
@@ -127,7 +127,7 @@ test("boot releases a 'follow-up' lock a hard kill stranded, and never the durab
 // the retired composer path. It can never complete (recovery reads the pane with the Claude composer parser), and the
 // recovery loop would re-block the thread on every tick. Boot abandons it and explains why.
 test("boot abandons a codex row still holding the retired Codex profile handoff", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-codex-profile-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-codex-profile-"))
   const path = legacyPath(dir)
   const s = createStorage(path, "p")
   s.upsertSession(row({ slug: "codex-stuck" }))
@@ -159,7 +159,7 @@ test("boot abandons a codex row still holding the retired Codex profile handoff"
 })
 
 test("the title_agent backfill marks worker-written codex titles and leaves untouched chops alone", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-title-agent-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-title-agent-"))
   const dbPath = legacyPath(dir)
   const first = createStorage(dbPath, "p")
   // What the auto-title CAS has been leaving behind since the codex app-server path landed: a row
@@ -201,7 +201,7 @@ test("the title_agent backfill marks worker-written codex titles and leaves unto
 })
 
 test("the title_locked migration backfills conservatively and its boot repair is idempotent", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-title-lock-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-title-lock-"))
   const dbPath = legacyPath(dir)
   const first = createStorage(dbPath, "p")
   first.upsertSession(row({ slug: "named", session_id: "sid-a", title: "Human name", title_auto: 0, title_locked: 1 }))
@@ -236,7 +236,7 @@ test("the title_locked migration backfills conservatively and its boot repair is
 })
 
 test("the one-time repair unlocks titles a dispatch minted, and never a human's rename", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-title-repair-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-title-repair-"))
   const dbPath = legacyPath(dir)
   const first = createStorage(dbPath, "p")
   // Slugs as the dispatcher mints them: slugify(title), plus the -2 suffix resolveSlug adds on a
@@ -276,7 +276,7 @@ test("the one-time repair unlocks titles a dispatch minted, and never a human's 
 // project databases on this machine had simply not been opened since, and `thread_name` is re-derived
 // and checked on every write, so the next write to one of those rows would have been rejected.
 test("opening a database adopts a pre-rebrand thread_name, and leaves a current one alone", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-rebrand-rows-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-rebrand-rows-"))
   const path = legacyPath(dir)
   try {
     const first = createStorage(path, "p")
@@ -292,8 +292,8 @@ test("opening a database adopts a pre-rebrand thread_name, and leaves a current 
     // Opening IS the migration — there is nothing else to run.
     const reopened = openImported(dir)
     try {
-      assert.equal(reopened.getSession("old-thread")?.thread_name, "frizz-old-thread")
-      assert.equal(reopened.getSession("new-thread")?.thread_name, "frizz-new-thread")
+      assert.equal(reopened.getSession("old-thread")?.thread_name, "ntwine-old-thread")
+      assert.equal(reopened.getSession("new-thread")?.thread_name, "ntwine-new-thread")
     } finally {
       reopened.close()
     }
@@ -307,7 +307,7 @@ test("opening a database adopts a pre-rebrand thread_name, and leaves a current 
 // "no such column: expires_at" and createStorage never returned -- seven of the fifty-four project
 // databases on the maintainer's machine could not open at all. Opening IS the migration.
 test("opening a database drops a pre-retirement thread_watch, and leaves a current one alone", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-legacy-watch-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-legacy-watch-"))
   const path = legacyPath(dir)
   try {
     // The retired table, byte-for-byte as the 2026-08-14 build wrote it: different kinds, different

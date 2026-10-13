@@ -1,4 +1,4 @@
-import { SCHEDULE_NOT_FOUND_COPY, SCHEDULE_PRESENCE_COPY, SCHEDULE_SPACING_COPY, locatePhrase, type InterpretScheduleResult, type Span } from "@frizz/shared"
+import { SCHEDULE_NOT_FOUND_COPY, SCHEDULE_PRESENCE_COPY, SCHEDULE_SPACING_COPY, locatePhrase, type InterpretScheduleResult, type Span } from "@ntwine/shared"
 import { isFailedRead, type ModelReadOk, type ModelReadView } from "./scheduleModelRead.ts"
 
 // WHAT THE PROMPT BOX MAKES OF ITS WORDS, AND WHAT ENTER DOES WITH THEM (ARCHITECTURE.md § Scheduled threads). There is
@@ -45,7 +45,7 @@ export const NO_TASK_COPY = "Say what each run should do, like “every Monday a
  * words for it, nothing left to run) into a refusal with its copy.
  *
  * The interpreter's "couldn't find a schedule" is NONE, the ordinary answer for most words with a schedule word in
- * them ("fix the bug from this morning"). So is an interpreter that is switched off (FRIZZ_THREAD_NAMER=0) or a
+ * them ("fix the bug from this morning"). So is an interpreter that is switched off (NTWINE_THREAD_NAMER=0) or a
  * refusal this box has no words for: the box then behaves as it would with no schedules at all. Only the
  * refusals of a schedule the human evidently asked for — too frequent, while at the keyboard, no task, a rule
  * that would not check — are said on screen.

@@ -126,7 +126,7 @@ let first
 let second
 try {
   storage.upsertSession({
-    slug: SLUG, session_id: session, thread_name: `frizz-${SLUG}`, spawned_at: new Date().toISOString(),
+    slug: SLUG, session_id: session, thread_name: `ntwine-${SLUG}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

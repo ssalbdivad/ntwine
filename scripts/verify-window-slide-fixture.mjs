@@ -1,7 +1,7 @@
-// Drive the saturated-window fixture in a real browser with NO frizz server.
+// Drive the saturated-window fixture in a real browser with NO ntwine server.
 //
 // `verify-full-window-slide.mjs` is the full-stack version and is the one that first caught this bug, but
-// a frizz server plus a 300-message first render is more than this machine can currently hold (three runs
+// a ntwine server plus a 300-message first render is more than this machine can currently hold (three runs
 // SIGKILLed at the render peak; a 15GB VM owned by something else is sitting on the RAM). This drives the
 // same component, virtualizer and scroll code through the same client push pipeline on plain Vite, which
 // fits — and it is the tighter instrument for the fix, since both halves of the fix are client-side.
@@ -21,7 +21,7 @@ const port = Number(flags.port ?? 5199)
 const appends = Number(flags.appends ?? 12)
 const parkTarget = Number(flags.park ?? 900)
 const label = flags.label ?? "run"
-const shotDir = flags.shots ?? join(tmpdir(), "frizz-slide-fixture")
+const shotDir = flags.shots ?? join(tmpdir(), "ntwine-slide-fixture")
 mkdirSync(shotDir, { recursive: true })
 
 let failures = 0

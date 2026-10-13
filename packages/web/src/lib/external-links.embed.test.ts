@@ -35,10 +35,10 @@ test("mailto goes to the mail client through the editor", () => {
   assert.deepEqual(embedLinkAction("mailto:a@example.com", { ...plain, button: 1, blank: false }, HERE), { kind: "external", url: "mailto:a@example.com" })
 })
 
-test("everything else is left alone: cross-origin, Frizz's API, other schemes, a plain same-tab link", () => {
+test("everything else is left alone: cross-origin, Ntwine's API, other schemes, a plain same-tab link", () => {
   assert.equal(embedLinkAction("https://example.com/spec", plain, HERE), null, "the external handler's")
   assert.equal(embedLinkAction("http://127.0.0.1:4918/", plain, HERE), null, "another port is another origin")
-  assert.equal(embedLinkAction("/_frizz/acme/local-image?path=/a.png", plain, HERE), null)
+  assert.equal(embedLinkAction("/_ntwine/acme/local-image?path=/a.png", plain, HERE), null)
   assert.equal(embedLinkAction("javascript:alert(1)", plain, HERE), null)
   assert.equal(embedLinkAction("cursor://file/tmp/a.ts", plain, HERE), null)
   assert.equal(embedLinkAction("/", { ...plain, blank: false }, HERE), null, "a same-tab link loads in the frame, as written")

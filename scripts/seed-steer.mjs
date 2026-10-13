@@ -72,7 +72,7 @@ for (let i = 0; i < count; i++) {
 
   sql.push(
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, state) ` +
-    `VALUES (${sessionVals}'${slug}','${sessionId}','frizz-${slug}','${ts(700)}','${title}','claude','opus','high','default','active');`,
+    `VALUES (${sessionVals}'${slug}','${sessionId}','ntwine-${slug}','${ts(700)}','${title}','claude','opus','high','default','active');`,
   )
 }
 execFileSync("sqlite3", [db, sql.join("\n")], { stdio: "inherit" })

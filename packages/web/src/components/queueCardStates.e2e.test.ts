@@ -16,7 +16,7 @@ import test, { after, before } from "node:test"
 //        reply, then left again once the worker picked it up (David 2026-09-30).
 //   4c   a poll that started before Mark as done cannot bring the card back however late it lands, and a
 //        fresh one that still lists the thread does (David 2026-09-30).
-//   5-6  a done the worker REGISTERED (`mcp__frizz__done`) draws its Done card on the queue card, and one
+//   5-6  a done the worker REGISTERED (`mcp__ntwine__done`) draws its Done card on the queue card, and one
 //        both fenced and registered draws exactly one (B1, restored 2026-09-29).
 //   10   a park queued only for its unread reply reads "Replied", and Mark as read records it seen and
 //        takes the card out (David 2026-10-01 on @expand-defaults).
@@ -37,8 +37,8 @@ import test, { after, before } from "node:test"
 //        for the command, and the net stands down when an answerable interaction is journaled (B2).
 //
 // Skipped unless a Vite URL serving the fixtures is provided: `nub run test:e2e` sets it, or start
-// `vite` in packages/web and set FRIZZ_QUEUE_CARD_STATES_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_QUEUE_CARD_STATES_E2E_URL
+// `vite` in packages/web and set NTWINE_QUEUE_CARD_STATES_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_QUEUE_CARD_STATES_E2E_URL
 
 const FIRST = '[data-xq-card="fixture-card/rotate-key"]'
 const NEIGHBOUR = '[data-xq-card="fixture-card/flaky-ci"]'
@@ -137,7 +137,7 @@ test("a needsConfirmation reply reinstates the card and opens the End-session di
     }
   }, FIRST)
   const log = await rpcLog()
-  assert.ok(log.calls.some((c) => c.path === "/_frizz/fixture-card/rpc/completeThread"), "completeThread went to the CARD's project")
+  assert.ok(log.calls.some((c) => c.path === "/_ntwine/fixture-card/rpc/completeThread"), "completeThread went to the CARD's project")
   assert.equal(state.leaving, "false", "the card came back")
   assert.equal(state.cards, 2, "both cards are in the queue")
   assert.match(state.dialog, /End this session\?/)
@@ -190,7 +190,7 @@ test("a steered card dissolves without taking its neighbour down", { skip: !base
   await sleep(700)
   assert.equal(await leavingOf(FIRST), "unmounted")
   assert.equal(await leavingOf(NEIGHBOUR), "false", "the neighbour survives the dissolve")
-  assert.ok((await rpcLog()).calls.some((c) => c.path === "/_frizz/fixture-card/rpc/followUp"), "the reply went to the card's project")
+  assert.ok((await rpcLog()).calls.some((c) => c.path === "/_ntwine/fixture-card/rpc/followUp"), "the reply went to the card's project")
   assert.deepEqual(errors, [])
 })
 
@@ -242,7 +242,7 @@ test("a read that started after Mark as done and still lists the thread brings t
   assert.deepEqual(errors, [])
 })
 
-test("a registered done (mcp__frizz__done) draws its Done card on the queue card",{ skip: !baseUrl, timeout: 60_000 }, async () => {
+test("a registered done (mcp__ntwine__done) draws its Done card on the queue card",{ skip: !baseUrl, timeout: 60_000 }, async () => {
   await open("case=registered-done")
   const text = await page!.$eval(FIRST, (card) => card.textContent ?? "")
   assert.match(text, /Done/)
@@ -290,7 +290,7 @@ test("a park queued only for its reply reads Replied, and Mark as read records i
   await page!.$eval(`${FIRST} [data-thread-lifecycle] button[data-mark-read]`, (button) => (button as HTMLButtonElement).click())
   await page!.waitForFunction((sel) => !document.querySelector(sel), { timeout: 2_000 }, FIRST)
   const seen = (await rpcLog()).calls.filter((c) => /\/rpc\/threadSeen$/.test(c.path)).map((c) => c.path)
-  assert.deepEqual(seen, ["/_frizz/fixture-card/rpc/threadSeen"], "seen is recorded in the card's own project")
+  assert.deepEqual(seen, ["/_ntwine/fixture-card/rpc/threadSeen"], "seen is recorded in the card's own project")
   assert.deepEqual(errors, [])
 })
 
@@ -326,7 +326,7 @@ test("a rest handing the human steps draws the steps card, and Done replies into
   await page!.waitForFunction(() => !!(window as unknown as { __left?: unknown }).__left, { timeout: 1_000 })
   await page!.waitForFunction(() => (window as unknown as { __rpc: RpcLog }).__rpc.calls.some((c) => /\/rpc\/followUp$/.test(c.path)), { timeout: 5_000 })
   const replies = (await rpcLog()).calls.filter((c) => /\/rpc\/followUp$/.test(c.path)).map((c) => c.path)
-  assert.deepEqual(replies, ["/_frizz/fixture-card/rpc/followUp"], "one reply, to the CARD's project — never the page's")
+  assert.deepEqual(replies, ["/_ntwine/fixture-card/rpc/followUp"], "one reply, to the CARD's project — never the page's")
   await page!.waitForFunction((sel) => !document.querySelector(sel), { timeout: 2_000 }, FIRST)
   assert.equal(await leavingOf(NEIGHBOUR), "false", "its neighbour is untouched")
   assert.deepEqual(errors, [])
@@ -349,7 +349,7 @@ test("a rest on a declared agent terminal draws the resting card, and its snooze
   await page!.waitForFunction(() => !!(window as unknown as { __left?: unknown }).__left, { timeout: 1_000 })
   await page!.waitForFunction(() => (window as unknown as { __rpc: RpcLog }).__rpc.calls.some((c) => /snoozeAwaitingBackground$/.test(c.path)), { timeout: 5_000 })
   const snoozes = (await rpcLog()).calls.filter((c) => /snoozeAwaitingBackground$/.test(c.path)).map((c) => c.path)
-  assert.deepEqual(snoozes, ["/_frizz/fixture-card/rpc/snoozeAwaitingBackground"], "the park went to the card's project")
+  assert.deepEqual(snoozes, ["/_ntwine/fixture-card/rpc/snoozeAwaitingBackground"], "the park went to the card's project")
   await page!.waitForFunction((sel) => !document.querySelector(sel), { timeout: 2_000 }, FIRST)
   assert.equal(await leavingOf(NEIGHBOUR), "false")
   assert.deepEqual(errors, [])
@@ -382,7 +382,7 @@ test("each question sits at the rest that asked it, and a bare newest rest still
   )
   const reads = (await rpcLog()).calls.filter((c) => /\/rpc\/threadTranscript$/.test(c.path)).map((c) => c.path)
   assert.ok(reads.length >= 2, "each card read its transcript")
-  assert.deepEqual([...new Set(reads)], ["/_frizz/fixture-card/rpc/threadTranscript"], "through the card's project, never the page's")
+  assert.deepEqual([...new Set(reads)], ["/_ntwine/fixture-card/rpc/threadTranscript"], "through the card's project, never the page's")
   assert.deepEqual(errors, [])
 })
 
@@ -405,7 +405,7 @@ test("Show earlier messages opens the drawer, not the card, and collapse folds t
   })
   assert.deepEqual(pending, { projectSlug: "signing", slug: "rotate-key" }, "the click opens the thread's drawer")
   const reads = (await rpcLog()).calls.filter((c) => /\/rpc\/threadTranscript/.test(c.path)).map((c) => c.path)
-  assert.deepEqual(reads, ["/_frizz/fixture-card/rpc/threadTranscript"], "read once, for the drawer, through the card's project")
+  assert.deepEqual(reads, ["/_ntwine/fixture-card/rpc/threadTranscript"], "read once, for the drawer, through the card's project")
 
   await page!.$eval(`${FIRST} [data-xq-collapse]`, (button) => (button as HTMLButtonElement).click())
   const folded = await page!.$eval(FIRST, (el) => ({

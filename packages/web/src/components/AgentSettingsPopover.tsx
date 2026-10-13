@@ -1,7 +1,7 @@
 import * as RadixMenu from "@radix-ui/react-dropdown-menu"
 import { useQuery } from "@tanstack/react-query"
 import { Settings as SettingsIcon } from "lucide-react"
-import { type Settings } from "@frizz/shared"
+import { type Settings } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { useEscapeToClose } from "../hooks/useEscapeToClose.ts"
 import { SaveStatus, useSettingsDraft } from "../hooks/useSettingsAutosave.tsx"

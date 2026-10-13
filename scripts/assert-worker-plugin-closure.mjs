@@ -5,7 +5,7 @@
 // checkout, so the two disagree the moment the list changes — and a NARROWING deadlocks the update
 // outright. On 2026-08-26 `dafe4309` deleted cc-worker/bin/browser-mcp.mjs and its closure entry in one
 // commit, correctly; every instance built before it then refused to update, naming a file the new source
-// is right not to have ("Frizz worker plugin closure is missing cc-worker/bin/browser-mcp.mjs"), and the
+// is right not to have ("Ntwine worker plugin closure is missing cc-worker/bin/browser-mcp.mjs"), and the
 // only way past was a restart from a terminal. Update & Restart is the one control that moves an instance
 // forward, which is why promoteCurrentSourceArtifact already refuses to make the artifact it REPLACES a
 // precondition — this is the same rule pointed at the source rather than at the rollback slot.

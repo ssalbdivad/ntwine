@@ -1,4 +1,4 @@
-// A DISPOSABLE FRIZZ FOR THE END-TO-END HARNESSES — scripts/e2e.ts --stack and scripts/e2e-sidebar.ts both
+// A DISPOSABLE NTWINE FOR THE END-TO-END HARNESSES — scripts/e2e.ts --stack and scripts/e2e-sidebar.ts both
 // boot one: `scripts/adhoc-stack.mjs` with a sandbox HOME this run owns from the first moment, a free
 // port, throwaway git repos as its projects, and every file opener the server could spawn replaced by a
 // stub on its PATH that writes down how it was called. Torn down by process group, then by anything still
@@ -47,10 +47,10 @@ export async function freePort(): Promise<number> {
   return port
 }
 
-/** A git repo at `dir` with a README committed — what a Frizz project needs to be one. */
+/** A git repo at `dir` with a README committed — what a Ntwine project needs to be one. */
 export function gitRepo(dir: string): string {
   mkdirSync(dir, { recursive: true })
-  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=frizz e2e", "-c", "user.email=e2e@frizz.invalid", ...args], { cwd: dir, stdio: "ignore" })
+  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=ntwine e2e", "-c", "user.email=e2e@ntwine.invalid", ...args], { cwd: dir, stdio: "ignore" })
   git("init", "-q")
   writeFileSync(join(dir, "README.md"), `# ${dir}\n`)
   git("add", ".")
@@ -141,7 +141,7 @@ export async function bootStack(options: BootOptions): Promise<Stack> {
   const tenantDirs = tenantNames.map((name) => gitRepo(join(scratch, name)))
   // A HOME this run owns from the first moment, so its processes can be found even if the stack dies
   // before it says where it is. `--home` keeps adhoc-stack from deleting it; the teardown does.
-  const home = realpathSync(mkdtempSync(join(tmpdir(), "frizz-vscode-e2e-home-")))
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-vscode-e2e-home-")))
   // Every opener the server could fall back to is a stub that writes down how it was called: a spawn
   // must never reach the human's real VS Code or browser, and one that happened is the harness's to judge.
   const stubs = join(scratch, "stub-bin")
@@ -153,7 +153,7 @@ export async function bootStack(options: BootOptions): Promise<Stack> {
   }
   const env: NodeJS.ProcessEnv = { ...process.env, PATH: stubbedPath(stubs) }
   delete env.WAYLAND_DISPLAY
-  delete env.FRIZZ_E2E_UNDER_XVFB
+  delete env.NTWINE_E2E_UNDER_XVFB
 
   const port = await freePort()
   const logFile = join(scratch, "stack.log")
