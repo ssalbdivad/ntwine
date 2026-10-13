@@ -22,7 +22,7 @@ import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, use
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
 import { useLocation, useNavigate } from "react-router"
-import { parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@frizz/shared"
+import { expandUserCommandDraft, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@frizz/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { prefetchProjectTranscript } from "../hooks.ts"
@@ -51,6 +51,7 @@ import { isLimitPaused } from "../lib/limitPause.ts"
 import { registeredDoneBody, showsRegisteredDoneCard } from "../lib/registeredDone.ts"
 import { ThreadStatusLine } from "./ThreadStatusLine.tsx"
 import { Composer } from "./Composer.tsx"
+import { fetchThreadSkills, fetchUserCommands, mergeSlashItems, useUserCommands } from "../hooks/useUserCommands.ts"
 import { InteractionStack } from "./InteractionCards.tsx"
 import { AwaitingSubAgentsCard, SubAgentWaitSnoozeItems } from "./AwaitingSubAgentsCard.tsx"
 import { AwaitingBackgroundCard, showsRestingCard, WaitRowOpenContext } from "./AwaitingBackgroundCard.tsx"
@@ -1271,6 +1272,15 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
   // an editor) is the same staging here, and rides this box's send the same way (lib/stagedContext.ts).
   const contextTokens = useStagedContextTokens(key, text)
   const contextSources = useStagedContextSources(key, project.projectDir)
+  // The `/` menu and the send's expansion, as the drawer's box has them (ThreadComposerBox.tsx) — asked
+  // of the THREAD's project, which on All projects is not the page's.
+  const api = useMemo(() => projectRpc(project.id), [project.id])
+  const userCommandsQuery = useUserCommands({ projectDir: project.projectDir, api })
+  const userCommands = userCommandsQuery.data?.commands
+  const slashSuggest = useMemo(
+    () => () => Promise.all([fetchThreadSkills(thread.id, api), fetchUserCommands(queryClient, project.projectDir, api)]).then(([skills, commands]) => mergeSlashItems(skills, commands)),
+    [thread.id, api, queryClient, project.projectDir],
+  )
   const send = useMutation({
     mutationFn: ({ outgoing }: { outgoing: string; typed: string; staged: ComposerContextItem[] }) => deliverFollowUp(project, thread, outgoing),
     onSuccess: () => {
@@ -1318,7 +1328,8 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
       const staged = takeContextItems(key)
       draftStore.set(key, "")
       onSent()
-      send.mutate({ outgoing: buildMessageWithContext(message, staged, project.projectDir), typed: message, staged })
+      const expanded = expandUserCommandDraft(message, userCommands ?? []) ?? message
+      send.mutate({ outgoing: buildMessageWithContext(expanded, staged, project.projectDir), typed: message, staged })
     }
     // Picked answers ride the reply rather than being replied past — ThreadComposerBox's send has the why.
     if (answering?.slug === thread.id && answering.staged > 0) {
@@ -1342,6 +1353,9 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
         fileDrop={fileDrop}
         mentionCandidates={mentions}
         ownMention={ownMention}
+        slashSuggest={slashSuggest}
+        // A command saved in Settings refreshes the menu on the next `/`.
+        slashSuggestVersion={userCommandsQuery.dataUpdatedAt}
         busy={controls.busy}
         footer={controls.footer}
         // THE GOAL at the rail's left end, as on every thread prompt box (ThreadComposerBox) — for a

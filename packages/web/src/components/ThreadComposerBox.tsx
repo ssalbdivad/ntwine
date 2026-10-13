@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react"
 import { useSnapshot } from "valtio"
-import { awaitingSteps, expandUserCommandDraft, questionAnswerMessage, withAnswersNote, type AccountBackend, type ThreadSkill, type ThreadView } from "@frizz/shared"
+import { awaitingSteps, expandUserCommandDraft, questionAnswerMessage, withAnswersNote, type AccountBackend, type ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, store } from "../store.ts"
 import { outgoingMessage } from "../lib/editorContext.ts"
@@ -27,7 +27,7 @@ import { HeldThreadComposer } from "./HeldThreadBox.tsx"
 import { useIsMobile } from "../lib/mobile.ts"
 import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
 import { PhoneDoneButton } from "./PhoneDoneButton.tsx"
-import { fetchUserCommands, mergeSlashItems, useUserCommands } from "../hooks/useUserCommands.ts"
+import { fetchThreadSkills, fetchUserCommands, mergeSlashItems, useUserCommands } from "../hooks/useUserCommands.ts"
 import { RecurringPromptControl } from "./RecurringPromptControl.tsx"
 import type { PhoneBarApi } from "./Composer.tsx"
 import { SendScopeContext } from "../lib/sendScope.tsx"
@@ -49,24 +49,6 @@ import type { SurfaceFileDrop } from "../lib/fileDrop.ts"
 // The two call sites keep their DELIBERATE differences as props, never as a forked tree: the padding
 // wrapper (`className`), whether the running-operations reading (`above` the box, the one line of
 // counts) is drawn at all, and the send itself (`submitOverride`). Everything else is identical by construction, the Goal in the rail included.
-// The skills typeahead's per-thread cache, shared by BOTH composer surfaces (the drawer and the queue
-// card render the same thread) so opening either only ever asks the harness once. A failure is NOT
-// cached: the common failure is "the session is not running yet", and the next `/` should ask again
-// once it is. Module scope on purpose — the cache outlives any one composer mount.
-const threadSkillsCache = new Map<string, Promise<ThreadSkill[]>>()
-function fetchThreadSkills(slug: string): Promise<ThreadSkill[]> {
-  const cached = threadSkillsCache.get(slug)
-  if (cached) return cached
-  const fetched = rpc.threadSkills({ slug }).then(
-    (result) => result.skills,
-    () => {
-      threadSkillsCache.delete(slug)
-      return []
-    },
-  )
-  threadSkillsCache.set(slug, fetched)
-  return fetched
-}
 
 export function ThreadComposerBox({
   slug,
