@@ -831,7 +831,9 @@ const DONE = {
           "ONE-LINE bullet per deliverable (no sub-bullets), each opening with a bolded verb phrase naming what shipped and where. Backtick every path, identifier and " +
           "command, and make file references real links. It is a LEDGER, not a summary: reasoning, " +
           "caveats and anything the user must do belong in your final message instead, because a " +
-          "sentence that would read the same in both places belongs in exactly one of them. Nothing " +
+          "sentence that would read the same in both places belongs in exactly one of them. A bullet " +
+          "that names a result without giving it (\"Answered the question\") is not a ledger line: the " +
+          "answer goes in your final message, in full. Nothing " +
           "here may point vaguely forward — no \"a follow-up could…\". Do it, ask about it, or drop it.",
       },
       quiet: {
@@ -2638,8 +2640,11 @@ async function done(args) {
   if (result?.done) {
     return (
       "Marked done. Your thread cards as a checked success in the user's queue and stays there until " +
-      "they archive it.\n\nNOTHING WAS CLOSED, HIDDEN OR ARCHIVED — if there is more to say, say it in " +
-      "your final message; if more work appears, keep going and run this again."
+      "they archive it.\n\nNOTHING WAS CLOSED, HIDDEN OR ARCHIVED. The user reads your prose above this " +
+      "card and nothing else — not your thinking, not your tool calls. If that prose does not already " +
+      "hold the result in full (the answer itself, when they asked a question), write it now as your " +
+      "final message. Never end on an acknowledgement like \"Signed off as done.\": on the card it is " +
+      "the whole reply. If more work appears, keep going and run this again."
     )
   }
   // REFUSED, with everything that refuses it named by id, so the next move is a command and not a
