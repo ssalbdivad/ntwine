@@ -8,7 +8,7 @@ compatibility_date = "2026-08-24"
 #
 # PLACEHOLDER until the ntwine.app account exists: fill it with the Account ID `wrangler whoami`
 # prints, the same value in packages/relay/wrangler.toml.
-account_id = "FILL_ME_CLOUDFLARE_ACCOUNT_ID"
+account_id = "824d4f37d82bfacfe20fbd8cfa8aaaff"
 
 # The registrar runs during signup and never again — it is NOT on the data plane. A board that is
 # already running keeps working whether or not this Worker is up, and protecting that property is

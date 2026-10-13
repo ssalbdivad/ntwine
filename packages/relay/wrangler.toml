@@ -9,7 +9,7 @@ compatibility_date = "2026-08-24"
 # PLACEHOLDER until the ntwine.app account exists: fill it with the Account ID `wrangler whoami`
 # prints, the same value in packages/registrar/wrangler.toml. scripts/workers-drift.mjs reads it from
 # here.
-account_id = "FILL_ME_CLOUDFLARE_ACCOUNT_ID"
+account_id = "824d4f37d82bfacfe20fbd8cfa8aaaff"
 
 # THE WILDCARD IS THE WHOLE POINT. One record in front of every board, rather than one record per
 # user — which is what the tunnel design could never get past, because a CNAME points at exactly one
