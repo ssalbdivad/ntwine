@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { appendFileSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
+import { appendFileSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, parse, resolve } from "node:path"
 import { acquireNamedLaunchLockSync, readGitProjectId, validateProjectId } from "./project-identity.ts"
@@ -118,13 +118,21 @@ export function writeProjectIdFile(root: string, id: string): string {
  * resolving. `.ntwine/.gitignore` cannot ignore a link that sits beside it, so the link is excluded in
  * the repository's own `info/exclude`, never in a tracked file.
  *
- * Only a real `.frizz` DIRECTORY with no `.ntwine` beside it moves; anything else is left as it is.
+ * Only a real `.frizz` DIRECTORY moves. A `.ntwine` already beside it is the debris of a worker hook
+ * that wrote its session state under the new name before the server got here (seen on the
+ * maintainer's machine at the cutover, 2026-10-13): its entries are folded into the old board first,
+ * never overwriting one the board already has, so nothing either side wrote is lost.
  */
 export function adoptFrizzBoard(root: string): void {
   const legacy = join(root, ".frizz")
   const current = join(root, NTWINE_DIR)
   try {
-    if (!lstatSync(legacy).isDirectory() || existsSync(current)) return
+    if (!lstatSync(legacy).isDirectory()) return
+    if (existsSync(current)) {
+      if (!lstatSync(current).isDirectory()) return
+      foldInto(current, legacy)
+      rmSync(current, { recursive: true, force: true })
+    }
     renameSync(legacy, current)
   } catch {
     return
@@ -144,6 +152,16 @@ export function adoptFrizzBoard(root: string): void {
     appendFileSync(exclude, `${existing && !existing.endsWith("\n") ? "\n" : ""}/.frizz\n`)
   } catch {
     // Not a plain git checkout: nothing to keep the link out of.
+  }
+}
+
+/** Move every entry of `from` into `into` that `into` does not already have, recursing into shared directories. */
+function foldInto(from: string, into: string): void {
+  for (const name of readdirSync(from)) {
+    const source = join(from, name)
+    const target = join(into, name)
+    if (!existsSync(target)) renameSync(source, target)
+    else if (lstatSync(source).isDirectory() && lstatSync(target).isDirectory()) foldInto(source, target)
   }
 }
 

@@ -1,6 +1,7 @@
 import type { AppContext, ContextOptions } from "./context.ts"
 import { projectContextCleanups } from "./context.ts"
 import { workDirOf, type Project } from "./project.ts"
+import { adoptFrizzBoard } from "./project-root.ts"
 import { log as ntwineLog } from "./logging.ts"
 
 // ONE PROCESS, N PROJECTS.
@@ -109,6 +110,8 @@ export function createTenantMap<App = unknown>(options: TenantMapOptions<App>): 
     const inFlight = opening.get(project.id)
     if (inFlight) return inFlight
 
+    // Before the context exists, so everything it reads and writes finds the board under `.ntwine`.
+    if (project.dir) adoptFrizzBoard(project.dir)
     const attempt = (async () => {
       try {
         if (already) {
