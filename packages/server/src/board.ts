@@ -1129,7 +1129,7 @@ export function doneParkedOnWatch(
 
 // ---- THE SUB-AGENT WAIT: which children are out, which came back, and the snooze that spans it ------
 // A parent that fans out N background sub-agents is re-invoked by EACH return: it wakes, reads the
-// report, and rests again. A rest that is not an honoured park queues (upstream Frizz: a partial return may give
+// report, and rests again. A rest that is not an honoured park queues (upstream: a partial return may give
 // the human something to act on), so a queued parent re-queues once per child. Two things follow, and
 // the maintainer ruled on both (2026-09-29): the card has to say where the batch stands — which children
 // are still out and which have come back — and the human needs a snooze that waits out the WHOLE batch

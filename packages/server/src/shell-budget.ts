@@ -3,13 +3,13 @@ import type { ShellBudgetRow, Storage } from "./storage.ts"
 
 // THE BACKGROUND-SHELL RUNTIME BUDGET — a shell ends on a clock only when somebody DECLARED one.
 //
-// History, because the rule has already moved once. The original Frizz design built background shells
+// History, because the rule has already moved once. The original design built background shells
 // with NO clock, on purpose (tailer.bgShellViews: "NO clock is a correct clock"): ntwine cannot tell a
 // CI watcher from a dev server from outside, and some shells legitimately run for days. On 2026-09-29 the maintainer
 // found a shell 16 hours old ("background shells running for 16 hours makes no sense") and 4e5eaca1
 // gave EVERY shell a budget — its Bash `timeout`, else a 1h default. Within the day the default killed a
 // real arktype shell at 17h that its worker had registered under a 20h `watch`: the clock was
-// universal, and a universal clock is exactly the rule upstream Frizz had rejected.
+// universal, and a universal clock is exactly the rule upstream had rejected.
 //
 // So the budget is OPT-IN (David 2026-09-29), and the question is asked of the one party that CAN
 // tell a poller from a server — the worker, at the moment it launches the shell:

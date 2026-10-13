@@ -7,7 +7,7 @@ import { loudBands } from "./listBands.ts"
 // (components/PhonePage.tsx). Pure, so the banding is tested without a browser and the component stays a
 // layout.
 //
-// It is upstream's phone board (upstream Frizz MobileBoard.tsx, 2026-09-30) brought onto the fork's ONE
+// It is upstream's phone board (upstream MobileBoard.tsx, 2026-09-30) brought onto the fork's ONE
 // page: that board listed one project's `sectionThreads`; this lists whichever projects the page's view
 // shows — one when focused, every one in All projects — from the same machine-wide reads the desktop's
 // list and queue draw (lib/allQueues.ts), banded by the list's own `loudBands` so a phone and a desktop

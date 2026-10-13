@@ -277,7 +277,7 @@ come back. `bypassPermissions` is not restrictive: it is the one mode more permi
 prompt Claude Code still raises under it (its bypass-immune safety checks, e.g. 2.1.282's `dangerousRemoval`
 on an `rm` whose target is built from variables, and explicit `ask` rules) falls through to
 `worker-autonomy` and is approved like auto's, behind the two refusals (upstream 9c6af4ad, 2026-10-10,
-after every marker on the upstream Frizz maintainer's machine that day was a bypass defer). The fork had added a
+after every marker on the upstream maintainer's machine that day was a bypass defer). The fork had added a
 `bypass-safety-check` rule on 2026-09-28 that deferred those to a human instead; it was dropped on
 2026-10-12 (maintainer: approve automatically, like upstream). `NTWINE_PERM_POLICY=review`
 defers everything. Fail-safe INVERTS the old observer's fail-open — for a hook that can APPROVE, any
@@ -1196,7 +1196,7 @@ The PreToolUse(Bash) hook fires on every Bash call a worker or sub-agent makes, 
 
 ## 2026-10-06: `editor` is listed, and its contract section rendered, only while an editor has the project open
 
-The same test as the 2026-08-26 entries — *"a capability nobody asked for, charged per turn, is an opinion"* — applied to the fork's own worker surface (David, `plans/upstream-superset.md` §5, answering upstream Frizz's "every token is a cost").
+The same test as the 2026-08-26 entries — *"a capability nobody asked for, charged per turn, is an opinion"* — applied to the fork's own worker surface (David, `plans/upstream-superset.md` §5, answering upstream's "every token is a cost").
 
 - **Only `editor` qualified.** Of the fork's tools, `schedule`, `read_thread`/`message_thread`, `keep` and `extend_shell` back features that are always on; `editor` reads the human's VS Code / Cursor window, which most humans never connect. No tool and no contract text concerns thread terminals, so the node-pty probe gates nothing.
 - **The capability is "a window has THIS project open"** (`workerCapabilities`, dispatch.ts), not "any editor connected": the machine-wide reading would list the tool to every project's workers whenever one window is open anywhere, and answer all but one of them "none has this project open". One predicate gates both halves.

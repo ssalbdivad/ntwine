@@ -57,7 +57,7 @@ When the opened project is a GitHub repo:
 
 ## 2. Verified `gh` / `toon` capabilities (exact commands)
 
-All run from a repo dir; `-R owner/repo` makes them dir-independent. gh is authed via keyring (the upstream Frizz maintainer's account), scopes include `repo`, `workflow`.
+All run from a repo dir; `-R owner/repo` makes them dir-independent. gh is authed via keyring (the upstream maintainer's account), scopes include `repo`, `workflow`.
 
 ```bash
 # Auth (exit 0 = signed in; non-zero = not)

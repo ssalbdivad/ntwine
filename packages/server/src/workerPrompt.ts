@@ -1083,7 +1083,7 @@ board links both.`
 // asked "can you see the highlighted code?" answered that it could not.
 //
 // RENDERED ONLY WHILE AN EDITOR HAS THIS PROJECT OPEN (2026-10-06, plans/upstream-superset.md §5, under
-// upstream Frizz's "every token is a cost"). Without one the command has nothing to read, and this paragraph would
+// upstream's "every token is a cost"). Without one the command has nothing to read, and this paragraph would
 // name it on every turn of every worker, most of whose humans never run the extension. The gate is read
 // when the worker's process starts (dispatch, and the cold resume that rebuilds this prompt), the only
 // moment a system prompt can change. `ntwinectl editor` itself always answers, and says when no editor has

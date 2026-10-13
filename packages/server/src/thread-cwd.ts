@@ -10,7 +10,7 @@ import { isDirectory } from "./path-probe.ts"
 // the moment an agent moves: Ntwine deliberately stays out of the worktree decision, so an agent that
 // wants isolation makes its own worktree (`git worktree add .ntwine/worktrees/x`, Claude Code's
 // EnterWorktree) and works there. A terminal that opened in the project root then ran `npm test` against
-// the wrong checkout — upstream Frizz's objection to the standalone Terminal tab. So the terminal asks
+// the wrong checkout — upstream's objection to the standalone Terminal tab. So the terminal asks
 // the agent's OWN latest reading of where it is:
 //
 //   CLAUDE — every transcript record carries the session's `cwd`, and it moves. Checked against real

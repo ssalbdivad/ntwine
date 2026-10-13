@@ -14,7 +14,7 @@ The review made no product changes and posted nothing on GitHub.
 
 Fresh captures on 2026-09-16 use head `35a8f60264bdb57844a47c5a64f0850953f6a92d`, not the original review head. This commit incorporates local `main` through `2d2ee9e4` and the review fixes.
 
-**Sans-serif is already the default**, on local `main` and the PR. The server default (upstream Frizz `35a8f602:packages/server/src/settings.ts#L80`), first-paint guard (upstream Frizz `35a8f602:packages/web/index.html#L43-L46`), and runtime font owner (upstream Frizz `35a8f602:packages/web/src/lib/font.ts#L23-L26`) agree. A fresh isolated server returned `font: "sans"`; a clean Chrome profile rendered `data-font="sans"` with the system sans-serif stack before any font setting was changed. Mono requires an explicit saved choice. The previous diagnostic screenshot showed Mono because the save-status reproduction deliberately switched fonts, not because Mono was the default. No default change is needed.
+**Sans-serif is already the default**, on local `main` and the PR. The server default (upstream `35a8f602:packages/server/src/settings.ts#L80`), first-paint guard (upstream `35a8f602:packages/web/index.html#L43-L46`), and runtime font owner (upstream `35a8f602:packages/web/src/lib/font.ts#L23-L26`) agree. A fresh isolated server returned `font: "sans"`; a clean Chrome profile rendered `data-font="sans"` with the system sans-serif stack before any font setting was changed. Mono requires an explicit saved choice. The previous diagnostic screenshot showed Mono because the save-status reproduction deliberately switched fonts, not because Mono was the default. No default change is needed.
 
 The real board's computed fills explain the visual concern:
 
@@ -25,7 +25,7 @@ The real board's computed fills explain the visual concern:
 | Question block | `#f1f4f7` |
 | Sent user prompt | `#dbeafe` |
 
-These come from the light palette (upstream Frizz `35a8f602:packages/web/src/theme.css#L255-L280`), not screenshot color processing. The question block and composers are slightly different blue-grays; the sent prompt adds a much stronger blue. Gold remains the selection/action accent. Different surface depths are useful, but this combination draws attention to filled rectangles without a clear relationship between their hues. That is a design judgment, not a claim that different shades are inherently an accessibility failure.
+These come from the light palette (upstream `35a8f602:packages/web/src/theme.css#L255-L280`), not screenshot color processing. The question block and composers are slightly different blue-grays; the sent prompt adds a much stronger blue. Gold remains the selection/action accent. Different surface depths are useful, but this combination draws attention to filled rectangles without a clear relationship between their hues. That is a design judgment, not a claim that different shades are inherently an accessibility failure.
 
 **Smallest revision:** retain the semantic tokens and renderer adapters; tune the light surface, border and user-bubble values as one family. Use white and a small neutral-gray scale for large surfaces, including sent prompts, and reserve accent color for selection, actions and meaningful status. Keep the dark palette unchanged. Compare the real board and question/composer pair in Sans first, then recheck Mono, narrow widths and contrast. This is a palette pass, not a component rewrite; allow roughly half a day including visual review and regression checks.
 
@@ -39,11 +39,11 @@ Fresh evidence, captured at 1440px and 390px with device scale 2:
 
 The latest head's provisional title now measures **5.08:1** and the settled Settings “Saved” label **5.41:1** in Light. Both original defects are resolved. The new screenshots were inspected; the phone view has no horizontal overflow, and Chrome recorded no console or page errors. All owned browser/server processes exited and both listening ports were checked closed. The old posting question was withdrawn because it requested fixes already present.
 
-Latest CI passes (upstream Frizz run 35146461143); Pullfrog still fails (upstream Frizz run 35146460578) on the provider usage limit. This follow-up exercised the real source stack with seeded threads, not a promoted build or live provider dispatch. The complete test and artifact results below remain evidence for the original head only; the newer integration has not received another full review here.
+Latest CI passes (upstream run 35146461143); Pullfrog still fails (upstream run 35146460578) on the provider usage limit. This follow-up exercised the real source stack with seeded threads, not a promoted build or live provider dispatch. The complete test and artifact results below remain evidence for the original head only; the newer integration has not received another full review here.
 
 ## Scope and classification
 
-The upstream Frizz PR #36 is a **FEATURE**, not a bug report. Current local `main` has no appearance preference or light palette. The proposal gives operators a light workspace or OS-following appearance while retaining an explicit Dark choice. It changes almost every rendered surface, not the server's project model or dispatch API.
+The upstream PR #36 is a **FEATURE**, not a bug report. Current local `main` has no appearance preference or light palette. The proposal gives operators a light workspace or OS-following appearance while retaining an explicit Dark choice. It changes almost every rendered surface, not the server's project model or dispatch API.
 
 - Reviewed head: `6c0c94471dc5968b1af01dd239bd375996d7ddde`.
 - Read the body, all discussion and reviews, inline review comments, labels (none), and changes. Prior contrast/hover findings were resolved; they are not outstanding findings in this report.
@@ -58,8 +58,8 @@ Both states render real, enabled text below the PR's own 4.5:1 target. These are
 
 | State | Observed in light mode | Cause and smallest correction |
 | --- | --- | --- |
-| Provisional sidebar title, “Spinning up a thread…” | **3.11:1**, 13px text; the same rendered row in Dark measured **4.55:1** | The title branch (upstream Frizz `6c0c9447:packages/web/src/components/Sidebar.tsx#L636`) retains `text-fg/50`. Give provisional-title ink a theme-aware token with its existing dark value and opaque readable light value. |
-| Settings “Saved” status | **3.24:1**, 11px text on white | The save status (upstream Frizz `6c0c9447:packages/web/src/components/SettingsDrawer.tsx#L294-L301`) retains `text-muted opacity-70`. Apply the existing `text-muted-70` semantic treatment without multiplying whole-element opacity; preserve the dark appearance. |
+| Provisional sidebar title, “Spinning up a thread…” | **3.11:1**, 13px text; the same rendered row in Dark measured **4.55:1** | The title branch (upstream `6c0c9447:packages/web/src/components/Sidebar.tsx#L636`) retains `text-fg/50`. Give provisional-title ink a theme-aware token with its existing dark value and opaque readable light value. |
+| Settings “Saved” status | **3.24:1**, 11px text on white | The save status (upstream `6c0c9447:packages/web/src/components/SettingsDrawer.tsx#L294-L301`) retains `text-muted opacity-70`. Apply the existing `text-muted-70` semantic treatment without multiplying whole-element opacity; preserve the dark appearance. |
 
 Reproduction used the exact PR head in an isolated real stack and Chrome:
 
@@ -88,7 +88,7 @@ Also migrate the newly added unknown-status mark in `AwaitingBackgroundCard.tsx`
 | GitHub, code and diffs | Theme variables replace literal colors; the former hex-suffix composition is corrected. GitHub label hues remain external data with readable light foregrounds. Actual card components were exercised with fixture responses, not live GitHub E2E. |
 | Recovery | Inline palettes are necessary when web assets are absent. The promoted artifact retained Light through deliberate child termination and asset removal. Anonymous refusal pages stayed unbranded and OS-driven. |
 
-The main product consequence is **System becomes the default for existing browsers too**. Someone using a light OS will see a different appearance immediately after upgrading, without changing Settings. This is deliberate in the design (upstream Frizz `6c0c9447:plans/light-mode-architecture.md#L15-L17`), not an accidental persistence bug. System is a reasonable default for this feature; it should be an explicit release decision rather than described as preserving every user's appearance.
+The main product consequence is **System becomes the default for existing browsers too**. Someone using a light OS will see a different appearance immediately after upgrading, without changing Settings. This is deliberate in the design (upstream `6c0c9447:plans/light-mode-architecture.md#L15-L17`), not an accidental persistence bug. System is a reasonable default for this feature; it should be an explicit release decision rather than described as preserving every user's appearance.
 
 The smallest viable version is essentially this architecture: two palettes, one local preference owner, startup/recovery guards and adapters only where CSS cannot reach. Enabling Light before the migration is complete would be worse than this broad but cohesive PR. Remaining contrast work is roughly half a day; allow another half-day for current-main integration and repeat browser/artifact verification. This estimate excludes new product requirements.
 
@@ -120,7 +120,7 @@ Limits: the full provider-dependent monorepo suite was not run, Safari/Firefox w
 
 ## CI and discussion
 
-The exact head's CI check (upstream Frizz run 34888246180) passed. That workflow runs board/monitor checks, not the web browser acceptance suite. The latest Pullfrog run (upstream Frizz run 34888244892) failed on provider usage limits before completing a review. Its logs also contain a frozen-install overrides mismatch. Neither is evidence of a light-mode runtime regression, and the last successful bot review predates the latest PR merge commit.
+The exact head's CI check (upstream run 34888246180) passed. That workflow runs board/monitor checks, not the web browser acceptance suite. The latest Pullfrog run (upstream run 34888244892) failed on provider usage limits before completing a review. Its logs also contain a frozen-install overrides mismatch. Neither is evidence of a light-mode runtime regression, and the last successful bot review predates the latest PR merge commit.
 
 ## Proposed public review
 

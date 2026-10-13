@@ -23,7 +23,7 @@
 // not Entered, a multi not confirmed) carries its own Send answer; the group's footer button finishes the
 // group, its label naming what it sends and skips (groupFinish).
 //
-// THE PROMPT BOX'S SEND CARRIES WHATEVER IS STAGED (upstream Frizz 59089c92, 2026-10-11). Where a
+// THE PROMPT BOX'S SEND CARRIES WHATEVER IS STAGED (upstream 59089c92, 2026-10-11). Where a
 // surface mounts its thread's prompt box (lib/sendScope), that box's Send takes every staged answer
 // (`take`) and the typed words as ONE turn — the server settles the answers and sends them above the
 // note — so a reply typed with answers staged carries them rather than replying past them. A surface

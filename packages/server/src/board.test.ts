@@ -726,7 +726,7 @@ test("deriveNeedsYou: the event-snooze parks a shell-only rest for exactly the c
 
 // ---- SNOOZE UNTIL ALL SUB-AGENTS RETURN ------------------------------------------------------------
 // The shape it exists for: a parent fanned out three background children and rests on a fence that is not
-// an honoured park (upstream Frizz's rule — such a rest queues, because a partial return may be actionable). Each
+// an honoured park (upstream's rule — such a rest queues, because a partial return may be actionable). Each
 // return wakes it and it rests again. The one-rest event-snooze is spent by every one of those rests; this
 // one waits out the batch.
 const FAN_T0 = "2026-09-29T10:00:00.000Z" // three children dispatched

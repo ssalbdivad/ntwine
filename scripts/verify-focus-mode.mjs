@@ -13,7 +13,7 @@
 //     unified page, with the prompt box's picker carried over to the project just left;
 //   · a thread drawer closes back to the tab's view, not to a guess;
 //   · an unknown board says so;
-//   · the board names its bands (upstream Frizz's: Pinned, Queue and Running, which never fold), and Snoozed, Done
+//   · the board names its bands (upstream's: Pinned, Queue and Running, which never fold), and Snoozed, Done
 //     and External fold, collapsed to start, each on its own;
 //   · at a phone's width nothing overflows sideways, in either view.
 //
@@ -145,7 +145,7 @@ try {
   })
 
   // ── the board's bands ──────────────────────────────────────────────────────────────────────────────
-  // Upstream Frizz's named bands since 2026-10-06 (ProjectBoard.tsx): a header over each, `data-band-header`; the
+  // Upstream's named bands since 2026-10-06 (ProjectBoard.tsx): a header over each, `data-band-header`; the
   // three in flight are plain names, the quiet ones folds. Until then focus mode drew the loud bands unnamed.
   await step("the board names Pinned, Queue and Running, which never fold, and their rows stand in order", async () => {
     const group = `[data-xq-rail-project="${A.id}"]`

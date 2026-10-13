@@ -42,7 +42,7 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 // bare `/` until then, and `/` now only goes back to the last view, which from a board is the board). All
 // projects has no door: there is nowhere above it to go (David 2026-09-28: "there should no longer be
 // an everything or an infinity button on the threads view on the left"). Upstream led its board's row
-// with ⌂, the way out to its projects page at `/` (upstream Frizz 0a3b9139 StatusRow.tsx) — a router
+// with ⌂, the way out to its projects page at `/` (upstream 0a3b9139 StatusRow.tsx) — a router
 // Link, so leaving keeps the socket and the query cache. A divider follows it: home LEAVES the board, the
 // rest act on what you are in. The
 // board's `identity` (ProjectBoard.tsx BoardIdentity) rides beside the switcher: the project's owner/repo

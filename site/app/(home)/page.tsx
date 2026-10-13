@@ -104,7 +104,7 @@ export default function Home() {
       </section>
 
       <section className="py-16">
-        <Heading title="Principles." subtitle="Kept from the original Frizz design. Every feature is held to them." />
+        <Heading title="Principles." subtitle="Kept from the original design. Every feature is held to them." />
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {principles.map(({ title, text }) => (
             <div key={title} className="rounded-2xl border border-dashed border-fd-border p-5">

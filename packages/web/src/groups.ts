@@ -673,7 +673,7 @@ export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "bac
 
 export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // DONE IS THE HUMAN'S TO UNDO, and nothing a worker does afterwards un-archives the thread. But a live
-  // session never sits under Done (upstream Frizz, hit 3× before 2026-07-10): while its turn drains or a sub-agent
+  // session never sits under Done (upstream, hit 3× before 2026-07-10): while its turn drains or a sub-agent
   // it dispatched is still out, `sectionOf` lifts the row into Running and it wears the spinner (shared
   // doneButRunning), then settles back into Done, with its check, the moment it comes to rest. The mark
   // says what the process is doing; the row's Done dim and uncheck box say what the human decided.

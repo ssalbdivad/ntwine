@@ -34,7 +34,7 @@ After the manual bootstrap, configure a trusted publisher for `ntwine-server` on
 
 | Field | Value |
 | --- | --- |
-| Organization or user | the upstream Frizz owner account, as set up in 2026-09 |
+| Organization or user | the upstream owner account, as set up in 2026-09 |
 | Repository | `ntwine` |
 | Workflow filename | `release.yml` |
 | Environment name | `npm-publish` (GitHub lets only the `release` branch deploy to it; see the header of `release.yml`) |

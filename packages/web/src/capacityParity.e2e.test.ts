@@ -24,7 +24,7 @@ import type { Browser } from "puppeteer"
 // WHY THE BAR EXISTS. Upstream's standup (S3) put the scale question as a real machine: 17 projects and
 // about 70 open threads. David's first answer (2026-10-06, plans/upstream-superset.md § Capacity parity)
 // was that there is no view setting and All projects stays home at `/` — so the DEFAULT had to carry that
-// load, and "carries it" is defined against the original Frizz design: the default must show at least as
+// load, and "carries it" is defined against the original design: the default must show at least as
 // much, without scrolling, as upstream's default does. That is a number, so it is pinned as one. Later
 // that day a project's BOARD became the default (`/` goes back to the last view, a board for a browser
 // that never chose) and All projects moved to `/all`, one click away; both views keep the bar, since
@@ -36,7 +36,7 @@ import type { Browser } from "puppeteer"
 // through settingsSet before the page loads — and both must meet the bar. Each reading says whether the
 // rail was actually drawn, so a run that silently measured the same thing twice fails.
 //
-// WHERE 22 AND 28 COME FROM. Upstream's own board (upstream Frizz at 0a3b9139), seeded with every one
+// WHERE 22 AND 28 COME FROM. Upstream's own board (upstream at 0a3b9139), seeded with every one
 // of the 70 open threads in ONE project and rendered by this same visibility rule, shows 22 thread rows
 // at 1440x900 and 28 at 1920x1080, its band headers and rules included. The baseline is a measurement
 // of that commit, not a design target; re-measure on a newer upstream before moving it.

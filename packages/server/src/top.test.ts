@@ -8,7 +8,7 @@ import { classifyUnownedBrokers } from "./unowned-brokers.ts"
 
 const MIN = 60_000
 const BROKER = "/usr/bin/node /home/u/ntwine/packages/server/src/backend/claude-agent-broker.ts"
-const CLAUDE = (flag: string) => `/home/u/.cache/frizz/runtimes/claude/2.1.293/claude --output-format stream-json ${flag} --mcp-config /tmp/x.json`
+const CLAUDE = (flag: string) => `/home/u/.cache/ntwine/runtimes/claude/2.1.293/claude --output-format stream-json ${flag} --mcp-config /tmp/x.json`
 const SID_A = "aaaaaaaa-1111-4111-8111-111111111111"
 const SID_B = "bbbbbbbb-2222-4222-8222-222222222222"
 const SID_LONE = "cccccccc-3333-4333-8333-333333333333"

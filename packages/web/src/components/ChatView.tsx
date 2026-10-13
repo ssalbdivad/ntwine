@@ -1913,7 +1913,7 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
           />
           {/* The two lifecycle verbs close the strip after a rule (ThreadLifecycle.tsx). Snooze leaves the
               drawer the way Mark as done does — both take the thread off the reader's plate (upstream
-              Frizz 2026-10-09, b206cf97). */}
+              2026-10-09, b206cf97). */}
           <ThreadLifecycleActions thread={thread} onArchived={onStatusApplied} onSnoozed={onStatusApplied} />
         </div>
       </div>

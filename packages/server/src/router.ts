@@ -6143,7 +6143,7 @@ export function createRouter(ctx: AppContext) {
               // A thread's terminals ride its row (`terminals`), so the session rows are the whole list.
               if (thread.kind !== "session" || thread.foreign) return false
               // Archived is Done unless its worker is still running: shared `sectionOf` lifts that row into
-              // Running until it rests (upstream Frizz 2026-07-10), so it travels with the open threads and the
+              // Running until it rests (upstream 2026-07-10), so it travels with the open threads and the
               // client bands it with the same function. A PINNED Done thread is the exception the pin makes:
               // the pin outranks Done (web groups.ts `sectionThreads`), so it is a Pinned row, greyed, and
               // rides along whole. Read out before the Done count, it was dropped with the rest of Done, and

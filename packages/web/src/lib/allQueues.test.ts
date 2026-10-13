@@ -139,7 +139,7 @@ test("with nothing registered, a question fence with a body is KEPT — on a leg
 
 test("an archived row whose worker is still running is listed under Running; one at rest is counted Done", () => {
   const [project] = queuesProjects([card("a")], [queue("a", [
-    // A sub-agent still running lifts an archived thread into Running until it rests (upstream Frizz 2026-07-10):
+    // A sub-agent still running lifts an archived thread into Running until it rests (upstream 2026-07-10):
     // Done is collapsed, and a running worker filed there would be invisible. Its state stays archived.
     thread("sub-agent-out", { state: "archived", archived: true, subAgents: [{ id: "s1", state: "running", depth: 1 } as never] }),
     thread("draining", { state: "archived", archived: true, runtime: "running" }),

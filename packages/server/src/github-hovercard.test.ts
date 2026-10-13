@@ -21,7 +21,7 @@ test("a canonical ref parses into its owner, name and number or sha", () => {
 test("anything that is not a canonical ref is refused rather than guessed at", () => {
   // The refs arrive from the browser. None of this reaches GitHub as a bound variable, so refusing
   // here is about not burning a query slot — but it also means a bad key can never shape a request.
-  for (const bad of ["#123", "frizz#123", "owner/repo", "owner/repo#0", "owner/repo#abc", "owner/repo@xyz", "owner/repo@92ed4", "a/b#123 extra", "../../etc#1"]) {
+  for (const bad of ["#123", "repo#123", "owner/repo", "owner/repo#0", "owner/repo#abc", "owner/repo@xyz", "owner/repo@92ed4", "a/b#123 extra", "../../etc#1"]) {
     assert.equal(parseRef(bad), null, bad)
   }
 })

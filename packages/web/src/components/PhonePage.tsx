@@ -42,7 +42,7 @@ import { shortPath } from "./ProjectActions.tsx"
 // keyboard's first Escape dismisses the strip before it closes the sheet. Only the thread reply bar
 // (ThreadComposerBox, `layout: "bar"`) has no schedules.
 //
-// Upstream's phone board (upstream Frizz MobileBoard.tsx, its 2026-09-30 redesign: 6754e72a "the phone
+// Upstream's phone board (upstream MobileBoard.tsx, its 2026-09-30 redesign: 6754e72a "the phone
 // board gets a header, text tabs and one line per row", 39db08a6 "the projects page is a plain list on a
 // phone") brought onto the fork's ONE page (AllQueues.tsx). Below the phone breakpoint (lib/mobile.ts,
 // 700px) the page renders this instead of its desktop stack, which on a phone was the prompt box, then

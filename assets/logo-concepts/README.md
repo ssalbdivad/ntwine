@@ -1,6 +1,6 @@
 # Ntwine icon concepts
 
-Three sheets of directions for the mark after the `fray` → `frizz` rename, each drawn as real geometry and judged at favicon size. Every page is self-contained — all renders are inlined as data URIs — so they need no server and no network.
+Three sheets of directions for the mark after the rename from `fray`, each drawn as real geometry and judged at favicon size. Every page is self-contained — all renders are inlined as data URIs — so they need no server and no network.
 
 | Sheet | Open | What it covers |
 | --- | --- | --- |

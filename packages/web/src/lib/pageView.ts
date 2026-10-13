@@ -5,7 +5,7 @@
 // 2026-10-01 and 10-06: projects stay separate, as in Claude, ChatGPT and T3; one sidebar of every project
 // loses the five bands and does not scale to 17 projects and ~70 threads; Ntwine's design goal is
 // progressive focus). It is
-// the original Frizz design's one project per page, Ntwine's original shape: the list is that project's, banded as
+// the original design's one project per page, Ntwine's original shape: the list is that project's, banded as
 // its sidebar banded it (ProjectBoard.tsx), the queue shows its cards, and the prompt box dispatches into it.
 // All projects — every project's list and one queue across all of them, with the prompt box's own picker
 // — stays, one click away (the switcher's first entry, the board's home crumb, the rail's top door), but
