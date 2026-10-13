@@ -1,6 +1,6 @@
 # Principles: never break one without explicit confirmation
 
-Colin McDonnell designed Ntwine, and David Blass maintains this fork. Each line below is a decision one of them made on
+Colin McDonnell designed Frizz ([colinhacks/frizz](https://github.com/colinhacks/frizz)), and David Blass maintains this fork of it, Ntwine. Each line below is a decision one of them made on
 purpose and has said matters most. **Do not write code, copy, docs or worker-contract text that breaks one unless the
 maintainer has explicitly confirmed it in the current conversation.** If a task seems to need it, that is a question to ask
 first, not a call to make. An approval given for one case does not carry over to the next. Detail lives where each line

@@ -348,7 +348,7 @@ with numbers next time it comes up, rather than re-litigated.
 
 ## 11. Identity is a durable pointer, so moving it needs a migration — and one owner of the list
 
-Added 2026-08-04, after the fray→ntwine rebrand shipped without carrying `git config fray.id`. The id
+Added 2026-08-04, after the fray→frizz rebrand shipped without carrying `git config fray.id`. The id
 was never lost; the *pointer* to it was. `resolveGitProjectIdentity` found no `ntwine.id`, minted a
 fresh UUID, and opened an empty board beside the real one — on all four active projects at once.
 
