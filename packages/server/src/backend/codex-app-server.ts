@@ -1819,6 +1819,12 @@ export function ensureCodexAppServerSchema(db: Database): void {
   if (schemaVersion !== BRIDGE_DB_SCHEMA_VERSION) {
     throw new InteractionStoreError("schema-version", `unsupported Codex app-server bridge schema ${String(schemaVersion)}`)
   }
+  // The Frizz -> Ntwine rename (2026-10-13) renamed this table's key column; a database written before
+  // it still has the old name. A rename keeps every row, and the shape check below then holds.
+  const sessionColumns = db.prepare<[], { name: string }>("PRAGMA table_info(codex_app_server_session)").all()
+  if (sessionColumns.some((column) => column.name === "frizz_session_id")) {
+    db.exec("ALTER TABLE codex_app_server_session RENAME COLUMN frizz_session_id TO ntwine_session_id")
+  }
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS codex_app_server_meta (
