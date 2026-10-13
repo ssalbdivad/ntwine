@@ -1322,7 +1322,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         const firstPrompt = [loadWorkerPrompt("acp", workerCapabilities(deps.editors, workDir)), scratchpadOrientation(sessionId, kind, scratchPath), frizzConfigBlock(deps.project.dir), deadlineBlock, prompt]
           .filter(Boolean).join("\n\n")
         try {
-          const spawned = await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: workDir, agentId, modelId: acpModelIdFromModel(model), prompt: firstPrompt, userText: input.prompt })
+          const spawned = await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: workDir, agentId, modelId: acpModelIdFromModel(model), effort, prompt: firstPrompt, userText: input.prompt })
           deps.storage.upsertSession({
             slug,
             session_id: sessionId,
@@ -1341,7 +1341,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
             seen_at: null,
             transcript_id: null,
             model: model ?? null,
-            effort: null,
+            effort: effort ?? null,
             permission_mode: permissionMode,
           })
           if (deadline) deps.storage.setDeadline(slug, deadline)
@@ -1485,7 +1485,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         seen_at: null,
         transcript_id: null,
         model: model ?? null,
-        effort: kind === "acp" ? null : effort ?? null,
+        effort: effort ?? null,
         permission_mode: null,
         lazy_prompt: input.prompt,
         held_by: opts.holder,

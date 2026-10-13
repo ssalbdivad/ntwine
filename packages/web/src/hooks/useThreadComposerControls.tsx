@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useSnapshot } from "valtio"
-import { acpAgentIdFromModel, acpModelIdFromModel, acpModelSlug, type PermissionMode, type ThreadView } from "@frizz/shared"
+import { acpAgentIdFromModel, acpModelIdFromModel, acpModelPreset, acpModelSlug, type PermissionMode, type ThreadView } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
 import { threadFollowUpBlocked, threadComposerStatus, threadPermissionBlockedReason, threadPermissionEffectMessage } from "../lib/threadPermissions.ts"
@@ -101,6 +101,10 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
   const effort = thread.effort?.trim()
   const acpAgentId = backend === "acp" ? acpAgentIdFromModel(model) : undefined
   const acpModelId = backend === "acp" ? acpModelIdFromModel(model) : undefined
+  // A thread on a picker preset (Muse Wonder) has a model and effort grid of its agent's presets, like a
+  // Claude or Codex thread, instead of the agent's model dropdown.
+  const acpPreset = backend === "acp" ? acpModelPreset(model) : undefined
+  const providerLabel = backend === "codex" ? "Codex" : backend === "acp" ? acpAgents.data?.find((agent) => agent.id === acpAgentId)?.label ?? acpAgentId ?? "ACP" : "Claude Code"
   // OPTIMISTIC PENDING. The profile control is backed by a runtime handoff that can take a half-second
   // or more, and the board's own pending bit only appears once the server has claimed the row — so
   // picking a model used to produce NO visible response at all until it landed, which reads as a dropped
@@ -119,7 +123,7 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
   const { modelSelectable } = threadProfileControlState(profileOptions, model, effort, thread.runtime === "exited")
   const catalogLoaded = profiles.data !== undefined
   const acpAgentLabel = acpAgents.data?.find((agent) => agent.id === acpAgentId)?.label ?? acpAgentId
-  const profileGroups = [{ id: backend, label: backend === "codex" ? "Codex" : "Claude Code", options: profileOptions }]
+  const profileGroups = [{ id: backend, label: providerLabel, options: profileOptions }]
   const composerStatus = threadComposerStatus(profiles.isError ? (profiles.error as Error).message : undefined)
 
   // WHAT THE OPERATOR IS LOOKING AT, and it is deliberately not `thread.permissionMode` raw: a thread
@@ -166,7 +170,7 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
     profile.mutate(target, {
       onSuccess: (result) => {
         refreshScoped()
-        showToast(backend === "acp"
+        showToast(backend === "acp" && !acpPreset
           ? result.effect === "next-resume" ? "Model saved for the next resume" : "Model applied"
           : result.effect === "next-resume"
             ? "Model and effort saved for the next resume"
@@ -181,7 +185,7 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
   // the agent's model dropdown for an ACP thread.
   const profileControl = (
     <>
-      {backend !== "acp" && (
+      {(backend !== "acp" || acpPreset) && (
         <ProfileGridSelector
           groups={profileGroups}
           value={{ provider: backend, model, effort }}
@@ -191,7 +195,7 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
           onValueChange={({ model: nextModel, effort: nextEffort }) => changeProfile({ model: nextModel, effort: nextEffort })}
           placeholder={profiles.isPending ? "Profile loading…" : "Profile unknown"}
           ariaLabel="Thread model and effort"
-          menuAriaLabel={`Choose ${backend === "codex" ? "Codex" : "Claude Code"} model and effort`}
+          menuAriaLabel={`Choose ${providerLabel} model and effort`}
           title={modelSelectable
             ? thread.runtime === "exited"
               ? "Saved per thread and applied when this conversation resumes"
@@ -218,7 +222,7 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
           thread never moves between Claude Code and Codex — so no pill names it as one (a disabled
           agent pill stood here for a day and read as a switch; maintainer 2026-09-16: "that
           shouldn't be possible"). The sidebar mark and the dropdown's tooltip say which agent. */}
-      {backend === "acp" && acpAgentId && (
+      {backend === "acp" && acpAgentId && !acpPreset && (
         <AcpModelSelect
           agentId={acpAgentId}
           agentLabel={acpAgentLabel ?? acpAgentId}

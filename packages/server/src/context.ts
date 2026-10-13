@@ -872,7 +872,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   void acpBridge.warmUp(
     storage.allSessions()
       .filter((row) => row.backend === "acp" && row.state !== "archived" && row.archived !== 1)
-      .map((row) => ({ threadSlug: row.slug, sessionId: row.session_id, cwd: workDirOf(project), agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), acpSessionId: row.agent_session_id })),
+      .map((row) => ({ threadSlug: row.slug, sessionId: row.session_id, cwd: workDirOf(project), agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, acpSessionId: row.agent_session_id })),
   )
 
   // The consumer for the broker's structured event stream. Until this existed the bridge forwarded
@@ -1318,7 +1318,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       if (row?.backend === "acp") {
         return acpBridge.followUp({
           threadSlug: slug, sessionId: row.session_id, cwd: workDirOf(project),
-          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), acpSessionId: row.agent_session_id, text: deliveryMessage, deliveryId,
+          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, acpSessionId: row.agent_session_id, text: deliveryMessage, deliveryId,
         }).then((r) => {
           if (r.acpSessionId !== row.agent_session_id) storage.setAgentSession(slug, r.acpSessionId)
           if (row.exited === 1) storage.setExitedIfCurrent(slug, row.session_id, row.runtime_generation ?? 0, false)

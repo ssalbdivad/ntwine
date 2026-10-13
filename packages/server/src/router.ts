@@ -190,6 +190,7 @@ import {
   AcpAgent,
   acpAgentIdFromModel,
   acpModelIdFromModel,
+  acpModelPreset,
   AcpAgentModels,
   AcpAgentModelsInput,
   Backend,
@@ -1752,7 +1753,7 @@ export function createRouter(ctx: AppContext) {
         if (!bridge) throw new Error("The ACP bridge is unavailable; cannot deliver this follow-up")
         const result = await bridge.followUp({
           threadSlug: input.slug, sessionId: row.session_id, cwd: workDir,
-          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), acpSessionId: row.agent_session_id,
+          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, acpSessionId: row.agent_session_id,
           text: messageForWorker, ...(input.deliveryId ? { deliveryId: input.deliveryId } : {}),
         })
         if (result.acpSessionId !== row.agent_session_id) ctx.storage.setAgentSession(input.slug, result.acpSessionId)
@@ -3880,7 +3881,7 @@ export function createRouter(ctx: AppContext) {
         const claudeModels = row.backend === "claude"
           ? await readClaudeModels({ claudeBin: ctx.claudeBin, cwd: workDir })
           : undefined
-        return threadProfileOptions(row.backend, claudeModels, readCodexModels(undefined, ctx.codexVersion))
+        return threadProfileOptions(row.backend, claudeModels, readCodexModels(undefined, ctx.codexVersion), row.model)
       },
     }),
 
@@ -3946,15 +3947,19 @@ export function createRouter(ctx: AppContext) {
         // reach its reattach.
         const profRow = ctx.storage.getSession(input.slug)
         if (profRow?.backend === "acp") {
-          // The model rides the row's slug (`acp:<agent>@<model>`) and has no effort axis. The AGENT
-          // cannot change under a session — the ACP session belongs to the process that opened it —
-          // so a slug naming another agent is refused. A live session takes the model now through
-          // session/set_config_option; otherwise the slug is applied when the session next opens.
+          // The model rides the row's slug (`acp:<agent>@<model>`); only a picker preset has an effort
+          // axis, and anything else stores none. The AGENT cannot change under a session — the ACP
+          // session belongs to the process that opened it — so a slug naming another agent is refused.
+          // A live session takes the profile now through session/set_config_option; otherwise it is
+          // applied when the session next opens.
           if (acpAgentIdFromModel(input.model) !== acpAgentIdFromModel(profRow.model ?? "")) {
             throw new Error("An ACP thread's agent cannot change; pick a model of the same agent")
           }
-          ctx.storage.setProfile(input.slug, input.model, "")
-          const live = ctx.acpBridge ? await ctx.acpBridge.setModel(input.slug, profRow.session_id, acpModelIdFromModel(input.model)) : { applied: false }
+          const preset = acpModelPreset(input.model)
+          if (preset && !(input.effort && preset.efforts.includes(input.effort))) throw new Error(`Unsupported ${preset.label} effort: ${input.effort ?? "(none)"}`)
+          const effort = preset ? input.effort! : ""
+          ctx.storage.setProfile(input.slug, input.model, effort)
+          const live = ctx.acpBridge ? await ctx.acpBridge.setModel(input.slug, profRow.session_id, acpModelIdFromModel(input.model), effort) : { applied: false }
           ctx.board.refresh()
           return { effect: live.applied ? "applied" as const : "next-resume" as const }
         }

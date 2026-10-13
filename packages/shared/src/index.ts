@@ -201,6 +201,39 @@ function acpSlugParts(model: string | null | undefined): { agent: string; model?
 export function acpAgentIdFromModel(model: string | null | undefined): string | undefined { return acpSlugParts(model)?.agent }
 export function acpModelIdFromModel(model: string | null | undefined): string | undefined { return acpSlugParts(model)?.model }
 
+/** A model the picker offers as a row of its own, with an effort ladder, although it runs through an
+ *  ACP agent: the slug pins agent and model (`acp:<agent>@<model>`), and the thread's effort reaches the
+ *  model through the agent's reasoning-effort config option (`category: "thought_level"` on the ACP
+ *  wire; OpenCode advertises one per model once the model is set). Any other `acp:` slug keeps the
+ *  agent-row-plus-model-dropdown shape and has no effort axis. */
+export interface AcpModelPreset {
+  agentId: string
+  modelId: string
+  label: string
+  defaultEffort: string
+  efforts: readonly string[]
+}
+
+// Meta's Muse Wonder models through OpenCode's OpenRouter provider (OPENROUTER_API_KEY in Frizz's
+// environment, or `opencode auth login`). OpenCode offers minimal…max for Muse Wonder; the ladder here is
+// the part of it Frizz's effort vocabulary already has.
+const MUSE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
+export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
+  // Verified live 2026-10-13 (opencode 1.19.0): low and high reach OpenRouter as `reasoning.effort`.
+  { agentId: "opencode", modelId: "openrouter/meta/muse-wonder", label: "Muse Wonder", defaultEffort: "medium", efforts: MUSE_EFFORTS },
+  // UNTESTED, and expected to be refused today: OpenRouter does not list Muse Wonder Full (2026-10-13),
+  // which Meta sells by subscription in Muse Code only (Meta API id `muse-wonder-full-1.0`). The id
+  // follows OpenRouter's naming for the day it appears there; until then OpenCode will not switch to it
+  // and the dispatch fails rather than running another model.
+  { agentId: "opencode", modelId: "openrouter/meta/muse-wonder-full", label: "Muse Wonder Full", defaultEffort: "medium", efforts: MUSE_EFFORTS },
+]
+
+/** The preset an ACP model slug names exactly, if any. */
+export function acpModelPreset(model: string | null | undefined): AcpModelPreset | undefined {
+  const parts = acpSlugParts(model)
+  return parts?.model ? ACP_MODEL_PRESETS.find((preset) => preset.agentId === parts.agent && preset.modelId === parts.model) : undefined
+}
+
 /** One model an ACP agent advertises, and the probe result the composer's model picker reads. */
 export const AcpAgentModel = z.object({ id: z.string(), name: z.string() })
 export type AcpAgentModel = z.infer<typeof AcpAgentModel>

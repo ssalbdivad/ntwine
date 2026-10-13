@@ -1,4 +1,4 @@
-import type { Backend, ClaudeModel, CodexModel, ThreadProfileOption } from "@frizz/shared"
+import { ACP_MODEL_PRESETS, acpModelPreset, acpModelSlug, type Backend, type ClaudeModel, type CodexModel, type ThreadProfileOption } from "@frizz/shared"
 import { readCodexModels } from "./codex-models.ts"
 import { CLAUDE_ULTRACODE, claudeModelSupportsUltracode } from "./claude-effort.ts"
 
@@ -61,6 +61,7 @@ export function threadProfileOptions(
   backend: unknown,
   claudeModels?: readonly ClaudeModel[],
   codexModels?: readonly CodexModel[],
+  acpModel?: string | null,
 ): { backend: Backend; options: ThreadProfileOption[] } {
   if (backend === "claude") {
     return {
@@ -87,9 +88,23 @@ export function threadProfileOptions(
       })),
     }
   }
-  // An ACP agent's model is chosen inside the agent (its own config options); Frizz offers no profile
-  // for it yet, so the picker shows nothing rather than failing the RPC.
-  if (backend === "acp") return { backend, options: [] }
+  // An ACP agent's model is chosen inside the agent (its own config options), so Frizz offers no profile
+  // for it — except a thread on a picker preset, which can move between its agent's presets and their
+  // efforts. Nothing rather than a failed RPC otherwise.
+  if (backend === "acp") {
+    const preset = acpModelPreset(acpModel)
+    return {
+      backend,
+      options: preset
+        ? ACP_MODEL_PRESETS.filter((candidate) => candidate.agentId === preset.agentId).map((candidate) => ({
+          model: acpModelSlug(candidate.agentId, candidate.modelId),
+          label: candidate.label,
+          defaultEffort: candidate.defaultEffort,
+          efforts: [...candidate.efforts],
+        }))
+        : [],
+    }
+  }
   throw new Error("This thread has an unknown backend; its runtime profile cannot be changed")
 }
 

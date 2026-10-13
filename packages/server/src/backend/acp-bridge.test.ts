@@ -323,6 +323,34 @@ test("acp-bridge: setModel switches a LIVE session's model in place, notes a ref
   } finally { await teardown(r) }
 })
 
+test("acp-bridge: a thread's effort is set through the model's effort option, and one it cannot take leaves a note", async () => {
+  const agentLog = join(mkdtempSync(join(tmpdir(), "acp-effort-")), "agent.jsonl")
+  const r = rig("", { agentLog })
+  const sent = () => readFileSync(agentLog, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line) as { method?: string; params?: { configId?: string; value?: string } })
+    .filter((frame) => frame.method === "session/set_config_option").map((frame) => `${frame.params?.configId}=${frame.params?.value}`)
+  const notes = (sessionId: string) => records(r, sessionId).filter((x) => x.kind === "acp-note").map((x) => (x as { text: string }).text)
+  try {
+    await r.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", modelId: "fake/large", effort: "high", prompt: "hi", userText: "hi" })
+    await untilIdle(r, "s1")
+    assert.deepEqual(sent(), ["model=fake/large", "effort=high"], "the effort goes out after the model whose option carries it")
+    assert.deepEqual(notes("s1"), [])
+
+    await r.bridge.spawnDispatch({ threadSlug: "t2", sessionId: "s2", cwd: r.stateDir, agentId: "fake", modelId: "fake/large", effort: "max", prompt: "hi", userText: "hi" })
+    await untilIdle(r, "s2", "t2")
+    assert.match(notes("s2")[0] ?? "", /has no max effort for fake\/large \(it offers low, medium, high\); it runs at low/)
+
+    await r.bridge.spawnDispatch({ threadSlug: "t3", sessionId: "s3", cwd: r.stateDir, agentId: "fake", modelId: "fake/small", effort: "high", prompt: "hi", userText: "hi" })
+    await untilIdle(r, "s3", "t3")
+    assert.match(notes("s3")[0] ?? "", /offers no reasoning effort for fake\/small/)
+
+    // A live session takes a new effort in place; the same level twice sends nothing.
+    await r.bridge.setModel("t1", "s1", "fake/large", "medium")
+    await r.bridge.setModel("t1", "s1", "fake/large", "medium")
+    assert.deepEqual(sent().slice(-1), ["effort=medium"])
+    assert.equal(sent().filter((x) => x === "effort=medium").length, 1)
+  } finally { await teardown(r) }
+})
+
 test("acp-bridge: agentModels reads the advertised list through a throwaway session and caches it", async () => {
   const r = rig()
   try {

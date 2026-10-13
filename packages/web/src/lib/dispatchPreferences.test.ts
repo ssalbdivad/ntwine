@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { acpAgentIdFromModel, acpModelIdFromModel, acpModelSlug, type CodexModel, type DispatchPreferences } from "@frizz/shared"
+import { acpAgentIdFromModel, acpModelIdFromModel, acpModelPreset, acpModelSlug, type CodexModel, type DispatchPreferences } from "@frizz/shared"
 import {
   applyDispatchPreferenceUpdate,
   dispatchModelGroups,
@@ -160,6 +160,30 @@ test("an acp profile naming a model resolves the agent for the grid and the mode
   const missing = resolveDispatchPreferences({ ...preferences, backend: "acp", acp: { model: "acp:cursor@gpt-5.5" } }, models, agents)
   assert.equal(missing.modelAvailable, false)
   assert.equal(missing.pickerModel, "acp:cursor")
+})
+
+// A preset (Muse Wonder) is its own row with an effort ladder: the grid is keyed on its full slug, its
+// effort is kept and judged against the ladder, and no agent-model dropdown stands beside it.
+test("an acp preset resolves as a model with efforts, and lists only under an installed agent", () => {
+  const agents = [{ id: "opencode", label: "OpenCode", command: "opencode", args: ["acp"], available: true }]
+  const muse = "acp:opencode@openrouter/meta/muse-wonder"
+  assert.deepEqual(acpModelPreset(muse)?.label, "Muse Wonder")
+  assert.equal(acpModelPreset("acp:kilo@openrouter/meta/muse-wonder"), undefined, "the same model through another agent is no preset")
+  assert.equal(acpModelPreset("acp:opencode"), undefined)
+  const saved = resolveDispatchPreferences({ ...preferences, backend: "acp", acp: { model: muse, effort: "high" } }, models, agents)
+  assert.deepEqual(
+    [saved.pickerModel, saved.effort, saved.effortAvailable, saved.acpAgentId, saved.acpModelId, saved.modelAvailable],
+    [muse, "high", true, undefined, undefined, true],
+  )
+  assert.equal(resolveDispatchPreferences({ ...preferences, backend: "acp", acp: { model: muse } }, models, agents).effort, "medium", "no saved effort: the preset's default")
+  assert.equal(resolveDispatchPreferences({ ...preferences, backend: "acp", acp: { model: muse, effort: "ultra" } }, models, agents).effortAvailable, false)
+  const acp = (installed: boolean) => dispatchProfileGroups(models, [{ ...agents[0]!, available: installed }]).find((group) => group.id === "acp")
+  assert.deepEqual(acp(true)?.options.map((option) => [option.label, option.efforts.join(" ")]), [
+    ["OpenCode", ""],
+    ["Muse Wonder", "low medium high xhigh max"],
+    ["Muse Wonder Full", "low medium high xhigh max"],
+  ])
+  assert.equal(acp(false), undefined)
 })
 
 // The Claude rows read the EDITION the pinned runtime resolves each alias to ("Opus 5.5") — the same

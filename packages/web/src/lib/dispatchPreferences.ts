@@ -1,6 +1,8 @@
 import {
+  ACP_MODEL_PRESETS,
   acpAgentIdFromModel,
   acpModelIdFromModel,
+  acpModelPreset,
   acpModelSlug,
   SetDispatchPreferenceInput,
   type AcpAgent,
@@ -10,7 +12,7 @@ import {
   type DispatchPreferences,
 } from "@frizz/shared"
 import type { SelectGroup, SelectOption } from "../components/ui/Select.tsx"
-import type { ProfileGridGroup } from "./profileGrid.ts"
+import type { ProfileGridGroup, ProfileGridOption } from "./profileGrid.ts"
 import {
   AUTO_EFFORT,
   CLAUDE_MODELS,
@@ -31,7 +33,8 @@ export interface ResolvedDispatchPreferences {
   pickerModel: string
   effort: string
   codexModel?: CodexModel
-  // ACP only: the agent id and the model chosen inside it (undefined = the agent's own default).
+  // ACP only: the agent id and the model chosen inside it (undefined = the agent's own default). Both
+  // absent on a preset, whose model is its row: no dropdown of the agent's models stands beside it.
   acpAgentId?: string
   acpModelId?: string
   modelAvailable: boolean
@@ -115,13 +118,19 @@ export function dispatchProfileGroups(codexModels: readonly CodexModel[], acpAge
   // Only the agents actually on the server's PATH get a row: the catalogue lists eight, and a grid of
   // "not installed" rows would bury the two the operator has. A SAVED agent that has since gone
   // missing surfaces through resolveDispatchPreferences's `modelAvailable`, not through a row here.
-  const acpOptions = acpAgents.filter((agent) => agent.available).map((agent) => ({
+  const acpOptions: ProfileGridOption[] = acpAgents.filter((agent) => agent.available).map((agent) => ({
     model: acpModelSlug(agent.id),
     label: agent.label,
     // No effort axis: an ACP agent runs on its own CLI's model and effort (ProfileGridSelector draws
     // one "Default" cell for an option with no efforts).
     efforts: [],
   }))
+  // A preset is a model of its own row, with its effort ladder, under its agent (acpModelPreset).
+  const available = new Set(acpAgents.filter((agent) => agent.available).map((agent) => agent.id))
+  for (const preset of ACP_MODEL_PRESETS) {
+    if (!available.has(preset.agentId)) continue
+    acpOptions.push({ model: acpModelSlug(preset.agentId, preset.modelId), label: preset.label, defaultEffort: preset.defaultEffort, efforts: [...preset.efforts] })
+  }
   return [
     {
       id: "claude",
@@ -170,7 +179,8 @@ export function resolveDispatchPreferences(
     : undefined
   const acpAgentId = backend === "acp" ? acpAgentIdFromModel(model) : undefined
   const acpModelId = backend === "acp" ? acpModelIdFromModel(model) : undefined
-  const pickerModel = backend === "acp" && acpAgentId ? acpModelSlug(acpAgentId) : model
+  const preset = backend === "acp" ? acpModelPreset(model) : undefined
+  const pickerModel = backend === "acp" && acpAgentId && !preset ? acpModelSlug(acpAgentId) : model
   // An ACP profile is available when its AGENT is installed: the model inside it is the agent's to
   // honour or refuse (the bridge notes a refusal in the transcript), never a reason to block dispatch.
   const modelAvailable = backend === "claude"
@@ -179,17 +189,17 @@ export function resolveDispatchPreferences(
       ? codexModels.some((candidate) => candidate.slug === model)
       : acpAgents.some((candidate) => candidate.available && candidate.id === acpAgentId)
   // Auto unless the operator made another level the default: the server picks one from the prompt.
-  const defaultEffort = backend === "claude" || codexModel ? AUTO_EFFORT : ""
+  const defaultEffort = backend === "claude" || codexModel ? AUTO_EFFORT : preset?.defaultEffort ?? ""
   // An ACP agent has no effort axis in Frizz — it runs on its own CLI's model and effort — so its
-  // effort is "" and always "available": there is nothing to be unavailable.
-  const effort = backend === "acp" ? "" : profile.effort ?? defaultEffort
+  // effort is "" and always "available": there is nothing to be unavailable. A preset has one.
+  const effort = backend === "acp" && !preset ? "" : profile.effort ?? defaultEffort
   const autoOptions = [{ value: AUTO_EFFORT, label: "Auto" }]
   const baseEfforts = backend === "claude"
     ? [...autoOptions, ...claudeEffortOptions(model, { withDefault: false })]
     : backend === "codex" && codexModel
       ? [...autoOptions, ...codexEffortOptions(codexModel, { withDefault: false })]
-      : []
-  const effortAvailable = backend === "acp" || baseEfforts.some((option) => option.value === effort)
+      : preset ? preset.efforts.map((value) => ({ value, label: value })) : []
+  const effortAvailable = (backend === "acp" && !preset) || baseEfforts.some((option) => option.value === effort)
   const effortOptions = effort && !effortAvailable
     ? [{ value: effort, label: `${effort} (unavailable)`, title: "Saved reasoning level is not available for this model" }, ...baseEfforts]
     : baseEfforts
@@ -199,8 +209,8 @@ export function resolveDispatchPreferences(
     pickerModel,
     effort,
     codexModel,
-    ...(acpAgentId ? { acpAgentId } : {}),
-    ...(acpModelId ? { acpModelId } : {}),
+    ...(acpAgentId && !preset ? { acpAgentId } : {}),
+    ...(acpModelId && !preset ? { acpModelId } : {}),
     modelAvailable,
     effortAvailable,
     effortOptions,

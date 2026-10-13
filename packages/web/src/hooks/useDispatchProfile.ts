@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useEffect } from "react"
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
-import { acpModelSlug, type AcpAgent, type Backend, type ClaudeModel, type CodexModel, type SetDispatchPreferenceInput } from "@frizz/shared"
+import { acpModelPreset, acpModelSlug, type AcpAgent, type Backend, type ClaudeModel, type CodexModel, type SetDispatchPreferenceInput } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { useDraft } from "../lib/drafts.ts"
@@ -162,7 +162,8 @@ export function useDispatchProfile(pickState: DispatchPickState = NO_PICK): {
     // The grid names an ACP AGENT, never the model inside it (that is the dropdown beside the pill).
     // Re-picking the agent already in effect keeps its model; landing on the default's agent lands on
     // the default's model too, rather than on a pick that differs from it only by a dropped tail.
-    if (backend === "acp" && resolved.backend === "acp" && selection.model === resolved.pickerModel) return
+    // A preset row is a model with efforts, so a click on it is an ordinary model+effort pick.
+    if (backend === "acp" && resolved.backend === "acp" && selection.model === resolved.pickerModel && !acpModelPreset(selection.model)) return
     const model = backend === "acp" && defaultResolved.backend === "acp" && selection.model === defaultResolved.pickerModel
       ? defaultResolved.model
       : selection.model

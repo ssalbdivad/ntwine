@@ -14,7 +14,7 @@ import {
 } from "./acp-types.ts"
 import { FRIZZ_MCP, frizzCliEnv, frizzMcpEnv, withFrizzCliOnPath, type FrizzCli, type FrizzMcp } from "./types.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
-import type { AcpAgentModels } from "@frizz/shared"
+import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@frizz/shared"
 
 // The ACP backend's bridge: one live agent child per thread, driven over acp-rpc.ts, writing the
 // thread's transcript through acp-transcript.ts. It is the third of three transports and deliberately
@@ -77,6 +77,8 @@ export interface AcpSpawnDispatchInput {
   agentId: string
   /** One of the agent's advertised model ids (`acp:<agent>@<model>`), or nothing for the agent's own default. */
   modelId?: string | null
+  /** The thread's reasoning effort, set through the agent's effort option; nothing leaves the agent's own. */
+  effort?: string | null
   /** The full first prompt: worker contract, orientation, then the task. */
   prompt: string
   /** What the human actually wrote — the transcript records this, not the contract. */
@@ -95,6 +97,7 @@ export interface AcpFollowUpInput {
   cwd: string
   agentId: string
   modelId?: string | null
+  effort?: string | null
   /** The ACP session id pinned on the row, for a resume after a restart. */
   acpSessionId?: string | null
   text: string
@@ -155,6 +158,9 @@ interface LiveSession {
   model?: string
   /** The config option id the agent files its model under (`model` for every agent seen so far). */
   modelOptionId?: string
+  /** The model's reasoning-effort option, when the agent offers one for it (OpenCode: `effort`, once a
+   *  model with effort levels is set), and the values it takes. */
+  effortOption?: { id: string; values: string[]; current?: string }
   writer: AcpTranscriptWriter
   /** True while `session/load` replays history — those updates are already in the file. */
   loading: boolean
@@ -170,6 +176,15 @@ interface LiveSession {
 
 const AUTH_HINT = "The agent needs a login first. "
 const ACP_MODEL_CACHE_MS = 10 * 60_000
+
+/** The reasoning-effort option among an agent's config options: ACP's `thought_level` category, else one
+ *  literally named `effort`. Its `default` value (OpenCode's "send none") is not a level. */
+export function acpEffortOption(configOptions: readonly AcpConfigOption[]): { id: string; values: string[]; current?: string } | undefined {
+  const option = configOptions.find((o) => o.category === "thought_level") ?? configOptions.find((o) => o.id === "effort")
+  if (!option) return undefined
+  const values = (option.options ?? []).map((o) => o.value).filter((value) => value !== "default")
+  return { id: option.id, values, ...(typeof option.currentValue === "string" ? { current: option.currentValue } : {}) }
+}
 
 function clip(text: string, max: number): string { return text.length > max ? `${text.slice(0, max - 1)}…` : text }
 
@@ -300,7 +315,7 @@ export class AcpBridge {
     return this.options.host ?? (this.options.spawn ? directAcpHost(this.options.spawn) : daemonAcpHost)
   }
 
-  private async open(input: { threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; acpSessionId?: string | null }): Promise<{ live: LiveSession; resumed: "loaded" | "fresh" | "reattached" }> {
+  private async open(input: { threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; effort?: string | null; acpSessionId?: string | null }): Promise<{ live: LiveSession; resumed: "loaded" | "fresh" | "reattached" }> {
     const { threadSlug: slug, sessionId, cwd } = input
     const agent = this.resolveAgent(input.agentId)
     // An ACP agent is one detached daemon PER THREAD (acp-host.ts), so its environment can say who is
@@ -409,11 +424,17 @@ export class AcpBridge {
     }
     // The thread's chosen model, applied before the header so the header records what is in effect.
     const modelProblem = await this.applyModel(live, input.modelId)
+    // A picker preset (`acpModelPreset`) is chosen FOR its model, so one the agent will not run fails the
+    // open instead of quietly running the agent's default on the operator's money.
+    if (modelProblem && acpModelPreset(acpModelSlug(agent.id, input.modelId))) return fail(new Error(modelProblem))
+    // The effort after the model: the agent's effort option, and the levels in it, belong to the model.
+    const effortProblem = await this.applyEffort(live, input.effort)
     if (resumed === "fresh") {
       writer.append({ kind: "acp-session", at: this.now(), agent: { id: agent.id, ...(init.agentInfo?.name ? { name: init.agentInfo.name } : {}), ...(init.agentInfo?.version ? { version: init.agentInfo.version } : {}) }, acpSessionId: live.acpSessionId, cwd, ...(live.model ? { model: live.model } : {}) })
       if (input.acpSessionId) writer.append({ kind: "acp-note", at: this.now(), text: `Resumed with a fresh ${agent.label} session: the previous one (${input.acpSessionId}) could not be loaded, so the agent no longer has the earlier conversation.` })
     }
     if (modelProblem) writer.append({ kind: "acp-note", at: this.now(), text: modelProblem })
+    if (effortProblem) writer.append({ kind: "acp-note", at: this.now(), text: effortProblem })
     this.sessions.set(sessionId, live)
     return { live, resumed }
   }
@@ -445,10 +466,35 @@ export class AcpBridge {
   }
 
   private adoptModel(live: LiveSession, configOptions: AcpNewSessionResult["configOptions"]): void {
+    if (!configOptions) return
+    const effort = acpEffortOption(configOptions)
+    if (effort) live.effortOption = effort
+    else delete live.effortOption
     const option = this.modelOption(configOptions)
     if (!option) return
     live.modelOptionId = option.id
     if (typeof option.currentValue === "string") live.model = option.currentValue
+  }
+
+  /** Set the thread's reasoning effort through the agent's effort option. Returns the note to write when
+   *  it cannot be: the model has no effort option, or not that level — the turn runs on the agent's own. */
+  private async applyEffort(live: LiveSession, effort: string | null | undefined): Promise<string | undefined> {
+    if (!effort) return undefined
+    const option = live.effortOption
+    const on = live.model ?? "its default model"
+    if (!option) return `${live.agent.label} offers no reasoning effort for ${on}; it runs at its own.`
+    if (!option.values.includes(effort)) return `${live.agent.label} has no ${effort} effort for ${on} (it offers ${option.values.join(", ")}); it runs at ${option.current ?? "its own"}.`
+    if (option.current === effort) return undefined
+    try {
+      const res = AcpSetConfigOptionResult.parse(await live.conn.request("session/set_config_option", { sessionId: live.acpSessionId, configId: option.id, value: effort }))
+      this.adoptModel(live, res.configOptions)
+      if (!res.configOptions?.length && live.effortOption) live.effortOption.current = effort
+      return undefined
+    } catch (err) {
+      const message = err instanceof AcpRemoteError ? err.error.message : (err as Error).message
+      this.diagnostic(live.slug, "protocol", `session/set_config_option ${option.id}=${effort} failed: ${message}`)
+      return `${live.agent.label} could not set ${effort} effort (${clip(message, 200)}); it runs at ${option.current ?? "its own"}.`
+    }
   }
 
   /** Ask the agent for the thread's model when it is not already the one in effect. Returns the note
@@ -605,7 +651,7 @@ export class AcpBridge {
   /** Boot-time reattach: every session in `rows` whose daemon is still running is re-opened NOW, so a
    *  turn that survived the restart is live on the board (and its in-flight prompt adopted) before the
    *  next input rather than after it. Fire-and-forget per row: one agent's trouble never blocks a boot. */
-  async warmUp(rows: ReadonlyArray<{ threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; acpSessionId?: string | null }>): Promise<void> {
+  async warmUp(rows: ReadonlyArray<{ threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; effort?: string | null; acpSessionId?: string | null }>): Promise<void> {
     for (const row of rows) {
       if (this.closed) return
       if (!liveAcpDaemonRecord(this.options.stateDir, row.sessionId)) continue
@@ -618,15 +664,16 @@ export class AcpBridge {
     }
   }
 
-  /** Switch a LIVE session's model (`session/set_config_option`); `applied: false` when the session is
-   *  not open, in which case the caller's stored slug reaches the agent on the next open. A refusal is
-   *  written to the transcript as a note, exactly as on open, and still counts as applied: the agent
-   *  answered, and the note says what it runs on. */
-  async setModel(threadSlug: string, sessionId: string, modelId: string | null | undefined): Promise<{ applied: boolean; model?: string }> {
+  /** Switch a LIVE session's model and effort (`session/set_config_option`); `applied: false` when the
+   *  session is not open, in which case the caller's stored profile reaches the agent on the next open. A
+   *  refusal is written to the transcript as a note, exactly as on open, and still counts as applied: the
+   *  agent answered, and the note says what it runs on. */
+  async setModel(threadSlug: string, sessionId: string, modelId: string | null | undefined, effort?: string | null): Promise<{ applied: boolean; model?: string }> {
     const live = this.sessions.get(sessionId)
     if (!live || live.slug !== threadSlug || live.exited || live.conn.closed) return { applied: false }
-    const problem = await this.applyModel(live, modelId)
-    if (problem) live.writer.append({ kind: "acp-note", at: this.now(), text: problem })
+    for (const problem of [await this.applyModel(live, modelId), await this.applyEffort(live, effort)]) {
+      if (problem) live.writer.append({ kind: "acp-note", at: this.now(), text: problem })
+    }
     return { applied: true, ...(live.model ? { model: live.model } : {}) }
   }
 
