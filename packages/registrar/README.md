@@ -1,6 +1,6 @@
 # Registrar
 
-The Worker that hands out `<name>.frizz.sh`. It records who owns a name; the [relay](../relay) serves
+The Worker that hands out `<name>.ntwine.app`. It records who owns a name; the [relay](../relay) serves
 it. One wildcard DNS record covers every name, so a claim creates no infrastructure at all — which is
 what removed the 200-name ceiling the original tunnel design could never get past.
 
@@ -39,23 +39,36 @@ gh workflow run workers-deploy.yml --ref main -f target=both
 
 **A secret change raises the alarm too.** `wrangler secret put` and `wrangler secret delete` each create a version and a deployment that CI did not make, and the check cannot tell the maintainer's from an attacker's. After changing a secret, dispatch the deploy workflow; the alarm clears once the CI deployment is active and the secret change is more than two hours old. Relay mode, the default, reads no secrets: the ones in `wrangler.toml` are read only when `CLOUD_MODE=tunnel` puts the old per-name tunnel path back.
 
-The registry is one KV namespace, created once and already in `wrangler.toml`. To recreate it, run `wrangler kv namespace create CLAIMS`, paste the new id into both this package's and the relay's `wrangler.toml`, and deploy through the workflow.
+The registry is one KV namespace, shared with the relay, which reads it.
+
+### Standing the Workers up on a fresh account
+
+Both `wrangler.toml` files ship with two placeholders, `FILL_ME_CLOUDFLARE_ACCOUNT_ID` and `FILL_ME_CLAIMS_KV_NAMESPACE_ID`, because `ntwine.app` moved to a new Cloudflare account on 2026-10-13 and nothing carries over from the old one: every board claims a fresh name. Once, from a laptop:
+
+```sh
+cd packages/registrar
+nubx wrangler login
+nubx wrangler whoami                      # the Account ID → account_id in BOTH wrangler.toml files
+nubx wrangler kv namespace create CLAIMS  # the id → [[kv_namespaces]] id in BOTH wrangler.toml files
+```
+
+Then, in the `ntwine.app` zone's DNS, a **proxied `AAAA` record named `*` with content `100::`**. It is a placeholder origin nothing listens on; it exists only so Cloudflare answers for every name and the relay's `*.ntwine.app/*` route can take the request. The registrar's custom domain creates its own record on first deploy. Commit the filled ids, then deploy through the workflow as above.
 
 Three things that will waste your time otherwise:
 
-- **A WORKERS ROUTE BEATS A CUSTOM DOMAIN.** The relay owns `*.frizz.sh/*`, which swallowed
-  `registrar.frizz.sh` the day it shipped and took signup down — the wildcard answered "No Ntwine board
+- **A WORKERS ROUTE BEATS A CUSTOM DOMAIN.** The relay owns `*.ntwine.app/*`, which swallowed
+  the registrar's hostname the day it shipped and took signup down — the wildcard answered "No Ntwine board
   has claimed this name." to every claim. `wrangler.toml` therefore declares BOTH the custom domain and
-  a more specific `registrar.frizz.sh/*` route; the route is what wins. Do not remove either.
+  a more specific `registrar.ntwine.app/*` route; the route is what wins. Do not remove either.
 - **The deploy exits 1 unless the token can read Workers Routes.** Wrangler reconciles routes *after*
   uploading, so the Worker really is deployed and the failure is cosmetic — but any script treats it as
   a failed deploy. Add **Zone → Workers Routes → Edit** to the token for a clean exit.
 - **Deleting a secret needs `--name`.** Plain `wrangler secret delete X --force` prints usage and
   silently does nothing, so a temporary override outlives the test that set it. Use
-  `wrangler secret delete X --name frizz-registrar`, then `wrangler secret list --name frizz-registrar`
+  `wrangler secret delete X --name ntwine-registrar`, then `wrangler secret list --name ntwine-registrar`
   to confirm.
 
-Then point the CLI at it. The default is `https://registrar.frizz.sh`; override with `NTWINE_REGISTRAR`
+Then point the CLI at it. The default is `https://registrar.ntwine.app`; override with `NTWINE_REGISTRAR`
 to test against a deployment before it takes that name.
 
 ```sh

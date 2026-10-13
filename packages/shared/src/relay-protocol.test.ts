@@ -14,10 +14,10 @@ import {
 
 test("a frame survives the round trip unchanged", () => {
   const frames: RelayFrame[] = [
-    { t: "req", id: "1", method: "GET", url: "https://a.frizz.sh/x", headers: [["accept", "*/*"]] },
+    { t: "req", id: "1", method: "GET", url: "https://a.ntwine.app/x", headers: [["accept", "*/*"]] },
     { t: "res", id: "1", status: 200, headers: [["content-type", "text/html"]], body: "aGk=", end: true },
     { t: "res-chunk", id: "1", data: "ZGF0YTogaGkK" },
-    { t: "ws-open", id: "2", url: "wss://a.frizz.sh/t", headers: [] },
+    { t: "ws-open", id: "2", url: "wss://a.ntwine.app/t", headers: [] },
     { t: "ws-msg", id: "2", data: "aGk=", binary: true },
   ]
   for (const frame of frames) assert.deepEqual(parseFrame(serializeFrame(frame)), frame)
@@ -60,7 +60,7 @@ test("the single-frame body ceiling stays under a Cloudflare WebSocket message",
 
 test("the handshake signs a fixed-order string, and every field changes it", () => {
   const base = new TextDecoder().decode(relayHandshakeInput("ada", "PUB", 5))
-  assert.equal(base, `frizz-relay:v${RELAY_PROTOCOL_VERSION}:ada:PUB:5`)
+  assert.equal(base, `ntwine-relay:v${RELAY_PROTOCOL_VERSION}:ada:PUB:5`)
   for (const [name, pubkey, at] of [["eve", "PUB", 5], ["ada", "OTHER", 5], ["ada", "PUB", 6]] as const) {
     assert.notEqual(new TextDecoder().decode(relayHandshakeInput(name, pubkey, at)), base)
   }

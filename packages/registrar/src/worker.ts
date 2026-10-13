@@ -8,7 +8,7 @@ import {
 import { createCloudflareApi } from "./cloudflare.ts"
 
 /**
- * The registration Worker for `<name>.frizz.sh`.
+ * The registration Worker for `<name>.ntwine.app`.
  *
  * It runs during signup and never again — it is not on the data plane, so a board that is already
  * running keeps working whether or not this is up. Protecting that property is worth more than any
@@ -83,7 +83,7 @@ export interface RegistrarEnv {
   CF_API_TOKEN: string
   CF_ACCOUNT_ID: string
   CF_ZONE_ID: string
-  /** The apex names hang off, e.g. `frizz.sh`. */
+  /** The apex names hang off, e.g. `ntwine.app`. */
   NTWINE_ZONE: string
   /** "0" turns the GitHub gate OFF. Anything else, including absent, leaves it ON. */
   REQUIRE_GITHUB?: string

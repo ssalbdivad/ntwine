@@ -8,7 +8,7 @@
  * the two runtimes that implement it. So this runs the actual Worker under `wrangler dev`, a real
  * board on loopback, and a real agent connecting them.
  *
- * The zone is `localhost` rather than `frizz.sh`, so `ada.localhost` is a valid board name and
+ * The zone is `localhost` rather than `ntwine.app`, so `ada.localhost` is a valid board name and
  * resolves to loopback without touching DNS or needing the wildcard route. That is the only
  * difference from production, and it exercises the same hostname-parsing code.
  */
@@ -63,23 +63,10 @@ try {
   const identity = await generateClaimIdentity();
   const pubkey = await exportClaimPublicKey(identity.publicKey);
 
-  // The registry row the relay reads to learn who owns `ada`, seeded into wrangler's LOCAL kv so the
-  // run touches no real Cloudflare state. BEFORE `wrangler dev` starts: the dev process holds that
-  // store open, and a write from a second process afterwards is not seen by the running Worker.
-  const seed = spawn(
-    "nubx",
-    ["-y", "wrangler", "kv", "key", "put", "claim:ada",
-     JSON.stringify({ pubkey, tunnelId: "", port: BOARD_PORT, claimedAt: Date.now(), renewedAt: Date.now() }),
-     "--binding", "CLAIMS", "--local", "--persist-to", state],
-    { cwd: join(repo, "packages/relay"), stdio: ["ignore", "ignore", "pipe"] },
-  );
-  const [seedCode] = await once(seed, "exit");
-  if (seedCode !== 0) throw new Error(`seeding the claim failed with exit ${seedCode}`);
-
   // A dev config of its own, WITHOUT the production `[[routes]]`.
   //
-  // `wrangler dev` synthesizes the request URL from the route pattern, so with `*.frizz.sh` in the
-  // config every request arrives at the Worker as `frizz.sh` no matter what was actually requested —
+  // `wrangler dev` synthesizes the request URL from the route pattern, so with `*.ntwine.app` in the
+  // config every request arrives at the Worker as `ntwine.app` no matter what was actually requested —
   // and the relay refuses it, correctly, for not being a board name. That reads as a broken relay and
   // is entirely an artefact of the config.
   const devConfig = join(state, "wrangler.dev.toml");
@@ -103,10 +90,24 @@ try {
       "",
       "[[kv_namespaces]]",
       'binding = "CLAIMS"',
-      'id = "aa4a9c11473d4511a556e3e3a6857058"',
+      // Any id serves a local namespace, as long as the seed below writes through this same config.
+      'id = "local-claims"',
       "",
     ].join("\n"),
   );
+
+  // The registry row the relay reads to learn who owns `ada`, seeded into wrangler's LOCAL kv so the
+  // run touches no real Cloudflare state. BEFORE `wrangler dev` starts: the dev process holds that
+  // store open, and a write from a second process afterwards is not seen by the running Worker.
+  const seed = spawn(
+    "nubx",
+    ["-y", "wrangler", "kv", "key", "put", "claim:ada",
+     JSON.stringify({ pubkey, tunnelId: "", port: BOARD_PORT, claimedAt: Date.now(), renewedAt: Date.now() }),
+     "--binding", "CLAIMS", "--local", "--persist-to", state, "-c", devConfig],
+    { cwd: join(repo, "packages/relay"), stdio: ["ignore", "ignore", "pipe"] },
+  );
+  const [seedCode] = await once(seed, "exit");
+  if (seedCode !== 0) throw new Error(`seeding the claim failed with exit ${seedCode}`);
 
   dev = spawn(
     "nubx",

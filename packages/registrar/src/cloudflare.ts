@@ -4,7 +4,7 @@ import type { CloudflareApi } from "./claim-handler.ts"
  * The real Cloudflare REST calls, and the ONLY place the zone token is used.
  *
  * EXERCISED AGAINST THE LIVE API on 2026-08-24: create, ingress, DNS create and update, token re-read,
- * and both deletes all ran against the real `frizz.sh` zone. The tests below cover this file's logic
+ * and both deletes all ran against the real zone (the old domain; the registrar has moved to `ntwine.app` since). The tests below cover this file's logic
  * against a fake, which cannot prove a request SHAPE — a fake answers whatever it is asked. Only the
  * live run does that, so re-run one after changing any URL or body here.
  */

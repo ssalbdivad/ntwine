@@ -20,13 +20,13 @@ async function signHandshake(name: string, identity: CryptoKeyPair, issuedAt = N
 }
 
 test("a hostname maps to a board name, one level only", () => {
-  assert.equal(boardNameFor("ada.frizz.sh", "frizz.sh"), "ada")
-  // Universal SSL covers `*.frizz.sh` and nothing deeper, so a two-level name would arrive with a
+  assert.equal(boardNameFor("ada.ntwine.app", "ntwine.app"), "ada")
+  // Universal SSL covers `*.ntwine.app` and nothing deeper, so a two-level name would arrive with a
   // certificate error anyway and must not be treated as a board.
-  assert.equal(boardNameFor("a.b.frizz.sh", "frizz.sh"), null)
-  assert.equal(boardNameFor("frizz.sh", "frizz.sh"), null, "the apex is not a board")
-  assert.equal(boardNameFor("ada.example.com", "frizz.sh"), null, "another zone is not ours to serve")
-  assert.equal(boardNameFor("frizz.sh.evil.com", "frizz.sh"), null, "a suffix trick is not a match")
+  assert.equal(boardNameFor("a.b.ntwine.app", "ntwine.app"), null)
+  assert.equal(boardNameFor("ntwine.app", "ntwine.app"), null, "the apex is not a board")
+  assert.equal(boardNameFor("ada.example.com", "ntwine.app"), null, "another zone is not ours to serve")
+  assert.equal(boardNameFor("ntwine.app.evil.com", "ntwine.app"), null, "a suffix trick is not a match")
 })
 
 test("a handshake must be signed by the key the REGISTRAR recorded", async () => {

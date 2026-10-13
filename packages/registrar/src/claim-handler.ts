@@ -83,7 +83,7 @@ export interface ClaimDeps {
    */
   api?: CloudflareApi
   store: ClaimStore
-  /** The zone names hang off, e.g. `frizz.sh`. */
+  /** The zone names hang off, e.g. `ntwine.app`. */
   zone: string
   now: () => number
   /** Absent means identity is not enforced — only ever right before there is a gate to enforce. */
@@ -150,7 +150,7 @@ const MESSAGES: Record<ClaimFailure, string> = {
     "this claim carried a GitHub token with more access than a name needs; the registrar accepts only a sign-in that grants no permissions — update Ntwine and try again",
   "github-too-new": "that GitHub account is too new to claim a name",
   "one-name-per-account": "that GitHub account already holds a name",
-  "namespace-full": "frizz.sh has no free names left — this is our limit to raise, not yours",
+  "namespace-full": "ntwine.app has no free names left — this is our limit to raise, not yours",
   "too-many-claims": "too many new names from this network just now — try again in an hour",
 }
 

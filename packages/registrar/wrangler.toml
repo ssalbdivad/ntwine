@@ -1,12 +1,14 @@
-# The deployed Worker keeps its pre-rename name: a new name is a new script, with no secrets.
-name = "frizz-registrar"
+name = "ntwine-registrar"
 main = "src/worker.ts"
 compatibility_date = "2026-08-24"
 
 # The Ntwine account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
 # "More than one account available but unable to select one" — a machine with several accounts cannot
 # guess, and CI has nobody to ask. An account id is not a secret; the API token is, and that stays out.
-account_id = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
+#
+# PLACEHOLDER until the ntwine.app account exists: fill it with the Account ID `wrangler whoami`
+# prints, the same value in packages/relay/wrangler.toml.
+account_id = "FILL_ME_CLOUDFLARE_ACCOUNT_ID"
 
 # The registrar runs during signup and never again — it is NOT on the data plane. A board that is
 # already running keeps working whether or not this Worker is up, and protecting that property is
@@ -16,23 +18,23 @@ account_id = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
 # nobody uses any more, and new signups stop for a reason nothing points at.
 # AN EXPLICIT ROUTE, NOT JUST A CUSTOM DOMAIN.
 #
-# The relay owns `*.frizz.sh/*`, and a WORKERS ROUTE BEATS A CUSTOM DOMAIN — so once the relay shipped,
-# the wildcard swallowed registrar.frizz.sh and signup started answering "No Ntwine board has claimed
+# The relay owns `*.ntwine.app/*`, and a WORKERS ROUTE BEATS A CUSTOM DOMAIN — so once the relay shipped,
+# the wildcard swallowed the registrar's hostname and signup started answering "No Ntwine board has claimed
 # this name." A more specific route wins over the wildcard and puts this back. Both are declared: the
 # custom domain provisions the hostname, the route decides who serves it.
 [[routes]]
-pattern = "registrar.frizz.sh"
+pattern = "registrar.ntwine.app"
 custom_domain = true
 
 [[routes]]
-pattern = "registrar.frizz.sh/*"
-zone_name = "frizz.sh"
+pattern = "registrar.ntwine.app/*"
+zone_name = "ntwine.app"
 
 [triggers]
 crons = ["17 4 * * *"]
 
 [vars]
-NTWINE_ZONE = "frizz.sh"
+NTWINE_ZONE = "ntwine.app"
 
 # Set with `wrangler secret put`, never here — this file is committed.
 #   wrangler secret put CF_API_TOKEN    # Tunnel:Edit + Zone DNS:Edit, and nothing else
@@ -40,7 +42,9 @@ NTWINE_ZONE = "frizz.sh"
 #   wrangler secret put CF_ZONE_ID
 
 # One small JSON row per claimed name: owner public key, tunnel id, port, and the lease timestamps.
-# Recreate with `wrangler kv namespace create CLAIMS` and paste the new id here.
+#
+# PLACEHOLDER: fill it with the id `wrangler kv namespace create CLAIMS` prints, and paste the same
+# id into packages/relay/wrangler.toml, which reads this namespace.
 [[kv_namespaces]]
 binding = "CLAIMS"
-id = "aa4a9c11473d4511a556e3e3a6857058"
+id = "FILL_ME_CLAIMS_KV_NAMESPACE_ID"

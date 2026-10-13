@@ -1,31 +1,33 @@
-# The deployed Worker keeps its pre-rename name: a new name is a new script, with no secrets and a
-# fresh Durable Object namespace.
-name = "frizz-relay"
+name = "ntwine-relay"
 main = "src/worker.ts"
 compatibility_date = "2026-08-24"
 
 # The Ntwine account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
 # "More than one account available but unable to select one" — a machine with several accounts cannot
 # guess, and CI has nobody to ask. An account id is not a secret; the API token is, and that stays out.
-account_id = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
+#
+# PLACEHOLDER until the ntwine.app account exists: fill it with the Account ID `wrangler whoami`
+# prints, the same value in packages/registrar/wrangler.toml. scripts/workers-drift.mjs reads it from
+# here.
+account_id = "FILL_ME_CLOUDFLARE_ACCOUNT_ID"
 
 # THE WILDCARD IS THE WHOLE POINT. One record in front of every board, rather than one record per
 # user — which is what the tunnel design could never get past, because a CNAME points at exactly one
 # target and every board's tunnel lives on a different machine.
 #
-# Universal SSL covers `*.frizz.sh` one level deep and no further, which is why the Worker refuses a
+# Universal SSL covers `*.ntwine.app` one level deep and no further, which is why the Worker refuses a
 # hostname with a dot left in its label.
 [[routes]]
 # The trailing /* is NOT optional. A pattern without it matches ONLY the root path, so every other
 # request falls through to the zone's origin — which for a wildcard record is a placeholder address
 # nothing listens on, and Cloudflare answers 522. The board's own root loaded fine and everything
 # else timed out, which is a confusing way to find this out.
-pattern = "*.frizz.sh/*"
+pattern = "*.ntwine.app/*"
 custom_domain = false
-zone_name = "frizz.sh"
+zone_name = "ntwine.app"
 
 [vars]
-NTWINE_ZONE = "frizz.sh"
+NTWINE_ZONE = "ntwine.app"
 
 # One Durable Object per claimed name: the only place in Workers where a visitor's request and that
 # board's live socket can reliably meet. SQLite-backed, which is what makes it available without a
@@ -41,6 +43,9 @@ new_sqlite_classes = ["Board"]
 # The registrar's registry, READ-ONLY here. The relay never writes it — it only needs to know which
 # public key owns a name, so that a board's handshake can be checked against something it cannot
 # forge. Same namespace id as packages/registrar/wrangler.toml.
+#
+# PLACEHOLDER: fill it with the id `wrangler kv namespace create CLAIMS` prints (run once, from
+# packages/registrar), the same value in both files.
 [[kv_namespaces]]
 binding = "CLAIMS"
-id = "aa4a9c11473d4511a556e3e3a6857058"
+id = "FILL_ME_CLAIMS_KV_NAMESPACE_ID"

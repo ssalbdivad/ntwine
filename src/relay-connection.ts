@@ -2,6 +2,7 @@ import {
   exportClaimPublicKey,
   parseFrame,
   RELAY_KEEPALIVE_PING,
+  RELAY_PROTOCOL_VERSION,
   relayHandshakeInput,
   serializeFrame,
   type RelayDownFrame,
@@ -27,11 +28,11 @@ export interface RelayConnectionOptions {
   name: string;
   /** The identity that claimed it. The handshake proves ownership with the same key. */
   identity: CryptoKeyPair;
-  /** The relay's origin, e.g. `https://frizz.sh`. */
+  /** The relay's origin, e.g. `https://ntwine.app`. */
   relayOrigin: string;
   /** The board on loopback, e.g. `http://127.0.0.1:9393`. */
   boardOrigin: string;
-  /** The hostname visitors use, e.g. `https://ada.frizz.sh`. */
+  /** The hostname visitors use, e.g. `https://ada.ntwine.app`. */
   publicOrigin: string;
   /** Injected so a test can drive this without a real relay. */
   socketFactory?: (url: string) => RelaySocket;
@@ -96,7 +97,7 @@ export async function signRelayHandshake(name: string, identity: CryptoKeyPair, 
     identity.privateKey,
     relayHandshakeInput(name, pubkey, issuedAt) as BufferSource,
   );
-  return { v: 1, name, pubkey, issuedAt, sig: b64url(signature) };
+  return { v: RELAY_PROTOCOL_VERSION, name, pubkey, issuedAt, sig: b64url(signature) };
 }
 
 export interface RelayConnection {

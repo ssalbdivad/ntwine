@@ -4,7 +4,7 @@ import { CLAIM_LEASE_MS, generateAnonymousClaimName, generateClaimIdentity, sign
 import { handleClaim, sweepExpiredClaims, type ClaimDeps, type ClaimRecord } from "./claim-handler.ts"
 
 const NOW = 1_800_000_000_000
-const ZONE = "frizz.sh"
+const ZONE = "ntwine.app"
 
 /** A Cloudflare that records what it was asked to do, and can be told to fail any single step. */
 function fakeCloudflare(
@@ -129,17 +129,17 @@ test("a first claim provisions the tunnel, the ingress and the DNS record, and r
 
   assert.equal(result.status, 200)
   assert.ok("token" in result.body)
-  assert.equal(result.body.hostname, "dana.frizz.sh")
+  assert.equal(result.body.hostname, "dana.ntwine.app")
   assert.equal(result.body.renewed, false)
   assert.equal(result.body.leaseExpiresAt, NOW + CLAIM_LEASE_MS)
 
   assert.deepEqual(cf.calls, [
     "findTunnel:u-dana",
     "createTunnel:u-dana",
-    "setTunnelIngress:tunnel-1:dana.frizz.sh:http://localhost:9393",
-    "upsertDnsRecord:dana.frizz.sh:tunnel-1.cfargotunnel.com",
+    "setTunnelIngress:tunnel-1:dana.ntwine.app:http://localhost:9393",
+    "upsertDnsRecord:dana.ntwine.app:tunnel-1.cfargotunnel.com",
   ])
-  assert.equal(cf.dns.get("dana.frizz.sh"), "tunnel-1.cfargotunnel.com")
+  assert.equal(cf.dns.get("dana.ntwine.app"), "tunnel-1.cfargotunnel.com")
   assert.equal(st.rows.get("dana")?.tunnelId, "tunnel-1")
 })
 
@@ -176,7 +176,7 @@ test("a renewal on a new port re-points the ingress", async () => {
   await handleClaim(await claimFor(identity, "dana", 4321), d)
 
   assert.ok(
-    cf.calls.includes("setTunnelIngress:tunnel-1:dana.frizz.sh:http://localhost:4321"),
+    cf.calls.includes("setTunnelIngress:tunnel-1:dana.ntwine.app:http://localhost:4321"),
     `ingress was not re-pointed: ${cf.calls.join(", ")}`
   )
   assert.equal(st.rows.get("dana")?.port, 4321)
@@ -216,7 +216,7 @@ test("a lapsed lease returns the name to the pool, tearing the old one down firs
   assert.equal(taken.status, 200)
   // The old tunnel and record must go BEFORE the new ones, or the account leaks a tunnel per handover.
   assert.ok(cf.calls.includes("deleteTunnel:tunnel-1"), `old tunnel not removed: ${cf.calls.join(", ")}`)
-  assert.ok(cf.calls.includes("deleteDnsRecord:dana.frizz.sh"))
+  assert.ok(cf.calls.includes("deleteDnsRecord:dana.ntwine.app"))
   assert.equal(cf.tunnels.has("tunnel-1"), false)
   assert.equal(st.rows.get("dana")?.pubkey, (await claimFor(newcomer)).pubkey)
 })
@@ -307,7 +307,7 @@ test("the sweeper returns lapsed names to the pool, and leaves live ones alone",
   assert.deepEqual(result.released, ["lapsed"])
   assert.deepEqual(result.failed, [])
   assert.equal(result.remaining, 0)
-  assert.deepEqual(cf.calls, ["deleteDnsRecord:lapsed.frizz.sh", "deleteTunnel:t-lapsed"])
+  assert.deepEqual(cf.calls, ["deleteDnsRecord:lapsed.ntwine.app", "deleteTunnel:t-lapsed"])
   assert.equal(st.rows.has("lapsed"), false)
   assert.equal(st.rows.has("live"), true, "a live name must survive the sweep")
 })
@@ -560,7 +560,7 @@ test("a full namespace says so, and says whose problem it is", async () => {
   assert.equal(full.status, 503, "a full namespace is OUR unavailability, not the caller's mistake")
   assert.deepEqual(full.body, {
     error: "namespace-full",
-    message: "frizz.sh has no free names left — this is our limit to raise, not yours",
+    message: "ntwine.app has no free names left — this is our limit to raise, not yours",
   })
   assert.deepEqual(cf.calls, [], "nothing was provisioned")
 })
@@ -591,7 +591,7 @@ test("RELAY MODE records the name and touches no Cloudflare at all", async () =>
 
   const claimed = await handleClaim(await claimFor(identity), relay)
   assert.equal(claimed.status, 200)
-  assert.ok("hostname" in claimed.body && claimed.body.hostname === "dana.frizz.sh")
+  assert.ok("hostname" in claimed.body && claimed.body.hostname === "dana.ntwine.app")
   assert.equal((claimed.body as { token?: string }).token, undefined, "a relay board needs no run token")
   assert.deepEqual(cf.calls, [], "relay mode must not call Cloudflare")
   assert.equal(st.rows.get("dana")?.tunnelId, "", "there is no tunnel to record")

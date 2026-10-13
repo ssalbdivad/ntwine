@@ -1,6 +1,6 @@
 # Relay
 
-One wildcard hostname in front of every board. `*.frizz.sh` resolves here; a board dials in over a
+One wildcard hostname in front of every board. `*.ntwine.app` resolves here; a board dials in over a
 WebSocket and holds it open, and a visitor's request for that board's hostname is routed to the
 Durable Object holding that socket and framed down it.
 
@@ -48,13 +48,13 @@ gh workflow run workers-deploy.yml --ref main -f target=both
 nub scripts/verify-relay-live.mjs
 ```
 
-[`verify-relay-live.mjs`](../../scripts/verify-relay-live.mjs) puts a toy board behind the real `*.frizz.sh` under a private name of its own and asks for everything the protocol carries, each request on a deadline. Nothing else looks at what the deployed Worker does: on 2026-10-05 the live relay lacked two fixes `main` had carried for five days, every revalidation came back as a 504, and a phone that had the board cached loaded a blank page while a fresh browser loaded fine (upstream Frizz issue #49).
+[`verify-relay-live.mjs`](../../scripts/verify-relay-live.mjs) puts a toy board behind the real `*.ntwine.app` under a private name of its own and asks for everything the protocol carries, each request on a deadline. Nothing else looks at what the deployed Worker does: on 2026-10-05 the live relay lacked two fixes `main` had carried for five days, every revalidation came back as a 504, and a phone that had the board cached loaded a blank page while a fresh browser loaded fine (upstream Frizz issue #49).
 
 Two things that will waste your time otherwise:
 
-- **A route pattern without `/*` matches only the root path.** `*.frizz.sh` alone serves `/` and 522s
-  everything else. The pattern is `*.frizz.sh/*`, and the trailing `/*` is not optional.
-- **A workers route beats a custom domain.** This wildcard swallowed `registrar.frizz.sh` the day it
+- **A route pattern without `/*` matches only the root path.** `*.ntwine.app` alone serves `/` and 522s
+  everything else. The pattern is `*.ntwine.app/*`, and the trailing `/*` is not optional.
+- **A workers route beats a custom domain.** This wildcard swallowed the registrar's hostname the day it
   shipped and took signup down. The registrar answers that with a more specific route of its own; do
   not remove it.
 
@@ -93,8 +93,8 @@ that catches it is the unit test on serialized frame size. And a pipe delivers a
 a terminal alone can never approach that cap; the message that can is a board snapshot, which is why
 `ws-msg` chunks at all.
 
-The first harness uses `localhost` as the zone rather than `frizz.sh`, so `ada.localhost` is a valid board name and
+The first harness uses `localhost` as the zone rather than `ntwine.app`, so `ada.localhost` is a valid board name and
 resolves to loopback without touching DNS. Two traps it exists to remember: `wrangler dev` synthesizes
 the request URL FROM THE ROUTE PATTERN, so the production config makes every request arrive as
-`frizz.sh` — the harness writes a routeless config of its own. And `fetch` silently drops a `Host`
+`ntwine.app` — the harness writes a routeless config of its own. And `fetch` silently drops a `Host`
 header, so a spoofed one proves nothing; use a real hostname.

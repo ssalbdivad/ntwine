@@ -14,7 +14,7 @@ import {
  * One board's live connection, and the requests in flight over it.
  *
  * This is the half that runs INSIDE a Durable Object — one instance per claimed name, which is what
- * makes the routing work at all: a visitor's request for `ada.frizz.sh` and Ada's board socket have to
+ * makes the routing work at all: a visitor's request for `ada.ntwine.app` and Ada's board socket have to
  * meet somewhere, and a DO keyed by the name is the only place in Workers where they reliably can.
  *
  * Kept apart from the Worker entry so it can be tested without workerd: everything it touches is

@@ -14,7 +14,12 @@
  * frames three things, not one — a unary request, a STREAMED response body, and a nested WebSocket.
  */
 
-export const RELAY_PROTOCOL_VERSION = 1
+/**
+ * Signed into every handshake (relayHandshakeInput). 2 since the move to `ntwine.app` (2026-10-13), when
+ * the domain tag became `ntwine-relay` too: the relay there is a new deployment that has never
+ * accepted a v1 handshake, so no board needs to speak both.
+ */
+export const RELAY_PROTOCOL_VERSION = 2
 
 /** Frames the relay sends DOWN to the board. */
 export type RelayDownFrame =
@@ -242,7 +247,6 @@ export interface RelayHandshake {
  */
 export function relayHandshakeInput(name: string, pubkey: string, issuedAt: number): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(
-    // `frizz-relay` survives the rename: it is a signature domain tag the DEPLOYED relay verifies, never shown.
-    ["frizz-relay", `v${RELAY_PROTOCOL_VERSION}`, name, pubkey, String(issuedAt)].join(":")
+    ["ntwine-relay", `v${RELAY_PROTOCOL_VERSION}`, name, pubkey, String(issuedAt)].join(":")
   )
 }

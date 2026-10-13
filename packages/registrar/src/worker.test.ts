@@ -35,17 +35,17 @@ function env(kv: KvNamespace): RegistrarEnv {
     CF_API_TOKEN: "not-a-real-token",
     CF_ACCOUNT_ID: "acct",
     CF_ZONE_ID: "zone",
-    NTWINE_ZONE: "frizz.sh",
+    NTWINE_ZONE: "ntwine.app",
     CLAIMS: kv,
   }
 }
 
 test("only POST /claim is routed", async () => {
   const kv = fakeKv()
-  const notFound = await worker.fetch(new Request("https://r.frizz.sh/other", { method: "POST" }), env(kv))
+  const notFound = await worker.fetch(new Request("https://r.ntwine.app/other", { method: "POST" }), env(kv))
   assert.equal(notFound.status, 404)
 
-  const wrongMethod = await worker.fetch(new Request("https://r.frizz.sh/claim"), env(kv))
+  const wrongMethod = await worker.fetch(new Request("https://r.ntwine.app/claim"), env(kv))
   assert.equal(wrongMethod.status, 405)
   assert.equal(wrongMethod.headers.get("allow"), "POST")
 })
@@ -53,7 +53,7 @@ test("only POST /claim is routed", async () => {
 test("a body that is not JSON is a 400, not a crash", async () => {
   const kv = fakeKv()
   const response = await worker.fetch(
-    new Request("https://r.frizz.sh/claim", { method: "POST", body: "{not json" }),
+    new Request("https://r.ntwine.app/claim", { method: "POST", body: "{not json" }),
     env(kv)
   )
   assert.equal(response.status, 400)
@@ -69,7 +69,7 @@ test("an unsigned claim is refused without a Cloudflare token ever being used", 
   const identity = await generateClaimIdentity()
   const valid = await signClaim({ name: "dana", port: 9393, issuedAt: Date.now() }, identity)
   const response = await worker.fetch(
-    new Request("https://r.frizz.sh/claim", {
+    new Request("https://r.ntwine.app/claim", {
       method: "POST",
       body: JSON.stringify({ ...valid, name: "someone-else" }),
     }),
@@ -107,7 +107,7 @@ test("the owner index round-trips under its own prefix", async () => {
 
 test("listing strips the key prefix and ignores anything that is not a claim", async () => {
   // The sweeper works from this list, so a prefix left on a name would build a hostname like
-  // `claim:dana.frizz.sh` and delete nothing that exists.
+  // `claim:dana.ntwine.app` and delete nothing that exists.
   const store = kvClaimStore(fakeKv({ "claim:dana": "{}", "claim:ada": "{}", "other:thing": "{}" }))
   assert.deepEqual((await store.list()).sort(), ["ada", "dana"])
 })
@@ -119,7 +119,7 @@ test("an anonymous claim goes through the worker with no GitHub anywhere near it
   const identity = await generateClaimIdentity()
   const name = generateAnonymousClaimName()
   const response = await worker.fetch(
-    new Request("https://r.frizz.sh/claim", {
+    new Request("https://r.ntwine.app/claim", {
       method: "POST",
       headers: { "cf-connecting-ip": "203.0.113.7" },
       body: JSON.stringify(await signClaim({ name, port: 9393, issuedAt: Date.now() }, identity)),
@@ -128,7 +128,7 @@ test("an anonymous claim goes through the worker with no GitHub anywhere near it
   )
   assert.equal(response.status, 200)
   const body = (await response.json()) as { hostname: string }
-  assert.equal(body.hostname, `${name}.frizz.sh`)
+  assert.equal(body.hostname, `${name}.ntwine.app`)
   assert.ok(kv.rows.has(`claim:${name}`), "the claim row was written")
   assert.equal(kv.rows.get("anonrl:203.0.113.7:" + Math.floor(Date.now() / 3_600_000)), "1", "the budget was spent")
 })
@@ -151,7 +151,7 @@ test("an over-budget anonymous claim is a 429 through the worker, naming the wai
   const kv = fakeKv({ [`anonrl:198.51.100.9:${hour}`]: "10" })
   const identity = await generateClaimIdentity()
   const response = await worker.fetch(
-    new Request("https://r.frizz.sh/claim", {
+    new Request("https://r.ntwine.app/claim", {
       method: "POST",
       headers: { "cf-connecting-ip": "198.51.100.9" },
       body: JSON.stringify(
@@ -226,7 +226,7 @@ test("through the worker, a scoped token is refused with advice to update, and a
   try {
     const claim = async (token: string) =>
       worker.fetch(
-        new Request("https://r.frizz.sh/claim", {
+        new Request("https://r.ntwine.app/claim", {
           method: "POST",
           body: JSON.stringify(await signClaim({ name: "dana", port: 9393, issuedAt: Date.now(), github: token }, identity)),
         }),

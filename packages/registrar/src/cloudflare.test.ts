@@ -108,10 +108,10 @@ test("ingress always ends with the catch-all, which Cloudflare requires", async 
   // through to nothing. Easy to forget and impossible to miss once it happens.
   const fetcher = withFetch([success(null)])
   try {
-    await createCloudflareApi(CONFIG).setTunnelIngress("t1", "dana.frizz.sh", "http://localhost:9393")
+    await createCloudflareApi(CONFIG).setTunnelIngress("t1", "dana.ntwine.app", "http://localhost:9393")
     const body = fetcher.calls[0]!.body as { config: { ingress: Array<Record<string, string>> } }
     assert.deepEqual(body.config.ingress, [
-      { hostname: "dana.frizz.sh", service: "http://localhost:9393" },
+      { hostname: "dana.ntwine.app", service: "http://localhost:9393" },
       { service: "http_status:404" },
     ])
     assert.equal(fetcher.calls[0]!.method, "PUT")
@@ -125,17 +125,17 @@ test("a new hostname is CREATED, an existing one is UPDATED", async () => {
   // that quietly shadows the first.
   const created = withFetch([success([]), success({ id: "rec-1" })])
   try {
-    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.frizz.sh", "t1.cfargotunnel.com")
-    assert.match(created.calls[0]!.url, /dns_records\?name=dana\.frizz\.sh/)
+    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.ntwine.app", "t1.cfargotunnel.com")
+    assert.match(created.calls[0]!.url, /dns_records\?name=dana\.ntwine\.app/)
     assert.equal(created.calls[1]!.method, "POST")
     assert.match(created.calls[1]!.url, /\/zones\/zone-1\/dns_records$/)
   } finally {
     created.restore()
   }
 
-  const updated = withFetch([success([{ id: "rec-9", name: "dana.frizz.sh" }]), success({ id: "rec-9" })])
+  const updated = withFetch([success([{ id: "rec-9", name: "dana.ntwine.app" }]), success({ id: "rec-9" })])
   try {
-    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.frizz.sh", "t2.cfargotunnel.com")
+    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.ntwine.app", "t2.cfargotunnel.com")
     assert.equal(updated.calls[1]!.method, "PUT")
     assert.match(updated.calls[1]!.url, /dns_records\/rec-9$/)
   } finally {
@@ -148,10 +148,10 @@ test("the record is always proxied, or the name does not resolve at all", async 
   // id to anyone running a DNS query.
   const fetcher = withFetch([success([]), success({ id: "rec-1" })])
   try {
-    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.frizz.sh", "t1.cfargotunnel.com")
+    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.ntwine.app", "t1.cfargotunnel.com")
     assert.deepEqual(fetcher.calls[1]!.body, {
       type: "CNAME",
-      name: "dana.frizz.sh",
+      name: "dana.ntwine.app",
       content: "t1.cfargotunnel.com",
       proxied: true,
     })
@@ -165,7 +165,7 @@ test("deleting a record that is already gone is not an error", async () => {
   // error with a misleading one, and strand the resources cleanup was called to remove.
   const fetcher = withFetch([success([])])
   try {
-    await createCloudflareApi(CONFIG).deleteDnsRecord("dana.frizz.sh")
+    await createCloudflareApi(CONFIG).deleteDnsRecord("dana.ntwine.app")
     assert.equal(fetcher.calls.length, 1, "it looked, found nothing, and stopped")
   } finally {
     fetcher.restore()
@@ -173,9 +173,9 @@ test("deleting a record that is already gone is not an error", async () => {
 })
 
 test("deleting an existing record targets it by id", async () => {
-  const fetcher = withFetch([success([{ id: "rec-9", name: "dana.frizz.sh" }]), success(null)])
+  const fetcher = withFetch([success([{ id: "rec-9", name: "dana.ntwine.app" }]), success(null)])
   try {
-    await createCloudflareApi(CONFIG).deleteDnsRecord("dana.frizz.sh")
+    await createCloudflareApi(CONFIG).deleteDnsRecord("dana.ntwine.app")
     assert.equal(fetcher.calls[1]!.method, "DELETE")
     assert.match(fetcher.calls[1]!.url, /dns_records\/rec-9$/)
   } finally {

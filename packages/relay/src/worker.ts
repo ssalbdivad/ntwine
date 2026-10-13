@@ -10,7 +10,7 @@ import { BoardSocket } from "./board-socket.ts"
 /**
  * The relay: one wildcard hostname in front of every board.
  *
- * `*.frizz.sh` resolves here. A board dials in over a WebSocket and holds it open; a visitor's request
+ * `*.ntwine.app` resolves here. A board dials in over a WebSocket and holds it open; a visitor's request
  * for that board's hostname is routed to the Durable Object holding that socket and framed down it.
  * No per-user DNS record and no per-user tunnel, which is what removes the 200-name ceiling the
  * tunnel design could never get past.
@@ -27,7 +27,7 @@ import { BoardSocket } from "./board-socket.ts"
 
 export interface RelayEnv {
   BOARD: DurableObjectNamespace
-  /** The apex boards hang off, e.g. `frizz.sh`. A hostname outside it is not ours to serve. */
+  /** The apex boards hang off, e.g. `ntwine.app`. A hostname outside it is not ours to serve. */
   NTWINE_ZONE: string
   /** Registry written by the registrar: `claim:<name>` → the record naming the owning pubkey. */
   CLAIMS: { get(key: string): Promise<string | null> }
@@ -41,7 +41,7 @@ export function boardNameFor(hostname: string, zone: string): string | null {
   const suffix = `.${zone}`
   if (!hostname.endsWith(suffix)) return null
   const name = hostname.slice(0, -suffix.length)
-  // One level only: Universal SSL covers `*.frizz.sh` and nothing deeper, so `a.b.frizz.sh` would
+  // One level only: Universal SSL covers `*.ntwine.app` and nothing deeper, so `a.b.ntwine.app` would
   // arrive with a certificate error anyway and must not be treated as a board.
   return name.length > 0 && !name.includes(".") ? name : null
 }

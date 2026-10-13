@@ -29,7 +29,7 @@ test("a request reaches the board and its answer comes back", async () => {
   const relay = new BoardSocket()
   relay.attach(board.socket)
 
-  const pending = relay.request({ method: "GET", url: "https://ada.frizz.sh/x", headers: [["accept", "*/*"]] })
+  const pending = relay.request({ method: "GET", url: "https://ada.ntwine.app/x", headers: [["accept", "*/*"]] })
   const sent = parseFrame(board.sent[0]!)
   assert.equal(sent?.t, "req")
 
@@ -50,11 +50,11 @@ test("a whole answer with no body is marked ended, so the visitor's stream can c
   const relay = new BoardSocket()
   relay.attach(board.socket)
 
-  const whole = relay.request({ method: "HEAD", url: "https://ada.frizz.sh/", headers: [] })
+  const whole = relay.request({ method: "HEAD", url: "https://ada.ntwine.app/", headers: [] })
   relay.handleFrame(serializeFrame({ t: "res", id: board.lastId(), status: 200, headers: [], end: true }))
   assert.deepEqual(await whole, { status: 200, headers: [], body: null, end: true })
 
-  const streamed = relay.request({ method: "GET", url: "https://ada.frizz.sh/events", headers: [] }, { push: () => {}, end: () => {} })
+  const streamed = relay.request({ method: "GET", url: "https://ada.ntwine.app/events", headers: [] }, { push: () => {}, end: () => {} })
   relay.handleFrame(serializeFrame({ t: "res", id: board.lastId(), status: 200, headers: [], end: false }))
   assert.equal((await streamed).end, false)
 })
@@ -69,7 +69,7 @@ test("a STREAMED body reaches the visitor while it is still being produced", asy
   const chunks: string[] = []
   let ended = false
   const pending = relay.request(
-    { method: "GET", url: "https://ada.frizz.sh/events", headers: [] },
+    { method: "GET", url: "https://ada.ntwine.app/events", headers: [] },
     { push: (c) => chunks.push(new TextDecoder().decode(c)), end: () => { ended = true } }
   )
   const id = board.lastId()
@@ -93,7 +93,7 @@ test("a STREAMED body reaches the visitor while it is still being produced", asy
 test("a request with no board connected fails immediately rather than hanging", async () => {
   const relay = new BoardSocket()
   await assert.rejects(
-    relay.request({ method: "GET", url: "https://ada.frizz.sh/", headers: [] }),
+    relay.request({ method: "GET", url: "https://ada.ntwine.app/", headers: [] }),
     /not connected/
   )
 })
@@ -103,7 +103,7 @@ test("a board that disconnects fails everything in flight", async () => {
   const board = fakeSocket()
   const relay = new BoardSocket()
   relay.attach(board.socket)
-  const pending = relay.request({ method: "GET", url: "https://ada.frizz.sh/", headers: [] })
+  const pending = relay.request({ method: "GET", url: "https://ada.ntwine.app/", headers: [] })
   relay.detach(board.socket)
   await assert.rejects(pending, /disconnected/)
   assert.equal(relay.connected, false)
@@ -113,7 +113,7 @@ test("a reconnect replaces the old socket and fails what was riding on it", asyn
   const first = fakeSocket()
   const relay = new BoardSocket()
   relay.attach(first.socket)
-  const pending = relay.request({ method: "GET", url: "https://ada.frizz.sh/", headers: [] })
+  const pending = relay.request({ method: "GET", url: "https://ada.ntwine.app/", headers: [] })
 
   const second = fakeSocket()
   relay.attach(second.socket)
@@ -143,7 +143,7 @@ test("a request the board never answers times out", async () => {
     clearTimer: () => {},
   })
   relay.attach(board.socket)
-  const pending = relay.request({ method: "GET", url: "https://ada.frizz.sh/", headers: [] })
+  const pending = relay.request({ method: "GET", url: "https://ada.ntwine.app/", headers: [] })
   fire[0]!()
   await assert.rejects(pending, /did not answer in time/)
 })
@@ -153,7 +153,7 @@ test("hop-by-hop headers never reach the board", () => {
   const relay = new BoardSocket()
   relay.attach(board.socket)
   void relay.request({
-    method: "GET", url: "https://ada.frizz.sh/", headers: [["Connection", "keep-alive"], ["X-Keep", "1"]],
+    method: "GET", url: "https://ada.ntwine.app/", headers: [["Connection", "keep-alive"], ["X-Keep", "1"]],
   })
   const frame = parseFrame(board.sent[0]!) as { headers: Array<[string, string]> }
   assert.deepEqual(frame.headers, [["X-Keep", "1"]])
@@ -184,10 +184,10 @@ test("a terminal is opened on the board and acknowledged before the visitor is u
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [["x-keep", "1"]] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [["x-keep", "1"]] }, visitor.socket)
   const sent = parseFrame(board.sent[0]!) as { t: string; url: string }
   assert.equal(sent.t, "ws-open")
-  assert.equal(sent.url, "https://ada.frizz.sh/terminal")
+  assert.equal(sent.url, "https://ada.ntwine.app/terminal")
 
   relay.handleFrame(serializeFrame({ t: "ws-ack", id: board.lastId(), ok: true }))
   assert.equal(await opening, board.lastId())
@@ -199,7 +199,7 @@ test("a terminal the board refuses resolves to null, so the upgrade can fail hon
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket)
   relay.handleFrame(serializeFrame({ t: "ws-ack", id: board.lastId(), ok: false }))
   assert.equal(await opening, null)
 })
@@ -207,7 +207,7 @@ test("a terminal the board refuses resolves to null, so the upgrade can fail hon
 test("a terminal on a board that is not connected is refused rather than left hanging", async () => {
   const relay = new BoardSocket()
   const visitor = fakeVisitor()
-  assert.equal(await relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket), null)
+  assert.equal(await relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket), null)
 })
 
 test("the board's output reaches the visitor, and the visitor's input reaches the board", async () => {
@@ -216,7 +216,7 @@ test("the board's output reaches the visitor, and the visitor's input reaches th
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket)
   const id = board.lastId()
   relay.handleFrame(serializeFrame({ t: "ws-ack", id, ok: true }))
   await opening
@@ -236,7 +236,7 @@ test("a terminal that ends on the board closes the visitor's pane", async () => 
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket)
   const id = board.lastId()
   relay.handleFrame(serializeFrame({ t: "ws-ack", id, ok: true }))
   await opening
@@ -256,7 +256,7 @@ test("a board that disconnects closes every terminal riding on it", async () => 
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket)
   relay.handleFrame(serializeFrame({ t: "ws-ack", id: board.lastId(), ok: true }))
   await opening
 
@@ -270,7 +270,7 @@ test("a terminal opened while the board is going away resolves rather than hangi
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket)
   relay.detach(board.socket)
   assert.equal(await opening, null)
 })
@@ -281,7 +281,7 @@ test("the visitor closing tells the board, so a terminal is not left running for
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  void relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket)
+  void relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket)
   const id = board.lastId()
   relay.handleFrame(serializeFrame({ t: "ws-ack", id, ok: true }))
   relay.closeWebSocket(id, 1000)
@@ -297,7 +297,7 @@ test("a terminal the board never answers for is given up on rather than held ope
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/terminal", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/terminal", headers: [] }, visitor.socket)
   for (const fn of fire) fn()
   assert.equal(await opening, null)
 })
@@ -307,7 +307,7 @@ test("hop-by-hop headers never reach the board on a terminal either", () => {
   const relay = new BoardSocket()
   relay.attach(board.socket)
   void relay.openWebSocket(
-    { url: "https://ada.frizz.sh/terminal", headers: [["connection", "Upgrade"], ["upgrade", "websocket"], ["x-keep", "1"]] },
+    { url: "https://ada.ntwine.app/terminal", headers: [["connection", "Upgrade"], ["upgrade", "websocket"], ["x-keep", "1"]] },
     fakeVisitor().socket,
   )
   const frame = parseFrame(board.sent[0]!) as { headers: Array<[string, string]> }
@@ -322,7 +322,7 @@ test("a board message that arrives in pieces reaches the visitor as ONE message"
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/ws", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/ws", headers: [] }, visitor.socket)
   const id = board.lastId()
   relay.handleFrame(serializeFrame({ t: "ws-ack", id, ok: true }))
   await opening
@@ -336,7 +336,7 @@ test("a large visitor message is split on its way down to the board", () => {
   const board = fakeSocket()
   const relay = new BoardSocket()
   relay.attach(board.socket)
-  void relay.openWebSocket({ url: "https://ada.frizz.sh/ws", headers: [] }, fakeVisitor().socket)
+  void relay.openWebSocket({ url: "https://ada.ntwine.app/ws", headers: [] }, fakeVisitor().socket)
   const id = board.lastId()
   relay.handleFrame(serializeFrame({ t: "ws-ack", id, ok: true }))
 
@@ -357,7 +357,7 @@ test("a peer that never finishes a message is dropped rather than buffered forev
   relay.attach(board.socket)
   const visitor = fakeVisitor()
 
-  const opening = relay.openWebSocket({ url: "https://ada.frizz.sh/ws", headers: [] }, visitor.socket)
+  const opening = relay.openWebSocket({ url: "https://ada.ntwine.app/ws", headers: [] }, visitor.socket)
   const id = board.lastId()
   relay.handleFrame(serializeFrame({ t: "ws-ack", id, ok: true }))
   await opening
@@ -383,7 +383,7 @@ test("a board that disconnects ENDS every started stream, not just the pending h
 
   let ended = false
   const pending = relay.request(
-    { method: "GET", url: "https://ada.frizz.sh/events", headers: [] },
+    { method: "GET", url: "https://ada.ntwine.app/events", headers: [] },
     { push: () => {}, end: () => { ended = true } }
   )
   relay.handleFrame(serializeFrame({ t: "res", id: board.lastId(), status: 200, headers: [], end: false }))
@@ -401,7 +401,7 @@ test("a stream nobody feeds is ended, and the board is told to stop producing", 
 
   let ended = false
   const pending = relay.request(
-    { method: "GET", url: "https://ada.frizz.sh/events", headers: [] },
+    { method: "GET", url: "https://ada.ntwine.app/events", headers: [] },
     { push: () => {}, end: () => { ended = true } }
   )
   const id = board.lastId()
@@ -433,7 +433,7 @@ test("a chunk re-arms the idle bound, so a LIVE stream is never cut", async () =
   let ended = false
   const chunks: string[] = []
   const pending = relay.request(
-    { method: "GET", url: "https://ada.frizz.sh/events", headers: [] },
+    { method: "GET", url: "https://ada.ntwine.app/events", headers: [] },
     { push: (c) => chunks.push(new TextDecoder().decode(c)), end: () => { ended = true } }
   )
   const id = board.lastId()
@@ -463,7 +463,7 @@ test("a visitor who hung up stops the board's request instead of being streamed 
   let pushes = 0
   let ended = false
   const pending = relay.request(
-    { method: "GET", url: "https://ada.frizz.sh/events", headers: [] },
+    { method: "GET", url: "https://ada.ntwine.app/events", headers: [] },
     {
       push: () => {
         pushes++
