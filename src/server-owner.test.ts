@@ -17,7 +17,7 @@ import {
 
 const ownerUrl = pathToFileURL(join(import.meta.dirname, "server-owner.ts")).href
 
-type Roots = { data: string; state: string }
+type Roots = { data: string; state: string; brand?: "ntwine" | "frizz" }
 
 function fixture(t: TestContext): Roots {
   const root = mkdtempSync(join(tmpdir(), "ntwine-stable-server-owner-"))
@@ -130,6 +130,19 @@ test("two stable launchers in different roots share one live owner and its publi
   const afterRelease = spawnOwner(roots)
   t.after(() => stop(afterRelease.child).catch(() => undefined))
   assert.equal((await afterRelease.line).kind, "acquired", "only the exact owner can release the global lease")
+})
+
+// A server started before the rename holds its lease in `<state>/frizz-server`. On a Frizz-era install
+// a new launcher must find THAT lease, or it starts a second server on the same data.
+test("a Frizz-era install's frizz-server lease is the one a new launcher reads", async (t) => {
+  const roots = { ...fixture(t), brand: "frizz" as const }
+  const old = spawnOwner(roots, { PORT: "49125" })
+  t.after(() => stop(old.child).catch(() => undefined))
+  assert.equal((await old.line).kind, "acquired")
+  assert.equal(stableServerOwnerTarget(roots).stateDir, join(roots.state, "frizz-server"))
+  const read = readStableServerOwner(roots)
+  assert.deepEqual(read.kind === "running" ? read.port : read.kind, 49125)
+  assert.equal(readStableServerOwner({ data: roots.data, state: roots.state }).kind, "idle", "an Ntwine install looks in ntwine-server")
 })
 
 test("a dead stable owner is reclaimed by an exact new generation", async (t) => {
