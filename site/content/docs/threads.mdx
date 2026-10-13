@@ -1,38 +1,40 @@
 ---
 title: Threads
-description: One effort, start to finish, driven by a real agent process.
+description: A thread is one piece of work, driven start to finish by a real agent process.
 ---
 
-A **thread** is one effort, start to finish. It is not a chat tab and not a branch. The agent's session *is* the thread: there is no sidecar document to keep in sync, and starting one writes nothing into your repo.
+A **thread** is one piece of work, from the first prompt to done. It isn't a chat tab, and it isn't a branch. The agent's session is the thread, so there's no sidecar document to keep in sync, and starting one writes nothing into your repo.
 
 ## Workers
 
-The agent driving a thread is its **worker**: a real Claude Code, Codex or ACP agent process, running as you, with your credentials and your CLI configuration. Your skills, settings and `CLAUDE.md` or `AGENTS.md` apply as they would in a session you started yourself.
+The agent driving a thread is its **worker**. It's a real Claude Code, Codex or ACP agent process, running as you, with your credentials and your CLI configuration. Your skills, settings and `CLAUDE.md` or `AGENTS.md` apply just as they would in a session you started yourself.
 
-A worker keeps going until it reaches something only you can settle — a product call, a fork where guessing wrong is expensive, an irreversible action — and then hands back an answerable [question](/docs/questions) rather than a wall of text.
+A worker keeps going until it hits something only you can settle: a product call, a fork where a wrong guess would be expensive, or an irreversible action. Then it hands you an answerable [question](/docs/questions) instead of a wall of text.
 
 ## They run without the tab
 
-Every worker runs in its own detached background process, independent of the browser and of Ntwine itself. Close the tab, quit the browser, stop the server, reboot: your threads are all still there when you come back, and Ntwine reconnects to the ones still running rather than replaying them from disk.
+Every worker runs in its own detached background process, independent of the browser and of Ntwine itself. You can close the tab, quit the browser, stop the server or reboot, and your threads will still be there when you come back. Ntwine reconnects to the ones that are still running rather than replaying them from disk.
 
-While an agent is working, Ntwine keeps the machine from idle-sleeping, so an overnight run doesn't stall when the laptop decides nobody is there. Closing the lid or pressing sleep still works.
+While an agent is working, Ntwine keeps the machine from idle-sleeping, so an overnight run doesn't stall because the laptop decided nobody was around. Closing the lid or pressing sleep still works.
 
 ## Sub-agents
 
-A worker can dispatch **sub-agents** for independent prongs of its task. Ntwine binds each one back to its parent, so the fan-out lists under the parent on its board and its card. A parent waiting on them wakes as each one returns, and a queued parent can be [snoozed](/docs/snooze#until-its-sub-agents-return) until all of them are back.
+A worker can dispatch **sub-agents** for independent parts of its task. Ntwine binds each one back to its parent, so the fan-out is listed under the parent on its board and on its card. A parent waiting on them wakes as each one returns, and you can [snooze](/docs/snooze#until-its-sub-agents-return) a queued parent until all of them are back.
 
 ## Names and status lines
 
-Each new thread gets a short name, its [handle](/docs/handles), which never changes once shown. While a thread works, a one-line status says what it is doing: point at a thread's row to see it, or turn on **Settings → Always show status lines** to show it after every working thread's name. It also shows in the thread's own header. Both are written by a quick model on your Claude sign-in, and **Settings → Background summaries** turns them off: threads are then named from your prompt or by their agent, with no status line.
+Each new thread gets a short name, its [handle](/docs/handles), which never changes once it's shown. While a thread works, a one-line status says what it's doing. Point at a thread's row to see it, or turn on **Settings → Always show status lines** to show it after every working thread's name. It also shows in the thread's own header.
+
+Both are written by a quick model on your Claude sign-in. If you'd rather not, **Settings → Background summaries** turns them off. Threads are then named from your prompt or by their agent, with no status line.
 
 ## Scratch directory
 
-Each thread gets a folder of its own, `.ntwine/threads/<id>/` in the project, where its agent can keep notes and files. It stays empty unless the agent writes something.
+Each thread gets its own folder in the project, `.ntwine/threads/<id>/`, where its agent can keep notes and files. It stays empty unless the agent writes something.
 
 ## Thread info
 
-A thread's <kbd>⋯</kbd> menu has **Thread info**: its tokens, turns, model requests, tool calls and cost. The menu also opens the thread [in your editor](/docs/editor), in a [terminal](/docs/terminals), fullscreen, or deletes it.
+A thread's <kbd>⋯</kbd> menu has **Thread info**, which shows its tokens, turns, model requests, tool calls and cost. The same menu opens the thread [in your editor](/docs/editor), in a [terminal](/docs/terminals) or fullscreen, and deletes it.
 
 ## Pinning and deleting
 
-Pin a thread to keep it at the very top of the list. Delete a thread you no longer need from its menu, or have Ntwine delete done threads you have not touched in a while, under **Settings**. Pinned threads are never deleted.
+Pin a thread to keep it at the very top of the list. You can delete a thread you no longer need from its menu, or have Ntwine delete done threads you haven't touched in a while under **Settings**. Pinned threads are never deleted.

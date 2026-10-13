@@ -1,19 +1,19 @@
 ---
 title: Agents
-description: Claude Code, Codex and ACP agents, on your own sign-in.
+description: Ntwine runs Claude Code, Codex and ACP agents on your own sign-in.
 ---
 
-Ntwine brings no model of its own. Each thread is driven by an agent CLI you already use, under the account you are signed in to: your subscription, your rate limits, your settings. Pick the agent per thread, and run several against the same repo at once.
+Ntwine doesn't bring a model of its own. Each thread is driven by an agent CLI you already use, under the account you're signed in to, so it's your subscription, your rate limits and your settings. You pick the agent per thread, and you can run several against the same repo at once.
 
 ## Claude Code and Codex
 
-Ntwine runs its own pinned copy of each CLI — the exact build it was tested against — rather than whichever version is on your PATH. It downloads them once, on first start. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another build.
+Ntwine runs its own pinned copy of each CLI, the exact build it was tested against, rather than whichever version is on your PATH. It downloads them once, on first start. To point it at a different build, set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN`.
 
-If you are not signed in, Ntwine shows the command to run in your own terminal (`claude auth login` or `codex login`) and picks the credential up once you have.
+If you're not signed in, Ntwine shows you the command to run in your own terminal (`claude auth login` or `codex login`) and picks up the credential once you have.
 
 ## ACP agents
 
-Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) runs as a thread too, from your PATH:
+Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can run as a thread too, from your PATH:
 
 | Agent | Command |
 | --- | --- |
@@ -28,20 +28,27 @@ Any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.co
 | Grok Build | `grok agent stdio` |
 | pi | `pi-acp` |
 
-An ACP agent's models show in the model picker beside it, grouped by provider.
+An ACP agent's models show up in the model picker beside it, grouped by provider.
 
 ## Model and effort
 
-The picker beside the prompt box sets the model and effort for the next thread; **Make default** keeps it. Effort defaults to **auto**: a quick model reads each prompt and picks the level it needs, from low up to max. A running thread's model can be changed from its own prompt box.
+The picker beside the prompt box sets the model and effort for the next thread, and **Make default** keeps your choice. Effort defaults to **auto**, where a quick model reads each prompt and picks the level it needs, from low up to max. You can change a running thread's model from its own prompt box.
 
 ## Ntwine's own model calls
 
-Ntwine brings no model of its own, but it asks one for four small jobs: naming each new thread, a one-line status of what each thread is doing, choosing an effort for **auto**, and reading a schedule out of a prompt. Each is a short call on your own Claude sign-in. **Settings → Background summaries** turns all four off at once: threads are named from your prompt, show no status line, start on a fixed effort, and a prompt is never read for a schedule.
+Ntwine doesn't have a model of its own, but it does ask one for four small jobs:
+
+- naming each new thread
+- writing a one-line status of what each thread is doing
+- choosing an effort for **auto**
+- reading a schedule out of a prompt
+
+Each one is a short call on your own Claude sign-in. **Settings → Background summaries** turns all four off at once. Threads are then named from your prompt, show no status line and start on a fixed effort, and a prompt is never read for a schedule.
 
 ## Permissions
 
-New Claude Code threads launch in **Auto** permission mode: safe actions run, and risky ones ask you to approve them in the thread. **Bypass** never asks, so nothing waits on you and nothing is checked either. Set it under **Settings**, or per thread beside its model.
+New Claude Code threads launch in **Auto** permission mode. Safe actions run, and risky ones ask you to approve them in the thread. **Bypass** never asks, so nothing waits on you, but nothing gets checked either. You can set it under **Settings**, or per thread beside its model.
 
 ## Usage
 
-The quota chip shows how much of your plan is left, and warns when it is nearly out while threads on it are still running. With **Fable fallback** on, new Claude threads start on Fable when the rest of your usage is nearly gone, and a thread paused by a usage limit restarts on Fable instead of waiting for the reset. A thread paused by a limit can be resumed once the limit resets, all of them at once if you like.
+The quota chip shows how much of your plan is left, and warns you when it's nearly out while threads on it are still running. With **Fable fallback** on, new Claude threads start on Fable once the rest of your usage is nearly gone, and a thread paused by a usage limit restarts on Fable instead of waiting for the reset. A thread paused by a limit can be resumed once the limit resets, and you can resume all of them at once if you like.
