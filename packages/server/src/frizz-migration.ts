@@ -553,8 +553,10 @@ export function migrateFrizzInstall(options: FrizzMigrationOptions = {}): FrizzM
   if (!options.boardsOnly && !finished) {
     moveDirectory(run, join(roots("state"), LEASES.from), join(roots("state"), LEASES.to), "the server lease")
     migrateRegistry(run, data, install.pairs.filter((pair) => unmoved ? isRealDir(pair.from) : isLink(pair.from)))
-    migrateDatabases(run, data)
   }
+  // The schema renames wait for nothing: they name no path, and the server about to open this file no
+  // longer reads the old column, so a deferred boot that skipped them could not start.
+  if (!finished) migrateDatabases(run, data)
   for (const root of boardHomes(data, home)) {
     if (migrateBoard(run, root) || !finished) migrateGitIds(run, root)
   }

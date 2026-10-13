@@ -137,3 +137,18 @@ test("an install in ~/.frizz becomes ~/.ntwine; a ~/.frizz without a registry is
   assert.equal(realpathSync(join(home, ".frizz")), join(home, ".ntwine"))
   assert.ok(existsSync(join(home, ".ntwine", "scratch")))
 })
+
+// A server forked by the pre-rename supervisor keeps serving the Frizz roots, but it runs current code,
+// which no longer reads the old column or board name.
+test("a deferred run moves boards and schema but leaves every root where it is", (t) => {
+  const { home, data, repo } = frizzHome(t)
+  assert.equal(migrateFrizzInstall({ ...linux(home), boardsOnly: true }).status, "migrated")
+  assert.ok(lstatSync(data).isDirectory() && !lstatSync(data).isSymbolicLink())
+  assert.ok(!existsSync(join(home, ".local", "share", "ntwine")))
+  assert.ok(lstatSync(join(repo, ".frizz")).isSymbolicLink())
+  const db = new DatabaseSync(join(data, "ui.db"), { readOnly: true })
+  assert.deepEqual(db.prepare("PRAGMA table_info(codex_app_server_session)").all().map((row) => row.name), ["ntwine_session_id"])
+  db.close()
+  assert.equal(migrateFrizzInstall(linux(home)).status, "migrated", "the roots still move on a clean boot")
+  assert.equal(realpathSync(data), join(home, ".local", "share", "ntwine"))
+})
