@@ -26,6 +26,7 @@ import { ntwineIpcPath } from "./ipc-path.ts"
 import { spawnAcpChild, type AcpProcess, type AcpSpawn, type AcpSpawnOptions } from "./acp-rpc.ts"
 import { log as ntwineLog } from "../logging.ts"
 import { launchEnvironment } from "./worker-env.ts"
+import { DAEMON_CONTROL_KEY, daemonControlKey, type DaemonControlKey } from "./daemon-control.ts"
 
 export interface AcpDaemonRecord {
   threadSlug: string
@@ -273,8 +274,11 @@ function attach(record: AcpDaemonRecord, timeoutMs: number): Promise<{ process: 
       kill() { socket.destroy(); return true },
     } as unknown as AcpProcess
 
+    // Answered in the key the daemon's own hello used: one spawned before DAEMON_CONTROL_KEY reads only
+    // its legacy key, and would hand any other line to the agent verbatim.
+    let controlKey: DaemonControlKey = DAEMON_CONTROL_KEY
     const adopt = (daemonId: number, clientId: number | string): void => {
-      try { socket.write(`${JSON.stringify({ frizz: 1, adopt: { daemonId, clientId } })}\n`) } catch {}
+      try { socket.write(`${JSON.stringify({ [controlKey]: 1, adopt: { daemonId, clientId } })}\n`) } catch {}
     }
 
     const decoder = new StringDecoder("utf8")
@@ -290,8 +294,10 @@ function attach(record: AcpDaemonRecord, timeoutMs: number): Promise<{ process: 
         if (!trimmed) continue
         // Control lines (a reserved `ntwine` key) are the daemon's own; everything else is verbatim
         // agent JSON-RPC and must reach the bridge's parser untouched.
-        if (trimmed.startsWith("{\"frizz\":")) {
+        const key = daemonControlKey(trimmed)
+        if (key) {
           if (!settled) {
+            controlKey = key
             settled = true
             clearTimeout(timer)
             resolve({ process: handle, hello: parseHello(trimmed), adopt })
