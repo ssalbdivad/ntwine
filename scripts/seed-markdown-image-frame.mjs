@@ -24,7 +24,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, shot, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, shot, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home || !shot) {
   console.error("usage: nub scripts/seed-markdown-image-frame.mjs --home=/abs/temp-home --shot=/abs/real.png")
   process.exit(1)

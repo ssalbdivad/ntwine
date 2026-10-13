@@ -2,7 +2,7 @@
   "name": "ntwine",
   "description": "Worker-side ntwine plugin for ntwine-spawned sessions. Each session is a WORKER driving ONE effort (slug via env NTWINE_THREAD): it SIGNALS through its final message (done, human/timer awaiting, question), keeps automatable waits active with Claude wait tools, and keeps its own free-form scratch directory (.ntwine/threads/<session-id>/). Supplies the effort-only ntwine:<effort> sub-agent profiles (ntwine:low … ntwine:max; the model rides the Agent tool's own parameter), the on-demand ntwine:gh skill, and hooks that seed the worker contract, enforce background/name-stripped sub-agent dispatch, and deny the interactive question/plan prompts (deny-ask, deny-plan) that would hang a dashboard worker. Hooks are inert unless NTWINE_THREAD is set.",
   "version": "0.1.11",
-  "author": { "name": "Colin McDonnell" },
+  "author": { "name": "David Blass" },
   "homepage": "https://github.com/ssalbdivad/ntwine",
   "repository": "https://github.com/ssalbdivad/ntwine",
   "license": "MIT",

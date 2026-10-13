@@ -12,7 +12,7 @@ import { ACCOUNT_ID, checkWorker, cloudflareClient, githubClient, parseCiMessage
 // first scheduled run is the one that meets the real API, and it fails loudly on any shape it
 // cannot read rather than passing.
 
-const REPO = "colinhacks/frizz"
+const REPO = "ssalbdivad/ntwine"
 const SHA = "6b6436701f2a3c4d5e6f708192a3b4c5d6e7f809"
 const RUN = "18123456789"
 const CI_AUTHOR = "4f1c2b3a9d8e7f60a1b2c3d4e5f60718"

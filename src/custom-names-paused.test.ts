@@ -72,7 +72,7 @@ test("while custom names are paused, a word is refused before GitHub or the regi
   const home = tempHome();
   const server = await claimServer();
   try {
-    for (const word of ["colin", "www", "has space"]) {
+    for (const word of ["dana", "www", "has space"]) {
       await assert.rejects(establishCloudConfig(word, 9393, home, server.origin, untouchableGithub), (error: Error) => {
         assert.equal(error.message, CUSTOM_NAMES_PAUSED, `${word}: ${error.message}`);
         return true;
@@ -99,13 +99,13 @@ test("while custom names are paused, a custom name already claimed still renews 
   // The renewal every launch makes carries no GitHub token, so withdrawing the offer must not strand
   // a board that already holds a custom name.
   const home = tempHome();
-  const server = await claimServer({ hostname: "colin.frizz.sh", leaseExpiresAt: 0, renewed: true });
+  const server = await claimServer({ hostname: "dana.frizz.sh", leaseExpiresAt: 0, renewed: true });
   try {
-    const saved = { hostname: "colin.frizz.sh", claim: "colin", serve: "relay" as const };
+    const saved = { hostname: "dana.frizz.sh", claim: "dana", serve: "relay" as const };
     assert.equal(await reconcileCloudConfig(saved, 9393, home, undefined, server.origin, untouchableGithub), saved);
     assert.equal(await resolveRunToken(saved, 9393, home, undefined, server.origin), null, "a relay name has no run token");
     assert.equal(server.claims.length, 1, "exactly one call: the renewal");
-    assert.equal(server.claims[0]!.name, "colin");
+    assert.equal(server.claims[0]!.name, "dana");
     assert.equal("github" in server.claims[0]!, false, "the renewal carries no GitHub token");
   } finally {
     await server.close();
@@ -121,12 +121,12 @@ test("while custom names are paused, a saved custom name that needs re-claiming 
   const notices: string[] = [];
   try {
     for (const stale of [
-      { hostname: "colin.frizz.sh", tunnel: "colin" },
-      { hostname: "colin.frizz.sh", claim: "colin", serve: "tunnel" as const },
+      { hostname: "dana.frizz.sh", tunnel: "dana" },
+      { hostname: "dana.frizz.sh", claim: "dana", serve: "tunnel" as const },
     ]) {
       await assert.rejects(
         reconcileCloudConfig(stale, 9393, home, (m) => notices.push(m), server.origin, untouchableGithub),
-        /colin\.frizz\.sh needs moving onto the Ntwine relay[\s\S]*custom frizz\.sh names are paused[\s\S]*press R/,
+        /dana\.frizz\.sh needs moving onto the Ntwine relay[\s\S]*custom frizz\.sh names are paused[\s\S]*press R/,
       );
     }
     assert.deepEqual(notices, [], "no notice promises a claim that is not going to happen");
@@ -198,17 +198,17 @@ test("while custom names are paused, the R menu does not offer one, and every nu
 test("while custom names are paused, a board already on a custom name shows it, and choosing it renews without a claim", async () => {
   // The claim fake throws, so reaching it would fail the test: serving the saved name again goes
   // through apply, whose renewal is the keypair-only call every launch makes.
-  const saved: CloudConfig = { hostname: "colin.frizz.sh", claim: "colin", serve: "relay" };
+  const saved: CloudConfig = { hostname: "dana.frizz.sh", claim: "dana", serve: "relay" };
   const { pane, out, applied } = buildPane(saved);
   pane.open();
   const rows = menuRows(out.text());
   assert.equal(rows.length, 6, "the custom row stays while it is the current setup");
-  assert.match(rows[1]!, /^ {2}❯ Custom name\s+colin\.frizz\.sh — kept and renewed; new custom names are paused.*\(current\)/);
+  assert.match(rows[1]!, /^ {2}❯ Custom name\s+dana\.frizz\.sh — kept and renewed; new custom names are paused.*\(current\)/);
   assert.doesNotMatch(out.text(), /needs a GitHub account/);
   pane.key("\r");
   await settle();
   assert.deepEqual(applied, [saved], "the saved claim is applied as it is");
   assert.doesNotMatch(out.text(), /Custom frizz\.sh name|github\.com\/login\/device/, "no claim form, no sign-in");
-  assert.match(out.text(), /Serving https:\/\/colin\.frizz\.sh \(frizz\.sh\)/);
+  assert.match(out.text(), /Serving https:\/\/dana\.frizz\.sh \(frizz\.sh\)/);
   assert.match(out.text(), /ntwine_code=c0de/);
 });

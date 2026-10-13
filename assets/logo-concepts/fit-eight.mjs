@@ -21,7 +21,7 @@ const fitDir = join(here, "fit")
 mkdirSync(fitDir, { recursive: true })
 
 const N = 256 // working resolution for the comparison
-const REF_SRC = "/Users/colinmcd94/.ntwine/projects/029a30af-f126-40e3-b04c-d80e74e3e090/attachments/1786229519809-a8ae5c59-ef1bad9f-c28b-4a7a-9ede-0bf540f997b2.png"
+const REF_SRC = "/Users/me/.ntwine/projects/029a30af-f126-40e3-b04c-d80e74e3e090/attachments/1786229519809-a8ae5c59-ef1bad9f-c28b-4a7a-9ede-0bf540f997b2.png"
 
 // ------------------------------------------------------------- reference mask
 

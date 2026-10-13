@@ -103,7 +103,7 @@ const FINAL_HANDOFF = [
 // What moved the thread on after the ask: the human replying past it, or — --woken — ntwine, whose
 // delivery token at the END of the record is what makes the tailer mark it a wake (shared isWakeDelivery).
 const MOVED_ON = woken
-  ? "⏰ Your watcher on colinhacks/zod#5500 has expired and is no longer armed — nothing on that PR will wake you now.\n\n<!-- ntwine-wake:seed-woken-question -->"
+  ? "⏰ Your watcher on arktypeio/arktype#5500 has expired and is no longer armed — nothing on that PR will wake you now.\n\n<!-- ntwine-wake:seed-woken-question -->"
   : "I guess let's just unrevert it. We'll announce it in the 4.7 blog post, though."
 const records = [
   user(0, "we need to add a properties example for Zod Mini"),

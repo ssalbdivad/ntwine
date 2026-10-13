@@ -828,7 +828,7 @@ async function warnAboutStartingASecondNtwine(): Promise<void> {
 
 let cachedSlugPath: string | undefined;
 /**
- * Where to land — upstream's answer again (colinhacks/frizz 0a3b9139 src/index.ts slugPath), since a
+ * Where to land — upstream's answer again (upstream Frizz commit 0a3b9139, src/index.ts slugPath), since a
  * project's board became the default view on 2026-10-06:
  *
  *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;

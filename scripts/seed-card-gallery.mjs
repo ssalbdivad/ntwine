@@ -15,7 +15,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-card-gallery.mjs --home=/abs/temp-home")
   process.exit(1)

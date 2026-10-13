@@ -20,7 +20,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, port, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, port, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home || !port) {
   console.error("usage: nub scripts/seed-timer-park.mjs --home=/abs/temp-home --port=NNNN")
   process.exit(1)

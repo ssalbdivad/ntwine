@@ -1,6 +1,6 @@
 {
   "name": "ntwine",
-  "owner": { "name": "Colin McDonnell" },
+  "owner": { "name": "David Blass" },
   "description": "ntwine — the multi-agent workbench. A dashboard drives many one-effort worker sessions.",
   "plugins": [
     {

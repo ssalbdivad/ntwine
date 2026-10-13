@@ -16,7 +16,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-wake-cards.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -40,7 +40,7 @@ const CASES = [
     steer: formatGithubWakeSteer({
       ref: "nubjs/nub#587",
       omitted: 0,
-      items: [{ label: "comment", actor: "colinhacks", bot: false, at: ago(4), url: "https://github.com/nubjs/nub/pull/587#issuecomment-5120099362" }],
+      items: [{ label: "comment", actor: "dana", bot: false, at: ago(4), url: "https://github.com/nubjs/nub/pull/587#issuecomment-5120099362" }],
     }),
   },
   {

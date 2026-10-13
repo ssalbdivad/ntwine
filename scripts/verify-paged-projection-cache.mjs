@@ -20,7 +20,7 @@ const check = (name, ok, detail = "") => {
 }
 
 function biggestSessionFile() {
-  const dir = join(homedir(), ".claude", "projects", "-Users-colinmcd94-Documents-projects-ntwine")
+  const dir = join(homedir(), ".claude", "projects", "-Users-me-Documents-projects-ntwine")
   const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join(dir, f))
   return files.map((f) => ({ f, size: statSync(f).size })).sort((a, b) => b.size - a.size)[0]?.f
 }

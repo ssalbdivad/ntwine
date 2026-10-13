@@ -47,7 +47,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { WebSocket as WsClient } from "ws";
 
-const NAME = process.env.NTWINE_PRODUCT_NAME ?? "colin";
+const NAME = process.env.NTWINE_PRODUCT_NAME ?? "dana";
 const ORIGIN = `https://${NAME}.frizz.sh`;
 const PORT = Number(process.env.NTWINE_PRODUCT_PORT ?? 47990);
 const CLI = process.env.NTWINE_PRODUCT_CLI ?? join(process.cwd(), "dist/ntwine.js");

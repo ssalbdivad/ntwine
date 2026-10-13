@@ -5,7 +5,7 @@
 // own `gh` token, real HTTPS to api.github.com) and a REAL SQLite storage + wake outbox, against a
 // REAL public PR — nubjs/nub#587, the exact thread whose wake started this. Its comment history is
 // the perfect fixture: TWO comments from the SAME author eight hours apart, which the old
-// actor-only steer ("New GitHub comment … from @colinhacks") could not tell apart, so the woken
+// actor-only steer ("New GitHub comment … from @dana") could not tell apart, so the woken
 // worker re-read the thread and re-litigated the stale one.
 //
 //   node scripts/verify-pr-watch-steer.mjs
@@ -22,8 +22,8 @@ import { createGithubReviewFetcher } from "../packages/server/src/github-review.
 const PR = "nubjs/nub#587"
 // The same PR as a parsed ref, for the direct live reads scenario B derives its fixture from.
 const REF = { owner: "nubjs", repo: "nub", number: 587 }
-const STALE_AT = "2026-07-29T07:36:03Z" // @colinhacks — already handled; what the worker wrongly re-read
-const FRESH_AT = "2026-07-29T15:39:28Z" // @colinhacks — the wake's real subject
+const STALE_AT = "2026-07-29T07:36:03Z" // @dana — already handled; what the worker wrongly re-read
+const FRESH_AT = "2026-07-29T15:39:28Z" // @dana — the wake's real subject
 
 let failures = 0
 function check(label, ok, detail = "") {
@@ -83,7 +83,7 @@ async function run(label, { fenceAt, fetchGithubReview, ticks = [] }) {
 }
 
 // ---- A. THE REPORTED BUG, replayed on the real timeline -------------------------------------------
-// The worker rested at noon; at 15:39 @colinhacks left ONE comment. That is the wake it received, and
+// The worker rested at noon; at 15:39 @dana left ONE comment. That is the wake it received, and
 // the steer it got named only the PR and the author.
 console.log(`\nA. the reported wake — one fresh comment from an author who had commented before`)
 {
@@ -95,7 +95,7 @@ console.log(`\nA. the reported wake — one fresh comment from an author who had
   const msg = resumes[0]?.message ?? ""
   console.log(`\n--- the steer a real worker now receives ---\n${msg}\n---\n`)
   check("names the PR", msg.includes(PR))
-  check("names the actor", msg.includes("@colinhacks"))
+  check("names the actor", msg.includes("@dana"))
   check("carries the FRESH comment's exact timestamp", msg.includes(FRESH_AT))
   check("carries a real GitHub permalink to that one comment", /https:\/\/github\.com\/nubjs\/nub\/pull\/587#issuecomment-\d+$/.test(msg.trim()))
   check("never names the stale, already-handled comment", !msg.includes(STALE_AT))

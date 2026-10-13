@@ -37,7 +37,7 @@
 // Anything it cannot read — a missing or revoked token, a Cloudflare or GitHub error — also fails the
 // run. A check that cannot see must not go green.
 //
-//   CLOUDFLARE_READ_TOKEN=… GITHUB_TOKEN=… GITHUB_REPOSITORY=colinhacks/frizz \
+//   CLOUDFLARE_READ_TOKEN=… GITHUB_TOKEN=… GITHUB_REPOSITORY=ssalbdivad/ntwine \
 //     WORKERS_CI_AUTHOR=… node scripts/workers-drift.mjs [ntwine-relay] [ntwine-registrar]
 
 import { pathToFileURL } from "node:url"

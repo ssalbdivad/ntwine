@@ -26,11 +26,11 @@ mkdirSync(OUT, { recursive: true })
 
 // The maintainer's actual failure, verbatim from the screenshot — the shape the panel must survive.
 const SUPERVISOR_LOG = [
-  "Command failed: nub run typecheck from /Users/colinmcd94/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca",
-  "> @ntwine/web@0.0.1 typecheck /Users/colinmcd94/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web",
+  "Command failed: nub run typecheck from /Users/me/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca",
+  "> @ntwine/web@0.0.1 typecheck /Users/me/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web",
   "> tsc --noEmit",
   "src/groups.ts(440,27): error TS2304: Cannot find name 'restedQueueHandoff'.",
-  "/Users/colinmcd94/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web:",
+  "/Users/me/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web:",
   "ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @ntwine/web@0.0.1 typecheck: `tsc --noEmit` Exit status 2",
   "$ tsc -b packages/shared packages/rpc packages/server . && pnpm --filter @ntwine/web typecheck",
 ].join("\n")

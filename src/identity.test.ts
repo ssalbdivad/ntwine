@@ -51,7 +51,7 @@ test("a reloaded identity still signs claims the registry will accept", async ()
 
     const reloaded = await loadOrCreateClaimIdentity(home);
     const now = 1_800_000_000_000;
-    const request = await signClaim({ name: "colin", port: 9393, issuedAt: now }, reloaded);
+    const request = await signClaim({ name: "dana", port: 9393, issuedAt: now }, reloaded);
     assert.equal(request.pubkey, fingerprint);
 
     const verdict = await verifyClaim(request, now);

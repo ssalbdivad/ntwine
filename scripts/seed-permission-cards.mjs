@@ -19,7 +19,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: nub scripts/seed-permission-cards.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -76,7 +76,7 @@ const CARDS = [
     toolName: "Write",
     description: "Writing the release note",
     input: {
-      file_path: "/Users/colinmcd94/Documents/projects/ntwine/RELEASE.md",
+      file_path: "/Users/me/Documents/projects/ntwine/RELEASE.md",
       content: "# Release\n\n- The approval card leads with what it is authorizing.\n",
     },
   },

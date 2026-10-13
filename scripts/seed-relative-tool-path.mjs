@@ -96,7 +96,7 @@ write("outside-tool-path", "55555555-5555-4555-8555-555555555555", "Outside tool
       model: "claude-opus-5",
       role: "assistant",
       stop_reason: "tool_use",
-      content: [call("toolu_outside", "Read", { file_path: "/Users/colinmcd94/.claude/CLAUDE.md" })],
+      content: [call("toolu_outside", "Read", { file_path: "/Users/me/.claude/CLAUDE.md" })],
     },
   },
 ])

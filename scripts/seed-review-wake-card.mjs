@@ -16,7 +16,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-review-wake-card.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -54,7 +54,7 @@ const CASES = [
       ref: "nubjs/nub#587",
       omitted: 0,
       items: [
-        { label: "comment", actor: "colinhacks", bot: false, at: ago(12), url: `${PR}#issuecomment-5120099362` },
+        { label: "comment", actor: "dana", bot: false, at: ago(12), url: `${PR}#issuecomment-5120099362` },
         { label: "review comment", actor: "pullfrog", bot: true, at: ago(8), url: `${PR}#pullrequestreview-4831999377` },
         { label: "approval", actor: "dana", bot: false, at: ago(5), url: `${PR}#pullrequestreview-4810267375` },
       ],
@@ -68,7 +68,7 @@ const CASES = [
     steer: {
       ref: "nubjs/nub#587",
       omitted: 0,
-      items: [{ label: "comment", actor: "colinhacks", bot: false, at: ago(4), url: `${PR}#issuecomment-5120099362` }],
+      items: [{ label: "comment", actor: "dana", bot: false, at: ago(4), url: `${PR}#issuecomment-5120099362` }],
     },
   },
   {
@@ -82,7 +82,7 @@ const CASES = [
     steer: {
       ref: "nubjs/nub#587",
       omitted: 0,
-      items: [{ label: "comment", actor: "colinhacks", bot: false, at: ago(4), url: `${PR}#issuecomment-5120099362` }],
+      items: [{ label: "comment", actor: "dana", bot: false, at: ago(4), url: `${PR}#issuecomment-5120099362` }],
     },
     extraTail: "\n\nSOME FUTURE INSTRUCTION this build has never heard of.\nnub run some-future-command --with-flags",
   },

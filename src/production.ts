@@ -402,7 +402,7 @@ function legacyProject(): { id: string; root: string; name: string; slug: string
 
 /**
  * Where to land under those rules (upstream's answer since a project's board became the default view
- * on 2026-10-06, colinhacks/frizz 0a3b9139):
+ * on 2026-10-06, upstream Frizz commit 0a3b9139):
  *
  *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
  *   - run in a repository Ntwine has not seen (`offer`): the add-project dialog asking about it,

@@ -20,7 +20,7 @@ const [home, _socket, port, slugArg] = process.argv.slice(2)
 if (!home || !port) throw new Error("usage: <tempHome> <unused> <port> [slug] [--no-ask]")
 const withAsk = !process.argv.includes("--no-ask")
 
-const projectDir = "/Users/colinmcd94/Documents/projects/ntwine"
+const projectDir = "/Users/me/Documents/projects/ntwine"
 const cwdSlug = projectDir.replaceAll("/", "-")
 const sessionId = randomUUID()
 const slug = slugArg && !slugArg.startsWith("--") ? slugArg : "ask-placement-probe"

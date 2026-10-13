@@ -36,7 +36,7 @@ if (!home) throw new Error("--home is required (take it from adhoc-stack's json 
 
 const SLUG = `subagent-taskid-${Date.now().toString(36)}`
 const SESSION = randomUUID()
-const CWD = "/Users/colinmcd94/Documents/projects/ntwine"
+const CWD = "/Users/me/Documents/projects/ntwine"
 const projectDir = join(home, ".claude", "projects", CWD.replace(/[/.]/g, "-"))
 const transcript = join(projectDir, `${SESSION}.jsonl`)
 

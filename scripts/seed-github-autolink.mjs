@@ -62,7 +62,7 @@ git show 749a37b   # closes #123
 \`\`\`
 
 A reference inside link text must not nest an anchor: [see #12](https://example.com/x). A URL the
-author already wrote stays one link: https://github.com/colinhacks/frizz/commit/749a37b`
+author already wrote stays one link: https://github.com/ssalbdivad/ntwine/commit/749a37b`
 
 user("Show me both halves of the autolinker.")
 assistant(`${LINKED}\n\n${PLAIN}`)

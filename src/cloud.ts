@@ -27,7 +27,7 @@ import { connectRelay } from "./relay-connection.ts";
  * Three ways to have a hostname, told apart by the shape of the answer:
  *
  *   (empty)            -> CLAIM a private unguessable name on frizz.sh — no account, no sign-in
- *   colin              -> CLAIM `colin.frizz.sh` from the registrar, bound to your GitHub account
+ *   dana               -> CLAIM `dana.frizz.sh` from the registrar, bound to your GitHub account
  *                         through a no-permission GitHub sign-in (github-device-flow.ts). PAUSED
  *                         while CUSTOM_NAMES_OFFERED is false: the answer is refused up front.
  *   board.example.com  -> a tunnel you made yourself, which Ntwine only runs
@@ -38,7 +38,7 @@ import { connectRelay } from "./relay-connection.ts";
  */
 
 export interface CloudConfig {
-  /** The public hostname, e.g. `colin.frizz.sh`. Stored without a scheme; it is always https. */
+  /** The public hostname, e.g. `dana.frizz.sh`. Stored without a scheme; it is always https. */
   hostname: string;
   /**
    * The cloudflared tunnel name to run, for a tunnel the operator made themselves.
@@ -49,7 +49,7 @@ export interface CloudConfig {
   tunnel?: string;
   /** Optional explicit cloudflared config path; defaults beside the others in ~/.cloudflared. */
   config?: string;
-  /** The claimed label, e.g. `colin`. Its presence is what marks this as a registrar-issued name. */
+  /** The claimed label, e.g. `dana`. Its presence is what marks this as a registrar-issued name. */
   claim?: string;
   /**
    * How the name is served.
@@ -94,7 +94,7 @@ export function describeCloudConfig(config: CloudConfig): string {
 export const REGISTRAR_IS_LIVE = true;
 
 /**
- * Are CUSTOM names (`colin.frizz.sh`, bound to a GitHub account) offered?
+ * Are CUSTOM names (`dana.frizz.sh`, bound to a GitHub account) offered?
  *
  * No, as of 2026-10-08, until Ntwine's GitHub OAuth app is registered: the client id in
  * github-device-flow.ts is still the placeholder, so a custom claim could only refuse with
@@ -142,7 +142,7 @@ export function isRelayConfig(config: CloudConfig): boolean {
 export const CLAIM_ZONE = "frizz.sh";
 
 /**
- * The claim label a hostname inside the zone stands for: `colin.frizz.sh` → `colin`. Null for a
+ * The claim label a hostname inside the zone stands for: `dana.frizz.sh` → `dana`. Null for a
  * hostname outside the zone, the zone apex, or a deeper name the registrar never hands out.
  */
 export function zoneClaimLabel(hostname: string): string | null {
@@ -279,7 +279,7 @@ export function writeCloudConfig(config: CloudConfig, home = homedir()): void {
 export function normalizeHostname(raw: string): string {
   const trimmed = raw.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/\.$/, "");
   if (!trimmed || !trimmed.includes(".")) {
-    throw new Error(`invalid hostname: ${raw} (expected something like colin.frizz.sh)`);
+    throw new Error(`invalid hostname: ${raw} (expected something like dana.frizz.sh)`);
   }
   return trimmed.toLowerCase();
 }

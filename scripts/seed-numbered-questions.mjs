@@ -20,7 +20,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-numbered-questions.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -39,7 +39,7 @@ const now = () => new Date().toISOString()
 let uuidN = 0
 const uuid = () => `0000000${(++uuidN).toString().padStart(4, "0")}-0000-4000-8000-000000000000`.slice(-36)
 
-// Verbatim from ~/.claude/projects/-Users-colinmcd94-Documents-projects-nub/a6dd0278-….jsonl (msg d316760a).
+// Verbatim from ~/.claude/projects/-Users-me-Documents-projects-nub/a6dd0278-….jsonl (msg d316760a).
 const NUMBERED_ASK = [
   "This is the last round, so let me put the real remaining unclarities on the table.",
   "",

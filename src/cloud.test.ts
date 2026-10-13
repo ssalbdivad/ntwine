@@ -43,7 +43,7 @@ const fakeGithub = { authorize: async () => ({ token: "gho_testtoken", login: "t
 
 /** A registrar that answers every claim, so the CLI side can be driven without one deployed. */
 async function claimServer(
-  reply: unknown = { hostname: "colin.frizz.sh", token: "run-token", leaseExpiresAt: 0, renewed: false },
+  reply: unknown = { hostname: "dana.frizz.sh", token: "run-token", leaseExpiresAt: 0, renewed: false },
 ) {
   const claims: Array<Record<string, unknown>> = [];
   const server: Server = createServer((req, res) => {
@@ -76,10 +76,10 @@ function tempHome() {
 
 test("a pasted URL, a trailing slash or a stray dot all resolve to the same hostname", () => {
   // People paste the address bar. Refusing that would be a pointless second question.
-  for (const raw of ["colin.frizz.sh", "https://colin.frizz.sh", "https://colin.frizz.sh/", "COLIN.Frizz.SH", "colin.frizz.sh."]) {
-    assert.equal(normalizeHostname(raw), "colin.frizz.sh", raw);
+  for (const raw of ["dana.frizz.sh", "https://dana.frizz.sh", "https://dana.frizz.sh/", "DANA.Frizz.SH", "dana.frizz.sh."]) {
+    assert.equal(normalizeHostname(raw), "dana.frizz.sh", raw);
   }
-  assert.equal(normalizeHostname("  https://colin.frizz.sh/board  "), "colin.frizz.sh");
+  assert.equal(normalizeHostname("  https://dana.frizz.sh/board  "), "dana.frizz.sh");
 });
 
 test("something that is not a hostname is refused at the prompt, not at the 403", () => {
@@ -93,8 +93,8 @@ test("the config round-trips, so the second run of --cloud asks nothing", () => 
   const home = tempHome();
   try {
     assert.equal(readCloudConfig(home), null, "no config means first run");
-    writeCloudConfig({ hostname: "colin.frizz.sh", tunnel: "colin" }, home);
-    assert.deepEqual(readCloudConfig(home), { hostname: "colin.frizz.sh", tunnel: "colin" });
+    writeCloudConfig({ hostname: "dana.frizz.sh", tunnel: "dana" }, home);
+    assert.deepEqual(readCloudConfig(home), { hostname: "dana.frizz.sh", tunnel: "dana" });
     assert.ok(readFileSync(cloudConfigPath(home), "utf8").endsWith("\n"), "written as a normal text file");
   } finally {
     rmSync(home, { recursive: true, force: true });
@@ -111,14 +111,14 @@ test("saving the setup on a machine with no ~/.ntwine does not create one", () =
   try {
     const paths = ntwinePaths({ home });
     assert.equal(paths.legacy, false, "a temp home starts out as a fresh install");
-    writeCloudConfig({ hostname: "colin.frizz.sh", tunnel: "colin" }, home);
+    writeCloudConfig({ hostname: "dana.frizz.sh", tunnel: "dana" }, home);
     assert.equal(existsSync(join(home, ".ntwine")), false, "the literal directory must not appear");
     assert.equal(cloudConfigPath(home), join(paths.data, "cloud.json"));
     assert.equal(tunnelTokenPath(home), join(paths.state, "tunnel-token"));
     // Afresh, as the NEXT launch would: this process memoised its answer above, so a plain
     // ntwinePaths() here could not fail.
     assert.equal(ntwinePathsNow({ home }).legacy, false, "the next launch still resolves the install the same way");
-    assert.deepEqual(readCloudConfig(home), { hostname: "colin.frizz.sh", tunnel: "colin" });
+    assert.deepEqual(readCloudConfig(home), { hostname: "dana.frizz.sh", tunnel: "dana" });
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
@@ -153,14 +153,14 @@ test("a corrupt or half-written config reads as absent rather than throwing", ()
 test("an explicit cloudflared config wins; otherwise it is found or reported missing", () => {
   const home = tempHome();
   try {
-    const base = { hostname: "colin.frizz.sh", tunnel: "colin" };
+    const base = { hostname: "dana.frizz.sh", tunnel: "dana" };
     assert.equal(resolveTunnelConfigPath(base, home), null, "absent means let cloudflared use its own default");
 
     mkdirSync(join(home, ".cloudflared"), { recursive: true });
     // The file a setup made before the Frizz -> Ntwine rename is still found; a current one outranks it.
-    writeFileSync(join(home, ".cloudflared", "frizz.yml"), "tunnel: colin\n");
+    writeFileSync(join(home, ".cloudflared", "frizz.yml"), "tunnel: dana\n");
     assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "frizz.yml"));
-    writeFileSync(join(home, ".cloudflared", "ntwine.yml"), "tunnel: colin\n");
+    writeFileSync(join(home, ".cloudflared", "ntwine.yml"), "tunnel: dana\n");
     assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "ntwine.yml"));
 
     assert.equal(resolveTunnelConfigPath({ ...base, config: "/somewhere/else.yml" }, home), "/somewhere/else.yml");
@@ -212,8 +212,8 @@ test("a claimed name stores the token at 0600, apart from the world-readable con
   const home = tempHome();
   const server = await claimServer();
   try {
-    const config = await establishCloudConfig("colin", 9393, home, server.origin, fakeGithub);
-    assert.deepEqual(config, { hostname: "colin.frizz.sh", claim: "colin", serve: "tunnel" });
+    const config = await establishCloudConfig("dana", 9393, home, server.origin, fakeGithub);
+    assert.deepEqual(config, { hostname: "dana.frizz.sh", claim: "dana", serve: "tunnel" });
     assert.equal(readTunnelToken(home), "run-token");
     // The first claim is the one that carries the GitHub token, and it is the device-flow one.
     assert.equal(server.claims[0]?.github, "gho_testtoken", "the claim carries the injected token");
@@ -239,8 +239,8 @@ test("a launch renews the lease, and falls back to the cached token when the reg
   const home = tempHome();
   const server = await claimServer();
   try {
-    await establishCloudConfig("colin", 9393, home, server.origin, fakeGithub);
-    const config = { hostname: "colin.frizz.sh", claim: "colin" };
+    await establishCloudConfig("dana", 9393, home, server.origin, fakeGithub);
+    const config = { hostname: "dana.frizz.sh", claim: "dana" };
 
     const renewed = await resolveRunToken(config, 9393, home, undefined, server.origin);
     assert.equal(renewed, "run-token");
@@ -268,7 +268,7 @@ test("a bring-your-own config needs no token at all", async () => {
 test("a claimed tunnel runs from its token; a hand-made one runs by name", () => {
   // cloudflared takes an entirely different command line for the two. Getting it wrong means the
   // tunnel never connects and the hostname serves a Cloudflare error with nothing to explain it.
-  const claimed = startTunnel({ hostname: "colin.frizz.sh", claim: "colin" }, () => {}, () => {}, "/nowhere", "tok");
+  const claimed = startTunnel({ hostname: "dana.frizz.sh", claim: "dana" }, () => {}, () => {}, "/nowhere", "tok");
   const spawnArgs = claimed.child.spawnargs;
   claimed.stop();
   assert.deepEqual(spawnArgs.slice(1), ["tunnel", "--no-autoupdate", "run", "--token", "tok"]);
@@ -285,10 +285,10 @@ test("a config naming neither a tunnel nor a claim reads as absent", () => {
   const home = tempHome();
   try {
     mkdirSync(join(home, ".ntwine"), { recursive: true });
-    writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "colin.frizz.sh" }));
+    writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "dana.frizz.sh" }));
     assert.equal(readCloudConfig(home), null);
-    writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "colin.frizz.sh", claim: "colin" }));
-    assert.deepEqual(readCloudConfig(home), { hostname: "colin.frizz.sh", claim: "colin" });
+    writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "dana.frizz.sh", claim: "dana" }));
+    assert.deepEqual(readCloudConfig(home), { hostname: "dana.frizz.sh", claim: "dana" });
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
@@ -300,7 +300,7 @@ test("a first claim that cannot reach the registrar points at the path that work
   const home = tempHome();
   try {
     await assert.rejects(
-      establishCloudConfig("colin", 9393, home, "http://127.0.0.1:1", fakeGithub),
+      establishCloudConfig("dana", 9393, home, "http://127.0.0.1:1", fakeGithub),
       /could not reach the Ntwine registrar[\s\S]*tunnel of your own/,
     );
   } finally {
@@ -328,8 +328,8 @@ test("naming a registrar explicitly bypasses the gate, which is how the deploy g
   const home = tempHome();
   const server = await claimServer();
   try {
-    const config = await establishCloudConfig("colin", 9393, home, server.origin, fakeGithub);
-    assert.deepEqual(config, { hostname: "colin.frizz.sh", claim: "colin", serve: "tunnel" });
+    const config = await establishCloudConfig("dana", 9393, home, server.origin, fakeGithub);
+    assert.deepEqual(config, { hostname: "dana.frizz.sh", claim: "dana", serve: "tunnel" });
   } finally {
     await server.close();
     rmSync(home, { recursive: true, force: true });
@@ -341,10 +341,10 @@ test("a registrar that returns NO token means the name is served by the relay", 
   // Relay mode is the default now: the board opens a socket to the relay and proves itself with its
   // keypair, so there is no tunnel to run and nothing to cache.
   const home = tempHome();
-  const server = await claimServer({ hostname: "colin.frizz.sh", leaseExpiresAt: 0, renewed: false });
+  const server = await claimServer({ hostname: "dana.frizz.sh", leaseExpiresAt: 0, renewed: false });
   try {
-    const config = await establishCloudConfig("colin", 9393, home, server.origin, fakeGithub);
-    assert.deepEqual(config, { hostname: "colin.frizz.sh", claim: "colin", serve: "relay" });
+    const config = await establishCloudConfig("dana", 9393, home, server.origin, fakeGithub);
+    assert.deepEqual(config, { hostname: "dana.frizz.sh", claim: "dana", serve: "relay" });
     assert.equal(readTunnelToken(home), null, "a relay board must cache no run token");
     assert.equal(isRelayConfig(config), true);
   } finally {
@@ -355,33 +355,33 @@ test("a registrar that returns NO token means the name is served by the relay", 
 
 test("isRelayConfig reads the file and nothing else; the older shapes are not relay configs", async () => {
   // Reconciling them is reconcileCloudConfig's job (below); the predicate must not guess.
-  assert.equal(isRelayConfig({ hostname: "colin.frizz.sh", claim: "colin" }), false);
-  assert.equal(isRelayConfig({ hostname: "colin.frizz.sh", claim: "colin", serve: "tunnel" }), false);
+  assert.equal(isRelayConfig({ hostname: "dana.frizz.sh", claim: "dana" }), false);
+  assert.equal(isRelayConfig({ hostname: "dana.frizz.sh", claim: "dana", serve: "tunnel" }), false);
   assert.equal(isRelayConfig({ hostname: "b.example.com", tunnel: "b" }), false, "a hand-made tunnel is not relayed");
 });
 
 test("a hostname inside the zone stands for exactly one claim label", () => {
-  assert.equal(zoneClaimLabel("colin.frizz.sh"), "colin");
+  assert.equal(zoneClaimLabel("dana.frizz.sh"), "dana");
   assert.equal(zoneClaimLabel("frizz.sh"), null, "the apex is not a name");
   assert.equal(zoneClaimLabel("a.b.frizz.sh"), null, "the registrar never hands out a deeper name");
   assert.equal(zoneClaimLabel("board.example.com"), null);
   assert.equal(zoneClaimLabel("notfrizz.sh"), null);
 });
 
-// 2026-08-25: `ntwine up` ran the hand-made tunnel for colin.frizz.sh faithfully, and the phone that
+// 2026-08-25: `ntwine up` ran the hand-made tunnel for dana.frizz.sh faithfully, and the phone that
 // scanned the QR read "No Ntwine board has claimed this name." — the relay's wildcard route had taken
 // the zone, and nothing in `up` would ever have claimed the name. Claiming is part of `up`.
 test("up claims a zone hostname that was saved as a hand-made tunnel, and serves it by relay", async () => {
   const home = tempHome();
-  const server = await claimServer({ hostname: "colin.frizz.sh", leaseExpiresAt: 0, renewed: false });
+  const server = await claimServer({ hostname: "dana.frizz.sh", leaseExpiresAt: 0, renewed: false });
   const notices: string[] = [];
   try {
-    const stale = { hostname: "colin.frizz.sh", tunnel: "colin", config: "/x/ntwine.yml" };
+    const stale = { hostname: "dana.frizz.sh", tunnel: "dana", config: "/x/ntwine.yml" };
     const config = await reconcileCloudConfig(stale, 9393, home, (m) => notices.push(m), server.origin, fakeGithub);
-    assert.deepEqual(config, { hostname: "colin.frizz.sh", claim: "colin", serve: "relay" });
+    assert.deepEqual(config, { hostname: "dana.frizz.sh", claim: "dana", serve: "relay" });
     assert.equal(server.claims.length, 1, "the label is claimed through the same call a first launch makes");
-    assert.equal(server.claims[0]!.name, "colin");
-    assert.ok(notices.some((m) => m.includes("claiming colin")), notices.join("\n"));
+    assert.equal(server.claims[0]!.name, "dana");
+    assert.ok(notices.some((m) => m.includes("claiming dana")), notices.join("\n"));
   } finally {
     await server.close();
     rmSync(home, { recursive: true, force: true });
@@ -390,11 +390,11 @@ test("up claims a zone hostname that was saved as a hand-made tunnel, and serves
 
 test("up moves a claim issued in the tunnel era onto the relay", async () => {
   const home = tempHome();
-  const server = await claimServer({ hostname: "colin.frizz.sh", leaseExpiresAt: 0, renewed: true });
+  const server = await claimServer({ hostname: "dana.frizz.sh", leaseExpiresAt: 0, renewed: true });
   try {
-    const config = await reconcileCloudConfig({ hostname: "colin.frizz.sh", claim: "colin", serve: "tunnel" }, 9393, home, undefined, server.origin, fakeGithub);
-    assert.deepEqual(config, { hostname: "colin.frizz.sh", claim: "colin", serve: "relay" });
-    assert.equal(server.claims[0]!.name, "colin");
+    const config = await reconcileCloudConfig({ hostname: "dana.frizz.sh", claim: "dana", serve: "tunnel" }, 9393, home, undefined, server.origin, fakeGithub);
+    assert.deepEqual(config, { hostname: "dana.frizz.sh", claim: "dana", serve: "relay" });
+    assert.equal(server.claims[0]!.name, "dana");
   } finally {
     await server.close();
     rmSync(home, { recursive: true, force: true });
@@ -405,7 +405,7 @@ test("reconciling leaves a relay claim and an operator's own hostname exactly as
   const home = tempHome();
   const server = await claimServer();
   try {
-    const relay = { hostname: "colin.frizz.sh", claim: "colin", serve: "relay" as const };
+    const relay = { hostname: "dana.frizz.sh", claim: "dana", serve: "relay" as const };
     assert.equal(await reconcileCloudConfig(relay, 9393, home, undefined, server.origin, fakeGithub), relay);
     const own = { hostname: "board.example.com", tunnel: "my-board" };
     assert.equal(await reconcileCloudConfig(own, 9393, home, undefined, server.origin, fakeGithub), own);
@@ -467,13 +467,13 @@ test("a named claim never runs `gh` and never sends its token", { skip: process.
   writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> "${ran}"\necho gho_SECRET_FROM_GH_CLI\n`, { mode: 0o755 });
   const path = process.env.PATH;
   process.env.PATH = `${bin}:${path}`;
-  const server = await claimServer({ hostname: "colin.frizz.sh", leaseExpiresAt: 0, renewed: false });
+  const server = await claimServer({ hostname: "dana.frizz.sh", leaseExpiresAt: 0, renewed: false });
   try {
     // The fake `gh` is live: a control proving the test could see it if the claim path used it.
     assert.equal(execFileSync("gh", ["auth", "token"], { encoding: "utf8" }).trim(), "gho_SECRET_FROM_GH_CLI");
     rmSync(ran, { force: true });
 
-    await establishCloudConfig("colin", 9393, home, server.origin, {
+    await establishCloudConfig("dana", 9393, home, server.origin, {
       authorize: async () => ({ token: "gho_zeroScopeDeviceToken", login: "tester" }),
     });
     const sent = JSON.stringify(server.claims);

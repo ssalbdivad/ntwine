@@ -17,7 +17,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-markdown-reader.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -82,7 +82,7 @@ writeFileSync(join(docs, "nested", "deep.md"), [
   "You reached this by following a relative link, so the base directory resolved.",
   "",
   "- [Back up to the guide](../guide.md) — `..` climbs a directory.",
-  "- [An absolute link out to the repo](/Users/colinmcd94/Documents/projects/ntwine/AGENTS.md)",
+  "- [An absolute link out to the repo](/Users/me/Documents/projects/ntwine/AGENTS.md)",
 ].join("\n"))
 
 const user = (text) => ({
@@ -121,7 +121,7 @@ const records = [
     "",
     `- [The reader guide](${docs}/guide.md) — an ordinary Markdown link to an absolute path.`,
     `- [The nested document](${docs}/nested/deep.md) — another one, a directory down.`,
-    "- [This repo's own AGENTS.md](/Users/colinmcd94/Documents/projects/ntwine/AGENTS.md) — a real repo doc.",
+    "- [This repo's own AGENTS.md](/Users/me/Documents/projects/ntwine/AGENTS.md) — a real repo doc.",
     // CONTROL — a non-Markdown local file must still be handed to the desktop opener.
     `- [A plain text file](${docs}/notes.txt) — NOT Markdown, so it still opens externally.`,
     "",

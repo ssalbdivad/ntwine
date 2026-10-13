@@ -17,7 +17,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-broken-image-question.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -96,7 +96,7 @@ records.push(assistant([
   "",
   `![The GitHub picker listing real zod issues with three selected](${MISSING})`,
   "",
-  "The picker shot is real: I pointed a throwaway repo at `colinhacks/zod`, so it's showing genuine",
+  "The picker shot is real: I pointed a throwaway repo at `arktypeio/arktype`, so it's showing genuine",
   "issues with numbers, authors and reaction counts, three selected, dispatch enabled.",
   "",
   // CONTROL 1 — a markdown image whose file EXISTS must still render as a picture.

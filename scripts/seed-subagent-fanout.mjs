@@ -24,7 +24,7 @@ const user = (text) => JSON.stringify({ type: "user", timestamp: at, message: { 
 // The project the adhoc stack registered — its cwdSlug names the session-log dir.
 const projectsRoot = join(home, ".claude", "projects")
 mkdirSync(projectsRoot, { recursive: true })
-const cwdSlug = readdirSync(projectsRoot)[0] ?? "-Users-colinmcd94-Documents-projects-ntwine"
+const cwdSlug = readdirSync(projectsRoot)[0] ?? "-Users-me-Documents-projects-ntwine"
 const logDir = join(projectsRoot, cwdSlug)
 const subagents = join(logDir, SESSION, "subagents")
 mkdirSync(subagents, { recursive: true })

@@ -37,7 +37,7 @@ const assistant = (text) => push({ type: "assistant", message: { role: "assistan
 
 // The reported shape verbatim (2026-08-24 screenshot): a bare pasted URL on its own line.
 user(`We've already closed this, or at least the linked issue is already closed...
-https://github.com/colinhacks/zod/pull/6013
+https://github.com/arktypeio/arktype/pull/6013
 
 Why don't we look for other PRs like this that close issues that close already-closed issues..`)
 assistant("Looking at #6013 now.")

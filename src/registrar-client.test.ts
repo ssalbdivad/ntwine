@@ -38,7 +38,7 @@ async function registrar(handler: (body: unknown) => { status: number; body: unk
 }
 
 const ok = {
-  hostname: "colin.frizz.sh",
+  hostname: "dana.frizz.sh",
   token: "run-token",
   leaseExpiresAt: 1_800_000_000_000,
   renewed: false,
@@ -52,7 +52,7 @@ test("a claim is signed, sent to /claim, and verifies on the far side", async ()
     const identity = await generateClaimIdentity();
     const now = 1_700_000_000_000;
     const result = await claimName({
-      name: "colin",
+      name: "dana",
       port: 9393,
       identity,
       origin: server.origin,
@@ -65,7 +65,7 @@ test("a claim is signed, sent to /claim, and verifies on the far side", async ()
     assert.equal(call.method, "POST");
     const verdict = await verifyClaim(call.body, now);
     assert.ok(verdict.ok, "the registrar could not verify what the client sent");
-    assert.equal(verdict.payload.name, "colin");
+    assert.equal(verdict.payload.name, "dana");
     assert.equal(verdict.payload.port, 9393);
   } finally {
     await server.close();
@@ -76,7 +76,7 @@ test("a trailing slash on the origin does not produce a double slash", async () 
   const server = await registrar(() => ({ status: 200, body: ok }));
   try {
     const identity = await generateClaimIdentity();
-    await claimName({ name: "colin", port: 9393, identity, origin: `${server.origin}/` });
+    await claimName({ name: "dana", port: 9393, identity, origin: `${server.origin}/` });
     assert.equal((server.seen[0] as { url: string }).url, "/claim");
   } finally {
     await server.close();
@@ -91,7 +91,7 @@ test("a taken name is reported as advice, not as the server's raw code", async (
   try {
     const identity = await generateClaimIdentity();
     await assert.rejects(
-      claimName({ name: "colin", port: 9393, identity, origin: server.origin }),
+      claimName({ name: "dana", port: 9393, identity, origin: server.origin }),
       (error: ClaimError) => {
         assert.equal(error.code, "name-taken");
         assert.match(error.message, /already taken — try another/);
@@ -113,7 +113,7 @@ test("an unknown error code falls back to the registrar's own words", async () =
   try {
     const identity = await generateClaimIdentity();
     await assert.rejects(
-      claimName({ name: "colin", port: 9393, identity, origin: server.origin }),
+      claimName({ name: "dana", port: 9393, identity, origin: server.origin }),
       (error: ClaimError) => {
         assert.equal(error.code, "quota-exhausted");
         assert.match(error.message, /namespace is full/);
@@ -130,7 +130,7 @@ test("a registrar that is DOWN is distinguished from one that refused", async ()
   const identity = await generateClaimIdentity();
   await assert.rejects(
     // Port 1 on loopback: nothing listens, so this is a connection failure rather than an HTTP error.
-    claimName({ name: "colin", port: 9393, identity, origin: "http://127.0.0.1:1" }),
+    claimName({ name: "dana", port: 9393, identity, origin: "http://127.0.0.1:1" }),
     (error: ClaimError) => {
       assert.equal(error.code, "unreachable");
       assert.match(error.message, /could not reach the Ntwine registrar/);
@@ -148,7 +148,7 @@ test("a 200 that is not a claim result is refused rather than half-used", async 
     try {
       const identity = await generateClaimIdentity();
       await assert.rejects(
-        claimName({ name: "colin", port: 9393, identity, origin: server.origin }),
+        claimName({ name: "dana", port: 9393, identity, origin: server.origin }),
         (error: ClaimError) => {
           assert.equal(error.code, "malformed-response");
           return true;

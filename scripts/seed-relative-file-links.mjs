@@ -18,7 +18,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, project = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
+const { home, project = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-relative-file-links.mjs --home=/abs/temp-home [--project=/abs/dir]")
   process.exit(1)

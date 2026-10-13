@@ -6,7 +6,7 @@ import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
 
-const require = createRequire("/Users/colinmcd94/Documents/projects/ntwine/packages/server/index.js")
+const require = createRequire("/Users/me/Documents/projects/ntwine/packages/server/index.js")
 const WebSocket = require("ws")
 
 const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "ntwine-native-listen-"))
