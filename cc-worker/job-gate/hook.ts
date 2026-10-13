@@ -18,8 +18,8 @@
 import { fileURLToPath } from "node:url"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { homedir } from "node:os"
 import { classify } from "./classify.ts"
+import { stateDir } from "./gate.ts"
 
 export const NTWINE_RUN = fileURLToPath(new URL("./ntwine-run.ts", import.meta.url))
 
@@ -163,8 +163,8 @@ export function rewriteCommand(command: string, prefix: string): string | null {
 /** The off-switch in the host-wide config file, so a running fleet can be switched off at once. */
 function gateDisabledByFile(env: Record<string, string | undefined>): boolean {
   try {
-    const dir = env.NTWINE_GATE_DIR || join(env.XDG_STATE_HOME || join(env.HOME || homedir(), ".local", "state"), "ntwine", "job-gate")
-    return String(JSON.parse(readFileSync(join(dir, "config.json"), "utf8"))?.NTWINE_GATE) === "0"
+    const config = JSON.parse(readFileSync(join(stateDir(env), "config.json"), "utf8"))
+    return String(config?.NTWINE_GATE ?? config?.FRIZZ_GATE) === "0"
   } catch {
     return false
   }

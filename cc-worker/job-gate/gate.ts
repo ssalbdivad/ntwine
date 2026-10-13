@@ -52,7 +52,7 @@
 //   NTWINE_GATE_HEAP_FLOOR_MB     the lowest --max-old-space-size the gate ever sets (A3 measurement)
 //   NTWINE_GATE_CAPS=0            do not inject NODE_OPTIONS / GOMEMLIMIT
 //   NTWINE_GATE_SCOPE=0           do not run jobs in a systemd memory scope
-import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync } from "node:fs"
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync } from "node:fs"
 import { cpus, homedir, totalmem } from "node:os"
 import { basename, dirname, join, relative } from "node:path"
 import { DEFAULT_ESTIMATE_MB, type Classified } from "./classify.ts"
@@ -64,7 +64,11 @@ export type Env = Record<string, string | undefined>
 export function stateDir(env: Env = process.env): string {
   if (env.NTWINE_GATE_DIR) return env.NTWINE_GATE_DIR
   const xdg = env.XDG_STATE_HOME || join(env.HOME || homedir(), ".local", "state")
-  return join(xdg, "ntwine", "job-gate")
+  // A host whose queue was made before the Frizz -> Ntwine rename keeps it, so a worker on either side
+  // of the rename waits in the ONE queue rather than each in its own.
+  const current = join(xdg, "ntwine", "job-gate")
+  const legacy = join(xdg, "frizz", "job-gate")
+  return !existsSync(current) && existsSync(legacy) ? legacy : current
 }
 
 function readConfigFile(dir: string): Env {
@@ -72,7 +76,11 @@ function readConfigFile(dir: string): Env {
     const parsed = JSON.parse(readFileSync(join(dir, "config.json"), "utf8"))
     if (!parsed || typeof parsed !== "object") return {}
     const out: Env = {}
-    for (const [k, v] of Object.entries(parsed)) if (k.startsWith("NTWINE_GATE")) out[k] = String(v)
+    for (const [k, v] of Object.entries(parsed)) {
+      // A config written before the rename names its keys FRIZZ_GATE*; a current key wins over its old twin.
+      if (k.startsWith("NTWINE_GATE")) out[k] = String(v)
+      else if (k.startsWith("FRIZZ_GATE")) out[`NTWINE_${k.slice("FRIZZ_".length)}`] ??= String(v)
+    }
     return out
   } catch {
     return {}

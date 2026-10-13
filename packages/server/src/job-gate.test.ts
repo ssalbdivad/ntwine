@@ -146,6 +146,7 @@ test("a copy where the gate cannot load (under node_modules, or missing) emits b
   mkdirSync(installed, { recursive: true })
   cpSync(join(cc, "hooks"), join(installed, "hooks"), { recursive: true })
   cpSync(join(cc, "job-gate"), join(installed, "job-gate"), { recursive: true })
+  cpSync(join(cc, "lib"), join(installed, "lib"), { recursive: true }) // every hook imports lib/legacy-env.mjs
   const inNodeModules = join(installed, "hooks", "bash-background.mjs")
   assert.deepEqual(runHook(inNodeModules, { command: "pnpm test" }), {})
   assert.deepEqual(runHook(inNodeModules, { command: "pnpm test", run_in_background: true }).hookSpecificOutput.updatedInput, {
@@ -355,4 +356,19 @@ test("a second heavy job from a session at its cap queues, says why once, and st
   const lines = readFileSync(join(dir, "jobs.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l))
   const queued = lines.find((l) => l.cmd === "sh -c echo second")
   assert.ok(queued.queueWaitMs >= 800, `waited ${queued.queueWaitMs}ms`)
+})
+
+// ───────────────────────────── state from before the Frizz -> Ntwine rename
+
+test("a host whose queue predates the rename keeps it, config keys and all, until an ntwine one exists", () => {
+  const xdg = mkdtempSync(join(tmpdir(), "job-gate-xdg-"))
+  const env = { XDG_STATE_HOME: xdg }
+  assert.equal(readSettings(env).dir, join(xdg, "ntwine", "job-gate"), "a fresh host gets the current name")
+  mkdirSync(join(xdg, "frizz", "job-gate"), { recursive: true })
+  writeFileSync(join(xdg, "frizz", "job-gate", "config.json"), JSON.stringify({ FRIZZ_GATE: "0" }))
+  const legacy = readSettings(env)
+  assert.equal(legacy.dir, join(xdg, "frizz", "job-gate"))
+  assert.equal(legacy.enabled, false, "the old off-switch key still switches the gate off")
+  mkdirSync(join(xdg, "ntwine", "job-gate"), { recursive: true })
+  assert.equal(readSettings(env).dir, join(xdg, "ntwine", "job-gate"), "an ntwine queue outranks it")
 })
