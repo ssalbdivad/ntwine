@@ -7,17 +7,17 @@ import { completePath } from "./path-complete.ts"
 
 function fixture() {
   const home = mkdtempSync(join(tmpdir(), "ntwine-path-complete-"))
-  for (const dir of ["code/ntwine", "code/Fray", "code/nub", "code/.hidden", "other"]) mkdirSync(join(home, dir), { recursive: true })
-  writeFileSync(join(home, "code/ntwine.txt"), "")
+  for (const dir of ["code/frizz", "code/Fray", "code/nub", "code/.hidden", "other"]) mkdirSync(join(home, dir), { recursive: true })
+  writeFileSync(join(home, "code/frizz.txt"), "")
   symlinkSync(join(home, "other"), join(home, "code/linked"))
   return { home, [Symbol.dispose]: () => rmSync(home, { recursive: true, force: true }) }
 }
 
 test("folders continuing the last segment, case-insensitive, spelled as typed, never files", () => {
   using f = fixture()
-  assert.deepEqual(completePath("~/code/f", f.home), { status: "missing", suggestions: ["~/code/Fray/", "~/code/ntwine/"] })
+  assert.deepEqual(completePath("~/code/f", f.home), { status: "missing", suggestions: ["~/code/Fray/", "~/code/frizz/"] })
   assert.deepEqual(completePath(`${f.home}/code/`, f.home).suggestions, [
-    `${f.home}/code/Fray/`, `${f.home}/code/ntwine/`, `${f.home}/code/linked/`, `${f.home}/code/nub/`,
+    `${f.home}/code/Fray/`, `${f.home}/code/frizz/`, `${f.home}/code/linked/`, `${f.home}/code/nub/`,
   ])
 })
 
@@ -25,7 +25,7 @@ test("status names what is at the typed path", () => {
   using f = fixture()
   assert.equal(completePath("~/code/nub", f.home).status, "directory")
   assert.equal(completePath("~/code/nub/", f.home).status, "directory")
-  assert.equal(completePath("~/code/ntwine.txt", f.home).status, "file")
+  assert.equal(completePath("~/code/frizz.txt", f.home).status, "file")
   assert.equal(completePath("~/code/nope", f.home).status, "missing")
   assert.deepEqual(completePath("  ", f.home), { status: "empty", suggestions: [] })
 })

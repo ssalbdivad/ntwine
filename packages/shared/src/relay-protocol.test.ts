@@ -60,7 +60,7 @@ test("the single-frame body ceiling stays under a Cloudflare WebSocket message",
 
 test("the handshake signs a fixed-order string, and every field changes it", () => {
   const base = new TextDecoder().decode(relayHandshakeInput("ada", "PUB", 5))
-  assert.equal(base, `ntwine-relay:v${RELAY_PROTOCOL_VERSION}:ada:PUB:5`)
+  assert.equal(base, `frizz-relay:v${RELAY_PROTOCOL_VERSION}:ada:PUB:5`)
   for (const [name, pubkey, at] of [["eve", "PUB", 5], ["ada", "OTHER", 5], ["ada", "PUB", 6]] as const) {
     assert.notEqual(new TextDecoder().decode(relayHandshakeInput(name, pubkey, at)), base)
   }

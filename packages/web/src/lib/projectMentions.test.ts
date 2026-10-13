@@ -41,7 +41,7 @@ test("ranking: slug prefix, word prefix, inside, display name, letters in order;
   assert.deepEqual(matchProjects(PROJECTS, "").map((p) => p.slug), ["home", "arktype", "ntwine-web", "2024"])
   assert.deepEqual(matchProjects(PROJECTS, "ark").map((p) => p.slug), ["arktype"])
   assert.deepEqual(matchProjects(PROJECTS, "web").map((p) => p.slug), ["ntwine-web"])
-  assert.deepEqual(matchProjects(PROJECTS, "fw").map((p) => p.slug), ["ntwine-web"])
+  assert.deepEqual(matchProjects(PROJECTS, "nw").map((p) => p.slug), ["ntwine-web"])
   assert.deepEqual(matchProjects(PROJECTS, "12"), [])
 })
 

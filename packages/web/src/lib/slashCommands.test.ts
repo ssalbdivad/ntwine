@@ -35,9 +35,9 @@ test("a built-in command is offered only where it runs — as the draft's first 
 })
 
 test("completion replaces the whole token in place and leaves one space", () => {
-  assert.deepEqual(insertSlashCommand("run /fri now", 4, 8, "ntwine-stack"), { prose: "run /ntwine-stack now", caret: 17 })
+  assert.deepEqual(insertSlashCommand("run /ntw now", 4, 8, "ntwine-stack"), { prose: "run /ntwine-stack now", caret: 18 })
   assert.deepEqual(insertSlashCommand("/co", 0, 3, "context"), { prose: "/context ", caret: 9 })
-  assert.deepEqual(insertSlashCommand("x /frXXX", 2, 5, "ntwine:gh"), { prose: "x /ntwine:gh ", caret: 12 }, "the tail past the caret goes too")
+  assert.deepEqual(insertSlashCommand("x /ntXXX", 2, 5, "ntwine:gh"), { prose: "x /ntwine:gh ", caret: 13 }, "the tail past the caret goes too")
 })
 
 test("only names the thread can run are tinted, commands only at the start", () => {

@@ -31,7 +31,7 @@ test("a pasted PR or issue URL counts; a commit, a code span and a non-GitHub li
 })
 
 test("one button per thing: repeats, case variants and a link to a comment collapse", () => {
-  const md = "#9, again #9, Colinhacks/Ntwine#9 and https://github.com/colinhacks/frizz/issues/9#issuecomment-1"
+  const md = "#9, again #9, Colinhacks/Frizz#9 and https://github.com/colinhacks/frizz/issues/9#issuecomment-1"
   assert.deepEqual(doneWatchRefs(render(md), REPO), [{ ref: "colinhacks/frizz#9", label: "#9" }])
 })
 
@@ -45,7 +45,7 @@ test("no references, no buttons — and a project with no GitHub repo links none
 
 test("watchedRefs reads the board's armed github rows, case-blind", () => {
   const set = watchedRefs([
-    { kind: "github", target: "Colinhacks/Ntwine#9", state: "armed" },
+    { kind: "github", target: "Colinhacks/Frizz#9", state: "armed" },
     { kind: "github", target: "colinhacks/frizz#10", state: "dropped" },
     { kind: "timer", target: "tmr_1", state: "armed" },
   ])

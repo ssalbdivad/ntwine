@@ -114,7 +114,7 @@ test("a frizz.sh name is claimed through a GitHub sign-in, and a failure goes ba
   await settle();
   assert.deepEqual(claims, ["taken", "ada"]);
   assert.deepEqual(applied, [{ hostname: "ada.frizz.sh", claim: "ada", serve: "relay" }]);
-  assert.match(out.text(), /Serving https:\/\/ada\.ntwine\.sh \(ntwine\.sh\)/);
+  assert.match(out.text(), /Serving https:\/\/ada\.frizz\.sh \(frizz\.sh\)/);
 });
 
 test("escape leaves a form for the menu, and leaves the menu for the readout", () => {
@@ -156,7 +156,7 @@ test("a private name claims on the spot — no form, no GitHub, QR straight away
   await settle();
   assert.deepEqual(claims, [""], "an empty name asks the claimer to mint one");
   assert.deepEqual(applied, [{ hostname: "abcdefghjkmnpqrstuvw.frizz.sh", claim: "abcdefghjkmnpqrstuvw", serve: "relay" }]);
-  assert.match(out.text(), /Serving https:\/\/abcdefghjkmnpqrstuvw\.ntwine\.sh \(ntwine\.sh\)/);
+  assert.match(out.text(), /Serving https:\/\/abcdefghjkmnpqrstuvw\.frizz\.sh \(frizz\.sh\)/);
   assert.match(out.text(), /ntwine_code=c0de/, "the done screen offers the sign-in QR");
   assert.equal(pane.key("x"), "close");
 });
@@ -208,7 +208,7 @@ test("a word claim shows GitHub's device code, and escape on that screen cancels
   type("ada");
   pane.key("\r");
   await settle();
-  assert.match(out.text(), /Confirm your GitHub account to claim ada\.ntwine\.sh/);
+  assert.match(out.text(), /Confirm your GitHub account to claim ada\.frizz\.sh/);
   assert.match(out.text(), /Open\s+https:\/\/github\.com\/login\/device/);
   assert.match(out.text(), /Enter\s+WDJB-MJHT/);
   assert.match(out.text(), /esc cancel/);
