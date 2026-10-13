@@ -118,19 +118,22 @@ export function dispatchProfileGroups(codexModels: readonly CodexModel[], acpAge
   // Only the agents actually on the server's PATH get a row: the catalogue lists eight, and a grid of
   // "not installed" rows would bury the two the operator has. A SAVED agent that has since gone
   // missing surfaces through resolveDispatchPreferences's `modelAvailable`, not through a row here.
-  const acpOptions: ProfileGridOption[] = acpAgents.filter((agent) => agent.available).map((agent) => ({
-    model: acpModelSlug(agent.id),
-    label: agent.label,
-    // No effort axis: an ACP agent runs on its own CLI's model and effort (ProfileGridSelector draws
-    // one "Default" cell for an option with no efforts).
-    efforts: [],
-  }))
-  // A preset is a model of its own row, with its effort ladder, under its agent (acpModelPreset).
-  const available = new Set(acpAgents.filter((agent) => agent.available).map((agent) => agent.id))
-  for (const preset of ACP_MODEL_PRESETS) {
-    if (!available.has(preset.agentId)) continue
-    acpOptions.push({ model: acpModelSlug(preset.agentId, preset.modelId), label: preset.label, defaultEffort: preset.defaultEffort, efforts: [...preset.efforts] })
-  }
+  // A preset (acpModelPreset) is a model of its own row, with its effort ladder, directly under its agent.
+  const acpOptions: ProfileGridOption[] = acpAgents.filter((agent) => agent.available).flatMap((agent) => [
+    {
+      model: acpModelSlug(agent.id),
+      label: agent.label,
+      // No effort axis: an ACP agent runs on its own CLI's model and effort (ProfileGridSelector draws
+      // one "Default" cell for an option with no efforts).
+      efforts: [],
+    },
+    ...ACP_MODEL_PRESETS.filter((preset) => preset.agentId === agent.id).map((preset) => ({
+      model: acpModelSlug(preset.agentId, preset.modelId),
+      label: preset.label,
+      defaultEffort: preset.defaultEffort,
+      efforts: [...preset.efforts],
+    })),
+  ])
   return [
     {
       id: "claude",
