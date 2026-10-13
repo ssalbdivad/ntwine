@@ -203,16 +203,6 @@ function proxyHeaders(
 
 export const ACCESS_CODE_PARAM = "ntwine_code"
 const SESSION_COOKIE = "ntwine_session"
-// The two names before the Frizz -> Ntwine rename (2026-10-13). A device signed in then, or a link
-// minted then, still works: the cookie is read under either name and moved to the new one on the next
-// page load (adoptLegacySession), and the code is redeemed under either.
-const LEGACY_ACCESS_CODE_PARAM = "frizz_code"
-const LEGACY_SESSION_COOKIE = "frizz_session"
-
-/** The remote session this request carries, under today's cookie name or the pre-rename one. */
-function sessionCookie(header: string | undefined): string | undefined {
-  return readCookie(header, SESSION_COOKIE) ?? readCookie(header, LEGACY_SESSION_COOKIE)
-}
 /** Loopback spellings the token gate must never challenge — the operator's own tab on the box. */
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"])
 
@@ -755,7 +745,7 @@ export class RestartSupervisorProxy {
    */
   private sessionAccepted(req: IncomingMessage): boolean {
     if (!this.publicOrigin) return true
-    return this.access.verifySession(sessionCookie(req.headers.cookie))
+    return this.access.verifySession(readCookie(req.headers.cookie, SESSION_COOKIE))
   }
 
   /**
@@ -779,13 +769,13 @@ export class RestartSupervisorProxy {
       remote,
       ...(host ? { host: host.slice(0, 200) } : {}),
       ...(clientIp ? { clientIp: clientIp.slice(0, 200) } : {}),
-      session: this.access.sessionIdOf(sessionCookie(req.headers.cookie)),
+      session: this.access.sessionIdOf(readCookie(req.headers.cookie, SESSION_COOKIE)),
     })
   }
 
   /** Did this request arrive through the public origin carrying a live session? Loopback never does. */
   private carriesRemoteSession(req: IncomingMessage): boolean {
-    return this.arrivedPublicly(req) && this.access.verifySession(sessionCookie(req.headers.cookie))
+    return this.arrivedPublicly(req) && this.access.verifySession(readCookie(req.headers.cookie, SESSION_COOKIE))
   }
 
   /**
@@ -801,7 +791,7 @@ export class RestartSupervisorProxy {
         "content-type": "application/json; charset=utf-8",
         "cache-control": "no-store",
         // Same attributes the exchange set, so the browser matches and drops that exact cookie.
-        ...(clearCookie ? { "set-cookie": [SESSION_COOKIE, LEGACY_SESSION_COOKIE].map((name) => `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`) } : {}),
+        ...(clearCookie ? { "set-cookie": `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` } : {}),
       })
       res.end(JSON.stringify(body))
     }
@@ -809,7 +799,7 @@ export class RestartSupervisorProxy {
       reply(200, { protocol: SUPERVISOR_CONTROL_PROTOCOL, result: "no-remote-session" }, false)
       return
     }
-    const outcome = this.access.signOutSession(sessionCookie(req.headers.cookie))
+    const outcome = this.access.signOutSession(readCookie(req.headers.cookie, SESSION_COOKIE))
     if (outcome.result === "revoked") {
       reply(200, { protocol: SUPERVISOR_CONTROL_PROTOCOL, result: "signed-out", id: outcome.id }, true)
       return
@@ -824,37 +814,12 @@ export class RestartSupervisorProxy {
   }
 
   /**
-   * Move a live session from the pre-rename cookie to today's, on a page load: bounce to the same URL
-   * setting `ntwine_session` (expiring when the session does, as exchangeCode sets it) and clearing
-   * `frizz_session`. Only a top-level GET navigation is redirected — a fetch or a socket carrying the old
-   * cookie is simply accepted under it (sessionCookie), since a redirect there would break the call.
-   */
-  private adoptLegacySession(req: IncomingMessage, res: ServerResponse): boolean {
-    if (req.method !== "GET" || firstHeader(req.headers["sec-fetch-mode"]) !== "navigate") return false
-    if (readCookie(req.headers.cookie, SESSION_COOKIE) !== undefined) return false
-    const session = readCookie(req.headers.cookie, LEGACY_SESSION_COOKIE)
-    if (!session || !this.access.verifySession(session)) return false
-    const expiresAt = Number(session.slice(0, session.indexOf(".")))
-    const maxAge = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
-    res.writeHead(302, {
-      location: req.url || "/",
-      "set-cookie": [
-        `${SESSION_COOKIE}=${session}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`,
-        `${LEGACY_SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
-      ],
-      "cache-control": "no-store",
-    })
-    res.end()
-    return true
-  }
-
-  /**
    * Trade `?ntwine_code=…` for a cookie, then bounce to the same URL
    * without the secret, so it never lands in history, a Referer header, or a screenshot.
    */
   private exchangeCode(req: IncomingMessage, res: ServerResponse): boolean {
     const url = new URL(req.url ?? "/", "http://ntwine.invalid")
-    const code = url.searchParams.get(ACCESS_CODE_PARAM) ?? url.searchParams.get(LEGACY_ACCESS_CODE_PARAM)
+    const code = url.searchParams.get(ACCESS_CODE_PARAM)
     if (code === null) return false
 
     // The User-Agent is the only thing a board ever records about a visitor's browser, and it exists
@@ -872,7 +837,6 @@ export class RestartSupervisorProxy {
     const maxAge = Math.max(0, Math.floor((redeemed.expiresAt - Date.now()) / 1000))
 
     url.searchParams.delete(ACCESS_CODE_PARAM)
-    url.searchParams.delete(LEGACY_ACCESS_CODE_PARAM)
     const target = `${url.pathname}${url.search}${url.hash}` || "/"
     // Secure + SameSite=Lax: the origin is https through the tunnel, and Lax still permits the
     // top-level navigation that lands here while refusing cross-site writes.
@@ -894,7 +858,6 @@ export class RestartSupervisorProxy {
     // Exchange FIRST: the arriving link carries the credential, so judging before redeeming would
     // reject the very request that is meant to establish the session.
     if (this.arrivedPublicly(req) && this.exchangeCode(req, res)) return
-    if (this.arrivedPublicly(req) && this.adoptLegacySession(req, res)) return
     if (this.arrivedPublicly(req) && !this.sessionAccepted(req)) {
       res.writeHead(401, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
       res.end(unauthorizedPage())

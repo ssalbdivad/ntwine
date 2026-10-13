@@ -29,16 +29,13 @@ import { execFile } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { dirname } from "node:path"
 import { promisify } from "node:util"
-import { eitherBrand } from "@ntwine/shared"
 import { claudeBrokerSocketPath } from "./backend/claude-broker-host.ts"
 import { sweepStaleSockets } from "./backend/stale-socket-sweep.ts"
 
 export const ORPHAN_REAP_INTERVAL_MS = 60_000
 export const ORPHAN_MIN_AGE_MS = 120_000
 
-// FRIZZ_THREAD is the same tag on a worker started before the Frizz -> Ntwine rename (legacy-brand.ts).
-const SLUG_RE = eitherBrand(/NTWINE_THREAD=([A-Za-z0-9._-]+)/)
-const SLUG_ENTRY_RE = eitherBrand(/^NTWINE_THREAD=([A-Za-z0-9._-]+)$/)
+const SLUG_RE = /NTWINE_THREAD=([A-Za-z0-9._-]+)/
 
 export interface ProcRow {
   pid: number
@@ -294,7 +291,7 @@ export async function enumerateProcs(exec: Exec = defaultExec, opts: EnumerateOp
       const environ = readEnv(row.pid)
       if (environ === null) continue
       for (const entry of environ.split("\0")) {
-        const m = entry.match(SLUG_ENTRY_RE)
+        const m = entry.match(/^NTWINE_THREAD=([A-Za-z0-9._-]+)$/)
         if (m) {
           row.slug = m[1]!
           break

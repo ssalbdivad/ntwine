@@ -1,8 +1,14 @@
-// THE RENAME IN STORED TEXT: this product was Frizz until 2026-10-13, and everything it wrote into a
-// transcript before then — markers, wake tokens, notices, trailers — spells the name that way. Every
-// recognizer that reads stored text matches both spellings through these two helpers, so the old
-// spelling is derived from the current constant and the two cannot drift.
-
+// LEGACY — THE RENAME IN STORED TEXT: this product was Frizz until 2026-10-13, and everything it wrote into
+// a transcript before then — markers, wake tokens, notices, trailers, the completion relay's idempotence
+// marker — spells the name that way. Every recognizer that reads stored text matches both spellings through
+// these helpers, so the old spelling is derived from the current constant and the two cannot drift.
+//
+// The frizz migration (packages/server/src/frizz-migration.ts) cannot retire this one: the text lives in
+// Claude Code's and Codex's own transcripts, which Ntwine reads and never rewrites (discover.ts), and a
+// worker started before the rename keeps writing it there until it exits.
+//
+// REMOVE once no thread whose transcript predates the rename can be rendered or resumed: every such
+// thread deleted, or the board taught to show them unparsed.
 /** `text` as Ntwine wrote it before the rename. */
 export function frizzWording(text: string): string {
   return text.replaceAll("Ntwine", "Frizz").replaceAll("ntwine", "frizz").replaceAll("NTWINE", "FRIZZ")
