@@ -47,4 +47,4 @@ NTWINE_ZONE = "ntwine.app"
 # id into packages/relay/wrangler.toml, which reads this namespace.
 [[kv_namespaces]]
 binding = "CLAIMS"
-id = "FILL_ME_CLAIMS_KV_NAMESPACE_ID"
+id = "b67c0cce71054991aecd8a75d54efa62"

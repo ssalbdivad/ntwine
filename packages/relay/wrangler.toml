@@ -48,4 +48,4 @@ new_sqlite_classes = ["Board"]
 # packages/registrar), the same value in both files.
 [[kv_namespaces]]
 binding = "CLAIMS"
-id = "FILL_ME_CLAIMS_KV_NAMESPACE_ID"
+id = "b67c0cce71054991aecd8a75d54efa62"
