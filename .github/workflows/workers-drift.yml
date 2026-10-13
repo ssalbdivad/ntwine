@@ -1,6 +1,6 @@
 name: workers-drift
 
-# The alarm for the frizz.sh Workers. Every 30 minutes it reads what Cloudflare is running and FAILS
+# The alarm for the ntwine.app Workers. Every 30 minutes it reads what Cloudflare is running and FAILS
 # when anything there did not come from workers-deploy.yml — and GitHub emails a failed scheduled
 # run. The rules, and why each holds, are in the header of scripts/workers-drift.mjs.
 #
@@ -10,6 +10,11 @@ name: workers-drift
 # file's cron line, so whoever edits it inherits the alarm. And GitHub turns a schedule off after 60
 # days without repository activity on a public repo; a run that never happens fails nothing, so if
 # this repo goes quiet, check that the workflow is still enabled.
+#
+# Until CLOUDFLARE_READ_TOKEN exists the run is a no-op that passes with a notice: there is nothing to
+# compare until the Workers have been deployed, and a check that fails every half hour for a missing
+# secret buries the alarm it exists to raise. Once the secret is set it fails on anything it cannot
+# read, as before.
 
 on:
   schedule:
@@ -25,11 +30,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # A step, because a job-level `if:` cannot read a secret.
+      - name: Skip when the read token is not configured
+        id: token
+        env:
+          CLOUDFLARE_READ_TOKEN: ${{ secrets.CLOUDFLARE_READ_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_READ_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::CLOUDFLARE_READ_TOKEN is not set; the drift check did not run"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.token.outputs.present == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.token.outputs.present == 'true'
         with:
           node-version: "26.x"
 
@@ -38,6 +58,7 @@ jobs:
       # WORKERS_CI_AUTHOR is a repository VARIABLE (not a secret): the author id the CI token uploads
       # as. Unset, every run fails and prints the author it saw.
       - name: Check that everything the Workers run came from CI
+        if: steps.token.outputs.present == 'true'
         env:
           CLOUDFLARE_READ_TOKEN: ${{ secrets.CLOUDFLARE_READ_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { once } from "node:events"
 import { createServer } from "node:http"
 import { test } from "node:test"
-import { ACCOUNT_ID, checkWorker, cloudflareClient, githubClient, parseCiMessage } from "./workers-drift.mjs"
+import { ACCOUNT_ID, checkWorker, cloudflareClient, githubClient, parseCiMessage, readAccountId } from "./workers-drift.mjs"
 
 // The bodies below follow the shapes Cloudflare documents for
 //   GET /accounts/{account_id}/workers/scripts/{script}/deployments
@@ -244,4 +244,10 @@ test("the GitHub client returns null for a missing run and throws on anything el
   assert.equal((await gh(`/repos/${REPO}/actions/runs/1`)).head_sha, SHA)
   assert.equal(await gh(`/repos/${REPO}/actions/runs/2`), null)
   await assert.rejects(gh(`/repos/${REPO}/actions/runs/3`), /HTTP 500/)
+})
+
+test("the account id is read from the relay's wrangler.toml, ignoring a commented-out one", () => {
+  const toml = ['name = "ntwine-relay"', '# account_id = "old"', 'account_id = "0123abcd"', "[vars]", 'NTWINE_ZONE = "ntwine.app"'].join("\n")
+  assert.equal(readAccountId(toml), "0123abcd")
+  assert.equal(readAccountId('name = "ntwine-relay"'), "", "no account_id is no account, never a guess")
 })

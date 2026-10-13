@@ -1,4 +1,4 @@
-// Fails when the frizz.sh Workers run anything that `.github/workflows/workers-deploy.yml` did not
+// Fails when the ntwine.app Workers run anything that `.github/workflows/workers-deploy.yml` did not
 // upload. `.github/workflows/workers-drift.yml` runs it every 30 minutes, and a failed scheduled run
 // is the alarm: GitHub emails it.
 //
@@ -40,9 +40,18 @@
 //   CLOUDFLARE_READ_TOKEN=… GITHUB_TOKEN=… GITHUB_REPOSITORY=ssalbdivad/ntwine \
 //     WORKERS_CI_AUTHOR=… node scripts/workers-drift.mjs [ntwine-relay] [ntwine-registrar]
 
-import { pathToFileURL } from "node:url"
+import { readFileSync } from "node:fs"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
-export const ACCOUNT_ID = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
+/**
+ * The Cloudflare account the Workers deploy to, read from the relay's wrangler.toml so it is written in
+ * one place. Until that file's placeholder is filled the check refuses to run (see the bottom).
+ */
+export function readAccountId(toml = readFileSync(fileURLToPath(new URL("../packages/relay/wrangler.toml", import.meta.url)), "utf8")) {
+  return /^account_id\s*=\s*"([^"]*)"/m.exec(toml)?.[1] ?? ""
+}
+export const ACCOUNT_ID = readAccountId()
+export const ACCOUNT_ID_PLACEHOLDER = "FILL_ME_CLOUDFLARE_ACCOUNT_ID"
 export const WORKERS = ["ntwine-relay", "ntwine-registrar"]
 export const DEPLOY_WORKFLOW = ".github/workflows/workers-deploy.yml"
 export const LOOKBACK_MS = 2 * 60 * 60 * 1000
@@ -152,7 +161,7 @@ export async function checkWorker(script, { cf, gh, repo, expectedAuthor, now = 
     for (const { version_id: id } of deployment.versions ?? []) await checkVersion(id, `in the ${why} deployment`)
   }
 
-  // An upload that was never deployed serves nothing on frizz.sh, but it is still an upload CI did
+  // An upload that was never deployed serves nothing on ntwine.app, but it is still an upload CI did
   // not make — and the step before a deploy.
   for (let page = 1; page <= 20; page++) {
     const { items = [] } = await cf(`${base}/versions?page=${page}&per_page=50`)
@@ -172,6 +181,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.error(`::error::${name} is not set; the drift check cannot read anything, so it fails`)
       process.exit(1)
     }
+  }
+  if (!ACCOUNT_ID || ACCOUNT_ID === ACCOUNT_ID_PLACEHOLDER) {
+    console.error("::error::account_id in packages/relay/wrangler.toml is still the placeholder; fill it from `wrangler whoami`")
+    process.exit(1)
   }
   const scripts = process.argv.slice(2).length ? process.argv.slice(2) : WORKERS
   const cf = cloudflareClient(CLOUDFLARE_READ_TOKEN)

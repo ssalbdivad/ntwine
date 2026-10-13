@@ -1,7 +1,7 @@
 name: workers-deploy
 
-# Deploys the frizz.sh Workers — packages/relay (`*.frizz.sh`) and packages/registrar
-# (`registrar.frizz.sh`) — and is the ONLY thing that should. Nobody runs `wrangler deploy` from a
+# Deploys the ntwine.app Workers — packages/relay (`*.ntwine.app`) and packages/registrar
+# (`registrar.ntwine.app`) — and is the ONLY thing that should. Nobody runs `wrangler deploy` from a
 # laptop any more.
 #
 # WHY (2026-10-08). From 2026-09-21 an attacker holding a Cloudflare API token replaced both Workers
@@ -18,8 +18,11 @@ name: workers-deploy
 #
 # THE TOKEN lives in the `workers-deploy` environment, which only main may use and which waits for a
 # maintainer's approval. It is an account-owned Cloudflare token with Editor on these two Workers and
-# Workers Routes Edit on the frizz.sh zone, nothing more; the registrar README says why routes need
+# Workers Routes Edit on the ntwine.app zone, nothing more; the registrar README says why routes need
 # Edit. It is never in a file and never on a laptop.
+#
+# Until that secret exists the run is a no-op that passes and says so: the first step finds no token
+# and every later step is skipped. Nothing deploys without it either way.
 
 on:
   # DISPATCH ONLY, as release.yml and for the same reason: a `workflow_dispatch` needs a GitHub
@@ -49,19 +52,36 @@ jobs:
     timeout-minutes: 20
     environment: workers-deploy
     steps:
+      # A step, because a job-level `if:` cannot read a secret. Every step after this one runs only
+      # when it found the token.
+      - name: Skip when the deploy token is not configured
+        id: token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set in the workers-deploy environment; nothing was deployed"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # A step rather than a job-level `if:`, because a skipped job is silent — the run would go green
       # having deployed nothing. The environment's branch rule refuses other refs too; this says why.
       - name: Refuse to deploy from any ref but main
+        if: steps.token.outputs.present == 'true'
         run: |
           [ "$GITHUB_REF" = "refs/heads/main" ] || { echo "::error::workers-deploy.yml deploys from main only, got $GITHUB_REF"; exit 1; }
 
       # Third-party actions are pinned to commits, not tags: a tag can be moved, and this job holds a
-      # token that can rewrite frizz.sh. The comment names the release each commit is.
+      # token that can rewrite ntwine.app. The comment names the release each commit is.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.token.outputs.present == 'true'
         with:
           persist-credentials: false
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        if: steps.token.outputs.present == 'true'
         with:
           version: 10
 
@@ -69,6 +89,7 @@ jobs:
       # poisoned one would run inside the job that holds the deploy token. A cold install costs a
       # minute.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.token.outputs.present == 'true'
         with:
           node-version: "26.x"
 
@@ -76,26 +97,36 @@ jobs:
       # nothing wrangler pulls in (workerd, sharp) runs code at install time. wrangler itself is an
       # exact devDependency of both Worker packages, held to the lockfile's integrity hashes.
       - name: Install workspace
+        if: steps.token.outputs.present == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
+        if: steps.token.outputs.present == 'true'
         run: pnpm run typecheck
 
       # The Workers' own unit tests, on plain Node's type stripping — so the three packages they load
       # keep to erasable TypeScript (their tsconfigs enforce it). The e2e harnesses need a real workerd
       # and a board, and stay a local step (see each package's README).
       - name: Test the Workers
+        if: steps.token.outputs.present == 'true'
         run: node --test packages/relay/src/*.test.ts packages/registrar/src/*.test.ts
 
       # The registrar first: it is off the data plane, so if a deploy is going to break something, the
       # first one breaks signup rather than every running board. A failure stops the run there.
+      #
+      # The account comes from each package's wrangler.toml `account_id`; a placeholder there stops
+      # the run here rather than letting wrangler guess.
       - name: Deploy
+        if: steps.token.outputs.present == 'true'
         env:
           TARGET: ${{ inputs.target }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: dde3ec1f6b1f0a397ea82a9ed322f5ce
           WRANGLER_SEND_METRICS: "false"
         run: |
+          if grep -q FILL_ME_ packages/relay/wrangler.toml packages/registrar/wrangler.toml; then
+            echo "::error::a wrangler.toml still holds a FILL_ME_ placeholder; see packages/registrar/README.md"
+            exit 1
+          fi
           case "$TARGET" in
             both) packages="registrar relay" ;;
             relay|registrar) packages="$TARGET" ;;
