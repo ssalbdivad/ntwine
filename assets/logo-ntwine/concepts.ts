@@ -63,7 +63,7 @@ async function main() {
 <p>Three threads come in, plait through three crossings, and leave as three. Installed as the app icon, the site's icons and hero, the social card and the VS Code activity bar.</p>
 ${await row(render, "final", "App icon", "packages/web/public/favicon.svg", faviconSvg, `${(Buffer.byteLength(faviconSvg) / 1024).toFixed(1)} KB`)}
 <section><h3>Alone and one-colour</h3>
-  <p>The gold mark without its tile (social card, site hero), and the line-art version VS Code paints as a mask, at 16 and 24px.</p>
+  <p>The mark without its tile (social card, site hero), and the line-art version VS Code paints as a mask, at 16 and 24px.</p>
   <div class="row">
     <img src="${svgUri(markSvg())}" height="256" alt="">
     <div class="vsc"><img src="${svgUri(monoGrey)}" width="128" height="128"></div>
@@ -86,7 +86,7 @@ ${await row(render, "final", "App icon", "packages/web/public/favicon.svg", favi
 <html lang="en"><head><meta charset="utf-8"><title>ntwine mark</title>
 <style>
   body { margin: 0; padding: 32px; background: #15161a; color: #d8d8dc; font: 14px/1.45 system-ui, sans-serif; }
-  h1 { font-size: 22px; margin: 0 0 6px; } h2 { font-size: 18px; margin: 40px 0 6px; color: #fff; } h3 { font-size: 15px; margin: 0 0 4px; color: #f0c64a; }
+  h1 { font-size: 22px; margin: 0 0 6px; } h2 { font-size: 18px; margin: 40px 0 6px; color: #fff; } h3 { font-size: 15px; margin: 0 0 4px; color: #5eead4; }
   p { margin: 0 0 12px; max-width: 900px; } .meta { color: #888; } .finding { color: #c9c9ce; }
   section { padding: 20px 0; border-top: 1px solid #2a2b31; }
   .row { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }

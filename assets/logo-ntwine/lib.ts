@@ -213,7 +213,12 @@ export type Paint = {
   inks: string[]
 }
 
-export const GOLD: Paint = { inks: ["url(#ink)"] }
+// The ink is teal-400 (#2dd4bf, oklch 0.785 0.133 182), the app's dark accent. Its three stops keep the
+// lightness steps the gold had about its accent (+0.105, +0.012, -0.100 in oklch L) and the gold's chroma
+// ratios, at hue 182 — so the radial highlight still lifts the crossings off the tile.
+export const INK: Paint = { inks: ["url(#ink)"] }
+/** @deprecated the mark is teal now; kept so the concept rounds' code reads as written. */
+export const GOLD = INK
 
 const TILE_DEFS = `<clipPath id="tile">
       <rect x="16" y="16" width="480" height="480" rx="116"/>
@@ -223,13 +228,13 @@ const TILE_DEFS = `<clipPath id="tile">
       <stop offset="1" stop-color="#0d0e10"/>
     </linearGradient>
     <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#e8b923" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#e8b923" stop-opacity="0"/>
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="ink" gradientUnits="userSpaceOnUse" cx="256" cy="256" r="250">
-      <stop offset="0" stop-color="#ffdf7f"/>
-      <stop offset="0.62" stop-color="#eabe2c"/>
-      <stop offset="1" stop-color="#cf9412"/>
+      <stop offset="0" stop-color="#87f1e0"/>
+      <stop offset="0.62" stop-color="#36d8c3"/>
+      <stop offset="1" stop-color="#11b29f"/>
     </radialGradient>`
 
 /** Strand paths, one `<path>` per strand (its pieces joined as subpaths). */
@@ -363,8 +368,8 @@ ${w.body}
 `
 }
 
-/** Three strands in three golds, light to deep, so each can be followed through the weave. */
-export const TRI: Paint = { inks: ["#ffd970", "#eab52a", "#c88a12"] }
+/** Three strands in three teals, light to deep, so each can be followed through the weave. */
+export const TRI: Paint = { inks: ["#79eedc", "#32d2bd", "#07a897"] }
 
 // ---------------------------------------------------------------------------------------------------
 // THE MARK'S CONSTRUCTION

@@ -9,8 +9,8 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
-/* the board's own palette: near-black panels and one gold, the colour of the mark. Light is warm paper
-   with the gold darkened until it reads as text on it */
+/* the board's own palette: near-black panels and one teal, the colour of the mark. Light is warm paper
+   with the teal darkened until it reads as text on it */
 :root {
   --color-fd-background: #fbfaf7;
   --color-fd-foreground: #1b1a17;
@@ -23,14 +23,14 @@
   --color-fd-secondary: #f4f2ed;
   --color-fd-secondary-foreground: #1b1a17;
   --color-fd-border: #e5e1d6;
-  --color-fd-primary: #8a6400;
+  --color-fd-primary: #0f766e;
   --color-fd-primary-foreground: #ffffff;
   --color-fd-accent: #f6eed6;
   --color-fd-accent-foreground: #1b1a17;
-  --color-fd-ring: #8a6400;
+  --color-fd-ring: #0f766e;
 
-  --gold: #8a6400;
-  --gold-soft: #f6eed6;
+  --gold: #0f766e;
+  --gold-soft: #d5f2ee;
 }
 
 .dark {
@@ -45,14 +45,14 @@
   --color-fd-secondary: #1c1f25;
   --color-fd-secondary-foreground: #e6e7e9;
   --color-fd-border: #26282d;
-  --color-fd-primary: #e8b923;
-  --color-fd-primary-foreground: #14110a;
+  --color-fd-primary: #2dd4bf;
+  --color-fd-primary-foreground: #04201c;
   --color-fd-accent: #241f12;
   --color-fd-accent-foreground: #e6e7e9;
-  --color-fd-ring: #e8b923;
+  --color-fd-ring: #2dd4bf;
 
-  --gold: #e8b923;
-  --gold-soft: #241f12;
+  --gold: #2dd4bf;
+  --gold-soft: #10241f;
 }
 
 /* the mark draws itself once: JS sets each thread's dash to its length and the transition unrolls them */

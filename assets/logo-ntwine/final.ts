@@ -50,14 +50,14 @@ const tileComment = `ntwine: three threads plaited through three crossings, loos
 
 export const faviconSvg = wovenTileSvg(mark, spec, GOLD, tileComment)
 
-/** The gold mark alone, in tile coordinates, cropped to its ink (the social card, the site's hero). */
+/** The mark alone, in tile coordinates, cropped to its ink (the social card, the site's hero). */
 export function markSvg(): string {
   const w = woven(mark, spec, GOLD, "s", "  ")
   const [x0, y0, x1, y1] = box.map((v, i) => (i < 2 ? v - 2 : v + 2))
   return `<svg width="${f1(x1 - x0)}" height="${f1(y1 - y0)}" viewBox="${f1(x0)} ${f1(y0)} ${f1(x1 - x0)} ${f1(y1 - y0)}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <radialGradient id="ink" gradientUnits="userSpaceOnUse" cx="256" cy="256" r="250">
-      <stop offset="0" stop-color="#ffdf7f"/><stop offset="0.62" stop-color="#eabe2c"/><stop offset="1" stop-color="#cf9412"/>
+      <stop offset="0" stop-color="#87f1e0"/><stop offset="0.62" stop-color="#36d8c3"/><stop offset="1" stop-color="#11b29f"/>
     </radialGradient>
 ${w.defs}
   </defs>
