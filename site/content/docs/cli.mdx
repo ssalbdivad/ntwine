@@ -1,9 +1,15 @@
 ---
 title: CLI
-description: Everything npx ntwine takes.
+description: Every option, key and environment variable `npx ntwine` understands.
 ---
 
-Run it anywhere. One server serves every project on the machine, each with its own board, so a second run joins the one already going. In a folder that is already a project it opens that board; in a repository Ntwine has not seen it asks whether to add it; anywhere else it opens All projects.
+You can run `npx ntwine` from anywhere. One server serves every project on the machine, each with its own board, so if Ntwine is already running, a second run just joins it.
+
+Where you run it decides what opens:
+
+- In a folder that's already a project, you get that project's board.
+- In a repository Ntwine hasn't seen yet, it asks whether to add it.
+- Anywhere else, you get All projects.
 
 ```bash
 npx ntwine [options]
@@ -24,7 +30,7 @@ npx ntwine [options]
 
 ## Keys in the terminal
 
-While Ntwine runs, its terminal takes two keys:
+While Ntwine is running, the terminal you started it from listens for two keys:
 
 | Key | What it does |
 | --- | --- |
@@ -32,6 +38,8 @@ While Ntwine runs, its terminal takes two keys:
 | <kbd>L</kbd> | Show a fresh single-use sign-in link as a QR code |
 
 ## Environment
+
+By default, Ntwine runs the Claude Code and Codex versions it pins. You can point it at your own build instead:
 
 | Variable | What it does |
 | --- | --- |

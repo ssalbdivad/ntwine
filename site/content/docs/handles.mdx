@@ -1,22 +1,35 @@
 ---
 title: Handles and spinoff
-description: Threads name, read and message each other.
+description: Every thread has a name, so threads can read and message each other.
 ---
 
 ## Handles
 
-Every thread has a short **handle**, named for its subject: `@port-the-parser`, `@shell-budgets`. A sub-agent is addressed under its thread, `@port-the-parser.cache-keys`, and stays reachable after it finishes.
+Every thread gets a short **handle** named for its subject, like `@port-the-parser` or `@shell-budgets`. A sub-agent's handle sits under its thread's, like `@port-the-parser.cache-keys`, and it stays reachable after it finishes.
 
-Type <kbd>@</kbd> in a prompt to mention a thread; the box completes it, and in **All projects** it reaches every open project's threads. Typing `@port-the-parser.` lists that thread's sub-agents. Wherever an agent names a thread, the handle is a link.
+To mention a thread, type <kbd>@</kbd> in a prompt and the box will complete it. In **All projects**, that reaches the threads of every open project. Typing `@port-the-parser.` lists that thread's sub-agents.
+
+Wherever an agent names a thread, the handle is a link.
 
 ## Threads talk to each other
 
-Every thread can address every other. An agent can read another thread by handle — its request, its status, its latest messages and edited files — and message it, joining its turn or waking it. When it needs the answer before it can go on, it rests waiting on that thread and wakes when the reply comes. So "ask @shell-budgets how it handled this" works the way it reads. Messages between threads never reach you, and are capped per hour.
+Any thread can reach any other by its handle. An agent can read another thread's request, status, latest messages and edited files. It can also message it, which joins that thread's turn or wakes it up.
+
+If an agent needs the answer before it can keep going, it rests waiting on that thread and wakes when the reply comes in. That means "ask @shell-budgets how it handled this" does exactly what it sounds like.
+
+Messages between threads never reach you, and they're capped per hour.
 
 ## Projects
 
-`#slug` names a project the same way: the box completes it, and it links wherever it appears.
+`#slug` works the same way for projects. The box completes it, and it's a link wherever it appears.
 
 ## Spinoff
 
-**Spinoff** starts a new thread from the one you are reading, carrying its context. Press <kbd>→</kbd> on a card or use the spinoff icon in its header, say what the new thread should do, and pick the project it starts in. On a Claude thread it forks the parent's session, so the new thread starts out knowing everything the parent did. Anywhere else — a Codex or ACP thread, or a new thread in another project — it starts with the parent's request and latest reply, and can read the rest of the parent by handle. The parent itself doesn't move.
+**Spinoff** starts a new thread from the one you're reading, and carries its context over. Press <kbd>→</kbd> on a card or use the spinoff icon in its header. Then say what the new thread should do and pick the project it starts in.
+
+How much context it carries depends on the thread:
+
+- On a Claude thread, it forks the parent's session, so the new thread starts out knowing everything the parent did.
+- Anywhere else (a Codex or ACP thread, or a new thread in another project), it starts with the parent's request and latest reply. It can read the rest of the parent by handle.
+
+Either way, the parent itself stays where it is.

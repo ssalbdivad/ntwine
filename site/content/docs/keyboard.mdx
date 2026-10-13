@@ -3,7 +3,9 @@ title: Keyboard shortcuts
 description: Work the queue without the mouse, and rebind any key.
 ---
 
-Press <kbd>?</kbd> anywhere to see every shortcut, and click one to rebind it. A single key never fires while you are typing in a box.
+Press <kbd>?</kbd> anywhere to see every shortcut. Click one to rebind it.
+
+Single-key shortcuts never fire while you're typing in a box, so you don't have to worry about a stray <kbd>d</kbd> marking something done.
 
 ## The queue
 
@@ -48,4 +50,10 @@ On Windows and Linux, <kbd>⌘</kbd> is <kbd>Ctrl</kbd> and <kbd>⌥</kbd> is <k
 
 ## Slash commands
 
-<kbd>/</kbd> offers Claude Code's own commands and skills, plus prompts of your own: saved under **Settings**, in `~/.agents/commands`, or in a project's `.agents/commands`. Type `/name` and Ntwine sends the prompt instead; text after the name fills in `$ARGUMENTS`. Your own commands work on every agent.
+Typing <kbd>/</kbd> offers Claude Code's own commands and skills, plus any prompts you've saved yourself. Ntwine looks for those in three places:
+
+- under **Settings**
+- in `~/.agents/commands`
+- in a project's `.agents/commands`
+
+Type `/name` and Ntwine sends that prompt instead. Any text after the name fills in `$ARGUMENTS`. Your own commands work with every agent, not just Claude Code.
