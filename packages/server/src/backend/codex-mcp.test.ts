@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { codexMcpConfigArgs, codexThreadMcpConfig } from "./codex-mcp.ts"
+import { codexMcpConfigArgs, codexThreadMcpConfig, codexThreadMcpOff } from "./codex-mcp.ts"
 import { NTWINE_MCP, codexContextWindowConfig } from "./types.ts"
 
 // These pin the SHAPE of the `-c` overrides. The shape is otherwise only observable by running a real
@@ -142,4 +142,15 @@ test("codexContextWindowConfig: a positive integer window becomes `model_context
   for (const junk of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.deepEqual(codexContextWindowConfig({ codexContextWindow: junk }), {}, `${String(junk)} must send no override`)
   }
+})
+
+// An app-server started before the rename still mounts the server as `frizz`; the per-thread switch must
+// turn that one off as well, each with the `command` that makes a lone `enabled = false` a valid entry.
+test("codexThreadMcpOff switches off the pre-rename frizz mount alongside ntwine", () => {
+  assert.deepEqual(codexThreadMcpOff("/n"), {
+    "mcp_servers.ntwine.enabled": false,
+    "mcp_servers.ntwine.command": "/n",
+    "mcp_servers.frizz.enabled": false,
+    "mcp_servers.frizz.command": "/n",
+  })
 })

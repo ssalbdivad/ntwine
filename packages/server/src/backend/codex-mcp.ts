@@ -163,11 +163,19 @@ export function codexThreadMcpConfig(ntwineMcp: NtwineMcp | undefined, slug: str
  * empty table is refused. The operator's own config.toml servers survived every one.
  */
 export function codexThreadMcpOff(nodeBin: string = process.execPath): Record<string, unknown> {
-  return {
-    [`mcp_servers.${NTWINE_MCP.name}.enabled`]: false,
-    [`mcp_servers.${NTWINE_MCP.name}.command`]: nodeBin,
+  const off: Record<string, unknown> = {}
+  // `frizz` too: an app-server started before the Frizz -> Ntwine rename (2026-10-13) mounted the same
+  // server under that name, and its script path is gone once the plugin link moves on. The pair is
+  // valid with or without an existing entry, for the reason above.
+  for (const name of [NTWINE_MCP.name, LEGACY_MCP_NAME]) {
+    off[`mcp_servers.${name}.enabled`] = false
+    off[`mcp_servers.${name}.command`] = nodeBin
   }
+  return off
 }
+
+/** The MCP server's name before the Frizz -> Ntwine rename. */
+const LEGACY_MCP_NAME = "frizz"
 
 /**
  * The app-server's full argv for a transport.
