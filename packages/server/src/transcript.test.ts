@@ -194,7 +194,7 @@ const refusedFence = [
   "I'll wait on the two of them.",
   "",
   "```awaiting",
-  "pr: colinhacks/zod#5910",
+  "pr: arktypeio/arktype#5910",
   "agent: toolu_theWrongId",
   "for: 3h",
   "---",

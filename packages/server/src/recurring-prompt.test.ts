@@ -339,18 +339,18 @@ test("ALLDONE holds the bump for that rest only, and nothing is stored to undo",
 
 // ---- The PARK (`parkedOnAWaitItCannotAdvance`) --------------------------------------------------
 // THE LOOP THE MAINTAINER WATCHED, 2026-08-12, on the zod board. A worker parked on
-// `pr-watch: colinhacks/zod#6382` was bumped 7 times in 46 minutes: each bump cost a whole turn whose
+// `pr-watch:` on a Zod PR (#6382) was bumped 7 times in 46 minutes: each bump cost a whole turn whose
 // only product was the same fence reworded, because "keep going" has no answer while a PR sits
-// unreviewed. A second thread wrote `human: Colin to merge — the task barred me from merging` and was
+// unreviewed. A second thread wrote `human: maintainer to merge — the task barred me from merging` and was
 // bumped anyway, until it took the only exit the trailer had ever shown it and signed off ```done on an
 // unmerged PR. These pin both halves: the Goal does not bump a wait somebody else owns, and it still
 // rescues a park nothing will ever fire.
 test("an awaiting fence on a PR the scheduler is watching holds the bump", async () => {
-  const h = scheduler({ lastFence: awaiting({ kind: "pr", value: "colinhacks/zod#6382" }) }, { now: at("2026-08-02T00:00:05.000Z") })
+  const h = scheduler({ lastFence: awaiting({ kind: "pr", value: "arktypeio/arktype#6382" }) }, { now: at("2026-08-02T00:00:05.000Z") })
   try {
     // REGISTERED, which is what makes a wake actually coming. Since 2026-08-14 the fence line alone arms
     // nothing — `mcp__ntwine__watch_pr` does — so the hold reads the registry rather than the hint.
-    h.storage.armPrWatch({ id: "prw_1", slug: h.slug, owner: "colinhacks", repo: "zod", number: 6382, createdAtMs: 1, expiresAtMs: Date.parse("2099-01-01T00:00:00.000Z") })
+    h.storage.armPrWatch({ id: "prw_1", slug: h.slug, owner: "arktypeio", repo: "arktype", number: 6382, createdAtMs: 1, expiresAtMs: Date.parse("2099-01-01T00:00:00.000Z") })
     await h.s.tick()
     assert.deepEqual(h.delivered, [], "the waker already owns this thread's next wake")
   } finally { h.close() }

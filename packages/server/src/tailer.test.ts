@@ -3068,8 +3068,8 @@ test("parseSignalFence: a sequence takes many items, in block or flow form, and 
 // A `#` IN A PR REF IS NOT A YAML COMMENT, and this is the single measurement the cutover turned on: a
 // comment needs whitespace before the `#`, and `owner/repo#123` has none. An unquoted ref survives.
 test("parseSignalFence: a PR ref keeps its `#`, which YAML would only eat after a space", () => {
-  const f = parseSignalFence("```awaiting\nprs: [colinhacks/zod#6440]\nfor: 24h\n```")
-  assert.deepEqual(f?.hints, [{ kind: "pr", value: "colinhacks/zod#6440" }, { kind: "for", value: "24h" }])
+  const f = parseSignalFence("```awaiting\nprs: [arktypeio/arktype#6440]\nfor: 24h\n```")
+  assert.deepEqual(f?.hints, [{ kind: "pr", value: "arktypeio/arktype#6440" }, { kind: "for", value: "24h" }])
 })
 
 // FRONTMATTER NTWINE CANNOT PARSE MUST NEVER LOOK LIKE A PARK. A tab is the likeliest way in — YAML refuses

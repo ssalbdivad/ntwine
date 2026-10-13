@@ -53,14 +53,14 @@ import {
 const single: GithubWakeSteer = {
   ref: "nubjs/nub#587",
   omitted: 0,
-  items: [{ label: "comment", actor: "colinhacks", bot: false, at: "2026-07-29T15:39:28Z", url: "https://github.com/nubjs/nub/pull/587#issuecomment-5120099362" }],
+  items: [{ label: "comment", actor: "dana", bot: false, at: "2026-07-29T15:39:28Z", url: "https://github.com/nubjs/nub/pull/587#issuecomment-5120099362" }],
 }
 
 const burst: GithubWakeSteer = {
   ref: "nubjs/nub#587",
   omitted: 0,
   items: [
-    { label: "comment", actor: "colinhacks", bot: false, at: "2026-07-29T15:39:28Z", url: "https://github.com/nubjs/nub/pull/587#issuecomment-5120099362" },
+    { label: "comment", actor: "dana", bot: false, at: "2026-07-29T15:39:28Z", url: "https://github.com/nubjs/nub/pull/587#issuecomment-5120099362" },
     { label: "review comment", actor: "pullfrog", bot: true, at: "2026-07-29T15:46:04Z", url: "https://github.com/nubjs/nub/pull/587#pullrequestreview-4810252801" },
     { label: "approval", actor: "dana", bot: false, at: "2026-07-29T15:47:52Z", url: "https://github.com/nubjs/nub/pull/587#pullrequestreview-4810267375" },
   ],
@@ -121,7 +121,7 @@ test("the single-item steer names the item and ends on its bare URL", () => {
   const text = formatGithubWakeSteer(single)
   assert.equal(
     text,
-    "👤 New GitHub comment on nubjs/nub#587 from @colinhacks at 2026-07-29T15:39:28Z. Read that exact comment — ignore older activity you have already handled — and continue: https://github.com/nubjs/nub/pull/587#issuecomment-5120099362",
+    "👤 New GitHub comment on nubjs/nub#587 from @dana at 2026-07-29T15:39:28Z. Read that exact comment — ignore older activity you have already handled — and continue: https://github.com/nubjs/nub/pull/587#issuecomment-5120099362",
   )
   assert.ok(!/[.,;]$/.test(text), "a trailing period would be swallowed into the href by a terminal autolinker")
 })
@@ -193,7 +193,7 @@ test("ordinary prose never masquerades as a wake card", () => {
   for (const text of [
     "plain follow-up",
     "",
-    "👤 New GitHub comment on nubjs/nub#587 from @colinhacks. Read it and continue.", // the PRE-FIX steer
+    "👤 New GitHub comment on nubjs/nub#587 from @dana. Read it and continue.", // the PRE-FIX steer
     "3 new GitHub items on nubjs/nub#587",
     "- comment from @someone",
     "👤 2 new GitHub items on nubjs/nub#587. Read exactly these — ignore older activity you have already handled — and continue:\n\n- 👤 comment from @a\nnot an item line",

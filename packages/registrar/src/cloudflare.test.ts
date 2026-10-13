@@ -62,7 +62,7 @@ test("a Cloudflare failure carried on an HTTP 200 is still a failure", async () 
   ])
   try {
     const api = createCloudflareApi(CONFIG)
-    await assert.rejects(api.createTunnel("u-colin"), /1004 DNS validation error/)
+    await assert.rejects(api.createTunnel("u-dana"), /1004 DNS validation error/)
   } finally {
     fetcher.restore()
   }
@@ -72,7 +72,7 @@ test("a non-2xx names the endpoint that failed", async () => {
   const fetcher = withFetch([{ status: 403, body: { success: false, errors: [{ code: 10000, message: "denied" }] } }])
   try {
     const api = createCloudflareApi(CONFIG)
-    await assert.rejects(api.createTunnel("u-colin"), /cfd_tunnel failed.*10000 denied/)
+    await assert.rejects(api.createTunnel("u-dana"), /cfd_tunnel failed.*10000 denied/)
   } finally {
     fetcher.restore()
   }
@@ -81,7 +81,7 @@ test("a non-2xx names the endpoint that failed", async () => {
 test("the zone token authenticates every call and appears nowhere else", async () => {
   const fetcher = withFetch([success({ id: "t1", token: "run-token" })])
   try {
-    await createCloudflareApi(CONFIG).createTunnel("u-colin")
+    await createCloudflareApi(CONFIG).createTunnel("u-dana")
     assert.equal(fetcher.calls[0]!.authorization, "Bearer zone-token")
     assert.equal(JSON.stringify(fetcher.calls[0]!.body).includes("zone-token"), false, "never in a body")
   } finally {
@@ -94,9 +94,9 @@ test("a tunnel is created remotely-managed, so the user's machine needs no cert"
   // would need a cert.pem, which is the whole thing this design exists to avoid.
   const fetcher = withFetch([success({ id: "t1", token: "run-token" })])
   try {
-    const created = await createCloudflareApi(CONFIG).createTunnel("u-colin")
+    const created = await createCloudflareApi(CONFIG).createTunnel("u-dana")
     assert.deepEqual(created, { id: "t1", token: "run-token" })
-    assert.deepEqual(fetcher.calls[0]!.body, { name: "u-colin", config_src: "cloudflare" })
+    assert.deepEqual(fetcher.calls[0]!.body, { name: "u-dana", config_src: "cloudflare" })
     assert.equal(fetcher.calls[0]!.method, "POST")
   } finally {
     fetcher.restore()
@@ -108,10 +108,10 @@ test("ingress always ends with the catch-all, which Cloudflare requires", async 
   // through to nothing. Easy to forget and impossible to miss once it happens.
   const fetcher = withFetch([success(null)])
   try {
-    await createCloudflareApi(CONFIG).setTunnelIngress("t1", "colin.frizz.sh", "http://localhost:9393")
+    await createCloudflareApi(CONFIG).setTunnelIngress("t1", "dana.frizz.sh", "http://localhost:9393")
     const body = fetcher.calls[0]!.body as { config: { ingress: Array<Record<string, string>> } }
     assert.deepEqual(body.config.ingress, [
-      { hostname: "colin.frizz.sh", service: "http://localhost:9393" },
+      { hostname: "dana.frizz.sh", service: "http://localhost:9393" },
       { service: "http_status:404" },
     ])
     assert.equal(fetcher.calls[0]!.method, "PUT")
@@ -125,17 +125,17 @@ test("a new hostname is CREATED, an existing one is UPDATED", async () => {
   // that quietly shadows the first.
   const created = withFetch([success([]), success({ id: "rec-1" })])
   try {
-    await createCloudflareApi(CONFIG).upsertDnsRecord("colin.frizz.sh", "t1.cfargotunnel.com")
-    assert.match(created.calls[0]!.url, /dns_records\?name=colin\.frizz\.sh/)
+    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.frizz.sh", "t1.cfargotunnel.com")
+    assert.match(created.calls[0]!.url, /dns_records\?name=dana\.frizz\.sh/)
     assert.equal(created.calls[1]!.method, "POST")
     assert.match(created.calls[1]!.url, /\/zones\/zone-1\/dns_records$/)
   } finally {
     created.restore()
   }
 
-  const updated = withFetch([success([{ id: "rec-9", name: "colin.frizz.sh" }]), success({ id: "rec-9" })])
+  const updated = withFetch([success([{ id: "rec-9", name: "dana.frizz.sh" }]), success({ id: "rec-9" })])
   try {
-    await createCloudflareApi(CONFIG).upsertDnsRecord("colin.frizz.sh", "t2.cfargotunnel.com")
+    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.frizz.sh", "t2.cfargotunnel.com")
     assert.equal(updated.calls[1]!.method, "PUT")
     assert.match(updated.calls[1]!.url, /dns_records\/rec-9$/)
   } finally {
@@ -148,10 +148,10 @@ test("the record is always proxied, or the name does not resolve at all", async 
   // id to anyone running a DNS query.
   const fetcher = withFetch([success([]), success({ id: "rec-1" })])
   try {
-    await createCloudflareApi(CONFIG).upsertDnsRecord("colin.frizz.sh", "t1.cfargotunnel.com")
+    await createCloudflareApi(CONFIG).upsertDnsRecord("dana.frizz.sh", "t1.cfargotunnel.com")
     assert.deepEqual(fetcher.calls[1]!.body, {
       type: "CNAME",
-      name: "colin.frizz.sh",
+      name: "dana.frizz.sh",
       content: "t1.cfargotunnel.com",
       proxied: true,
     })
@@ -165,7 +165,7 @@ test("deleting a record that is already gone is not an error", async () => {
   // error with a misleading one, and strand the resources cleanup was called to remove.
   const fetcher = withFetch([success([])])
   try {
-    await createCloudflareApi(CONFIG).deleteDnsRecord("colin.frizz.sh")
+    await createCloudflareApi(CONFIG).deleteDnsRecord("dana.frizz.sh")
     assert.equal(fetcher.calls.length, 1, "it looked, found nothing, and stopped")
   } finally {
     fetcher.restore()
@@ -173,9 +173,9 @@ test("deleting a record that is already gone is not an error", async () => {
 })
 
 test("deleting an existing record targets it by id", async () => {
-  const fetcher = withFetch([success([{ id: "rec-9", name: "colin.frizz.sh" }]), success(null)])
+  const fetcher = withFetch([success([{ id: "rec-9", name: "dana.frizz.sh" }]), success(null)])
   try {
-    await createCloudflareApi(CONFIG).deleteDnsRecord("colin.frizz.sh")
+    await createCloudflareApi(CONFIG).deleteDnsRecord("dana.frizz.sh")
     assert.equal(fetcher.calls[1]!.method, "DELETE")
     assert.match(fetcher.calls[1]!.url, /dns_records\/rec-9$/)
   } finally {
@@ -211,8 +211,8 @@ test("a tunnel is deleted with cascade, or Cloudflare refuses one that still has
 test("findTunnel asks by name and reports absence as null", async () => {
   const found = withFetch([success([{ id: "t9" }])])
   try {
-    assert.deepEqual(await createCloudflareApi(CONFIG).findTunnel("u-colin"), { id: "t9" })
-    assert.match(found.calls[0]!.url, /cfd_tunnel\?is_deleted=false&name=u-colin$/)
+    assert.deepEqual(await createCloudflareApi(CONFIG).findTunnel("u-dana"), { id: "t9" })
+    assert.match(found.calls[0]!.url, /cfd_tunnel\?is_deleted=false&name=u-dana$/)
   } finally {
     found.restore()
   }

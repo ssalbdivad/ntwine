@@ -25,7 +25,7 @@ const NOW = 1_800_000_000_000
 async function claim(overrides: { name?: string; port?: number; issuedAt?: number } = {}) {
   const identity = await generateClaimIdentity()
   const request = await signClaim(
-    { name: overrides.name ?? "colin", port: overrides.port ?? 9393, issuedAt: overrides.issuedAt ?? NOW },
+    { name: overrides.name ?? "dana", port: overrides.port ?? 9393, issuedAt: overrides.issuedAt ?? NOW },
     identity
   )
   return { identity, request }
@@ -35,7 +35,7 @@ test("a signed claim verifies, and the payload survives the round trip", async (
   const { request } = await claim()
   const verdict = await verifyClaim(request, NOW)
   assert.ok(verdict.ok)
-  assert.equal(verdict.payload.name, "colin")
+  assert.equal(verdict.payload.name, "dana")
   assert.equal(verdict.payload.port, 9393)
   assert.equal(verdict.payload.issuedAt, NOW)
 })
@@ -79,21 +79,21 @@ test("a claim expires, and one from the future is refused too", async () => {
 })
 
 test("a name must arrive already normalized, so one hostname has one spelling", async () => {
-  // `Colin` and `colin` are the same DNS label. If both verified, two signed requests would describe
+  // `Dana` and `dana` are the same DNS label. If both verified, two signed requests would describe
   // one hostname and the registry could not say which key owns it.
   const { identity } = await claim()
-  const request = await signClaim({ name: "colin", port: 9393, issuedAt: NOW }, identity)
-  const shouted = { ...request, name: "Colin" }
+  const request = await signClaim({ name: "dana", port: 9393, issuedAt: NOW }, identity)
+  const shouted = { ...request, name: "Dana" }
   assert.deepEqual(await verifyClaim(shouted, NOW), { ok: false, reason: "bad-name" })
 
   // Signing normalizes on the way in, so the CLI cannot accidentally send an unnormalized one.
-  const messy = await signClaim({ name: "  COLIN.  ", port: 9393, issuedAt: NOW }, identity)
-  assert.equal(messy.name, "colin")
+  const messy = await signClaim({ name: "  DANA.  ", port: 9393, issuedAt: NOW }, identity)
+  assert.equal(messy.name, "dana")
   assert.equal((await verifyClaim(messy, NOW)).ok, true)
 })
 
 test("names are DNS labels, and the reserved ones are refused", async () => {
-  for (const good of ["colin", "a-b", "abc", "x".repeat(63), "9lives"]) {
+  for (const good of ["dana", "a-b", "abc", "x".repeat(63), "9lives"]) {
     assert.equal(normalizeClaimName(good), good, good)
   }
   for (const bad of [
@@ -136,18 +136,18 @@ test("a malformed or hostile request is rejected without throwing", async () => 
 })
 
 test("the signing input is stable and separator-safe", async () => {
-  const payload = { name: "colin", port: 9393, pubkey: "abc", issuedAt: NOW }
+  const payload = { name: "dana", port: 9393, pubkey: "abc", issuedAt: NOW }
   const once = new TextDecoder().decode(claimSigningInput(payload))
-  assert.equal(once, `ntwine-claim:v${CLAIM_PROTOCOL_VERSION}:colin:9393:abc:${NOW}:`)
+  assert.equal(once, `ntwine-claim:v${CLAIM_PROTOCOL_VERSION}:dana:9393:abc:${NOW}:`)
   // Field order is fixed rather than derived from object key order, so a second call with the keys
   // written differently produces identical bytes.
-  const reordered = { issuedAt: NOW, pubkey: "abc", port: 9393, name: "colin" }
+  const reordered = { issuedAt: NOW, pubkey: "abc", port: 9393, name: "dana" }
   assert.deepEqual(claimSigningInput(reordered), claimSigningInput(payload))
 
   // The GitHub field is always in the string, empty when absent, so a claim carrying one can never
   // produce the same bytes as a claim without.
   const withToken = new TextDecoder().decode(claimSigningInput({ ...payload, github: "gho_abc" }))
-  assert.equal(withToken, `ntwine-claim:v${CLAIM_PROTOCOL_VERSION}:colin:9393:abc:${NOW}:gho_abc`)
+  assert.equal(withToken, `ntwine-claim:v${CLAIM_PROTOCOL_VERSION}:dana:9393:abc:${NOW}:gho_abc`)
   assert.notEqual(withToken, once)
 })
 
@@ -155,7 +155,7 @@ test("a GitHub token cannot be swapped after signing", async () => {
   // It is the one field an intermediary could change to attribute someone else's name to their own
   // account, so it is inside the signature.
   const identity = await generateClaimIdentity()
-  const request = await signClaim({ name: "colin", port: 9393, issuedAt: NOW, github: "gho_mine" }, identity)
+  const request = await signClaim({ name: "dana", port: 9393, issuedAt: NOW, github: "gho_mine" }, identity)
   assert.equal((await verifyClaim(request, NOW)).ok, true)
   const swapped = { ...request, github: "gho_theirs" }
   assert.deepEqual(await verifyClaim(swapped, NOW), { ok: false, reason: "bad-signature" })
@@ -174,7 +174,7 @@ test("a keypair survives being written to disk and read back", async () => {
 
   const restored = await importClaimPrivateKey(pkcs8)
   assert.ok(restored)
-  const request = await signClaim({ name: "colin", port: 9393, issuedAt: NOW }, {
+  const request = await signClaim({ name: "dana", port: 9393, issuedAt: NOW }, {
     privateKey: restored,
     publicKey: identity.publicKey,
   })
@@ -189,8 +189,8 @@ test("a corrupt key file is reported, not thrown", async () => {
 })
 
 test("a tunnel name is namespaced, so a user cannot collide with one of ours", () => {
-  assert.equal(tunnelNameForClaim("colin"), "u-colin")
-  assert.equal(tunnelNameForClaim("  COLIN  "), "u-colin")
+  assert.equal(tunnelNameForClaim("dana"), "u-dana")
+  assert.equal(tunnelNameForClaim("  DANA  "), "u-dana")
 })
 
 test("a lease lapses exactly at its horizon", () => {
@@ -242,7 +242,7 @@ test("an anonymous name is 20 characters of [a-z2-7], valid to claim, and never 
 
 test("the anonymous shape excludes near misses", () => {
   for (const name of [
-    "colin",
+    "dana",
     "abcdefghjkmnpqrstuv", // 19
     "abcdefghjkmnpqrstuvwx", // 21
     "Abcdefghjkmnpqrstuvw", // uppercase

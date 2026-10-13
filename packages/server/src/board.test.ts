@@ -726,7 +726,7 @@ test("deriveNeedsYou: the event-snooze parks a shell-only rest for exactly the c
 
 // ---- SNOOZE UNTIL ALL SUB-AGENTS RETURN ------------------------------------------------------------
 // The shape it exists for: a parent fanned out three background children and rests on a fence that is not
-// an honoured park (Colin's rule — such a rest queues, because a partial return may be actionable). Each
+// an honoured park (upstream Frizz's rule — such a rest queues, because a partial return may be actionable). Each
 // return wakes it and it rests again. The one-rest event-snooze is spent by every one of those rests; this
 // one waits out the batch.
 const FAN_T0 = "2026-09-29T10:00:00.000Z" // three children dispatched
@@ -2189,18 +2189,18 @@ test("board carries the live tool and the handoff's first line from the tailer o
 // above has already listed it, and a line naming a PR nobody registered describes a wake that will never
 // arrive.
 const FENCE_AT = "2026-08-13T04:00:00.000Z"
-const REGISTERED_PRS = ["colinhacks/zod#6382", "acme/app#1", "acme/app#2"]
+const REGISTERED_PRS = ["arktypeio/arktype#6382", "acme/app#1", "acme/app#2"]
   .map((target) => ({ target, createdAt: FENCE_AT }))
 const registeredOf = (...targets: string[]) => REGISTERED_PRS.filter((w) => targets.includes(w.target))
 const parked = (...hints: { kind: string; value: string }[]) =>
   tele({ lastFence: { kind: "awaiting", body: "", hints } as SessionTelemetry["lastFence"], lastAssistantAt: FENCE_AT })
 
 test("every registered PR watcher gets a row, with the instant it was registered", () => {
-  const views = fenceWatchViews("t", parked({ kind: "pr", value: "colinhacks/zod#6382" }), FENCE_AT, {}, registeredOf("colinhacks/zod#6382"))
+  const views = fenceWatchViews("t", parked({ kind: "pr", value: "arktypeio/arktype#6382" }), FENCE_AT, {}, registeredOf("arktypeio/arktype#6382"))
   assert.deepEqual(views, [{
-    id: "github:t:colinhacks/zod#6382",
+    id: "github:t:arktypeio/arktype#6382",
     kind: "github",
-    target: "colinhacks/zod#6382",
+    target: "arktypeio/arktype#6382",
     state: "armed",
     createdAt: FENCE_AT,
     subject: "pull",
@@ -2221,7 +2221,7 @@ test("a registered watcher shows with no fence at all", () => {
 // registration makes ntwine watch one, so an unregistered line would put a row on the strip that nothing
 // can ever fire.
 test("a pr-watch line with no registration behind it yields no row", () => {
-  assert.deepEqual(fenceWatchViews("t", parked({ kind: "pr", value: "colinhacks/zod#6382" }), FENCE_AT, {}, []), [])
+  assert.deepEqual(fenceWatchViews("t", parked({ kind: "pr", value: "arktypeio/arktype#6382" }), FENCE_AT, {}, []), [])
   assert.deepEqual(fenceWatchViews("t", parked({ kind: "pr", value: "the auth PR" }), FENCE_AT, {}, []), [])
 })
 

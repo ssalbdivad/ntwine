@@ -177,7 +177,7 @@ test("an exposed policy admits IP literals and nothing else by default", () => {
 
 test("the machine's own names: the hostname as given, its first label, and that label under .local", () => {
   assert.deepEqual(machineHostNames("pupper"), ["pupper", "pupper.local"])
-  assert.deepEqual(machineHostNames("Colins-MacBook-Pro.local"), ["colins-macbook-pro.local", "colins-macbook-pro"])
+  assert.deepEqual(machineHostNames("Laptop.local"), ["laptop.local", "laptop"])
   assert.deepEqual(machineHostNames("pupper.home.arpa."), ["pupper.home.arpa", "pupper", "pupper.local"])
   // Nothing to add for a box that calls itself localhost, and an IP is already accepted while exposed.
   assert.deepEqual(machineHostNames("localhost"), [])

@@ -404,8 +404,8 @@ test("claude account email: read from .claude.json's oauthAccount, memoized unti
   withTmp((dir) => {
     const file = join(dir, ".claude.json")
     assert.equal(readClaudeAccountEmail(file), undefined) // absent
-    writeFileSync(file, JSON.stringify({ oauthAccount: { emailAddress: "colin@example.com" }, projects: {} }))
-    assert.equal(readClaudeAccountEmail(file), "colin@example.com")
+    writeFileSync(file, JSON.stringify({ oauthAccount: { emailAddress: "dana@example.com" }, projects: {} }))
+    assert.equal(readClaudeAccountEmail(file), "dana@example.com")
     // The memo is keyed on (path, mtime, size) — a rewrite with different content must be picked up,
     // not served from the previous parse.
     writeFileSync(file, JSON.stringify({ oauthAccount: { emailAddress: "someone-else@example.com" }, projects: { a: 1 } }))

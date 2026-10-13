@@ -16,7 +16,7 @@ import { launchEnvironment } from "./backend/worker-env.ts"
 // This is the second shape of the feature. It shipped on 2026-09-23 as TERMINAL COMMAND THREADS: the
 // prompt box's Terminal tab ran a command as a top-level `kind: "command"` thread with its own row, its
 // own queue card and its own Done. That was reversed on 2026-09-29 (maintainer: prompt threads are the
-// only top-level thread kind; terminals hang off a thread), for two reasons Colin raised upstream: a
+// only top-level thread kind; terminals hang off a thread), for two reasons raised upstream in Frizz: a
 // standalone terminal ran in the project root and so ignored which worktree an agent was actually in —
 // Ntwine deliberately leaves the worktree choice to the agent, so the terminal has to follow it — and
 // every terminal was one more row in a sidebar whose whole value is density. The table, `thread_terminal`,

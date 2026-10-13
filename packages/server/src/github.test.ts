@@ -551,36 +551,36 @@ test("ghAuthed: the FALSE answer is NOT cached, so a mid-session `gh auth login`
 // ---- githubRemoteNameWithOwner (the local, no-network half of the same gate) ----
 
 test("githubRemoteNameWithOwner: every spelling git writes a github.com remote in", () => {
-  const expected = "colinhacks/frizz"
-  assert.equal(githubRemoteNameWithOwner("git@github.com:colinhacks/frizz.git"), expected)
-  assert.equal(githubRemoteNameWithOwner("git@github.com:colinhacks/frizz"), expected)
-  assert.equal(githubRemoteNameWithOwner("ssh://git@github.com/colinhacks/frizz.git"), expected)
-  assert.equal(githubRemoteNameWithOwner("https://github.com/colinhacks/frizz.git"), expected)
-  assert.equal(githubRemoteNameWithOwner("https://github.com/colinhacks/frizz"), expected)
-  assert.equal(githubRemoteNameWithOwner("https://user@github.com/colinhacks/frizz.git"), expected)
-  assert.equal(githubRemoteNameWithOwner("https://github.com/colinhacks/frizz/"), expected)
-  assert.equal(githubRemoteNameWithOwner("  git@github.com:colinhacks/frizz.git\n"), expected) // trailing newline from git
-  assert.equal(githubRemoteNameWithOwner("git@GitHub.com:colinhacks/frizz.git"), expected) // host is case-insensitive
+  const expected = "ssalbdivad/ntwine"
+  assert.equal(githubRemoteNameWithOwner("git@github.com:ssalbdivad/ntwine.git"), expected)
+  assert.equal(githubRemoteNameWithOwner("git@github.com:ssalbdivad/ntwine"), expected)
+  assert.equal(githubRemoteNameWithOwner("ssh://git@github.com/ssalbdivad/ntwine.git"), expected)
+  assert.equal(githubRemoteNameWithOwner("https://github.com/ssalbdivad/ntwine.git"), expected)
+  assert.equal(githubRemoteNameWithOwner("https://github.com/ssalbdivad/ntwine"), expected)
+  assert.equal(githubRemoteNameWithOwner("https://user@github.com/ssalbdivad/ntwine.git"), expected)
+  assert.equal(githubRemoteNameWithOwner("https://github.com/ssalbdivad/ntwine/"), expected)
+  assert.equal(githubRemoteNameWithOwner("  git@github.com:ssalbdivad/ntwine.git\n"), expected) // trailing newline from git
+  assert.equal(githubRemoteNameWithOwner("git@GitHub.com:ssalbdivad/ntwine.git"), expected) // host is case-insensitive
 })
 
 test("githubRemoteNameWithOwner: a non-github host is not a GitHub repo — including hosts that merely CONTAIN github.com", () => {
   // The whole point of this probe is to open a feature door, so a near-miss host must read as null
   // rather than as github.com.
-  assert.equal(githubRemoteNameWithOwner("git@gitlab.com:colinhacks/frizz.git"), null)
-  assert.equal(githubRemoteNameWithOwner("https://bitbucket.org/colinhacks/frizz.git"), null)
-  assert.equal(githubRemoteNameWithOwner("https://github.com.evil.com/colinhacks/frizz.git"), null)
-  assert.equal(githubRemoteNameWithOwner("https://evil.com/github.com/colinhacks/frizz"), null)
-  assert.equal(githubRemoteNameWithOwner("git@github.enterprise.co:colinhacks/frizz.git"), null)
+  assert.equal(githubRemoteNameWithOwner("git@gitlab.com:ssalbdivad/ntwine.git"), null)
+  assert.equal(githubRemoteNameWithOwner("https://bitbucket.org/ssalbdivad/ntwine.git"), null)
+  assert.equal(githubRemoteNameWithOwner("https://github.com.evil.com/ssalbdivad/ntwine.git"), null)
+  assert.equal(githubRemoteNameWithOwner("https://evil.com/github.com/ssalbdivad/ntwine"), null)
+  assert.equal(githubRemoteNameWithOwner("git@github.enterprise.co:ssalbdivad/ntwine.git"), null)
 })
 
 test("githubRemoteNameWithOwner: anything that is not exactly owner/repo → null, never throws", () => {
   assert.equal(githubRemoteNameWithOwner(""), null)
   assert.equal(githubRemoteNameWithOwner("   "), null)
   assert.equal(githubRemoteNameWithOwner("not a url"), null)
-  assert.equal(githubRemoteNameWithOwner("https://github.com/colinhacks"), null) // owner only
+  assert.equal(githubRemoteNameWithOwner("https://github.com/dana"), null) // owner only
   assert.equal(githubRemoteNameWithOwner("https://github.com/a/b/c"), null) // too deep
   assert.equal(githubRemoteNameWithOwner("https://github.com/"), null)
-  assert.equal(githubRemoteNameWithOwner("/Users/colinmcd94/some/local/path"), null)
+  assert.equal(githubRemoteNameWithOwner("/Users/me/some/local/path"), null)
 })
 
 // The regression this whole fallback exists for: gh cannot reach the network, so `gh repo view` fails
@@ -591,11 +591,11 @@ test("gitGithubRemote: reads a real repo's origin with no network and no gh at a
   try {
     const run = (args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" })
     run(["init", "-q"])
-    run(["remote", "add", "origin", "git@github.com:colinhacks/frizz.git"])
-    assert.equal(await gitGithubRemote(dir), "colinhacks/frizz")
+    run(["remote", "add", "origin", "git@github.com:ssalbdivad/ntwine.git"])
+    assert.equal(await gitGithubRemote(dir), "ssalbdivad/ntwine")
     // Negative control: the same real probe on the same real repo must FAIL when origin is not GitHub,
     // otherwise the test above proves nothing about the host check.
-    run(["remote", "set-url", "origin", "git@gitlab.com:colinhacks/frizz.git"])
+    run(["remote", "set-url", "origin", "git@gitlab.com:ssalbdivad/ntwine.git"])
     assert.equal(await gitGithubRemote(dir), null)
     // …and a repo with no remote at all.
     run(["remote", "remove", "origin"])

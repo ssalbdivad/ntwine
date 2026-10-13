@@ -33,7 +33,7 @@ test("review fetcher gets the gh token once and batches + deduplicates same-turn
           ref1: {
             pullRequest: {
               reviews: { nodes: [] },
-              comments: { nodes: [{ id: "C549", createdAt: "2026-07-24T17:01:00Z", author: { login: "colinhacks", __typename: "User" } }] },
+              comments: { nodes: [{ id: "C549", createdAt: "2026-07-24T17:01:00Z", author: { login: "dana", __typename: "User" } }] },
             },
           },
           rateLimit: { cost: 2, remaining: 4_800, resetAt: "2026-07-24T18:00:00Z", limit: 5_000 },
@@ -62,7 +62,7 @@ test("review fetcher gets the gh token once and batches + deduplicates same-turn
   })
   assert.deepEqual(second, {
     status: "ok",
-    activity: [{ id: "comment:C549", actor: "colinhacks", actorType: "User", at: "2026-07-24T17:01:00Z", kind: "comment" }],
+    activity: [{ id: "comment:C549", actor: "dana", actorType: "User", at: "2026-07-24T17:01:00Z", kind: "comment" }],
   })
   assert.deepEqual(duplicate, first)
 })
@@ -83,9 +83,9 @@ test("review fetcher asks for each item's permalink and carries it through to th
               reviews: { nodes: [{ id: "R1", url: "https://github.com/nubjs/nub/pull/587#pullrequestreview-1", state: "COMMENTED", submittedAt: "2026-07-29T15:46:04Z", author: { login: "pullfrog", __typename: "Bot" } }] },
               comments: {
                 nodes: [
-                  { id: "C1", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1", createdAt: "2026-07-29T15:39:28Z", body: "lgtm", author: { login: "colinhacks", __typename: "User" } },
+                  { id: "C1", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1", createdAt: "2026-07-29T15:39:28Z", body: "lgtm", author: { login: "dana", __typename: "User" } },
                   // A shape surprise costs the steer its permalink, never the wake itself.
-                  { id: "C2", createdAt: "2026-07-29T15:40:00Z", author: { login: "colinhacks", __typename: "User" } },
+                  { id: "C2", createdAt: "2026-07-29T15:40:00Z", author: { login: "dana", __typename: "User" } },
                 ],
               },
             },
@@ -106,8 +106,8 @@ test("review fetcher asks for each item's permalink and carries it through to th
     status: "ok",
     activity: [
       { id: "review:R1", actor: "pullfrog", actorType: "Bot", at: "2026-07-29T15:46:04Z", kind: "review", reviewState: "COMMENTED", url: "https://github.com/nubjs/nub/pull/587#pullrequestreview-1" },
-      { id: "comment:C1", actor: "colinhacks", actorType: "User", at: "2026-07-29T15:39:28Z", kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1", body: "lgtm" },
-      { id: "comment:C2", actor: "colinhacks", actorType: "User", at: "2026-07-29T15:40:00Z", kind: "comment" },
+      { id: "comment:C1", actor: "dana", actorType: "User", at: "2026-07-29T15:39:28Z", kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1", body: "lgtm" },
+      { id: "comment:C2", actor: "dana", actorType: "User", at: "2026-07-29T15:40:00Z", kind: "comment" },
     ],
   })
 })

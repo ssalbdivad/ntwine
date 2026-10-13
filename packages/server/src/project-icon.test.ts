@@ -82,10 +82,10 @@ test("a root logo.svg beats a bigger icon buried in a docs site (zod)", (t) => {
   assert.equal(picked(root), "logo.svg")
 })
 
-test("a project's own icon beats another project's logo sitting in the same folder (colinhacks)", (t) => {
+test("a project's own icon beats another project's logo sitting in the same folder (personal site)", (t) => {
   // Measured wrong: a personal site's `public/` holds `trpc-logo.svg` and `zod-logo.svg` beside its
   // own `icon.png`, and the scan handed the site trpc's logo.
-  const root = project(t, "colinhacks", {
+  const root = project(t, "personal-site", {
     "public/icon.png": png(387, 387),
     "public/trpc-logo.svg": svg(200),
     "public/zod-logo.svg": svg(200),

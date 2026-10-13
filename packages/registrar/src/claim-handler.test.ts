@@ -117,7 +117,7 @@ function deps(overrides: Partial<ClaimDeps> = {}): ClaimDeps {
   }
 }
 
-async function claimFor(identity: CryptoKeyPair, name = "colin", port = 9393, issuedAt = NOW) {
+async function claimFor(identity: CryptoKeyPair, name = "dana", port = 9393, issuedAt = NOW) {
   return signClaim({ name, port, issuedAt }, identity)
 }
 
@@ -129,18 +129,18 @@ test("a first claim provisions the tunnel, the ingress and the DNS record, and r
 
   assert.equal(result.status, 200)
   assert.ok("token" in result.body)
-  assert.equal(result.body.hostname, "colin.frizz.sh")
+  assert.equal(result.body.hostname, "dana.frizz.sh")
   assert.equal(result.body.renewed, false)
   assert.equal(result.body.leaseExpiresAt, NOW + CLAIM_LEASE_MS)
 
   assert.deepEqual(cf.calls, [
-    "findTunnel:u-colin",
-    "createTunnel:u-colin",
-    "setTunnelIngress:tunnel-1:colin.frizz.sh:http://localhost:9393",
-    "upsertDnsRecord:colin.frizz.sh:tunnel-1.cfargotunnel.com",
+    "findTunnel:u-dana",
+    "createTunnel:u-dana",
+    "setTunnelIngress:tunnel-1:dana.frizz.sh:http://localhost:9393",
+    "upsertDnsRecord:dana.frizz.sh:tunnel-1.cfargotunnel.com",
   ])
-  assert.equal(cf.dns.get("colin.frizz.sh"), "tunnel-1.cfargotunnel.com")
-  assert.equal(st.rows.get("colin")?.tunnelId, "tunnel-1")
+  assert.equal(cf.dns.get("dana.frizz.sh"), "tunnel-1.cfargotunnel.com")
+  assert.equal(st.rows.get("dana")?.tunnelId, "tunnel-1")
 })
 
 test("the same key claiming again RENEWS rather than provisioning a second tunnel", async () => {
@@ -153,7 +153,7 @@ test("the same key claiming again RENEWS rather than provisioning a second tunne
 
   await handleClaim(await claimFor(identity), d)
   const before = cf.tunnels.size
-  const again = await handleClaim(await claimFor(identity, "colin", 9393, NOW + 1000), {
+  const again = await handleClaim(await claimFor(identity, "dana", 9393, NOW + 1000), {
     ...d,
     now: () => NOW + 1000,
   })
@@ -161,8 +161,8 @@ test("the same key claiming again RENEWS rather than provisioning a second tunne
   assert.equal(again.status, 200)
   assert.ok("renewed" in again.body && again.body.renewed)
   assert.equal(cf.tunnels.size, before, "no second tunnel")
-  assert.equal(st.rows.get("colin")?.renewedAt, NOW + 1000, "the lease moved forward")
-  assert.equal(st.rows.get("colin")?.claimedAt, NOW, "but the original claim date did not")
+  assert.equal(st.rows.get("dana")?.renewedAt, NOW + 1000, "the lease moved forward")
+  assert.equal(st.rows.get("dana")?.claimedAt, NOW, "but the original claim date did not")
 })
 
 test("a renewal on a new port re-points the ingress", async () => {
@@ -173,13 +173,13 @@ test("a renewal on a new port re-points the ingress", async () => {
 
   await handleClaim(await claimFor(identity), d)
   cf.calls.length = 0
-  await handleClaim(await claimFor(identity, "colin", 4321), d)
+  await handleClaim(await claimFor(identity, "dana", 4321), d)
 
   assert.ok(
-    cf.calls.includes("setTunnelIngress:tunnel-1:colin.frizz.sh:http://localhost:4321"),
+    cf.calls.includes("setTunnelIngress:tunnel-1:dana.frizz.sh:http://localhost:4321"),
     `ingress was not re-pointed: ${cf.calls.join(", ")}`
   )
-  assert.equal(st.rows.get("colin")?.port, 4321)
+  assert.equal(st.rows.get("dana")?.port, 4321)
 })
 
 test("a different key cannot take a name whose lease is still live", async () => {
@@ -196,7 +196,7 @@ test("a different key cannot take a name whose lease is still live", async () =>
     error: "name-taken",
     message: "that name belongs to someone else",
   })
-  assert.equal(st.rows.get("colin")?.pubkey, (await claimFor(owner)).pubkey, "the owner is unchanged")
+  assert.equal(st.rows.get("dana")?.pubkey, (await claimFor(owner)).pubkey, "the owner is unchanged")
 })
 
 test("a lapsed lease returns the name to the pool, tearing the old one down first", async () => {
@@ -209,16 +209,16 @@ test("a lapsed lease returns the name to the pool, tearing the old one down firs
   const newcomer = await generateClaimIdentity()
   cf.calls.length = 0
   const taken = await handleClaim(
-    await claimFor(newcomer, "colin", 9393, later),
+    await claimFor(newcomer, "dana", 9393, later),
     deps({ api: cf.api, store: st.store, now: () => later })
   )
 
   assert.equal(taken.status, 200)
   // The old tunnel and record must go BEFORE the new ones, or the account leaks a tunnel per handover.
   assert.ok(cf.calls.includes("deleteTunnel:tunnel-1"), `old tunnel not removed: ${cf.calls.join(", ")}`)
-  assert.ok(cf.calls.includes("deleteDnsRecord:colin.frizz.sh"))
+  assert.ok(cf.calls.includes("deleteDnsRecord:dana.frizz.sh"))
   assert.equal(cf.tunnels.has("tunnel-1"), false)
-  assert.equal(st.rows.get("colin")?.pubkey, (await claimFor(newcomer)).pubkey)
+  assert.equal(st.rows.get("dana")?.pubkey, (await claimFor(newcomer)).pubkey)
 })
 
 test("a failure midway through provisioning leaves NOTHING behind", async () => {
@@ -275,17 +275,17 @@ test("an unsigned, tampered or malformed body never reaches Cloudflare", async (
 
 test("a renewal whose token cannot be re-read fails without disturbing the record", async () => {
   const st = fakeStore({
-    colin: { pubkey: "", tunnelId: "tunnel-9", port: 9393, claimedAt: NOW, renewedAt: NOW },
+    dana: { pubkey: "", tunnelId: "tunnel-9", port: 9393, claimedAt: NOW, renewedAt: NOW },
   })
   const identity = await generateClaimIdentity()
   const request = await claimFor(identity)
-  st.rows.set("colin", { ...st.rows.get("colin")!, pubkey: request.pubkey })
+  st.rows.set("dana", { ...st.rows.get("dana")!, pubkey: request.pubkey })
 
   const cf = fakeCloudflare("tunnelToken")
   const result = await handleClaim(request, deps({ api: cf.api, store: st.store }))
 
   assert.equal(result.status, 502)
-  assert.equal(st.rows.get("colin")?.renewedAt, NOW, "the lease was not advanced by a failed renewal")
+  assert.equal(st.rows.get("dana")?.renewedAt, NOW, "the lease was not advanced by a failed renewal")
 })
 
 
@@ -383,13 +383,13 @@ test("a name is NOT forgotten while its tunnel refuses to die", async () => {
   const later = NOW + CLAIM_LEASE_MS + 1
   const newcomer = await generateClaimIdentity()
   const result = await handleClaim(
-    await claimFor(newcomer, "colin", 9393, later),
+    await claimFor(newcomer, "dana", 9393, later),
     deps({ api: stubborn, store: st.store, now: () => later })
   )
 
   assert.equal(result.status, 502, "the takeover must fail rather than strand the name")
-  assert.equal(st.rows.has("colin"), true, "the registry still knows who to blame")
-  assert.equal(st.rows.get("colin")?.pubkey, (await claimFor(owner)).pubkey)
+  assert.equal(st.rows.has("dana"), true, "the registry still knows who to blame")
+  assert.equal(st.rows.get("dana")?.pubkey, (await claimFor(owner)).pubkey)
 })
 
 
@@ -439,7 +439,7 @@ function fakeGithub(accounts: Record<string, { id: number; login: string; create
   return async (token: string) => accounts[token] ?? null
 }
 
-const ACCOUNT = { id: 4242, login: "colin", createdAt: NOW - 365 * 24 * 60 * 60_000 }
+const ACCOUNT = { id: 4242, login: "dana", createdAt: NOW - 365 * 24 * 60 * 60_000 }
 
 test("a token that can do more than name its account is refused, and nothing is recorded", async () => {
   // 2026-10-08: a compromised registrar collected the `gh` tokens old clients sent. The verifier now
@@ -450,7 +450,7 @@ test("a token that can do more than name its account is refused, and nothing is 
   const identity = await generateClaimIdentity()
   const d = deps({ api: cf.api, store: st.store, github: async (token) => (token === "gho_ghcli" ? "scoped" : ACCOUNT) })
   const result = await handleClaim(
-    await signClaim({ name: "colin", port: 9393, issuedAt: NOW, github: "gho_ghcli" }, identity),
+    await signClaim({ name: "dana", port: 9393, issuedAt: NOW, github: "gho_ghcli" }, identity),
     d
   )
   assert.equal(result.status, 400)
@@ -474,17 +474,17 @@ test("with the gate on, a claim without a GitHub token is refused before provisi
   assert.deepEqual(cf.calls, [], "nothing was provisioned")
 
   const wrong = await handleClaim(
-    await signClaim({ name: "colin", port: 9393, issuedAt: NOW, github: "gho_nope" }, identity),
+    await signClaim({ name: "dana", port: 9393, issuedAt: NOW, github: "gho_nope" }, identity),
     d
   )
   assert.equal("error" in wrong.body && wrong.body.error, "github-rejected")
 
   const good = await handleClaim(
-    await signClaim({ name: "colin", port: 9393, issuedAt: NOW, github: "gho_ok" }, identity),
+    await signClaim({ name: "dana", port: 9393, issuedAt: NOW, github: "gho_ok" }, identity),
     d
   )
   assert.equal(good.status, 200)
-  assert.equal(st.rows.get("colin")?.githubId, 4242)
+  assert.equal(st.rows.get("dana")?.githubId, 4242)
 })
 
 test("one name per GITHUB ACCOUNT — the limit a fresh keypair cannot walk around", async () => {
@@ -516,7 +516,7 @@ test("a brand-new GitHub account cannot claim", async () => {
   const identity = await generateClaimIdentity()
   const fresh = { id: 99, login: "throwaway", createdAt: NOW - 60_000 }
   const result = await handleClaim(
-    await signClaim({ name: "colin", port: 9393, issuedAt: NOW, github: "gho_new" }, identity),
+    await signClaim({ name: "dana", port: 9393, issuedAt: NOW, github: "gho_new" }, identity),
     deps({
       store: st.store,
       github: fakeGithub({ "gho_new": fresh }),
@@ -534,7 +534,7 @@ test("a RENEWAL needs no GitHub token, so a live name never depends on GitHub", 
   const st = fakeStore()
   const identity = await generateClaimIdentity()
   const d = deps({ api: cf.api, store: st.store, github: fakeGithub({ "gho_ok": ACCOUNT }) })
-  await handleClaim(await signClaim({ name: "colin", port: 9393, issuedAt: NOW, github: "gho_ok" }, identity), d)
+  await handleClaim(await signClaim({ name: "dana", port: 9393, issuedAt: NOW, github: "gho_ok" }, identity), d)
 
   // GitHub is now unreachable — every token is refused.
   const offline = deps({ api: cf.api, store: st.store, github: async () => null })
@@ -591,36 +591,36 @@ test("RELAY MODE records the name and touches no Cloudflare at all", async () =>
 
   const claimed = await handleClaim(await claimFor(identity), relay)
   assert.equal(claimed.status, 200)
-  assert.ok("hostname" in claimed.body && claimed.body.hostname === "colin.frizz.sh")
+  assert.ok("hostname" in claimed.body && claimed.body.hostname === "dana.frizz.sh")
   assert.equal((claimed.body as { token?: string }).token, undefined, "a relay board needs no run token")
   assert.deepEqual(cf.calls, [], "relay mode must not call Cloudflare")
-  assert.equal(st.rows.get("colin")?.tunnelId, "", "there is no tunnel to record")
+  assert.equal(st.rows.get("dana")?.tunnelId, "", "there is no tunnel to record")
 
   // Renewal is the lease and nothing else.
-  const again = await handleClaim(await claimFor(identity, "colin", 9393, NOW + 1000), {
+  const again = await handleClaim(await claimFor(identity, "dana", 9393, NOW + 1000), {
     ...relay,
     now: () => NOW + 1000,
   })
   assert.ok("renewed" in again.body && again.body.renewed)
-  assert.equal(st.rows.get("colin")?.renewedAt, NOW + 1000)
+  assert.equal(st.rows.get("dana")?.renewedAt, NOW + 1000)
 })
 
 test("releasing a relay name is only forgetting it", async () => {
   const cf = fakeCloudflare()
   const owner = await generateClaimIdentity()
-  const request = await claimFor(owner, "colin")
+  const request = await claimFor(owner, "dana")
   const st = fakeStore({
-    colin: { pubkey: request.pubkey, tunnelId: "", port: 1, claimedAt: NOW, renewedAt: NOW },
+    dana: { pubkey: request.pubkey, tunnelId: "", port: 1, claimedAt: NOW, renewedAt: NOW },
   })
   const later = NOW + CLAIM_LEASE_MS + 1
   const newcomer = await generateClaimIdentity()
-  const taken = await handleClaim(await claimFor(newcomer, "colin", 9393, later), {
+  const taken = await handleClaim(await claimFor(newcomer, "dana", 9393, later), {
     store: st.store, zone: ZONE, now: () => later,
   } as ClaimDeps)
 
   assert.equal(taken.status, 200, "a lapsed relay name must still be reclaimable")
   assert.deepEqual(cf.calls, [], "nothing to tear down in Cloudflare")
-  assert.equal(st.rows.get("colin")?.pubkey, (await claimFor(newcomer)).pubkey)
+  assert.equal(st.rows.get("dana")?.pubkey, (await claimFor(newcomer)).pubkey)
 })
 
 test("an ANONYMOUS name claims through the gate with no GitHub identity at all", async () => {
@@ -691,7 +691,7 @@ test("a VANITY claim never consults the anonymous budget — GitHub is that path
     anonymousBudget: async () => (consulted++, false),
   }
   const result = await handleClaim(
-    await signClaim({ name: "colin", port: 9393, issuedAt: NOW, github: "gho_ok" }, identity),
+    await signClaim({ name: "dana", port: 9393, issuedAt: NOW, github: "gho_ok" }, identity),
     d
   )
   assert.equal(result.status, 200)

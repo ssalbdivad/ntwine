@@ -349,7 +349,7 @@ export function normalizePublicOrigin(value: string): string {
  * SUFFIX of the hostname (`pupper.evil.com` is the attacker's name), and any name that merely
  * resolves to one of our interfaces (that is exactly the state a rebinding attack creates).
  *
- * From `os.hostname()`, which is `pupper` on a typical Linux box and `Colins-MacBook-Pro.local` on a
+ * From `os.hostname()`, which is `pupper` on a typical Linux box and `laptop.local` on a
  * Mac: the name as given, its first label, and that label under `.local` — deduped, lowercased.
  */
 export function machineHostNames(hostname: string): string[] {

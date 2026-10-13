@@ -38,7 +38,7 @@ test("answers every open project with its open threads, its Done count and the i
           session("finished", { state: "archived" }),
           session("finished-2", { state: "archived" }),
           // An archived thread whose worker is still moving travels with the open threads — the client's
-          // sectionOf lifts it into Running until it rests (Colin 2026-07-10) — and is not counted as Done.
+          // sectionOf lifts it into Running until it rests (upstream Frizz 2026-07-10) — and is not counted as Done.
           session("wrapping-up", { state: "archived", runtime: "running" }),
           session("sub-agent-out", { state: "archived", subAgents: [{ state: "running" } as never] }),
           session("sub-agent-back", { state: "archived", subAgents: [{ state: "completed" } as never] }),

@@ -67,7 +67,7 @@ test("an unsigned claim is refused without a Cloudflare token ever being used", 
   // rather than pass. That is the point: rejection has to happen first.
   const kv = fakeKv()
   const identity = await generateClaimIdentity()
-  const valid = await signClaim({ name: "colin", port: 9393, issuedAt: Date.now() }, identity)
+  const valid = await signClaim({ name: "dana", port: 9393, issuedAt: Date.now() }, identity)
   const response = await worker.fetch(
     new Request("https://r.frizz.sh/claim", {
       method: "POST",
@@ -83,22 +83,22 @@ test("the KV store round-trips a record", async () => {
   const kv = fakeKv()
   const store = kvClaimStore(kv)
   const record = { pubkey: "k", tunnelId: "t", port: 9393, claimedAt: 1, renewedAt: 2 }
-  await store.write("colin", record)
-  assert.deepEqual(await store.read("colin"), record)
-  await store.remove("colin")
-  assert.equal(await store.read("colin"), null)
+  await store.write("dana", record)
+  assert.deepEqual(await store.read("dana"), record)
+  await store.remove("dana")
+  assert.equal(await store.read("dana"), null)
 })
 
 test("an unparseable KV row reads as absent, so one bad row cannot strand a name forever", async () => {
-  const store = kvClaimStore(fakeKv({ "claim:colin": "{{{" }))
-  assert.equal(await store.read("colin"), null)
+  const store = kvClaimStore(fakeKv({ "claim:dana": "{{{" }))
+  assert.equal(await store.read("dana"), null)
 })
 
 test("the owner index round-trips under its own prefix", async () => {
   const kv = fakeKv()
   const store = kvClaimStore(kv)
-  await store.writeOwner("pubkey-a", "colin")
-  assert.equal(await store.readOwner("pubkey-a"), "colin")
+  await store.writeOwner("pubkey-a", "dana")
+  assert.equal(await store.readOwner("pubkey-a"), "dana")
   // It must not show up as a claimed NAME, or the sweeper would try to release a public key.
   assert.deepEqual(await store.list(), [])
   await store.removeOwner("pubkey-a")
@@ -107,9 +107,9 @@ test("the owner index round-trips under its own prefix", async () => {
 
 test("listing strips the key prefix and ignores anything that is not a claim", async () => {
   // The sweeper works from this list, so a prefix left on a name would build a hostname like
-  // `claim:colin.frizz.sh` and delete nothing that exists.
-  const store = kvClaimStore(fakeKv({ "claim:colin": "{}", "claim:ada": "{}", "other:thing": "{}" }))
-  assert.deepEqual((await store.list()).sort(), ["ada", "colin"])
+  // `claim:dana.frizz.sh` and delete nothing that exists.
+  const store = kvClaimStore(fakeKv({ "claim:dana": "{}", "claim:ada": "{}", "other:thing": "{}" }))
+  assert.deepEqual((await store.list()).sort(), ["ada", "dana"])
 })
 
 test("an anonymous claim goes through the worker with no GitHub anywhere near it", async () => {
@@ -228,7 +228,7 @@ test("through the worker, a scoped token is refused with advice to update, and a
       worker.fetch(
         new Request("https://r.frizz.sh/claim", {
           method: "POST",
-          body: JSON.stringify(await signClaim({ name: "colin", port: 9393, issuedAt: Date.now(), github: token }, identity)),
+          body: JSON.stringify(await signClaim({ name: "dana", port: 9393, issuedAt: Date.now(), github: token }, identity)),
         }),
         env(kv)
       )
@@ -242,8 +242,8 @@ test("through the worker, a scoped token is refused with advice to update, and a
     scopes = ""
     const accepted = await claim("gho_zero")
     assert.equal(accepted.status, 200)
-    assert.equal(JSON.parse(kv.rows.get("claim:colin")!).githubId, 4242)
-    assert.equal(kv.rows.get("gh:4242"), "colin", "the one-name-per-account index is kept")
+    assert.equal(JSON.parse(kv.rows.get("claim:dana")!).githubId, 4242)
+    assert.equal(kv.rows.get("gh:4242"), "dana", "the one-name-per-account index is kept")
     assert.equal(JSON.stringify([...kv.rows.values()]).includes("gho_"), false, "no token is stored")
     assert.deepEqual(shown, ["Bearer gho_ghcli", "Bearer gho_zero"])
   } finally {

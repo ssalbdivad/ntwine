@@ -719,9 +719,9 @@ function restMessageIsSignedOff(
  *  thread parked behind something that will never report. That rescue is real, and it is kept below —
  *  but it never applied to these two shapes, and firing over them was a self-feeding loop rather than a
  *  rescue. Measured on the maintainer's own board 2026-08-12 (project zod): a worker parked on
- *  `pr-watch: colinhacks/zod#6382` was bumped 7 times in 46 minutes, each bump costing a turn whose only
+ *  `pr-watch:` on a Zod PR (#6382) was bumped 7 times in 46 minutes, each bump costing a turn whose only
  *  product was the SAME fence reworded, because "keep going" has no answer while a PR sits unreviewed. A
- *  second thread added `human: Colin to merge — the task barred me from merging` and was bumped anyway,
+ *  second thread added `human: maintainer to merge — the task barred me from merging` and was bumped anyway,
  *  until it escaped the loop the only way left to it: a ```done fence on a PR nobody had merged. The
  *  trigger corrupted the signal it exists to produce.
  *
@@ -1322,7 +1322,7 @@ export async function probePrReadable(ref: PrRef): Promise<PrProbe> {
  *  `watch_issue` on something the server's own `gh` cannot see is refused rather than armed.
  *
  *  AND A PULL REQUEST NUMBER IS REFUSED HERE TOO. `gh issue view` answers for a PR number (measured
- *  2026-09-14 against colinhacks/zod#6382: `{"state":"CLOSED","url":".../pull/6382"}`), while the poll's
+ *  2026-09-14 against a Zod PR (#6382): `{"state":"CLOSED","url":".../pull/6382"}`), while the poll's
  *  `issue(number:)` GraphQL field does not — so a PR registered as an issue would pass a bare probe and
  *  then fail every poll in silence, the exact dead watcher the probe exists to prevent. The URL is the
  *  tell, and the refusal names the right tool. */

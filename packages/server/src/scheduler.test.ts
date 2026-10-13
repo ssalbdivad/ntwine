@@ -1047,12 +1047,12 @@ test("pr-watch: muted bot noise does not wake — and does not block the human c
   // A real comment lands next poll. The steer names it alone — the muted item is gone, not deferred.
   h.clock.ms += 10_000
   const at = iso(h.clock.ms)
-  h.review.result = [vercel, { id: "comment:hu", actor: "colinhacks", actorType: "User", at, kind: "comment", body: "please rebase" }]
+  h.review.result = [vercel, { id: "comment:hu", actor: "dana", actorType: "User", at, kind: "comment", body: "please rebase" }]
   const s2 = h.make()
   await s2.tick()
   await s2.tick()
   assert.equal(h.resumes.length, 1, "the human comment wakes")
-  assert.match(h.resumes[0].message, /New GitHub comment on acme\/app#391 from @colinhacks/)
+  assert.match(h.resumes[0].message, /New GitHub comment on acme\/app#391 from @dana/)
   assert.doesNotMatch(h.resumes[0].message, /vercel/)
 })
 
@@ -1155,7 +1155,7 @@ test("pr-watch: baselines, then bumps on a new human comment", async () => {
 
 // The steer used to name only the PR and the actor. A worker woken that way has no way to address the
 // exact item, so its only move is a broad re-read of the thread — and on the real nubjs/nub#587 wake
-// that handed back TWO comments from @colinhacks, one of them hours stale and already handled. The
+// that handed back TWO comments from one reviewer, one of them hours stale and already handled. The
 // permalink addresses exactly one item; the ISO timestamp orders it against the worker's own last turn.
 test("pr-watch: the bump steer carries the item's permalink and timestamp, not just the actor", async () => {
   const h = harness()
@@ -1165,21 +1165,21 @@ test("pr-watch: the bump steer carries the item's permalink and timestamp, not j
   h.tele.set("r", { ...tele(awaiting([{ kind: "pr", value: "nubjs/nub#587" }])), lastActivityAt: fenceAt })
   // The stale comment predates the registration, so the first poll only baselines it — and from here it
   // must never be named again.
-  h.review.result = [{ id: "comment:stale", actor: "colinhacks", actorType: "User", at: iso(h.clock.ms - 120_000), kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1" }]
+  h.review.result = [{ id: "comment:stale", actor: "dana", actorType: "User", at: iso(h.clock.ms - 120_000), kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1" }]
   await h.make().tick()
   assert.equal(h.resumes.length, 0)
 
   h.clock.ms += 20_000
   const at = iso(h.clock.ms)
   h.review.result = [
-    { id: "comment:fresh", actor: "colinhacks", actorType: "User", at, kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-2" },
-    { id: "comment:stale", actor: "colinhacks", actorType: "User", at: iso(h.clock.ms - 11_000), kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1" },
+    { id: "comment:fresh", actor: "dana", actorType: "User", at, kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-2" },
+    { id: "comment:stale", actor: "dana", actorType: "User", at: iso(h.clock.ms - 11_000), kind: "comment", url: "https://github.com/nubjs/nub/pull/587#issuecomment-1" },
   ]
   const s = h.make()
   await s.tick()
   await s.tick()
   assert.equal(h.resumes.length, 1)
-  const steer = `👤 New GitHub comment on nubjs/nub#587 from @colinhacks at ${at}. Read that exact comment — ignore older activity you have already handled — and continue: https://github.com/nubjs/nub/pull/587#issuecomment-2`
+  const steer = `👤 New GitHub comment on nubjs/nub#587 from @dana at ${at}. Read that exact comment — ignore older activity you have already handled — and continue: https://github.com/nubjs/nub/pull/587#issuecomment-2`
   // The steer is a PREFIX of the delivery: the still-armed trailer follows it, and the blank line
   // between them is also what pins that the URL ends the steer — no trailing period joins the href.
   assert.ok(h.resumes[0].message.startsWith(`${steer}\n\n(Registered PR watcher`))

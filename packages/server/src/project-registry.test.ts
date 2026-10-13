@@ -107,10 +107,10 @@ test("on collision the incumbent keeps its slug and the newcomer is qualified", 
     const first = registerProject({ dir: project(home, "a/zod", A), id: A }, home)
     assert.equal(first.entry?.slug, "zod")
     const second = registerProject(
-      { dir: project(home, "b/zod", B), id: B, remoteOwner: "colinhacks" },
+      { dir: project(home, "b/zod", B), id: B, remoteOwner: "dana" },
       home,
     )
-    assert.equal(second.entry?.slug, "colinhacks-zod")
+    assert.equal(second.entry?.slug, "dana-zod")
     assert.equal(findBySlug("zod", home)?.id, A, "the incumbent is untouched")
   } finally {
     rmSync(home, { recursive: true, force: true })
@@ -143,8 +143,8 @@ test("a project in a folder called `home` does not take the Home workspace's slu
 })
 
 test("numeric suffixes carry on once every qualifier is taken", () => {
-  const taken = new Set(["zod", "colinhacks-zod", "a-zod"])
-  assert.equal(deriveSlug("/a/zod", taken, { remoteOwner: "colinhacks" }), "zod-2")
+  const taken = new Set(["zod", "dana-zod", "a-zod"])
+  assert.equal(deriveSlug("/a/zod", taken, { remoteOwner: "dana" }), "zod-2")
 })
 
 // The whole reason the registry is keyed by id rather than path.

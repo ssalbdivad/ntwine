@@ -5,7 +5,7 @@ import { isNoisePrActivity } from "./pr-watch-noise.ts"
 const bot = (actor: string, body?: string) => ({ actor, actorType: "Bot", body })
 
 test("noise: a human item is never muted, whatever it says", () => {
-  assert.equal(isNoisePrActivity({ actor: "colinhacks", actorType: "User", body: "[vc]: #deploy-table" }), false)
+  assert.equal(isNoisePrActivity({ actor: "dana", actorType: "User", body: "[vc]: #deploy-table" }), false)
   assert.equal(isNoisePrActivity({ actor: "vercel", actorType: "User", body: "" }), false, "the actor list only applies to a Bot actor")
 })
 

@@ -13,7 +13,7 @@ import {
 const AT = 1_700_000_000_000
 
 test("a canonical ref parses into its owner, name and number or sha", () => {
-  assert.deepEqual(parseRef("colinhacks/frizz#123"), { key: "colinhacks/frizz#123", owner: "colinhacks", name: "frizz", number: 123 })
+  assert.deepEqual(parseRef("ssalbdivad/ntwine#123"), { key: "ssalbdivad/ntwine#123", owner: "ssalbdivad", name: "ntwine", number: 123 })
   assert.deepEqual(parseRef("nubjs/nub@92ed4cc"), { key: "nubjs/nub@92ed4cc", owner: "nubjs", name: "nub", sha: "92ed4cc" })
   assert.equal(parseRef("nubjs/nub#123")!.sha, undefined)
 })
@@ -32,14 +32,14 @@ test("only a commit is immutable", () => {
 })
 
 test("the batched query aliases every ref and binds each value as a variable", () => {
-  const refs = [parseRef("nubjs/nub#660")!, parseRef("colinhacks/frizz@92ed4cc")!]
+  const refs = [parseRef("nubjs/nub#660")!, parseRef("ssalbdivad/ntwine@92ed4cc")!]
   const { query, variables } = buildRefQuery(refs)
   assert.match(query, /a0: repository\(owner: \$owner0, name: \$name0\)/)
   assert.match(query, /issueOrPullRequest\(number: \$number0\)/)
   // An abbreviated sha is not a GitObjectID — `object(oid:)` rejects it outright, so a commit is
   // looked up by EXPRESSION. Measured against the real API 2026-08-14.
   assert.match(query, /object\(expression: \$rev1\)/)
-  assert.deepEqual(variables, { owner0: "nubjs", name0: "nub", number0: 660, owner1: "colinhacks", name1: "frizz", rev1: "92ed4cc" })
+  assert.deepEqual(variables, { owner0: "nubjs", name0: "nub", number0: 660, owner1: "ssalbdivad", name1: "ntwine", rev1: "92ed4cc" })
   // Nothing foreign is concatenated into the document: every literal in it is an alias index.
   assert.equal(query.includes("nubjs"), false)
   assert.equal(query.includes("92ed4cc"), false)
@@ -54,14 +54,14 @@ test("an issue node becomes a card", () => {
     state: "OPEN",
     url: "https://github.com/nubjs/nub/issues/660",
     createdAt: "2026-08-02T03:52:56Z",
-    author: { login: "colinhacks", avatarUrl: "https://avatars.githubusercontent.com/u/3084745" },
+    author: { login: "dana", avatarUrl: "https://avatars.githubusercontent.com/u/1" },
     labels: { nodes: [{ name: "bug", color: "d73a4a" }] },
     comments: { totalCount: 4 },
   }, AT)
   assert.equal(card?.kind, "issue")
   assert.equal(card?.repo, "nubjs/nub")
   assert.equal(card?.state, "OPEN")
-  assert.equal(card?.authorLogin, "colinhacks")
+  assert.equal(card?.authorLogin, "dana")
   assert.deepEqual(card?.labels, [{ name: "bug", color: "d73a4a" }])
   assert.equal(card?.comments, 4)
   assert.equal(card?.fetchedAt, AT)
@@ -88,7 +88,7 @@ test("a commit node becomes a card with its diffstat and git author", () => {
     additions: 254,
     deletions: 19,
     changedFilesIfAvailable: 4,
-    author: { name: "Colin McDonnell", user: null },
+    author: { name: "Dana", user: null },
   }, AT)
   assert.equal(card?.kind, "commit")
   assert.equal(card?.state, "")
@@ -96,7 +96,7 @@ test("a commit node becomes a card with its diffstat and git author", () => {
   assert.equal(card?.deletions, 19)
   assert.equal(card?.changedFiles, 4)
   // A commit's git author often has no GitHub account behind it, so the NAME is what the byline gets.
-  assert.equal(card?.authorName, "Colin McDonnell")
+  assert.equal(card?.authorName, "Dana")
   assert.equal(card?.authorLogin, undefined)
 })
 

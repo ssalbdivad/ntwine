@@ -4976,7 +4976,7 @@ export function sectionOf(t: ThreadView): SectionKey | null {
   // Legacy (.ntwine-file) rows are HIDDEN entirely (null; not even a shelf). Foreign never rows.
   if (t.kind !== "session") return null
   // Archived → Done, UNLESS it's actively running: a live, in-flight session must never sit under Done
-  // (Colin 2026-07-10, hit 3×). It shows in the Active band (labelled Running) with its spinner while it
+  // (upstream Frizz 2026-07-10, hit 3×). It shows in the Active band (labelled Running) with its spinner while it
   // works, and drops back to Done the moment it comes to rest still archived. The STATE never moves —
   // only the human reopens a thread (David 2026-09-24: "if something is marked as done ensure that the
   // agent doesn't unmark it as done that should only be reversible by human"), and a human bump does
@@ -4986,7 +4986,7 @@ export function sectionOf(t: ThreadView): SectionKey | null {
   // From 2026-09-24 (da8ebaf1) to 2026-10-06 the fork filed such a row in Done whatever its worker was
   // doing, so the agent never appeared to unmark Done. But Done is collapsed by default, so a running
   // worker filed there was invisible — the exact failure the lift-back exists for, and a break of the
-  // rule that each thread's rail is always in view (David 2026-10-06, adopting Colin's rule back). What
+  // rule that each thread's rail is always in view (David 2026-10-06, adopting upstream Frizz's rule back). What
   // da8ebaf1 guarded against is answered inside the lift instead: the lifted row keeps its Done dim and
   // its uncheck box, which draws the spinner and reads "Done, still working" (doneButRunning), so it
   // says both that the human filed it and that the worker is still finishing.
@@ -5041,7 +5041,7 @@ export function activeBandThread(t: ThreadView): boolean {
  * DONE, AND STILL MOVING — a thread the human marked done whose session is actively running anyway: a
  * turn still draining, a sub-agent it dispatched still out.
  *
- * Its row lifts back into the Active band (Running) while it moves (sectionOf, Colin 2026-07-10), and
+ * Its row lifts back into the Active band (Running) while it moves (sectionOf, upstream Frizz 2026-07-10), and
  * its STATE stays archived, because only the human reopens a thread (David 2026-09-24). This predicate is
  * the "finishing" mark that says both: the row keeps the Done dim and its uncheck box, and the box draws
  * the spinner (web groups.ts sessionIndicatorKind, Sidebar RowUncheckDone — "Done, still working").
@@ -6947,7 +6947,7 @@ function wakeReviewTail(steer: GithubWakeSteer): string {
 // ---- the BACKLOG tail -----------------------------------------------------------------------------
 // The one wake that names activity which is NOT new: the first time a thread parks on a given PR, the
 // watcher hands over whatever was already sitting there (maintainer 2026-08-12, choosing this over a
-// card that merely mentions it). A worker had parked on colinhacks/zod#6318 saying "waiting on review"
+// card that merely mentions it). A worker had parked on a Zod PR (#6318) saying "waiting on review"
 // with two unread reviews already on it, and the old baseline recorded them as handled — so the watcher
 // slept on the very thing it was watching for.
 //

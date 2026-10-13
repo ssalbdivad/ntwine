@@ -60,7 +60,7 @@ import { redactToolPayload } from "./credential-redaction.ts"
 // on any schema surprise rather than crashing.
 //
 // ---- TURN-STATE HEURISTIC (chosen empirically) ----
-// Investigated the 15 real transcripts in ~/.claude/projects/-Users-colinmcd94-Documents-projects-ntwine/.
+// Investigated the 15 real transcripts in ~/.claude/projects/-Users-me-Documents-projects-ntwine/.
 // Record `type`s observed: assistant, user, attachment, queue-operation, last-prompt, ai-title,
 // permission-mode, mode, bridge-session, file-history-snapshot, system. Only `assistant`, `user`,
 // and `system` carry a `timestamp`; the rest are sidecar metadata (no timestamp).
