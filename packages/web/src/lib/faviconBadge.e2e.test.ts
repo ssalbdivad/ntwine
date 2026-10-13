@@ -11,9 +11,9 @@ const baseUrl = process.env.FRIZZ_FAVICON_BADGE_E2E_URL
 // outside one. What NO test can reach is the tab strip itself: neither headless Chrome nor CDP exposes
 // the favicon a tab is showing. This pins the document state Chrome reads it from, and the pixels.
 const ORIGINAL = [
-  { href: "/favicon.svg?v=6", type: "image/svg+xml", sizes: null },
-  { href: "/favicon-32.png?v=6", type: "image/png", sizes: "32x32" },
-  { href: "/favicon-16.png?v=6", type: "image/png", sizes: "16x16" },
+  { href: "/favicon.svg?v=7", type: "image/svg+xml", sizes: null },
+  { href: "/favicon-32.png?v=7", type: "image/png", sizes: "32x32" },
+  { href: "/favicon-16.png?v=7", type: "image/png", sizes: "16x16" },
 ]
 
 const readLinks = () => [...document.querySelectorAll('link[rel~="icon"]')].map((link) => ({
@@ -50,7 +50,7 @@ test("the rest dot or a count repoints every icon link at a badged raster, and c
     assert.equal(new Set(badged.map((l) => l.href)).size, 1)
     for (const link of badged) assert.deepEqual({ type: link.type, sizes: link.sizes }, { type: "image/png", sizes: null })
     // The home-screen art is a different `rel` token and is not the tab's.
-    assert.equal(await page.$eval('link[rel="apple-touch-icon"]', (l) => l.getAttribute("href")), "/apple-touch-icon.png?v=6")
+    assert.equal(await page.$eval('link[rel="apple-touch-icon"]', (l) => l.getAttribute("href")), "/apple-touch-icon.png?v=7")
 
     const pixels = await page.evaluate(async (url) => {
       const img = new Image()

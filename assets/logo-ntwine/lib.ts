@@ -365,3 +365,46 @@ ${w.body}
 
 /** Three strands in three golds, light to deep, so each can be followed through the weave. */
 export const TRI: Paint = { inks: ["#ffd970", "#eab52a", "#c88a12"] }
+
+// ---------------------------------------------------------------------------------------------------
+// THE MARK'S CONSTRUCTION
+
+const DEG = Math.PI / 180
+
+/**
+ * A plait of `n` crossings `spacing` apart, with `tail` units of straight thread at each end.
+ * The phase runs 0 -> 60n degrees; at every multiple of 60 the three strands sit evenly spread at
+ * (-0.866A, 0, 0.866A), so the tails leave from an even spread. The phase's RATE eases in and out over
+ * `ramp` units, so the strands straighten into their tails rather than kinking.
+ */
+export type PlaitParams = { n: number; spacing: number; A: number; tail: number; ramp: number; cy?: number; envelope?: number }
+
+export function tailedPlait(o: PlaitParams) {
+  const braid = o.n * o.spacing + o.ramp // the ramps lose about ramp/2 each, so add one ramp back
+  const total = braid + 2 * o.tail
+  const cy = o.cy ?? 256
+  const centreline = line([256, cy + total / 2], [256, cy - total / 2])
+  // phase table, integrated numerically and normalised to exactly 60n degrees
+  const K = 4000
+  const rate = (s: number) => {
+    const a = s - o.tail, b = o.tail + braid - s
+    if (a <= 0 || b <= 0) return 0
+    const sm = (x: number) => (x >= o.ramp ? 1 : (x / o.ramp) ** 2 * (3 - 2 * (x / o.ramp)))
+    return sm(a) * sm(b)
+  }
+  const table: number[] = [0]
+  for (let k = 1; k <= K; k++) table.push(table[k - 1] + rate(((k - 0.5) / K) * total))
+  const scale = (60 * o.n * DEG) / table[K]
+  const phase = (s: number) => {
+    const x = Math.min(K, Math.max(0, (s / total) * K))
+    const k = Math.floor(x)
+    const t = x - k
+    return (table[k] + t * ((table[Math.min(K, k + 1)] ?? table[K]) - table[k])) * scale
+  }
+  const offset = (i: number, _u: number, s: number) => {
+    const env = o.envelope ? Math.max(0, Math.sin((Math.PI * Math.min(total, Math.max(0, s))) / total)) ** o.envelope : 1
+    return o.A * env * Math.sin(phase(s) + (2 * Math.PI * i) / 3)
+  }
+  return { centreline, offset, total }
+}
+
