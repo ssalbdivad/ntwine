@@ -11,7 +11,7 @@ const description =
   "Run Claude Code, Codex and other coding agents side by side from one browser tab. When one needs you, it becomes a card in a single queue. Everything stays local, with no account and no telemetry.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://frizz.sh"),
+  metadataBase: new URL("https://ntwine.app"),
   title: { default: "Ntwine: one tab for all your coding agents", template: "%s · Ntwine" },
   description,
   icons: {

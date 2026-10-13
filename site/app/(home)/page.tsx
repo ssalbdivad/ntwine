@@ -240,7 +240,7 @@ export default function Home() {
           <div className="mt-5 space-y-4 text-lg text-fd-muted-foreground">
             <p>
               Press <Code>R</Code> in the terminal running Ntwine and pick how your phone should reach it. A private
-              frizz.sh name needs no account and nothing installed.
+              ntwine.app name needs no account and nothing installed.
             </p>
             <p>
               Either way, Ntwine stays on localhost. The first visit from each device needs a single-use sign-in link,

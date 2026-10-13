@@ -1,5 +1,7 @@
 # Hosted Ntwine: `<name>.frizz.sh` as a paid service
 
+> **2026-10-13:** a dated design record. The service it describes moved from `frizz.sh` to `ntwine.app`, on a new Cloudflare account with none of the ids below; for the current setup see [`packages/registrar/README.md`](../packages/registrar/README.md).
+
 Status: **BUILDING.** Owner effort: ntwine worker thread (remote-access). The design to build is [Stage 2, revised](#stage-2-revised-leased-names-keypair-ownership-no-accounts) at the bottom of this file, not the original Stage 2 sketch above it.
 
 A "NOT BUILDING" verdict sat here on 2026-08-24 and was reversed the same day. It is worth recording why, because three of its four reasons were wrong on facts that were never checked:

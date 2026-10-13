@@ -9,7 +9,7 @@ ssh -L 9393:127.0.0.1:9393 you@your-machine
 
 Then open `http://127.0.0.1:9393` on the client. The forwarded port is loopback on both ends, so Ntwine treats it as local. There's no public origin to declare and no sign-in link to redeem.
 
-Nothing is exposed to the internet. The catch is that the forward only lives as long as the SSH session, which makes it awkward from a phone. For that, we'd recommend [a name on frizz.sh](/docs/ntwine-sh) or [Tailscale](/docs/tailscale).
+Nothing is exposed to the internet. The catch is that the forward only lives as long as the SSH session, which makes it awkward from a phone. For that, we'd recommend [a name on ntwine.app](/docs/hosted-name) or [Tailscale](/docs/tailscale).
 
 ## Minting a link over the same connection
 

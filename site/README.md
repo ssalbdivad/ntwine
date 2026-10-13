@@ -1,6 +1,6 @@
-# frizz.sh
+# ntwine.app
 
-The site at [frizz.sh](https://frizz.sh): a landing page and the docs, built with [Fumadocs](https://fumadocs.dev) on
+The site at [ntwine.app](https://ntwine.app): a landing page and the docs, built with [Fumadocs](https://fumadocs.dev) on
 Next.js — the same stack and shape as [zod.dev](https://zod.dev) and the `yes` docs.
 
 It is its own app, not a member of the repo's pnpm workspace, so it installs and builds on its own:
@@ -22,20 +22,31 @@ pnpm build
 | `public/img/` | Screenshots captured from a sandboxed `scripts/adhoc-stack.mjs` instance (seeded threads, no real data). The `README.md` at the repo root uses copies in `assets/`; re-shoot both together. |
 | `og/` | Source for `public/img/og.png`, the 1200×630 social card. Not deployed. |
 
-The remote-access guides (`content/docs/remote-access.mdx`, `ntwine-sh.mdx`, `cloudflare-tunnel.mdx`, `tailscale.mdx`,
+The remote-access guides (`content/docs/remote-access.mdx`, `hosted-name.mdx`, `cloudflare-tunnel.mdx`, `tailscale.mdx`,
 `ssh.mdx`, `reverse-proxy.mdx`) mirror [`docs/remote-access.md`](../docs/remote-access.md). Change one and change the
 other.
 
-## Why `/docs` and not `docs.frizz.sh`
+## Why `/docs` and not `docs.ntwine.app`
 
-The relay Worker owns `*.frizz.sh/*`, and a workers route beats a custom domain — a subdomain here is
-answered by the relay with *No Ntwine board has claimed this name*, which is exactly how `registrar.frizz.sh`
+The relay Worker owns `*.ntwine.app/*`, and a workers route beats a custom domain — a subdomain here is
+answered by the relay with *No Ntwine board has claimed this name*, which is exactly how the registrar's hostname
 went down the day the relay shipped. A path on the apex is not covered by that wildcard. A subdomain would
 work only with its own more-specific route, the way the registrar has one.
 
 ## Deploying
 
-The Vercel project is `ntwine` under the `colinhacks-projects` scope, deployed from this directory with the CLI:
+The Vercel project is `ntwine` under the maintainer's own Vercel scope, deployed from this directory with the
+CLI. The first time, link it and attach both hostnames:
+
+```sh
+vercel link --cwd site --project ntwine
+vercel domains add ntwine.app --cwd site
+vercel domains add www.ntwine.app --cwd site   # vercel.json redirects it to the apex
+```
+
+The two records Vercel asks for go in the `ntwine.app` zone on Cloudflare as **DNS only** (grey cloud), never
+proxied: a proxied `www` would match the relay's `*.ntwine.app/*` route and answer as an unclaimed board. The
+apex is not covered by that wildcard. After that, every deploy is:
 
 ```sh
 vercel --cwd site --prod

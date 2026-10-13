@@ -1,6 +1,6 @@
-# A blind relay: frizz.sh carries ciphertext it cannot read or forge
+# A blind relay: ntwine.app carries ciphertext it cannot read or forge
 
-Design plan, 2026-10-08. Prompted by the frizz.sh compromise found that day: from 2026-09-21 to 2026-10-08 an attacker holding a Cloudflare user API token for the Ntwine account ran backdoored builds of [`packages/relay`](../packages/relay) and [`packages/registrar`](../packages/registrar). Status: **PROPOSED. Nothing here is built.**
+Design plan, 2026-10-08. Prompted by the frizz.sh compromise found that day: from 2026-09-21 to 2026-10-08 an attacker holding a Cloudflare user API token for the Ntwine account ran backdoored builds of [`packages/relay`](../packages/relay) and [`packages/registrar`](../packages/registrar). Status: **PROPOSED. Nothing here is built.** Hosted names moved from frizz.sh to `ntwine.app`, on a new Cloudflare account, on 2026-10-13; the design below is written against `ntwine.app` and applies unchanged.
 
 **Verdict: end-to-end encryption is necessary but is not the fix on its own. The fix is to move the code that holds the keys off every origin the Cloudflare account controls.** Today the relay serves the page, so any encryption inside the page is only as strong as the relay that serves it. The recommended design puts a small, separately hosted loader in front of the board, pins the board's public key from the access link's fragment, binds each phone to a non-extractable device key in place of the bearer cookie, and turns the relay into a pipe for binary frames it cannot open. A compromised Cloudflare account then can deny service and observe traffic shape, and nothing more.
 
@@ -21,7 +21,7 @@ The backdoored relay (`evidence/live-vs-main-relay.diff` in the incident thread)
 Three conclusions follow, and the design rests on them.
 
 - **The access gate protects a board from strangers, not from the relay.** The comment at the top of [`worker.ts`](../packages/relay/src/worker.ts) and the [relay README](../packages/relay/README.md) say "Nothing in the board is trusted to us — the visitor still meets Ntwine's own single-use access gate on the far side". That is false in effect: the credential the gate checks rides through the relay on every request, and the single-use code in `?ntwine_code=` rides through it too, in the query string, before it is redeemed. Both statements need correcting whatever else is decided (Phase 0).
-- **The trust anchors live in the same account as the relay.** The relay authenticates a board against the pubkey the registrar wrote to the `CLAIMS` KV namespace, and Cloudflare also holds the `frizz.sh` DNS zone and terminates TLS for `*.frizz.sh`. An attacker with the account can change all three. So any defence whose root is "the name `ada.frizz.sh`" fails against this attacker: web origin security is rooted in DNS and the CA system, and the attacker controls the DNS.
+- **The trust anchors live in the same account as the relay.** The relay authenticates a board against the pubkey the registrar wrote to the `CLAIMS` KV namespace, and Cloudflare also holds the `ntwine.app` DNS zone and terminates TLS for `*.ntwine.app`. An attacker with the account can change all three. So any defence whose root is "the name `ada.ntwine.app`" fails against this attacker: web origin security is rooted in DNS and the CA system, and the attacker controls the DNS.
 - **The relay serves the code.** `index.html` and every JavaScript asset reach the browser through the same Durable Object. A protocol that encrypts inside that page stops the passive half of this backdoor and nothing else: the next upload serves a page that sends the plaintext out before it encrypts it. 1Password states the same limit for its own web client: "An attacker capable of changing the web client on the server could deliver a malicious client to the user", and its advice to users is to "Use (code signed) native clients as much as possible" ([1Password security design, "Crypto over HTTPS"](https://agilebits.github.io/security-design/leopard.html)).
 
 ## 2. Threat model
@@ -29,8 +29,8 @@ Three conclusions follow, and the design rests on them.
 | Adversary | Capabilities | In scope |
 | --- | --- | --- |
 | **A1. Passive relay** | Reads every frame the relay carries | Yes: the design must reveal content to it only as ciphertext |
-| **A2. Active relay** | A1, plus drops, delays, reorders, replays, injects and rewrites frames; serves any HTTP response at `*.frizz.sh` | Yes |
-| **A3. Cloudflare account** | A2, plus the DNS zone, the `CLAIMS` KV, other Workers, and a DV certificate for any `*.frizz.sh` name (it controls the DNS a CA validates against) | Yes. This is the attacker of 2026-09-21. |
+| **A2. Active relay** | A1, plus drops, delays, reorders, replays, injects and rewrites frames; serves any HTTP response at `*.ntwine.app` | Yes |
+| **A3. Cloudflare account** | A2, plus the DNS zone, the `CLAIMS` KV, other Workers, and a DV certificate for any `*.ntwine.app` name (it controls the DNS a CA validates against) | Yes. This is the attacker of 2026-09-21. |
 | **A4. Loader host** | Serves any bytes at the loader origin proposed below | Partly: the design moves trust here, so it must be on a different provider with a separately guarded deploy, and Phase 4 narrows it further |
 | **A5. Stolen phone or copied browser profile** | Holds whatever the browser stored | Partly: revocation from the laptop, and step-up for escalation |
 | **A6. Compromised board machine** | Everything | No. The board is the endpoint; it already runs shells. |
@@ -43,7 +43,7 @@ The assets: thread content (prompts, transcripts, files the board serves), the p
 1. **R1 — Confidentiality from A3.** The relay and everything else in the Cloudflare account see ciphertext plus metadata: names, sizes, timing, IP addresses.
 2. **R2 — Integrity from A3.** The relay cannot inject, alter or replay an action the board will accept. A rewrite is detected and closes the channel.
 3. **R3 — No credential crosses the relay in a usable form.** No bearer cookie, no access code. A frame the relay copies is worthless to replay.
-4. **R4 — The code that holds keys is never served by an origin A3 controls.** No path in `*.frizz.sh`, and no host whose DNS or deploy the Cloudflare account can change.
+4. **R4 — The code that holds keys is never served by an origin A3 controls.** No path in `*.ntwine.app`, and no host whose DNS or deploy the Cloudflare account can change.
 5. **R5 — The board's public key reaches the phone out of band**, in the access link's URL fragment, which [RFC 3986 §3.5](https://www.rfc-editor.org/rfc/rfc3986#section-3.5) defines as "dereferenced solely by the user agent". Never from the registrar, the relay or KV.
 6. **R6 — No silent downgrade.** A device that has paired over the encrypted channel never falls back to the plaintext path because the relay says so.
 7. **R7 — Enrolment needs presence on the machine,** as minting a code does today (the `SUPERVISOR_ACCESS_CODE_PATH` endpoint in [`restart-supervisor.ts`](../packages/server/src/restart-supervisor.ts) refuses any request that arrived publicly).
@@ -63,7 +63,7 @@ The loopback path (the operator's own tab on `127.0.0.1`) is out of scope and do
 | --- | --- | --- | --- | --- | --- | --- |
 | **O1. Today + board-side hardening** | Yes | Yes, with a copied cookie | No | The relay's | Yes | Nothing new; caps damage only |
 | **O2. E2E inside the relay-served page** | Not while the page is honest | Not while the page is honest | No: A2 swaps the JavaScript | The relay's | Yes | A protocol, and a false sense of safety |
-| **O3. TLS passthrough** (SNI routing; the board holds the certificate and terminates TLS) | No | No | **No under `frizz.sh`**: A3 repoints DNS and gets its own DV certificate. Certificate Transparency logs the issuance after the fact. | The board's, by name | Yes | Cannot run on Workers (a Worker only sees HTTP; custom TCP in [Spectrum](https://developers.cloudflare.com/spectrum/) needs Enterprise), so a VPS-based SNI router; ACME on every board |
+| **O3. TLS passthrough** (SNI routing; the board holds the certificate and terminates TLS) | No | No | **No under `ntwine.app`**: A3 repoints DNS and gets its own DV certificate. Certificate Transparency logs the issuance after the fact. | The board's, by name | Yes | Cannot run on Workers (a Worker only sees HTTP; custom TCP in [Spectrum](https://developers.cloudflare.com/spectrum/) needs Enterprise), so a VPS-based SNI router; ACME on every board |
 | **O4. Separately hosted loader + Noise channel through a pipe relay** | No | No | Yes | The loader host's (small, static, auditable) and then the board's | Yes | A loader, a channel protocol, a new relay mode, a device registry |
 | **O5. Installed client** (native app, browser extension, or an Isolated Web App) speaking the O4 channel | No | No | Yes | A signing key held offline | No | App-store distribution; [Isolated Web Apps](https://developer.chrome.com/docs/iwa/introduction) are "only available to Chrome Enterprise administered ChromeOS devices and select development partners" today |
 | **O6. WebRTC data channel, relay as signalling only** | No, if the DTLS fingerprint is pinned from the QR | No, same condition | Only with O4's loader | Same as O4 | Mostly | TURN for hard NATs; does not solve where the code comes from. A transport under O4, not an alternative to it. |
@@ -71,7 +71,7 @@ The loopback path (the operator's own tab on `127.0.0.1`) is out of scope and do
 
 Prior art, read for this plan:
 
-- **TLS passthrough.** [ngrok's Zero-Knowledge TLS](https://ngrok.com/docs/universal-gateway/cloud-endpoints/tls) routes on SNI and leaves termination to the agent, so "the ngrok cloud service can not see payload"; the operator then becomes "responsible for provisioning, managing, and distributing certificates". [Tailscale Funnel](https://tailscale.com/kb/1223/tailscale-funnel) does the same: "Funnel relay servers do not decrypt the traffic", and the device terminates TLS. Both hold against a hostile relay operator only because the relay operator is not also the attacker who controls DNS for the name. For Funnel, Tailscale controls `ts.net`; for `frizz.sh`, A3 controls the zone. That is why O3 fails here and O7 does not.
+- **TLS passthrough.** [ngrok's Zero-Knowledge TLS](https://ngrok.com/docs/universal-gateway/cloud-endpoints/tls) routes on SNI and leaves termination to the agent, so "the ngrok cloud service can not see payload"; the operator then becomes "responsible for provisioning, managing, and distributing certificates". [Tailscale Funnel](https://tailscale.com/kb/1223/tailscale-funnel) does the same: "Funnel relay servers do not decrypt the traffic", and the device terminates TLS. Both hold against a hostile relay operator only because the relay operator is not also the attacker who controls DNS for the name. For Funnel, Tailscale controls `ts.net`; for `ntwine.app`, A3 controls the zone. That is why O3 fails here and O7 does not.
 - **A dumb ciphertext pipe.** Tailscale's [DERP servers](https://tailscale.com/kb/1232/derp-servers) relay WireGuard packets when a direct path fails: "A DERP server blindly forwards already-encrypted traffic from one device to another." That is the target shape for the relay's Durable Object.
 - **A hostile server must not be the one that announces keys.** The [Tailnet Lock whitepaper](https://tailscale.com/kb/1230/tailnet-lock-whitepaper) starts from "a compromised or malicious control plane could broadcast nodes with attacker-controlled keys", and answers it with signatures from keys the control plane never holds. Matrix shows the failure mode: [Albrecht et al., "Practically-exploitable Cryptographic Vulnerabilities in Matrix"](https://nebuchadnezzar-megolm.github.io/) found that a homeserver could add a device to a user's account and "existing devices will share their inbound Megolm sessions with the new device", and concluded that Matrix and Element "provided neither authentication nor confidentiality against homeservers that actively attack the protocol". Here, the registrar and relay must never be the source of the board's key or of the device list.
 - **Key in the QR, ciphertext through the server.** Signal's [device linking](https://signal.org/blog/a-synchronized-start-for-linked-devices/) puts a provisioning address and "the public key for a locally-generated Curve25519 keypair into the QR code"; the primary device encrypts the provisioning message to that key and Signal's server only relays it. The access link below is the same move in the other direction.
@@ -79,7 +79,7 @@ Prior art, read for this plan:
 - **Device-bound sessions.** Chrome's [Device Bound Session Credentials](https://blog.google/security/protecting-cookies-with-device-bound-session-credentials/) (2026-04-09; Windows on Chrome 146, macOS to follow) bind a session to a hardware key so a copied cookie cannot be renewed. Ntwine can get the same property on every browser from a WebCrypto key without waiting for DBSC.
 - **Transaction confirmation.** WebAuthn has no shipped way to show the user what they approve: `txAuthSimple` and `txAuthGeneric` were removed from Level 2 because they had "not be[en] implemented" ([w3c/webauthn#1386](https://github.com/w3c/webauthn/issues/1386)). A WebAuthn step-up proves presence; the page decides what the user sees.
 
-**Recommendation: O4, built so that O5 can reuse its protocol unchanged, with O1's board-side limits shipped first and kept.** O3 is rejected because it is the most work and still fails A3 under `frizz.sh`. O2 is rejected as a security boundary: it would have defeated the passive half of this exact backdoor and nothing an attacker would do next. O7 stays documented as the strongest option that exists today.
+**Recommendation: O4, built so that O5 can reuse its protocol unchanged, with O1's board-side limits shipped first and kept.** O3 is rejected because it is the most work and still fails A3 under `ntwine.app`. O2 is rejected as a security boundary: it would have defeated the passive half of this exact backdoor and nothing an attacker would do next. O7 stays documented as the strongest option that exists today.
 
 ## 5. Recommended design
 
@@ -91,7 +91,7 @@ Prior art, read for this plan:
 
 **One origin per board.** `<name>.<loader-domain>` gives each board its own storage, its own service-worker scope, and a root-mounted app, so `base-path.ts` and its `/project/<slug>` and `/_ntwine` routes work unchanged. It also means board A's code cannot use board B's device key, which matters for anyone with two machines. The cost is a wildcard DNS record and certificate at the loader host. (The single-origin alternative is open question 2 in § 9.)
 
-**A strict CSP on the loader:** `script-src 'self'`, `connect-src wss://*.frizz.sh`, no third-party script, no analytics.
+**A strict CSP on the loader:** `script-src 'self'`, `connect-src wss://*.ntwine.app`, no third-party script, no analytics.
 
 ### 5.2 Keys
 
@@ -123,7 +123,7 @@ What it buys: a copied browser profile or a script that has the device key but n
 
 The relay gains a second mode beside today's request framing:
 
-- The loader opens `wss://<name>.frizz.sh/_relay/pipe`. The Durable Object accepts it with the hibernation API, assigns a channel id, and stores that id in the socket's attachment.
+- The loader opens `wss://<name>.ntwine.app/_relay/pipe`. The Durable Object accepts it with the hibernation API, assigns a channel id, and stores that id in the socket's attachment.
 - Every message in either direction is binary: `[type: 1 byte][channel: 4 bytes][payload]`, with types `open`, `data`, `close`. The object copies `data` payloads between the visitor's socket and the board's socket and never parses them.
 - No per-request state lives in the object any more. A woken object rebuilds its routing from attachments, so a visitor socket survives hibernation, where today [`worker.ts`](../packages/relay/src/worker.ts) `restore()` has to close every visitor because their pending maps were in memory.
 - The keep-alive constants and the runtime auto-response stay as they are; they are metadata.
@@ -195,10 +195,10 @@ The board accepts `s` only if it is a registered, unrevoked device key. The init
 
 Even with every phase below done, A3 can:
 
-- **Deny service:** refuse the pipe, drop frames, close channels, take the name off the registrar, or point `<name>.frizz.sh` somewhere else. Every one of those looks like a board that is offline; none of them gets the attacker a byte of content or an action.
+- **Deny service:** refuse the pipe, drop frames, close channels, take the name off the registrar, or point `<name>.ntwine.app` somewhere else. Every one of those looks like a board that is offline; none of them gets the attacker a byte of content or an action.
 - **Observe metadata:** which names exist and when they connect, visitor IP addresses, how many devices open channels, and the size and timing of every record. Sizes and timing reveal a lot — when someone is typing, when a snapshot lands, how long a transcript is. Padding records to size buckets would blunt this at a bandwidth cost (open question 6).
 - **Impersonate the board's name, not the board.** A3 can rewrite the claim pubkey in KV and connect its own "board" to the name. The device's handshake then fails against the pinned `Sb`. That is a DoS, not a takeover.
-- **Phish.** A3 can serve a lookalike page at `<name>.frizz.sh`. The defence is that nothing Ntwine prints points there: the access link, the readout and any install prompt name the loader origin only.
+- **Phish.** A3 can serve a lookalike page at `<name>.ntwine.app`. The defence is that nothing Ntwine prints points there: the access link, the readout and any install prompt name the loader origin only.
 
 And the residual trust that does not go away:
 
@@ -259,5 +259,5 @@ Each phase ships on its own and says what it protects against. The plaintext pat
 4. **What is the step-up?** A WebAuthn passkey on the phone (as designed), an approval on the laptop (strong, but the operator is usually away from it), or no step-up and a hard "laptop only" rule for escalation.
 5. **Is an installed client in scope?** It is the only way to remove the loader host from the trust base before browsers enforce WAICT.
 6. **Padding for metadata?** Bucketed record sizes hide typing and transcript length from the relay at a bandwidth cost.
-7. **Should `external` setups (Tailscale, the operator's own tunnel) use the channel too?** Nothing in the protocol depends on the relay, and it would make a misconfigured proxy as blind as frizz.sh.
+7. **Should `external` setups (Tailscale, the operator's own tunnel) use the channel too?** Nothing in the protocol depends on the relay, and it would make a misconfigured proxy as blind as ntwine.app.
 8. **When does Phase 2 revoke cookie sessions?** On the switch, as written, or after a notice period in which both paths work.

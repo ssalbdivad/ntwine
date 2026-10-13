@@ -98,7 +98,7 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 - 🎯 **Goals.** A standing prompt Ntwine re-sends at every rest, on a clock, or both: "keep going until CI is green" without re-asking.
 - 🐙 **GitHub.** Turn issues and pull requests into threads from the composer. Workers read issues, diffs and CI, and never write unless you ask.
 - 👀 **Watchers.** A worker waiting on CI, a review or a reporter's reply watches, and picks the work back up when something lands. A watch outlives the agent's session.
-- 📱 **Remote access.** Press R in Ntwine's terminal to reach it from your phone: a private frizz.sh name, a Cloudflare Tunnel, Tailscale, or a proxy of your own.
+- 📱 **Remote access.** Press R in Ntwine's terminal to reach it from your phone: a private ntwine.app name, a Cloudflare Tunnel, Tailscale, or a proxy of your own.
 - 🔒 **Local only.** No cloud, no account, no telemetry. The server binds `127.0.0.1`, and its state lives in your user directory, never in your checkout.
 
 <br/>
@@ -123,7 +123,7 @@ Here's what I've built on top of the original design so far:
 - **Usage.** A quota chip that warns you before your plan runs out, and an optional Fable fallback for new Claude threads.
 - **Housekeeping.** Thread info (tokens, turns, cost), deleting done threads you haven't touched in a while, and keeping the machine awake while an agent works.
 - **All projects** at `/all`. This builds on the original project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. A project's board is still the default, and the sidebar is still there exactly as upstream ships it, opt-in under **Settings → Project sidebar**.
-- **[frizz.sh/docs](https://frizz.sh/docs)**, the full docs, with one page per feature.
+- **[ntwine.app/docs](https://ntwine.app/docs)**, the full docs, with one page per feature.
 
 <br/>
 
@@ -254,7 +254,7 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 <details>
 <summary><b>Can I reach it from my phone, or from anywhere?</b></summary>
 
-> Yes. Press **R** in the terminal running Ntwine and pick a private frizz.sh name (unguessable, no account), a Cloudflare Tunnel, Tailscale, or a proxy of your own. Ntwine stays on `127.0.0.1` in every case, the first visit from each device needs a single-use sign-in link, and `npx ntwine --sessions` / `--sign-out` manage the devices. (Custom frizz.sh names are paused for now; a board that already holds one keeps it.) Every project added or removed, thread started, message sent and question answered is recorded in `logs/audit.jsonl` under Ntwine's data folder, with the device that did it. Remote access exposes every project on the server. See [Remote access](docs/remote-access.md); try it first with `npx ntwine --sandbox`.
+> Yes. Press **R** in the terminal running Ntwine and pick a private ntwine.app name (unguessable, no account), a Cloudflare Tunnel, Tailscale, or a proxy of your own. Ntwine stays on `127.0.0.1` in every case, the first visit from each device needs a single-use sign-in link, and `npx ntwine --sessions` / `--sign-out` manage the devices. (Custom names are paused for now.) Every project added or removed, thread started, message sent and question answered is recorded in `logs/audit.jsonl` under Ntwine's data folder, with the device that did it. Remote access exposes every project on the server. See [Remote access](docs/remote-access.md); try it first with `npx ntwine --sandbox`.
 
 </details>
 
@@ -287,7 +287,7 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 
 <h2 align="center">Docs</h2>
 
-- [frizz.sh/docs](https://frizz.sh/docs): every feature, remote access, the CLI and the FAQ.
+- [ntwine.app/docs](https://ntwine.app/docs): every feature, remote access, the CLI and the FAQ.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): the invariants, layout and design decisions. Read it before changing anything.
 - [`NTWINE.md`](NTWINE.md): this repo's own worker norms, as a worked example.
 - [The VS Code extension](packages/vscode/README.md).

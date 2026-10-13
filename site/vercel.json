@@ -18,10 +18,10 @@
       "has": [
         {
           "type": "host",
-          "value": "www.frizz.sh"
+          "value": "www.ntwine.app"
         }
       ],
-      "destination": "https://frizz.sh/$1",
+      "destination": "https://ntwine.app/$1",
       "permanent": true
     }
   ]

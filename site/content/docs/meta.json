@@ -24,7 +24,7 @@
     "keyboard",
     "---Remote access---",
     "remote-access",
-    "ntwine-sh",
+    "hosted-name",
     "cloudflare-tunnel",
     "tailscale",
     "ssh",

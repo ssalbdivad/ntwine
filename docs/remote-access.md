@@ -7,7 +7,7 @@ Press **R** in the terminal running Ntwine. A walkthrough offers four ways to re
 ```
   Reach this board from anywhere
 
-  ❯ Private name        an unguessable name on frizz.sh — no account, nothing to install
+  ❯ Private name        an unguessable name on ntwine.app — no account, nothing to install
     Cloudflare Tunnel   a domain you own on Cloudflare; cloudflared on this machine
     Tailscale           your tailnet; tailscale serve does the TLS
     Something else      any proxy or tunnel you run — tell Ntwine its address
@@ -34,36 +34,36 @@ npx ntwine --sandbox
 
 Press **R** in it and walk through any setup. Credentials come along (`gh`, cloudflared's certificate and tunnel files, the agent CLIs, and on macOS the login keychain), so every screen sees what the real board sees; the saved setup, the registry and the session key are throwaway copies.
 
-## A private name on frizz.sh
+## A private name on ntwine.app
 
 The default, and the shortest path there is: pick it and you are done. Ntwine mints an unguessable name — 20 random characters, so nobody can find it by guessing — claims it with this machine's own key, and serves the board at it. No account, no sign-in, no domain, no port forwarding, no extra binary.
 
 ```
-  Serving https://mk7w2qp9x4n3f6tbz5vh.frizz.sh (frizz.sh).
+  Serving https://mk7w2qp9x4n3f6tbz5vh.ntwine.app (ntwine.app).
 
   Scan to sign in on a phone. Single use, expires in 5 minutes. Press L later for another.
 ```
 
 The done screen shows that link as a QR code. The name is the address, not the lock: the first visit still needs the single-use sign-in link, so someone who somehow learns the name still meets a closed door.
 
-## A custom name on frizz.sh
+## A custom name on ntwine.app
 
-Paused. A name you choose, such as `ada.frizz.sh`, is tied to a GitHub account, and the GitHub sign-in it needs is not set up yet. Until it is, the **R** menu does not offer a custom name; use a private name, or a domain of your own below.
+Paused. A name you choose, such as `ada.ntwine.app`, is tied to a GitHub account, and the GitHub sign-in it needs is not set up yet. Until it is, the **R** menu does not offer a custom name; use a private name, or a domain of your own below.
 
-A board that already holds a custom name keeps it. Every launch renews the name with this machine's key alone, so no GitHub sign-in is involved, and the menu still lists the name as the current setup.
+A name claimed before 2026-10-13 was on the old domain, which no longer serves. The **R** menu offers a new one in its place.
 
-## How a frizz.sh name behaves
+## How an ntwine.app name behaves
 
 Every launch renews the lease. A name nobody has run for **30 days** is released.
 
-Your board stays on loopback and **dials out** to `frizz.sh`, which is what removes the inbound port, the tunnel binary and the DNS record all at once — a laptop behind any NAT works with no configuration. The connection comes back by itself after a sleep or a network change, so a board is reachable again when the machine is.
+Your board stays on loopback and **dials out** to `ntwine.app`, which is what removes the inbound port, the tunnel binary and the DNS record all at once — a laptop behind any NAT works with no configuration. The connection comes back by itself after a sleep or a network change, so a board is reachable again when the machine is.
 
 ### What you are agreeing to
 
 - **One name per machine key.**
 - **The name is a lease, not property.** It lapses after 30 days unused, and Ntwine can reclaim any name at any time — that is the only enforcement there is, so it has to exist.
 - **No warranty.** This is a free convenience on a domain someone else owns. Anything you cannot afford to lose access to belongs on a domain you control; every other section here shows how.
-- **Your traffic passes through us.** A name on frizz.sh is served by a relay we run: every request and every keystroke goes through it. Ntwine's own access gate still runs on your machine, so a visitor meets it whether or not the relay is honest — but if you would rather no third party carried the bytes, use a domain you control.
+- **Your traffic passes through us.** A name on ntwine.app is served by a relay we run: every request and every keystroke goes through it. Ntwine's own access gate still runs on your machine, so a visitor meets it whether or not the relay is honest — but if you would rather no third party carried the bytes, use a domain you control.
 
 ## Cloudflare Tunnel
 

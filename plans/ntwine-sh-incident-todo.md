@@ -1,5 +1,7 @@
 # frizz.sh incident — open to-dos (2026-10-08)
 
+> **2026-10-13:** hosted names moved off frizz.sh to `ntwine.app`, on the maintainer's own Cloudflare account, since this repository can no longer deploy to the old one. The Cloudflare and OAuth steps below apply to the new account and domain; the deploy steps are in [`packages/registrar/README.md`](../packages/registrar/README.md).
+
 What is still owed after the 2026-09-21..10-08 compromise of the frizz.sh Workers. The account of what happened is in [`packages/relay/README.md`](../packages/relay/README.md); the machine-local evidence and reports are in the maintainer's `.ntwine/threads/d178f311-c9a3-4816-85e9-f595219a1f92/` (gitignored). Nothing here is urgent in the sense of an open hole that is known: the backdoored Workers were replaced with clean builds on 2026-10-08, the implant and the `~/.zshrc` dead-drop on the maintainer's Mac are removed, and every board session is signed out. Each item below is hardening or follow-through.
 
 ## Already done (checked 2026-10-08 20:50 PDT)
@@ -26,7 +28,7 @@ The workflows exist ([`workers-deploy.yml`](../.github/workflows/workers-deploy.
 
 Only when custom names are wanted again.
 
-1. Open [new GitHub OAuth app](https://github.com/settings/applications/new). Application name `Ntwine`, Homepage URL `https://frizz.sh`, description `Confirms which GitHub account claims a frizz.sh name. Requests no permissions.`, Authorization callback URL `https://frizz.sh`. Tick **Enable Device Flow**, click **Register application**, copy the **Client ID**. Do not generate a client secret.
+1. Open [new GitHub OAuth app](https://github.com/settings/applications/new). Application name `Ntwine`, Homepage URL `https://ntwine.app`, description `Confirms which GitHub account claims a frizz.sh name. Requests no permissions.`, Authorization callback URL `https://frizz.sh`. Tick **Enable Device Flow**, click **Register application**, copy the **Client ID**. Do not generate a client secret.
 2. Set `NTWINE_GITHUB_CLIENT_ID` in [`src/github-device-flow.ts`](../src/github-device-flow.ts) to that id, and `CUSTOM_NAMES_OFFERED = true` in [`src/cloud.ts`](../src/cloud.ts). Run [`scripts/verify-claim-e2e.mjs`](../scripts/verify-claim-e2e.mjs) (its header gives the invocation) and claim one real name by hand from the R pane, then cut a shell release ([CLAUDE.md § Cutting a release](../CLAUDE.md)).
 
 ## 3. Confirm or rule out a relayed terminal past the access gate

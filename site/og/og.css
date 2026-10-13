@@ -1,4 +1,4 @@
-/* frizz.sh — reads like a rendered markdown document in the board's own skin: the same dark tokens as
+/* ntwine.app — reads like a rendered markdown document in the board's own skin: the same dark tokens as
    packages/web/src/styles.css and JetBrains Mono throughout (first in the app's --font-mono stack; the
    board is mono-forward by default). Heading rules and code chips mirror GitHub's markdown. */
 
