@@ -109,6 +109,9 @@ export interface NormalizedTail {
   // a timer, a nudge, and the one that carries their answers). The clock questionRepliedPast reads —
   // information only since 2026-09-29; it releases nothing.
   lastHumanAt?: string
+  // ISO8601 of the FIRST turn the human typed — the dispatch prompt, on a thread Frizz started. Tells a
+  // reply to that prompt (work the sign-off nudge still asks about) from a reply in a later conversation.
+  firstHumanAt?: string
   lastToolCallAt?: string // ISO8601 of the agent's newest tool call — what tells a reply that did WORK from one that only talked
   lastUserText?: string // latest genuine human message (used to confirm wake-token delivery)
   // The FIRST genuine human turn. Read by the board to NAME an external session whose harness has not
@@ -184,6 +187,8 @@ export interface FoldState {
   // answers-to-questions wake included, because answering some cards is not replying past the rest
   // (tailer.ts tookHumanTurn). The clock questionRepliedPast reads.
   lastHumanAt?: string
+  // …and the FIRST such turn, set once (see SessionTelemetry.firstHumanAt).
+  firstHumanAt?: string
   // ISO8601 of the agent's newest TOOL CALL. A registered done outlives the human's next word only while
   // nothing newer than it is a tool call — a reply that only talked is conversation about finished work,
   // one that ran a tool is new work (board.registeredDoneFence).

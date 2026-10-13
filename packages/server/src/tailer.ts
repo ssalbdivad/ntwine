@@ -2783,7 +2783,10 @@ export function applyRecord(state: TailState, rec: Record): void {
     // gate above, deliberately: "did the human take a turn" has exactly one answer per record.
     if (humanSpoke && typeof rec.timestamp === "string") {
       state.lastUserAt = rec.timestamp
-      if (tookHumanTurn(userMessageText(rec.message?.content))) state.lastHumanAt = rec.timestamp
+      if (tookHumanTurn(userMessageText(rec.message?.content))) {
+        state.lastHumanAt = rec.timestamp
+        state.firstHumanAt ??= rec.timestamp
+      }
       // SET ONCE. This is what names an external session whose harness never named it, so it has to be
       // the turn the conversation STARTED on, not the newest one.
       if (state.firstUserText === undefined) {
@@ -2910,7 +2913,10 @@ export function applyEvent(state: FoldState, ev: NormalizedEvent): void {
         state.lastAssistantHasQuestion = false
         if (typeof ev.at === "string") {
           state.lastUserAt = ev.at
-          if (tookHumanTurn(typeof ev.text === "string" ? ev.text : "")) state.lastHumanAt = ev.at
+          if (tookHumanTurn(typeof ev.text === "string" ? ev.text : "")) {
+            state.lastHumanAt = ev.at
+            state.firstHumanAt ??= ev.at
+          }
         }
         // Keep the delivery-confirmation pair atomic. A genuine non-text user event may still bump
         // row activity, but its newer timestamp must never retain text from an older human turn.
@@ -6812,7 +6818,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     // thread has no row and reads as legacy, which is what `questionFencesLive` does with unknown.
     const pendingQuestion = s.lastAssistantHasQuestion && questionFencesLive(row?.spawned_at)
     const nowMs = now()
-    return { primed: s.primed, turn: s.turn, permPrompt: s.permPrompt, permPolicy: s.permPolicy, permDenies: s.permDenies, model: s.model, effort: s.effort, profileAt: s.profileAt, profileRevision: s.profileRevision, permissionMode: s.permissionMode, permissionModeAt: s.permissionModeAt, permissionModeRevision: s.permissionModeRevision, lastActivityAt: s.lastActivityAt, lastAssistantAt: s.lastAssistantAt, lastAssistant: s.lastAssistant, lastAssistantLine: s.lastAssistantLine, liveTool: newestLiveTool(s), aiTitle: s.aiTitle, customTitle: s.customTitle, customTitleRevision: s.customTitleRevision, subAgents: subAgentViews(s, nowMs), droppedReports: [...s.queuedReports.values()], bgShells: [...bgShellViews(s), ...codexBgShellViews(s)], retiredShells: retiredShellViews(s), retiredSubAgents: retiredSubAgentViews(s), pendingAsk: s.pendingAsk, pendingQuestion, lastAssistantAllDone: s.lastAssistantAllDone, lastUserAt: s.lastUserAt, lastHumanAt: s.lastHumanAt, lastToolCallAt: s.lastToolCallAt, lastUserText: s.lastUserText, firstUserText: s.firstUserText, lastFence: s.lastFence, noTranscript: s.noTranscript, authFault: s.authFault, apiFault: s.apiFault, providerError: s.providerError, limitFault: s.limitFault, contextTokens: s.contextTokens, contextWindow: s.contextWindow, lastCompactionAt: s.lastCompactionAt, ...workingDirTelemetry(s) }
+    return { primed: s.primed, turn: s.turn, permPrompt: s.permPrompt, permPolicy: s.permPolicy, permDenies: s.permDenies, model: s.model, effort: s.effort, profileAt: s.profileAt, profileRevision: s.profileRevision, permissionMode: s.permissionMode, permissionModeAt: s.permissionModeAt, permissionModeRevision: s.permissionModeRevision, lastActivityAt: s.lastActivityAt, lastAssistantAt: s.lastAssistantAt, lastAssistant: s.lastAssistant, lastAssistantLine: s.lastAssistantLine, liveTool: newestLiveTool(s), aiTitle: s.aiTitle, customTitle: s.customTitle, customTitleRevision: s.customTitleRevision, subAgents: subAgentViews(s, nowMs), droppedReports: [...s.queuedReports.values()], bgShells: [...bgShellViews(s), ...codexBgShellViews(s)], retiredShells: retiredShellViews(s), retiredSubAgents: retiredSubAgentViews(s), pendingAsk: s.pendingAsk, pendingQuestion, lastAssistantAllDone: s.lastAssistantAllDone, lastUserAt: s.lastUserAt, lastHumanAt: s.lastHumanAt, firstHumanAt: s.firstHumanAt, lastToolCallAt: s.lastToolCallAt, lastUserText: s.lastUserText, firstUserText: s.firstUserText, lastFence: s.lastFence, noTranscript: s.noTranscript, authFault: s.authFault, apiFault: s.apiFault, providerError: s.providerError, limitFault: s.limitFault, contextTokens: s.contextTokens, contextWindow: s.contextWindow, lastCompactionAt: s.lastCompactionAt, ...workingDirTelemetry(s) }
   }
 
   // ---- the provisional reading (2026-09-30) ------------------------------------------------------

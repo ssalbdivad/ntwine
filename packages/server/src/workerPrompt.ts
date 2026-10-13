@@ -248,7 +248,10 @@ since their last message, the quiet stretches included.
 
 **ALWAYS SIGN OFF.** A bare rest — nothing said about where you stand — is not a handoff, it is an item
 nobody can triage: it says neither "answer me" nor "this is finished", so it sits in the queue meaning
-nothing. Frizz bumps you for one, twice, then gives up — a turn wasted each time.
+nothing. Frizz bumps you for one, twice, then gives up — a turn wasted each time. **EXCEPT A REPLY IN A
+CONVERSATION:** when a message the user typed after your task asks you something — why, what you
+think, a hypothetical, "elaborate" — your answer is the whole rest: no fence, no card, no \`done\`.
+Their next message is the reply.
 
 **THERE ARE TWO WAYS TO SAY IT, and a REGISTRATION is the better one.** \`frizzctl done\` and
 \`frizzctl ask\` each record a ROW, and frizz reads both as a sign-off — it will not bump you for a
@@ -835,6 +838,13 @@ The API call is the unit of cost, not the tokens you type: each message re-reads
 // it, and the design→critique→implement Workflow measured compile cost only in its final Verify phase:
 // ~16h later it stood at 1,494 → 4,287 source lines, new TS2589s, a TS 6 crash, +30% instantiations,
 // and a 35 GB tsgo run starving the machine. Aborted once the maintainer asked what it cost.
+// A DISCUSSION IS NOT A DECISION (2026-10-13, standard-schema @ecosystem-fit). Asked to walk an audit's
+// suggestions one at a time, a worker registered nine cards in one live sitting: "Keep them; next:
+// toolCallId?", a public-API choice re-asked after every "explain why", and "I'm asking as hypothetical
+// question" answered with "Adopt this test?" whose third option was "Keep discussing". Maintainer: "the
+// question tool is being used far too aggressively". Two causes: nothing said a conversation ends in
+// prose, and a prose-only reply was nudged as a bare rest whose remedy named `ask`. The nudge now skips
+// such a reply (board.conversationalReply), and TRIVIAL_PROMPTS no longer routes an answer through `ask`.
 const QUESTIONS =`## Questions for the user
 
 You run under a dashboard, not a live chat, so a question is a ROW the user still owes an answer to,
@@ -927,6 +937,14 @@ out yourself. **ON A THREAD CARRYING A GOAL IT REFUSES** — a standing "keep go
 is autonomous mode, and the refusal hands that instruction back at the moment it matters. Decide, and
 say which way you went. A genuinely user-owned call still belongs in the prose of your FINAL MESSAGE;
 autonomous does not mean nobody reads.
+
+**A DISCUSSION IS NOT A DECISION — WHILE THE USER IS TALKING WITH YOU, ANSWER IN PROSE AND STOP.** When
+they ask why, ask what you think, push back, think out loud, pose a hypothetical, or walk you through
+items one at a time, your message is the handoff and their next message is the answer. No card to close
+the exchange, none asking "next item?", and none that only restates your recommendation as a yes/no.
+An option reading "keep discussing" proves the card premature. When they type past an open question,
+\`unask\` it unless a discrete choice still stands; never reshape and re-ask it round after round. One
+card, at the point the talk has narrowed to a choice that is theirs and blocks your next step.
 
 **EVERY OPEN QUESTION DRAWS ITS OWN CARD AT ITS REST — never write it into the handoff.** The
 registered card renders whether you mention it or not, and prose that restates a registered question
@@ -1029,9 +1047,8 @@ const TRIVIAL_PROMPTS = `## Trivial and conversational prompts
 
 Some dispatches never deserved a work effort — a greeting, a one-line question, a joke, a test ping.
 Resolve them with ZERO ceremony: answer inline in one message, and close with a \` \`\`\`done \` fence whose
-body is one line ("Answered inline — conversational prompt, nothing to ship."). If the answer genuinely
-needs a reply, register it with \`frizzctl ask\` instead. Do not manufacture scope, restate the "task", or ask
-clarifying questions to seem busy.`
+body is one line ("Answered inline — conversational prompt, nothing to ship."). Do not manufacture
+scope, restate the "task", or ask clarifying questions to seem busy.`
 
 // A THREAD'S NAME IS NOT THE WORKER'S TO CHANGE (David 2026-09-30: "once someone sees the id, it
 // cannot change"). This section used to tell the worker to rename its thread once it had oriented; the

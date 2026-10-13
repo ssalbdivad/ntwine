@@ -341,6 +341,26 @@ test("question: the first rest after a typed message withdraws nothing, and a ba
   h.storage.close()
 })
 
+// A REPLY IN A CONVERSATION IS ITS OWN HANDOFF (2026-10-13). Prose answering a message the human typed
+// after the dispatch prompt is not a bare rest; the dispatch turn's own bare rest still is.
+test("nudge: a bare reply to a later typed message is left alone, a bare reply to the dispatch prompt is not", async () => {
+  const h = harness()
+  h.storage.upsertSession(row("c"))
+  const t0 = h.clock.ms
+  h.tele.set("c", { ...tele(), firstHumanAt: iso(t0), lastHumanAt: iso(t0 + 60_000), lastUserAt: iso(t0 + 60_000), lastAssistantAt: iso(t0 + 62_000) })
+  h.clock.ms = t0 + 65_000
+  const s = h.make()
+  await s.tick()
+  assert.equal(h.resumes.length, 0, "the human's move")
+
+  h.storage.upsertSession(row("d"))
+  h.tele.set("d", { ...tele(), firstHumanAt: iso(t0), lastHumanAt: iso(t0), lastUserAt: iso(t0), lastAssistantAt: iso(t0 + 2_000) })
+  await s.tick()
+  assert.equal(h.resumes.length, 1)
+  assert.match(h.resumes[0].message, /You rested without a fence/)
+  h.storage.close()
+})
+
 test("question: an answer is handed over once, and the row is not re-delivered", async () => {
   const h = harness()
   h.storage.upsertSession(row("t"))

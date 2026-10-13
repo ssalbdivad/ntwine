@@ -718,6 +718,7 @@ export function signoffNudgeVerdict(
   if (childJustReturned(tele, spokeAt, nowMs)) return "ineligible"
   if (tele.pendingAsk || tele.permPrompt) return "ineligible"
   if (tele.lastAssistantAllDone) return "ineligible"
+  if (conversationalReply(tele, facts.questionRows())) return "ineligible"
   if ((row.signoff_nudges ?? 0) >= SIGNOFF_NUDGE_MAX) return "ineligible"
   return "nudge"
 }
@@ -735,6 +736,25 @@ export function openQuestionRows(rows: readonly ThreadQuestionRow[]): ThreadQues
 export function carriedQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastUserAt"> | undefined): ThreadQuestionRow[] {
   const restFrom = tele?.lastUserAt ? Date.parse(tele.lastUserAt) : Number.NEGATIVE_INFINITY
   return openQuestionRows(rows).filter((q) => q.asked_at <= restFrom)
+}
+
+/** Is this rest a reply in a live conversation: it answers a turn the human TYPED after the dispatch
+ *  prompt, and no question is open? Then the prose IS the handoff and the next move is the human's, so
+ *  the sign-off nudge stays silent and the rest queues as it stands (the contract: "A mid-conversation
+ *  turn carries NO fence").
+ *
+ *  WHY (2026-10-13, standard-schema @ecosystem-fit): walking an audit's suggestions with the maintainer
+ *  one at a time, a worker registered nine cards in one sitting — every reply to "explain why" or "I'm
+ *  asking hypothetically" ended in an unask and a re-ask, because a prose-only answer had no sign-off
+ *  the nudge accepted, and the nudge's own text names `ask` as the way out. Maintainer: "the question
+ *  tool is being used far too aggressively". Not keyed on "ran no tool": answering "why" often means
+ *  reading a file first. The dispatch turn is still asked for a sign-off (the abandonment case the nudge
+ *  exists for), and so is a rest beside an open question, whose name-or-withdraw rule stands. */
+function conversationalReply(tele: SessionTelemetry, rows: readonly ThreadQuestionRow[]): boolean {
+  if (!tele.lastHumanAt || !tele.lastUserAt || !tele.firstHumanAt) return false
+  const human = Date.parse(tele.lastHumanAt)
+  if (human < Date.parse(tele.lastUserAt) || human <= Date.parse(tele.firstHumanAt)) return false
+  return openQuestionRows(rows).length === 0
 }
 
 /** Do this rest's open questions sign it off? Only when there are some and none was carried in. */
