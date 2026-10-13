@@ -300,14 +300,22 @@ test("a Frizz-era board moves to .ntwine on first read, leaving .frizz as a link
   }
 })
 
-test("a .frizz beside an existing .ntwine is left alone", () => {
+// What happened at the live cutover: a worker hook wrote its session state under `.ntwine` before the
+// server looked, so both directories existed and the board was split in two.
+test("a stray .ntwine beside a Frizz board is folded in, never overwriting the board's own entries", () => {
   const root = sandbox("frizz-both")
   try {
-    mkdirSync(join(root, ".frizz"))
-    writeFileSync(join(root, ".frizz", ".id"), `${OTHER}\n`)
-    writeProjectIdFile(root, UUID)
+    mkdirSync(join(root, ".frizz", ".session-state"), { recursive: true })
+    writeFileSync(join(root, ".frizz", ".id"), `${UUID}\n`)
+    writeFileSync(join(root, ".frizz", ".session-state", "old"), "board")
+    mkdirSync(join(root, ".ntwine", ".session-state"), { recursive: true })
+    writeFileSync(join(root, ".ntwine", ".id"), `${OTHER}\n`)
+    writeFileSync(join(root, ".ntwine", ".session-state", "new"), "hook")
+
     assert.equal(readProjectIdFile(root), UUID)
-    assert.equal(readFileSync(join(root, ".frizz", ".id"), "utf8"), `${OTHER}\n`)
+    assert.equal(readFileSync(join(root, ".ntwine", ".session-state", "old"), "utf8"), "board")
+    assert.equal(readFileSync(join(root, ".ntwine", ".session-state", "new"), "utf8"), "hook")
+    assert.equal(realpathSync(join(root, ".frizz")), realpathSync(join(root, ".ntwine")))
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
