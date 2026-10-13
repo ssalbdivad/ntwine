@@ -43,6 +43,9 @@ export const DEADLINE_MARKER = /⟦(?:ntwine|frizz)-deadline⟧ (\S+) (\S+)/g;
 
 const FETCH_TIMEOUT_MS = 1500;
 const STATE_DIRNAME = 'ntwine-deadlines';
+// The same directory before the Frizz -> Ntwine rename. A child that started before it cached its limit and
+// marked its sent check-ins there; both are still read, and only the current directory is written.
+const LEGACY_STATE_DIRNAME = 'frizz-deadlines';
 const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 // ---- THE ARITHMETIC (twin of @ntwine/shared deadline.ts) ---------------------------------------------
@@ -231,10 +234,12 @@ function firstRecord(path) {
 export async function agentDeadline(sessionDir, agentId, deps) {
   if (!AGENT_ID.test(agentId)) return undefined;
   const file = join(sessionDir, STATE_DIRNAME, `${agentId}.json`);
-  try {
-    return JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    /* not worked out yet */
+  for (const cached of [file, join(sessionDir, LEGACY_STATE_DIRNAME, `${agentId}.json`)]) {
+    try {
+      return JSON.parse(readFileSync(cached, 'utf8'));
+    } catch {
+      /* not worked out yet */
+    }
   }
   const transcript = transcriptOf(sessionDir, agentId);
   if (!transcript) return undefined; // not written yet — the next tool call tries again
@@ -261,8 +266,12 @@ export async function agentDeadline(sessionDir, agentId, deps) {
  *  and false once any later stage was sent. @param {string} sessionDir @param {string} agentId @param {Stage} stage */
 function claimStage(sessionDir, agentId, stage) {
   const dir = join(sessionDir, STATE_DIRNAME);
-  for (const later of STAGES.slice(STAGES.indexOf(stage))) if (existsSync(join(dir, `${agentId}.${later}`))) return false;
+  const legacy = join(sessionDir, LEGACY_STATE_DIRNAME);
+  for (const later of STAGES.slice(STAGES.indexOf(stage))) {
+    if (existsSync(join(dir, `${agentId}.${later}`)) || existsSync(join(legacy, `${agentId}.${later}`))) return false;
+  }
   try {
+    mkdirSync(dir, { recursive: true });
     closeSync(openSync(join(dir, `${agentId}.${stage}`), 'wx'));
     return true;
   } catch {
@@ -300,6 +309,8 @@ export async function childDeadlineContext(sessionDir, agentId, deps) {
   if (d.announce) {
     const intro = join(sessionDir, STATE_DIRNAME, `${agentId}.intro`);
     try {
+      if (existsSync(join(sessionDir, LEGACY_STATE_DIRNAME, `${agentId}.intro`))) throw new Error('introduced before the rename');
+      mkdirSync(dirname(intro), { recursive: true });
       closeSync(openSync(intro, 'wx'));
       out.push(
         `⏰ Your time limit: ${clock(d.atMs)} (a ${budget(d.atMs - d.setAtMs)} budget, set by ${d.setBy === 'user' ? 'the user operating Ntwine, after you started' : 'the agent that dispatched you'}). Your ` +

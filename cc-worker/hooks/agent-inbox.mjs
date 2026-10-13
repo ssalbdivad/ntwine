@@ -35,6 +35,9 @@ import { join } from 'node:path';
 import { childDeadlineContext, threadDeadlineMs } from './agent-deadline.mjs';
 
 const INBOX_DIRNAME = 'ntwine-inbox';
+// The inbox's name before the Frizz -> Ntwine rename: a message posted there by the old server is still
+// this agent's to receive, so it is drained too.
+const LEGACY_INBOX_DIRNAME = 'frizz-inbox';
 const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Claude Code keeps a session's sub-agent and Workflow files in a directory named for its transcript.
@@ -59,15 +62,20 @@ function post(sessionDir, agentId, message) {
  *  @param {string} sessionDir @param {string} agentId
  *  @returns {{ from: string, text: string }[]} */
 function claim(sessionDir, agentId) {
-  const dir = join(sessionDir, INBOX_DIRNAME, agentId);
-  let names;
-  try {
-    names = readdirSync(dir).filter((n) => n.endsWith('.json') && !n.startsWith('.')).sort();
-  } catch {
-    return [];
+  /** @type {{ dir: string, name: string }[]} */
+  const waiting = [];
+  for (const inbox of [INBOX_DIRNAME, LEGACY_INBOX_DIRNAME]) {
+    const dir = join(sessionDir, inbox, agentId);
+    try {
+      for (const name of readdirSync(dir)) if (name.endsWith('.json') && !name.startsWith('.')) waiting.push({ dir, name });
+    } catch {
+      /* no such inbox */
+    }
   }
+  // Names lead with the post time, so one sort orders both inboxes together.
+  waiting.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   const out = [];
-  for (const name of names) {
+  for (const { dir, name } of waiting) {
     const claimed = join(dir, '.' + name + '.' + process.pid + '.claimed');
     try {
       renameSync(join(dir, name), claimed);
