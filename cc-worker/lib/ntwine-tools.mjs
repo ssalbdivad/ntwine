@@ -1833,6 +1833,11 @@ function projectSegment() {
       const id = readFileSync(join(dir, ".ntwine", ".id"), "utf8").trim()
       if (id) return id
     } catch {}
+    try {
+      // A board not yet moved by the Frizz -> Ntwine rename (project-root.ts adoptFrizzBoard).
+      const id = readFileSync(join(dir, ".frizz", ".id"), "utf8").trim()
+      if (id) return id
+    } catch {}
     const parent = dirname(dir)
     if (parent === dir) return undefined
     dir = parent

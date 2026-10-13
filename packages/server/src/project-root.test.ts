@@ -273,3 +273,42 @@ test("a directory that claims no id at all is genuinely new", () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// The Frizz -> Ntwine rename: a board written as `.frizz/` keeps its id and threads, and every absolute
+// `.frizz/…` path a running worker or git's worktree record holds keeps resolving.
+test("a Frizz-era board moves to .ntwine on first read, leaving .frizz as a link git ignores", () => {
+  const root = sandbox("frizz-board")
+  try {
+    execFileSync("git", ["init", "-q", root])
+    mkdirSync(join(root, ".frizz", "threads", "sid-1"), { recursive: true })
+    writeFileSync(join(root, ".frizz", ".id"), `${UUID}\n`)
+    writeFileSync(join(root, ".frizz", ".gitignore"), "*\n")
+    writeFileSync(join(root, ".frizz", "threads", "sid-1", "notes.md"), "kept")
+    assert.equal(discoverProjectRoot(join(root), tmpdir()), root)
+
+    assert.equal(readProjectIdFile(root), UUID)
+    assert.equal(realpathSync(join(root, ".frizz")), realpathSync(join(root, ".ntwine")))
+    assert.equal(readFileSync(join(root, ".frizz", "threads", "sid-1", "notes.md"), "utf8"), "kept")
+    assert.equal(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }), "")
+
+    // Idempotent: a second read changes nothing, and the exclude line is written once.
+    assert.equal(readProjectIdFile(root), UUID)
+    const exclude = readFileSync(join(root, ".git", "info", "exclude"), "utf8")
+    assert.equal(exclude.split("\n").filter((line) => line === "/.frizz").length, 1)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("a .frizz beside an existing .ntwine is left alone", () => {
+  const root = sandbox("frizz-both")
+  try {
+    mkdirSync(join(root, ".frizz"))
+    writeFileSync(join(root, ".frizz", ".id"), `${OTHER}\n`)
+    writeProjectIdFile(root, UUID)
+    assert.equal(readProjectIdFile(root), UUID)
+    assert.equal(readFileSync(join(root, ".frizz", ".id"), "utf8"), `${OTHER}\n`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { appendFileSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, parse, resolve } from "node:path"
 import { acquireNamedLaunchLockSync, readGitProjectId, validateProjectId } from "./project-identity.ts"
@@ -62,6 +62,7 @@ export function projectIdPath(root: string): string {
  * of the maintainer's four live projects invisible.
  */
 export function readProjectIdFile(root: string): string | undefined {
+  adoptFrizzBoard(root)
   let raw: string
   try {
     raw = readFileSync(projectIdPath(root), "utf8")
@@ -106,6 +107,44 @@ export function writeProjectIdFile(root: string, id: string): string {
     throw error
   }
   return id
+}
+
+/**
+ * THE RENAME'S BOARD: a project's board was `.frizz/` until the Frizz -> Ntwine rename (2026-10-13).
+ * The first time anything asks this project's identity, the directory is renamed to `.ntwine/` — one
+ * atomic rename, so the id, the threads and every worktree arrive together — and `.frizz` is left as
+ * a link to it. The link is load-bearing: running workers, their prompts and git's own worktree
+ * records (`.git/worktrees/<name>/gitdir`) hold absolute `.frizz/…` paths, and every one of them keeps
+ * resolving. `.ntwine/.gitignore` cannot ignore a link that sits beside it, so the link is excluded in
+ * the repository's own `info/exclude`, never in a tracked file.
+ *
+ * Only a real `.frizz` DIRECTORY with no `.ntwine` beside it moves; anything else is left as it is.
+ */
+export function adoptFrizzBoard(root: string): void {
+  const legacy = join(root, ".frizz")
+  const current = join(root, NTWINE_DIR)
+  try {
+    if (!lstatSync(legacy).isDirectory() || existsSync(current)) return
+    renameSync(legacy, current)
+  } catch {
+    return
+  }
+  try {
+    if (process.platform === "win32") symlinkSync(current, legacy, "junction")
+    else symlinkSync(NTWINE_DIR, legacy)
+  } catch {
+    // Raced by something recreating `.frizz` in the instant between: the board itself has moved.
+  }
+  try {
+    if (!statSync(join(root, ".git")).isDirectory()) return
+    const exclude = join(root, ".git", "info", "exclude")
+    const existing = existsSync(exclude) ? readFileSync(exclude, "utf8") : ""
+    if (existing.split(/\r?\n/u).includes("/.frizz")) return
+    mkdirSync(dirname(exclude), { recursive: true })
+    appendFileSync(exclude, `${existing && !existing.endsWith("\n") ? "\n" : ""}/.frizz\n`)
+  } catch {
+    // Not a plain git checkout: nothing to keep the link out of.
+  }
 }
 
 /** Keyed on the canonical root rather than a common git dir, which a plain directory does not have. */
@@ -254,7 +293,7 @@ export function discoverProjectRoot(cwd = process.cwd(), home = homedir()): stri
     // adoptable is isHomeDirectory's question, asked by the launcher, not answered here.
     if (at === stop || at === filesystemRoot) break
     // An existing Ntwine project wins over the VCS or manifest it happens to sit in.
-    if (existsSync(projectIdPath(at))) return at
+    if (existsSync(projectIdPath(at)) || existsSync(join(at, ".frizz", ID_FILE))) return at
     if (hasAny(at, REPO_MARKERS)) return at
     if (hasAny(at, PROJECT_MARKERS)) return at
     if (dirname(at) === at) break

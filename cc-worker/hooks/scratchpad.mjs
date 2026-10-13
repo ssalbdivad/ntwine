@@ -54,7 +54,7 @@
 // tried and REMOVED on 2026-07-02 (maintainer's call): the block-until-file-edited nag forced even
 // trivial workers into Read/Edit dances that render as noise in the chat UI. This nudges; it never
 // blocks.
-import '../lib/legacy-env.mjs';
+import { boardDirName } from '../lib/legacy-env.mjs';
 import { readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, openSync, readSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { currentSessionId } from '../scripts/ntwine/config.mjs';
@@ -139,8 +139,9 @@ try {
 // Without a session id there is no key, and an unkeyed pad would bleed between sessions.
 if (!sid) process.exit(0);
 
-const threadDir = join(projectDir, '.ntwine', 'threads', sid);
-const relPath = boardRoot ? threadDir + '/' : '.ntwine/threads/' + sid + '/';
+const boardDir = boardDirName(projectDir);
+const threadDir = join(projectDir, boardDir, 'threads', sid);
+const relPath = boardRoot ? threadDir + '/' : boardDir + '/threads/' + sid + '/';
 
 // ── mode: subagent-start (Codex child-only merge epilogue) ───────────────────────────────────────
 if (mode === 'subagent-start') {
