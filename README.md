@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center"><img src="assets/logo-concepts/final/fff-tile.png" alt="" width="104" height="104"><br/>Ntwine</h1>
+  <h1 align="center"><img src="assets/logo-ntwine/final/tile.png" alt="" width="104" height="104"><br/>Ntwine</h1>
   <p align="center">An opinionated agent console for extreme productivity.
     <br/>
     by <a href="https://x.com/colinhacks">@colinhacks</a>
@@ -23,7 +23,7 @@ Ntwine is for you if you have any of these opinions:
 
 Ntwine is a browser tab, a queue, and the agent CLIs you already pay for. Every agent that comes to rest needing you becomes a card, and you work the cards instead of polling ten terminals.
 
-> Ntwine is [David Blass](https://github.com/ssalbdivad)'s fork of **Frizz**. The original design — the queue, the board and the principles below — is [Colin McDonnell](https://github.com/colinhacks)'s, from [colinhacks/frizz](https://github.com/colinhacks/frizz). This fork keeps every one of those principles and adds the features listed under [What this fork adds](#what-this-fork-adds).
+> Ntwine is [David Blass](https://github.com/ssalbdivad)'s fork of **Ntwine**. The original design — the queue, the board and the principles below — is [Colin McDonnell](https://github.com/colinhacks)'s, from [colinhacks/frizz](https://github.com/colinhacks/frizz). This fork keeps every one of those principles and adds the features listed under [What this fork adds](#what-this-fork-adds).
 
 <br/>
 
@@ -54,7 +54,7 @@ A browser tab opens on acme's board, because acme is already a project. In a rep
 
 <h2 align="center">Principles</h2>
 
-Colin designed Frizz, the original, around a few commitments. Every feature, this fork's included, is held to them.
+Colin designed Ntwine, the original, around a few commitments. Every feature, this fork's included, is held to them.
 
 **The agent decides, and Ntwine checks.**
 

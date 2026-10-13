@@ -9,7 +9,7 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
-/* the board's own palette: near-black panels and one gold, the colour of the fff mark. Light is warm paper
+/* the board's own palette: near-black panels and one gold, the colour of the mark. Light is warm paper
    with the gold darkened until it reads as text on it */
 :root {
   --color-fd-background: #fbfaf7;
@@ -55,8 +55,8 @@
   --gold-soft: #241f12;
 }
 
-/* the mark draws itself once: JS sets the dash to the path's length and the transition unrolls it */
-#fff-path {
+/* the mark draws itself once: JS sets each thread's dash to its length and the transition unrolls them */
+.mark-strand {
   transition: stroke-dashoffset 1.7s cubic-bezier(0.55, 0, 0.2, 1) 0.12s;
 }
 
