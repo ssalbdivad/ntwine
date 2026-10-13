@@ -2,9 +2,9 @@
 
 ## Final disposition
 
-**Fixed and merged.** The revised [PR #37](https://github.com/colinhacks/frizz/pull/37) merged on 2026-09-16 as `99988231c029e96b930c7e4cbedbc17c3c9cd358` and landed on local `main` through `c03d9296`. Both review findings are resolved.
+**Fixed and merged.** The revised upstream Frizz PR #37 merged on 2026-09-16 as `99988231c029e96b930c7e4cbedbc17c3c9cd358` and landed on local `main` through `c03d9296`. Both review findings are resolved.
 
-The [repository CI check](https://github.com/colinhacks/frizz/actions/runs/35162066758/job/105014851441) passed for revised head `24e45093d75d134fc4fa254f1f93ce3d95b90879`. The [Pullfrog review run](https://github.com/colinhacks/frizz/actions/runs/35162070796) failed after a lockfile-configuration error and repeated provider usage-limit errors; it produced no review findings. The authorized merge used the normal merge path without a protection override. The disposable Windows VM was deleted, and the owned browser and fixture server were closed. No release was published.
+The repository CI check (upstream Frizz run 35162066758, job 105014851441) passed for revised head `24e45093d75d134fc4fa254f1f93ce3d95b90879`. The Pullfrog review run (upstream Frizz run 35162070796) failed after a lockfile-configuration error and repeated provider usage-limit errors; it produced no review findings. The authorized merge used the normal merge path without a protection override. The disposable Windows VM was deleted, and the owned browser and fixture server were closed. No release was published.
 
 ## Revision and native Windows verification
 
@@ -26,7 +26,7 @@ The remainder records the original review before revision. Its status, recommend
 
 **Recommendation: request changes.** This fixes a real bug and should not be declined, but the path-rewriting and containment changes should not land as written.
 
-Reviewed on 2026-09-16: [PR #37](https://github.com/colinhacks/frizz/pull/37), head `5cf9f39ab42276215ad67e3958f067cae0c0d4af`, against local `main` at `4c7ba5f65be49e472d9c813dd04898bb892ae2d9`. The PR is open, has no labels or submitted reviews, and has three discussion comments, all automated-review failure notices. All eight changed files and the complete discussion were read. No GitHub mutations were made.
+Reviewed on 2026-09-16: upstream Frizz PR #37, head `5cf9f39ab42276215ad67e3958f067cae0c0d4af`, against local `main` at `4c7ba5f65be49e472d9c813dd04898bb892ae2d9`. The PR is open, has no labels or submitted reviews, and has three discussion comments, all automated-review failure notices. All eight changed files and the complete discussion were read. No GitHub mutations were made.
 
 ## Classification and reproduction
 
@@ -59,7 +59,7 @@ The additional browser fixture passed: Windows Markdown links selected the reade
 
 ### P1 — Whole-path lowercasing weakens containment for case-sensitive Windows directories
 
-Location: [`packages/server/src/local-file.ts:23–31`](https://github.com/colinhacks/frizz/blob/5cf9f39ab42276215ad67e3958f067cae0c0d4af/packages/server/src/local-file.ts#L23-L31).
+Location: `packages/server/src/local-file.ts:23–31` (upstream Frizz `5cf9f39a:packages/server/src/local-file.ts#L23-L31`).
 
 The new `sameCase` lowercases every component of the canonical candidate and trusted root. Windows supports case-sensitive directories, including directories containing distinct `Repo` and `repo` children. This is a filesystem property, not something `process.platform === "win32"` rules out. [Microsoft's case-sensitivity documentation](https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity) describes the per-directory flag; [Node's filesystem documentation](https://nodejs.org/api/fs.html#fsrealpathpath-options-callback) also warns that realpath does not perform case conversion on case-insensitive filesystems.
 
@@ -82,7 +82,7 @@ If those case-distinct directories exist and the sibling is outside every other 
 
 ### P2 — Browser-side drive unrooting unnecessarily breaks valid POSIX paths
 
-Location: [`packages/web/src/lib/markdownTargets.ts:43–44,97–99,121`](https://github.com/colinhacks/frizz/blob/5cf9f39ab42276215ad67e3958f067cae0c0d4af/packages/web/src/lib/markdownTargets.ts#L43-L44).
+Location: `packages/web/src/lib/markdownTargets.ts:43–44,97–99,121` (upstream Frizz `5cf9f39a:packages/web/src/lib/markdownTargets.ts#L43-L44`).
 
 The browser cannot know the server's filesystem. Nevertheless, the new helper changes a raw `/C:/docs/plan.md` into `C:/docs/plan.md` on every platform. A POSIX directory may legally be named `C:`. The same problem affects images. The comment acknowledges the regression as an acceptable rarity, but it is avoidable.
 
@@ -130,8 +130,8 @@ An initial typecheck accidentally resolved workspace packages from the shared ch
 
 GitHub remains red at the reviewed head:
 
-- The [CI check](https://github.com/colinhacks/frizz/actions/runs/34963124134/job/104361183268) tested synthetic merge `6dddb9b9205644773ce1852837bd0b18b50f4bf6`, merging the PR into `dc493b98830cc8e96efc7bab5102e6c9eeb438b3`. It failed `monitors/portable-monitors.test.mjs:58`, expecting `/dispatch a SUB-AGENT to own the wait/` in worker guidance. That base's guidance uses different casing/wrapping; these files are untouched by the PR. This explains why the standalone PR-head run passes while the recorded merge run fails. It is not a file-link regression or a green merge gate.
-- The [Pullfrog run](https://github.com/colinhacks/frizz/actions/runs/34963125106) encountered `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`, then terminated with `The usage limit has been reached`. It produced no substantive review.
+- The CI check (upstream Frizz run 34963124134, job 104361183268) tested synthetic merge `6dddb9b9205644773ce1852837bd0b18b50f4bf6`, merging the PR into `dc493b98830cc8e96efc7bab5102e6c9eeb438b3`. It failed `monitors/portable-monitors.test.mjs:58`, expecting `/dispatch a SUB-AGENT to own the wait/` in worker guidance. That base's guidance uses different casing/wrapping; these files are untouched by the PR. This explains why the standalone PR-head run passes while the recorded merge run fails. It is not a file-link regression or a green merge gate.
+- The Pullfrog run (upstream Frizz run 34963125106) encountered `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`, then terminated with `The usage limit has been reached`. It produced no substantive review.
 
 Before acceptance, rerun checks against the revised integration head and exercise native Windows file and image reads with the two missing regressions above. Existing tests cover normal POSIX behavior, malformed encoding, URL-scheme separation, reader/opener routing, origin rejection, symlink behavior, and ordinary out-of-root denial. They do not pin case-distinct Windows siblings or preservation of raw POSIX `/C:/…` paths; there is also no added native Windows image-normalization test.
 

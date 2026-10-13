@@ -37,7 +37,7 @@ One user costs one DNS record and one tunnel. So the runway is **200 names free 
 Ntwine runs on your machine and binds loopback. Reaching it from anywhere means a tunnel, and today
 that means the user brings their own Cloudflare or Tailscale account and their own domain. The product
 idea is to sell the part that is annoying: identity, a stable name, and auth in front of a board that
-otherwise has none. `npx ntwine --cloud` and you are at `colin.frizz.sh` from your phone.
+otherwise has none. `npx ntwine --cloud` and you are at `dana.frizz.sh` from your phone.
 
 What you are selling is **reachability and identity, not compute**. The agents still run on the user's
 machine with the user's credentials. That is the whole reason the margin can be good — and it is also
@@ -55,7 +55,7 @@ These are the facts the design rests on. Each was checked, not recalled.
 | A **per-tunnel run token** is narrow — runs that tunnel, nothing else | this is what makes the vending-machine design safe |
 | A **remotely-managed** tunnel (`config_src: "cloudflare"`) needs no `cert.pem` | created + configured via API, run via `cloudflared tunnel run --token` |
 | Universal SSL covers `*.frizz.sh` **one level only** | deeper (`a.b.frizz.sh`) needs Advanced Certificate Manager, paid, wildcard-per-level, 50 SANs/cert |
-| ⇒ the namespace must be flat: `colin.frizz.sh` | fine now that Ntwine is one server per machine |
+| ⇒ the namespace must be flat: `dana.frizz.sh` | fine now that Ntwine is one server per machine |
 | GitHub device flow needs only a **public `client_id`**, no secret | [octokit/auth-oauth-device](https://github.com/octokit/auth-oauth-device.js/) — the CLI can do the whole login itself |
 | Cloudflare Access free tier is **50 seats, then $7/user/mo** | [Access pricing](https://www.cloudflare.com/sase/products/access/) |
 | The Zero Trust reselling clause covers **Access, Gateway, RBI, email security, CASB, DLP** — **NOT Tunnel** | [Zero Trust service-specific terms](https://www.cloudflare.com/service-specific-terms-zero-trust-services/), product list read verbatim |
@@ -104,13 +104,13 @@ POST /stripe/webhook    → subscription lifecycle → enable/disable
 ```
 
 **Identity: GitHub, keyed on the numeric user id — never the login string.** Handles get renamed and
-released; keying on the string means the next holder of `colinhacks` inherits the subdomain. This is
+released; keying on the string means the next holder of `dana` inherits the subdomain. This is
 the same shape as the documented tunnel-subdomain recycling hijacks. **Never release a claimed
 subdomain**, for the same reason.
 
 **Board auth: a signed session Ntwine verifies itself.**
 
-1. Browser hits `colin.frizz.sh`, Ntwine sees no session cookie.
+1. Browser hits `dana.frizz.sh`, Ntwine sees no session cookie.
 2. Redirect to `auth.frizz.sh/login?return=…`; GitHub OAuth; Worker mints a short-lived JWT naming the
    subdomain and the user.
 3. Redirect back; Ntwine validates the JWT against cached JWKS — **offline, no call to your Worker** —
@@ -164,12 +164,12 @@ The thing that would wreck this model is anything that puts you on the data plan
 **An Ntwine board runs shell commands as its owner. An auth bug here is remote code execution on your
 customers' laptops, not a data leak.** That reframes several ordinary choices:
 
-- **Vanity subdomains advertise the target list.** `colin.frizz.sh` lets anyone enumerate your customers
+- **Vanity subdomains advertise the target list.** `dana.frizz.sh` lets anyone enumerate your customers
   from GitHub handles. For a paid product vanity is part of the value, so buy it back with genuinely
   strong auth rather than obscurity — but know the trade you are making. (Microsoft's dev tunnels chose
   opaque ids for exactly this reason, and require the *same account on both ends*.)
 - **The per-tunnel token on the user's disk is a bearer credential.** Stolen, it does not reach their
-  machine — but it lets the thief serve traffic *as* `colin.frizz.sh`, which is a good phishing primitive.
+  machine — but it lets the thief serve traffic *as* `dana.frizz.sh`, which is a good phishing primitive.
   Make rotation a first-class operation, not a support ticket.
 - **Secrets never touch the client.** The Cloudflare zone token lives only as a Worker secret
   (`wrangler secret put`), never in `wrangler.toml`, never in the repo, never in the npm package. Add a

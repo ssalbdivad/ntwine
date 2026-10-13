@@ -2,14 +2,14 @@
 
 Plan, 2026-10-06 (David), revised the same day. Fork `main` vs `upstream/main` 0a3b9139.
 
-**Goal.** Keep this fork as the base, with its defaults and features. Make sure **everything Colin built or decided** is
+**Goal.** Keep this fork as the base, with its defaults and features. Make sure **everything upstream built or decided** is
 in it:
 - every upstream feature, fix, view and rule;
-- the core principles he stated at the 2026-10-06 standup.
+- the core principles upstream stated at the 2026-10-06 standup.
 
 Where one of those principles collides with a fork behavior, the principle wins, and the fork's behavior survives in the
 least invasive form that still upholds it. The fork can then be offered as the product,
-or cherry-picked from, with a ledger showing nothing of Colin's was lost. What doesn't make the product is removed, not
+or cherry-picked from, with a ledger showing nothing of upstream's was lost. What doesn't make the product is removed, not
 carried (2026-10-07, at the end of §10).
 
 An earlier revision of this plan went the other way. It restored upstream's surfaces as the default and moved fork features
@@ -23,24 +23,24 @@ The research behind every claim, with file:line, is in the planning thread's scr
 
 ---
 
-## 1. Colin's core principles
+## 1. Upstream's core principles
 
 ### Stated at the 2026-10-06 standup (binding)
 
-| # | Principle | His words (standup notes) |
+| # | Principle | Upstream's words (standup notes) |
 |---|---|---|
 | S1 | **Every thread belongs to one of five rails, and that status distinction is core information** that must never be lost from view | "a unified sidebar loses important conceptual information in Ntwine, especially thread status distinctions, because each thread belongs to one of '5 rails.'" |
-| S2 | **Workspaces/projects stay separate** | "his strongest product intuition is still that workspaces/projects should stay separate, which aligns with other tools like Claude, ChatGPT, and T3." |
-| S3 | **The default must hold up at heavy load,** e.g. his 17 projects and ~70 open threads, against a sidebar that fits ~15–20 rows. No view fits 70, upstream's included, so in practice this means **capacity parity: the default shows at least as much as his does** (§2) | "the unified-sidebar model does not scale for his usage because he currently has '17 projects' and around '70 active threads'"; "a single sidebar only fits around '20' threads at most, and closer to '15' once project-group spacing is included" |
-| S4 | **Mainline takes changes in pieces:** cherry-picks, soundness fixes first, no wholesale structural changes | "integrating the fork will likely be 'a cherry-pick situation'"; "substantive structural changes in the fork that he does not want to pull back into main wholesale"; "use agents to categorize changes from the fork and identify soundness fixes worth cherry-picking" |
+| S2 | **Workspaces/projects stay separate** | "[upstream's] strongest product intuition is still that workspaces/projects should stay separate, which aligns with other tools like Claude, ChatGPT, and T3." |
+| S3 | **The default must hold up at heavy load,** e.g. upstream's 17 projects and ~70 open threads, against a sidebar that fits ~15–20 rows. No view fits 70, upstream's included, so in practice this means **capacity parity: the default shows at least as much as upstream's does** (§2) | "the unified-sidebar model does not scale for [upstream's] usage because [upstream] currently has '17 projects' and around '70 active threads'"; "a single sidebar only fits around '20' threads at most, and closer to '15' once project-group spacing is included" |
+| S4 | **Mainline takes changes in pieces:** cherry-picks, soundness fixes first, no wholesale structural changes | "integrating the fork will likely be 'a cherry-pick situation'"; "substantive structural changes in the fork that [upstream] does not want to pull back into main wholesale"; "use agents to categorize changes from the fork and identify soundness fixes worth cherry-picking" |
 | S5 | No release before someone strong takes point | Not a design rule; it means the fork must stay reviewable by someone new |
 
-Also from the same standup: Colin said their setup with Ctrl+L "already feels better than the Cursor + Claude Code
+Also from the same standup: upstream said its setup with Ctrl+L "already feels better than the Cursor + Claude Code
 integration path". That is a point in favor of the fork's VS Code work.
 
 ### Documented in upstream's repo (principles to honor, with the fork's answer)
 
-These come from ARCHITECTURE.md, AGENTS.md, `cc-worker/DECISIONS.md` and his commit messages (citations in
+These come from ARCHITECTURE.md, AGENTS.md, `cc-worker/DECISIONS.md` and upstream's commit messages (citations in
 `principles.md`). The fork keeps several behaviors that bend them. Each is listed here with its reason, so the difference is
 argued rather than hidden.
 
@@ -48,17 +48,17 @@ argued rather than hidden.
 |---|---|---|
 | P1 | One board is home; cross-project means awareness, not content (2498ad77) | **Changed, argued.** All projects is home: a project-grouped awareness surface that carries every project's counts, the rail's job, and gives up no capacity (§2). Each project's own board is one click away at its own URL. |
 | P2 | Five named bands; Queue and Running never hidden (Sidebar.tsx:47-48, 259; 45ce008e) | **Upheld** in the project board, with S1 (§2); in All projects every row keeps its band mark. |
-| P3 | His vocabulary: Queue, Running, board | **Adopted** (§2): no feature cost, and the fork's own CLAUDE.md already teaches agents his band names. |
+| P3 | Upstream's vocabulary: Queue, Running, board | **Adopted** (§2): no feature cost, and the fork's own CLAUDE.md already teaches agents upstream's band names. |
 | P4 | `/project/<slug>` URLs; `?project=` was rejected (singleton-ntwine.md:131) | **Adopted** for the project board (§2). |
 | P5 | Ntwine runs no model of its own (ARCHITECTURE.md:5) | **Kept, with an off switch.** See below. |
 | P6 | The worker contract is mechanics only; every token costs | **Kept, trimmed where inert.** Tools and sections tied to an absent capability are not listed (§5). |
 | P7 | Few settings | No setting for the view (the URL names it, §2). One setting for model calls, replacing today's env-only switches. |
 | P8 | Keyboard is ⌘K, ⌘I and Esc | **Kept on.** The single-key layer is visible (the `?` sheet) and rebindable. |
 | P9 | No pty | **Already reconciled** in the fork: node-pty is imported lazily, only for a terminal the human opens, and no agent or sign-in path touches it (fork CLAUDE.md). Remaining: make it an optional dependency so a box without it installs cleanly. |
-| P10 | No git/worktree opinions | **Kept.** The fork's worktree folder rule is a mechanic its own threads rely on; the trade-off is offered to Colin as a decision (§8). |
+| P10 | No git/worktree opinions | **Kept.** The fork's worktree folder rule is a mechanic its own threads rely on; the trade-off is offered upstream as a decision (§8). |
 | P11 | Docs state the present | **Upheld** (§6): a docs pass, plus re-attributing the fork's quotes. |
 | P12 | Lazy project activation; full-snapshot SSE | **Upheld** by running the all-projects poll and prefetch only while that view is open (§2). |
-| P13 | The phone board is his approved v2 | **Reflected.** The fork's phone page carries his v2; the gaps the ledger found are fixed (§3). |
+| P13 | The phone board is upstream's approved v2 | **Reflected.** The fork's phone page carries that v2; the gaps the ledger found are fixed (§3). |
 
 **Features that stay, on by default:**
 - thread names, status lines and auto effort;
@@ -75,14 +75,14 @@ argued rather than hidden.
 **On P5 specifically.** The model calls behind names, status lines and auto effort run on the user's own Claude sign-in
 through `claude-oneshot`. Each has a mechanical fallback, which is what runs when `ctx.complete` is undefined. Today the
 only off-switches are environment variables (context.ts:970). They become one setting, **Background summaries** (default
-on), so a user who wants Colin's "no model of its own" posture gets it from Settings.
+on), so a user who wants upstream's "no model of its own" posture gets it from Settings.
 
 ---
 
 ## 2. The sidebar: S1–S3 with All projects as the default
 
 **No sidebar shows ~70 threads, upstream's included.** Upstream's default is one project's board, and it fits 22 rows at
-1440x900. Colin's other 16 projects sit behind a click, or behind the opt-in rail's badges. So S3 does not mean "handles
+1440x900. Upstream's other 16 projects sit behind a click, or behind the opt-in rail's badges. So S3 does not mean "handles
 70"; it means **the default shows at least as much as upstream's default does**. That is the bar here: capacity parity,
 measured, and pinned by a test.
 
@@ -98,7 +98,7 @@ Measured today (sidebar-report.md, single-line titles, 27.5px rows):
 |---|---|---|
 | Upstream's board, one project | 22 rows | 28 rows |
 | Fork focus mode, one project | 22 rows | 29 rows |
-| Fork All projects, Colin's load (17 projects, 70 open) | 11 rows + 6 project headers | 14 rows + 8 project headers |
+| Fork All projects, upstream's load (17 projects, 70 open) | 11 rows + 6 project headers | 14 rows + 8 project headers |
 | Fork All projects, David's load (4 projects, 10 threads) | everything | everything |
 
 ### Capacity parity (S3)
@@ -115,14 +115,14 @@ Measured today (sidebar-report.md, single-line titles, 27.5px rows):
   Each header carries its project's counts, so at heavy load it shows more status per screen than upstream's board, not less.
 - **The gate:** port the measurement (`sidebar/seed-scale.ts` and `sidebar/measure.ts` in the planning scratch directory)
   into one maintained `.ts` e2e test.
-  - It seeds Colin's load (17 projects, 70 open) and David's, renders both views, and counts what is visible without
+  - It seeds upstream's load (17 projects, 70 open) and David's, renders both views, and counts what is visible without
     scrolling at 1440x900 and 1920x1080.
   - It fails if the project board shows fewer rows than upstream's 22/28 (baseline measured on 0a3b9139), or if All projects
     shows fewer lines.
 
 ### The project board (focus mode)
 
-URL `/project/<slug>`, Colin's scheme. `?project=<slug>` and `?focus=` redirect to it. In S1's terms it is **at least as
+URL `/project/<slug>`, upstream's scheme. `?project=<slug>` and `?focus=` redirect to it. In S1's terms it is **at least as
 detailed as upstream's sidebar** (U:Sidebar.tsx):
 
 - **The five rails, named, with counts:** Pinned, Queue, Running, Snoozed, Done. External stays apart, never a sixth band
@@ -153,7 +153,7 @@ project folds, cords, stable queue. Changes:
    - A folded project's header shows **Pinned, Queue and Running** counts, each with its band glyph. Today it omits Pinned
      (ProjectList.tsx:922-923).
    - Named band headers live in the project board, one click away.
-   - If Colin finds per-row marks insufficient here, the fallback is a one-line band label inside a group. It costs lines,
+   - If upstream finds per-row marks insufficient here, the fallback is a one-line band label inside a group. It costs lines,
      and the capacity test says how many.
 3. **Fix the pinned-Done hole.** A pinned thread that is Done in another project is invisible. `projectsQueues` drops
    archived threads before the pin check (router.ts:5455-5458), and `loudBands` reads pins only from open lists
@@ -164,8 +164,8 @@ project folds, cords, stable queue. Changes:
 6. **Load (P12):** the 3s `projectsQueues` poll and the idle board prefetch run only while this view is mounted. Moving the
    poll onto the server's SSE stream is a follow-up for heavy loads.
 
-Colin's objection was that All projects degrades the board. Under this plan his board exists unchanged at
-`/project/<slug>`, with at least his detail and at least his capacity, and the default home shows at least as much as his
+Upstream's objection was that All projects degrades the board. Under this plan upstream's board exists unchanged at
+`/project/<slug>`, with at least its detail and at least its capacity, and the default home shows at least as much as its
 default at any load.
 
 ---
@@ -189,7 +189,7 @@ than by restoring a deleted file.
   rendering and fix the contract text, or remove the rendering. **Decision: keep upstream's rendering** (it costs nothing) and
   correct the contract.
 
-**Queue card parity** (Colin's TodosView capabilities, added to AllQueuesCard)
+**Queue card parity** (upstream's TodosView capabilities, added to AllQueuesCard)
 - The transcript: folded middle, "Load earlier", and a per-card collapse (U:TodosView.tsx:85-100, 724-731, 1393-1419).
   Today the card is handoff-only and "Show earlier messages" opens the drawer.
 - The resting card.
@@ -197,7 +197,7 @@ than by restoring a deleted file.
   opening the drawer (store.ts:368-388). Once it lands on a card, port aad5298d's landing hold.
 - `/project/<slug>/status/<s>` resolves to its status view. Restore StatusListView's route, since it is upstream's own file.
 
-**Phone** (Colin's v2 board)
+**Phone** (upstream's v2 board)
 - **Long-press on a phone row opens the thread's actions sheet** (7d768576). Missing, and with swipe-to-triage dropped on
   purpose, phone rows have no actions at all.
 - The phone projects list counts **asks**, as upstream changed it to (lib/phonePage.ts:164 counts Ready).
@@ -209,13 +209,13 @@ than by restoring a deleted file.
 
 **Drawer**
 - Restart worker, Reload plugins and Doc stay in the ⋯ menu (fork). A one-click-deeper move is a taste call that loses no
-  capability. It is listed in §8 for Colin.
+  capability. It is listed in §8 for upstream.
 
 ---
 
 ## 4. Rules the fork changes, reconciled
 
-Each of Colin's deliberate rules the fork touches, with its disposition. "Fix" means the fork's version answers a real bug and
+Each of upstream's deliberate rules the fork touches, with its disposition. "Fix" means the fork's version answers a real bug and
 goes upstream as a PR naming that bug.
 
 | Rule | Fork | Disposition |
@@ -249,7 +249,7 @@ The fork's contract and tools stay. Under P6 two cheap changes remove cost witho
 ## 6. Hygiene (makes the fork reviewable by someone new, S4–S5)
 
 - **Re-attribute the fork's quotes.** About 146 `maintainer YYYY-MM-DD` quotes the fork added are David's. Rewrite them as
-  `David YYYY-MM-DD`, so "maintainer" keeps meaning Colin.
+  `David YYYY-MM-DD`, so "maintainer" keeps meaning upstream's maintainer.
 - **A docs pass.** ARCHITECTURE.md, README.md and AGENTS.md disagree with the code on the default view, band names, the rail
   and worktrees. Fix them, then again after §2 lands.
 - **Delete finished experiments** (record the conclusion, delete the harness):
@@ -271,13 +271,13 @@ The fork's contract and tools stay. Under P6 two cheap changes remove cost witho
 
 Step 9 built a plugin system (loader, web slots, per-plugin database, Settings → Ntwine plugins) to hold features that
 don't make the product, with lazy threads as its one plugin. On 2026-10-07 David removed lazy threads and then the
-system, since it had no other user: an empty extension API is structure Colin never asked for. It can be restored from
+system, since it had no other user: an empty extension API is structure upstream never asked for. It can be restored from
 git (`refactor(plugins): remove the Ntwine plugin system`) if a declined feature needs a home. The held-thread primitive
 it introduced stays, because a schedule's next run is one.
 
 ---
 
-## 8. Getting it to Colin (S4)
+## 8. Getting it upstream (S4)
 
 **Order of offers**, each small and naming the bug or need it answers:
 
@@ -304,14 +304,14 @@ it introduced stays, because a schedule's next run is one.
 2. **The rule fixes from §4:** ask-last, arrival-order queue, merged answers.
 3. **The generic contract guidance** (§5).
 4. **The VS Code extension and editor bridge.** The extension package is already separate: 70 files, talking through two
-   shared protocol files. This is the integration Colin praised at standup.
-5. **The project board improvements** that apply to his board as-is: sub-agent rows, schedules header, switcher counts.
-6. **All projects, as a design proposal,** with the capacity test as evidence that it shows at least as much as his board
-   and keeps every thread's rail readable. Whether it is home or opt-in upstream is his call.
+   shared protocol files. This is the integration upstream praised at standup.
+5. **The project board improvements** that apply to upstream's board as-is: sub-agent rows, schedules header, switcher counts.
+6. **All projects, as a design proposal,** with the capacity test as evidence that it shows at least as much as upstream's board
+   and keeps every thread's rail readable. Whether it is home or opt-in upstream is upstream's call.
 7. **The rest of the fork's features, one at a time:** schedules, terminals, spinoff, model-backed names/status/effort,
    shortcuts, wake lock, Home, messaging. Each goes with its off switch or reason.
 
-**Decisions that are Colin's,** to put to him rather than to settle in the fork:
+**Decisions that are upstream's,** to put upstream rather than to settle in the fork:
 - the 10-minute default answer on an unanswered question (it bends "questions carry no timeout");
 - the worktree folder rule and cleanup on done;
 - the drawer strip moving into ⋯;
@@ -324,7 +324,7 @@ Make it checkable:
 - the merge is incomplete until each has a line in `plans/upstream-parity-ledger.md`, marked reflected (with where),
   ported, or moot (with how its behavior is covered).
 
-Seed that ledger from `parity-ledger.md` after §3 lands. It is also the categorization Colin said he would have agents
+Seed that ledger from `parity-ledger.md` after §3 lands. It is also the categorization upstream said it would have agents
 produce.
 
 **One standing check.** Run upstream/main's test files against the fork weekly. Every failure is either a ledger entry (an
@@ -334,7 +334,7 @@ intended difference, listed in §4) or a parity bug.
 
 ## 9. Work order and what each step touches
 
-| Step | Touches | Risk | Needs Colin |
+| Step | Touches | Risk | Needs upstream |
 |---|---|---|---|
 | 1 parity fixes (§3): steps card, question placement, contract text, phone long-press/counts/footer, lightbox | AllQueuesCard, fenceBlocks, phone page, ImageViewer, workerPrompt + goldens | low–medium: queue card is busy code | no |
 | 2 project board (§2): `/project/<slug>` replacing `?project=`, named never-collapsible bands, sub-agent rows, StatusRow crumb/link, switcher counts | routes, pageView, ProjectList / Sidebar, StatusRow, ~8 web files | medium: focus mode's look changes; All projects is untouched | no |
@@ -345,10 +345,10 @@ intended difference, listed in §4) or a parity bug.
 | 7 hygiene (§6) | docs, scripts, quotes, one table | low | no |
 | 8 Background summaries setting (§1) | context.ts, settings | low | no |
 | 9 plugin seams 1–4, lazy threads out (§7) | ~450 base lines, lazy code moves | medium | the loader, the held thread |
-| 10 offers to Colin (§8) | per PR | low each | yes |
+| 10 offers upstream (§8) | per PR | low each | yes |
 
 Steps 1–8 change only the fork, and David's default stays All projects. Each step also lowers the cost of
-the daily merge, because the fork's code stops diverging from upstream on the surfaces he keeps editing.
+the daily merge, because the fork's code stops diverging from upstream on the surfaces upstream keeps editing.
 
 ---
 
@@ -383,7 +383,7 @@ Each line names the step it amends.
   viewport lock holds the reading line, not the landed card.
 - The ⋯ project menu moved into the status row beside the repo link. Folds of the quiet bands persist per project
   in `ntwine.boardOpenBands`, apart from All projects' folds.
-- The phone header keeps "working" for the spinning rows (Colin's own phone board says it) and now says "queued"
+- The phone header keeps "working" for the spinning rows (upstream's own phone board says it) and now says "queued"
   for the rest of the queue.
 
 **Step 3 (All projects and the capacity test)**
@@ -398,12 +398,12 @@ Each line names the step it amends.
   (counts would change under the pointer). The notification observer now polls only while the tab is hidden.
 - The capacity test boots its own three stacks behind `NTWINE_CAPACITY_E2E=1` and seeds the database directly,
   since no RPC can create a running thread without a real agent.
-- Measured on the merged branch: All projects at Colin's load 23 lines at 1440x900 and 30 at 1920x1080 (bars 22 and
+- Measured on the merged branch: All projects at upstream's load 23 lines at 1440x900 and 30 at 1920x1080 (bars 22 and
   28); the project board with 70 open threads 22 and 29.
 
 **Step 4 (queue card parity)**
 - **David 2026-10-06: a card's earlier messages open its drawer** (his 2026-09-29 call, b3872adc). The in-card
-  transcript with Colin's folded middle and "Load earlier" was built, verified and then removed; both are in the
+  transcript with upstream's folded middle and "Load earlier" was built, verified and then removed; both are in the
   drawer, one click away. The per-card collapse button, steps card, resting card and per-rest questions stay.
 
 **Step 5 (rules)**
@@ -444,11 +444,11 @@ Each line names the step it amends.
   not list it.
 
 **David 2026-10-06 evening: the project board becomes the default** (supersedes §2's "All projects stays the default
-home at `/`"). Colin's standup needs, read from the 09-30..10-06 notes: projects stay separate (like Claude, ChatGPT
+home at `/`"). Upstream's standup needs, read from the 09-30..10-06 notes: projects stay separate (like Claude, ChatGPT
 and T3); progressive focus ("hide what the user does not need so they can focus on one chat or one workspace"); a
-unified sidebar loses the five rails and does not scale to his 17 projects and ~70 threads; he prefers persistent
+unified sidebar loses the five rails and does not scale to upstream's 17 projects and ~70 threads; upstream prefers persistent
 workspace navigation, "the project sidebar that looks like Discord", to one sidebar holding everything; always-on
-status lines may be too dense in the sidebar. David had told him a unified sidebar is fine "especially if it is not
+status lines may be too dense in the sidebar. David had told upstream a unified sidebar is fine "especially if it is not
 the default". So:
 - `/` opens the view this browser showed last (`ntwine.lastView`, a board or All projects); a browser that never chose
   lands on a project board (last launched, else the machine order's first). No projects: Welcome. On a phone `/`
@@ -456,16 +456,16 @@ the default". So:
 - All projects lives at `/all` (drawers `/all/<slug>/thread/<t>`); `/?all` and the old aliases redirect there.
 - The launcher opens `/project/<own slug>`, as upstream's does; VS Code opens `/project/<slug>?embed=vscode`.
 - Picking a view: the switcher (All projects first, then each project with its counts), the board's home crumb (to
-  `/all`, standing in for upstream's grid), ⌥↑/⌥↓, ⌘K, and upstream's Discord-style project rail restored as Colin
+  `/all`, standing in for upstream's grid), ⌥↑/⌥↓, ⌘K, and upstream's Discord-style project rail restored as upstream
   ships it: the `projectRail` setting, off by default, with upstream's help text and its light `projectsRailCounts`
   poll. Its top button is the All projects glyph rather than upstream's House, which in this fork is the Home
   workspace.
-- On the board, a working row's status line moves into the row's hover (Colin 10-01); All projects keeps it inline.
+- On the board, a working row's status line moves into the row's hover (upstream 10-01); All projects keeps it inline.
 - Capacity is unchanged, with the rail off and on: All projects 23/30, the board 22/29.
 
 **Step 9 (plugins)**
 - User-visible copy says "Ntwine plugins", apart from Claude Code plugins ("Reload plugins"). The final name is
-  Colin's call (§8).
+  upstream's call (§8).
 - The held thread keeps a downgrade-safe shadow: every held row also carries a non-null `lazy_prompt`, so an
   older server generation reads it as an unstarted thread. Nothing is dropped.
 - A schedule's pending run is a row held by `schedules` and keeps its per-run note in `lazy_prompt`.
@@ -482,9 +482,9 @@ the default". So:
   `lazy_prompt` column and every migration that maps old lazy rows, so old databases still open: a legacy lazy
   row is an orphaned held row and starts on its next message, on the note base kept.
 
-**2026-10-07: removals before the offer, and the hand-off brought back to Colin's rule (David)**
+**2026-10-07: removals before the offer, and the hand-off brought back to upstream's rule (David)**
 
-David asked that nothing reach Colin that reads as bloat. He picked these from a ranked audit, and each is one commit
+David asked that nothing reach upstream that reads as bloat. He picked these from a ranked audit, and each is one commit
 whose body says what went and what replaced it:
 - **The Ntwine plugin system** (`refactor(plugins): remove the Ntwine plugin system`). Held threads stay for schedules;
   the `plugins` slug is no longer reserved; the alternate submit beside Send went with its slot.
@@ -500,7 +500,7 @@ whose body says what went and what replaced it:
 Not removed, after the audit: terminals, schedules and their live reading, time limits, cords, ImageViewer, Remote
 access in Settings, the rarely-used settings and thread info.
 
-From Colin's tenets on hand-off (the worker's own last word decides a thread's state; Ntwine only checks it), David
+From upstream's tenets on hand-off (the worker's own last word decides a thread's state; Ntwine only checks it), David
 chose three changes:
 - **A typed message leaves questions open.** Set-aside and `keep` are gone, so Ntwine never withdraws a question by
   omission. This supersedes §4's row and §8's item. The 10-minute default still skips a question the human typed past.

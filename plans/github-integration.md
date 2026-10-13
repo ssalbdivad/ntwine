@@ -51,13 +51,13 @@ When the opened project is a GitHub repo:
 - `cc-worker/skills/worker/SKILL.md` — the worker-contract skill (loadable as `ntwine:worker`). Sibling skill dir is `cc-worker/skills/`.
 - `cc-worker/hooks/session-seed.mjs` — **SessionStart hook**, runs on every start/resume/clear/compact, gated on `NTWINE_THREAD`. Injects the worker contract + scratchpad path via `hookSpecificOutput.additionalContext`. Runs `node`, zero deps, in the worker's env (so `gh` is on its PATH). **This is the correct auth-gated injection site** — it can shell `gh auth status` live at every session start and covers dispatch + resume + compact uniformly, with no server changes to the dispatch/resume argv.
 - `cc-worker/.claude-plugin/plugin.json` + `cc-worker/hooks/hooks.json` — plugin manifest + hook registration. `workerPluginDir()` in dispatch.ts resolves `cc-worker` and passes it via `--plugin-dir`, so its skills are loadable by workers.
-- NOTE the repo layout: the git root is `/Users/colinmcd94/Documents/projects/ntwine`; `ui/` and `cc-worker/` are siblings under it. `workerPluginDir()` resolves `../../../../cc-worker` from `packages/server/src`.
+- NOTE the repo layout: the git root is `/Users/me/Documents/projects/ntwine`; `ui/` and `cc-worker/` are siblings under it. `workerPluginDir()` resolves `../../../../cc-worker` from `packages/server/src`.
 
 ---
 
 ## 2. Verified `gh` / `toon` capabilities (exact commands)
 
-All run from a repo dir; `-R owner/repo` makes them dir-independent. gh is authed via keyring (account colinhacks), scopes include `repo`, `workflow`.
+All run from a repo dir; `-R owner/repo` makes them dir-independent. gh is authed via keyring (the upstream Frizz maintainer's account), scopes include `repo`, `workflow`.
 
 ```bash
 # Auth (exit 0 = signed in; non-zero = not)

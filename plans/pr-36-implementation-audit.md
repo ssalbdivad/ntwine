@@ -2,8 +2,8 @@
 
 Verified September 19, 2026, with the control corrections on local `main` at `e35d440e`. This supersedes the visual-change recommendation in [the original review](pr-36-review.md). The maintainer approved the third mockup's light-gray outline treatment, then requested quieter icon buttons and single-frame segmented controls.
 
-[Open the 10-screenshot control refinements](file:///Users/colinmcd94/Documents/projects/ntwine/.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/control-refinements.html).
-[Open the 32-screenshot review gallery](file:///Users/colinmcd94/Documents/projects/ntwine/.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/screenshots.html).
+[Open the 10-screenshot control refinements](file:///Users/me/Documents/projects/ntwine/.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/control-refinements.html).
+[Open the 32-screenshot review gallery](file:///Users/me/Documents/projects/ntwine/.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/screenshots.html).
 
 ## What changed
 

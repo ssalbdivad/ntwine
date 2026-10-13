@@ -2,7 +2,7 @@
 
 ## Popover patch 0.13.2
 
-Published `ntwine-server@0.13.2` from `4fdc8d69fd350002a19fe27ff37839ecad1045ab` after explicit release authorization. The shell remains `ntwine@0.13.0`; the workflow skipped shell publication and retained the original `v0.13.0` tag at `ba088812`. [Release run 34648565761](https://github.com/colinhacks/frizz/actions/runs/34648565761) and CI runs `34648565850` / `34648563193` completed successfully.
+Published `ntwine-server@0.13.2` from `4fdc8d69fd350002a19fe27ff37839ecad1045ab` after explicit release authorization. The shell remains `ntwine@0.13.0`; the workflow skipped shell publication and retained the original `v0.13.0` tag at `ba088812`. Upstream Frizz release run 34648565761 and CI runs `34648565850` / `34648563193` completed successfully.
 
 - The restart popover now shows only the application version, with no launcher diagnostic line. Historical fixture values such as `0.4.2` are test inputs, not installed or published versions. The release evidence uses the actual public artifact displaying `0.13.2`.
 - The exact isolated candidate passed frozen installation, typecheck, 4,544 tests with 83 skips and zero failures, board 73/73, monitors 16/16 and monitor synchronization. A clean packed-package browser upgrade passed before publication.
@@ -25,8 +25,8 @@ Published `ntwine-server@0.13.1` and the initial stable shell `ntwine@0.13.0` fr
 | npm shell | `ntwine@0.13.0`; registry `gitHead` equals `ba088812` |
 | Authentication | Both packages accepted through npm Trusted Publishing, with provenance attestations |
 | Shell tag | Remote annotated `v0.13.0` peels to `ba088812`, not the reconciliation commit |
-| GitHub release | [v0.13.0](https://github.com/colinhacks/frizz/releases/tag/v0.13.0), published, not draft/prerelease |
-| Reconciliation | [Run 34645415424, attempt 2](https://github.com/colinhacks/frizz/actions/runs/34645415424), successful at `089af8ae`; both package publishes skipped |
+| GitHub release | upstream Frizz v0.13.0, published, not draft/prerelease |
+| Reconciliation | upstream Frizz run 34645415424, attempt 2, successful at `089af8ae`; both package publishes skipped |
 | CI | Main/release runs `34645412007` and `34645415123` successful at `089af8ae` |
 
 The shell remains pinned to bootstrap server `0.13.0`. This deliberately exercised a real published `0.13.0 → 0.13.1` update rather than booting directly into the candidate. Compatible later server selections persist independently of that bootstrap pin.

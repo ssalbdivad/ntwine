@@ -65,7 +65,7 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 
 - There are five bands: Pinned, Queue, Running, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
 - Projects stay separate. The default view is one project's board, and All projects is one click away.
-- Density over decoration, and few settings. The default view shows at least as much as Colin's original board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
+- Density over decoration, and few settings. The default view shows at least as much as the original Frizz board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
 
 **Ntwine is the process that outlives the agent.**
 
@@ -105,7 +105,7 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 
 <h2 align="center">What Ntwine adds</h2>
 
-Here's what I've built on top of Colin's design so far:
+Here's what I've built on top of the original Frizz design so far:
 
 - **Threads that talk to each other.** Every thread has an `@handle`, and agents use it to read, message and wait on other threads. `#slug` names a project.
 - **Spinoff.** Start a new thread from any card with its context, without interrupting the one you're reading.
@@ -122,7 +122,7 @@ Here's what I've built on top of Colin's design so far:
 - **Files and pictures.** A reader that follows a file as it's saved, and a viewer that zooms, pans and pages through an agent's screenshots.
 - **Usage.** A quota chip that warns you before your plan runs out, and an optional Fable fallback for new Claude threads.
 - **Housekeeping.** Thread info (tokens, turns, cost), deleting done threads you haven't touched in a while, and keeping the machine awake while an agent works.
-- **All projects** at `/all`. This builds on Colin's project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. A project's board is still the default, and the sidebar is still there exactly as he ships it, opt-in under **Settings → Project sidebar**.
+- **All projects** at `/all`. This builds on the original Frizz project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. A project's board is still the default, and the sidebar is still there exactly as upstream ships it, opt-in under **Settings → Project sidebar**.
 - **[frizz.sh/docs](https://frizz.sh/docs)**, the full docs, with one page per feature.
 
 <br/>

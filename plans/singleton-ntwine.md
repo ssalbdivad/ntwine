@@ -34,7 +34,7 @@ Derive **once at registration**, persist, allow rename. Never re-derive on boot 
 
 1. `slug = slugify(basename(realpath(dir)))` — reuse `slugify` from `packages/shared/src/thread-slug.ts`, which already produces exactly the `^[a-z0-9][a-z0-9-]*$` shape a path segment wants.
 2. If the basename is **generic** (`app`, `src`, `web`, `www`, `main`, `repo`, `code`, `server`, `client`, `packages`, `site`, `scratch`, `tmp`, `test`), qualify with the parent: `pullfrog/app` → `pullfrog-app`. This is a live case — `~/Documents/pullfrog/app` is in the registry today, and `app` is the single most likely real collision at small scale.
-3. On collision, **the incumbent always keeps its slug** — a URL must never change under someone who bookmarked it. Qualify the newcomer, first match wins: `<remote-owner>-<base>` (`colinhacks-zod`) → `<parent-dir>-<base>` → `<base>-2`, `-3`, …
+3. On collision, **the incumbent always keeps its slug** — a URL must never change under someone who bookmarked it. Qualify the newcomer, first match wins: `<remote-owner>-<base>` (`arktypeio-arktype`) → `<parent-dir>-<base>` → `<base>-2`, `-3`, …
 4. Lowercase-normalize. On a case-insensitive filesystem two paths differing only in case are already the same project after `realpath`.
 5. Renaming is a first-class registry field from day one. It costs nothing to add now and it is the escape hatch for every rule above.
 
