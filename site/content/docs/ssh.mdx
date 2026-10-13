@@ -7,13 +7,13 @@ description: One session, nothing exposed, no setup at all.
 ssh -L 9393:127.0.0.1:9393 you@your-machine
 ```
 
-Then open `http://127.0.0.1:9393` on the client. The forwarded port is loopback on both ends, so Ntwine treats it as local: there is no public origin to declare and no sign-in link to redeem.
+Then open `http://127.0.0.1:9393` on the client. The forwarded port is loopback on both ends, so Ntwine treats it as local. There's no public origin to declare and no sign-in link to redeem.
 
-Nothing is exposed to the internet. The cost is that the forward lives only as long as the SSH session, which makes it awkward from a phone — for that, use [a name on frizz.sh](/docs/ntwine-sh) or [Tailscale](/docs/tailscale).
+Nothing is exposed to the internet. The catch is that the forward only lives as long as the SSH session, which makes it awkward from a phone. For that, we'd recommend [a name on frizz.sh](/docs/ntwine-sh) or [Tailscale](/docs/tailscale).
 
 ## Minting a link over the same connection
 
-If you would rather reach the board by a real hostname later, the same SSH session is how a headless machine hands you a single-use code:
+If you'd rather reach the board by a real hostname later, a headless machine can hand you a single-use code over the same SSH connection:
 
 ```bash
 ssh you@your-machine 'npx ntwine --link'

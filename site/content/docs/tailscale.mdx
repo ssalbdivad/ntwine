@@ -3,7 +3,7 @@ title: Tailscale
 description: Your tailnet, reachable by your devices only.
 ---
 
-Tailscale gives the machine a stable HTTPS name on your tailnet and terminates TLS itself, so only your devices can reach the board. Authentication is the tailnet: a device that is not signed into it cannot reach the name at all.
+Tailscale gives your machine a stable HTTPS name on your tailnet and terminates TLS itself, so only your devices can reach the board. The tailnet is the authentication: a device that isn't signed into it can't reach the name at all.
 
 ## Serve the port
 
@@ -12,7 +12,7 @@ tailscale serve --bg --https=443 localhost:9393
 tailscale serve status
 ```
 
-`status` reports the URL it is serving, in the form `https://<machine>.<tailnet>.ts.net`. Take the origin from there rather than composing it by hand — the MagicDNS name is not something you choose.
+`status` reports the URL it's serving, in the form `https://<machine>.<tailnet>.ts.net`. Copy the origin from there instead of composing it by hand. You don't choose the MagicDNS name.
 
 ## Tell Ntwine the origin
 
@@ -22,9 +22,9 @@ tailscale serve status
   Origin  https://your-machine.your-tailnet.ts.net
 ```
 
-Ntwine reads your tailnet name while the pane is open, so the field is usually already filled in.
+Ntwine reads your tailnet name while the pane is open, so the field is usually filled in already.
 
-Ntwine checks that a request's `Host` matches the origin it was given, so the value has to be the exact origin a browser sees — scheme included, no trailing slash.
+Ntwine checks that a request's `Host` matches the origin you gave it, so the value has to be the exact origin a browser sees: scheme included, no trailing slash.
 
 ## Stop serving
 
@@ -32,4 +32,4 @@ Ntwine checks that a request's `Host` matches the origin it was given, so the va
 tailscale serve --https=443 localhost:9393 off
 ```
 
-See the [Tailscale Serve documentation](https://tailscale.com/kb/1242/tailscale-serve) for the current syntax, which moves faster than this page.
+Tailscale's syntax changes faster than this page, so check the [Tailscale Serve documentation](https://tailscale.com/kb/1242/tailscale-serve) for the current version.
