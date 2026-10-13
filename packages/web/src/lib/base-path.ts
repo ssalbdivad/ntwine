@@ -9,7 +9,7 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 //                                  bound to the prompt box's pick (below)
 //   /all                           All projects — bound to the prompt box's pick (below)
 //   /all/<slug>/thread/<t>         All projects with that thread's drawer open — bound to its project
-//   /project/<slug>                that project's board, the default (Colin's scheme, restored 2026-10-06)
+//   /project/<slug>                that project's board, the default (upstream's scheme, restored 2026-10-06)
 //   /project/<slug>/thread/<t>     the board with that thread open (its card, or its drawer)
 //   /project/<slug>/status/<s>     the board's status list (StatusListView.tsx)
 //
@@ -18,7 +18,7 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 //
 // `/project/<slug>` was retired on 2026-09-28, when one page replaced the project view and focus mode moved
 // into the query (`/?project=<slug>`); it came back as the project board's address on 2026-10-06 (David:
-// the fork is the base, with Colin's `/project/<slug>` scheme, plans/upstream-superset.md §2), and the query
+// the fork is the base, with upstream's `/project/<slug>` scheme, plans/upstream-superset.md §2), and the query
 // now only redirects to it (routes.tsx).
 //
 // AN EMPTY BASE IS A SUPPORTED STATE, not a bug: an unprefixed `/thread/<slug>/full` is the launching

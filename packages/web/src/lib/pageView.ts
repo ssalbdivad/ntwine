@@ -1,12 +1,12 @@
 // THE PAGE'S VIEW — which projects the one page shows: ONE project (its board, the default) or every
 // project (All projects).
 //
-// A project's BOARD is the default (David asked for it 2026-10-06, on Colin's case in the standups of
+// A project's BOARD is the default (David asked for it 2026-10-06, on upstream's case in the standups of
 // 2026-10-01 and 10-06: projects stay separate, as in Claude, ChatGPT and T3; one sidebar of every project
-// loses the five bands and does not scale to his 17 projects and ~70 threads; Ntwine's design goal is
+// loses the five bands and does not scale to 17 projects and ~70 threads; Ntwine's design goal is
 // progressive focus). It is
-// Colin McDonnell's one project per page, Ntwine's original shape: the list is that project's, banded as his
-// sidebar banded it (ProjectBoard.tsx), the queue shows its cards, and the prompt box dispatches into it.
+// the original Frizz design's one project per page, Ntwine's original shape: the list is that project's, banded as
+// its sidebar banded it (ProjectBoard.tsx), the queue shows its cards, and the prompt box dispatches into it.
 // All projects — every project's list and one queue across all of them, with the prompt box's own picker
 // — stays, one click away (the switcher's first entry, the board's home crumb, the rail's top door), but
 // is no longer home. It was home at a bare `/` from 2026-09-30 (maintainer: "by default ntwine should open
@@ -22,8 +22,8 @@
 //   /project/<slug>/thread/<t>  the board, with that thread open (its card, or its drawer)
 //   /project/<slug>/status/<s>  the board's status list
 //
-// `/project/<slug>` is Colin's own scheme (upstream singleton-ntwine.md: `?project=` was considered there and
-// rejected), restored 2026-10-06 (David: the fork is the base, and everything Colin decided is in it —
+// `/project/<slug>` is upstream's own scheme (upstream singleton-ntwine.md: `?project=` was considered there and
+// rejected), restored 2026-10-06 (David: the fork is the base, and everything upstream decided is in it —
 // plans/upstream-superset.md §2). From 2026-09-29 to then the board was a QUERY on `/` (`/?project=<slug>`,
 // first spelled `?focus=`), and a drawer's address could not say which view it sat on, so each tab kept
 // its view in sessionStorage. The path says it now, so there is nothing left for a tab to remember; the

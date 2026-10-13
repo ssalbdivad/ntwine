@@ -20,7 +20,7 @@ import { store } from "./store.ts"
 //
 // Both late arrivals are reproduced: the GitHub repo lands a frame after first render (as it does off
 // the board), and the file check is a server round-trip answered here by a fetch stub.
-const REPO = "colinhacks/frizz"
+const REPO = "ssalbdivad/ntwine"
 const BASE_DIR = "/fixture"
 
 const RAW = [

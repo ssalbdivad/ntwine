@@ -31,13 +31,13 @@ export interface Prefs {
   // reaches everyone who never touched it. Per browser on purpose — a keyboard belongs to a machine.
   keybindings: Overrides
   // A working thread's status line written out after its name on every thread row, instead of shown when
-  // you point at the row (Sidebar.tsx ThreadRow). Off by default (2026-10-07): Colin's standup call of
+  // you point at the row (Sidebar.tsx ThreadRow). Off by default (2026-10-07): upstream's standup call of
   // 2026-10-01, always-visible status lines are too dense for a list of names, taken from the project
   // board (2489fc34) to every row. Per browser, beside Density: it is how this screen likes to read.
   alwaysShowStatusLines: boolean
   // The threads this tab opened in the last half hour shown under the FOLDED Snoozed and Done headers, so one
   // sent back there is a click away without opening the band (lib/recentThreads.ts). Off by default
-  // (David 2026-10-09): Colin's density call keeps a folded band to its header unless asked.
+  // (David 2026-10-09): upstream's density call keeps a folded band to its header unless asked.
   showRecentThreads: boolean
   // (No `sendEditorContext` here any more. The context bar's eye was a pref of the sidebar's frame from
   // 2026-10-01 to 2026-10-02; it is now the extension's `ntwine.shareEditorState` (lib/editorContext.ts

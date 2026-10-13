@@ -1,5 +1,5 @@
 // A PROJECT'S BOARD — the page's left column at `/project/<slug>` (lib/pageView.ts): one project's threads,
-// banded and NAMED as Colin's sidebar named them (upstream colinhacks/frizz 0a3b9139 Sidebar.tsx), top to
+// banded and NAMED as upstream's sidebar named them (upstream Frizz 0a3b9139 Sidebar.tsx), top to
 // bottom:
 //
 //   PINNED    the human's shelf, oldest pin first, whatever each thread's state — a Done one greyed.
@@ -21,8 +21,8 @@
 //
 // WHY IT CAME BACK (2026-10-06, plans/upstream-superset.md §2). From 2026-09-29 a project's page was All
 // projects' list with one project in it — its row's counts and its threads under no name, the quiet
-// bands opened from counts on that row. David took the fork as the base with Colin's board in it, so a
-// project's own page reads as Colin built it again; All projects keeps its own compact list
+// bands opened from counts on that row. David took the fork as the base with upstream's board in it, so a
+// project's own page reads as the original Frizz design built it again; All projects keeps its own compact list
 // (ProjectList.tsx), which is this board's job one level up.
 //
 // WHAT IS THE FORK'S, kept on purpose: the row (Sidebar.tsx RailRow — the indicator, the rest time, the
@@ -482,8 +482,8 @@ export function BoardIdentity({ project, home }: { project: QueuesProject; home:
 }
 
 /**
- * `owner/repo` clipped from the START, so it is the owner that gives way — "…hacks/ntwine", never
- * "colinhacks/f…" (upstream StatusRow.tsx StartTruncated): `direction: rtl` moves the overflow and its
+ * `owner/repo` clipped from the START, so it is the owner that gives way — "…divad/ntwine", never
+ * "ssalbdivad/n…" (upstream StatusRow.tsx StartTruncated): `direction: rtl` moves the overflow and its
  * ellipsis to the left, and the text is re-isolated LTR so its letters and slash keep their order. A repo
  * name ends in a strong LTR character, which this needs.
  */

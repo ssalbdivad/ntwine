@@ -10,12 +10,12 @@
 // here, for each project, at two volumes:
 //
 //   LOUD  — Pinned, Ready and Working: the work in flight, listed under its project unless it is folded,
-//           with no name over any of them. Colin's sidebar named all three ("sidebar labels for pinned,
+//           with no name over any of them. Upstream's sidebar named all three ("sidebar labels for pinned,
 //           queue, and running … should not be collapsible"); here each row says its band itself — a pin,
 //           a rest time, a spinner — so the names were dropped (David 2026-09-29).
 //   QUIET — Snoozed, Done and External: a muted count per band under the work in flight, in the band's own
 //           glyph (the rail's legend, BandLabel.tsx), never louder than the names. Each count is its own
-//           toggle on the project's row, collapsed to start (Colin's sidebar had the same three as
+//           toggle on the project's row, collapsed to start (upstream's sidebar had the same three as
 //           separate collapsible sections), and an open band lists its rows under the work in flight,
 //           with no name or caret of its own (David 2026-10-01, of a caret row closing every project:
 //           "find some way to have it expand just from the title bar so we don't need anything at the
@@ -24,7 +24,7 @@
 //           words, which lists the rest in place (MoreToggle) — one unnamed affordance, not a caret per
 //           band. It ENDED the project's list, on a row of its own, until 2026-10-06; it now sits on the
 //           project's own line beside its name, because that row cost every project a line, and at
-//           Colin's load (17 projects, 70 open threads) the project frames ate a third of the screen —
+//           the heavy load (17 projects, 70 open threads) the project frames ate a third of the screen —
 //           see ProjectGroup.
 //
 // ONE PRESENTATION, BOTH VIEWS. Focus mode is this list with one project in it; All projects is the same
@@ -98,11 +98,11 @@ const HEAD_BUTTON_CLASS = "flex min-w-0 flex-1 items-start gap-2 py-0.5 pl-5 pr-
  * It was a hairline in a 13px gap from 2026-10-01 (David: "needs slightly more visual separation between
  * projects now maybe thin divider? pick something elegant") until 2026-10-06, when capacity parity with
  * upstream's board took it (plans/upstream-superset.md §2: the default view must show at least the 22 / 28
- * lines Colin's own board shows at 1440x900 / 1920x1080). What parts the projects now is the project's
+ * lines upstream's own board shows at 1440x900 / 1920x1080). What parts the projects now is the project's
  * row itself — a 16px square and a semibold name over a column of 13px regular titles — standing on this
  * gap. Measured as ink (sans, dsf 2, descenders included): 19px of air from a group's last title to the
  * next project's name, against 14px between two threads' titles and 12px from a name to its first
- * thread, so each name reads as heading what is under it, not as closing what is over it. At Colin's
+ * thread, so each name reads as heading what is under it, not as closing what is over it. At the heavy
  * load 6px fits 23 / 29 lines at 1440x900 / 1920x1080, 7px and 8px 22 / 29 (21px of air at 8): the
  * smaller gap is the one that clears the 1440 bar by a line rather than meeting it exactly. It is a
  * margin on the group, so it rides a dragged group's transform with it.
@@ -189,7 +189,7 @@ export function ProjectList({
   const run = (id: string) => (runs.find((section) => section.id === id)?.slots ?? []).map((slot) => slot.item)
   const listed = run("projects")
   const grip = reorder.grips([listed.map((entry) => entry.project)])
-  // A PROJECT'S BOARD is its own component (ProjectBoard.tsx): Colin's banded sidebar, not this list with
+  // A PROJECT'S BOARD is its own component (ProjectBoard.tsx): upstream's banded sidebar, not this list with
   // one project in it. After every hook above, so a change of view keeps this component's hook order.
   const boarded = view.kind === "project" ? reorder.ordered.find((project) => project.slug === view.slug) : undefined
   if (boarded) return <ProjectBoard project={boarded} activeKey={activeKey} hidden={hidden} onQueuedRow={onQueuedRow} switcher={switcher} />
@@ -455,7 +455,7 @@ function byOrder<T>(list: readonly T[], ids: readonly string[], idOf: (item: T) 
  * (lib/projectBoards.ts). And when a project's Done count moves in the poll — a thread finished or reopened
  * anywhere — its cached board is stale, so it is dropped; an open project's live query refetches at once.
  *
- * ONLY WHILE ALL PROJECTS IS SHOWING (`showingAll`), P12 in plans/upstream-superset.md: Colin's server
+ * ONLY WHILE ALL PROJECTS IS SHOWING (`showingAll`), P12 in plans/upstream-superset.md: upstream's server
  * opens a project lazily because reading forty boards to draw forty cards is the cost lazy activation
  * exists to avoid, and a project's own board lists only that project, whose board is already live. Its
  * rows there need nothing read ahead; a click on another project's row still reads its board under the
@@ -488,25 +488,25 @@ function useReadAhead(projects: QueuesProject[], showingAll: boolean) {
  * One project: its row, its work in flight in its named bands, the counts of the rest, and whichever of
  * the rest is open; folded away, only its row.
  *
- * ITS COST BEYOND ITS OWN ROWS is what Colin's sidebar was tuned for and what this group is held to — the
+ * ITS COST BEYOND ITS OWN ROWS is what upstream's sidebar was tuned for and what this group is held to — the
  * whole group has to read as its threads, with a name over them, and not as a frame the threads sit in.
- * Measured on a seeded stack (sans, Colin's load: 17 projects, 70 open threads; the planning thread's
+ * Measured on a seeded stack (sans, the heavy load: 17 projects, 70 open threads; the planning thread's
  * sidebar/seed-scale.ts, gated by capacityParity.e2e.test.ts):
  *
  *   the project's row          23px  (27 until 2026-09-29: 2px of padding a side, not 4 — the 16px square
  *                                     still has 3.5px around it, and nothing wraps in it)
  *   a band's name, per band     0px  (none since 2026-10-01: the count on the project's row is its only
- *                                     handle; 15px before, and Colin's was a 23.7px header under a 25px rule)
+ *                                     handle; 15px before, and upstream's was a 23.7px header under a 25px rule)
  *   "N more"                    0px  (on the project's row since 2026-10-06, MoreToggle; a 23px row of its
  *                                     own under the threads from 2026-10-01)
  *   the space before the next   6px  (GROUP_GAP; a 13px gap with a hairline in it 2026-10-01 to 10-06)
  *
  * so a busy project costs 23 + 6 = 29px beyond its rows — about one thread row (27.5px) — measured 28.3px
- * a project across Colin's load, against 55px with the "N more" row and the rule (59 by the table). That
+ * a project across the heavy load, against 55px with the "N more" row and the rule (59 by the table). That
  * is the difference between 17 lines and 23 on a 1440x900 screen, and 22 and 29 on a 1920x1080 one,
  * where upstream's board, one project, shows 22 / 28. Earlier: 59px while both loud bands
  * were named, 80 while the quiet counts sat on a 21px line of their own (2026-09-29 only), 66 before the
- * bands had names — and the same project in Colin's sidebar, one project per page, cost 267px for its six
+ * bands had names — and the same project in upstream's sidebar, one project per page, cost 267px for its six
  * headers and five rules.
  *
  * Its FOCUS project (the page project, whose board is live in the store) reads the rest from that board;
@@ -1001,7 +1001,7 @@ function ProjectRow({
  * Running rows by the bot (David 2026-09-29: "when collapsed ... it should also show the number of
  * running/ready threads"); its Queue rows are the accent badge beside these, which already stays through
  * a fold, so they are not counted twice. Pinned joined them on 2026-10-06 — every thread belongs to one of
- * five rails and that status must never leave view (Colin's S1, plans/upstream-superset.md §1), and a fold
+ * five rails and that status must never leave view (upstream standup S1, plans/upstream-superset.md §1), and a fold
  * that hid a project's pins said nothing at all of them.
  *
  * EACH COUNT IS ITS OWN TOGGLE — Snoozed, Done and External open and close one at a time, all collapsed to
@@ -1211,8 +1211,8 @@ function ScheduleRow({ schedule }: { schedule: ScheduleView }) {
  * ON THE PROJECT'S OWN LINE, beside its name (ProjectRow), in the muted tone the quiet counts use — an aside
  * to the name, never a heading of its own. It was the last row of every unfolded project, at the titles'
  * column, until 2026-10-06: kept for David's "the counts alone proved too hidden", it cost each project a
- * 23px line, and at Colin's load (17 projects, 70 open threads) the "N more" rows, rules and headers took
- * ~55px a project and left 17 lines on a 1440x900 screen, where his own board shows 22. The words stayed
+ * 23px line, and at the heavy load (17 projects, 70 open threads) the "N more" rows, rules and headers took
+ * ~55px a project and left 17 lines on a 1440x900 screen, where upstream's own board shows 22. The words stayed
  * and the row went (plans/upstream-superset.md §2). `relative`, so it stands above the fold's whole-row
  * target: a click here opens the rest, never folds the project.
  */

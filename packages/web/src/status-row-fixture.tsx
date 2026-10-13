@@ -57,10 +57,10 @@ const quota =
 // dash), and ?state=longemail pins the truncation at the popover's 15rem cap.
 const emails =
   state === "signedout"
-    ? { claude: "colin@pullfrog.com" }
+    ? { claude: "dana@example.com" }
     : state === "longemail"
-      ? { claude: "colin.mcdonnell.with.a.long.name@some-long-company-domain.example.com", codex: "colinmcd94@gmail.com" }
-      : { claude: "colin@pullfrog.com", codex: "colinmcd94@gmail.com" }
+      ? { claude: "dana.mcallister.with.a.long.name@some-long-company-domain.example.com", codex: "me@gmail.com" }
+      : { claude: "dana@example.com", codex: "me@gmail.com" }
 
 const auth =
   state === "signedout"

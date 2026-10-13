@@ -12,7 +12,7 @@ test("a github issue, pull or commit URL yields its canonical key", () => {
   // `/pull/N` and `/issues/N` collapse to ONE key: the API resolves either from the number alone,
   // which is also why the autolinker can mint `/issues/N` for a ref that turns out to be a PR.
   assert.equal(githubRefFromUrl("https://github.com/nubjs/nub/pull/660"), "nubjs/nub#660")
-  assert.equal(githubRefFromUrl("https://github.com/colinhacks/frizz/commit/92ed4cc"), "colinhacks/frizz@92ed4cc")
+  assert.equal(githubRefFromUrl("https://github.com/ssalbdivad/ntwine/commit/92ed4cc"), "ssalbdivad/ntwine@92ed4cc")
   assert.equal(githubRefFromUrl("https://github.com/a/b/commit/92ED4CC"), "a/b@92ed4cc", "a sha key is lower-cased")
 })
 

@@ -10,7 +10,7 @@
 //   • the heading counts the batch — "2 of 3 sub-agents returned" — rather than naming the state;
 //   • the rows are the batch: the ones still out (QueueSubAgentLines, the rows the project board's
 //     queue card drew under its prompt box until 2026-09-28) and the ones that came back since the wait
-//     opened, with the muted check Colin's focus-mode mockup (4d7b3cb8) drew them with;
+//     opened, with the muted check upstream's focus-mode mockup (4d7b3cb8) drew them with;
 //   • the band carries the two EVENT snoozes. "Until all return" waits out the batch — each return still
 //     wakes the agent, only the last one brings the card back (board.subAgentsSnoozeHolds). "Until new
 //     activity" is the drawer's resting-card snooze (AwaitingBackgroundCard), spent by the next rest.

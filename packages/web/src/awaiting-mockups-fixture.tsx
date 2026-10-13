@@ -57,7 +57,7 @@ const MIXED: Row[] = [
 // THE REAL BOARD'S COMMON CASE, and the shape in the screenshot that started this: one green mergeable
 // PR. A variant that only reads well with five rows has solved the rare problem.
 const ONE: Row[] = [
-  { kind: "pr", ref: "colinhacks/zod#5928", checks: "passing", running: 0, passed: 7, failed: 0, merge: "mergeable", state: "open", polled: true, since: "12m" },
+  { kind: "pr", ref: "arktypeio/arktype#5928", checks: "passing", running: 0, passed: 7, failed: 0, merge: "mergeable", state: "open", polled: true, since: "12m" },
 ]
 
 const total = (r: Extract<Row, { kind: "pr" }>) => r.running + r.passed + r.failed

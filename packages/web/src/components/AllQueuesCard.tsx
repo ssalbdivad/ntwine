@@ -10,7 +10,7 @@
 // (useOpenThreadInPlace) — and it is what makes a page of
 // every project's queue readable at all. The ↗ into a project's view went on 2026-09-28 (maintainer: "too
 // many places in the ui where it is easy to navigate to a ui which is not the primary home ui"); the ⤢
-// into /full went with it and came back on 2026-09-29 (ExpandThreadLink), restoring Colin's card.
+// into /full went with it and came back on 2026-09-29 (ExpandThreadLink), restoring upstream's card.
 // The header's collapse (upstream's per-card fold, 2026-10-06) folds the card to its header.
 //
 // THE CARD NEVER ASKS THE PAGE WHICH PROJECT IT IS. Everything that could — the RPC client, the query
@@ -555,7 +555,7 @@ function CardArticle({
             <ThreadTerminalButton slug={thread.id} />
             <SpinoffButton thread={thread} className={HEADER_ICON_CLASS} />
           </ThreadProjectScope>
-          {/* THE FULLSCREEN DOOR (ExpandThreadLink), before Retry as on Colin's card (TodosView
+          {/* THE FULLSCREEN DOOR (ExpandThreadLink), before Retry as on upstream's card (TodosView
               QueueCard @ 7a20f425). Its address carries the CARD's project — the page's own would
               name the focused project's thread of the same slug — and it owns `f` on this card.
               The header's LAST mark is the ⋯ menu below, which takes the `-mr-2` trim: a glyph's ink
@@ -563,7 +563,7 @@ function CardArticle({
               ~29px in from the card's right border against the project mark's 20.75px on the left
               (the ⤢ measured 21.0px trimmed, 2026-09-29, ink-gaps.mjs dsf 4, sans). */}
           {/* COLLAPSE — upstream's per-card fold to the header (TodosView HeaderActions `onCollapse`), beside
-              its other view door as on Colin's card: collapse, then fullscreen. */}
+              its other view door as on upstream's card: collapse, then fullscreen. */}
           <CollapseCardButton collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
           <ExpandThreadLink
             slug={thread.id}

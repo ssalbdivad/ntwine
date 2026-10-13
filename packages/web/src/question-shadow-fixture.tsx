@@ -75,7 +75,7 @@ const text = (t: string) => ({ tools: [], parts: [{ kind: "text" as const, text:
 const messages: TranscriptMessage[] = [
   { role: "user", text: "Start gearing up for the 4.5 release.", at: at(0), ...text("Start gearing up for the 4.5 release.") },
   { role: "assistant", sourceId: "fence-1", text: FIRST_FENCE, at: at(5), ...text(FIRST_FENCE) },
-  { role: "user", text: "⏰ colinhacks/zod#6481 was MERGED.\n\n(This watcher is spent — there is nothing further to report on a finished PR.)", at: at(6), wake: true, ...text("⏰ colinhacks/zod#6481 was MERGED.") },
+  { role: "user", text: "⏰ arktypeio/arktype#6481 was MERGED.\n\n(This watcher is spent — there is nothing further to report on a finished PR.)", at: at(6), wake: true, ...text("⏰ arktypeio/arktype#6481 was MERGED.") },
   { role: "assistant", sourceId: "final", text: FINAL, at: at(12), ...text(FINAL) },
 ] as TranscriptMessage[]
 

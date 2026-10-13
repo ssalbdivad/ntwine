@@ -41,7 +41,7 @@ const CASES: Record<string, { watches: ThreadViewModel["watches"]; bgShells: Thr
   // A PR watcher DOES keep its eye line: it has no row of its own in this footer, so this menu is the
   // only place it can be said.
   pr: {
-    watches: [{ id: "github:t:colinhacks/zod#6382", kind: "github", target: "colinhacks/zod#6382", state: "armed", createdAt: ago(120) }],
+    watches: [{ id: "github:t:arktypeio/arktype#6382", kind: "github", target: "arktypeio/arktype#6382", state: "armed", createdAt: ago(120) }],
     bgShells: [SHELL],
   },
 }

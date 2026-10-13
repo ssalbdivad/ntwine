@@ -378,8 +378,8 @@ export function AllQueuesPage() {
   // and a header still counting it read "1 in the queue" over an empty page until the next poll. A ghost
   // is not waiting on anyone. A card whose drawer is open still is, and still counts.
   const ready = queue.filter((slot) => !slot.ghost && !leaving.isLeaving(slot.key)).length
-  // THE TAB NAMES ITS VIEW. Someone who keeps one tab per project (Colin McDonnell's way of working, and
-  // how his one-project-per-page Ntwine titled its tabs) tells them apart by title and favicon alone, so a
+  // THE TAB NAMES ITS VIEW. Someone who keeps one tab per project (the original Frizz design's way of
+  // working, and how its one-project-per-page board titled its tabs) tells them apart by title and favicon alone, so a
   // focused tab reads "<project> — Ntwine" and its favicon counts that project's queue (lib/faviconBadge.ts);
   // All projects reads so, counting every project's. A count, not a dot, so a background tab says how
   // much is waiting rather than only that something is. Set here, not in

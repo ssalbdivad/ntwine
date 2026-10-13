@@ -9,7 +9,7 @@ import { TooltipProvider } from "./Tooltip.tsx"
 import { prefs } from "../lib/prefs.ts"
 
 // A WORKING ROW'S STATUS: inline after its name, the same text either way. By default it is drawn only
-// while the row is pointed at or focused (Colin's standup of 2026-10-01: always-visible status lines are
+// while the row is pointed at or focused (upstream's standup of 2026-10-01: always-visible status lines are
 // too dense for a sidebar); Settings → Always show status lines (prefs `alwaysShowStatusLines`) keeps it
 // drawn. The task clock stays on the line in both. Static markup pins the classes; the browser QA reads
 // the hover.

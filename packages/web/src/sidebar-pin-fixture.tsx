@@ -123,7 +123,7 @@ const unpinnedStalled = {
 const activeLong = {
   ...base,
   id: "active-long",
-  title: "/Users/colinmcd94/.ntwine/projects/029a30af-f126-40e3-b04c-d80e74e3e090/broker.sock ENOTCONN on reconnect",
+  title: "/Users/me/.ntwine/projects/029a30af-f126-40e3-b04c-d80e74e3e090/broker.sock ENOTCONN on reconnect",
   runtime: "running",
 } as unknown as ThreadView
 

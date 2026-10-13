@@ -9,7 +9,7 @@ import { openFullscreen } from "./ThreadMenu.tsx"
 import { Tooltip } from "./Tooltip.tsx"
 
 // THE FULLSCREEN DOOR, ⤢ — the one-click way into a thread's /full page, on the queue card's header and in
-// the drawer header's action strip. Recovered from 7a20f425, where it was Colin's door on every surface a
+// the drawer header's action strip. Recovered from 7a20f425, where it was upstream's door on every surface a
 // thread appeared on (it replaced the ↗ "Open in new tab" arrow on 2026-08-28: the fullscreen view is the
 // ordinary way to focus on a thread, in THIS tab, with the address bar following — and a new tab only on
 // the gestures a browser already reserves for that). The fork moved fullscreen into the drawer's ⋯ menu

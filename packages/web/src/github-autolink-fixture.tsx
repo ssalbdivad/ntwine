@@ -12,7 +12,7 @@ import { useMarkdownHtml } from "./lib/useMarkdown.ts"
 // the HTML is memoized. The first implementation here memoized on the markdown string alone and the
 // links never appeared, in an app whose module state was demonstrably correct. This fixture reproduces
 // that ordering: nothing is set at import time, and the repo lands one frame later.
-const REPO = "colinhacks/frizz"
+const REPO = "ssalbdivad/ntwine"
 
 const CASES: { id: string; md: string }[] = [
   { id: "issue", md: "Closed #123 and #4207 in one pass." },

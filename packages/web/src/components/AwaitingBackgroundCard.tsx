@@ -477,7 +477,7 @@ const NAME_TREE = `${NAME} min-w-0 flex-1 truncate`
  *  PR's "2 failing, 1 in progress, 9 successful · view failures" would otherwise take the whole row (it
  *  took 271px of the 308px rail as a shared grid track, maintainer 2026-09-02). Truncated, it keeps its
  *  severity-first opening, which is what checkCountLine orders it for. The floor sits on the NAME rather
- *  than a 50% cap on the status because a cap left the name 112px on the rail, and `colinhacks/frizz#412`
+ *  than a 50% cap on the status because a cap left the name 112px on the rail, and `ssalbdivad/ntwine#412`
  *  wrapped mid-token at `#4`. */
 const STATUS = "ml-3 min-w-0 truncate text-right text-muted-70"
 /** The status after a folder hint, which carries its own `ml-3` and `·`: whole up to half the row, and the

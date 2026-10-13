@@ -64,10 +64,10 @@ test("a link to the Ntwine machine is recognised as unreachable from a phone", (
   assert.equal(isLoopbackUrl("http://127.0.0.1:4930/x"), true)
   assert.equal(isLoopbackUrl("http://[::1]:8080/"), true)
   assert.equal(isLoopbackUrl("http://app.localhost:3000"), true)
-  assert.equal(isLoopbackUrl("https://github.com/colinhacks/frizz/pull/42"), false)
+  assert.equal(isLoopbackUrl("https://github.com/ssalbdivad/ntwine/pull/42"), false)
   assert.equal(isLoopbackUrl("not a url"), false)
   assert.equal(displayUrl("http://localhost:5175/"), "localhost:5175")
-  assert.equal(displayUrl("https://github.com/colinhacks/frizz/pull/42"), "github.com/colinhacks/frizz/pull/42")
+  assert.equal(displayUrl("https://github.com/ssalbdivad/ntwine/pull/42"), "github.com/ssalbdivad/ntwine/pull/42")
 })
 
 test("every row the board files in Snoozed says Snoozed, not Rested", () => {

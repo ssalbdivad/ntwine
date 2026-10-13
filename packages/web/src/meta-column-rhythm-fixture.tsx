@@ -72,7 +72,7 @@ const thread = {
   spawnedAt: AGO(400),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/Users/colinmcd94/Documents/projects/ntwine", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/Users/me/Documents/projects/ntwine", threads: [thread] } as BoardSnapshot
 
 const bash = (desc: string, command: string, status?: string) => ({ name: "Bash", detail: command, command, desc, status })
 
@@ -103,7 +103,7 @@ const messages = [
     at: AGO(390),
   },
   { sourceId: "m2", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [bash("Searching for the ownership error string", "grep -rn 'is owned by uid' packages/server/src")] }], at: AGO(380) },
-  { sourceId: "m3", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [{ name: "Read", detail: "/Users/colinmcd94/Documents/projects/ntwine/packages/server/src/tmux.ts" }] }], at: AGO(360) },
+  { sourceId: "m3", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [{ name: "Read", detail: "/Users/me/Documents/projects/ntwine/packages/server/src/tmux.ts" }] }], at: AGO(360) },
   {
     sourceId: "m5",
     role: "assistant",

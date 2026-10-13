@@ -210,8 +210,8 @@ function ChildOp({ kind, label, elapsed }: { kind: "agent" | "shell"; label: str
 // count of asks. Sorted by that count, so the answer is the top of the screen.
 const PROJECTS = [
   { slug: "nub", label: "nubjs/nub", tint: "bg-[#e8b923] text-bg", initial: "N", path: "~/code/nub", asks: 2, active: 2, snoozed: 1, when: "now" },
-  { slug: "zod", label: "colinhacks/zod", tint: "bg-[#4a9eff] text-bg", initial: "Z", path: "~/code/zod", asks: 1, active: 0, snoozed: 2, when: "2h" },
-  { slug: "ntwine", label: "colinhacks/frizz", tint: "bg-[#b47feb] text-bg", initial: "F", path: "~/Documents/projects/ntwine", asks: 0, active: 3, snoozed: 0, when: "12m" },
+  { slug: "zod", label: "arktypeio/arktype", tint: "bg-[#4a9eff] text-bg", initial: "Z", path: "~/code/zod", asks: 1, active: 0, snoozed: 2, when: "2h" },
+  { slug: "ntwine", label: "ssalbdivad/ntwine", tint: "bg-[#b47feb] text-bg", initial: "F", path: "~/Documents/projects/ntwine", asks: 0, active: 3, snoozed: 0, when: "12m" },
   { slug: "acme-app", label: "acme/app", tint: "bg-[#4ac97e] text-bg", initial: "A", path: "~/work/acme/app", asks: 0, active: 0, snoozed: 1, when: "yesterday" },
   { slug: "pullfrog", label: "pullfrog/web", tint: "bg-[#6b7280] text-bg", initial: "P", path: "~/code/pullfrog", asks: 0, active: 0, snoozed: 0, when: "3d" },
   { slug: "sonner", label: "emilkowal/sonner", tint: "bg-[#33363c] text-fg", initial: "S", path: "~/code/sonner", asks: 0, active: 0, snoozed: 0, when: "1w" },

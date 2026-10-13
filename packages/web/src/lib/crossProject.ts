@@ -83,7 +83,7 @@ export function rememberLastFocusedProject(projectId: string): void {
 }
 
 // THE LAST VIEW THIS BROWSER SHOWED — a project's board or All projects — which is where a bare `/` goes
-// (routes.tsx LastViewRedirect). Decided 2026-10-06, when David asked for Colin's per-project default: a
+// (routes.tsx LastViewRedirect). Decided 2026-10-06, when David asked for upstream's per-project default: a
 // project's board is the default view, All projects one click away, and `/` names neither, so it goes back
 // to whichever this browser had. Navigation memory, not a setting: it is written whenever the page shows a
 // view, and nothing offers to change it. Per BROWSER (localStorage), like the pick above and unlike the
@@ -229,7 +229,7 @@ export function defaultCrossProjectFocus(
 //   COLLAPSED — the primary fold: the project is its one row and nothing under it, not even its work in
 //               flight. Every project starts open, so this set names the ones folded away.
 //   OPEN BANDS — a project's quiet bands, EACH ON ITS OWN: Snoozed, Done and External open and close
-//               independently, and every one starts collapsed (Colin's sidebar did the same — each its own
+//               independently, and every one starts collapsed (upstream's sidebar did the same — each its own
 //               collapsible section, collapsed by default). This set names the ones open, as
 //               `<projectId>:<band>`. It was one "drill" per project, opening all three at once, until
 //               2026-09-29.
@@ -330,7 +330,7 @@ export function useOpenBands(): ReadonlySet<string> {
 // ---- A project board's folds ---------------------------------------------------------------------------
 //
 // THE BOARD'S QUIET BANDS — Snoozed, Done, External and Schedules under their own headers on a project's
-// board (ProjectBoard.tsx), collapsed to start as Colin's sidebar had them (upstream store.ts
+// board (ProjectBoard.tsx), collapsed to start as upstream's sidebar had them (upstream store.ts
 // `sidebarCollapsed`: snoozed, inactive and external true). A set of the OPEN ones, `<projectId>:<band>`,
 // per browser like every other fold here — and its own set, not All projects' `openBands`: a band opened
 // on a project's board is a header the human clicked, while one open in All projects lists that band

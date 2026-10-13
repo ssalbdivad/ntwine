@@ -39,12 +39,12 @@ test("references linkify when the repo arrives after first render", {
       { timeout: 10_000 })
 
     assert.deepEqual(await hrefsIn("issue"), [
-      "#123 -> https://github.com/colinhacks/frizz/issues/123",
-      "#4207 -> https://github.com/colinhacks/frizz/issues/4207",
+      "#123 -> https://github.com/ssalbdivad/ntwine/issues/123",
+      "#4207 -> https://github.com/ssalbdivad/ntwine/issues/4207",
     ])
     assert.deepEqual(await hrefsIn("cross-repo"), ["nubjs/nub#587 -> https://github.com/nubjs/nub/issues/587"])
     assert.deepEqual(await hrefsIn("commit"), [
-      "749a37b -> https://github.com/colinhacks/frizz/commit/749a37b",
+      "749a37b -> https://github.com/ssalbdivad/ntwine/commit/749a37b",
       "nubjs/nub@fe2a46c -> https://github.com/nubjs/nub/commit/fe2a46c",
     ])
 

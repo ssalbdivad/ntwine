@@ -21,10 +21,10 @@ import type { Browser } from "puppeteer"
 // `nub run test` nor `nub run test:e2e` boots its stacks: three Vite-served servers and six page loads
 // took 2.5-3.5 minutes on 2026-10-06, which the unit suite should not pay on every run.
 //
-// WHY THE BAR EXISTS. Colin's standup (S3) put the scale question as a real machine: 17 projects and
+// WHY THE BAR EXISTS. Upstream's standup (S3) put the scale question as a real machine: 17 projects and
 // about 70 open threads. David's first answer (2026-10-06, plans/upstream-superset.md § Capacity parity)
 // was that there is no view setting and All projects stays home at `/` — so the DEFAULT had to carry that
-// load, and "carries it" is defined against the thing Colin built: the default must show at least as
+// load, and "carries it" is defined against the original Frizz design: the default must show at least as
 // much, without scrolling, as upstream's default does. That is a number, so it is pinned as one. Later
 // that day a project's BOARD became the default (`/` goes back to the last view, a board for a browser
 // that never chose) and All projects moved to `/all`, one click away; both views keep the bar, since
@@ -36,7 +36,7 @@ import type { Browser } from "puppeteer"
 // through settingsSet before the page loads — and both must meet the bar. Each reading says whether the
 // rail was actually drawn, so a run that silently measured the same thing twice fails.
 //
-// WHERE 22 AND 28 COME FROM. Upstream's own board (colinhacks/frizz at 0a3b9139), seeded with every one
+// WHERE 22 AND 28 COME FROM. Upstream's own board (upstream Frizz at 0a3b9139), seeded with every one
 // of the 70 open threads in ONE project and rendered by this same visibility rule, shows 22 thread rows
 // at 1440x900 and 28 at 1920x1080, its band headers and rules included. The baseline is a measurement
 // of that commit, not a design target; re-measure on a newer upstream before moving it.
@@ -44,7 +44,7 @@ import type { Browser } from "puppeteer"
 // WHAT IS COUNTED. A row counts only when its WHOLE box lies inside the viewport and inside every
 // clipping (overflow != visible) ancestor — fully readable without scrolling, not peeking out under a
 // fold. Two views, three loads:
-//   - All projects at `/all`, Colin's load (17 projects, 70 open threads skewed across projects and across
+//   - All projects at `/all`, the heavy load (17 projects, 70 open threads skewed across projects and across
 //     pinned / queue / running / snoozed, plus three done per project). LINES = thread rows
 //     `[data-sidebar-item]` + project header rows `[data-xq-project-row]`: a header is a line of the
 //     same height carrying that project's counts, which is information upstream's board, one project
@@ -63,7 +63,7 @@ import type { Browser } from "puppeteer"
 // server's real tailer → board → push → render path does the rest. The daemon is this test's to kill.
 //
 // Measured on David's fork when this landed (2026-10-06, 48ea0568, before All projects was compacted),
-// at 1440x900 / 1920x1080: the project board 22 / 29 rows (passes); All projects at Colin's load
+// at 1440x900 / 1920x1080: the project board 22 / 29 rows (passes); All projects at the heavy load
 // 17 / 22 lines, i.e. 11 rows + 6 headers / 14 rows + 8 headers (FAILS — each project group then cost
 // ~60px beyond its rows: a header, a "N more" row and a rule); David's load 8 of 8 loud rows at both.
 // The rail-on readings start with the commit that restored the rail (2026-10-06, on us-default).
@@ -145,7 +145,7 @@ function load(name: string, counts: number[]): Load {
   }
 }
 // Skewed like a real machine: a few busy projects, a long tail. Sums to 70.
-const COLIN = load("colin", [10, 8, 7, 6, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1])
+const HEAVY = load("heavy", [10, 8, 7, 6, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1])
 const DAVID = load("david", [4, 3, 2, 1])
 const CAPACITY = load("capacity", [70])
 
@@ -461,18 +461,18 @@ function assertRail(measured: Measurement[], table: string): void {
   for (const m of measured) assert.equal(m.railDrawn, m.railAsked, `the project rail was ${m.railAsked ? "asked for" : "off"} at ${m.viewport} but the page ${m.railDrawn ? "drew" : "did not draw"} it\n${table}`)
 }
 
-test("All projects at Colin's load shows at least upstream's 22 / 28 lines without scrolling, rail off and on", { skip: !enabled, timeout: 900_000 }, async () => {
-  const measured = await withLoad(COLIN, (stack, browser) => measureAll(stack, browser, `${stack.base}/all`, "all-projects-colin"))
+test("All projects at the heavy load shows at least upstream's 22 / 28 lines without scrolling, rail off and on", { skip: !enabled, timeout: 900_000 }, async () => {
+  const measured = await withLoad(HEAVY, (stack, browser) => measureAll(stack, browser, `${stack.base}/all`, "all-projects-heavy"))
   const rows = measured.map((m) => ({
     viewport: m.viewport,
     railAsked: m.railAsked,
     count: m.rowsVisible + m.headersVisible,
     detail: `${m.rowsVisible} thread rows + ${m.headersVisible} project headers; ${m.rowsMounted} rows / ${m.headersMounted} headers mounted`,
   }))
-  const table = report("colin", "all-projects", "lines", rows, (v) => BAR[v])
+  const table = report("heavy", "all-projects", "lines", rows, (v) => BAR[v])
   assertRail(measured, table)
   for (const { viewport, railAsked, count } of rows) {
-    assert.ok(count >= BAR[viewport], `All projects at Colin's load (17 projects, 70 open), rail ${railAsked ? "on" : "off"}, shows ${count} lines at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139). Capacity parity needs the default to show at least as much.\n${table}`)
+    assert.ok(count >= BAR[viewport], `All projects at the heavy load (17 projects, 70 open), rail ${railAsked ? "on" : "off"}, shows ${count} lines at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139). Capacity parity needs the default to show at least as much.\n${table}`)
   }
 })
 

@@ -35,7 +35,7 @@ const wake = (sourceId: string, text: string): ChatMessage => ({ sourceId, role:
 const review = formatGithubWakeSteer({
   ref: "nubjs/nub#756",
   omitted: 0,
-  items: [{ label: "comment", actor: "colinhacks", bot: false, at: new Date(Date.now() - 26 * 3_600_000).toISOString(), url: "https://github.com/nubjs/nub/pull/756#issuecomment-5120099362" }],
+  items: [{ label: "comment", actor: "dana", bot: false, at: new Date(Date.now() - 26 * 3_600_000).toISOString(), url: "https://github.com/nubjs/nub/pull/756#issuecomment-5120099362" }],
 })
 
 // THE MERGED DELIVERY — everything that was waiting for a thread, sent as one message. Composed by the

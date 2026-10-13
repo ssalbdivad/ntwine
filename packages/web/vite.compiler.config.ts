@@ -10,7 +10,7 @@ import tailwindcss from "@tailwindcss/vite"
 // is ADOPTED, install it as a real devDependency and fold this into vite.config.ts instead.
 const COMPILER_PLUGIN =
   process.env.REACT_COMPILER_PLUGIN ??
-  "/private/tmp/claude-501/-Users-colinmcd94-Documents-projects-ntwine/d3b316e5-075f-47cb-b0dc-ccf3628bd73d/scratchpad/compiler-eval/node_modules/babel-plugin-react-compiler"
+  "/private/tmp/claude-501/-Users-me-Documents-projects-ntwine/d3b316e5-075f-47cb-b0dc-ccf3628bd73d/scratchpad/compiler-eval/node_modules/babel-plugin-react-compiler"
 
 export default defineConfig({
   plugins: [react({ babel: { plugins: [[COMPILER_PLUGIN, {}]] } }), tailwindcss()],

@@ -7,7 +7,7 @@ import { loudBands } from "./listBands.ts"
 // (components/PhonePage.tsx). Pure, so the banding is tested without a browser and the component stays a
 // layout.
 //
-// It is upstream's phone board (colinhacks/frizz MobileBoard.tsx, 2026-09-30) brought onto the fork's ONE
+// It is upstream's phone board (upstream Frizz MobileBoard.tsx, 2026-09-30) brought onto the fork's ONE
 // page: that board listed one project's `sectionThreads`; this lists whichever projects the page's view
 // shows — one when focused, every one in All projects — from the same machine-wide reads the desktop's
 // list and queue draw (lib/allQueues.ts), banded by the list's own `loudBands` so a phone and a desktop
@@ -135,8 +135,8 @@ export function phoneCounts(queue: readonly PhoneRow[]): { asks: number; ready: 
 
 /**
  * THE HEADER'S LINE under the view's name: `2 need you · 3 queued · 1 working`, the asks in the accent.
- * The rest of the queue reads "queued", the board's Queue (Colin's name, plans/upstream-superset.md §2; it
- * read "ready" until 2026-10-06), and the spinning rows keep "working", which is what Colin's own phone
+ * The rest of the queue reads "queued", the board's Queue (upstream's name, plans/upstream-superset.md §2; it
+ * read "ready" until 2026-10-06), and the spinning rows keep "working", which is what upstream's own phone
  * board called them.
  *
  * "Nothing needs you" is said only of an EMPTY queue. Upstream's line counted the asks and the spinning

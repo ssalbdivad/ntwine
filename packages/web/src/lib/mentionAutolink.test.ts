@@ -67,11 +67,11 @@ test("code, existing links, emails, packages and decorators are left alone", () 
 })
 
 test("mentions link inside lists, emphasis and tables, beside GitHub refs", () => {
-  setGithubRepo("colinhacks/frizz")
+  setGithubRepo("ssalbdivad/ntwine")
   try {
     assert.equal(
       renderBlock("- **@shell-budgets** fixed #12"),
-      '<ul>\n<li><strong><a href="/thread/shell-budgets" title="Open thread">@shell-budgets</a></strong> fixed <a href="https://github.com/colinhacks/frizz/issues/12" title="colinhacks/frizz#12">#12</a></li>\n</ul>',
+      '<ul>\n<li><strong><a href="/thread/shell-budgets" title="Open thread">@shell-budgets</a></strong> fixed <a href="https://github.com/ssalbdivad/ntwine/issues/12" title="ssalbdivad/ntwine#12">#12</a></li>\n</ul>',
     )
     assert.match(renderBlock("| who |\n| --- |\n| @port-the-parser.cache-keys |"), /<td><a href="\/thread\/port-parser#port-the-parser\.cache-keys" title="Open sub-agent">@port-the-parser\.cache-keys<\/a><\/td>/)
   } finally {

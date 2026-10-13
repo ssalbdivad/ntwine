@@ -10,29 +10,29 @@ import { doneWatchRefs, watchedRefs } from "./doneWatchRefs.ts"
 // markdownSanitizer.e2e.test.ts). So `#123` resolves to the thread's repo exactly as its link does.
 const marked = new Marked(MARKDOWN_OPTIONS)
 const render = (md: string) => marked.parse(md, { async: false }) as string
-const REPO = "colinhacks/frizz"
+const REPO = "ssalbdivad/ntwine"
 
 before(() => setGithubRepo(REPO))
 after(() => setGithubRepo(null))
 
 test("a bare #N is the thread's own repo and reads as #N; a cross-repo ref keeps its name", () => {
   assert.deepEqual(doneWatchRefs(render("Pushed the fix to #1685; filed nubjs/nub#587 upstream."), REPO), [
-    { ref: "colinhacks/frizz#1685", label: "#1685" },
+    { ref: "ssalbdivad/ntwine#1685", label: "#1685" },
     { ref: "nubjs/nub#587", label: "nubjs/nub#587" },
   ])
 })
 
 test("a pasted PR or issue URL counts; a commit, a code span and a non-GitHub link do not", () => {
   const md = [
-    "Opened https://github.com/colinhacks/frizz/pull/1700 and landed 749a37b.",
-    "Not `#12`, not [the docs](https://example.com/x), not https://github.com/colinhacks/frizz/tree/main.",
+    "Opened https://github.com/ssalbdivad/ntwine/pull/1700 and landed 749a37b.",
+    "Not `#12`, not [the docs](https://example.com/x), not https://github.com/ssalbdivad/ntwine/tree/main.",
   ].join("\n")
-  assert.deepEqual(doneWatchRefs(render(md), REPO), [{ ref: "colinhacks/frizz#1700", label: "#1700" }])
+  assert.deepEqual(doneWatchRefs(render(md), REPO), [{ ref: "ssalbdivad/ntwine#1700", label: "#1700" }])
 })
 
 test("one button per thing: repeats, case variants and a link to a comment collapse", () => {
-  const md = "#9, again #9, Colinhacks/Frizz#9 and https://github.com/colinhacks/frizz/issues/9#issuecomment-1"
-  assert.deepEqual(doneWatchRefs(render(md), REPO), [{ ref: "colinhacks/frizz#9", label: "#9" }])
+  const md = "#9, again #9, Ssalbdivad/Ntwine#9 and https://github.com/ssalbdivad/ntwine/issues/9#issuecomment-1"
+  assert.deepEqual(doneWatchRefs(render(md), REPO), [{ ref: "ssalbdivad/ntwine#9", label: "#9" }])
 })
 
 test("no references, no buttons — and a project with no GitHub repo links none", () => {
@@ -45,9 +45,9 @@ test("no references, no buttons — and a project with no GitHub repo links none
 
 test("watchedRefs reads the board's armed github rows, case-blind", () => {
   const set = watchedRefs([
-    { kind: "github", target: "Colinhacks/Frizz#9", state: "armed" },
-    { kind: "github", target: "colinhacks/frizz#10", state: "dropped" },
+    { kind: "github", target: "Ssalbdivad/Ntwine#9", state: "armed" },
+    { kind: "github", target: "ssalbdivad/ntwine#10", state: "dropped" },
     { kind: "timer", target: "tmr_1", state: "armed" },
   ])
-  assert.deepEqual([...set], ["colinhacks/frizz#9"])
+  assert.deepEqual([...set], ["ssalbdivad/ntwine#9"])
 })

@@ -20,7 +20,7 @@ import { pushBackgroundShellDrawer, pushTerminalDrawer, showToast, store } from 
 // A THREAD'S TERMINALS, drawn inside the thread (server thread-terminals.ts; lib/threadTerminals.ts). A
 // terminal is opened ON a thread — the drawer's ⋯ menu, `t`, or a `$ cmd` line in its prompt box — and
 // runs in the folder that thread's agent is working in. It never gets a row or a card of its own (the
-// sidebar is a column of thread NAMES, and Colin's rule upstream is density): it shows as a line in its
+// sidebar is a column of thread NAMES, and upstream's rule is density): it shows as a line in its
 // thread's strip, and as one small mark on its thread's row.
 //
 // LAZY for the same reason every xterm consumer is: @xterm/xterm is browser-only, and node (tests)

@@ -128,7 +128,7 @@ test("Snoozed and Done list every shown project's rows, most recently touched fi
 })
 
 test("an archived thread whose worker is still running is under Working on the queue tab, never in Done", () => {
-  // Colin 2026-07-10: a running worker is never filed under Done, which is collapsed (a tab here). The
+  // Upstream Frizz 2026-07-10: a running worker is never filed under Done, which is collapsed (a tab here). The
   // server sends the row with the open threads; the same sectionOf bands it on every surface.
   const draining = { ...done("a-draining", 1_000), runtime: "running" } as ThreadView
   const finished = done("a-finished", 5_000)

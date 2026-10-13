@@ -37,7 +37,7 @@ import { RailDeadline } from "./DeadlineControl.tsx"
 //
 // The file is named for the column it was written for: a project's own board, whose floating sidebar
 // listed these rows in named bands. The board went with the project view on 2026-09-28 and came back
-// on 2026-10-06 as `/project/<slug>` (ProjectBoard.tsx), banded under Colin's names — Pinned, Queue,
+// on 2026-10-06 as `/project/<slug>` (ProjectBoard.tsx), banded under upstream's names — Pinned, Queue,
 // Running, Snoozed, Done, External — with SectionHeader below over each band. All projects lists every
 // project's current work with the same rows (ProjectList.tsx), and ARCHITECTURE.md § Board nomenclature
 // fixes the bands' names.
@@ -128,7 +128,7 @@ export function RailRow({ t, active, open = false, restedAge = false, scope, car
 }
 
 // A BAND'S HEADER — its glyph, its NAME and its count, over its rows. ONE source of truth for every band
-// header so they can never visually drift apart again (Colin's rule, upstream Sidebar.tsx SectionHeader).
+// header so they can never visually drift apart again (upstream's rule, Sidebar.tsx SectionHeader).
 // Pinned, Queue and Running are never collapsible (upstream 2026-09-19: the Pinned, Queue and Running
 // labels "should not be collapsible") and render as a static line; Snoozed, Done, External and Schedules
 // pass `onToggle`, and the whole line is the fold's button, with the disclosure chevron in the row gutter
@@ -219,7 +219,7 @@ const BAND_MARK = "flex h-[1em] shrink-0 justify-center self-baseline translate-
  *  mark every surface draws for a schedule. */
 const SCHEDULES_BAND = { label: "Schedules", Icon: Repeat }
 
-// A THREAD'S SUB-AGENTS, AS ROWS UNDER IT — on a project's board, as Colin's sidebar drew them (upstream
+// A THREAD'S SUB-AGENTS, AS ROWS UNDER IT — on a project's board, as upstream's sidebar drew them (upstream
 // Sidebar.tsx SubAgentRows): the shared ChildOpRow at "rail" density, indented to clear the parent row's
 // indicator column, nested one step per depth so a fanned-out branch reads as the tree it is. A click
 // opens the sub-agent's drawer over the page; the × retires it (stops a live one, clears a finished one),
@@ -386,7 +386,7 @@ export const ThreadRow = memo(function ThreadRow({
   // 2026-09-29 ("it should display in grey text next to the name of the thread inline"): it costs no line,
   // only rows that are spinning carry it, and it truncates before the name gives up a character. By
   // default it is drawn only while the row is pointed at or focused, with just the task clock on the line
-  // otherwise: Colin's call (standup 2026-10-01: always-visible status lines are too dense for the
+  // otherwise: upstream's call (standup 2026-10-01: always-visible status lines are too dense for the
   // sidebar, put them in hover states). The reveal is the same inline text, not a tooltip (David
   // 2026-10-07). Settings → Always show status lines (prefs `alwaysShowStatusLines`) keeps it drawn.
   //

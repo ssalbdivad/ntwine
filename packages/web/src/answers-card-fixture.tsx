@@ -63,7 +63,7 @@ const multiline = {
   role: "user",
   text: questionAnswerMessage([{
     questionId: "qst_c",
-    question: "Keyward now holds its own key in this Mac's Secure Enclave. Add it to GitHub: open https://github.com/settings/keys, click New SSH key, paste this line, click Add SSH key:\n\n`ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBH/idBwmDYVRkXSw6FEJUI9fXiSQ3/v/aWLfBuRPf2giAdnyxd4AEtQxhpkLgY+Nsgj5wTI0FcBFGsPTmUXVLm4= colinhacks@keyward`\n\nIs the key added?",
+    question: "Keyward now holds its own key in this Mac's Secure Enclave. Add it to GitHub: open https://github.com/settings/keys, click New SSH key, paste this line, click Add SSH key:\n\n`ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBH/idBwmDYVRkXSw6FEJUI9fXiSQ3/v/aWLfBuRPf2giAdnyxd4AEtQxhpkLgY+Nsgj5wTI0FcBFGsPTmUXVLm4= dana@keyward`\n\nIs the key added?",
     chosen: ["Yes, added"],
   }]),
   tools: [],

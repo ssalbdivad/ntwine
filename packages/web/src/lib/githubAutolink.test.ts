@@ -11,7 +11,7 @@ const marked = new Marked(MARKDOWN_OPTIONS)
 const render = (md: string) => marked.parseInline(md, { async: false }) as string
 const renderBlock = (md: string) => (marked.parse(md, { async: false }) as string).trim()
 
-const REPO = "colinhacks/frizz"
+const REPO = "ssalbdivad/ntwine"
 const issue = (n: number, repo = REPO) => `<a href="https://github.com/${repo}/issues/${n}" title="${repo}#${n}">#${n}</a>`
 const commit = (sha: string, repo = REPO) => `<a href="https://github.com/${repo}/commit/${sha}" title="${repo}@${sha}">${sha}</a>`
 
@@ -53,7 +53,7 @@ test("a reference inside link text does not mint a nested anchor", () => {
 })
 
 test("a github.com URL an author already wrote is left as one link", () => {
-  const url = "https://github.com/colinhacks/frizz/commit/749a37b"
+  const url = "https://github.com/ssalbdivad/ntwine/commit/749a37b"
   assert.equal(render(url), `<a href="${url}">${url}</a>`)
 })
 

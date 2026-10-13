@@ -19,7 +19,7 @@ import { SUPERVISOR_STATUS_KEY } from "../api/supervisorStatus.ts"
 // The store's board is seeded because the row must NOT read it: it names the page, never a project, so a
 // board carrying an owner/repo is exactly what would leak into it if it did.
 function render(
-  label: string | null = "colinhacks/frizz",
+  label: string | null = "ssalbdivad/ntwine",
   options: { connection?: ConnectionState; quota?: boolean } = {},
 ): string {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -61,11 +61,11 @@ test("the buttons lead and the readouts follow", () => {
 // button on the threads view on the left"). The row led with ∞, the door to Everything, and ended on the
 // page's name; before that, atop a project's board, on the project's owner/repo.
 test("the row has no door and names nothing — not the page, not a project", () => {
-  const html = render("colinhacks/frizz")
+  const html = render("ssalbdivad/ntwine")
   assert.doesNotMatch(html, /lucide-infinity/, "no ∞")
   assert.doesNotMatch(html, /Everything/, "no page name")
   assert.doesNotMatch(html, /href=/, "no link at all")
-  assert.doesNotMatch(html, /colinhacks|github\.com|data-project-identity-state/, "and not the board the store happens to hold")
+  assert.doesNotMatch(html, /dana|github\.com|data-project-identity-state/, "and not the board the store happens to hold")
 })
 
 // ON A PROJECT'S BOARD (2026-10-06) the row is upstream's again at its left end: the door home to All
@@ -115,7 +115,7 @@ test("the connection dot is gone, in every state", () => {
   // It had been the connection's last remnant since 2026-08-19, and went with the maintainer's
   // 2026-08-28 "then maybe we should just drop the status indicator".
   for (const connection of ["open", "connecting", "closed"] as const) {
-    const state = render("colinhacks/frizz", { connection })
+    const state = render("ssalbdivad/ntwine", { connection })
     assert.doesNotMatch(state, /role="img" aria-label="connected"/)
     assert.doesNotMatch(state, /aria-label="disconnected"|aria-label="connecting…"/)
     assert.doesNotMatch(state, /bg-live|bg-danger-fill|data-board-sync-fallback/)
@@ -167,7 +167,7 @@ test("a provider with NO DATA renders nothing at all — and takes the divider w
     codex: { status: "unavailable", windows: [] },
   })
   client.setQueryData(["authStatus"], { claude: "authed", codex: "signed-out", emails: {} })
-  store.board = { projectLabel: "colinhacks/frizz", threads: [] } as unknown as BoardSnapshot
+  store.board = { projectLabel: "ssalbdivad/ntwine", threads: [] } as unknown as BoardSnapshot
   store.connection = "open"
   // Seeds its own client rather than going through `render`, so it needs the router context too.
   const one = renderToStaticMarkup(
@@ -185,7 +185,7 @@ test("a provider with NO DATA renders nothing at all — and takes the divider w
 
   // NEITHER reporting drops the whole group, and the divider that introduced it goes too — otherwise
   // the row ends on a hairline with nothing after it.
-  const none = render("colinhacks/frizz", { quota: false })
+  const none = render("ssalbdivad/ntwine", { quota: false })
   assert.doesNotMatch(none, /data-quota-bar/)
   assert.equal(none.split('class="h-3 w-px shrink-0 bg-border"').length - 1, 0)
 })

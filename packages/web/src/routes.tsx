@@ -159,7 +159,7 @@ function useProjectBinding(slug: string | undefined): boolean {
 }
 
 // ONE PAGE, AND ITS PATH NAMES ITS VIEW (lib/pageView.ts): one project's board at `/project/<slug>` (the
-// default; Colin's scheme, restored 2026-10-06 — it was the query `/?project=<slug>` from 2026-09-29, which
+// default; upstream's scheme, restored 2026-10-06 — it was the query `/?project=<slug>` from 2026-09-29, which
 // now redirects here, and before 2026-09-28 a page of its own), or every project at `/all` (the bare `/`
 // from 2026-09-30 to 2026-10-06). `/` itself names no view: it goes back to the one this browser showed
 // last (LastViewRedirect), and on a phone it is the projects list. A bare `/status/<s>` and anything else

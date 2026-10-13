@@ -137,7 +137,7 @@ test("a question that spans lines still closes at its quote-arrow — the regist
   // 2026-09-23: a registered question walked the human through adding an SSH key and carried the key
   // on its own line, so the row spanned five lines. The single-line row pattern missed it and the whole
   // answer fell through to ntwine's notification card as a broken numbered list.
-  const question = "Add it to GitHub: open the keys page, paste this line:\n\n`ecdsa-sha2-nistp256 AAAA… colinhacks@keyward`\n\nIs the key added?"
+  const question = "Add it to GitHub: open the keys page, paste this line:\n\n`ecdsa-sha2-nistp256 AAAA… dana@keyward`\n\nIs the key added?"
   const wire = questionAnswerMessage([
     { questionId: "qst_a", question, chosen: ["Yes, added"] },
     { questionId: "qst_b", question: "And restart?", chosen: ["No"], text: "later" },

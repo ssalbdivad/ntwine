@@ -51,7 +51,7 @@ export const RAIL_INSET_CLASS = "max-[800px]:pl-0 pl-[57px]"
 /** What a fixed-position surface must clear to sit beside the rail rather than under it. */
 export const RAIL_WIDTH_PX = 57
 //
-// UPSTREAM'S RAIL (colinhacks/frizz 0a3b9139), restored 2026-10-06 when a project's board became the
+// UPSTREAM'S RAIL (upstream Frizz 0a3b9139), restored 2026-10-06 when a project's board became the
 // default view again. The fork had its own copy until 2026-09-30, when All projects was the home and the
 // rail a third door onto it; with the board back as home, the rail is upstream's way between boards, and
 // OPT-IN as upstream has it (Settings → Project sidebar, `projectRail`, off by default). It shows on a

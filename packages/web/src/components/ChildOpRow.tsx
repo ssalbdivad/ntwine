@@ -352,7 +352,7 @@ export function ChildOpRow({
 // draw NO mark for a finished child (lib/childOps.ts, maintainer 2026-08-01: a done-dot "put a mark on
 // nearly every row of a settled transcript while saying nothing"), because there every row is live work
 // and a finished one simply leaves. A queued parent's card is the opposite list: a BATCH, where the
-// finished rows are half the answer to "2 of 3 returned — which two?". Colin's focus-mode mockup
+// finished rows are half the answer to "2 of 3 returned — which two?". Upstream's focus-mode mockup
 // (4d7b3cb8) drew them with a muted check, and this is that check, sized into the dot's 9px slot so the
 // labels of both kinds of row start at one x. A failure takes Primer's danger red, the colour the same
 // fact wears on the awaiting card's checks; a stop (the human's ×, an interrupt) takes the slashed circle

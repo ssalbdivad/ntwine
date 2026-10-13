@@ -80,7 +80,7 @@ const thread = {
   spawnedAt: AGO(400),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/Users/colinmcd94/Documents/projects/ntwine", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/Users/me/Documents/projects/ntwine", threads: [thread] } as BoardSnapshot
 
 const bash = (desc: string, command: string, status = "completed") => ({ name: "Bash", detail: command, command, desc, status })
 const picture = (caption: string) => ({ name: "SendUserFile", detail: caption, sentImages: [SHOT], caption, status: "completed", durationMs: 120 })

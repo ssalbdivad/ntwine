@@ -20,7 +20,7 @@ test("a drawer's project lives under /all, and its API stays flat", () => {
   assert.equal(apiBase("/all/nub/thread/fix-auth"), "/_ntwine/nub")
 })
 
-// A PROJECT'S BOARD IS `/project/<slug>` (Colin's scheme, restored 2026-10-06): its board, a thread on it,
+// A PROJECT'S BOARD IS `/project/<slug>` (upstream's scheme, restored 2026-10-06): its board, a thread on it,
 // that thread's /full and its status list all name the project, address its API and feed, and keep the
 // board as the page's root.
 test("/project/<slug> is that project's board", () => {

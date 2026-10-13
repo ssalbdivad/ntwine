@@ -129,7 +129,7 @@ const thread = {
     ...(watchMode === "one"
     ? [
         {
-          id: "github:demo:colinhacks/zod#5928", kind: "github", target: "colinhacks/zod#5928", state: "armed", createdAt: ago(12),
+          id: "github:demo:arktypeio/arktype#5928", kind: "github", target: "arktypeio/arktype#5928", state: "armed", createdAt: ago(12),
           github: { checks: "passing", running: 0, passed: 7, failed: 0, failing: [], merge: "mergeable", state: "open", polledAt: ago(1) },
         },
       ]
@@ -197,12 +197,12 @@ const HOVER_CARDS: GithubRefCard[] = [
   {
     ref: "acme/app#391", kind: "pr", repo: "acme/app", url: "https://github.com/acme/app/pull/391",
     title: "resolver: key the cache on the normalized id", body: "The lookup collided on two ids that normalize to one.",
-    state: "OPEN", at: ago(240), authorLogin: "colinhacks", labels: [{ name: "bug", color: "d73a4a" }], comments: 2,
+    state: "OPEN", at: ago(240), authorLogin: "dana", labels: [{ name: "bug", color: "d73a4a" }], comments: 2,
     additions: 41, deletions: 9, fetchedAt: Date.now(),
   },
   {
-    ref: "colinhacks/zod#5928", kind: "pr", repo: "colinhacks/zod", url: "https://github.com/colinhacks/zod/pull/5928",
-    title: "Add z.templateLiteral() recursion guard", body: "", state: "OPEN", at: ago(600), authorLogin: "colinhacks",
+    ref: "arktypeio/arktype#5928", kind: "pr", repo: "arktypeio/arktype", url: "https://github.com/arktypeio/arktype/pull/5928",
+    title: "Add z.templateLiteral() recursion guard", body: "", state: "OPEN", at: ago(600), authorLogin: "dana",
     labels: [], comments: 0, additions: 12, deletions: 3, fetchedAt: Date.now(),
   },
 ]

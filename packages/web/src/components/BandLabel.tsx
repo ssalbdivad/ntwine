@@ -18,7 +18,7 @@ import { optimisticallySteered, useSteeredAt } from "../lib/steering.ts"
 // Change a name or an icon HERE and every surface moves with it; give one surface its own and the
 // legend stops being one.
 //
-// THE NAMES ARE COLIN'S (2026-10-06, plans/upstream-superset.md): QUEUE and RUNNING, the words his sidebar's
+// THE NAMES ARE UPSTREAM'S (2026-10-06, plans/upstream-superset.md): QUEUE and RUNNING, the words its sidebar's
 // headers used for the bands the code keys `ready` and `working` — "the queue" is what the human calls it.
 // The fork said Ready and Working from 2026-09-23 until then; the keys stayed, so only what is read moved.
 //

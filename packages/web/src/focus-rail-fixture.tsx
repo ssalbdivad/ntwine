@@ -51,7 +51,7 @@ const thread = {
   ],
   watches: [
     {
-      id: "github:demo:colinhacks/frizz#412", kind: "github", target: "colinhacks/frizz#412", state: "armed", createdAt: ago(40),
+      id: "github:demo:ssalbdivad/ntwine#412", kind: "github", target: "ssalbdivad/ntwine#412", state: "armed", createdAt: ago(40),
       github: { checks: "failing", running: 1, passed: 9, failed: 2, failing: ["lint", "e2e (chromium)"], merge: "blocked", state: "open", polledAt: ago(1) },
     },
     { id: "timer:demo:1", kind: "timer", target: "tmr_a1b2c3d4e5f6", state: "armed", createdAt: ago(5), timer: { fireAt: new Date(Date.now() + 34 * 60_000).toISOString(), prompt: "Re-check npm for any publish of ntwine after 0.13.8 and compare its tarball hash against the one CI built" } },
@@ -64,7 +64,7 @@ const thread = {
     { id: "l5", kind: "file", label: "Attribution report: who published 0.13.6", target: `${DIR}/investigate-attribution.md` },
     { id: "l6", kind: "file", label: "Reports to file (copy-paste ready)", target: `${DIR}/reports-to-file.md` },
     { id: "l7", kind: "file", label: "Downloads reads in the incident window", target: `${DIR}/investigate-downloads.md` },
-    { id: "l8", kind: "link", label: "npm access tokens page", target: "https://www.npmjs.com/settings/colinhacks/tokens" },
+    { id: "l8", kind: "link", label: "npm access tokens page", target: "https://www.npmjs.com/settings/dana/tokens" },
   ],
   lastActivityAt: ago(1),
 } as unknown as ThreadViewModel

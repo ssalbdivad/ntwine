@@ -82,7 +82,7 @@ const refusedMessageText = [
   "Both rework agents are back and I have folded their numbers in.",
   "",
   "```awaiting",
-  "pr: colinhacks/zod#5910",
+  "pr: arktypeio/arktype#5910",
   "agent: toolu_theWrongId",
   "for: 3h",
   "---",

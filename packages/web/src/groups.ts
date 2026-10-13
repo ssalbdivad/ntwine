@@ -333,7 +333,7 @@ export function queueLabelAt(t: Pick<ThreadView, "queuedAt" | "runtime" | "lastA
 // The word a queue CARD puts in front of that time. "Last active" would be false for a thread that
 // entered off a wait — its agent may last have spoken hours before it came to the human — so a queued
 // card says how long it has been QUEUED, after the name its band wears (7f840a59; the band was Ready
-// until 2026-10-06, when it took Colin's name, Queue). A card for a thread that is not queued (none on
+// until 2026-10-06, when it took upstream's name, Queue). A card for a thread that is not queued (none on
 // the queue surfaces today) keeps saying what its time is.
 export function queueLabelWord(t: Pick<ThreadView, "queuedAt" | "queuedForReply">): string {
   // A park in the queue only for its unread reply says so: "Queued" over an Awaiting card read as a
@@ -403,7 +403,7 @@ export function externalThreads(threads: readonly ThreadView[]): ThreadView[] {
 //                        octocat. The band says parked; the mark says what it waits on.)
 //   • inactive         — state === "archived" (the only archiver is an explicit Archive / done-card
 //                        button) and at rest: an archived thread whose worker is still running lifts
-//                        into the Active band until it rests (sectionOf, Colin 2026-07-10). Rendered
+//                        into the Active band until it rests (sectionOf, upstream 2026-07-10). Rendered
 //                        under the label DONE — the key and the label differ.
 //   • legacy           — kind !== "session": vestigial .ntwine-file rows, hidden entirely (null).
 // A FOREIGN session row (a maintainer terminal — no registry row, so no state/needsYou) is dropped
@@ -673,7 +673,7 @@ export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "bac
 
 export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // DONE IS THE HUMAN'S TO UNDO, and nothing a worker does afterwards un-archives the thread. But a live
-  // session never sits under Done (Colin, hit 3× before 2026-07-10): while its turn drains or a sub-agent
+  // session never sits under Done (upstream Frizz, hit 3× before 2026-07-10): while its turn drains or a sub-agent
   // it dispatched is still out, `sectionOf` lifts the row into Running and it wears the spinner (shared
   // doneButRunning), then settles back into Done, with its check, the moment it comes to rest. The mark
   // says what the process is doing; the row's Done dim and uncheck box say what the human decided.

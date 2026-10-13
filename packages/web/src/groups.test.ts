@@ -586,7 +586,7 @@ test("sectionOf: running/needs-you land in the Active+Rested section; only truth
 })
 
 test("sectionOf: an ARCHIVED thread whose worker is running lifts into Running; at rest it is Done", () => {
-  // Colin 2026-07-10, hit 3×: a running thread must never sit under Done. Done is collapsed by default, so
+  // Upstream Frizz 2026-07-10, hit 3×: a running thread must never sit under Done. Done is collapsed by default, so
   // a worker filed there is invisible. This reverses da8ebaf1 (2026-09-24), which filed it in Done
   // whatever its worker was doing; the state never changes — only the human reopens a thread.
   const sub = [{ label: "x", startedAt: "2026-07-10T00:00:00.000Z", state: "running" as const, id: "a1" }]
@@ -1364,7 +1364,7 @@ test("bandOf: Snoozed, Done, External, and no band for a legacy row", () => {
   const future = new Date(Date.now() + 3_600_000).toISOString()
   assert.equal(bandOf(thread({ kind: "session", state: "open", runtime: "turn-idle", snoozedUntil: future })), "snoozed")
   assert.equal(bandOf(thread({ kind: "session", state: "archived", archived: true, runtime: "turn-idle" })), "done")
-  // A worker still running after Mark as done lifts its row into Running until it rests (Colin 2026-07-10).
+  // A worker still running after Mark as done lifts its row into Running until it rests (upstream Frizz 2026-07-10).
   assert.equal(bandOf(thread({ kind: "session", state: "archived", archived: true, runtime: "running" })), "working")
   assert.equal(bandOf(thread({ kind: "session", foreign: true, runtime: "turn-idle" })), "external")
   // A terminal waiting at a prompt queues its THREAD (server board.withThreadTerminals); it has no row.

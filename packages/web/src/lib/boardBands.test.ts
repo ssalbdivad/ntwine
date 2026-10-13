@@ -4,7 +4,7 @@ import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import type { QueuesProject } from "./allQueues.ts"
 import { boardBands } from "./boardBands.ts"
 
-// A project's board lists Colin's bands (components/ProjectBoard.tsx): the shelf of pins, oldest first
+// A project's board lists upstream's bands (components/ProjectBoard.tsx): the shelf of pins, oldest first
 // whatever each thread's state; Queue and Running from the poll, as the queue's cards are; Snoozed with no
 // pinned thread in it; Done and External from the board, unknown until it is read.
 

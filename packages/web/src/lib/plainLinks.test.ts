@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { plainLinkSegments, type PlainLinkSegment } from "./plainLinks.ts"
 import { setGithubRepo } from "./githubAutolink.ts"
 
-const REPO = "colinhacks/frizz"
+const REPO = "ssalbdivad/ntwine"
 before(() => setGithubRepo(REPO))
 after(() => setGithubRepo(null))
 
@@ -11,13 +11,13 @@ const links = (segments: PlainLinkSegment[]) => segments.filter((s) => s.kind ==
 const joined = (segments: PlainLinkSegment[]) => segments.map((s) => s.text).join("")
 
 test("a pasted URL in a plain sentence becomes one link (the user-bubble case)", () => {
-  const text = "We've already closed this...\nhttps://github.com/colinhacks/zod/pull/6013\n\nWhy don't we look for others?"
+  const text = "We've already closed this...\nhttps://github.com/arktypeio/arktype/pull/6013\n\nWhy don't we look for others?"
   const segments = plainLinkSegments(text)
   assert.deepEqual(links(segments), [{
     kind: "link",
-    text: "https://github.com/colinhacks/zod/pull/6013",
-    href: "https://github.com/colinhacks/zod/pull/6013",
-    ghRef: "colinhacks/zod#6013",
+    text: "https://github.com/arktypeio/arktype/pull/6013",
+    href: "https://github.com/arktypeio/arktype/pull/6013",
+    ghRef: "arktypeio/arktype#6013",
   }])
   assert.equal(joined(segments), text)
 })

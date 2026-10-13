@@ -6,7 +6,7 @@
 // handoffOf. Until 2026-10-06 it drew every open question under that newest rest, which is the bug upstream
 // fixed in e157817a: a question asked two rests ago, under a newest rest that says nothing about it, read
 // as that rest's sign-off — the "pending questions supersede how the agent actually signed off" report
-// (Colin 2026-10-05, upstream e157817a) — and it hid the bare rest's own card, "Reply to continue"
+// (upstream Frizz 2026-10-05, e157817a) — and it hid the bare rest's own card, "Reply to continue"
 // (RestedCard), which a bare rest is owed (22084580).
 //
 // The position is the DRAWER'S, computed by the same readers ChatView uses — questionAnchor's

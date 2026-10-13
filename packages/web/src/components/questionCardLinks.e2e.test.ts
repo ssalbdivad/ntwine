@@ -70,7 +70,7 @@ test("references inside a question card are live, and clicking one does not pick
     // A path the server does not know stays plain code.
     assert.equal(await page.$$eval(`${live} code`, (ns) => ns.filter((n) => n.textContent === "old-ask.md" && n.classList.contains("local-file-code")).length), 0)
     // The #482 reference in A links to the project's repo — which arrived AFTER the first render.
-    await page.waitForSelector(`${A} a[href='https://github.com/colinhacks/frizz/issues/482']`)
+    await page.waitForSelector(`${A} a[href='https://github.com/ssalbdivad/ntwine/issues/482']`)
     // The Markdown link to a .md file in B is the reader button, and the bare URL is an anchor.
     await page.waitForSelector(`${B} button.local-file-action[data-local-path='/fixture/draft.md']`)
     const bare = await page.$eval(`${B} a[href='https://example.com/guide']`, (a) => ({ target: a.getAttribute("target"), rel: a.getAttribute("rel") }))
@@ -91,8 +91,8 @@ test("references inside a question card are live, and clicking one does not pick
     await page.keyboard.press("Escape")
 
     // The GitHub reference in A follows, and does not select A.
-    await mouseClick(page, `${A} a[href='https://github.com/colinhacks/frizz/issues/482']`)
-    assert.deepEqual(await page.evaluate(() => (window as Window & { __anchors?: string[] }).__anchors), ["https://github.com/colinhacks/frizz/issues/482"])
+    await mouseClick(page, `${A} a[href='https://github.com/ssalbdivad/ntwine/issues/482']`)
+    assert.deepEqual(await page.evaluate(() => (window as Window & { __anchors?: string[] }).__anchors), ["https://github.com/ssalbdivad/ntwine/issues/482"])
     assert.deepEqual(await chips(page), [])
 
     // The .md link in B opens the reader (a second drawer), and does not select B.
@@ -103,7 +103,7 @@ test("references inside a question card are live, and clicking one does not pick
     // The bare URL in B follows, and does not select B.
     await mouseClick(page, `${B} a[href='https://example.com/guide']`)
     assert.deepEqual(await page.evaluate(() => (window as Window & { __anchors?: string[] }).__anchors), [
-      "https://github.com/colinhacks/frizz/issues/482",
+      "https://github.com/ssalbdivad/ntwine/issues/482",
       "https://example.com/guide",
     ])
     assert.deepEqual(await chips(page), [])
@@ -138,8 +138,8 @@ test("references inside a question card are live, and clicking one does not pick
     // is why that rule is selected on the same `button:disabled` test the base cursor rule uses.
     assert.equal(await page.$eval(option(ro, 0), (n) => getComputedStyle(n).cursor), "auto")
     await page.waitForSelector(`${option(ro, 0)} code.local-file-code[data-local-path='/fixture/cloudflare-ask.md']`)
-    await page.waitForSelector(`${option(ro, 0)} a[href='https://github.com/colinhacks/frizz/issues/482']`)
-    await mouseClick(page, `${option(ro, 0)} a[href='https://github.com/colinhacks/frizz/issues/482']`)
+    await page.waitForSelector(`${option(ro, 0)} a[href='https://github.com/ssalbdivad/ntwine/issues/482']`)
+    await mouseClick(page, `${option(ro, 0)} a[href='https://github.com/ssalbdivad/ntwine/issues/482']`)
     assert.equal((await page.evaluate(() => (window as Window & { __anchors?: string[] }).__anchors))?.length, 3)
 
     assert.deepEqual(errors, [])

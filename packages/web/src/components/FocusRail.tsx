@@ -61,7 +61,7 @@ import { FolderHintToken, folderHintTitle, processFolderHint } from "./ThreadTer
 
 // The rail's width, in px — the side pane on /full is exactly this wide while nothing covers it. 340
 // rather than the mockup's 300: the card's rows were fitted at a 368px card, and at 300 a PR row
-// truncated to "colinhacks/zod#…" — the one part of the ref that names the PR (2026-08-28).
+// truncated to "arktypeio/arktype#…" — the one part of the ref that names the PR (2026-08-28).
 export const RAIL_WIDTH = 340
 
 // One level of the tree, in px. Tiny by request: at 12px type a level is well under an em, enough to

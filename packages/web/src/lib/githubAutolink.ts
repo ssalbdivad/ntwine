@@ -39,7 +39,7 @@ const listeners = new Set<() => void>()
  * IT MUST NOTIFY, and that is not belt-and-braces. Setting the value from the board looks early enough
  * — the board is the payload the threads themselves come from — but it is NOT: a thread's TRANSCRIPT is
  * its own query, and it resolved first. Measured 2026-08-13 against a real stack, before the
- * subscription existed: the module held "colinhacks/frizz" and re-rendering the same markdown by hand
+ * subscription existed: the module held "ssalbdivad/ntwine" and re-rendering the same markdown by hand
  * produced the anchors, while the transcript on screen had none — HTML memoized on the markdown string
  * alone, built when the repo was still null, and nothing would ever invalidate it. useMarkdownHtml
  * (lib/useMarkdown.ts) subscribes here so the value is a real render input.
