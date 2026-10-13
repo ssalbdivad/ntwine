@@ -1,3 +1,5 @@
+import { eitherBrand } from "@ntwine/shared"
+
 const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max", "ultra"])
 
 function splitEffort(value: string, separator: "/" | "-"): { model: string; effort?: string } {
@@ -18,12 +20,17 @@ function splitEffort(value: string, separator: "/" | "-"): { model: string; effo
 // the legacy two-part shape and needs no branch of its own.
 // Preserve an agent role when one exists, but present the model/effort with the same separators the
 // normal prompt-box selector uses. Unknown/custom cells remain verbatim rather than being guessed.
+// `frizz:` is the same plugin's namespace before the Frizz -> Ntwine rename, still in older transcripts.
+const PROFILE_NAMESPACE = eitherBrand(/^ntwine:/)
+const PROFILE_ROUTE = eitherBrand(/^ntwine-/)
+
 export function subAgentProfileLabel(subagentType?: string): string {
   const raw = subagentType?.trim()
   if (!raw) return "Profile unknown"
 
-  if (raw.startsWith("ntwine:")) {
-    const routed = raw.slice("ntwine:".length).replace(/^ntwine-/, "")
+  const namespace = PROFILE_NAMESPACE.exec(raw)?.[0]
+  if (namespace) {
+    const routed = raw.slice(namespace.length).replace(PROFILE_ROUTE, "")
     const { model, effort } = splitEffort(routed, "-")
     return effort ? `${model} › ${effort}` : model
   }

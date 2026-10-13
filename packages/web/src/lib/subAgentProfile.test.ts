@@ -14,3 +14,8 @@ test("sub-agent profile readout formats provider cells without inventing missing
   assert.equal(subAgentProfileLabel("general-purpose"), "general-purpose")
   assert.equal(subAgentProfileLabel(), "Profile unknown")
 })
+
+// A transcript from before the Frizz -> Ntwine rename names the same plugin's profiles `frizz:`.
+test("a pre-rename frizz: profile reads like its ntwine: twin", () => {
+  assert.equal(subAgentProfileLabel("frizz:frizz-sonnet-medium"), "sonnet › medium")
+})

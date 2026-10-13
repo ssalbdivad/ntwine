@@ -5,6 +5,8 @@ import { StringDecoder } from "node:string_decoder"
 import { join } from "node:path"
 import { homedir, tmpdir } from "node:os"
 import {
+  brandSpellings,
+  eitherBrand,
   DISPATCH_TASK_BANNER_MARKER,
   GITHUB_DISPATCH_UI_BOUNDARY,
   ATTACHMENT_IMAGE_EXTENSIONS,
@@ -149,9 +151,8 @@ function normalizeNewlines(s: string): string {
 // HTML comments and code examples stay literal. `text` itself is never changed: workers, persistence,
 // search, and transcript logic retain the full machine-facing prompt below the boundary.
 export function githubDispatchDisplayText(text: string): string | undefined {
-  const marker = `\n\n${GITHUB_DISPATCH_UI_BOUNDARY}\n\n`
-  const cut = text.indexOf(marker)
-  if (cut === -1) return undefined
+  const cut = brandSpellings(`\n\n${GITHUB_DISPATCH_UI_BOUNDARY}\n\n`).map((marker) => text.indexOf(marker)).find((at) => at !== -1)
+  if (cut === undefined) return undefined
   const head = text.slice(0, cut)
   const match = head.match(/^THREAD: [a-z0-9][a-z0-9-]*\n\n(Investigate this issue and make recommendations\n\n(?:Issue|PR) #\d+: [^\n]+\nRepository: [^\n]+\nURL: \S+)$/)
   return match?.[1]
@@ -182,7 +183,7 @@ export function ntwineDispatchDisplayText(text: string): string | undefined {
     return legacy === -1 ? undefined : text.slice(legacy + LEGACY_TASK_MARKER.length).trim()
   }
   const below = text.slice(cut + DISPATCH_TASK_BANNER_MARKER.length)
-  if (below.startsWith(LEGACY_BANNER_PREAMBLE)) {
+  if (brandSpellings(LEGACY_BANNER_PREAMBLE).some((preamble) => below.startsWith(preamble))) {
     const legacy = below.indexOf(LEGACY_TASK_MARKER)
     if (legacy !== -1) return below.slice(legacy + LEGACY_TASK_MARKER.length).trim()
   }
@@ -4018,15 +4019,17 @@ function patchSummary(patch: string): string {
 // Strip the trailing per-dispatch discovery sentinel (`<!-- ntwine-session:… -->`) buildSpawn appends to
 // the FIRST codex prompt so post-spawn discovery can pin the rollout — plumbing the human never typed.
 function stripCodexSentinel(text: string): string {
-  return text.replace(/\n*<!--\s*ntwine-session:[^>]*-->\s*$/, "").replace(/\s+$/, "")
+  return text.replace(eitherBrand(/\n*<!--\s*ntwine-session:[^>]*-->\s*$/), "").replace(/\s+$/, "")
 }
 
 // The spawn path appends one of these exact contracts plus the Ntwine-owned discovery sentinel after the
 // human's task. Strip only that complete suffix from the first projected prompt: similar ordinary prose,
 // or a title-transport sentence without the Ntwine sentinel, remains the user's text.
 function stripCodexFirstPromptTitleTransport(text: string): string {
-  for (const transport of [CODEX_FIRST_FINAL_TITLE_TRANSPORT, CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT]) {
-    const marker = `\n\n${transport}\n\n<!-- ntwine-session:`
+  // Each in both product names: a thread dispatched before the rename carries the Frizz spelling throughout.
+  const markers = [CODEX_FIRST_FINAL_TITLE_TRANSPORT, CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT]
+    .flatMap((transport) => brandSpellings(`\n\n${transport}\n\n<!-- ntwine-session:`))
+  for (const marker of markers) {
     const at = text.lastIndexOf(marker)
     if (at === -1) continue
     const sentinel = text.slice(at + marker.length)

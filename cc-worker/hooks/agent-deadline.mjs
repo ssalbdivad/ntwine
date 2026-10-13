@@ -38,7 +38,8 @@ export const STAGES = /** @type {const} */ (['half', 'converge', 'final', 'over'
 /** The `Time limit:` line a parent writes into a child's prompt, on a line of its own. */
 export const TIME_LIMIT_LINE = /^[ \t]*time limit:[ \t]*([^\n]+?)[ \t]*$/im;
 /** The line the dispatch hook appends: the child's deadline and the instant its budget started. */
-export const DEADLINE_MARKER = /⟦ntwine-deadline⟧ (\S+) (\S+)/g;
+// `frizz-deadline` is the same marker in a prompt written before the Frizz -> Ntwine rename.
+export const DEADLINE_MARKER = /⟦(?:ntwine|frizz)-deadline⟧ (\S+) (\S+)/g;
 
 const FETCH_TIMEOUT_MS = 1500;
 const STATE_DIRNAME = 'ntwine-deadlines';

@@ -1,3 +1,4 @@
+import { eitherBrand } from "@ntwine/shared"
 import { normalizeObservedThreadModel } from "./backend/thread-profiles.ts"
 
 // THE DISPATCH PROFILE CELL — the one string every surface that names a sub-agent reads its model and
@@ -71,11 +72,16 @@ function shortModel(raw: unknown): string | undefined {
  *   general-purpose opus/high   a foreign agent type, which keeps its name and gains what the call named
  *   ntwine:high                  the model genuinely unknown — the profile verbatim, as before
  */
+const PROFILE_NAMESPACE = eitherBrand(/^ntwine:/)
+const PROFILE_ROUTE = eitherBrand(/^ntwine-/)
+
 export function dispatchProfileCell(input: DispatchProfileInput): string | undefined {
   const type = text(input.subagentType)
-  const namespaced = type?.startsWith("ntwine:") ?? false
+  // `frizz:` is the same plugin's namespace before the Frizz -> Ntwine rename (legacy-brand.ts).
+  const namespace = type ? PROFILE_NAMESPACE.exec(type)?.[0] : undefined
+  const namespaced = namespace !== undefined
   const ours = namespaced || !type
-  const fromType = namespaced ? splitNtwineProfile(type!.slice("ntwine:".length).replace(/^ntwine-/, "")) : {}
+  const fromType = namespaced ? splitNtwineProfile(type!.slice(namespace.length).replace(PROFILE_ROUTE, "")) : {}
   // Explicit beats the profile's own pin, which beats inheritance — the order the runtime resolves them,
   // and the last of the three is offered only for a profile whose definition we know pins nothing.
   const model = shortModel(input.model) ?? fromType.model ?? (ours ? shortModel(input.turnModel) : undefined)

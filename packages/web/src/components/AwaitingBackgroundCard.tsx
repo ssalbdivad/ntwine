@@ -931,7 +931,7 @@ export function AgentRow({ agent, slug, now, onDismiss }: { agent: ThreadView["s
   // maintainer says it. It lives in the TOOLTIP, not the status (maintainer 2026-10-08: "I don't think
   // the model and effort is very important") — the status track is width the title needs, and the
   // elapsed time is the one reading on this row that changes.
-  const profile = agent.subagentType?.replace(/^ntwine:/, "")
+  const profile = agent.subagentType?.replace(/^(?:ntwine|frizz):/, "")
   // STALE reaches the fullscreen rail only (this card's set is `liveAgents`): a child whose completion
   // never arrived and whose transcript has gone quiet past its window (tailer `quietPastWindow`). It does
   // not spin. It wears the flat dot every other surface gives a stale child, in a box the size of the

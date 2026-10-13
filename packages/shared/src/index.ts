@@ -7,6 +7,7 @@ import { ProjectSchedules, ThreadScheduleRef } from "./schedules.ts"
 import { formatDeadlineLeft, ThreadDeadlineView } from "./deadline.ts"
 import { EDITOR_COMPOSE_MAX_TEXT, EDITOR_MAX_FOLDERS, EDITOR_MAX_PATH, EDITOR_PROTOCOL_VERSION, EDITOR_REVIEW_MAX_CHECKOUTS, EDITOR_REVIEW_MAX_FILES, EDITOR_STATE_MAX_DIAGNOSTICS, EDITOR_STATE_MAX_MESSAGE, EDITOR_STATE_MAX_OPEN, EDITOR_STATE_MAX_SELECTION_TEXT, EDITOR_STATE_MAX_TAG, type EditorClientMessage, type EditorComposeInput, type EditorReviewTarget, type EditorSnapshot, type EditorWindowSummary } from "./editor-protocol.ts"
 import type { TranscriptPatchOp } from "./transcript-delta.ts"
+import { brandSpellings, eitherBrand } from "./legacy-brand.ts"
 
 // ---- Attachment intake (drag/drop, paste, file picker) ----
 // What a worker can actually GET AT. A format qualifies two ways: an agent's Read/file tool consumes
@@ -1652,7 +1653,7 @@ export function parseRecurringPrompt(text: string | undefined): RecurringPrompt 
   // marker and collapsed like any other repeating ntwine delivery. Left as a card it dominated the queue
   // item it was complaining about (maintainer 2026-08-12, with a screenshot of exactly that).
   const lead = text.trimStart()
-  if (lead.startsWith(SIGNOFF_NUDGE_MARKER) || lead.startsWith(LEGACY_SIGNOFF_NUDGE_MARKER)) return { kind: "signoff", prompt: "" }
+  if (SIGNOFF_NUDGE_MARKERS.some((marker) => lead.startsWith(marker))) return { kind: "signoff", prompt: "" }
   const m = RECURRING_TRAILER.exec(text.trimEnd())
   if (!m) return undefined
   const prompt = text.trimEnd().slice(0, m.index).trim()
@@ -1994,6 +1995,8 @@ function legacyHumanWording(text: string): string {
   return text.replaceAll("The user", "The human").replaceAll("the user", "the human")
 }
 const LEGACY_SIGNOFF_NUDGE_MARKER = legacyHumanWording(SIGNOFF_NUDGE_MARKER)
+/** Both wordings, each in both product names (legacy-brand.ts). */
+const SIGNOFF_NUDGE_MARKERS = [SIGNOFF_NUDGE_MARKER, LEGACY_SIGNOFF_NUDGE_MARKER].flatMap(brandSpellings)
 
 /** The live things a thread could legitimately park on, appended to the reminder so the agent does not
  *  have to go looking for ids it cannot see. Maintainer 2026-08-14: "the handoff lists out all of the
@@ -2623,7 +2626,7 @@ export function limitModelSwitchSteer(capped: string, to: string): string {
   return `⏳ The ${capped} limit that interrupted you is still closed — ntwine restarted this thread on ${to}. Continue exactly where you left off.`
 }
 
-const LIMIT_MODEL_SWITCH = /^⏳ The (.+?) limit that interrupted you is still closed — ntwine restarted this thread on (.+?)\. Continue exactly where you left off\.$/
+const LIMIT_MODEL_SWITCH = eitherBrand(/^⏳ The (.+?) limit that interrupted you is still closed — ntwine restarted this thread on (.+?)\. Continue exactly where you left off\.$/)
 
 /** Which model was capped and which one the thread now runs, or `null` when this is not a switch wake. */
 export function parseLimitModelSwitchWake(text: string): { capped: string; to: string } | null {
@@ -3290,7 +3293,7 @@ function commandRunClause(run: Pick<CommandWatchRun, "outcome" | "exitCode">): s
 
 const COMMAND_WATCH_PASSED_HEAD = /^✅ Your command watch `(cmw_[a-z0-9]+)` PASSED\b/
 const COMMAND_WATCH_EXPIRED_HEAD = /^⏰ Your command watch `(cmw_[a-z0-9]+)` has expired and is no longer armed\b/
-const COMMAND_WATCH_CANCELLED_HEAD = /^⚠️ Ntwine cancelled your command watch `(cmw_[a-z0-9]+)`/
+const COMMAND_WATCH_CANCELLED_HEAD = eitherBrand(/^⚠️ Ntwine cancelled your command watch `(cmw_[a-z0-9]+)`/)
 
 /** The wake a command watch sends when a check exits 0 — the one piece of news it exists to deliver. */
 export function commandWatchPassedWakeMessage(input: { id: string; command: string; output: string; runs: number; armedMs: number }): string {
@@ -6430,7 +6433,7 @@ export function stripWakeTimeHeader(text: string): string {
 // instead, which is the same outcome by the other route.
 // The three a human-armed watch writes also strip in their pre-2026-10-08 wording (legacyHumanWording).
 const HUMAN_WATCH_TRAILERS = [PR_WATCH_HUMAN_TRAILER, ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_QUIET_TRAILER]
-const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER]
+const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER].flatMap(brandSpellings)
 
 /** Display projection: a ntwine wake without the agent-facing trailer ntwine appended for the worker.
  *
@@ -6486,7 +6489,7 @@ export function humanGapNote(nowMs: number, lastAssistantAt?: string | null): st
 // wall clock, so a message that merely quotes one — a bug report pasting the line, this comment's own
 // wording — is left in the bubble intact. The round-trip test over humanGapNote is what keeps a wording
 // change on the producer from silently putting the note back in front of the human.
-const HUMAN_GAP_NOTE_TAIL = /\n+⏱ Ntwine: the message above arrived [^\n]* after your last one\. It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.[ \t]*$/
+const HUMAN_GAP_NOTE_TAIL = eitherBrand(/\n+⏱ Ntwine: the message above arrived [^\n]* after your last one\. It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.[ \t]*$/)
 
 /** Display projection: the human's message without the clock note ntwine appended for the worker. */
 export function stripHumanGapNote(text: string): string {
@@ -6549,9 +6552,9 @@ const OPEN_QUESTIONS_NOTE_TAIL_2026_09_29 =
 // the worker's transcript, where it is simply part of their bubble. Anchored to end-of-text on a line of
 // its own and to the note's fixed opening AND closing words, so a message that quotes one keeps it.
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-const OPEN_QUESTIONS_NOTE_LINE = new RegExp(
+const OPEN_QUESTIONS_NOTE_LINE = eitherBrand(new RegExp(
   `\\n+❓ Ntwine: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
-)
+))
 
 /** Display projection: the human's message without the open-questions note ntwine appended for the
  *  worker. */
@@ -6573,7 +6576,7 @@ export function wakeDeliveryToken(id: string): string {
 // Anchored to end-of-text with its leading blank line, matching how context.ts appends it. Requiring
 // that trailing position (rather than matching anywhere) keeps prose that merely quotes the token —
 // this comment's own wording, a bug report pasting one — intact in the bubble.
-const WAKE_DELIVERY_TOKEN_TAIL = /\n*<!-- ntwine-wake:[A-Za-z0-9_-]+ -->\s*$/
+const WAKE_DELIVERY_TOKEN_TAIL = eitherBrand(/\n*<!-- ntwine-wake:[A-Za-z0-9_-]+ -->\s*$/)
 
 // The token wherever it sits ON A LINE OF ITS OWN. That is how the scheduler always writes it, and it
 // is never how prose quotes one — a human asking "why is <!-- ntwine-wake:… --> in my bubble?" writes it
@@ -6585,7 +6588,7 @@ const WAKE_DELIVERY_TOKEN_TAIL = /\n*<!-- ntwine-wake:[A-Za-z0-9_-]+ -->\s*$/
 // runtime joins, and that is not ntwine's format to pin. So the display strip refuses to depend on it:
 // a token on its own line is machine plumbing wherever it ended up, and no shape the runtime invents
 // next can put one in front of the human again.
-const WAKE_DELIVERY_TOKEN_LINE = /(?:^|\n)[ \t]*<!-- ntwine-wake:[A-Za-z0-9_-]+ -->[ \t]*(?=\n|$)/g
+const WAKE_DELIVERY_TOKEN_LINE = eitherBrand(/(?:^|\n)[ \t]*<!-- ntwine-wake:[A-Za-z0-9_-]+ -->[ \t]*(?=\n|$)/g)
 
 // Display projection: the steer the human is meant to read, without the machine-facing token.
 export function stripWakeDeliveryToken(text: string): string {
@@ -6654,7 +6657,7 @@ export function splitWakeDeliveries(text: string): string[] {
 // (maintainer 2026-10-11, on exactly that pair: "I'm so tired of these unformatted shitty Ntwine blocks
 // showing up"). Same rule as every formatter above — the parser has to sit beside it, and only this
 // package is reachable from both sides.
-const MERGED_WAKE_LEAD = /^Ntwine held (\d+) wakes for this thread and is delivering them together, oldest first\. Each is under its own heading; read all of them before acting on any\.(?=\n|$)/
+const MERGED_WAKE_LEAD = eitherBrand(/^Ntwine held (\d+) wakes for this thread and is delivering them together, oldest first\. Each is under its own heading; read all of them before acting on any\.(?=\n|$)/)
 // A section heading, with the blank line the composer always puts on both sides of it.
 const MERGED_WAKE_HEADING = /\n\n### (\d+)\. [^\n]*?(?: — (\d+) identical events)?\n\n/g
 
@@ -6732,7 +6735,7 @@ export function parseMergedWake(text: string): MergedWakePart[] | null {
 // they are "not a message from a person", and both reach the queue exactly like a typed follow-up — so
 // until this prefix they rendered as the operator's own gray bubble. A peer's actual MESSAGE is not
 // plumbing and is not matched here; see parseCrossSessionMessage.
-const NOISE_PREFIXES = ["<task-notification>", "[SYSTEM NOTIFICATION", "<system-reminder>", "<ntwine-", "[ntwine]", "[Cross-session "]
+const NOISE_PREFIXES = ["<task-notification>", "[SYSTEM NOTIFICATION", "<system-reminder>", "<ntwine-", "[ntwine]", "[Cross-session "].flatMap(brandSpellings)
 export function isInjectedNoise(text: string): boolean {
   const t = text.trimStart()
   return NOISE_PREFIXES.some((p) => t.startsWith(p))
@@ -6850,11 +6853,11 @@ export function threadMessageBody(input: { fromHandle: string; message: string; 
 }
 
 const THREAD_MESSAGE_ANSWERS = " — this answers the message you were waiting on"
-const THREAD_MESSAGE_HEAD = /^Message from @([^\s,]+), another Ntwine thread (?:in this project|in the (.+?) project)( — this answers the message you were waiting on)?:\n\n/
+const THREAD_MESSAGE_HEAD = eitherBrand(/^Message from @([^\s,]+), another Ntwine thread (?:in this project|in the (.+?) project)( — this answers the message you were waiting on)?:\n\n/)
 // The instructions open on one of exactly two sentences, so a `---` the SENDER wrote inside its message
 // is never mistaken for the trailer. `mcp__ntwine__message_thread` is how they named the reply until
 // 2026-10-12, and every message already in a transcript still ends that way.
-const THREAD_MESSAGE_TRAILER = /\n\n---\n(?:@[^\s]+ is WAITING on your answer|Answer with `(?:mcp__ntwine__message_thread|ntwinectl message-thread)\b)[\s\S]*$/
+const THREAD_MESSAGE_TRAILER = eitherBrand(/\n\n---\n(?:@[^\s]+ is WAITING on your answer|Answer with `(?:mcp__ntwine__message_thread|ntwinectl message-thread)\b)[\s\S]*$/)
 
 export function parseThreadMessage(text: string): { from: string; project?: string; answersWait: boolean; awaitsReply: boolean; body: string } | undefined {
   const head = THREAD_MESSAGE_HEAD.exec(text)
@@ -6971,7 +6974,7 @@ const WAKE_BACKLOG_TAIL =
  *  intact — see the note above on why `backlog` is an argument and not a field. A legacy transcript
  *  written before the tail existed simply reads as not-a-backlog, which is what it was. */
 export function isGithubWakeBacklog(text: string | undefined): boolean {
-  return typeof text === "string" && text.includes(WAKE_BACKLOG_TAIL)
+  return typeof text === "string" && brandSpellings(WAKE_BACKLOG_TAIL).some((tail) => text.includes(tail))
 }
 
 export function formatGithubWakeSteer({ ref, items, omitted }: GithubWakeSteer, opts: { backlog?: boolean } = {}): string {
@@ -8248,3 +8251,4 @@ export function fallbackPort(base: number): number {
 // stored name does not re-derive from its own slug has been tampered with or mis-keyed.
 export const threadIdentityName = (slug: string) => `ntwine-${ThreadSlug.parse(slug)}`
 export * from "./schedule-rule.ts"
+export { brandSpellings, eitherBrand, frizzWording } from "./legacy-brand.ts"
