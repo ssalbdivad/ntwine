@@ -1,0 +1,4 @@
+#!/bin/sh
+# frizzctl — the name `ntwinectl` had before the Frizz -> Ntwine rename (2026-10-13). A worker started
+# before it still has this name in its instructions and its allowed tools, so it keeps answering.
+exec "$(dirname "$0")/ntwinectl" "$@"

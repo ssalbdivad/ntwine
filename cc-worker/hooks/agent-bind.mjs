@@ -8,6 +8,7 @@
 //
 // GATE: inert unless NTWINE_THREAD is set. FAIL-OPEN ABSOLUTELY: any error → exit 0, no output.
 // A missed binding just means one helper isn't surfaced; a PostToolUse hook must never disturb the turn.
+import '../lib/legacy-env.mjs';
 import { readFileSync } from 'node:fs';
 import { recordBinding, threadFromPrompt } from '../scripts/ntwine/agent-bindings.mjs';
 

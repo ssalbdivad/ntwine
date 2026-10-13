@@ -66,7 +66,20 @@ export interface NtwinePaths {
   cache: string
   /** True when an existing `~/.ntwine` was found and every root collapsed onto it. */
   legacy: boolean
+  /** Which product name the roots are spelled with: an install made before the rename keeps `frizz`. */
+  brand: Brand
 }
+
+/**
+ * THE RENAME: this product was Frizz until 2026-10-13. An install made under that name keeps its roots
+ * — `~/.frizz`, `~/.local/share/frizz`, `Application Support/Frizz` — for the same reason a legacy
+ * `~/.ntwine` keeps its own (header): gigabytes, live descriptors in running daemons, and no backup.
+ * Nothing is moved. A machine with no Ntwine install of its own and a Frizz one resolves the Frizz
+ * spelling of the very same rules; a fresh machine gets `ntwine`.
+ */
+export type Brand = "ntwine" | "frizz"
+const BRANDS: readonly Brand[] = ["ntwine", "frizz"]
+const titleOf = (brand: Brand) => (brand === "ntwine" ? "Ntwine" : "Frizz")
 
 export interface NtwinePathOptions {
   env?: NodeJS.ProcessEnv
@@ -82,8 +95,8 @@ export interface NtwinePathOptions {
 
 export const LEGACY_DIR_NAME = ".ntwine"
 
-export function legacyNtwineRoot(home = homedir()): string {
-  return join(home, LEGACY_DIR_NAME)
+export function legacyNtwineRoot(home = homedir(), brand: Brand = "ntwine"): string {
+  return join(home, `.${brand}`)
 }
 
 /**
@@ -167,7 +180,7 @@ function insideHome(child: string, home: string): boolean {
   return inner === parent || inner.startsWith(`${parent}/`)
 }
 
-function windowsRoots(env: NodeJS.ProcessEnv, home: string): Omit<NtwinePaths, "legacy"> {
+function windowsRoots(env: NodeJS.ProcessEnv, home: string, brand: Brand): Omit<NtwinePaths, "legacy" | "brand"> {
   // Never Roaming: a multi-gigabyte artifact cache must not follow a user between machines, which is
   // exactly what %APPDATA% would do to it.
   //
@@ -188,7 +201,7 @@ function windowsRoots(env: NodeJS.ProcessEnv, home: string): Omit<NtwinePaths, "
   const local = env.LOCALAPPDATA && insideHome(env.LOCALAPPDATA, home)
     ? env.LOCALAPPDATA
     : join(home, "AppData", "Local")
-  const base = join(local, "Ntwine")
+  const base = join(local, titleOf(brand))
   return {
     data: join(base, "Data"),
     state: join(base, "State"),
@@ -196,22 +209,22 @@ function windowsRoots(env: NodeJS.ProcessEnv, home: string): Omit<NtwinePaths, "
   }
 }
 
-function darwinRoots(home: string): Omit<NtwinePaths, "legacy"> {
-  const support = join(home, "Library", "Application Support", "Ntwine")
+function darwinRoots(home: string, brand: Brand): Omit<NtwinePaths, "legacy" | "brand"> {
+  const support = join(home, "Library", "Application Support", titleOf(brand))
   return {
     data: support,
     // macOS has no state directory concept; Application Support is where this belongs, and the log
     // files themselves already live under each project's own directory.
     state: support,
-    cache: join(home, "Library", "Caches", "Ntwine"),
+    cache: join(home, "Library", "Caches", titleOf(brand)),
   }
 }
 
-function xdgRoots(env: NodeJS.ProcessEnv, home: string): Omit<NtwinePaths, "legacy"> {
+function xdgRoots(env: NodeJS.ProcessEnv, home: string, brand: Brand): Omit<NtwinePaths, "legacy" | "brand"> {
   return {
-    data: join(xdg(env, "XDG_DATA_HOME") ?? join(home, ".local", "share"), "ntwine"),
-    state: join(xdg(env, "XDG_STATE_HOME") ?? join(home, ".local", "state"), "ntwine"),
-    cache: join(xdg(env, "XDG_CACHE_HOME") ?? join(home, ".cache"), "ntwine"),
+    data: join(xdg(env, "XDG_DATA_HOME") ?? join(home, ".local", "share"), brand),
+    state: join(xdg(env, "XDG_STATE_HOME") ?? join(home, ".local", "state"), brand),
+    cache: join(xdg(env, "XDG_CACHE_HOME") ?? join(home, ".cache"), brand),
   }
 }
 
@@ -229,7 +242,13 @@ function xdgRoots(env: NodeJS.ProcessEnv, home: string): Omit<NtwinePaths, "lega
  * whenever it was first asked, so after a stray write (review of 2026-10-02, reproduced in a scratch
  * home: `<link>/.local/share/ntwine` for one spelling, `<real>/.ntwine` for the other).
  */
-const decisions = new Map<string, boolean>()
+const decisions = new Map<string, Decision>()
+
+/** Where a resolution landed: which spelling, and whether it collapsed onto the dot-directory. */
+interface Decision {
+  legacy: boolean
+  brand: Brand
+}
 /** Raw home spelling -> its realpath, so the key costs one realpath per spelling rather than per call. */
 const canonicalHomes = new Map<string, string>()
 
@@ -284,17 +303,23 @@ function memoKey(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, home: string
  */
 export const ROOTS_PIN_ENV = "NTWINE_ROOTS_PIN"
 
-interface RootsPin {
+interface RootsPin extends Decision {
   key: string
-  legacy: boolean
 }
 
-function pinnedDecision(env: NodeJS.ProcessEnv, key: string): boolean | undefined {
+/**
+ * A pin from before the rename carries no `brand` (and arrives as FRIZZ_ROOTS_PIN, mapped by the env
+ * shim). It is ignored rather than guessed at: the disk then answers, and it answers `frizz` for
+ * exactly the machines that pin was made on.
+ */
+function pinnedDecision(env: NodeJS.ProcessEnv, key: string): Decision | undefined {
   const raw = env[ROOTS_PIN_ENV]
   if (!raw) return undefined
   try {
     const pin = JSON.parse(raw) as Partial<RootsPin>
-    return pin.key === key && typeof pin.legacy === "boolean" ? pin.legacy : undefined
+    return pin.key === key && typeof pin.legacy === "boolean" && BRANDS.includes(pin.brand as Brand)
+      ? { legacy: pin.legacy, brand: pin.brand as Brand }
+      : undefined
   } catch {
     return undefined
   }
@@ -313,8 +338,8 @@ function homeIn(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string {
 export function withRootsPin(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const platform = process.platform
   const home = homeIn(env, platform)
-  const { legacy } = ntwinePaths({ env, platform, home })
-  const pin: RootsPin = { key: memoKey(env, platform, home), legacy }
+  const { legacy, brand } = ntwinePaths({ env, platform, home })
+  const pin: RootsPin = { key: memoKey(env, platform, home), legacy, brand }
   return { ...env, [ROOTS_PIN_ENV]: JSON.stringify(pin) }
 }
 
@@ -363,12 +388,12 @@ export function ntwinePaths(options: NtwinePathOptions = {}): NtwinePaths {
   const home = options.home ?? homedir()
   if (options.exists) return resolveNtwinePaths(env, platform, home, options.exists)
   const key = memoKey(env, platform, home)
-  let legacy = decisions.get(key)
-  if (legacy === undefined) {
-    legacy = pinnedDecision(env, key) ?? resolveNtwinePaths(env, platform, home, existsSync).legacy
-    decisions.set(key, legacy)
+  let decision = decisions.get(key)
+  if (decision === undefined) {
+    decision = pinnedDecision(env, key) ?? resolveNtwinePaths(env, platform, home, existsSync)
+    decisions.set(key, decision)
   }
-  return Object.freeze(layout(env, platform, home, legacy))
+  return Object.freeze(layout(env, platform, home, decision.legacy, decision.brand))
 }
 
 /**
@@ -385,26 +410,33 @@ export function ntwinePathsNow(options: Omit<NtwinePathOptions, "exists"> = {}):
 }
 
 /** The roots a decision implies — pure, no filesystem. */
-function layout(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, home: string, legacy: boolean): NtwinePaths {
+function layout(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  home: string,
+  legacy: boolean,
+  brand: Brand = "ntwine",
+): NtwinePaths {
   if (legacy) {
-    const root = legacyNtwineRoot(home)
-    return { data: root, state: root, cache: root, legacy: true }
+    const root = legacyNtwineRoot(home, brand)
+    return { data: root, state: root, cache: root, legacy: true, brand }
   }
   const platformRoots = platform === "win32"
-    ? windowsRoots(env, home)
+    ? windowsRoots(env, home, brand)
     : platform === "darwin"
-      ? darwinRoots(home)
-      : xdgRoots(env, home)
+      ? darwinRoots(home, brand)
+      : xdgRoots(env, home, brand)
   const explicit = {
     data: xdg(env, "XDG_DATA_HOME"),
     state: xdg(env, "XDG_STATE_HOME"),
     cache: xdg(env, "XDG_CACHE_HOME"),
   }
   return {
-    data: explicit.data ? join(explicit.data, "ntwine") : platformRoots.data,
-    state: explicit.state ? join(explicit.state, "ntwine") : platformRoots.state,
-    cache: explicit.cache ? join(explicit.cache, "ntwine") : platformRoots.cache,
+    data: explicit.data ? join(explicit.data, brand) : platformRoots.data,
+    state: explicit.state ? join(explicit.state, brand) : platformRoots.state,
+    cache: explicit.cache ? join(explicit.cache, brand) : platformRoots.cache,
     legacy: false,
+    brand,
   }
 }
 
@@ -414,15 +446,34 @@ function resolveNtwinePaths(
   home: string,
   exists: (path: string) => boolean,
 ): NtwinePaths {
-  const resolved = layout(env, platform, home, false)
-  const legacyRoot = legacyNtwineRoot(home)
+  const current = resolveBrand(env, platform, home, exists, "ntwine")
+  if (isInstall(current, exists)) return current
+  // No Ntwine install of its own: a Frizz-era one, if this machine has it, is the install (Brand).
+  const frizz = resolveBrand(env, platform, home, exists, "frizz")
+  return isInstall(frizz, exists) ? frizz : current
+}
+
+/** Every launch writes the registry, so an install is a root that holds one (or a dot-dir that won). */
+function isInstall(paths: NtwinePaths, exists: (path: string) => boolean): boolean {
+  return paths.legacy || exists(join(paths.data, "registry.json"))
+}
+
+function resolveBrand(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  home: string,
+  exists: (path: string) => boolean,
+  brand: Brand,
+): NtwinePaths {
+  const resolved = layout(env, platform, home, false, brand)
+  const legacyRoot = legacyNtwineRoot(home, brand)
   if (
     exists(legacyRoot) &&
     !isStrayBoard(legacyRoot, exists) &&
     !supersededByInstall(legacyRoot, resolved.data, exists) &&
     !yieldsToExplicitData(legacyRoot, xdg(env, "XDG_DATA_HOME"), exists)
   ) {
-    return layout(env, platform, home, true)
+    return layout(env, platform, home, true, brand)
   }
   return resolved
 }

@@ -47,6 +47,40 @@ test("an existing ~/.ntwine keeps every root, on every platform, whatever XDG sa
   }
 })
 
+// The rename to Ntwine moves nothing: a Frizz-era install is still the install, in either layout, until
+// an Ntwine one of its own exists.
+test("a Frizz-era install keeps its frizz roots; a fresh machine and an Ntwine install get ntwine", () => {
+  const base = mkdtempSync(join(tmpdir(), "ntwine-paths-frizz-"))
+  const linux = { home: base, platform: "linux" as const, env: {}, ...disk }
+  try {
+    assert.equal(ntwinePaths(linux).data, join(base, ".local", "share", "ntwine"))
+    mkdirSync(join(base, ".local", "share", "frizz"), { recursive: true })
+    assert.equal(ntwinePaths(linux).brand, "ntwine", "an empty frizz root is not an install")
+    writeFileSync(join(base, ".local", "share", "frizz", "registry.json"), "{}")
+    assert.deepEqual(ntwinePaths(linux), {
+      data: join(base, ".local", "share", "frizz"),
+      state: join(base, ".local", "state", "frizz"),
+      cache: join(base, ".cache", "frizz"),
+      legacy: false,
+      brand: "frizz",
+    })
+    assert.equal(ntwinePaths({ ...linux, platform: "darwin" }).data, join(base, "Library", "Application Support", "Ntwine"), "darwin looks in its own place")
+    mkdirSync(join(base, ".local", "share", "ntwine", "projects"), { recursive: true })
+    writeFileSync(join(base, ".local", "share", "ntwine", "registry.json"), "{}")
+    assert.equal(ntwinePaths(linux).brand, "ntwine", "an Ntwine install outranks the Frizz one")
+
+    const legacyHome = mkdtempSync(join(tmpdir(), "ntwine-paths-frizz-legacy-"))
+    mkdirSync(legacyNtwineRoot(legacyHome, "frizz"))
+    writeFileSync(join(legacyNtwineRoot(legacyHome, "frizz"), "registry.json"), "{}")
+    const legacy = ntwinePaths({ ...linux, home: legacyHome })
+    assert.equal(legacy.data, join(legacyHome, ".frizz"))
+    assert.equal(legacy.legacy, true)
+    rmSync(legacyHome, { recursive: true, force: true })
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
 // `~/.ntwine` is also the name the home folder's own BOARD would have. A Home-workspace worker writing
 // the conventional relative `.ntwine/threads/<id>/` from its cwd must not flip an XDG install onto an
 // empty legacy root at the next boot — every project gone from the page.

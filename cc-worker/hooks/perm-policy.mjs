@@ -41,6 +41,7 @@
 // FAIL-SAFE: any error at all → emit nothing → the prompt is raised and the human decides. Note this
 // inverts the old observer's "fail open": for a hook that can APPROVE, the safe failure is to fall
 // back to asking, never to allow.
+import '../lib/legacy-env.mjs';
 import { readFileSync, mkdirSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 

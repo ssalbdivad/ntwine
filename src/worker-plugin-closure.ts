@@ -46,6 +46,8 @@ export const WORKER_PLUGIN_REQUIRED_FILES = [
   "cc-worker/bin/ntwinectl",
   "cc-worker/bin/ntwinectl.mjs",
   "cc-worker/lib/ntwine-tools.mjs",
+  "cc-worker/lib/legacy-env.mjs",
+  "cc-worker/bin/frizzctl",
   "board/config.mjs",
   "board/agent-bindings.mjs",
   "board/index.mjs",

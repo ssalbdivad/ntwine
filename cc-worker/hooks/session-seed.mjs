@@ -23,6 +23,7 @@
 // A fresh worker never runs `ntwine on`, so such a cc is already dormant; we write cc's own per-session
 // `off` sentinel anyway via the shared config API (board survives as cc-worker's board
 // implementation) so a stale install is guaranteed inert. Cheap belt-and-suspenders. See DECISIONS.md.
+import '../lib/legacy-env.mjs';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
