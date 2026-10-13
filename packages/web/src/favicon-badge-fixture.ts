@@ -26,7 +26,7 @@ base.onload = () => {
     const row = document.createElement("div")
     row.dataset.strip = label
     row.style.cssText = `display:flex;align-items:center;gap:12px;padding:8px 12px;background:${background};color:${color}`
-    for (const [src, px] of [16, 32].flatMap((px) => ["/favicon.svg?v=7", ...badges].map((src): [string, number] => [src, px]))) {
+    for (const [src, px] of [16, 32].flatMap((px) => ["/favicon.svg?v=8", ...badges].map((src): [string, number] => [src, px]))) {
       const img = document.createElement("img")
       img.src = src
       img.width = img.height = px
@@ -37,4 +37,4 @@ base.onload = () => {
   }
   window.specimenReady = true
 }
-base.src = "/favicon.svg?v=7"
+base.src = "/favicon.svg?v=8"

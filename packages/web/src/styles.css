@@ -41,12 +41,12 @@
      while a file click still fell back to the overlay drawer. */
   --breakpoint-split: 1200px;
 
-  /* A parked PR watcher's mark. Fitted to the accent-yellow/shell-blue pair in OKLCH rather than picked
+  /* A parked PR watcher's mark. Fitted to the accent teal/shell-blue pair in OKLCH rather than picked
      — see the .ntwine-live-dot--github rule below for the numbers and for why it is violet and not the
      green that fits the same numbers. */
   /* Live-work indicators split by runtime concern: a background SHELL/Monitor pulses blue, a
-     sub-agent pulses the accent-yellow. The blue is a clear azure, kept distinct from --color-live
-     green and the accent gold so the two live states never blur. */
+     sub-agent pulses the accent teal. The blue is a clear azure, kept distinct from --color-live
+     green and the accent teal so the two live states never blur. */
 
   /* CODE TOKEN COLOURS — one palette, every code surface in the app.
 
@@ -356,7 +356,7 @@ body {
   flex: 0 0 auto;
   border-radius: 9999px;
   /* One local hue drives the fill, the ring, AND the pulse halo so a recolored dot stays one color
-     across the whole animation. Defaults to the accent-yellow (a sub-agent); the --shell modifier
+     across the whole animation. Defaults to the accent teal (a sub-agent); the --shell modifier
      swaps in blue for a background shell/Monitor. */
   --live-dot: var(--color-accent);
   background: var(--live-dot);
@@ -365,13 +365,13 @@ body {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--live-dot) 28%, transparent);
   animation: ntwine-live-pulse 1.25s ease-in-out infinite;
 }
-/* Three runtime concerns, three hues: background shells pulse blue, sub-agents pulse the accent-yellow,
+/* Three runtime concerns, three hues: background shells pulse blue, sub-agents pulse the accent teal,
    and a parked PR watcher pulses violet.
 
    FITTED, NOT PICKED, because "make sure it looks of a piece with the yellow and the blue" is a question
    about perceptual lightness and chroma, which hex triples do not answer. In OKLCH:
 
-     accent yellow  #e8b923   L 0.806   C 0.157   H  89.1
+     accent teal    #2dd4bf   L 0.777   C 0.152   H 181.9   (gold #e8b923, L 0.806, until 2026-10-13)
      shell blue     #4a9eff   L 0.693   C 0.165   H 254.0
      watch violet   #b47feb   L 0.693   C 0.161   H 305.0
 
@@ -543,7 +543,7 @@ body {
   flex: 0 0 auto;
   border-radius: 9999px;
   /* Quiet-live is a SHELL state (a dev server/Monitor waiting), so it inherits the same shell-blue
-     hue as the bright shell dot — just muted toward gray. Keeps the accent-yellow default for safety. */
+     hue as the bright shell dot — just muted toward gray. Keeps the accent teal default for safety. */
   --live-dot: var(--color-accent);
   --quiet-dot: color-mix(in srgb, var(--live-dot) 55%, var(--color-muted));
   background: var(--quiet-dot);
@@ -2400,7 +2400,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
   .btn-ghost {
     @apply px-2.5 py-1.5 rounded-md text-[12px] text-muted transition-colors hover:text-fg hover:bg-panel-2 outline-none;
   }
-  /* Primary button. Neutral-bright inversion (light on dark), NOT accent — yellow is reserved solely
+  /* Primary button. Neutral-bright inversion (light on dark), NOT accent — the accent is reserved solely
      for the focus motif (nav chevron, focused borders, composer focus ring). */
   .btn-accent {
     @apply px-3 py-1.5 rounded-md text-[12px] font-medium bg-fg text-bg transition-opacity hover:opacity-90 disabled:opacity-40 outline-none;
@@ -2483,7 +2483,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    color/width/offset actually interpolate. */
 [data-queue-flash] { animation: queue-flash 1.1s ease-out; }
 @keyframes queue-flash {
-  0%, 15% { outline: 2px solid var(--color-accent, #e8b923); outline-offset: 2px; }
+  0%, 15% { outline: 2px solid var(--color-accent, #2dd4bf); outline-offset: 2px; }
   100% { outline: 2px solid transparent; outline-offset: 2px; }
 }
 /* Reduced motion still needs the answer to "which card did I just jump to?" — the ring is the ONLY
@@ -2493,7 +2493,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
 @media (prefers-reduced-motion: reduce) {
   [data-queue-flash] {
     animation: none;
-    outline: 2px solid var(--color-accent, #e8b923);
+    outline: 2px solid var(--color-accent, #2dd4bf);
     outline-offset: 2px;
   }
 }
@@ -2503,7 +2503,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    2px outside the border drew two concentric frames, the grey border and the ring around it. The
    arrival flash still rings OUTSIDE and fades as before, leaving this border behind. */
 [data-queue-current] {
-  border-color: color-mix(in srgb, var(--color-accent, #e8b923) 60%, var(--color-border-strong));
+  border-color: color-mix(in srgb, var(--color-accent, #2dd4bf) 60%, var(--color-border-strong));
 }
 
 /* Queue card EXIT — Everything's card slot (AllQueuesCard.tsx, and AllQueues.tsx for a command card).
@@ -2784,7 +2784,7 @@ html[data-vt-door="expand"]::view-transition-old(thread-chat) {
   [data-schedule-slot] .overlay-in { animation: none; }
   [data-sched-flash] {
     animation: none;
-    outline: 2px solid var(--color-accent, #e8b923);
+    outline: 2px solid var(--color-accent, #2dd4bf);
     outline-offset: 2px;
   }
 }

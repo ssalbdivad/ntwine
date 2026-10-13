@@ -1,6 +1,6 @@
 # ntwine mark
 
-Three threads come in, plait through three crossings, and leave as three: n threads, entwined. Gold on the same dark tile as the mark it replaces (the cursive `fff`, whose history is in [`../logo-concepts/`](../logo-concepts/)).
+Three threads come in, plait through three crossings, and leave as three: n threads, entwined. Teal (`#2dd4bf`, the dark-theme accent) on the same dark tile as the mark it replaces (the cursive `fff`, whose history is in [`../logo-concepts/`](../logo-concepts/)).
 
 [`ntwine-concepts.html`](ntwine-concepts.html) is every direction tried — plaits, ropes, rings, an `n` built from strands — round by round, each with what it taught, rendered at 512, 180, 32 and 16. Self-contained; open it from disk.
 
@@ -13,7 +13,7 @@ Three threads come in, plait through three crossings, and leave as three: n thre
 | `candidates.ts` | Every round's candidates and findings. |
 | `concepts.ts` | Renders `ntwine-concepts.html`. |
 | `render.ts` | Rasterizes SVG in puppeteer's headless shell. |
-| `final/` | `favicon.svg` (the app icon), `mark.svg` (gold, no tile), `mark-mono.svg` (line art, `currentColor`), `tile.png`, and the PNG set. |
+| `final/` | `favicon.svg` (the app icon), `mark.svg` (teal, no tile), `mark-mono.svg` (line art, `currentColor`), `tile.png`, and the PNG set. |
 
 ## Rebuild and install
 
@@ -50,3 +50,7 @@ Every PNG comes from Chrome's rasterizer (this machine has no `rsvg-convert`). `
 - **32:** still a plait.
 - **16:** three bars top and bottom with an X between. It reads as a woven glyph, not as three threads; nothing woven with three strands survives 16px as a weave. It is cleaner than the `fff`, which landed there as a mottled block.
 - **VS Code:** line art with a 0.7px pen, per the rule `package-contents.test.ts` pins. Not re-measured against the codicons for this mark.
+
+## Colour
+
+The ink was gold until 2026-10-13; it is teal-400 (`#2dd4bf`) now, to match the app's new accent. The three radial stops keep the gold's oklch lightness steps about its accent (+0.105, +0.012, −0.100) and its chroma ratios, at hue 182: `#87f1e0` · `#36d8c3` · `#11b29f`, with the tile glow in `#2dd4bf`. The concept rounds render in teal too; their findings still say "gold" because that is what was judged.

@@ -79,7 +79,7 @@ function wrapper(fragment: string): string {
   --primary: #e6e7e9; --primary-foreground: #0d0e10; --secondary: #26282d;
   --secondary-foreground: #e6e7e9; --muted: #181b20; --muted-foreground: #8b8f96;
   --accent: #26282d; --accent-foreground: #e6e7e9; --destructive: #ef6461;
-  --border: #33363c; --input: #33363c; --ring: #e8b923;
+  --border: #33363c; --input: #33363c; --ring: #2dd4bf;
   --viz-series-1: #7aa2f7; --viz-series-2: #4ac97e; --viz-series-3: #e8b923;
   --viz-series-4: #bb9af7; --viz-series-5: #f7768e; --viz-series-6: #7dcfff;
   --font-size-base: 13px;
