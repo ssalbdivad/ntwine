@@ -7,7 +7,9 @@ description: What leaves your machine, what lands in your repo, and the rest.
 
 <Accordion title="Does Ntwine run its own agent or model?">
 
-No. It drives Claude Code, Codex or an ACP agent under the account you are signed in to on your machine: your subscription, your rate limits, your settings. Its own small jobs — naming a thread, its status line, choosing an effort for auto, reading a schedule from a prompt — are short calls on that same Claude sign-in, and **Settings → Background summaries** turns them all off. Ntwine runs its own pinned copy of Claude Code and Codex — the exact build it was tested against — rather than whichever version is on your PATH. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another one.
+No. It drives Claude Code, Codex or an ACP agent under the account you're signed in to on your machine, with your subscription, your rate limits and your settings. Ntwine does make a few short calls of its own on that same Claude sign-in: naming a thread, writing its status line, choosing an effort for auto, and reading a schedule from a prompt. **Settings → Background summaries** turns them all off.
+
+Ntwine runs its own pinned copy of Claude Code and Codex, the exact build it was tested against, rather than whichever version is on your PATH. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another one.
 
 </Accordion>
 
@@ -19,13 +21,17 @@ Nothing from Ntwine. There's no account and no telemetry, and the server binds t
 
 <Accordion title="What happens if I close the tab?">
 
-Nothing. Each thread's agent runs in its own detached background process, independent of the browser and of Ntwine itself — you can stop Ntwine entirely and your agents keep working. Relaunch, and it reconnects to the sessions still running.
+Nothing. Each thread's agent runs in its own detached background process, independent of the browser and of Ntwine itself. You can stop Ntwine entirely and your agents will keep working. When you relaunch, it reconnects to the sessions that are still running.
 
 </Accordion>
 
 <Accordion title="Does it put junk in my repo?">
 
-Barely. Starting a thread writes no thread file into your repo. All Ntwine adds is a `.ntwine/` directory holding a scratch folder per thread (empty unless the agent writes something) and a couple of small state files. Everything durable lives outside your checkout — under `~/.ntwine/` if you already have one, and otherwise in your platform's data directory (`~/Library/Application Support/Ntwine` on macOS, `$XDG_DATA_HOME/ntwine` on Linux, LocalAppData on Windows) — so you can delete `.ntwine/` and keep every thread and setting. Ntwine never touches your `.gitignore`: `.ntwine/` ignores itself with a `.gitignore` of its own, so it stays out of `git status`.
+Barely. Starting a thread doesn't write a thread file into your repo. All Ntwine adds is a `.ntwine/` directory with a scratch folder per thread (empty unless the agent writes something) and a couple of small state files.
+
+Everything durable lives outside your checkout. That's `~/.ntwine/` if you already have one, and otherwise your platform's data directory (`~/Library/Application Support/Ntwine` on macOS, `$XDG_DATA_HOME/ntwine` on Linux, LocalAppData on Windows). You can delete `.ntwine/` and keep every thread and setting.
+
+Ntwine never touches your `.gitignore`. `.ntwine/` ignores itself with a `.gitignore` of its own, so it stays out of `git status`.
 
 </Accordion>
 
@@ -37,7 +43,7 @@ No. Ntwine doesn't own your git workflow and won't create branches or worktrees 
 
 <Accordion title="Can I run it on several repos at once?">
 
-Yes. One Ntwine server serves every project on your machine. Run `npx ntwine` in any of them and each gets its own board, with its own threads, settings and state; **All projects** shows them together.
+Yes. One Ntwine server serves every project on your machine. Run `npx ntwine` in any of them and each one gets its own board, with its own threads, settings and state. **All projects** shows them together.
 
 </Accordion>
 
@@ -53,9 +59,9 @@ macOS, Linux and Windows, in a browser or in VS Code, Cursor and Windsurf.
 
 </Accordion>
 
-<Accordion title="How is this different from other orchestrator apps?">
+<Accordion title="How is this different from other agent orchestrators?">
 
-Those apps wrap your agents in their own workflow. Ntwine doesn't: it's a viewer and a queue over the CLIs you already run, with every piece of orchestration judgment sitting in editable text instead of inside the binary.
+Ntwine doesn't wrap your agents in a workflow of its own. It's a viewer and a queue over the CLIs you already run, and every piece of orchestration judgment lives in text you can edit rather than inside the binary.
 
 </Accordion>
 

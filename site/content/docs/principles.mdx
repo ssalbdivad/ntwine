@@ -1,40 +1,40 @@
 ---
 title: Principles
-description: The commitments Ntwine is built on, and the few places it bends one on purpose.
+description: Colin McDonnell's design principles, which Ntwine keeps, and the few places it bends one on purpose.
 ---
 
-Colin McDonnell designed Ntwine around a few commitments. Every feature is held to them.
+These principles are Colin McDonnell's. He designed Frizz around them ([colinhacks/frizz](https://github.com/colinhacks/frizz)), and Ntwine keeps every one. I'm grateful he thought them through so carefully, because they're a big part of why the product works. Every feature is held to them.
 
 ## The agent decides, and Ntwine checks
 
-- **A thread's state is its agent's own last word.** The final message says whether the work is done, needs you, or is waiting on something, and Ntwine only checks that it holds up. There is no status field to set.
-- **Ntwine never acts on an agent's behalf.** It does not answer, withdraw, park or queue for one. The few deliberate exceptions are [listed below](#where-ntwine-bends-one).
-- **What must outlive a message is recorded.** A question, a finish and a watch are records, not sentences, and a wait always names what it waits on.
-- **A gate can refuse, and it has no bypass.**
-- **A question stays open until it is answered, dismissed or withdrawn.** Typing past it leaves it open. Nothing retracts it by omission. See [questions](/docs/questions).
-- **Every card can be answered or archived.** Nothing enters the [queue](/docs/queue) just to be dismissed, and a running thread never enters it.
+- A thread's state is its agent's own last word. The final message says whether the work is done, needs you, or is waiting on something. Ntwine only checks that it holds up, and there's no status field to set.
+- Ntwine never acts on an agent's behalf. It doesn't answer, withdraw, park or queue for one. The few deliberate exceptions are [listed below](#where-ntwine-bends-one).
+- What must outlive a message gets recorded. A question, a finish and a watch are records, not sentences, and a wait always names what it's waiting on.
+- A gate can refuse, and it has no bypass.
+- A question stays open until it's answered, dismissed or withdrawn. Typing past it leaves it open, and nothing retracts it by omission. See [questions](/docs/questions).
+- Every card can be answered or archived. Nothing enters the [queue](/docs/queue) just to be dismissed, and a running thread never enters it.
 
-## The board shows what is true, densely
+## The board shows what's true, densely
 
-- **Five bands: Pinned, Queue, Running, Snoozed, Done.** Every thread is in exactly one, no view loses that, and on a board the first three never fold.
-- **Projects stay separate.** The default view is one [project's board](/docs/projects). All projects is one click away.
-- **Density over decoration, and few settings.** The default view shows at least as much as the original board at heavy load (17 projects, ~70 threads), and a test holds it there.
+- There are five bands: Pinned, Queue, Running, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
+- Projects stay separate. The default view is one [project's board](/docs/projects), and All projects is one click away.
+- Density over decoration, and few settings. The default view shows at least as much as the original board at heavy load (17 projects, ~70 threads), and a test holds it there.
 
 ## Ntwine is the process that outlives the agent
 
-- **One server, every project.** Agents run detached and talk to Ntwine over pipes, so closing the tab, the browser or Ntwine itself never stops a turn.
-- **A wait outlives the session that set it.** A watch on a [pull request or issue](/docs/github), or on [another thread](/docs/handles), lasts as long as the server does, for years if need be, and wakes the thread the moment CI settles, a review or comment lands, or the other thread answers. Agents respond on their own, without polling and without you relaying.
+- One server serves every project. Agents run detached and talk to Ntwine over pipes, so closing the tab, the browser or Ntwine itself never stops a turn.
+- A wait outlives the session that set it. A watch on a [pull request or issue](/docs/github), or on [another thread](/docs/handles), lasts as long as the server does, for years if need be. It wakes the thread the moment CI settles, a review or comment lands, or the other thread answers, and the agent responds on its own. No polling, and no relaying on your part.
 
 ## Ntwine brings nothing of its own
 
-- **No model of its own.** Ntwine drives [your CLIs](/docs/agents) on your sign-in. The few small model calls it makes itself sit behind one switch, **Settings → Background summaries**.
-- **No workflow of its own.** No branches or worktrees behind your back, no build steps, and no universal timeout on a background shell, since some run for days. Your norms go in [`NTWINE.md`](/docs/ntwine-md).
+- No model of its own. Ntwine drives [your CLIs](/docs/agents) on your sign-in. The few small model calls it makes itself sit behind one switch, **Settings → Background summaries**.
+- No workflow of its own. No branches or worktrees behind your back, no build steps, and no universal timeout on a background shell, since some run for days. Your norms go in [`NTWINE.md`](/docs/ntwine-md).
 
 ## Where Ntwine bends one
 
-Each of these departs from "Ntwine only checks" on purpose, and each can be turned off or ignored:
+Each of these departs from "Ntwine only checks" on purpose, and each one can be turned off or ignored:
 
-- **A default answer.** A question unanswered 10m after its thread rests takes the agent's recommended option, never one that posts, merges, publishes or spends. The <kbd>×</kbd> under the card turns it off.
+- **A default answer.** If a question is still unanswered 10m after its thread rests, it takes the agent's recommended option. That never applies to an option that posts, merges, publishes or spends. The <kbd>×</kbd> under the card turns it off.
 - **A check-in on sub-agents.** A parent waiting on its sub-agents is asked for a progress note every 30m, so a long fan-out never shows one stale line for hours.
 - **Background summaries.** Thread names, status lines, Auto effort and reading a schedule out of a prompt use your Claude sign-in. One setting turns all four off.
 - **Single-key shortcuts.** <kbd>j</kbd>/<kbd>k</kbd>, <kbd>r</kbd>, <kbd>d</kbd> and <kbd>s</kbd> are on. <kbd>?</kbd> lists every [shortcut](/docs/keyboard) and rebinds any of them.

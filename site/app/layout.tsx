@@ -8,11 +8,11 @@ const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans", dis
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 const description =
-  "Run Claude Code, Codex and other coding agents at once from one browser tab. Every agent that needs you becomes a card in one queue. Local only: no account, no telemetry.";
+  "Run Claude Code, Codex and other coding agents side by side from one browser tab. When one needs you, it becomes a card in a single queue. Everything stays local, with no account and no telemetry.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://frizz.sh"),
-  title: { default: "Ntwine — an opinionated agent console", template: "%s · Ntwine" },
+  title: { default: "Ntwine: one tab for all your coding agents", template: "%s · Ntwine" },
   description,
   icons: {
     icon: [
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     description,
     images: [{ url: "/img/og.png", width: 1200, height: 630 }],
   },
-  twitter: { card: "summary_large_image", creator: "@colinhacks" },
+  twitter: { card: "summary_large_image", creator: "@ssalbdivad" },
 };
 
 export default function Layout({ children }: { children: ReactNode }) {
