@@ -602,7 +602,7 @@ test("a watcher that runs out of time tells its worker so", async () => {
     await h.tick()
     assert.equal(h.delivered.length, 1, "an expiry nobody receives is a thread waiting on nothing")
     assert.match(h.delivered[0], /acme\/app#391 has expired/)
-    assert.match(h.delivered[0], /mcp__frizz__watch_pr/, "…and how to re-register it")
+    assert.match(h.delivered[0], /`frizzctl watch-pr add`/, "…and how to re-register it")
     // Settled on the way out, so it cannot fire twice or be polled again.
     await h.tick()
     assert.equal(h.delivered.length, 1, "one expiry, one report")

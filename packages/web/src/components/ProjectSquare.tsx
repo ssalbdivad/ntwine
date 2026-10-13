@@ -121,7 +121,11 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
   // no request means no scan means never any icon. `iconVersion` cannot decide this on its own: it is
   // stamped whenever a scan RAN, found or not. See ProjectCard.iconStatus.
   const hasIcon = project.iconStatus !== "none"
-  const [failed, setFailed] = useState(known === "failed")
+  // The URL that failed, not a flag (upstream ba0cdcf2). A flag outlived the failure: once one request
+  // 404'd, the square drew no image for the rest of its life, so a later rescan, an upload or a found icon
+  // never showed until a reload. A new `iconVersion` is a new URL, and gets its own request.
+  const [failedSrc, setFailedSrc] = useState(known === "failed" ? src : undefined)
+  const failed = failedSrc === src
   const showMonogram = !hasIcon || failed
   // Already on screen once: no fade, and a synchronous decode so the first frame has the pixels.
   const [instant] = useState(loaded)
@@ -180,7 +184,7 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
         }}
         onError={() => {
           iconOutcomes.set(src, "failed")
-          setFailed(true)
+          setFailedSrc(src)
         }}
         // object-contain, never cover: a logo cropped to fill its square is a mangled logo, and the
         // scan admits some non-square marks (a 300×331 `.github/logo.webp` is a real case). The

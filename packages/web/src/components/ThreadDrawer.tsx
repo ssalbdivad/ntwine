@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useSnapshot } from "valtio"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { store, threadBySlug, showToast } from "../store.ts"
@@ -8,6 +8,7 @@ import { useInnerHtml } from "../lib/innerHtml.ts"
 import { stripFrontmatter } from "../lib/markdown.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { canAdoptThread } from "../lib/adoption.ts"
+import { useMermaidIslands } from "./CodexRichOutput.tsx"
 import { Composer } from "./Composer.tsx"
 import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
@@ -72,6 +73,9 @@ export function ThreadDrawer({ id, slug, title, depth, widthDepth }: { id: numbe
 
   const html = useMarkdownHtml(stripFrontmatter(body.data?.markdown ?? ""))
   const inner = useInnerHtml(html)
+  // A ```mermaid fence in the thread's document is a diagram, as in every other reader.
+  const docRef = useRef<HTMLDivElement>(null)
+  const diagrams = useMermaidIslands(docRef, html)
 
   return (
     // A3 fix: the doc is a "flip" surface of the CHAT drawer for the SAME thread, not a genuine extra
@@ -90,7 +94,10 @@ export function ThreadDrawer({ id, slug, title, depth, widthDepth }: { id: numbe
             {body.isLoading ? (
               <div className="text-[13px] text-muted">Loading…</div>
             ) : html ? (
-              <div className="md-body" dangerouslySetInnerHTML={inner} />
+              <>
+                <div ref={docRef} className="md-body" dangerouslySetInnerHTML={inner} />
+                {diagrams}
+              </>
             ) : (
               <div className="text-[13px] text-muted">No thread file found.</div>
             )}

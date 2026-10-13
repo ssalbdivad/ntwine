@@ -5,12 +5,12 @@ import { bindHostIsExposed } from "@frizz/server/local-origin";
 // The registry launcher is intentionally separate from index.ts. `frizz-dev` follows mutable
 // checkout source; `frizz` runs the package that npm resolved and never turns an npx cache into a
 // deployment directory.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { launchApp, launchBrowserTab } from "./browser.ts";
-import { loadSessionState, sessionEpochLogLine, sessionEpochNotice } from "@frizz/server/access-codes";
+import { adoptSessionState, loadSessionState, sessionEpochLogLine, sessionEpochNotice } from "@frizz/server/access-codes";
 import { qrAreaOf, renderQrLines } from "@frizz/server/qr";
 import { listSessions, signOutSession } from "./sessions-cli.ts";
 import { SUPERVISOR_ACCESS_CODE_PATH } from "@frizz/server/restart-supervisor";
@@ -36,7 +36,10 @@ import {
   cleanupSandbox,
   parseCliArgs,
   prepareSandbox,
+  askLaunchRoute,
+  hostWorkspace,
   probeFrizz,
+  readFrizzHealth,
   readPreferredPort,
   resolveLaunchIntent,
   resolveLaunchControlTarget,
@@ -59,8 +62,9 @@ import {
 } from "@frizz/server/project-launch";
 import { createSupervisorShutdownHandler, startDevSupervisor } from "@frizz/server/dev-supervisor";
 import { planRegistryUpdate, PRODUCTION_PRINT_LAUNCHER_FLAG, PRODUCTION_REEXEC_FLAG, reexecArgv } from "./production-update.ts";
-import { npmServerPackageInstaller, serverGenerationLaunch, serverReleaseSpec, ServerReleaseStore, type ServerGeneration } from "./server-release.ts";
-import { acquireStableServerOwner, publishStableServerAddress, releaseStableServerOwner, type ServerOwnerLease } from "./server-owner.ts";
+import { npmServerPackageInstaller, serverGenerationLaunch, serverReleaseMinimum, serverReleaseSpec, ServerReleaseStore, type ServerGeneration } from "./server-release.ts";
+import { acquireStableServerOwner, publishStableServerAddress, readStableServerOwner, releaseStableServerOwner, type ServerOwnerLease } from "./server-owner.ts";
+import { offerPath, type LaunchRoute } from "@frizz/server/launch-routing";
 import { GLOBAL_INSTALL_ENV, isGlobalInstall, keepUpdateHint } from "./production-update.ts";
 import {
   assertLaunchPrerequisites,
@@ -187,7 +191,15 @@ let serverOwner: ServerOwnerLease | undefined;
 // retain its draining fence until their exact process generations are gone.
 process.on("exit", () => { if (serverOwner) releaseStableServerOwner(serverOwner); });
 
-let launchIntent: LaunchIntent | undefined;
+/**
+ * The folder the command was typed in. It is what the launch is ABOUT — and nothing else: the server
+ * is never run on it, and this launcher holds no rule about it that a running server can answer.
+ * A terminal left standing in a folder that has since been deleted has no cwd to read at all; that
+ * launch is about nothing, which the home folder says (it is never a project).
+ */
+const launchDir = (() => {
+  try { return process.cwd(); } catch { return homedir(); }
+})();
 const workspace: Workspace = (() => {
   try {
   // BEFORE workspace preparation, so a machine running a Node the server's database cannot survive
@@ -208,18 +220,37 @@ const workspace: Workspace = (() => {
     if (!pinned) throw new Error("registry successor is missing its pinned project identity");
     return workspaceFromLaunchTarget(pinned);
   }
-  // ONE launch policy for both launchers. This called resolveWorkspace directly, which adopts
-  // whatever directory it is handed — so `frizz` in $HOME minted a project id inside Frizz's own
-  // `~/.frizz` state root, the failure frizz-dev was fixed for in 95d81bd and this file was not.
-  // Only a directory Frizz already knows opens as itself now; see resolveLaunchIntent.
-  const intent = resolveLaunchIntent();
-  launchIntent = intent;
-  return intent.workspace;
+  // ALWAYS Frizz's own folder, whatever folder the command was typed in. The server was run on the
+  // project being opened until now, which made a rule about folders something this launcher had to
+  // hold BEFORE any server existed to ask: which folder is a project, which to offer, which to
+  // refuse. Four of the seven shell releases between 2026-10-01 and 2026-10-11 changed nothing else,
+  // at hours each in npm's review. It also tied every board on the machine to one user folder —
+  // delete or unmount it and nothing could restart or update. The folder is now only what the launch
+  // is about, and the server answers that once it is up (resolveLanding, below);
+  // plans/server-side-launch-routing.md.
+  return hostWorkspace();
   } catch (error) { return fail(error); }
 })();
 // No `process.chdir(workspace.root)`: the launcher stays in the folder the command was typed in.
 // It moved into the hosting project until 2026-10-11, a habit from one server per repository, and a
 // host folder deleted later left every child the launcher started without a working directory.
+
+/**
+ * The port of the Frizz running on this machine, for the flags that talk to it rather than start it.
+ * The machine-wide record first: it names a board whichever folder it was started on, including one
+ * an older launcher is still running on a project.
+ */
+function runningBoardPort(): number | undefined {
+  const machine = readStableServerOwner();
+  if (machine.kind === "running") return machine.port;
+  return liveWorkspaceOwner(workspace.stateDir, workspaceLaunchTarget(workspace))?.port;
+}
+
+/** Where `--stop` and `--status` look for a board whose record is not under Frizz's own folder. */
+function controlPorts(): number[] {
+  const machine = readStableServerOwner();
+  return [...new Set([...(machine.kind === "running" ? [machine.port] : []), DEFAULT_PORT, fallbackPort(DEFAULT_PORT)])];
+}
 if (options.stop) {
   // The farewell after a detached update has said "stop it with frizz --stop" since 0.12.10, and
   // `--help` never listed it, because nothing here handled it: the flag fell through to the join
@@ -227,31 +258,31 @@ if (options.stop) {
   // finding 2). The protocol is the dev launcher's (src/index.ts stopWorkspace): token-bound HTTP
   // stop, then reap only a provably stale owner — never a signal to a pid that might be recycled.
   try {
-    // One server, every project: the record may belong to the project the board was launched from.
-    const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace) });
-    const where = control.host ? workspace.root : `${workspace.root} (the board was launched from ${control.target.projectDir})`;
+    // One server, every project, so there is one board to stop and the folder this was typed in does
+    // not choose it. Its record is under Frizz's own folder — or, for a board an older launcher is
+    // still running, under the project that launcher started it on, which its ports name.
+    const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace), ports: controlPorts() });
     const result = await stopProjectLaunch({ stateDir: control.stateDir, target: control.target });
     console.log(
       result.kind !== "stopped"
-        ? `Frizz is not running for ${where}`
+        ? "Frizz is not running"
         : result.stale
           // A board that died without releasing its record (a kill, a crash) reads as "running" to
           // every later launch until someone reaps it; say what happened rather than claiming a stop.
-          ? `Frizz was not running for ${where}; cleared the record a dead board left behind`
-          : `stopped Frizz for ${where}; running agents keep going — they are detached daemons`,
+          ? "Frizz was not running; cleared the record a dead board left behind"
+          : "stopped Frizz; running agents keep going — they are detached daemons",
     );
     process.exit(0);
   } catch (error) { fail(error); }
 }
 if (options.status) {
-  const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace) });
+  const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace), ports: controlPorts() });
   const running = await runningFrizzStatus({ stateDir: control.stateDir, target: control.target });
   if (!running) {
-    console.log(`Frizz is not running for ${workspace.root}`);
+    console.log("Frizz is not running");
     process.exit(1);
   }
   console.log(`running: http://127.0.0.1:${running.port}`);
-  console.log(`workspace: ${workspace.root}`);
   if (!control.host) console.log(`launched from: ${control.target.projectDir} (one server serves every project)`);
   console.log(`supervisor pid: ${running.pid}`);
   console.log(`version: ${running.version ?? "unknown"}`);
@@ -261,26 +292,26 @@ if (options.status) {
 if (options.sessions || options.signOut !== undefined) {
   // Reads and writes the RUNNING board's session directory, so there is nothing useful to say when
   // no board is up — starting one here would create an empty directory and answer a different question.
-  const running = liveWorkspaceOwner(workspace.stateDir, workspaceLaunchTarget(workspace));
-  if (!running?.port) {
-    console.error("frizz: no board is running for this workspace");
+  const port = runningBoardPort();
+  if (!port) {
+    console.error("frizz: Frizz is not running");
     process.exit(1);
   }
-  if (options.signOut !== undefined) await signOutSession(running.port, options.signOut);
-  await listSessions(running.port);
+  if (options.signOut !== undefined) await signOutSession(port, options.signOut);
+  await listSessions(port);
 }
 if (options.link) {
   // Mint from the RUNNING board rather than starting one — the same query frizz-dev answers
   // (src/index.ts): the answer for a board running detached or in someone else's terminal, where
   // the interactive QR pane cannot install.
-  const running = liveWorkspaceOwner(workspace.stateDir, workspaceLaunchTarget(workspace));
-  if (!running?.port) {
-    console.error("frizz: no board is running for this workspace");
+  const port = runningBoardPort();
+  if (!port) {
+    console.error("frizz: Frizz is not running");
     process.exit(1);
   }
-  const response = await fetch(`http://127.0.0.1:${running.port}${SUPERVISOR_ACCESS_CODE_PATH}`, {
+  const response = await fetch(`http://127.0.0.1:${port}${SUPERVISOR_ACCESS_CODE_PATH}`, {
     method: "POST",
-    headers: { origin: `http://127.0.0.1:${running.port}` },
+    headers: { origin: `http://127.0.0.1:${port}` },
   }).catch(() => undefined);
   if (!response?.ok) {
     const detail = response ? (await response.json().catch(() => undefined))?.error : undefined;
@@ -319,7 +350,7 @@ readout?.plan([
   { key: "browser", label: options.noApp ? "Address" : "Browser" },
 ]);
 readout?.begin("server", "starting");
-logger.info("launcher", `Frizz launcher ${PACKAGE_VERSION} starting for ${workspace.root}`);
+logger.info("launcher", `Frizz launcher ${PACKAGE_VERSION} starting in ${launchDir}`);
 const target = workspaceLaunchTarget(workspace);
 const expected = expectedOwnerHealth(target, readProjectLaunchOwner(workspace.stateDir));
 
@@ -331,94 +362,94 @@ async function existingPort(): Promise<number | undefined> {
 }
 
 /**
- * A Frizz already running on this machine, serving THIS project under its own slug.
+ * THE RULES THIS LAUNCHER CARRIED before the server answered for itself — FROZEN.
  *
- * The singleton's payoff at the CLI: a second `frizz` in another repository is a client, not a
- * server. It registers the project (which is what mints the slug), then asks the machine's Frizz for
- * that project's health — a request which, by activating the tenant, is also what opens it.
- *
- * The identity check is the launcher's own handshake minus the owner proof. That proof is keyed to a
- * launch LEASE and a client holds none; what a client needs to know is that this port serves ITS
- * project id from ITS directory, and that is exactly what the id and dir already answer. The proof
- * still guards the case it was written for — a launcher adopting the supervisor it believes it owns.
- *
- * A COPIED checkout (`cp -R`, so two directories claim one id) is deliberately not joined here: the
- * registry refuses the duplicate, and the re-mint belongs to resolveProject, which does it properly.
+ * Which folder is a project, whether to register it, and where the browser lands are the running
+ * server's to say (resolveLanding). These are what a launch falls back on when it cannot: a server
+ * that predates the route, or one that is not answering. They are evaluated LAZILY, and never on
+ * the way to a cold start, so no rule about folders runs before a server exists to own it. Change
+ * the rule in packages/server/src/launch-routing.ts, not here — an edit here reaches nobody until
+ * the next shell release, which is the thing this split exists to avoid.
  */
+let legacyIntentCache: LaunchIntent | undefined;
+function legacyIntent(): LaunchIntent {
+  return (legacyIntentCache ??= resolveLaunchIntent(launchDir));
+}
+
 /**
- * This project's URL segment, registering it if the machine has not seen it before.
- *
- * `/` is the project GRID now, so a board — including the one we are about to launch — lives at
- * `/<slug>`. Both the join path and the launch path want the same answer, and registration is
- * idempotent: an id already in the registry keeps the slug it was given.
+ * The project a launch here opens under those rules, registered — which is what mints its URL
+ * segment — or undefined when it opens none. Registration is idempotent: an id already in the
+ * registry keeps the segment it was given.
  */
-function ownSlug(launched = false): string | undefined {
+function legacyProject(): { id: string; root: string; name: string; slug: string } | undefined {
+  const intent = legacyIntent();
+  if (intent.kind !== "open") return undefined;
+  const { id, root, name } = intent.workspace;
   try {
-    return registerProject(
-      { dir: workspace.root, id: target.projectId, remoteOwner: resolveProjectLabel(workspace.root)?.split("/")[0], launched },
-      homedir(),
-    ).entry?.slug;
+    // `launched`: this registration IS a launch — `frizz` run here — so it stamps lastLaunchedAt, the
+    // board a bare `/` opens in a browser with no view on record and the project All projects' prompt
+    // box aims a new thread at (web lib/crossProject.ts lastViewHref, defaultCrossProjectFocus). The
+    // server's own answer stamps it the same way (launch-routing.ts routeLaunch). Only an `open` launch
+    // is from a project; internal relaunches (a supervisor child, an update re-exec) never land here.
+    const slug = registerProject({ dir: root, id, remoteOwner: resolveProjectLabel(root)?.split("/")[0], launched: true }, homedir()).entry?.slug;
+    return slug ? { id, root, name, slug } : undefined;
   } catch {
-    // The registry is an INDEX. If it cannot be written, opening the board unprefixed still works.
+    // The registry is an INDEX. If it cannot be written the dashboard still opens.
     return undefined;
   }
 }
 
-let cachedSlugPath: string | undefined;
 /**
- * Where to land — upstream's answer again (colinhacks/frizz 0a3b9139 src/index.ts slugPath), since a
- * project's board became the default view on 2026-10-06:
+ * Where to land under those rules (upstream's answer since a project's board became the default view
+ * on 2026-10-06, colinhacks/frizz 0a3b9139):
  *
  *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
- *   - run in a repository Frizz has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
- *     whichever view this browser was on last (web routes.tsx LastViewRedirect);
+ *   - run in a repository Frizz has not seen (`offer`): the add-project dialog asking about it,
+ *     `/?add=<dir>`, over whichever view this browser was on last (web routes.tsx LastViewRedirect);
  *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
- *   - no intent (a supervisor child, an update re-exec): `/`, the browser's own last view.
- *
- * From 2026-09-30 until then every launch landed on All projects at a bare `/` (maintainer: "by default
- * frizz should open the all projects view").
+ *   - a project the registry cannot record, or a folder that cannot be opened: `/`, the browser's own
+ *     last view.
  *
  * `?add=` is a REQUEST, not a registration — nothing on disk changes until the operator confirms on
- * the page, which is the only reason an unmarked directory is safe to point the launcher at at all.
+ * the page.
  */
-function slugPath(): string {
-  if (cachedSlugPath === undefined) cachedSlugPath = landingPath();
-  return cachedSlugPath;
-}
-
-function landingPath(): string {
-  if (launchIntent?.kind === "offer") return `/?add=${encodeURIComponent(launchIntent.directory)}`;
-  if (launchIntent?.kind === "everything") return "/all";
-  if (launchIntent?.kind !== "open") return "/";
-  // The registry is an index: a launch it cannot record still opens, on the browser's own last view.
-  const slug = ownSlug();
-  return slug ? `/project/${encodeURIComponent(slug)}` : "/";
-}
-
-async function joinRunningFrizz(): Promise<{ port: number; slug: string } | undefined> {
-  const slug = ownSlug();
-  if (!slug) return undefined;
-  // Compatibility with pre-split launchers, which did not publish the global owner/address record.
-  // New launchers join that record before probing application health, even during child recovery.
-  for (const port of new Set([DEFAULT_PORT, fallbackPort(DEFAULT_PORT)])) {
-    if (await probeFrizz(port, { projectId: target.projectId, projectDir: target.projectDir, slug }))
-      return { port, slug };
+function legacyLanding(): LaunchRoute {
+  try {
+    const intent = legacyIntent();
+    if (intent.kind === "everything") return { path: "/all" };
+    if (intent.kind === "offer") return { path: offerPath(intent.directory) };
+    const project = legacyProject();
+    return project ? { path: `/project/${project.slug}`, project: { name: project.name, dir: project.root } } : { path: "/" };
+  } catch (error) {
+    // The server is up and every other project is on its dashboard; a folder Git cannot read is a
+    // line to print, not a reason to leave the operator with nothing.
+    return { path: "/", notice: `Could not open ${launchDir}: ${error instanceof Error ? error.message : String(error)}` };
   }
-  return undefined;
+}
+
+/** Where this launch lands: the running server's answer, or the frozen rules when it has none. */
+async function resolveLanding(port: number, ownerToken: string | undefined): Promise<LaunchRoute> {
+  const answered = ownerToken ? await askLaunchRoute(port, ownerToken, launchDir) : undefined;
+  if (answered) return answered;
+  logger.info("launcher", "the running server did not say where this launch lands; using this launcher's own rules");
+  return legacyLanding();
 }
 
 /**
- * Record in the machine's registry that `frizz` was just run in THIS project, cold or joining. The launch
- * itself lands on this project's board (slugPath), but the stamp outlives it: it is the board a bare `/`
- * opens in a browser with no view on record, and the project All projects' prompt box aims a new thread at
- * when this browser has neither picked nor focused one (web lib/crossProject.ts lastViewHref,
- * defaultCrossProjectFocus). Only an `open` launch is from a project: an `everything` or `offer`
- * launch is hosted on Frizz's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
- * Internal relaunches (a supervisor child, an update re-exec) carry no intent, so a restart never
- * re-stamps the host over a later launch elsewhere.
+ * A board started by a launcher from before the machine-wide owner record (0.13.0), which this
+ * launcher therefore cannot find by it. Such a board answers on the default ports; a launch that
+ * opens a project joins it when it serves that project, exactly as it always has. Nothing about the
+ * folder is read unless something is actually listening there.
  */
-function noteLaunchedHere(): void {
-  if (launchIntent?.kind === "open") ownSlug(true);
+async function joinPreSplitFrizz(): Promise<number | undefined> {
+  for (const port of new Set([DEFAULT_PORT, fallbackPort(DEFAULT_PORT)])) {
+    if (!(await readFrizzHealth(port))) continue;
+    let project: ReturnType<typeof legacyProject>;
+    try { project = legacyProject(); } catch { return undefined; }
+    if (!project) return undefined;
+    if (await probeFrizz(port, { projectId: project.id, projectDir: project.root, slug: project.slug })) return port;
+  }
+  return undefined;
 }
 
 /**
@@ -430,9 +461,8 @@ function noteLaunchedHere(): void {
  * It printed the URL and stopped there from the day this file was written, so `npx frizz` never
  * opened anything while `frizz-dev` always did — the whole divergence the operator hit.
  */
-async function openOrPrint(port: number, reused: boolean, path = ""): Promise<void> {
-  noteLaunchedHere();
-  const url = `http://127.0.0.1:${port}${path}`;
+async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute): Promise<void> {
+  const url = `http://127.0.0.1:${port}${landing.path}`;
   logger.info("launcher", `${reused ? "reusing" : "started"} Frizz at ${url}`);
   readout?.settle("server", "done", reused ? `already running on port ${port}` : `port ${port}`);
   let browser: string | undefined;
@@ -460,8 +490,9 @@ async function openOrPrint(port: number, reused: boolean, path = ""): Promise<vo
   const warnings: string[] = [];
   if (sandbox) warnings.push(`Sandbox: everything here is throwaway (${sandbox.home}) and is deleted when this terminal closes.`);
   if (sessionNotice && !reused) warnings.push(sessionNotice);
+  if (landing.notice) warnings.push(landing.notice);
   if (!readout) {
-    console.log(`${reused ? "reusing" : "started"} Frizz${launchIntent && launchIntent.kind !== "open" ? "" : ` for ${workspace.root}`}`);
+    console.log(`${reused ? "reusing" : "started"} Frizz${landing.project ? ` for ${landing.project.dir}` : ""}`);
     console.log(url);
     if (publicOrigin) console.log(activeAccessLink?.url ?? `${publicOrigin}/`);
     for (const warning of warnings) console.log(warning);
@@ -472,16 +503,14 @@ async function openOrPrint(port: number, reused: boolean, path = ""): Promise<vo
     [
       { label: "Local", value: boardAddress(url), accent: true },
       ...(publicOrigin ? [{ label: "Public", value: activeAccessLink?.url ?? `${publicOrigin}/`, accent: true }] : []),
-      // Only an `open` launch is ABOUT its workspace; any other is hosted on a project the operator
-      // did not pick (launcher.ts resolveLaunchIntent), and naming it here reads as "you opened this".
-      ...(launchIntent && launchIntent.kind !== "open"
-        ? []
-        : [{ label: "Project", value: `${workspace.name} — ${tildePath(workspace.root, home)}` }]),
+      // Only a launch that OPENED a project names one: the dashboard and an offer are about no
+      // project, and the folder the server runs on is Frizz's own.
+      ...(landing.project ? [{ label: "Project", value: `${landing.project.name} — ${tildePath(landing.project.dir, home)}` }] : []),
       ...(logger.file ? [{ label: "Logs", value: tildePath(logger.file, home) }] : []),
     ],
     reused
       ? // This launch owns nothing and exits immediately, so ctrl-c would not stop what it reopened.
-        "reopened the server already running for this project · stop it from the terminal that started it"
+        "reopened the Frizz already running on this machine · stop it from the terminal that started it"
       : options.debug
         ? undefined
         : publicOrigin
@@ -510,13 +539,22 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
     target,
     owner.token,
   );
-  const spec = serverReleaseSpec(
-    JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8")),
-    process.env.FRIZZ_SERVER_PACKAGE,
-  );
+  const manifest: unknown = JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8"));
+  const spec = serverReleaseSpec(manifest, process.env.FRIZZ_SERVER_PACKAGE);
   const installer = npmServerPackageInstaller(env);
-  const store = new ServerReleaseStore(spec, installer);
-  activityReadout?.notice("progress", "Starting", "loading the selected Frizz server release");
+  const store = new ServerReleaseStore(spec, installer, undefined, undefined, serverReleaseMinimum(manifest));
+  // The one time starting Frizz replaces the server without a click on Update, so it is said out
+  // loud and written down: the selection moves, and the log is where someone asks why it did.
+  const raise = store.belowMinimum();
+  if (raise)
+    logger.info("launcher", `the installed Frizz server ${raise.selected} is older than this launcher works with (${raise.minimum}); starting on ${raise.pinned}`);
+  activityReadout?.notice(
+    "progress",
+    "Starting",
+    raise
+      ? `installing Frizz server ${raise.pinned}: ${raise.selected} is older than this launcher works with`
+      : "loading the selected Frizz server release",
+  );
   let active = await store.load();
   let pending: ServerGeneration | undefined;
   let previous = active;
@@ -562,10 +600,21 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   const updateAvailablePoll = setInterval(() => void refreshUpdateAvailable(), 30 * 60 * 1000);
   updateAvailablePoll.unref();
 
-  // Persisted beside the project's other state, so a restart does not sign every device out.
+  // Persisted in Frizz's own state folder, so a restart does not sign every device out — and neither
+  // does starting Frizz from a different folder, which it did while this lived under whichever
+  // project the launch happened in. The first start here brings that project's state along
+  // (adoptSessionState), so the move itself signs nobody out either.
   // Always, not only when public: the origin can be switched on later (press R), and a phone signed
   // in through one name stays signed in through the next. Loading it also applies SESSION_EPOCH, which
   // signs out every device from before a security bump, once.
+  try {
+    const projects = dirname(workspace.stateDir);
+    const adopted = adoptSessionState(workspace.stateDir, readdirSync(projects).map((name) => join(projects, name)));
+    if (adopted) logger.info("launcher", `carried the remote sign-in state over from ${adopted}`);
+  } catch (error) {
+    // Worst case is the one this avoids: remote devices sign in again, once.
+    logger.warn("launcher", `could not carry the remote sign-in state over: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const sessions = loadSessionState(workspace.stateDir);
   const epochRecord = sessionEpochLogLine(sessions.advance, sessions.signedOut);
   if (epochRecord) logger.warn("launcher", epochRecord);
@@ -695,7 +744,8 @@ try {
   if (globalClaim.kind === "running") {
     if (options.port && options.port !== globalClaim.port)
       throw new Error(`Frizz is already running on port ${globalClaim.port}; --port cannot change a running server`);
-    await openOrPrint(globalClaim.port, true, slugPath());
+    // The token in the record that named this server is what lets a launch in ANY folder ask it.
+    await openOrPrint(globalClaim.port, true, await resolveLanding(globalClaim.port, globalClaim.owner.token));
     process.exit(0);
   }
   serverOwner = globalClaim.lease;
@@ -705,18 +755,17 @@ try {
     if (!token) throw new Error("registry supervisor launch is missing project ownership");
     await runSupervisor(options.port, token);
   }
+  // A Frizz already running on Frizz's own folder that does not hold the machine-wide record — the
+  // source launcher started outside a project. Its launch token is in the record it does publish.
   const existing = await existingPort();
   if (existing) {
-    await openOrPrint(existing, true, slugPath());
+    await openOrPrint(existing, true, await resolveLanding(existing, readProjectLaunchOwner(workspace.stateDir)?.token));
     process.exit(0);
   }
-  // slugPath(), not the joined slug: that slug names the project this launch is HOSTED on, which is
-  // the project to open only when the intent is `open`. An `everything`/`offer` launch is hosted on
-  // Frizz's own stand-in folder and must still land on `/all` or `/?add=` rather than opening someone else's board.
-  const joined = await joinRunningFrizz();
-  if (joined) { await openOrPrint(joined.port, true, slugPath()); process.exit(0); }
+  const preSplit = await joinPreSplitFrizz();
+  if (preSplit) { await openOrPrint(preSplit, true, legacyLanding()); process.exit(0); }
   const claim = tryAcquireProjectLaunchOwner(target, "launcher");
-  if (claim.kind !== "acquired") throw new Error("Frizz is starting for this project; retry shortly");
+  if (claim.kind !== "acquired") throw new Error("Frizz is starting on this machine; retry shortly");
   let release: (() => void) | undefined = await acquireGlobalLaunchLock();
   let portReservation: (() => void) | undefined;
   try {
@@ -758,7 +807,9 @@ try {
     // launch off its remembered port.
     portReservation();
     portReservation = undefined;
-    await openOrPrint(port, false, slugPath());
+    // The server is up, so it says where this launch lands. This launcher holds the machine-wide
+    // token itself: it is the one that took the record.
+    await openOrPrint(port, false, await resolveLanding(port, serverOwner.token));
     await running;
   } finally { release?.(); portReservation?.(); claim.lease.release(); }
 } catch (error) {

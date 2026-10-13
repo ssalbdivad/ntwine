@@ -20,8 +20,8 @@ test("the project cords follow the rows when a box above the rail grows and shri
   skip: !baseUrl,
   timeout: 120_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"], protocolTimeout: 30_000 })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless({ protocolTimeout: 30_000 })
   const errors: string[] = []
   const page = await browser.newPage()
   page.on("console", (message) => { if (message.type() === "error" && !message.text().includes("404")) errors.push(message.text()) })

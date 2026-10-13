@@ -6,7 +6,7 @@ import { crossProjectHref, innerPath, projectSlug } from "./base-path.ts"
 import { spaNavigate } from "./router.ts"
 
 // A worker can emit a markdown link to another frizz thread — `[label](/thread/<slug>)` — e.g. after
-// spawning one via the mcp__frizz__spawn_thread tool. `/thread/<slug>` is a RESERVED SPA route
+// spawning one via the frizzctl spawn-thread command. `/thread/<slug>` is a RESERVED SPA route
 // (markdownTargets.ts isFrizzRoute), so markdown.ts leaves it a normal anchor rather than a local-file
 // button. This one delegated listener intercepts a plain left-click on any such anchor and opens the
 // thread IN THE DRAWER (openThread — dedupes/raises if already open) instead of letting the browser

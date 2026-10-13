@@ -37,7 +37,7 @@ After the manual bootstrap, configure a trusted publisher for `frizz-server` on 
 | Organization or user | `colinhacks` |
 | Repository | `frizz` |
 | Workflow filename | `release.yml` |
-| Environment name | leave blank |
+| Environment name | `npm-publish` (GitHub lets only the `release` branch deploy to it; see the header of `release.yml`) |
 | Allowed actions | allow `npm publish` |
 
 The workflow file is `.github/workflows/release.yml` and already grants `id-token: write`. npm requires the filename only, not its path. Trusted-publisher configurations created after 2026-09-03 are stage-only by default, so direct `npm publish` must be allowed explicitly: a stage-only publisher rejects the workflow's publish with `E403 OIDC permission denied for this action`. From 2026-09-22 to 2026-09-30 this repo kept both publishers stage-only on purpose, with the workflow running `npm stage publish` and a maintainer approving every version with 2FA; that was dropped as too onerous. What still keeps a stolen push credential from shipping a package is the trigger: the workflow is `workflow_dispatch`-only (since 2026-09-23), and a push credential cannot dispatch.

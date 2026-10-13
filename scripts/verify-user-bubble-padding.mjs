@@ -66,8 +66,8 @@ execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session
 const api = createRpcClient(`http://127.0.0.1:${port}/`)
 await api.waitForHealth()
 
-const { default: puppeteer } = await import("puppeteer")
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const { launchHeadless } = await import("./lib/headless-browser.mjs")
+const browser = await launchHeadless()
 const failures = []
 const pageErrors = []
 // The DRAWER's bubbles, and only those. The one page keeps its queue cards rendered BEHIND an open drawer,

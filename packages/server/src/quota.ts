@@ -76,7 +76,12 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
 // `codex app-server`, which refreshes the machine-wide ~/.codex/models_cache.json with ITS OWN version's
 // catalogue. An older CLI on PATH, polled every ~20s, overwrote the pinned runtime's catalogue and made
 // newer models (gpt-6-sol, gpt-6.1-sol) flicker out of the model picker.
-export async function readQuota(opts: { claudeBin?: string; codexBin?: string; force?: boolean } = {}): Promise<QuotaSnapshot> {
+//
+// `force` names the ONE provider whose chip the operator just opened, and only that provider's reader
+// skips its freshness window: a recheck of Codex must not spend Claude's rate-limited endpoint budget,
+// and a recheck of Claude must not start a `codex app-server`. A bare `true` is Claude's, which is all
+// it meant before Codex's reader had a window worth skipping.
+export async function readQuota(opts: { claudeBin?: string; codexBin?: string; force?: boolean | "claude" | "codex" } = {}): Promise<QuotaSnapshot> {
   // The fixture seam is a DEV/QA affordance only — never honor it in a production build, so an env var
   // leaking into a real deploy can't silently paint fabricated quota numbers.
   const fx = process.env.FRIZZ_QUOTA_FIXTURE
@@ -87,9 +92,10 @@ export async function readQuota(opts: { claudeBin?: string; codexBin?: string; f
       return snap
     }
   }
+  const force = opts.force === true ? "claude" : opts.force || undefined
   const [claude, codex] = await Promise.all([
-    readClaudeQuota(opts.claudeBin, {}, { force: opts.force }),
-    readCodexQuota(undefined, opts.codexBin),
+    readClaudeQuota(opts.claudeBin, {}, { force: force === "claude" }),
+    readCodexQuota(undefined, opts.codexBin, { force: force === "codex" }),
   ])
   return { claude, codex }
 }

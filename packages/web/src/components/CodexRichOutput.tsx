@@ -1,4 +1,6 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react"
+import { createPortal } from "react-dom"
+import { useFenceIslands } from "../lib/fenceIslands.ts"
 import { useInnerHtml } from "../lib/innerHtml.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
 import { localPositionAttrs } from "../lib/localFilePosition.ts"
@@ -239,4 +241,25 @@ export function MermaidDiagram({ source }: { source: string }) {
   }
   if (!state.html) return <div data-mermaid-state="loading" role="status" aria-label="Rendering diagram" className={`h-24 animate-pulse ${BLOCK_RADIUS} bg-panel-2`} />
   return <div data-mermaid-state="ready" className={`overflow-x-auto ${BLOCK_RADIUS} border border-border bg-panel-2/75 p-4 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full`} dangerouslySetInnerHTML={inner} />
+}
+
+// A fence's text as its code block carries it has one trailing newline the fence did not (lib/syntaxHighlight.ts
+// renderCodeElement); the transcript's splitter hands MermaidDiagram the body without it.
+const mermaidSource = (body: string) => body.replace(/\n$/, "")
+
+/**
+ * The ```mermaid fences inside one block of rendered Markdown, drawn as the transcript draws them — for
+ * every surface that injects a whole Markdown body as one string of HTML, where the transcript's splitter
+ * (lib/imagePaths.ts splitProseAttachments) never runs: the done, awaiting and question cards (LinkedHtml),
+ * the `.md` readers (MarkdownDrawer, FileViewerPanel, ThreadDrawer) and the transcript's two Markdown
+ * asides (SessionMessageLine, FrizzWake). The finding and swapping is lib/fenceIslands.ts, shared with the
+ * ```lightbox fence; the diagram is MermaidDiagram itself, so a source mermaid cannot parse reads here as
+ * it does in the transcript — "Diagram unavailable", the parser's reason, and the source as code.
+ *
+ * Returns the portals; render them anywhere in the host component. Nothing here loads mermaid: the
+ * library arrives through MermaidDiagram's own dynamic import, and only once a fence is on screen.
+ */
+export function useMermaidIslands(ref: RefObject<HTMLElement | null>, html: string): ReactNode {
+  const islands = useFenceIslands(ref, html, "mermaid", "md-mermaid", mermaidSource)
+  return islands.map(({ key, host, value }) => createPortal(<MermaidDiagram source={value} />, host, key))
 }

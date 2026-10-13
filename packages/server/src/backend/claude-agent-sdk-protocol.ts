@@ -99,6 +99,10 @@ export const CLAUDE_BROKER_CAPABILITY_STOP_TASK = "stop-task-v1"
 // restart the worker process, which throws away the conversation to apply a file change the running
 // session could have re-read. Same gate reasoning as stop-task: an older surviving daemon ignores the
 // unknown frame, so the bridge refuses up front rather than letting the UI claim a reload happened.
+//
+// Since 2026-10-11 a daemon reloads ITSELF between turns (claude-plugin-sync.ts) and no server asks:
+// the button, its RPC and the bridge's verb are gone. The daemon still advertises this and still
+// answers the frame, so that an older server attached to it after a downgrade keeps a working button.
 export const CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS = "reload-plugins-v1"
 
 // On-demand re-title through the SDK's `generateSessionTitle`. It replaces typing `/rename` at an

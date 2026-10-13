@@ -15,11 +15,8 @@ test("Snooze menu stays non-modal and preserves anchored menu interactions", {
   skip: !baseUrl || !threadSlug || !drawerSlug,
   timeout: 90_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--force-color-profile=srgb"],
-  })
+  const { launchHeadless } = await import("../../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(String(error)))

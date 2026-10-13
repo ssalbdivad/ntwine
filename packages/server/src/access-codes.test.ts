@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { createHmac, randomBytes } from "node:crypto"
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   AccessStore,
+  adoptSessionState,
   advanceSessionEpoch,
   DEFAULT_CODE_TTL_MS,
   DEFAULT_SESSION_TTL_MS,
@@ -465,4 +466,37 @@ test("an expired device is not counted as signed out", () => {
   store.sessions.record({ id: "old", label: "iPhone", createdAt: 1, expiresAt: 2 })
   assert.ok(store.redeem(store.issue().code, "iPad").ok)
   assert.equal(store.sessions.revokeAll(), 1)
+})
+
+test("a state folder with no sign-in state takes over the one a device signed in to most recently", () => {
+  const root = mkdtempSync(join(tmpdir(), "frizz-session-adopt-"))
+  try {
+    const [own, older, newer, empty] = ["own", "older", "newer", "empty"].map((name) => join(root, name))
+    for (const dir of [older, newer, empty]) mkdirSync(dir)
+    const oldKey = loadOrCreateSessionKey(older)
+    advanceSessionEpoch(newer)
+    const liveKey = loadOrCreateSessionKey(newer)
+    fileSessionDirectory(newer).record({ id: "phone", label: "iPhone", createdAt: 1 })
+    // The OLDER folder's key was made last; the newer folder is the one a device actually used since.
+    utimesSync(join(older, "session-key"), new Date(5_000_000), new Date(5_000_000))
+    utimesSync(join(newer, "session-key"), new Date(1_000_000), new Date(1_000_000))
+    utimesSync(join(newer, "sessions.json"), new Date(9_000_000), new Date(9_000_000))
+
+    assert.equal(adoptSessionState(own, [older, newer, empty, own, join(root, "missing")]), newer)
+    assert.deepEqual(loadOrCreateSessionKey(own), liveKey)
+    assert.notDeepEqual(loadOrCreateSessionKey(own), oldKey)
+    assert.equal(readSessionEpoch(own), readSessionEpoch(newer))
+    assert.deepEqual(fileSessionDirectory(own).list().map((record) => record.id), ["phone"])
+    assert.equal(statSync(join(own, "session-key")).mode & 0o777, 0o600)
+    // Loading it afterwards signs nobody out: the epoch came with the key.
+    assert.equal(loadSessionState(own).signedOut, 0)
+
+    // A folder that has its own is never overwritten, and with nothing to take it stays empty.
+    assert.equal(adoptSessionState(own, [older]), undefined)
+    assert.deepEqual(readFileSync(join(own, "session-key")), liveKey)
+    assert.equal(adoptSessionState(join(root, "fresh"), [empty, join(root, "missing")]), undefined)
+    assert.equal(existsSync(join(root, "fresh")), false)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

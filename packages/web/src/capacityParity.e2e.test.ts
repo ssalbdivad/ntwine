@@ -434,16 +434,12 @@ async function withLoad<T>(seed: Load, run: (stack: Stack, browser: Browser) => 
   try {
     daemon = seedStack(stack)
     await waitForBoards(stack)
-    const { default: puppeteer } = await import("puppeteer")
-    browser = await puppeteer.launch({
-      headless: true,
-      // --use-mock-keychain on every Chrome this repo starts (AGENTS.md § keychain dialog). The blink
-      // settings make headless Chrome a desktop with a mouse (scripts/lib/mouse-pointer.mjs): both
-      // viewports are desktops, and a touch screen would show hover-gated row actions at rest. The
-      // counts came out identical either way on 2026-10-06.
-      args: ["--no-sandbox", "--use-mock-keychain", "--force-color-profile=srgb", "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4"],
-      protocolTimeout: 120_000,
-    })
+    // The one launcher (scripts/lib/headless-browser.mjs): the headless shell, --use-mock-keychain.
+    // `mouse` makes it a desktop with a mouse (scripts/lib/mouse-pointer.mjs): both viewports are
+    // desktops, and a touch screen would show hover-gated row actions at rest. The counts came out
+    // identical either way on 2026-10-06.
+    const { launchHeadless } = await import("../../../scripts/lib/headless-browser.mjs")
+    browser = await launchHeadless({ mouse: true, protocolTimeout: 120_000 })
     return await run(stack, browser)
   } finally {
     if (browser) await browser.close().catch(() => {})

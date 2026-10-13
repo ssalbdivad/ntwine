@@ -459,7 +459,7 @@ test("loadWorkerPrompt: the backend-AGNOSTIC core is present in BOTH contracts",
     assert.match(raw, /## The stop criterion/)
     // THE CURRENT AWAITING GRAMMAR (2026-08-24): YAML frontmatter, PLURAL keys taking LISTS. `human:` used
     // to be pinned here; it is deleted, because it parked a thread in Snoozed and nothing ever fired it.
-    // Waiting on a person is a registered question now (`mcp__frizz__ask`), and this asserts the contract
+    // Waiting on a person is a registered question now (`frizzctl ask`), and this asserts the contract
     // says so rather than merely omitting the old kind.
     assert.match(c, /shells: \[bzvtnt3ig\]/)
     assert.match(c, /for: 2h/)
@@ -530,7 +530,7 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     // running work always takes the fence (board.needsInputQueues, scheduler evalSignoffNudges).
     assert.match(c, /ALWAYS SIGN OFF/)
     assert.doesNotMatch(c, /ALWAYS SIGN OFF WITH A FENCE/, "a fence is no longer the only way to sign off")
-    assert.match(c, /mcp__frizz__done` and `mcp__frizz__ask` each record a ROW, and frizz reads both as a sign-off/)
+    assert.match(c, /`frizzctl done` and `frizzctl ask` each record a ROW, and frizz reads both as a sign-off/)
     assert.doesNotMatch(c, /frizz reads all three as a sign-off/, "a watch alone is no longer a sign-off")
     assert.match(c, /A WAIT IS THE ONE EXCEPTION, and it always takes the fence/)
     // THE ANSWER IS A PLACE (2026-10-05): one required line, three words, one per band — never a second
@@ -628,7 +628,7 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     assert.match(c, /Neither\s+exception stretches to a report that ENDS IN A DECISION the user has yet to make/)
     // The deadlock's exit, in order: do it, hand it to its own card, ask. Never stretch `done`.
     assert.match(c, /### When the work is finished but the thread found more/)
-    assert.match(c, /HAND IT OFF TO ITS OWN CARD[\s\S]{0,120}`mcp__frizz__spawn_thread`/)
+    assert.match(c, /HAND IT OFF TO ITS OWN CARD[\s\S]{0,120}`frizzctl spawn-thread`/)
     assert.match(c, /stretching `done` is not how you break it/)
     assert.match(c, /A bare rest is the residual, not a plan/)
     // The fourth exit is DROP, and it is the one the maintainer asked for by name (2026-08-16): a
@@ -700,8 +700,9 @@ test("session-seed is a SLIM runtime pointer, not a fourth full contract copy", 
   assert.doesNotMatch(SESSION_SEED, /scratch\.md/, "no filename is reserved in the scratch directory")
   for (const fence of [/```done/, /```awaiting/]) assert.match(SESSION_SEED, fence)
   // A question is a registered row whose card renders at the bottom of the handoff; the seed names
-  // `mcp__frizz__ask`, and no longer the placement marker retired 2026-09-28.
-  assert.match(SESSION_SEED, /mcp__frizz__ask/)
+  // `frizzctl ask`, and no longer the placement marker retired 2026-09-28.
+  assert.match(SESSION_SEED, /a question is a registered row, `frizzctl ask`/)
+  assert.doesNotMatch(SESSION_SEED, /mcp__frizz__/)
   assert.match(SESSION_SEED, /BOTTOM of your handoff/)
   assert.doesNotMatch(SESSION_SEED, /placement marker/)
   assert.doesNotMatch(SESSION_SEED, /```done \/ ```awaiting \/ ```question/)
@@ -751,7 +752,7 @@ test("showing pictures: both contracts say tool output is collapsed and the ligh
     assert.match(c, /one-line finding beside it/)
     // Where it may and may not go: never after or inside a signal fence (the parser is END-anchored).
     assert.match(c, /above any closing signal fence, never inside one/)
-    assert.match(c, /gallery in the body of `mcp__frizz__done`/)
+    assert.match(c, /gallery in the body of `frizzctl done`/)
     // Maintainer 2026-10-06: a UI concept is a linked HTML page, never screenshots of one — the old
     // text offered "the screens a design would ship" for a question option, and workers took it.
     assert.match(c, /A UI CONCEPT IS NOT A PICTURE — IT IS A PAGE, AND YOU LINK IT/)
@@ -794,7 +795,7 @@ test("composePrompt gives each backend's sub-agents their OWN file, never a shar
     assert.doesNotMatch(text, /merge/i, `${kind} must not reintroduce a shared-document merge contract`)
     assert.doesNotMatch(text, /blackboard/, `${kind} must not reintroduce the shared blackboard`)
     // The post-compaction goal stays NAMED as a capability — offered, never pushed (2026-08-28).
-    assert.match(text, /post_compaction: true/, `${kind} must name the post-compaction capability`)
+    assert.match(text, /`frizzctl goal start --post-compaction`/, `${kind} must name the post-compaction capability`)
   }
   assert.ok(codex.endsWith("do the thing")) // the task still rides through, and rides through LAST
 })
@@ -880,7 +881,7 @@ test("scratchpadOrientation names the directory, the arming, and one file per su
 
   for (const [kind, text] of [["claude", claude], ["codex", codex]] as const) {
     // The post-compaction trigger stays named as an available capability, never a prescription.
-    assert.match(text, /post_compaction: true/, `${kind} must name the trigger`)
+    assert.match(text, /`frizzctl goal start --post-compaction`/, `${kind} must name the trigger`)
     assert.match(text, /Nothing in this directory is read automatically/, `${kind} must not imply an injection`)
     assert.doesNotMatch(text, /merge/i, `${kind} must not reintroduce the merge contract`)
     assert.doesNotMatch(text, /scratch\.md/, `${kind} must not reserve a filename`)

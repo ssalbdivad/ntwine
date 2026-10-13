@@ -12,7 +12,7 @@ import {
   contentText, parseSessionUpdate,
   type AcpInitializeResult as AcpInitializeResultType, type AcpMcpServerStdio, type AcpRequestPermissionResult, type AcpToolCallUpdate,
 } from "./acp-types.ts"
-import { FRIZZ_MCP, frizzMcpEnv, type FrizzMcp } from "./types.ts"
+import { FRIZZ_MCP, frizzCliEnv, frizzMcpEnv, withFrizzCliOnPath, type FrizzCli, type FrizzMcp } from "./types.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
 import type { AcpAgentModels } from "@frizz/shared"
 
@@ -45,6 +45,13 @@ export interface AcpBridgeOptions {
   stateDir: string
   /** The frizz MCP descriptor; absent ⇒ the worker simply lacks the frizz tools. */
   frizzMcp?: FrizzMcp
+  /** Which threads get that mount. Absent ⇒ every thread. An ACP thread's contract is its first prompt,
+   *  so one started under the `frizzctl` contract is given no MCP server, and one that predates it
+   *  keeps the server it was told about at every re-open. */
+  mountsMcp?: (threadSlug: string) => boolean
+  /** Present ⇒ the agent's shell can run `frizzctl`: its directory goes on PATH and the agent's
+   *  environment names the server, the project and — one daemon per thread — the calling thread. */
+  frizzCli?: FrizzCli
   interactions?: InteractionStore
   /** The operator's environment; filtered through inheritWorkerEnvironment before the child sees it. */
   env?: NodeJS.ProcessEnv
@@ -296,7 +303,12 @@ export class AcpBridge {
   private async open(input: { threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; acpSessionId?: string | null }): Promise<{ live: LiveSession; resumed: "loaded" | "fresh" | "reattached" }> {
     const { threadSlug: slug, sessionId, cwd } = input
     const agent = this.resolveAgent(input.agentId)
-    const env = inheritWorkerEnvironment(this.options.env ?? process.env)
+    // An ACP agent is one detached daemon PER THREAD (acp-host.ts), so its environment can say who is
+    // calling — which is all `frizzctl`, run from the agent's own shell, needs. Applied when the daemon
+    // is forked; one that survived a Frizz restart keeps the environment it was born with.
+    const cli = this.options.frizzCli
+    const inherited = inheritWorkerEnvironment(this.options.env ?? process.env)
+    const env = cli ? withFrizzCliOnPath({ ...inherited, ...frizzCliEnv(cli, slug) }, cli) : inherited
     const attachment = await this.host()({ stateDir: this.options.stateDir, threadSlug: slug, sessionId, command: agent.bin!, args: agent.args, cwd, env })
     const proc = attachment.process
     const writer = new AcpTranscriptWriter(acpTranscriptPath(this.options.stateDir, sessionId))
@@ -340,7 +352,7 @@ export class AcpBridge {
         clientInfo: { name: "frizz", version: "0" },
       }))
     } catch (err) { return fail(err instanceof Error ? new Error(`${agent.label} did not complete the ACP handshake: ${err.message}`) : err) }
-    const mcpServers = frizzMcpServer(this.options.frizzMcp, slug)
+    const mcpServers = this.options.mountsMcp?.(slug) === false ? [] : frizzMcpServer(this.options.frizzMcp, slug)
     live = { slug, sessionId, cwd, agent, conn, init, acpSessionId: "", writer, loading: false, queue: [], pendingPerms: new Map(), tools: new Map(), exited: false, detaching: false }
     void conn.exited.then(() => { if (live) this.onExit(live) })
 

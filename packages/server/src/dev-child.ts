@@ -82,12 +82,14 @@ try {
   // Stable launchers fence EVERY project, including the gap after a launcher crash. Register before
   // importing/opening the server; leave this delegate until process death, not merely server.close().
   // A successor must observe this exact generation gone before another scheduler can start.
+  let machineOwnerToken: string | undefined
   if (process.env.FRIZZ_SERVER_OWNERSHIP) {
     const ownership = JSON.parse(process.env.FRIZZ_SERVER_OWNERSHIP) as NodeJS.ProcessEnv
     const serverTarget = projectLaunchTargetFromEnvironment(ownership)
     const serverToken = projectLaunchOwnerTokenFromEnvironment(ownership)
     if (!serverTarget || !serverToken) throw new Error("stable server is missing global launch ownership")
     registerProjectLaunchDelegate(serverTarget, serverToken)
+    machineOwnerToken = serverToken
   }
   const { startServer } = await import("./index.ts")
   const project = projectFromLaunchTarget(target)
@@ -114,6 +116,7 @@ try {
     ...(stableWebDist ? { webDistDir: stableWebDist } : {}),
     project,
     launchOwnerToken,
+    ...(machineOwnerToken ? { machineOwnerToken } : {}),
     requestOwnerStop: () => notifySupervisor({ type: "frizz-stop-owner", token: launchOwnerToken }),
   })
   notifySupervisor({

@@ -22,6 +22,7 @@ import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import { parseQuestionBlock, splitOptionId, type BlockAnswer, type ParsedQuestion, type QuestionKind } from "../lib/questionBlocks.ts"
 import { registerQuestionKeys, type QuestionKeyResult } from "../lib/questionKeys.ts"
 import { LinkedHtml } from "./LinkedHtml.tsx"
+import { SecretCaption } from "./SecretCaption.tsx"
 import { QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 import { TextareaCodeFences } from "./TextareaCodeFences.tsx"
 
@@ -360,10 +361,7 @@ export function QuestionBlockCard({
                     freetext.trim() ? "border-selection-border bg-selection" : "border-border bg-transparent hover:bg-panel-2 focus:border-accent"
                   }`}
                 />
-                {/* A caption, not a second paragraph: capped at 60% so it never runs the card's width. */}
-                <div className="mt-1.5 max-w-[60%] text-[11px] leading-snug text-muted-70">
-                  Held in memory on the machine running Frizz and handed to one command, once. The worker never sees it.
-                </div>
+                <SecretCaption className="mt-2 text-[11px] leading-snug text-muted" />
               </>
             ) : (
             <>
@@ -563,11 +561,12 @@ function Chip({
       // button's hit area, and a click on the code you are reading must still pick the option. The
       // guards keep it from double-firing or over-reaching: a click the BUTTON caught bubbles here
       // with the button as target (closest matches, skip — a second call would un-toggle a multi), a
-      // link keeps its own click, a picture opens the lightbox (a gallery tile is a button), and a
+      // link keeps its own click, a picture opens the lightbox (a gallery tile is a button), a
+      // `<summary>` opens its section (raised above the button in styles.css, like a link), and a
       // text-selection drag inside the code block is reading, not choosing.
       onClick={(e) => {
         if (disabled) return
-        if ((e.target as Element).closest("a, button, img[data-local-path], .local-file-action, .local-file-code")) return
+        if ((e.target as Element).closest("a, button, summary, img[data-local-path], .local-file-action, .local-file-code")) return
         if (window.getSelection()?.toString()) return
         onClick()
       }}

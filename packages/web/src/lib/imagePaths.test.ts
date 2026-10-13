@@ -222,3 +222,38 @@ test("composer round-trip preserves prose verbatim: trailing space, trailing new
     assert.equal(joinComposerValue(split.prose, split.attachments.map((a) => a.path)), value)
   }
 })
+
+test("nothing is lifted out of a <details> section: a fence stays in it, a picture line becomes an image", () => {
+  const section = [
+    "<details>",
+    "<summary>Screenshots</summary>",
+    "",
+    "```lightbox",
+    "/tmp/a.png Before",
+    "```",
+    "",
+    "/tmp/My Shots/b one.png",
+    "",
+    "```mermaid",
+    "graph TD",
+    "  A --> B",
+    "```",
+    "",
+    "/tmp/report.pdf",
+    "",
+    "</details>",
+  ]
+  const kept = section.map((line) => (line === "/tmp/My Shots/b one.png" ? "![](</tmp/My Shots/b one.png>)" : line)).join("\n")
+  assert.deepEqual(splitProseAttachments(["Lead", ...section, "", "/tmp/after.png", "Tail"].join("\n")), [
+    { kind: "md", text: `Lead\n${kept}\n` },
+    { kind: "image", path: "/tmp/after.png" },
+    { kind: "md", text: "Tail" },
+  ])
+  // Sections nest; the lift resumes only after the outermost closes.
+  const nested = "<details><summary>a</summary>\n\n<details>\n<summary>b</summary>\n\n/tmp/a.png\n\n</details>\n\n/tmp/b.png\n\n</details>\n/tmp/c.png"
+  assert.deepEqual(splitProseAttachments(nested).map((part) => part.kind), ["md", "image"])
+  // `<details>` quoted in a code block is text, and opens nothing.
+  assert.deepEqual(splitProseAttachments("```html\n<details>\n```\n/tmp/a.png").map((part) => part.kind), ["md", "image"])
+  // A word that merely starts the same is not the tag.
+  assert.deepEqual(splitProseAttachments("<detailsfoo>\n/tmp/a.png").map((part) => part.kind), ["md", "image"])
+})

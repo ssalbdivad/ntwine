@@ -43,8 +43,10 @@ export function SignInModal({
 
   // Re-read the live credential state. On success we prime the cached authStatus so the composer's own
   // gate sees the fresh value too, then either proceed (authed / unknown → fail open) or nudge again.
+  // `fresh`: the server remembers the Claude CLI's verdict between polls, and this is the one caller
+  // who knows it may have just changed.
   const recheck = useMutation({
-    mutationFn: () => rpc.authStatus(),
+    mutationFn: () => rpc.authStatus({ fresh: true }),
     onSuccess: (snap: AuthSnapshot) => {
       queryClient.setQueryData(["authStatus"], snap)
       if (snap[backend] === "signed-out") {

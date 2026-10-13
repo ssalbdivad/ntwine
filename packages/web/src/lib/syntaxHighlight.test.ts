@@ -82,6 +82,13 @@ test("a lightbox fence keeps its name on the block, escaped as plain text", () =
   assert.match(renderHighlightedCode("x\n", "lightbox extra"), /class="hljs language-plaintext"/)
 })
 
+test("a mermaid fence keeps its name on the block too, whatever its case, and only as the whole info string", () => {
+  const html = renderHighlightedCode("flowchart LR\n  A --> B\n", " Mermaid ")
+  assert.match(html, /<code class="hljs language-mermaid">flowchart LR\n  A --&gt; B\n<\/code>/)
+  assert.match(renderHighlightedCode("x\n", "mermaid title=flow"), /class="hljs language-plaintext"/)
+  assert.match(renderHighlightedCode("x\n", "mermaidjs"), /class="hljs language-plaintext"/)
+})
+
 test("long lines remain intact for the surface CSS to scroll or wrap", () => {
   const longToken = "x".repeat(1_024)
   const html = renderHighlightedCode(longToken, "plaintext")

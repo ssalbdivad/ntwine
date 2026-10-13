@@ -142,7 +142,7 @@ function FileRow({ file, name, depth, homeDir }: { file: EditedFile; name: strin
   )
 }
 
-// A file or link the worker SAVED for the human (`mcp__frizz__link`). The card's row shape again: the
+// A file or link the worker SAVED for the human (`frizzctl link`). The card's row shape again: the
 // label it was saved under is the name, and the full target is the tooltip (a file's home written as
 // `~`, as the edited-files tree writes it). A URL's status is its host, the one thing its label may not
 // say; a FILE has none (maintainer 2026-10-08: "I don't think the file name is super important") — its

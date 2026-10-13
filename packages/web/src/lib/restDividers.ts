@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../hooks.ts"
+import { agentCompletionCall } from "./subAgentCompletion.ts"
 
 // WHEN THE "Agent rested" HAIRLINE SAYS NOTHING THE READER CANNOT ALREADY SEE.
 //
@@ -20,6 +21,14 @@ import type { ChatMessage } from "../hooks.ts"
 // messages render as a FrizzWake or a RecurringPromptLine, never as a plain bubble, so they
 // carry the seam themselves. The human's own messages are the only `user` records that do not.
 //
+// So does a SUB-AGENT COMPLETION, which is an assistant message carrying one flagged call
+// (agentCompletionCall) rather than a `boundary` event, but draws the same wake hairline. It is the one
+// divider here that can also land MID-TURN, so the rest above it does tell "woke a resting agent" apart
+// from "finished while it worked" — and that distinction is not worth a hairline: a parent waiting on N
+// children drew a rule above every child's return (maintainer 2026-10-12: "I don't think we need to be
+// showing this rested agent hairline every time a sub-agent completes … even if it did come to rest at
+// that point in time, maybe this isn't worth doing").
+//
 // This is presentation, not projection — the server still emits every rest boundary. Dropping them
 // server-side would mean a trailing rest that vanishes and then reappears the moment a human replies,
 // i.e. a mid-array insertion the live transcript push has no reason to handle.
@@ -35,7 +44,7 @@ export function isRedundantRestDivider(
   for (let i = index + 1; i < messages.length; i++) {
     const next = messages[i]
     if (next.queued || rendersNothing(next)) continue
-    return Boolean(next.boundary) || next.wake === true
+    return Boolean(next.boundary) || next.wake === true || agentCompletionCall(next) !== undefined
   }
   return true // nothing below it: the runtime-status slot is the tail's own answer
 }

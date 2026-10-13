@@ -11,8 +11,8 @@ import type { PendingAsk, ThreadView } from "@frizz/shared"
 // its request is journaled as an answerable card or denied on the spot. So the terminal reading could
 // only ever draw in the gap around a card: before it was journaled, or after it was answered and before
 // the transcript caught up (maintainer 2026-10-10: "every time after I approve a command … it changes
-// the render to this"). Its "Copy terminal command" was worse than wrong there — it starts a second
-// `claude` on a session whose daemon is alive.
+// the render to this"). The "Copy terminal command" button that reading carried was worse than wrong
+// there — it started a second `claude` on a session whose daemon was alive.
 type BlockState = Pick<ThreadView, "foreign" | "runtime" | "pendingAsk" | "pendingInteraction" | "actionableInteraction">
 
 /** The read-only "answer it in your external terminal" card for a native AskUserQuestion. FOREIGN

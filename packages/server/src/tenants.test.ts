@@ -152,6 +152,22 @@ test("deactivate stops one project's resources in the barrier's order, leaving t
   assert.equal(await tenants.deactivate("p1"), false, "idempotent")
 })
 
+// The server gives up its claim on a project here, and a second server may open it the moment it does,
+// so it has to come after the scheduler and storage — never while this one could still fire a timer.
+test("afterDeactivate runs once the project's subsystems are closed, and a throw in it is reported", async () => {
+  const stopped: string[] = []
+  const tenants = createTenantMap({
+    createContext: async () => fakeContext(stopped),
+    afterDeactivate: (closed) => {
+      stopped.push(`released ${closed.id}`)
+      throw new Error("disk full")
+    },
+  })
+  await tenants.activate(project("p1"))
+  assert.equal(await tenants.deactivate("p1"), true)
+  assert.deepEqual(stopped, ["tailer", "subscriptions", "scheduler", "board", "bridge", "storage", "released p1"])
+})
+
 // Storage is the handle that actually has to be released; a stuck subsystem before it must not strand it.
 test("a subsystem that throws on close does not strand the ones after it", async () => {
   const stopped: string[] = []

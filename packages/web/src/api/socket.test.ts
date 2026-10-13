@@ -164,8 +164,12 @@ test("socket transport bounds oversized frames and only resets reconnect backoff
       const previous = cache.get(cacheKey)
       cache.set(cacheKey, typeof update === "function" ? (update as (value: unknown) => unknown)(previous) : update)
     },
-    invalidateQueries: async () => {},
+    invalidateQueries: async (filters?: { queryKey?: readonly unknown[] }) => {
+      if (filters?.queryKey) invalidated.push(filters.queryKey)
+    },
   }
+  const invalidated: (readonly unknown[])[] = []
+  const projectListReads = () => invalidated.filter((key) => key[0] === "projectsList").length
 
   const resetTransportFixtures = () => {
     FakeWebSocket.instances = []
@@ -373,16 +377,45 @@ test("socket transport bounds oversized frames and only resets reconnect backoff
     })
     assert.equal(store.socketTranscriptFallbacks["busy-thread"], undefined)
 
-    // A transcript-delta is a recipe over the window this socket last delivered, never over the cache.
-    // Applied against the held window it lands in the cache exactly as the full window would, kept
-    // messages stay the same objects; cut against any other window it is never rendered, and the slug
-    // asks for a fresh snapshot ONCE (unsub + sub) however many stray deltas follow.
+    // THE PROJECT LIST HAS NO KEYFRAME. The server's `projects-changed` is what carries a reorder made
+    // in one tab to every other, and it re-reads the list. So does every live generation after the
+    // first: an announcement published while this tab had no socket is never repeated, and without the
+    // catch-up the rail would keep its old order until a reload — the bug the event exists to fix. The
+    // first keyframe re-reads nothing, because the rail's own mount read is seconds old.
     limitedSocket.close()
     resetTransportFixtures()
     store.connection = "connecting"
     store.socketTranscripts = false
     store.socketBoardFallback = null
     store.socketTranscriptFallbacks = {}
+    const listed = await import(`./socket.ts?projects-${Date.now()}`)
+    listed.connectSync(queryClient as never)
+    const readsBefore = projectListReads()
+    const listedSocket = FakeWebSocket.instances[0]
+    listedSocket.open()
+    listedSocket.message(boardFrame)
+    assert.equal(projectListReads(), readsBefore, "the first keyframe re-reads nothing")
+    listedSocket.message({ t: "event", event: { type: "projects-changed" } })
+    assert.equal(projectListReads(), readsBefore + 1, "the announcement re-reads the list once")
+    assert.equal(FakeWebSocket.instances.length, 1, "it is not a board frame, so it cannot force a resync")
+    listedSocket.serverClose()
+    nextReconnect(1_000)
+    const relisted = FakeWebSocket.instances[1]
+    relisted.open()
+    assert.equal(projectListReads(), readsBefore + 1, "an open socket is not a live feed yet")
+    relisted.message(boardFrame)
+    assert.equal(projectListReads(), readsBefore + 2, "a feed back from a drop catches up on what it missed")
+    relisted.close()
+    resetTransportFixtures()
+    store.connection = "connecting"
+    store.socketTranscripts = false
+    store.socketBoardFallback = null
+    store.socketTranscriptFallbacks = {}
+
+    // A transcript-delta is a recipe over the window this socket last delivered, never over the cache.
+    // Applied against the held window it lands in the cache exactly as the full window would, kept
+    // messages stay the same objects; cut against any other window it is never rendered, and the slug
+    // asks for a fresh snapshot ONCE (unsub + sub) however many stray deltas follow.
     const deltas = await import(`./socket.ts?delta-${Date.now()}`)
     deltas.connectSync(queryClient as never)
     const deltaSocket = FakeWebSocket.instances[0]

@@ -1,14 +1,9 @@
 {
   "mcpServers": {
     "chrome-devtools": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "chrome-devtools-mcp@1.7.0",
-        "--experimentalPageIdRouting",
-        "--headless",
-        "--isolated",
-        "--no-usage-statistics"
+        "scripts/chrome-devtools-mcp.mjs"
       ]
     }
   }

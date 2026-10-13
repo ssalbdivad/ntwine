@@ -80,7 +80,7 @@ const STATES: { kind: string; t: ThreadView }[] = [
   // the worker's hourglass, so it needs its own slot to be measured at all.
   { kind: "user-snoozed", t: { ...base, id: "user-snoozed", runtime: "turn-idle", needsYou: false, snoozedUntil: "2099-09-19T16:00:00.000Z" } as unknown as ThreadView },
   // AWAITING A TIMER, IN THE QUEUE (2026-09-07). A REGISTERED armed timer, queued, no fence — the shape
-  // a worker that armed `mcp__frizz__timer` and rested leaves behind, and the row that wore the blue dot.
+  // a worker that armed `frizzctl timer` and rested leaves behind, and the row that wore the blue dot.
   // It draws the same hourglass as the `snoozed` slot (Sidebar.tsx hourglassMark), so the two measure
   // identically by construction; the slot exists so the QUEUED arm is what gets measured.
   { kind: "timer", t: { ...base, id: "timer", runtime: "turn-idle", needsYou: true, awaitingBackground: true, watches: [{ id: "timer:t:tmr_1", kind: "timer", target: "tmr_1", state: "armed", createdAt: "2026-09-07T09:00:00.000Z", timer: { fireAt: "2099-09-07T16:00:00.000Z", prompt: "re-check the deploy" } }] } as unknown as ThreadView },

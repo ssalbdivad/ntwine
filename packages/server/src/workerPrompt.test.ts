@@ -14,6 +14,23 @@ test("both worker backends receive the gerund activity-caption contract", () => 
   }
 })
 
+// ONE PLACE FOR WORKTREES. The contract named none until 2026-10-11, and four projects on one machine
+// had four conventions, two of them outside the project. The path is also known to the server: the
+// board's `.frizz` watcher prunes `worktrees` (board.test.ts pins that list) and repo-files.ts reads a
+// worktree's own ignore rules, so a contract that moves the location has to move those with it.
+test("every backend sends worktrees to one directory inside the project", () => {
+  for (const backend of ["claude", "codex", "acp"] as const) {
+    const prompt = buildWorkerPrompt(backend)
+    assert.match(prompt, /^## Git worktrees$/m)
+    assert.match(prompt, /`git worktree add \.frizz\/worktrees\/<slug> -b <slug>`/)
+    assert.match(prompt, /A project that names its own worktree location or command keeps it/)
+    assert.match(prompt, /never move or remove one you did not create/)
+  }
+  // Only Claude Code has tools that create a worktree somewhere else.
+  assert.match(buildWorkerPrompt("claude"), /`EnterWorktree` and the Agent tool's\s+`isolation: "worktree"`/)
+  assert.doesNotMatch(buildWorkerPrompt("codex"), /EnterWorktree/)
+})
+
 // THE CEILING, which is the counterweight to a stop criterion that otherwise only ever says "do not
 // stop". Traced 2026-08-17 on `investigate-nubjs-nub-642`: dispatched to TRIAGE an issue and recommend
 // what to do, it produced the analysis, asked one design question, got no answer for 36 hours, and then
@@ -145,18 +162,19 @@ test("the contract puts a draft being approved inside the option that sends it",
   }
 })
 
-// A worker asked "can you see the highlighted code?" answered that it could not: its MCP tools are
-// deferred, so `mcp__frizz__editor` reaches it only if the contract names it, with the words that should
-// make it reach for the tool. Since 2026-10-06 that holds while an editor has the project open — the only
-// time the tool is listed (frizz-mcp GATED_TOOLS) — and otherwise the contract does not name it at all.
+// A worker asked "can you see the highlighted code?" answered that it could not: a command it has never
+// heard named is one it never reaches for, so `frizzctl editor` reaches it only if the contract names it,
+// with the words that should make it reach for it. Since 2026-10-06 that holds while an editor has the
+// project open — the only time the MCP mount lists the tool (frizz-mcp GATED_TOOLS) — and otherwise the
+// contract does not name it at all.
 // The section is the ONLY difference the capability makes: spliced out, the contract is the default one
 // byte for byte, so the goldens (which pin the default) still pin every other word of the gated build.
 test("every backend's contract names the editor tool, and when to call it, only while an editor is open", () => {
   for (const backend of ["claude", "codex", "acp"] as const) {
     const withEditor = buildWorkerPrompt(backend, { editor: true })
     const without = buildWorkerPrompt(backend)
-    assert.match(withEditor.replace(/\s+/g, " "), /When the user points at code they have not pasted — "this", "the selected code", "the error" — call `mcp__frizz__editor`/)
-    assert.doesNotMatch(without, /mcp__frizz__editor|## The (?:user|human)'s editor/)
+    assert.match(withEditor.replace(/\s+/g, " "), /When the user points at code they have not pasted — "this", "the selected code", "the error" — run `frizzctl editor`/)
+    assert.doesNotMatch(without, /frizzctl editor|## The (?:user|human)'s editor/)
     assert.equal(buildWorkerPrompt(backend, { editor: false }), without)
     const section = withEditor.slice(withEditor.indexOf("## The user's editor"), withEditor.indexOf("\n\n## ", withEditor.indexOf("## The user's editor")))
     assert.equal(withEditor.replace(`\n\n${section}`, ""), without)
@@ -204,5 +222,26 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
     assert.doesNotMatch(c, /that is the handoff, and it belongs in the prose/)
     // And the registered first cut is gone from the contract entirely.
     assert.doesNotMatch(c, /mcp__frizz__instruct|\buninstruct\b/)
+  }
+})
+
+// COMMAND WATCHES ARE CLAUDE-ONLY (2026-10-11). The server refuses every Codex and ACP thread one
+// (command-watch.ts `commandWatchRefusal`), so only Claude's contract may teach the key, the week-long
+// ceiling and the route to it; anywhere else each mention is a refused call per wait. Claude's must
+// also say why a polling shell is the wrong wait, and where the loop goes when Frizz refuses.
+test("only the Claude contract teaches command watches, and it routes outside-condition waits to them", () => {
+  const claude = buildWorkerPrompt("claude")
+  assert.match(claude, /`commands:` — command watches you REGISTERED with `frizzctl watch-command add`/)
+  assert.match(claude, /`commands:` with nothing but those, where it runs to a week/)
+  assert.match(claude, /`frizzctl watch-command add "<check that exits 0 once it holds>" --every 5m --for 6h`/)
+  assert.match(claude, /Not a polling loop in a background shell/)
+  assert.match(claude, /can never be hibernated/)
+  assert.match(claude, /Only when Frizz REFUSES it[\s\S]{0,140}does the loop go in a background shell/)
+  for (const backend of ["codex", "acp"] as const) {
+    const prompt = buildWorkerPrompt(backend)
+    assert.doesNotMatch(prompt, /watch-command|commands:|cmw_/, backend)
+    assert.doesNotMatch(prompt, /\{\{FRIZZ_/, backend)
+    assert.match(prompt, /where it runs to a year — and at 30 minutes/, backend)
+    assert.match(prompt, /`frizzctl watch-issue`\.\n    For anything else stay ACTIVE/, backend)
   }
 })

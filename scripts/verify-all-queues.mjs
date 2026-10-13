@@ -22,7 +22,7 @@
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
 const flags = Object.fromEntries(
@@ -77,7 +77,7 @@ const card = (project, slug) => `[data-xq-card="${ids[project]}/${slug}"]`
 // `/`, and a desktop page never rests there: All projects resting at `/` is a regression.
 const ALL_PATHS = ["/all"]
 
-const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 try {
   const page = await browser.newPage()
   await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 2 })

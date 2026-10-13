@@ -22,11 +22,11 @@ import { clearFullscreenOrigin, rememberFullscreenOrigin } from "../lib/fullscre
 // control whose job is to change how this thread is SHOWN.
 
 // STALLED, so the strip's far-right verb (Retry) is on the other side of the door. Most of the strip
-// gates itself away in a bare render — Reload plugins and Restart worker want a dev build and a live
-// broker process, and both simply return null here — so a harness that does not deliberately put
-// NEIGHBOURS on both sides of the door cannot tell a position apart from a presence. (It did not:
-// moving the closing half to the head of the strip left every reading identical, and the first version
-// of the slot test below passed the control that was meant to break it.)
+// gates itself away in a bare render — Restart worker wants a dev build and a live process, and simply
+// returns null here — so a harness that does not deliberately put NEIGHBOURS on both sides of the door
+// cannot tell a position apart from a presence. (It did not: moving the closing half to the head of
+// the strip left every reading identical, and the first version of the slot test below passed the
+// control that was meant to break it.)
 const base = { kind: "session", backend: "claude", title: "A worker", status: "active", subAgents: [], runtime: "exited", crashed: true, needsYou: true } as unknown as ThreadView
 
 // The strip's icons render eagerly and a couple of them read the query cache, so they need the client

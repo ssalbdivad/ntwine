@@ -14,6 +14,7 @@ import { splitFrontmatter } from "../lib/frontmatter.ts"
 import { isLocalMarkdownFile, localFileDir } from "../lib/markdownTargets.ts"
 import { useIsMobile } from "../lib/mobile.ts"
 import { CodeBody } from "./CodeBody.tsx"
+import { useMermaidIslands } from "./CodexRichOutput.tsx"
 import { useLightboxIslands } from "./Lightbox.tsx"
 import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
@@ -165,6 +166,8 @@ function FileReader({ id, path, title, depth, widthDepth }: ReaderProps) {
   // A report's ```lightbox fence is a gallery here too, its relative paths resolved against the
   // document's own directory like its links.
   const galleries = useLightboxIslands(ref, html, baseDir)
+  // And its ```mermaid fence a diagram (upstream 9ba8a364).
+  const diagrams = useMermaidIslands(ref, html)
   // A link inside another project's document is that project's too: follow it with the same scope,
   // before the page-wide interceptor (lib/local-file-links.ts) reads it as the page's.
   const followScoped = scope
@@ -200,6 +203,7 @@ function FileReader({ id, path, title, depth, widthDepth }: ReaderProps) {
                 {front && <Frontmatter source={front} />}
                 <div ref={ref} className="md-body" dangerouslySetInnerHTML={inner} />
                 {galleries}
+                {diagrams}
                 {body.data?.truncated && <TruncatedNote openable={!phone} />}
               </>
             ) : !markdown && raw ? (

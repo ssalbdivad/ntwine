@@ -7,6 +7,7 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import type { ProviderQuota, QuotaWindow } from "@frizz/shared"
 import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
+import { readObservedClaudeQuota, type ObservedClaudeQuota, type ObservedWindow } from "./claude-quota-observed.ts"
 import { log as frizzLog } from "../logging.ts"
 
 const execFileAsync = promisify(execFile)
@@ -15,6 +16,13 @@ const execFileAsync = promisify(execFile)
 // command makes — authorized by the credential already on this machine (the on-disk
 // ~/.claude/.credentials.json, or the macOS login Keychain). That is one ~200ms HTTPS GET, immune to
 // local CPU load.
+//
+// It is not the only source. Claude Code can be signed in by routes that leave no token in either
+// place: a token in its environment, or a proxy in front of the API that adds the sign-in to every
+// request (a "token broker"). With no token to read, the request goes the way Claude Code was told to
+// send its own — see ConfiguredRoute. And the endpoint refuses and rate-limits like any other, so what
+// the account's own sessions report on every turn is laid over whatever this returns — see
+// readClaudeQuota at the bottom, and claude-quota-observed.ts for where those reports come from.
 //
 // `claude -p /usage` IS A WHOLE CLAUDE CODE PROCESS, AND IT STARTS FOR EXACTLY ONE REASON: a
 // credential exists and the endpoint rejected it (401/403). Claude Code owns OAuth refresh and
@@ -45,9 +53,18 @@ const ENDPOINT_TIMEOUT_MS = 5000
 // A healthy reading is trusted for two minutes. The endpoint is one cheap ~200ms GET, and a proactive
 // server-side heartbeat (refreshClaudeQuotaInBackground, wired in context.ts) already keeps this cache
 // warm, so a lazy read reflects a value about as recent as the endpoint's rate limit allows (see
-// RATE_LIMIT_DEFAULT_BACKOFF_MS — in practice ~5 minutes, not these 2). FAIL keeps its tight 10s retry.
+// RATE_LIMIT_DEFAULT_BACKOFF_MS — in practice ~5 minutes, not these 2).
+//
+// A FAILED refresh is not retried for FAIL_TTL_MS — BY ANYONE. The failure is stamped beside the reading
+// (`failedAt`), and the heartbeat, a stale read's background kick and a lazy read all stand behind it.
+// It used to bind the lazy read alone, and only through a reading it had itself written: the heartbeat
+// never looked, and it is armed once per PROJECT (context.ts) for a credential that is the machine's. So
+// a signed-out or offline machine paid one attempt — a Keychain lookup, or a request that times out —
+// per open project every 30s, with the browser's poll on top. One window, one attempt, however many
+// projects tick. 30s is the heartbeat's own cadence; signing in is noticed within it, and the popover's
+// forced recheck does not wait for it at all.
 const OK_TTL_MS = 2 * 60_000
-const FAIL_TTL_MS = 10_000
+const FAIL_TTL_MS = 30_000
 const STALE_MAX_AGE_MS = 24 * 60 * 60_000
 // The CLI fallback boots a full Claude Code process; under load-80 a cold boot alone can blow well
 // past 12s, and a too-tight bound here is indistinguishable from a broken credential.
@@ -245,6 +262,112 @@ export interface ClaudeQuotaDeps {
   cacheDir?: string
   fetchImpl?: typeof fetch
   readToken?: (configDir: string) => Promise<string | undefined>
+  /** The configured route (resolveConfiguredRoute). Defaults to the real one — unless `readToken` is
+   *  injected, which stands for the whole credential lookup, so a test that scripts the token is never
+   *  reached by the machine's own environment. */
+  readRoute?: (configDir: string) => Promise<ConfiguredRoute | undefined>
+}
+
+// ---- The configured route: the address and credential Claude Code was TOLD to use ----
+//
+// Claude Code can be signed in with no token in the credentials file or the Keychain, by its
+// environment: a token in CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`'s), or a PROXY in front of the
+// API — ANTHROPIC_BASE_URL — that holds the real sign-in itself and adds it to every request passing
+// through, while Claude Code holds only a placeholder (ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY, or the
+// OAuth variable). That is what a "token broker" usually is. The pair lives in the environment Frizz
+// was started with, or in the `env` block of Claude Code's user settings, which is where a proxy's
+// installer writes it and which wins when both name one (measured 2026-10-11: a real `claude -p` with a
+// different proxy in each called the settings' one). The workers inherit both, so this IS their route.
+//
+// The usage request goes exactly where Claude Code's own requests go, carrying exactly the credential
+// Claude Code would send, in the same header. Through a proxy it is decorated like any other request:
+// Frizz never holds the real token and sends nothing anywhere Claude Code does not.
+//
+// It is the ONLY reading a proxied machine can have when the placeholder is ANTHROPIC_AUTH_TOKEN:
+// measured the same day through a stand-in proxy, Anthropic's rate-limit headers came back to Claude
+// Code on every response, and Claude Code emitted no rate_limit_event for them, so the sessions' report
+// (claude-quota-observed.ts) stays empty there. With the OAuth variable as the placeholder it did.
+//
+// Not covered, deliberately: an `apiKeyHelper` (it is a program, and a poll does not start programs —
+// that is the storm 2cf00464 removed), and a cloud provider (Bedrock, Vertex, Foundry), which has no
+// plan windows to read.
+export interface ConfiguredRoute {
+  url: string
+  headers: Record<string, string>
+  /** Changes whenever the address or the credential does; resets the route's backoff. Never the secret. */
+  fingerprint: string
+}
+
+const ROUTE_VARS = ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const
+const CLOUD_PROVIDER_VARS = ["CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"] as const
+
+async function readSettingsEnv(configDir: string): Promise<Record<string, string>> {
+  try {
+    const doc = JSON.parse(await readFile(join(configDir, "settings.json"), "utf8")) as { env?: unknown }
+    if (!doc?.env || typeof doc.env !== "object") return {}
+    return Object.fromEntries(Object.entries(doc.env as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === "string"))
+  } catch {
+    return {}
+  }
+}
+
+export async function resolveConfiguredRoute(configDir: string, env: NodeJS.ProcessEnv = process.env): Promise<ConfiguredRoute | undefined> {
+  const settings = await readSettingsEnv(configDir)
+  const pick = (name: string): string | undefined => (settings[name] ?? env[name])?.trim() || undefined
+  if (CLOUD_PROVIDER_VARS.some((name) => { const v = pick(name); return v !== undefined && v !== "0" && v.toLowerCase() !== "false" })) return undefined
+  let base = new URL(USAGE_URL).origin
+  const configuredBase = pick("ANTHROPIC_BASE_URL")
+  if (configuredBase) {
+    let parsed: URL
+    try {
+      parsed = new URL(configuredBase)
+    } catch {
+      return undefined
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return undefined
+    // Claude Code appends its API paths to the base, so a base that carries a path prefix keeps it.
+    base = `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`
+  }
+  const viaProxy = new URL(base).host !== new URL(USAGE_URL).host
+  // Claude Code's own order (its authentication docs): the gateway bearer, then an API key, then the
+  // OAuth token.
+  const bearer = pick("ANTHROPIC_AUTH_TOKEN")
+  const apiKey = pick("ANTHROPIC_API_KEY")
+  const oauth = pick("CLAUDE_CODE_OAUTH_TOKEN")
+  let credential: Record<string, string>
+  if (bearer) credential = { Authorization: `Bearer ${bearer}` }
+  // A Console key sent to Anthropic itself has no plan behind it; to a proxy it is just a placeholder.
+  else if (apiKey) {
+    if (!viaProxy) return undefined
+    credential = { "x-api-key": apiKey }
+  } else if (oauth) credential = { Authorization: `Bearer ${oauth}` }
+  else return undefined
+  const url = `${base}${new URL(USAGE_URL).pathname}`
+  return {
+    url,
+    headers: credential,
+    fingerprint: createHash("sha256").update(JSON.stringify([url, credential])).digest("hex").slice(0, 16),
+  }
+}
+
+// A route that failed is asked again no sooner than this, doubling, and never more often than the
+// endpoint itself would allow. A proxy that does not forward the usage path answers the same way every
+// time, and it is somebody's server — so a refusal costs one request per window, not one per poll.
+const ROUTE_BACKOFF_BASE_MS = 5 * 60_000
+const ROUTE_BACKOFF_MAX_MS = 6 * 60 * 60_000
+
+/** The configured route's failures in a row, and the instant (ms) before which it is not asked again. */
+interface RouteRuns {
+  fingerprint: string
+  failures: number
+  retryAt: number
+}
+
+/** The configured route failed; `configured` is the backoff the caller must persist. */
+class ConfiguredRouteFailed extends Error {
+  constructor(readonly configured: RouteRuns, message: string) {
+    super(message)
+  }
 }
 
 interface SharedQuota {
@@ -254,6 +377,11 @@ interface SharedQuota {
   retryAt?: number
   /** Set by every start of Claude Code. Carried through every failure; an endpoint success clears it. */
   cli?: CliRuns
+  /** Set by a refresh that failed for any other reason (ms). No unforced caller retries inside
+   *  FAIL_TTL_MS of it; a success clears it. */
+  failedAt?: number
+  /** Set by every failure of the configured route (ROUTE_BACKOFF_BASE_MS). A success clears it. */
+  configured?: RouteRuns
 }
 
 function cachePaths(cacheDir: string, configDir: string) {
@@ -270,6 +398,7 @@ async function readShared(path: string): Promise<SharedQuota | undefined> {
     if (!Number.isFinite(parsed.at) || !parsed.quota || !Array.isArray(parsed.quota.windows)) return undefined
     // A malformed record must read as "never ran", not as NaN arithmetic that no deadline ever beats.
     if (!Number.isFinite(parsed.cli?.runs) || !Number.isFinite(parsed.cli?.retryAt)) delete parsed.cli
+    if (typeof parsed.configured?.fingerprint !== "string" || !Number.isFinite(parsed.configured?.failures) || !Number.isFinite(parsed.configured?.retryAt)) delete parsed.configured
     return parsed
   } catch {
     return undefined
@@ -327,30 +456,48 @@ async function runClaudeUsage(claudeBin: string): Promise<string> {
 
 // One live refresh: the endpoint, and Claude Code only for a credential the endpoint rejected. Returns
 // ONLY a healthy quota; every failure shape throws so the callers' stale-serving catch handles them
-// uniformly. `cli` is the persisted record of Claude Code's last start, read under the refresh lock; a
-// result or a ClaudeCodeRefreshFailed that carries one means it was started again, and the caller
-// persists it.
+// uniformly. `standing` is the persisted record read under the refresh lock: `cli`, Claude Code's last
+// start (a result or a ClaudeCodeRefreshFailed that carries one means it was started again), and
+// `configured`, the configured route's backoff. The caller persists whatever comes back.
 //
 // `endpoint: false` is the human's refresh button while the endpoint's 429 window stands (see
-// readClaudeQuota): it skips the refusing endpoint and reads through Claude Code — a deliberate start the
-// operator asked for, still only with a credential on the machine and still inside Claude Code's backoff.
+// readEndpointQuota): it skips the refusing endpoint and reads through Claude Code — a deliberate start
+// the operator asked for, still only with a credential on the machine and still inside Claude Code's
+// backoff. A machine with no credential, whose window is its configured route's, has nothing to start.
 async function refreshQuota(
   claudeBin: string,
   deps: ClaudeQuotaDeps,
   now: number,
-  cli: CliRuns | undefined,
+  standing: Pick<SharedQuota, "cli" | "configured"> | undefined,
   { endpoint = true }: { endpoint?: boolean } = {},
 ): Promise<{ quota: ProviderQuota; cli?: CliRuns }> {
+  const cli = standing?.cli
   const doFetch = deps.fetchImpl ?? fetch
   const readToken = deps.readToken ?? readAccessToken
+  const configDir = claudeConfigDir()
   let token: string | undefined
   try {
-    token = await readToken(claudeConfigDir())
+    token = await readToken(configDir)
   } catch {
     token = undefined
   }
-  // Signed out. Claude Code reads these same two sources, so it has no quota to report either.
-  if (!token) throw new Error("Not signed in to Claude")
+  // No token in the credentials file or the Keychain. That is not the same as signed out: Claude Code
+  // may have been told where to send its requests and with what (see ConfiguredRoute), and then the
+  // usage request goes the same way. Starting Claude Code to ask is still never the answer — it was the
+  // 5-a-minute process storm — and the sessions' own reports are laid over whatever this returns.
+  if (!token) {
+    const readRoute = deps.readRoute ?? (deps.readToken ? async () => undefined : (dir: string) => resolveConfiguredRoute(dir))
+    let route: ConfiguredRoute | undefined
+    try {
+      route = await readRoute(configDir)
+    } catch {
+      route = undefined
+    }
+    if (!route) throw new Error("Not signed in to Claude")
+    // Inside the route's own 429 window: there is no Claude Code start that could read around it.
+    if (!endpoint) throw new Error("Usage rate-limited through the configured API address")
+    return { quota: await refreshThroughRoute(route, doFetch, now, standing?.configured) }
+  }
   if (!endpoint) {
     // A rejected credential Claude Code has already failed to repair is not worth another start, even
     // on a click. The record rides through untouched: only the endpoint accepting the token resets it,
@@ -396,6 +543,39 @@ async function refreshQuota(
   } catch (err) {
     throw new ClaudeCodeRefreshFailed(started, err)
   }
+}
+
+// The usage request along the configured route. A 429 is the endpoint's (or the proxy's) own deadline
+// and binds every caller as usual; every other failure — the proxy down, a path it does not forward, a
+// credential it refuses, a body that is not a usage reading — is the route's, and backs it off. Never
+// Claude Code: it cannot repair a credential it was handed.
+async function refreshThroughRoute(route: ConfiguredRoute, doFetch: typeof fetch, now: number, standing: RouteRuns | undefined): Promise<ProviderQuota> {
+  const backoff = standing?.fingerprint === route.fingerprint ? standing : undefined
+  if (backoff && now < backoff.retryAt) throw new Error("Usage unavailable through the configured API address")
+  const fail = (message: string): never => {
+    const failures = (backoff?.failures ?? 0) + 1
+    throw new ConfiguredRouteFailed(
+      { fingerprint: route.fingerprint, failures, retryAt: now + Math.min(ROUTE_BACKOFF_BASE_MS * 2 ** (failures - 1), ROUTE_BACKOFF_MAX_MS) },
+      message,
+    )
+  }
+  let res: Response
+  try {
+    res = await doFetch(route.url, {
+      headers: { ...route.headers, "anthropic-beta": OAUTH_BETA, "User-Agent": USER_AGENT, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(ENDPOINT_TIMEOUT_MS),
+      // A proxy that redirects is not one this request should follow anywhere with a credential on it.
+      redirect: "manual",
+    })
+  } catch {
+    return fail("Configured API address unreachable")
+  }
+  if (res.status === 429 || res.status === 529) throw new UsageRateLimited(res.status, retryAtFrom(res, now))
+  if (!res.ok) return fail(`Configured API address answered ${res.status}`)
+  const body = (await res.json().catch(() => undefined)) as Record<string, unknown> | undefined
+  const quota = parseClaudeUsage(body, typeof body?.plan_type === "string" ? body.plan_type : undefined)
+  if (quota.status !== "ok") return fail(quota.detail ?? "No usage windows reported")
+  return quota
 }
 
 const LINE_WINDOWS: Array<[RegExp, string, string]> = [
@@ -528,26 +708,44 @@ function serveRateLimited(shared: SharedQuota & { retryAt: number }, now: number
   }
 }
 
+function recentlyFailed(shared: SharedQuota | undefined, now: number): boolean {
+  return shared?.failedAt !== undefined && now >= shared.failedAt && now - shared.failedAt < FAIL_TTL_MS
+}
+
+// What a failed refresh leaves beside the reading, so that whoever comes next does not repeat it: the
+// endpoint's own deadline for a 429, and otherwise the failure's instant — with the record of Claude
+// Code's start and the configured route's backoff, each the one this failure made or the one already
+// standing, because only a success may clear either.
+function failureStamp(err: unknown, standing: SharedQuota | undefined, now: number): Partial<SharedQuota> {
+  if (err instanceof UsageRateLimited) return { retryAt: err.retryAt }
+  const cli = err instanceof ClaudeCodeRefreshFailed ? err.cli : standing?.cli
+  const configured = err instanceof ConfiguredRouteFailed ? err.configured : standing?.configured
+  return { failedAt: now, ...(cli ? { cli } : {}), ...(configured ? { configured } : {}) }
+}
+
 // In-process guard so overlapping polls from one server start at most one background refresh.
 const backgroundRefreshes = new Map<string, Promise<void>>()
 
 function refreshSharedInBackground(paths: { data: string; lock: string }, claudeBin: string, deps: ClaudeQuotaDeps, now: number): void {
   if (backgroundRefreshes.has(paths.data)) return
   const task = (async () => {
-    if (rateLimited(await readShared(paths.data), now)) return
+    const before = await readShared(paths.data)
+    if (rateLimited(before, now) || recentlyFailed(before, now)) return
     const release = await tryAcquireLock(paths.lock)
     if (!release) return
     try {
-      const refreshed = await refreshQuota(claudeBin, deps, now, (await readShared(paths.data))?.cli)
-      await writeShared(paths.data, { at: now, ...refreshed })
-    } catch (err) {
-      // Keep the reading and its age; record only the deadline the failure set, so the next tick does
-      // not ask the endpoint (or start Claude Code) again before it.
-      const deadline =
-        err instanceof UsageRateLimited ? { retryAt: err.retryAt } : err instanceof ClaudeCodeRefreshFailed ? { cli: err.cli } : undefined
-      if (!deadline) throw err
-      const current = await readShared(paths.data)
-      await writeShared(paths.data, { ...(current ?? { at: now, quota: UNAVAILABLE }), ...deadline })
+      // Read again under the lock: another Frizz process may have failed this same refresh a moment ago.
+      const held = await readShared(paths.data)
+      if (recentlyFailed(held, now)) return
+      try {
+        const refreshed = await refreshQuota(claudeBin, deps, now, held)
+        await writeShared(paths.data, { at: now, ...refreshed })
+      } catch (err) {
+        // Keep the reading and its age; record only what the failure set, so the next tick does not ask
+        // the endpoint (or look the credential up, or start Claude Code) again before it.
+        const current = await readShared(paths.data)
+        await writeShared(paths.data, { ...(current ?? { at: now, quota: UNAVAILABLE }), ...failureStamp(err, current, now) })
+      }
     } finally {
       await release().catch(() => {})
     }
@@ -572,8 +770,9 @@ export async function claudeQuotaRefreshSettled(): Promise<void> {
 // It uses the SAME non-blocking background path a stale read kicks — one in-flight refresh per process,
 // a cross-process lock so N Frizz processes make one request per window per account, and Claude Code
 // started only for a rejected credential, inside its own backoff. It NEVER blocks the caller and
-// swallows every failure (the last known-good reading rides until the next success). On a machine that
-// is not signed in to Claude a tick is one credential lookup and nothing else.
+// swallows every failure (the last known-good reading rides until the next success). It is armed once
+// per project, so on a machine that is not signed in to Claude — or is offline — the ticks of every open
+// project share ONE attempt per FAIL_TTL_MS: a credential lookup, or a request, and nothing else.
 export async function refreshClaudeQuotaInBackground(claudeBin = "claude", deps: ClaudeQuotaDeps = {}): Promise<void> {
   const now = (deps.now ?? Date.now)()
   const configDir = claudeConfigDir()
@@ -599,8 +798,8 @@ export async function refreshClaudeQuotaInBackground(claudeBin = "claude", deps:
 // returned immediately and the refresh happens in the background. The poll must never block on the
 // CLI + cross-process lock (~27s worst case) — responses that slow straddle dev-server restarts and
 // leave the browser's fetch hung, which is exactly how the chip froze into an em dash. Only `force`
-// (the popover's refresh button) waits for a live refresh.
-export async function readClaudeQuota(
+// (the popover's explicit recheck) waits for a live refresh.
+async function readEndpointQuota(
   claudeBin = "claude",
   deps: ClaudeQuotaDeps = {},
   options: { force?: boolean } = {},
@@ -613,7 +812,7 @@ export async function readClaudeQuota(
     await mkdir(cacheDir, { recursive: true, mode: 0o700 })
   } catch {
     try {
-      return (await refreshQuota(claudeBin, deps, now, CLI_NEVER)).quota
+      return (await refreshQuota(claudeBin, deps, now, { cli: CLI_NEVER })).quota
     } catch {
       return { status: "unavailable", windows: [], detail: "Claude usage unavailable" }
     }
@@ -630,6 +829,11 @@ export async function readClaudeQuota(
     if (ageMs < 10 * 60_000) return initial.quota
     return { ...initial.quota, detail: `Refreshing · last updated ${Math.round(ageMs / 60_000)}m ago` }
   }
+
+  // Only a forced recheck gets past an unexpired refusal: an ordinary read serves what the window left
+  // (upstream 773930da), and asks nothing while somebody else's refresh failed moments ago.
+  if (!options.force && rateLimited(initial, now)) return serveRateLimited(initial, now)
+  if (!options.force && recentlyFailed(initial, now)) return UNAVAILABLE
 
   // A FORCED recheck is the human pressing refresh, and inside the endpoint's refusal window it goes
   // through the `claude -p /usage` CLI instead of serving the cached reading. Measured 2026-10-02: with
@@ -648,11 +852,11 @@ export async function readClaudeQuota(
 
     let refreshed: { quota: ProviderQuota; cli?: CliRuns }
     try {
-      refreshed = await refreshQuota(claudeBin, deps, now, afterLock?.cli, { endpoint: retryAt === undefined })
+      refreshed = await refreshQuota(claudeBin, deps, now, afterLock, { endpoint: retryAt === undefined })
     } catch (err) {
       if (!(err instanceof UsageRateLimited)) throw err
       retryAt = err.retryAt
-      refreshed = await refreshQuota(claudeBin, deps, now, afterLock?.cli, { endpoint: false })
+      refreshed = await refreshQuota(claudeBin, deps, now, afterLock, { endpoint: false })
     }
     await writeShared(paths.data, { at: now, ...refreshed, ...(retryAt === undefined ? {} : { retryAt }) }).catch(() => {})
     return refreshed.quota
@@ -665,17 +869,87 @@ export async function readClaudeQuota(
     }
     // Claude Code's backoff outlives every failure, this one's write included: only an endpoint
     // success clears it, or the next rejected read would start the CLI all over again.
-    const cli = err instanceof ClaudeCodeRefreshFailed ? err.cli : fallback?.cli
+    const failed = failureStamp(err, fallback, now)
     if (fallback?.quota.status === "ok" && now - fallback.at < STALE_MAX_AGE_MS) {
-      if (err instanceof ClaudeCodeRefreshFailed) await writeShared(paths.data, { ...fallback, cli }).catch(() => {})
+      await writeShared(paths.data, { ...fallback, ...failed }).catch(() => {})
       return {
         ...fallback.quota,
         detail: `Could not refresh · last updated ${Math.max(1, Math.round((now - fallback.at) / 60_000))}m ago`,
       }
     }
-    await writeShared(paths.data, { at: now, quota: UNAVAILABLE, ...(cli ? { cli } : {}) }).catch(() => {})
+    await writeShared(paths.data, { at: now, quota: UNAVAILABLE, ...failed }).catch(() => {})
     return UNAVAILABLE
   } finally {
     await release?.().catch(() => {})
+  }
+}
+
+// House duration grammar (`40m`, `2h 35m`), as an age.
+function agoLabel(ms: number): string {
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  const rest = minutes % 60
+  return rest ? `${Math.floor(minutes / 60)}h ${rest}m ago` : `${Math.floor(minutes / 60)}h ago`
+}
+
+/**
+ * The endpoint's reading with what Claude Code's own sessions have reported laid over it
+ * (claude-quota-observed.ts). `servedAt` is the instant (ms) the endpoint's reading was taken.
+ *
+ *  • NO ENDPOINT READING — the machine a token broker signs in, where Frizz finds no credential to ask
+ *    with, and equally a rejected or unreachable one with nothing cached: the sessions' report IS the
+ *    reading, and its note says where it came from.
+ *  • AN ENDPOINT READING OLDER THAN A REPORT: the windows that report names take its numbers — both are
+ *    the provider's own, so the newer one is simply the truth — and the windows it does not name (the
+ *    per-model weeklies, which no session reports) keep the endpoint's. A staleness note the endpoint's
+ *    reading carried no longer describes what is shown, so it is replaced; a reading that carried none
+ *    stays silent.
+ */
+export function withObservedClaudeQuota(
+  served: ProviderQuota,
+  servedAt: number | undefined,
+  observed: ObservedClaudeQuota | undefined,
+  now: number,
+): ProviderQuota {
+  if (!observed) return served
+  const plain = ({ at: _at, ...window }: ObservedWindow): QuotaWindow => window
+  if (served.status !== "ok") {
+    return { status: "ok", windows: observed.windows.map(plain), detail: `From this machine's Claude sessions · ${agoLabel(now - observed.at)}` }
+  }
+  if (servedAt === undefined) return served
+  const newer = new Map(observed.windows.filter((w) => w.at > servedAt).map((w) => [w.key, w]))
+  if (!served.windows.some((w) => newer.has(w.key))) return served
+  const windows = served.windows.map((w) => {
+    const report = newer.get(w.key)
+    return report ? plain(report) : w
+  })
+  const latest = Math.max(...[...newer.values()].map((w) => w.at))
+  return {
+    ...served,
+    windows,
+    ...(served.detail ? { detail: `Updated from this machine's Claude sessions · ${agoLabel(now - latest)}` } : {}),
+  }
+}
+
+// THE READING EVERY CALLER GETS: the endpoint's (readEndpointQuota, above — every bound on what a read
+// may cost lives there, untouched), then the sessions' own reports over it. The overlay costs one small
+// local file read and can only ever add a reading or freshen one.
+export async function readClaudeQuota(
+  claudeBin = "claude",
+  deps: ClaudeQuotaDeps = {},
+  options: { force?: boolean } = {},
+): Promise<ProviderQuota> {
+  const served = await readEndpointQuota(claudeBin, deps, options)
+  try {
+    const now = (deps.now ?? Date.now)()
+    const configDir = claudeConfigDir()
+    const cacheDir = deps.cacheDir ?? join(frizzRoots().cache, "quota-cache")
+    const observed = await readObservedClaudeQuota(cacheDir, configDir, now)
+    if (!observed) return served
+    const shared = served.status === "ok" ? await readShared(cachePaths(cacheDir, configDir).data) : undefined
+    return withObservedClaudeQuota(served, shared?.quota.status === "ok" ? shared.at : undefined, observed, now)
+  } catch {
+    return served
   }
 }

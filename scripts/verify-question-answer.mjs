@@ -20,7 +20,7 @@
 // Seed a stack + question threads first (scripts/seed-question-cards.mjs, see .agents/skills/frizz-stack):
 //   node scripts/verify-question-answer.mjs --url=http://127.0.0.1:4930 --slug=q-legacy-approval
 //   node scripts/verify-question-answer.mjs --url=… --slug=q-legacy-danger --mode=chip
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => { const [k, ...v] = a.replace(/^--/, "").split("="); return [k, v.join("=") || true] }),
@@ -49,7 +49,7 @@ const ANSWER_BOX = `${SEL} textarea[data-surface="questionAnswer"]`
 const CHIP_SRC = "^(Recommended)?[A-Z0-9][.)]\\s"
 const CHIP_SRC_RE = new RegExp(CHIP_SRC)
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 try {
   const page = await browser.newPage()
   await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 2 })

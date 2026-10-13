@@ -1,6 +1,6 @@
 import { Repeat, Timer, Signpost } from "lucide-react"
 import type { RecurringPrompt } from "@frizz/shared"
-import { WakeDivider } from "./WakeDivider.tsx"
+import { WAKE_DIVIDER_NARROW_ONLY, WAKE_DIVIDER_WIDE_ONLY, WakeDivider } from "./WakeDivider.tsx"
 
 // A DELIVERED recurring prompt, in the transcript: a HAIRLINE NOTIFICATION, the same one every other
 // child event in this app wears.
@@ -47,7 +47,12 @@ export function RecurringPromptLine(props: { bump: RecurringPrompt; sourceId?: s
     const label = "Frizz asked for a sign-off"
     return (
       <WakeDivider icon={Signpost} sourceId={sourceId} marker="rest" ariaLabel={label} at={at}>
-        {label}
+        {/* A truncating span, never a bare text node: bare, the label is a flex item that WRAPS, and
+            between two 50px rules on a phone this one is long enough to break onto a second line. */}
+        <span className="min-w-0 truncate">
+          <span className={WAKE_DIVIDER_WIDE_ONLY}>{label}</span>
+          <span className={WAKE_DIVIDER_NARROW_ONLY}>Sign-off requested</span>
+        </span>
       </WakeDivider>
     )
   }
@@ -77,7 +82,7 @@ export function RecurringPromptLine(props: { bump: RecurringPrompt; sourceId?: s
       ariaLabel={label}
       at={at}
     >
-      {label}
+      <span className="min-w-0 truncate">{label}</span>
     </WakeDivider>
   )
 }

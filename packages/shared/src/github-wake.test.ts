@@ -7,7 +7,13 @@ import {
   parseLimitResumeWake,
   parseLimitModelSwitchWake,
   parseParkWake,
+  parseMergedWake,
+  parseOwnWatchExpiredWake,
   parsePrWatchExpiredWake,
+  parseQuestionsCancelledWake,
+  parseRecurringPrompt,
+  restPromptMessage,
+  stripWakeTimeHeader,
   parsePrWatchStateWake,
   parsePrWatchWake,
   parseShellDoneWake,
@@ -16,7 +22,11 @@ import {
   limitModelSwitchSteer,
   parkExpiredWakeMessage,
   parkFinishedWakeMessage,
+  mergedWakeMessage,
+  ownWatchExpiredWakeMessage,
   prWatchExpiredWakeMessage,
+  questionsCancelledWakeMessage,
+  wakeTimeHeader,
   prWatchWakeMessage,
   shellDoneMessage,
   timerPromptMessage,
@@ -37,7 +47,6 @@ import {
   type GithubWakeSteer,
   interruptEndedSubAgentsMessage,
   isInterruptEndedWake,
-  parseRecurringPrompt,
   SIGNOFF_NUDGE_MARKER,
 } from "./index.ts"
 
@@ -482,30 +491,126 @@ test("parsePrWatchExpiredWake: the lapsed watcher's ref is the whole of what a r
 // fixture's claim to hold "every wake frizz delivers".
 const RECOGNIZERS = [
   parseShellDoneWake, parseTimerWake, parseLimitResumeWake, parseLimitModelSwitchWake, parsePrWatchWake, parseGithubWakeSteer,
-  parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake,
+  parseParkWake, parsePrWatchExpiredWake, parseOwnWatchExpiredWake, parsePrWatchStateWake, parseQuestionsCancelledWake,
 ] as const
 
+const COMPOSED: [string, string][] = [
+  ["shell finished", shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })],
+  ["shell failed", shellDoneMessage({ label: "vite --port 5199", status: "failed" })],
+  ["timer fired", timerPromptMessage("Re-check the promoted artifact.", "2026-08-24T09:50:00.000Z")],
+  ["limit reset", limitResumeSteer("weekly")],
+  ["limit model switch", limitModelSwitchSteer("Fable 5", "Opus")],
+  ["pr merged", prWatchWakeMessage({ target: "nubjs/nub#777", merged: true })],
+  ["pr checks", prWatchWakeMessage({ target: "nubjs/nub#777", checks: { verdict: "failing", passed: 1, failed: 1, failing: ["typecheck"] } })],
+  ["pr checks green with skips", prWatchWakeMessage({ target: "nubjs/nub#777", checks: { verdict: "passing", passed: 3, failed: 0, failing: [], skipped: 12 } })],
+  ["pr checks gated", prWatchWakeMessage({ target: "nubjs/nub#777", checks: { verdict: "gated", passed: 0, failed: 0, failing: [], gated: 8, gating: ["Test Linux"] } })],
+  ["review activity", formatGithubWakeSteer(single)],
+  ["pr state moved", prWatchWakeMessage({ target: "nubjs/nub#777", changes: ["now CONFLICTS with the base branch"] })],
+  ["park expired", parkExpiredWakeMessage(parkStatus)],
+  ["park expired, nothing listed", parkExpiredWakeMessage([])],
+  ["park finished", parkFinishedWakeMessage(parkStatus, true)],
+  ["watcher lapsed", prWatchExpiredWakeMessage("nubjs/nub#777")],
+  ["own shell watch lapsed", ownWatchExpiredWakeMessage("shell", "bzvtnt3ig")],
+  ["own sub-agent watch lapsed", ownWatchExpiredWakeMessage("agent", "a01b2d20b32feab11")],
+  ["questions cancelled", questionsCancelledWakeMessage(2)],
+]
+
 test("every wake frizz composes is recognized by a parser — none may reach the verbatim fallback", () => {
-  const composed: [string, string][] = [
-    ["shell finished", shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })],
-    ["shell failed", shellDoneMessage({ label: "vite --port 5199", status: "failed" })],
-    ["timer fired", timerPromptMessage("Re-check the promoted artifact.", "2026-08-24T09:50:00.000Z")],
-    ["limit reset", limitResumeSteer("weekly")],
-    ["limit model switch", limitModelSwitchSteer("Fable 5", "Opus")],
-    ["pr merged", prWatchWakeMessage({ target: "nubjs/nub#777", merged: true })],
-    ["pr checks", prWatchWakeMessage({ target: "nubjs/nub#777", checks: { verdict: "failing", passed: 1, failed: 1, failing: ["typecheck"] } })],
-    ["pr checks green with skips", prWatchWakeMessage({ target: "nubjs/nub#777", checks: { verdict: "passing", passed: 3, failed: 0, failing: [], skipped: 12 } })],
-    ["pr checks gated", prWatchWakeMessage({ target: "nubjs/nub#777", checks: { verdict: "gated", passed: 0, failed: 0, failing: [], gated: 8, gating: ["Test Linux"] } })],
-    ["review activity", formatGithubWakeSteer(single)],
-    ["pr state moved", prWatchWakeMessage({ target: "nubjs/nub#777", changes: ["now CONFLICTS with the base branch"] })],
-    ["park expired", parkExpiredWakeMessage(parkStatus)],
-    ["park expired, nothing listed", parkExpiredWakeMessage([])],
-    ["park finished", parkFinishedWakeMessage(parkStatus, true)],
-    ["watcher lapsed", prWatchExpiredWakeMessage("nubjs/nub#777")],
-  ]
-  for (const [name, text] of composed) {
+  for (const [name, text] of COMPOSED) {
     assert.ok(RECOGNIZERS.some((parse) => parse(text)), `${name} falls through to the verbatim card`)
   }
+})
+
+// ---- …AND THAT HOLDS WHEN THEY ARE SENT TOGETHER (2026-10-11) -------------------------------------
+//
+// The table above was satisfied for five weeks while the commonest pair in it drew the verbatim card.
+// The scheduler merges everything waiting for a thread into ONE message, and its composer lived in the
+// server package, so the envelope was a shape with no row here and no parser anywhere: a park ending
+// beside the shell whose exit ended it printed both agent-facing bodies in a bordered "Frizz" card.
+// The envelope's contract is that it cuts back into exactly the wakes that went in.
+const NOW = Date.parse("2026-10-11T16:52:00Z")
+const stamped = (text: string) => `${text}\n\n${wakeTimeHeader(NOW - 60_000, "2026-10-11T16:40:00Z")}`
+
+test("a merged delivery cuts back into the wakes it carries, and each is still recognized", () => {
+  for (const [nameA, a] of COMPOSED) {
+    for (const [nameB, b] of COMPOSED) {
+      if (a === b) continue
+      const merged = mergedWakeMessage([{ reason: nameA, message: stamped(a) }, { reason: nameB, message: stamped(b) }], NOW, "2026-10-11T16:49:00Z")
+      const parts = parseMergedWake(merged)
+      assert.deepEqual(parts, [{ body: a, count: 1 }, { body: b, count: 1 }], `${nameA} + ${nameB}`)
+      for (const part of parts!) {
+        assert.ok(RECOGNIZERS.some((parse) => parse(stripWakeTrailer(part.body))), `${nameA} + ${nameB}: a part falls through to the verbatim card`)
+      }
+      // The token the outbox appends and the clock at the foot are the two riders the server's display
+      // projection takes off. The split reads the same with them on, which is what the fold hands it.
+      assert.deepEqual(parseMergedWake(`${merged}\n\n${wakeDeliveryToken("a".repeat(64))}`), parts)
+    }
+  }
+})
+
+test("identical events fold into one part that says how many it stands for", () => {
+  const ci = prWatchWakeMessage({ target: "nubjs/nub#777", checks: { verdict: "failing", passed: 1, failed: 1, failing: ["typecheck"] } })
+  const shell = shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })
+  const merged = mergedWakeMessage([
+    { reason: "pr-watch nubjs/nub#777 CI failing", message: stamped(ci) },
+    { reason: "background shell finished (b1)", message: stamped(shell) },
+    { reason: "pr-watch nubjs/nub#777 CI failing", message: stamped(ci) },
+  ], NOW)
+  assert.match(merged, /^Frizz held 3 wakes /)
+  assert.deepEqual(parseMergedWake(merged), [{ body: ci, count: 2 }, { body: shell, count: 1 }])
+})
+
+// Byte for byte the delivery in the maintainer's screenshot, token and all — the releaser thread,
+// 2026-10-11 09:52. The park wake carries the "NOTHING running" paragraph the scheduler appends to it.
+test("the delivery that was reported cuts into its park and its shell", () => {
+  const record = "Frizz held 2 wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.\n\n### 1. awaiting park named 1 dead item(s)\n\n✅ The work you parked on has FINISHED, so the park is over and your thread is back in the queue.\n\n- `shells: [br6vpp762]` — FINISHED — its result is waiting for you\n\nREAD ITS OUTPUT AND CARRY ON. This is not a broken fence and there is nothing to fix: the wait\nyou declared simply ended. Do NOT relaunch the same work — its result is already on disk.\n\nThen park on whatever comes next, or end in ```done or a registered question (`mcp__frizz__ask`) if nothing is left.\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n```done, or register a question with `mcp__frizz__ask`.\n\n### 2. background shell finished (br6vpp762)\n\n⏰ Your background shell finished: `br6vpp762` — Running the update harness against the built shell and server.\n\n(Frizz sends this because it finished after you came to rest, where your runtime's own completion notification does not reach you. Read its output if you still need it.)\n\n⏱ 2026-10-11 09:52 — you last spoke 3m ago.\n\n<!-- frizz-wake:5d7e952abebe8b7153215553d6bc077258f6d28e3ca6e825cf93cbe8d97c3234 -->"
+  const parts = parseMergedWake(record)
+  assert.equal(parts?.length, 2)
+  assert.deepEqual(parseParkWake(parts![0].body), { kind: "finished", items: ["- `shells: [br6vpp762]` — FINISHED — its result is waiting for you"] })
+  assert.deepEqual(parseShellDoneWake(parts![1].body), { taskId: "br6vpp762", label: "Running the update harness against the built shell and server", outcome: "finished" })
+})
+
+// THE SPLIT IS ASKED FIRST, and this is why. A Goal prompt is recognized by a trailer at the END of the
+// text, and a merged delivery whose last wake is that prompt ends in the same trailer — so the Goal's
+// parser reads the WHOLE delivery as one recurring prompt. Routed ahead of the split, the chat drew one
+// "Goal · at rest" line and every wake held beside it was never shown.
+test("a merged delivery that ends in the Goal's prompt still reads as one to the Goal's own parser", () => {
+  const shell = shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })
+  const goal = restPromptMessage("KEEP GOING.")
+  const merged = mergedWakeMessage([{ reason: "background shell finished (b1)", message: shell }, { reason: "recurring prompt at rest", message: goal }], NOW)
+  const display = stripWakeTimeHeader(merged)
+  assert.ok(parseRecurringPrompt(display), "the trap: asked first, this answer swallows the shell")
+  assert.deepEqual(parseMergedWake(display)?.map((part) => part.body), [shell, goal])
+  assert.ok(parseRecurringPrompt(parseMergedWake(display)![1].body), "and the Goal is still a Goal once it is cut out")
+})
+
+test("only the envelope frizz composes is a merged delivery", () => {
+  const shell = shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })
+  assert.equal(parseMergedWake(shell), null, "a lone wake")
+  assert.equal(parseMergedWake("all clear"), null)
+  const merged = mergedWakeMessage([{ reason: "a", message: shell }, { reason: "b", message: limitResumeSteer("weekly") }], NOW)
+  assert.equal(parseMergedWake(`Why did this show up?\n\n${merged}`), null, "prose that quotes one is the human's own words")
+  assert.equal(parseMergedWake(merged.replace("### 1. a", "Something else first.\n\n### 1. a")), null, "the first heading follows the lead")
+})
+
+// A Goal prompt or a timer's text is arbitrary prose and may carry numbered headings of its own, and
+// nothing in the envelope says which `### 2.` is the scheduler's. A cut inside that prose would hand the
+// chat a wake that ends mid-thought and a second one that starts there, with the heading line between
+// them gone — so an envelope holding ANY numbered heading that is not a boundary in sequence is refused
+// whole, and the fallback card is what guarantees the text.
+test("a body with numbered headings of its own is refused, never cut", () => {
+  const prose = timerPromptMessage("Work through these.\n\n### 1. Rebuild\n\nthe artifact\n\n### 2. Re-run\n\nthe suite\n\n### 3. Report\n\nback", "2026-08-24T09:50:00.000Z")
+  const shell = shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })
+  const timer = { reason: "one-off timer elapsed", message: prose }
+  const done = { reason: "background shell finished (b1)", message: shell }
+  // LAST in the frame: its "### 3." would be a third section of a delivery that holds two.
+  assert.equal(parseMergedWake(mergedWakeMessage([done, timer], NOW)), null)
+  // FIRST in the frame: its "### 2." sits ahead of the real one, and would add up — two sections, two
+  // wakes — which is why the count alone is not the check.
+  assert.equal(parseMergedWake(mergedWakeMessage([timer, done], NOW)), null)
+  // Headings that are not numbered section headings are just prose, and cut nothing.
+  const plain = timerPromptMessage("### Notes\n\n1. rebuild\n2. re-run", "2026-08-24T09:50:00.000Z")
+  assert.deepEqual(parseMergedWake(mergedWakeMessage([{ reason: "one-off timer elapsed", message: plain }, done], NOW))?.map((p) => p.body), [plain, shell])
 })
 
 // …and the fallback still has to WORK, or the guard above would be satisfied by deleting it.
@@ -587,7 +692,7 @@ test("every trailer frizz appends comes off the display projection", () => {
     assert.ok(text.includes(trailer), `${name}: the producer no longer writes the constant it is pinned by`)
     const shown = stripWakeTrailer(text)
     assert.ok(!shown.includes(trailer), `${name}: the trailer survived the projection`)
-    assert.ok(!shown.includes("mcp__frizz__"), `${name}: a raw tool name reached the operator`)
+    assert.doesNotMatch(shown, /frizzctl|mcp__frizz__/, `${name}: a raw command name reached the operator`)
     assert.ok(shown.trim().length > 0, `${name}: the projection ate the news with the boilerplate`)
   }
 })
@@ -645,6 +750,24 @@ test("prose that merely quotes a trailer keeps it, and a trailer mid-message is 
   assert.equal(stripWakeTrailer(PR_WATCH_ARMED_TRAILER), PR_WATCH_ARMED_TRAILER)
 })
 
+// THE TRAILERS NAMED AN MCP TOOL UNTIL 2026-10-11, and every watcher wake delivered before that date
+// ends with those bytes. The strip matches exact strings, so rewording the constants would have put the
+// old boilerplate back on the operator's screen for every wake already in a transcript.
+test("a watcher wake written before the command line still loses its trailer", () => {
+  const armedPr = "(Registered PR watcher — STILL ARMED. It reports again on the next CI change, review, comment, label, conflict or review request. Drop it with `mcp__frizz__watch_pr` when it stops mattering.)"
+  const armedIssue = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or assignee change, and once more when the issue closes. Drop it with `mcp__frizz__watch_issue` when it stops mattering.)"
+  assert.notEqual(armedPr, PR_WATCH_ARMED_TRAILER, "the trailer a worker gets today names the command")
+  assert.match(PR_WATCH_ARMED_TRAILER, /Drop it with `frizzctl watch-pr drop <id>`/)
+  assert.match(ISSUE_WATCH_ARMED_TRAILER, /Drop it with `frizzctl watch-issue drop <id>`/)
+  for (const [now, then] of [[PR_WATCH_ARMED_TRAILER, armedPr], [ISSUE_WATCH_ARMED_TRAILER, armedIssue]]) {
+    const wake = prWatchWakeMessage({ target: "nubjs/nub#879", changes: ["labels +blocked"] }).replace(PR_WATCH_ARMED_TRAILER, now)
+    const old = wake.replace(now, then)
+    assert.ok(old.endsWith(then))
+    assert.equal(stripWakeTrailer(old), stripWakeTrailer(wake), "the old trailer comes off exactly as the new one does")
+    assert.doesNotMatch(stripWakeTrailer(old), /STILL ARMED|mcp__frizz__/)
+  }
+})
+
 // ---- ISSUE WATCHER WAKES (2026-09-14) -----------------------------------------------------------------
 // The lines keep the PR shapes on purpose, so a tab built before issues existed still draws the divider.
 test("issueWatchWakeMessage: the close line parses as a closed PR-watch wake, with the reason on its own line", () => {
@@ -662,15 +785,15 @@ test("issueWatchWakeMessage: state changes and a comment steer share one deliver
   assert.equal(parsePrWatchWake(text), null, "no CI line, ever")
   assert.ok(parseGithubWakeSteer(text.split("\n\n")[1]), "the steer is the second paragraph")
   assert.ok(text.endsWith(ISSUE_WATCH_ARMED_TRAILER))
-  assert.doesNotMatch(stripWakeTrailer(text), /watch_issue/)
+  assert.doesNotMatch(stripWakeTrailer(text), /watch[-_]issue/)
 })
 
-test("prWatchExpiredWakeMessage: an issue's expiry parses through the same head and points at watch_issue", () => {
+test("prWatchExpiredWakeMessage: an issue's expiry parses through the same head and points at watch-issue", () => {
   const text = prWatchExpiredWakeMessage("acme/app#7", "issue")
   assert.deepEqual(parsePrWatchExpiredWake(text), { ref: "acme/app#7" })
   assert.match(text, /nothing on that issue will wake/)
-  assert.match(text, /mcp__frizz__watch_issue/)
-  assert.match(prWatchExpiredWakeMessage("acme/app#7"), /mcp__frizz__watch_pr/, "the default is still a PR")
+  assert.match(text, /register it again with `frizzctl watch-issue add` and a fresh `--for`/)
+  assert.match(prWatchExpiredWakeMessage("acme/app#7"), /register it again with `frizzctl watch-pr add` and a fresh `--for`/, "the default is still a PR")
 })
 
 test("splitAwaitingFrontmatter: `issues:` is a structural key producing `issue` hints", () => {

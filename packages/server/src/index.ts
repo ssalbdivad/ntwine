@@ -54,8 +54,10 @@ import { startWakeLockLoop, type WakeLockLoop } from "./wake-lock.ts"
 import { startIdleWorktreeSweep, type WorktreeSweepLoop } from "./worktree-sweep.ts"
 import { threadFoldersInUse } from "./router.ts"
 import { findWorkspaceById, findWorkspaceBySegment, isHomeWorkspace, listWorkspaces, projectForEntry } from "./home-workspace.ts"
+import { registryPath } from "./project-registry.ts"
+import { announceProjectListChanges } from "./projects-changed.ts"
 import { backfillRegistry } from "./project-registry.ts"
-import { servedByAnotherProcess } from "./project-launch.ts"
+import { claimProjectServing, projectServedElsewhere } from "./project-serving.ts"
 import { deleteProjectState, stopProjectWorkers } from "./project-teardown.ts"
 
 export const SERVER_SHUTDOWN_TIMEOUT_MS = 4_000
@@ -213,6 +215,8 @@ export interface StartOptions {
   /** Internal: a supervisor-verified pinned project and its delegated owner token. */
   project?: Project
   launchOwnerToken?: string
+  /** Internal: the machine-wide owner's token under the stable launcher; see AppOptions.machineToken. */
+  machineOwnerToken?: string
   /** Internal token-bound path used by a supervised child to ask its durable owner to stop. */
   requestOwnerStop?: () => void
   /** Internal deterministic fixture seam; never configured by production launchers. */
@@ -613,31 +617,33 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   // Settings → Remove idle worktrees after: one machine-wide pass over every registered project's
   // `.frizz/worktrees`, shortly after boot and daily after (worktree-sweep.ts).
   let worktreeSweep: WorktreeSweepLoop | undefined
+  // The standing announcement that tells every open tab the project list changed
+  // (projects-changed.ts). Armed at the end of boot; disarmed by the "other projects" shutdown phase.
+  let stopProjectAnnouncements: (() => void) | undefined
   // One process, N projects (tenants.ts). The launching project is adopted below once its own boot
   // phases have built it; anything opened later goes through activate(), which is where the
   // AppContext-seam error boundary lives.
   /**
-   * Refuse to open a project a DIFFERENT live server is already serving.
+   * Every project this process has open, claimed in its state folder (project-serving.ts) — opening
+   * one a DIFFERENT live server has open is refused, naming that server.
    *
-   * The launching project is protected by its launch lease (acquireProjectLaunchOwner below); a
-   * tenant took nothing, so nothing stopped one process from activating a board another was already
-   * tailing. Two tailers on one SQLite file is the survivable half — two SCHEDULERS is not: both
-   * would independently decide the same recurring prompt or timer was due and dispatch it twice into
-   * the same worker.
-   *
-   * This is exactly the state a machine is in while migrating from per-project servers to one
-   * singleton, which is the only reason anyone runs both at once — so it has to fail loudly and
-   * name the other process rather than quietly double-firing.
-   *
-   * A stale record does not block: pidIsAlive settles it, and the owner is per project, so this only
-   * ever refuses the specific board that is genuinely taken.
+   * Two tailers on one SQLite file is the survivable half — two SCHEDULERS is not: both would
+   * independently decide the same recurring prompt or timer was due and dispatch it twice into the
+   * same worker. The launch lease guarded only the folder a server runs on, and the installed Frizz
+   * runs on its own folder now, so every project it opens needs a claim of its own. A claim whose
+   * server has gone never blocks, so this only ever refuses the board that is genuinely taken.
    */
-  const assertNotServedElsewhere = (candidate: Project): void => {
-    const other = servedByAnotherProcess(candidate.stateDir, candidate.id)
-    if (other === undefined) return
-    throw new Error(
-      `${candidate.name} is already being served by another Frizz (pid ${other}). Stop that one first — two servers on one board would fire its timers and recurring prompts twice.`,
-    )
+  const servingClaims = new Map<string, { release(): void }>()
+  const claimServing = (candidate: Project, launched = false): void => {
+    servingClaims.get(candidate.id)?.release()
+    servingClaims.set(candidate.id, claimProjectServing(
+      { projectId: candidate.id, projectDir: candidate.dir, stateDir: candidate.stateDir, name: candidate.name },
+      { launched },
+    ))
+  }
+  const releaseServing = (projectId: string): void => {
+    servingClaims.get(projectId)?.release()
+    servingClaims.delete(projectId)
   }
 
   // What every context answers "which projects are open here" with — the map below, read lazily so
@@ -691,10 +697,18 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     return { closed, stoppedWorkers }
   }
   const tenants = createTenantMap<TenantSurfaces>({
-    createContext: (contextOptions) => {
-      if (contextOptions.project) assertNotServedElsewhere(contextOptions.project)
-      return runtime.createContext(contextOptions)
+    createContext: async (contextOptions) => {
+      const opening = contextOptions.project
+      if (!opening) return runtime.createContext(contextOptions)
+      claimServing(opening)
+      try {
+        return await runtime.createContext(contextOptions)
+      } catch (error) {
+        releaseServing(opening.id)
+        throw error
+      }
     },
+    afterDeactivate: (closed) => releaseServing(closed.id),
     // serverLockPath is the LAUNCHING project's: it is the only `server.lock` this process publishes
     // (see "status publication"), so it is the only file a tenant's worker can read the port out of.
     contextOptions: {
@@ -741,6 +755,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     port,
     ownerProof: projectLaunchTokenProof(projectLaunchTarget(c.project), effectiveOwnerToken),
     controlToken: effectiveOwnerToken,
+    ...(opts.machineOwnerToken ? { machineToken: opts.machineOwnerToken } : {}),
     requestOwnerStop,
   })
   const terminalOptionsFor = (c: AppContext) => ({
@@ -851,6 +866,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     // projects short, so this costs a boot-time shutdown nothing.
     tenantPrime?.stop()
     await tenantPrime?.done
+    stopProjectAnnouncements?.()
     for (const { project: opened } of tenants.active()) {
       if (opened.id !== project.id) await tenants.deactivate(opened.id)
     }
@@ -935,6 +951,13 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       if (statusPath && statusIdentity) {
         try { runtime.removeStatus(serverAddressPathForStateDir(dirname(statusPath)), statusIdentity) } catch {}
       }
+      // The launching project's serving claim, once its storage has closed: it is the one tenant the
+      // map never deactivates. A failure here must not keep the launch lease below from releasing.
+      try {
+        releaseServing(project.id)
+      } catch (error) {
+        frizzLog.warn("server", `could not record that ${project.name} closed: ${error instanceof Error ? error.message : error}`)
+      }
       // Ownership is always the final resource. A thrown status cleanup leaves this exact fence live.
       delegatedLaunch?.release()
       ownedLaunch?.release()
@@ -1009,7 +1032,10 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   }
 
   try {
-    await phase("launch ownership", () => undefined)
+    // The launch lease above fences the folder this server runs on against another launch; the claim
+    // fences the PROJECT against another server that has it open as one of many, which is refused here
+    // as a boot failure that names that server.
+    await phase("launch ownership", () => claimServing(project, true))
     // The executables every backend below will run. First boot on a machine downloads the pins (a few
     // hundred MB, once per pin), and the launcher's readout follows it through bootProgress; after
     // that the phase is a marker read. An explicit executable skips it; a failure falls back to PATH
@@ -1354,6 +1380,13 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     // The port is listening and /health answers: the launcher no longer needs the progress signal.
     bootProgress.done()
 
+    // From here on, a change to the project list reaches every tab on every open project's stream —
+    // the tab that made it is the only one that would otherwise re-read the list.
+    stopProjectAnnouncements = announceProjectListChanges({
+      registryPath: registryPath(),
+      buses: () => tenants.active().map((open) => open.ctx.bus),
+    })
+
     // …and now open the OTHER registered projects, in the background, so the rail can badge every
     // square with its queue size instead of only the ones the operator has clicked into. Deliberately
     // after bootProgress.done(): this must never be something a launcher waits on. See tenant-prime.ts
@@ -1366,7 +1399,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         isOpen: (projectId) => tenants.get(projectId) !== undefined,
         toProject: (entry) => projectForEntry(entry),
         activate: (candidate) => tenants.activate(candidate),
-        servedElsewhere: (candidate) => servedByAnotherProcess(candidate.stateDir, candidate.id),
+        servedElsewhere: (candidate) => projectServedElsewhere(candidate.stateDir, candidate.id),
       })
     }
 

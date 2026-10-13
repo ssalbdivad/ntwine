@@ -17,8 +17,8 @@ import test, { after, before } from "node:test"
 // here): start `vite` in packages/web and set FRIZZ_COMPOSER_ALIAS_E2E_URL to its origin.
 //
 // ONE headless Chrome is shared across the whole file (via before/after) — a fresh browser per test is
-// wasteful and, on a loaded machine, times out. Each test wipes sessionStorage + reloads so the draft
-// cache never bleeds between cases.
+// wasteful and, on a loaded machine, times out. Each test wipes the draft cache + reloads so it never
+// bleeds between cases.
 //
 // SENDING IS ⌘/Ctrl-Enter, not a bare Enter (maintainer 2026-08-26, `lib/composerKeyboard.ts`): every
 // prompt box reads as a form field, and a plain Enter is always a newline. These tests pressed a bare
@@ -40,8 +40,8 @@ let errors: string[] = []
 
 before(async () => {
   if (!baseUrl) return
-  const { default: puppeteer } = await import("puppeteer")
-  browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  browser = await launchHeadless()
   page = await browser.newPage()
   page.setDefaultTimeout(60_000)
   await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 })
@@ -56,12 +56,12 @@ const dialogText = (): Promise<string | null> =>
   page!.evaluate(() => document.querySelector('[role="dialog"], [role="alertdialog"]')?.textContent ?? null)
 const boxValue = (sel: string): Promise<string> => page!.$eval(sel, (el) => (el as HTMLTextAreaElement).value)
 
-// A fresh surface with an empty draft cache — drafts are sessionStorage-backed and deliberately survive
+// A fresh surface with an empty draft cache — drafts are localStorage-backed and deliberately survive
 // navigation, so wipe + reload between cases.
 async function open(surface: "drawer" | "card", box: string) {
   errors = []
   await page!.goto(`${baseUrl}/composer-alias-fixture.html?surface=${surface}`, { waitUntil: "networkidle2" })
-  await page!.evaluate(() => sessionStorage.clear())
+  await page!.evaluate(() => localStorage.removeItem("frizz-drafts:v1"))
   await page!.reload({ waitUntil: "networkidle2" })
   await page!.waitForSelector(box)
 }

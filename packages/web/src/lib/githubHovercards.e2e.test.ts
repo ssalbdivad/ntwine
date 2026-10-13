@@ -19,8 +19,8 @@ const baseUrl = process.env.FRIZZ_GITHUB_HOVERCARD_E2E_URL
 const FIXTURE = "github-hovercard-fixture.html"
 
 async function openFixture(query = "") {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const pageErrors: string[] = []
   page.on("pageerror", (error) => pageErrors.push(String(error)))

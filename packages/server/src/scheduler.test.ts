@@ -271,7 +271,7 @@ test("watch: an expired row is settled AND the worker is told, once", async () =
   assert.match(h.resumes[0].message, /Your watch on the background shell `bzvtnt3ig` has expired/)
   // The re-registration instruction is the point of telling it at all: the worker re-decides rather
   // than silently losing a wait it still holds.
-  assert.match(h.resumes[0].message, /register it again with `mcp__frizz__watch` and a fresh `for:`/)
+  assert.match(h.resumes[0].message, /register it again with `frizzctl watch` and a fresh `--for`/)
 })
 
 test("watch: a row whose shell has finished is settled SILENTLY", async () => {
@@ -3338,7 +3338,7 @@ test("issue-watch: the expiry wake names the issue tool, not watch_pr", async ()
   assert.equal(h.resumes.length, 1)
   assert.match(h.resumes[0].message, /Your watcher on acme\/app#7 has expired/)
   assert.match(h.resumes[0].message, /nothing on that issue will wake/)
-  assert.match(h.resumes[0].message, /mcp__frizz__watch_issue/)
+  assert.match(h.resumes[0].message, /`frizzctl watch-issue add`/)
 })
 
 // ---- SOURCE 10: THE INTERRUPT NOTE (interrupt-ended.ts) ----

@@ -37,10 +37,11 @@ import {
 } from "./codex-app-server-host.ts"
 import { nativeListenCodexAppServerHost } from "./codex-app-server-native.ts"
 import { readCodexAccountId } from "./auth-status.ts"
-import { codexThreadMcpConfig } from "./codex-mcp.ts"
+import { codexThreadMcpConfig, codexThreadMcpOff } from "./codex-mcp.ts"
+import { codexThreadShellConfig } from "./codex-shell-env.ts"
 import { codexProviderError } from "./codex-error.ts"
 import { CodexExecutionHealth } from "./codex-execution-health.ts"
-import { codexContextWindowConfig, type FrizzMcp } from "./types.ts"
+import { codexContextWindowConfig, type FrizzCli, type FrizzMcp } from "./types.ts"
 import { log as frizzLog } from "../logging.ts"
 
 // Foundation-only bridge. It is deliberately not an AgentBackend: no current/default Codex TUI
@@ -558,6 +559,12 @@ export type CodexAppServerDiagnostic =
   | { event: "stderr"; bytes: number; truncated: boolean }
   | { event: "request-rejected"; method: string; code: number }
   | { event: "turn-auto-resumed"; threadSlug: string; interruptedTurnId: string }
+  // A thread this server had only REJOINED (it was mid-turn, or held a background command, when the
+  // server came up) was rebuilt with this server's own config before its next turn — see threadConfig.
+  | { event: "thread-config-reloaded"; threadSlug: string }
+  // The app-server refused `thread/unsubscribe`, so no thread can be rebuilt in place; a rejoined
+  // thread then keeps the config it was loaded with until its app-server is replaced.
+  | { event: "thread-config-sync-unavailable"; detail: string }
   | { event: "daemon-reforked"; reason: string }
   | { event: "daemon-events-dropped"; dropped: number }
   | { event: "protocol-failure"; detail: string }
@@ -1031,6 +1038,12 @@ export interface CodexAppServerBridgeOptions {
    *  nothing, and a worker sees only what the operator's own codex config configured. MCP servers are
    *  PROCESS-level, so this is resolved once here rather than per thread. */
   frizzMcp?: FrizzMcp
+  /** Which threads get that mount. Absent ⇒ every thread, as before the command line. A thread started
+   *  under the `frizzctl` contract is given none: its registry stays free of sixteen tools it was
+   *  never told about. Asked at every start and resume, so the answer follows the thread's own row. */
+  mountsMcp?: (threadSlug: string) => boolean
+  /** Present ⇒ every thread's shell can run `frizzctl` as that thread — see codexThreadShellConfig. */
+  frizzCli?: FrizzCli
   now?: () => Date
   id?: () => string
   requestTimeoutMs?: number
@@ -1065,6 +1078,14 @@ export interface CodexAppServerBridgeOptions {
    * override is sent and the model's stock window applies.
    */
   getSettings?: () => { codexContextWindow?: number }
+  /**
+   * What a Frizz WORKER thread carries beyond its MCP mount: the hooks, and the reasoning-summary
+   * setting. Asked for at `thread/start` and at EVERY `thread/resume`, because a resume that rebuilds
+   * the thread rebuilds it from the bag in that one request and nothing else (see threadConfig) — the
+   * bag used to reach `thread/start` alone, as the dispatcher's own argument, and every thread lost
+   * its hooks at its first resume. Not applied to a disposable session, which is not a worker.
+   */
+  workerConfig?: (threadSlug: string, sessionId: string) => Record<string, unknown>
 }
 
 function bindingFromRow(row: BindingRow): CodexAppServerSessionBinding {
@@ -1918,6 +1939,18 @@ export class CodexAppServerBridge {
   // Live notices fill the gap before task_complete reaches the durable rollout. Retry notices are
   // not retained by Codex at all. Session keys and current-turn checks prevent cross-thread leakage.
   private readonly providerErrors = new Map<string, ProviderError>()
+  /**
+   * Sessions whose thread THIS bridge has built from its own config bag: it started the thread, or
+   * resumed it in the one way that is known to rebuild it (see threadConfig). In memory on purpose —
+   * the bag is fixed for a server's life, so "applied by this bridge" is exactly "current", and a
+   * new server starts with nothing applied, which is the right reading of every thread it inherits.
+   */
+  private readonly configApplied = new Set<string>()
+  /** One rebind per session at a time, so a second caller's unsubscribe cannot land between the
+   *  first caller's resume and the turn it resumed for. */
+  private readonly resuming = new Map<string, Promise<CodexAppServerSessionBinding>>()
+  /** This app-server refused `thread/unsubscribe`; nothing can be rebuilt in place, so stop asking. */
+  private unsubscribeRefused = false
   private activeOperations = 0
   private readonly operationWaiters = new Set<() => void>()
   private shutdownPromise: Promise<void> | null = null
@@ -1995,7 +2028,7 @@ export class CodexAppServerBridge {
           : { sandbox: startedSandbox }),
         ...(input.baseInstructions ? { baseInstructions: input.baseInstructions } : {}),
         ...(input.developerInstructions ? { developerInstructions: input.developerInstructions } : {}),
-        ...this.threadConfig(input.threadSlug, input.config),
+        ...this.threadConfig(input.threadSlug, ephemeral ? undefined : input.sessionId, input.config),
         ephemeral,
       }))
       if (response.thread.ephemeral !== ephemeral) throw new Error("Codex app-server returned an incompatible persistence mode")
@@ -2020,6 +2053,7 @@ export class CodexAppServerBridge {
         startedSandbox,
         startedSandbox,
       )
+      if (!ephemeral) this.configApplied.add(input.sessionId)
       return bindingFromRow(this.bindingForScope(input.threadSlug, input.sessionId)!)
     } finally {
       for (const key of startKeys) this.startingSessions.delete(key)
@@ -2028,6 +2062,18 @@ export class CodexAppServerBridge {
   }
 
   async resumeOwnedSession(threadSlug: string, sessionId: string): Promise<CodexAppServerSessionBinding> {
+    const inFlight = this.resuming.get(sessionId)
+    if (inFlight) return await inFlight
+    const resume = this.rebindOwnedSession(threadSlug, sessionId)
+    this.resuming.set(sessionId, resume)
+    try {
+      return await resume
+    } finally {
+      if (this.resuming.get(sessionId) === resume) this.resuming.delete(sessionId)
+    }
+  }
+
+  private async rebindOwnedSession(threadSlug: string, sessionId: string): Promise<CodexAppServerSessionBinding> {
     const releaseOperation = this.beginOperation()
     try {
       let binding = this.bindingForScope(threadSlug, sessionId)
@@ -2041,17 +2087,24 @@ export class CodexAppServerBridge {
       if (binding.ephemeral === 1) throw new Error("disposable Codex app-server session is detached")
 
       const cwdOverride = this.resumeCwdOverride(binding)
+      // WHICH OF THE THREE RESUMES THIS IS — the rule is above threadConfig.
+      //
+      // A thread that holds a background command is REJOINED: the resume carries no bag, because a bag
+      // would rebuild the thread and end the command. Any other thread gets the bag, and one this
+      // server has not yet given its own bag to is first released, so that the resume is certain to
+      // rebuild it rather than be ignored by an app-server that still counts a subscriber.
+      const holdsExec = (this.liveExecs.get(binding.codex_thread_id)?.size ?? 0) > 0
+      const rebuilds = !holdsExec
+        && binding.current_turn_id === null
+        && !this.configApplied.has(sessionId)
+        && await this.releaseThreadForRebuild(connection, binding)
       const rawResponse = await connection.request("thread/resume", {
         threadId: binding.codex_thread_id,
         excludeTurns: true,
         approvalsReviewer: "user",
         ...this.resumeSandboxOverride(binding),
         ...cwdOverride,
-        // A resume by an app-server that ALREADY holds this thread keeps the MCP child it started
-        // with, so this changes nothing there. It matters on a resume by a FRESH app-server — the
-        // one after a daemon death or a frizz restart — which is exactly when the thread would
-        // otherwise come back with no caller identity for the rest of its life.
-        ...this.threadConfig(threadSlug),
+        ...(holdsExec ? {} : this.threadConfig(threadSlug, sessionId)),
       })
       const response = ThreadResponse.parse(rawResponse)
       if (response.thread.id !== binding.codex_thread_id || response.thread.ephemeral) {
@@ -2059,10 +2112,44 @@ export class CodexAppServerBridge {
       }
       this.updateResumedBinding(binding, response.thread.sessionId, effectiveResumeSandbox(rawResponse))
       this.recordResumedCwd(binding, cwdOverride)
+      if (rebuilds) this.configApplied.add(sessionId)
       return bindingFromRow(this.bindingForScope(threadSlug, sessionId)!)
     } finally {
       releaseOperation()
     }
+  }
+
+  /**
+   * Drop this connection's subscription to an IDLE thread, so the resume that follows rebuilds it.
+   * True when the app-server answered, which is when the thread is known to have no subscriber left:
+   * Frizz is the only client an app-server of its own ever has.
+   *
+   * A refusal is remembered for the life of this bridge and the sync is left alone from then on: it
+   * means this Codex has no such method, and asking before every turn would buy nothing. Any other
+   * failure is the connection's, and the resume that follows would fail on it anyway.
+   */
+  private async releaseThreadForRebuild(connection: JsonlRpcConnection, binding: BindingRow): Promise<boolean> {
+    if (!this.syncsThreadConfig()) return false
+    try {
+      await connection.request("thread/unsubscribe", { threadId: binding.codex_thread_id })
+      return true
+    } catch (error) {
+      if (!(error instanceof RpcProtocolError)) throw error
+      this.unsubscribeRefused = true
+      this.options.diagnostic?.({ event: "thread-config-sync-unavailable", detail: error.message })
+      return false
+    }
+  }
+
+  /**
+   * Whether there is anything of this server's own to put into a thread, and a way to do it.
+   * `FRIZZ_PLUGIN_SYNC_OFF=1` is the same opt-out a Claude worker's daemon reads (claude-plugin-sync.ts):
+   * with it, no thread is released to be rebuilt, and each keeps whatever its last load gave it.
+   */
+  private syncsThreadConfig(): boolean {
+    return !this.unsubscribeRefused
+      && process.env.FRIZZ_PLUGIN_SYNC_OFF !== "1"
+      && (this.options.frizzMcp !== undefined || this.options.workerConfig !== undefined)
   }
 
   // Adopt a rollout this bridge did NOT create — a legacy Codex thread from before the app-server
@@ -2101,8 +2188,9 @@ export class CodexAppServerBridge {
         approvalsReviewer: "user",
         ...adoptionOverride,
         // Adoption is the first time frizz owns this rollout, so it is also the first chance to give
-        // the thread a frizz MCP mount that knows its slug. Same reasoning as the resume above.
-        ...this.threadConfig(input.threadSlug),
+        // the thread a frizz MCP mount that knows its slug, and its hooks. The rollout belonged to a
+        // process of its own, so this app-server is loading it cold and the bag is what it is built from.
+        ...this.threadConfig(input.threadSlug, input.sessionId),
       })
       const response = ThreadResponse.parse(rawResponse)
       if (response.thread.id !== input.codexThreadId || response.thread.ephemeral) {
@@ -2128,6 +2216,7 @@ export class CodexAppServerBridge {
         effectiveResumeSandbox(rawResponse) ?? null,
         adoptionOverride.sandbox ?? null,
       )
+      this.configApplied.add(input.sessionId)
       return bindingFromRow(this.bindingForScope(input.threadSlug, input.sessionId)!)
     } finally {
       releaseOperation()
@@ -2147,6 +2236,21 @@ export class CodexAppServerBridge {
       if (binding.connection_epoch !== this.connectionEpoch || binding.state !== "active") {
         await this.resumeOwnedSession(input.threadSlug, input.sessionId)
         binding = this.bindingForScope(input.threadSlug, input.sessionId)!
+      } else if (this.threadConfigIsBehind(binding)) {
+        // A thread this server only REJOINED — mid-turn or holding a background command when the
+        // server came up — still runs on whatever its previous server gave it. Between its turns is
+        // the one moment it can be rebuilt without interrupting anything, and the turn about to start
+        // is the first thing that would run on the old config. Detaching the binding sends it down
+        // the ordinary rebind, which releases the thread and resumes it with this server's bag.
+        this.scope.prepare(`
+          UPDATE codex_app_server_session SET state = 'detached', updated_at = ?
+          WHERE project_id = @project_id AND frizz_session_id = ? AND thread_slug = ?
+        `).run(this.now().toISOString(), input.sessionId, input.threadSlug)
+        await this.resumeOwnedSession(input.threadSlug, input.sessionId)
+        binding = this.bindingForScope(input.threadSlug, input.sessionId)!
+        if (this.configApplied.has(input.sessionId)) {
+          this.options.diagnostic?.({ event: "thread-config-reloaded", threadSlug: input.threadSlug })
+        }
       }
       if (binding.current_turn_id !== null) throw new Error("Codex app-server session already has an active turn")
       const pendingKey = turnKey(binding)
@@ -2525,6 +2629,7 @@ export class CodexAppServerBridge {
     const row = this.bindingForScope(threadSlug, sessionId)
     if (!row) return false
     this.providerErrors.delete(sessionId)
+    this.configApplied.delete(sessionId)
     const ownsCurrentProcess = row.connection_epoch === this.connectionEpoch || this.openingConnection !== null
     try {
       this.forgetCorrelatedFileItems(row.codex_thread_id)
@@ -2673,10 +2778,16 @@ export class CodexAppServerBridge {
     }
   }
 
+  // Compiled once. This is the bridge's hottest read by a wide margin — every per-thread question the
+  // board and the tailer ask comes through it — and compiling the SELECT cost about three times what
+  // running it does.
+  private bindingForScopeStatement: ReturnType<ProjectScope["prepare"]> | undefined
+
   private bindingForScope(threadSlug: string, sessionId: string): BindingRow | undefined {
-    const row = this.scope.prepare<BindingRow>(`
+    this.bindingForScopeStatement ??= this.scope.prepare<BindingRow>(`
       SELECT * FROM codex_app_server_session WHERE project_id = @project_id AND thread_slug = ? AND frizz_session_id = ?
-    `).get(threadSlug, sessionId)
+    `)
+    const row = this.bindingForScopeStatement.get(threadSlug, sessionId) as BindingRow | undefined
     return row ? checkedBindingRow(row) : undefined
   }
 
@@ -2834,7 +2945,10 @@ export class CodexAppServerBridge {
       env: codexAppServerEnvironment(),
       clientInfo: CLIENT_INFO,
       capabilities: CLIENT_CAPABILITIES,
-      frizzMcp: this.options.frizzMcp,
+      // NO process-wide MCP mount on the app-server's argv any more (2026-10-11). It gave every thread
+      // in the project the `frizz` tools, and a thread started under the `frizzctl` contract must not
+      // have them. A thread that still needs the mount gets it from its own config bag, which every
+      // start and resume carries (threadConfig) — the only channel that ever gave it an identity.
       authAccountId,
     })
     const child = attachment.process
@@ -3067,7 +3181,15 @@ export class CodexAppServerBridge {
           // Frizz's question-registration tool"). The argv mount is not a fallback here: a thread
           // resumed onto a FRESH app-server gets its MCP children from this call, so without the
           // override it keeps neither its identity nor, in practice, the tools.
-          ...this.threadConfig(row.thread_slug),
+          //
+          // EXCEPT for a thread that holds a background command. That command is the proof the
+          // app-server still has the thread loaded, so it needs nothing from the bag — and the bag is
+          // what would end it: with no subscriber left, a resume that carries one rebuilds the thread
+          // and takes its commands with it. This reconcile resumed those threads to keep hearing their
+          // commands and ended every one of them instead (measured 2026-10-11 on codex 0.161.0: a
+          // `sleep` alive after the old server left was gone after the new server's warm-up). Without
+          // the bag the same resume only rejoins.
+          ...(execThreads.includes(row.codex_thread_id) ? {} : this.threadConfig(row.thread_slug, row.frizz_session_id)),
         })
         const response = ThreadResponse.parse(rawResponse)
         if (response.thread.id !== row.codex_thread_id || response.thread.ephemeral) throw new Error("resume ownership mismatch")
@@ -3260,14 +3382,59 @@ export class CodexAppServerBridge {
    * comes back" semantics the Claude compaction window has (see codexContextWindowConfig).
    *
    * The caller's own config wins on a key collision: this is a default, not an override.
+   *
+   * THE BAG REPLACES, IT DOES NOT MERGE — which is why this is the ONE place a thread's config is
+   * built, for the start and for every resume. A thread's per-thread config is not in its rollout. When
+   * a resume rebuilds the thread, it is built from the bag in that request and nothing else: a bag with
+   * only a context window in it left the thread on the process-wide MCP mount, with no slug; a bag with
+   * no hooks left it with no hooks. That second one is what every resume sent until 2026-10-11, because
+   * the hooks were the dispatcher's own argument to `thread/start` — so after any Frizz restart each
+   * Codex thread lost its hooks and its reasoning summaries at its next message, for the rest of its
+   * life, and nothing reported it.
+   *
+   * WHAT A RESUME DOES WITH THE BAG, measured on codex 0.161.0 (it is not what an earlier comment here
+   * said, and a Codex bump can change it — `_live_codex_config_sync.mts` is the check):
+   *
+   * - the thread is not loaded — the app-server is new, or unloaded it a minute after its last
+   *   subscriber left — and it is loaded from its rollout WITH the bag;
+   * - it is loaded, idle, and NO connection is subscribed to it: it is torn down and rebuilt with the
+   *   bag. Same process, whole history, a new MCP child — and every background command it ran, ended.
+   *   Its `spawn_agent` children are not touched: one mid-turn stayed loaded, finished its turn, and
+   *   the rebuilt parent's `wait_agent` returned its result;
+   * - it is mid-turn, or some connection still subscribes to it: the bag is IGNORED and the resume
+   *   only rejoins.
+   *
+   * So the bag reaches a live thread when Frizz makes the second case happen, and only then:
+   * `thread/unsubscribe` first (rebindOwnedSession), on an idle thread with no background command.
+   * That is how a thread that was mid-turn when this server came up moves onto this server's MCP shim
+   * and hook registrations — before its next turn (startTurn), never during one. A thread holding a
+   * background command is rejoined with no bag at all and waits until the command has ended.
    */
-  private threadConfig(threadSlug: string, callerConfig?: Record<string, unknown>): { config?: Record<string, unknown> } {
+  private threadConfig(
+    threadSlug: string,
+    sessionId: string | undefined,
+    callerConfig?: Record<string, unknown>,
+  ): { config?: Record<string, unknown> } {
     const config = {
-      ...codexThreadMcpConfig(this.options.frizzMcp, threadSlug),
+      // A thread taught `frizzctl` is given no frizz MCP server, and one an app-server from before the
+      // update still mounts process-wide is switched off for it (codexThreadMcpOff).
+      ...(this.options.mountsMcp?.(threadSlug) === false ? codexThreadMcpOff() : codexThreadMcpConfig(this.options.frizzMcp, threadSlug)),
+      ...codexThreadShellConfig(this.options.frizzCli, threadSlug, codexAppServerEnvironment()),
       ...codexContextWindowConfig(this.options.getSettings?.()),
+      ...(sessionId ? this.options.workerConfig?.(threadSlug, sessionId) : undefined),
       ...callerConfig,
     }
     return Object.keys(config).length ? { config } : {}
+  }
+
+  /** An idle thread on this connection that still runs on a previous server's config and can be
+   *  rebuilt now — see threadConfig. */
+  private threadConfigIsBehind(binding: BindingRow): boolean {
+    return this.syncsThreadConfig()
+      && binding.ephemeral === 0
+      && binding.current_turn_id === null
+      && !this.configApplied.has(binding.frizz_session_id)
+      && (this.liveExecs.get(binding.codex_thread_id)?.size ?? 0) === 0
   }
 
   private resumeSandboxOverride(
@@ -3334,6 +3501,12 @@ export class CodexAppServerBridge {
    */
   backgroundExecs(threadSlug: string, sessionId: string): readonly LiveBackgroundExec[] {
     if (this.closed || this.dbReleased) return []
+    // NO EXEC IS LIVE ANYWHERE ⇒ none on this thread, and the binding is not worth looking up to say
+    // so. The tailer asks this for EVERY row on EVERY tick — a Claude row included, which can never
+    // hold one — so the lookup below was a SQL statement compiled and run per thread per second on a
+    // board with no codex shell on it at all (2026-10-11, a live profile of a 64-thread server: 14% of
+    // the tailer's time).
+    if (this.liveExecs.size === 0) return []
     const binding = this.bindingForScope(threadSlug, sessionId)
     if (!binding) return []
     const byProcess = this.liveExecs.get(binding.codex_thread_id)

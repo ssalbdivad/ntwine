@@ -9,7 +9,6 @@ import type {
   ClaudeInputMessage,
   ClaudePermissionDecision,
   ClaudePermissionRequest,
-  ClaudePluginReload,
   ClaudeSkillInfo,
   ClaudeQueryEvent,
 } from "./claude-agent-sdk-protocol.ts"
@@ -68,12 +67,6 @@ export interface ClaudeBrokerClient {
   cancelInput(id: string): Promise<boolean>
   /** Stop one provider background task and resolve only after the daemon confirms the SDK call. */
   stopTask(taskId: string): Promise<void>
-  /**
-   * Re-read the worker plugin closure from disk in the LIVE session — hooks, skills, agent profiles,
-   * MCP servers — and resolve with what changed. Resolves only after the SDK answered, so the operator
-   * is told what actually reloaded rather than that a frame was written.
-   */
-  reloadPlugins(): Promise<ClaudePluginReload>
   /** Re-title the live session through the provider (the SDK's `generateSessionTitle`). */
   renameSession(description: string): Promise<string | undefined>
   /** The session's invocable skills, as the harness reports them (names + descriptions). */
@@ -99,7 +92,8 @@ interface Options {
   retryDelayMs?: number
   /** How long a `cancelInput` waits for the daemon's verdict before rejecting. Default 10s. */
   cancelTimeoutMs?: number
-  reloadTimeoutMs?: number
+  /** How long a `renameSession` waits for the provider's answer before rejecting. Default 30s. */
+  renameTimeoutMs?: number
 }
 
 // Derived from the shared enum rather than re-spelled, so the router's strict zod and this guard can
@@ -113,9 +107,9 @@ export function connectClaudeBroker(
 ): ClaudeBrokerClient {
   const retryDelayMs = options.retryDelayMs ?? 250
   const cancelTimeoutMs = options.cancelTimeoutMs ?? 10_000
-  // A reload re-scans the plugin closure and may re-handshake MCP servers, so it is genuinely slower
-  // than the bookkeeping answers cancel/stop give. Still bounded: a wedged daemon must not hang a click.
-  const reloadTimeoutMs = options.reloadTimeoutMs ?? 30_000
+  // A re-title is a provider round trip, so it is genuinely slower than the bookkeeping answers
+  // cancel/stop give. Still bounded: a wedged daemon must not hang a click.
+  const renameTimeoutMs = options.renameTimeoutMs ?? 30_000
   let sock: net.Socket | null = null
   let closed = false
   let buf = ""
@@ -126,7 +120,6 @@ export function connectClaudeBroker(
   // In-flight cancelInput round-trips, keyed by the request id echoed on the reply.
   const pendingCancels = new Map<string, { settle: (cancelled: boolean) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingStops = new Map<string, { settle: () => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
-  const pendingReloads = new Map<string, { settle: (r: ClaudePluginReload) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingRenames = new Map<string, { settle: (t: string | undefined) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingSkills = new Map<string, { settle: (s: ClaudeSkillInfo[]) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   // In-flight deliverInput calls, keyed by the requestId the daemon echoes on `input-result`.
@@ -206,15 +199,6 @@ export function connectClaudeBroker(
           clearTimeout(entry.timer)
           if (typeof frame.error === "string" && frame.error) entry.fail(new Error(frame.error))
           else entry.settle(typeof frame.title === "string" ? frame.title : undefined)
-          break
-        }
-        case "reload-result": {
-          const entry = pendingReloads.get(frame.requestId as string)
-          if (!entry) break
-          pendingReloads.delete(frame.requestId as string)
-          clearTimeout(entry.timer)
-          if (typeof frame.error === "string" && frame.error) entry.fail(new Error(frame.error))
-          else entry.settle(frame.reloaded as ClaudePluginReload)
           break
         }
         case "skills-result": {
@@ -318,21 +302,8 @@ export function connectClaudeBroker(
       pendingStops.set(requestId, { settle: resolve, fail: reject, timer })
       send({ t: "stop-task", requestId, taskId })
     }),
-    // A reload re-scans the plugin closure and can re-handshake MCP servers, so it gets a longer
-    // deadline than an unqueue/stop — those are answered by bookkeeping the CLI already holds.
-    reloadPlugins: () => new Promise<ClaudePluginReload>((resolve, reject) => {
-      if (closed) { reject(new Error("the broker connection is closed")); return }
-      const requestId = `reload-${++cancelSeq}`
-      const timer = setTimeout(() => {
-        pendingReloads.delete(requestId)
-        reject(new Error("the Claude session did not answer the plugin reload"))
-      }, reloadTimeoutMs)
-      if (timer.unref) timer.unref()
-      pendingReloads.set(requestId, { settle: resolve, fail: reject, timer })
-      send({ t: "reload-plugins", requestId })
-    }),
     // The skill list is answered from the SDK's own memory (captured at initialize), so it shares the
-    // short cancel deadline rather than the reload one.
+    // short cancel deadline rather than the rename one.
     listSkills: () => new Promise<ClaudeSkillInfo[]>((resolve, reject) => {
       if (closed) { reject(new Error("the broker connection is closed")); return }
       const requestId = `skills-${++cancelSeq}`
@@ -344,14 +315,14 @@ export function connectClaudeBroker(
       pendingSkills.set(requestId, { settle: resolve, fail: reject, timer })
       send({ t: "list-skills", requestId })
     }),
-    // Shares the reload deadline: a re-title is a provider round trip, not local bookkeeping.
+    // The longer deadline: a re-title is a provider round trip, not local bookkeeping.
     renameSession: (description: string) => new Promise<string | undefined>((resolve, reject) => {
       if (closed) { reject(new Error("the broker connection is closed")); return }
       const requestId = `rename-${++cancelSeq}`
       const timer = setTimeout(() => {
         pendingRenames.delete(requestId)
         reject(new Error("the Claude session did not answer the rename request"))
-      }, reloadTimeoutMs)
+      }, renameTimeoutMs)
       if (timer.unref) timer.unref()
       pendingRenames.set(requestId, { settle: resolve, fail: reject, timer })
       send({ t: "rename", requestId, description })
@@ -366,8 +337,6 @@ export function connectClaudeBroker(
       pendingCancels.clear()
       for (const [, entry] of pendingStops) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the stop was answered")) }
       pendingStops.clear()
-      for (const [, entry] of pendingReloads) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the plugin reload was answered")) }
-      pendingReloads.clear()
       for (const [, entry] of pendingRenames) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the rename was answered")) }
       pendingRenames.clear()
       for (const [, entry] of pendingSkills) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the skill listing was answered")) }

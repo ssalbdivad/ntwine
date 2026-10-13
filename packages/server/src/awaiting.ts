@@ -1,5 +1,5 @@
 import { threadAwaitKey } from "./thread-mentions.ts"
-import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, awaitingNeedsInput, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, type AwaitingHint, type AwaitingItemKind } from "@frizz/shared"
+import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, type AwaitingHint, type AwaitingItemKind } from "@frizz/shared"
 
 // The PR-reference vocabulary shared by the PR-watching scheduler and the board. It lives here rather
 // than in scheduler.ts so a reader can resolve a ref without pulling in the whole waker; scheduler.ts
@@ -102,10 +102,13 @@ export interface LiveActivity {
    *  written before issues existed still type-checks; absent reads as "none registered", which makes
    *  an `issues:` entry unaccounted — the safe direction. */
   issues?: ReadonlySet<string>
+  /** Armed COMMAND WATCH ids on this thread (`cmw_…`, 2026-10-11). Optional for the reason `issues` is:
+   *  absent reads as "none armed", which makes a `commands:` entry unaccounted — the safe direction. */
+  commands?: ReadonlySet<string>
 }
 
 const LIVE_SET: Record<AwaitingItemKind, keyof LiveActivity> = {
-  shell: "shells", agent: "agents", timer: "timers", pr: "prs", issue: "issues", thread: "timers",
+  shell: "shells", agent: "agents", timer: "timers", pr: "prs", issue: "issues", thread: "timers", command: "commands",
 }
 
 /** One shell or sub-agent as the fold reports it — the handles it answers to and whether it still runs. */
@@ -134,6 +137,7 @@ export function liveActivityOf(
   registeredPrWatches: ReadonlySet<string>,
   armedTimerIds: ReadonlySet<string>,
   registeredIssueWatches: ReadonlySet<string> = new Set(),
+  armedCommandWatches: ReadonlySet<string> = new Set(),
 ): LiveActivity {
   const shells = new Set<string>()
   for (const sh of tele?.bgShells ?? []) {
@@ -145,7 +149,7 @@ export function liveActivityOf(
     if (a.state !== "running") continue
     for (const h of [a.taskId, a.id, a.label]) if (h) agents.add(h)
   }
-  return { shells, agents, timers: armedTimerIds, prs: registeredPrWatches, issues: registeredIssueWatches }
+  return { shells, agents, timers: armedTimerIds, prs: registeredPrWatches, issues: registeredIssueWatches, commands: armedCommandWatches }
 }
 
 /** The items this fence names that frizz CANNOT account for — dead, unknown, or another thread's.
@@ -239,7 +243,13 @@ export function parkForMaxMs(park: AwaitingPark): number {
   if (park.items.length === 0) return parkOnHuman(park) ? PR_WATCH_FOR_MAX_MS : AWAITING_FOR_MAX_MS
   if (park.items.some((i) => i.kind === "agent")) return AGENT_PARK_FOR_MAX_MS
   // An issue earns the PR's ceiling for the PR's reason: it sits on its maintainers' clock too.
-  return park.items.every((i) => i.kind === "pr" || i.kind === "issue") ? PR_WATCH_FOR_MAX_MS : AWAITING_FOR_MAX_MS
+  if (park.items.every((i) => i.kind === "pr" || i.kind === "issue")) return PR_WATCH_FOR_MAX_MS
+  // A COMMAND WATCH earns its own registration's ceiling, a week (2026-10-11): it is a server-run check
+  // with its own `for`, not a process of the session's, so the day a shell gets is the wrong clock for
+  // it — a park on an npm version stuck in review would be bumped daily for a wait that is healthy. A
+  // park mixing it with PRs or issues takes the week too, the shorter of the two.
+  if (park.items.every((i) => i.kind === "command" || i.kind === "pr" || i.kind === "issue")) return COMMAND_WATCH_FOR_MAX_MS
+  return AWAITING_FOR_MAX_MS
 }
 
 /** When a park that landed at `fenceAtMs` runs out. Capped by `parkForMaxMs`, so this cannot return an

@@ -2,7 +2,7 @@ import type { ThreadView } from "@frizz/shared"
 import { splitFenceBlocks } from "./fenceBlocks.ts"
 
 // Whether the thread's bottom must draw the done card ITSELF, for a completion the worker registered
-// with `mcp__frizz__done` rather than wrote as a ```done fence.
+// with `frizzctl done` rather than wrote as a ```done fence.
 //
 // A fenced done is drawn where it was written: the transcript parses the final message and puts a
 // FenceCard in place of the block (ChatView renderText). A registered done is in no message at all —

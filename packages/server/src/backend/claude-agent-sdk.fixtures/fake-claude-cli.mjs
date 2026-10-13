@@ -158,6 +158,7 @@ function handleHostControl(message) {
       systemInitSent = true
       // Frames that precede the session init (real claude brackets each turn with control frames).
       if (scenario === "preinit-control") emitControlFrame(sessionId) // benign: same session, kind "other"
+      if (scenario === "preinit-rate-limit") emitRateLimitEvent(sessionId) // the other bracket frame, with its payload
       if (scenario === "preinit-mismatch") emitControlFrame("00000000-0000-4000-8000-000000000097") // foreign session
       if (scenario === "preinit-substantive") emitAssistant("premature assistant before init") // anomalous, must reject
       if (scenario !== "no-init") emitSystemInit()
@@ -676,6 +677,27 @@ function emitSystemInit() {
 // backend maps to kind "other". `sid` lets a scenario forge a foreign session id.
 function emitControlFrame(sid) {
   send({ type: "command_lifecycle", uuid: "40000000-0000-4000-8000-000000000009", session_id: sid })
+}
+
+// Real claude's other bracket frame: the account's plan windows as the API last reported them. The
+// payload is the shape Claude Code 2.1.296 sent on 2026-10-11, `unifiedWindows` included (it is not in
+// the SDK's typings).
+function emitRateLimitEvent(sid) {
+  send({
+    type: "rate_limit_event",
+    uuid: "40000000-0000-4000-8000-00000000000a",
+    session_id: sid,
+    rate_limit_info: {
+      status: "allowed_warning",
+      resetsAt: 1791792000,
+      rateLimitType: "seven_day",
+      utilization: 0.76,
+      overageStatus: "rejected",
+      isUsingOverage: false,
+      surpassedThreshold: 0.75,
+      unifiedWindows: { five_hour: { utilization: 0.65, resetsAt: 1791757200 }, seven_day: { utilization: 0.76, resetsAt: 1791792000 } },
+    },
+  })
 }
 
 // A second init carrying an arbitrary session id — used to prove a session-switching re-init rejects.

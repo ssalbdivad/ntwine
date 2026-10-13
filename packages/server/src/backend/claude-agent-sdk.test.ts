@@ -395,6 +395,32 @@ test("control frames that precede the session init are tolerated (same session) 
   }
 })
 
+// The frame maps to a payload-free `kind:"other"`, so the plan windows it carries are read off the RAW
+// frame and handed to the observer — the only way a machine whose token Frizz cannot read has a usage
+// reading at all (claude-quota-observed.ts). The observer here throws, because it runs inside the pump:
+// a telemetry consumer that fails must not take the session with it.
+test("a rate_limit_event hands its plan windows to the observer raw, and an observer that throws costs the session nothing", { timeout: 10_000 }, async () => {
+  const reported: unknown[] = []
+  const harness = startHarness("preinit-rate-limit", {}, {}, undefined, {
+    onRateLimit: (info) => {
+      reported.push(info)
+      throw new Error("an observer that throws")
+    },
+  })
+  try {
+    const ready = await harness.handle.ready()
+    assert.equal(ready.kind, "init", "the frame is still an ordinary pre-init control frame")
+    assert.equal(reported.length, 1)
+    assert.deepEqual((reported[0] as { unifiedWindows?: unknown }).unifiedWindows, {
+      five_hour: { utilization: 0.65, resetsAt: 1791757200 },
+      seven_day: { utilization: 0.76, resetsAt: 1791792000 },
+    })
+    assert.equal((await harness.handle.next()).value?.kind, "init", "and init is still the first event a consumer sees")
+  } finally {
+    await harness.close()
+  }
+})
+
 test("a pre-init control frame from a DIFFERENT session is rejected (ownership before init)", { timeout: 10_000 }, async () => {
   const harness = startHarness("preinit-mismatch")
   try {

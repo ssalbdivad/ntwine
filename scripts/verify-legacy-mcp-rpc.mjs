@@ -51,7 +51,9 @@ function findBuild(procedure) {
 function mcp(script, env) {
   const child = spawn(process.execPath, [script], {
     stdio: ["pipe", "pipe", "inherit"],
-    env: { ...process.env, ...env },
+    // The running shell's Frizz identity is blanked first: from a worker's shell it names the REAL
+    // server, project and thread, and FRIZZ_SERVER_LOCK would outrank the state dir this script passes.
+    env: { ...process.env, FRIZZ_THREAD: "", FRIZZ_THREAD_SLUG: "", FRIZZ_STATE_DIR: "", FRIZZ_PERM_DIR: "", FRIZZ_SERVER_LOCK: "", FRIZZ_PROJECT_ID: "", ...env },
   })
   const pending = new Map()
   let buf = ""

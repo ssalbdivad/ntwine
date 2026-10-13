@@ -1,6 +1,5 @@
 import { showToast } from "../store.ts"
 import { copyTextToClipboard } from "./clipboard.ts"
-import { COPY_COMMAND_FEEDBACK_MS } from "./copyCommandFeedback.ts"
 import { CODE_BLOCK_CLASS, CODE_COPIED_CLASS, CODE_COPY_CLASS, COPY_CODE_LABEL } from "./syntaxHighlight.ts"
 import { CODE_PANEL_CLASS, CODE_TAB_ACTIVE_CLASS } from "./codeTabs.ts"
 
@@ -49,14 +48,14 @@ async function copy(button: HTMLElement) {
   flashCopied(button)
 }
 
-// The button swaps to a check for the same window the terminal-command button uses. No success TOAST:
-// that button needs one because it sits in a dense rail where the check is easy to miss, while this one
-// is under the pointer that just clicked it — a toast per code copy would be pure noise in a transcript
-// full of fences. Failures still toast, since a silent no-op there is indistinguishable from a copy.
+// The button swaps to a check for COPIED_FEEDBACK_MS. No success TOAST: the check is under the pointer
+// that just clicked it, and a toast per code copy would be pure noise in a transcript full of fences.
+// Failures still toast, since a silent no-op there is indistinguishable from a copy.
 //
 // Keyed by ELEMENT, not by a single module-level timer: two blocks can be copied within the window, and
 // the second must not cancel the first block's check. A WeakMap so a node the transcript re-renders away
 // takes its entry with it.
+const COPIED_FEEDBACK_MS = 1500
 const resetTimers = new WeakMap<HTMLElement, number>()
 
 function flashCopied(button: HTMLElement) {
@@ -68,5 +67,5 @@ function flashCopied(button: HTMLElement) {
     button.classList.remove(CODE_COPIED_CLASS)
     button.title = COPY_CODE_LABEL
     resetTimers.delete(button)
-  }, COPY_COMMAND_FEEDBACK_MS))
+  }, COPIED_FEEDBACK_MS))
 }

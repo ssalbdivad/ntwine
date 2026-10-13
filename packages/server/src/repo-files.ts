@@ -34,6 +34,13 @@ import { liftRepoWorktree } from "./thread-cwd.ts"
 // project, which ignores it), the project root for everything else inside the project. A sibling
 // worktree OUTSIDE the project (`git worktree add ../repo-perf`) is the same repository too, so its files
 // are judged by their own checkout rather than passed through.
+//
+// JUDGED WHERE THE FILE REALLY IS. Git refuses a path spelled through a symlinked directory (`fatal:
+// pathspec … is beyond a symbolic link`, exit 128), and one such path fails the whole `--stdin` batch —
+// so a single write to `.claude/skills/<name>/SKILL.md`, a link into `.agents/skills/`, switched the
+// filter off for every row on that thread's rail (upstream 2ce68a03). Each path's DIRECTORY is resolved
+// before it is grouped; the file's own name is kept, because a symlink that is itself the thing written
+// is an entry git can judge. A link that leads out of every checkout is passed through.
 
 // Enough for a whole effort's writes; a thread naming more than this is pathological and the tail is not
 // worth a second git process.
@@ -82,12 +89,15 @@ function realSpelling(p: string): string {
  * checkout of this project holds (passed through).
  */
 function checkoutOf(p: string, projectDir: string): { root: string; rel: string } | undefined {
+  // The directory through every symlink, the file's own name kept (see JUDGED WHERE THE FILE REALLY IS).
+  const real = path.join(realSpelling(path.dirname(p)), path.basename(p))
   const worktree = liftRepoWorktree(path.dirname(p), projectDir)
   if (worktree) {
-    const rel = path.relative(worktree.dir, realSpelling(p))
+    const rel = path.relative(worktree.dir, real)
     if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) return { root: worktree.dir, rel }
   }
-  if (inside(p, projectDir)) return { root: projectDir, rel: path.relative(projectDir, p) }
+  const project = realSpelling(projectDir)
+  if (inside(real, project)) return { root: projectDir, rel: path.relative(project, real) }
   return undefined
 }
 

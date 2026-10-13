@@ -42,6 +42,12 @@ export interface TenantMapOptions<App = unknown> {
    * whether wakes are armed are the server's business, not the map's.
    */
   startProducers?: (ctx: AppContext) => void | Promise<void>
+  /**
+   * Runs LAST in a deactivation, once the project's scheduler and storage are closed — where the
+   * server gives up its claim on the project (project-serving.ts), so no second server can open it
+   * while this one could still fire a timer.
+   */
+  afterDeactivate?: (project: Project) => void
   /** Injected so a test can build a context without the real one. Defaults to `createContext`. */
   createContext: (opts: ContextOptions) => AppContext | Promise<AppContext>
   /** Extra options every tenant's context is built with (claudeBin, codexBin, …). */
@@ -162,6 +168,12 @@ export function createTenantMap<App = unknown>(options: TenantMapOptions<App>): 
         const detail = error instanceof Error ? error.message : String(error)
         frizzLog.error("tenants", `project ${entry.project.name}: ${name} did not close cleanly: ${detail}`)
       }
+    }
+    try {
+      options.afterDeactivate?.(entry.project)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      frizzLog.error("tenants", `project ${entry.project.name}: could not record that it closed: ${detail}`)
     }
     return true
   }

@@ -78,7 +78,7 @@ test("a worker's transport cannot use the human's control", async () => {
     h.storage.upsertSession(row("t"))
     await assert.rejects(
       asWorker(() => h.router.setThreadDeadline.handler({ input: { slug: "t", deadline: inMs(3_600_000) } })),
-      /mcp__frizz__deadline/,
+      /`frizzctl deadline`/,
     )
     assert.equal(h.storage.getSession("t")!.deadline_at ?? null, null)
   } finally {

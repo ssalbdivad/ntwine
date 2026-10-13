@@ -13,8 +13,8 @@ const url = process.env.FRIZZ_MOBILE_THREAD_BACK_E2E_URL
 const recordingDir = process.env.FRIZZ_MOBILE_THREAD_BACK_RECORD_DIR
 
 test("mobile thread Back returns direct/reloaded links to their project and pops live navigation", { skip: !url, timeout: 120_000 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   try {
     const page = await browser.newPage()
     const errors: string[] = []

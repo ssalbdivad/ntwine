@@ -172,9 +172,10 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     [open, editing],
   )
   // A SECRET's typed value, keyed by question id. In React state and nowhere else: the draft store
-  // mirrors into sessionStorage, and a pasted credential must not outlive the tab in a cache (lib/drafts
-  // says so for the typed interaction cards too). The cost is that a reload loses a half-pasted code,
-  // which is the right way round for a one-time code.
+  // mirrors into localStorage, which every tab reads and which outlives the browser, and a pasted
+  // credential must not outlive the tab in a cache (lib/drafts says so for the typed interaction cards
+  // too). The cost is that a reload loses a half-pasted code, which is the right way round for a
+  // one-time code.
   const [secrets, setSecrets] = useState<ReadonlyMap<string, string>>(() => new Map())
   const [error, setError] = useState<string>()
   // What this state has sent, by id — kept until the server refuses it, so a question is never staged or
@@ -193,8 +194,9 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
   const queueDismiss = useContext(QueueDismissContext)
   const sendScope = useContext(SendScopeContext)
 
-  // Picks and text share the tab's draft store, so queue, drawer, fullscreen and project remounts
-  // all see the same staged answer. Secrets stay strictly in memory outside this subscription.
+  // Picks and text share the draft store, so queue, drawer, fullscreen (in this tab or another) and
+  // project remounts all see the same staged answer. Secrets stay strictly in memory outside this
+  // subscription.
   const textKeys = useMemo(
     () => (slug ? questions.flatMap((q) => (q.spec.secret ? [] : allPaths(q).flatMap((path) => [
       draftKey.question(projectDir, slug, q.id, path), draftKey.questionPick(projectDir, slug, q.id, path),

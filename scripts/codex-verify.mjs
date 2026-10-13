@@ -3,14 +3,14 @@
 // when a Codex model is picked. Radix Select opens on a real pointer sequence that headless mouse
 // clicks don't reproduce, so dropdowns are opened via keyboard (focus → Enter). Shots → /tmp/codex-shots.
 import { mkdirSync } from "node:fs"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const URL = "http://127.0.0.1:4917"
 const OUT = "/tmp/codex-shots"
 mkdirSync(OUT, { recursive: true })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 const openSelect = async (page, aria) => {
   await page.evaluate((a) => document.querySelector(`button[aria-label="${a}"]`)?.focus(), aria)
   await page.keyboard.press("Enter")

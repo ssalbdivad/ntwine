@@ -102,7 +102,6 @@ import type {
   ListOwnThreadActivityInput,
   OwnThreadActivityResult,
   OwnThreadTimersResult,
-  ThreadPluginReloadResult,
   SetThreadPinnedInput,
   SetThreadSnoozeInput,
   TranscriptMessage,
@@ -142,6 +141,12 @@ import type {
   AddOwnPrWatchInput,
   WatchDoneRefInput,
   WatchDoneRefResult,
+  AddOwnCommandWatchInput,
+  AddOwnCommandWatchResult,
+  DropOwnCommandWatchInput,
+  DropOwnCommandWatchResult,
+  ListOwnCommandWatchesInput,
+  OwnCommandWatchesResult,
   AddOwnWatchInput,
   AddOwnWatchResult,
   ExtendOwnShellInput,
@@ -284,30 +289,35 @@ export interface Api {
   // THE RECURRING PROMPT, armed entirely from the Goal panel: one text, and up to two triggers
   // (every rest, and/or every N minutes). Text, triggers and cadence travel together — they are one row.
   setThreadRecurringPrompt(input: SetThreadRecurringPromptInput): Promise<void>
-  // The WORKER-facing counterpart, called by `mcp__frizz__goal` rather than by this client.
+  // The WORKER-facing counterpart, called by `frizzctl goal` rather than by this client.
   // Declared here because rpc-contract.ts proves the two procedure NAME SETS are equal — an RPC the
   // client cannot name is one nothing checks the shape of. No browser call site uses it.
   setOwnThreadRecurringPrompt(input: SetOwnThreadRecurringPromptInput): Promise<SetOwnThreadRecurringPromptResult>
   // The READ half of the same tool (`action: "get"`), so a worker can see the row before it overwrites
   // it — after a compaction, or after the human edited the text in the Goal panel.
   getOwnThreadRecurringPrompt(input: GetOwnThreadRecurringPromptInput): Promise<OwnThreadRecurringPromptResult>
-  // THE WORKER NAMING ITS OWN THREAD, called by `mcp__frizz__title`. Declared here for the drift gate
+  // THE WORKER NAMING ITS OWN THREAD, called by `frizzctl title`. Declared here for the drift gate
   // alone — the browser's rename verbs are `renameThread` / `aiRenameThread`, which lock the name.
   setOwnThreadTitle(input: SetOwnThreadTitleInput): Promise<SetOwnThreadTitleResult>
   readThread(input: ReadThreadInput): Promise<ReadThreadResult>
   messageThread(input: MessageThreadInput): Promise<MessageThreadResult>
-  // THE PR WATCHER REGISTRY, called by `mcp__frizz__watch_pr` rather than by this client. Declared here
+  // THE PR WATCHER REGISTRY, called by `frizzctl watch-pr` rather than by this client. Declared here
   // for the same reason as its neighbours: rpc-contract.ts proves the two procedure NAME SETS are equal,
   // so an RPC the client cannot name is one nothing checks the shape of. No browser call site uses these.
   addOwnPrWatch(input: AddOwnPrWatchInput): Promise<AddOwnPrWatchResult>
   dropOwnPrWatch(input: DropOwnPrWatchInput): Promise<DropOwnPrWatchResult>
   listOwnPrWatches(input: ListOwnPrWatchesInput): Promise<OwnPrWatchesResult>
-  // THE WORKER'S OWN WATCHES on its own running work, called by `mcp__frizz__watch` / `unwatch`. Same
+  // THE COMMAND WATCHES, called by `frizzctl watch-command`. Declared for the drift gate, like the PR
+  // watchers above; no browser call site uses them.
+  addOwnCommandWatch(input: AddOwnCommandWatchInput): Promise<AddOwnCommandWatchResult>
+  dropOwnCommandWatch(input: DropOwnCommandWatchInput): Promise<DropOwnCommandWatchResult>
+  listOwnCommandWatches(input: ListOwnCommandWatchesInput): Promise<OwnCommandWatchesResult>
+  // THE WORKER'S OWN WATCHES on its own running work, called by `frizzctl watch` / `unwatch`. Same
   // story as the PR watchers above: declared for the drift gate, never called from the browser.
   addOwnWatch(input: AddOwnWatchInput): Promise<AddOwnWatchResult>
-  // `mcp__frizz__extend_shell` — a background shell's runtime budget. Drift gate only, like its neighbours.
+  // `frizzctl extend-shell` — a background shell's runtime budget. Drift gate only, like its neighbours.
   extendOwnShell(input: ExtendOwnShellInput): Promise<ExtendOwnShellResult>
-  // `mcp__frizz__deadline` — the worker's own time limit. Drift gate only, like its neighbours.
+  // `frizzctl deadline` — the worker's own time limit. Drift gate only, like its neighbours.
   ownDeadline(input: OwnDeadlineInput): Promise<OwnDeadlineResult>
   threadDeadline(input: { slug: string }): Promise<OwnDeadlineResult>
   // The drawer's time-limit control: set, move or clear (`deadline: null`) the thread's deadline.
@@ -340,7 +350,7 @@ export interface Api {
   setOwnThreadStopHook(input: SetOwnThreadStopHookInput): Promise<void>
   setOwnThreadHeartbeat(input: SetOwnThreadHeartbeatInput): Promise<void>
   setThreadHeartbeat(input: SetOwnThreadHeartbeatInput): Promise<void>
-  // THE ONE-OFF TIMERS, called by `mcp__frizz__timer` rather than by this client. Declared here for the
+  // THE ONE-OFF TIMERS, called by `frizzctl timer` rather than by this client. Declared here for the
   // same reason as the worker procedures above — the drift gate proves the two procedure NAME SETS are
   // equal, so an RPC the client cannot name is one nothing checks the shape of. All three are mutations
   // because the worker's MCP server POSTs every call; `listOwnThreadTimers` reads nothing and is one
@@ -349,8 +359,6 @@ export interface Api {
   cancelOwnThreadTimer(input: CancelOwnThreadTimerInput): Promise<CancelOwnThreadTimerResult>
   listOwnThreadTimers(input: ListOwnThreadTimersInput): Promise<OwnThreadTimersResult>
   listOwnThreadActivity(input: ListOwnThreadActivityInput): Promise<OwnThreadActivityResult>
-  // In-place plugin reload for a broker-backed Claude thread — the alternative to a hard restart.
-  reloadThreadPlugins(input: { slug: string; sessionId: string }): Promise<ThreadPluginReloadResult>
   // Event-snooze the awaiting-background card: hide it until the thread's own background work returns
   // (the parent comes to a NEW rest). No deadline and no scheduler — the board re-surfaces it the moment
   // rested_at advances. `sessionId` binds the click to the session the tab was looking at.
@@ -366,9 +374,6 @@ export interface Api {
   // Hard-delete any thread (a live worker is stopped first): its rows, its terminals, its scratch
   // directory. Frees its slug and @handle (server router.ts deleteOwnedThread).
   deleteThread(input: { slug: string }): Promise<void>
-  // Server-authoritative, shell-safe provider resume command for a registered Frizz-owned session.
-  // A live Frizz-owned runtime is deliberately unavailable: a second provider client is uncoordinated.
-  threadTerminalCommand(input: { slug: string }): Promise<{ command: string | null; mode: "attach" | "resume" | "unavailable"; reason: string | null }>
   openExternal(input: { url: string }): Promise<void>
   // `line`/`column`/`endLine` land the Local file links app on a place in the file: through a connected editor
   // window (the editor bridge, packages/vscode) when the app is one, else its CLI's `-g path:line:col`.
@@ -396,7 +401,7 @@ export interface Api {
   // Claim what an editor sent to the prompt box (machine-wide, first caller wins). No id: the oldest.
   composeTake(input: { id?: string }): Promise<{ item: EditorComposeItem | null }>
   // What the editor windows that have this project open show: file in front, selection, tabs, problems.
-  // The workers' `mcp__frizz__editor` reads it; the page does not.
+  // The workers' `frizzctl editor` reads it; the page does not.
   editorState(input: { slug?: string }): Promise<EditorStateResult>
   // Which capability-gated tools the workers' frizz MCP server lists (`editor` while a window has this
   // project open). The worker's MCP server polls it; the page does not.
@@ -425,12 +430,12 @@ export interface Api {
   // The models one ACP agent advertises (a throwaway session, cached server-side). Asked only when a
   // model picker for that agent is open.
   acpAgentModels(input: AcpAgentModelsInput): Promise<AcpAgentModels>
-  // Provider subscription quota (5h + weekly windows) for the sidebar status bar. `force` bypasses
-  // the shared freshness window for an explicit user recheck.
-  quota(input?: { force?: boolean }, opts?: RpcCallOpts): Promise<QuotaSnapshot>
+  // Provider subscription quota (5h + weekly windows) for the sidebar status bar. `force` names the
+  // provider whose freshness window an explicit user recheck bypasses (a bare `true` is Claude's).
+  quota(input?: { force?: boolean | "claude" | "codex" }, opts?: RpcCallOpts): Promise<QuotaSnapshot>
   // Per-provider LOCAL credential presence for the new-thread dispatch gate. Distinct from quota's
   // overloaded "unavailable" — reports only whether a credential exists. Never rejects.
-  authStatus(input?: undefined, opts?: RpcCallOpts): Promise<AuthSnapshot>
+  authStatus(input?: { fresh?: boolean }, opts?: RpcCallOpts): Promise<AuthSnapshot>
   accountLogout(input: AccountLogoutInput): Promise<AccountLogoutResult>
   // A thread's TERMINALS (server thread-terminals.ts): where a new one would start, and its verbs.
   threadWorkingDir(input: { slug: string }): Promise<ThreadWorkingDir>
@@ -596,6 +601,9 @@ export const PROCEDURES = {
   addOwnPrWatch: "mutation",
   dropOwnPrWatch: "mutation",
   listOwnPrWatches: "mutation",
+  addOwnCommandWatch: "mutation",
+  dropOwnCommandWatch: "mutation",
+  listOwnCommandWatches: "mutation",
   addOwnWatch: "mutation",
   extendOwnShell: "mutation",
   ownDeadline: "mutation",
@@ -619,13 +627,11 @@ export const PROCEDURES = {
   cancelOwnThreadTimer: "mutation",
   listOwnThreadTimers: "mutation",
   listOwnThreadActivity: "mutation",
-  reloadThreadPlugins: "mutation",
   snoozeAwaitingBackground: "mutation",
   watchDoneRef: "mutation",
   snoozeUntilSubAgentsReturn: "mutation",
   requestParkCheckIn: "mutation",
   deleteThread: "mutation",
-  threadTerminalCommand: "query",
   openExternal: "mutation",
   openLocalFile: "mutation",
   openThreadFolder: "mutation",

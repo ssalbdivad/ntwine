@@ -133,8 +133,8 @@ const codexThreadName = seed(CODEX_SLUG, CODEX_SESSION, "Todo render codex", "co
 const api = createRpcClient(`http://127.0.0.1:${port}/`)
 await api.waitForHealth()
 
-const { default: puppeteer } = await import("puppeteer")
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const { launchHeadless } = await import("./lib/headless-browser.mjs")
+const browser = await launchHeadless()
 const failures = []
 const pageErrors = []
 const check = (ok, label, detail) => { console.log(`${ok ? "PASS" : "FAIL"}  ${label}`); if (!ok) failures.push(`${label}${detail ? ` — ${detail}` : ""}`) }

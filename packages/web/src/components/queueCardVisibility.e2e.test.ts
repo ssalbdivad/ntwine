@@ -50,8 +50,8 @@ const URL_MANY = (extra = "", n = 60) => `${baseUrl}/queue-card-states-fixture.h
 
 before(async () => {
   if (!baseUrl) return
-  const { default: puppeteer } = await import("puppeteer")
-  browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  browser = await launchHeadless()
   page = await browser.newPage()
   page.setDefaultTimeout(60_000)
   await page.setViewport({ width: 900, height: 1000, deviceScaleFactor: 1 })

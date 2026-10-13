@@ -18,8 +18,8 @@ const PILL = "[data-dispatch-time-limit]"
 const MIN = 60_000
 
 async function launch(query = "") {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb", "--use-mock-keychain"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport({ width: 1100, height: 900, deviceScaleFactor: 1 })
   const errors: string[] = []

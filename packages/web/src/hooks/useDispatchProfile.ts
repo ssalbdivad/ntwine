@@ -5,6 +5,7 @@ import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { useDraft } from "../lib/drafts.ts"
 import type { ProfileGridSelection } from "../lib/profileGrid.ts"
+import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
 import {
   applyDispatchPreferenceUpdate,
   parseDispatchPick,
@@ -101,9 +102,15 @@ export function useDispatchProfile(pickState: DispatchPickState = NO_PICK): {
   // hand-maintained list).
   const codexModels = useQuery({ queryKey: ["codexModels"], queryFn: () => rpc.codexModels() })
   const codexList = codexModels.data ?? []
-  const claudeModels = useQuery({ queryKey: ["claudeModels"], queryFn: () => rpc.claudeModels(), retry: false })
+  // These two are answered by a PROJECT (its runtime, its PATH), so a prompt box on another project's
+  // card asks that project (ThreadProjectScope), under a key that names it (upstream ff43f7d3, in the
+  // fork's scoping).
+  const api = useThreadApi()
+  const projectId = useThreadProjectId()
+  const scoped = (key: string) => (projectId ? [key, { project: projectId }] : [key])
+  const claudeModels = useQuery({ queryKey: scoped("claudeModels"), queryFn: () => api.claudeModels(), retry: false })
   const claudeList = claudeModels.data ?? []
-  const acpAgents = useQuery({ queryKey: ["acpAgents"], queryFn: () => rpc.acpAgents() })
+  const acpAgents = useQuery({ queryKey: scoped("acpAgents"), queryFn: () => api.acpAgents() })
   const acpList = acpAgents.data ?? []
 
   const preference = useMutation({

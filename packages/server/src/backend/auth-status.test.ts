@@ -1,10 +1,10 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { CodexExecutableNotFoundError } from "./codex-executable.ts"
-import { parseClaudeAuthStatusJson, readAuthSnapshot, readClaudeAccountEmail, readClaudeAuthState, readClaudeAuthStatusCli, readClaudePreflightAuth, readCodexAccountEmail, readCodexAccountId, readCodexAuthState, readCodexBinaryState } from "./auth-status.ts"
+import { parseClaudeAuthStatusJson, readAuthSnapshot, readClaudeAccountEmail, readClaudeAuthState, readClaudeAuthStatusCli, readClaudePreflightAuth, readCodexAccountEmail, readCodexAccountId, readCodexAuthState, readCodexBinaryState, resetClaudeCliConfirm } from "./auth-status.ts"
 
 // Codex reads env keys BEFORE the file, so a file-based test must run with those keys cleared or an
 // ambient OPENAI_API_KEY in the dev shell would mask the file logic. Clears + restores around fn.
@@ -227,6 +227,55 @@ test("readAuthSnapshot: CLI overrides a local signed-out; local verdict stands w
       assert.equal((await readAuthSnapshot({ claudeBin: "/nonexistent/claude-absent" })).claude, "signed-out")
     })
   } finally {
+    if (savedConfig === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = savedConfig
+    if (savedKeychain === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED
+    else process.env.FRIZZ_KEYCHAIN_DISABLED = savedKeychain
+  }
+})
+
+// The snapshot is POLLED — every open tab, every window focus, every page load — and on a machine that
+// is not signed in to Claude each call used to start the CLI. The stub counts its own starts, so the
+// number here is a number of Claude Code processes.
+test("readAuthSnapshot: a signed-out machine starts the Claude CLI once per window, not once per poll", posixOnlyStub, async () => {
+  const savedConfig = process.env.CLAUDE_CONFIG_DIR
+  const savedKeychain = process.env.FRIZZ_KEYCHAIN_DISABLED
+  try {
+    await withTmpAsync(async (dir) => {
+      process.env.CLAUDE_CONFIG_DIR = dir // empty → local reader: signed-out
+      process.env.FRIZZ_KEYCHAIN_DISABLED = "1"
+      const log = join(dir, "starts.log")
+      const starts = () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean).length : 0)
+      await withStub(`echo start >> '${log}'; echo '{"loggedIn": false}'; exit 1`, async (bin) => {
+        resetClaudeCliConfirm()
+        const MIN = 60_000
+        const poll = async (at: number, fresh = false) =>
+          (await readAuthSnapshot({ claudeBin: bin, now: () => at, ...(fresh ? { fresh } : {}) })).claude
+        // A page load mounts two readers at once; the chips then poll every 2m and on every focus.
+        assert.deepEqual(await Promise.all([poll(0), poll(0)]), ["signed-out", "signed-out"])
+        for (const at of [30_000, 2 * MIN, 4 * MIN, 15 * MIN - 1]) assert.equal(await poll(at), "signed-out")
+        assert.equal(starts(), 1)
+        assert.equal(await poll(15 * MIN), "signed-out")
+        assert.equal(starts(), 2)
+
+        // The sign-in dialog's "check again" is a person who may have just signed in: asked at once.
+        assert.equal(await poll(16 * MIN, true), "signed-out")
+        assert.equal(starts(), 3)
+        assert.equal(await poll(30 * MIN), "signed-out")
+        assert.equal(starts(), 3)
+
+        // A credential the local reader can see is answered without the CLI — and forgets what it said,
+        // so signing out again is confirmed afresh rather than from a verdict about another state.
+        writeFileSync(join(dir, ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: "tok" } }))
+        assert.equal(await poll(30 * MIN + 1), "authed")
+        assert.equal(starts(), 3)
+        rmSync(join(dir, ".credentials.json"))
+        assert.equal(await poll(30 * MIN + 2), "signed-out")
+        assert.equal(starts(), 4)
+      })
+    })
+  } finally {
+    resetClaudeCliConfirm()
     if (savedConfig === undefined) delete process.env.CLAUDE_CONFIG_DIR
     else process.env.CLAUDE_CONFIG_DIR = savedConfig
     if (savedKeychain === undefined) delete process.env.FRIZZ_KEYCHAIN_DISABLED

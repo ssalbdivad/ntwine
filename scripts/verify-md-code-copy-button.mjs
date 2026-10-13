@@ -53,8 +53,8 @@ const STATES = [
   { cls: "is-copied", name: "copied  (lucide Check)" },
 ]
 
-const { default: puppeteer } = await import("puppeteer")
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const { launchHeadless } = await import("./lib/headless-browser.mjs")
+const browser = await launchHeadless()
 const failures = []
 const rows = []
 let bias = { dx: 0, dy: 0 }

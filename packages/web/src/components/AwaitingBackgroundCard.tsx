@@ -1485,7 +1485,7 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
         // sub-agent's own transcript above all), and the sentence below is what it says instead.
         : groups.length === 0 && !hasUnrowedWork(work) && steps.length === 0 ? <p className={CARD_BODY}>{AWAITING_NO_PROSE}</p>
         : null}
-      {steps.length > 0 && <StepsList steps={steps} />}
+      {steps.length > 0 && <StepsList steps={steps} live={stepsLive} />}
       {unrowed.length > 1 && (
         // `gap-x-3` rather than a punctuation separator: the refs are a set of targets, not a sentence,
         // and a wrapped "·" stranded at a line end reads as a typo. They wrap onto as many lines as the

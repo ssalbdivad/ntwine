@@ -6,7 +6,7 @@
 // cloudflared sends (measured 2026-08-03), so the origin policy is exercised as it is in production.
 //
 //   nub scripts/verify-access-codes.mjs
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createServer as createHttps } from "node:https"
 import { createServer as createHttp, request as httpRequest } from "node:http"
 import { execFileSync } from "node:child_process"
@@ -43,8 +43,7 @@ const front = createHttps({ key: readFileSync(join(dir,"k.pem")), cert: readFile
 })
 await new Promise((r) => front.listen(FRONT, "127.0.0.1", r))
 
-const browser = await puppeteer.launch({ headless: "new",
-  args: ["--no-sandbox","--ignore-certificate-errors",`--host-resolver-rules=MAP ${HOST} 127.0.0.1`] })
+const browser = await launchHeadless({ args: ["--ignore-certificate-errors", `--host-resolver-rules=MAP ${HOST} 127.0.0.1`] })
 try {
   const page = await browser.newPage()
   const bare = await page.goto(`${ORIGIN}/`, { waitUntil: "domcontentloaded" })

@@ -4,11 +4,11 @@
 // seeded the lifecycle footer's strip until 2026-10-05; those marks now close the header's action strip
 // and, for the Goal, lead the prompt box's rail.)
 //
-// ONE broker-backed Claude row, because that is the only shape that renders the whole right cluster:
-// `ReloadPluginsButton` requires `claudeRuntime === "broker"` and `RestartWorkerButton` requires a
-// Claude row that has not exited. The `claude_runtime` column is projected straight through
+// ONE broker-backed Claude row, because that is the shape that renders the whole right cluster:
+// `RestartWorkerButton` requires a Claude row that has not exited (and a dev build), and the title's
+// AI-rename refresh a broker-backed one. The `claude_runtime` column is projected straight through
 // (board.ts), so a simulated worker can carry it; liveness is what a seed cannot fake, so if the row
-// cards as exited both verbs hide and the check falls back to the fixture.
+// cards as exited the restart verb hides and the check falls back to the fixture.
 //
 // The snooze and the recurring prompt are armed through the REAL RPCs the controls themselves call, so
 // the amber snooze clock and the Goal mark are in the state production puts them in. The context reading

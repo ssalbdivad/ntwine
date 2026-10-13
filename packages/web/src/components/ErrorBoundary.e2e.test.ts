@@ -17,9 +17,7 @@ const baseUrl = process.env.FRIZZ_ERROR_BOUNDARY_E2E_URL
 let shared: Promise<import("puppeteer").Browser> | null = null
 async function browser() {
   if (!shared) {
-    shared = import("puppeteer").then((m) =>
-      m.default.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] }),
-    )
+    shared = import("../../../../scripts/lib/headless-browser.mjs").then((m) => m.launchHeadless())
   }
   return shared
 }

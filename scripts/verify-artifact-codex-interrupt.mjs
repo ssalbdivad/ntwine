@@ -125,12 +125,15 @@ const readRecord = () => {
 const thread = async (slug) => (await api.query("board"))?.threads?.find((x) => x.id === slug)
 
 // The codex ROLLOUT id frizz pinned for this row (not the frizz session UUID). ThreadView does not carry
-// it, but threadTerminalCommand renders `codex resume '<rollout-id>'` from exactly that column.
+// it and no RPC returns it, so it is read off the row's own `agent_session_id` column, which is filled
+// in shortly after the spawn (verify-artifact-daemon-closure.mjs reads its column the same way).
 const codexRolloutId = async (slug) => {
   for (let i = 0; i < 120; i++) {
-    const { command } = await api.query("threadTerminalCommand", { slug })
-    const hit = command?.match(/codex resume '([^']+)'/)
-    if (hit) return hit[1]
+    const id = execFileSync("sqlite3", [
+      join(stateDir, "ui.db"),
+      `SELECT agent_session_id FROM session WHERE slug = '${slug}';`,
+    ], { encoding: "utf8" }).trim()
+    if (id) return id
     await sleep(500)
   }
   return null

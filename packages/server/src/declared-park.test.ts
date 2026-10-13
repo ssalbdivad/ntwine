@@ -304,7 +304,7 @@ test("a park naming something that is NOT running bumps the worker, and says whi
     // has already lost, which is how it got the id wrong in the first place.
     assert.match(rows[0].message, /bGONE.*NOT RUNNING/s)
     assert.match(rows[0].message, /bzvtnt3ig.*still running/s)
-    assert.match(rows[0].message, /mcp__frizz__activity/, "…and points at the tool that hands the ids back")
+    assert.match(rows[0].message, /`frizzctl activity`/, "…and points at the command that hands the ids back")
   } finally { h.close() }
 })
 
@@ -328,7 +328,7 @@ test("a PR named in the fence but never registered is refused, and the correctio
     const rows = h.queued()
     assert.equal(rows.length, 1, "a park on an unregistered PR is never silent")
     assert.match(rows[0].message, /acme\/app#391/, "the worker is told WHICH ref frizz could not find")
-    assert.match(rows[0].message, /mcp__frizz__watch_pr/, "…and that registering it is the missing step")
+    assert.match(rows[0].message, /`frizzctl watch-pr add`/, "…and that registering it is the missing step")
   } finally { h.close() }
 })
 
@@ -388,9 +388,9 @@ test("an awaiting fence naming NOTHING is bumped, with how to register a real wa
     assert.match(rows[0].message, /names nothing to wait on/)
     // It has to say HOW, naming the tool for each kind — a worker told only "that is wrong" writes the
     // same fence again.
-    assert.match(rows[0].message, /mcp__frizz__watch_pr/, "the PR case, which is the one it had")
-    assert.match(rows[0].message, /mcp__frizz__timer/)
-    assert.match(rows[0].message, /mcp__frizz__activity/, "…and where to get the ids")
+    assert.match(rows[0].message, /`frizzctl watch-pr add`/, "the PR case, which is the one it had")
+    assert.match(rows[0].message, /`frizzctl timer set`/)
+    assert.match(rows[0].message, /`frizzctl activity`/, "…and where to get the ids")
     // …and the other honest exit: if it is not waiting, it is done.
     assert.match(rows[0].message, /you are not awaiting — you are done/)
   } finally { h.close() }
@@ -425,7 +425,7 @@ test("a fence using a RETIRED kind is bumped by name, with what replaced it", as
     // NAMES THE OFFENDING LINE. "Your fence names nothing" was true but not actionable — the worker
     // could not tell which of its lines frizz had dropped.
     assert.match(rows[0].message, /`pr-watch:` is GONE/)
-    assert.match(rows[0].message, /mcp__frizz__watch_pr/, "…and what to do instead")
+    assert.match(rows[0].message, /`frizzctl watch-pr add`/, "…and what to do instead")
     // AND THE WHOLE SUPPORTED SET, so the answer does not depend on the worker's frozen contract — which
     // is the entire point of this correction, and never more so than right after the 2026-08-24 cutover,
     // when every worker in flight has the retired SINGULAR keys frozen into its system prompt.
@@ -468,7 +468,7 @@ test("a nameless fence with nothing running is told it is not awaiting at all", 
     const msg = h.queued()[0].message
     assert.match(msg, /You have NOTHING running right now/)
     // The question fence is retired (2026-09-11); a registered question is the other way out.
-    assert.match(msg, /finish in\s*```done, or register a question with `mcp__frizz__ask`/s)
+    assert.match(msg, /finish in\s*```done, or register a question with `frizzctl ask`/s)
   } finally { h.close() }
 })
 
@@ -829,7 +829,7 @@ test("a park naming something that never existed still reads as a wrong fence", 
     await h.s.tick()
     const msg = h.queued()[0].message
     assert.match(msg, /nothing by that name/, "an id matching nothing is a typo, not a finished job")
-    assert.match(msg, /mcp__frizz__activity/, "…so it is pointed at the ids it actually has")
+    assert.match(msg, /`frizzctl activity`/, "…so it is pointed at the ids it actually has")
     assert.doesNotMatch(msg, /has FINISHED/)
   } finally { h.close() }
 })
@@ -958,7 +958,7 @@ test("a park that leaves an OPEN registered question unnamed is refused, even wh
     // would not tell it which question is meant.
     assert.match(rows[0].message, /Open, and not named under `questions:`:\n- `qst_6506c36d2f28` — Nub still breaks Electron 34/)
     assert.match(rows[0].message, /`questions: \[qst_…\]`/, "…says how to keep the question")
-    assert.match(rows[0].message, /mcp__frizz__unask/, "…and how to drop it")
+    assert.match(rows[0].message, /`frizzctl unask <id>`/, "…and how to drop it")
     assert.doesNotMatch(rows[0].message, /NOT RUNNING|still running/, "the live shell is not the news")
     // The transcript reads this delivery as a correction, so the refused fence stops drawing.
     assert.equal(isParkCorrection(rows[0].message), true)
@@ -1088,7 +1088,7 @@ test("a `threads:` name matching no live await is refused, and the correction sa
     const rows = h.queued()
     assert.equal(rows.length, 1, "a dead name is refused, a live wait on ANOTHER thread notwithstanding")
     assert.equal(isParkCorrection(rows[0].message), true)
-    assert.match(rows[0].message, /`threads: \[@focus-mode\]` — NOT AWAITED — ask it with `mcp__frizz__message_thread` and `await_reply: true` first/)
+    assert.match(rows[0].message, /`threads: \[@focus-mode\]` — NOT AWAITED — ask it with `frizzctl message-thread` and `--await-reply` first/)
     assert.match(rows[0].message, /In a fence: `threads: \[@shell-budgets\]`/, "the live one is printed for the re-fence")
   } finally { h.close() }
 })

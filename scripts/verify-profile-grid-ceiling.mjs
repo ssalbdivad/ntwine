@@ -11,7 +11,7 @@ import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const flags = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")))
 const port = Number(flags.port ?? 5203)
@@ -42,7 +42,7 @@ for (let i = 0; ; i++) {
   await new Promise((r) => setTimeout(r, 250))
 }
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 try {
   const page = await browser.newPage()
   await page.setViewport({ width: 900, height: 640, deviceScaleFactor: 3 })

@@ -90,7 +90,7 @@ export function shellBudgetWarningMessage(input: {
   return (
     `\u23f0 Your background shell \`${handle}\` (${label}) has been running ${formatElapsed(input.ranMs)}, past its ` +
     `${formatElapsed(input.budgetMs)} budget.${consequence}\n\n` +
-    `If it must keep running, call \`mcp__frizz__extend_shell\` with \`shell: "${handle}"\` and a \`for\` duration ` +
+    `If it must keep running, run \`frizzctl extend-shell ${handle} --for <duration>\` ` +
     `(\`30m\`, \`2h\`, max 24h). If you no longer need it, stop it now (${stopVerb}).`
   )
 }
@@ -112,7 +112,7 @@ export function shellStopNotice(label: string, reason: ShellStopReason = { kind:
   }
   return (
     `[frizz] Frizz stopped your background command ${JSON.stringify(label)} after ${formatElapsed(reason.ranMs)}: it ran ` +
-    `past its ${formatElapsed(reason.budgetMs)} budget and was not extended with \`mcp__frizz__extend_shell\` after the ` +
+    `past its ${formatElapsed(reason.budgetMs)} budget and was not extended with \`frizzctl extend-shell\` after the ` +
     `warning. ${tail} If you still need it, relaunch it — with a Bash \`timeout\` sized to it, or none if it must run until you stop it.`
   )
 }

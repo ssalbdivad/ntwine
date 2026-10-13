@@ -21,8 +21,8 @@ let page: Page | undefined
 
 before(async () => {
   if (!baseUrl) return
-  const { default: puppeteer } = await import("puppeteer")
-  browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  browser = await launchHeadless()
   page = await browser.newPage()
   page.setDefaultTimeout(60_000)
   await page.setViewport({ width: 900, height: 600, deviceScaleFactor: 1 })

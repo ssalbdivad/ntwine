@@ -119,6 +119,12 @@ test("an awaited thread keeps its handle in the clause, as a PR keeps its ref", 
 test("a runtime id never reaches the popover — it is counted, not listed", () => {
   assert.equal(awaitingWaitClause([{ kind: "shell", value: "bvg44v4ij" }]), "waiting on an agent terminal")
   assert.equal(awaitingWaitClause([{ kind: "timer", value: "tmr_a1b2c3" }]), "waiting on a timer")
+  // A command watch (2026-10-11) is counted too: its `cmw_…` id names nothing a human can look at.
+  assert.equal(awaitingWaitClause([{ kind: "command", value: "cmw_0123456789ab" }]), "waiting on a command watch")
+  assert.equal(
+    awaitingWaitClause([{ kind: "command", value: "cmw_a" }, { kind: "pr", value: "acme/app#391" }, { kind: "command", value: "cmw_b" }]),
+    "waiting on acme/app#391 and 2 command watches",
+  )
   assert.equal(
     awaitingWaitClause([
       { kind: "timer", value: "tmr_a1" },

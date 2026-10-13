@@ -18,11 +18,8 @@ test("a phone's band tabs never wrap, never run off-screen, and bring the select
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--use-mock-keychain", "--force-color-profile=srgb"],
-  })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()) })

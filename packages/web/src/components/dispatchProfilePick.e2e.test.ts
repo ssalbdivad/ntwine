@@ -20,8 +20,8 @@ const MAKE_DEFAULT = "[data-make-default]"
 const PICK_KEY = "dispatch-profile:"
 
 async function launch(query = "") {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport({ width: 1100, height: 900, deviceScaleFactor: 1 })
   const errors: string[] = []
@@ -162,8 +162,8 @@ test("the pick belongs to the draft: it survives a reload, and a failed dispatch
 // The GitHub batch picker lays its own pick over the same default (github-picker-range-fixture:
 // Opus › high). Its pick is component state, so it needs no reload case: it goes with the modal.
 test("the GitHub picker's pick is for its batch: the batch carries it and the default is untouched", { skip: !baseUrl, timeout: 60_000 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   try {
     const page = await browser.newPage()
     await page.setViewport({ width: 1100, height: 950, deviceScaleFactor: 1 })

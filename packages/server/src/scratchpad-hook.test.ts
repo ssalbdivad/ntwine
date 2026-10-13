@@ -91,7 +91,7 @@ test("a fresh startup offers the directory and names the goal capability without
   assert.match(ctx, /nothing in it is read automatically/)
   // The capability stays NAMED — the worker can arm it — but it is offered, never prescribed
   // (maintainer 2026-08-28: stop pushing the notes-plus-arming arrangement).
-  assert.match(ctx, /post_compaction: true/)
+  assert.match(ctx, /`frizzctl goal start --post-compaction`/)
   assert.match(ctx, /Use it if you want it/)
   assert.doesNotMatch(ctx, /then arm|write the doc/, "the arrangement is offered, never pushed")
 })
@@ -113,7 +113,7 @@ test("after a compaction the hook NAMES the scratch files and never injects thei
   assert.doesNotMatch(ctx, /UNMISTAKABLE-BODY-TEXT/, "a listing, never the content")
   assert.doesNotMatch(ctx, /scratchpad-state/, "frizz's own bookkeeping is not the worker's notes")
   // And it still names the post-compaction goal as an available capability.
-  assert.match(ctx, /post_compaction: true/)
+  assert.match(ctx, /`frizzctl goal start --post-compaction`/)
 })
 
 test("a fresh startup does not pay for the listing — only the context-losing sources get it", () => {
@@ -376,7 +376,7 @@ test("an EMPTY directory still re-orients after compaction, and says so plainly"
   assert.match(ctx, /Do not search other `\.frizz\/threads\/\*\/` directories/)
   assert.match(ctx, /retained compaction summary/)
   // …and it says how to not be here again.
-  assert.match(ctx, /post_compaction: true/)
+  assert.match(ctx, /`frizzctl goal start --post-compaction`/)
 })
 
 test("--session overrides the reported id, so a codex worker finds FRIZZ's directory not its own", () => {
@@ -456,6 +456,24 @@ test("the codex hook config is built unconditionally, and carries what codex req
     }
   }
   assert.match(cfg.hooks?.SubagentStart?.[0]?.hooks[0]?.command ?? "", /--mode=subagent-start/)
+  assert.match(cfg.hooks?.SessionStart?.[0]?.hooks[0]?.command ?? "", /--mode=session-start --resume-keeps-context$/)
+})
+
+// A Codex thread is resumed from its rollout with its whole conversation, and Frizz resumes one
+// routinely: its first message after every Frizz restart, and again when a newer Frizz hands it new
+// hooks. Those hooks ride every resume since 2026-10-11, so SessionStart(resume) now FIRES there — and
+// "Context was just lost" would be false every time. The Codex registration carries the flag; Claude's
+// does not, because a Claude resume is a cold start of the process.
+test("a Codex resume is silent, because it lost nothing — and only a resume is", () => {
+  const dir = newProject()
+  writeScratch(dir, "the approach and why\n", "plan.md")
+  const codex = ["--mode=session-start", "--resume-keeps-context"]
+  assert.equal(runHook(dir, codex, { session_id: SID, source: "resume" }), "")
+  // A compaction did lose the conversation, on Codex as anywhere; a fresh start is still oriented.
+  assert.match(additionalContext(runHook(dir, codex, { session_id: SID, source: "compact" })), /Context was just compacted/)
+  assert.match(additionalContext(runHook(dir, codex, { session_id: SID, source: "startup" })), /⟦scratch directory⟧/)
+  // Without the flag — Claude's registration — a resume keeps its re-orientation.
+  assert.match(additionalContext(runHook(dir, ["--mode=session-start"], { session_id: SID, source: "resume" })), /Context was just lost/)
 })
 
 // ---- a board that is NOT the worker's cwd: the Home workspace (server/home-workspace.ts) ----

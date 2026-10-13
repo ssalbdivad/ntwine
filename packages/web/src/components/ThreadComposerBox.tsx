@@ -32,6 +32,7 @@ import { RecurringPromptControl } from "./RecurringPromptControl.tsx"
 import type { PhoneBarApi } from "./Composer.tsx"
 import { SendScopeContext } from "../lib/sendScope.tsx"
 import { sendPlaceholder, setSendMode, useSendMode } from "../lib/sendMode.ts"
+import type { SurfaceFileDrop } from "../lib/fileDrop.ts"
 
 // THE prompt box for a registered thread — the single block every "steer this thread" surface renders.
 // The <Composer> leaf was already shared; the ~14 lines AROUND it were not, and the queue card's copy had
@@ -39,8 +40,8 @@ import { sendPlaceholder, setSendMode, useSendMode } from "../lib/sendMode.ts"
 // card injected the literal string into the running worker's stdin while the same keystroke in the drawer
 // opened the sign-in modal. Everything that must not diverge now lives here exactly once:
 //
-//   · the follow-up DRAFT key (so the queue card and the drawer are the same textarea, and a draft typed
-//     in one is present in the other and survives a reload),
+//   · the follow-up DRAFT key (so the queue card, the drawer and /full are the same textarea, and a
+//     draft typed in one is present in the others — in any tab — and survives a reload),
 //   · the `/login` | `/logout` alias intercept + its SignInModal / LogoutConfirmModal,
 //   · useThreadComposerControls (the model/effort footer and the backend busy fence),
 //   · the {controls.status} line under the box.
@@ -76,6 +77,7 @@ export function ThreadComposerBox({
   submitOverride,
   phoneBarOverride,
   phoneChrome,
+  fileDrop,
 }: {
   slug: string
   // Pure data- tag forwarded to the textarea. Also the two surfaces' only behavioral fork inside
@@ -108,6 +110,9 @@ export function ThreadComposerBox({
   // does, and /full never does — it keeps the desktop header at every width. Absent, the breakpoint
   // alone decides, as it did before the caller could say.
   phoneChrome?: boolean
+  // The surface's file drop zone, when the SURFACE takes a dropped file rather than the box alone — the
+  // queue card, anywhere on it. Desktop box only; see Composer's `fileDrop`.
+  fileDrop?: SurfaceFileDrop
 }): ReactElement {
   const snap = useSnapshot(store)
   const thread = snap.board?.threads.find((candidate) => candidate.id === slug)
@@ -259,7 +264,8 @@ export function ThreadComposerBox({
       // message for it either. This used to restore only into an empty box, so a failed send was
       // silently discarded whenever the operator had typed anything since; the words now go above
       // whatever is there (mergeIntoDraft). The server keeps its own copy too when it can (`kept`),
-      // because this draft is sessionStorage and does not survive a browser restart.
+      // because this draft lives in ONE browser's localStorage: clearing site data loses it, and no
+      // other browser or device ever sees it.
       onRollback: (failure) => {
         mergeIntoDraft(key, message)
         restoreContextItems(key, context)
@@ -375,6 +381,7 @@ export function ThreadComposerBox({
         busy={controls.busy}
         footer={controls.footer}
         railLead={goal}
+        fileDrop={fileDrop}
         // An external session keeps the ↑: sending there takes the session over, and there is no turn
         // of Frizz's to steer or queue behind until it has.
         send={thread?.foreign ? undefined : { mode, onMode: (next) => setSendMode(slug, next), running, staged }}

@@ -52,10 +52,11 @@ export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
 // reporting up, an `agentInstruction` a coordinator speaking into a CHILD, and a QUEUED send has not been
 // delivered, so nothing after it is a reply to it.
 //
-// …EXCEPT THE ONE TURN FRIZZ DELIVERS THAT THE HUMAN WROTE: the answer to a REGISTERED question. It rides in
-// as a scheduler wake because the human may have answered while the worker's process was down, so `wake`
-// alone cannot decide the writer; the answers header (shared questionAnswerMessage) does (maintainer
-// 2026-08-31: "the cue card should only go back to the most recent user interaction").
+// …EXCEPT THE ONE TURN FRIZZ DELIVERS THAT THE HUMAN WROTE: the answer to a REGISTERED question
+// (`frizzctl ask`). It rides in as a scheduler wake because the human may have answered while the
+// worker's process was down, so `wake` alone cannot decide the writer; the answers header (shared
+// questionAnswerMessage) does (maintainer 2026-08-31: "the cue card should only go back to the most
+// recent user interaction").
 //
 // 0 — the whole loaded transcript — when the human has written nothing in it yet.
 export function lastHumanTurnIndex(messages: readonly HumanTurnLike[]): number {

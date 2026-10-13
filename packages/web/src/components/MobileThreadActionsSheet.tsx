@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, Pencil, Plug, RefreshCw, RotateCcw, RotateCw } from "lucide-react"
+import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, Pencil, RefreshCw, RotateCcw, RotateCw } from "lucide-react"
 import { SNOOZE_PROMPT_MAX, type ThreadLinkView, type ThreadView } from "@frizz/shared"
 import { ThreadProjectScope, useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { showToast, store } from "../store.ts"
@@ -24,8 +24,7 @@ import { openLocalPath } from "../lib/local-file-links.ts"
 import { STALLED_RETRY_MESSAGE, retrySession } from "../lib/retrySession.ts"
 import { restartWorker } from "../lib/restartWorker.ts"
 import { useDevFrizzBuild } from "../lib/devBuild.ts"
-import { offersReloadPlugins, offersRestartWorker } from "../lib/threadMaintenance.ts"
-import { reloadThreadPlugins } from "../lib/workerMaintenance.ts"
+import { offersRestartWorker } from "../lib/threadMaintenance.ts"
 import { deliverProjectFollowUp } from "../lib/projectFollowUp.ts"
 import { projectMarkdownScope, type QueuesProject } from "../lib/allQueues.ts"
 import { profileGridDisplayParts } from "../lib/profileGrid.ts"
@@ -153,7 +152,6 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
   // `freshProcess`); the cross-project follow-up has no such flag, so a row of another project goes without
   // it. It is a dev-build verb, and the thread page's ⋯ still has it.
   const restart = !project && offersRestartWorker(thread, devBuild)
-  const reload = offersReloadPlugins(thread)
   const modelEffort = useModelEffortLabel(thread)
   const context = contextLine(thread.context)
   const foot = [context, modelEffort].filter(Boolean).join(" · ")
@@ -222,9 +220,6 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
       )}
       {restart && (
         <ActionRow data="restart-worker" icon={<RefreshCw size={19} />} label="Restart worker" onClick={() => dismiss(() => void restartWorker(queryClient, thread.id))} />
-      )}
-      {reload && (
-        <ActionRow data="reload-plugins" icon={<Plug size={19} />} label="Reload plugins" onClick={() => dismiss(() => void reloadThreadPlugins(api, thread))} />
       )}
       {foot && <div data-thread-actions-foot className="px-[18px] pt-2.5 text-[12.5px] leading-[17px] text-muted">{foot}</div>}
     </div>

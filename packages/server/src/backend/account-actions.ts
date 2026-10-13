@@ -64,7 +64,7 @@ export async function runProviderLogout(opts: {
   }
   // The credential state AFTER the attempt is the truth the UI needs — a "failed" logout that still
   // cleared the credential (or was already signed out) should read as signed out.
-  const auth = (await readAuthSnapshot({ claudeBin: opts.claudeBin }))[opts.backend]
+  const auth = (await readAuthSnapshot({ claudeBin: opts.claudeBin, fresh: true }))[opts.backend]
   if (failure && auth !== "signed-out") return { status: "failed", detail: failure, auth }
   return { status: "done", auth }
 }

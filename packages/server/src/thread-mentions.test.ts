@@ -376,7 +376,7 @@ test("messageThread delivers to a running sub-agent's mailbox, and refuses one i
     assert.match(awaiting.refusal ?? "", /answers in its report/)
     const finished = await h.router.messageThread.handler({ input: { slug: "me", handle: "@port-the-parser.review", message: "hi" } })
     assert.equal(finished.sent, false)
-    assert.match(finished.refusal ?? "", /not running.*read_thread/)
+    assert.match(finished.refusal ?? "", /not running.*read-thread/)
     const missing = await h.router.messageThread.handler({ input: { slug: "me", handle: "@port-the-parser.nobody", message: "hi" } })
     assert.equal(missing.sent, false)
     assert.match(missing.refusal ?? "", /@port-the-parser has no sub-agent called nobody/)

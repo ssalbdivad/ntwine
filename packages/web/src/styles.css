@@ -510,37 +510,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .frizz-rail-heartbeat { animation: none; opacity: 1; }
 }
-/* The PROJECT rail's badge ring (ProjectRail.tsx RunningRing) — the sidebar spinner's faint outline and
-   travelling segment, drawn by the moat's own box so it cannot drift off the badge's centre (the SVG it
-   replaced painted 0.375px off; see the component). The background is the ring: a full-strength arc a
-   quarter of the way round over a 35% base of the same ink (the component sets it to the badge's
-   accent), rotated by `--frizz-rail-lap`, over a solid page-colour base so the faint part reads the same
-   over any icon. The badge and its gap shadow, painted above it, cover all but the outer 1.25px, which
-   follows the badge's shape — a circle for one digit, a pill for two. No mask and no inner box: both
-   snapped to whole pixels in Chrome (see the component for the measurements). 1.1s is BoxSpinner's lap, so the rail's badge
-   and the sidebar's rows spin at one tempo. Under reduced motion the segment holds still on its outline:
-   the ring is the signal, the motion only emphasises it. */
-@property --frizz-rail-lap {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-.frizz-rail-badge-ring {
-  background:
-    conic-gradient(
-      from var(--frizz-rail-lap),
-      currentColor 0 24%,
-      color-mix(in srgb, currentColor 35%, transparent) 24% 100%
-    ),
-    var(--color-bg);
-  animation: frizz-rail-badge-lap 1.1s linear infinite;
-}
-@keyframes frizz-rail-badge-lap {
-  to { --frizz-rail-lap: 360deg; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .frizz-rail-badge-ring { animation: none; }
-}
 @keyframes frizz-live-pulse {
   50% { opacity: 0.62; box-shadow: 0 0 0 2px color-mix(in srgb, var(--live-dot) 14%, transparent); }
 }
@@ -1107,6 +1076,122 @@ a[href] {
   text-decoration: line-through;
   text-decoration-thickness: from-font;
 }
+/* ── The steps card's to-do STEPPER (AwaitingSteps.tsx StepsList, 2026-10-12) ─────────────────────
+   One numbered marker per step down a gutter, joined by a rail, each a checkbox the reader ticks as
+   they go. It speaks the task family's language above — the same muted ring, the same check at
+   strokeWidth 3, the accent spent on exactly one live mark — but in a CIRCLE, because a numbered
+   rounded square reads as a keycap and a numbered circle is what a stepper is.
+
+   THE MARKER SITS ON THE FIRST LINE'S CAP BAND, computed by the browser rather than fitted. The gutter
+   opens with a line box of its own at the step text's size and leading, so its baseline is the text's;
+   the marker is an EMPTY inline-block in that line (its face is absolutely positioned, so it has no line
+   boxes and its baseline is its bottom margin edge), raised by `0.5cap − size/2` — the `.md-task` rule
+   — which puts its centre on baseline − 0.5cap in whatever face the OS picked. The digit inside is
+   centred the rail-glyph way: `text-box: trim-both cap alphabetic` makes its layout box the cap band
+   itself, so the flex centring centres the ink.
+
+   THE RAIL runs down the rest of the gutter and through the gap below the step, which is the step's
+   PADDING rather than a margin precisely so the gutter can reach into it (`margin-bottom` = −gap). */
+.md-body ol.frizz-steps {
+  --step-mark: calc(17em / 13);
+  /* 12, not 10: between two one-line steps the rail is the gap minus its 5px of clearance, and at 10 it
+     drew a 5px dash that read as a speck rather than a connector. */
+  --step-gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.md-body .frizz-step {
+  display: grid;
+  grid-template-columns: var(--step-mark) minmax(0, 1fr);
+  column-gap: 0.62em;
+  margin: 0;
+  padding-bottom: var(--step-gap);
+}
+.md-body .frizz-step:last-child {
+  padding-bottom: 0;
+}
+.frizz-step-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: calc(-1 * var(--step-gap));
+}
+.frizz-step:last-child .frizz-step-gutter {
+  margin-bottom: 0;
+}
+.frizz-step-line {
+  display: block;
+}
+.frizz-step-mark {
+  display: inline-block;
+  position: relative;
+  box-sizing: border-box;
+  width: var(--step-mark);
+  height: var(--step-mark);
+  padding: 0;
+  vertical-align: calc(0.5cap - var(--step-mark) / 2);
+  border: 1px solid color-mix(in srgb, var(--color-muted) 45%, transparent);
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--color-muted) 85%, transparent);
+}
+.frizz-step-mark:has(> button):hover {
+  border-color: color-mix(in srgb, var(--color-muted) 80%, transparent);
+}
+.frizz-step-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+}
+button.frizz-step-face {
+  cursor: pointer;
+}
+button.frizz-step-face:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  outline-offset: 2px;
+}
+.frizz-step-num {
+  font-size: calc(10em / 13);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+}
+.frizz-step-rail {
+  flex: 1;
+  width: 1px;
+  margin: 3px 0 2px;
+  /* The rings' own muted, quieter than they are. `--color-border` (the card's rules) all but vanished
+     at the 7px a rail runs between two one-line steps. */
+  background: color-mix(in srgb, var(--color-muted) 28%, transparent);
+}
+.frizz-step:last-child .frizz-step-rail {
+  display: none;
+}
+/* The step to do NEXT — the first one not yet ticked, and only while the thread rests on them. */
+.frizz-step[data-step-state="next"] .frizz-step-mark {
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 90%, transparent);
+}
+/* Done: FILLED, still monochrome. With the ring alone a ticked marker differed from an unticked one
+   only by its glyph, and a column of rings had to be read mark by mark to find where the reader was;
+   the fill is the stepper's own "complete" and scans at a glance. The text takes the task family's
+   checked tone, links included, so a ticked step recedes as one piece rather than leaving its link lit. */
+.frizz-step[data-step-state="done"] .frizz-step-mark {
+  background: color-mix(in srgb, var(--color-muted) 22%, transparent);
+  border-color: transparent;
+}
+.frizz-step[data-step-state="done"] .frizz-step-text,
+.frizz-step[data-step-state="done"] .frizz-step-text a {
+  color: color-mix(in srgb, var(--color-muted) 90%, transparent);
+}
 /* Links and local-file actions wear ONE treatment on both prose surfaces — the block body and the
    inline-only run (an answer chip, the recommendation caption). The inline run used to get a bare
    underline with no colour, from the days it only ever held a link the sanitizer had flattened. */
@@ -1326,6 +1411,295 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
   padding: 0;
   font-size: 0.88em;
 }
+/* ── Callouts, disclosures, keys and scripts ────────────────────────────────────────────────────
+   Three things an author writes that Markdown's own blocks have no drawing for: a `> [!WARNING]`
+   blockquote (lib/callouts.ts), a `<details>` section (lib/disclosure.ts), and the inline `<kbd>`,
+   `<sub>`, `<sup>` and `<mark>` the sanitizer admits.
+
+   CALLOUTS. A callout IS a blockquote and is drawn as one: the same 2px rule and the same inset as
+   `.md-body blockquote`, with the rule in the type's colour and a title row above the body. No fill and
+   no frame — a tinted banner out-shouts the code blocks and cards it sits between, and the type is
+   already said twice, by the icon and by the word. The body takes the PROSE colour, not the quote's
+   muted one: a quote is somebody else's words, a callout is the part the author most wants read.
+
+   The five colours are the theme's own status tokens, each already tuned for both themes. */
+.md-body .md-callout {
+  --md-callout-ink: var(--color-muted);
+  border-left-color: var(--md-callout-ink);
+  color: inherit;
+}
+.md-body .md-callout-note {
+  --md-callout-ink: var(--color-shell);
+}
+.md-body .md-callout-tip {
+  --md-callout-ink: var(--color-live);
+}
+.md-body .md-callout-important {
+  --md-callout-ink: var(--color-watch);
+}
+.md-body .md-callout-warning {
+  --md-callout-ink: var(--color-attention);
+}
+.md-body .md-callout-caution {
+  --md-callout-ink: var(--color-danger);
+}
+/* The body keeps the prose rhythm (--md-step between its blocks); only its outer edges close up, as
+   `.md-body`'s own do. Three classes, because the last block is often a `.md-code` wrapper, whose
+   margin rule (two classes, later in the file) would otherwise reopen the bottom. */
+.md-body .md-callout > :first-child {
+  margin-top: 0;
+}
+.md-body .md-callout > :last-child {
+  margin-bottom: 0;
+}
+/* The title binds to the body it labels, the way a heading does: a tight gap, where a full --md-step
+   read as a label floating over an unrelated paragraph. */
+.md-body .md-callout > .md-callout-title {
+  /* The glyph's dead space: how far its ink stands in from each side of its 1em box, which is the
+     glyph's own viewBox geometry (set per type below). And the gap the eye reads between icon and
+     word — the 6px of the app's `gap-1.5` rows at this 14px, in `em`. */
+  --md-callout-trim: 0.042em;
+  --md-callout-gap: 0.42em;
+  /* Where the title's text starts: the icon's INK width plus that gap. A wrapped title hangs under
+     its own first word, not under the icon. */
+  --md-callout-gutter: calc(1em - 2 * var(--md-callout-trim) + var(--md-callout-gap));
+  margin-bottom: 0;
+  padding-left: var(--md-callout-gutter);
+  font-weight: 600;
+  color: var(--md-callout-ink);
+}
+.md-body .md-callout > .md-callout-title + * {
+  margin-top: 0.3em;
+}
+/* The type's icon: a lucide glyph carried as a mask, for the reason the task marks give — the
+   sanitizer drops inline `<svg>` with its subtree, and a mask in the stylesheet keeps lucide's exact
+   geometry while `currentColor` paints it.
+
+   IN THE LINE, as `.md-task` is: a zero-advance inline-block whose margins hang it in the title's
+   gutter, so the title stays ordinary inline content (a title can carry `code` and emphasis, which a
+   flex row would split into items).
+
+   VERTICAL — the transcript chevron's correction (lib/transcriptMetaLabels.ts). The box sits ON the
+   baseline, so its centre is 0.5em above it; `translate` moves it down by `0.5em − 0.5cap`, onto the
+   centre of the cap band, with `1cap` resolved by the browser for whatever face is in use. The
+   negative top margin trims what the box adds above the baseline to `1cap`, so the word alone sets
+   the line's height. `translate` and not `vertical-align`, which says the same thing and measured
+   worse: a box offset by a fractional length is painted on the nearest whole pixel, a transform is
+   not. Measured in sans on the rendered pixels (scripts/verify-md-blocks-ink.mjs, 2026-10-11), cap
+   band centre minus ink centre: under `vertical-align` +0.06px at 14px but +0.44px in an answer chip
+   and −0.69px at 28px; under `translate` 0.00px for all five types at 14px and in a card's 13px,
+   within 0.06px at 28px, and within 0.25px in a chip, whose 11.5px box is not a whole pixel and is
+   painted as 11 or 12 (0.13px at twice that size). All five glyphs are symmetric about their box centre (ink
+   2..22 or 1..23 of 24 on the vertical axis), so one correction serves them.
+
+   HORIZONTAL — `margin` spaces BOXES and the eye reads ink. The bulb inks 14 of its 24 units across
+   and the circle 22, so on one shared margin the gap to the word drew 7.00px to 9.25px across the
+   five types. Each type's trim hangs its box that far outside the column on the left — the ink
+   starts on the body's own left edge — and takes as much off the right. After it: 6.13px to 7.13px
+   at 14px, which is the 5.88px asked for plus the first letter's own side bearing (the W of Warning
+   0.25px, the I of Important 1.25px); 5.88px in a card and 5.63px in a chip. */
+.md-body .md-callout-title::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin: calc(1cap - 1em) calc(var(--md-callout-gap) - var(--md-callout-trim)) 0
+    calc(-1 * (var(--md-callout-gutter) + var(--md-callout-trim)));
+  translate: 0 calc(0.5em - 0.5cap);
+  background-color: currentColor;
+  -webkit-mask: var(--md-callout-glyph) center / 100% no-repeat;
+  mask: var(--md-callout-glyph) center / 100% no-repeat;
+}
+/* The trims: `Lightbulb` inks x 5..19 of 24 and `MessageSquareWarning` 2..22; the other three ink
+   1..23, the default above. */
+.md-body .md-callout-tip > .md-callout-title {
+  --md-callout-trim: 0.208em;
+}
+.md-body .md-callout-important > .md-callout-title {
+  --md-callout-trim: 0.083em;
+}
+/* lucide `Info`, `Lightbulb`, `MessageSquareWarning`, `TriangleAlert`, `OctagonAlert` — the shapes
+   GitHub's alerts use, in this app's icon family. */
+.md-body .md-callout-note {
+  --md-callout-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E");
+}
+.md-body .md-callout-tip {
+  --md-callout-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M10 22h4'/%3E%3C/svg%3E");
+}
+.md-body .md-callout-important {
+  --md-callout-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3Cpath d='M12 7v2'/%3E%3Cpath d='M12 13h.01'/%3E%3C/svg%3E");
+}
+.md-body .md-callout-warning {
+  --md-callout-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E");
+}
+.md-body .md-callout-caution {
+  --md-callout-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16h.01'/%3E%3Cpath d='M12 8v4'/%3E%3Cpath d='M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z'/%3E%3C/svg%3E");
+}
+
+/* DISCLOSURES. The summary is a disclosure row in the transcript's own idiom — the chevron of the
+   `Reasoning` and tool-digest rows (lib/transcriptMetaLabels.ts): lucide `ChevronRight` at 1em, muted
+   at 70%, the foreground under the pointer, turned a quarter when open.
+
+   The section's body is inset to the LABEL's left edge, so label and body share one column and the
+   chevron stands in a gutter of its own. The inset is padding on the `<details>`, not a margin on its
+   children, because a body written without blank lines is a bare text node no selector can reach. */
+.md-body details {
+  /* The label's left edge, and the body's: `.md-body blockquote`'s own inset (its 2px rule + 0.8em),
+     so a section's body, a quote and a callout stand on one left edge. */
+  --md-summary-inset: calc(0.8em + 2px);
+  margin: var(--md-step) 0;
+  padding-left: var(--md-summary-inset);
+}
+.md-body details > :last-child {
+  margin-bottom: 0;
+}
+/* A flex row of exactly two items, the chevron and the label span the sanitizer wraps the summary's
+   content in (lib/disclosure.ts gives the reason). `fit-content`: the row is the click target, and a
+   click on the empty line to its right is far more often the start of a text selection than a toggle. */
+.md-body details > summary {
+  display: flex;
+  align-items: baseline;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: calc(-1 * var(--md-summary-inset));
+  border-radius: 4px;
+  /* Chrome draws the native triangle as the list marker; Safari as a pseudo-element of its own. */
+  list-style: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+.md-body details > summary::-webkit-details-marker {
+  display: none;
+}
+.md-body .md-summary-label {
+  min-width: 0;
+}
+/* An open section's label binds to its body as a callout's title does. Margin on the summary and none
+   on what follows, so a bare-text body gets the same gap a paragraph does. */
+.md-body details[open] > summary {
+  margin-bottom: 0.3em;
+}
+.md-body details[open] > summary + * {
+  margin-top: 0;
+}
+/* The chevron, placed as transcriptMetaChevronClass places it.
+
+   VERTICAL: baseline-aligned, so its bottom edge sits on the label's baseline and its centre 0.5em
+   above; `translate` then moves it down by `0.5em − 0.5cap`, onto the centre of the cap band, with
+   `1cap` resolved by the browser for the face in use. The negative top margin trims what the 1em box
+   contributes above the baseline to `1cap`, so the label alone sets the row's height.
+
+   HORIZONTAL: `m9 18 6-6-6-6` under a 2-unit round pen inks 8 of the 24 box units across when it
+   points right and 14 when it points down, so the box carries 0.333em of dead space a side closed and
+   0.208em open. The glyph turns in place — the label must not move when the section opens — so the box
+   is hung 0.208em left of the column: the OPEN chevron's ink starts exactly on the prose's left edge
+   and the closed one's 0.125em inside it, never outside. The right margin is whatever is left of
+   --md-summary-inset.
+
+   Measured in sans on the rendered pixels (scripts/verify-md-blocks-ink.mjs, 2026-10-11). Cap band
+   centre minus ink centre: 0.00px closed and open at 14px, in a card and at 28px; within 0.25px in a
+   chip, for the reason the callout icon gives. Ink gap to the label at 14px: 8.25px closed and 5.88px
+   open, 1.4px of each being the label's own side bearing — the two states stand either side of the
+   6px the transcript's chevron keeps from its label, because the glyph's ink is 3.5px wider open and
+   the label is fixed. */
+.md-body details > summary::before {
+  content: "";
+  flex: none;
+  width: 1em;
+  height: 1em;
+  margin: calc(1cap - 1em) calc(var(--md-summary-inset) - 0.792em) 0 -0.208em;
+  translate: 0 calc(0.5em - 0.5cap);
+  background-color: var(--color-muted-70);
+  -webkit-mask: var(--md-summary-glyph) center / 100% no-repeat;
+  mask: var(--md-summary-glyph) center / 100% no-repeat;
+  --md-summary-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");
+  transition: rotate var(--default-transition-duration) var(--default-transition-timing-function),
+    background-color var(--default-transition-duration) var(--default-transition-timing-function);
+}
+.md-body details[open] > summary::before {
+  rotate: 90deg;
+}
+.md-body details > summary:hover::before {
+  background-color: var(--color-fg);
+}
+.md-body details > summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* Inside an answer chip the summary is raised above the chip's stretched button, as a link is, so a
+   click on it opens the section; the chip's own click handler stands down for it
+   (QuestionBlockCard's Chip). Everything else in the section still picks the option. Today the body's
+   `opacity-90` happens to lift all of it above the button anyway; this rule is what the summary's
+   click rests on if that ever goes (lib/mdBlocks.e2e.test.ts hit-tests it on a body with no opacity). */
+[data-question-option] .md-body details > summary {
+  position: relative;
+  z-index: 1;
+}
+
+/* KEYS. A `<kbd>` is the keycap the question card already draws beside each option (OptionKey in
+   QuestionBlockCard.tsx): panel fill, a strong hairline with a heavier bottom lip, muted sans at
+   10.5px on the option's 12px. Here in `em`, so it tracks whatever prose it sits in.
+
+   It must not make its LINE taller, for the reason the code chip above gives. As the UA draws it, in
+   monospace, it did: 24.80px against 23.80px in transcript prose and 21px against 20px in a card
+   (measured 2026-10-11, sans). The prose face at `line-height: 1` stays inside the strut, and a plain
+   INLINE box's border and padding never enter the line box, so the cap can be as tall as it likes. */
+.md-body kbd,
+.md-inline kbd {
+  --md-kbd-size: 0.875;
+  font-family: var(--font-sans);
+  font-size: calc(1em * var(--md-kbd-size));
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 0 0.4em;
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 0.35em;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  /* Smaller type on a shared baseline has a lower cap band. Lifted by half the difference between
+     the prose's cap height and the cap's own, so the two bands share a centre: 0.01px apart at every
+     scale it renders at (canvas `H` metrics, sans, 2026-10-11), where unlifted they were 0.6px. */
+  vertical-align: calc(0.5cap / var(--md-kbd-size) - 0.5cap);
+}
+/* On a chip's changing fill the cap goes translucent with the rest of the block chrome. */
+[data-question-option] :is(.md-body, .md-inline) kbd {
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+  border-color: color-mix(in srgb, var(--color-fg) 14%, transparent);
+}
+/* SCRIPTS. The UA's `vertical-align: super` raises the fragment's whole inline box, which pushes the
+   line box taller: 26.6px against 23.8px in transcript prose, 23.25px against 20px in a card, 19.5px
+   against 16.5px on a chip's label (measured 2026-10-11, sans). A fragment with `line-height: 0`
+   contributes a box of no height, so it can be moved by a length without the line noticing. Static,
+   not preflight's `position: relative`: a positioned fragment would paint above an answer chip's
+   stretched button. */
+.md-body :is(sub, sup),
+.md-inline :is(sub, sup) {
+  position: static;
+  font-size: 0.75em;
+  line-height: 0;
+}
+.md-body sup,
+.md-inline sup {
+  vertical-align: 0.5em;
+}
+.md-body sub,
+.md-inline sub {
+  vertical-align: -0.25em;
+}
+/* HIGHLIGHT. The UA's `<mark>` is opaque yellow under black text, in both themes. A wash of the
+   attention tone under the prose's own colour instead — and not the accent, which is already what a
+   text SELECTION is washed with. */
+.md-body mark,
+.md-inline mark {
+  padding: 0 0.15em;
+  border-radius: 0.2em;
+  background: color-mix(in srgb, var(--color-attention) 24%, transparent);
+  color: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
 /* ── Fenced-code copy button ────────────────────────────────────────────────────────────────────
    lib/syntaxHighlight.ts wraps every fenced block in this span and appends the button; one delegated
    listener (lib/copy-code.ts) does the copying. The wrapper exists because the `<pre>` above SCROLLS:
@@ -1372,11 +1746,54 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
 .md-body > .md-lightbox:last-child {
   margin-bottom: 0;
 }
-/* Geometry is ExternalTerminalCommand's copy button — the app's existing one — expressed in `em` so it
-   tracks the prose scale instead of being pinned at the transcript's 14px (a card's .md-body renders at
-   13px). That button is a 24px box holding a 14px lucide glyph; 1.7em and 0.58 of the box are those two
-   numbers. Inset 0.35em sits the button inside the `pre`'s own 0.75em/1em padding, so it never overhangs
-   the border. */
+/* ── A ```mermaid fence in rendered Markdown ────────────────────────────────────────────────────
+   components/CodexRichOutput.tsx useMermaidIslands: the diagram stands where the fence's code block
+   stood, so — like the gallery above — it takes that block's rhythm and the same first/last-child
+   resets. The diagram's own box is MermaidDiagram's, the transcript's. */
+.md-body .md-mermaid {
+  display: block;
+  margin: var(--md-step) 0;
+}
+.md-body > .md-mermaid:first-child {
+  margin-top: 0;
+}
+.md-body > .md-mermaid:last-child {
+  margin-bottom: 0;
+}
+/* A source mermaid cannot parse reads as its code, inside MermaidDiagram's "Diagram unavailable" box. In
+   prose that <pre> is a `.md-body pre` — the border, fill and padding of the code block the fence would
+   otherwise have been, which is the right thing for it to look like — and takes that rule's trailing
+   margin too, which stacked 13px under the box's own padding (29px below the code, 16px above the title). */
+.md-body .md-mermaid pre {
+  margin-bottom: 0;
+}
+/* Inside an answer chip the box is a NESTED one: the 6px control corner and the translucent chrome the
+   chip gives its code blocks (`[data-question-option] .md-body pre`), for the same reason — the chip's
+   fill changes with its state.
+
+   TWO SIZES FOLLOW THE CHIP. Mermaid sets its labels at 16px, drawn against the transcript's 14px prose;
+   under a 12px option label and 11.5px detail the same drawing out-shouted the choice it explains, so it
+   steps down by that ratio (`zoom` re-lays the <svg> out, inline `max-width` included, where a transform
+   would leave its box behind). And it is detail under a choice, so it may not make one option taller
+   than a framed picture is allowed to be (FRAMED_IMAGE's 420px): past that the drawing scales to fit —
+   an <svg> with a viewBox letterboxes inside its box — rather than scrolling inside a row that is itself
+   a button. The cap is written in the svg's own zoomed pixels, hence the division. */
+[data-question-option] .md-mermaid [data-mermaid-state] {
+  --mermaid-chip-scale: calc(11.5 / 14);
+  border-radius: var(--block-radius);
+  padding: 1em;
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+  border-color: color-mix(in srgb, var(--color-fg) 9%, transparent);
+}
+[data-question-option] .md-mermaid [data-mermaid-state] > svg {
+  zoom: var(--mermaid-chip-scale);
+  max-height: calc(420px / var(--mermaid-chip-scale));
+}
+/* ── end ```mermaid fence ───────────────────────────────────────────────────────────────────────── */
+/* Geometry in `em`, so it tracks the prose scale instead of being pinned at the transcript's 14px (a
+   card's .md-body renders at 13px): a 24px box holding a 14px lucide glyph at that 14px, which is what
+   1.7em and 0.58 of the box are. Inset 0.35em sits the button inside the `pre`'s own 0.75em/1em padding,
+   so it never overhangs the border. */
 .md-body .md-code-copy {
   /* --md-copy-box and --md-copy-inset are declared just above. ONE inset, used three times, because the
      corner depends on it — see the radius below. */
@@ -1435,13 +1852,12 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    sanitizer never sees can still carry lucide's exact geometry and let `currentColor` paint it.
 
    THE TWO PEN WIDTHS DIFFER, and they are measurements rather than taste — re-measure with
-   scripts/verify-md-code-copy-button.mjs, do not re-guess. The resting icon takes 1.8, which is what
-   ExternalTerminalCommand (the app's other copy button) draws its resting glyph at. The check takes
-   2.4 rather than that button's 2.2, because a single-polyline tick lays down far less ink than an
-   outlined two-sheet icon and reads as the lighter mark: at 2.2 the states measured 4.70% and 2.81%
-   perceived ink (1.67×, over the 1.6× gate); 2.4 puts the check at 3.09% (1.52×). Going further is
-   the wrong lever — closing the RAW-AREA gap (still 2.53×) with the pen alone would need stroke ~3.9,
-   heavier than any other glyph in the app; the tone step below is what actually carries it. */
+   scripts/verify-md-code-copy-button.mjs, do not re-guess. The resting icon takes 1.8. The check takes
+   2.4, because a single-polyline tick lays down far less ink than an outlined two-sheet icon and reads
+   as the lighter mark: at 2.2 the states measured 4.70% and 2.81% perceived ink (1.67×, over the 1.6×
+   gate); 2.4 puts the check at 3.09% (1.52×). Going further is the wrong lever — closing the RAW-AREA
+   gap (still 2.53×) with the pen alone would need stroke ~3.9, heavier than any other glyph in the
+   app; the tone step below is what actually carries it. */
 .md-body .md-code-copy::after {
   content: "";
   position: absolute;
@@ -1671,8 +2087,17 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
   flex: 1 1 auto;
   min-width: 0;
 }
-/* A hunk header divides the diff; the lines git writes about a file sit back from the code. */
+/* A hunk header divides the diff; the lines git writes about a file sit back from the code.
+   The header ends in whatever line of code git found above the hunk, which is routinely longer than
+   anything in it, and a block must not scroll sideways for its own metadata. `width: 0` takes the row
+   out of the `code`'s width (a percentage min-width counts for nothing there) and `min-width` then
+   stretches it to whatever the code came to; the text is cut with an ellipsis. Copy still takes it all. */
 .md-body .md-diff-hunk {
+  width: 0;
+  min-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--color-muted);
   background: color-mix(in srgb, var(--color-fg) 4%, transparent);
 }

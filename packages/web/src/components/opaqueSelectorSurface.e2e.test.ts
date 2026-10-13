@@ -10,11 +10,8 @@ test("board rail and open drawer keep the profile menu above queue rows", {
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--force-color-profile=srgb"],
-  })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   page.on("console", (message) => {

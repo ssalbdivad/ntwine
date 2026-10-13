@@ -16,8 +16,8 @@ test("a modal scroll lock leaves the rail exactly where it was, and still pins t
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   try {
     const page = await browser.newPage()
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 })

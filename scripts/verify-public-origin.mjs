@@ -12,7 +12,7 @@
 // Usage — start a board with the matching origin first, then run this:
 //   nub src/index.ts --dev --no-app --port 5902 --public-origin https://frizz.local.test:8443 /path/to/repo
 //   nub scripts/verify-public-origin.mjs 5902 8443
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createServer } from "node:https"
 import { request as httpRequest } from "node:http"
 import { connect as netConnect } from "node:net"
@@ -79,15 +79,7 @@ const check = (name, ok, detail) => {
   if (!ok) failures.push(name)
 }
 
-const browser = await puppeteer.launch({
-  headless: "new",
-  args: [
-    "--no-sandbox",
-    "--force-color-profile=srgb",
-    "--ignore-certificate-errors",
-    `--host-resolver-rules=MAP ${HOSTNAME} 127.0.0.1`,
-  ],
-})
+const browser = await launchHeadless({ args: ["--ignore-certificate-errors", `--host-resolver-rules=MAP ${HOSTNAME} 127.0.0.1`] })
 try {
   const page = await browser.newPage()
   const errors = []

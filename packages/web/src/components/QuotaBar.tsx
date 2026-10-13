@@ -1,7 +1,7 @@
 import { useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RotateCw } from "lucide-react"
-import type { AccountBackend, ProviderAuth, ProviderQuota, QuotaWindow } from "@frizz/shared"
+import type { AccountBackend, AuthSnapshot, ProviderAuth, ProviderQuota, QuotaWindow } from "@frizz/shared"
 import { rpc } from "../api/rpc.ts"
 import { ProviderMark } from "./ProviderMark.tsx"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/Popover.tsx"
@@ -25,13 +25,16 @@ import { PROVIDER_LABEL } from "../lib/signIn.ts"
 // pinned to the project name.
 //
 // Quota is polled (rpc.quota) rather than pushed on the board: it is ACCOUNT-global, not per-thread.
-// The server keeps the reading warm on its own heartbeat (refreshClaudeQuotaInBackground), so
-// this poll just reads that warm cache — a cheap local RPC, no provider round-trip — and a 30s cadence
-// keeps the chip tracking the cache within half a minute instead of drifting minutes stale during a
-// fast burn. An UNAVAILABLE read re-polls at 15s (a blip should self-heal in seconds). Opening a chip's
-// popover re-reads that cache and auth; its refresh button is the LIVE recheck (`force`), which is the
-// only read that reaches past the endpoint's rate-limit window — server-side it runs the `claude -p
-// /usage` CLI then, ~8s, which is why opening the popover alone does not.
+// The server keeps Claude's reading warm on its own heartbeat (refreshClaudeQuotaInBackground) and
+// holds Codex's for a minute (readCodexQuota), so this poll reads those caches — a cheap local RPC
+// that starts a provider round-trip only when one of them has expired — and a 30s cadence keeps the
+// chip tracking them within half a minute instead of drifting minutes stale during a fast burn. An
+// UNAVAILABLE read re-polls at 15s (a blip should self-heal in seconds) — but only for a provider that
+// is signed in: a signed-out one has no reading to recover, and counting it as a blip put every
+// one-provider account on the fast cadence for good. Opening a chip's popover re-reads those caches and
+// auth; its refresh button is the LIVE recheck (`force`, naming that provider), the only read that
+// reaches past the freshness window — for Claude that runs the `claude -p /usage` CLI, ~8s, which is
+// why opening the popover alone does not.
 
 // Every quota/auth request carries an abort deadline. Without one, a single response the server never
 // finishes (a dev-server restart severing an in-flight request) leaves the fetch pending FOREVER:
@@ -128,7 +131,8 @@ export function QuotaChips() {
     queryFn: ({ signal }) => rpc.quota(undefined, { signal: deadline(POLL_TIMEOUT_MS, signal) }),
     refetchInterval: (query) => {
       const d = query.state.data
-      const degraded = !d || d.claude.status !== "ok" || d.codex.status !== "ok"
+      const signedIn = queryClient.getQueryData<AuthSnapshot>(["authStatus"])
+      const degraded = !d || (["claude", "codex"] as const).some((b) => d[b].status !== "ok" && signedIn?.[b] !== "signed-out")
       return degraded ? 15_000 : 30_000
     },
     staleTime: 10_000,
@@ -148,7 +152,7 @@ export function QuotaChips() {
     if (recheckInFlight.current) return
     setRechecking(true)
     const request = Promise.all([
-      rpc.quota({ force: force && backend === "claude" }, { signal: deadline(force ? RECHECK_TIMEOUT_MS : POLL_TIMEOUT_MS) })
+      rpc.quota(force ? { force: backend } : undefined, { signal: deadline(force ? RECHECK_TIMEOUT_MS : POLL_TIMEOUT_MS) })
         .then((snapshot) => queryClient.setQueryData(["quota"], snapshot)),
       queryClient.refetchQueries({ queryKey: ["authStatus"] }),
     ]).then(() => {}).catch(() => {})

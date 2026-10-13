@@ -126,7 +126,7 @@ export function replyWaitPrompt(handle: string, slug: string, project?: string):
     // Read in two places: as the wait's name while it stands, and as the wake if it fires — so the first
     // sentence is the wait and the rest is conditional on it having run out.
     `Waiting on @${handle} to reply (${replyWaitRef(slug, project)}). If this fires, no answer came in time: read where it is ` +
-    "with `mcp__frizz__read_thread`, then ask again with `mcp__frizz__message_thread` (`await_reply: true`) if " +
+    "with `frizzctl read-thread`, then ask again with `frizzctl message-thread … --await-reply` if " +
     "the answer still matters, or go on without it."
   )
 }

@@ -43,7 +43,13 @@ const FRIZZ_SENDS: Record<string, readonly string[]> = {
   // couples them, and passing one alone resets the other to the config.toml default.
   // `cwd` rides a resume whose recorded cwd no longer exists (a project directory rename) — see
   // resumeCwdOverride in codex-app-server.ts.
-  "thread/resume": ["threadId", "excludeTurns", "approvalsReviewer", "sandbox", "approvalPolicy", "cwd"],
+  // `config` is the thread's whole per-thread bag (threadConfig): a resume that rebuilds the thread
+  // builds it from this and nothing else, so a field the app-server stopped reading here would strip
+  // every resumed thread of its MCP mount and hooks without an error.
+  "thread/resume": ["threadId", "excludeTurns", "approvalsReviewer", "sandbox", "approvalPolicy", "cwd", "config"],
+  // Sent before the resume that is meant to REBUILD an idle thread (rebindOwnedSession): the app-server
+  // ignores a resume's bag for as long as it counts a subscriber.
+  "thread/unsubscribe": ["threadId"],
   "turn/start": ["threadId", "clientUserMessageId", "input", "model", "effort"],
   "turn/steer": ["threadId", "clientUserMessageId", "expectedTurnId", "input"],
   "turn/interrupt": ["threadId", "turnId"],

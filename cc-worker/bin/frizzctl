@@ -1,0 +1,14 @@
+#!/bin/sh
+# frizzctl — the Frizz command line a worker runs from its own shell. frizzctl.mjs, beside this file,
+# is all of it; this only finds a node to run it with.
+#
+# FRIZZ_NODE is the node Frizz itself runs on, handed to every worker's environment, because a
+# worker's PATH varies by how Frizz was launched (a GUI-launched app, a login-shell difference) and a
+# bare `node` that is not on it would take every command with it — the same reason the MCP mount this
+# replaced pinned an absolute path. A stale one (the worker outlived an update that moved it) falls
+# back to whatever `node` the shell has.
+here=$(dirname "$0")
+if [ -n "$FRIZZ_NODE" ] && [ -x "$FRIZZ_NODE" ]; then
+  exec "$FRIZZ_NODE" "$here/frizzctl.mjs" "$@"
+fi
+exec node "$here/frizzctl.mjs" "$@"

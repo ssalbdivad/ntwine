@@ -43,8 +43,8 @@ test("registered picks survive fullscreen, project switches and reload, then cle
     { kind: "question", question: "Other project", options: [{ label: "Other first" }, { label: "Other second" }] },
   ] })
   const [tree, single] = asked.registered.map((q) => `[data-question-id='${q.id}']`)
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--use-mock-keychain"], protocolTimeout: 30_000 })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless({ protocolTimeout: 30_000 })
   const errors: string[] = []
   try {
     const page = await browser.newPage()
@@ -126,7 +126,7 @@ test("registered picks survive fullscreen, project switches and reload, then cle
     // Both shapes are staged before the send: the picks and the follow-up's typed text.
     const ids = asked.registered.map((q) => q.id)
     const draftKeys = () => page.evaluate((ids) => {
-      const raw = sessionStorage.getItem("frizz-drafts:v1")
+      const raw = localStorage.getItem("frizz-drafts:v1")
       return Object.keys(raw ? JSON.parse(raw).entries : {}).filter((k) => k.startsWith("question:") && ids.some((id) => k.includes(id)))
     }, ids)
     const before = await draftKeys()
@@ -135,7 +135,7 @@ test("registered picks survive fullscreen, project switches and reload, then cle
     // The board push can drop the registration before the reply lands, so only the keys captured at send
     // can clear the text draft. Wait for the answer to settle, then require that every key is gone.
     await page.waitForFunction(() => {
-      const raw = sessionStorage.getItem("frizz-drafts:v1")
+      const raw = localStorage.getItem("frizz-drafts:v1")
       return !raw || !Object.keys(JSON.parse(raw).entries).some((k) => k.includes("question-navigation") && k.endsWith(":picks"))
     })
     assert.deepEqual(await draftKeys(), [])

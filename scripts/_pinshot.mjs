@@ -1,6 +1,6 @@
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 const [url, out, scrollY] = process.argv.slice(2)
-const b = await puppeteer.launch({ headless: "new", args: ["--no-sandbox","--force-color-profile=srgb"] })
+const b = await launchHeadless()
 const p = await b.newPage()
 await p.setViewport({ width: 1400, height: 900, deviceScaleFactor: 2 })
 await p.goto(url, { waitUntil: "networkidle0" })

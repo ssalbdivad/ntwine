@@ -27,7 +27,7 @@
 // reply…" (which keys on the questions still owed).
 // The run CONSUMES its seed — step 4's steer is a newer human turn, after which the questions are no longer
 // owed — so re-seed a fresh slug for every run rather than re-pointing it at a spent one.
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 import { recordPageErrors } from "./lib/page-errors.mjs"
 
@@ -91,7 +91,7 @@ const CARD = `(() => {
   }
 })()`
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 try {
   const page = await browser.newPage()
   await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 2 })

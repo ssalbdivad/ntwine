@@ -13,9 +13,9 @@ import "./styles.css"
 // until 2026-10-05, when it went: its snooze and mark-as-done verbs joined the header strip after a
 // rule, and its goal joined the thread composer's rail — both rendered below.
 //
-// The header strip joined on 2026-08-26, when Reload plugins and Restart worker moved up out of the
-// footer into it ("the restart worker button should be at the top") and the AI-rename refresh appeared
-// beside the title. A verb that changes strips changes rhythm, so both ends are rendered here.
+// The header strip joined on 2026-08-26, when Restart worker moved up out of the footer into it ("the
+// restart worker button should be at the top") and the AI-rename refresh appeared beside the title. A
+// verb that changes strips changes rhythm, so both ends are rendered here.
 //
 // It renders the REAL components, never a mock-up of them, so `scripts/ink-gaps.mjs` measures the
 // shipping geometry. Both strips are here together deliberately: they are the same problem, and a

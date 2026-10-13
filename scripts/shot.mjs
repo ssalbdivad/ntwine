@@ -1,11 +1,12 @@
 // Headless screenshot + in-page evaluate loop for iterating on the frizz UI.
-// No chrome-devtools MCP this session, so we drive puppeteer directly (it resolves the cached Chrome
-// under ~/.cache/puppeteer). This is the visual-review loop: screenshot + evaluate_script routines
+// It drives puppeteer's own headless shell through `launchHeadless()` (lib/headless-browser.mjs): no
+// window, no Dock tile, a temp profile, never the installed Chrome, and a page that sees a dark system.
+// This is the visual-review loop: screenshot + evaluate_script routines
 // (occlusion/clip/alignment/optical-center) against the live app.
 //
 // Usage:
 //   nub scripts/shot.mjs <url> [out.png] [evalExprOr@file] [--before=exprOr@file] [--hover=<css selector>]
-//     [--mouse] [--w=1440] [--h=900] [--wait=1500] [--clip=<css selector>] [--pad=8] [--dsf=2]
+//     [--mouse] [--light] [--w=1440] [--h=900] [--wait=1500] [--clip=<css selector>] [--pad=8] [--dsf=2]
 //   evalExpr: a JS expression string evaluated in page context (completion value → printed as JSON).
 //   @file:    read the expression from a file (e.g. an occlusion routine).
 //   --hover:  park the pointer on that element (after --before, before the shot), so a surface that
@@ -15,15 +16,14 @@
 //   --mouse:  render as a desktop with a mouse — `(hover: hover)`, fine pointer — instead of headless
 //             Chrome's touch screen (lib/mouse-pointer.mjs). Without it every Tailwind hover: style is
 //             dead and the app's `(hover: none)` touch rules apply.
-//   --dark:   render with `prefers-color-scheme: dark`, the theme the app follows by default — headless
-//             Chrome otherwise reports light, so a shot without it shows a theme few operators run.
+//   --light:  render with `prefers-color-scheme: light`. The launcher pins dark otherwise, the theme the
+//             app follows by default on the maintainer's machine; `--dark` is accepted and is the default.
 //   --clip:   shoot only that element's box (+ --pad px of margin) instead of the viewport, and --dsf
 //             raises the device pixel ratio — together they make a 27px row judgeable without zooming
 //             the page (a `zoom`/`transform` hack reflows this app's centered layout and moves the very
 //             thing you were trying to photograph off-screen).
 import { readFileSync } from "node:fs"
-import puppeteer from "puppeteer"
-import { MOUSE_POINTER_ARG } from "./lib/mouse-pointer.mjs"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const args = process.argv.slice(2)
 const pos = args.filter((a) => !a.startsWith("--"))
@@ -45,9 +45,9 @@ if (!url) {
 // on a busy machine — this repo regularly has a dozen agents compiling at once (measured at load
 // average 159, where a single 390×844 dsf-2 shot of a page with backdrop-blur could not rasterize in
 // three minutes). The failure arrives as a bare ProtocolError that reads like a bug in the page.
-const browser = await puppeteer.launch({
-  headless: "new",
-  args: ["--no-sandbox", "--force-color-profile=srgb", ...(flags.hover || flags.mouse ? [MOUSE_POINTER_ARG] : [])],
+const browser = await launchHeadless({
+  colorScheme: flags.light ? "light" : "dark",
+  mouse: Boolean(flags.hover || flags.mouse),
   protocolTimeout: 600_000,
 })
 try {
@@ -56,7 +56,6 @@ try {
   const errors = []
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
   page.on("pageerror", (e) => errors.push(String(e)))
-  if (flags.dark) await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "dark" }])
   await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 })
   await new Promise((r) => setTimeout(r, WAIT)) // let the SSE board render
   if (flags.before) {

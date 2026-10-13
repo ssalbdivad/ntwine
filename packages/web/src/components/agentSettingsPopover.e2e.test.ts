@@ -22,8 +22,8 @@ const SELECT_MENU = '[role="menu"]:not(.profile-grid-menu)'
 const SELECT_ROW = `${SELECT_MENU} [role="menuitemradio"]`
 
 async function launch(query = "") {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport({ width: 1100, height: 900, deviceScaleFactor: 1 })
   const errors: string[] = []

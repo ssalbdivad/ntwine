@@ -148,10 +148,15 @@ export function readRegistry(home = homedir()): Registry {
     // A malformed entry is dropped rather than poisoning the whole list — this is an index, and the
     // cost of forgetting one card is that opening that project re-registers it.
     const forgotten = Array.isArray(parsed.forgotten) ? parsed.forgotten.filter((id) => typeof id === "string") : []
+    // Frizz's own launch folder is never a project (registerProject refuses it), but a server older
+    // than 0.15.21 had no such refusal and its boot backfill registered the folder as "host" whenever
+    // a newer launcher hosted it there. Dropped HERE so no reader ever sees that entry — the list, the
+    // slug lookup, the rail — and the next write of any kind takes it out of the file.
+    const host = canonicalPath(launchHostDir(home))
     return {
       version: 1,
       projects: parsed.projects.filter(
-        (p) => p && typeof p.id === "string" && typeof p.path === "string" && typeof p.slug === "string",
+        (p) => p && typeof p.id === "string" && typeof p.path === "string" && typeof p.slug === "string" && p.path !== host,
       ),
       ...(typeof parsed.homeOrder === "number" ? { homeOrder: parsed.homeOrder } : {}),
       ...(forgotten.length > 0 ? { forgotten } : {}),
@@ -159,6 +164,25 @@ export function readRegistry(home = homedir()): Registry {
   } catch {
     return { ...EMPTY, projects: [] }
   }
+}
+
+const writeListeners = new Set<(path: string) => void>()
+
+/**
+ * Hear about every registry write THIS PROCESS makes, with the path of the file it replaced.
+ *
+ * Hung on `writeRegistry` rather than on the procedures that call it, because every change to the
+ * project list — a reorder, a rename, an icon, a project added, moved or forgotten — funnels through
+ * that one function, and the server has to tell every open tab about each of them (index.ts). A
+ * listener per call site would cover the ones somebody remembered. The path rides along because the
+ * registry is addressed by `home`: a listener compares it against the file it cares about.
+ *
+ * In-process only. Another process's write (a second `frizz` launch registering its directory) is
+ * not heard; a tab picks that one up at its next load or reconnect.
+ */
+export function onRegistryWrite(listener: (path: string) => void): () => void {
+  writeListeners.add(listener)
+  return () => { writeListeners.delete(listener) }
 }
 
 /** open(wx) → fsync → rename, the same shape project-launch.ts uses: a reader never sees a half file. */
@@ -178,6 +202,13 @@ export function writeRegistry(registry: Registry, home = homedir()): void {
     if (fd !== undefined) { try { closeSync(fd) } catch {} }
     try { rmSync(temp, { force: true }) } catch {}
     throw error
+  }
+  for (const listener of writeListeners) {
+    try {
+      listener(path)
+    } catch {
+      // The write landed. A listener that throws must not turn it into a failed mutation.
+    }
   }
 }
 
@@ -370,16 +401,21 @@ export function backfillRegistry(
 }
 
 /**
- * The directory a state dir was last opened from, per the small JSON files the launcher leaves.
+ * The directory a state dir was last opened from, per the small JSON files a server and the launcher
+ * leave.
  *
- * `launcher.json` FIRST, and that ordering is the whole point: it is the only one of the three that
- * SURVIVES A CLEAN SHUTDOWN. `server.lock` and `project-launch.owner` are liveness records and are
- * removed when the server stops, so a backfill that consulted only those could recover a project that
- * happened to be running and nothing else — which on this machine meant boron and pullfrog/app, both
- * stopped, stayed invisible even after the identity fix that was supposed to find them (2026-08-06).
+ * The SURVIVORS FIRST, and that ordering is the whole point. `server.lock` and `project-launch.owner`
+ * are liveness records and are removed when the server stops, so a backfill that consulted only those
+ * could recover a project that happened to be running and nothing else — which on this machine meant
+ * boron and pullfrog/app, both stopped, stayed invisible even after the identity fix that was supposed
+ * to find them (2026-08-06). `serving.json` leads: every server that opens the project writes it and
+ * keeps the folder when it closes (project-serving.ts), where `launcher.json` is written only for the
+ * folder a launcher ran the server on, which since the server moved onto Frizz's own folder is none.
  */
 function recordedProjectDir(stateDir: string): string | undefined {
-  for (const name of ["launcher.json", "server.lock", "project-launch.owner"]) {
+  // `serving.json` is PROJECT_SERVING_FILE, spelled out rather than imported so the registry does not
+  // take on the launch-ownership module behind it.
+  for (const name of ["serving.json", "launcher.json", "server.lock", "project-launch.owner"]) {
     try {
       const value = (JSON.parse(readFileSync(join(stateDir, name), "utf8")) as { projectDir?: unknown }).projectDir
       if (typeof value === "string" && value.length > 0 && existsSync(value)) return value
@@ -495,6 +531,49 @@ export function findProjectBySegment(segment: string, home = homedir()): Registr
  */
 export const ICON_SCAN_VERSION = 4
 
+/**
+ * How long one scan's answer stands — a miss or a pick — before the next icon request scans again.
+ *
+ * Minutes, not hours, because a project's icon is a file somebody adds WHILE Frizz is running, and a
+ * scan is cheap: ~2ms warm per project, 23ms for a whole 12-project registry and 10ms for the largest
+ * repo in it (measured 2026-10-11). It was 12 hours for a miss and forever for a pick until then, and
+ * keyward, ccbroker and macwatch each committed a `logo.svg` hours after a scan had found nothing there;
+ * none of the three ever showed it.
+ */
+export const ICON_RESCAN_AFTER_MS = 10 * 60 * 1000
+
+/**
+ * Whether this entry's scanned answer still stands: it came from the CURRENT scanner, and recently.
+ *
+ * ONE predicate for both halves of the cache. `resolveProjectIcon` trusts an answer only while this
+ * holds, and `projectIconStatus` tells the client a miss is `none` (do not even ask) only while this
+ * holds. They disagreed until 2026-10-11: the route would have rescanned an old miss, but the card
+ * still said `none`, so the request that triggers the rescan never went out and a miss was final.
+ */
+export function iconScanIsCurrent(
+  entry: Pick<RegistryEntry, "iconScannedAt" | "iconScanVersion">,
+  options: { now?: number; version?: number; rescanAfterMs?: number } = {},
+): boolean {
+  if ((entry.iconScanVersion ?? 0) !== (options.version ?? ICON_SCAN_VERSION)) return false
+  if (!entry.iconScannedAt) return false
+  return (options.now ?? Date.now()) - Date.parse(entry.iconScannedAt) < (options.rescanAfterMs ?? ICON_RESCAN_AFTER_MS)
+}
+
+/**
+ * What the project list and the rail are told about a project's icon — see ProjectCard.iconStatus.
+ *
+ * `none` is the one that stops the client asking, so it is only said of a miss the server would
+ * itself still trust (`iconScanIsCurrent`). Once that miss is old, the card says `unknown`, the
+ * square requests the icon, and that request is the rescan.
+ */
+export function projectIconStatus(
+  entry: Pick<RegistryEntry, "icon" | "iconScannedAt" | "iconScanVersion">,
+  now = Date.now(),
+): "icon" | "none" | "unknown" {
+  if (entry.icon) return "icon"
+  return iconScanIsCurrent(entry, { now }) ? "none" : "unknown"
+}
+
 /** Where an uploaded icon lands: the project's own state dir, never inside the repository. */
 export function customIconPath(id: string, extension: string, home = homedir()): string {
   return join(frizzPaths({ home }).data, "projects", id, `icon${extension}`)
@@ -540,11 +619,12 @@ export function clearProjectIcon(id: string, home = homedir()): RegistryEntry | 
  * RESOLVED LAZILY, which is the whole design. Scanning at registration would leave every project
  * registered before this feature shipped without an icon forever, and scanning inside `listProjects`
  * would turn the project list's one file read into forty directory walks. Instead the icon ROUTE calls this,
- * once per project, and the answer is cached from then on.
+ * and the answer is cached for `ICON_RESCAN_AFTER_MS`.
  *
  * A remembered path that has since been deleted — someone reorganised `public/` — triggers a rescan
- * rather than a broken image. So does a project with no icon at all, but only after `rescanAfterMs`,
- * so forty icon-less projects do not re-walk their trees on every page load.
+ * at once rather than a broken image. Any other answer, a pick or a miss, is re-asked once it is older
+ * than `rescanAfterMs` or came from an older scanner (`iconScanIsCurrent`), which is how an icon
+ * committed after the last scan is ever found.
  */
 export function resolveProjectIcon(
   id: string,
@@ -552,13 +632,10 @@ export function resolveProjectIcon(
   options: { home?: string; rescanAfterMs?: number; now?: () => number; version?: number } = {},
 ): string | undefined {
   const home = options.home ?? homedir()
-  const rescanAfterMs = options.rescanAfterMs ?? 12 * 60 * 60 * 1000
   const version = options.version ?? ICON_SCAN_VERSION
   const now = options.now ?? Date.now
   const entry = readRegistry(home).projects.find((p) => p.id === id)
   if (!entry) return undefined
-
-  const staleScan = (entry.iconScanVersion ?? 0) !== (options.version ?? ICON_SCAN_VERSION)
 
   // THE OPERATOR'S OWN CHOICE IS NOT A SCAN RESULT, so no scanner version can overrule it. This is
   // checked FIRST and on its own for that reason: folding it in below let a version bump discard
@@ -572,15 +649,14 @@ export function resolveProjectIcon(
     return entry.icon && existsSync(entry.icon) ? entry.icon : undefined
   }
 
-  // A stored DETECTED pick goes stale exactly as a stored miss does: improving the RANKING (not just
-  // the search) means the file we settled on may no longer be the one this project should wear. bun
-  // had already cached a black glyph, so re-asking only the misses would have left it black.
-  if (entry.icon && existsSync(entry.icon) && !staleScan) return entry.icon
-  // A remembered "nothing here" is only trusted while it came from the CURRENT scanner and is recent.
-  // The version check is what makes improving the scan take effect immediately rather than whenever
-  // each project's 12 hours happen to elapse.
-  if (!entry.icon && !staleScan && entry.iconScannedAt && now() - Date.parse(entry.iconScannedAt) < rescanAfterMs) {
-    return undefined
+  // A stored DETECTED pick goes stale exactly as a stored miss does. Improving the RANKING (not just
+  // the search) means the file we settled on may no longer be the one this project should wear — bun
+  // had already cached a black glyph, so re-asking only the misses would have left it black — and so
+  // does time: a project that adds a real logo beside the favicon we picked should get to wear it.
+  // The version check is what makes improving the scan take effect on the very next request.
+  if (iconScanIsCurrent(entry, { now: now(), version, rescanAfterMs: options.rescanAfterMs })) {
+    if (!entry.icon) return undefined
+    if (existsSync(entry.icon)) return entry.icon
   }
   if (!existsSync(entry.path)) return undefined
 

@@ -87,6 +87,14 @@ try {
   const bypassRm = JSON.parse(runHook(bash("rm -rf ~", { permission_mode: "bypassPermissions" })) || "{}")
   check("deny: bypassPermissions still refuses a catastrophic delete", bypassRm.hookSpecificOutput?.decision?.behavior === "deny" && marker().rule === "catastrophic-delete")
 
+  // 4c. THE WORKER'S OWN FRIZZ COMMAND is approved in a restrictive mode too, in the one shape Claude
+  // Code's `Bash(frizzctl:*)` rule does not carry: a quoted heredoc. The shapes it must NOT approve are
+  // pinned in packages/server/src/perm-policy-hook.test.ts.
+  const asking = "frizzctl ask --input - <<'EOF'\n{\"question\":\"Ship it?\"}\nEOF"
+  const own = JSON.parse(runHook(bash(asking, { permission_mode: "default" })) || "{}")
+  check("allow: a restrictive thread's own `frizzctl … <<'EOF'` is approved", own.hookSpecificOutput?.decision?.behavior === "allow" && marker().rule === "own-frizzctl", marker().rule)
+  check("defer: …and the same line with something after the heredoc is not", runHook(bash(`${asking}\ntouch y`, { permission_mode: "default" })) === "" && marker().rule === "restrictive-mode", marker().rule)
+
   // 5. DEFER — the review-policy escape hatch, without changing how workers launch.
   const review = runHook(bash("touch z"), { FRIZZ_PERM_POLICY: "review" })
   check("defer: FRIZZ_PERM_POLICY=review emits NOTHING", review === "")

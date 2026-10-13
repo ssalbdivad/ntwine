@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query"
 import type { SocketClientMsg, SocketServerMsg, TranscriptMessage, TranscriptPushPage } from "@frizz/shared"
 import { applyTranscriptPatch } from "@frizz/shared"
 import { store } from "../store.ts"
-import { BoardStream } from "./board-stream.ts"
+import { BoardStream, refreshProjectList } from "./board-stream.ts"
 import { connectSSE, onForeignSSEFrame, rebindSSEProject } from "./sse.ts"
 import { mergeOptimistic, preserveMessageIdentity, type QueuedMessage } from "../lib/transcript-sync.ts"
 import { reconcileLatestPage, reconcileLiveMessages, type PaginatedTranscriptData } from "../lib/transcriptPagination.ts"
@@ -67,6 +67,7 @@ const stream = new BoardStream(
   (event) => {
     if (qc) void invalidateInteractionQueries(qc, event)
   },
+  () => refreshProjectList(qc),
 )
 
 // Server pushes a 10s heartbeat; if we go quiet past this we assume the socket is dead and reconnect.
@@ -160,6 +161,10 @@ function connect(): void {
         protocolReady = true
         liveGenerations++
         resubscribe() // replay subscriptions only after this generation delivered a valid base keyframe
+        // The keyframe restores the BOARD across a gap; the project list has no keyframe, so a
+        // `projects-changed` published while this tab had no socket is caught up here instead. Not on
+        // the first generation: the rail's own mount read is at most seconds old.
+        if (liveGenerations > 1) refreshProjectList(qc)
       }
     } catch (err) {
       console.error("bad /ws message", err)

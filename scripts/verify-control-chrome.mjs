@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from '../packages/web/node_modules/vite/dist/node/index.js'
-import puppeteer from 'puppeteer'
+import { launchHeadless } from './lib/headless-browser.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const out = resolve(process.env.THEME_EVIDENCE_DIR ?? '.adhoc-shots/control-chrome')
@@ -14,7 +14,7 @@ let browser
 const results = [], errors = []
 try {
   await server.listen()
-  browser = await puppeteer.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' })
+  browser = await launchHeadless()
   const page = await browser.newPage()
   page.on('pageerror', error => errors.push(String(error)))
   for (const theme of ['light', 'dark']) for (const width of [1100, 390]) {

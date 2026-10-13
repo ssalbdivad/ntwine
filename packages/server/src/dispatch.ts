@@ -23,9 +23,9 @@ import { PERM_DIR_ENV, permRequestDir, workDirOf, type Project } from "./project
 import type { SessionRow, Storage } from "./storage.ts"
 import { isHeldRow } from "./storage.ts"
 import type { BoardManager } from "./board.ts"
-import type { AgentBackend, BackendKind, BuiltCommand, FrizzMcp } from "./backend/types.ts"
+import type { AgentBackend, BackendKind, BuiltCommand, FrizzCli, FrizzMcp } from "./backend/types.ts"
 import { workerMcpServers, type WorkerMcpServers } from "./backend/project-mcp-servers.ts"
-import { FRIZZ_MCP, WORKER_DISALLOWED_TOOLS, claudeWorkerEnv, frizzMcpEnv } from "./backend/types.ts"
+import { FRIZZ_CLI, FRIZZ_MCP, WORKER_DISALLOWED_TOOLS, claudeWorkerEnv, frizzMcpEnv } from "./backend/types.ts"
 // The lifted worker caps live beside the shared worker environment they belong to (backend/types.ts).
 // Re-exported here because this is where callers have always reached for them.
 export { WORKER_MAX_WEB_SEARCHES, WORKER_MAX_SUBAGENTS, WORKER_MAX_CONCURRENT_SUBAGENTS } from "./backend/types.ts"
@@ -237,7 +237,7 @@ function ensureSafeDirectDirectory(parent: string, name: string): string {
 // children clobbering the one file. A folder deletes that surface outright: each agent writes its OWN
 // file, so there is nothing to merge and nothing to clobber.
 //
-// What replaced the compaction injection is `mcp__frizz__goal`'s POST-COMPACTION trigger
+// What replaced the compaction injection is `frizzctl goal`'s POST-COMPACTION trigger
 // (scheduler SOURCE 7). The worker links whatever doc it wrote here and frizz hands that link back the
 // moment the context is summarized away. Durable in SQLite, and visible to the operator — which the hook
 // injection never was.
@@ -279,7 +279,7 @@ export function loadWorkerPrompt(kind: BackendKind = "claude", caps: WorkerCapab
 // WHAT A WORKER IN `dir` CAN REACH RIGHT NOW — the one predicate behind both halves of the gate: the
 // contract sections loadWorkerPrompt renders at a worker's start, and the tools its frizz-mcp lists
 // (router `workerCapabilities`, polled live). `editor`: an editor window has this project open, which is
-// exactly when `mcp__frizz__editor` has something to read (editor-bridge.ts editorState; `also` adds a
+// exactly when `frizzctl editor` has something to read (editor-bridge.ts editorState; `also` adds a
 // thread's own checkout outside the project folder, as that tool does). Machine-wide "any editor
 // connected" would list the tool to every project's workers whenever one window is open anywhere, and
 // it would answer them all "none has this project open".
@@ -353,11 +353,29 @@ export function codexScratchpadHookConfig(
       // `fork_turns:"none"`. Constrain it structurally at child start: its OWN file, never another
       // agent's.
       SubagentStart: [cmd("--mode=subagent-start")],
-      SessionStart: [cmd("--mode=session-start")],
+      // `--resume-keeps-context`: a Codex thread that is resumed comes back from its rollout with its
+      // whole conversation, so SessionStart(resume) is no loss and the hook must not announce one. It
+      // could not fire at all until the hooks rode every resume (codexWorkerThreadConfig); now it fires
+      // on each one — the first message after a Frizz restart included.
+      SessionStart: [cmd("--mode=session-start --resume-keeps-context")],
       UserPromptSubmit: [cmd("--mode=nudge")],
       PostToolUse: [cmd("--mode=nudge --event=PostToolUse")],
     },
   }
+}
+
+/**
+ * Everything a Frizz worker's Codex thread carries as per-thread config besides its MCP mount: the
+ * reasoning summaries the transcript renders, and the hooks above.
+ *
+ * It is handed to the BRIDGE (context.ts `workerConfig`), not to one `thread/start`, because Codex
+ * rebuilds a thread from the config of whichever request loaded it: sent with the dispatch alone, both
+ * were gone after the thread's first resume. Built by the server that is running now, so a thread that
+ * comes back under a newer Frizz gets that Frizz's registrations. `boardRoot` is the thread's board when
+ * it runs somewhere else (a Home thread: codexScratchpadHookConfig `--board-root`).
+ */
+export function codexWorkerThreadConfig(sessionId: string, boardRoot?: string): Record<string, unknown> {
+  return { model_reasoning_summary: "detailed", ...codexScratchpadHookConfig(scratchpadHookScript(), sessionId, boardRoot) }
 }
 
 /** Absolute path to the scratchpad hook inside the discovered worker plugin, when there is one. */
@@ -380,7 +398,7 @@ export function composePrompt(sessionId: string, prompt: string, kind: BackendKi
       ? "Native sub-agents share it — have each write its OWN file rather than all editing one."
       : "Name it in a sub-agent's prompt when you want its notes to land somewhere you can read; give each child its OWN file rather than having them all edit one."
   const scratch =
-    `Your scratch directory is \`${scratchPath}/\` — yours to use however you like, for as many files as you like. It is EMPTY and nothing is expected in it: a single direct task usually needs nothing, and writing notes is never a substitute for doing the work. ${children} Nothing here is read automatically; if you ever want a note to come back after a compaction, \`mcp__frizz__goal\` with \`post_compaction: true\` re-sends a prompt of your choosing — one that can link a file here — into the emptied window.`
+    `Your scratch directory is \`${scratchPath}/\` — yours to use however you like, for as many files as you like. It is EMPTY and nothing is expected in it: a single direct task usually needs nothing, and writing notes is never a substitute for doing the work. ${children} Nothing here is read automatically; if you ever want a note to come back after a compaction, \`frizzctl goal start --post-compaction\` re-sends a prompt of your choosing — one that can link a file here — into the emptied window.`
   // The banner makes the system→human handoff unmistakable to the worker, and NOTHING of frizz's is
   // allowed below it: the framing note goes here, ABOVE, so everything past the banner is the
   // operator's prompt byte for byte. That is also what the transcript projectors cut on
@@ -401,7 +419,7 @@ export function scratchpadOrientation(sessionId: string, kind: BackendKind = "cl
     kind === "codex"
       ? "native sub-agents share it, so give each its own file"
       : "name it in a sub-agent's prompt when you want its notes back, and give each child its own file"
-  const scratch = `SCRATCH DIRECTORY: ${scratchPath}/ — yours, free-form, as many files as you like, and nothing is expected in it. A single direct task usually needs none; writing notes is never a substitute for doing the work (${children}). Nothing in this directory is read automatically; if you want a note back after a compaction, mcp__frizz__goal with post_compaction: true re-sends a prompt of your choosing.`
+  const scratch = `SCRATCH DIRECTORY: ${scratchPath}/ — yours, free-form, as many files as you like, and nothing is expected in it. A single direct task usually needs none; writing notes is never a substitute for doing the work (${children}). Nothing in this directory is read automatically; if you want a note back after a compaction, \`frizzctl goal start --post-compaction\` re-sends a prompt of your choosing.`
   const who = operatorIdentity()
   const address = `${who ? `The user is ${who}. ` : ""}Your messages are read by the user: write to them as "you", never "the user" (a question's own wording aside)${who ? `, and name them as ${who} to another thread` : ""}.`
   return `${scratch}\n\n${address}`
@@ -485,7 +503,7 @@ export function frizzConfigBlock(projectDir: string): string {
 // Workers have NO coherent interactive-plan-mode semantics: plan mode stays read-only until an
 // INTERACTIVE ExitPlanMode approval, which a headless dashboard worker can't satisfy (no one is at
 // the keyboard) and which blocks all edits until then — a softlock. A worker "plans" by writing a
-// durable plan file and asking via `mcp__frizz__ask`, never via interactive plan
+// durable plan file and asking via `frizzctl ask`, never via interactive plan
 // mode. So a worker is NEVER spawned in plan mode: `plan` is coerced to the safe frizz default
 // (`auto`). Applied inside BOTH spawn builders so dispatch, adopt, AND resume are all covered. (The
 // dispatch UI still OFFERS "plan" in its permission-mode dropdown — dropping it in web/options.ts is
@@ -574,6 +592,32 @@ export interface FrizzMcpTarget {
   projectId?: string
 }
 
+/**
+ * The descriptor for the worker command line (`frizzctl`): the directory that goes on a worker's PATH,
+ * and where the command finds the running server and which project it addresses.
+ *
+ * The directory is the one a worker is LAUNCHED against (workerPluginDir — the stable path where one
+ * is staged), not the immutable one the plugin was found in. That is the opposite choice from
+ * resolveFrizzMcp below, for the same fact: an MCP server is spawned once per session and never
+ * re-read, so a path that moves bought it nothing; a shell resolves a command on every call, so a
+ * worker that outlives an update runs the updated command the moment the stable path is repointed.
+ *
+ * Undefined when the plugin or the command cannot be found — the worker's shell then simply has no
+ * `frizzctl`, and workerPluginDir has already said so in the log.
+ */
+export function resolveFrizzCli(target: string | FrizzMcpTarget, pluginDir: string | undefined = workerPluginDir()): FrizzCli | undefined {
+  const { stateDir, serverLock, projectId } = typeof target === "string" ? { stateDir: target } : target
+  if (!pluginDir) return undefined
+  const binDir = join(pluginDir, "bin")
+  if (!existsSync(join(binDir, FRIZZ_CLI.name))) return undefined
+  return {
+    binDir,
+    stateDir,
+    ...(serverLock ? { serverLock } : {}),
+    ...(projectId ? { projectId } : {}),
+  }
+}
+
 // Resolve the descriptor for the unified frizz MCP server: the abs path to the stdio server script
 // (shipped as a sibling of bin/frizz in the worker plugin dir, so it rides the SAME ship+resolve path
 // that already carries the plugin to prod) + where the script finds the running server and which
@@ -648,6 +692,32 @@ export function claudeMcpConfig(mcp?: FrizzMcp, project?: WorkerMcpServers): Cla
   // The project's servers underneath, frizz's on top: a project cannot shadow `frizz` by naming a server
   // after it. Only the frizz server is pre-approved — a project server keeps the approval story it had.
   return { mcpServers: workerMcpServers(project, mcpServers), allowedTools }
+}
+
+/**
+ * What a Claude worker is handed in place of the mount, since 2026-10-11: NO frizz MCP server, and a
+ * pre-approval for the command line that replaced it.
+ *
+ * A Claude worker gets the current contract at every fork (the system prompt is an argument, not
+ * something the transcript stores), so a daemon forked by this server is always one that was told to
+ * run `frizzctl` — there is no legacy Claude thread to keep the tools for, only legacy daemons, which
+ * already hold theirs and are not re-read.
+ *
+ * `Bash(frizzctl:*)` is the same promise `mcp__frizz` made at server level: a worker's own sign-off is
+ * never something a human has to approve. It is what keeps `frizzctl ask` and `frizzctl done` from
+ * becoming approval cards on a thread the human moved to `default`, where perm-policy.mjs defers every
+ * prompt (`restrictive-mode`). Claude Code matches the rule against each command of the parsed line, so
+ * `frizzctl … && frizzctl …` is covered and `frizzctl … && something-else` is judged on its second half.
+ *
+ * WHAT THE RULE CARRIES, MEASURED (2.1.296, a real worker on a `default` thread,
+ * `backend/_live_broker_frizzctl.mts`): a bare call, an inline JSON argument, `--input <file>`,
+ * `< file`, a `;` or `&&` chain of frizzctl calls and a quoted heredoc of prose all ran unasked. ONE
+ * form did not: a quoted heredoc whose body holds a JSON object, which Claude Code's own command checks
+ * bounce to a prompt whatever the allow list says. That is the form `ask` needs most, so the worker's
+ * permission hook approves exactly that shape itself (`own-frizzctl` in cc-worker/hooks/perm-policy.mjs).
+ */
+export function claudeCliConfig(cli?: FrizzCli, project?: WorkerMcpServers): ClaudeMcpConfig {
+  return { mcpServers: workerMcpServers(project, {}), allowedTools: cli ? [`Bash(${FRIZZ_CLI.name}:*)`] : [] }
 }
 
 // The argv rendering of claudeMcpConfig above. Writes the session's config file as a side effect, the
@@ -1167,7 +1237,8 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
             sandbox: codexSandbox(permissionMode) as "read-only" | "workspace-write" | "danger-full-access",
             baseInstructions: [loadWorkerPrompt("codex", workerCapabilities(deps.editors, workDir)), extraSystemPrompt].filter(Boolean).join("\n\n"),
             developerInstructions: codexFirstOutputTitleInstructions(deps.threadNamer?.promptNames(slug) ?? []),
-            config: { model_reasoning_summary: "detailed", ...codexScratchpadHookConfig(scratchpadHookScript(), sessionId, boardRoot) },
+            // No `config` here: the hooks and the reasoning summary are the bridge's to send
+            // (codexWorkerThreadConfig), with this start and with every resume after it.
           })
           deps.storage.upsertSession({
             slug,
@@ -1202,6 +1273,9 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           deps.storage.setAgentSession(slug, spawned.binding.codexSessionId)
           deps.storage.setCodexRuntime(slug, "app-server")
           mintName(slug, sessionId)
+          // The contract this thread was just started with teaches `frizzctl`, and a codex thread keeps
+          // the contract it was started with — so it is never handed the MCP tools (workerTaughtMcp).
+          deps.storage.setWorkerSurface(slug, "cli")
           void deps.board.rebuild().catch(() => {})
           return { slug, sessionId }
         } catch (err) {
@@ -1257,6 +1331,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           deps.storage.setAgentSession(slug, spawned.acpSessionId)
           deps.storage.setAcpAgent(slug, agentId)
           mintName(slug, sessionId)
+          deps.storage.setWorkerSurface(slug, "cli")
           void deps.board.rebuild().catch(() => {})
           return { slug, sessionId }
         } catch (err) {
@@ -1337,6 +1412,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           deps.storage.setBackend(slug, "claude")
           deps.storage.setClaudeRuntime(slug, "broker")
           mintName(slug, sessionId)
+          deps.storage.setWorkerSurface(slug, "cli")
           void deps.board.rebuild().catch(() => {})
           return { slug, sessionId }
         } catch (err) {
@@ -1473,6 +1549,9 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         permission_mode: workerDispatchPermission(backend, deps.getSettings()),
       })
       deps.storage.setBackend(slug, backend)
+      // A session promoted onto the board was taught no contract at all. What it will be told from
+      // here on — every wake and bump — names `frizzctl`, so that is the surface it is given.
+      deps.storage.setWorkerSurface(slug, "cli")
       if (backend === "codex") deps.storage.setAgentSession(slug, externalId)
       // The TRANSPORT, without which the follow-up that triggered this promotion has nowhere to go.
       // Every claude thread is broker-backed — the legacy path throws "frizz has no other claude

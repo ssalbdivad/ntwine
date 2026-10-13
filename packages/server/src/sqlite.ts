@@ -219,12 +219,22 @@ function transactionControl(sql: string): "open" | "close" | null {
   return last
 }
 
+/** Distinct SQL texts kept compiled per connection. Frizz prepares a few hundred; see Database.#compiled. */
+export const STATEMENT_CACHE_CAP = 1024
+
 export class Database {
   readonly #db: DatabaseSyncType
   /** Transaction nesting depth, so a nested transaction becomes a SAVEPOINT rather than an error. */
   #depth = 0
   /** Fallback transaction state for runtimes without `isTransaction` (added in Node 24). */
   #openTransaction = false
+  /** Compiled statements by SQL text — see #compiled. Insertion order is LRU order. */
+  readonly #statements = new Map<string, StatementSync>()
+
+  /** How many distinct statements this connection holds compiled (observability for tests). */
+  get compiledStatements(): number {
+    return this.#statements.size
+  }
   /** better-sqlite3 exposes the database file here; the scheduler tests reopen a store through it. */
   readonly name: string
 
@@ -245,7 +255,39 @@ export class Database {
    * type every one of them as `any` rather than failing loudly.
    */
   prepare<BindParameters extends any[] | object = any[], Row = any>(sql: string): Statement<Row> {
-    return new PreparedStatement<Row>(this.#db.prepare(sql), sql)
+    return new PreparedStatement<Row>(this.#compiled(sql), sql)
+  }
+
+  /**
+   * ONE compiled statement per distinct SQL text on this connection, however many callers prepare it.
+   *
+   * Every project's storage (and its interaction and wake stores) prepares the same ~190 statements
+   * against the one shared connection, differing only in the `@project_id` they BIND — so a server
+   * serving 12 projects held 12 compiled copies of each: ~2,300 statements, ~1.4 MB of SQLite malloc
+   * per project (measured: 12 storages on one connection took MALLOC_SMALL from 20.5 to 35.8 MB).
+   *
+   * Sharing is safe because nothing outside this file can reach the native statement: a
+   * PreparedStatement exposes only run/get/all, each of which binds afresh and runs to completion
+   * synchronously — there is no iterator to hold a statement open across another caller's use, and no
+   * per-statement option (readBigInts, bare named parameters) a caller could set for everyone else.
+   *
+   * Bounded, so SQL built from data could never grow it without limit: the text interpolated today
+   * is table and column names only, but the cap is what makes that a fact about the cache rather than
+   * about every future call site. An evicted statement stays alive for whoever still holds it.
+   */
+  #compiled(sql: string): StatementSync {
+    let statement = this.#statements.get(sql)
+    if (statement) {
+      this.#statements.delete(sql) // LRU touch
+    } else {
+      statement = this.#db.prepare(sql)
+    }
+    this.#statements.set(sql, statement)
+    if (this.#statements.size > STATEMENT_CACHE_CAP) {
+      const oldest = this.#statements.keys().next().value
+      if (oldest !== undefined) this.#statements.delete(oldest)
+    }
+    return statement
   }
 
   /** Returns the database, matching better-sqlite3, so existing `db.exec(a).exec(b)` chains hold. */
@@ -328,6 +370,7 @@ export class Database {
   }
 
   close(): void {
+    this.#statements.clear()
     this.#db.close()
   }
 }

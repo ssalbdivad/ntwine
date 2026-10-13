@@ -18,7 +18,7 @@ import { mkdirSync, writeFileSync, appendFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { createHash, randomUUID } from "node:crypto"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 import { recordPageErrors } from "./lib/page-errors.mjs"
@@ -91,7 +91,7 @@ const check = (label, ok, detail) => {
   if (!ok) failures++
 }
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 const errors = []
 try {
   const page = await browser.newPage()

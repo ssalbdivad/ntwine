@@ -51,7 +51,7 @@ test("the kill notice says WHY: the operator's words stay put, a budget stop nam
   assert.match(shellStopNotice("Watching CI"), /^\[frizz\] The operator stopped your background command "Watching CI" from the Frizz dashboard/)
   const budget = shellStopNotice("npx vite", { kind: "budget", ranMs: HOUR + 10 * 60_000, budgetMs: HOUR })
   assert.match(budget, /^\[frizz\] Frizz stopped your background command "npx vite" after 1h 10m: it ran past its 1h budget/)
-  assert.match(budget, /mcp__frizz__extend_shell/)
+  assert.match(budget, /frizzctl extend-shell/)
   assert.match(budget, /do not wait on it/)
 })
 
@@ -153,7 +153,7 @@ test("inside its budget a shell is left alone; past it, ONE warning — across p
     const w = warnings(h.resumes)[0]!
     assert.match(w.message, /Your background shell `bvite1` \(npx vite --port 5231\) has been running 1h, past its 1h budget/)
     assert.match(w.message, /Frizz stops it in 10m unless you extend it/)
-    assert.match(w.message, /mcp__frizz__extend_shell` with `shell: "bvite1"`/)
+    assert.match(w.message, /`frizzctl extend-shell bvite1 --for <duration>`/)
     assert.match(w.message, /TaskStop/)
     assert.match(w.message, /⏱ /, "frizz-authored, so it carries the wall clock")
     await s.stop()

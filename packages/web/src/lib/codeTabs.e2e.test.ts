@@ -13,8 +13,8 @@ test("labelled fences render as tabs that switch, copy the open tab and stay cho
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const pageErrors: string[] = []
   try {
     const page = await browser.newPage()

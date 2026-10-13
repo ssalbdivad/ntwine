@@ -48,7 +48,6 @@ import { IN_PLACE_OPEN_STATE, openThread, showToast, store } from "../store.ts"
 import { crossProjectHref, innerPath, projectSlug } from "../lib/base-path.ts"
 import { GithubWatchRows, LimitPauseNotice, QueueDismissContext, TerminalNetCard } from "./ChatView.tsx"
 import { isLimitPaused } from "../lib/limitPause.ts"
-import { useCopyTerminalCommand } from "./ExternalTerminalCommand.tsx"
 import { registeredDoneBody, showsRegisteredDoneCard } from "../lib/registeredDone.ts"
 import { ThreadStatusLine } from "./ThreadStatusLine.tsx"
 import { Composer } from "./Composer.tsx"
@@ -86,6 +85,7 @@ import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
 import { BLOCK_RADIUS, BLOCK_RADIUS_INNER_BOTTOM, CardActions, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 import { DoneWatchButtons, doneWatchable, useDoneWatchRefs } from "./DoneWatchButtons.tsx"
+import { useFileDropZone, useFileIntakeHandle, type SurfaceFileDrop } from "../lib/fileDrop.ts"
 
 /**
  * WHOSE CARD THIS IS, on its meta line — in All projects the page's one queue holds every project's
@@ -380,6 +380,16 @@ function CardArticle({
   // to the tail, where they used to be — never off the card.
   // FOLDED TO ITS HEADER (upstream's per-card collapse, TodosView): no body, no dock.
   const [collapsed, setCollapsed] = useState(false)
+  // A FILE DROPPED ANYWHERE ON THE CARD goes into its prompt box, exactly as one dropped on the box does
+  // (upstream 8a945245; maintainer 2026-10-12: "drag a file anywhere onto a card in the queue in order to
+  // drop it into the chat"). The card is the zone and the box the intake (lib/fileDrop). A collapsed card
+  // has no box, so the drop opens it and the box takes the file as it mounts.
+  const fileIntake = useFileIntakeHandle()
+  const fileDropZone = useFileDropZone((files) => {
+    fileIntake.give(files)
+    setCollapsed(false)
+  })
+  const composerFileDrop = useMemo(() => ({ over: fileDropZone.over, intake: fileIntake }), [fileDropZone.over, fileIntake])
   const needsTranscript = cardNeedsTranscript(thread)
   const transcript = useCardTranscript(project, thread, needsTranscript)
   const messages = transcript.data?.messages
@@ -461,7 +471,10 @@ function CardArticle({
       ref={rootRef}
       data-xq-card-root
       aria-label={displayTitle(thread)}
-      className={`frizz-card-body flex min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border border-border-strong bg-panel shadow-lg shadow-shadow-ink/25`}
+      {...fileDropZone.handlers}
+      // The accent border while a file is over the card says WHICH card takes it; its prompt box says
+      // where in it, with the same dashed "Drop file to attach" a drop on the box itself shows.
+      className={`frizz-card-body flex min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border ${fileDropZone.over ? "border-accent" : "border-border-strong"} bg-panel shadow-lg shadow-shadow-ink/25`}
     >
       {/* Collapsed, the header IS the card: the whole radius and no rule under it (upstream's state-dependent
           rounding — a rounded-top header with a rule over nothing reads as a doubled edge). */}
@@ -786,7 +799,7 @@ function CardArticle({
           {/* A HELD THREAD's box is what it will start with, and sending it starts the agent (HeldThreadBox.tsx). */}
           {thread.held !== undefined
             ? <HeldThreadComposer thread={thread} surface="queueComposer" className="min-w-0" />
-            : <ReplyBox project={project} thread={thread} onSent={onSent} onLanded={onLanded} onFailed={onReturn} />}
+            : <ReplyBox project={project} thread={thread} onSent={onSent} onLanded={onLanded} onFailed={onReturn} fileDrop={composerFileDrop} />}
         </div>
       </ThreadProjectScope>
       )}
@@ -983,14 +996,11 @@ function ProjectLinkScope({ project, children }: { project: QueuesProject; child
  * card showed only InteractionStack from 2026-09-28, so a session parked on a terminal-only prompt queued
  * with its last progress line and a reply box that cannot land, and never said why. The rungs are the
  * drawer's own (ChatView TerminalNetCard), and they stand down the same way when an answerable
- * interaction is on screen. Its copy reads the thread's command through the caller's ThreadProjectScope
- * (useCopyTerminalCommand → useThreadApi), never the page's `rpc`, which names the FOCUSED project.
- * PermPolicyDenialCard is deliberately absent: a denial already happened, queues nothing, and is one
- * click away in the drawer.
+ * interaction is on screen. PermPolicyDenialCard is deliberately absent: a denial already happened,
+ * queues nothing, and is one click away in the drawer.
  */
 function CardTerminalNet({ thread }: { thread: ThreadView }) {
-  const copy = useCopyTerminalCommand(thread.id)
-  return <TerminalNetCard thread={thread} onTerminal={() => copy()} />
+  return <TerminalNetCard thread={thread} />
 }
 
 /** The human's last message, as the transcript draws it — their own bubble — clipped to a few lines. */
@@ -1240,7 +1250,7 @@ function ClampedBody({ resetKey, children }: { resetKey: string; children: React
  * the other way round. An attachment uploads to the THREAD's project (`attachBase`), not the page's,
  * which on this page is the focused project.
  */
-function ReplyBox({ project, thread, onSent, onLanded, onFailed }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onLanded: () => void; onFailed: () => void }) {
+function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onLanded: () => void; onFailed: () => void; fileDrop?: SurfaceFileDrop }) {
   const queryClient = useQueryClient()
   const key = draftKey.followUp(project.projectDir, thread.id, thread.sessionId)
   const text = useDraftValues([key]).get(key) ?? ""
@@ -1329,6 +1339,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed }: { project: Qu
         onSubmit={submit}
         placeholder={answering?.staged ? "Add a note to your answers…" : (thread.questions?.length ?? 0) > 0 ? "Or reply without answering…" : "Reply to the agent…"}
         attachBase={projectApiBase(project.id)}
+        fileDrop={fileDrop}
         mentionCandidates={mentions}
         ownMention={ownMention}
         busy={controls.busy}

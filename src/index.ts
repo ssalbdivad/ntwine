@@ -78,6 +78,7 @@ import {
   type ProjectLaunchLease,
 } from "@frizz/server/project-launch";
 import { registerProject } from "@frizz/server/project-registry";
+import { ProjectServedElsewhereError, servingRecordElsewhere } from "@frizz/server/project-serving";
 import { resolveProjectLabel } from "@frizz/server/project-identity";
 import { runArtifactBuildJob, spawnArtifactBuild } from "./artifact-build-job.ts";
 
@@ -1193,6 +1194,15 @@ if (options.link) {
   }
   const launchOwner = projectClaim;
   const target = workspaceLaunchTarget(workspace);
+  // Another Frizz under this home already has this project open as one of its many — the installed
+  // one, whose dev port this launch does not probe. Its server would refuse to boot on it anyway; say
+  // so now, naming that server, rather than after a build and a boot. Checked once the launch lease is
+  // ours: a frizz-dev of this project that is still starting has had its chance to be reused above.
+  const servedBy = servingRecordElsewhere(workspace.stateDir, target.projectId);
+  if (servedBy !== undefined) {
+    launchOwner.release();
+    throw new ProjectServedElsewhereError(workspace.name, servedBy);
+  }
   // This preparation is local to the project. Keep it outside the machine-global port/start lock
   // so independent repositories can perform cold source/artifact work concurrently.
   let pinnedArtifact: ReturnType<typeof ensureStableFrizzArtifact> | undefined;

@@ -4,6 +4,7 @@ import { spawn } from "node:child_process"
 import type { ProviderQuota, QuotaWindow } from "@frizz/shared"
 import { defaultCodexHome } from "./codex.ts"
 import { resolveCodexExecutable } from "./codex-executable.ts"
+import { readCodexAccountId, readCodexAuthState } from "./auth-status.ts"
 // The SAME handshake identity the dispatch path uses, so the app-server sees one consistent client.
 import { CLIENT_INFO, CLIENT_CAPABILITIES } from "./codex-app-server.ts"
 
@@ -284,6 +285,10 @@ export function queryCodexRateLimits(
 
     child.on("error", () => finish(undefined))
     child.on("exit", () => finish(undefined))
+    // A write into a child that has stopped reading fails on the STREAM, a tick after `write` returned:
+    // the `try` in `send` never sees the EPIPE, and an 'error' nobody listens for is an uncaught
+    // exception, which exits the server (2026-10-11, a disposable stack taken down mid-run).
+    child.stdin?.on("error", () => finish(undefined))
 
     // Line-framed JSON-RPC on stdout. Ignore every notification; we only care about our two replies.
     let buf = ""
@@ -322,28 +327,101 @@ export function queryCodexRateLimits(
   })
 }
 
-// Short read-through memo. The live read spawns a process, so repeated 60s polls (and several browser
-// windows) must not each pay for one. Keyed by codexHome so distinct homes (tests) never collide.
-const TTL_MS = 20_000
-const memo = new Map<string, { at: number; quota: ProviderQuota }>()
+// HOW OFTEN THAT PROCESS MAY START. Every live read is a whole `codex app-server`, and the read is
+// driven by a browser poll (every 30s, every 15s while EITHER provider's reading is degraded) on a
+// machine whose Codex runtime Frizz itself provisioned — so it runs for people who have never used
+// Codex. Until 2026-10-11 the only bound was a 20s memo that treated a failed read like a good one:
+// a 30s poll always missed it, so one open tab started an app-server on every poll for as long as it
+// stayed open, signed in or not, and the same again for a read that could never succeed. Four bounds
+// now, each for a different way of paying for nothing:
+//
+//   • NO CREDENTIAL, NO PROCESS. A positively signed-out Codex (no auth.json, no key in the
+//     environment — readCodexAuthState, the dispatch gate's own reader) has no account to ask about.
+//   • A healthy reading is good for TTL_MS, which is longer than the poll, so polls share it.
+//   • A FAILED read is not re-asked until LIVE_BACKOFF has passed — 1m, doubling to 30m — because the
+//     failures that persist (an API-key sign-in, which has no plan windows; a CLI that cannot speak
+//     this method; no network) fail identically every time. The rollout tail is served meanwhile. The
+//     backoff resets on a good read and whenever the credential changes hands (a sign-in, an account
+//     switch), so signing in is never something a deadline makes you wait out.
+//   • Callers that arrive while a read is running join it rather than starting their own.
+//
+// `force` is the popover's explicit recheck: it skips the memo and the backoff, never the credential
+// check. Keyed by codexHome so distinct homes (tests) never collide; process-wide on purpose — there
+// is one server per machine, and the account is the machine's.
+const TTL_MS = 60_000
+const LIVE_BACKOFF_BASE_MS = 60_000
+const LIVE_BACKOFF_MAX_MS = 30 * 60_000
 
-/** Test seam: drop the memo so a test can observe a fresh read. */
+interface CodexQuotaState {
+  memo?: { at: number; quota: ProviderQuota }
+  inFlight?: Promise<ProviderQuota>
+  /** What the live read was last asked with; a different one means a different account to ask about. */
+  credential?: string
+  /** Consecutive live reads that produced nothing, and the instant (ms) before which none is retried. */
+  failures: number
+  retryAt: number
+}
+const states = new Map<string, CodexQuotaState>()
+
+/** Test seam: forget every reading and every backoff so a test can observe a fresh read. */
 export function resetCodexQuotaMemo(): void {
-  memo.clear()
+  states.clear()
+}
+
+const SIGNED_OUT = "signed-out"
+
+// Who the live read would be asking about. "unknown" (an unreadable auth.json) is NOT signed out: the
+// read goes ahead and its own failure is what gets remembered.
+function codexCredential(codexHome: string): string {
+  const auth = readCodexAuthState(codexHome)
+  return auth === "signed-out" ? SIGNED_OUT : `${auth}:${readCodexAccountId(codexHome) ?? ""}`
 }
 
 // The Codex provider quota (RPC-facing): the live app-server reading when it can be had, else the
 // rollout tail. Never throws.
-export async function readCodexQuota(codexHome = defaultCodexHome(), codexBin = "codex"): Promise<ProviderQuota> {
-  const now = Date.now()
-  const hit = memo.get(codexHome)
-  if (hit && now - hit.at < TTL_MS) return hit.quota
+export async function readCodexQuota(
+  codexHome = defaultCodexHome(),
+  codexBin = "codex",
+  options: { force?: boolean; now?: () => number } = {},
+): Promise<ProviderQuota> {
+  const now = (options.now ?? Date.now)()
+  let state = states.get(codexHome)
+  if (!state) states.set(codexHome, (state = { failures: 0, retryAt: 0 }))
+  if (!options.force && state.memo && now - state.memo.at < TTL_MS) return state.memo.quota
+  if (state.inFlight) return state.inFlight
+  const held = state
+  held.inFlight = refreshCodexQuota(held, codexHome, codexBin, now, options.force === true).finally(() => {
+    held.inFlight = undefined
+  })
+  return held.inFlight
+}
 
-  let quota: ProviderQuota | undefined
+async function refreshCodexQuota(state: CodexQuotaState, codexHome: string, codexBin: string, now: number, force: boolean): Promise<ProviderQuota> {
+  let credential: string
   try {
-    quota = await queryCodexRateLimits(codexHome, codexBin)
+    credential = codexCredential(codexHome)
   } catch {
-    quota = undefined
+    credential = "unknown:"
+  }
+  if (credential !== state.credential) {
+    state.credential = credential
+    state.failures = 0
+    state.retryAt = 0
+  }
+  let quota: ProviderQuota | undefined
+  if (credential !== SIGNED_OUT && (force || now >= state.retryAt)) {
+    try {
+      quota = await queryCodexRateLimits(codexHome, codexBin)
+    } catch {
+      quota = undefined
+    }
+    if (quota) {
+      state.failures = 0
+      state.retryAt = 0
+    } else {
+      state.failures++
+      state.retryAt = now + Math.min(LIVE_BACKOFF_BASE_MS * 2 ** (state.failures - 1), LIVE_BACKOFF_MAX_MS)
+    }
   }
   // The tail can only ever describe the account that last ran a turn, so label it: after an account
   // switch it is the ONLY thing that can still show a stale number, and the popover should say so.
@@ -354,6 +432,6 @@ export async function readCodexQuota(codexHome = defaultCodexHome(), codexBin = 
         ? { ...fallback, detail: "From the last local session — sign-in state unconfirmed" }
         : fallback
   }
-  memo.set(codexHome, { at: now, quota })
+  state.memo = { at: now, quota }
   return quota
 }

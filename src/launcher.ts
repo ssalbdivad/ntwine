@@ -38,15 +38,19 @@ import { claimIdentityPath } from "./identity.ts";
 import {
   discoverProjectRoot,
   ensureProjectIdFile,
-  hasProjectMarker,
-  isExistingProjectRoot,
-  isHomeDirectory,
   isNotAGitWorktree,
   writeProjectIdFile,
 } from "@frizz/server/project-root";
+import {
+  classifyLaunch,
+  LAUNCH_ROUTE_PATH,
+  LAUNCH_ROUTE_PROTOCOL,
+  LAUNCH_TOKEN_HEADER,
+  parseLaunchRoute,
+  type LaunchRoute,
+} from "@frizz/server/launch-routing";
 import { defaultLogRoot, latestLogPath } from "@frizz/server/logging";
 import { DEFAULT_PORT, fallbackPort, FRIZZ_ROUTE_PREFIX } from "@frizz/shared";
-import { findByPath } from "@frizz/server/project-registry";
 
 export { acquireGlobalLaunchLock, pidIsAlive };
 
@@ -533,17 +537,53 @@ export function resolveLaunchIntent(
   home = homedir(),
   env: NodeJS.ProcessEnv = process.env
 ): LaunchIntent {
-  const candidate = realpathSync(discoverProjectRoot(cwd, home))
-  const known = isExistingProjectRoot(candidate) || findByPath(candidate, home) !== undefined
-  const refused = isHomeDirectory(candidate, home)
-  // A directory Frizz already knows opens as itself — including one it knows only from the registry,
-  // so forgetting to commit `.frizz/.id` never costs someone their board.
-  if (known && !refused) return { kind: "open", workspace: resolveWorkspace(cwd, home, env) }
+  // The rule itself lives with the server (launch-routing.ts classifyLaunch), which answers it for a
+  // launcher that asks. This is the copy a launcher falls back on, and the one frizz-dev still uses.
+  const launch = classifyLaunch(cwd, home)
+  if (launch.kind === "open") return { kind: "open", workspace: resolveWorkspace(cwd, home, env) }
 
   const host = hostWorkspace(home)
-  return !refused && hasProjectMarker(candidate)
-    ? { kind: "offer", workspace: host, directory: candidate }
+  return launch.kind === "offer"
+    ? { kind: "offer", workspace: host, directory: launch.directory }
     : { kind: "everything", workspace: host }
+}
+
+/**
+ * Ask the running server where a launch typed in `dir` lands (launch-routing.ts, app.ts).
+ *
+ * Undefined means "decide it here", and every reason for it is ordinary: a server that predates the
+ * route answers 403 or 404, a server that is restarting answers 503 until it is back, and a launcher
+ * must never hang on a question whose fallback is the rule it carried anyway. The 503 is waited out
+ * briefly, because the public listener is published before the server behind it is ready.
+ */
+export async function askLaunchRoute(
+  port: number,
+  ownerToken: string,
+  dir: string,
+  options: { fetcher?: typeof fetch; args?: readonly string[]; patienceMs?: number; timeoutMs?: number } = {},
+): Promise<LaunchRoute | undefined> {
+  const fetcher = options.fetcher ?? fetch
+  const deadline = Date.now() + (options.patienceMs ?? 6_000)
+  for (;;) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 5_000)
+    timeout.unref?.()
+    try {
+      const response = await fetcher(`http://127.0.0.1:${port}${FRIZZ_ROUTE_PREFIX}${LAUNCH_ROUTE_PATH}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", [LAUNCH_TOKEN_HEADER]: ownerToken },
+        body: JSON.stringify({ protocol: LAUNCH_ROUTE_PROTOCOL, dir, ...(options.args?.length ? { args: options.args } : {}) }),
+        signal: controller.signal,
+      })
+      if (response.status === 200) return parseLaunchRoute(await response.json())
+      if (response.status !== 503 || Date.now() >= deadline) return undefined
+    } catch {
+      return undefined
+    } finally {
+      clearTimeout(timeout)
+    }
+    await delay(250)
+  }
 }
 
 /**

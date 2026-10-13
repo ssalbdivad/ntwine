@@ -117,6 +117,25 @@ test("a background shell blocks hibernation", () => {
   )
 })
 
+// THE COMMAND WATCH EXISTS FOR THIS CASE (2026-10-11). The same wait — "tell me when npm serves the
+// version" — rested on two ways: a polling loop in a background shell pins the daemon (three threads idle
+// 1h47m–21h held ~750 MB that way on the maintainer's machine), while a `frizzctl watch-command` rest has
+// nothing of the thread's running, because the SERVER runs the check. The verdict reads no registry, so a
+// rest on a command watch is an ordinary rest, and the wake that ends it cold-resumes the transcript.
+test("a rest on a command watch hibernates where the same wait in a polling shell cannot", () => {
+  const fence = (hints: { kind: "shell" | "command" | "status" | "for"; value: string }[]) =>
+    ({ kind: "awaiting" as const, body: "", hints })
+  const pollingShell = tele({
+    bgShells: [{ id: "toolu_poll", taskId: "bpoll1", label: "until npm view frizz@0.13.12 version; do sleep 300; done", state: "running" }] as SessionTelemetry["bgShells"],
+    lastFence: fence([{ kind: "shell", value: "bpoll1" }, { kind: "status", value: "watching" }, { kind: "for", value: "6h" }]),
+  })
+  assert.deepEqual(decide({ telemetry: pollingShell }), { hibernate: false, blockedBy: "background-shells" })
+  const commandWatch = tele({
+    lastFence: fence([{ kind: "command", value: "cmw_0123456789ab" }, { kind: "status", value: "watching" }, { kind: "for", value: "6h" }]),
+  })
+  assert.equal(decide({ telemetry: commandWatch }).hibernate, true)
+})
+
 // Text frizz accepted but has not watched land is sitting in the DAEMON'S queue. Killing the process
 // throws it away, and the ledger row would go on claiming for an hour that the provider holds it.
 test("an undelivered send blocks hibernation", () => {

@@ -5,7 +5,7 @@
 // state; below the split the strip is the only place they are.
 //
 // Follows the frizz-stack recipe: a broker session row + a JSONL the REAL tailer folds, then the saved
-// links through the worker's own RPC (upsertOwnLink), the way `mcp__frizz__link` creates them. The tailer
+// links through the worker's own RPC (upsertOwnLink), the way `frizzctl link` creates them. The tailer
 // drops a thread's shells the moment its owner looks gone, and for a broker row "gone" is an absent
 // broker record — so, as in seed-resting-thread.mjs, the seed writes one naming a real live `sleep`.
 // Kill both pids (printed as `daemonPid` and `shellPid`) when you tear the stack down.

@@ -15,11 +15,17 @@ import { ThreadSlugContext } from "./threadSlugContext.ts"
 const inThread = (slug: string | null, node: ReactNode) =>
   renderToStaticMarkup(createElement(ThreadSlugContext.Provider, { value: slug }, node))
 
+// Cut as every quoted divider is (WakeDivider DividerQuotedTitle, upstream 873338a0): only the name
+// truncates, and a narrow row gives up the lead noun.
 test("the wake line's name is the link to its terminal, and only the name truncates", () => {
   const html = renderToStaticMarkup(createElement(ShellWakeText, { text: "Agent terminal «quick build» exited 2", onOpen: () => {} }))
-  assert.match(html, /^<span class="flex min-w-0 items-center"><span class="shrink-0 whitespace-pre">Agent terminal «<\/span><button type="button" data-shell-wake-open="true" title="Open agent terminal" aria-label="Open agent terminal: quick build" class="min-w-0 truncate [^"]*">quick build<\/button><span class="shrink-0 whitespace-pre">» exited 2<\/span><\/span>$/)
-  // Nothing to open: the same words, as text.
-  assert.equal(renderToStaticMarkup(createElement(ShellWakeText, { text: "Agent terminal «quick build» finished" })), '<span class="min-w-0 truncate">Agent terminal «quick build» finished</span>')
+  assert.match(html, /^<span class="shrink-0 @max-\[34rem\]\/wake:hidden">Agent terminal <\/span><span class="flex min-w-0 items-center"><span class="shrink-0">«<\/span><button type="button" data-shell-wake-open="true" title="Open agent terminal" aria-label="Open agent terminal: quick build" class="min-w-0 truncate [^"]*">quick build<\/button><span class="shrink-0">»<\/span><\/span><span class="shrink-0"> exited 2<\/span>$/)
+  // Nothing to open: the same words and the same cut, with the name as text.
+  const plain = renderToStaticMarkup(createElement(ShellWakeText, { text: "Agent terminal «quick build» finished" }))
+  assert.doesNotMatch(plain, /<button/)
+  assert.match(plain, /<span class="min-w-0 truncate">quick build<\/span>.*<span class="shrink-0"> finished<\/span>$/)
+  // A line that quotes nothing is one truncating span.
+  assert.equal(renderToStaticMarkup(createElement(ShellWakeText, { text: "Context compacted" })), '<span class="min-w-0 truncate">Context compacted</span>')
 })
 
 test("Frizz's own relay of a finished shell finds that terminal by its task id and opens it", () => {

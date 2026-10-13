@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { ChartColumn, Code, Copy, Ellipsis, FileDiff, FileText, Folder, Loader2, Plug, RefreshCw, SquareTerminal, Timer, Trash2 } from "lucide-react"
+import { ChartColumn, Code, Ellipsis, FileDiff, FileText, Folder, Loader2, RefreshCw, SquareTerminal, Timer, Trash2 } from "lucide-react"
 import { useSnapshot } from "valtio"
 import type { ThreadView } from "@frizz/shared"
 import type { Api, ThreadFolderChoice } from "../api/contract.ts"
@@ -19,14 +19,13 @@ import { ThreadInfoDialog } from "./ThreadInfoDialog.tsx"
 import { TimeLimitDialog } from "./DeadlineControl.tsx"
 import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
 import { Tooltip } from "./Tooltip.tsx"
-import { useTerminalCommandMenuItem } from "./ExternalTerminalCommand.tsx"
 import { useDevFrizzBuild } from "../lib/devBuild.ts"
 import { restartWorker } from "../lib/restartWorker.ts"
 import { closeDrawersById, showToast, store } from "../store.ts"
 import { baseName, runExternalOpen } from "../lib/externalOpen.ts"
 import { embedded } from "../lib/embed.ts"
 import { openInHostEditor } from "../lib/local-file-links.ts"
-import { offersReloadPlugins, offersRestartWorker, reloadThreadPlugins } from "../lib/workerMaintenance.ts"
+import { offersRestartWorker } from "../lib/workerMaintenance.ts"
 import { reviewChanges, reviewLabel } from "../lib/reviewChanges.ts"
 
 // openFullscreen, the one navigation into a thread's /full page, shared by the ⤢ door (ExpandThreadLink.tsx)
@@ -158,17 +157,13 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
   const projectId = useThreadProjectId()
   const devBuild = useDevFrizzBuild()
   const ownSession = thread.kind === "session" && thread.foreign !== true
-  const terminalCommand = useTerminalCommandMenuItem(slug)
   const [open, setOpen] = useState(false)
   // THE FOLDER CHOICE: when "Open in editor" finds the thread and its sub-agents in different checkouts,
   // a centered modal lists them (FolderChoiceDialog). It reopened this ⋯ menu in a folder mode until
   // 2026-10-06, anchored at a 28px icon in the header's corner, where a press of `e` was easy to miss
   // (maintainer: "make the dropdown in the middle of the screen as a modal so its more obvious").
   const [folders, setFolders] = useState<ThreadFolderChoice[] | null>(null)
-  const onOpenChange = (next: boolean) => {
-    setOpen(next)
-    if (next && ownSession) terminalCommand.prefetch()
-  }
+  const onOpenChange = (next: boolean) => setOpen(next)
   const chooseFolder = (choices: ThreadFolderChoice[]) => {
     if (card) {
       void runExternalOpen(
@@ -187,9 +182,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
   // trigger — the surface's one always-rendered anchor — carries their commands beside its own `m`.
   useCommandHandler(trigger, () => onOpenChange(true), "menu")
   useCommandHandler(trigger, () => { if (ownSession) editor() }, "editor")
-  useCommandHandler(trigger, () => { if (ownSession) terminalCommand.copy() }, "copyCommand")
   const editorKeys = useShortcutLabel("thread.editor")
-  const copyKeys = useShortcutLabel("thread.copyCommand")
   const menuKeys = useShortcutLabel("thread.menu")
   const [deleting, setDeleting] = useState(false)
   const [info, setInfo] = useState(false)
@@ -212,7 +205,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
           aria-label="More actions"
           title={menuKeys ? `More actions (${menuKeys})` : "More actions"}
           data-thread-menu={slug}
-          data-command="menu editor copyCommand"
+          data-command="menu editor"
           // The strip's shared focus behaviour: a click here must not take the keyboard away from the
           // composer below it.
           onMouseDown={(event) => event.preventDefault()}
@@ -245,16 +238,6 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
         {review && (
           <MenuItem value="review-changes" onSelect={() => reviewChanges(api, slug, displayName(thread), projectId)} icon={<FileDiff size={12} aria-hidden />}>
             {review}
-          </MenuItem>
-        )}
-        {ownSession && (
-          <MenuItem value="copy-terminal-command" onSelect={terminalCommand.copy} icon={<Copy size={12} aria-hidden />} shortcut={copyKeys}>
-            {terminalCommand.label}
-          </MenuItem>
-        )}
-        {offersReloadPlugins(thread) && (
-          <MenuItem value="reload-plugins" onSelect={() => void reloadThreadPlugins(api, thread)} icon={<Plug size={12} aria-hidden />}>
-            Reload plugins
           </MenuItem>
         )}
         {restart && offersRestartWorker(thread, devBuild) && (

@@ -23,8 +23,8 @@ test("a steps card stays in the transcript after its rest, with no Done", {
   skip: !baseUrl,
   timeout: 120_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const errors: string[] = []
   try {
     const page = await browser.newPage()
@@ -41,8 +41,11 @@ test("a steps card stays in the transcript after its rest, with no Done", {
           cards: cards.map((el) => ({
             chip: (el.querySelector("[data-card-chip]") as HTMLElement | null)?.innerText.trim(),
             title: (el.querySelector("[data-card-title]") as HTMLElement | null)?.innerText.trim(),
-            steps: [...el.querySelectorAll("[data-awaiting-steps] li")].map((li) => (li as HTMLElement).innerText.trim()),
+            steps: [...el.querySelectorAll("[data-awaiting-steps] .frizz-step-text")].map((li) => (li as HTMLElement).innerText.trim()),
             done: !!el.querySelector("[data-steps-done]"),
+            // The stepper ticks only while the thread rests on these steps; a settled card is a record.
+            ticks: el.querySelectorAll("[data-awaiting-steps] button[role=checkbox]").length,
+            next: el.querySelectorAll("[data-step-state=next]").length,
           })),
           // The earlier settled shell wait — card AND prose — must be gone.
           shellProse: document.body.innerText.includes("The release build is running in the background."),
@@ -58,20 +61,20 @@ test("a steps card stays in the transcript after its rest, with no Done", {
     // AT REST on the steps: the tail's resting card states them, WITH Done — and the transcript does not
     // draw them a second time above it.
     const rest = await read("rest")
-    assert.deepEqual(rest.cards, [{ ...stepsCard, done: true }], "one card, the live one, with its verb")
+    assert.deepEqual(rest.cards, [{ ...stepsCard, done: true, ticks: 2, next: 1 }], "one card, the live one, with its verb")
     assert.equal(rest.shellProse, false, "a settled shell wait still draws nothing")
     assert.equal(rest.stepsProse, 1)
 
     // DONE PRESSED, worker mid-turn: the card stays where it was, without the verb.
     const running = await read("running")
-    assert.deepEqual(running.cards, [{ ...stepsCard, done: false }], "the steps stay, and nobody is waiting on their Done")
+    assert.deepEqual(running.cards, [{ ...stepsCard, done: false, ticks: 0, next: 0 }], "the steps stay, and nobody is waiting on their Done")
     assert.equal(running.shellProse, false)
     assert.equal(running.stepsProse, 1)
 
     // THE THREAD MOVED ON to a later rest: still there, still no verb, beside the new resting card.
     const moved = await read("moved")
     assert.equal(moved.cards.length, 2, "the settled steps card and the new resting card")
-    assert.deepEqual(moved.cards[0], { ...stepsCard, done: false })
+    assert.deepEqual(moved.cards[0], { ...stepsCard, done: false, ticks: 0, next: 0 })
     assert.equal(moved.cards[1].steps.length, 0, "the later rest is a plain wait")
     assert.equal(moved.shellProse, false)
     assert.equal(moved.stepsProse, 1)

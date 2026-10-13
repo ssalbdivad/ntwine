@@ -13,8 +13,8 @@
 // what their worker would be told.
 //
 // The maintainer's replacement (chosen deliberately over keeping a canonical doc): the thread gets a
-// free-form scratch DIRECTORY, and compaction recovery moves to `mcp__frizz__goal`'s
-// post_compaction trigger — the worker writes whatever doc it likes and LINKS it in a prompt frizz
+// free-form scratch DIRECTORY, and compaction recovery moves to `frizzctl goal`'s
+// post-compaction trigger — the worker writes whatever doc it likes and LINKS it in a prompt frizz
 // re-sends when the context is summarized away. Durable in SQLite, visible in the thread footer,
 // editable by the human. This hook's job is therefore reduced to two honest things:
 //
@@ -219,6 +219,12 @@ function emitJson(additionalContext, hookEventName) {
 
 // ── mode: session-start ──────────────────────────────────────────────────────────────────────────
 if (mode === 'session-start') {
+  // A CODEX resume loses nothing: the thread is rebuilt from its rollout with the whole conversation in
+  // it, and Frizz resumes a thread routinely — its first message after every Frizz restart, and again
+  // when a newer Frizz hands it new hooks. Telling that worker "Context was just lost" would be false
+  // every time, so the Codex registration says so with a flag and this stays silent. (On Claude a
+  // resume is a cold start of the process and keeps the wording below.)
+  if (input.source === 'resume' && argv.includes('--resume-keeps-context')) process.exit(0);
   const files = listScratch();
   const written = files.length > 0;
 
@@ -252,8 +258,8 @@ if (mode === 'session-start') {
       '⟦scratch directory⟧ Context was just ' + (input.source === 'compact' ? 'compacted' : 'lost') +
         '. You have files in your scratch directory `' + relPath + '`:\n' + describe(files) +
         '\n\nRead whichever of them bears on what you were doing BEFORE acting, and treat what you ' +
-        'wrote there as authoritative over anything the summary implies. (A goal armed via ' +
-        'mcp__frizz__goal with post_compaction: true can hand a link back at the next ' +
+        'wrote there as authoritative over anything the summary implies. (A goal armed with ' +
+        '`frizzctl goal start --post-compaction` can hand a link back at the next ' +
         'compaction without relying on this note.)' +
         compactedNote,
     );
@@ -267,7 +273,7 @@ if (mode === 'session-start') {
         '`.frizz/threads/*/` directories for a substitute, and do not broadly reload repo docs or ' +
         'skills merely to reconstruct context. Recover from the retained compaction summary and any ' +
         'task-specific handoff it directly names. The directory is still available if you want notes ' +
-        'this time, and a goal armed via mcp__frizz__goal with post_compaction: true can ' +
+        'this time, and a goal armed with `frizzctl goal start --post-compaction` can ' +
         're-send a prompt linking them at the next compaction.' +
         compactedNote,
     );
@@ -277,8 +283,8 @@ if (mode === 'session-start') {
     parts.push(
       '⟦scratch directory⟧ `' + relPath + '` is yours: any files you like, no format expected, and ' +
         'nothing in it is read automatically. Use it if you want it. If you ever want a note to come ' +
-        'back after a compaction, a goal armed via mcp__frizz__goal with ' +
-        'post_compaction: true re-sends a prompt of your choosing — one that can link a file here.',
+        'back after a compaction, a goal armed with `frizzctl goal start ' +
+        '--post-compaction` re-sends a prompt of your choosing — one that can link a file here.',
     );
   }
   emitJson(parts.join('\n\n'), 'SessionStart');
@@ -409,13 +415,13 @@ if (mode === 'nudge') {
     mtimeMs
       ? '⟦scratch notes stale⟧ Your context has grown ~' + k + 'k tokens since you last wrote anything ' +
           'in `' + relPath + '`. Top the notes up in passing if you still want them current (a goal ' +
-          'armed with post_compaction: true can link them). This is a background note, NOT a task and ' +
+          'armed with `frizzctl goal start --post-compaction` can link them). This is a background note, NOT a task and ' +
           'NOT a reason to pause: do not stop working to service it, and never end a turn on it while ' +
           'the user\'s instruction still has parts left.'
       : '⟦scratch directory empty⟧ This session is ~' + k + 'k tokens deep and `' + relPath + '` is ' +
           'empty. That is fine — notes are optional and writing them is not doing the work. The ' +
-          'directory is available if you want notes, and mcp__frizz__goal with ' +
-          'post_compaction: true can re-send a prompt linking them after a compaction. This is a ' +
+          'directory is available if you want notes, and `frizzctl goal start ' +
+          '--post-compaction` can re-send a prompt linking them after a compaction. This is a ' +
           'background note, NOT a task and NOT a reason to pause: keep going with what you were asked to do.',
     event,
   );

@@ -155,7 +155,7 @@ test("a rest with no fence is told how to sign off, and the text names all three
     // the human must perform, an unsent draft, and discovered follow-up that is someone else's to do.
     // Two zod threads fenced `done` on exactly those on 2026-08-16 — see workerPrompt.ts above SIGNALS.
     assert.match(h.delivered[0], /STILL OWED counts things you are not going to do yourself/)
-    assert.match(h.delivered[0], /`mcp__frizz__spawn_thread`/)
+    assert.match(h.delivered[0], /`frizzctl spawn-thread`/)
     assert.match(h.delivered[0], /not\s+worth a card is not worth a SENTENCE/)
     assert.match(h.delivered[0], /the card is the ledger of what shipped/)
     // SELF-CONTAINEDNESS is the point the first version missed: the human has seen nothing since their
@@ -323,7 +323,7 @@ test("a question carried from an EARLIER rest is not this rest's sign-off — th
     assert.match(nudges[0].message, /A question you registered at an EARLIER rest is still open/)
     assert.match(nudges[0].message, /- `qst_old1` — SQLite or a JSON file\?/, "named, with its own words")
     assert.match(nudges[0].message, /`questions: \[qst_…\]`/)
-    assert.match(nudges[0].message, /mcp__frizz__unask/)
+    assert.match(nudges[0].message, /`frizzctl unask <id>`/)
   } finally { h.close() }
 })
 

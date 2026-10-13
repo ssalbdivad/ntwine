@@ -107,6 +107,10 @@ export interface ClaudeQueryStartOptions {
   canUseTool?: ClaudeCanUseTool
   onElicitation?: ClaudeOnElicitation
   onDiagnostic?: (event: ClaudeDiagnostic) => void
+  // The `rate_limit_info` of every `rate_limit_event` the stream carries, handed over raw: the
+  // account's plan windows as the API just reported them to this session (claude-quota-observed.ts).
+  // Observational, like onDiagnostic — it can neither see nor change what the session does.
+  onRateLimit?: (info: unknown) => void
   // When true, claude writes its transcript to ~/.claude/projects/<cwdSlug>/<sessionId>.jsonl — the
   // exact file the tailer reads for liveness + the UI transcript. The broker sets this; the default
   // stays false so nothing that used this as a standalone foundation starts persisting unexpectedly.
@@ -366,6 +370,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
   private readonly sdkQuery: SdkQuery
   private readonly input: ClaudeInputQueue
   private readonly diagnostic?: (event: ClaudeDiagnostic) => void
+  private readonly rateLimit?: (info: unknown) => void
   private readonly lifecycleAbort: AbortController
   // id → the main-thread turn count at the moment it was sent. A Map rather than a Set plus a
   // parallel order array because insertion order IS send order, which is all the oldest-first
@@ -383,6 +388,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
     lifecycleAbort: AbortController,
     redactor: (value: unknown) => { message: string; truncated: boolean },
     diagnostic?: (event: ClaudeDiagnostic) => void,
+    rateLimit?: (info: unknown) => void,
   ) {
     this.sdkQuery = sdkQuery
     this.input = input
@@ -390,6 +396,7 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
     this.lifecycleAbort = lifecycleAbort
     this.redactor = redactor
     this.diagnostic = diagnostic
+    this.rateLimit = rateLimit
     this.readyPromise = new Promise((resolve, reject) => {
       this.resolveReady = resolve
       this.rejectReady = reject
@@ -716,6 +723,12 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
         // Dropping is cheap precisely because this stream is not frizz's system of record: the tailer
         // reads the session JSONL directly, so the board still sees what the agent did. Ownership
         // checks below stay fatal, unchanged.
+        //
+        // A `rate_limit_event` is read HERE, off the raw frame, because the typed event it maps to
+        // (`kind:"other"`) deliberately carries no payload. It still maps and flows on unchanged.
+        if (this.rateLimit && (raw as { type?: unknown }).type === "rate_limit_event") {
+          this.rateLimit((raw as { rate_limit_info?: unknown }).rate_limit_info)
+        }
         let event: ClaudeQueryEvent
         try {
           event = mapSdkMessage(raw)
@@ -908,6 +921,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
   const environment = buildEnvironment(options.env)
   const redact = createClaudeDiagnosticRedactor(environment)
   const diagnostic = guardDiagnosticCallback(options.onDiagnostic)
+  const rateLimit = guardObserverCallback(options.onRateLimit)
   const permissionMode = validatePermissionMode(options.permissionMode ?? "default")
   const lifecycleAbort = new AbortController()
   const permissionRequests = new BoundedIdempotencyCache<SdkPermissionResult>(MAX_PERMISSION_REQUESTS, "Claude permission request cache")
@@ -1068,7 +1082,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
     },
   })
 
-  const handle = new RealClaudeQueryHandle(raw, input, sessionId, lifecycleAbort, redact, diagnostic)
+  const handle = new RealClaudeQueryHandle(raw, input, sessionId, lifecycleAbort, redact, diagnostic, rateLimit)
   // The CLI has parsed its argv by the time it reports `init`; it keeps the servers in memory from there.
   if (mcpConfigFile) {
     const drop = () => { try { rmSync(mcpConfigFile, { force: true }) } catch {} }
@@ -1981,6 +1995,18 @@ function guardDiagnosticCallback(
       callback(event)
     } catch {
       // Diagnostics are observational and must never gain control over the provider lifecycle.
+    }
+  }
+}
+
+// The same guarantee for any other observer of the stream: whatever it throws stays with it.
+function guardObserverCallback(callback: ((value: unknown) => void) | undefined): ((value: unknown) => void) | undefined {
+  if (!callback) return undefined
+  return (value) => {
+    try {
+      callback(value)
+    } catch {
+      // Observational: a failed observer must not become a failed session.
     }
   }
 }

@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query"
 import type { ServerEvent } from "@frizz/shared"
 import { deltaAction } from "@frizz/shared"
 import { store, setBoard, applyDelta, openThread } from "../store.ts"
@@ -22,15 +23,18 @@ export class BoardStream {
   private readonly interactionsInvalidated: (
     event: Extract<ServerEvent, { type: "interactions-invalidated" }>,
   ) => void
+  private readonly projectsChanged: () => void
 
   constructor(
     resync: () => void,
     interactionsInvalidated: (
       event: Extract<ServerEvent, { type: "interactions-invalidated" }>,
     ) => void = () => {},
+    projectsChanged: () => void = () => {},
   ) {
     this.resync = resync
     this.interactionsInvalidated = interactionsInvalidated
+    this.projectsChanged = projectsChanged
   }
 
   // Drop the adopted seq — call on (re)connect so any stray delta arriving before the next keyframe
@@ -79,8 +83,29 @@ export class BoardStream {
       case "editor-front":
         editorFrontChanged()
         break
+      case "projects-changed":
+        // Not about this stream's board at all, and so not sequenced with it: the machine's project
+        // list changed in SOME tab, and this one re-reads it (see `refreshProjectList` below).
+        this.projectsChanged()
+        break
     }
   }
+}
+
+/**
+ * Re-read the machine's project list — the rail's squares and the grid's cards.
+ *
+ * Called for the server's `projects-changed`, which is how a reorder, a rename or a new icon made in
+ * one tab reaches every other: nothing else refetches this list (refetchOnWindowFocus is off
+ * app-wide), so before the event a second tab kept the order it had loaded until somebody reloaded it.
+ * Also called when a feed comes back from a drop, because an announcement published while this tab
+ * had no stream was never delivered and nothing will repeat it.
+ *
+ * An invalidation, not a write: the list is one cheap read, the squares on screen stay put until the
+ * answer lands, and a tab holding an optimistic order of its own (ProjectRail) keeps showing it.
+ */
+export function refreshProjectList(queryClient: QueryClient | null | undefined): void {
+  void queryClient?.invalidateQueries({ queryKey: ["projectsList"] })
 }
 
 // Fire a desktop notification for a server-pushed event, but only when the user opted in

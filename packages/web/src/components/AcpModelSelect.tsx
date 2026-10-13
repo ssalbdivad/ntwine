@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { rpc } from "../api/rpc.ts"
+import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
 import { acpModelGroups } from "../lib/acpModelOptions.ts"
 import { OPAQUE_PORTAL_SURFACE_Z } from "../lib/overlaySurface.ts"
 import { Select } from "./ui/Select.tsx"
@@ -35,9 +35,13 @@ export function AcpModelSelect({
   menuZClass?: string
   className?: string
 }) {
+  // A project answers this (its runtime, its PATH), so a select inside another project's card asks that
+  // project, under a key that names it (upstream ff43f7d3, in the fork's scoping — useDispatchProfile).
+  const api = useThreadApi()
+  const projectId = useThreadProjectId()
   const models = useQuery({
-    queryKey: ["acpAgentModels", agentId],
-    queryFn: () => rpc.acpAgentModels({ agentId }),
+    queryKey: projectId ? ["acpAgentModels", agentId, { project: projectId }] : ["acpAgentModels", agentId],
+    queryFn: () => api.acpAgentModels({ agentId }),
     // The server caches the probe for ten minutes; a minute here keeps a reopened composer from
     // re-asking on every mount while a fresh sign-in still shows up within the session.
     staleTime: 60_000,

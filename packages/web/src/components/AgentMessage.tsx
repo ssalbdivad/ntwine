@@ -21,6 +21,9 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { ArrowUpRight, Bot, MessagesSquare, type LucideIcon } from "lucide-react"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { useInnerHtml } from "../lib/innerHtml.ts"
+import { useLocalFileCodeLinks } from "../lib/localFileCode.ts"
+import { useMermaidIslands } from "./CodexRichOutput.tsx"
+import { useLightboxIslands } from "./Lightbox.tsx"
 import { useNowMs } from "../lib/liveClock.ts"
 import { compactAge, exactStamp } from "../lib/activityTime.ts"
 // The human's bubble's corner, with the tail on the speaker's side: top-left here, bottom-right there.
@@ -90,6 +93,12 @@ function Bubble({ body, incoming }: { body: string; incoming: boolean }) {
   const [overflows, setOverflows] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const bodyId = useId()
+  // The decoration every card's prose gets (LinkedHtml), inlined because the clamp needs this element's
+  // own ref: a file the message names links once the server confirms it, and a gallery or a diagram in
+  // it is drawn as one (upstream 9ba8a364 gave the peer-message card's body the same).
+  useLocalFileCodeLinks(ref, html)
+  const galleries = useLightboxIslands(ref, html)
+  const diagrams = useMermaidIslands(ref, html)
   // Measured, not guessed from a line count: a body of three long paragraphs clamps, a body of twenty
   // one-word lines may not, and markdown (lists, code) changes the height either way.
   useLayoutEffect(() => {
@@ -113,6 +122,8 @@ function Bubble({ body, incoming }: { body: string; incoming: boolean }) {
         style={clamped ? { maxHeight: CLAMP_PX, overflow: "hidden", maskImage: "linear-gradient(to bottom, black 70%, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black 70%, transparent)" } : undefined}
         dangerouslySetInnerHTML={inner}
       />
+      {galleries}
+      {diagrams}
       {overflows && (
         <button
           type="button"

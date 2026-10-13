@@ -16,7 +16,7 @@
 //   database path itself (`--db=`) until 2026-09-28, from when every project had its own; one database
 //   holds every project now (lib/sandbox-db.mjs), so the row is found by its project as well as its slug.
 import { execFileSync } from "node:child_process"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 import { resolveSandboxDb } from "./lib/sandbox-db.mjs"
 
@@ -53,7 +53,7 @@ check("its rejection is a readable string, not an unrenderable object", typeof r
 check("that string names the offending field", /^until: /.test(String(rawBody.error)), String(rawBody.error))
 check("nothing was persisted by the rejected call", snoozedUntil() === "", snoozedUntil())
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 try {
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 2 })

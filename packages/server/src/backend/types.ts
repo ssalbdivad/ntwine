@@ -335,6 +335,76 @@ export function frizzMcpEnv(mcp: FrizzMcp): Record<string, string> {
   }
 }
 
+// ---- The worker command line ---------------------------------------------------------------------
+// `frizzctl` (cc-worker/bin/) is how a worker reaches Frizz: every worker capability is a command it
+// runs from its own shell, on every backend, and none of them is a tool in the model's registry. So
+// what a backend owes a worker is no longer a mount; it is an ENVIRONMENT — the command on PATH, and
+// the handful of facts the command reads to find the server and to know who is calling.
+export const FRIZZ_CLI = {
+  name: "frizzctl", // resolved under <worker plugin dir>/bin/
+} as const
+
+// Present ⇒ this worker's shell can run FRIZZ_CLI. Computed by the dispatch layer (resolveFrizzCli)
+// and threaded through every backend; absent in tests / when the plugin dir can't be resolved.
+export interface FrizzCli {
+  // The directory that goes on the worker's PATH: `<worker plugin dir>/bin`. The STABLE plugin path
+  // where there is one (dispatch.ts launchableWorkerPluginDir), so a worker that outlives an update
+  // runs the updated command — a shell resolves it per call, which is exactly what an MCP server
+  // spawned once per session could not do.
+  binDir: string
+  stateDir: string
+  // See FrizzMcp: the machine address, and the immutable registry id the command addresses
+  // `/_frizz/<projectId>/rpc/…` by.
+  serverLock?: string
+  projectId?: string
+}
+
+/**
+ * What `frizzctl` reads, as the variables a worker's shell must hold — ONE builder for every backend,
+ * for the reason frizzMcpEnv is one: a variable set on one side only is a capability that works under
+ * claude and not under codex, discoverable only by running a worker.
+ *
+ * `slug` is the caller's identity and belongs here only where the process this environment is for
+ * serves ONE thread (an ACP agent daemon, a codex thread's own shell). A codex app-server serves every
+ * thread in its project, so its process environment cannot name one — see codexThreadShellConfig.
+ *
+ * IT IS FRIZZ_THREAD_SLUG, NEVER FRIZZ_THREAD. The two read the same to `frizzctl`, but FRIZZ_THREAD is
+ * also the orphan reaper's ownership tag (orphan-reaper.ts): a process carrying it is reaped once it is
+ * two minutes old unless a live `claude`/`codex` session root carries the same slug. A Claude worker
+ * has that root, and its broker stamps FRIZZ_THREAD itself. A codex thread's shell runs under a
+ * per-project app-server that carries no slug, and an ACP agent is neither `claude` nor `codex`, so the
+ * tag there would have the reaper SIGKILL a codex thread's two-minute build and an ACP agent with its
+ * whole subtree.
+ *
+ * FRIZZ_NODE is the node this server runs on: the command's launcher tries it before a bare `node`,
+ * because a worker's PATH varies by launch context and the launcher must not depend on it.
+ */
+export function frizzCliEnv(cli: FrizzCli, slug?: string, nodeBin: string = process.execPath): Record<string, string> {
+  return {
+    FRIZZ_STATE_DIR: cli.stateDir,
+    ...(cli.serverLock ? { FRIZZ_SERVER_LOCK: cli.serverLock } : {}),
+    ...(cli.projectId ? { FRIZZ_PROJECT_ID: cli.projectId } : {}),
+    FRIZZ_NODE: nodeBin,
+    ...(slug ? { FRIZZ_THREAD_SLUG: slug } : {}),
+  }
+}
+
+/**
+ * `env` with the command's directory FIRST on its PATH, under whatever spelling the key already has
+ * (Windows calls it `Path`). An environment with no PATH at all is left without one: a PATH holding
+ * only our directory would take `/usr/bin` away from every other command the worker runs.
+ *
+ * Not needed for a Claude worker — Claude Code puts an enabled plugin's `bin/` on its Bash PATH
+ * itself — and harmless there.
+ */
+export function withFrizzCliOnPath(env: Record<string, string>, cli: FrizzCli, platform: NodeJS.Platform = process.platform): Record<string, string> {
+  const key = Object.keys(env).find((k) => (platform === "win32" ? k.toUpperCase() === "PATH" : k === "PATH"))
+  if (!key || !env[key]) return env
+  const delimiter = platform === "win32" ? ";" : ":"
+  if (env[key].split(delimiter).includes(cli.binDir)) return env
+  return { ...env, [key]: `${cli.binDir}${delimiter}${env[key]}` }
+}
+
 // Frizz mounts NO browser. The only MCP server it injects into a worker is the unified `frizz`
 // server above (claude: a `--mcp-config` file in dispatch.ts; codex: `-c` TOML overrides on the
 // app-server argv in codex-mcp.ts). A `chrome-devtools` mount used to ride every dispatch on both

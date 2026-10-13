@@ -19,8 +19,8 @@ test("a fenced code block copies its own source, minus the renderer's trailing n
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const pageErrors: string[] = []
   try {
     const page = await browser.newPage()
@@ -56,11 +56,11 @@ test("a fenced code block copies its own source, minus the renderer's trailing n
     // edit to a fixed radius, or to the inset alone, breaks it silently: the band between the two arcs
     // just pinches through the corner. Checked at BOTH prose scales, since the gap is in `em`.
     //
-    // The block's rounded box is the `pre` on a plain fence and the WRAPPER on a titled or tabbed one
-    // (lib/codeTabs.ts — the fixture's `title=` fences are titled blocks), where header and code share
+    // The block's rounded box is the `pre` on a plain fence and the WRAPPER on a framed one
+    // (lib/codeBlock.ts — the fixture's `title=` fences are titled blocks), where header and code share
     // one frame. The button must be concentric with whichever it is.
     const arcs = await page.evaluate(() => [...document.querySelectorAll(".md-code")].map((wrap) => {
-      const framed = wrap.classList.contains("md-code-tabs")
+      const framed = wrap.classList.contains("md-code-frame")
       const frame = framed ? wrap : wrap.querySelector("pre")!, btn = wrap.querySelector(".md-code-copy")!
       const radius = (el: Element) => parseFloat(getComputedStyle(el).borderTopRightRadius)
       const gap = frame.getBoundingClientRect().right - btn.getBoundingClientRect().right
@@ -136,8 +136,8 @@ test("the copy still lands when navigator.clipboard is unavailable (insecure ori
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const pageErrors: string[] = []
   try {
     const page = await browser.newPage()

@@ -112,7 +112,7 @@ export const CLAUDE_PERMISSION_LAPSED_MESSAGE =
   "taking a route that needs no approval where one exists (the Write/Edit tools instead of a shell heredoc, " +
   "a path inside the project instead of an outside directory). If the work genuinely cannot proceed without " +
   "this exact call, finish everything else first, then say what is blocked and why in your final message " +
-  "(or register it with `mcp__frizz__ask` where that tool exists)."
+  "(or register it with `frizzctl ask`)."
 
 // THE FIRST APPROVAL EACH AGENT NEEDS IS HELD BACK ONCE, SO THE AGENT CAN LOOK FOR ANOTHER WAY. The
 // journal's 38 Claude cards (2026-09-28..10-06, every one a Bash call) show what they are: in a frizz
@@ -307,7 +307,7 @@ const CLAUDE_QUESTION_DECLINED =
  *  redirect rather than downgraded to an approval card, whose bare allow the model reads as unanswered.
  *  (It redirected to a ```question fence until 2026-09-11, when the free-form fence was retired.) */
 export const CLAUDE_ASK_DENY_MESSAGE =
-  "Frizz could not render this question as a card. Register it with `mcp__frizz__ask` instead — context, " +
+  "Frizz could not render this question as a card. Register it with `frizzctl ask` instead — context, " +
   "the question, options with a one-line trade-off each, the recommended one first — never as a ```question " +
   "fence, which is retired. The operator answers it from the queue and the reply arrives as your next user message."
 
@@ -317,7 +317,7 @@ export const CLAUDE_ASK_DENY_MESSAGE =
 export const CLAUDE_ASK_WITHDRAWN_MESSAGE =
   "This question was withdrawn before anyone answered it — most likely because the operator sent a message " +
   "instead. Read their next message and follow it. Do not ask this again with this tool; if you still need " +
-  "the decision, register it with `mcp__frizz__ask`."
+  "the decision, register it with `frizzctl ask`."
 
 function displayText(value: string, max: number, fallback: string, redact = true): string {
   const scrubbed = (redact ? redactCredentialSyntax(value) : value).replace(SCRUB_UNSAFE_TEXT, "").trim()

@@ -16,7 +16,8 @@ isolated/messy work in a git worktree on a local branch under `.frizz/worktrees/
 (`git worktree add .frizz/worktrees/<slug> -b <slug>`, then `nub install` inside it before you run
 anything — a nested worktree with no `node_modules` of its own silently imports the main checkout's
 `@frizz/*` packages instead of failing) and, when it's done and you're confident, merge it back
-yourself (`git switch main && git merge <slug>`) and remove the worktree. Never create one beside the
+yourself (`git switch main && git merge <slug>`) and remove the worktree
+(`git worktree remove .frizz/worktrees/<slug>`). Never create one beside the
 checkout (`../frizz-<slug>`): where repos live directly in `~`, that is a new folder in the home
 directory. Getting the change onto local `main` is your job — never push a branch to stage a
 review and never hand back an unmerged branch. Reading GitHub (issues, PRs, CI) is fine; creating or
@@ -24,6 +25,15 @@ pushing a PR is not. (`FRIZZ.md` states this in full for Frizz
 workers, whose contract is frozen at session start. This file is the copy for everything else running
 in this checkout — a plain Codex or Claude session and the sub-agents it dispatches — which reach it
 through the link in `AGENTS.md` rather than loading it automatically.)
+
+**Every worktree lives in `.frizz/worktrees/<slug>/`, inside this checkout, and nowhere else** — never
+`/tmp`, never a sibling folder, never `.claude/worktrees/`. `.frizz/` is ignored already, and the test
+runner's globs, `tsc -b`, the dev server's watcher and ripgrep all stay out of it (checked 2026-10-11).
+Run `nub install` in a new worktree before anything else: until you do, an `@frizz/*` import there
+resolves through the parent `node_modules` to the SHARED tree's packages, and the worktree quietly
+tests `main`'s code instead of its own. A worktree you find anywhere else predates this rule
+(2026-10-11) and belongs to someone: leave it. Its owner moves it, once nothing is running in it, with
+`git worktree move <old-path> .frizz/worktrees/<slug>`.
 
 Git hygiene does NOT matter here — the only thing that matters is getting your changes onto local
 `main`. Many agents (and the human) work in parallel against the same repo constantly, so `main` moves

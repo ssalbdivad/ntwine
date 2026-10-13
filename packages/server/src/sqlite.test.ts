@@ -366,3 +366,37 @@ test("data written by one connection is visible to the next, through a real file
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test("callers preparing the SAME SQL share one compiled statement, and each call still binds its own values", () => {
+  withDb((db) => {
+    db.exec("CREATE TABLE row (project_id TEXT NOT NULL, slug TEXT NOT NULL, n INTEGER)")
+    // What every project's storage does on the one shared connection: the same text, a different id.
+    const insertA = db.prepare("INSERT INTO row (project_id, slug, n) VALUES (@project_id, @slug, @n)")
+    const insertB = db.prepare("INSERT INTO row (project_id, slug, n) VALUES (@project_id, @slug, @n)")
+    const readA = db.prepare<[], { slug: string; n: number }>("SELECT slug, n FROM row WHERE project_id = @project_id ORDER BY slug")
+    const readB = db.prepare<[], { slug: string; n: number }>("SELECT slug, n FROM row WHERE project_id = @project_id ORDER BY slug")
+    assert.equal(db.compiledStatements, 2, "four prepares of two texts compile two statements")
+
+    insertA.run({ project_id: "a", slug: "x", n: 1 })
+    insertB.run({ project_id: "b", slug: "x", n: 2 })
+    insertA.run({ project_id: "a", slug: "y", n: 3 })
+    // Interleaved reads through the two handles: a get() on one between all()s on the other.
+    assert.deepEqual(readA.all({ project_id: "a" }), [{ slug: "x", n: 1 }, { slug: "y", n: 3 }])
+    assert.deepEqual(readB.get({ project_id: "b" }), { slug: "x", n: 2 })
+    assert.deepEqual(readA.get({ project_id: "a" }), { slug: "x", n: 1 })
+    assert.deepEqual(readB.all({ project_id: "b" }), [{ slug: "x", n: 2 }])
+    // A missing named parameter still throws per CALL, not per compiled statement.
+    assert.throws(() => readB.all({}), /Missing named parameter "project_id"/)
+  })
+})
+
+test("the compiled-statement cache is bounded, and an evicted statement keeps working for its holder", async () => {
+  const { STATEMENT_CACHE_CAP } = await import("./sqlite.ts")
+  withDb((db) => {
+    db.exec("CREATE TABLE t (v INTEGER)")
+    const first = db.prepare<[], { v: number }>("SELECT 0 AS v")
+    for (let i = 1; i <= STATEMENT_CACHE_CAP + 10; i++) db.prepare(`SELECT ${i} AS v`)
+    assert.equal(db.compiledStatements, STATEMENT_CACHE_CAP)
+    assert.deepEqual(first.get(), { v: 0 }, "the oldest was evicted from the cache, not finalized")
+  })
+})

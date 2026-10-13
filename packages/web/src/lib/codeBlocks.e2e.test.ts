@@ -145,6 +145,8 @@ test("marked lines, rendered diffs and long blocks draw, copy and open on the sh
         fileRowsShown: [...root.querySelectorAll<HTMLElement>(".md-diff-file")].filter((row) => getComputedStyle(row).display !== "none").length,
         fileRows: root.querySelectorAll(".md-diff-file").length,
         hunks: root.querySelectorAll(".md-diff-hunk").length,
+        hunkCut: [...root.querySelectorAll<HTMLElement>(".md-diff-hunk")].map((row) => row.scrollWidth > row.clientWidth),
+        scrolls: root.querySelector("pre")!.scrollWidth - root.querySelector("pre")!.clientWidth,
         codeStartsWith: (root.querySelector("code")!.textContent ?? "").slice(0, 10),
       }
     })
@@ -156,6 +158,9 @@ test("marked lines, rendered diffs and long blocks draw, copy and open on the sh
     assert.equal(git.fileRows, 4)
     assert.equal(git.fileRowsShown, 0, "the title says which file; the header lines are not drawn")
     assert.equal(git.hunks, 2)
+    // A hunk header longer than every line of code under it is cut, rather than making the block scroll.
+    assert.deepEqual(git.hunkCut, [true, false])
+    assert.equal(git.scrolls, 0)
     assert.equal(git.codeStartsWith, "diff --git", "…but they are still in the text Copy takes")
 
     // Hand-written, context flush left: nothing eaten, and the language named by the fence.

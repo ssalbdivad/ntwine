@@ -57,10 +57,12 @@ const GENERATED_DIRS = new Set([
   ".vite",
 ])
 // The watch root is the repo root now that the workspace is hoisted there, and the repo root holds
-// far more than source: `.frizz/worktrees` (where FRIZZ.md puts agent worktrees) and
+// far more than source: `.frizz/worktrees` (where the worker contract sends every git worktree) and
 // `.claude/worktrees` contain entire sibling checkouts that other agents edit constantly. Those are
 // never frizz source, so keep the recursive watcher out of them rather than paying to walk them and
-// filtering the events afterwards.
+// filtering the events afterwards. The globs below are matched RELATIVE to the watch root, so a dev
+// server started from inside one of those checkouts still watches its own source (probed 2026-10-11
+// from a worktree at `.frizz/worktrees/<slug>`).
 const NON_SOURCE_ROOT_DIRS = new Set([
   ".claude",
   ".agents",

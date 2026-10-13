@@ -5,7 +5,7 @@ import { BLOCK_RADIUS, CardContent, CardHead } from "./TranscriptCard.tsx"
 
 // THE HUMAN'S ANSWER, on their own side of the conversation. Three different acts compose the message
 // this renders — answering a ```question fence, answering a native ask, and answering a question the
-// worker REGISTERED (`mcp__frizz__ask`) — and all three write the one wire form `parseAnswersCard`
+// worker REGISTERED (`frizzctl ask`) — and all three write the one wire form `parseAnswersCard`
 // reads, so all three land here rather than in three shapes of bubble.
 //
 // It lived inside ChatView until 2026-08-27, when the registered path needed it too: that path's answer

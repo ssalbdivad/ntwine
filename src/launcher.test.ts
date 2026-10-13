@@ -39,6 +39,7 @@ import {
   expectedOwnerHealth,
   liveWorkspaceOwner,
   parseCliArgs,
+  askLaunchRoute,
   hostWorkspace,
   isHostWorkspace,
   resolveLaunchIntent,
@@ -2477,6 +2478,42 @@ test("launch intent: with no project at all, every directory still reaches the d
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
+});
+
+test("a launcher asks the running server where it lands, and decides for itself only when it cannot", async () => {
+  const seen: Array<{ url: string; method?: string; token: string | null; origin: string | null; body: unknown }> = [];
+  const answering = (...responses: Array<Response | Error>): typeof fetch =>
+    (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      seen.push({ url: String(input), method: init?.method, token: headers.get("x-frizz-launch-token"), origin: headers.get("origin"), body: JSON.parse(String(init?.body)) });
+      const next = responses.shift() ?? new Response("gone", { status: 500 });
+      if (next instanceof Error) throw next;
+      return next;
+    }) as typeof fetch;
+  const answer = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+  const route = await askLaunchRoute(9393, "owner-token", "/code/app/src", {
+    fetcher: answering(answer({ protocol: 1, path: "/project/app", project: { name: "app", dir: "/code/app" } })),
+  });
+  assert.deepEqual(route, { path: "/project/app", project: { name: "app", dir: "/code/app" } });
+  // No Origin: a launcher is not a browser, and the token is the whole of what it is known by.
+  assert.deepEqual(seen, [{
+    url: "http://127.0.0.1:9393/_frizz/control/launch", method: "POST", token: "owner-token", origin: null,
+    body: { protocol: 1, dir: "/code/app/src" },
+  }]);
+
+  // The public listener is up before the server behind it: wait a restart out, briefly.
+  const recovering = answering(new Response("starting", { status: 503 }), new Response("starting", { status: 503 }), answer({ protocol: 1, path: "/" }));
+  assert.deepEqual(await askLaunchRoute(9393, "t", "/x", { fetcher: recovering }), { path: "/" });
+  assert.equal(await askLaunchRoute(9393, "t", "/x", { fetcher: answering(new Response("starting", { status: 503 })), patienceMs: 0 }), undefined);
+
+  // Every other answer means "decide it here": a server from before the route, a refusal, a server
+  // that is gone, an answer in another protocol, and a path that is not one of this origin's.
+  for (const response of [
+    new Response("Forbidden", { status: 403 }), new Response("Not found", { status: 404 }), new Error("ECONNREFUSED"),
+    answer({ protocol: 2, path: "/" }), answer({ protocol: 1, path: "//evil.example/" }), new Response("<!doctype html>", { status: 200 }),
+  ])
+    assert.equal(await askLaunchRoute(9393, "t", "/x", { fetcher: answering(response) }), undefined);
 });
 
 test("boardAddress: a bare origin gains a slash, `/` or an offer does not", () => {

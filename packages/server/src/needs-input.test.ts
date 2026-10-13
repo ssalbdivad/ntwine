@@ -194,8 +194,26 @@ test("steps have caps of their own, after the hints' cap, so a long list never c
   const steps = awaitingSteps(hints)
   assert.equal(steps.length, AWAITING_STEPS_MAX)
   assert.deepEqual(steps.slice(0, 2), ["step 1", "step 2"])
-  const long = awaitingSteps(splitAwaitingFrontmatter(`steps:\n  - ${"y".repeat(900)}`).hints)[0]
-  assert.equal(long.length, AWAITING_STEP_VALUE_MAX)
+  const long = awaitingSteps(splitAwaitingFrontmatter(`steps:\n  - ${"y".repeat(AWAITING_STEP_VALUE_MAX + 400)}`).hints)[0]
+  assert.equal(long, `${"y".repeat(AWAITING_STEP_VALUE_MAX)}…`, "a runaway step is cut where the cut shows")
+})
+
+test("a real step that names its ids and its link is never cut", () => {
+  // The shape of the step that ended mid-sentence under the old 500 cap (2026-10-12): three 32-character
+  // key ids beside a dashboard link, ~720 characters as written. The ids here are made up.
+  const step = "Open [Cloudflare → R2 → API tokens](https://dash.cloudflare.com/0123456789abcdef0123456789abcdef/r2/api-tokens) and delete the three old tokens with these Access Key IDs: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (acme-uploads-prod, the old production uploads key), `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb` (acme-private-prod, the old production webhook-archive key), and `cccccccccccccccccccccccccccccccc` (acme-uploads-dev, the old dev key). If the list shows names rather than IDs, open each token to see its ID. Keep the two new tokens, whose names end in `-2026-10-12`, and anything else you don't recognise from this list. Press Done when the three are gone."
+  assert.ok(step.length > 500)
+  assert.deepEqual(awaitingSteps(splitAwaitingFrontmatter(`steps:\n  - ${step}`).hints), [step])
+})
+
+test("a step written as a YAML quoted scalar renders without its quotes", () => {
+  const read = (fence: string) => awaitingSteps(splitAwaitingFrontmatter(fence).hints)
+  assert.deepEqual(read('steps:\n  - "Delete the token: `aaaa1111`, then press Done."'), ["Delete the token: `aaaa1111`, then press Done."])
+  assert.deepEqual(read("steps:\n  - 'Approve the **GitHub CLI** request, it''s the newest'"), ["Approve the **GitHub CLI** request, it's the newest"])
+  assert.deepEqual(read('steps:\n  - "Open the list\n    and delete the old key."'), ["Open the list and delete the old key."], "a quoted step continued on the next line")
+  // Quotes that open and close a step without wrapping it whole are the worker's prose.
+  assert.deepEqual(read('steps:\n  - "Done" means the key is gone, so type "Done"'), ['"Done" means the key is gone, so type "Done"'])
+  assert.deepEqual(read('steps:\n  - "'), ['"'])
 })
 
 test("steps ARE the needs_input answer: the line may be left out, and a false beside them reads true", () => {
@@ -203,7 +221,7 @@ test("steps ARE the needs_input answer: the line may be left out, and a false be
   assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("needs_input: false\nsteps:\n  - Sign in").hints), true, "a thread waiting on its human never hides from them")
   // The retired `human:` gate now points at steps for an act, and at a question for a decision.
   assert.match(RETIRED_AWAITING_REPLACEMENT.human, /`steps:`/)
-  assert.match(RETIRED_AWAITING_REPLACEMENT.human, /mcp__frizz__ask/)
+  assert.match(RETIRED_AWAITING_REPLACEMENT.human, /registered with `frizzctl ask`/)
 })
 
 // `questions:` (2026-10-05): a fence beside open questions names every one the worker still needs. The

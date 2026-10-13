@@ -52,7 +52,6 @@ export type ActionId =
   | "thread.open"
   | "thread.terminal"
   | "thread.editor"
-  | "thread.copyCommand"
   | "thread.menu"
   | "thread.spinoff"
   | "app.newThread"
@@ -89,10 +88,7 @@ export const ACTIONS: readonly ActionDef[] = [
   // The same folder in the Local file links app — the step `t` then `code .` took (ThreadMenu.tsx openInEditor).
   // With no thread in front of the human, the project's own folder (AllQueues.tsx).
   { id: "thread.editor", label: "Open in editor", group: "queue", defaultChord: "e" },
-  // Vim's and GitHub's `y` for copy ("yank"): each initial of "Copy terminal command" is already bound
-  // (C is New thread, T Open terminal), and the modifier forms are the browser's or need Shift.
-  { id: "thread.copyCommand", label: "Copy terminal command", group: "queue", defaultChord: "y" },
-  // The ⋯ menu itself, so its rarer verbs (Reload plugins, Restart worker, …) are ↓ and Enter away
+  // The ⋯ menu itself, so its rarer verbs (Restart worker, Thread info, …) are ↓ and Enter away
   // without each needing a letter of its own.
   { id: "thread.menu", label: "More actions", group: "queue", defaultChord: "m" },
   // → sends the thread off to the side, the way its dialog's footer reads "from → into". Not `s`, which

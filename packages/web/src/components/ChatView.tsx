@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
 import { AlertTriangle, ArrowDown, ArrowUp, Bot, Check, ChevronRight, FileText, HelpCircle, Hourglass, KeyRound, Loader2, Repeat, TerminalSquare } from "lucide-react"
-import { awaitingSteps, parseRecurringPrompt, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@frizz/shared"
+import { awaitingSteps, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@frizz/shared"
 import type { AskQuestion, AwaitingHint, BgShellView, PendingAsk, ThreadWatchView, RegisteredQuestionView, SubAgentView, ThreadView as ThreadViewData, TranscriptEdit, TranscriptMessage, TranscriptPart, TranscriptTodo, TranscriptToolCall } from "@frizz/shared"
 import { store, threadBySlug, pushDrawer, pushScheduleDrawer, pushSubAgentDrawer, pushBackgroundShellDrawer, showToast } from "../store.ts"
 import { scheduledRunFacts } from "../lib/schedules.ts"
@@ -16,7 +16,7 @@ import { CheckoutBaseContext, useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { splitComposerValue, splitProseAttachments } from "../lib/imagePaths.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
 import { basename } from "../lib/paths.ts"
-import { apiBase } from "../lib/base-path.ts"
+import { useThreadApiBase } from "../api/threadApi.tsx"
 import { DiffBlock, PathLink } from "./DiffBlock.tsx"
 import { LinkedHtml } from "./LinkedHtml.tsx"
 import { CodeBody } from "./CodeBody.tsx"
@@ -42,7 +42,7 @@ import { SentEditorContextChip } from "./SentEditorContext.tsx"
 import { AnswersCard } from "./AnswersCard.tsx"
 import { MentionIndexProvider, MentionLink, useMentionSegments } from "./MentionLinks.tsx"
 import { AgentMessage } from "./AgentMessage.tsx"
-import { WakeDivider } from "./WakeDivider.tsx"
+import { WAKE_DIVIDER_WIDE_ONLY, WakeDivider } from "./WakeDivider.tsx"
 import { useLiveAnswering, type LiveAnswering } from "../lib/answering.ts"
 import { SendScopeContext, useComposerSendHandle, usePromptBoxSends, useSendScope } from "../lib/sendScope.tsx"
 import { useIsMobile } from "../lib/mobile.ts"
@@ -57,9 +57,7 @@ import { timeBreakLabel, timeBreaks, type TimeBreak } from "../lib/timeBreaks.ts
 import { useUnqueueFollowUp, useUnqueueSupported } from "../lib/unqueueFollowUp.ts"
 import { useFailedDeliveryActions } from "../lib/failedDelivery.ts"
 import { useDeliverQueuedNow, useDeliverQueuedNowSupported } from "../lib/deliverQueuedNow.ts"
-import { useInnerHtml } from "../lib/innerHtml.ts"
 import { SessionMessageLine } from "./SessionMessageLine.tsx"
-import { useLocalFileCodeLinks } from "../lib/localFileCode.ts"
 import { lastAskIndex, messagePresentationText } from "../lib/messagePresentation.ts"
 import { ICON_LABEL_NUDGE } from "../lib/iconAlign.ts"
 import { getThemeSnapshot, subscribeTheme } from "../lib/theme.ts"
@@ -115,7 +113,6 @@ import { drawsWorking, frozenPendingAsk } from "../lib/operatorBlock.ts"
 export { CARD_BODY, CARD_PRIMARY_BUTTON, CardActions, TranscriptCard } from "./TranscriptCard.tsx"
 export { QuestionBlockCard } from "./QuestionBlockCard.tsx"
 import { ThreadBandStamp } from "./BandLabel.tsx"
-import { useCopyTerminalCommand } from "./ExternalTerminalCommand.tsx"
 import { SignInModal } from "./SignInModal.tsx"
 import { PROVIDER_LABEL } from "../lib/signIn.ts"
 import { ThreadMenu, ThreadTerminalButton } from "./ThreadMenu.tsx"
@@ -220,7 +217,7 @@ export function withoutLiveTranscriptBackgroundTools(messages: readonly ChatMess
 //
 // ON A PHONE (below 700px, in the drawer — the only way a phone opens a thread) the chrome is the phone's
 // own (mockup v2 §2): a 56px MobileThreadHeader in place of the two-row header and its icon strip —
-// Snooze, Goal, the context reading and the maintenance verbs live in the header's ⋯ sheet, and the one
+// Snooze, Goal, the context reading and Restart worker live in the header's ⋯ sheet, and the one
 // lifecycle verb that matters at rest belongs to the bottom bar. The /full page (no `onClose`) keeps the
 // desktop chrome on every width; a phone never links to it. (Desktop had a lifecycle footer under the
 // prompt box until 2026-10-05; its verbs and the context reading moved into ThreadHeader, and the Goal
@@ -276,7 +273,6 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
     [phone, openQuestions],
   )
   const running = thread?.runtime === "running" || thread?.runtime === "spawning"
-  const copyTerminalCommand = useCopyTerminalCommand(slug)
 
   // Freshness is centrally managed (transcript-live.ts keeps every observed transcript live); `poll`
   // only gates the SSE-fallback interval for a running thread.
@@ -491,7 +487,6 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
           fencesLive={fencesLive}
           thread={thread}
           running={running}
-          copyTerminalCommand={copyTerminalCommand}
           transportFallback={q.transportFallback}
           isFetching={q.isFetching}
           refresh={() => void q.refetch()}
@@ -601,7 +596,6 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
                 state={runtimeStatus}
                 slug={slug}
                 retryText={lastUserIdx >= 0 ? messages[lastUserIdx]?.text : undefined}
-                onTerminal={copyTerminalCommand}
                 liveRuntimeStart={liveRuntimeStart}
                 liveActivityLabel={liveActivityLabel}
                 liveToolRun={liveToolRun}
@@ -644,7 +638,6 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
                   state={runtimeStatus}
                   slug={slug}
                   retryText={lastUserIdx >= 0 ? messages[lastUserIdx]?.text : undefined}
-                  onTerminal={copyTerminalCommand}
                   liveRuntimeStart={liveRuntimeStart}
                   liveActivityLabel={liveActivityLabel}
                   liveToolRun={liveToolRun}
@@ -841,11 +834,10 @@ export function terminalNetRung(thread: ThreadViewData | undefined): "pending-as
   return frozenPendingAsk(thread) ? "pending-ask" : null
 }
 
-/** The terminal net's card, for a surface that draws only this part of the ladder (the queue card). The
- *  caller supplies `onTerminal` from a useCopyTerminalCommand scoped to the thread's own project. */
-export function TerminalNetCard({ thread, onTerminal }: { thread: ThreadViewData; onTerminal: () => void }) {
+/** The terminal net's card, for a surface that draws only this part of the ladder (the queue card). */
+export function TerminalNetCard({ thread }: { thread: ThreadViewData }) {
   const ask = frozenPendingAsk(thread)
-  return ask ? <PendingAskCard ask={ask} onTerminal={onTerminal} /> : null
+  return ask ? <PendingAskCard ask={ask} /> : null
 }
 
 /** WHICH RUNG WINS, or null when the slot draws nothing at all. The order is the ladder: a provider auth
@@ -881,7 +873,6 @@ export function RuntimeStatusLadder({
   state,
   slug,
   retryText,
-  onTerminal,
   liveRuntimeStart,
   liveActivityLabel,
   liveToolRun,
@@ -890,7 +881,6 @@ export function RuntimeStatusLadder({
   slug: string
   /** The human's last ask, for the fault card's retry. */
   retryText: string | undefined
-  onTerminal: () => void
   liveRuntimeStart: string | undefined
   liveActivityLabel: string | undefined
   liveToolRun: { tools: readonly TranscriptToolCall[]; at?: string } | undefined
@@ -904,7 +894,7 @@ export function RuntimeStatusLadder({
     case "limit-pause":
       return <LimitPauseCard slug={slug} sessionId={thread!.sessionId} pause={thread!.limitPause!} />
     case "pending-ask":
-      return <TerminalNetCard thread={thread!} onTerminal={onTerminal} />
+      return <TerminalNetCard thread={thread!} />
     case "working":
       return <WorkingIndicator since={thread?.lastUserAt} startedAt={liveRuntimeStart} activityLabel={liveActivityLabel} run={liveToolRun} />
     case "snooze":
@@ -939,7 +929,6 @@ function VirtualizedThreadTranscript({
   fencesLive,
   thread,
   running,
-  copyTerminalCommand,
   transportFallback,
   isFetching,
   refresh,
@@ -969,7 +958,6 @@ function VirtualizedThreadTranscript({
   fencesLive: boolean
   thread: ThreadViewData | undefined
   running: boolean
-  copyTerminalCommand: () => void
   transportFallback: TranscriptTransportFallback
   isFetching: boolean
   refresh: () => void
@@ -1714,7 +1702,6 @@ function VirtualizedThreadTranscript({
                   state={runtimeStatus}
                   slug={slug}
                   retryText={lastUserIdx >= 0 ? messages[lastUserIdx]?.text : undefined}
-                  onTerminal={copyTerminalCommand}
                   liveRuntimeStart={liveRuntimeStart}
                   liveActivityLabel={liveActivityLabel}
                   liveToolRun={liveToolRun}
@@ -1776,8 +1763,8 @@ function JumpToLatest({ overlay, hidden, onJump }: { overlay: HTMLElement | null
 
 // The thread's top bar: title, then "Last active · context" (ThreadHeaderFacts), and at the far right the
 // shared HeaderActions closed by the two lifecycle verbs, snooze and mark as done (ThreadLifecycleActions)
-// — the same strip the queue card's header draws. Owned sessions expose a command-copy icon; foreign rows
-// do not. It carried a Chat|Doc tab strip until 2026-08-06; see ThreadView for why that went.
+// — the same strip the queue card's header draws. It carried a Chat|Doc tab strip until 2026-08-06; see
+// ThreadView for why that went.
 export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue = false }: { slug: string; onStatusApplied?: () => void; onClose?: () => void; showReturnToQueue?: boolean }) {
   const board = useBoard()
   const thread = threadBySlug(board, slug)
@@ -3730,18 +3717,14 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // A scheduler wake is recorded as a user turn because it is pasted into the worker's composer —
     // but FRIZZ wrote it, not the human, so it must not wear the human's right-justified
     // bubble. `m.wake` is the server's own tell (the delivery token it stripped), never a text guess.
-    // A recurring prompt (either trigger) is a wake too, but it REPEATS by design — the same
-    // paragraph every few minutes on a thread being driven by one — so it collapses to a single line
-    // rather than restating itself in full down the transcript. Parsed from frizz's own trailer, defined
-    // beside the composer that writes it; a non-match falls through to the divider below, so no wake
-    // can lose its text to this.
-    const recurring = m.wake ? parseRecurringPrompt(text) : undefined
-    if (recurring) return <RecurringPromptLine bump={recurring} sourceId={m.sourceId} at={m.at} />
+    // A recurring prompt (the Goal's, either trigger) is routed by FrizzWake, AFTER it cuts a merged
+    // delivery apart: the Goal's trailer is matched at the END of the text, so a delivery whose last wake
+    // is the Goal's prompt ends in it too, and picking it off here read every wake held beside it as one
+    // Goal line (upstream 14025d09).
     // A message from ANOTHER FRIZZ THREAD is delivered as a wake, but it is another agent speaking, so
-    // it takes the agent-message bubble rather than Frizz's own chrome (AgentMessage.tsx).
-    const threadMessage = m.wake ? parseThreadMessage(text) : undefined
-    if (threadMessage) return <AgentMessage direction="in" kind="thread" name={<ThreadHandleName handle={threadMessage.from} />} body={threadMessage.body} status={threadMessage.answersWait ? "replied" : threadMessage.awaitsReply ? "reply requested" : undefined} at={m.at} sourceId={m.sourceId} />
-    if (m.wake) return <FrizzWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} />
+    // it takes the agent-message bubble rather than Frizz's own chrome (AgentMessage.tsx). FrizzWake asks
+    // this renderer for each part it draws, so one held and merged with other wakes is still a bubble.
+    if (m.wake) return <FrizzWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} />
     // A SIDEWAYS writer of a user turn the human didn't type: another top-level thread messaging this
     // one. An expandable hairline naming and linking the sender — see SessionMessageLine.
     if (m.sessionPeer) return <SessionMessageLine peer={m.sessionPeer} text={text} queued={m.queued} sourceId={m.sourceId} at={m.at} wrap={dense} />
@@ -4049,13 +4032,13 @@ function SettledAwaitingNote({ body, wrap }: { body: string; wrap?: boolean }) {
 
 function ProseHtml({ md, wrap }: { md: string; wrap?: boolean }) {
   const html = useMarkdownHtml(md)
-  const inner = useInnerHtml(html)
-  const ref = useRef<HTMLDivElement>(null)
-  // Make inline-code file references clickable (opens in the user's editor/default app) once the server
-  // confirms each resolves to a real file. Runs after render; a no-op when the prose has no such paths.
-  useLocalFileCodeLinks(ref, html)
   if (!html) return null
-  return <div ref={ref} className={`md-body${wrap ? ` ${QUEUE_WRAP}` : ""}`} dangerouslySetInnerHTML={inner} />
+  // Through LinkedHtml, as a card's prose is: inline-code file references become clickable once the
+  // server confirms each resolves to a real file, and a ```lightbox or ```mermaid fence still IN the
+  // prose is drawn where it stands. The splitter lifts those fences out when they are blocks of their
+  // own (lib/imagePaths.ts splitProseAttachments); the ones it leaves are inside something — a
+  // `<details>` section, a list item, a quote — where lifting would break the thing they are inside.
+  return <LinkedHtml className={`md-body${wrap ? ` ${QUEUE_WRAP}` : ""}`} html={html} />
 }
 
 // A local absolute image path rendered inline via the gated /local-image route, inside the shared
@@ -4153,7 +4136,10 @@ export function InlineVisualization({ file }: { file: string }) {
   const requestId = useRef(0)
   const loadedSrc = useRef<string | null>(null)
   const { resolved } = useSyncExternalStore(subscribeTheme, getThemeSnapshot, getThemeSnapshot)
-  const src = slug ? `${apiBase()}/local-visualization?slug=${encodeURIComponent(slug)}&file=${encodeURIComponent(file)}` : null
+  // The route is the THREAD's project's (ThreadProjectScope), so a visualization on another project's
+  // card loads from that project rather than the page's (upstream ff43f7d3, in the fork's scoping).
+  const base = useThreadApiBase()
+  const src = slug ? `${base}/local-visualization?slug=${encodeURIComponent(slug)}&file=${encodeURIComponent(file)}` : null
 
   useEffect(() => {
     if (!src) { setAvailable(false); return }
@@ -4645,9 +4631,11 @@ export function GithubWatchRows({ watches }: { watches: readonly ThreadWatchView
 
 // The read-only render of a PENDING native AskUserQuestion (the safety net for a session that bypassed
 // the thread-file ask channel). Shows the REAL question(s) + options as NON-interactive rows —
-// deliberately NOT answer-chips: answering a native TUI dialog by keystroke injection is too fragile, so
-// the ONE affordance copies an external-terminal command, where the dialog can actually be answered.
-export function PendingAskCard({ ask, onTerminal }: { ask: PendingAsk; onTerminal: () => void }) {
+// deliberately NOT answer-chips: answering a native TUI dialog by keystroke injection is too fragile.
+// It carries NO action at all. It draws for a foreign session only (lib/operatorBlock.ts
+// `frozenPendingAsk`), which the operator is already running in their own terminal: the label says
+// where the answer goes, and Frizz has no session of its own there to hand them a command for.
+export function PendingAskCard({ ask }: { ask: PendingAsk }) {
   return (
     <TranscriptCard tone="attention" icon={HelpCircle} label="Waiting on your answer — in your external terminal">
       <div className="flex flex-col gap-3">
@@ -4672,19 +4660,6 @@ export function PendingAskCard({ ask, onTerminal }: { ask: PendingAsk; onTermina
           </div>
         ))}
       </div>
-      <CardActions>
-        <button
-          onClick={() => onTerminal()}
-          onMouseDown={(e) => e.preventDefault()}
-          className={CARD_PRIMARY_ACTION}
-        >
-          {/* No literal space before the label — the flex `gap` IS the spacing. A JSX space here
-              rendered as a real space character ON TOP of the gap and made this the widest icon/label
-              gap on the page by ~3px. */}
-          <KeyRound size={12} className={`shrink-0 ${ICON_LABEL_NUDGE}`} />
-          Copy terminal command
-        </button>
-      </CardActions>
     </TranscriptCard>
   )
 }
@@ -4705,14 +4680,19 @@ function AgentCompletionLine({ call, sourceId, at }: { call: TranscriptToolCall;
   // The quoted slot shows the child's HANDLE (`cache-keys`), as every row that names a child does
   // (groups.ts subAgentName); the dispatch's own words stay on the hover and go to the drawer.
   const name = call.detail ? subAgentName(call.detail) : title
-  const { tail } = subAgentCompletionOutcome(call)
+  const { outcome, tail } = subAgentCompletionOutcome(call)
+  // The run's own duration, as `tail` writes it after the outcome word (`· 35m`), or nothing.
+  const ran = tail.slice(outcome.length).trim()
   const canDrill = !!(slug && call.agentId)
   const noun = call.name === "Workflow" ? "Workflow" : "Sub-agent"
   // `at` is the instant the completion LANDED, and it sits after the run's own duration in `tail`
   // ("finished · 35 min · 2h ago"): how long it ran, then how long ago it came back.
   return (
     <WakeDivider icon={Bot} sourceId={sourceId} marker="agent" ariaLabel={canDrill ? undefined : `${noun} ${title} ${tail}`} at={at}>
-      <span className="shrink-0">{noun}</span>
+      {/* WIDE ONLY, with the run's duration below (see WAKE_DIVIDER_WIDE_ONLY): on a narrow row the bot
+          glyph says what came back and the room goes to the title, which is the only thing here that says
+          WHICH one. The outcome word is the news and stays at every width. */}
+      <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}>{noun}</span>
       {/* The guillemets sit OUTSIDE the truncating element (and inside a gap-less nested flex) so a
           title clipped at a narrow width still closes its quote — `«a long title…` reads as broken
           punctuation, not as a truncation. It also scopes the link underline to the title itself. */}
@@ -4735,7 +4715,8 @@ function AgentCompletionLine({ call, sourceId, at }: { call: TranscriptToolCall;
         )}
         <span className="shrink-0">»</span>
       </span>
-      <span className="shrink-0">{tail}</span>
+      <span className="shrink-0">{outcome}</span>
+      {ran && <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}>{ran}</span>}
     </WakeDivider>
   )
 }
@@ -4779,6 +4760,16 @@ function ThreadHandleName({ handle }: { handle: string }) {
   return segment?.kind === "mention" ? <MentionLink segment={segment} /> : <span>@{handle}</span>
 }
 
+// THE INCOMING HALF of a thread-to-thread message: a wake carrying another Frizz thread's words, drawn as
+// that thread speaking (AgentMessage) rather than as Frizz's own chrome. Handed to FrizzWake, which asks
+// it for the whole delivery and for each part of a merged one.
+function threadMessageBubble(text: string, sourceId: string | undefined, at: string | undefined): ReactNode | null {
+  const message = parseThreadMessage(text)
+  if (!message) return null
+  const status = message.answersWait ? "replied" : message.awaitsReply ? "reply requested" : undefined
+  return <AgentMessage direction="in" kind="thread" name={<ThreadHandleName handle={message.from} />} body={message.body} status={status} at={at} sourceId={sourceId} />
+}
+
 // THE OUTGOING HALF: this turn calling `SendMessage` (a steer to a child it dispatched, a report up to
 // `main`, a codex follow-up) or `message_thread` (another Frizz thread). The same component on every
 // surface — the thread's chat and the sub-agent drawer both keep the body now, so there is no longer a
@@ -4817,7 +4808,7 @@ function EventLine({ text, boundary, wakeShellId, sourceId, at }: { text: string
   //
   // The glyph is why the server names the KIND rather than sending a bare flag. A `wake` is a
   // background shell/task coming back, and it takes the terminal glyph the rest of the app already uses
-  // for a background shell (TerminalSheet, ExternalTerminalCommand). A `compaction` is not a
+  // for a background shell (TerminalSheet, AwaitingBackgroundCard). A `compaction` is not a
   // child returning at all — nothing ran, the provider just dropped the conversation above this line —
   // so it takes NO glyph rather than borrowing one that would misname it. Nor does a `rest`: it was the
   // most FREQUENT divider by far — one per turn — and a mark on every one of them is noise the quieter
@@ -4840,8 +4831,11 @@ function EventLine({ text, boundary, wakeShellId, sourceId, at }: { text: string
         {/* TRUNCATES, like every sibling: as a bare text node the label was a wrapping flex item, and
             once the age joined it the runtime-reported shell line broke onto two lines at 420px while
             the frizz-reported twin beside it (ShellDoneDivider) clipped to one — the pair that must be
-            pixel-identical. The age stays outside this span so it survives the clip. */}
-        <ShellWakeText text={text} onOpen={openShell} />
+            pixel-identical. The age stays outside this span so it survives the clip.
+            A wake line QUOTES a title — `Agent terminal «…» finished`, which is every shell and monitor
+            the server labels — and gives up the title, not its outcome, cut exactly as that twin cuts its
+            own (ShellWakeText). */}
+        {boundary === "wake" ? <ShellWakeText text={text} onOpen={openShell} /> : <span className="min-w-0 truncate">{text}</span>}
       </WakeDivider>
     )
   }

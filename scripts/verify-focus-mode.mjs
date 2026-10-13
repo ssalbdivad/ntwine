@@ -24,7 +24,7 @@
 //   nub scripts/verify-focus-mode.mjs --stack=/tmp/stack.log [--shots=/abs/dir] [--only=<words in a step name>]
 import { mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => { const s = a.slice(2); const i = s.indexOf("="); return i < 0 ? [s, true] : [s.slice(0, i), s.slice(i + 1)] }),
@@ -63,7 +63,7 @@ async function step(name, run) {
   }
 }
 
-const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 const errors = []
 const boardReads = []
 async function open(context, url, { width = 1440, height = 1000 } = {}) {

@@ -201,7 +201,7 @@ function parseGuard(path: string): MutationGuardRecord | null {
   }
 }
 
-function acquireMutationGuard(
+export function acquireMutationGuard(
   stateDir: string,
   timeoutMs = GUARD_TIMEOUT_MS,
   adapter: ProcessPlatformAdapter = defaultProcessPlatformAdapter,

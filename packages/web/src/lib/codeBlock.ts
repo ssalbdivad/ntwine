@@ -189,7 +189,10 @@ const expandButton = (panel: Panel) =>
 export function renderCodeBlock(parts: readonly CodePart[]): string {
   const single = parts.length === 1
   const island = single && ISLAND_FENCE.test(parts[0].info.trim().split(/\s+/, 1)[0])
-  if (island) return renderHighlightedCode(parts[0].text, parts[0].info)
+  // An island fence STILL BEING WRITTEN gives up its name, so it is a plain code block until its closing
+  // line arrives: the pass that swaps a named block for a diagram or a gallery cannot tell half a fence
+  // from a whole one in the HTML, and would draw (and fail to draw) a new one on every delta.
+  if (island) return renderHighlightedCode(parts[0].text, parts[0].closed ? parts[0].info : "")
 
   const panels = parts.map(buildPanel)
   const title = single ? parts[0].label ?? panels[0].diff?.file ?? undefined : undefined

@@ -10,11 +10,14 @@
 //   ask-permission  every prompt runs one `execute` tool call gated on session/request_permission
 //   cancel-error    session/cancel makes the in-flight prompt FAIL with -32603 "aborted" (Gemini does this)
 //   no-load         advertises loadSession:false
+//   shell           a prompt line `RUN: <command>` is run by `sh -c` in the agent's OWN environment, which
+//                   is what a real agent's shell tool does; the result goes to FAKE_ACP_LOG
 //
 // FAKE_ACP_LOG, when set, receives one JSON line per inbound frame so a test can assert what the client
 // actually sent (the mcpServers it passed, the prompt text, the cwd).
 
 import { appendFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
 
 const mode = process.env.FAKE_ACP_MODE ?? ""
 const logPath = process.env.FAKE_ACP_LOG
@@ -92,6 +95,13 @@ async function handle(msg) {
       const text = (p.prompt ?? []).map((b) => b.text ?? "").join("")
       notify(sessionId, { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "thinking about " }, messageId: "m1" })
       notify(sessionId, { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "it" }, messageId: "m1" })
+      if (mode === "shell") {
+        const command = /^RUN: (.+)$/m.exec(text)?.[1]
+        if (command) {
+          const ran = spawnSync("/bin/sh", ["-c", command], { encoding: "utf8" })
+          if (logPath) appendFileSync(logPath, JSON.stringify({ shell: { command, code: ran.status, stdout: ran.stdout, stderr: ran.stderr } }) + "\n")
+        }
+      }
       if (mode === "ask-permission") {
         notify(sessionId, { sessionUpdate: "tool_call", toolCallId: "call_1", title: "bash", kind: "execute", status: "pending", rawInput: { command: "rm -rf build" } })
         const answer = await ask("session/request_permission", {

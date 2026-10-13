@@ -2,7 +2,7 @@ import { noteServerBootId } from "./boot.ts"
 import { store } from "../store.ts"
 import { PROCEDURES, type Api, type ProcType, type RpcCallOpts } from "./contract.ts"
 import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
-import { apiBase } from "../lib/base-path.ts"
+import { apiBase, isUnboundHome } from "../lib/base-path.ts"
 import { noteRpcMutation } from "../lib/humanActs.ts"
 
 export type { Api, ProcType, RpcCallOpts } from "./contract.ts"
@@ -70,6 +70,55 @@ export async function parseRpcResponse(res: Response, name: string): Promise<unk
   return json.result
 }
 
+// WHICH PROJECT A PLAIN `rpc` CALL IS FOR, and the one place that decides it.
+//
+// The page says (`apiBase()`): its board's project, the drawer's, or the pick All projects is bound to. A
+// page that names none and has none bound — `/all` or `/` before its pick, or with nothing to pick — makes
+// `apiBase()` answer the unprefixed `/_frizz`, the project that LAUNCHED the server, so a call there that
+// needed a project would read or write a stranger's state and look like it worked. Here that call throws
+// instead. (Upstream's routeCall, 759c3255, written for its Console; a call that NAMES its project goes
+// through `projectRpc` and never reaches this.)
+
+/**
+ * Procedures that read ONE project's state but name no thread in their input, so nothing in the call
+ * says which project they are for (packages/server/src/router.ts reads `ctx.project`, its storage, its
+ * settings or its roots for each).
+ *
+ * `settingsGet`/`settingsSet`/`settingsReset` are deliberately NOT here: the keys a page that names no
+ * project reads (`notifications`, `projectRail`, the file opener) are machine-level (server/settings.ts),
+ * and any project answers them the same way.
+ */
+export const PROJECT_SCOPED_PROCEDURES: ReadonlySet<string> = new Set([
+  "board",
+  "dispatch",
+  "repairThread",
+  "openLocalFile",
+  "localMarkdown",
+  "localFile",
+  "resolveLocalPaths",
+  "githubStatus",
+  "githubList",
+  "githubDispatchBatch",
+  "claudeModels",
+  "acpAgents",
+  "acpAgentModels",
+])
+
+/** Machine-wide procedures whose input carries a REAL slug that is not this page's thread. */
+const MACHINE_SLUG_PROCEDURES: ReadonlySet<string> = new Set(["threadLocate"])
+
+/** Where a plain `rpc` call named `name` goes. Pure apart from reading the page's path; unit-tested. */
+export function routeCall(name: string, input: unknown, pathname?: string): string {
+  if (isUnboundHome(pathname)) {
+    const slug = input && typeof input === "object" ? (input as { slug?: unknown }).slug : undefined
+    if (typeof slug === "string" && !MACHINE_SLUG_PROCEDURES.has(name)) {
+      throw new Error(`RPC ${name}: "${slug}" names no project, and this page has none bound`)
+    }
+    if (PROJECT_SCOPED_PROCEDURES.has(name)) throw new Error(`RPC ${name} needs a project, and this page has none bound`)
+  }
+  return apiBase(pathname)
+}
+
 async function call(base: string, name: string, type: ProcType, input?: unknown, opts?: RpcCallOpts): Promise<unknown> {
   // The old child may remain healthy while its durable owner is building a replacement. Do not let
   // a mutation race that handoff; local draft state remains editable and every query stays available.
@@ -99,19 +148,20 @@ async function call(base: string, name: string, type: ProcType, input?: unknown,
   return result
 }
 
-/** A typed client whose every call goes to `base()`, read at CALL time. */
-function createRpc(base: () => string): Api {
+/** A typed client whose every call goes to `base(name, input)`, read at CALL time. */
+function createRpc(base: (name: string, input: unknown) => string): Api {
   return new Proxy({} as Api, {
     get(_target, name: string) {
       const type = (PROCEDURES as Record<string, ProcType | undefined>)[name]
       if (!type) return undefined
-      return (input?: unknown, opts?: RpcCallOpts) => call(base(), name, type, input, opts)
+      // Async, so a call `base` refuses is a rejected promise like any other failure, not a throw.
+      return async (input?: unknown, opts?: RpcCallOpts) => call(base(name, input), name, type, input, opts)
     },
   })
 }
 
 /** THIS PAGE's project — whichever one the address bar names, or the launching project unprefixed. */
-export const rpc = createRpc(() => apiBase())
+export const rpc = createRpc((name, input) => routeCall(name, input))
 
 const projectClients = new Map<string, Api>()
 

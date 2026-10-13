@@ -48,11 +48,22 @@ const RICH_FENCE = /^\s{0,3}(`{3,}|~{3,})\s*(mermaid|lightbox)\s*$/i
 // thread's `.codex/visualizations/YYYY/MM/DD/<session-id>/` directory. Keep the grammar exact:
 // arbitrary attributes, paths, uppercase names, and inline occurrences remain ordinary prose.
 const INLINE_VIS_LINE = /^\s*::codex-inline-vis\{file="([a-z0-9][a-z0-9-]{0,127}\.html)"\}\s*$/
+// The tags of a collapsible section (lib/disclosure.ts). Counted per line, because sections nest.
+const SECTION_OPEN = /<details(?=[\s>])/gi
+const SECTION_CLOSE = /<\/details\s*>/gi
 
 export function splitProseAttachments(md: string): ProsePart[] {
   const lines = md.split("\n")
   const parts: ProsePart[] = []
   let buf: string[] = []
+  // How many `<details>` sections are open at this line. NOTHING IS LIFTED OUT OF ONE: a part is a block
+  // of its own between two blocks of prose, so a gallery lifted out of a section cut the section in two
+  // — its `<details>` closed at the end of the first half, and the pictures the author had folded away
+  // stood below it, always in view. Inside a section a fence stays in the Markdown and is drawn where
+  // it stands (ChatView's ProseHtml runs the same fence islands a card does), and a picture's path line
+  // becomes the Markdown image it is shorthand for. A section never closed keeps everything after it,
+  // which costs those blocks nothing but the lift.
+  let sections = 0
   // Which lines sit INSIDE a fenced code block, by CommonMark's rules (@frizz/shared code-fences): a
   // fence closes only on a bare run of its own character at least as long as its opener. A toggle on
   // every ``` line got that wrong exactly when it mattered — a worker quoting a ```lightbox or ```mermaid
@@ -76,6 +87,15 @@ export function splitProseAttachments(md: string): ProsePart[] {
     const line = lines[i]
     if (quoted(starts[i])) {
       buf.push(line)
+      continue
+    }
+    const opened = line.match(SECTION_OPEN)?.length ?? 0
+    const inSection = sections > 0 || opened > 0
+    sections = Math.max(0, sections + opened - (line.match(SECTION_CLOSE)?.length ?? 0))
+    if (inSection) {
+      const picture = line.match(IMAGE_LINE)
+      // An angle-bracketed destination, so a path with spaces is still one destination.
+      buf.push(picture && !/[<>]/.test(picture[1]) ? `![](<${picture[1]}>)` : line)
       continue
     }
     const rich = line.match(RICH_FENCE)

@@ -372,7 +372,6 @@ function Fixture() {
                 },
               ],
             }}
-            onTerminal={() => {}}
           />
         </Section>
       </main>

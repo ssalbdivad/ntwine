@@ -11,8 +11,8 @@ test("hovering a stalled sidebar row reveals a Retry button that restarts the se
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   const notFound: string[] = []

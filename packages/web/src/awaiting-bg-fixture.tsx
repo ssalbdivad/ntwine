@@ -159,9 +159,20 @@ const thread = {
       body: tail,
       hints: [
         ...(stepsMode === "titled" ? [{ kind: "title", value: "Sign in to npm so the acme 4.2.0 release can publish" }] : []),
-        { kind: "step", value: "Run `npm login --auth-type=web` in a terminal on this machine." },
-        { kind: "step", value: "Approve the browser prompt with the **acme-bot** account." },
-        { kind: "step", value: "Reply here once `npm whoami` prints `acme-bot`." },
+        // ?steps=long — the shape of the card that prompted the stepper (2026-10-12): five steps, one
+        // opening on a dashboard link, three carrying 32-character ids that wrap. The ids are made up.
+        ...(stepsMode === "long" ? [
+          { kind: "title", value: "Delete the three leaked R2 tokens" },
+          { kind: "step", value: "Open [Cloudflare → R2 → API tokens](https://dash.cloudflare.com/0123456789abcdef0123456789abcdef/r2/api-tokens). If the list shows only names, click a token to see its Access Key ID." },
+          { kind: "step", value: "Delete the token with Access Key ID `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (the old `acme-uploads-prod` key)." },
+          { kind: "step", value: "Delete the token with Access Key ID `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb` (the old `acme-private-prod` key)." },
+          { kind: "step", value: "Delete the token with Access Key ID `cccccccccccccccccccccccccccccccc` (the old `acme-uploads-dev` key)." },
+          { kind: "step", value: "Keep the two new tokens whose names end in `-2026-10-12`, and leave every other token alone. Press **Done** when the three are gone." },
+        ] : [
+          { kind: "step", value: "Run `npm login --auth-type=web` in a terminal on this machine." },
+          { kind: "step", value: "Approve the browser prompt with the **acme-bot** account." },
+          { kind: "step", value: "Reply here once `npm whoami` prints `acme-bot`." },
+        ]),
       ],
     },
   } : declaredTitle === null ? {} : {

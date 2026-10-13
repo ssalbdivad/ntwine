@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { formatGithubWakeSteer, limitModelSwitchSteer, limitResumeSteer, parkExpiredWakeMessage, parkFinishedWakeMessage, PR_WATCH_ARMED_TRAILER, prWatchExpiredWakeMessage, prWatchWakeMessage, questionsCancelledWakeMessage, shellDoneMessage, timerPromptMessage } from "@frizz/shared"
+import { formatGithubWakeSteer, limitModelSwitchSteer, limitResumeSteer, mergedWakeMessage, ownWatchExpiredWakeMessage, parkExpiredWakeMessage, parkFinishedWakeMessage, PR_WATCH_ARMED_TRAILER, prWatchExpiredWakeMessage, prWatchWakeMessage, questionsCancelledWakeMessage, restPromptMessage, shellDoneMessage, timerPromptMessage } from "@frizz/shared"
 import type { ChatMessage } from "./hooks.ts"
 import { Message } from "./components/ChatView.tsx"
 import "./styles.css"
@@ -12,8 +12,9 @@ import "./styles.css"
 // stacked under those hairlines (maintainer 2026-08-18: "these callouts should obviously be hairlines",
 // and 2026-08-19 on extending it to the rest).
 //
-// Recognized wakes use the scheduler's real formatters. Fallback samples also cover text with no
-// structured parser, including the Markdown envelope around a batch of held wakes.
+// Recognized wakes use the scheduler's real formatters — the merged delivery included, which is several
+// of them under one envelope and must draw exactly what they draw apart. Fallback samples cover text
+// with no structured parser.
 //
 // `?font=sans|mono` sets `data-font`. The prose font is a user setting applied before first paint, and a
 // fixture that does not set it silently renders the mono default — which is how a glyph fitted here once
@@ -37,24 +38,44 @@ const review = formatGithubWakeSteer({
   items: [{ label: "comment", actor: "colinhacks", bot: false, at: new Date(Date.now() - 26 * 3_600_000).toISOString(), url: "https://github.com/nubjs/nub/pull/756#issuecomment-5120099362" }],
 })
 
+// THE MERGED DELIVERY — everything that was waiting for a thread, sent as one message. Composed by the
+// scheduler's own `mergedWakeMessage`, with the reason lines it really writes, so what this page draws is
+// what a transcript draws. The clock at its foot is left on: the server's display projection normally
+// takes it off, and the split has to read the same either way.
+const ciRed = prWatchWakeMessage({ target: "nubjs/nub#761", checks: { verdict: "failing", passed: 4, failed: 2, failing: ["build (windows-latest)", "test (macos-14)"] } })
+const heldAt = Date.now() - 205 * 60_000
+const merged = (...parts: [reason: string, message: string][]) =>
+  mergedWakeMessage(parts.map(([reason, message]) => ({ reason, message })), heldAt, new Date(heldAt - 3 * 60_000).toISOString())
+
 const messages: ChatMessage[] = [
-  wake("batched", `Frizz held 2 wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.
-
-### 1. Awaiting park ended
-
-${parkFinishedWakeMessage(["- `shells: [bc3rwp1k7]` — FINISHED — its result is waiting", "- `shells: [b7tv2uf53]` — still running"], false)}
-
-### 2. Timer fired
-
-Read the **finished** [report](https://example.com/report).
-
-\`\`\`text
-${"long-token-".repeat(35)}
-\`\`\`
-
-<script>window.__wakePwned = true</script>
-
-${PR_WATCH_ARMED_TRAILER}`),
+  // THE PAIR THIS WAS REPORTED ON, and the commonest one there is: a park ending and the shell whose
+  // exit ended it are one event, so they are always queued together. It drew a bordered card holding
+  // both agent-facing bodies ("READ ITS OUTPUT AND CARRY ON…") under the scheduler's internal reason
+  // strings, from the day the merge shipped until 2026-10-11. Two hairlines, at the pitch of any other
+  // two — compare the lone pair `w17` and `w9` further down, which must read identically.
+  wake("batched", merged(
+    ["awaiting park named 1 dead item(s)", `${parkFinishedWakeMessage(["- `shells: [br6vpp762]` — FINISHED — its result is waiting for you"], false)}\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n\`\`\`done, or register a question with \`frizzctl ask\`.`],
+    ["background shell finished (br6vpp762)", shellDoneMessage({ taskId: "br6vpp762", label: "Running the update harness against the built shell and server", status: "completed" })],
+  )),
+  // EVERY ROUTE A LONE WAKE CAN TAKE, taken from inside one delivery: a CI verdict reported by two polls
+  // and folded into one section, a fired timer whose own trailer is what its parser anchors on, and a
+  // Goal prompt. Three hairlines — the repeated verdict is said once.
+  //
+  // THE GOAL IS LAST ON PURPOSE. Its parser matches a trailer at the END of the text, and a delivery
+  // that ends in the Goal's prompt ends in that trailer too — so routed ahead of the split, this whole
+  // delivery drew as the one line "Goal · at rest" and the two wakes above it were never shown.
+  wake("batched-mixed", merged(
+    ["pr-watch nubjs/nub#761 CI failing", ciRed],
+    ["pr-watch nubjs/nub#761 CI failing", ciRed],
+    ["one-off timer elapsed (2026-10-11T16:40:00.000Z)", timerPromptMessage("Re-check the promoted artifact once the release job finishes.", new Date(heldAt - 60_000).toISOString())],
+    ["recurring prompt at rest", restPromptMessage("KEEP GOING.")],
+  )),
+  // …and a part this build cannot read keeps the fallback card FOR THAT PART ALONE: the wake beside it
+  // is still a hairline, and the envelope around both is still not drawn.
+  wake("batched-unread", merged(
+    ["background shell finished (b52kqwc13)", shellDoneMessage({ taskId: "b52kqwc13", label: "vite --port 5199 --strictPort", status: "failed" })],
+    ["a wake this build predates", "⏰ Frizz has invented a wake shape this build predates.\n\nIts text survives, in a card of its own."],
+  )),
   wake("w1", review),
   wake("w2", prWatchWakeMessage({ target: "nubjs/nub#760", closed: true })),
   wake("w3", prWatchWakeMessage({ target: "nubjs/nub#756", merged: true })),
@@ -123,14 +144,36 @@ ${PR_WATCH_ARMED_TRAILER}`),
   // A REGISTERED WATCHER whose own `for:` ran out. The ref is the only thing on the line a reader can
   // act on, so it is the link.
   wake("w19", prWatchExpiredWakeMessage("nubjs/nub#777")),
+  // …and the same lapse on one of the worker's OWN waits, a `frizzctl watch` on a shell or a
+  // sub-agent. It had no parser and was the other wake still drawing the verbatim card on 2026-10-11.
+  wake("w19b", ownWatchExpiredWakeMessage("shell", "bzvtnt3ig")),
+  wake("w19c", ownWatchExpiredWakeMessage("agent", "a01b2d20b32feab11")),
   // THE PR ITSELF MOVING — a conflict, a label, a reviewer requested. Same watcher and the same class of
   // event as the two hairlines above, and the clauses of one poll stay on ONE line: a label edit must
   // not be given the weight of a red build.
   wake("w20", prWatchWakeMessage({ target: "nubjs/nub#879", changes: ["now CONFLICTS with the base branch"] })),
   wake("w21", prWatchWakeMessage({ target: "nodejs/node#65796", changes: ["labels +blocked, −needs-ci", "review requested from richardlau"] })),
   // The FALLBACK still has to work: a wake this build cannot read keeps its first-party card and loses
-  // no prose. Batched deliveries also land here when their envelope has no structured parser.
+  // no prose.
   wake("w15", "⏰ Frizz has invented a wake shape this build predates.\n\n(And whatever it says, the text must survive — the card is what guarantees that.)"),
+  // …and that prose is rendered as the Markdown it may be, SAFELY: a list, a link, a fenced block too
+  // long for the card, and a script tag that must stay text. Whatever wake reaches this card is one no
+  // parser vouched for, so it is the last place to trust what it carries.
+  wake("md", `⏰ Frizz has invented a wake shape this build predates.
+
+### What it carries
+
+- \`shells: [bc3rwp1k7]\` — FINISHED — its result is waiting
+
+Read the **finished** [report](https://example.com/report).
+
+\`\`\`text
+${"long-token-".repeat(35)}
+\`\`\`
+
+<script>window.__wakePwned = true</script>
+
+${PR_WATCH_ARMED_TRAILER}`),
   // …AND ITS BODY IS STILL NOT ALLOWED TO CARRY FRIZZ'S TRAILER. This is the leak, reproduced: the
   // fallback is reached exactly when a tab is a build behind the wake it was sent, and a tab is a build
   // behind whenever frizz restarts under it — so this is the ONE branch where the agent-facing
@@ -146,7 +189,7 @@ function Fixture() {
       <section className="mx-auto flex max-w-[760px] flex-col border border-border bg-panel px-5 py-4 shadow-xl shadow-black/30 sm:px-7">
         <header className="border-b border-border pb-3">
           <h1 className="text-[16px] font-semibold text-fg">Frizz wakes — every shape frizz speaks in</h1>
-          <p className="mt-0.5 text-[12px] text-muted">Review activity, a finished PR, a CI verdict, both at once, the PR&rsquo;s own state moving, a background shell, a usage window, a fired timer, a park that ran out or finished, a lapsed watcher — and the unparsed fallback, with and without frizz&rsquo;s agent-facing trailer.</p>
+          <p className="mt-0.5 text-[12px] text-muted">Several wakes held and sent as one delivery, review activity, a finished PR, a CI verdict, both at once, the PR&rsquo;s own state moving, a background shell, a usage window, a fired timer, a park that ran out or finished, a lapsed watcher or watch — and the unparsed fallback, with and without frizz&rsquo;s agent-facing trailer.</p>
         </header>
         <div className="flex flex-1 flex-col gap-3.5 py-5">
           {messages.map((message) => <Message key={message.sourceId} m={message} dense={new URLSearchParams(location.search).has("dense")} />)}

@@ -5,7 +5,8 @@ import { createHash } from "node:crypto"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { parseCodexQuotaFromRollout, parseCodexQuotaFromRateLimits, readCodexQuota, resetCodexQuotaMemo } from "./codex-quota.ts"
-import { parseClaudeUsage, parseClaudeUsageOutput, tokenFromCredentialsJson, readClaudeQuota, refreshClaudeQuotaInBackground, claudeQuotaRefreshSettled } from "./claude-quota.ts"
+import { parseClaudeUsage, parseClaudeUsageOutput, tokenFromCredentialsJson, readClaudeQuota, refreshClaudeQuotaInBackground, claudeQuotaRefreshSettled, withObservedClaudeQuota, resolveConfiguredRoute } from "./claude-quota.ts"
+import { recordObservedClaudeQuota, resetObservedClaudeQuotaThrottle } from "./claude-quota-observed.ts"
 import { frizzRoots, resetFrizzRoots } from "../frizz-paths.ts"
 import { readQuota } from "../quota.ts"
 
@@ -135,6 +136,8 @@ test("codex: a failed live read degrades to the rollout tail, labeled as unconfi
         payload: { type: "token_count", rate_limits: { plan_type: "pro", primary: { used_percent: 99, window_minutes: 10080, resets_at: 7 } } },
       }) + "\n",
     )
+    // Signed in, so the live read is attempted — a signed-out Codex is never asked at all.
+    await writeFile(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "tok" } }))
     resetCodexQuotaMemo()
     const q = await readCodexQuota(dir, join(dir, "definitely-not-a-real-codex-binary"))
     assert.equal(q.status, "ok")
@@ -149,6 +152,7 @@ test("codex: a failed live read degrades to the rollout tail, labeled as unconfi
 test("codex: a failed live read with no rollouts stays a clean unavailable", async () => {
   const dir = await mkdtemp(join(tmpdir(), "frizz-codex-quota-"))
   try {
+    await writeFile(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "tok" } }))
     resetCodexQuotaMemo()
     const q = await readCodexQuota(dir, join(dir, "definitely-not-a-real-codex-binary"))
     assert.equal(q.status, "unavailable")
@@ -197,6 +201,8 @@ done
       quota: { status: "ok", windows: [{ key: "5h", label: "5h", usedPercent: 1 }] },
     }))
 
+    // The stand-in is only ever started for an account there is to ask about.
+    await writeFile(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "tok" } }))
     resetCodexQuotaMemo()
     const q = await readQuota({ codexBin: bin })
     assert.equal(await readFile(marker, "utf8"), "app-server")
@@ -213,6 +219,116 @@ done
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+// ---- How often a `codex app-server` is started for the reading ----
+//
+// Each test runs the REAL reader against a stand-in `codex` that logs one line per start, so a count
+// here is a count of processes. `answers` decides whether it speaks the two replies the read needs or
+// exits at once, which is how a broken install, a signed-in API key and an unreachable backend all look
+// from here: a live read that produced nothing.
+const CODEX_KEYS = ["OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"] as const
+async function withCodexStandIn(
+  answers: boolean,
+  run: (home: string, bin: string, starts: () => Promise<number>, signIn: (accountId: string) => Promise<void>) => Promise<void>,
+) {
+  const home = await mkdtemp(join(tmpdir(), "frizz-codex-quota-"))
+  const log = join(home, "starts.log")
+  const bin = join(home, "codex-stand-in")
+  // A key in the environment is a Codex credential, so a machine that has one is never signed out.
+  const saved = Object.fromEntries(CODEX_KEYS.map((name) => [name, process.env[name]]))
+  for (const name of CODEX_KEYS) delete process.env[name]
+  try {
+    await writeFile(bin, answers
+      ? `#!/bin/sh
+echo "$*" >> '${log}'
+while IFS= read -r line; do
+  case "$line" in
+    *'"id":1'*) printf '%s\\n' '{"id":1,"result":{}}' ;;
+    *'"id":2'*) printf '%s\\n' '{"id":2,"result":{"rateLimits":{"planType":"pro","primary":{"usedPercent":17,"windowDurationMins":300,"resetsAt":7},"secondary":null}}}' ;;
+  esac
+done
+`
+      : `#!/bin/sh\necho "$*" >> '${log}'\nexit 1\n`)
+    await chmod(bin, 0o755)
+    resetCodexQuotaMemo()
+    await run(
+      home,
+      bin,
+      async () => (await readFile(log, "utf8").catch(() => "")).split("\n").filter(Boolean).length,
+      (accountId) => writeFile(join(home, "auth.json"), JSON.stringify({ tokens: { access_token: "tok", account_id: accountId } })),
+    )
+  } finally {
+    resetCodexQuotaMemo()
+    for (const name of CODEX_KEYS) {
+      if (saved[name] === undefined) delete process.env[name]
+      else process.env[name] = saved[name]
+    }
+    await rm(home, { recursive: true, force: true })
+  }
+}
+
+const SEC = 1000
+const MIN = 60 * SEC
+
+test("codex quota: a machine that is not signed in to Codex never starts an app-server, and signing in is read at once", { skip: process.platform === "win32" }, () => withCodexStandIn(true, async (home, bin, starts, signIn) => {
+  // Every caller there is — the poll past its window, and the popover's forced recheck.
+  for (const at of [0, 61 * SEC, 10 * MIN, 3 * 60 * MIN]) {
+    assert.equal((await readCodexQuota(home, bin, { now: () => at })).status, "unavailable")
+    assert.equal((await readCodexQuota(home, bin, { now: () => at + 1, force: true })).status, "unavailable")
+  }
+  assert.equal(await starts(), 0)
+
+  // The control, and the half that matters to someone who just ran `codex login`: the same stand-in is
+  // started on the very next read, with no deadline left over from the signed-out hours before it.
+  await signIn("acct-1")
+  const q = await readCodexQuota(home, bin, { now: () => 3 * 60 * MIN + 2, force: true })
+  assert.equal(q.windows[0]?.usedPercent, 17)
+  assert.equal(await starts(), 1)
+}))
+
+test("codex quota: a healthy reading is shared for a minute, and callers that arrive together join one read", { skip: process.platform === "win32" }, () => withCodexStandIn(true, async (home, bin, starts, signIn) => {
+  await signIn("acct-1")
+  const together = await Promise.all([0, 0, 0].map((at) => readCodexQuota(home, bin, { now: () => at })))
+  assert.ok(together.every((q) => q.windows[0]?.usedPercent === 17))
+  assert.equal(await starts(), 1)
+  // The chip polls every 30s: the second poll reads the first one's answer, the third pays for its own.
+  await readCodexQuota(home, bin, { now: () => 30 * SEC })
+  assert.equal(await starts(), 1)
+  await readCodexQuota(home, bin, { now: () => 60 * SEC })
+  assert.equal(await starts(), 2)
+  // Opening the chip is a real recheck, inside the window or not.
+  await readCodexQuota(home, bin, { now: () => 61 * SEC, force: true })
+  assert.equal(await starts(), 3)
+}))
+
+test("codex quota: a live read that cannot succeed backs off, doubling — until a recheck or a new credential asks again", { skip: process.platform === "win32" }, () => withCodexStandIn(false, async (home, bin, starts, signIn) => {
+  await signIn("acct-1")
+  const poll = async (at: number) => { await readCodexQuota(home, bin, { now: () => at }) }
+  await poll(0)
+  assert.equal(await starts(), 1)
+  // 15s polls for the first minute: nothing is asked again.
+  for (const at of [15, 30, 45, 59]) await poll(at * SEC)
+  assert.equal(await starts(), 1)
+  await poll(1 * MIN) // the first deadline: one more, and the next is 2m out
+  assert.equal(await starts(), 2)
+  for (const at of [75, 120, 179]) await poll(at * SEC)
+  assert.equal(await starts(), 2)
+  await poll(3 * MIN) // … then 4m
+  assert.equal(await starts(), 3)
+  await poll(5 * MIN)
+  assert.equal(await starts(), 3)
+
+  // The popover is a person asking, so it is answered now; it does not shorten what follows.
+  await readCodexQuota(home, bin, { now: () => 5 * MIN + 1, force: true })
+  assert.equal(await starts(), 4)
+  await poll(12 * MIN)
+  assert.equal(await starts(), 4)
+
+  // A different account is a different question, and it is asked on the next read.
+  await signIn("acct-2")
+  await poll(13 * MIN)
+  assert.equal(await starts(), 5)
+}))
 
 // ---- Claude usage endpoint parsing ----
 
@@ -433,16 +549,74 @@ test("claude quota: a credential Claude Code cannot refresh costs one start per 
 
   await recheck(15 * MIN)
   assert.equal(cliCalls, 2)
-  await recheck(45 * MIN - 1)
+  await recheck(44 * MIN)
   assert.equal(cliCalls, 2)
   // The heartbeat's start is recorded like any other: 45m + the third window, 1h.
   await heartbeat(45 * MIN)
   assert.equal(cliCalls, 3)
-  await recheck(105 * MIN - 1)
+  await recheck(104 * MIN)
   await heartbeat(105 * MIN - 1)
   assert.equal(cliCalls, 3)
   await recheck(105 * MIN)
   assert.equal(cliCalls, 4)
+}))
+
+// The heartbeat is armed once per PROJECT and the credential is the machine's, so what bounds a failing
+// refresh has to be shared by every one of them — and by the chip's poll, which arrives between ticks.
+test("claude quota: a failed refresh is not repeated for 30s by anyone — every project's heartbeat and the chip's poll share one attempt", () => withCache(async (cacheDir) => {
+  for (const [state, deps] of [
+    ["signed out", { readToken: signedOut, fetchImpl: unreachable }],
+    ["offline", { readToken: signedIn, fetchImpl: unreachable }],
+  ] as const) {
+    let lookups = 0
+    const at = (now: number) => ({
+      cacheDir: join(cacheDir, state),
+      now: () => now,
+      fetchImpl: deps.fetchImpl,
+      readToken: async () => { lookups++; return deps.readToken() },
+    })
+    // Twenty-two open projects tick inside the same second, and a tab polls 15s later.
+    for (let project = 0; project < 22; project++) {
+      await refreshClaudeQuotaInBackground("claude-test", at(project * 40))
+      await claudeQuotaRefreshSettled()
+    }
+    assert.equal((await readClaudeQuota("claude-test", at(15_000))).status, "unavailable")
+    assert.equal(lookups, 1, `${state}: one attempt for the whole window`)
+
+    // The window passes: one more, again shared. A forced recheck never waits for it.
+    await refreshClaudeQuotaInBackground("claude-test", at(30_000))
+    await claudeQuotaRefreshSettled()
+    await refreshClaudeQuotaInBackground("claude-test", at(30_500))
+    await claudeQuotaRefreshSettled()
+    await readClaudeQuota("claude-test", at(45_000))
+    assert.equal(lookups, 2, `${state}: one attempt for the next window`)
+    await readClaudeQuota("claude-test", at(46_000), { force: true })
+    assert.equal(lookups, 3, `${state}: a recheck asks at once`)
+  }
+}))
+
+test("claude quota: a stale good reading rides through an outage on one attempt per window, and recovers on the first one that lands", () => withCache(async (cacheDir) => {
+  let fetches = 0
+  let online = true
+  const fetchImpl = (async () => {
+    fetches++
+    if (!online) throw new TypeError("fetch failed")
+    return new Response(JSON.stringify(fiveHour(online && fetches > 1 ? 55 : 20)), { status: 200 })
+  }) as unknown as typeof fetch
+  const at = (now: number) => ({ cacheDir, readToken: signedIn, fetchImpl, now: () => now })
+  await readClaudeQuota("claude-test", at(0))
+  online = false
+  // Past the 2m TTL every poll kicks a background refresh; inside one failure window they share it.
+  for (const now of [3 * 60_000, 3 * 60_000 + 15_000, 3 * 60_000 + 29_000]) {
+    assert.equal((await readClaudeQuota("claude-test", at(now))).windows[0]?.usedPercent, 20)
+    await claudeQuotaRefreshSettled()
+  }
+  assert.equal(fetches, 2)
+  online = true
+  await readClaudeQuota("claude-test", at(3 * 60_000 + 30_000))
+  await claudeQuotaRefreshSettled()
+  assert.equal(fetches, 3)
+  assert.equal((await readClaudeQuota("claude-test", at(3 * 60_000 + 31_000))).windows[0]?.usedPercent, 55)
 }))
 
 test("claude quota: a failed Claude Code refresh keeps the last good reading and still records its start", () => withCache(async (cacheDir) => {
@@ -676,4 +850,240 @@ test("claude quota: a failed refresh retains the last good reading with an hones
   assert.equal(stale.status, "ok")
   assert.equal(stale.windows[0]?.usedPercent, 20)
   assert.equal(stale.detail, "Could not refresh · last updated 4m ago")
+}))
+
+// ---- What Claude Code's own sessions report (claude-quota-observed.ts) ----
+
+// The frame Claude Code 2.1.296 sent on 2026-10-11; see claude-quota-observed.test.ts.
+const REPORTED = {
+  status: "allowed_warning",
+  rateLimitType: "seven_day",
+  utilization: 0.76,
+  resetsAt: 1791792000,
+  unifiedWindows: { five_hour: { utilization: 0.65, resetsAt: 1791757200 }, seven_day: { utilization: 0.76, resetsAt: 1791792000 } },
+}
+
+// The reader keys the report by the config directory, so each of these tests names its own.
+async function withConfigDir(configDir: string, run: () => Promise<void>) {
+  const before = process.env.CLAUDE_CONFIG_DIR
+  process.env.CLAUDE_CONFIG_DIR = configDir
+  resetObservedClaudeQuotaThrottle()
+  try {
+    await run()
+  } finally {
+    if (before === undefined) delete process.env.CLAUDE_CONFIG_DIR
+    else process.env.CLAUDE_CONFIG_DIR = before
+  }
+}
+
+// THE TOKEN-BROKER MACHINE. Claude Code is signed in by a route that leaves no token where Frizz can
+// read one, so the endpoint cannot be asked — and until 2026-10-11 the only other source was starting
+// Claude Code, which is the process storm that route was removed for. The workers there report the
+// plan's windows on every turn; that report is the reading.
+test("claude quota: a machine whose token Frizz cannot read shows what its own sessions report — no request, no process", () => withCache(async (cacheDir) => {
+  const configDir = join(cacheDir, "config")
+  await withConfigDir(configDir, async () => {
+    let requests = 0
+    let starts = 0
+    const at = (now: number) => ({
+      cacheDir,
+      readToken: signedOut,
+      now: () => now,
+      fetchImpl: (async () => { requests++; throw new TypeError("no request may be made without a token") }) as unknown as typeof fetch,
+      execUsage: async () => { starts++; return "" },
+    })
+    const T0 = 1791750000 * SEC
+    // NEGATIVE CONTROL: before any session has reported, there is nothing to show.
+    assert.equal((await readClaudeQuota("claude-test", at(T0))).status, "unavailable")
+
+    await recordObservedClaudeQuota(REPORTED, { cacheDir, configDir, now: T0 + MIN })
+    const expected = {
+      status: "ok",
+      windows: [
+        { key: "5h", label: "5h", usedPercent: 65, resetsAt: 1791757200 },
+        { key: "weekly", label: "Weekly", usedPercent: 76, resetsAt: 1791792000 },
+      ],
+    }
+    assert.deepEqual(await readClaudeQuota("claude-test", at(T0 + 4 * MIN)), { ...expected, detail: "From this machine's Claude sessions · 3m ago" })
+    // The popover's forced recheck has nothing better to ask, and says the same.
+    assert.deepEqual(await readClaudeQuota("claude-test", at(T0 + 4 * MIN + SEC), { force: true }), { ...expected, detail: "From this machine's Claude sessions · 3m ago" })
+    // Another config directory is another account: its report is not this one's.
+    await withConfigDir(join(cacheDir, "other"), async () => {
+      assert.equal((await readClaudeQuota("claude-test", at(T0 + 4 * MIN))).status, "unavailable")
+    })
+    // Past the 5-hour window's own reset only the weekly is still a reading (1h 59m after the report).
+    const later = await readClaudeQuota("claude-test", at(1791757200 * SEC))
+    assert.deepEqual(later.windows.map((w) => w.key), ["weekly"])
+    assert.equal(later.detail, "From this machine's Claude sessions · 1h 59m ago")
+    assert.equal((await readClaudeQuota("claude-test", at(1791792000 * SEC))).status, "unavailable", "and past the weekly's, nothing is")
+    await claudeQuotaRefreshSettled()
+    assert.equal(requests, 0)
+    assert.equal(starts, 0)
+  })
+}))
+
+test("claude quota: a session's report newer than the endpoint's reading takes over the windows it names, and only those", () => {
+  const T = 1791750000 * SEC
+  const served = {
+    status: "ok" as const,
+    planType: "max",
+    windows: [
+      { key: "5h", label: "5h", usedPercent: 20, resetsAt: 1791757200 },
+      { key: "weekly", label: "Weekly", usedPercent: 40, resetsAt: 1791792000 },
+      { key: "weekly-fable", label: "Fable wk", usedPercent: 1, resetsAt: 1791792000 },
+    ],
+  }
+  const report = (at: number) => ({ at, windows: [{ key: "5h", label: "5h", usedPercent: 35, resetsAt: 1791757200, at }] })
+
+  assert.equal(withObservedClaudeQuota(served, T, undefined, T + 9 * MIN), served)
+  assert.equal(withObservedClaudeQuota(served, T, report(T - SEC), T + 9 * MIN), served, "a report older than the endpoint's reading changes nothing")
+  assert.equal(withObservedClaudeQuota(served, undefined, report(T + MIN), T + 9 * MIN), served, "nor does one beside a reading taken just now")
+  assert.equal(
+    withObservedClaudeQuota(served, T, { at: T + MIN, windows: [{ key: "weekly-opus", label: "Opus wk", usedPercent: 9, at: T + MIN }] }, T + 9 * MIN),
+    served,
+    "nor one for a window the endpoint's reading does not carry",
+  )
+
+  // Newer: its window's numbers, the endpoint's for the rest, and no note on a reading that had none.
+  assert.deepEqual(withObservedClaudeQuota(served, T, report(T + 7 * MIN), T + 9 * MIN), {
+    ...served,
+    windows: [{ key: "5h", label: "5h", usedPercent: 35, resetsAt: 1791757200 }, served.windows[1], served.windows[2]],
+  })
+  // A staleness note described the endpoint's reading; it no longer describes what is shown.
+  assert.equal(
+    withObservedClaudeQuota({ ...served, detail: "Could not refresh · last updated 40m ago" }, T, report(T + 38 * MIN), T + 40 * MIN).detail,
+    "Updated from this machine's Claude sessions · 2m ago",
+  )
+  assert.equal(withObservedClaudeQuota({ ...served, detail: "x" }, T, report(T + 40 * MIN - 1), T + 40 * MIN).detail, "Updated from this machine's Claude sessions · just now")
+})
+
+test("claude quota: while the endpoint cannot be reached, the chip follows the sessions' reports instead of freezing", () => withCache(async (cacheDir) => {
+  const configDir = join(cacheDir, "config")
+  await withConfigDir(configDir, async () => {
+    await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 0, fetchImpl: usageResponse(200, fiveHour(20)) })
+    const outage = (now: number) => readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => now, fetchImpl: unreachable })
+    // CONTROL: with no report, the old reading is served under its staleness note.
+    const frozen = await outage(20 * MIN)
+    assert.equal(frozen.windows[0]?.usedPercent, 20)
+    assert.equal(frozen.detail, "Refreshing · last updated 20m ago")
+    await claudeQuotaRefreshSettled()
+
+    await recordObservedClaudeQuota({ rateLimitType: "five_hour", utilization: 0.35, resetsAt: 1791757200 }, { cacheDir, configDir, now: 21 * MIN })
+    const followed = await outage(22 * MIN)
+    assert.deepEqual(followed.windows, [{ key: "5h", label: "5h", usedPercent: 35, resetsAt: 1791757200 }])
+    assert.equal(followed.planType, "max", "what only the endpoint knows is kept")
+    assert.equal(followed.detail, "Updated from this machine's Claude sessions · 1m ago")
+    await claudeQuotaRefreshSettled()
+
+    // The endpoint comes back with a NEWER reading: it wins again, silently.
+    const back = await readClaudeQuota("claude-test", { cacheDir, readToken: signedIn, now: () => 30 * MIN, fetchImpl: usageResponse(200, fiveHour(50)) }, { force: true })
+    assert.equal(back.windows[0]?.usedPercent, 50)
+    assert.equal(back.detail, undefined)
+  })
+}))
+
+// ---- The configured route: a proxy or an environment token (resolveConfiguredRoute) ----
+
+async function withSettings(env: Record<string, string> | undefined, run: (configDir: string) => Promise<void>) {
+  const configDir = await mkdtemp(join(tmpdir(), "frizz-route-config-"))
+  try {
+    if (env) await writeFile(join(configDir, "settings.json"), JSON.stringify({ env }))
+    await run(configDir)
+  } finally {
+    await rm(configDir, { recursive: true, force: true })
+  }
+}
+
+test("configured route: the usage request goes where Claude Code's own requests go, with the credential it would send", async () => {
+  // A proxy's installer writes the pair into Claude Code's user settings; a base with a path keeps it.
+  await withSettings({ ANTHROPIC_BASE_URL: "https://proxy.example/anthropic/", ANTHROPIC_AUTH_TOKEN: "placeholder" }, async (dir) => {
+    const route = await resolveConfiguredRoute(dir, {})
+    assert.equal(route?.url, "https://proxy.example/anthropic/api/oauth/usage")
+    assert.deepEqual(route?.headers, { Authorization: "Bearer placeholder" })
+    assert.doesNotMatch(route?.fingerprint ?? "", /placeholder/)
+    // The settings' pair wins over the environment's, as it does for Claude Code (measured).
+    const both = await resolveConfiguredRoute(dir, { ANTHROPIC_BASE_URL: "http://127.0.0.1:9", ANTHROPIC_AUTH_TOKEN: "other" })
+    assert.equal(both?.url, route?.url)
+    assert.deepEqual(both?.headers, route?.headers)
+  })
+  await withSettings(undefined, async (dir) => {
+    const route = (env: NodeJS.ProcessEnv) => resolveConfiguredRoute(dir, env)
+    // An API-key placeholder rides in Claude Code's API-key header, to the proxy.
+    assert.deepEqual((await route({ ANTHROPIC_BASE_URL: "http://127.0.0.1:8080", ANTHROPIC_API_KEY: "placeholder" }))?.headers, { "x-api-key": "placeholder" })
+    // The gateway bearer outranks the others, as in Claude Code's own order.
+    assert.deepEqual((await route({ ANTHROPIC_BASE_URL: "http://127.0.0.1:8080", ANTHROPIC_API_KEY: "k", ANTHROPIC_AUTH_TOKEN: "b", CLAUDE_CODE_OAUTH_TOKEN: "o" }))?.headers, { Authorization: "Bearer b" })
+    // A `claude setup-token` token with no proxy goes to Anthropic itself.
+    const direct = await route({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-direct" })
+    assert.equal(direct?.url, "https://api.anthropic.com/api/oauth/usage")
+    assert.deepEqual(direct?.headers, { Authorization: "Bearer sk-ant-oat01-direct" })
+    // A credential change is a new route.
+    assert.notEqual((await route({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-other" }))?.fingerprint, direct?.fingerprint)
+    // NO ROUTE: nothing configured; a Console key sent to Anthropic itself (no plan behind it); a cloud
+    // provider; an address that is not one.
+    for (const env of [
+      {},
+      { ANTHROPIC_API_KEY: "sk-ant-api03-real" },
+      { ANTHROPIC_BASE_URL: "https://api.anthropic.com", ANTHROPIC_API_KEY: "sk-ant-api03-real" },
+      { CLAUDE_CODE_USE_BEDROCK: "1", ANTHROPIC_AUTH_TOKEN: "b" },
+      { ANTHROPIC_BASE_URL: "not a url", ANTHROPIC_AUTH_TOKEN: "b" },
+      { ANTHROPIC_BASE_URL: "file:///etc/passwd", ANTHROPIC_AUTH_TOKEN: "b" },
+      { ANTHROPIC_BASE_URL: "http://127.0.0.1:8080" },
+    ]) assert.equal(await route(env), undefined, JSON.stringify(env))
+  })
+})
+
+test("claude quota: with no readable token, the configured route is asked — never Claude Code — and a route that fails backs off", () => withCache(async (cacheDir) => {
+  await withSettings({ ANTHROPIC_BASE_URL: "http://127.0.0.1:8787", ANTHROPIC_AUTH_TOKEN: "placeholder" }, async (configDir) => {
+    const requests: Array<{ url: string; auth: string | null }> = []
+    let answer: () => Response = () => new Response("", { status: 404 })
+    let starts = 0
+    const deps = (now: number, env: NodeJS.ProcessEnv = {}) => ({
+      cacheDir,
+      readToken: signedOut,
+      readRoute: () => resolveConfiguredRoute(configDir, env),
+      now: () => now,
+      execUsage: async () => { starts++; return "" },
+      fetchImpl: (async (url: string, init?: RequestInit) => {
+        requests.push({ url, auth: new Headers(init?.headers).get("authorization") })
+        return answer()
+      }) as unknown as typeof fetch,
+    })
+    // A proxy that does not forward the usage path: the chip polls every 30s for 20 minutes.
+    for (let t = 0; t <= 20 * MIN; t += 30 * SEC) {
+      assert.equal((await readClaudeQuota("claude-test", deps(t))).status, "unavailable")
+      await claudeQuotaRefreshSettled()
+    }
+    assert.deepEqual(requests.map((r) => r.url), Array(3).fill("http://127.0.0.1:8787/api/oauth/usage"), "asked at 0, 5m and 15m: one request per window, the window doubling")
+    assert.ok(requests.every((r) => r.auth === "Bearer placeholder"), "carrying exactly what Claude Code sends")
+    assert.equal(starts, 0, "Claude Code cannot repair a credential it was handed, so it is never started")
+
+    // A changed configuration is asked at once, and a proxy that forwards the path is a reading.
+    answer = () => new Response(JSON.stringify(fiveHour(30)), { status: 200 })
+    await withSettings({ ANTHROPIC_BASE_URL: "http://127.0.0.1:8787", ANTHROPIC_AUTH_TOKEN: "placeholder-2" }, async (fixed) => {
+      const q = await readClaudeQuota("claude-test", { ...deps(20 * MIN + 31 * SEC), readRoute: () => resolveConfiguredRoute(fixed, {}) })
+      assert.equal(q.status, "ok")
+      assert.equal(q.windows[0]?.usedPercent, 30)
+      assert.equal(requests.length, 4)
+      assert.equal(requests[3]?.auth, "Bearer placeholder-2")
+    })
+    // A refusal from the proxy (its credential, not one Claude Code could refresh) is a route failure too.
+    answer = () => new Response("", { status: 401 })
+    const refused = await readClaudeQuota("claude-test", { ...deps(30 * MIN), readRoute: () => resolveConfiguredRoute(configDir, {}) }, { force: true })
+    assert.equal(refused.status, "ok", "the last good reading rides")
+    assert.equal(refused.detail, "Could not refresh · last updated 9m ago")
+    assert.equal(starts, 0)
+  })
+}))
+
+test("claude quota: a token Frizz can read is still the first source — the configured route is not consulted", () => withCache(async (cacheDir) => {
+  let routeAsked = 0
+  const q = await readClaudeQuota("claude-test", {
+    cacheDir,
+    readToken: signedIn,
+    readRoute: async () => { routeAsked++; return undefined },
+    now: () => 0,
+    fetchImpl: usageResponse(200, fiveHour(12)),
+  })
+  assert.equal(q.status, "ok")
+  assert.equal(routeAsked, 0)
 }))

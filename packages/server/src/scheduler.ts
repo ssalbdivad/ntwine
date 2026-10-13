@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { createHash, randomUUID } from "node:crypto"
-import { AGENT_PARK_FOR_MAX_MS, awaitingNeedsInput, awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_NEEDS_INPUT_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@frizz/shared"
+import { AGENT_PARK_FOR_MAX_MS, awaitingNeedsInput, awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_NEEDS_INPUT_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@frizz/shared"
 import { GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, liveActivityOf, parkExpiresAt, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems, type LiveActivity } from "./awaiting.ts"
-import { isHeldRow, type PrWatchRow, type SessionRow, type Storage, type ThreadQuestionRow } from "./storage.ts"
+import { isHeldRow, type CommandWatchRow, type PrWatchRow, type SessionRow, type Storage, type ThreadQuestionRow } from "./storage.ts"
+import type { CommandRunResult, CommandWatchService } from "./command-watch.ts"
 import type { Tailer } from "./tailer.ts"
 import type { SessionTelemetry } from "./tailer.ts"
 import type { LimitFault } from "./backend/types.ts"
@@ -41,7 +42,7 @@ import { log as frizzLog } from "./logging.ts"
 // ---- THE DURABLE WAKER ---------------------------------------------------------------------------
 // NOTHING IN AN ```awaiting FENCE WAKES A THREAD. A fence STATES what a thread is waiting on; every
 // wait frizz can actually fire is a REGISTRATION the worker made through a tool — a `thread_timer` row
-// (`mcp__frizz__timer`), a `pr_watch` row (`mcp__frizz__watch_pr`, SOURCE 11), a background shell's own
+// (`frizzctl timer`), a `pr_watch` row (`frizzctl watch-pr`, SOURCE 11), a background shell's own
 // telemetry — or a condition the server itself observes: a provider limit lifting, a human's snooze
 // coming due, a recurring prompt's schedule, a rest with nothing declared. The limb that polled
 // `pr-watch:`/`pr:`/`ci:`/`timer:` hints out of the fence was hardwired off by the 2026-08-15 grammar
@@ -731,7 +732,7 @@ function restMessageIsSignedOff(
  *
  *  A PR ENTRY IS THE ONE THAT NEEDS A SECOND FACT, since 2026-08-14: the fence no longer arms anything,
  *  so naming a PR says nothing about whether a wake is coming. A REGISTERED watcher
- *  (`mcp__frizz__watch_pr`) will fire, so the Goal holds; a `prs:` entry with no registration behind it
+ *  (`frizzctl watch-pr`) will fire, so the Goal holds; a `prs:` entry with no registration behind it
  *  is a park frizz cannot honour, so it gets the rescue like any other unfireable item. Without the first
  *  half this reintroduces the measured loop above verbatim.
  *
@@ -759,10 +760,23 @@ function registeredPrWatchesOf(storage: Storage, slug: string): ReadonlySet<stri
   return new Set(storage.listPrWatches(slug, { armedOnly: true }).filter((w) => w.kind !== "issue").map((w) => `${w.owner}/${w.repo}#${w.number}`))
 }
 
-/** The ISSUES a thread has registered (`mcp__frizz__watch_issue`), by the same `owner/repo#N` — what an
+/** The ISSUES a thread has registered (`frizzctl watch-issue`), by the same `owner/repo#N` — what an
  *  `issues:` fence entry is checked against. */
 function registeredIssueWatchesOf(storage: Storage, slug: string): ReadonlySet<string> {
   return new Set(storage.listPrWatches(slug, { armedOnly: true }).filter((w) => w.kind === "issue").map((w) => `${w.owner}/${w.repo}#${w.number}`))
+}
+
+/** This thread's ARMED command watch ids (`frizzctl watch-command`) — what a `commands:` entry is
+ *  checked against. Only ARMED: a watch that passed has delivered its wake, and one that expired or was
+ *  cancelled will never send one, so a park naming either is waiting on nothing. */
+function armedCommandWatchIdsOf(storage: Storage, slug: string): ReadonlySet<string> {
+  return new Set(storage.listCommandWatches(slug, { armedOnly: true }).map((w) => w.id))
+}
+
+/** The same set as the nudge and the corrections print it: the id, and the command as its label. */
+function commandWatchOps(storage: Storage, slug: string): { id: string; label: string }[] {
+  return storage.listCommandWatches(slug, { armedOnly: true })
+    .map((w) => ({ id: w.id, label: w.command.trim().replace(/\s+/g, " ").slice(0, 80) }))
 }
 
 // A row's live ON SCHEDULE trigger, if it has one. A switched-off trigger deliberately reads as ABSENT
@@ -1003,7 +1017,7 @@ export function enqueueInterruptEndedWake(
   }, input.nowMs ?? Date.now())
 }
 
-/** A message from ANOTHER THREAD (`mcp__frizz__message_thread`, thread-mentions.ts). Keyed on a fresh id
+/** A message from ANOTHER THREAD (`frizzctl message-thread`, thread-mentions.ts). Keyed on a fresh id
  *  per message, because every message is news of its own. Bound to a FACT — the other thread said it —
  *  so nothing this thread writes supersedes it, and deliverable INTO a busy turn exactly like a human's
  *  steer: the sender is often waiting on the answer, and the recipient's own work is not interrupted,
@@ -1111,6 +1125,21 @@ function ownWatchExpiredFenceId(watchId: string): string {
 }
 function isOwnWatchExpiredFenceId(fenceId: string): boolean {
   return fenceId.startsWith(`${OWN_WATCH_EXPIRED_FENCE_PREFIX}:`)
+}
+
+/** A COMMAND WATCH's wakes (SOURCE 16), one namespace per piece of news: it PASSED, its `for` ran out,
+ *  or Frizz stopped it because the thread may no longer have commands run for it. Each is one-shot — the
+ *  row is settled by the time the wake is sent — so the id alone is the key, and three prefixes rather
+ *  than one so a watch that is cancelled and later re-registered under the same id (it cannot be; ids are
+ *  random) could never dedupe against the wrong news. Checked as THREE spellings for the reason
+ *  isPrWatchFenceId is: `cmdwatch-expired:` does not start with `cmdwatch:`. */
+const COMMAND_WATCH_FENCE_PREFIX = "cmdwatch"
+const COMMAND_WATCH_EXPIRED_FENCE_PREFIX = "cmdwatch-expired"
+const COMMAND_WATCH_CANCELLED_FENCE_PREFIX = "cmdwatch-cancelled"
+function isCommandWatchFenceId(fenceId: string): boolean {
+  return fenceId.startsWith(`${COMMAND_WATCH_FENCE_PREFIX}:`)
+    || fenceId.startsWith(`${COMMAND_WATCH_EXPIRED_FENCE_PREFIX}:`)
+    || fenceId.startsWith(`${COMMAND_WATCH_CANCELLED_FENCE_PREFIX}:`)
 }
 
 /** A batch of question settlements handed over as one message. The ids are IN the key so a second
@@ -1306,7 +1335,7 @@ export async function probeIssueReadable(ref: PrRef): Promise<PrProbe> {
     )
     const url = (JSON.parse(stdout) as { url?: unknown })?.url
     if (typeof url === "string" && /\/pull\/\d+$/.test(url)) {
-      return { ok: false, reason: `#${ref.number} is a pull request, not an issue — register it with \`mcp__frizz__watch_pr\`` }
+      return { ok: false, reason: `#${ref.number} is a pull request, not an issue — register it with \`frizzctl watch-pr add\`` }
     }
     return { ok: true }
   } catch (err) {
@@ -1384,6 +1413,9 @@ export interface SchedulerDeps {
   // Tests may keep injecting the historical bare array/undefined result. Production uses the
   // structured result so the scheduler can distinguish auth, timeout, network, API, and shape faults.
   fetchGithubReview?: (ref: PrRef) => Promise<GithubReviewActivity[] | GithubReviewFetchResult | undefined>
+  // SOURCE 16's runner and gate (command-watch.ts), bound to this project. Absent ⇒ no command watch is
+  // ever RUN (expiry still settles and wakes), which is what a test that is not about them wants.
+  commandWatches?: CommandWatchService
   log?: (msg: string) => void
   // After `resume` has handed a wake to the worker's runtime: is the process that took it still there?
   // A broker daemon now ACKNOWLEDGES the input (input-ack-v1), so `resume` returning means the session
@@ -1444,13 +1476,16 @@ export interface Scheduler {
    *  headed as the human's request. Keyed on the rest, so a new rest makes a stale request inert; held
    *  in memory, so a restart before the next pass drops the click rather than replaying it later. */
   requestCheckIn(slug: string, restedAt: string): void
+  /** Resolves once every command-watch check in flight has finished and been recorded (SOURCE 16 starts
+   *  them without awaiting, so a two-minute check never holds up the tick). Tests await it between ticks. */
+  commandRunsIdle?(): Promise<void>
 }
 
 /** The FENCE key a wire kind is written as. The wire kinds stayed SINGULAR through the 2026-08-24 YAML
  *  cutover; the grammar the worker writes did not, so every message that quotes a fence line back at a
  *  worker has to translate — printing `i.kind` raw teaches a spelling the parser now refuses. */
-const AWAITING_KEY_OF: Record<"shell" | "agent" | "timer" | "pr" | "issue" | "thread", string> = {
-  shell: "shells", agent: "agents", timer: "timers", pr: "prs", issue: "issues", thread: "threads",
+const AWAITING_KEY_OF: Record<"shell" | "agent" | "timer" | "pr" | "issue" | "thread" | "command", string> = {
+  shell: "shells", agent: "agents", timer: "timers", pr: "prs", issue: "issues", thread: "threads", command: "commands",
 }
 
 // ---- THE MID-TURN HOLD'S BOUND ------------------------------------------------------------------
@@ -1635,6 +1670,13 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     // already settled by the time this is enqueued, so no fence, rest or edit can make it untrue.
     // Same reasoning as the two above, and the same silent never-delivered bug if it is missing.
     if (isOwnWatchExpiredFenceId(item.fenceId)) {
+      return tele.turn === "idle" ? "current-idle" : "current-busy"
+    }
+    // A COMMAND WATCH's wake is bound to a check that already ran (or a clock that already ran out, or a
+    // gate that already closed) — and its row is settled before the wake can be sent, so the worker has
+    // nothing left to withdraw. No fence, rest or edit makes it untrue. Same branch, same reason, and
+    // the same silent never-delivered bug if it is missing.
+    if (isCommandWatchFenceId(item.fenceId)) {
       return tele.turn === "idle" ? "current-idle" : "current-busy"
     }
     // AN ANSWER IS BOUND TO WHAT THE HUMAN SAID, not to anything the thread wrote, so no fence, rest or
@@ -2363,6 +2405,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
         issues: deps.storage.listPrWatches(row.slug, { armedOnly: true }).filter((w) => w.kind === "issue")
           .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
+        commands: commandWatchOps(deps.storage, row.slug),
       }
       // A question CARRIED from an earlier rest takes the carried variant instead (upstream 2026-10-05):
       // the worker names it under `questions:` or withdraws it (board.carriedQuestionRows).
@@ -2590,7 +2633,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           ...(notOpen.length > 0 ? ["", "Named, but not an open question of yours:", ...notOpen.map((id) => `- \`${id}\``)] : []),
           "",
           "A fence beside open questions names EVERY one you still need answered — `questions: [qst_…]` —",
-          "and you withdraw the rest with `mcp__frizz__unask`. A named question's card is drawn at this rest;",
+          "and you withdraw the rest with `frizzctl unask <id>`. A named question's card is drawn at this rest;",
           "an unnamed one stays where you asked it. Fix the list (or unask), re-send the fence, and the park",
           "takes. A fence on questions needs no other name and no `for:`.",
         ].join("\n")
@@ -2614,8 +2657,35 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         registeredPrWatchesOf(deps.storage, row.slug),
         armedTimerIdsOf(deps.storage, row.slug),
         registeredIssueWatchesOf(deps.storage, row.slug),
+        armedCommandWatchIdsOf(deps.storage, row.slug),
       )
-      const dead = unaccountedItems(park.items, live)
+      // A command watch's settled rows, by id: one that PASSED has already woken the thread, the way a
+      // fired timer has, and one that expired or was cancelled is a wait that is over for another reason.
+      const settledCommands = new Map(
+        deps.storage.listCommandWatches(row.slug).filter((w) => w.state !== "armed").map((w) => [w.id, w.state] as const),
+      )
+      const deadAll = unaccountedItems(park.items, live)
+      // A COMMAND WATCH THAT SETTLED UNDER THIS REST HAS ITS OWN WAKE ON THE WAY (2026-10-11). SOURCE 16
+      // enqueues the pass / expiry / cancellation wake before it settles the row, so the moment the row
+      // leaves `armed` the news is already queued — and a correction here would repeat it. Measured in the
+      // e2e: the two went out merged as ONE delivery, the second half telling the worker "already PASSED —
+      // its wake was delivered" in the same breath as the wake itself. So a settled watch whose own wake is
+      // still in flight counts as accounted. Once that wake lands the worker's turn moves past this rest,
+      // and a later fence naming the spent id is corrected as usual.
+      const ownWakeInFlight = (i: { kind: string; value: string }): boolean => {
+        if (i.kind !== "command") return false
+        const settled = settledCommands.get(i.value)
+        const prefix = settled === "passed" ? COMMAND_WATCH_FENCE_PREFIX
+          : settled === "expired" ? COMMAND_WATCH_EXPIRED_FENCE_PREFIX
+          : settled === "cancelled" ? COMMAND_WATCH_CANCELLED_FENCE_PREFIX
+          : undefined
+        if (!prefix) return false
+        const wake = outbox.get(wakeDeliveryId(row.slug, row.session_id, `${prefix}:${i.value}`))
+        // …or already delivered, when that wake was queued after this rest: this fork's outbox can send it
+        // inside the same pass, before this check runs, and the rest it answers is still the last word.
+        return wake?.state === "pending" || wake?.state === "leased" || (wake !== undefined && wake.createdAt > Date.parse(spokeAt))
+      }
+      const dead = deadAll.filter((i) => !ownWakeInFlight(i))
       const agentNames = new Set(park.items.filter((i) => i.kind === "agent").map((i) => i.value))
       let expiresAt = parkExpiresAt(park, Date.parse(spokeAt))
       if (agentNames.size === 0) checkInAnchors.delete(row.slug)
@@ -2749,7 +2819,8 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const replyWaitOfItem = (i: { kind: string; value: string }) => (i.kind === "thread" ? settledReplyWaits.get(threadAwaitKey(i.value)) : undefined)
       const answeredItem = (i: { kind: string; value: string }) => replyWaitOfItem(i)?.state === "cancelled"
       const finishedItem = (i: { kind: string; value: string }) =>
-        finishedHandles.has(i.value) || (i.kind === "timer" && firedTimers.has(i.value)) || answeredItem(i)
+        finishedHandles.has(i.value) || (i.kind === "timer" && firedTimers.has(i.value)) || answeredItem(i) ||
+        (i.kind === "command" && settledCommands.get(i.value) === "passed")
       // SILENT IS NOT MISSING EITHER. A sub-agent that has written nothing for longer than its allowance —
       // 15 minutes of awake time, counted from the deadline of a Bash wait it declared (tailer.ts
       // pendingCallDeadline) — reads `stale`. The id is right and the child may well be alive; what frizz
@@ -2762,13 +2833,13 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       }
       const silentItem = (i: { kind: string; value: string }) => i.kind === "agent" && silentSince.has(i.value)
       const status = park.items.map((i) => {
-        const gone = dead.some((d) => d.kind === i.kind && d.value === i.value)
+        const gone = deadAll.some((d) => d.kind === i.kind && d.value === i.value)
         // AN UNREGISTERED PR GETS ITS OWN NOTE, because "nothing by that name" is true but useless for
         // this one kind. A shell or a sub-agent is unaccounted because it FINISHED or the id is wrong;
         // a PR is unaccounted because the worker never registered it — a different mistake with a
         // different fix, and naming the fix here is the whole basis of the maintainer's 2026-08-24
         // decision to keep declaring and registering separate ("the worker learns to call the tool
-        // first"). Without this line the correction sends it to `mcp__frizz__activity`, which will
+        // first"). Without this line the correction sends it to `frizzctl activity`, which will
         // faithfully report that it has no PRs — true, and no help at all.
         const note = !gone
           ? "still running"
@@ -2779,7 +2850,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           : answeredItem(i)
           ? "ANSWERED — its reply was delivered to you; there is nothing left to wait on"
           : i.kind === "thread" && replyWaitOfItem(i)?.state === "fired"
-          ? "LAPSED — no reply came while the wait stood; read where it is with `mcp__frizz__read_thread`"
+          ? "LAPSED — no reply came while the wait stood; read where it is with `frizzctl read-thread`"
+          : i.kind === "command" && settledCommands.get(i.value) === "passed"
+          ? "already PASSED — its wake was delivered; there is nothing left to wait on"
+          : i.kind === "command" && settledCommands.has(i.value)
+          ? `no longer armed (${settledCommands.get(i.value)}) — register it again with \`frizzctl watch-command add\` if you still need the wait`
           : finishedItem(i)
           ? "FINISHED — its result is waiting for you"
           : silentItem(i)
@@ -2787,11 +2862,13 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           : i.kind === "shell" && staleShellHandles.has(i.value)
           ? "GONE WITHOUT A COMPLETION NOTICE — frizz knows this shell, but nothing holds its output file and no process it could be is still running; read its output to see how it ended"
           : i.kind === "pr"
-          ? "NOT REGISTERED — register it with `mcp__frizz__watch_pr` first, then name it here"
+          ? "NOT REGISTERED — register it with `frizzctl watch-pr add` first, then name it here"
           : i.kind === "issue"
-          ? "NOT REGISTERED — register it with `mcp__frizz__watch_issue` first, then name it here"
+          ? "NOT REGISTERED — register it with `frizzctl watch-issue add` first, then name it here"
           : i.kind === "thread"
-          ? "NOT AWAITED — ask it with `mcp__frizz__message_thread` and `await_reply: true` first, then name it here"
+          ? "NOT AWAITED — ask it with `frizzctl message-thread` and `--await-reply` first, then name it here"
+          : i.kind === "command"
+          ? "NOT REGISTERED — register it with `frizzctl watch-command add` first, then name the id it gives you here"
           : "NOT RUNNING (nothing by that name)"
         // The PLURAL key, because that is what the worker has to write. `i.kind` is the internal wire
         // kind and stayed singular through the 2026-08-24 YAML cutover; printing it raw taught a
@@ -2840,9 +2917,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "```awaiting",
           "shells: [<runtime task id>]   background shells you launched",
           "agents: [<runtime agent id>]  sub-agents you dispatched",
-          "timers: [tmr_…]               timers from `mcp__frizz__timer`",
-          "prs:    [owner/repo#123]      PRs registered with `mcp__frizz__watch_pr`",
-          "issues: [owner/repo#45]       GitHub issues registered with `mcp__frizz__watch_issue`",
+          "timers: [tmr_…]               timers from `frizzctl timer set`",
+          "prs:    [owner/repo#123]      PRs registered with `frizzctl watch-pr add`",
+          "issues: [owner/repo#45]       GitHub issues registered with `frizzctl watch-issue add`",
+          "commands: [cmw_…]             command watches from `frizzctl watch-command add`",
           "for:    2h                    REQUIRED — a DURATION, never an instant",
           "---",
           "one or two sentences: what is running, and what it gates",
@@ -2851,9 +2929,9 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "Keep the keys you need and drop the rest. There is NO prose above the `---`: a colon or a ` #`",
           "in a sentence breaks the YAML, which is why `reason:` is gone.",
           "",
-          "`mcp__frizz__activity` lists everything you have running, and prints it back as a ready-to-paste",
+          "`frizzctl activity` lists everything you have running, and prints it back as a ready-to-paste",
           "fence. If you are not waiting on anything, you are not awaiting — end with ```done, or register",
-          "a question with `mcp__frizz__ask`.",
+          "a question with `frizzctl ask`.",
         ].join("\n")
         : nameless
         ? [
@@ -2862,18 +2940,20 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "",
           "A wait has to be something frizz can SEE. Register one, then name it:",
           "",
-          "- a pull request → `mcp__frizz__watch_pr` (it wakes you on CI going green or red, and on every",
+          "- a pull request → `frizzctl watch-pr add` (it wakes you on CI going green or red, and on every",
           "  later review and comment) → `prs: [owner/repo#123]`",
-          "- a GitHub issue → `mcp__frizz__watch_issue` (every later comment, a label or assignee moving,",
+          "- a GitHub issue → `frizzctl watch-issue add` (every later comment, a label or assignee moving,",
           "  and the close) → `issues: [owner/repo#45]`",
-          "- a wall-clock check → `mcp__frizz__timer` → `timers: [tmr_…]`",
+          "- a wall-clock check → `frizzctl timer set` → `timers: [tmr_…]`",
+          "- an outside condition a command can check (a package version, a release run, a URL coming up)",
+          "  → `frizzctl watch-command add` → `commands: [cmw_…]`",
           "- work you already launched → `shells: [<the id your runtime gave you>]` or `agents: [<id>]`",
           "",
           "The frontmatter is YAML: PLURAL keys, each taking a list, and your prose below the `---`.",
-          "Use `mcp__frizz__activity` to read it all back as a ready-to-paste fence.",
+          "Use `frizzctl activity` to read it all back as a ready-to-paste fence.",
           "",
           "AND IF YOU ARE NOT WAITING ON ANYTHING, you are not awaiting — you are done. End with ```done,",
-          "or register a question with `mcp__frizz__ask` if you need the user.",
+          "or register a question with `frizzctl ask` if you need the user.",
         ].join("\n")
         // THESE TWO LIVE IN @frizz/shared, beside the parsers that read them back. Same rule as
         // `limitResumeSteer`: a formatter the chat cannot parse falls through FrizzWake's legacy
@@ -2897,9 +2977,9 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "",
           ...status,
           "",
-          "Use `mcp__frizz__activity` to read back what you actually have out, with the exact id each line",
+          "Use `frizzctl activity` to read back what you actually have out, with the exact id each line",
           "needs, then re-fence naming only those — or end in ```done or a registered question",
-          "(`mcp__frizz__ask`) if there is nothing left to wait for.",
+          "(`frizzctl ask`) if there is nothing left to wait for.",
         ].join("\n")
 
       const cause = retired.length > 0 ? "retired" : nameless ? "nameless" : expired ? "expired" : "dead"
@@ -2917,6 +2997,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
         issues: deps.storage.listPrWatches(row.slug, { armedOnly: true }).filter((w) => w.kind === "issue")
           .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
+        commands: commandWatchOps(deps.storage, row.slug),
       })
       // NOTHING RUNNING is itself the answer, and the most common one for a nameless fence: a worker
       // waiting on nothing is not awaiting, it is done. Said plainly rather than left as an empty list.
@@ -2931,7 +3012,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         // carry on", and the "nothing could wake you, finish in done" tail contradicted it.
         : cause === "expired" || allFinished
         ? head
-        : `${head}\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n\`\`\`done, or register a question with \`mcp__frizz__ask\`.`
+        : `${head}\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n\`\`\`done, or register a question with \`frizzctl ask\`.`
       // THE CONSECUTIVE CAP, and the reason SOURCE 12 needed one. A correction is only worth sending to a
       // worker that can act on it, and a worker whose contract froze before this grammar existed cannot:
       // no fence it knows how to write will pass the check. Uncapped, that is a closed loop — bump, wake,
@@ -2974,7 +3055,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   }
 
   // ---- SOURCE 11: THE REGISTERED PR WATCHERS ------------------------------------------------------
-  // A worker registers a pull request with `mcp__frizz__watch_pr` and frizz brings it back whenever
+  // A worker registers a pull request with `frizzctl watch-pr` and frizz brings it back whenever
   // something happens on it (maintainer 2026-08-14: "The agent should have a tool to register a PR
   // watcher… it should get notified when CI either succeeds or failed and on follow-up reviews and
   // comments").
@@ -3668,7 +3749,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // until it does (registeredDoneFence: a done stands through a prose-only reply to a newer user
       // record, not through a tool call or a failed turn after it). SOURCES 4 and 5 already decline
       // a done thread; this is the same guard. The one exception is a shell the worker REGISTERED a wait
-      // on (`mcp__frizz__watch`): a registration trumps a done on the board, so it trumps it here too —
+      // on (`frizzctl watch`): a registration trumps a done on the board, so it trumps it here too —
       // the wake is the thing it registered for. Matched by ROW, in any state but dropped, because
       // evalOwnWatches has already settled that row silently by the time this pass runs (it runs first
       // in the tick, and "target ended" is its silent case — the wake is this pass's to send). Once the
@@ -3943,6 +4024,187 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         log(`waker: settled ${slug} — watch ${w.id} finished (${w.kind}: ${w.target})`)
       }
     }
+  }
+
+  // ---- SOURCE 16: THE WORKER'S COMMAND WATCHES ------------------------------------------------------
+  // `frizzctl watch-command add` (2026-10-11): a shell command the server re-runs every `every` until it
+  // exits 0, so a wait on an outside condition holds nothing in the thread's own process tree and the
+  // thread can hibernate under it. See command-watch.ts for the process and the gate.
+  //
+  // ONE-SHOT, like a timer and unlike a PR watcher: the first passing check settles the row and wakes the
+  // thread once. Expiry settles it and wakes the thread to re-decide. A gate that closes (the thread left
+  // `bypassPermissions`, the sandbox came on) cancels it and wakes the thread to use a background shell.
+  //
+  // RUNS ARE STARTED, NOT AWAITED. A check may take two minutes and the tick is serialized: awaiting it
+  // would hold every other source behind somebody's `curl`. So the pass starts what is due and returns;
+  // each check records itself when it finishes and kicks the next tick, which delivers the wake.
+  //
+  // NEVER TWO CHECKS OF ONE WATCH AT ONCE: `commandRuns` holds the one in flight, and a watch with a
+  // check in flight is not due. The SERVER-WIDE bound on checks at once lives in the service
+  // (command-watch.ts), shared by every project's scheduler.
+  //
+  // CADENCE FROM THE FINISH: the next check is due `every` after the last one ENDED, so a check slower
+  // than its cadence cannot stack up behind itself.
+  //
+  // THE FENCE IS NOT CONSULTED, as with a PR watcher: registration is the fact, and a thread that is not
+  // resting on the watch is woken exactly the same way (held until it rests, like every non-clock wake).
+  const commandRuns = new Map<string, { abort: AbortController; done: Promise<void> }>()
+
+  function kick(): void {
+    if (stopped || !timer) return
+    // A KICK DURING A TICK RUNS ONE MORE AFTER IT. `tick` joins a running pass rather than starting a
+    // second, and that pass may already be past the part the kick was for — so the kick used to be
+    // swallowed, and the work it announced waited a whole interval. It bit the case kicks exist for:
+    // answers arrive a question at a time (2026-09-29), and the second one is stored while the first
+    // one's delivery is still awaiting its `resume`. Coalesced: however many kicks land during one
+    // pass, one more pass follows it, and that pass finds all of them together.
+    if (activeTick) {
+      if (rerun) return
+      rerun = true
+      void activeTick.then(
+        () => {
+          rerun = false
+          if (stopped || !timer) return
+          void tick().catch((error) => log(`waker: kick failed: ${error instanceof Error ? error.message : String(error)}`))
+        },
+        () => { rerun = false },
+      )
+      return
+    }
+    void tick().catch((error) => log(`waker: kick failed: ${error instanceof Error ? error.message : String(error)}`))
+  }
+
+  async function commandRunsIdle(): Promise<void> {
+    while (commandRuns.size > 0) await Promise.all([...commandRuns.values()].map((r) => r.done))
+  }
+
+  function threadIsLive(row: SessionRow | undefined): row is SessionRow {
+    return !!row && row.state !== "archived" && row.archived !== 1
+  }
+
+  function enqueueCommandWatchWake(row: SessionRow, fenceId: string, message: string, reason: string, nowMs: number): void {
+    const deliveryId = wakeDeliveryId(row.slug, row.session_id, fenceId)
+    if (outbox.get(deliveryId)) return
+    const item = outbox.enqueue({
+      id: deliveryId,
+      slug: row.slug,
+      sessionId: row.session_id,
+      fenceId,
+      hintKey: fenceId,
+      message: withClock(message, deps.tailer.get(row.slug)?.lastAssistantAt),
+      reason,
+    }, nowMs).delivery
+    log(`waker: queued ${row.slug} — ${item.reason}`)
+    checkpoint("after-enqueue", item)
+  }
+
+  function lastRunOf(w: CommandWatchRow): { outcome: "exit" | "timeout" | "signal" | "error"; exitCode: number | null; output: string } | undefined {
+    if (w.last_run_at === null || !w.last_outcome) return undefined
+    return { outcome: w.last_outcome, exitCode: w.last_exit, output: w.last_output ?? "" }
+  }
+
+  function evalCommandWatches(nowMs: number): void {
+    // EXPIRY FIRST, so an expired watch never runs once more on its way out. Wake THEN settle: a crash
+    // between the two leaves the row armed and expired, and the next pass re-enqueues under the same
+    // delivery id, which the outbox dedupes — so the wake goes out exactly once either way.
+    for (const w of deps.storage.expiredCommandWatches(nowMs)) {
+      commandRuns.get(w.id)?.abort.abort()
+      const row = deps.storage.getSession(w.thread_slug)
+      if (threadIsLive(row)) {
+        enqueueCommandWatchWake(
+          row,
+          `${COMMAND_WATCH_EXPIRED_FENCE_PREFIX}:${w.id}`,
+          commandWatchExpiredWakeMessage({ id: w.id, command: w.command, lastRun: lastRunOf(w) }),
+          `command watch ${w.id} expired after ${w.runs} check(s)`,
+          nowMs,
+        )
+      }
+      deps.storage.settleCommandWatch(w.id, "expired", nowMs)
+      log(`waker: settled ${w.thread_slug} — command watch ${w.id} expired`)
+    }
+    const armed = deps.storage.armedCommandWatches()
+    // A check whose row left `armed` under it — dropped by the worker, or the thread forgotten — is
+    // killed now rather than left to finish a question nobody is asking.
+    const armedIds = new Set(armed.map((w) => w.id))
+    for (const [id, run] of commandRuns) if (!armedIds.has(id)) run.abort.abort()
+    const service = deps.commandWatches
+    if (!service) return
+    for (const w of armed) {
+      if (commandRuns.has(w.id)) continue
+      const dueAt = w.last_run_at !== null ? w.last_run_at + w.every_ms : w.created_at
+      if (nowMs < dueAt) continue
+      const row = deps.storage.getSession(w.thread_slug)
+      // AN ARCHIVED THREAD's watch stays ARMED and is not run, the PR watcher's rule: it can be reopened,
+      // and the watch is still its worker's outstanding intent — but no check runs for a thread nothing
+      // can wake. Its `for` still runs out above.
+      if (!threadIsLive(row)) continue
+      // THE GATE, AGAIN, AT EVERY CHECK. Registration asked it once; a thread whose permission mode or
+      // sandbox changed since must stop getting commands run for it, and must be told — a watch that
+      // silently stops is a worker resting on coverage it does not have.
+      const refusal = service.refusal(row)
+      if (refusal) {
+        enqueueCommandWatchWake(
+          row,
+          `${COMMAND_WATCH_CANCELLED_FENCE_PREFIX}:${w.id}`,
+          commandWatchCancelledWakeMessage({ id: w.id, command: w.command, reason: refusal }),
+          `command watch ${w.id} cancelled: ${refusal}`,
+          nowMs,
+        )
+        deps.storage.settleCommandWatch(w.id, "cancelled", nowMs)
+        log(`waker: settled ${w.thread_slug} — command watch ${w.id} cancelled: ${refusal}`)
+        continue
+      }
+      startCommandRun(service, w)
+    }
+  }
+
+  function startCommandRun(service: CommandWatchService, w: CommandWatchRow): void {
+    const abort = new AbortController()
+    const done = (async () => {
+      let result: Pick<CommandRunResult, "outcome" | "exitCode" | "output">
+      try {
+        result = await service.run(w.thread_slug, w.command, { signal: abort.signal })
+      } catch (err) {
+        result = { outcome: "error", exitCode: null, output: err instanceof Error ? err.message : String(err) }
+      }
+      // Aborted ⇒ the row left `armed`, ran out, or the server is stopping. Nothing is recorded: the
+      // first two have nothing to record onto, and the third leaves the row for the next server to run.
+      if (abort.signal.aborted || stopped) return
+      finishCommandRun(w, result)
+    })()
+      .catch((err) => log(`waker: command watch ${w.id} check failed to record: ${err instanceof Error ? err.message : String(err)}`))
+      .finally(() => { if (commandRuns.get(w.id)?.done === done) commandRuns.delete(w.id) })
+    commandRuns.set(w.id, { abort, done })
+  }
+
+  function finishCommandRun(w: CommandWatchRow, result: Pick<CommandRunResult, "outcome" | "exitCode" | "output">): void {
+    const atMs = now()
+    // Recorded only onto a row still ARMED (the statement's own guard): a drop that landed while this
+    // check ran wins, and nothing it found is reported.
+    if (!deps.storage.recordCommandWatchRun(w.id, { atMs, outcome: result.outcome, exitCode: result.exitCode, output: result.output })) return
+    if (result.outcome !== "exit" || result.exitCode !== 0) return
+    const current = deps.storage.getCommandWatch(w.id)
+    const row = deps.storage.getSession(w.thread_slug)
+    // PASSED. Wake THEN settle, for the expiry's reason: a crash between leaves the row armed, the next
+    // server runs the check again, and the second pass's wake dedupes against the first by its id.
+    if (threadIsLive(row)) {
+      enqueueCommandWatchWake(
+        row,
+        `${COMMAND_WATCH_FENCE_PREFIX}:${w.id}`,
+        commandWatchPassedWakeMessage({
+          id: w.id,
+          command: w.command,
+          output: result.output,
+          runs: current?.runs ?? w.runs + 1,
+          armedMs: Math.max(0, atMs - w.created_at),
+        }),
+        `command watch ${w.id} passed`,
+        atMs,
+      )
+    }
+    deps.storage.settleCommandWatch(w.id, "passed", atMs)
+    log(`waker: settled ${w.thread_slug} — command watch ${w.id} passed`)
+    kick()
   }
 
   /** THE ANSWER DELIVERY PASS. The human answered on the board; this is what puts it in front of the
@@ -4694,24 +4956,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     return adopted
   }
 
-  // The merged body: each wake's own message under its own reason line, oldest first, and ONE clock at
-  // the foot in place of the one each frizz-authored part carried (a stamp per section would put five
-  // clocks in one message; the display stripper is anchored to a single trailing one). Parts whose
-  // reason AND body are identical — the same review event reported by two polls, the same "CI passing"
-  // twice — fold into one section that says how many there were, rather than saying the same thing
-  // three times to a reader who pays per token to read it.
-  function mergedWakeMessage(frame: readonly WakeDelivery[], spokeAt: string | null | undefined): string {
-    const sections: { reason: string; body: string; count: number }[] = []
-    for (const part of frame) {
-      const body = stripWakeTimeHeader(part.message).trim()
-      const same = sections.find((s) => s.reason === part.reason && s.body === body)
-      if (same) same.count++
-      else sections.push({ reason: part.reason, body, count: 1 })
-    }
-    const lead = `Frizz held ${frame.length} wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.`
-    const body = sections.map((s, i) => `### ${i + 1}. ${s.reason}${s.count > 1 ? ` — ${s.count} identical events` : ""}\n\n${s.body}`)
-    return `${lead}\n\n${body.join("\n\n")}\n\n${clockLine(now(), spokeAt, frame[0]?.slug)}`
-  }
+  // The merged body is composed by `mergedWakeMessage` in @frizz/shared, beside the splitter the chat
+  // reads it back with. Same rule as `limitResumeSteer` and the park wakes: a formatter the chat cannot
+  // parse falls through FrizzWake's fallback and prints its agent-facing body verbatim as a bordered
+  // card, and this one did for five weeks.
 
   // A LONE wake's clock is re-read at SEND, for the same reason the merged one is: the stamp was taken at
   // enqueue, and the quiet window can hold a row for five minutes, across a turn the worker finished in
@@ -4782,7 +5030,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         ? restampedWakeMessage(item.message, spokeAt, item.slug)
         : isQuestionAnswerFenceId(item.fenceId)
           ? withClock(mergeAnswerMessages(frame.map((d) => d.message))!, spokeAt)
-          : mergedWakeMessage(frame, spokeAt)
+          : mergedWakeMessage(frame, now(), spokeAt, rowDeadline(deps.storage.getSession(item.slug))?.atMs)
       if (companions.length > 0) {
         log(`waker: merged ${frame.length} wakes for ${item.slug} into one delivery — ${frame.map((d) => d.reason).join("; ")}`)
       }
@@ -4956,6 +5204,12 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       log(`waker: watch registry pass failed: ${err instanceof Error ? err.message : String(err)}`)
     }
     try {
+      evalCommandWatches(now())
+    } catch (err) {
+      if (err instanceof InjectedSchedulerCrash) throw err
+      log(`waker: command-watch pass failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+    try {
       evalShellCompletions(now())
     } catch (err) {
       if (err instanceof InjectedSchedulerCrash) throw err
@@ -5027,35 +5281,18 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // A scheduled run launched off the tick settles its run row and materializes the next one when it
       // lands; the storage it writes must still be open, so the launch is awaited here like a tick.
       await deps.scheduledThreads?.drain()
+      // A check in flight is killed, group and all, and its result discarded: the row stays armed with
+      // its last recorded check, so the next server runs it again on the same cadence.
+      for (const run of commandRuns.values()) run.abort.abort()
+      await commandRunsIdle()
     },
     tick,
     requestCheckIn(slug, restedAt) {
       checkInRequests.set(slug, restedAt)
-      scheduler.kick()
+      kick()
     },
-    kick() {
-      if (stopped || !timer) return
-      // A KICK DURING A TICK RUNS ONE MORE AFTER IT. `tick` joins a running pass rather than starting a
-      // second, and that pass may already be past the part the kick was for — so the kick used to be
-      // swallowed, and the work it announced waited a whole interval. It bit the case kicks exist for:
-      // answers arrive a question at a time (2026-09-29), and the second one is stored while the first
-      // one's delivery is still awaiting its `resume`. Coalesced: however many kicks land during one
-      // pass, one more pass follows it, and that pass finds all of them together.
-      if (activeTick) {
-        if (rerun) return
-        rerun = true
-        void activeTick.then(
-          () => {
-            rerun = false
-            if (stopped || !timer) return
-            void tick().catch((error) => log(`waker: kick failed: ${error instanceof Error ? error.message : String(error)}`))
-          },
-          () => { rerun = false },
-        )
-        return
-      }
-      void tick().catch((error) => log(`waker: kick failed: ${error instanceof Error ? error.message : String(error)}`))
-    },
+    kick,
+    commandRunsIdle,
   }
   return scheduler
 }

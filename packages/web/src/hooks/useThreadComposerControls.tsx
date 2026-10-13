@@ -85,7 +85,8 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
   // before, and React tore the whole queue down ("change in the order of Hooks"). Every card vanished in
   // one frame instead of one card fading. The browser pin is components/queueCardStates.e2e.test.ts,
   // on AllQueues' card, which holds the same fade the project board's queue did until 2026-09-28.
-  const acpAgents = useQuery({ queryKey: ["acpAgents"], queryFn: () => rpc.acpAgents(), enabled: Boolean(thread) && backend === "acp" })
+  // Asked of the thread's own project (ThreadProjectScope), under a key that names it (upstream ff43f7d3).
+  const acpAgents = useQuery({ queryKey: projectId ? ["acpAgents", { project: projectId }] : ["acpAgents"], queryFn: () => api.acpAgents(), enabled: Boolean(thread) && backend === "acp" })
 
   // Legacy/rowless and foreign transcripts have no Frizz-owned runtime profile to mutate. Keep their
   // existing composer behavior, but never render a misleading disabled control.

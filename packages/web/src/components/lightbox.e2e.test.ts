@@ -52,8 +52,8 @@ const TILES = 13
 const VIDEO_TILES = 1
 
 async function launch(viewport: typeof DESKTOP | typeof PHONE = DESKTOP) {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport(viewport)
   const errors: string[] = []
@@ -122,7 +122,12 @@ const pictureViewer = (page: Page) => page.evaluate(() => {
 const pageKeys = (page: Page) => page.evaluate(() => window.__pageKeys!.splice(0))
 
 // The viewer's picture once its zoom has SETTLED. The inline transform is the target a change sets and
-// the computed one trails it through the 180ms ease, so this waits for the two to agree before reading.
+// the computed one trails it through the 180ms ease, so this waits for the ease to END before reading.
+// Ended, and not merely close: the ease spends its last frames within a thousandth of the target, and a
+// rect read there is not the settled one. Measured 2026-10-11 with the animation slowed 50×: the first
+// frame the two agreed to a thousandth drew the 872px picture 872.85px wide at left 63.57 instead of 64,
+// with the transition still running — enough to round a point 30% across to 325 instead of 326, which is
+// the "pixel under the cursor moved" the pinch test reported twice at a load average over 260.
 // `rect` is where the picture is drawn; `fitted` is its layout box, which a transform does not move.
 async function zoomOf(page: Page, root = "[data-lightbox]") {
   const read = (root: string) => {
@@ -131,13 +136,28 @@ async function zoomOf(page: Page, root = "[data-lightbox]") {
     if (!img || !m) return null
     const [x, y, scale] = m.slice(1).map(Number)
     const c = new DOMMatrix(getComputedStyle(img).transform)
-    const settled = Math.abs(c.a - scale) < 1e-3 && Math.abs(c.e - x) < 0.05 && Math.abs(c.f - y) < 0.05
+    const settled = img.getAnimations().length === 0 && Math.abs(c.a - scale) < 1e-3 && Math.abs(c.e - x) < 0.05 && Math.abs(c.f - y) < 0.05
     const r = img.getBoundingClientRect()
     return { settled, scale, x, y, rect: { left: r.left, top: r.top, width: r.width, height: r.height } }
   }
   await page.waitForFunction(`(${read})(${JSON.stringify(root)})?.settled`, { timeout: 5000 })
   return (await page.evaluate(read, root))!
 }
+
+// The viewer's picture, READY for a gesture — which `waitForSelector`, returning as soon as the <img>
+// exists, does not mean. Two things trail it. The picture must have LOADED: a gesture zooms only once it
+// knows its natural size (`geometry()` in Lightbox.tsx is null until then). And the dialog must be TAKING
+// THE POINTER: Radix turns `pointer-events` off on <body> as a modal mounts and back on for the dialog's
+// content one render later, and in between a click at the picture lands on the scrim behind it and zooms
+// nothing. Nobody clicks inside that window by hand; a driver does. Measured 2026-10-11 on the click
+// test's second picture, which is cached and so loaded at once: its click arrived 16ms after the tile's
+// and its target was the scrim, in 2 of 5 runs under the headless shell, which dispatches input without
+// waiting for a frame the way the full browser did (0 of 6 there).
+const pictureReady = (page: Page) =>
+  page.waitForFunction(() => {
+    const img = document.querySelector<HTMLImageElement>("[data-lightbox] img")
+    return !!img && img.naturalWidth > 0 && getComputedStyle(img).pointerEvents !== "none"
+  })
 
 const close = (a: number, b: number, tolerance = 0.5) => Math.abs(a - b) <= tolerance
 // A browser serializes a transform's numbers to six significant digits, so a scale read back from one is
@@ -219,11 +239,37 @@ test("the viewer pages with the arrow keys, stops at the ends, and Escape closes
   }
 })
 
+// The header's buttons are the thread header's icon controls (lib/headerIcon.ts), named by its immediate
+// tooltip. A tooltip that is open is a layer ABOVE the dialog, so it takes Escape from it — and the key
+// then has to close the viewer from the dialog's own handler, or it closes only the tooltip and reaches
+// the page with the viewer still up.
+test("the header's buttons are the thread header's squares with its tooltips, and Escape over a tooltip still closes the viewer", { skip: !baseUrl, timeout: 120_000 }, async () => {
+  const { browser, page, errors } = await launch()
+  try {
+    await (await page.$("[data-fixture-message='0'] [data-lightbox-tile]"))!.click()
+    await pictureReady(page)
+    const buttons = await page.$$eval("[data-lightbox] header button", (els) => els.map((b) => {
+      const box = b.getBoundingClientRect()
+      return [b.getAttribute("aria-label"), box.width, box.height, b.querySelector("svg")!.getBoundingClientRect().width]
+    }))
+    assert.deepEqual(buttons, [["Zoom out", 28, 28, 14], ["Zoom in", 28, 28, 14], ["Open in default viewer", 28, 28, 14], ["Close", 28, 28, 15]])
+
+    await page.hover('[data-lightbox] button[aria-label="Open in default viewer"]')
+    await page.waitForFunction(() => document.querySelector("[role=tooltip]")?.textContent === "Open in default viewer", { timeout: 5000 })
+    await page.keyboard.press("Escape")
+    await page.waitForFunction(() => !document.querySelector("[data-lightbox]"), { timeout: 5000 })
+    assert.deepEqual(await pageKeys(page), [], "the Escape that closed the viewer must not reach the page")
+    assert.deepEqual(errors, [])
+  } finally {
+    await browser.close()
+  }
+})
+
 test("a click zooms into the point under the cursor, a drag moves the magnified picture, and a click zooms back out", { skip: !baseUrl, timeout: 120_000 }, async () => {
   const { browser, page, errors } = await launch()
   try {
     await (await page.$("[data-fixture-message='0'] [data-lightbox-tile]"))!.click()
-    await page.waitForSelector("[data-lightbox] img")
+    await pictureReady(page)
     const fit = await zoomOf(page)
     assert.deepEqual([fit.scale, fit.x, fit.y], [1, 0, 0])
     assert.equal(await page.$eval("[data-lightbox] img", (img) => getComputedStyle(img).cursor), "zoom-in")
@@ -265,7 +311,7 @@ test("a click zooms into the point under the cursor, a drag moves the magnified 
     await page.keyboard.press("Escape")
     await page.waitForFunction(() => !document.querySelector("[data-lightbox]"))
     await (await page.$("[data-fixture-message='1'] [data-lightbox-tile]"))!.click() // phone-375x812
-    await page.waitForSelector("[data-lightbox] img")
+    await pictureReady(page)
     const tall = await zoomOf(page)
     await page.mouse.click(tall.rect.left + tall.rect.width / 2, tall.rect.top + tall.rect.height / 2)
     const tallZoomed = await zoomOf(page)
@@ -286,7 +332,7 @@ test("the zoom buttons, the + − 0 keys and a ctrl-wheel or trackpad pinch zoom
   const { browser, page, errors } = await launch()
   try {
     await (await page.$("[data-fixture-message='0'] [data-lightbox-tile]"))!.click()
-    await page.waitForSelector("[data-lightbox] img")
+    await pictureReady(page)
     const disabled = (label: string) => page.$eval(`[data-lightbox] button[aria-label="${label}"]`, (b) => b.getAttribute("aria-disabled") === "true")
     assert.deepEqual([await disabled("Zoom out"), await disabled("Zoom in")], [true, false], "nothing to zoom out of at fit")
 
@@ -361,7 +407,7 @@ test("on a phone, a pinch zooms the picture, one finger pans it, a double tap to
   const { browser, page, errors } = await launch(PHONE)
   try {
     await (await page.$("[data-fixture-message='0'] [data-lightbox-tile]"))!.tap()
-    await page.waitForSelector("[data-lightbox] img")
+    await pictureReady(page)
     // A touch screen gets 44px header buttons and no zoom buttons — it pinches.
     const chrome = await page.evaluate(() => ({
       coarse: matchMedia("(pointer: coarse)").matches,

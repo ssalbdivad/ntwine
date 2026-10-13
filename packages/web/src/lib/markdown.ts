@@ -11,6 +11,8 @@ import { prefixedAppRoute } from "./base-path.ts"
 import { githubRefFromUrl, linkifyGithubRefs, withGithubRepo } from "./githubAutolink.ts"
 import { linkifyThreadMentions, withMentionProject } from "./mentionAutolink.ts"
 import { restoreWindowsPathEscapes } from "./windowsPathEscapes.ts"
+import { calloutExtension, promoteCallouts } from "./callouts.ts"
+import { restoreDisclosure } from "./disclosure.ts"
 import { FRAMED_IMAGE, IMAGE_FRAME, IMAGE_FRAME_MAT } from "../components/ImageFrame.tsx"
 
 // marked's GFM strikethrough opener is `~~?` — ONE tilde is enough. That misreads the tilde agents
@@ -242,7 +244,7 @@ function promoteTaskItem(item: Tokens.ListItem): void {
 // itself can't run under `node --test` (the sanitizer needs a DOM), but everything here is pure.
 export const MARKDOWN_OPTIONS = {
   breaks: true,
-  extensions: [headerlessTableExtension, customTaskStatusExtension, taskTextExtension, codeTabsExtension],
+  extensions: [headerlessTableExtension, customTaskStatusExtension, taskTextExtension, codeTabsExtension, calloutExtension],
   tokenizer: strikethroughTokenizer,
   // GitHub-style `#123` / commit-hash autolinking (githubAutolink.ts). A hook rather than an extension or
   // a walkTokens branch: it needs the ROOT token array, which is the whole document on the parseInline
@@ -260,6 +262,9 @@ export const MARKDOWN_OPTIONS = {
       // Runs of labelled fences become one tabbed block (codeTabs.ts). Here for the same reason as the
       // autolinker: a run is a fact about SIBLINGS, and only this hook sees a whole token list.
       groupCodeTabs(tokens)
+      // A blockquote that opens with `[!TYPE]` becomes a callout (callouts.ts). After the tabs, which
+      // recurse into a blockquote and would not know to look inside the token this replaces it with.
+      promoteCallouts(tokens)
       return tokens
     },
   },
@@ -350,6 +355,10 @@ export function stripFrontmatter(md: string): string {
 const ALLOWED_TAGS = new Set([
   "h1", "h2", "h3", "h4", "h5", "h6", "p", "br", "hr", "strong", "em", "del", "code", "pre",
   "blockquote", "ul", "ol", "li", "a", "img", "button", "table", "thead", "tbody", "tr", "th", "td", "span",
+  // Raw HTML an author writes because Markdown has no spelling for it. Unwrapped, each one lost its
+  // meaning silently: `x<sup>2</sup>` read "x2", and a `<details>` printed its body open under a stray
+  // summary line.
+  "details", "summary", "kbd", "sub", "sup", "mark",
 ])
 // The `data-local-*` position attributes ride beside `data-local-path` (lib/localFilePosition.ts): a
 // local-file element minted here never reaches this loop, but one an author wrote as raw HTML does, and
@@ -377,8 +386,10 @@ const ALLOWED_CLASS = new RegExp(
 // are what a code-tab group (lib/codeTabs.ts) says to a screen reader; each is admitted as the one
 // value its tag takes there, so none can relabel an element as something it is not. `data-line` is a
 // rendered diff's gutter number (lib/codeDiff.ts), which the stylesheet draws so it stays out of the
-// text Copy takes; `aria-expanded` is a long block's show-all button (lib/codeBlock.ts).
+// text Copy takes; `aria-expanded` is a long block's show-all button (lib/codeBlock.ts). `open` is a
+// boolean attribute, so any value means open; the walk rewrites it bare (lib/disclosure.ts).
 const ALLOWED_ATTRS_BY_TAG: Record<string, Record<string, RegExp>> = {
+  details: { open: /^[^]*$/ },
   ol: { start: /^\d{1,9}$/ },
   span: { style: ANSI_STYLE_PATTERN, role: /^tablist$/, "data-line": /^\d{1,9}$/ },
   button: { role: /^tab$/, "aria-selected": /^(?:true|false)$/, "aria-expanded": /^(?:true|false)$/ },
@@ -516,6 +527,9 @@ function walk(node: ParentNode, ctx: WalkContext) {
       if (ghRef) el.setAttribute("data-gh-ref", ghRef)
     }
     walk(el, ctx)
+    // After its children, so the summary text that keys the reader's remembered choice is the sanitized
+    // text the page will show (lib/disclosure.ts).
+    if (tag === "details") restoreDisclosure(el)
   }
 }
 

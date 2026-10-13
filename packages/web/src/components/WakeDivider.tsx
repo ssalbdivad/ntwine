@@ -48,13 +48,16 @@ export function WakeDivider({ icon: Icon, children, sourceId, ariaLabel, marker,
   // its hairlines brighten with its label, so the affordance is the whole rule rather than the words.
   const chrome = (
     <>
-      <span aria-hidden="true" className="h-px flex-1 bg-border/70 transition-colors group-hover/wake:bg-border" />
-      <span className="petite-caps flex min-w-0 items-center gap-1 break-words text-center text-[12px] text-muted-70 transition-colors group-hover/wake:text-fg">
+      <span aria-hidden="true" className={WAKE_DIVIDER_RULE} />
+      {/* `overflow-x-clip` is the backstop behind the rule's floor, never the mechanism: a label whose
+          rigid parts outgrow the room is cut at its own edge rather than painted across the rule. `clip`
+          and not `hidden`, which would make the other axis scroll and shave the focus ring off a link. */}
+      <span className="petite-caps flex min-w-0 items-center gap-1 overflow-x-clip break-words text-center text-[12px] text-muted-70 transition-colors group-hover/wake:text-fg">
         {Icon && <Icon aria-hidden="true" size={12} className={WAKE_DIVIDER_ICON} />}
         {children}
         <DividerAge at={at} />
       </span>
-      <span aria-hidden="true" className="h-px flex-1 bg-border/70 transition-colors group-hover/wake:bg-border" />
+      <span aria-hidden="true" className={WAKE_DIVIDER_RULE} />
     </>
   )
   if (onClick) {
@@ -69,7 +72,7 @@ export function WakeDivider({ icon: Icon, children, sourceId, ariaLabel, marker,
         aria-label={ariaLabel}
         aria-expanded={ariaExpanded}
         aria-controls={ariaControls}
-        className="group/wake my-1 flex w-full items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-1 focus-visible:ring-focus-ink-60"
+        className="group/wake @container/wake my-1 flex w-full items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-1 focus-visible:ring-focus-ink-60"
       >
         {chrome}
       </button>
@@ -79,7 +82,7 @@ export function WakeDivider({ icon: Icon, children, sourceId, ariaLabel, marker,
     <div
       data-frizz-msg={sourceId}
       data-wake-divider={marker}
-      className="my-1 flex items-center gap-3"
+      className="@container/wake my-1 flex items-center gap-3"
       // A divider carrying an interactive title is not an ARIA `separator` (a separator may not own a
       // focus stop), so only the inert shell-wake form takes the role — via `ariaLabel`.
       role={ariaLabel ? "separator" : undefined}
@@ -87,6 +90,90 @@ export function WakeDivider({ icon: Icon, children, sourceId, ariaLabel, marker,
     >
       {chrome}
     </div>
+  )
+}
+
+// ---- THE RULE IS NEVER SQUEEZED OUT (2026-10-11) ---------------------------------------------------
+// A divider is a hairline with a label ON it, and it stops being one the moment the label takes the
+// whole row. Nothing stopped it: the rules were `flex-1` with no floor, so a background shell's
+// 61-character title ran a 700px column nearly edge to edge, and a label longer than a narrow row left
+// no rule at all (maintainer: "you can barely even see the hairline anymore. There needs to be at least
+// 50 pixels of hairline on each side").
+//
+// So the RULE has a floor and the LABEL is what gives. `min-w-[50px]` on both rules is the whole
+// guarantee — they are the only flex items here that refuse to shrink, and the label between them is
+// `min-w-0`. What that buys depends on every caller letting its text compress, which is three habits:
+//
+// - ONE part of a label is elastic (`min-w-0 truncate`) and it is the LONG one — a title, a job list.
+//   The word that is the news (`finished`, `expired`, the verdict) sits before it or outside it, so the
+//   ellipsis never lands on it. A quoted title goes through `DividerQuotedTitle`, which closes the quote.
+// - Words the row can do without are `WAKE_DIVIDER_WIDE_ONLY`: a clause that explains the news ("— its
+//   work finished"), a tally, a duration, a ref's `owner/repo`, and the noun the icon already says
+//   ("Background task", "Sub-agent"). Below the width where they stop fitting they are GONE rather than
+//   half-clipped — a row that ends "…ITS WOR…" beside a truncated title is two ellipses and no news.
+// - Everything else is short and rigid: the icon, the outcome word, the age.
+//
+// So a divider has TWO readings, and the narrow one is written, not left to the ellipsis:
+//
+//   Background task «Running the update harness aga…» finished · 3h ago      «Running th…» finished · 3h ago
+//   Wait over — its work finished · Click to expand · 3h ago                 Wait over · expand · 3h ago
+//   CI passed on nubjs/nub#761 · 7 checks green · 2h ago                     CI passed #761 · 2h ago
+//   New review comment from @pullfrog on nubjs/nub#587 · 9m ago              Review comment #587 · 9m ago
+//
+// The switch is a CONTAINER query on the divider itself, not a viewport breakpoint, because the same
+// divider is drawn in a 760px thread column, a 420px drawer and a phone's queue card, sometimes all at
+// once. 34rem is where the widest full label in the family stops fitting between two 50px rules — the
+// collapsed-rounds line, 352px of rigid text, needs 476px — with room left for a title beside it. A
+// 390px phone's column leaves the label about 230px, of which the icon and the age take 85: the narrow
+// reading has some 20 characters to say it in, which is the budget each caller's wording was cut to.
+export const WAKE_DIVIDER_RULE = "h-px min-w-[50px] flex-1 bg-border/70 transition-colors group-hover/wake:bg-border"
+export const WAKE_DIVIDER_WIDE_ONLY = "@max-[34rem]/wake:hidden"
+/** The other half, for the rare label whose narrow reading needs a word the wide one does not have (a
+ *  bare arrow where the sentence stood). Prefer hiding to swapping: both halves are in the DOM. */
+export const WAKE_DIVIDER_NARROW_ONLY = "@min-[34rem]/wake:hidden"
+
+/** `· Click to expand`, on a divider whose whole row toggles a body. It shortens to the verb on a narrow
+ *  row rather than leaving: a touch screen has no hover to say the rule is a button, so the word is the
+ *  only affordance there is.
+ *
+ *  Under 19.5rem it does leave. A label made of rigid parts alone has nothing to truncate — `Timer ·
+ *  expand · just now` needs a 303px row to keep both rules — so on a row narrower than that the label's
+ *  clip would cut the age mid-word instead. This is the floor for a split pane or a 320px screen, not a
+ *  third reading: a 390px phone's column is wider than it. */
+const HINT_LEAVES = "@max-[19.5rem]/wake:hidden"
+export function DividerHint({ open }: { open?: boolean }) {
+  return (
+    <>
+      <span aria-hidden="true" className={`shrink-0 opacity-50 ${HINT_LEAVES}`}>·</span>
+      <span className={`shrink-0 ${HINT_LEAVES}`}>
+        <span className={WAKE_DIVIDER_WIDE_ONLY}>Click to </span>
+        {open ? "collapse" : "expand"}
+      </span>
+    </>
+  )
+}
+
+/** `Lead «a long title» tail` with the TITLE as the one elastic part: `Background task «Running the
+ *  update harn…» finished`. The guillemets sit outside the truncating element, in a gap-less nested
+ *  flex, so a clipped title still closes its quote, and the tail — the outcome, which is the news —
+ *  survives whole. The lead names the kind of thing, which the divider's icon already does, so it is the
+ *  first part to go on a narrow row, with any `note` after the outcome ("(completion relayed)"). The
+ *  full title is the hover, for when it was cut. */
+export function DividerQuotedTitle({ lead, title, tail, note }: { lead?: string; title: string; tail?: string; note?: string }) {
+  // The spaces INSIDE the lead, tail and note are for the text, not the layout: a flex item's edge
+  // whitespace draws nothing (the label's gap is what spaces the parts), but without it the row's
+  // `textContent` — what find-in-page, a copy and every test read — runs the words together.
+  return (
+    <>
+      {lead && <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}>{lead} </span>}
+      <span className="flex min-w-0 items-center" title={title}>
+        <span className="shrink-0">«</span>
+        <span className="min-w-0 truncate">{title}</span>
+        <span className="shrink-0">»</span>
+      </span>
+      {tail && <span className="shrink-0"> {tail}</span>}
+      {note && <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}> {note}</span>}
+    </>
   )
 }
 

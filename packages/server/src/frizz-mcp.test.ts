@@ -27,13 +27,19 @@ interface Rpc {
 // `cwd` matters: with no FRIZZ_PROJECT_ID the shim derives its project by walking UP for `.frizz/.id`,
 // so a child left in this repo would address frizz's own project. Default it to an empty temp dir —
 // "a worker with no stamp and no project in its tree" — and let a test that wants the walk-up ask for it.
+const UNSET_FRIZZ_IDENTITY = { FRIZZ_THREAD: "", FRIZZ_THREAD_SLUG: "", FRIZZ_STATE_DIR: "", FRIZZ_PERM_DIR: "", FRIZZ_SERVER_LOCK: "", FRIZZ_PROJECT_ID: "" }
+
 function startServer(env: Record<string, string>, cwd = mkdtempSync(join(tmpdir(), "frizz-mcp-cwd-"))): Rpc {
   const descriptor = resolveFrizzMcp("/unused")
   assert.ok(descriptor, "the packaged frizz MCP script must be resolvable")
   const child = spawn(process.execPath, [descriptor.scriptPath], {
     stdio: ["pipe", "pipe", "inherit"],
     cwd,
-    env: { ...process.env, ...env },
+    // The Frizz identity of the shell running the suite is BLANKED before the test's own is laid on.
+    // Run from a worker, that shell names the real server (FRIZZ_SERVER_LOCK wins over the state dir
+    // a test passes), the real project and the worker's own thread, so an unblanked spawn sends every
+    // test's dispatch, steer and ask to the maintainer's board — two real opus threads per run.
+    env: { ...process.env, ...UNSET_FRIZZ_IDENTITY, ...env },
   })
   const pending = new Map<number, (value: any) => void>()
   const notifications: any[] = []
@@ -83,7 +89,7 @@ test("the frizz MCP server identifies as `frizz` and exposes its worker tools", 
     rpc.send({ jsonrpc: "2.0", method: "notifications/initialized" })
     rpc.send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     const list = await rpc.next(2)
-    assert.deepEqual(list.result.tools.map((t: { name: string }) => t.name), ["spawn_thread", "goal", "timer", "watch_pr", "watch", "unwatch", "ask", "unask", "done", "title", "activity", "link", "unlink", "watch_issue", "extend_shell", "read_thread", "message_thread", "editor", "schedule", "deadline", "secret"])
+    assert.deepEqual(list.result.tools.map((t: { name: string }) => t.name), ["spawn_thread", "goal", "timer", "watch_pr", "watch", "unwatch", "ask", "unask", "done", "title", "activity", "link", "unlink", "watch_issue", "extend_shell", "read_thread", "message_thread", "editor", "schedule", "deadline", "secret", "watch_command"])
     assert.deepEqual(list.result.tools.find((t: { name: string }) => t.name === "link").inputSchema.required, ["label", "target"])
     assert.deepEqual(list.result.tools.find((t: { name: string }) => t.name === "unlink").inputSchema.required, ["id"])
     for (const required of ["prompt", "model", "effort"]) {
@@ -178,7 +184,7 @@ test("the frizz MCP server identifies as `frizz` and exposes its worker tools", 
     // `wch_…` id of any watch holding one. It takes NOTHING: there is no thread parameter and no filter,
     // because the only correct answer is "everything you have running", and a worker that has lost its
     // ids cannot be trusted to name them.
-    assert.equal(list.result.tools.length, 21)
+    assert.equal(list.result.tools.length, 22)
     // `deadline` — the thread's time limit. `action` alone is required and there is NO thread parameter:
     // the slug comes from the env, so a worker reads and sets only its own.
     const deadlineTool = list.result.tools[19]
@@ -195,7 +201,7 @@ test("the frizz MCP server identifies as `frizz` and exposes its worker tools", 
     assert.deepEqual(scheduleTool.inputSchema.required, ["action"])
     assert.deepEqual(scheduleTool.inputSchema.properties.action.enum, ["create", "dry_run", "update", "list", "pause", "skip_next", "move_next"])
     assert.ok(!("slug" in scheduleTool.inputSchema.properties) && !("thread" in scheduleTool.inputSchema.properties))
-    for (const cue of ["RELAY IT TO THE USER VERBATIM", "DOES NOT RUN UNTIL THE USER CLICKS TURN ON", "ALWAYS include BYHOUR and BYMINUTE", "`model` and `effort` are REQUIRED"]) {
+    for (const cue of ["RELAY IT TO THE USER VERBATIM", "DOES NOT RUN UNTIL THE USER CLICKS TURN ON", "ALWAYS include BYHOUR and BYMINUTE", "`--model` and `--effort` are REQUIRED"]) {
       assert.ok(scheduleTool.description.includes(cue), cue)
     }
     // `editor` READS the human's editor and takes nothing: no window to pick, no project to name — the
@@ -226,6 +232,10 @@ test("the frizz MCP server identifies as `frizz` and exposes its worker tools", 
     // and no thread parameter.
     assert.deepEqual(list.result.tools[14].inputSchema.required, ["shell", "for"])
     assert.deepEqual(Object.keys(list.result.tools[14].inputSchema.properties), ["shell", "for"])
+    // `watch_command` — the server-run check (2026-10-11). `action` alone is required, and NO thread
+    // parameter: the command runs for the calling thread only, under that thread's own permission gate.
+    assert.deepEqual(list.result.tools[21].inputSchema.required, ["action"])
+    assert.deepEqual(Object.keys(list.result.tools[21].inputSchema.properties), ["action", "command", "every", "for", "id"])
 
     // An unregistered name is a protocol error, not a crash — the registry routes by name now.
     rpc.send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "spawn_frizz_thread", arguments: {} } })
@@ -270,7 +280,7 @@ test("`editor` is listed only while an editor has the project open, and the list
     rpc.send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     const first = names(await rpc.next(2))
     assert.ok(!first.includes("editor"), "no editor has the project open, so the tool is not listed")
-    assert.equal(first.length, 20)
+    assert.equal(first.length, 21)
     // Asked of OUR project, naming the calling thread (a window on its own checkout counts).
     assert.deepEqual(asked[0], { url: "/_frizz/proj/rpc/workerCapabilities", body: { slug: "caller" } })
 
@@ -319,7 +329,7 @@ test("a server that cannot report capabilities keeps every tool listed", async (
     rpc.send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     const list = await rpc.next(2)
     assert.ok(list.result.tools.some((t: { name: string }) => t.name === "editor"))
-    assert.equal(list.result.tools.length, 21)
+    assert.equal(list.result.tools.length, 22)
     await new Promise((r) => setTimeout(r, 400))
     assert.deepEqual(rpc.notifications, [], "an unreadable report never changes the list")
   } finally {
@@ -367,7 +377,7 @@ test("`spawn_thread` POSTs the real dispatch RPC and names the new thread by its
     assert.match(call.result.content[0].text, /It is @child: name it that way/)
     assert.doesNotMatch(call.result.content[0].text, /\/thread\//, "a named thread is not handed over as a link")
     assert.match(call.result.content[0].text, /It knows this thread: if its prompt asked for results back, they arrive as a message that wakes you/)
-    const back = (prompt: string) => prompt.startsWith("do the thing\n\n---\n") && /Spawned by the Frizz thread `caller`/.test(prompt) && /`message_thread` tool \(`handle: "caller"`\)/.test(prompt)
+    const back = (prompt: string) => prompt.startsWith("do the thing\n\n---\n") && /Spawned by the Frizz thread `caller`/.test(prompt) && /`frizzctl message-thread caller --message-file <file\|->`/.test(prompt)
     const sent = seen as Array<{ url: string; body: { prompt: string } }>
     assert.ok(back(sent[0].body.prompt), sent[0].body.prompt)
     assert.deepEqual(seen, [{ url: "/_frizz/rpc/dispatch", body: { prompt: sent[0].body.prompt, model: "opus", effort: "high", title: "Child", awaitHandle: true, spawnedFrom: "caller" } }])
@@ -531,7 +541,7 @@ test("`editor` reads the window on this project as text, and says why when there
 
     // A Frizz from before the procedure answers 404 naming it (packages/rpc's fall-through).
     const old = await call({ error: "unknown RPC procedure `editorState` — this server does not implement it." }, 404)
-    assert.match(old.text, /predates this tool\. Restart Frizz to enable this\./)
+    assert.match(old.text, /predates this command\. Restart Frizz to enable this\./)
     assert.equal(old.isError, undefined)
     // Any other failure is the tool failing, with the server's own words.
     const broken = await call({ error: "the bridge exploded" }, 500)
@@ -804,7 +814,7 @@ test("`goal` arms and disarms the CALLING thread, identified from its env", asyn
     })
     // The reply must teach how it ENDS, or a worker only knows how to start one — and it must warn
     // about the sign-off rather than merely offering it, since that exit files the thread away.
-    assert.match(armed.result.content[0].text, /action.{0,4}stop/)
+    assert.match(armed.result.content[0].text, /Run `frizzctl goal stop` once the work it drives is finished/)
     assert.match(armed.result.content[0].text, /```done/)
     assert.match(armed.result.content[0].text, /only when there is genuinely nothing left/)
 
@@ -846,9 +856,9 @@ test("`goal` arms and disarms the CALLING thread, identified from its env", asyn
     // A span outside the grammar, or outside the Goal's bounds, never reaches the server.
     const beforeBad = seen.length
     for (const [id, args, pattern] of [
-      [10, { for: "2 hours" }, /`for` must be a duration/],
+      [10, { for: "2 hours" }, /`--for` must be a duration/],
       [11, { for: "30s" }, /between `1m` and `30d`/],
-      [12, { max_runs: 0 }, /`max_runs` must be a whole number/],
+      [12, { max_runs: 0 }, /`--max-runs` must be a whole number/],
     ] as const) {
       rpc.send({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "goal", arguments: { action: "start", prompt: "x", ...args } } })
       const bad = await rpc.next(id)
@@ -942,7 +952,7 @@ test("`title` names the CALLING thread, and a human's own name refuses it out lo
     assert.equal(refused.result.isError, undefined, "a human owning the name is a correct answer, not a failure")
     assert.match(refused.result.content[0].text, /Not renamed/)
     assert.match(refused.result.content[0].text, /outranks yours/)
-    assert.match(refused.result.content[0].text, /do not call this again/)
+    assert.match(refused.result.content[0].text, /do not run this again/)
 
     // A DUPLICATE is the server's call, and its words — naming the holder — reach the worker verbatim,
     // so it can pick another subject rather than retry the same name.
@@ -1182,7 +1192,7 @@ test("`timer` refuses a bad delay, a missing/doubled instant and a missing id wi
 
     await refused(2, { action: "set", prompt: "x", in_seconds: 3 }, /must be between 10 and 2592000/)
     await refused(3, { action: "set", prompt: "x", in_seconds: 99_999_999 }, /must be between 10 and 2592000/)
-    await refused(4, { action: "set", prompt: "x" }, /give either `in_seconds`/)
+    await refused(4, { action: "set", prompt: "x" }, /give either `--in-seconds`/)
     await refused(5, { action: "set", prompt: "x", in_seconds: 60, at: "2026-08-04T15:00:00Z" }, /not both/)
     await refused(6, { action: "set", in_seconds: 60 }, /`prompt` is required/)
     await refused(7, { action: "set", prompt: "x", at: "2020-01-01T00:00:00Z" }, /at least 10s in the future/)
@@ -1243,7 +1253,7 @@ test("`goal` refuses to act when its thread identity was never stamped into its 
     rpc.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "goal", arguments: { action: "stop" } } })
     const failed = await rpc.next(2)
     assert.equal(failed.result.isError, true)
-    assert.match(failed.result.content[0].text, /not told which thread it belongs to/)
+    assert.match(failed.result.content[0].text, /could not tell which thread is calling/)
   } finally {
     rpc.kill()
   }
@@ -1350,7 +1360,7 @@ test("`watch` and `unwatch` register and withdraw against the CALLING thread", a
     assert.match(added.result.content[0].text, /wch_abc123 {2}shell: nub --test \(bzvtnt3ig\)/)
     // And it says what happens at the expiry, because the cancel-and-re-decide is the whole mechanism
     // that stops a registration outliving the reason it was made.
-    assert.match(added.result.content[0].text, /WHEN `for` RUNS OUT the row is CANCELLED/)
+    assert.match(added.result.content[0].text, /WHEN `--for` RUNS OUT the row is CANCELLED/)
 
     rpc.send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "unwatch", arguments: { id: "wch_abc123" } } })
     const dropped = await rpc.next(3)
@@ -1606,7 +1616,7 @@ test("`done` marks the CALLING thread finished, and reports a refusal as an acti
     assert.match(refused.result.content[0].text, /NOT marked done/)
     assert.match(refused.result.content[0].text, /qst_aaa111 {2}Ship it\?/)
     assert.match(refused.result.content[0].text, /wch_bbb222 {2}shell: nub --test \(bzvtnt3ig\)/)
-    assert.match(refused.result.content[0].text, /There is no force parameter/)
+    assert.match(refused.result.content[0].text, /There is no force flag/)
 
     rpc.send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "done", arguments: { body: "- **Fixed** the parser" } } })
     const marked = await rpc.next(3)
@@ -1825,7 +1835,7 @@ test("`watch_pr` reads back the expiry it actually got, and says so when the cei
 
     rpc.send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "watch_pr", arguments: { action: "add", target: "acme/app#392", for: "9999d" } } })
     const capped = (await rpc.next(3)).result.content[0].text
-    assert.match(capped, /YOUR `for: 9999d` WAS CAPPED/)
+    assert.match(capped, /YOUR `--for 9999d` WAS CAPPED/)
     assert.match(capped, /until 2027-09-02T00:00:00\.000Z/, "…and names what it actually holds instead")
   } finally {
     rpc.kill()
@@ -1950,7 +1960,7 @@ test("`activity` with nothing running says so, and names the terminal states tha
     assert.match(got.result.content[0].text, /Nothing is running on this thread/)
     assert.match(got.result.content[0].text, /```done/)
     // The free-form question fence was retired (607c4c12); the way to ask is `ask`, and the copy says so.
-    assert.match(got.result.content[0].text, /register a question with `ask`/)
+    assert.match(got.result.content[0].text, /register a question with `frizzctl ask`/)
   } finally {
     rpc.kill()
     http.close()
@@ -1981,7 +1991,7 @@ test("with no server up, a tool call says NOTHING WAS SAVED and to retry — not
     assert.equal(failed.result.isError, true)
     const text = failed.result.content[0].text
     assert.match(text, /NOTHING WAS SAVED/, "the worker must learn its OWN call had no effect")
-    assert.match(text, /RETRY this exact call/, "…and what to do about it")
+    assert.match(text, /RETRY this exact command/, "…and what to do about it")
     assert.match(text, /do not come to rest assuming it took/, "…and the failure mode to avoid")
   } finally {
     rpc.kill()

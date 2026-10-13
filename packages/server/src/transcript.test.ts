@@ -7,7 +7,7 @@ import { projectStateDir } from "./frizz-paths.ts"
 import { projectRetiredBackgroundOps, projectTranscriptPeerNames } from "./transcript.ts"
 import { relayMessage } from "./completion-relay.ts"
 import type { TranscriptMessage } from "@frizz/shared"
-import { DISPATCH_TASK_BANNER_MARKER, expandUserCommand, userCommandDisplayText, formatGithubWakeSteer, GITHUB_DISPATCH_UI_BOUNDARY, humanGapNote, isInjectedNoise, parseCrossSessionMessage, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, parseRecurringPrompt, prWatchWakeMessage, restPromptMessage, wakeDeliveryToken, wakeTimeHeader, type GithubWakeSteer } from "@frizz/shared"
+import { DISPATCH_TASK_BANNER_MARKER, expandUserCommand, formatGithubWakeSteer, GITHUB_DISPATCH_UI_BOUNDARY, humanGapNote, isInjectedNoise, mergedWakeMessage, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, parseCrossSessionMessage, parseMergedWake, parseRecurringPrompt, prWatchWakeMessage, restPromptMessage, shellDoneMessage, stripWakeTrailer, userCommandDisplayText, wakeDeliveryToken, wakeTimeHeader, type GithubWakeSteer } from "@frizz/shared"
 import {
   coalescedQueuedKeys,
   createTranscriptFold,
@@ -121,7 +121,7 @@ test("a PR watcher's wake shows the news and not the agent-facing trailer frizz 
   assert.equal(wake.wake, true)
   assert.equal(wake.text, delivered, "the worker keeps every byte — the outbox acks on the token, and the trailer is written for it")
   assert.equal(wake.displayText, "\u{1F514} nubjs/nub#879: now CONFLICTS with the base branch.")
-  assert.doesNotMatch(wake.displayText!, /STILL ARMED|mcp__frizz__/, "worker instructions reached the operator")
+  assert.doesNotMatch(wake.displayText!, /STILL ARMED|frizzctl|mcp__frizz__/, "worker instructions reached the operator")
 })
 
 // The router appends the clock note to the WORKER's copy only, and says so — but the chat renders the
@@ -239,6 +239,28 @@ test("a retired-line-kind correction refuses its fence too, and an expired wake 
   assert.equal(wake.role, "user")
   assert.equal(wake.wake, true)
   assert.equal(expired.find((m) => m.text === refusedFence)?.fenceRefused, undefined)
+})
+
+// A CORRECTION SENT MERGED WITH ANOTHER WAKE. The scheduler sends everything waiting for a thread as one
+// message, and a refused fence is very often waiting beside the shell whose exit refused it — so the
+// correction's lead sits a section down and the prefix test alone missed it: the fence kept its
+// hourglass card. The mark comes from the section; the record still renders, for the wake beside it.
+test("a correction merged with another wake still refuses its fence, and the other wake still renders", () => {
+  const correction = `${PARK_CORRECTION_NAMES_LEAD}something that is not running, so it is not a park and your thread stayed in the queue.\n\n- \`agent: toolu_theWrongId\` — NOT RUNNING`
+  const shell = shellDoneMessage({ taskId: "b1", label: "the churn suite", status: "completed" })
+  const now = Date.parse("2026-07-01T00:00:09.000Z")
+  const merged = mergedWakeMessage([{ reason: "awaiting park named 1 dead item(s)", message: correction }, { reason: "background shell finished (b1)", message: shell }], now)
+  const msgs = correctionTranscript(merged)
+  assert.equal(msgs.find((m) => m.text === refusedFence)?.fenceRefused, true)
+  const wake = msgs[msgs.length - 1]
+  assert.equal(wake.wake, true, "the shell's completion is still news")
+  assert.deepEqual(parseMergedWake(wake.displayText ?? wake.text)?.map((part) => part.body), [correction, stripWakeTrailer(shell)], "and the chat is handed an envelope it can cut")
+
+  // Corrections are ALL it carries: nothing is left to draw, so the record leaves the chat as a lone one does.
+  const retired = `${PARK_CORRECTION_RETIRED_LEAD}a line kind that no longer exist, so frizz ignored it — the\nfence named nothing and your thread stayed in the queue.`
+  const only = correctionTranscript(mergedWakeMessage([{ reason: "awaiting park named 1 dead item(s)", message: correction }, { reason: "awaiting fence uses retired kind(s): pr", message: retired }], now))
+  assert.equal(only.filter((m) => m.role === "user").length, 1, "only the dispatch")
+  assert.equal(only[only.length - 1].fenceRefused, true)
 })
 
 test("a wake token is projected out only from the delivery tail, never from quoted prose", () => {

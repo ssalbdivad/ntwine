@@ -17,6 +17,9 @@ import { resolveProjectIconResponse } from "./project-icon.ts"
 import { resolveLocalVisualization } from "./local-visualization.ts"
 import { workDirOf } from "./project.ts"
 import { CALLER_HEADER, requestOriginFrom, withRequestOrigin } from "./audit.ts"
+import { LAUNCH_ROUTE_PATH, LAUNCH_ROUTE_PROTOCOL, LAUNCH_TOKEN_HEADER, parseLaunchRouteRequest, routeLaunch } from "./launch-routing.ts"
+import { resolveProject } from "./project.ts"
+import { ProjectServedElsewhereError, projectServedElsewhere } from "./project-serving.ts"
 
 export { resolveLocalImage } from "./local-image.ts"
 export { resolveLocalVisualization } from "./local-visualization.ts"
@@ -28,7 +31,15 @@ export interface AppOptions {
   port?: number
   ownerProof?: string
   controlToken?: string
+  /**
+   * The machine-wide owner's token, when this server runs under the stable launcher. A second
+   * `frizz` typed in any folder holds it (it is in the address record that names this server), where
+   * `controlToken` is known only to a launcher that can find the hosting project's own record.
+   */
+  machineToken?: string
   requestOwnerStop?: () => void
+  /** Test seam for the launch route: the project resolver, and the home whose registry it reads. */
+  launchRouting?: { open?: (dir: string) => { id: string; dir: string; name: string }; home?: string }
 }
 
 export function createApp(ctx: AppContext, options: AppOptions = {}) {
@@ -47,6 +58,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
     const allowMissingOrigin = origin === undefined && (
       (c.req.method === "GET" && c.req.path === frizzRoute("/health")) ||
       (c.req.method === "POST" && c.req.path === frizzRoute("/control/stop")) ||
+      (c.req.method === "POST" && c.req.path === frizzRoute(LAUNCH_ROUTE_PATH)) ||
       c.req.header("sec-fetch-site") === "same-origin"
     )
     if (!isTrustedLocalHttpRequest({
@@ -154,6 +166,33 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
     const stop = setTimeout(options.requestOwnerStop, 25)
     stop.unref()
     return c.json({ accepted: true as const }, 202)
+  })
+
+  // Where a `frizz` typed in some folder lands (launch-routing.ts). A launcher asks instead of
+  // deciding, so the rule about folders changes with a server release. Token-bound like the stop
+  // channel, because answering can register the folder as a project: only the OS user who started
+  // Frizz can read either token, and that user's launcher did exactly this itself until now.
+  app.post(frizzRoute(LAUNCH_ROUTE_PATH), async (c) => {
+    const supplied = c.req.header(LAUNCH_TOKEN_HEADER)
+    const held = [options.controlToken, options.machineToken].filter((token): token is string => !!token)
+    if (!supplied || !held.includes(supplied)) return c.text("Forbidden", 403)
+    const request = parseLaunchRouteRequest(await c.req.json().catch(() => undefined))
+    if ("error" in request) return c.json({ error: request.error }, 400)
+    const home = options.launchRouting?.home
+    // A project another server has open would not open here either, so the launch lands on the
+    // dashboard and its notice names that server, rather than on a board that fails to load.
+    const open = options.launchRouting?.open ?? ((dir: string) => {
+      const project = resolveProject(dir, home)
+      const other = projectServedElsewhere(project.stateDir, project.id)
+      if (other !== undefined) throw new ProjectServedElsewhereError(project.name, other)
+      return project
+    })
+    try {
+      return c.json({ protocol: LAUNCH_ROUTE_PROTOCOL, ...routeLaunch(request.dir, open, home) })
+    } catch (error) {
+      // The folder is gone, or cannot be read at all: nothing to classify.
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
+    }
   })
 
   // Pictures AND videos (a ```lightbox gallery plays both), in byte ranges — see local-image.ts.

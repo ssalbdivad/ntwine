@@ -6,15 +6,14 @@ import test from "node:test"
 // the real App chooses its shell and renders the shared update control (useUpdateRestart).
 // Start with `nub scripts/adhoc-stack.mjs --port=49637 --project=/path/to/disposable/demo`, then run
 // `FRIZZ_MOBILE_UPDATE_E2E_URL=<board URL> nub run test packages/web/src/components/mobileUpdate.e2e.test.ts`.
-// With the Mac's display asleep, set PUPPETEER_EXECUTABLE_PATH to chrome-headless-shell (headless-browser skill § 3b).
 //
 // The phone shape is the maintainer's (2026-10-08, on #52): the board header keeps its gear, the gear
 // wears a dot for a new release line only, and "Update Frizz" is a row on the phone Settings page.
 const url = process.env.FRIZZ_MOBILE_UPDATE_E2E_URL
 
 test("the phone updates from Settings, and the board gear's dot follows the desktop badge rule", { skip: !url, timeout: 120_000 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--use-mock-keychain"], protocolTimeout: 30_000 })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless({ protocolTimeout: 30_000 })
   try {
     const page = await browser.newPage()
     const errors: string[] = []

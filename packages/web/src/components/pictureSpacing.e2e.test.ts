@@ -35,8 +35,8 @@ const near = (actual: number, expected: number, what: string) =>
   assert.ok(Math.abs(actual - expected) < 0.5, `${what}: expected ~${expected}px, got ${actual}px`)
 
 async function launch() {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport({ width: 1000, height: 900, deviceScaleFactor: 1 })
   const errors: string[] = []

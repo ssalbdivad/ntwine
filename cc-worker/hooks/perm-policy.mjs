@@ -73,6 +73,40 @@ function isDiskWrite(cmd) {
   return /\bmkfs(\.\w+)?\b/.test(cmd) || /\bdd\b[^|;&]*\bof=\/dev\/(disk|r?disk|sd|nvme|hd)/.test(cmd);
 }
 
+// The worker's OWN Frizz command fed by a quoted heredoc, and provably nothing else:
+//
+//     frizzctl ask --input - <<'EOF'
+//     {"question": "…", "options": […]}
+//     EOF
+//
+// Dispatch pre-approves `Bash(frizzctl:*)` (dispatch.ts claudeCliConfig), which is the promise the Frizz
+// MCP server's own pre-approval made before 2026-10-11: a worker's sign-off, its question and its
+// registrations are never something a human has to approve. Claude Code honours that rule for every
+// form but one. Measured on 2.1.296 against a real worker on a `default`-mode thread
+// (`_live_broker_frizzctl.mts`): a bare call, an inline JSON argument, `--input <file>`, `< file`,
+// `frizzctl … && frizzctl …` and a quoted heredoc of PROSE all ran unasked, and a quoted heredoc whose
+// body holds a JSON object raised a prompt — Claude Code's own command checks read the braces and
+// quotes of a body the shell never interprets. That is the one shape `ask` most needs, since a
+// question's options do not fit on a command line.
+//
+// So this recognises exactly that shape, and it is deliberately narrower than the rule it backs up.
+// The first line is `frizzctl`, then words made only of characters the shell does not interpret, then
+// `<<'WORD'` and the end of the line: no quoting to get wrong, no expansion, no operator, no second
+// command. A QUOTED delimiter makes the body literal, so nothing in it runs however it reads. The body
+// ends at the first line that is exactly WORD, which is bash's own rule, and only blank lines may
+// follow. Anything else, `<<EOF` unquoted included, is not this and falls through to the table.
+const FRIZZCTL_HEREDOC = /^frizzctl(?: +[A-Za-z0-9_.\/:=@%+,-]+)* +<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*\n([\s\S]*)$/;
+function isOwnFrizzctlHeredoc(cmd) {
+  // Blanks are the SHELL's — space, tab, newline — and not JavaScript's `\s`, which also takes a
+  // no-break space or a form feed: to bash and zsh those are ordinary characters of a word, so
+  // `\u00a0frizzctl` is a different program.
+  const m = FRIZZCTL_HEREDOC.exec(cmd.replace(/^[ \t\n]+/, ''));
+  if (!m) return false;
+  const lines = m[2].split('\n');
+  const end = lines.indexOf(m[1]);
+  return end !== -1 && lines.slice(end + 1).every((line) => /^[ \t]*$/.test(line));
+}
+
 // The ordered policy table: FIRST MATCH WINS. Each rule returns a decision plus the `rule` id and
 // `reason` that get recorded on the marker, so frizz can always say WHICH rule decided and WHY.
 // `deny` reasons are written to be read by the MODEL (they become additionalContext).
@@ -90,6 +124,14 @@ const RULES = [
     decision: 'deny',
     reason:
       'Refused: this formats a filesystem or writes directly to a raw block device, which destroys data irrecoverably and is never required of an unattended worker.',
+  },
+  {
+    // Ahead of `restrictive-mode` on purpose: a thread a human moved to `default` still has to be able
+    // to ask them a question and sign off without first asking permission to. See isOwnFrizzctlHeredoc.
+    id: 'own-frizzctl',
+    test: (i) => i.tool_name === 'Bash' && isOwnFrizzctlHeredoc(String(i.tool_input?.command ?? '')),
+    decision: 'allow',
+    reason: "The worker's own Frizz command, fed by a quoted heredoc: its questions, registrations and sign-off are pre-approved in every permission mode.",
   },
   {
     // Respect a DELIBERATELY restrictive mode. frizz dispatches workers at `auto`; a thread sitting at

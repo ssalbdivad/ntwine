@@ -200,12 +200,12 @@ export function hasEscapingBackgroundJob(raw, depth = 0) {
 }
 
 // THE SPAWN-TIME BUDGET PROMPT. A background shell has a runtime budget only when one is DECLARED
-// (server shell-budget.ts): the `timeout` on this very call, or `mcp__frizz__extend_shell` later. No
+// (server shell-budget.ts): the `timeout` on this very call, or `frizzctl extend-shell` later. No
 // default — a dev server and a CI poller look identical from outside, and a universal clock killed a
 // real shell its worker had registered a 20h watch on (2026-09-29). So the worker is ASKED, once, at
 // the one moment it knows what the shell is for: a `run_in_background` call with no `timeout` gets one
 // line of context. Never on a call that carries a timeout, never on a foreground call, never a block.
-// It arrives after the call is committed, so it points at the in-the-moment verb (`extend_shell`) for
+// It arrives after the call is committed, so it points at the in-the-moment command (`frizzctl extend-shell`) for
 // this shell and at `timeout` for the next.
 //
 // THE CALL ALSO GETS THE LONGEST `timeout` CLAUDE CODE ALLOWS. "No timeout" does not mean "no clock" to
@@ -219,7 +219,7 @@ export const BACKGROUND_UNTIMED_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 export const BACKGROUND_NO_TIMEOUT_CONTEXT =
   '⟦background shell with no `timeout`⟧ Frizz never stops this shell on a clock; Claude Code stops it after 24h. ' +
   'Right for a dev server or watcher meant to keep running. If it is a poller, build or one-off check, give it an end — ' +
-  '`mcp__frizz__extend_shell` with its id and a `for` sized to it now (Frizz warns you past it, then stops it), or a ' +
+  '`frizzctl extend-shell <id> --for <duration>` sized to it now (Frizz warns you past it, then stops it), or a ' +
   '`timeout` (ms, max 24h) on the call next time. Either way, `TaskStop` it once you no longer need it.';
 
 /** @param {unknown} toolInput */

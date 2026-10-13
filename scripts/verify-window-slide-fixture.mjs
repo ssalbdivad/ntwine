@@ -14,7 +14,7 @@ import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const flags = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")))
 const port = Number(flags.port ?? 5199)
@@ -57,7 +57,7 @@ if (!(await ready())) {
 
 // A generous protocolTimeout is diagnostic headroom, not a fix: an append that takes tens of seconds is
 // itself the finding, and the per-append timing below is what makes it visible instead of a bare timeout.
-const browser = await puppeteer.launch({ headless: "new", protocolTimeout: 300_000, args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless({ protocolTimeout: 300_000 })
 const errors = []
 try {
   const page = await browser.newPage()

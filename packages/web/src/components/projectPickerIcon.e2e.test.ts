@@ -22,8 +22,8 @@ test("stepping the picker with ⌥↓ never paints a project's icon square empty
   assert.ok(slugs.length >= 3, `needs a stack serving ≥3 projects, saw: ${slugs.join(", ") || "none"}`)
   for (const slug of slugs) await fetch(`${baseUrl}/_frizz/${slug}/rpc/board`, { headers })
 
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   try {
     const page = await browser.newPage()
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 })

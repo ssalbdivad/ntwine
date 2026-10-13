@@ -25,7 +25,7 @@ import { splitQuestionBlocks, parseQuestionBlock, type MessageSegment } from "./
 // is the entry point that accepts either.
 //
 // THAT SECOND FORM HAS A THIRD WRITER, and it is the one this file's shape now has to serve: an answer to
-// a REGISTERED question (`mcp__frizz__ask`), composed on the SERVER by questionAnswerMessage because the
+// a REGISTERED question (`frizzctl ask`), composed on the SERVER by questionAnswerMessage because the
 // human may have answered while the worker's process was down. It arrives as a frizz WAKE rather than as
 // a message the browser sent, and the only thing that makes it read as the human's own answer instead of
 // a notification card is that it is written in this form (see Message, which checks for it first). The

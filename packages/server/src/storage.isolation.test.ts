@@ -69,6 +69,8 @@ function seed(storage: Storage): void {
   storage.retireOp("alpha-thread", "sess-alpha-thread", "op-1")
   storage.armThreadTimer({ id: `${storage.projectId}-timer`, slug: "alpha-thread", prompt: "ping", fireAtMs: 9e12, createdAtMs: 1 })
   storage.armPrWatch({ id: `${storage.projectId}-pr`, slug: "alpha-thread", owner: "acme", repo: "app", number: 1, createdAtMs: 1, expiresAtMs: 9e12 })
+  storage.armCommandWatch({ id: `${storage.projectId}-cmw`, slug: "alpha-thread", command: "test -f /tmp/x", everyMs: 60_000, createdAtMs: 1, expiresAtMs: 9e12 })
+  storage.armCommandWatch({ id: `${storage.projectId}-cmw2`, slug: "alpha-thread", command: "true", everyMs: 60_000, createdAtMs: 2, expiresAtMs: 9e12, firstRun: { atMs: 2, outcome: "exit", exitCode: 1, output: "no" } })
   storage.armThreadWatch({ id: `${storage.projectId}-watch`, slug: "alpha-thread", kind: "shell", target: "sh1", createdAtMs: 1, expiresAtMs: 9e12 })
   storage.upsertThreadLink({ id: `${storage.projectId}-link`, slug: "alpha-thread", kind: "link", label: "Preview", target: "http://localhost:5173/", createdAtMs: 1 })
   storage.askThreadQuestion({ id: `${storage.projectId}-q`, slug: "alpha-thread", spec: "{}", askedAtMs: 1 })
@@ -119,6 +121,11 @@ test("two projects in one database never see each other's rows", () => {
   assert.equal(a.getThreadTimer("project-b-timer"), undefined, "an id lookup is scoped too")
   assert.equal(a.getPrWatch("project-b-pr"), undefined)
   assert.equal(a.getThreadWatch("project-b-watch"), undefined)
+  assert.deepEqual(a.armedCommandWatches().map((w) => w.id), ["project-a-cmw", "project-a-cmw2"])
+  assert.deepEqual([...a.armedCommandWatchesBySlug().keys()], ["alpha-thread"])
+  assert.equal(a.getCommandWatch("project-b-cmw"), undefined)
+  assert.equal(a.expiredCommandWatches(1e13).length, 2)
+  assert.equal(a.getCommandWatch("project-a-cmw2")!.last_exit, 1, "the registration's first check is on the row")
   assert.equal(a.getThreadQuestion("project-b-q"), undefined)
   assert.deepEqual(a.listSubAgentSteers("alpha-thread", "child").map((s) => s.delivery_id), ["project-a-steer"])
   assert.equal(a.dueThreadTimers(1e13).length, 1)
@@ -186,6 +193,12 @@ test("every mutating method touches only its own project", () => {
     ["dropPrWatch", () => a.dropPrWatch("alpha-thread", "project-a-pr", 5)],
     ["settlePrWatch", () => a.settlePrWatch("project-b-pr", 5)],
     ["setPrWatchCursor", () => a.setPrWatchCursor("project-b-pr", "c")],
+    ["recordCommandWatchRun", () => a.recordCommandWatchRun("project-b-cmw", { atMs: 5, outcome: "exit", exitCode: 1, output: "x" })],
+    ["recordCommandWatchRun (own)", () => a.recordCommandWatchRun("project-a-cmw", { atMs: 5, outcome: "exit", exitCode: 1, output: "x" })],
+    ["dropCommandWatch", () => a.dropCommandWatch("alpha-thread", "project-a-cmw", 5)],
+    ["settleCommandWatch", () => a.settleCommandWatch("project-b-cmw2", "passed", 5)],
+    ["settleCommandWatch (own)", () => a.settleCommandWatch("project-a-cmw2", "passed", 5)],
+    ["armCommandWatch", () => a.armCommandWatch({ id: "project-a-cmw3", slug: "beta-thread", command: "true", everyMs: 60_000, createdAtMs: 3, expiresAtMs: 9e12 })],
     ["dropThreadWatch", () => a.dropThreadWatch("alpha-thread", "project-a-watch", 5)],
     ["settleThreadWatch", () => a.settleThreadWatch("project-b-watch", 5)],
     ["answerThreadQuestion", () => a.answerThreadQuestion("project-b-q", "{}", 5)],
@@ -240,4 +253,21 @@ test("the memoised whole-table read is not invalidated by another project's writ
   a.close()
   b.close()
   db.close()
+})
+
+test("another project's storage on the shared connection compiles no statements of its own", () => {
+  // Each project used to compile its own copy of every statement — ~190 of them, ~1.4 MB of SQLite
+  // malloc per project the server serves. They share one copy per SQL text now (sqlite.ts #compiled),
+  // and the isolation above is what proves sharing the text did not share the rows.
+  const db = new Database(join(mkdtempSync(join(tmpdir(), "frizz-storage-share-")), "ui.db"))
+  try {
+    const first = createStorage(db, "project-0")
+    first.allSessions()
+    const compiled = db.compiledStatements
+    assert.ok(compiled > 50, `one storage compiles its statements (${compiled})`)
+    for (let i = 1; i < 12; i++) createStorage(db, `project-${i}`).allSessions()
+    assert.equal(db.compiledStatements, compiled)
+  } finally {
+    db.close()
+  }
 })

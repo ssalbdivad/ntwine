@@ -117,6 +117,49 @@ test("token-bound health and stop control never expose or accept a forged owner 
   assert.equal(stops, 1)
 })
 
+test("the launch route answers a launcher holding either owner token, and nobody else", async () => {
+  const port = 49_176
+  const opened: string[] = []
+  const home = mkdtempSync(join(tmpdir(), "frizz-launch-route-"))
+  const elsewhere = join(home, "elsewhere")
+  mkdirSync(elsewhere)
+  const app = originTestApp(port, undefined, {
+    controlToken: "host-capability",
+    machineToken: "machine-capability",
+    launchRouting: { home, open: (dir) => { opened.push(dir); throw new Error("nothing here is a project") } },
+  })
+  const ask = (headers: Record<string, string>, body: unknown = { protocol: 1, dir: elsewhere }) =>
+    app.request(`http://127.0.0.1:${port}/_frizz/control/launch`, {
+      method: "POST",
+      headers: { host: `127.0.0.1:${port}`, "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    })
+
+  // A launcher is not a browser and sends no Origin; the token is what it is known by.
+  for (const token of ["host-capability", "machine-capability"]) {
+    const answered = await ask({ "x-frizz-launch-token": token })
+    assert.equal(answered.status, 200, token)
+    assert.deepEqual(await answered.json(), { protocol: 1, path: "/all" })
+  }
+  assert.equal((await ask({})).status, 403)
+  assert.equal((await ask({ "x-frizz-launch-token": "forged" })).status, 403)
+  // A page on another loopback name cannot borrow the token it has no way to read anyway.
+  assert.equal((await ask({ "x-frizz-launch-token": "machine-capability", origin: `http://localhost:${port}` })).status, 403)
+  assert.equal((await ask({ "x-frizz-launch-token": "machine-capability" }, { protocol: 2, dir: elsewhere })).status, 400)
+  assert.equal((await ask({ "x-frizz-launch-token": "machine-capability" }, { protocol: 1, dir: "relative" })).status, 400)
+  assert.equal((await ask({ "x-frizz-launch-token": "machine-capability" }, { protocol: 1, dir: join(home, "gone") })).status, 400)
+  assert.deepEqual(opened, [], "a folder that is not a project is never opened")
+
+  // No token configured at all — a server nothing launched — answers nobody.
+  const bare = originTestApp(port)
+  const refused = await bare.request(`http://127.0.0.1:${port}/_frizz/control/launch`, {
+    method: "POST",
+    headers: { host: `127.0.0.1:${port}`, "x-frizz-launch-token": "" },
+    body: JSON.stringify({ protocol: 1, dir: elsewhere }),
+  })
+  assert.equal(refused.status, 403)
+})
+
 test("HTTP/CORS rejects every cross-loopback Host/Origin pair before reads, preflights, or mutation bodies", async () => {
   const port = 49_177
   let dispatchCalls = 0

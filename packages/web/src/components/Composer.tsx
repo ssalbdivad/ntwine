@@ -28,6 +28,7 @@ import { useSubAgentDirectory } from "../hooks/useSubAgentDirectory.ts"
 import { useKeyboardInset } from "../lib/keyboardInset.ts"
 import { inSkippedCard, whenCardRendered } from "../lib/cardVisibility.ts"
 import type { BoxInputEvent } from "../lib/scheduleReadScheduler.ts"
+import { useFileDropZone, type SurfaceFileDrop } from "../lib/fileDrop.ts"
 
 // The shared prompt composer (the pattern the user called "perfect"): ONE rounded bordered box
 // holding a borderless auto-growing textarea plus a small round accent send button hovering INSIDE
@@ -301,6 +302,7 @@ export function Composer({
   send,
   phone,
   onUploadingChange,
+  fileDrop,
 }: {
   value: string
   onChange: (v: string) => void
@@ -420,14 +422,19 @@ export function Composer({
   // For a surface whose send lives OUTSIDE this box (the phone's new-thread page puts Start in its
   // header): an upload in flight must hold that send too, as it holds Enter and ↑ here.
   onUploadingChange?: (uploading: boolean) => void
+  // THE SURFACE IS THE DROP ZONE. The queue card takes a file dropped anywhere on it (lib/fileDrop), so
+  // this box binds no drop handlers of its own there: it draws its drop hint while `over` and registers
+  // its intake on `intake`. Absent, the box itself is the zone.
+  fileDrop?: SurfaceFileDrop
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null)
   const contextRef = useRef<HTMLDivElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  // What a drag over the box would do: upload a file as an attachment, or (a drag from VS Code's own
-  // explorer, which carries resources rather than files) reference what it names.
-  const [dragging, setDragging] = useState<false | "attach" | "reference">(false)
+  // A drag from VS Code's own explorer, which carries resources rather than files: the box references
+  // what it names instead of uploading anything. A FILE drag is the drop zone's (`ownDrop` below, or the
+  // surface's `fileDrop`).
+  const [referenceDrag, setReferenceDrag] = useState(false)
   const [uploading, setUploading] = useState(false)
 
   // Attachment paths live INSIDE the draft `value` (trailing lines) so submit, draft persistence, and
@@ -547,6 +554,19 @@ export function Composer({
       taRef.current?.setSelectionRange(next.caret, next.caret)
     })
   }
+
+  // Drag-and-drop intake: the box's own zone, or the surface's (see `fileDrop`). The surface reaches
+  // `takeFiles` through its handle, by a ref, because the function closes over this render's draft.
+  const ownDrop = useFileDropZone((files) => void takeFiles(files))
+  const dragging = referenceDrag ? "reference" : (fileDrop ? fileDrop.over : ownDrop.over) ? "attach" : false
+  const takeFilesRef = useRef(takeFiles)
+  takeFilesRef.current = takeFiles
+  const intake = fileDrop?.intake
+  useEffect(() => {
+    if (!intake) return
+    intake.set((files) => void takeFilesRef.current(files))
+    return () => intake.set(null)
+  }, [intake])
 
   // Auto-grow on every value change. A first layout pass
   // can precede font settlement or a narrow drawer's final width, leaving scrollHeight stale and the
@@ -1406,27 +1426,29 @@ export function Composer({
       }`}
       onDragOver={(e) => {
         // A drag from VS Code's explorer first: it may carry a text fallback too, which the textarea
-        // would otherwise take as typed text.
+        // would otherwise take as typed text. Not the surface's either, so it stops here.
         if (fileMentions && isVscodeDrag([...e.dataTransfer.types])) {
           e.preventDefault()
+          e.stopPropagation()
           e.dataTransfer.dropEffect = "copy"
-          setDragging("reference")
+          setReferenceDrag(true)
           return
         }
-        if ([...e.dataTransfer.items].some((i) => i.kind === "file")) {
-          e.preventDefault()
-          setDragging("attach")
-        }
+        if (!fileDrop) ownDrop.handlers.onDragOver(e)
       }}
-      onDragLeave={() => setDragging(false)}
+      onDragLeave={(e) => {
+        if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setReferenceDrag(false)
+        if (!fileDrop) ownDrop.handlers.onDragLeave(e)
+      }}
       onDrop={(e) => {
-        e.preventDefault()
-        setDragging(false)
         if (fileMentions && isVscodeDrag([...e.dataTransfer.types])) {
+          e.preventDefault()
+          e.stopPropagation()
+          setReferenceDrag(false)
           void takeDropped(droppedUris(DROPPED_URI_TYPES.map((type) => e.dataTransfer.getData(type))))
           return
         }
-        void takeFiles(e.dataTransfer.files)
+        if (!fileDrop) ownDrop.handlers.onDrop(e)
       }}
     >
       {dragging && (

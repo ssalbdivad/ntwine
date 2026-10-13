@@ -20,12 +20,12 @@ const CARD_A = "[data-queue-card-root='registered-question-demo']"
 const CARD_B = "[data-queue-card-root='registered-question-gates']"
 
 async function launch() {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--use-mock-keychain", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   // These are independent keyboard cases, not navigation persistence cases. A fresh document now
-  // restores staged picks, so explicitly clear their tab cache before each fixture load.
-  await page.evaluateOnNewDocument(() => sessionStorage.removeItem("frizz-drafts:v1"))
+  // restores staged picks, so explicitly clear the draft cache before each fixture load.
+  await page.evaluateOnNewDocument(() => localStorage.removeItem("frizz-drafts:v1"))
   await page.setViewport({ width: 900, height: 800 })
   const errors: string[] = []
   page.on("console", (m) => { if (m.type() === "error" && !/404|favicon/i.test(m.text())) errors.push(m.text()) })

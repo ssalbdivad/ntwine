@@ -13,19 +13,33 @@
 // is stored and nothing settles: the fence lives as long as the message carrying it, and the reply is
 // what ends it.
 import { useState } from "react"
+import { Check } from "lucide-react"
 import { STEPS_DONE } from "../lib/awaitingPresentation.ts"
 import { useEagerFollowUp } from "../lib/eagerComposerSubmission.ts"
+import { useTickedSteps } from "../lib/stepsTicked.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { LinkedHtml } from "./LinkedHtml.tsx"
 import { CARD_PRIMARY_ACTION, CardActions, QUEUE_WRAP } from "./TranscriptCard.tsx"
 
-/** The numbered steps — what the human reads before doing anything. */
-export function StepsList({ steps }: { steps: readonly string[] }) {
+/** The steps as a TO-DO STEPPER — what the human reads, and ticks off, before pressing Done.
+ *
+ *  A STEPPER, NOT A MARKDOWN LIST (2026-10-12, maintainer: "if this is supposed to be rendering like a
+ *  classic to-do stepper, it's not doing that"). Until then the steps were an `<ol>` with decimal
+ *  markers, which reads as one more paragraph of the handoff rather than a sequence of acts: nothing
+ *  separated one step from the next, and a five-step card gave the reader no way to keep their place.
+ *  Now each step is a numbered marker on a rail the reader can tick, the marker turning into a check and
+ *  the step dimming. The colours follow TodoBlock's ruling for the transcript's own checklist: exactly one
+ *  marker takes the accent — the first step not yet ticked, the one to do next — and done is monochrome.
+ *
+ *  `live` is whether the thread is resting on THESE steps (AwaitingBackgroundCard `stepsLive`). Only then
+ *  are the markers controls and is there a step to do next; a card drawn after the reply is a record of
+ *  what was asked, and shows the ticks it was left with, inert. */
+export function StepsList({ steps, live }: { steps: readonly string[]; live: boolean }) {
+  const [ticked, toggle] = useTickedSteps(steps)
+  const next = live ? steps.findIndex((_, i) => !ticked.has(i)) : -1
   return (
-    // One markdown block PER STEP inside a real list, rather than the steps joined into one markdown
-    // string: a step carries its own code span or link, and joined steps would each need re-indenting
-    // to stay inside their item. `md-body` supplies the list rhythm and the muted markers the
-    // transcript's own lists wear.
+    // One markdown block PER STEP, rather than the steps joined into one markdown string: a step carries
+    // its own code span or link, and joined steps would each need re-indenting to stay inside their item.
     //
     // THE SAME PROSE AS THE PARAGRAPH ABOVE IT, in strength and in rhythm. The list sat at full strength
     // under a paragraph at the card's 75% until 2026-10-05, and the maintainer read it as a defect
@@ -34,18 +48,49 @@ export function StepsList({ steps }: { steps: readonly string[] }) {
     // break the prose itself uses (`--md-step`, which `.card-md .md-body` sets on this very element), not
     // a tighter 8px of its own — the two blocks are one handoff rendered in two pieces.
     <div data-awaiting-steps className={`md-body ${QUEUE_WRAP} mt-[var(--md-step)] first:mt-0`}>
-      <ol>
-        {steps.map((step, i) => <Step key={i} md={step} />)}
+      <ol className="frizz-steps">
+        {steps.map((step, i) => (
+          <Step key={i} n={i + 1} md={step} done={ticked.has(i)} next={i === next} onToggle={live ? () => toggle(i) : undefined} />
+        ))}
       </ol>
     </div>
   )
 }
 
-function Step({ md }: { md: string }) {
+function Step({ n, md, done, next, onToggle }: { n: number; md: string; done: boolean; next: boolean; onToggle?: () => void }) {
   const html = useMarkdownHtml(md)
+  // The check is the task family's own (`.md-task-checked`): lucide `Check` at strokeWidth 3, its viewBox
+  // shifted −0.5 in y because the path's ink centres half a unit above the box's.
+  const glyph = done ? <Check aria-hidden="true" size="0.62em" strokeWidth={3} viewBox="0 -0.5 24 24" /> : <span className="frizz-step-num" aria-hidden="true">{n}</span>
+  const state = done ? "done" : next ? "next" : "todo"
   return (
-    <li>
-      <LinkedHtml className="md-body" html={html} />
+    <li className="frizz-step" data-step-state={state}>
+      <span className="frizz-step-gutter">
+        <span className="frizz-step-line">
+          {/* The RING is a span and the control sits inside it, never the other way round: Chrome puts a
+              `<button>`'s baseline at its CONTENT box, a border-width above the bottom edge the cap-band
+              rule assumes, and a button ring rode exactly 1.00px low (measured 2026-10-12). */}
+          <span data-step-mark className="frizz-step-mark">
+            {onToggle ? (
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={done}
+                aria-label={`Step ${n}`}
+                className="frizz-step-face"
+                onClick={onToggle}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                {glyph}
+              </button>
+            ) : (
+              <span className="frizz-step-face">{glyph}</span>
+            )}
+          </span>
+        </span>
+        <span className="frizz-step-rail" aria-hidden="true" />
+      </span>
+      <LinkedHtml className="md-body frizz-step-text" html={html} />
     </li>
   )
 }

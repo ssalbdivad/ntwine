@@ -40,6 +40,12 @@ export const WORKER_PLUGIN_REQUIRED_FILES = [
   "cc-worker/hooks/agent-bind.mjs",
   "cc-worker/bin/frizz",
   "cc-worker/bin/frizz-update",
+  // The worker command line: its launcher, the front-end the launcher runs, and the registry both the
+  // front-end and the legacy MCP front-end import. Since 2026-10-11 this is how a worker asks, waits
+  // and signs off, so a tree without any one of the three dispatches workers that can do none of it.
+  "cc-worker/bin/frizzctl",
+  "cc-worker/bin/frizzctl.mjs",
+  "cc-worker/lib/frizz-tools.mjs",
   "board/config.mjs",
   "board/agent-bindings.mjs",
   "board/index.mjs",

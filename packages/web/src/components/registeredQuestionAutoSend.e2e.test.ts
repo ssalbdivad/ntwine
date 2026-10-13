@@ -21,8 +21,8 @@ type Page = import("puppeteer").Page
 type Answer = { questionId: string; question: string; chosen: string[]; text?: string; followUps?: unknown[] }
 
 async function launch(query: string) {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport({ width: 900, height: 1400, deviceScaleFactor: 1 })
   const errors: string[] = []

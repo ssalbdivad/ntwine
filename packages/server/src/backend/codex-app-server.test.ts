@@ -60,6 +60,9 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
   // this process's PTYs. Left undefined by default so the method answers "not implemented", exactly
   // like a codex that predates it.
   backgroundTerminals?: Record<string, Array<Record<string, unknown>>>
+  // `thread/unsubscribe` is answered, as the audited Codex answers it. Set to model one that has no
+  // such method.
+  unsubscribeRefused = false
 
   constructor(version = CODEX_APP_SERVER_SUPPORTED_VERSION) {
     super()
@@ -186,6 +189,10 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
           model: "gpt-5",
         },
       })
+      return
+    }
+    if (message.method === "thread/unsubscribe" && !this.unsubscribeRefused) {
+      this.send({ id, result: { status: "unsubscribed" } })
       return
     }
     if (message.method === "turn/start") {
@@ -2350,7 +2357,10 @@ test("bridge persistence refuses malformed or future authority schemas before sp
 /** A bridge harness whose host is scripted attachment-by-attachment: it decides `reattached`, the
  *  `generation`, and how many lines the daemon had to drop while nobody was attached. Those three
  *  fields are the entire input to the bridge's "did my turns survive?" decision. */
-function scriptedHostHarness(script: () => { generation: string; reattached: boolean; droppedWhileDetached: number; serviceExitCode?: number }) {
+function scriptedHostHarness(
+  script: () => { generation: string; reattached: boolean; droppedWhileDetached: number; serviceExitCode?: number },
+  worker: Pick<import("./codex-app-server.ts").CodexAppServerBridgeOptions, "frizzMcp" | "mountsMcp" | "frizzCli" | "workerConfig"> = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "frizz-codex-attachment-"))
   const dbPath = join(dir, "ui.db")
   const db = new Database(dbPath)
@@ -2361,6 +2371,8 @@ function scriptedHostHarness(script: () => { generation: string; reattached: boo
   const interactions = createInteractionStore(db, { now: () => now, id: () => `interaction-${++clientId}` })
   const processes: FakeAppServerProcess[] = []
   const bridges: CodexAppServerBridge[] = []
+  /** What each app-server was STARTED with — its process-wide config, as opposed to a thread's bag. */
+  const hostCalls: Array<{ frizzMcp?: unknown }> = []
   let nextResumeThreadStatus: { type: string; activeFlags?: string[] } | undefined
   let nextBackgroundTerminals: Record<string, Array<Record<string, unknown>>> | undefined
   const newBridge = () => {
@@ -2371,6 +2383,7 @@ function scriptedHostHarness(script: () => { generation: string; reattached: boo
       interactions,
       codexBin: "/opt/codex",
       host: async (options) => {
+        hostCalls.push({ frizzMcp: options.frizzMcp })
         const process_ = new FakeAppServerProcess()
         // Applied at CREATION: the reconnect's process does not exist until the bridge connects, which
         // is the same call whose reconciliation the status has to steer.
@@ -2387,6 +2400,7 @@ function scriptedHostHarness(script: () => { generation: string; reattached: boo
       executionHealth: new CodexExecutionHealth("darwin", async () => true),
       diagnostic: (event) => diagnostics.push(event),
       codexAuthAccountId: () => undefined,
+      ...worker,
     })
     bridges.push(bridge)
     return bridge
@@ -2394,6 +2408,7 @@ function scriptedHostHarness(script: () => { generation: string; reattached: boo
   return {
     dir,
     processes,
+    hostCalls,
     diagnostics,
     interactions,
     newBridge,
@@ -2640,6 +2655,20 @@ test("a rejoin whose app-server lists nothing leaves the level empty", async () 
   } finally { h.close() }
 })
 
+// The tailer asks this about EVERY thread on EVERY tick — a Claude thread included, which can never
+// hold a codex exec. With none live anywhere the answer needs no binding, so it must not cost a query:
+// on a 64-thread board with no codex shell on it, that lookup was 14% of the tailer's time (2026-10-11).
+test("backgroundExecs answers a board with no live exec without touching the database", () => {
+  const h = harness()
+  try {
+    let prepared = 0
+    const prepare = h.db.prepare.bind(h.db)
+    h.db.prepare = ((sql: string) => { prepared++; return prepare(sql) }) as typeof h.db.prepare
+    assert.deepEqual(h.bridge.backgroundExecs("any-thread", "any-session"), [])
+    assert.equal(prepared, 0, "no exec is live, so there is no binding worth looking up")
+  } finally { h.close() }
+})
+
 test("a rejoin against a codex without the list method still connects, with an empty level", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
   const h = scriptedHostHarness(() => plan)
@@ -2671,6 +2700,251 @@ test("a NEW app-server is never asked for background execs: its processIds name 
     await restarted.warmUp()
     assert.equal(h.processes[1]!.clientRequests.some((message) => message.method === "thread/backgroundTerminals/list"), false)
     assert.deepEqual(restarted.backgroundExecs(binding.threadSlug, binding.sessionId), [])
+  } finally { h.close() }
+})
+
+// ---- a thread's config: ONE bag, sent with the start and with every resume ------------------------
+// Codex keeps a thread's per-thread config nowhere but in the loaded thread, so a resume that rebuilds
+// the thread builds it from the bag in THAT request. Measured on codex 0.161.0 against a mock model
+// provider (backend/_live_codex_config_sync.mts): the resume of an idle thread no connection subscribes
+// to rebuilds it; the resume of a mid-turn or subscribed thread ignores the bag. These pin what the
+// bridge does about both — and that it never rebuilds a thread under a turn or a background command.
+
+const WORKER_MCP = { scriptPath: "/gen-b/cc-worker/bin/frizz-mcp.mjs", stateDir: "/state/project-1", projectId: "project-1" }
+const workerHooks = (_slug: string, sessionId: string) => ({
+  model_reasoning_summary: "detailed",
+  hooks: { SessionStart: [`scratchpad --session=${sessionId}`] },
+})
+const requestsOf = (process: FakeAppServerProcess, ...methods: string[]): Message[] =>
+  process.clientRequests.filter((message) => methods.includes(String(message.method)))
+const wireOf = (process: FakeAppServerProcess): string[] =>
+  requestsOf(process, "thread/unsubscribe", "thread/resume", "turn/start").map((message) => String(message.method))
+const bagOf = (request: Message): Record<string, unknown> | undefined =>
+  (request.params as Message).config as Record<string, unknown> | undefined
+
+test("a worker's hooks ride thread/start and every thread/resume, and a resume sends the same bag the start did", async () => {
+  let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
+  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  try {
+    const bridge = h.newBridge()
+    const binding = await bridge.startDisposableSession({ threadSlug: "hooked", sessionId: "hooked-session", cwd: h.dir, ephemeral: false })
+    const started = bagOf(requestsOf(h.processes[0]!, "thread/start")[0]!)!
+    assert.equal(started.model_reasoning_summary, "detailed")
+    assert.deepEqual(started.hooks, { SessionStart: ["scratchpad --session=hooked-session"] })
+    assert.ok((started.mcp_servers as Record<string, unknown>)[FRIZZ_MCP.name], "beside the thread's own MCP mount")
+
+    // A disposable session is not a worker: it gets the mount and none of a worker's hooks.
+    await bridge.startDisposableSession({ threadSlug: "probe", sessionId: "probe-session", cwd: h.dir })
+    const disposable = bagOf(requestsOf(h.processes[0]!, "thread/start")[1]!)!
+    assert.equal(disposable.hooks, undefined)
+    assert.equal(disposable.model_reasoning_summary, undefined)
+    bridge.close()
+
+    // The app-server was replaced, so this resume is what the thread is loaded from. Until 2026-10-11
+    // it carried the mount alone, and the thread came back with no hooks for the rest of its life.
+    plan = { generation: "gen-B", reattached: false, droppedWhileDetached: 0 }
+    const restarted = h.newBridge()
+    await restarted.resumeOwnedSession(binding.threadSlug, binding.sessionId)
+    assert.deepEqual(bagOf(requestsOf(h.processes[1]!, "thread/resume")[0]!), started)
+  } finally { h.close() }
+})
+
+// The app-server serves every thread in the project, so its environment cannot say which one a shell
+// command belongs to. The thread's own bag can, and a resume has to say it again: the shell environment
+// is not stored in the rollout (`_live_codex_shell_identity.mts`).
+test("each thread's shell is told which thread it is, at thread/start and again at thread/resume", async () => {
+  let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
+  const cli = { binDir: "/gen-b/cc-worker/bin", stateDir: "/state/project-1", projectId: "project-1" }
+  const h = scriptedHostHarness(() => plan, { frizzCli: cli })
+  const who = (bag: Record<string, unknown> | undefined) => bag?.["shell_environment_policy.set.FRIZZ_THREAD_SLUG"]
+  try {
+    const bridge = h.newBridge()
+    const one = await bridge.startDisposableSession({ threadSlug: "thread-one", sessionId: "session-one", cwd: h.dir, ephemeral: false })
+    await bridge.startDisposableSession({ threadSlug: "thread-two", sessionId: "session-two", cwd: h.dir, ephemeral: false })
+    const [first, second] = requestsOf(h.processes[0]!, "thread/start").map(bagOf)
+    assert.equal(who(first), "thread-one")
+    assert.equal(who(second), "thread-two")
+    assert.equal(first!["shell_environment_policy.set.FRIZZ_STATE_DIR"], "/state/project-1")
+    assert.equal(first!["shell_environment_policy.set.FRIZZ_PROJECT_ID"], "project-1")
+    assert.match(String(first!["shell_environment_policy.set.PATH"]), /^\/gen-b\/cc-worker\/bin[:;]/)
+    bridge.close()
+
+    plan = { generation: "gen-B", reattached: false, droppedWhileDetached: 0 }
+    const restarted = h.newBridge()
+    await restarted.resumeOwnedSession(one.threadSlug, one.sessionId)
+    assert.deepEqual(bagOf(requestsOf(h.processes[1]!, "thread/resume")[0]!), first)
+  } finally { h.close() }
+})
+
+// A codex thread keeps the contract it was started with. One started under the command-line contract
+// was never told about the tools and is not given them; one that predates it still is, at every resume.
+test("the MCP mount rides only the threads whose contract taught it", async () => {
+  let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
+  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, mountsMcp: (slug) => slug === "taught-mcp" })
+  try {
+    const bridge = h.newBridge()
+    const legacy = await bridge.startDisposableSession({ threadSlug: "taught-mcp", sessionId: "session-legacy", cwd: h.dir, ephemeral: false })
+    const cli = await bridge.startDisposableSession({ threadSlug: "taught-cli", sessionId: "session-cli", cwd: h.dir, ephemeral: false })
+    const [legacyBag, cliBag] = requestsOf(h.processes[0]!, "thread/start").map(bagOf)
+    assert.ok((legacyBag!.mcp_servers as Record<string, unknown>)[FRIZZ_MCP.name])
+    assert.equal(cliBag?.mcp_servers, undefined)
+    // …and switched OFF, for the app-server from before the update that still mounts it process-wide:
+    // `enabled = false` with a command beside it, the one spelling codex 0.161.0 accepts on both kinds
+    // of app-server (`_live_codex_mcp_disable.mts`).
+    assert.equal(cliBag?.[`mcp_servers.${FRIZZ_MCP.name}.enabled`], false)
+    assert.equal(cliBag?.[`mcp_servers.${FRIZZ_MCP.name}.command`], process.execPath)
+    // …and nothing mounts it process-wide behind the bag's back: the app-server's own argv carries
+    // no `mcp_servers` override, or every thread in the project would have the tools again.
+    assert.ok(!h.hostCalls.some((call) => call.frizzMcp), "the app-server was started with a process-wide MCP mount")
+    bridge.close()
+
+    plan = { generation: "gen-B", reattached: false, droppedWhileDetached: 0 }
+    const restarted = h.newBridge()
+    await restarted.resumeOwnedSession(legacy.threadSlug, legacy.sessionId)
+    await restarted.resumeOwnedSession(cli.threadSlug, cli.sessionId)
+    const [legacyResume, cliResume] = requestsOf(h.processes[1]!, "thread/resume").map(bagOf)
+    assert.ok((legacyResume!.mcp_servers as Record<string, unknown>)[FRIZZ_MCP.name])
+    assert.equal(cliResume?.mcp_servers, undefined)
+    assert.equal(cliResume?.[`mcp_servers.${FRIZZ_MCP.name}.enabled`], false)
+  } finally { h.close() }
+})
+
+test("a thread idle at a Frizz restart is released and resumed with the new server's bag before its next turn", async () => {
+  let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
+  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  try {
+    const bridge = h.newBridge()
+    const binding = await bridge.startDisposableSession({ threadSlug: "idle", sessionId: "idle-session", cwd: h.dir, ephemeral: false })
+    bridge.close()
+
+    plan = { generation: "gen-A", reattached: true, droppedWhileDetached: 1 }
+    const restarted = h.newBridge()
+    const input = { threadSlug: binding.threadSlug, sessionId: binding.sessionId, text: "next" }
+    await restarted.followUp(input)
+    const process_ = h.processes[1]!
+    // The release comes FIRST: an app-server that still counts a subscriber ignores the bag.
+    assert.deepEqual(wireOf(process_), ["thread/unsubscribe", "thread/resume", "turn/start"])
+    assert.equal((requestsOf(process_, "thread/unsubscribe")[0]!.params as Message).threadId, binding.codexThreadId)
+    assert.ok(bagOf(requestsOf(process_, "thread/resume")[0]!)?.hooks)
+
+    // It has this server's bag now, and that does not change for as long as this server runs.
+    process_.completeActiveTurn()
+    await waitFor(() => restarted.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === null, "turn completed")
+    await restarted.followUp({ ...input, text: "again" })
+    assert.deepEqual(wireOf(process_), ["thread/unsubscribe", "thread/resume", "turn/start", "turn/start"])
+  } finally { h.close() }
+})
+
+test("a thread that was mid-turn at a restart is rebuilt before its NEXT turn, once, and never under the running one", async () => {
+  let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
+  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  try {
+    const bridge = h.newBridge()
+    const binding = await bridge.startDisposableSession({ threadSlug: "busy", sessionId: "busy-session", cwd: h.dir, ephemeral: false })
+    const input = { threadSlug: binding.threadSlug, sessionId: binding.sessionId, text: "Work" }
+    const { turnId } = await bridge.startTurn(input)
+    await waitFor(() => bridge.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === turnId, "turn active")
+    bridge.close()
+
+    plan = { generation: "gen-A", reattached: true, droppedWhileDetached: 1 }
+    h.resumeThreadStatus({ type: "active", activeFlags: [] })
+    const restarted = h.newBridge()
+    await restarted.warmUp()
+    const process_ = h.processes[1]!
+    assert.equal(restarted.binding(binding.threadSlug, binding.sessionId)?.currentTurnId, turnId)
+    assert.deepEqual(wireOf(process_), ["thread/resume"], "the running turn is rejoined and nothing is released under it")
+
+    // Its turn ends under the new server. The thread is still the old server's build of it, so the
+    // next turn is preceded by the rebuild — the release, then the resume with this server's bag.
+    process_.completeActiveTurn(binding.codexThreadId, turnId)
+    await waitFor(() => restarted.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === null, "turn completed")
+    await restarted.followUp({ ...input, text: "next" })
+    assert.deepEqual(wireOf(process_), ["thread/resume", "thread/unsubscribe", "thread/resume", "turn/start"])
+    assert.ok(bagOf(requestsOf(process_, "thread/resume")[1]!)?.hooks)
+    assert.ok(
+      h.diagnostics.some((event) => (event as Message).event === "thread-config-reloaded" && (event as Message).threadSlug === "busy"),
+      `the rebuild is on the record — saw ${JSON.stringify(h.diagnostics)}`,
+    )
+
+    process_.completeActiveTurn()
+    await waitFor(() => restarted.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === null, "second turn completed")
+    await restarted.followUp({ ...input, text: "again" })
+    assert.deepEqual(wireOf(process_).slice(4), ["turn/start"], "once is all it takes")
+  } finally { h.close() }
+})
+
+// The reconcile resumes an idle thread that still owns a background command so the new connection
+// hears the command end. With a bag on it, that resume REBUILT the thread — nobody subscribed to it any
+// more — and ended the command it was sent to keep (measured: `sleep` alive after the old server left,
+// gone after the new server's warm-up). A production bridge always has a bag, so every restart did this.
+test("a thread holding a background command is rejoined with no bag, and rebuilt only once the command has ended", async () => {
+  let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
+  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  try {
+    const bridge = h.newBridge()
+    const { binding, terminal } = await threadWithBackgroundExec(h, bridge, "bg-config")
+    bridge.close()
+
+    plan = { generation: "gen-A", reattached: true, droppedWhileDetached: 1 }
+    h.backgroundTerminals({ [binding.codexThreadId]: [terminal] })
+    const restarted = h.newBridge()
+    await restarted.warmUp()
+    const process_ = h.processes[1]!
+    const rejoin = requestsOf(process_, "thread/resume")
+    assert.equal(rejoin.length, 1)
+    assert.equal(bagOf(rejoin[0]!), undefined, "a bag here rebuilds the thread and ends its command")
+    assert.equal((rejoin[0]!.params as Message).approvalPolicy, "never", "the rest of the resume is unchanged")
+
+    // A turn while the command is still running starts on the thread as it is.
+    const input = { threadSlug: binding.threadSlug, sessionId: binding.sessionId, text: "next" }
+    const { turnId } = await restarted.followUp(input)
+    assert.deepEqual(wireOf(process_), ["thread/resume", "turn/start"])
+
+    // The command ends, then the turn. Now nothing would be lost, and the next turn gets the rebuild.
+    process_.notify("item/completed", {
+      item: { type: "commandExecution", id: "exec-item-1", command: "sleep 811", processId: "4242", status: "completed", exitCode: 0 },
+      threadId: binding.codexThreadId,
+      turnId,
+      completedAtMs: Date.parse("2026-07-13T12:00:01.000Z"),
+    })
+    await waitFor(() => restarted.backgroundExecs(binding.threadSlug, binding.sessionId).length === 0, "the command ended")
+    process_.completeActiveTurn()
+    await waitFor(() => restarted.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === null, "turn completed")
+    await restarted.followUp({ ...input, text: "again" })
+    assert.deepEqual(wireOf(process_), ["thread/resume", "turn/start", "thread/unsubscribe", "thread/resume", "turn/start"])
+    assert.ok(bagOf(requestsOf(process_, "thread/resume")[1]!)?.hooks)
+  } finally { h.close() }
+})
+
+test("a Codex with no thread/unsubscribe is asked once; its threads keep taking turns on the config they have", async () => {
+  let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
+  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  try {
+    const bridge = h.newBridge()
+    const binding = await bridge.startDisposableSession({ threadSlug: "old-codex", sessionId: "old-codex-session", cwd: h.dir, ephemeral: false })
+    const input = { threadSlug: binding.threadSlug, sessionId: binding.sessionId, text: "Work" }
+    const { turnId } = await bridge.startTurn(input)
+    await waitFor(() => bridge.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === turnId, "turn active")
+    bridge.close()
+
+    plan = { generation: "gen-A", reattached: true, droppedWhileDetached: 1 }
+    h.resumeThreadStatus({ type: "active", activeFlags: [] })
+    const restarted = h.newBridge()
+    await restarted.warmUp()
+    const process_ = h.processes[1]!
+    process_.unsubscribeRefused = true
+    process_.completeActiveTurn(binding.codexThreadId, turnId)
+    await waitFor(() => restarted.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === null, "turn completed")
+
+    await restarted.followUp({ ...input, text: "next" })
+    assert.deepEqual(wireOf(process_), ["thread/resume", "thread/unsubscribe", "thread/resume", "turn/start"], "the turn still starts")
+    assert.ok(h.diagnostics.some((event) => (event as Message).event === "thread-config-sync-unavailable"))
+    assert.equal(h.diagnostics.some((event) => (event as Message).event === "thread-config-reloaded"), false, "nothing was rebuilt, and nothing says it was")
+
+    process_.completeActiveTurn()
+    await waitFor(() => restarted.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === null, "second turn completed")
+    await restarted.followUp({ ...input, text: "again" })
+    assert.deepEqual(wireOf(process_).slice(4), ["turn/start"], "and the refusal is not asked for again")
   } finally { h.close() }
 })
 

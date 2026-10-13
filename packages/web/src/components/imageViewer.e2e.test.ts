@@ -50,8 +50,8 @@ async function shot(page: Page, name: string) {
 }
 
 test("a picture opens in Frizz's viewer: fit, actual size, its card's gallery, and Escape that leaves the drawer beneath", { skip: !baseUrl, timeout: 180_000 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   try {
     // Real pictures first: a 2x capture of a transcript surface in the dark palette (the common agent
     // screenshot — dark UI, the kind whose edges vanish against a dark page), a small crop, a tall one.

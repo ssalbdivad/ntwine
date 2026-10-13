@@ -1,7 +1,7 @@
 import type { ServerEvent } from "@frizz/shared"
 import type { QueryClient } from "@tanstack/react-query"
 import { store } from "../store.ts"
-import { BoardStream } from "./board-stream.ts"
+import { BoardStream, refreshProjectList } from "./board-stream.ts"
 import { invalidateInteractionQueries } from "./interaction-cache.ts"
 import { frizzRoute } from "@frizz/shared"
 import { apiBase, projectSlug } from "../lib/base-path.ts"
@@ -17,6 +17,8 @@ let lastMsg = 0
 let health: ReturnType<typeof setInterval> | null = null
 let failures = 0
 let qc: QueryClient | null = null
+// How many times this stream has opened. Every open after the first follows a gap — see `onopen`.
+let opens = 0
 
 // Board seq-gap resync = reconnect the EventSource: the connect handshake re-sends the full board as a
 // fresh keyframe with the current seq. NOT a failure (the connection is healthy) so it skips backoff.
@@ -25,6 +27,7 @@ const stream = new BoardStream(
   (event) => {
     if (qc) void invalidateInteractionQueries(qc, event)
   },
+  () => refreshProjectList(qc),
 )
 
 // Server pushes full board snapshots (+ optional heartbeats). If we go quiet for
@@ -49,6 +52,9 @@ function connect() {
     failures = 0
     lastMsg = Date.now()
     store.connection = "open"
+    // Same catch-up the socket does on a later live generation (api/socket.ts): the board comes back
+    // as a keyframe, and a `projects-changed` published during the gap comes back as nothing.
+    if (++opens > 1) refreshProjectList(qc)
   }
 
   es.addEventListener("heartbeat", () => {

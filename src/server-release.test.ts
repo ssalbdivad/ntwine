@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import {
-  npmServerPackageInstaller, resolveNpmCli, serverGenerationLaunch, serverReleaseSpec, ServerReleaseStore,
+  npmServerPackageInstaller, resolveNpmCli, serverGenerationLaunch, serverReleaseMinimum, serverReleaseSpec, ServerReleaseStore,
   validateServerGeneration, type ServerCompatibility, type ServerPackageInstaller, type ServerReleaseSpec,
 } from "./server-release.ts";
 
@@ -90,6 +90,50 @@ test("cache eviction reinstalls exactly the committed version, never the launche
   assert.equal(restored.version, "1.2.0");
   assert.deepEqual(installs, ["1.2.0", "1.2.0"]);
   assert.notEqual(restored.id, current.id);
+});
+
+test("a shell starts a machine whose server is older than it works with on its pinned release", async (t) => {
+  const { installer, roots, installs, store: old } = setup(t);
+  old.commit(await old.load());
+
+  const pinned = { ...baseline, version: "1.3.0" };
+  const newer = new ServerReleaseStore(pinned, installer, roots, undefined, "1.2.0");
+  assert.deepEqual(newer.belowMinimum(), { selected: "1.0.0", minimum: "1.2.0", pinned: "1.3.0" });
+  const raised = await newer.load();
+  assert.equal(raised.version, "1.3.0");
+  // Not selected until it is up: a pinned release that cannot boot leaves the old one on disk.
+  assert.equal(JSON.parse(readFileSync(newer.selection, "utf8")).version, "1.0.0");
+  newer.commit(raised);
+  assert.equal(newer.belowMinimum(), undefined);
+  assert.equal((await newer.load()).id, raised.id);
+  assert.deepEqual(installs, ["1.0.0", "1.3.0"]);
+});
+
+test("the minimum never moves a server that is new enough, and a shell without one never moves any", async (t) => {
+  const { installer, roots, installs, store } = setup(t);
+  const selected = await store.prepare("1.2.0");
+  store.commit(selected);
+  const pinned = { ...baseline, version: "1.5.0" };
+  // At the minimum exactly, above it, and above the pin itself — Update is what moves those.
+  for (const minimum of ["1.2.0", "1.1.9", undefined]) {
+    const shell = new ServerReleaseStore(pinned, installer, roots, undefined, minimum);
+    assert.equal(shell.belowMinimum(), undefined, String(minimum));
+    assert.equal((await shell.load()).id, selected.id, String(minimum));
+  }
+  const ahead = await store.prepare("1.9.0");
+  store.commit(ahead);
+  assert.equal((await new ServerReleaseStore(pinned, installer, roots, undefined, "1.4.0").load()).id, ahead.id);
+  // A machine with no server starts on the pin whatever the minimum says.
+  assert.equal(new ServerReleaseStore(pinned, installer, { ...roots, state: join(roots.state, "fresh") }, undefined, "1.4.0").belowMinimum(), undefined);
+  assert.deepEqual(installs, ["1.2.0", "1.9.0"]);
+});
+
+test("a shell's minimum must be an exact version its own pinned server satisfies", () => {
+  const manifest = (minimum: unknown) => ({ frizzServer: { ...baseline, version: "1.3.0", minimum } });
+  assert.equal(serverReleaseMinimum({ frizzServer: baseline }), undefined);
+  assert.equal(serverReleaseMinimum(manifest("1.3.0")), "1.3.0");
+  assert.equal(serverReleaseMinimum(manifest("1.2.9")), "1.2.9");
+  for (const bad of ["1.3.1", "2.0.0", "latest", "^1.2.0", 1, null]) assert.throws(() => serverReleaseMinimum(manifest(bad)), String(bad));
 });
 
 test("a newer shell stages its exact epoch generation before making its data boundary durable", async (t) => {

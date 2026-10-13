@@ -12,8 +12,8 @@ const GEAR = 'button[aria-label="Triage prompt settings"]'
 const PANEL = "[data-github-prompt-menu]"
 
 async function launch(query = "?rows=5") {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport({ width: 1100, height: 900, deviceScaleFactor: 1 })
   const errors: string[] = []

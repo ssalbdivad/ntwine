@@ -13,8 +13,8 @@ import { PhoneScheduleSheet } from "./PhoneScheduleSheet.tsx"
 
 // THE PHONE THREAD HEADER (mockup v2 §2). The desktop drawer's header is two rows — title and "Last
 // active", then an icon strip and a bordered × — and at 390pt it spent 91.5px on controls a phone either
-// cannot use (copy a terminal command, open fullscreen) or reaches more easily from a list. This is one
-// 56px row: ← back, the title, a subtitle that says where the thread stands, and ⋯ for everything else.
+// cannot use (open fullscreen) or reaches more easily from a list. This is one 56px row: ← back, the
+// title, a subtitle that says where the thread stands, and ⋯ for everything else.
 //
 // ← IS THE PLATFORM'S BACK. When the app pushed the thread's history entry (it was opened from the
 // board, or anywhere else in this session) it pops that entry — `history.back()` — and the router's
@@ -39,8 +39,8 @@ import { PhoneScheduleSheet } from "./PhoneScheduleSheet.tsx"
 // model and effort. See lib/mobileThread.ts.
 //
 // Everything the desktop header and the prompt box's rail hold — Snooze, Goal, the registered files,
-// Rename, Copy link, and Retry / Restart worker / Reload plugins where the header offers them — is in
-// the ⋯ sheet (ThreadActionsSheet).
+// Rename, Copy link, and Retry / Restart worker where the header offers them — is in the ⋯ sheet
+// (ThreadActionsSheet).
 export function MobileThreadHeader({ slug, onClose }: { slug: string; onClose: () => void }) {
   const board = useBoard()
   const thread = threadBySlug(board, slug)

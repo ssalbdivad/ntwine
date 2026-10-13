@@ -28,8 +28,8 @@ const url = `${base}${base.includes("?") ? "&" : "?"}surface=drawer`
 const shots = opt("shots")
 if (shots) mkdirSync(shots, { recursive: true })
 
-const { default: puppeteer } = await import("puppeteer")
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] })
+const { launchHeadless } = await import("./lib/headless-browser.mjs")
+const browser = await launchHeadless()
 let failures = 0
 const fail = (msg) => { failures++; console.log(`FAIL  ${msg}`) }
 const pass = (msg) => console.log(`PASS  ${msg}`)

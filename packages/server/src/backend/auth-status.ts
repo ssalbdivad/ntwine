@@ -269,8 +269,8 @@ function claudeAccountFile(): string {
 }
 
 // That file also holds Claude Code's entire per-project history — it is routinely a few hundred KB, and
-// readAuthSnapshot runs on a 2s poll while the sign-in terminal is open. Memoize on (path, mtime, size)
-// so the parse happens once per actual write instead of once per poll.
+// readAuthSnapshot is polled by every open tab. Memoize on (path, mtime, size) so the parse happens
+// once per actual write instead of once per poll.
 let claudeAccountMemo: { path: string; mtimeMs: number; size: number; email: string | undefined } | undefined
 export function readClaudeAccountEmail(path = claudeAccountFile()): string | undefined {
   let stat: { mtimeMs: number; size: number }
@@ -343,12 +343,53 @@ function tryRead(read: () => string | undefined): string | undefined {
 // A credential stored somewhere the local reader doesn't cover would otherwise trap the user in the
 // sign-in modal ("Still signed out" / "didn't complete") while a real dispatch would succeed. The
 // CLI shell-out only happens on the signed-out path, so signed-in users never pay for it.
-export async function readAuthSnapshot(opts?: { claudeBin?: string }): Promise<AuthSnapshot> {
+//
+// AND A SIGNED-OUT USER PAYS FOR IT ONCE PER CLI_CONFIRM_TTL_MS, NOT ONCE PER CALL. This snapshot is
+// polled: by the quota chips every two minutes per open tab, again on every window focus, and by every
+// page load. The confirmation is a whole Claude Code binary starting up, and until 2026-10-11 each of
+// those calls started one — on exactly the machines that are not signed in to Claude, which is every
+// Codex-only install (measured on a signed-out stack: one per page load, two when two queries mounted
+// together). What it can learn changes rarely: a sign-in the LOCAL reader can see is answered above
+// without it, and that is every sign-in but the exotic one this exists for. So the verdict is
+// remembered, callers that arrive together share one start, and `fresh` — the sign-in dialog's own
+// "I've signed in, check again", and the read after a logout — is the only thing that asks early.
+const CLI_CONFIRM_TTL_MS = 15 * 60_000
+let cliConfirm: { bin: string; at: number; verdict: ProviderAuth } | undefined
+let cliConfirmInFlight: { bin: string; verdict: Promise<ProviderAuth> } | undefined
+
+/** Test seam: forget the remembered CLI verdict. */
+export function resetClaudeCliConfirm(): void {
+  cliConfirm = undefined
+  cliConfirmInFlight = undefined
+}
+
+async function confirmSignedOutWithCli(opts: { claudeBin?: string; fresh?: boolean; now?: () => number }): Promise<ProviderAuth> {
+  const bin = opts.claudeBin ?? ""
+  const now = (opts.now ?? Date.now)()
+  if (!opts.fresh && cliConfirm?.bin === bin && now >= cliConfirm.at && now - cliConfirm.at < CLI_CONFIRM_TTL_MS) return cliConfirm.verdict
+  if (cliConfirmInFlight?.bin === bin) return cliConfirmInFlight.verdict
+  const verdict = readClaudeAuthStatusCli({ claudeBin: opts.claudeBin })
+    .then((answer) => {
+      cliConfirm = { bin, at: now, verdict: answer }
+      return answer
+    })
+    .finally(() => {
+      if (cliConfirmInFlight?.verdict === verdict) cliConfirmInFlight = undefined
+    })
+  cliConfirmInFlight = { bin, verdict }
+  return verdict
+}
+
+export async function readAuthSnapshot(opts?: { claudeBin?: string; fresh?: boolean; now?: () => number }): Promise<AuthSnapshot> {
   const [claude, codex] = await Promise.all([
     readClaudeAuthState()
       .then(async (local): Promise<ProviderAuth> => {
-        if (local !== "signed-out") return local
-        const cli = await readClaudeAuthStatusCli({ claudeBin: opts?.claudeBin })
+        if (local !== "signed-out") {
+          // A credential the local reader can see: whatever the CLI last said described another state.
+          cliConfirm = undefined
+          return local
+        }
+        const cli = await confirmSignedOutWithCli(opts ?? {})
         return cli === "authed" ? "authed" : local
       })
       .catch((): ProviderAuth => "unknown"),

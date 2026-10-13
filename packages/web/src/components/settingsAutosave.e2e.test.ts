@@ -13,8 +13,8 @@ const baseUrl = process.env.FRIZZ_SETTINGS_AUTOSAVE_E2E_URL
 type Write = { at: number; body: Record<string, unknown>; ok: boolean }
 
 async function launch(query = "") {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.setViewport({ width: 900, height: 1000, deviceScaleFactor: 1 })
   const errors: string[] = []

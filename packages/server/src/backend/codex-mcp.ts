@@ -144,6 +144,32 @@ export function codexThreadMcpConfig(frizzMcp: FrizzMcp | undefined, slug: strin
 }
 
 /**
+ * The PER-THREAD switch that turns the frizz MCP server OFF for a thread taught `frizzctl` instead.
+ *
+ * Needed because an app-server outlives the server that started it: Frizz reattaches to it, for as long
+ * as a client keeps coming back. One started before 2026-10-11 still carries the process-wide argv
+ * mount `-c mcp_servers.frizz=…`, with no thread identity in its env, so a NEW thread started on it is
+ * offered sixteen `mcp__frizz__*` tools its contract never mentions, every one of which fails.
+ *
+ * MEASURED on codex-cli 0.161.0 (`_live_codex_mcp_disable.mts`, the real `frizz-mcp.mjs` mounted, an
+ * operator server in config.toml beside it): a dotted key MERGES into the server entry the argv made,
+ * so `enabled = false` switches it off there — no tool offered, no process started, on a resume and in
+ * a `spawn_agent` child as long as the bag is re-sent. But on an app-server with NO such entry (every
+ * one started after the update) `enabled = false` alone is an entry with no transport, and
+ * `thread/start` is refused: "invalid transport in `mcp_servers.frizz`". A `command` beside it makes the
+ * entry valid on both, and a disabled entry's command is never run. The other spellings tried: a nested
+ * `mcp_servers` table replaces the whole table (works, but would also drop any server a later bag key
+ * adds), `enabled_tools: []` / `disabled_tools` hide the tools but still start the process, and an
+ * empty table is refused. The operator's own config.toml servers survived every one.
+ */
+export function codexThreadMcpOff(nodeBin: string = process.execPath): Record<string, unknown> {
+  return {
+    [`mcp_servers.${FRIZZ_MCP.name}.enabled`]: false,
+    [`mcp_servers.${FRIZZ_MCP.name}.command`]: nodeBin,
+  }
+}
+
+/**
  * The app-server's full argv for a transport.
  *
  * ONE builder for every spawn site — the native listener, the forked daemon, and both `--stdio`

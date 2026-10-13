@@ -8,7 +8,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFile
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { once } from "node:events"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { buildFrizzArtifact } from "../src/artifacts.ts"
 import { resolveProject } from "../packages/server/src/project.ts"
 import { findByPath } from "../packages/server/src/project-registry.ts"
@@ -105,7 +105,7 @@ try {
   await until(async () => (await thread())?.providerError?.code === "cyber_policy", "restoring the failure after restart")
   console.log("PASS restart reconstructs the error from the durable rollout")
 
-  browser = await puppeteer.launch({ headless: true, protocolTimeout: 600_000, args: ["--no-sandbox", "--force-color-profile=srgb", "--disable-gpu"] })
+  browser = await launchHeadless({ protocolTimeout: 600_000, args: ["--disable-gpu"] })
   const page = await browser.newPage()
   const errors = []
   let controlStatusMisses = 0

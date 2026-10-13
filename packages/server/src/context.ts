@@ -15,7 +15,7 @@ import { frizzRoots } from "./frizz-paths.ts"
 import { findById as findProjectById } from "./project-registry.ts"
 import { resolveProject, permRequestDir, workDirOf, type Project } from "./project.ts"
 import { isHomeWorkspace } from "./home-workspace.ts"
-import { createStorage, isBrokerClaudeRow, isHeadlessRow, type Storage } from "./storage.ts"
+import { createStorage, isBrokerClaudeRow, isHeadlessRow, workerTaughtMcp, type Storage } from "./storage.ts"
 import { clearSecrets } from "./secret-files.ts"
 import type Database from "./sqlite.ts"
 import { getSettings, setSettings, resetSettings } from "./settings.ts"
@@ -43,7 +43,7 @@ import { readTranscriptYielding } from "./transcript.ts"
 import { createTailer, defaultLogDir, type Tailer } from "./tailer.ts"
 import { backgroundShellStoppable, stopBackgroundShell } from "./shell-stop.ts"
 import type { WorkerCapabilities } from "./workerPrompt.ts"
-import { createDispatcher, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, frizzConfigBlock, claudeMcpConfig, resolveFrizzMcp, workerPluginDir, coldResumePermission, workerScratchPath, type Dispatcher, type FrizzMcpTarget } from "./dispatch.ts"
+import { createDispatcher, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, frizzConfigBlock, claudeCliConfig, codexWorkerThreadConfig, resolveFrizzCli, resolveFrizzMcp, workerPluginDir, coldResumePermission, workerScratchPath, type Dispatcher, type FrizzMcpTarget } from "./dispatch.ts"
 import { deadlineSection } from "./deadline.ts"
 import { createScheduler, type Scheduler, probeIssueReadable, probePrReadable, type PrRef, type PrProbe } from "./scheduler.ts"
 import {
@@ -56,7 +56,9 @@ import { createAcpBridge, type AcpBridge } from "./backend/acp-bridge.ts"
 import { readClaudePreflightAuth, readCodexAuthState, readCodexBinaryState } from "./backend/auth-status.ts"
 import { createTerminalRunner, type TerminalRunner } from "./thread-terminals.ts"
 import type { EditorBridge } from "./editor-bridge.ts"
-import type { AgentBackend } from "./backend/types.ts"
+import { frizzCliEnv, withFrizzCliOnPath, type AgentBackend } from "./backend/types.ts"
+import { sanitizeProviderChildEnvironment } from "./backend/claude-agent-sdk.ts"
+import { commandWatchEnvironment, createCommandWatchService, type CommandWatchService } from "./command-watch.ts"
 import { needsFreshProcessForLimit } from "./backend/usage-limit.ts"
 import { onClaudeModelsResolved, peekClaudeModels, readClaudeModels } from "./backend/claude-models.ts"
 import { claudeModelUpgradeDue, claudeUpgradeCandidate, SERVER_STARTED_AT_MS } from "./backend/claude-model-upgrade.ts"
@@ -201,8 +203,11 @@ export interface AppContext {
   // the poll could never read is refused with the reason instead of armed in silence. Production wires
   // `probePrReadable` (one `gh pr view`); a test context injects its own answer.
   probePr: (ref: PrRef) => Promise<PrProbe>
-  /** The issue twin, for `mcp__frizz__watch_issue` — `probeIssueReadable` (one `gh issue view`). */
+  /** The issue twin, for `frizzctl watch-issue` — `probeIssueReadable` (one `gh issue view`). */
   probeIssue: (ref: PrRef) => Promise<PrProbe>
+  /** `frizzctl watch-command`'s gate and runner, bound to this project (command-watch.ts). Shared with the
+   *  scheduler, so registration and every later check ask the same gate. */
+  commandWatches: CommandWatchService
   // Per-thread permission changes. Idle standalone TUIs are reopened on the same persisted
   // conversation with backend-native launch flags; busy/ambiguous states fail explicitly.
   // Proves an injected Claude follow-up was actually SUBMITTED, and re-presses Enter when the TUI
@@ -786,6 +791,14 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
         // Codex's MCP servers mount PROCESS-wide on the app-server, not per thread, so the descriptor
         // is resolved once here — the codex twin of the per-dispatch resolveFrizzMcp on the claude side.
         frizzMcp: resolveFrizzMcp(frizzMcpTarget),
+        // …and only for a thread whose contract taught it the MCP tools: a codex thread keeps the
+        // contract it was started with, so one that predates `frizzctl` keeps its mount.
+        mountsMcp: (slug) => workerTaughtMcp(storage.getSession(slug)),
+        frizzCli: resolveFrizzCli(frizzMcpTarget),
+        // The rest of a worker thread's config — hooks and reasoning summaries — sent with the start
+        // and every resume, so a thread that comes back under this server runs on this server's.
+        // A Home thread runs outside its board, so its scratchpad hook is told where the board is.
+        workerConfig: (_slug, sessionId) => codexWorkerThreadConfig(sessionId, workDirOf(project) !== project.dir ? project.dir : undefined),
         db: storage.db,
         interactions: storage.interactions,
         codexBin: opts.codexBin,
@@ -843,6 +856,8 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     projectId: project.id,
     stateDir: project.stateDir,
     frizzMcp: resolveFrizzMcp(frizzMcpTarget),
+    mountsMcp: (slug) => workerTaughtMcp(storage.getSession(slug)),
+    frizzCli: resolveFrizzCli(frizzMcpTarget),
     interactions: storage.interactions,
     env: process.env,
     customAgents: () => getSettings(storage, home).acpAgents,
@@ -903,11 +918,12 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
         // fork (project-mcp-servers.ts): under `--strict-mcp-config` nothing mounts that frizz did not hand over.
         workerEnv: {
           pluginDir: workerPluginDir(),
-          ...claudeMcpConfig(resolveFrizzMcp(frizzMcpTarget)),
+          ...claudeCliConfig(resolveFrizzCli(frizzMcpTarget)),
           permDir: permRequestDir(project),
           // Only where the board is NOT the worker's cwd (the Home workspace): the cc-worker hooks write
           // the scratch directory and session state under it instead of under their cwd.
           ...(workDirOf(project) !== project.dir ? { boardRoot: project.dir } : {}),
+          cli: resolveFrizzCli(frizzMcpTarget),
         },
         // Read at every fork, not captured once: the compaction window is a Settings value the drawer
         // can change while the server runs, and the next dispatch or cold resume should carry it.
@@ -1226,6 +1242,30 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     get complete() { return scheduleModel() },
   })
 
+  // COMMAND WATCHES (`frizzctl watch-command`): checks run in the project's working folder with the server's own
+  // environment — scrubbed of the toolchain injection a provider child is scrubbed of — plus the thread's
+  // Frizz identity and `frizzctl` on PATH, so a check may itself call `frizzctl`. Everything about the
+  // process and the gate is in command-watch.ts.
+  const commandWatches = createCommandWatchService({
+    // Where the thread's worker works: the project root, or the home folder for the Home workspace.
+    cwd: workDirOf(project),
+    env: (slug) => {
+      const base = sanitizeProviderChildEnvironment(process.env)
+      const cli = resolveFrizzCli(frizzMcpTarget)
+      if (!cli) {
+        return commandWatchEnvironment(base, {
+          FRIZZ_STATE_DIR: frizzMcpTarget.stateDir,
+          ...(frizzMcpTarget.serverLock ? { FRIZZ_SERVER_LOCK: frizzMcpTarget.serverLock } : {}),
+          ...(frizzMcpTarget.projectId ? { FRIZZ_PROJECT_ID: frizzMcpTarget.projectId } : {}),
+          FRIZZ_THREAD_SLUG: slug,
+        })
+      }
+      const env = commandWatchEnvironment(base, frizzCliEnv(cli, slug))
+      const defined = Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === "string"))
+      return withFrizzCliOnPath(defined, cli)
+    },
+  })
+
   // Durable timer waker + legacy pr/ci compatibility. Reuses the SAME resume path as followUp;
   // boot-safe because it only fires on a condition it witnesses cross.
   // The runtime budget's kill (scheduler SOURCE 13) is the operator's × — one shared body in
@@ -1239,6 +1279,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       stoppable: (slug, id) => backgroundShellStoppable(shellStopDeps, slug, id),
       stop: (slug, id, reason, stopOpts) => stopBackgroundShell(shellStopDeps, slug, id, reason, stopOpts),
     },
+    commandWatches,
     // Second wake source: every thread a subscription window cut off mid-turn gets its own "continue"
     // once that window rolls, over this same delivery path. The quota reader supplies the fallback
     // instant for a weekly limit, whose message text carries a clock but no date; readQuota memoizes,
@@ -1391,6 +1432,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     scheduler,
     probePr: probePrReadable,
     probeIssue: probeIssueReadable,
+    commandWatches,
     stopSubscriptions,
     backendFor,
     getSettings: () => getSettings(storage, home),

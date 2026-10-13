@@ -24,7 +24,7 @@
 // peak channel-sum contrast against the surface (a tone reading — how loud the mark is, as opposed to
 // how big). Compare ink to judge SIZE and contrast to judge EMPHASIS; they are different questions.
 import { readFileSync } from "node:fs"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const args = process.argv.slice(2)
 const pos = args.filter((a) => !a.startsWith("--"))
@@ -45,7 +45,7 @@ const PHASE = flags.phase === undefined ? 0 : Number(flags.phase)
 const PAD = Number(flags.pad) || 5
 const THRESHOLD = Number(flags.threshold) || 8
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 try {
   const page = await browser.newPage()
   // A high device scale factor is the resolution of the instrument: at dsf 4 a 1px halo is 4 sample

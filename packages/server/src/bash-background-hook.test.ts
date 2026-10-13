@@ -102,7 +102,7 @@ test("an untimed run_in_background call gets ONE non-blocking line; a timed one,
   // Claude Code stops an untimed background command at 30m; the hook lifts it to the 24h ceiling.
   assert.deepEqual(untimed.hookSpecificOutput?.updatedInput, { command: "npx vite --port 5231", run_in_background: true, timeout: 86_400_000 })
   assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /no `timeout`/)
-  assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /mcp__frizz__extend_shell/)
+  assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /frizzctl extend-shell/)
   assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /dev server or watcher/)
   assert.ok((untimed.hookSpecificOutput?.additionalContext ?? "").length < 500, "brief")
   // The negative controls: the same command, every way that must stay silent.
@@ -231,7 +231,7 @@ function subAgentDecision(command: string, extra: Record<string, unknown>, idKey
 
 test("inside a sub-agent neither the no-timeout nor the long-foreground prompt fires; the deny still does", () => {
   // The positive controls: the identical calls from the THREAD do get their lines.
-  assert.match(decision("npx vite --port 5231", true, { run_in_background: true }).hookSpecificOutput?.additionalContext ?? "", /extend_shell/)
+  assert.match(decision("npx vite --port 5231", true, { run_in_background: true }).hookSpecificOutput?.additionalContext ?? "", /frizzctl extend-shell/)
   assert.match(decision("pnpm prChecks", true, { timeout: 3_600_000 }).hookSpecificOutput?.additionalContext ?? "", /run_in_background: true/)
   // From a sub-agent, nothing — either spelling of the id.
   assert.deepEqual(subAgentDecision("npx vite --port 5231", { run_in_background: true }), {})

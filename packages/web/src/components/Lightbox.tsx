@@ -4,9 +4,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { createPortal } from "react-dom"
 import { useSnapshot } from "valtio"
 import { closeLightbox, openLightbox, stepLightbox, store } from "../store.ts"
+import { useFenceIslands } from "../lib/fenceIslands.ts"
 import { justifyRows } from "../lib/justifiedRows.ts"
 import { isLightboxVideo, lightboxLabel, parseLightboxBody, resolveLightboxPath, type LightboxEntry, type LightboxImage } from "../lib/lightbox.ts"
 import { useBackClosesLayer } from "../lib/backDismiss.ts"
+import { HEADER_ICON_SQUARE } from "../lib/headerIcon.ts"
 import { openLocalPathExternally } from "../lib/local-file-links.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
 import { useIsMobile } from "../lib/mobile.ts"
@@ -14,6 +16,7 @@ import { handleDialogEscape } from "../lib/selectOverlay.ts"
 import { useLocalPathBase } from "../lib/useMarkdown.ts"
 import { ZOOM_STEP, pictureTransform, useViewerGestures, type ViewState } from "../lib/viewerGestures.ts"
 import { IMAGE_FRAME_MAT, ImageFrame } from "./ImageFrame.tsx"
+import { Tooltip, TooltipProvider } from "./Tooltip.tsx"
 
 // A ```lightbox fence (lib/lightbox.ts for the grammar): the pictures and videos a worker listed, laid out
 // as ONE gallery inside the same frame every rendered picture in the transcript sits in (ImageFrame), and
@@ -205,7 +208,7 @@ function PlayBadge() {
       aria-hidden
       className="pointer-events-none absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white/90 ring-1 ring-white/15 backdrop-blur-sm transition-colors group-hover:bg-black/70 group-hover:text-white"
     >
-      <Play size={14} strokeWidth={VIEWER_PEN} absoluteStrokeWidth fill="currentColor" />
+      <Play size={14} strokeWidth={CHIP_PEN} absoluteStrokeWidth fill="currentColor" />
     </span>
   )
 }
@@ -239,34 +242,14 @@ function useContentWidth(el: HTMLElement | null): number {
  * The ```lightbox fences inside one block of rendered Markdown, drawn as galleries — for every surface
  * that renders a worker's Markdown as ONE string of sanitized HTML rather than through the transcript's
  * splitter: the done and awaiting cards, a question's options, the `.md` reader (LinkedHtml,
- * MarkdownDrawer, FileViewerPanel). There a fence is only a highlighted code block, tagged
- * `language-lightbox` (lib/syntaxHighlight.ts); this swaps each one, after the HTML lands, for an empty
- * host and portals a LightboxGallery into it. The sanitizer learns no new tag, and the gallery is the
- * transcript's own component rather than a lookalike drawn from markup.
+ * MarkdownDrawer, FileViewerPanel). The finding and swapping is lib/fenceIslands.ts, shared with the
+ * ```mermaid fence (useMermaidIslands); this names the fence and portals a LightboxGallery into each host.
  *
- * Returns the portals; render them anywhere in the host component. Rescans whenever the markup OR the
- * element changes: a host that remounts its element with the same markup (the split viewer's
- * Rendered/Source toggle) gets fresh, unscanned HTML from React. The markup itself is only rewritten
- * when it changes (lib/innerHtml.ts), which is what keeps the hosts in place between scans.
+ * Returns the portals; render them anywhere in the host component.
  */
 export function useLightboxIslands(ref: RefObject<HTMLElement | null>, html: string, baseDir?: string): ReactNode {
-  const [islands, setIslands] = useState<{ host: HTMLElement; entries: LightboxEntry[] }[]>([])
-  const scanned = useRef<{ root: HTMLElement | null; html: string } | null>(null)
-  useLayoutEffect(() => {
-    const root = ref.current
-    if (scanned.current && scanned.current.root === root && scanned.current.html === html) return
-    scanned.current = { root, html }
-    const found: { host: HTMLElement; entries: LightboxEntry[] }[] = []
-    for (const code of root?.querySelectorAll<HTMLElement>("pre > code.language-lightbox") ?? []) {
-      const block = code.closest(".md-code") ?? code.parentElement!
-      const host = document.createElement("div")
-      host.className = "md-lightbox"
-      block.replaceWith(host)
-      found.push({ host, entries: parseLightboxBody(code.textContent ?? "") })
-    }
-    setIslands((prev) => (prev.length === 0 && found.length === 0 ? prev : found))
-  })
-  return islands.map(({ host, entries }, i) => createPortal(<LightboxGallery entries={entries} baseDir={baseDir} />, host, String(i)))
+  const islands = useFenceIslands(ref, html, "lightbox", "md-lightbox", parseLightboxBody)
+  return islands.map(({ key, host, value }) => createPortal(<LightboxGallery entries={value} baseDir={baseDir} />, host, key))
 }
 
 /**
@@ -276,7 +259,12 @@ export function useLightboxIslands(ref: RefObject<HTMLElement | null>, html: str
 export function LightboxHost() {
   const { lightbox } = useSnapshot(store)
   if (!lightbox) return null
-  return <LightboxViewer images={lightbox.images} index={lightbox.index} />
+  // Its own provider for the header buttons' tooltips: the /full page hosts this outside every other.
+  return (
+    <TooltipProvider>
+      <LightboxViewer images={lightbox.images} index={lightbox.index} />
+    </TooltipProvider>
+  )
 }
 
 function LightboxViewer({ images, index }: { images: readonly LightboxImage[]; index: number }) {
@@ -312,7 +300,12 @@ function LightboxViewer({ images, index }: { images: readonly LightboxImage[]; i
       const player = videoRef.current
       if (player?.paused) void player.play().catch(() => undefined)
       else player?.pause()
-    } else return false
+    }
+    // Escape does not normally get this far: the dialog claims it on the way down and closes. But a
+    // header button's open tooltip is a layer ABOVE the dialog, and then the key closes only the tooltip
+    // and travels on to the page, which would unwind a drawer under a viewer that is still open.
+    else if (e.key === "Escape") closeLightbox()
+    else return false
     return true
   }
   // + − 0 are the zoom's own (lib/viewerGestures.ts zoomKey).
@@ -365,12 +358,13 @@ function LightboxViewer({ images, index }: { images: readonly LightboxImage[]; i
               </RadixDialog.Title>
               <div className="truncate font-mono-keep text-[11px] leading-4 text-white/45">{image.path}</div>
             </div>
-            {/* `gap-4` is 16px of INK between every mark here, because each button is trimmed onto its
-                own glyph (ViewerButton `trim`) — and the trim also lands the close glyph 16px from the
-                window edge, mirroring the title's 16px on the left. */}
-            <div data-lightbox-actions className="flex shrink-0 items-center gap-4">
+            {/* THE THREAD HEADER'S ACTION STRIP, on the viewer's field (HeaderActions; ViewerButton below):
+                the same squares on the same `gap-0.5`, so the marks stand at that strip's ink rhythm.
+                The negative margin pulls the last square into the header's padding, which leaves the
+                close glyph's ink where a sheet's close stands from its own edge (SheetClose). */}
+            <div data-lightbox-actions className="-mr-1 flex shrink-0 items-center gap-0.5 pointer-coarse:-mr-3">
               {many && (
-                <span data-lightbox-counter className="text-[12px] tabular-nums text-white/60">
+                <span data-lightbox-counter className="mr-2.5 text-[12px] tabular-nums text-[#787a7d]">
                   {index + 1} / {images.length}
                 </span>
               )}
@@ -379,19 +373,19 @@ function LightboxViewer({ images, index }: { images: readonly LightboxImage[]; i
                   A video does not zoom, so it has none. */}
               {!video && (
                 <>
-                  <ViewerButton label="Zoom out" trim={ZOOM_TRIM} onClick={() => gestures.zoomBy(1 / ZOOM_STEP)} disabled={!zoomed} className="pointer-coarse:hidden">
-                    <ZoomOut size={16} strokeWidth={VIEWER_PEN} absoluteStrokeWidth />
+                  <ViewerButton label="Zoom out" onClick={() => gestures.zoomBy(1 / ZOOM_STEP)} disabled={!zoomed} className="pointer-coarse:hidden">
+                    <ZoomOut size={14} strokeWidth={2} />
                   </ViewerButton>
-                  <ViewerButton label="Zoom in" trim={ZOOM_TRIM} onClick={() => gestures.zoomBy(ZOOM_STEP)} disabled={shown.zoom.scale >= shown.max - 1e-6} className="pointer-coarse:hidden">
-                    <ZoomIn size={16} strokeWidth={VIEWER_PEN} absoluteStrokeWidth />
+                  <ViewerButton label="Zoom in" onClick={() => gestures.zoomBy(ZOOM_STEP)} disabled={shown.zoom.scale >= shown.max - 1e-6} className="pointer-coarse:hidden">
+                    <ZoomIn size={14} strokeWidth={2} />
                   </ViewerButton>
                 </>
               )}
-              <ViewerButton label={video ? "Open in default player" : "Open in default viewer"} trim={OPEN_TRIM} onClick={() => openLocalPathExternally(image.path)}>
-                <ExternalLink size={16} strokeWidth={VIEWER_PEN} absoluteStrokeWidth />
+              <ViewerButton label={video ? "Open in default player" : "Open in default viewer"} onClick={() => openLocalPathExternally(image.path)}>
+                <ExternalLink size={14} strokeWidth={2} className={TOUCH_GLYPH} />
               </ViewerButton>
-              <ViewerButton label="Close" trim={CLOSE_TRIM} onClick={closeLightbox}>
-                <X size={18} strokeWidth={VIEWER_PEN} absoluteStrokeWidth />
+              <ViewerButton label="Close" onClick={closeLightbox}>
+                <X size={15} strokeWidth={2} className={TOUCH_GLYPH} />
               </ViewerButton>
             </div>
           </header>
@@ -483,47 +477,71 @@ function ViewerVideo({ image, view, videoRef }: { image: LightboxImage; view: Vi
   )
 }
 
-// The header buttons' layout footprints, collapsed onto their glyphs' ink so the strip's one `gap` is
-// the distance the eye reads. Measured with scripts/ink-gaps.mjs at dsf 4 on the real viewer: a 36px
-// square paints ExternalLink@16 across 13.5px (11.25px dead a side) and X@18 across 10.5px (12.75px).
-// Untrimmed, the strip drew 23.5px and 26px of ink on one nominal gap and parked the close glyph 28.75px
-// off the window edge against the title's 16.5px. The squares now OVERLAP by 8px between the two icons;
-// that is empty padding on both sides, only the hovered one paints, and the later one takes the pointer
-// there. On a touch screen the squares grow to 44px — the touch-target minimum — so the same glyphs
-// carry 4px more dead space a side, and the trims grow with them.
-const ZOOM_TRIM = "-mx-[11.25px]"
-const OPEN_TRIM = "-mx-[11.25px] pointer-coarse:-mx-[15.25px]"
-const CLOSE_TRIM = "-mx-[12.75px] pointer-coarse:-mx-[16.75px]"
-// Every glyph in the viewer's chrome draws with one PAINTED pen. Lucide scales its stroke with the icon,
-// so at a shared `strokeWidth={2}` the 18px close glyph painted 1.5px against the 16px open glyph's
-// 1.33px and read as the heavier of the pair; `absoluteStrokeWidth` pins the painted width instead.
-const VIEWER_PEN = 1.5
+// THE HEADER BUTTONS ARE THE THREAD HEADER'S ICON CONTROLS (lib/headerIcon.ts, HeaderActions): the same
+// 28px square and corner, the same glyphs — 14px at lucide's stock stroke, the X at the 15px every sheet
+// closes with — the same hover edge and the same immediate tooltip. They were a family of their own
+// until 2026-10-11 (16px and 18px glyphs on a pinned 1.5px pen in 36px squares, trimmed to 16px of ink
+// apart), which a reader coming off a queue card met as a second, larger and heavier icon set
+// (maintainer: "We need to have consistent visual language").
+//
+// Only the TONES are spelled here, because the viewer is near-black in both themes and the strip's are
+// theme tokens. They are the dark palette's, moved onto black: at rest `muted` less the `panel` it sits
+// on (#787a7d), so a glyph stands off the black field by exactly what it stands off a card; `fg` under
+// the pointer, on the palette's own hover wash.
+//
+// OPAQUE, NEVER `text-white/50`. Lucide draws every stroke as its own path, so a translucent colour
+// composites twice wherever two strokes cross: at 50% the X's centre and the magnifier's plus painted
+// 75% white — a bright knot on each mark, a peak contrast of 572 against the card's 367 (2026-10-11).
+//
+// The focus ring stays the viewer's own: a key is how half of this dialog is driven, and the strip's
+// hover edge is too quiet to say where focus is.
+//
+// Measured with scripts/ink-gaps.mjs on the real viewer (dsf 4, sans, 2026-10-11), counter to close:
+// 20.28 / 18 / 18 / 20px of ink, inside the 18.25–20.75px the card's strip keeps, and the close glyph's
+// ink 21px from the window edge, where a sheet's close stands 21.75px from its own (SheetClose).
+const VIEWER_ICON_ON = "icon-hover-outline text-[#787a7d] transition-colors hover:bg-white/[0.04] hover:text-[#e6e7e9]"
+// The strip's `disabled:opacity-40`, as a tone (40% of the rest tone's lift off black): an opacity
+// would fade the focus ring with the glyph.
+const VIEWER_ICON_OFF = "cursor-default text-[#303132]"
+// A TOUCH SCREEN DRAWS THE PHONE HEADER'S MARKS, since that is the header it opens over
+// (MobileThreadHeader): 21px glyphs at a 2.1 stroke, at its `fg/90`, in 44px round targets. Lucide
+// sizes a glyph by attribute, which no media query can reach, so the class sizes it there instead.
+const VIEWER_ICON_TOUCH = "pointer-coarse:size-11 pointer-coarse:rounded-full pointer-coarse:text-[#cfd0d2]"
+const TOUCH_GLYPH = "pointer-coarse:size-[21px] pointer-coarse:[stroke-width:2.1]"
 
 // `disabled` is ARIA-only. A zoom button reaches its limit WHILE focused — the press that lands on 4×
 // is the one that disables Zoom in — and a natively disabled button drops focus to the page body, out of
 // the dialog, where the arrow and zoom keys no longer reach the viewer. So it stays focusable, says it
 // is unavailable, and ignores the press.
-function ViewerButton({ label, trim, onClick, disabled, className = "", children }: {
+function ViewerButton({ label, onClick, disabled, className = "", children }: {
   label: string
-  trim: string
   onClick: () => void
   disabled?: boolean
   className?: string
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-disabled={disabled || undefined}
-      onClick={() => { if (!disabled) onClick() }}
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/70 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/60 aria-disabled:cursor-default aria-disabled:text-white/25 aria-disabled:hover:bg-transparent aria-disabled:hover:text-white/25 pointer-coarse:h-11 pointer-coarse:w-11 ${trim} ${className}`}
-    >
-      {children}
-    </button>
+    // Under the header, never over it: the strip sits at the top of the window.
+    <Tooltip label={label} side="bottom">
+      <button
+        type="button"
+        aria-label={label}
+        aria-disabled={disabled || undefined}
+        onClick={() => { if (!disabled) onClick() }}
+        className={`${HEADER_ICON_SQUARE} focus-visible:ring-1 focus-visible:ring-white/60 ${disabled ? VIEWER_ICON_OFF : VIEWER_ICON_ON} ${VIEWER_ICON_TOUCH} ${className}`}
+      >
+        {children}
+      </button>
+    </Tooltip>
   )
 }
+
+// The two marks that ride a dark chip over a picture — the paging arrows and a video tile's play mark —
+// draw with one PAINTED pen. Lucide scales its stroke with the icon, so on its stock stroke the 20px
+// arrow would paint 1.67px against the 14px play mark's 1.17px; `absoluteStrokeWidth` pins the painted
+// width instead. The header's buttons are not part of this: they are the thread header's strip, and
+// draw its stroke (ViewerButton).
+const CHIP_PEN = 1.5
 
 // The side arrows are for a mouse. On a touch screen the picture fills the width, so they would sit on
 // top of it, and a swipe already pages (the stage's pointer handlers) — so a coarse pointer drops them.
@@ -541,7 +559,7 @@ function PageButton({ side, onClick }: { side: "left" | "right"; onClick: () => 
         side === "left" ? "left-3" : "right-3"
       }`}
     >
-      <Icon size={20} strokeWidth={VIEWER_PEN} absoluteStrokeWidth />
+      <Icon size={20} strokeWidth={CHIP_PEN} absoluteStrokeWidth />
     </button>
   )
 }

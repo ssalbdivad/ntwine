@@ -137,8 +137,8 @@ export function deadlineSection(row: Parameters<typeof rowDeadline>[0], nowMs = 
   const left = d.atMs - nowMs
   const status = left > 0 ? `${spanLabel(left)} from now` : `already passed, ${spanLabel(-left)} ago`
   const extend = d.setBy === "human"
-    ? "The user set it, and only the user can move or remove it: `mcp__frizz__deadline` reads it, and refuses to extend it."
-    : "You set it yourself with `mcp__frizz__deadline`, which can also move or clear it."
+    ? "The user set it, and only the user can move or remove it: `frizzctl deadline read` reads it, and `extend` refuses it."
+    : "You set it yourself with `frizzctl deadline`, which can also move (`extend`) or `clear` it."
   return (
     "## Your time limit\n\n" +
     `This thread has a DEADLINE: ${deadlineClock(d.atMs, nowMs)} (a ${budgetLabel(d.atMs - d.setAtMs)} budget; ${status}). ${extend}\n\n` +

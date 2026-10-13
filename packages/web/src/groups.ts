@@ -588,7 +588,7 @@ export function workingWithOpenQuestion(t: ThreadView): boolean {
  *  was the one behind a park (maintainer 2026-09-04: "it's kind of weird that this only shows up on a
  *  snoozed card … the GitHub icon should show up anytime that an agent is awaiting a PR").
  *
- *  THE REGISTERED WATCH IS THE PRIMARY SIGNAL, not the fence. `mcp__frizz__watch_pr` creates the row
+ *  THE REGISTERED WATCH IS THE PRIMARY SIGNAL, not the fence. `frizzctl watch-pr` creates the row
  *  the scheduler actually polls, and it is what survives a compaction and a restart; the `prs:` fence
  *  line only ECHOES it (the worker contract: "Register FIRST: this line states the wait, it does not
  *  create one"). Reading the fence alone — which is all the Snoozed arm ever did — therefore misses a

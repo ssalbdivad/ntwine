@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
+import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { repoCarriedFiles, repoCarriedEditedFiles } from "./repo-files.ts"
@@ -118,6 +118,53 @@ test("rows from two checkouts keep their order and diffstats", () => {
     { path: join(dir, "src", "app.ts"), edits: 1, added: 1, removed: 1 },
   ]
   assert.deepEqual(repoCarriedEditedFiles(dir, rows), [rows[0], rows[2]])
+})
+
+// THE WORKER CONTRACT'S OWN WORKTREE LOCATION, in the shape a real project has it: no top-level rule
+// for `.frizz/` at all, only the `*` Frizz writes inside it (project-root.ts). Asked from the project
+// root, git ignores every file in that checkout, so before this an isolated effort left the rail empty.
+function repoWithWorktree(): { dir: string; worktree: string } {
+  const dir = repo()
+  writeFileSync(join(dir, ".frizz", ".gitignore"), "*\n")
+  const worktree = join(dir, ".frizz", "worktrees", "feature")
+  execFileSync("git", ["worktree", "add", "-q", "-b", "feature", worktree], { cwd: dir, stdio: "ignore" })
+  return { dir, worktree }
+}
+
+test("a file in a worktree inside the project is judged by that worktree's own ignore rules", () => {
+  const { dir, worktree } = repoWithWorktree()
+  writeFileSync(join(worktree, "src", "new.ts"), "export {}\n")
+  writeFileSync(join(worktree, "build.log"), "noise\n")
+  const kept = repoCarriedFiles(dir, [
+    join(worktree, "src/app.ts"),
+    join(worktree, "src/new.ts"),
+    join(worktree, "build.log"),
+    join(dir, ".frizz/notes.md"),
+    join(dir, "src/app.ts"),
+  ])
+  assert.deepEqual(kept, [join(worktree, "src/app.ts"), join(worktree, "src/new.ts"), join(dir, "src/app.ts")])
+})
+
+test("a plain directory under .frizz/worktrees is still scratch — only a registered worktree answers for itself", () => {
+  const { dir } = repoWithWorktree()
+  mkdirSync(join(dir, ".frizz", "worktrees", "not-a-checkout"), { recursive: true })
+  writeFileSync(join(dir, ".frizz", "worktrees", "not-a-checkout", "a.ts"), "export {}\n")
+  assert.deepEqual(repoCarriedFiles(dir, [join(dir, ".frizz/worktrees/not-a-checkout/a.ts")]), [])
+})
+
+// Git will not judge a path spelled through a symlinked directory, and it fails the whole batch rather
+// than the one path — so before this, one write through a link (this repo's `.claude/skills/<name>` is
+// one) left every ignored row on the rail.
+test("a path through a symlinked directory is judged where the file really is, and does not silence the rest", () => {
+  const dir = repo()
+  symlinkSync("src", join(dir, "linked-src"))
+  symlinkSync(".frizz", join(dir, "linked-scratch"))
+  const kept = repoCarriedFiles(dir, [
+    join(dir, "linked-src/app.ts"),
+    join(dir, "linked-scratch/notes.md"),
+    join(dir, "build.log"),
+  ])
+  assert.deepEqual(kept, [join(dir, "linked-src/app.ts")])
 })
 
 test("a project that is not a git repository filters nothing", () => {

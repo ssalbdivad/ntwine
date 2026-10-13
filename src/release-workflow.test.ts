@@ -202,3 +202,9 @@ test("both packages are checked for order before npm is asked to publish", () =>
   for (const name of ["Build and publish frizz-server to npm", "Publish the frizz shell to npm"])
     assert.match(step(name), /ALLOW_VERSION_GAP: \$\{\{ inputs\.allow_version_gap \}\}/, name);
 });
+
+// npm's trusted publishers for `frizz` and `frizz-server` name this environment, and GitHub admits
+// only the `release` branch to it (2026-10-12). Dropping or renaming it here breaks every publish.
+test("the release job runs in the npm-publish environment its trusted publishers name", () => {
+  assert.match(workflow, /\n  release:\n(?:    .*\n)*?    environment: npm-publish\n/);
+});

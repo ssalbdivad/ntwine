@@ -69,9 +69,10 @@ export const RAIL_WIDTH_PX = 57
 const SQUARE = 40
 
 /**
- * The badge's split, for its tooltip and its accessible name: `1 running, 2 in the queue`. The two
- * words are the sidebar's own band headings (RUNNING, QUEUE), so the rail names what it counts the
- * way the rows it counts are labelled.
+ * The tail of a square's tooltip: `1 running, 2 in the queue`. The two words are the sidebar's own band
+ * headings (RUNNING, QUEUE), so the rail names what it counts the way the rows it counts are labelled.
+ * The badge draws the queue alone (see RailLink), so this is where the rail still says that a project
+ * has work in flight.
  */
 function railCountsLabel(queued: number, running: number): string {
   const parts: string[] = []
@@ -80,58 +81,44 @@ function railCountsLabel(queued: number, running: number): string {
   return parts.join(", ")
 }
 
-/** The half pixel of page colour that, with the badge's 1px cut-out, makes RunningRing's 1.5px gap. */
-const RUNNING_GAP_SHADOW = "shadow-[0_0_0_0.5px_var(--color-bg)]"
-
 /**
  * The badge's width, a WHOLE pixel per digit count rather than sized to its text.
  *
- * Content-sized, a two-digit badge came out ~20.4px wide; Chrome paints that box on whole pixels but
- * paints RunningRing's scaled box where it really is, so the ring sat 0.48px right of a "12" and 1px
- * heavier on one side (measured 2026-09-24). A whole-pixel width keeps every layer on the same grid.
- * 16 is the circle; 22 and 28 hold the widest two and three digits ("88", "888") with the same side
- * room a single digit gets.
+ * Content-sized, a two-digit badge came out ~20.4px wide, and Chrome paints that box on whole pixels
+ * (measured 2026-09-24, when a ring drawn round the badge sat 0.48px off a "12" because of it). A
+ * whole-pixel width has the face painted where layout put it. 16 is the circle; 22 and 28 hold the
+ * widest two and three digits ("88", "888") with the same side room a single digit gets.
  */
 function badgeWidth(count: number): string {
   return count < 10 ? "w-[16px]" : count < 100 ? "w-[22px]" : "w-[28px]"
 }
 
 /**
- * The spinner lapping the badge while the project has threads in flight.
+ * A queue count on the bottom-right corner of a project's square on the rail.
  *
- * The sidebar's BoxSpinner at badge scale — a faint full outline and one bright segment travelling it,
- * at the same 1.1s lap, so a project's rail badge and its rows in the sidebar say "in flight" with one
- * motion. It is drawn in the BADGE'S OWN ink (accent), not the spinner's muted grey, so the ring and the
- * disc read as one object (the maintainer's pick from a round of gap/weight mockups, 2026-09-24).
+ * Proportional figures, not tabular: a badge centres ONE number, it aligns no column, and a tabular "1"
+ * carries a fixed cell's worth of side-bearing that put the ink of "12" 1.02px left of the pill's centre.
+ * Measured 2026-08-24 at 10px/600 in the sans UI font. The width is fixed per digit count (badgeWidth),
+ * so the pill centres the digits itself.
  *
- * GEOMETRY, and why every number is built the way it is. The ask was a 1.5px gap between the yellow
- * face and a 1.25px ring (maintainer, 2026-09-24: "a 1.5 px gap"; it was 2.25px nominal). Chrome
- * PAINTS BOX EDGES ON WHOLE CSS PIXELS at every device scale — a background box at x 35.25 painted at
- * 35, one at 36.5 at 37, measured at dsf 2 and 8 alike — so a half-pixel gap cannot be built from boxes;
- * the first attempt measured 1px on one side and 2px on the other. Two things DO keep their fractions,
- * and the ring is built from exactly those:
- *
- *   • the GAP is the badge's own 1px page-coloured cut-out plus a 0.5px page-coloured box-shadow
- *     (`RUNNING_GAP_SHADOW`, applied to the badge while this ring is shown). A shadow's spread is
- *     painted in floating point and follows the badge's shape, pill included.
- *   • the RING is a conic disc on a whole-pixel box 2px outside the badge (20px for one digit), SCALED
- *     to 0.975 — 19.5px — because a transform is not snapped either. The badge and its shadow sit on top
- *     and cover everything but the outer 1.25px. A pill's sides come out ~0.08px lighter than its ends
- *     (the scale is uniform), which is below anything a screen shows.
- *
- * Measured on the rendered pixels, dsf 2 and 8: gap 1.5 on all four sides, ring 1.25, centres coincident
- * — against a control shifted 0.5px that reads 0.5. The instrument is
- * .frizz/threads/39de55d9-73a0-434a-badd-16b69b24f748/measure-badge-ring.mjs.
- *
- * THE RING IS CSS, NOT SVG. It shipped as an <svg> inset half a stroke, and its ink sat 0.375px right
- * of and below the badge (maintainer: "your circles aren't concentric") because Chrome pixel-snaps an
- * SVG root's content box. Nor a MASK: the band was once cut with `mask: … content-box exclude`, and on a
- * quarter-pixel box Chrome painted that exclusion with a square top-left corner, erasing the ring there.
- * See `.frizz-rail-badge-ring` in styles.css.
+ * The cut-out is a WHOLE 1px. It was `border-[1.5px]`, and Chrome floors a fractional border to whole
+ * CSS pixels at every scale (computed `1px` at dsf 1, 2 and 3, 2026-09-24), so the face painted 14px
+ * where the numbers said 13. 1px is what Chrome was already drawing, so nothing moved there; it makes
+ * every browser draw the same.
  */
-function RunningRing() {
+function QueueBadge({ count, className, ...data }: { count: number; className: string; "data-rail-queue-count"?: number }) {
   return (
-    <span aria-hidden className="frizz-rail-badge-ring absolute -inset-[2px] scale-[0.975] rounded-full text-accent-fill" />
+    <span
+      aria-label={`${count} in the queue`}
+      {...data}
+      className={`pointer-events-none absolute flex h-[16px] ${badgeWidth(count)} items-center justify-center rounded-full border border-bg bg-accent-fill text-[10px] font-semibold leading-none proportional-nums text-on-accent ${className}`}
+    >
+      {/* The cap band, not the line box — the same fix the monogram uses (ProjectSquare.tsx), for the same reason:
+          `items-center` centred the digits' LINE BOX and their ink rode 0.4–0.5px low in the sans
+          UI font (measured 2026-08-24). Trimming the box to baseline→cap height makes the box the
+          ink, so the browser centres it with nothing to re-measure when the type scale moves. */}
+      <span style={{ textBox: "trim-both cap alphabetic" } as CSSProperties}>{count}</span>
+    </span>
   )
 }
 
@@ -141,7 +128,7 @@ function RunningRing() {
  * Discord's indicator, because the alternative — marking the square itself — competes with the icon
  * it is drawn on top of. The pill lives in the gutter, where nothing else does.
  */
-function RailLink({
+export function RailLink({
   project,
   current,
   counts,
@@ -161,8 +148,7 @@ function RailLink({
 }) {
   const held = drag?.fromIndex === index
   const queued = counts?.queued ?? 0
-  const running = counts?.running ?? 0
-  const count = queued + running
+  const inPlay = railCountsLabel(queued, counts?.running ?? 0)
   // The held square follows the pointer; everything between its old slot and its new one slides one
   // step to open the gap. `shiftFor` owns which is which — see lib/railReorder.ts.
   const offset = drag
@@ -181,7 +167,7 @@ function RailLink({
       label={
         project.stale
           ? `${project.name} — directory is missing`
-          : count ? `${project.name} — ${railCountsLabel(queued, running)}` : project.name
+          : inPlay ? `${project.name} — ${inPlay}` : project.name
       }
     >
       <Link
@@ -229,53 +215,22 @@ function RailLink({
         >
           <ProjectSquare project={project} size={SQUARE} />
         </span>
-        {count ? (
-          // THE BADGE — how many threads in this project are in play: waiting on the human (the queue)
-          // PLUS in flight (the Active band), and a spinner lapping it while any are in flight. ONE mark
-          // carrying both, the maintainer's call on issue #41 ("the number inside the yellow dot should
-          // be the sum"), after a round of mockups that gave "running" its own corner — two marks on a
-          // 40px square asked the eye to learn which corner meant which. The tooltip splits the sum.
+        {queued ? (
+          // THE QUEUE BADGE — how many threads in this project are waiting on the human, and nothing
+          // else. From 2026-09-24 the number was the queue PLUS the threads in flight, with a spinner
+          // lapping the badge while any were (issue #41); the maintainer took both back out on
+          // 2026-10-11 ("showing just the number of threads in the queue is probably more useful for
+          // what the average person needs"). Work in flight is named in the square's tooltip instead.
           //
           // THE PLACEMENT is Discord's: on the square's bottom-right corner, overlapping it, with a cut-out
           // border in the rail's own colour so it reads as sitting ON the square rather than beside it.
-          // Accent, because the badge still answers the queue's question — "go there" — for work in
-          // flight as much as for work waiting; the spinner is what tells the two apart at a glance, so
-          // a badge with no ring is purely a queue count, as upstream's phone board tab badge is. A SIBLING of the opacity
+          // Accent, because the badge answers the queue's question: "go there". A SIBLING of the opacity
           // wrapper, not a child: a non-current square is dimmed to 75%, and a signal must not dim with
           // the surface it is reporting on. Positioned against the LINK (56px wide, the 40px square
           // centred in it), so `right-[3px]` puts the badge 5px past the square's right edge and
           // `-bottom-[5px]` 5px past its bottom — into the 8px gap, clear of the next square, and
           // inside the band's bottom padding for the last one.
-          <span
-            aria-label={railCountsLabel(queued, running)}
-            data-rail-count={count}
-            data-rail-running={running || undefined}
-            // The WRAPPER is what sits on the corner; it sizes to the badge, so the ring below follows a
-            // two-digit badge into a pill without measuring anything.
-            className="pointer-events-none absolute -bottom-[5px] right-[3px] flex"
-          >
-            {running ? <RunningRing /> : null}
-            <span
-              // Proportional figures, not tabular: a badge centres ONE number, it aligns no column, and a
-              // tabular "1" carries a fixed cell's worth of side-bearing that put the ink of "12" 1.02px
-              // left of the pill's centre. Measured 2026-08-24 at 10px/600 in the sans UI font. The
-              // width is fixed per digit count (badgeWidth), so the pill centres the digits itself.
-              //
-              // The cut-out is a WHOLE 1px, and it has to be. It was `border-[1.5px]`, and Chrome floors a
-              // fractional border to whole CSS pixels at every scale (computed `1px` at dsf 1, 2 and 3,
-              // 2026-09-24), so the face painted 14px where the numbers said 13 — and RunningRing's gap,
-              // specced in the badge's box, came out half a pixel short of what was asked. 1px is what
-              // Chrome was already drawing, so nothing moves there; it makes every browser draw the same.
-              // The ring's half-pixel of extra gap is a box-shadow, which is NOT snapped — see RunningRing.
-              className={`relative flex h-[16px] ${badgeWidth(count)} items-center justify-center rounded-full border border-bg bg-accent-fill text-[10px] font-semibold leading-none proportional-nums text-on-accent ${running ? RUNNING_GAP_SHADOW : ""}`}
-            >
-              {/* The cap band, not the line box — the same fix the monogram above uses, for the same reason:
-                  `items-center` centred the digits' LINE BOX and their ink rode 0.4–0.5px low in the sans
-                  UI font (measured 2026-08-24). Trimming the box to baseline→cap height makes the box the
-                  ink, so the browser centres it with nothing to re-measure when the type scale moves. */}
-              <span style={{ textBox: "trim-both cap alphabetic" } as CSSProperties}>{count}</span>
-            </span>
-          </span>
+          <QueueBadge count={queued} className="-bottom-[5px] right-[3px]" data-rail-queue-count={queued} />
         ) : null}
       </Link>
     </Tooltip>
@@ -288,6 +243,16 @@ interface DragState {
   fromIndex: number
   toIndex: number
   deltaY: number
+  /**
+   * The list the drag STARTED on, which the rail draws for as long as the square is held.
+   *
+   * `fromIndex` and `toIndex` are positions in this list and no other. The server now pushes a new
+   * order the moment another tab makes one (api/board-stream.ts `refreshProjectList`), and drawing
+   * that under a live drag would put a different project in the held slot and slide the wrong
+   * neighbours aside. The drop still writes this list with the one move applied — the last
+   * arrangement anyone made wins, which is what a whole-list write already means.
+   */
+  list: readonly ProjectCard[]
 }
 
 /**
@@ -309,7 +274,7 @@ function justDragged(): boolean {
 }
 
 /**
- * The rail's badges: each project's queue and Active band, keyed by project id.
+ * The rail's counts: each project's queue (its badge) and Active band (its tooltip), keyed by project id.
  *
  * TWO SOURCES, one per kind of project. The project on screen has a live board in the store — the
  * same rows the sidebar is drawing a few hundred pixels to the right — so its badge is counted from
@@ -377,7 +342,9 @@ export function ProjectRail() {
   // hold a position — the server lists it last and `projectsReorder` skips its id — so it cannot be
   // dragged and nothing can be dropped below it: it is drawn under the band, the last square above the +
   // and always on screen however long the list grows.
-  const listed = optimistic ?? data ?? []
+  // A held square outranks both: its indices are positions in the list it was picked up from
+  // (upstream 4a210c63 — another tab's reorder now arrives mid-drag).
+  const listed = drag?.list ?? optimistic ?? data ?? []
   const projects = listed.filter((project) => !project.home)
   const homeCard = (data ?? []).find((project) => project.home)
   // The LIVE count belongs to the project whose board the store holds — the page project, which on All
@@ -437,7 +404,7 @@ export function ProjectRail() {
       }
       scrollAccumulated += scrolled
       const deltaY = clientY - startY + scrollAccumulated
-      latest = { id: list[index]!.id, fromIndex: index, toIndex: dropIndex(index, deltaY, list.length), deltaY }
+      latest = { id: list[index]!.id, fromIndex: index, toIndex: dropIndex(index, deltaY, list.length), deltaY, list }
       setDrag(latest)
     }
 
@@ -511,7 +478,10 @@ export function ProjectRail() {
           in — which the rail's own presence already says. And `favicon.svg` carries an feDropShadow
           inside a 512 viewBox with 16px of bleed around a 480 tile, so at 26px it cast a soft shadow
           DOWN onto the first project square. A stroke glyph paints only its own strokes. Upstream's is a
-          house; this fork's is All projects' own layers glyph (see the header). */}
+          house; this fork's is All projects' own layers glyph (see the header).
+          The hover fill is the project squares' own shape — 40px at `rounded-[30%]`, like the add slot
+          at the bottom. It was 36px with an 8px corner (22%) until 2026-10-11 (upstream 87e8650f), a
+          visibly different rounded rect at the head of a column of identical ones. */}
       <Tooltip side="right" label="All projects">
         <Link
           to={ALL_PROJECTS_HREF}
@@ -519,7 +489,7 @@ export function ProjectRail() {
           data-rail-all
           aria-current={view.kind === "all" ? "page" : undefined}
           onClick={() => { if (view.kind !== "all") glideTo(() => 0) }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-70 outline-none transition-colors hover:bg-elevated hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 aria-[current=page]:text-fg"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[30%] text-muted-70 outline-none transition-colors hover:bg-elevated hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 aria-[current=page]:text-fg"
         >
           <Layers size={17} />
         </Link>
@@ -535,10 +505,9 @@ export function ProjectRail() {
       <div
         ref={bandRef}
         data-overflowing={overflowing || undefined}
-        // `pb-2` absorbs the last square's badge — 5px below its square, 6.75px once the running ring's
-        // moat is round it: without it the badge extends the scroll height, which the bottom fade reads
-        // as "there is more" and dims the square.
-        className="frizz-rail-scroll flex w-full min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto pb-2"
+        // `pb-1.5` absorbs the last square's queue badge (5px below its square): without it the badge
+        // extends the scroll height, which the bottom fade reads as "there is more" and dims the square.
+        className="frizz-rail-scroll flex w-full min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto pb-1.5"
       >
         {projects.map((project, index) => (
           <RailLink

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -10,16 +10,20 @@ import {
   findBySlug,
   findProjectBySegment,
   forgetProject,
+  ICON_RESCAN_AFTER_MS,
   ICON_SCAN_VERSION,
   listProjects,
   moveProjectDirectory,
   readRegistry,
   registerProject,
+  registryPath,
   renameProject,
+  projectIconStatus,
   reorderProjects,
   resolveProjectIcon,
   setProjectIcon,
 } from "./project-registry.ts"
+import { launchHostDir } from "./frizz-paths.ts"
 
 const A = "029a30af-f126-40e3-b04c-d80e74e3e090"
 const B = "50577e5e-802f-4567-bd0e-cf7cbf3d2ed5"
@@ -318,6 +322,33 @@ test("a corrupt registry reads as empty rather than throwing", () => {
   }
 })
 
+test("an entry an older server wrote for Frizz's own launch folder is never listed, and the next write drops it", () => {
+  const home = sandbox()
+  try {
+    const host = launchHostDir(home)
+    mkdirSync(join(host, ".frizz"), { recursive: true })
+    writeFileSync(join(host, ".frizz", ".id"), `${B}\n`)
+    // A project of the operator's own that is merely NAMED host is theirs, and stays.
+    const mine = registerProject({ dir: project(home, "code/host", A), id: A }, home).entry!
+    // What frizz-server 0.15.20 and older left behind: its boot backfill had no refusal for this folder.
+    const file = JSON.parse(readFileSync(registryPath(home), "utf8"))
+    file.projects.push({ ...mine, id: B, path: canonical(host), slug: "frizz-host" })
+    writeFileSync(registryPath(home), JSON.stringify(file))
+
+    assert.deepEqual(listProjects(home).map((entry) => entry.id), [A])
+    assert.equal(findProjectBySegment("frizz-host", home), undefined)
+    assert.equal(findProjectBySegment(B, home), undefined)
+    assert.equal(findByPath(host, home), undefined)
+    assert.equal(findProjectBySegment(mine.slug, home)?.id, A)
+
+    renameProject(A, { name: "Mine" }, home)
+    const written = JSON.parse(readFileSync(registryPath(home), "utf8")) as { projects: { id: string }[] }
+    assert.deepEqual(written.projects.map((entry) => entry.id), [A])
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test("forgetting a project removes exactly one card", () => {
   const home = sandbox()
   try {
@@ -458,6 +489,23 @@ test("backfill recovers a project whose server is STOPPED, not just a running on
     const claims: Record<string, string> = { [canonical(stopped)]: "id-stopped", [canonical(running)]: "id-running" }
     assert.equal(backfillRegistry(home, (root) => claims[root]), 2)
     assert.deepEqual(listProjects(home).map((p) => p.slug).sort(), ["running-project", "stopped-project"])
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+// A server on Frizz's own folder opens every project as one of many, and leaves no `launcher.json` in
+// any of them: the serving record it keeps is what names the folder.
+test("backfill recovers a project a server opened as one of many, from its serving record", () => {
+  const home = mkdtempSync(join(tmpdir(), "frizz-backfill-serving-"))
+  try {
+    const dir = join(home, "opened-project")
+    const stateDir = join(home, ".frizz", "projects", A)
+    mkdirSync(dir, { recursive: true })
+    mkdirSync(stateDir, { recursive: true })
+    writeFileSync(join(stateDir, "serving.json"), JSON.stringify({ version: 1, projectId: A, projectDir: dir, updatedAt: "2026-10-11T20:00:00.000Z" }))
+    assert.equal(backfillRegistry(home, (root) => ({ [canonical(dir)]: A })[root]), 1)
+    assert.deepEqual(listProjects(home).map((p) => p.slug), ["opened-project"])
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
@@ -608,19 +656,70 @@ test("a miss from an OLDER scanner reads as unknown, so the client asks again", 
   // still read as `none`, a widened scan would never be asked about the very projects it was widened
   // for. This is the exact shape of nub on the real machine: its icon resolves correctly on demand,
   // and the grid never demanded it.
-  //
-  // The derivation lives in router.ts projectCard; this pins the RULE it encodes so the two cannot
-  // drift apart silently.
-  const status = (entry: { icon?: string; iconScannedAt?: string; iconScanVersion?: number }) =>
-    entry.icon
-      ? "icon"
-      : entry.iconScannedAt && (entry.iconScanVersion ?? 0) === ICON_SCAN_VERSION
-        ? "none"
-        : "unknown"
+  const now = Date.parse("2026-08-07T00:05:00.000Z")
+  const scannedAt = "2026-08-07T00:00:00.000Z"
+  assert.equal(projectIconStatus({ icon: "/x/icon.svg" }, now), "icon")
+  assert.equal(projectIconStatus({}, now), "unknown", "never scanned")
+  assert.equal(projectIconStatus({ iconScannedAt: scannedAt }, now), "unknown", "scanned before versioning existed")
+  assert.equal(projectIconStatus({ iconScannedAt: scannedAt, iconScanVersion: ICON_SCAN_VERSION - 1 }, now), "unknown", "an older scanner")
+  assert.equal(projectIconStatus({ iconScannedAt: scannedAt, iconScanVersion: ICON_SCAN_VERSION }, now), "none", "the current scanner really did find nothing")
+})
 
-  assert.equal(status({ icon: "/x/icon.svg" }), "icon")
-  assert.equal(status({}), "unknown", "never scanned")
-  assert.equal(status({ iconScannedAt: "2026-08-07T00:00:00.000Z" }), "unknown", "scanned before versioning existed")
-  assert.equal(status({ iconScannedAt: "2026-08-07T00:00:00.000Z", iconScanVersion: ICON_SCAN_VERSION - 1 }), "unknown", "an older scanner")
-  assert.equal(status({ iconScannedAt: "2026-08-07T00:00:00.000Z", iconScanVersion: ICON_SCAN_VERSION }), "none", "the current scanner really did find nothing")
+test("an OLD miss reads as unknown and is re-scanned, so an icon added since the scan is found", () => {
+  // keyward, ccbroker and macwatch on the real machine (2026-10-11): each was scanned in the morning,
+  // found nothing, and committed a `logo.svg` hours later. The card said `none`, so the client never
+  // asked, so the server's own retry never ran, and none of the three ever showed its new icon.
+  const home = sandbox()
+  try {
+    const dir = project(home, "code/keyward", A)
+    registerProject({ dir, id: A }, home)
+    const scannedAt = Date.parse("2026-10-11T15:59:23.740Z")
+    let asked = 0
+    assert.equal(resolveProjectIcon(A, () => { asked++; return undefined }, { home, now: () => scannedAt }), undefined)
+    const miss = () => readRegistry(home).projects[0]!
+
+    // Inside the window: the miss stands, on BOTH halves, and nothing is re-walked.
+    const soon = scannedAt + ICON_RESCAN_AFTER_MS - 1
+    assert.equal(projectIconStatus(miss(), soon), "none")
+    assert.equal(resolveProjectIcon(A, () => { asked++; return undefined }, { home, now: () => soon }), undefined)
+    assert.equal(asked, 1)
+
+    // Past it: the card tells the client to ask, and the asking finds the logo.
+    const later = scannedAt + ICON_RESCAN_AFTER_MS
+    assert.equal(projectIconStatus(miss(), later), "unknown", "the client has to request the icon for the rescan to run")
+    const logo = join(dir, "logo.svg")
+    assert.equal(resolveProjectIcon(A, () => { asked++; return logo }, { home, now: () => later }), logo)
+    assert.equal(asked, 2)
+    assert.equal(projectIconStatus(miss(), later), "icon")
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test("an old detected pick is re-scanned too, so a better icon added beside it replaces it", () => {
+  const home = sandbox()
+  try {
+    const dir = project(home, "code/app", A)
+    registerProject({ dir, id: A }, home)
+    const favicon = join(dir, "favicon.ico")
+    const logo = join(dir, "logo.svg")
+    writeFileSync(favicon, "")
+    writeFileSync(logo, "")
+    const scannedAt = Date.parse("2026-10-11T09:00:00.000Z")
+    resolveProjectIcon(A, () => favicon, { home, now: () => scannedAt })
+
+    let asked = 0
+    const soon = scannedAt + ICON_RESCAN_AFTER_MS - 1
+    assert.equal(resolveProjectIcon(A, () => { asked++; return logo }, { home, now: () => soon }), favicon)
+    assert.equal(asked, 0, "a current pick that is still on disk is served without a walk")
+
+    const later = scannedAt + ICON_RESCAN_AFTER_MS
+    assert.equal(resolveProjectIcon(A, () => { asked++; return logo }, { home, now: () => later }), logo)
+    assert.equal(asked, 1)
+    const entry = readRegistry(home).projects[0]!
+    assert.equal(entry.icon, logo)
+    assert.equal(entry.iconScannedAt, new Date(later).toISOString(), "a new scan is a new iconVersion, so the client's URL changes")
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
 })

@@ -37,14 +37,6 @@ import type { AdoptionPaneLookup, PaneIdentity, PaneIdentity as PaneSnapshot } f
 import type { AppContext } from "./context.ts"
 import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
-import { providerResumeCommand, shellQuote } from "./external-terminal.ts"
-
-test("provider resume command is shell-safe", () => {
-  assert.equal(shellQuote("frizz's socket"), "'frizz'\"'\"'s socket'")
-  assert.equal(providerResumeCommand("codex", "/work/it's frizz", "session-id"), "cd '/work/it'\"'\"'s frizz' && codex resume 'session-id' --dangerously-bypass-approvals-and-sandbox")
-  assert.equal(providerResumeCommand("claude", "/work/frizz", "session-id"), "cd '/work/frizz' && claude --resume 'session-id' --dangerously-skip-permissions")
-})
-
 const noopTailer: Tailer = {
   get: () => undefined,
   foreignIds: () => [],
@@ -228,61 +220,6 @@ function harness(tailer: Tailer = noopTailer) {
   // construction; createRouter closes over the object and reads those fields per-call, not at build time.
   return { dir, ctx, storage, board, snapshot, router: createRouter(ctx), addExitedThread, refreshes: () => refreshes, adoptCalls: () => adoptCalls }
 }
-
-test("threadTerminalCommand offers the verified provider resume command in every runtime state", async () => {
-  const h = harness()
-  try {
-    h.storage.upsertSession(row("codex-resume"))
-    h.storage.setBackend("codex-resume", "codex")
-    h.storage.setAgentSession("codex-resume", "codex-rollout-id")
-    h.addExitedThread("codex-resume")
-    h.snapshot.threads.at(-1)!.backend = "codex"
-
-    const expected = { command: `cd '${h.dir}' && codex resume 'codex-rollout-id' --dangerously-bypass-approvals-and-sandbox`, mode: "resume", reason: null }
-
-    h.board.snapshot = async () => {
-      throw new Error("the copy path must not rebuild the board")
-    }
-    assert.deepEqual(
-      await h.router.threadTerminalCommand.handler({ input: { slug: "codex-resume" } }),
-      expected,
-      "Codex resumes its provider rollout ID directly from the owned registry row",
-    )
-
-    // The row is exited, so a resume is the honest offer regardless of what the board snapshot says
-    // the runtime is — the command is still offered, never gated on "wait for it to exit". A live row
-    // gets the same resume: a headless worker has nothing to attach to.
-    h.snapshot.threads.at(-1)!.runtime = "turn-idle"
-    assert.deepEqual(
-      await h.router.threadTerminalCommand.handler({ input: { slug: "codex-resume" } }),
-      expected,
-      "an exited row yields the resume command",
-    )
-
-    // Codex before its rollout id is discovered has no resumable native id — the Frizz UUID would not
-    // resume it, so fail closed with an explanatory reason rather than a broken command.
-    h.storage.upsertSession(row("codex-pending"))
-    h.storage.setBackend("codex-pending", "codex")
-    h.addExitedThread("codex-pending")
-    h.snapshot.threads.at(-1)!.backend = "codex"
-    assert.deepEqual(
-      await h.router.threadTerminalCommand.handler({ input: { slug: "codex-pending" } }),
-      {
-        command: null,
-        mode: "unavailable",
-        reason: "Codex hasn't reported its resumable session id yet — it appears once the first turn begins.",
-      },
-    )
-
-    await assert.rejects(
-      h.router.threadTerminalCommand.handler({ input: { slug: "foreign-or-legacy" } }),
-      /No Frizz-owned terminal session is available/,
-    )
-  } finally {
-    h.storage.close()
-    rmSync(h.dir, { recursive: true, force: true })
-  }
-})
 
 // `archived` is a LEGACY column, and writing it is not archiving. `effectiveSessionState` (board.ts)
 // reads it only when `state` is NULL — "an explicit state write wins" — and every row the dispatch path

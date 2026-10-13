@@ -7,6 +7,7 @@ import { useKeyboardInset } from "../lib/keyboardInset.ts"
 import { nodeAnswered } from "../lib/registeredQuestion.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { LinkedHtml } from "./LinkedHtml.tsx"
+import { SecretCaption } from "./SecretCaption.tsx"
 import { MobileBottomSheet } from "./MobileBottomSheet.tsx"
 import { QUESTION_PROSE } from "./PhoneQuestionCards.tsx"
 import { RegisteredAnsweringContext, type RegisteredAnswering } from "./RegisteredQuestionCards.tsx"
@@ -274,9 +275,7 @@ function SecretText({ a, step, text }: { a: RegisteredAnswering; step: AnswerSte
         onChange={(e) => a.onText(step.q, step.path, false, e.target.value)}
         className="block w-full rounded-[12px] border border-border-strong bg-bg px-3 py-[11px] text-[16px] leading-[22px] text-fg outline-none placeholder:text-faint focus:border-fg/40"
       />
-      <div className="mt-2 text-[13px] leading-[18px] text-muted">
-        Held in memory on the machine running Frizz and handed to one command, once. The worker never sees it.
-      </div>
+      <SecretCaption className="mt-2 text-[13px] leading-[18px] text-muted" />
     </div>
   )
 }

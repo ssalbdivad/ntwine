@@ -49,6 +49,7 @@ import { threadNameProblem } from "./thread-names.ts"
 import { readWorkflowRun, workflowAgentState as sharedWorkflowAgentState, workflowAgentViews, workflowAckRunDir, workflowAckTaskId, workflowLabel, type WorkflowAgent, type WorkflowAgentListing } from "./workflow-runs.ts"
 import { processAwakeClock, wallSpan } from "./awake-clock.ts"
 import { forkPointOf, isInheritedSessionMetadata } from "./fork-point.ts"
+import { pidIsAlive } from "./project-identity.ts"
 import { redactToolPayload } from "./credential-redaction.ts"
 
 // The JSONL tailer: incrementally reads each registered session's Claude Code transcript
@@ -120,6 +121,22 @@ const EMPTY_BUFFER = Buffer.alloc(0)
 // Ceiling on the adaptive poll (see scheduleTick). A tick this expensive means something is badly
 // wrong, but the tailer is still the only source of turn/liveness telemetry — it must keep running.
 const MAX_POLL_MS = 10_000
+// How often a QUIET board is read in full (see `poll`). A board is quiet when every thread on it is at
+// rest with nothing running, nothing waiting on a person and nothing still being delivered, and the
+// last tick changed nothing. Everything frizz itself does to such a board wakes the tailer at once — a
+// registry write is seen by the next one-second look, and a provider event nudges — so this interval
+// bounds only what frizz cannot be told about: a transcript appended from a terminal, a transcript
+// that moved, a daemon that died. Five seconds is the foreign scan's own cadence (FOREIGN_SCAN_EVERY
+// ticks), so a session started in a terminal still appears as quickly as it always has.
+//
+// Measured 2026-10-11 on a 64-thread server serving 12 projects, 11 of them with nothing running: the
+// tailers were 59% of the process's time, re-reading every thread every second.
+export const QUIET_POLL_MS = 5000
+// How often the threads nothing can happen to are looked at (see `dormant`): stopped, archived, at
+// rest, nothing queued. A board accumulates them without bound — 459 of 464 rows on the board the
+// prime order was written for — and each one cost two filesystem calls a tick for a file that cannot
+// grow unless somebody resumes the session from a terminal. That is the only thing this delays.
+export const DORMANT_SWEEP_MS = 10_000
 // A tracked background sub-agent whose transcript file has gone this long without an append is
 // treated as "stale" — a liveness fallback for a completion record we somehow missed (the child
 // died, or the worker session ended before the <task-notification> landed).
@@ -284,7 +301,9 @@ function readTranscriptTail(path: string, size: number, window: number): string 
 // the only spawnable thing present on every supported Windows (see process-generation.ts for the
 // measurements); one process answers the whole batch. A pid probe (`process.kill(pid, 0)`) would be
 // cheaper, but nothing records a shell's pid anywhere frizz can read — the launch result carries a
-// task id and an output path and nothing else — so there is no pid to ask about.
+// task id and an output path and nothing else — and the exclusive open names no holder, so on Windows
+// there is no pid to ask about. (On POSIX lsof names its holders, and those pids ARE asked about
+// between probes — see shellProbeTtlMs.)
 //
 // The failure directions are the same as lsof's. A sharing violation is "held" (alive) — a Frizz
 // reader with the file open for the drawer momentarily reads as alive, which costs a TTL, never a
@@ -304,6 +323,39 @@ function readTranscriptTail(path: string, size: number, window: number): string 
 // cannot run at all, the first one's answer stands, which is exactly the behaviour before it existed.
 const SHELL_PROBE_TTL_MS = 30_000
 const SHELL_PROBE_GRACE_MS = 60_000 // a just-launched shell is alive by construction; do not pay for it
+// A VERDICT STANDS FOR A TENTH OF THE SHELL'S AGE, between the floor above and this ceiling. The probe
+// is the backstop for a shell that ended WITHOUT its completion notice — the notice is how every
+// ordinary ending is learned, at once — and what it costs does not depend on the shell: `lsof` walks
+// every process on the machine. Asked every 30s for as long as a shell lived, that made a thread
+// parked on a watcher the most expensive idle thing frizz did. Measured 2026-10-11 on the maintainer's
+// machine (1,641 processes, six projects each holding one watcher, the oldest 20 hours in): 13 `lsof`
+// runs in 65 seconds at 0.28-0.47 CPU-seconds apiece, about 8% of a core — more than the server
+// process itself was using.
+//
+// A shell five minutes old is still asked about every 30s, so a build that dies is noticed as quickly
+// as before. One that has run for an hour is asked about every six minutes, and a day-long watcher
+// every ten.
+//
+// THE LONG TTL DOES NOT MEAN A LONG WAIT FOR A DEATH, because a live verdict is PINNED TO ITS PIDS
+// (2026-10-11). lsof's `-F pn` names the process holding each file, and the process-table instrument
+// names the one it found, so a live verdict records who gave it. Between full probes those pids are
+// asked, every SHELL_PROBE_TTL_MS, whether they still exist — `process.kill(pid, 0)`, one syscall each,
+// no walk of anything — and the moment none of them does, the shell is put to the real probe at once
+// rather than at the end of its TTL. So a watcher that dies silently twenty hours in is noticed on the
+// next 30s pid check, not up to ten minutes later, while lsof still runs only on the age schedule above.
+//
+// The pids only ever SEND a shell to the probe; they never decide it. Every pid gone is "ask again",
+// not "dead": a child that outlived its shell may still hold the file, or the table may find a sibling,
+// and only the probe's own dead verdict demotes (and nudges the board). The other direction is what the
+// TTL is still for: a pid the OS has handed to some new process reads alive here, so a recycled pid
+// keeps a dead shell "running" until its full re-probe — the bound this pinning replaced, never worse.
+// A verdict that named no pid (win32's exclusive open, an unknown, a held file whose only holder is
+// Frizz itself) has nothing to pin, and stands for its whole TTL exactly as before.
+const SHELL_PROBE_TTL_MAX_MS = 10 * 60_000
+const SHELL_PROBE_TTL_AGE_SHARE = 0.1
+export function shellProbeTtlMs(ageMs: number): number {
+  return Math.min(SHELL_PROBE_TTL_MAX_MS, Math.max(SHELL_PROBE_TTL_MS, ageMs * SHELL_PROBE_TTL_AGE_SHARE))
+}
 
 const execFileAsync = promisify(execFile)
 
@@ -333,15 +385,37 @@ export interface ShellLaunch {
   ackedAtMs?: number
 }
 
+/** One shell's verdict. `true`/`false`/`undefined` are alive/gone/cannot-tell; the object form is a live
+ *  verdict that also names the PIDS that answered it — the holders lsof listed, or the process the table
+ *  found — so the tailer can ask those pids, for free, whether the verdict still stands. */
+export type ShellVerdict = boolean | undefined | { alive: true; pids: readonly number[] }
+
+/** The verdicts without their pids: the plain alive/gone/unknown map the probe returned before pids. */
 export async function probeShellsAlive(
   shells: readonly (string | ShellLaunch)[],
-  opts: { platform?: NodeJS.Platform; exec?: typeof execFileAsync; env?: NodeJS.ProcessEnv; nowMs?: number } = {},
+  opts: Parameters<typeof probeShellVerdicts>[1] = {},
 ): Promise<Map<string, boolean | undefined>> {
+  const verdicts = await probeShellVerdicts(shells, opts)
+  return new Map([...verdicts].map(([file, v]) => [file, typeof v === "object" ? true : v]))
+}
+
+/** A live verdict, carrying its pids when there are any. A process probing itself is never one of them:
+ *  Frizz holding a file open for the drawer proves nothing about the shell, so it may keep the file
+ *  "held" but cannot pin the verdict. */
+function liveVerdict(pids: Iterable<number>): ShellVerdict {
+  const own = [...new Set(pids)].filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid)
+  return own.length > 0 ? { alive: true, pids: own } : true
+}
+
+export async function probeShellVerdicts(
+  shells: readonly (string | ShellLaunch)[],
+  opts: { platform?: NodeJS.Platform; exec?: typeof execFileAsync; env?: NodeJS.ProcessEnv; nowMs?: number } = {},
+): Promise<Map<string, ShellVerdict>> {
   const platform = opts.platform ?? process.platform
   const exec = opts.exec ?? execFileAsync
   const launches = shells.map((s) => (typeof s === "string" ? { outputFile: s } : s))
   const outputFiles = launches.map((l) => l.outputFile)
-  const verdicts = new Map<string, boolean | undefined>()
+  const verdicts = new Map<string, ShellVerdict>()
   if (platform === "win32") {
     // No realpath dance: the exclusive open is by path, and Windows resolves it. Only existence is
     // checked first, for the same reason as below — an absent file is no verdict at all.
@@ -405,15 +479,30 @@ export async function probeShellsAlive(
     // lsof ran: nobody holds any of them.
     stdout = e.stdout ?? ""
   }
-  const held = new Set<string>()
-  for (const line of stdout.split("\n")) if (line.startsWith("n")) held.add(line.slice(1))
-  for (const f of live) verdicts.set(f.requested, held.has(f.real))
+  // Each `n<path>` line belongs to the `p<pid>` line above it, so the walk keeps the current pid and files
+  // it under every path that pid holds: the holders ARE the shell, and their pids are what the tailer
+  // asks between probes (see shellIsGone).
+  const holders = new Map<string, number[]>()
+  let pid: number | undefined
+  for (const line of stdout.split("\n")) {
+    if (line.startsWith("p")) pid = Number(line.slice(1))
+    else if (line.startsWith("n")) {
+      const path = line.slice(1)
+      const pids = holders.get(path) ?? []
+      if (pid !== undefined) pids.push(pid)
+      holders.set(path, pids)
+    }
+  }
+  for (const f of live) {
+    const pids = holders.get(f.real)
+    verdicts.set(f.requested, pids ? liveVerdict(pids) : false)
+  }
   // The second instrument, for the unheld only — a held file already proved its shell alive, and the
   // common case (every shell held) never pays for a process listing.
   const unheld = launches.filter((l) => verdicts.get(l.outputFile) === false && l.sessionId && l.launchedAtMs !== undefined)
   if (unheld.length === 0) return verdicts
-  const running = await findShellProcesses(unheld, { exec, nowMs: opts.nowMs ?? Date.now(), env: opts.env })
-  for (const [file, alive] of running) if (alive !== undefined) verdicts.set(file, alive)
+  const running = await findShellProcessPids(unheld, { exec, nowMs: opts.nowMs ?? Date.now(), env: opts.env })
+  for (const [file, pids] of running) if (pids !== undefined) verdicts.set(file, pids.length > 0 ? liveVerdict(pids) : false)
   return verdicts
 }
 
@@ -445,11 +534,21 @@ export async function probeShellsAlive(
 // (BusyBox `ps` has no `lstart`, for one), which the caller reads as "keep the holder verdict".
 export async function findShellProcesses(
   shells: readonly ShellLaunch[],
-  opts: { exec?: typeof execFileAsync; nowMs?: number; env?: NodeJS.ProcessEnv } = {},
+  opts: Parameters<typeof findShellProcessPids>[1] = {},
 ): Promise<Map<string, boolean | undefined>> {
+  const found = await findShellProcessPids(shells, opts)
+  return new Map([...found].map(([file, pids]) => [file, pids === undefined ? undefined : pids.length > 0]))
+}
+
+/** findShellProcesses with the processes NAMED: per path, the pids of every live process that could be
+ *  the shell (empty = none), or undefined when `ps` could not answer. */
+async function findShellProcessPids(
+  shells: readonly ShellLaunch[],
+  opts: { exec?: typeof execFileAsync; nowMs?: number; env?: NodeJS.ProcessEnv } = {},
+): Promise<Map<string, number[] | undefined>> {
   const exec = opts.exec ?? execFileAsync
   const nowMs = opts.nowMs ?? Date.now()
-  const verdicts = new Map<string, boolean | undefined>()
+  const verdicts = new Map<string, number[] | undefined>()
   // C locale, so `lstart` is the fixed English `Mon Oct  5 15:42:11 2026` the parser below reads, and the
   // inherited TZ, so it is the same local time `Date.parse` will assume.
   const env = { ...(opts.env ?? process.env), LC_ALL: "C" }
@@ -490,7 +589,7 @@ export async function findShellProcesses(
   if (parents.length > 0) {
     const listing = await run(["-ww", "-o", "pid=,command=", "-p", parents.join(",")])
     if (listing === undefined) {
-      for (const s of shells) verdicts.set(s.outputFile, candidates.get(s.outputFile)!.length === 0 ? false : undefined)
+      for (const s of shells) verdicts.set(s.outputFile, candidates.get(s.outputFile)!.length === 0 ? [] : undefined)
       return verdicts
     }
     argvOf = new Map(
@@ -501,7 +600,7 @@ export async function findShellProcesses(
     )
   }
   for (const s of shells) {
-    verdicts.set(s.outputFile, candidates.get(s.outputFile)!.some((c) => argvOf.get(c.ppid)?.includes(s.sessionId!) ?? false))
+    verdicts.set(s.outputFile, candidates.get(s.outputFile)!.filter((c) => argvOf.get(c.ppid)?.includes(s.sessionId!) ?? false).map((c) => c.pid))
   }
   return verdicts
 }
@@ -3071,6 +3170,13 @@ export interface Tailer {
   stop(): void
   tick(): void // exposed for tests + boot; the adaptive poll (scheduleTick) calls it otherwise
   /**
+   * One scheduled look: what the poll timer runs each POLL_MS. "skipped" on a quiet board whose
+   * registry has not moved, inside QUIET_POLL_MS; otherwise a tick, "swept" when that tick also read
+   * the dormant rows. Exposed so a test can drive the scheduler's decisions without waiting on its
+   * timer. Optional for the same reason `nudge` is.
+   */
+  poll?(): "skipped" | "ticked" | "swept"
+  /**
    * "Something changed — re-read now." Coalesced and throttled to the same duty-cycle floor the
    * adaptive poll uses, so it is safe to call on every runtime event. Called by the Claude broker's
    * event ingest (backend/claude-runtime-ingest.ts); a tailer nobody nudges behaves exactly as before.
@@ -3124,6 +3230,14 @@ export interface TailerDeps {
   // Test seam for the BATCHED probe (shell-cwd-probe.ts probeShellCwds), for a test that must exercise the
   // batching itself — a shell asking while a probe is in flight — which the inline `shellCwd` seam skips.
   probeShellCwds?: (files: readonly string[]) => Promise<Map<string, string | undefined>>
+  /** The BATCHED probe itself, injectable so a test can count and script it. Unlike `shellAlive`, which
+   *  is answered inline and skips them, this one still sits behind the queue and the flush — the only
+   *  place a mistake about WHEN to ask can live. Defaults to probeShellVerdicts; a map value may be a
+   *  bare boolean/undefined (a verdict with no pids) or `{ alive: true, pids }` (one pinned to them). */
+  probeShells?: (shells: readonly ShellLaunch[]) => Promise<Map<string, ShellVerdict>>
+  /** Is this pid still a process? Asked of the pids a live shell verdict named, between full probes (see
+   *  shellIsGone). Defaults to `process.kill(pid, 0)`, EPERM counting as alive. Injectable for tests. */
+  pidAlive?: (pid: number) => boolean
   // The agent backend that locates + folds a session's transcript (Codex-support epic). Injected by
   // the composition layer as a ClaudeBackend; when absent (tests) the tailer folds with its own
   // corpus-verified applyRecord + deterministic Claude path — a byte-identical default.
@@ -4593,7 +4707,19 @@ export function createTailer(deps: TailerDeps): Tailer {
    *  uncertain answer leaves the shell running, so a wrong verdict can only ever under-report. */
   // PER TAILER, deliberately: a DEAD verdict is terminal and never re-probed, so a module-level cache
   // would let one tailer's verdict decide another's shells — and make the whole thing unclearable.
-  const shellAliveCache = new Map<string, { at: number; alive: boolean }>()
+  //
+  // `alive: undefined` IS A REMEMBERED UNKNOWN, and it is here so that a question the probe could not
+  // answer is not asked again until the TTL has passed. It reads exactly like having no entry at all —
+  // "running" — so remembering it can never demote a shell; it only stops the asking. Until 2026-10-11
+  // an unknown recorded nothing ("ask again next tick"), which is the same defect as a failed quota read
+  // that nobody remembers: whatever noticed the gap re-runs the expensive thing at once, forever. Here
+  // the thing that notices is board assembly, and the flush below nudged the board after every probe —
+  // see there for what that cost.
+  //
+  // `pids` are the processes a LIVE verdict was given on, and `pidsAskedAt` when they were last asked
+  // whether they still exist (see shellIsGone). An entry without them is a verdict with nothing to pin it
+  // to — win32, an unknown, an injected `shellAlive` — and stands for its whole TTL, as every verdict did.
+  const shellAliveCache = new Map<string, { at: number; alive: boolean | undefined; pids?: readonly number[]; pidsAskedAt?: number }>()
   // Paths this tick wanted a verdict for and the cache could not answer. Assembly is synchronous, so
   // every shellIsGone call of one tick has landed here by the time the flush below runs — which is what
   // makes ONE lsof per tick enough for all of them, rather than one per shell.
@@ -4617,19 +4743,53 @@ export function createTailer(deps: TailerDeps): Tailer {
     const batch = [...shellProbeWanted.values()]
     shellProbeWanted.clear()
     shellProbeInFlight = true
-    void probeShellsAlive(batch)
+    void (deps.probeShells ?? probeShellVerdicts)(batch)
+      // A probe that THREW answered for nobody: every path it was asked about is an unknown.
+      .catch(() => new Map<string, ShellVerdict>())
       .then((verdicts) => {
-        for (const [file, alive] of verdicts) {
-          if (alive === undefined) continue // cannot tell ⇒ record nothing, ask again next tick
-          shellAliveCache.set(file, { at: now(), alive })
+        // EVERY path that was asked about is recorded, the unknowns included (see shellAliveCache), and
+        // the walk is over the BATCH rather than the verdicts so that a path the probe never mentioned
+        // is remembered as an unknown too, instead of being asked about again on the next pass.
+        const at = now()
+        let demoted = false
+        for (const { outputFile } of batch) {
+          const verdict = verdicts.get(outputFile)
+          // An injected probe can hand back anything, so the pids are vetted here as well as in the real
+          // one: `kill(0, 0)` asks about this process's whole GROUP and a negative pid about another
+          // group, and either would pin a verdict to processes that have nothing to do with the shell.
+          const pids = typeof verdict === "object" && verdict ? verdict.pids.filter((pid) => Number.isInteger(pid) && pid > 0) : []
+          const alive = typeof verdict === "object" && verdict ? true : verdict
+          shellAliveCache.set(outputFile, { at, alive, ...(pids.length > 0 ? { pids, pidsAskedAt: at } : {}) })
+          // An assembly that ran while this probe was in flight found nothing cached and queued the
+          // path again. It has just been answered, so it leaves the queue — otherwise a SLOW unknown (an
+          // lsof killed on its 8 s timeout, with eight ticks behind it) is asked again the moment it
+          // lands, and again after that, and the TTL above never gets to apply.
+          shellProbeWanted.delete(outputFile)
+          if (alive === false) demoted = true
         }
-        // A verdict that arrived after assembly changes what the board should say, and nothing else
-        // will notice: the next tick reads the cache, so nudge it rather than waiting for one.
-        if (verdicts.size > 0) deps.onChange()
+        // NUDGE THE BOARD ONLY FOR A VERDICT THAT CHANGES WHAT IT SAYS, and DEAD is the only one that
+        // does: every path in this batch read "running" when it was queued, and alive and unknown both
+        // leave it there. A shell that just died is the case nothing else will notice before the next
+        // tick, so that one is nudged rather than waited for.
+        //
+        // This was `if (verdicts.size > 0)`, which is true of a map holding nothing but unknowns — and
+        // the nudge is `board.refresh()`, which ASSEMBLES SYNCHRONOUSLY, and assembly is what calls
+        // shellIsGone. With nothing recorded for an unknown, that was a closed loop: assemble ⇒ not
+        // cached ⇒ queue + a zero timer ⇒ probe ⇒ unknown ⇒ nudge ⇒ assemble. One whole board assembly
+        // per millisecond (and one failed `lsof` spawn, on a machine that has none) for as long as any
+        // shell past its grace window stayed unanswerable, per project, with no browser attached.
+        // Measured 2026-10-11 on a disposable stack: one rested thread whose shell's output file had
+        // been cleaned out of the temp dir took an idle server from 0.0% to 27% of a core (2.20
+        // CPU-seconds in 8), and a bare tailer made 340 probe-and-assemble passes in 500 ms.
+        if (demoted) deps.onChange()
       })
-      .catch(() => {}) // a failed probe is an unknown verdict, and unknown never demotes a shell
+      .catch(() => {}) // a board that refuses the nudge (it has stopped) is no reason to lose the verdicts
       .finally(() => {
         shellProbeInFlight = false
+        // A path queued while this probe was in flight found the flush busy, and its timer has already
+        // fired and gone. The unconditional nudge used to pick it up by accident (it re-entered assembly,
+        // which re-armed); now that only a death nudges, the queue drains itself.
+        if (shellProbeWanted.size > 0) armShellProbeFlush()
       })
   }
   // A SHELL'S OUTPUT FILE, as every reader of it takes it — the drawer, the line counter, the liveness and
@@ -4641,6 +4801,15 @@ export function createTailer(deps: TailerDeps): Tailer {
     return ackPathTrusted(e.outputFile, state.launchTasksDir, e.promotedAck.sessionId) ? e.outputFile : undefined
   }
 
+  /** Have the pids a live verdict was given on all exited? Asked at most every SHELL_PROBE_TTL_MS, and
+   *  only of a verdict that named some; one without pids is never stale by this test. */
+  function shellPidsGone(entry: { pids?: readonly number[]; pidsAskedAt?: number }): boolean {
+    if (!entry.pids || entry.pids.length === 0) return false
+    if (now() - (entry.pidsAskedAt ?? 0) < SHELL_PROBE_TTL_MS) return false
+    entry.pidsAskedAt = now()
+    const alive = deps.pidAlive ?? pidIsAlive
+    return !entry.pids.some((pid) => alive(pid))
+  }
   function shellIsGone(state: TailState, e: { outputFile?: string; promotedAck?: PromotedAck; startedAt: string; ackAt?: string }): boolean {
     const file = shellOutputFile(state, e)
     // A promoted ack whose path is refused (ackPathTrusted) has no file to ask the OS about, so the probe
@@ -4654,8 +4823,17 @@ export function createTailer(deps: TailerDeps): Tailer {
     const started = Date.parse(e.startedAt)
     if (!Number.isFinite(started) || now() - started < SHELL_PROBE_GRACE_MS) return false
     const cached = shellAliveCache.get(file)
-    // A DEAD verdict is terminal — a process cannot come back — so it is never re-probed.
-    if (cached && (cached.alive === false || now() - cached.at < SHELL_PROBE_TTL_MS)) return !cached.alive
+    // A DEAD verdict is terminal — a process cannot come back — so it is never re-probed. A live one and
+    // a remembered unknown both read "running" and are both asked about again once the TTL has passed;
+    // hence `=== false` rather than `!alive`, which would read an unknown as dead.
+    // The TTL is taken from the age the shell had WHEN THE VERDICT WAS GIVEN, so one verdict has one
+    // expiry rather than one that recedes as the shell goes on ageing.
+    if (cached?.alive === false) return true
+    // Inside the TTL a live verdict stands only while the pids it was given on do (shellProbeTtlMs).
+    // When every one of them is gone, the verdict has nothing left under it and the shell is asked about
+    // AGAIN, now, by the real probe — never declared dead from here: an orphaned child still holding the
+    // file, or a sibling the probe will find, is the probe's to see.
+    if (cached && now() - cached.at < shellProbeTtlMs(cached.at - started) && !shellPidsGone(cached)) return false
     // What the probe needs to recognise the shell's PROCESS when nobody holds its file — see
     // findShellProcesses. The ack bounds the fork from above; without one the window stays open.
     const acked = e.ackAt ? Date.parse(e.ackAt) : NaN
@@ -5833,10 +6011,79 @@ export function createTailer(deps: TailerDeps): Tailer {
     return true
   }
 
-  function tick(): void {
+  // ---- what a tick does NOT have to look at -------------------------------------------------------
+  // The tick is level-triggered: it re-reads a thread whether or not anything happened to it, once a
+  // second. For a thread in motion that is the point. For one at rest it is a `stat` of a file that is
+  // not growing, and a board is mostly threads at rest — so the two predicates below name the threads a
+  // look can safely be spaced out for, and `poll` does the spacing.
+  //
+  // SETTLED: nothing here advances on its own. Every arm is something a tick would otherwise have to
+  // notice by the clock — a turn still running (and the 5s backstop that ends an unlabelled one), a
+  // permission block, a sub-agent at work, a transcript that has not appeared yet, a send still being
+  // aged toward its timeout. A thread with none of them changes only when something is DONE to it, and
+  // each such thing announces itself: frizz's own writes move the registry row, a provider event
+  // nudges, and a codex exec is asked for by name.
+  //
+  // A BACKGROUND SHELL DOES NOT UNSETTLE A THREAD AT REST, and that is most of what this buys: a thread
+  // parked on a watcher is the commonest thing an idle board holds, for hours at a time. Nothing about
+  // the shell is the tick's to notice. Its ending is a record in the transcript, which starts a turn
+  // and nudges; its liveness is asked on its own clock (shellIsGone), by board assembly as much as by
+  // the tick. A sub-agent is different — it is the daemon working, and a codex child's rollout is read
+  // on the tick itself.
+  function settled(row: SessionRow, state: TailState): boolean {
+    if (!state.primed || state.turn !== "idle" || state.permPrompt) return false
+    for (const op of state.subAgents.values()) if (op.kind === "agent") return false
+    if ((state.pendingShells?.size ?? 0) > 0) return false
+    // Bound, or known to have no transcript at all. Unbound inside its grace window is a worker still
+    // booting, whose first bytes are due at any moment.
+    if (state.offset === 0 && !state.noTranscript) return false
+    if (row.delivery_ledger && parseDeliveryLedger(row.delivery_ledger).some((d) => d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "unconfirmed")) return false
+    return codexBgShellViews(state).length === 0
+  }
+
+  // DORMANT: settled, and frizz has stopped it and filed it away. Its process is gone and stamped
+  // gone, so the only way its transcript grows is a `claude --resume` from somebody's terminal. The
+  // ledger arms are exact rather than "nothing live": a row whose ledger the tailer has not yet
+  // accounted for still owes one projection, and that is not a row to skip.
+  function dormant(row: SessionRow, state: TailState): boolean {
+    return row.exited === 1 && state.paneDead && rowIsArchived(row) && !row.delivery_ledger && !state.deliveryLedgerSeen && settled(row, state)
+  }
+
+  // Did the registry move since the last tick read it? `allSessions` hands back the SAME array until
+  // this project writes anything, so identity answers almost every call. It is re-read on a write to
+  // ANY of the project's tables, though — a tail-cache flush, a retired op, a watch — and what comes
+  // back then is an equal snapshot in a new array. Hence the comparison, which is a few hundred string
+  // compares against a tick's worth of system calls.
+  function rowsMoved(rows: readonly SessionRow[]): boolean {
+    const before = rowsAtLastTick
+    if (rows === before) return false
+    if (!before || rows.length !== before.length) return true
+    for (let i = 0; i < rows.length; i++) {
+      const a = rows[i] as unknown as { [column: string]: unknown }
+      const b = before[i] as unknown as { [column: string]: unknown }
+      if (a === b) continue
+      for (const key in a) if (a[key] !== b[key]) return true
+    }
+    return false
+  }
+
+  // Set by every tick, read by `poll`. Elapsed time is measured on the monotonic clock: it is spent
+  // against real timers, and `now` is a clock a test may stop.
+  let quiet = false
+  let rowsAtLastTick: readonly SessionRow[] | undefined
+  let lastTickAt = 0
+  let lastSweepAt = 0
+
+  // `sweep: false` leaves the dormant rows alone (see `dormant`) and `scan: true` reads the foreign
+  // set now rather than on its tick count; both are the scheduler's to choose (see `poll`). The
+  // defaults are the whole board, which is what every direct caller means by a tick.
+  function tick(opts: { sweep?: boolean; scan?: boolean } = {}): void {
+    const sweep = opts.sweep ?? true
     // Discover sessions from the registry so dispatch/resume/restart all "just work" — a new row
     // starts being tailed on the next tick; a finished row keeps its final derived state.
     let dirty = false
+    // Any row this tick left with something still in motion — see `settled`, and `quiet` below.
+    let unsettled = false
     // Any session whose provider events have outrun its transcript this tick → ask for another look
     // once the tick finishes (see chaseRuntime). One flag for the whole board: the nudge is coalesced
     // anyway, so per-session bookkeeping would buy nothing.
@@ -5855,7 +6102,11 @@ export function createTailer(deps: TailerDeps): Tailer {
     // started, so there is no transcript to read, and a row the tailer never reads is one no wake, nudge or
     // stall reading can be derived for — every scheduler source keys on this telemetry. The tick after its
     // launch picks it up as a fresh row.
-    const rows = deps.storage.allSessions().filter((row) => !isHeldRow(row))
+    const allRows = deps.storage.allSessions()
+    const rows = allRows.filter((row) => !isHeldRow(row))
+    // The UNFILTERED snapshot, because that is what `poll` compares the registry against (rowsMoved): a
+    // filtered copy is a new array every tick, and one shorter than the registry whenever a row is held.
+    rowsAtLastTick = allRows
     // ARCHIVED ROWS PRIME LAST. Priming is bounded per tick, so on a cold board the registry's order
     // decides who converges first — and a long-lived board is overwhelmingly archive. The maintainer's
     // board on 2026-08-16: 464 rows, 459 of them archived, 5 on the live board. Priming in row order
@@ -5919,6 +6170,8 @@ export function createTailer(deps: TailerDeps): Tailer {
         known.runtimeGeneration === runtimeGeneration &&
         (known.forkAnchor ?? null) === (row.fork_anchor ?? null)
       let state = keepable ? known : undefined
+      // Before anything that touches the disk: between sweeps a dormant row is not read at all.
+      if (!sweep && state && dormant(row, state)) continue
       // THE BOUND IS ASKED BEFORE THE SETUP, NOT ONLY BEFORE THE FOLD (2026-09-04).
       //
       // Everything between here and the prime below is PER-ROW work that a deferred row used to pay in
@@ -5979,7 +6232,10 @@ export function createTailer(deps: TailerDeps): Tailer {
       // would wrongly flag noTranscript (a codex discovery-miss is a separate follow-up). An ACP row's
       // file is deterministic too (frizz writes it), so it takes the same exemption.
       const prevNoTranscript = state.noTranscript
-      if (row.backend !== "codex" && row.backend !== "acp" && !resolveTranscript(state, row, nowMs)) continue
+      if (row.backend !== "codex" && row.backend !== "acp" && !resolveTranscript(state, row, nowMs)) {
+        unsettled = true // a discovered transcript lost its claim; the next tick decides again
+        continue
+      }
 
       // First sighting of a session (fresh dispatch OR restored after a server restart): read the
       // whole transcript to date and adopt its state as the baseline WITHOUT firing turn-done /
@@ -6219,11 +6475,12 @@ export function createTailer(deps: TailerDeps): Tailer {
       // runtime but touches no activity/turn — mark dirty so the board rebuilds without waiting for the
       // periodic reconcile.
       if (state.noTranscript !== prevNoTranscript) dirty = true
+      if (!settled(row, state)) unsettled = true
     }
 
     // FOREIGN threads: refresh the fresh set on a scan tick (a change in membership/order is itself
     // dirty), then tail every fresh one (reusing the cached set between scans).
-    if (foreignScanTick % FOREIGN_SCAN_EVERY === 0) {
+    if (opts.scan || foreignScanTick % FOREIGN_SCAN_EVERY === 0) {
       // BOTH agents' terminals, tagged with the backend that has to FOLD each one — a rollout put
       // through the Claude parser yields a silent empty thread, not an error. Claude first so that if
       // the two ever exceed the cap together it is the codex tail that is dropped: Claude's scan is the
@@ -6249,6 +6506,8 @@ export function createTailer(deps: TailerDeps): Tailer {
       // than only on creation, because codex writes the sidecar entry AFTER the rollout exists.
       if (f.title && state.aiTitle !== f.title) state.aiTitle = f.title
       if (tailForeign(state, nowMs, transcriptDirty, resolveBackend(f.backend))) dirty = true
+      // A terminal session mid-turn is about to write again, and nothing will say so.
+      if (state.turn !== "idle") unsettled = true
     }
 
     // Persist the prime cache. The FIRST tick always flushes (that is the boot the next one inherits);
@@ -6260,6 +6519,12 @@ export function createTailer(deps: TailerDeps): Tailer {
 
     if (dirty) deps.onChange()
     if (transcriptDirty.length) deps.onTranscriptChange?.(transcriptDirty)
+
+    // What this tick found, for the scheduler. Quiet takes a tick that moved NOTHING as well as a
+    // board with nothing in motion, so the tick after any change is still a prompt one.
+    quiet = !unsettled && !dirty && transcriptDirty.length === 0 && !chaseWanted && !primeIncomplete
+    lastTickAt = monotonicNow()
+    if (sweep) lastSweepAt = lastTickAt
 
     // A session's provider events have outrun its transcript — look again shortly. Last, so it can
     // never delay this tick's board push.
@@ -6379,10 +6644,10 @@ export function createTailer(deps: TailerDeps): Tailer {
   // re-arms immediately in that case so a cold board converges in a burst of short ticks rather than
   // one row-block per second.
   let primeIncomplete = false
-  function tickWithBudget(): void {
+  function tickWithBudget(opts?: { sweep?: boolean; scan?: boolean }): void {
     const started = monotonicNow()
     try {
-      tick()
+      tick(opts)
     } finally {
       const elapsed = monotonicNow() - started
       lastTickMs = elapsed
@@ -6419,6 +6684,28 @@ export function createTailer(deps: TailerDeps): Tailer {
     }
   }
 
+  // ONE SCHEDULED LOOK — what the poll timer runs. It decides how much of a tick this second is owed,
+  // and on a quiet board the answer is usually none: the look is a registry probe (two counters the
+  // snapshot is already keyed on) and nothing else until QUIET_POLL_MS has passed.
+  //
+  // The registry probe is what makes that safe to do on a timer rather than on a list of call sites.
+  // Everything frizz does to a thread — a dispatch, a follow-up, a resume, a stop, an archive, a
+  // scheduled wake — writes its row before it does anything else, so the first look after it runs a
+  // full tick exactly as before, and no path has to remember to say so.
+  function poll(): "skipped" | "ticked" | "swept" {
+    const at = monotonicNow()
+    const sweep = at - lastSweepAt >= DORMANT_SWEEP_MS
+    if (quiet && at - lastTickAt < QUIET_POLL_MS) {
+      let moved = true // a registry that cannot be read is not a reason to stop looking
+      try { moved = rowsMoved(deps.storage.allSessions()) } catch { /* the tick reports it */ }
+      if (!moved) return "skipped"
+    }
+    // A board that was left alone is also where a terminal session goes unnoticed longest, so the tick
+    // that ends the wait reads the foreign set whatever its tick count says.
+    tickWithBudget({ sweep, scan: quiet })
+    return sweep ? "swept" : "ticked"
+  }
+
   function scheduleTick(): void {
     // While rows are still cold, come straight back: each pass is bounded, so this is a burst of short
     // ticks, not a stall. setImmediate-scale rather than 0 so I/O and pending RPCs interleave.
@@ -6432,7 +6719,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // with no process-level handler anywhere in this server, the whole frizz process. The tailer is
       // the only source of turn/liveness telemetry: it must degrade to a logged bad tick, never take
       // the server (or its own loop) down with it.
-      try { tickWithBudget() } catch (error) { reportTickFailure(error) }
+      try { poll() } catch (error) { reportTickFailure(error) }
       if (!stopped) scheduleTick()
     }, delay)
     timer.unref?.()
@@ -6470,7 +6757,11 @@ export function createTailer(deps: TailerDeps): Tailer {
       // so a throwing tick would leave BOTH timers null and the tailer permanently dead — a frozen
       // board with a healthy-looking server. Proven against a real createTailer with an injected
       // storage error: 4 ticks/1.2s before, 0 ticks in the 3s after, revived only by a later nudge.
-      try { tickWithBudget() } catch (error) { reportTickFailure(error) }
+      //
+      // A nudge is about a thread in motion, and a turn sends them in bursts, so it is the tick that
+      // gains most from leaving the dormant rows alone: they are swept on their own clock, here or in
+      // `poll`, whichever tick is running when it comes due.
+      try { tickWithBudget({ sweep: monotonicNow() - lastSweepAt >= DORMANT_SWEEP_MS }) } catch (error) { reportTickFailure(error) }
       if (!stopped) scheduleTick()
     }, delay)
     nudgeTimer.unref?.()
@@ -6681,7 +6972,8 @@ export function createTailer(deps: TailerDeps): Tailer {
       // periodic flush has not reached yet. A hard kill just costs that thread its delta re-read.
       flushCache(now())
     },
-    tick,
+    tick: () => tick(),
+    poll,
     nudge,
   }
 }

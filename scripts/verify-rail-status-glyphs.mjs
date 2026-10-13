@@ -68,8 +68,8 @@ const UNDER_TEST = "background"
 // shipped glyph is a design change, not a fix — so it is named here rather than silently corrected.
 const ODD_SIZE_EXEMPT = new Set(["done", "archived"])
 
-const { default: puppeteer } = await import("puppeteer")
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const { launchHeadless } = await import("./lib/headless-browser.mjs")
+const browser = await launchHeadless()
 const failures = []
 const rows = []
 let bias = { dx: 0, dy: 0 }

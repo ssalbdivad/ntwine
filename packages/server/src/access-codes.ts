@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual, createHmac } from "node:crypto"
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
 /**
@@ -393,7 +393,7 @@ export class AccessStore {
  * there would put a stat in the path of every page load and every socket frame.
  */
 export function fileSessionDirectory(stateDir: string, now: () => number = Date.now): SessionDirectory {
-  const path = join(stateDir, "sessions.json")
+  const path = join(stateDir, SESSION_DIRECTORY_FILE)
   let records: SessionRecord[] = []
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown
@@ -431,6 +431,7 @@ export function fileSessionDirectory(stateDir: string, now: () => number = Date.
 
 const SESSION_KEY_FILE = "session-key"
 const SESSION_EPOCH_FILE = "session-epoch"
+const SESSION_DIRECTORY_FILE = "sessions.json"
 
 function writeSessionKey(path: string, key: Buffer): void {
   mkdirSync(dirname(path), { recursive: true })
@@ -461,6 +462,56 @@ export function loadOrCreateSessionKey(stateDir: string): Buffer {
     // Missing on first run, which is the ordinary path.
   }
   return rotateSessionKey(stateDir)
+}
+
+/**
+ * Carry the sign-in state into a state folder that has none, from whichever of `others` used theirs
+ * most recently. Returns the folder it came from, or undefined when nothing moved.
+ *
+ * The key, the device list and the epoch live in the state folder of whatever the server runs on.
+ * That was the project a launch happened in, so each folder Frizz was ever started from holds its
+ * own, and starting it somewhere else was a different key: every phone signed out. The stable
+ * launcher now always runs the server on Frizz's own folder (production.ts), which ends that — and
+ * would itself sign every device out once, the day it first starts with no key there. So the state
+ * a phone is holding a cookie for comes along. "Most recently used" is the device list's own
+ * timestamp where there is one, because a sign-in writes it and a key only records when it was made.
+ *
+ * Only ever INTO a folder with no key. One that has its own is never overwritten.
+ */
+export function adoptSessionState(stateDir: string, others: readonly string[]): string | undefined {
+  if (existsSync(join(stateDir, SESSION_KEY_FILE))) return undefined
+  const usedAt = (dir: string): number | undefined => {
+    try {
+      const key = statSync(join(dir, SESSION_KEY_FILE))
+      if (!key.isFile() || key.size < 32) return undefined
+      try {
+        return Math.max(key.mtimeMs, statSync(join(dir, SESSION_DIRECTORY_FILE)).mtimeMs)
+      } catch {
+        return key.mtimeMs
+      }
+    } catch {
+      return undefined
+    }
+  }
+  let newest: { dir: string; at: number } | undefined
+  for (const dir of others) {
+    if (dir === stateDir) continue
+    const at = usedAt(dir)
+    if (at !== undefined && (!newest || at > newest.at)) newest = { dir, at }
+  }
+  if (!newest) return undefined
+  mkdirSync(stateDir, { recursive: true })
+  // The key LAST: its presence is what says the move happened, so a copy cut short is redone whole.
+  for (const name of [SESSION_EPOCH_FILE, SESSION_DIRECTORY_FILE, SESSION_KEY_FILE]) {
+    try {
+      copyFileSync(join(newest.dir, name), join(stateDir, name))
+      chmodSync(join(stateDir, name), 0o600)
+    } catch (error) {
+      // The epoch and the device list are optional; the key was just read and must come across.
+      if (name === SESSION_KEY_FILE) throw error
+    }
+  }
+  return newest.dir
 }
 
 /** Write a fresh session key over this board's old one. Every session signed by the old key dies. */

@@ -110,6 +110,10 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
   mkdirSync(join(dir, "runtime", "cc-worker", "scripts", "frizz"), { recursive: true });
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizz"), "board");
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizz-update"), "update");
+  mkdirSync(join(dir, "runtime", "cc-worker", "lib"), { recursive: true });
+  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizzctl"), "launcher");
+  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizzctl.mjs"), "cli");
+  writeFileSync(join(dir, "runtime", "cc-worker", "lib", "frizz-tools.mjs"), "tools");
   writeFileSync(join(dir, "runtime", "board", "config.mjs"), "config");
   writeFileSync(join(dir, "runtime", "board", "agent-bindings.mjs"), "bindings");
   writeFileSync(join(dir, "runtime", "board", "index.mjs"), "index");
@@ -133,6 +137,9 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
         "cc-worker/hooks/agent-bind.mjs": hash("bind"),
         "cc-worker/bin/frizz": hash("board"),
         "cc-worker/bin/frizz-update": hash("update"),
+        "cc-worker/bin/frizzctl": hash("launcher"),
+        "cc-worker/bin/frizzctl.mjs": hash("cli"),
+        "cc-worker/lib/frizz-tools.mjs": hash("tools"),
         "board/config.mjs": hash("config"),
         "board/agent-bindings.mjs": hash("bindings"),
         "board/index.mjs": hash("index"),

@@ -36,7 +36,8 @@ import "./styles.css"
 //   ?case=registered-done      the thread signed off with `mcp__frizz__done`: no fence in the handoff text,
 //                              a registered `lastFence` on the thread (B1).
 //   ?case=fenced-and-registered  both: the fence in the text AND the registration — one card, not two.
-//   ?case=pending-ask          a session frozen at a native AskUserQuestion, nothing journaled (B2).
+//   ?case=pending-ask          a FOREIGN session frozen at a native AskUserQuestion, nothing journaled (B2);
+//                              only a foreign session draws that card (lib/operatorBlock.ts frozenPendingAsk).
 //   ?case=perm-prompt          a session parked on a permission prompt, nothing journaled (B2).
 //   ?case=perm-prompt-journaled  the same, but an answerable interaction IS journaled: the net stands down.
 //   ?case=replied              a park queued only for its unread reply (queuedForReply): "Replied", and
@@ -72,7 +73,7 @@ import "./styles.css"
 //
 // The card's project is NOT the page's: `store.board` names another project, so a control that read the
 // page's client instead of the card's would call `/_frizz/rpc/…` (unprefixed) and show up in __rpc as
-// such. The terminal net's copy must call `/_frizz/<card project>/rpc/threadTerminalCommand`.
+// such.
 
 const params = new URLSearchParams(location.search)
 // `&font=sans`: the app's own font (index.html pins it); a measurement on the stylesheet's mono default is wrong.
@@ -233,7 +234,7 @@ function scenario(): Scenario {
       }
     case "pending-ask":
       return {
-        threads: [thread("rotate-key", "Rotate the signing key without downtime", { runtime: "running", pendingAsk: ASK })],
+        threads: [thread("rotate-key", "Rotate the signing key without downtime", { runtime: "running", foreign: true, pendingAsk: ASK })],
         text: () => "I need a call on the rollout before I touch production.",
       }
     case "perm-prompt":
@@ -334,6 +335,8 @@ window.fetch = async (input, init) => {
   if (!url.pathname.startsWith("/_frizz/")) return originalFetch(input, init)
   log.calls.push({ path: url.pathname, at: performance.now() })
   const rpc = /\/rpc\/([^/]+)$/.exec(url.pathname)?.[1]
+  // Not an RPC (an attachment's `/attach`): left to whatever a test installed under this stub.
+  if (!rpc) return originalFetch(input, init)
   // A query carries its input in `?input=`, a mutation in the body.
   const raw = typeof init?.body === "string" ? init.body : url.searchParams.get("input")
   const body = raw ? (JSON.parse(raw) as { slug?: string }) : {}
@@ -368,7 +371,6 @@ window.fetch = async (input, init) => {
     setTimeout(() => dropThread(body.slug ?? ""), 50)
     return json({})
   }
-  if (rpc === "threadTerminalCommand") return json({ command: "claude --resume sess-rotate-key", mode: "attach" })
   if (rpc === "completeThread") {
     log.completeCalledAt = performance.now()
     if (DECLINE) {

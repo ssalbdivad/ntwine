@@ -3,8 +3,9 @@
 // Named for the whole family since 2026-08-19, when the last two members joined it: it was
 // `GithubWakeCard` back when a review steer was the only thing it drew, and the name outlived the job by
 // two features. What arrives here is any user turn the server flagged `wake` — a PR watcher's review
-// activity, its status lines, a background shell that finished while nobody was awake, and whatever the
-// parsers below do not recognize.
+// activity, its status lines, a background shell that finished while nobody was awake, the Goal's
+// repeating prompt, several of those held and sent as one delivery, and whatever the parsers below do
+// not recognize.
 //
 // THE RULE THE WHOLE FILE FOLLOWS: a wake frizz composed ITSELF is a hairline, because it is one line of
 // news about something outside the turn. A wake carrying prose someone else WROTE — a worker's own timer
@@ -28,12 +29,14 @@
 // and a right-pinned ref; a p-4 inset wrapped around a SINGLE 20px line, when every other card in that
 // shell has a body; and three marks on one row that all looked clickable (an underlined title, an
 // accent ref, the corner glyph) with no hierarchy between them.
-import { useContext, useId, useState } from "react"
-import { AlarmClock, Bell, Github, Hourglass, MessageCircleOff, RefreshCw, TerminalSquare } from "lucide-react"
-import { isGithubWakeBacklog, parseGithubWakeSteer, parseLimitModelSwitchWake, parseLimitResumeWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseShellDoneWake, parseTimerWake, stripWakeTrailer, type GithubWakeSteer, type LimitWindow, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type TimerWake } from "@frizz/shared"
+import { Fragment, useContext, useId, useRef, useState, type ReactNode } from "react"
+import { AlarmClock, Bell, Bot, Github, Hourglass, MessageCircleOff, RefreshCw, TerminalSquare } from "lucide-react"
+import { isGithubWakeBacklog, isInjectedNoise, isParkCorrection, parseGithubWakeSteer, parseLimitModelSwitchWake, parseLimitResumeWake, parseMergedWake, parseOwnWatchExpiredWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseRecurringPrompt, parseShellDoneWake, parseTimerWake, stripWakeTrailer, type GithubWakeSteer, type LimitWindow, type MergedWakePart, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type TimerWake } from "@frizz/shared"
+import { useMermaidIslands } from "./CodexRichOutput.tsx"
 import { BLOCK_RADIUS, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
+import { RecurringPromptLine } from "./RecurringPromptLine.tsx"
 import { VSpace } from "./rhythm.tsx"
-import { WakeDivider } from "./WakeDivider.tsx"
+import { DividerHint, DividerQuotedTitle, WAKE_DIVIDER_NARROW_ONLY, WAKE_DIVIDER_WIDE_ONLY, WakeDivider } from "./WakeDivider.tsx"
 import { ThreadSlugContext } from "./threadSlugContext.ts"
 import { useBoard } from "../hooks.ts"
 import { pushBackgroundShellDrawer, threadBySlug } from "../store.ts"
@@ -67,7 +70,29 @@ export const DIVIDER_LINK = "rounded-sm underline decoration-muted/30 underline-
 // hairline here dates itself by, with two exceptions that carry a better one of their own: a single
 // review item dates by GitHub's clock (when the comment was filed, which is the news), and a timer by
 // the instant it was set to fire.
-export function FrizzWake({ steer: served, text, sourceId, at, wrap }: { steer?: GithubWakeSteer; text: string; sourceId?: string; at?: string; wrap?: boolean }) {
+/** `agentMessage` draws a wake that is ANOTHER AGENT speaking (a Frizz thread's message) in the agent
+ *  bubble, or returns null; the thread view passes it (ChatView threadMessageBubble), since the bubble's
+ *  name link lives there. Asked for each part of a merged delivery too. */
+export type WakeAgentMessage = (text: string, sourceId: string | undefined, at: string | undefined) => ReactNode | null
+
+export function FrizzWake({ steer: served, text, sourceId, at, wrap, agentMessage }: { steer?: GithubWakeSteer; text: string; sourceId?: string; at?: string; wrap?: boolean; agentMessage?: WakeAgentMessage }) {
+  // SEVERAL WAKES IN ONE DELIVERY, before anything else: every parser below reads a wake from its own
+  // first line, and a merged delivery's first line is the envelope's.
+  const merged = parseMergedWake(text)
+  if (merged) return <MergedWake parts={merged} sourceId={sourceId} at={at} wrap={wrap} agentMessage={agentMessage} />
+  const spoken = agentMessage?.(text, sourceId, at)
+  if (spoken) return spoken
+  // A recurring prompt (either trigger) REPEATS by design — the same paragraph every few minutes on a
+  // thread being driven by one — so it collapses to a single line rather than restating itself in full
+  // down the transcript. Parsed from frizz's own trailer, defined beside the composer that writes it; a
+  // non-match falls through to everything below, so no wake can lose its text to this.
+  //
+  // AFTER the merged split, and that order is load-bearing: the trailer is matched at the END of the
+  // text, so a merged delivery whose LAST wake is the Goal's prompt ends in it too. Routed first (as
+  // ChatView did until 2026-10-11), the whole delivery read as one Goal line and every wake held beside
+  // it vanished from the transcript.
+  const recurring = parseRecurringPrompt(text)
+  if (recurring) return <RecurringPromptLine bump={recurring} sourceId={sourceId} at={at} />
   // THE WHOLE-DELIVERY WAKES, settled first and each on its own: none is ever a PART of a message, and
   // none shares anything with the GitHub grammar below.
   const shell = parseShellDoneWake(text)
@@ -83,6 +108,8 @@ export function FrizzWake({ steer: served, text, sourceId, at, wrap }: { steer?:
   if (park) return <ParkDivider wake={park} sourceId={sourceId} at={at} />
   const lapsed = parsePrWatchExpiredWake(text)
   if (lapsed) return <PrWatchExpiredDivider watchRef={lapsed.ref} sourceId={sourceId} at={at} />
+  const ownLapsed = parseOwnWatchExpiredWake(text)
+  if (ownLapsed) return <OwnWatchExpiredDivider kind={ownLapsed.kind} sourceId={sourceId} at={at} />
   // The ONE wake on the registered-question path frizz writes in its own voice. Its sibling — the human's
   // ANSWER — never reaches this component at all: it is written in the answers wire form, which Message
   // recognizes and draws as the human's own card before it ever asks whether frizz delivered the turn.
@@ -165,11 +192,58 @@ export function FrizzWake({ steer: served, text, sourceId, at, wrap }: { steer?:
   return <GithubSteerDivider steer={steer!} text={text} sourceId={sourceId} at={at} />
 }
 
-// Batched wakes carry Markdown headings and lists even when no structured wake parser matches.
+// ---- SEVERAL WAKES IN ONE DELIVERY ------------------------------------------------------------------
+// The scheduler holds a thread's wakes and sends everything waiting for it as ONE message, each under a
+// numbered heading (`mergedWakeMessage`). Each of those is still its own event, so each is drawn by
+// whatever draws it arriving alone — a merged delivery must read exactly like the same wakes landing a
+// second apart, which is the rule the server's `splitWakeDeliveries` already holds a coalesced record to.
+//
+// It did not, until 2026-10-11. The envelope had no parser, so the whole delivery fell to the fallback
+// card below: both wakes' agent-facing bodies in a bordered box ("READ ITS OUTPUT AND CARRY ON", which
+// fence to end in, which tool to call), under headings carrying the scheduler's internal reason strings
+// ("awaiting park named 1 dead item(s)"). The lead and those headings are the envelope — written for a
+// worker reading several things at once — and none of it is drawn.
+//
+// THE SPLIT IS HERE AND NOT IN THE SERVER'S FOLD, unlike the coalesced record's. A merged delivery to a
+// worker that is mid-turn arrives as a QUEUED record, which the fold tracks as one object through its
+// enqueue, its dequeue and its delivery attachment; cutting that into several messages would mean every
+// one of those steps resolving a group. Drawing is the one place all three carriers meet.
+function MergedWake({ parts, sourceId, at, wrap, agentMessage }: { parts: MergedWakePart[]; sourceId?: string; at?: string; wrap?: boolean; agentMessage?: WakeAgentMessage }) {
+  // The trailer comes off each part, because the server's display projection is anchored to the END of
+  // the delivery and so only ever reached the last one. And what the server drops when it arrives alone
+  // is left out here: a fence correction is not a message (it marks the fence it refused instead), and
+  // relay plumbing never was one.
+  const shown = parts.map((part) => stripWakeTrailer(part.body)).filter((body) => !isParkCorrection(body) && !isInjectedNoise(body))
+  if (!shown.length) return null
+  return (
+    // ONE element with a real STEP between its hairlines, for the reason the PR-watch branch below
+    // spells out: every surface that stacks messages charges the gap between them itself, so a fragment
+    // would hand these to it as separate messages in some containers and collapse them in others.
+    <div data-frizz-wake="merged" className="flex flex-col">
+      {shown.map((body, i) => (
+        <Fragment key={i}>
+          {i > 0 && <VSpace />}
+          {/* Only the FIRST part takes the sourceId — two rendered nodes must never claim one id. */}
+          <FrizzWake text={body} sourceId={i === 0 ? sourceId : undefined} at={at} wrap={wrap} agentMessage={agentMessage} />
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
+// A wake no structured parser matches can still carry Markdown — a list, a link, a fenced block.
 function WakeProse({ text, wrap }: { text: string; wrap?: boolean }) {
   const html = useMarkdownHtml(text)
   const inner = useInnerHtml(html)
-  return <div className={`md-body [overflow-wrap:anywhere]${wrap ? ` ${QUEUE_WRAP}` : ""}`} dangerouslySetInnerHTML={inner} />
+  // A ```mermaid fence a wake quotes — a review comment's, say — is a diagram, as in the cards.
+  const ref = useRef<HTMLDivElement>(null)
+  const diagrams = useMermaidIslands(ref, html)
+  return (
+    <>
+      <div ref={ref} className={`md-body [overflow-wrap:anywhere]${wrap ? ` ${QUEUE_WRAP}` : ""}`} dangerouslySetInnerHTML={inner} />
+      {diagrams}
+    </>
+  )
 }
 
 // ---- THE FIRED-TIMER HAIRLINE, WHICH IS THE ONE THAT KEEPS A BODY -----------------------------------
@@ -205,12 +279,11 @@ function TimerDivider({ wake, sourceId }: { wake: TimerWake; sourceId?: string }
         ariaLabel={`${open ? "Collapse" : "Expand"} the text this timer handed back`}
       >
         <span className="shrink-0">Timer</span>
-        <span aria-hidden="true" className="shrink-0 opacity-50">·</span>
-        <span className="shrink-0">{open ? "Click to collapse" : "Click to expand"}</span>
+        <DividerHint open={open} />
       </WakeDivider>
       {open && (
         // The same ruled aside the reasoning disclosure uses, and PLAIN pre-wrapped text rather than
-        // markdown: this is what the worker typed into `mcp__frizz__timer`, and rendering it as markdown
+        // markdown: this is what the worker typed into `frizzctl timer`, and rendering it as markdown
         // would restyle a sentence that was never written as any.
         // Flush LEFT, unlike the reasoning aside this borrows its rule from: that one indents to sit
         // under its own left-flush label, and this divider's label is centred, so 5px of inset would be
@@ -240,10 +313,14 @@ function TimerDivider({ wake, sourceId }: { wake: TimerWake; sourceId?: string }
 // they were cancelled wholesale and nobody is coming. One line, because that is the whole of the news and
 // the instruction that rides with it to the worker ("decide it yourself") is not addressed to the reader.
 function QuestionsCancelledDivider({ count, sourceId, at }: { count: number; sourceId?: string; at?: string }) {
-  const label = `${count} question${count === 1 ? "" : "s"} cancelled — the worker decides ${count === 1 ? "it" : "them"} itself`
+  const news = `${count} question${count === 1 ? "" : "s"} cancelled`
+  const why = ` — the worker decides ${count === 1 ? "it" : "them"} itself`
   return (
-    <WakeDivider icon={MessageCircleOff} sourceId={sourceId} marker="event" ariaLabel={label} at={at}>
-      <span className="min-w-0 truncate">{label}</span>
+    <WakeDivider icon={MessageCircleOff} sourceId={sourceId} marker="event" ariaLabel={`${news}${why}`} at={at}>
+      <span className="min-w-0 truncate">
+        {news}
+        <span className={WAKE_DIVIDER_WIDE_ONLY}>{why}</span>
+      </span>
     </WakeDivider>
   )
 }
@@ -277,12 +354,20 @@ function ParkDivider({ wake, sourceId, at }: { wake: ParkWake; sourceId?: string
   // Terse, because every sibling on this rule is ("PR merged on …", "Agent terminal «…» finished"). The
   // first draft read "The declared wait is over — its work finished" and was the longest line on the
   // page by half again.
-  const label = wake.kind === "expired" ? "Wait expired — nothing resolved" : "Wait over — its work finished"
+  const news = wake.kind === "expired" ? "Wait expired" : "Wait over"
+  const why = wake.kind === "expired" ? " — nothing resolved" : " — its work finished"
+  // The clause explains the news and is the first thing a narrow row gives up (WAKE_DIVIDER_WIDE_ONLY).
+  const sentence = (
+    <span className="min-w-0 truncate">
+      {news}
+      <span className={WAKE_DIVIDER_WIDE_ONLY}>{why}</span>
+    </span>
+  )
   // No disclosure without items: an empty aside is a control that opens onto nothing.
   if (!wake.items.length) {
     return (
-      <WakeDivider icon={Hourglass} sourceId={sourceId} marker="event" ariaLabel={label} at={at}>
-        <span className="min-w-0 truncate">{label}</span>
+      <WakeDivider icon={Hourglass} sourceId={sourceId} marker="event" ariaLabel={`${news}${why}`} at={at}>
+        {sentence}
       </WakeDivider>
     )
   }
@@ -297,9 +382,8 @@ function ParkDivider({ wake, sourceId, at }: { wake: ParkWake; sourceId?: string
         ariaControls={bodyId}
         ariaLabel={`${open ? "Collapse" : "Expand"} what this wait named`}
       >
-        <span className="min-w-0 truncate">{label}</span>
-        <span aria-hidden="true" className="shrink-0 opacity-50">·</span>
-        <span className="shrink-0">{open ? "Click to collapse" : "Click to expand"}</span>
+        {sentence}
+        <DividerHint open={open} />
       </WakeDivider>
       {open && (
         <div id={bodyId} className="mt-1.5 whitespace-pre-wrap border-l border-border/70 pl-3 text-[13px] text-muted [overflow-wrap:anywhere]">
@@ -312,17 +396,74 @@ function ParkDivider({ wake, sourceId, at }: { wake: ParkWake; sourceId?: string
 
 // A registered watcher whose own `for:` ran out. One line, and the ref is the only thing on it a reader
 // can act on — so it is the link, the same muted underline every other divider's link wears.
+//
+// STATE FIRST, ref second, like the status line below ("PR merged on …"). It read "Watcher on
+// nubjs/nub#777 expired" until 2026-10-11, which put the one word of news at the end of a label that
+// clips from the right: on a narrow row it said a watcher existed and stopped before saying it had lapsed.
 function PrWatchExpiredDivider({ watchRef, sourceId, at }: { watchRef: string; sourceId?: string; at?: string }) {
   const url = githubRefUrl(watchRef)
-  const label = `Watcher on ${watchRef} expired`
+  const label = `Watcher expired on ${watchRef}`
   return (
     <WakeDivider icon={Github} sourceId={sourceId} marker="event" ariaLabel={label} at={at}>
-      <span className="min-w-0 truncate">
-        Watcher on{" "}
+      <DividerSentenceOnRef sentence="Watcher expired">
         {url
-          ? <a href={url} target="_blank" rel="noreferrer" className={DIVIDER_LINK}>{watchRef}</a>
-          : watchRef}
-        {" "}expired
+          ? <a href={url} target="_blank" rel="noreferrer" className={DIVIDER_LINK}><RefText value={watchRef} /></a>
+          : <RefText value={watchRef} />}
+      </DividerSentenceOnRef>
+    </WakeDivider>
+  )
+}
+
+// `{sentence} on {ref}` with the REF rigid and the sentence the part that clips. As one truncating span
+// the label lost its tail first, and the tail is the ref: `New comment from @co…`, `Watcher expired on
+// #…` — the one link on the line, and the only thing saying which PR. A gap-less nested flex, with the
+// space before `on` kept as a real word space (`whitespace-pre`; a flex item drops a leading one), so the
+// unclipped line is the sentence it always was, to the pixel. The ref's group is capped at the line
+// (`max-w-full`), so a ref too long for the line ON ITS OWN still clips rather than overflowing it.
+// `title` is the whole sentence, for the hover.
+function DividerSentenceOnRef({ sentence, title, children }: { sentence: ReactNode; title?: string; children: ReactNode }) {
+  return (
+    <span className="flex min-w-0 items-center">
+      <span className="min-w-0 truncate" title={title}>{sentence}</span>
+      <span className="max-w-full shrink-0 overflow-hidden text-ellipsis whitespace-pre"><On /> {children}</span>
+    </span>
+  )
+}
+
+// The ` on` between a PR line's news and its ref, which a narrow row drops: `CI failed #761`, `Review
+// comment #587`. The kind and the number are the line; on a row with 20 characters to spend, the
+// preposition is three of them.
+function On() {
+  return <span className={WAKE_DIVIDER_WIDE_ONLY}> on</span>
+}
+
+// `owner/repo#N` as a divider draws it: whole where there is room, and `#N` on a narrow row. The number
+// is what a reader matches by eye and the link under it still goes to the full ref; `nubjs/nub` is half
+// the label's width on a row that has 20 characters to spend, and what it would push out is the number.
+function RefText({ value }: { value: string }) {
+  const hash = value.lastIndexOf("#")
+  if (hash <= 0) return <>{value}</>
+  return (
+    <>
+      <span className={WAKE_DIVIDER_WIDE_ONLY}>{value.slice(0, hash)}</span>
+      {value.slice(hash)}
+    </>
+  )
+}
+
+// The same lapse on one of the worker's OWN waits — a `frizzctl watch` on a background shell or a
+// sub-agent whose `for:` ran out. It names the KIND and not the target: the target is a runtime id
+// (`bzvtnt3ig`), the handle a worker writes on a fence and nothing a reader correlates by eye, which is
+// the reason the shell-finished line below never draws one either. The glyph is the subject's own, as
+// it is on the PR line above — the terminal every shell divider wears, the bot every sub-agent one does.
+function OwnWatchExpiredDivider({ kind, sourceId, at }: { kind: "shell" | "agent"; sourceId?: string; at?: string }) {
+  // State first, like the PR one above — and on a narrow row the glyph alone says which kind of wait.
+  const what = ` on a ${kind === "agent" ? "sub-agent" : "background shell"}`
+  return (
+    <WakeDivider icon={kind === "agent" ? Bot : TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={`Watch expired${what}`} at={at}>
+      <span className="min-w-0 truncate">
+        Watch expired
+        <span className={WAKE_DIVIDER_WIDE_ONLY}>{what}</span>
       </span>
     </WakeDivider>
   )
@@ -342,10 +483,17 @@ function PrWatchExpiredDivider({ watchRef, sourceId, at }: { watchRef: string; s
 function LimitResumeDivider({ window, sourceId, at }: { window: LimitWindow; sourceId?: string; at?: string }) {
   const which = window === "weekly" ? "Weekly usage limit" : window === "session" ? "Session usage limit" : "Usage limit"
   const label = `${which} reset — resuming`
+  // Narrow: `Weekly limit reset`. Which window is the news; that it is a USAGE limit, and that the
+  // thread resumes, are what the hourglass and the next line of the transcript already say.
+  const named = window === "weekly" ? "Weekly" : window === "session" ? "Session" : null
   return (
     <WakeDivider icon={Hourglass} sourceId={sourceId} marker="limit-resume" ariaLabel={label} at={at}>
+      {/* Narrow: `Weekly limit reset — resuming`. The window's name is what gives up its words, never
+          the news after it. */}
       <span className="flex min-w-0 items-center" title={label}>
-        <span className="min-w-0 truncate">{which} reset</span>
+        <span className="min-w-0 truncate">
+          {named ? <>{named}<span className={WAKE_DIVIDER_WIDE_ONLY}> usage</span> limit</> : which} reset
+        </span>
         <span className="shrink-0 whitespace-pre">{" — resuming"}</span>
       </span>
     </WakeDivider>
@@ -367,7 +515,15 @@ function LimitModelSwitchDivider({ capped, to, sourceId, at }: { capped: string;
   const label = `${capped.charAt(0).toUpperCase()}${capped.slice(1)} limit — switched to ${to}`
   return (
     <WakeDivider icon={Hourglass} sourceId={sourceId} marker="limit-model-switch" ariaLabel={label} at={at}>
-      <span className="min-w-0 truncate">{label}</span>
+      {/* BOTH names at every width, which is the rule this line was written to (see above). Between two
+          50px rules on a phone the sentence clips before its second model, so the narrow reading keeps
+          the names and trades the words between them for an arrow: `Fable 5 → Opus`. */}
+      <span className="min-w-0 truncate">
+        {capped}
+        <span className={WAKE_DIVIDER_WIDE_ONLY}> limit — switched to </span>
+        <span className={WAKE_DIVIDER_NARROW_ONLY}> → </span>
+        {to}
+      </span>
     </WakeDivider>
   )
 }
@@ -397,33 +553,50 @@ function ShellDoneDivider({ wake, sourceId, at }: { wake: ShellDoneWake; sourceI
   const open = slug && shell?.id ? () => pushBackgroundShellDrawer(slug, shell.id!, { label: shell.label, ...(shell.startedAt ? { startedAt: shell.startedAt } : {}) }) : undefined
   return (
     <WakeDivider icon={TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={open ? undefined : label} at={at}>
+      {/* The TITLE is the elastic part, not the sentence (ShellWakeText): a long description must not
+          cost the line its outcome, which is the news. ChatView's EventLine cuts the runtime's own line
+          the same way, which is what keeps the two identical. */}
       <ShellWakeText text={label} onOpen={open} />
     </WakeDivider>
   )
 }
 
 /** An agent terminal's wake line — `Agent terminal «…» finished` — with its «name» the link that opens the
- *  terminal's drawer, as the sub-agent completion line's name opens the child's. Only the name truncates,
- *  so the outcome survives a narrow pane. Plain text when there is nothing to open. */
+ *  terminal's drawer, as the sub-agent completion line's name opens the child's. Cut as every quoted
+ *  divider is (WakeDivider's DividerQuotedTitle): only the name truncates, so the outcome survives a
+ *  narrow pane, and a narrow row gives up the lead noun and the parenthetical note first. Plain text
+ *  when the line quotes nothing; the plain quoted form when there is nothing to open.
+ *
+ *  `Lead «title» outcome (note)`, the shape the server's `backgroundWakeLabel` writes. Greedy on the
+ *  title, so a description that itself contains a guillemet still ends at the LAST one. */
 export function ShellWakeText({ text, onOpen }: { text: string; onOpen?: () => void }) {
-  const parts = /^(.*?«)(.*)(».*)$/.exec(text)
-  if (!onOpen || !parts) return <span className="min-w-0 truncate">{text}</span>
+  const parts = /^([^«]+?) «(.+)» ([^»(]+?)(?: (\([^»]*\)))?$/.exec(text)
+  if (!parts) return <span className="min-w-0 truncate">{text}</span>
+  const [, lead, title, tail, note] = parts
+  if (!onOpen) return <DividerQuotedTitle lead={lead} title={title} tail={tail} note={note} />
+  // The same nodes as DividerQuotedTitle, with the title a button. The spaces inside the lead, tail and
+  // note are for `textContent`, not the layout (see DividerQuotedTitle).
   return (
-    <span className="flex min-w-0 items-center">
-      <span className="shrink-0 whitespace-pre">{parts[1]}</span>
-      <button
-        type="button"
-        data-shell-wake-open
-        onClick={onOpen}
-        onMouseDown={(e) => e.preventDefault()}
-        title="Open agent terminal"
-        aria-label={`Open agent terminal: ${parts[2]}`}
-        className={`min-w-0 truncate ${DIVIDER_LINK}`}
-      >
-        {parts[2]}
-      </button>
-      <span className="shrink-0 whitespace-pre">{parts[3]}</span>
-    </span>
+    <>
+      <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}>{lead} </span>
+      <span className="flex min-w-0 items-center">
+        <span className="shrink-0">«</span>
+        <button
+          type="button"
+          data-shell-wake-open
+          onClick={onOpen}
+          onMouseDown={(e) => e.preventDefault()}
+          title="Open agent terminal"
+          aria-label={`Open agent terminal: ${title}`}
+          className={`min-w-0 truncate ${DIVIDER_LINK}`}
+        >
+          {title}
+        </button>
+        <span className="shrink-0">»</span>
+      </span>
+      <span className="shrink-0"> {tail}</span>
+      {note && <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}> {note}</span>}
+    </>
   )
 }
 
@@ -436,8 +609,8 @@ export function ShellWakeText({ text, onOpen }: { text: string; onOpen?: () => v
 // only thing under its title was one line of state and a parenthetical addressed to the worker.
 //
 // THE TRAILER IS DROPPED, not rendered. "This watcher is spent" and "STILL ARMED — drop it with
-// mcp__frizz__watch_pr" are instructions to the agent about its own registration; a human reading the
-// transcript has no watcher to re-register and no tool to call.
+// frizzctl watch-pr" are instructions to the agent about its own registration; a human reading the
+// transcript has no watcher to re-register and no command to run.
 //
 // STATE FIRST, ref second, matching the review divider's `{title} on {ref}` — so the news survives the
 // truncation at queue-rail width, where the label clips from the right.
@@ -445,10 +618,10 @@ function PrWatchStatusDivider({ wake, sourceId, at }: { wake: PrWatchWake; sourc
   const href = githubRefUrl(wake.ref)
   const ref = href ? (
     <a href={href} target="_blank" rel="noreferrer noopener" className={DIVIDER_LINK}>
-      {wake.ref}
+      <RefText value={wake.ref} />
     </a>
   ) : (
-    <span>{wake.ref}</span>
+    <span><RefText value={wake.ref} /></span>
   )
   // ONE CASE TREATMENT ON THE LINE — petite caps end to end, ref included (see the note on the review
   // divider's label). `PR` and `CI` are already uppercase, so they render as full caps and stay legible
@@ -458,7 +631,7 @@ function PrWatchStatusDivider({ wake, sourceId, at }: { wake: PrWatchWake; sourc
   const ciLead = wake.kind === "ci"
     ? wake.verdict === "passing" ? "passed" : wake.verdict === "failing" ? "failed" : "awaiting approval"
     : ""
-  const lead = wake.kind === "ci" ? `CI ${ciLead} on ` : `PR ${wake.kind} on `
+  const lead = wake.kind === "ci" ? `CI ${ciLead}` : `PR ${wake.kind}`
   // The failing jobs — and the held workflows, which are the same thing said about a gate — ride INSIDE
   // the truncating span: naming them is the most useful thing either line can do, and losing the tail of
   // a long list costs nothing the verdict has not already said.
@@ -481,20 +654,22 @@ function PrWatchStatusDivider({ wake, sourceId, at }: { wake: PrWatchWake; sourc
       marker="github"
       at={at}
       // Only the inert form takes the separator role — a divider carrying a focusable link may not.
-      ariaLabel={href ? undefined : `${lead}${wake.ref}${jobs}${checks ? ` · ${checks}` : ""}`}
+      ariaLabel={href ? undefined : `${lead} on ${wake.ref}${jobs}${checks ? ` · ${checks}` : ""}`}
     >
       <span className="min-w-0 truncate" title={`${lead}${wake.ref}${jobs}`}>
         {lead}
+        <On />{" "}
         {ref}
         {jobs}
       </span>
       {checks && (
-        // Outside the truncating span, like the age on the tail: when the sentence clips, the tally is
-        // the one field small enough to always survive it. Dot and tally are two flex items on the
-        // label's gap, the same rhythm the age behind them takes (see DividerAge).
+        // Outside the truncating span, like the age on the tail, so a clipped sentence does not take it
+        // with it. Dot and tally are two flex items on the label's gap, the same rhythm the age behind
+        // them takes (see DividerAge). WIDE ONLY since the rule got its floor: on a narrow row the tally
+        // is 110px of the 150 the label has, and what it would push out is the PR the verdict is about.
         <>
-          <span aria-hidden="true" className="shrink-0 opacity-50">·</span>
-          <span className="shrink-0 tabular-nums">{checks}</span>
+          <span aria-hidden="true" className={`shrink-0 opacity-50 ${WAKE_DIVIDER_WIDE_ONLY}`}>·</span>
+          <span className={`shrink-0 tabular-nums ${WAKE_DIVIDER_WIDE_ONLY}`}>{checks}</span>
         </>
       )}
     </WakeDivider>
@@ -513,9 +688,9 @@ function PrWatchStatusDivider({ wake, sourceId, at }: { wake: PrWatchWake; sourc
 function PrWatchStateDivider({ wake, sourceId, at }: { wake: PrWatchStateWake; sourceId?: string; at?: string }) {
   const href = githubRefUrl(wake.ref)
   const ref = href ? (
-    <a href={href} target="_blank" rel="noreferrer noopener" className={DIVIDER_LINK}>{wake.ref}</a>
+    <a href={href} target="_blank" rel="noreferrer noopener" className={DIVIDER_LINK}><RefText value={wake.ref} /></a>
   ) : (
-    <span>{wake.ref}</span>
+    <span><RefText value={wake.ref} /></span>
   )
   return (
     <WakeDivider
@@ -526,7 +701,8 @@ function PrWatchStateDivider({ wake, sourceId, at }: { wake: PrWatchStateWake; s
       ariaLabel={href ? undefined : `PR updated on ${wake.ref}: ${wake.detail}`}
     >
       <span className="min-w-0 truncate" title={`PR updated on ${wake.ref}: ${wake.detail}`}>
-        {"PR updated on "}
+        PR updated
+        <On />{" "}
         {ref}
         {`: ${wake.detail}`}
       </span>
@@ -562,6 +738,11 @@ function GithubSteerDivider({ steer, text, sourceId, at }: { steer: GithubWakeSt
   const title = backlog
     ? `${total} ${total === 1 ? "item" : "items"} already`
     : wakeCardTitle(total, steer.items[0]?.label ?? "item", only?.actor)
+  // WHO FILED IT is the first thing a narrow row gives up (WAKE_DIVIDER_WIDE_ONLY): the kind and the PR
+  // are what say whether to open it, and the author is one click behind the ref. `New` goes with it —
+  // a wake is news by definition — which leaves `Review comment #587`, the kind and the PR.
+  const from = !backlog && only?.actor && title.endsWith(` from @${only.actor}`) ? ` from @${only.actor}` : ""
+  const fresh = !backlog && title.startsWith("New ") ? "New " : ""
   // ONE CASE TREATMENT ON THE LINE, and that is the whole fix (maintainer 2026-08-13: "the rendering on
   // '2 new items …' Looks fucking insane because it's mixing small caps with regular font").
   //
@@ -579,19 +760,17 @@ function GithubSteerDivider({ steer, text, sourceId, at }: { steer: GithubWakeSt
   // on, and it sat at the END of the one truncating run — so at a 300px VS Code sidebar's width the line
   // read "NEW REVIEW COMMENT FROM @… · 1H AGO" and "NEW APPROVAL FROM @DANA O…", the link clipped to 0px and
   // nothing carrying it, and at 450px it was cut mid-token ("NUBJS/NUB#5…"). Now the sentence is its own
-  // truncating run, so the actor goes first and then the kind, while " on " and the ref stay whole: they
-  // ride in one `shrink-0` group, capped at the line (`max-w-full`), so only a ref too long for the line
-  // on its own ever truncates. NOT a lower shrink factor on the ref — a truncating box that shrinks by
-  // even a twentieth of a pixel draws its ellipsis, which is how a first cut showed "NUBJS/NUB#5…" beside
-  // a sentence that had all the squeeze. The whole sentence is the run's title. Same spacing as before:
-  // the pieces sit in flex runs with no gap, and " on " is its own whitespace-preserving text, as the
-  // shell wake's «name» does it (ShellWakeText).
+  // truncating run, so the actor goes first and then the kind, while " on " and the ref stay whole
+  // (DividerSentenceOnRef), and a narrow row reads `#N` for the ref (RefText). NOT a lower shrink factor
+  // on the ref — a truncating box that shrinks by even a twentieth of a pixel draws its ellipsis, which
+  // is how a first cut showed "NUBJS/NUB#5…" beside a sentence that had all the squeeze. The whole
+  // sentence is the run's title.
   const ref = href ? (
-    <a href={href} target="_blank" rel="noreferrer noopener" className={`min-w-0 truncate ${DIVIDER_LINK}`}>
-      {steer.ref}
+    <a href={href} target="_blank" rel="noreferrer noopener" className={DIVIDER_LINK}>
+      <RefText value={steer.ref} />
     </a>
   ) : (
-    <span className="min-w-0 truncate">{steer.ref}</span>
+    <span><RefText value={steer.ref} /></span>
   )
   return (
     <WakeDivider
@@ -610,13 +789,18 @@ function GithubSteerDivider({ steer, text, sourceId, at }: { steer: GithubWakeSt
       {/* The label TRUNCATES rather than wrapping. At queue-rail width the full sentence does not fit,
           and a divider whose label wraps to four lines stops being a hairline at all — it was the first
           thing that broke when this shape was tried. */}
-      <span className="flex min-w-0 items-center">
-        <span className="min-w-0 truncate" title={`${title} on ${steer.ref}`}>{title}</span>
-        <span className="flex min-w-0 max-w-full shrink-0 items-center">
-          <span className="shrink-0 whitespace-pre">{" on "}</span>
-          {ref}
-        </span>
-      </span>
+      <DividerSentenceOnRef
+        title={`${title} on ${steer.ref}`}
+        sentence={
+          <>
+            {fresh && <span className={WAKE_DIVIDER_WIDE_ONLY}>{fresh}</span>}
+            {title.slice(fresh.length, title.length - from.length)}
+            {from && <span className={WAKE_DIVIDER_WIDE_ONLY}>{from}</span>}
+          </>
+        }
+      >
+        {ref}
+      </DividerSentenceOnRef>
     </WakeDivider>
   )
 }

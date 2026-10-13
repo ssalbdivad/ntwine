@@ -127,6 +127,16 @@ function isHome(path: string): boolean {
   return path === "/" || path === "" || path === CROSS_PROJECT_PREFIX || path === `${CROSS_PROJECT_PREFIX}/`
 }
 
+/**
+ * Is this a page that only its ROUTE binds to a project — All projects at `/all`, a phone's `/` — with none
+ * bound? It names no project, and `apiBase()` there answers the unprefixed `/_frizz`: the project that
+ * LAUNCHED the server, a stranger to this page. A call that needs a project is refused there rather than
+ * sent to it (api/rpc.ts `routeCall`).
+ */
+export function isUnboundHome(pathname?: string): boolean {
+  return isHome(here(pathname)) && homeFocus === undefined
+}
+
 /** The slug this page is showing, or `undefined` for the unprefixed launching project. */
 export function projectSlug(pathname?: string): string | undefined {
   const path = here(pathname)

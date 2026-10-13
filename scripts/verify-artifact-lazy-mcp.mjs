@@ -45,7 +45,9 @@ const PROJECT_DIR = join(root, "project")
 mkdirSync(join(PROJECT_DIR, ".claude"), { recursive: true })
 execFileSync("git", ["init", "-q"], { cwd: PROJECT_DIR })
 writeFileSync(join(PROJECT_DIR, "README.md"), "# verify fixture\n")
-writeFileSync(join(PROJECT_DIR, ".mcp.json"), readFileSync(join(SOURCE, ".mcp.json")))
+// This repo's own server, by absolute path: its `.mcp.json` names the wrapper relative to the repo root,
+// and this fixture project has no `scripts/`.
+writeFileSync(join(PROJECT_DIR, ".mcp.json"), JSON.stringify({ mcpServers: { "chrome-devtools": { command: "node", args: [join(SOURCE, "scripts", "chrome-devtools-mcp.mjs")] } } }))
 writeFileSync(join(PROJECT_DIR, ".claude", "settings.json"), JSON.stringify({ enabledMcpjsonServers: ["chrome-devtools"] }))
 const stateDir = join(root, "state")
 mkdirSync(stateDir, { recursive: true })

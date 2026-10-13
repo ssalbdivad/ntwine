@@ -1,6 +1,6 @@
 import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import { workflowAckTaskId, workflowLabel } from "./workflow-runs.ts"
-import { createHash } from "node:crypto"
+import { createHash, type Hash } from "node:crypto"
 import { StringDecoder } from "node:string_decoder"
 import { join } from "node:path"
 import { homedir, tmpdir } from "node:os"
@@ -19,6 +19,7 @@ import {
   parseAskUserQuestionAnswers,
   parseAskUserQuestionInput,
   parseGithubWakeSteer,
+  parseMergedWake,
   splitWakeDeliveries,
   stripFollowUpRiders,
   stripWakeDeliveryToken,
@@ -320,16 +321,31 @@ function pushUserRecord(out: TranscriptMessage[], sourceId: string, text: string
 // is also why the MARK is deduped by text: the attachment routinely lands well after the worker has
 // already replied (measured p50 20.9s, max 9.6min), so a second walk from there would reach past the
 // refused fence and mark the worker's re-fence, which is the good one.
+//
+// A CORRECTION MERGED WITH OTHER WAKES is still a correction (see parseMergedWake): the scheduler sends
+// everything waiting for a thread as one message, and a refused fence is very often waiting beside the
+// shell whose exit refused it. Its lead is then a section down, so the prefix test alone missed it and
+// the refused fence kept its hourglass card. The mark is taken from the section; the record is dropped
+// only when corrections are ALL it carries — its other wakes still have to render, and the chat leaves
+// the correction's section out when it draws them.
 type CorrectionSink = (text: string) => boolean
 function createCorrectionSink(out: TranscriptMessage[]): CorrectionSink {
   const marked = new Set<string>()
+  const refuse = (correction: string) => {
+    if (marked.has(correction)) return
+    marked.add(correction)
+    markFenceRefused(out)
+  }
   return (text: string) => {
-    if (!isParkCorrection(text)) return false
-    if (!marked.has(text)) {
-      marked.add(text)
-      markFenceRefused(out)
+    if (isParkCorrection(text)) {
+      refuse(text)
+      return true
     }
-    return true
+    const merged = parseMergedWake(text)
+    if (!merged) return false
+    const corrections = merged.filter((part) => isParkCorrection(part.body))
+    for (const part of corrections) refuse(part.body)
+    return corrections.length === merged.length
   }
 }
 
@@ -3175,8 +3191,12 @@ function countBoundedStart(messages: readonly TranscriptMessage[]): number {
   return start === boundary ? start : tail
 }
 
-export function latestTranscriptWindow(messages: readonly TranscriptMessage[]): TranscriptMessage[] {
-  const start = latestWindowStart(messages)
+// `start` lets a caller that ALSO needs the window's head (the paged reader mints its cursor there) pass
+// the one it computed rather than have it computed twice. It is not free: the byte bound stringifies
+// every message in the window to measure it — up to LATEST_WINDOW_MAX_BYTES of JSON — and doing that
+// twice per /ws push was 90% of what a push allocated (measured on a 16 MB transcript: 8.8 MB of 10.3 MB
+// per push, every push of every subscribed working thread).
+export function latestTranscriptWindow(messages: readonly TranscriptMessage[], start = latestWindowStart(messages)): TranscriptMessage[] {
   if (start === 0) return [...messages]
   // A parent's "Steered" / "Followed up" divider deliberately carries no body and tells the reader to
   // open the child's drawer. That contract fails if the child's 300-message tail has since moved past
@@ -4515,43 +4535,71 @@ function projectSnapshot(snapshot: FixedTranscriptSnapshot): TranscriptMessage[]
   return retireStaleQueuedBubbles([...entry.fold.allMessages()])
 }
 
-// sha256 over the whole snapshot, memoized per file identity+length. Cursor minting hashes the ENTIRE
-// transcript on every latest-page read; at 30 MB that is real event-loop time to repeat for a file that
-// has not changed. Only the full-length digest is memoized — the cursor VALIDATION path digests an
-// arbitrary historical prefix, which is a one-off per request and stays uncached.
-const fullDigestCache = new Map<string, string>()
+// sha256 over the whole snapshot, kept as a RUNNING hash per file identity. Cursor minting hashes the
+// ENTIRE transcript on every latest-page read that has earlier history, and a LIVE thread's file grows
+// between reads — so a cache keyed by identity+length (what this was) missed on every /ws push of every
+// subscribed working thread and re-read the whole file to hash it again, in fresh 16 MB buffers. Measured
+// on a copy of a real 27.7 MB transcript growing by ~470 KB per push: 18.4 MB read per push before, 0.9 MB
+// (the delta, once for the fold and once for the hash) after. Freed buffers that size are what macOS
+// malloc parks, still dirty, in its large-allocation cache.
+//
+// Now each file keeps a sha256 advanced over only the bytes appended since its last read; a digest is a
+// `copy()` of that state, so it is byte-for-byte the digest of the whole prefix. That relies on the file
+// being APPEND-ONLY between reads, which is the same assumption the retained fold above it already makes
+// (it folds only the appended range): a file that shrank starts over, and a replaced file is a new
+// fileKey. The cursor VALIDATION path still re-reads and re-hashes the prefix the cursor names, so a
+// rewrite in place is still caught where it matters.
+interface RunningDigest {
+  hash: Hash
+  /** Bytes fed to `hash` — the length its state describes. */
+  bytes: number
+  /** The digest of `[0, bytes)`, minted once per length. */
+  digest: string
+}
+const fullDigestCache = new Map<string, RunningDigest>()
 const FULL_DIGEST_CACHE_CAP = 16
+/** Bytes hashed per read. Hashing is streamed, so the window bounds only the buffer each read allocates. */
+const TRANSCRIPT_DIGEST_WINDOW = 1024 * 1024
 
-function digestPrefix(bytes: Buffer, length = bytes.length): string {
-  return createHash("sha256").update(bytes.subarray(0, length)).digest("base64url")
+function digestPrefix(snapshot: FixedTranscriptSnapshot, length: number): string {
+  const hash = createHash("sha256")
+  hashRange(hash, snapshot, 0, length)
+  return hash.digest("base64url")
 }
 
-function fullDigest(snapshot: FixedTranscriptSnapshot): string {
-  const key = `${snapshot.fileKey}\0${snapshot.size}`
-  const hit = fullDigestCache.get(key)
-  if (hit !== undefined) {
-    fullDigestCache.delete(key)
-    fullDigestCache.set(key, hit)
-    return hit
-  }
-  // STREAMED. This hashed the whole file as one Buffer, so every snapshot of a 566MB transcript
-  // resident-set another 566MB even though the digest itself is cached — two drawer opens reached
-  // 1.4GB RSS. The hash is incremental by nature; only the reader was not.
-  const hash = createHash("sha256")
-  for (let at = 0; at < snapshot.size; ) {
-    const buf = snapshot.readRange(at, Math.min(TRANSCRIPT_DECODE_WINDOW, snapshot.size - at))
+/** Feed `[from, to)` into `hash` in bounded windows; returns the offset actually reached. */
+function hashRange(hash: Hash, snapshot: FixedTranscriptSnapshot, from: number, to: number): number {
+  let at = from
+  while (at < to) {
+    const buf = snapshot.readRange(at, Math.min(TRANSCRIPT_DIGEST_WINDOW, to - at))
     if (buf.length === 0) break
     hash.update(buf)
     at += buf.length
   }
-  const digest = hash.digest("base64url")
-  fullDigestCache.set(key, digest)
+  return at
+}
+
+function fullDigest(snapshot: FixedTranscriptSnapshot): string {
+  const key = snapshot.fileKey
+  let entry = fullDigestCache.get(key)
+  // Out of the map while it is advanced: a read that throws mid-way (the file was swapped under us)
+  // leaves a hash state that no longer matches `bytes`, and it must not be found again.
+  fullDigestCache.delete(key)
+  if (entry && entry.bytes === snapshot.size) {
+    fullDigestCache.set(key, entry) // LRU touch
+    return entry.digest
+  }
+  // A file shorter than what was already hashed was truncated in place: start over from byte 0.
+  if (!entry || entry.bytes > snapshot.size) entry = { hash: createHash("sha256"), bytes: 0, digest: "" }
+  entry.bytes = hashRange(entry.hash, snapshot, entry.bytes, snapshot.size)
+  entry.digest = entry.hash.copy().digest("base64url")
+  fullDigestCache.set(key, entry)
   while (fullDigestCache.size > FULL_DIGEST_CACHE_CAP) {
     const oldest = fullDigestCache.keys().next().value
     if (oldest === undefined) break
     fullDigestCache.delete(oldest)
   }
-  return digest
+  return entry.digest
 }
 
 function encodeTranscriptCursor(snapshot: FixedTranscriptSnapshot, anchorSourceId: string): string {
@@ -4787,11 +4835,11 @@ export function readLatestThreadTranscriptPage(
     }
   }
   projected = withSpinoffCards(projected, storage, slug, true)
-  const latest = latestTranscriptWindow(projected)
   // The cursor has to name the window's REAL head, not the raw MAX_MESSAGES cut: once the window reaches
   // back for the human's ask, a cursor anchored at the cut sits INSIDE what was already sent, and the
   // first "Load earlier messages" click would page over messages the card is already showing.
   const canonicalStart = latestWindowStart(projected)
+  const latest = latestTranscriptWindow(projected, canonicalStart)
   // The latest window carries the delivery-ledger projection (same as readThreadTranscript): a tracked
   // follow-up renders as its gray queued bubble at the tail even before any JSONL evidence exists. The
   // LATEST page only — earlier pages are settled history a pending send can never belong to.
@@ -4843,7 +4891,9 @@ export function readEarlierThreadTranscriptPage(
   if (!snapshot || snapshot.fileKey !== payload.fileKey || snapshot.size < payload.snapshotBytes) {
     throw new Error("transcript cursor is stale because the transcript was replaced")
   }
-  if (digestPrefix(snapshot.readRange(0, payload.snapshotBytes)) !== payload.prefixDigest) {
+  // Streamed: this hashed the prefix as ONE Buffer, so each "load earlier" on a 500 MB transcript
+  // allocated 500 MB to compute a 43-character digest.
+  if (digestPrefix(snapshot, payload.snapshotBytes) !== payload.prefixDigest) {
     throw new Error("transcript cursor is stale because prior transcript bytes changed")
   }
   const projected = withSpinoffCards(projectSnapshot(snapshot), storage, slug, true)

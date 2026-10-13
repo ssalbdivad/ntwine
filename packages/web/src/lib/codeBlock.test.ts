@@ -226,5 +226,15 @@ test("the fences Frizz draws as something else keep their one markup, however lo
   const graph = Array.from({ length: 60 }, (_, i) => `  a${i} --> a${i + 1}`).join("\n")
   for (const name of ["mermaid", "lightbox"]) {
     assert.equal(render(fence(name, graph)), renderHighlightedCode(graph, name).trim(), name)
+    assert.match(render(fence(name, graph)), new RegExp(`class="hljs language-${name}"`), name)
+  }
+})
+
+test("a diagram or gallery fence still being written is a plain code block, with no name to draw from", () => {
+  for (const name of ["mermaid", "lightbox"]) {
+    const streaming = render(`\`\`\`${name}\ngraph TD\n  A --> B`)
+    assert.match(streaming, /class="hljs language-plaintext"/, name)
+    assert.ok(streaming.includes("A --&gt; B"), "its text is still shown")
+    assert.match(render(`\`\`\`${name}\ngraph TD\n  A --> B\n\`\`\``), new RegExp(`language-${name}"`), name)
   }
 })

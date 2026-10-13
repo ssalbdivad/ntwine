@@ -27,11 +27,14 @@ name: release
 #
 # Auth is npm Trusted Publishing (OIDC): no NPM_TOKEN, no secret to rotate or leak. That binds the
 # right to publish to THIS repository and THIS workflow file — the filename is load-bearing, and
-# renaming release.yml breaks publishing until the trusted publisher is reconfigured on npmjs.com. It
-# does NOT bind a branch (npm's trusted publisher takes org, repo, workflow filename and an optional
-# environment, and this workflow declares no environment), which is what makes publishing from
-# `release` work at all. Trusted publishing attaches provenance automatically; --provenance is
-# unnecessary.
+# renaming release.yml breaks publishing until the trusted publisher is reconfigured on npmjs.com.
+# npm's trusted publisher cannot name a branch, only org, repo, workflow filename and an optional
+# GitHub ENVIRONMENT — so the branch is bound through the environment (2026-10-12). The job runs in
+# `npm-publish`, whose deployment branch policy on GitHub admits `release` alone, and both trusted
+# publishers name that environment: an OIDC token minted for any other ref, or by a copy of this
+# workflow without the environment, is refused by npm itself rather than only by the ref check below.
+# Renaming the environment breaks publishing exactly as renaming this file does. Trusted publishing
+# attaches provenance automatically; --provenance is unnecessary.
 #
 # STAGED PUBLISHING WAS TRIED AND DROPPED. From 2026-09-22 the trusted publisher on `frizz` and on
 # `frizz-server` was stage-only: this workflow ran `npm stage publish`, and neither version was
@@ -94,6 +97,9 @@ jobs:
     # under this cap, so a stall is reported by the wait step, not by a job timeout. A version npm
     # serves later is not lost: re-run the job and it resumes from there.
     timeout-minutes: 360
+    # See the header: npm's trusted publishers accept only tokens from this environment, and GitHub
+    # lets only the `release` branch deploy to it.
+    environment: npm-publish
     permissions:
       id-token: write # required for Trusted Publishing (OIDC)
       contents: write # tag the released commit and create the GitHub release

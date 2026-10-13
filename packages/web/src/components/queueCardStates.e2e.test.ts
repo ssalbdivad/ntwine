@@ -54,8 +54,8 @@ let errors: string[] = []
 
 before(async () => {
   if (!baseUrl) return
-  const { default: puppeteer } = await import("puppeteer")
-  browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  browser = await launchHeadless()
   page = await browser.newPage()
   page.setDefaultTimeout(30_000)
   await page.setViewport({ width: 900, height: 1000, deviceScaleFactor: 1 })
@@ -257,19 +257,15 @@ test("fenced AND registered draws one Done card, not two", { skip: !baseUrl, tim
   assert.deepEqual(errors, [])
 })
 
-test("a frozen native ask draws its card, and its copy asks the card's project for the command", { skip: !baseUrl, timeout: 60_000 }, async () => {
+test("a frozen native ask draws its card, with no action on it", { skip: !baseUrl, timeout: 60_000 }, async () => {
   await open("case=pending-ask")
   const text = await page!.$eval(FIRST, (card) => card.textContent ?? "")
   assert.match(text, /Waiting on your answer — in your external terminal/)
   assert.match(text, /Which rollout do you want\?/)
   assert.match(text, /Stage a second key/)
-  await page!.evaluate((sel) => {
-    const button = [...document.querySelector(sel)!.querySelectorAll("button")].find((b) => /Copy terminal command/.test(b.textContent ?? ""))
-    button!.click()
-  }, FIRST)
-  await page!.waitForFunction(() => (window as unknown as { __rpc: RpcLog }).__rpc.calls.some((c) => /threadTerminalCommand$/.test(c.path)))
-  const paths = (await rpcLog()).calls.map((c) => c.path).filter((p) => /threadTerminalCommand$/.test(p))
-  assert.deepEqual(paths, ["/_frizz/fixture-card/rpc/threadTerminalCommand"], "never the page's unprefixed rpc")
+  // The Copy terminal command button went with its RPC (upstream 421e86d9): the operator is already
+  // running a foreign session in their own terminal.
+  assert.doesNotMatch(text, /Copy terminal command/)
   assert.deepEqual(errors, [])
 })
 
@@ -312,7 +308,7 @@ test("a rest handing the human steps draws the steps card, and Done replies into
     raw: /steps:|title:/.test(el.textContent ?? ""),
     cards: el.querySelectorAll("[data-awaiting-background]").length,
   }))
-  assert.equal(card.chip, "To do")
+  assert.equal(card.chip, "Awaiting human")
   assert.equal(card.title, "Sign in to npm so the release can publish", "the worker's own heading")
   assert.equal(card.numbered, true, "the steps are a numbered list")
   assert.deepEqual(card.steps, [

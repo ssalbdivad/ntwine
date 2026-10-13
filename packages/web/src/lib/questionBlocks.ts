@@ -209,7 +209,7 @@ export function hasQuestionBlock(text: string): boolean {
 export interface ParsedQuestion {
   kind: QuestionKind
   danger: boolean
-  // A SECRET request (registered via `mcp__frizz__secret`): the free-text box is masked, and what is
+  // A SECRET request (registered via `frizzctl secret`): the free-text box is masked, and what is
   // typed in it never enters the draft store. Only a registered question carries it.
   secret?: boolean
   contextMd: string

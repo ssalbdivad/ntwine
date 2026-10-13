@@ -37,6 +37,18 @@ test("a rest above a frizz wake DELIVERY is dropped too — those render as thei
   assert.deepEqual(kept([prose(), rest(), signoff]), ["a", "s"])
 })
 
+test("a rest above a sub-agent's completion is dropped — even though a child can also finish mid-turn", () => {
+  const finished = (id: string) => {
+    const call = { id: `t-${id}`, name: "Agent", status: "completed", detail: "Surveying prior art", agentCompletion: true }
+    return msg({ sourceId: id, tools: [call], parts: [{ kind: "tools", tools: [call] }] } as Partial<ChatMessage>)
+  }
+  // The reported thread: a parent parked on its children, re-resting after each return.
+  assert.deepEqual(
+    kept([prose(), rest("r1"), finished("f1"), rest("r2"), finished("f2"), prose("a2"), rest("r3"), human()]),
+    ["a", "f1", "f2", "a2", "r3", "u"],
+  )
+})
+
 test("an empty thinking-only turn between the two hairlines does not rescue the rest", () => {
   const blank = msg({ sourceId: "blank" })
   const wake = msg({ sourceId: "w", kind: "event", boundary: "wake", text: "Agent «probe» finished" })

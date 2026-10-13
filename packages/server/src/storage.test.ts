@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 import Database from "./sqlite.ts"
-import { createStorage, sessionTitleLocked, STORAGE_SCHEMA, type ProfileHandoffJournal, type Storage, type SessionRow } from "./storage.ts"
+import { createStorage, ensureStorageSchema, sessionTitleLocked, STORAGE_SCHEMA, workerTaughtMcp, type ProfileHandoffJournal, type Storage, type SessionRow } from "./storage.ts"
 
 function profileHandoff(
   nativeSessionId: string,
@@ -50,6 +50,39 @@ function row(over: Partial<SessionRow> = {}): SessionRow {
   if (over.slug !== undefined && over.thread_name === undefined) result.thread_name = `frizz-${result.slug}`
   return result
 }
+
+// A codex or ACP thread keeps the contract it was started with, so which surface that contract taught
+// is a fact about the THREAD and has to outlive the server that started it.
+test("a thread is taught the MCP tools until a dispatch records that it was taught the command line", () => {
+  const s = store()
+  s.upsertSession(row({ slug: "before-the-cli" }))
+  s.upsertSession(row({ slug: "after-the-cli", session_id: "sid-2" }))
+  s.setWorkerSurface("after-the-cli", "cli")
+  assert.equal(workerTaughtMcp(s.getSession("before-the-cli")), true)
+  assert.equal(workerTaughtMcp(s.getSession("after-the-cli")), false)
+  // No row is a thread being started right now, or a session that is no worker at all: nothing was
+  // taught, so nothing is mounted.
+  assert.equal(workerTaughtMcp(s.getSession("never-existed")), false)
+  // A re-upsert of the same thread (a resume, a title write) must not forget it.
+  s.upsertSession({ ...s.getSession("after-the-cli")!, unread: 1 })
+  assert.equal(s.getSession("after-the-cli")!.worker_surface, "cli")
+  s.close()
+})
+
+test("a database written before the column existed gains it, and its threads read as taught the MCP tools", () => {
+  const path = join(mkdtempSync(join(tmpdir(), "frizz-storage-")), "ui.db")
+  const first = createStorage(path, "p")
+  first.upsertSession(row({ slug: "old" }))
+  first.close()
+  const db = new Database(path)
+  db.exec("ALTER TABLE session DROP COLUMN worker_surface")
+  ensureStorageSchema(db)
+  db.close()
+  const reopened = createStorage(path, "p")
+  assert.equal(reopened.getSession("old")!.worker_surface, null)
+  assert.equal(workerTaughtMcp(reopened.getSession("old")), true)
+  reopened.close()
+})
 
 test("storage close is idempotent", () => {
   const s = store()
@@ -1297,7 +1330,7 @@ test("thread_terminal: a pre-terminal command_thread file is renamed, gains the 
 
   let s = createStorage(path, "p")
   try {
-    assert.deepEqual(tableNames(s.db).filter((t) => t.includes("terminal") || t.includes("command")), ["thread_terminal"], "renamed, not copied")
+    assert.deepEqual(tableNames(s.db).filter((t) => t.includes("terminal") || t.includes("command")), ["command_watch", "thread_terminal"], "renamed, not copied")
     assert.equal(columnNames(s.db, "thread_terminal").includes("queued_at"), false, "the dead stamp is gone")
     const legacy = s.listThreadTerminals()
     assert.deepEqual(legacy.map((r) => [r.slug, r.state, r.parent_slug ?? null, r.cwd ?? null, r.shell]), [

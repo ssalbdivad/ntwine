@@ -19,11 +19,8 @@ test("an agent row mirrors the child-line shape and shows exactly one running in
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--force-color-profile=srgb"],
-  })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   // The bare fixture page serves no favicon, so Chrome logs a 404 whose console text carries no URL.
@@ -242,11 +239,8 @@ test("a background shell card marks its liveness in the same slot as a dispatch 
   // The wait above is the long pole, and it does not start until the rest of the assertions have run.
   timeout: MARK_WAIT_MS + 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--force-color-profile=srgb"],
-  })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   page.on("console", (message) => { if (message.type() === "error" && !message.text().includes("404")) errors.push(message.text()) })

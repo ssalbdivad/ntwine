@@ -176,7 +176,8 @@ export function renderHighlightedCode(text: string, infoString?: string): string
   // injects a whole body as one block of HTML — a signal card, a question card, the file readers — finds
   // the fence and draws a gallery in its place (components/Lightbox.tsx useLightboxIslands). Anywhere
   // that pass does not run, it stays a readable code block.
-  const name = (infoString ?? "").trim().toLowerCase() === "lightbox" ? "lightbox" : language
+  // A ```mermaid fence keeps its name the same way, for the diagram (useMermaidIslands).
+  const name = /^\s*(lightbox|mermaid)\s*$/i.exec(infoString ?? "")?.[1].toLowerCase() ?? language
   // No whitespace anywhere inside the <pre>: it preserves it, so a newline before the <code> would print
   // as a blank first line. The button follows the block in DOM order so a keyboard walk reaches the code
   // before its affordance.

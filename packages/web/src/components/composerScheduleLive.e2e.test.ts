@@ -43,8 +43,8 @@ let browser: Browser | undefined
 before(async () => {
   if (!baseUrl) return
   if (shotsDir) mkdirSync(shotsDir, { recursive: true })
-  const { default: puppeteer } = await import("puppeteer")
-  browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb", "--use-mock-keychain"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  browser = await launchHeadless()
 })
 
 after(async () => { await browser?.close() })

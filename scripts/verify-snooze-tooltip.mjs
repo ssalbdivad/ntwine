@@ -28,8 +28,8 @@ const CASES = [
   { slug: "dependabot-nub-ecosystem", glyph: "held", state: null, park: /^Snoozed until /m },
 ]
 
-const { default: puppeteer } = await import("puppeteer")
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] })
+const { launchHeadless } = await import("./lib/headless-browser.mjs")
+const browser = await launchHeadless()
 let failures = 0
 const fail = (msg) => { failures++; console.log(`FAIL  ${msg}`) }
 const pass = (msg) => console.log(`PASS  ${msg}`)

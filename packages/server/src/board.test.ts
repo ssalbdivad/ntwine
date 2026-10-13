@@ -2003,6 +2003,7 @@ test("the .frizz watch predicate admits a top-level thread document and nothing 
   assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/threads/2f0a/scratch.md"), false, "worker scratch")
   assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/.session-state/2f0a.seen"), false, "CLI liveness sidecar")
   assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/plans/design.md"), false, "a .md one level down is not a thread file")
+  assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/worktrees/feature/README.md"), false, "a worker's git worktree")
   assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/config.yml"), false, "nothing the board projection reads")
   assert.equal(isBoardRelevantFrizzPath(roots, "/elsewhere/.frizz/my-thread.md"), false, "another project's tree")
 })
@@ -2043,13 +2044,18 @@ test("a worker scratch write triggers no board rebuild, while a top-level .md st
     await board.start()
     const afterStart = builds
     assert.ok(afterStart >= 1, "the initial build ran")
-    assert.deepEqual(ignored, [join(dir, ".frizz", "threads"), join(dir, ".frizz", ".session-state"), join(dir, ".frizz", "worktrees")])
+    assert.deepEqual(ignored, [
+      join(dir, ".frizz", "threads"),
+      join(dir, ".frizz", ".session-state"),
+      join(dir, ".frizz", "worktrees"),
+    ])
 
-    // NEGATIVE: the scratch directory Frizz hands every worker, the CLI's sentinel dir, and agent worktrees.
+    // NEGATIVE: the scratch directory Frizz hands every worker, the CLI's sentinel dir, and a worker's
+    // git worktree — a whole checkout, whose own top-level `.md` files are not this board's threads.
     fire([
       join(dir, ".frizz", "threads", "2f0a", "scratch.md"),
       join(dir, ".frizz", ".session-state", "2f0a.seen"),
-      join(dir, ".frizz", "worktrees", "fix-x", "README.md"),
+      join(dir, ".frizz", "worktrees", "feature", "README.md"),
     ])
     await settle()
     assert.equal(builds, afterStart, "worker scratch must not rebuild the board")

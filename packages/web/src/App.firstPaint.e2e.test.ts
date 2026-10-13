@@ -41,8 +41,8 @@ test("a reload paints the font and the project rail in their final state on the 
   }
   await set({ projectRail: true })
 
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] })
+  const { launchHeadless } = await import("../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   try {
     const page = await browser.newPage()
     const errors: string[] = []

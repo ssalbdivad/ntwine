@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createServer } from '../packages/web/node_modules/vite/dist/node/index.js'
-import puppeteer from 'puppeteer'
+import { launchHeadless } from './lib/headless-browser.mjs'
 import { measureTextContrast, measureAppearanceInk } from './lib/light-mode-contrast.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -18,7 +18,7 @@ let current = ''
 try {
   await server.listen()
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
-  browser = await puppeteer.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--no-sandbox', '--force-color-profile=srgb'] })
+  browser = await launchHeadless()
   console.log('BROWSER', browser.process().pid)
   page = await browser.newPage()
   page.on('pageerror', error => errors.push({ current, error: String(error) }))

@@ -41,7 +41,7 @@ export interface SessionRow {
   // 0 | 1 — a HUMAN named this thread (explicit rename, native /rename, or an adopted `.frizz/<slug>.md`
   // heading), so no backend auto-title may ever replace it. A title HARD-CODED by a dispatch CALLER is
   // NOT this: `Investigate acme/app#391` from the GitHub batch, or a parent agent's guess through
-  // `mcp__frizz__spawn_thread`, is shown as a real name (title_auto = 0) and is FINAL like any other name
+  // `frizzctl spawn-thread`, is shown as a real name (title_auto = 0) and is FINAL like any other name
   // (thread-names.ts) — unlocked only in that a human rename still records as the human's. The human-facing
   // new-thread composer has no title field at all, so a dispatch title never means "a human typed this".
   // INVARIANT, relied on by the idempotent boot repair: title_locked = 1 ⇒ title_auto = 0.
@@ -310,6 +310,13 @@ export interface SessionRow {
   // the board parks it in Snoozed with its wake time even once that time has passed, and the scheduler
   // (schedules.ts), not snooze expiry, decides when it starts.
   schedule_id?: string | null
+  // Which worker surface this thread's CONTRACT taught it: 'cli' = the `frizzctl` command line, written
+  // by every dispatch since 2026-10-11. NULL = a thread started before that, whose contract tells it
+  // to call `mcp__frizz__*` tools. It matters on the two backends whose contract is fixed when the
+  // thread starts — codex (baseInstructions) and ACP (the first prompt) — because such a thread is told
+  // about tools for the rest of its life, so it must go on being given them (workerTaughtMcp). A Claude
+  // thread is handed the current contract at every fork and never reads this.
+  worker_surface?: string | null
 }
 
 /** Base's own holder: a schedule's next run (schedules.ts). */
@@ -323,6 +330,13 @@ export function isScheduleHeldRow(row: Pick<SessionRow, "held_by" | "schedule_id
 /** An unstarted thread (SessionRow.held_by): no agent has ever run for it. */
 export function isHeldRow(row: Pick<SessionRow, "held_by"> | undefined | null): boolean {
   return typeof row?.held_by === "string" && row.held_by.length > 0
+}
+
+/** Whether `row`'s worker was taught the MCP tools rather than the command line, and so still needs
+ *  the `frizz` MCP server mounted. No row at all is a thread being started right now, or a session
+ *  that is not a worker: neither was taught anything, so neither is given the mount. */
+export function workerTaughtMcp(row: Pick<SessionRow, "worker_surface"> | undefined | null): boolean {
+  return row != null && row.worker_surface !== "cli"
 }
 
 /**
@@ -595,6 +609,40 @@ export interface ThreadSpinoffRow {
    *  it started fresh on the context Frizz assembled (router.ts summarySpinoff) — or, on an older row,
    *  when the parent's worker briefed it. */
   forked: number
+}
+
+/** One row of `command_watch` — a shell command the SERVER re-runs on this thread's behalf until it
+ *  exits 0 (2026-10-11, `frizzctl watch-command`).
+ *
+ *  ONE-SHOT like a timer, unlike a PR watcher: the first passing run settles it (`passed`) and wakes the
+ *  thread once. `expired` is its own `for:` running out, `cancelled` is Frizz stopping it because the
+ *  thread's permission mode or sandbox changed under it, `dropped` is the worker withdrawing it. The
+ *  `last_*` columns are the most recent check, kept so the worker's read-back and the expiry wake can say
+ *  WHY it has not passed — a command failing on a missing binary looks exactly like one still waiting. */
+export interface CommandWatchRow {
+  id: string
+  thread_slug: string
+  command: string
+  every_ms: number
+  state: "armed" | "dropped" | "passed" | "expired" | "cancelled"
+  created_at: number
+  expires_at: number
+  settled_at: number | null
+  /** Checks run so far, the registration's own first check included. */
+  runs: number
+  /** Epoch ms the last check FINISHED — the next one is due `every_ms` after it. */
+  last_run_at: number | null
+  last_outcome: "exit" | "timeout" | "signal" | "error" | null
+  last_exit: number | null
+  last_output: string | null
+}
+
+/** What one finished check writes back onto its row. */
+export interface CommandWatchRunRecord {
+  atMs: number
+  outcome: "exit" | "timeout" | "signal" | "error"
+  exitCode: number | null
+  output: string
 }
 
 /** A saved destination, independent of running work and completion. */
@@ -871,7 +919,7 @@ export interface Storage extends ScheduleStore {
   // Session-guarded: this comes from a browser tab that may be looking at a thread which has since been
   // re-dispatched.
   setRecurringPromptIfCurrent(slug: string, sessionId: string, generation: number, write: RecurringWrite): boolean
-  // The WORKER's path to the same row, from `mcp__frizz__goal`. Deliberately keyed on the
+  // The WORKER's path to the same row, from `frizzctl goal`. Deliberately keyed on the
   // slug ALONE, with no session/generation guard, because the MCP server cannot satisfy one: it is
   // spawned with its thread's slug and keeps it across a resume, while the session id and generation
   // bump underneath it — so a guard here would fail exactly on the long-lived thread this exists for.
@@ -923,6 +971,26 @@ export interface Storage extends ScheduleStore {
   // Persist what has already been reported. Guarded on `armed` so a cursor written after the worker
   // dropped the row cannot resurrect it.
   setPrWatchCursor(id: string, cursor: string): boolean
+  // ---- REGISTERED COMMAND WATCHES (scheduler SOURCE 16) ------------------------------------------
+  // Slug-keyed for the timers' reason. `id` is minted by the caller so the row and the scheduler's
+  // delivery ids agree without a read-back. `firstRun` is the registration's own check, recorded on the
+  // row it armed so the read-back and the cadence both start from it.
+  armCommandWatch(watch: { id: string; slug: string; command: string; everyMs: number; createdAtMs: number; expiresAtMs: number; firstRun?: CommandWatchRunRecord }): CommandWatchRow
+  /** A thread's command watches, oldest first; `armedOnly` is what the worker reads back. */
+  listCommandWatches(slug: string, opts?: { armedOnly?: boolean }): CommandWatchRow[]
+  /** Every thread's ARMED command watches at once, keyed by slug — the board's read (see groupBySlug). */
+  armedCommandWatchesBySlug(): Map<string, CommandWatchRow[]>
+  getCommandWatch(id: string): CommandWatchRow | undefined
+  /** Every armed command watch across all threads — the scheduler's one read per tick. */
+  armedCommandWatches(): CommandWatchRow[]
+  /** Every armed watch whose `for` has run out. */
+  expiredCommandWatches(nowMs: number): CommandWatchRow[]
+  /** Record a finished check. Guarded on `armed`, so a run that lands after a drop cannot rewrite it. */
+  recordCommandWatchRun(id: string, run: CommandWatchRunRecord): boolean
+  /** The worker's own withdrawal. Scoped to the slug, so one thread can never drop another's. */
+  dropCommandWatch(slug: string, id: string, settledAtMs: number): boolean
+  /** Terminal: the command passed, ran out of time, or Frizz may no longer run it. Guarded on `armed`. */
+  settleCommandWatch(id: string, state: "passed" | "expired" | "cancelled", settledAtMs: number): boolean
   // A label is a stable slot: re-registering it updates the destination without moving the row.
   /** `childProjectId` names the project the child is to start in when that is not this one. */
   insertSpinoff(row: { id: string; parentSlug: string; instructions: string; createdAtMs: number; childProjectId?: string; forked?: boolean }): void
@@ -1083,7 +1151,7 @@ export interface Storage extends ScheduleStore {
   // atomic with the text write so no board refresh, transcript ai-title, resume upsert, or server
   // restart can see the new title as machine-generated or still replaceable.
   setTitle(slug: string, title: string): void
-  // Persist the WORKER's own considered name (`mcp__frizz__title`), marked `title_agent = 1` so the
+  // Persist the WORKER's own considered name (`frizzctl title`), marked `title_agent = 1` so the
   // display can trust it once live telemetry is gone. Refused — `false`, not a throw — when a human has
   // claimed the name, because that is a legitimate answer the worker should be told rather than an
   // error it will retry. Never touches `title_auto`: which machine wrote the current text does not
@@ -1168,6 +1236,8 @@ export interface Storage extends ScheduleStore {
    *  stage minted for a deadline the human has since moved cannot write onto the new one. */
   markDeadlineStage(slug: string, setAt: string, stage: string): boolean
   setAcpAgent(slug: string, agentId: string): void
+  /** Record which worker surface this thread's contract taught it — see SessionRow.worker_surface. */
+  setWorkerSurface(slug: string, surface: "cli"): void
   setProfile(slug: string, model: string, effort: string): void
   setPermissionMode(slug: string, permissionMode: string): void
   setPermissionPending(slug: string, permissionMode: string | null): void
@@ -1297,6 +1367,9 @@ export const STORAGE_SCHEMA = `
       acp_agent TEXT,
       -- When the thread last entered the queue (queue-clock.ts); also in the ALTER list below.
       queued_at TEXT,
+      -- 'cli' = this thread's contract taught the frizzctl command line; NULL = it predates that and
+      -- was taught the MCP tools (SessionRow.worker_surface). Also in the ALTER list below.
+      worker_surface TEXT,
       -- THE RECURRING PROMPT (scheduler.ts SOURCES 4, 5 and 7): one text, three independent triggers —
       -- every time the thread rests, every N ms on a clock, and/or every time its context is compacted.
       -- All flags 0 = off; there is no separate enable column, because another flag could only ever
@@ -1475,6 +1548,32 @@ export const STORAGE_SCHEMA = `
       ON pr_watch(project_id, state);
     CREATE INDEX IF NOT EXISTS pr_watch_slug
       ON pr_watch(project_id, thread_slug, state, created_at);
+    -- A worker's registered COMMAND WATCHES (2026-10-11, \`frizzctl watch-command\`): a shell command the
+    -- SERVER re-runs every every_ms until it exits 0, so a wait on an outside condition holds nothing in
+    -- the thread's own process tree and the thread can hibernate under it. One-shot like a timer: the
+    -- first pass settles the row ('passed') and wakes the thread once. expires_at is REQUIRED, chosen by
+    -- the worker and capped at a week. The last_* columns are the most recent check, so the read-back and
+    -- the expiry wake can say why it has not passed.
+    CREATE TABLE IF NOT EXISTS command_watch (
+      id           TEXT PRIMARY KEY,
+      project_id   TEXT NOT NULL,
+      thread_slug  TEXT NOT NULL,
+      command      TEXT NOT NULL,
+      every_ms     INTEGER NOT NULL,
+      state        TEXT NOT NULL CHECK (state IN ('armed', 'dropped', 'passed', 'expired', 'cancelled')),
+      created_at   INTEGER NOT NULL,
+      expires_at   INTEGER NOT NULL,
+      settled_at   INTEGER,
+      runs         INTEGER NOT NULL DEFAULT 0,
+      last_run_at  INTEGER,
+      last_outcome TEXT,
+      last_exit    INTEGER,
+      last_output  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS command_watch_armed
+      ON command_watch(project_id, state, expires_at);
+    CREATE INDEX IF NOT EXISTS command_watch_slug
+      ON command_watch(project_id, thread_slug, state, created_at);
     -- Saved destinations have no liveness or expiry. The label is a stable slot within one thread.
     -- A SPINOFF (2026-09-29): the human asked for a NEW thread from this one ("fix this", "investigate
     -- perf"). The row is the request, and the link it becomes: Frizz starts the child itself (router.ts
@@ -1723,7 +1822,7 @@ export const STORAGE_SCHEMA = `
 export const STORAGE_TABLES = [
   "session", "settings", "tombstone", "adoption_claim", "adoption_retired_attempt", "retired_op",
   "thread_timer", "pr_watch", "thread_watch", "thread_question", "thread_done", "subagent_steer", "thread_link",
-  "thread_terminal", "shell_budget", "thread_spinoff", "thread_schedule", "thread_schedule_run",
+  "thread_terminal", "shell_budget", "thread_spinoff", "thread_schedule", "thread_schedule_run", "command_watch",
 ] as const
 
 /** Idempotent; run by every createStorage and by frizz-db.ts before an import. */
@@ -1758,6 +1857,8 @@ export function ensureStorageSchema(db: Database): void {
     "held_by TEXT",
     // 2026-10-06: the thread's time limit (SessionRow.deadline_*; ARCHITECTURE.md § Time limits).
     "deadline_at TEXT", "deadline_set_at TEXT", "deadline_set_by TEXT", "deadline_stage TEXT",
+    // 2026-10-11 (upstream): which worker surface a thread's contract taught it (SessionRow.worker_surface).
+    "worker_surface TEXT",
   ]) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${column}`)
@@ -2544,6 +2645,44 @@ export function createStorage(source: string | Database, projectId: string): Sto
   const delSpinoffs = scope.prepare("DELETE FROM thread_spinoff WHERE project_id = @project_id AND parent_slug = ?")
   // The CHILD end of a forgotten thread's edges — see forgetOwnedRow.
   const delChildSpinoffs = scope.prepare(`DELETE FROM thread_spinoff WHERE ${CHILD_HERE} AND child_slug = ?`)
+  const armCommandWatchStmt = scope.prepare<{
+    id: string; slug: string; command: string; everyMs: number; createdAtMs: number; expiresAtMs: number
+    runs: number; lastRunAt: number | null; lastOutcome: string | null; lastExit: number | null; lastOutput: string | null
+  }, CommandWatchRow>(`
+    INSERT INTO command_watch (project_id, id, thread_slug, command, every_ms, state, created_at, expires_at, settled_at,
+                               runs, last_run_at, last_outcome, last_exit, last_output)
+    VALUES (@project_id, @id, @slug, @command, @everyMs, 'armed', @createdAtMs, @expiresAtMs, NULL,
+            @runs, @lastRunAt, @lastOutcome, @lastExit, @lastOutput)
+    RETURNING *
+  `)
+  const commandWatchesBySlugStmt = scope.prepare<[string], CommandWatchRow>(
+    "SELECT * FROM command_watch WHERE project_id = @project_id AND thread_slug = ? ORDER BY created_at, id",
+  )
+  const armedCommandWatchesBySlugStmt = scope.prepare<[string], CommandWatchRow>(
+    "SELECT * FROM command_watch WHERE project_id = @project_id AND thread_slug = ? AND state = 'armed' ORDER BY created_at, id",
+  )
+  const commandWatchByIdStmt = scope.prepare<[string], CommandWatchRow>(
+    "SELECT * FROM command_watch WHERE project_id = @project_id AND id = ?",
+  )
+  const armedCommandWatchesStmt = scope.prepare<[], CommandWatchRow>(
+    "SELECT * FROM command_watch WHERE project_id = @project_id AND state = 'armed' ORDER BY created_at, id",
+  )
+  const expiredCommandWatchesStmt = scope.prepare<[number], CommandWatchRow>(
+    "SELECT * FROM command_watch WHERE project_id = @project_id AND state = 'armed' AND expires_at <= ? ORDER BY expires_at, id",
+  )
+  const recordCommandWatchRunStmt = scope.prepare(`
+    UPDATE command_watch SET runs = runs + 1, last_run_at = ?, last_outcome = ?, last_exit = ?, last_output = ?
+    WHERE project_id = @project_id AND id = ? AND state = 'armed'
+  `)
+  const dropCommandWatchStmt = scope.prepare(`
+    UPDATE command_watch SET state = 'dropped', settled_at = ?
+    WHERE project_id = @project_id AND id = ? AND thread_slug = ? AND state = 'armed'
+  `)
+  const settleCommandWatchStmt = scope.prepare(`
+    UPDATE command_watch SET state = ?, settled_at = ?
+    WHERE project_id = @project_id AND id = ? AND state = 'armed'
+  `)
+  const delCommandWatches = scope.prepare("DELETE FROM command_watch WHERE project_id = @project_id AND thread_slug = ?")
   const upsertThreadLinkStmt = scope.prepare<{
     id: string; slug: string; kind: "link" | "file"; label: string; target: string; createdAtMs: number
   }, ThreadLinkRow>(`
@@ -2778,7 +2917,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     UPDATE session SET status_at = CASE WHEN status IS ? THEN status_at ELSE ? END, status = ?
     WHERE project_id = @project_id AND slug = ? AND session_id = ?
   `)
-  // The WORKER's own considered name for its thread, from `mcp__frizz__title`. Writes exactly what the
+  // The WORKER's own considered name for its thread, from `frizzctl title`. Writes exactly what the
   // auto-title CAS writes — the text plus `title_agent = 1`, gated on the LOCK so a human rename always
   // outranks it — but keyed on the SLUG alone. The caller is the live worker's own MCP server, which
   // knows the slug frizz stamped into its env and nothing about the session id underneath it; that env
@@ -2835,6 +2974,9 @@ export function createStorage(source: string | Database, projectId: string): Sto
     // And its PR watchers, for the same reason: a watcher on a thread that no longer exists has nothing
     // to wake, and the scheduler polls every armed row.
     delPrWatches.run(existing.slug)
+    // Its command watches too — and here the cost of leaving one is not a poll but a SHELL COMMAND the
+    // server would keep running for a thread nobody can be woken for.
+    delCommandWatches.run(existing.slug)
     delThreadWatches.run(existing.slug)
     delShellBudgets.run(existing.slug)
     delThreadLinks.run(existing.slug)
@@ -2897,6 +3039,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
   const forkAnchorStmt = scope.prepare("UPDATE session SET fork_anchor = ? WHERE project_id = @project_id AND slug = ? AND session_id = ?")
   const heldPromptStmt = scope.prepare("UPDATE session SET lazy_prompt = ? WHERE project_id = @project_id AND slug = ? AND session_id = ? AND held_by IS NOT NULL")
   const acpAgentStmt = scope.prepare("UPDATE session SET acp_agent = ? WHERE project_id = @project_id AND slug = ?")
+  const workerSurfaceStmt = scope.prepare("UPDATE session SET worker_surface = ? WHERE project_id = @project_id AND slug = ?")
   // Stamps profile_set_at alongside model/effort: the OPERATOR's set-time. Both backends' setThreadProfile
   // paths write through here, and the stamp is what marks the pair as CHOSEN rather than observed — the
   // board reads it to keep the composer selector on the pick (resolveSessionProfile), and the observed
@@ -3066,6 +3209,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     lazy_prompt: row.lazy_prompt ?? null,
     held_by: row.held_by ?? null,
     schedule_id: row.schedule_id ?? null,
+    worker_surface: row.worker_surface ?? null,
   })
 
   const getAdoptionRuntimeSnapshot = db.transaction((slug: string) => ({
@@ -3486,6 +3630,30 @@ export function createStorage(source: string | Database, projectId: string): Sto
       return bySlug
     },
     spinoffsOf: (parentSlug) => spinoffsOfStmt.all(parentSlug),
+    armCommandWatch: (watch) =>
+      armCommandWatchStmt.get({
+        id: watch.id,
+        slug: watch.slug,
+        command: watch.command,
+        everyMs: watch.everyMs,
+        createdAtMs: watch.createdAtMs,
+        expiresAtMs: watch.expiresAtMs,
+        runs: watch.firstRun ? 1 : 0,
+        lastRunAt: watch.firstRun?.atMs ?? null,
+        lastOutcome: watch.firstRun?.outcome ?? null,
+        lastExit: watch.firstRun?.exitCode ?? null,
+        lastOutput: watch.firstRun?.output ?? null,
+      })!,
+    listCommandWatches: (slug, opts) =>
+      (opts?.armedOnly ? armedCommandWatchesBySlugStmt : commandWatchesBySlugStmt).all(slug),
+    armedCommandWatchesBySlug: () => groupBySlug(armedCommandWatchesStmt.all()),
+    getCommandWatch: (id) => commandWatchByIdStmt.get(id),
+    armedCommandWatches: () => armedCommandWatchesStmt.all(),
+    expiredCommandWatches: (nowMs) => expiredCommandWatchesStmt.all(nowMs),
+    recordCommandWatchRun: (id, run) =>
+      recordCommandWatchRunStmt.run(run.atMs, run.outcome, run.exitCode, run.output, id).changes === 1,
+    dropCommandWatch: (slug, id, settledAtMs) => dropCommandWatchStmt.run(settledAtMs, id, slug).changes === 1,
+    settleCommandWatch: (id, state, settledAtMs) => settleCommandWatchStmt.run(state, settledAtMs, id).changes === 1,
     upsertThreadLink: (link) => upsertThreadLinkStmt.get(link)!,
     listThreadLinks: (slug) => threadLinksBySlugStmt.all(slug),
     threadLinksBySlug: () => groupBySlug(threadLinksStmt.all()),
@@ -3619,6 +3787,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     clearDeadline: (slug) => clearDeadlineStmt.run(slug).changes === 1,
     markDeadlineStage: (slug, setAt, stage) => markDeadlineStageStmt.run(stage, slug, setAt).changes === 1,
     setAcpAgent: (slug, agentId) => void acpAgentStmt.run(agentId, slug),
+    setWorkerSurface: (slug, surface) => void workerSurfaceStmt.run(surface, slug),
     setProfile: (slug, model, effort) => void profileStmt.run(model, effort, new Date().toISOString(), slug),
     setPermissionMode: (slug, permissionMode) => void permissionModeStmt.run(permissionMode, new Date().toISOString(), slug),
     setPermissionPending: (slug, permissionMode) => void permissionPendingStmt.run(permissionMode, slug),

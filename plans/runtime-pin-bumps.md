@@ -51,9 +51,9 @@ A version gate proves Frizz is talking to the right binary. It says nothing abou
 
 If it fails, the vendor moved the format and the parser — `parseCodexLine` in [`codex.ts`](../packages/server/src/backend/codex.ts), `applyRecord` in [`tailer.ts`](../packages/server/src/tailer.ts) — is what has to change. Capture a redacted rollout into `codex.fixtures/` alongside the existing ones as the regression pin, the way `multi-agent-0153.jsonl` records the last such move.
 
-## Then cut a release — a pin nobody can install is not a bump
+## Then the releaser ships it — a pin nobody can install is not a bump
 
-The point of a pin is the binary a user runs. The selected `frizz-server` generation owns the provider pins; updating that server brings the new private runtimes without changing the stable launcher or global provider installations. A pin that lands on `main` alone remains unpublished. Finish the authorized release job (maintainer, 2026-09-07: *"once you bump these versions and test them end to end, you should cut a new release as well"*).
+The point of a pin is the binary a user runs. The selected `frizz-server` generation owns the provider pins; updating that server brings the new private runtimes without changing the stable launcher or global provider installations. A pin that lands on `main` alone remains unpublished — and publishing it is the dedicated releaser thread's job, not the bump's. Land the tested pin on `main` and stop there: do not bump a package version or dispatch the workflow, and do not offer to (maintainer 2026-10-11, superseding 2026-09-07's *"you should cut a new release as well"*; see `AGENTS.md` § Cutting a release). The sequence below is the releaser's.
 
 ### Releases publish from the `release` branch, not from main
 

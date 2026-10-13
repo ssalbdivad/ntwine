@@ -60,7 +60,7 @@
 import { createRoot } from "react-dom/client"
 import type { ReactNode } from "react"
 import {
-  Archive, ArrowUpRight, Bell, Check, ChevronRight, Clock, Copy, Ellipsis, FileText, Github, Hourglass,
+  Archive, ArrowUpRight, Bell, Check, ChevronRight, Clock, Ellipsis, FileText, Github, Hourglass,
   Image as ImageIcon, Info, Paperclip, Pencil, Plus, RotateCcw, Settings as SettingsIcon, Sparkles,
   SquareTerminal, Timer, Type as TypeIcon, Wrench, X, Zap,
 } from "lucide-react"
@@ -723,8 +723,6 @@ function ActionsScreen() {
 
             <Group>
               <Row icon={<Pencil size={16} className="text-muted" />} label="Rename thread" />
-              <RowRule inset={53} />
-              <Row icon={<Copy size={16} className="text-muted" />} label="Copy resume command" detail="Open this session in your own terminal" />
               <RowRule inset={53} />
               <Row icon={<FileText size={16} className="text-muted" />} label="Frizz document" chevron />
               <RowRule inset={53} />

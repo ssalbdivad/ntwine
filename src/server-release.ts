@@ -7,6 +7,7 @@ import {
 import { tmpdir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { frizzPaths } from "@frizz/server/frizz-paths";
+import { compareReleaseVersions } from "./production-update.ts";
 
 /** Bump the data epoch BEFORE introducing writes an older server cannot safely read. */
 export const SERVER_PROTOCOL = 1;
@@ -69,6 +70,30 @@ export function serverReleaseSpec(manifest: unknown, packageOverride?: string): 
   } as ServerReleaseSpec;
   assertSpec(spec);
   return spec;
+}
+
+/**
+ * The oldest server release this shell works with, when it declares one (`frizzServer.minimum`).
+ *
+ * `version` is where a machine with no server starts. It says nothing about a machine that already
+ * has one: the shell is fetched fresh by every `npx frizz` while the server moves only on Update, so
+ * a new shell on a server several releases old is the ordinary pairing, not a rare one. A shell that
+ * depends on something the server learned in a particular release names that release here, and the
+ * store starts such a machine on the pinned release instead (ServerReleaseStore.load).
+ *
+ * The first use is 0.15.21: from 0.13.13 the shell hosts every launch outside a project on Frizz's
+ * own folder (launcher.ts hostWorkspace), and an older server lists that folder on the dashboard as
+ * a project named "host" (project-registry.ts registerProject learned to refuse it in 49000c91).
+ */
+export function serverReleaseMinimum(manifest: unknown): string | undefined {
+  const metadata = record(record(manifest).frizzServer);
+  const minimum = metadata.minimum;
+  if (minimum === undefined) return undefined;
+  if (typeof minimum !== "string" || !VERSION.test(minimum)) throw new Error("invalid minimum Frizz server version");
+  // The pinned release is what a machine below the minimum is started on, so it has to satisfy it.
+  const order = typeof metadata.version === "string" ? compareReleaseVersions(metadata.version, minimum) : null;
+  if (order === null || order < 0) throw new Error("the pinned Frizz server is older than the minimum this launcher declares");
+  return minimum;
 }
 
 function containedFile(root: string, name: string, directory = false): string {
@@ -232,6 +257,8 @@ export class ServerReleaseStore {
     private installer: ServerPackageInstaller,
     private roots = frizzPaths(),
     readonly compatibility: ServerCompatibility = CURRENT_COMPATIBILITY,
+    /** The oldest release this shell works with; see serverReleaseMinimum. */
+    readonly minimum?: string,
   ) {
     assertSpec(spec, compatibility);
     const key = createHash("sha256").update(spec.package).digest("hex").slice(0, 16);
@@ -282,6 +309,19 @@ export class ServerReleaseStore {
     return generation;
   }
 
+  /**
+   * The selected release, when it is older than this shell works with: `load` will start the pinned
+   * one instead. Undefined for a machine with no selection, an unreadable one (`load` reports that),
+   * and any selection at or above the minimum.
+   */
+  belowMinimum(): { selected: string; minimum: string; pinned: string } | undefined {
+    if (this.minimum === undefined || !existsSync(this.selection)) return undefined;
+    let selected: unknown;
+    try { selected = record(readJson(this.selection)).version; } catch { return undefined; }
+    if (typeof selected !== "string" || compareReleaseVersions(selected, this.minimum) !== -1) return undefined;
+    return { selected, minimum: this.minimum, pinned: this.spec.version };
+  }
+
   async load(): Promise<ServerGeneration> {
     this.assertMarkerIsSupported();
     if (!existsSync(this.selection)) return this.prepareInitial(this.spec.version);
@@ -297,6 +337,11 @@ export class ServerReleaseStore {
     if (spec.dataEpoch < this.compatibility.dataEpoch) return this.prepareInitial(this.spec.version);
     if (spec.dataEpoch > this.compatibility.dataEpoch)
       throw new Error("this Frizz server requires a newer launcher or a data migration; restart with a compatible Frizz release");
+    // Older than this shell works with: start on the pinned release, as a machine with no selection
+    // does. The caller commits it only once it is up, so a release that cannot boot leaves the old
+    // selection in place — and nothing here runs while a server is serving, because `load` is the
+    // cold start. Never the other way: a selection NEWER than the pin is what Update is for.
+    if (this.belowMinimum()) return this.prepareInitial(this.spec.version);
     const root = this.packageRoot(selected.id);
     // Cache eviction is recoverable, but only by reinstalling the EXACT committed release.
     const generation = !existsSync(root)

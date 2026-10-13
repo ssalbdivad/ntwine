@@ -20,11 +20,8 @@ test("no icon in a rail row moves between rest and hover, in either app font", {
   skip: !baseUrl,
   timeout: 120_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--force-color-profile=srgb"],
-  })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   // The bare fixture page serves no favicon; every other missing resource still fails the test.

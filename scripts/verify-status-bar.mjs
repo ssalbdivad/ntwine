@@ -4,7 +4,7 @@
 import { mkdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:4941/status-bar-fixture.html"
 const OUT = join(tmpdir(), "frizz-statusbar")
@@ -14,7 +14,7 @@ const results = []
 const fail = (m) => { console.log("FAIL:", m); results.push(false) }
 const pass = (m) => { console.log("pass:", m); results.push(true) }
 
-const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+const browser = await launchHeadless()
 try {
   const page = await browser.newPage()
 

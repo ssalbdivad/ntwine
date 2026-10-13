@@ -30,8 +30,8 @@ let errors: string[] = []
 
 before(async () => {
   if (!baseUrl) return
-  const { default: puppeteer } = await import("puppeteer")
-  browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  browser = await launchHeadless()
   page = await browser.newPage()
   page.setDefaultTimeout(60_000)
   await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 })

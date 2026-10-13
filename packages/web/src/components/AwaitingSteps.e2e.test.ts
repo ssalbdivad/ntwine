@@ -16,9 +16,11 @@ const baseUrl = process.env.FRIZZ_AWAITING_STEPS_E2E_URL
 //   1. The card states the steps in order, as markdown, under a "Awaiting human" chip and the worker's heading
 //      (the chip alone when the worker named none), ruled off from the body — in the paragraph's own
 //      colour, every item on the same line height whether or not it carries a command — with Done as its
-//      only control: no Snooze, no second verb, no text box of its own (anything else the human has to
+//      only verb: no Snooze, no second verb, no text box of its own (anything else the human has to
 //      say goes through the prompt box like any steer).
-//   2. Done sends ONE ordinary reply, the word itself, bound to the thread's session, and the card
+//   2. Each step is a checkbox on a stepper (2026-10-12): a tick marks it done and moves the accent to
+//      the next step, survives a reload, and a second click unticks it. Nothing is sent.
+//   3. Done sends ONE ordinary reply, the word itself, bound to the thread's session, and the card
 //      leaves the queue.
 
 const CARD = "[data-awaiting-background]"
@@ -29,8 +31,8 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
   skip: !baseUrl,
   timeout: 120_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const errors: string[] = []
   try {
     const page = await browser.newPage()
@@ -66,12 +68,13 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
         order: [top("[data-card-chip]"), top("[data-card-title]"), top("[data-card-rule]"), top(".card-md")],
         proseColour: getComputedStyle(el.querySelector(".card-md p") as Element).color,
         stepColour: getComputedStyle(el.querySelector("[data-awaiting-steps] li") as Element).color,
-        stepHeights: [...el.querySelectorAll("[data-awaiting-steps] li")].map((li) => li.getBoundingClientRect().height),
-        steps: [...el.querySelectorAll("[data-awaiting-steps] li")].map((li) => (li as HTMLElement).innerText.trim()),
+        stepHeights: [...el.querySelectorAll("[data-awaiting-steps] .frizz-step-text")].map((t) => t.getBoundingClientRect().height),
+        steps: [...el.querySelectorAll("[data-awaiting-steps] .frizz-step-text")].map((t) => (t as HTMLElement).innerText.trim()),
         code: [...el.querySelectorAll("[data-awaiting-steps] li code")].map((c) => c.textContent),
         strong: [...el.querySelectorAll("[data-awaiting-steps] li strong")].map((c) => c.textContent),
         snooze: !!el.querySelector("[data-awaiting-snooze]"),
-        buttons: [...el.querySelectorAll("button")].map((b) => (b as HTMLElement).innerText.trim()),
+        buttons: [...el.querySelectorAll("button:not([role=checkbox])")].map((b) => (b as HTMLElement).innerText.trim()),
+        ticks: [...el.querySelectorAll("[data-awaiting-steps] button[role=checkbox]")].map((b) => b.getAttribute("aria-label")),
         textBoxes: el.querySelectorAll("textarea, input").length,
       }
     })
@@ -91,9 +94,34 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
     assert.deepEqual(card.strong, ["acme-bot"])
     assert.equal(card.snooze, false, "the reader is the wait, so there is nothing to snooze until")
     assert.deepEqual(card.buttons, ["Done"], "one verb — a failed step is the human's own message, in the prompt box")
+    assert.deepEqual(card.ticks, ["Step 1", "Step 2", "Step 3"], "every step is a checkbox the reader ticks")
     assert.equal(card.textBoxes, 0, "and no text box of the card's own beside the prompt box")
 
-    // ---- 2. Done: one ordinary reply, then the card leaves the queue ----
+    // ---- 2. the stepper: a tick marks the step done and moves the accent to the next one, and it
+    //         survives a reload, because the reader is halfway through a sign-in ----
+    const stepper = () => page.$$eval("[data-awaiting-steps] .frizz-step", (lis) => lis.map((li) => ({
+      state: li.getAttribute("data-step-state"),
+      checked: li.querySelector("button[role=checkbox]")?.getAttribute("aria-checked"),
+    })))
+    assert.deepEqual((await stepper()).map((s) => s.state), ["next", "todo", "todo"], "the first step is the one to do")
+    await page.click("[data-awaiting-steps] .frizz-step:nth-child(1) button[role=checkbox]")
+    await page.waitForFunction(() => document.querySelector("[data-awaiting-steps] .frizz-step")?.getAttribute("data-step-state") === "done")
+    assert.deepEqual(await stepper(), [{ state: "done", checked: "true" }, { state: "next", checked: "false" }, { state: "todo", checked: "false" }])
+    await page.reload({ waitUntil: "networkidle0" })
+    await page.waitForSelector(`${CARD} [data-awaiting-steps] li`)
+    assert.deepEqual((await stepper()).map((s) => s.state), ["done", "next", "todo"], "the tick outlives a reload")
+    await page.click("[data-awaiting-steps] .frizz-step:nth-child(1) button[role=checkbox]")
+    await page.waitForFunction(() => document.querySelector("[data-awaiting-steps] .frizz-step")?.getAttribute("data-step-state") === "next")
+    assert.deepEqual((await stepper()).map((s) => s.state), ["next", "todo", "todo"], "and a second click unticks it")
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("frizz-steps-ticked:")).length), 0, "an unticked list leaves nothing behind")
+    await page.evaluate(() => {
+      ;(window as unknown as { __rpc: unknown[] }).__rpc = []
+      window.addEventListener("fixture-rpc", (e) => {
+        ;(window as unknown as { __rpc: unknown[] }).__rpc.push((e as CustomEvent).detail)
+      })
+    })
+
+    // ---- 3. Done: one ordinary reply, then the card leaves the queue ----
     await page.click("[data-steps-done]")
     await page.waitForFunction(() => (window as unknown as { __rpc: Sent[] }).__rpc.some((c) => c.rpc === "followUp"), { timeout: 10_000 })
     const replies = await page.evaluate(() => (window as unknown as { __rpc: Sent[] }).__rpc.filter((c) => c.rpc === "followUp"))

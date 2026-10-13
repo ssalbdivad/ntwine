@@ -19,15 +19,28 @@ the bug.
 This is not a style note. It was a real, repeated complaint (maintainer 2026-07-28: *"it keeps opening
 tabs in my actual real Chrome"*), and the cause was a skill file recommending the MCP first.
 
-**A raw Chrome command carries `--use-mock-keychain`.** `shot.mjs` and the MCP pass it already. If you start `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless` yourself, or write a prompt that tells a worker to, add the flag: without it, a Chrome under a temporary `HOME` (every sandbox) makes macOS put a modal "Keychain Not Found" dialog on the maintainer's screen. AGENTS.md § Never put a macOS keychain dialog on the maintainer's screen has the rest.
+## NEVER the maintainer's real Chrome — one launcher, one browser
+
+**Every browser you start comes from `launchHeadless()` in `scripts/lib/headless-browser.mjs`.** It launches puppeteer's own `chrome-headless-shell` on a temp profile: no window, no Dock tile, dark by default, and never the installed Google Chrome. `shot.mjs`, the `verify-*` scripts and the e2e tests all go through it. So does a driver you write yourself:
+
+```js
+import { launchHeadless } from "/abs/path/to/frizz/scripts/lib/headless-browser.mjs"
+
+const browser = await launchHeadless() // or { protocolTimeout: 30_000, args: ["--disable-gpu"], colorScheme: "light" }
+```
+
+**Do not call `puppeteer.launch`, and do not name `/Applications/Google Chrome.app` in a command, a script or a prompt** — not headless, not on a throwaway profile. AGENTS.md § Agents never touch the maintainer's real Chrome has the reason (that binary is the one program that can silently unlock the real profile's cookies) and what enforces it. `headless: "new"` is also out: it runs the full "Google Chrome for Testing.app", which flickers the Dock on every launch (187 times in 40 minutes on 2026-10-11, from scratch drivers copying that one line).
+
+**A raw command line carries `--use-mock-keychain`.** The launcher and the MCP pass it already. If you build a command around the headless shell yourself (`await puppeteer.executablePath({ headless: "shell" })` is its path), or write a prompt that tells a worker to, add the flag: without it, a Chromium under a temporary `HOME` (every sandbox) makes macOS put a modal "Keychain Not Found" dialog on the maintainer's screen. AGENTS.md § Never put a macOS keychain dialog on the maintainer's screen has the rest.
 
 ---
 
 ## 1. The default: `scripts/shot.mjs` (puppeteer)
 
-`shot.mjs` launches its **own isolated headless Chrome** every run — a fresh
-`puppeteer_dev_chrome_profile-*` temp dir, no shared profile, no collision, no window. It works in the
-background unconditionally and cannot disturb the maintainer. It screenshots and runs an in-page
+`shot.mjs` launches its **own isolated headless shell** every run, through `launchHeadless()` — a fresh
+`puppeteer_dev_chrome_profile-*` temp dir, no shared profile, no collision, no window, no Dock tile. It
+works in the background unconditionally and cannot disturb the maintainer. The page sees a DARK system
+(what the maintainer's eye sees); a light-mode shot sets the app's theme or emulates the scheme per page. It screenshots and runs an in-page
 `evaluate` in one shot, and prints any page/console errors. This is the workhorse for "prove it renders",
 responsive checks, and optical review.
 
@@ -75,11 +88,17 @@ photograph it.
 > profile at `~/.cache/chrome-devtools-mcp/chrome-profile`. Shared-profile collisions then fail every
 > `new_page` with *"The browser is already running … Use --isolated"*.
 >
-> This repo pins both off in its own `.mcp.json` (`--headless --isolated`, on a pinned version) and disables
-> the argument-less plugin build in `.claude/settings.json`, because `enabledPlugins` accepts no flags and so
-> can only ever run headful. **Do not re-enable that plugin, and do not launch `chrome-devtools-mcp` by hand
-> without both flags.** If the MCP is unavailable or collides anyway, fall straight to `shot.mjs` — don't
-> fight it.
+> A third is worse than both: with no `--executablePath` it launches puppeteer's `chrome` channel, which is
+> the **installed Google Chrome** — the maintainer's real browser binary (48 such launches in half an hour
+> on 2026-10-11). `--autoConnect` and `--browserUrl` go further and attach to the one already running.
+>
+> This repo runs the server through `scripts/chrome-devtools-mcp.mjs` from both `.mcp.json` and
+> `.codex/config.toml`. The wrapper pins the version, passes `--headless --isolated`, and hands the server
+> puppeteer's `chrome-headless-shell`; with none in the cache it exits rather than fall back to the installed
+> Chrome. `.claude/settings.json` disables the argument-less plugin build, because `enabledPlugins` accepts
+> no flags and so can only ever run headful, on the real Chrome. **Do not re-enable that plugin, and do not
+> launch `chrome-devtools-mcp` any other way than through the wrapper.** If the MCP is unavailable or
+> collides anyway, fall straight to `shot.mjs` — don't fight it.
 >
 > **The `.mcp.json` is where the browser comes from — Frizz does not supply one.** Frizz mounted
 > chrome-devtools into every worker it dispatched, on both backends, until 2026-08-26; it now injects only
@@ -87,7 +106,7 @@ photograph it.
 > `enabledMcpjsonServers` in `.claude/settings.json`), and a worker dispatched in a repo that configures
 > nothing has no browser at all. Anyone who wants one elsewhere adds it themselves — a project `.mcp.json`,
 > or `claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@<version> --headless
-> --isolated`.
+> --isolated --executablePath=<a chrome-headless-shell>`. Without that last flag it is the installed Chrome.
 
 **Removing an injected style: hold the handle.** `page.addStyleTag()` returns an ElementHandle — remove
 THAT (`await tag.evaluate((el) => el.remove())`). Never sweep `querySelectorAll("style")` matching on
@@ -115,9 +134,11 @@ identity, and you clean up only YOUR identity.
 
 ---
 
-## 3b. A sleeping display stops every headless frame
+## 3b. A sleeping display stops every "new" headless frame
 
-**While the Mac's display is asleep, headless Chrome draws nothing, and nothing says so.** Script calls keep answering (`page.evaluate`, DOM queries, computed styles), so the page looks alive. Everything that waits for a FRAME waits forever: `requestAnimationFrame`, an `IntersectionObserver`'s first callback, `waitForSelector` with `visible: true` (puppeteer polls a visibility wait on animation frames), `page.click()` (puppeteer first scrolls the target into view through an IntersectionObserver), and every screenshot. Puppeteer then reports `Runtime.callFunctionOn timed out` or a bare `TimeoutError`, which reads like a hung page. It is the whole browser, not the page: a fresh tab on a blank `data:` page stalls too.
+**This is a property of full Chrome's "new" headless, which nothing here launches any more.** `launchHeadless()` and the MCP wrapper both run `chrome-headless-shell`, which kept drawing with the display asleep (6 of 6 runs on 2026-10-05, measured through `PUPPETEER_EXECUTABLE_PATH` before it became the default). The shell has not been re-measured through a long display sleep since the switch on 2026-10-11, so the diagnosis below stays: if a run stalls on frames, check the display first.
+
+**While the Mac's display is asleep, new-headless Chrome draws nothing, and nothing says so.** Script calls keep answering (`page.evaluate`, DOM queries, computed styles), so the page looks alive. Everything that waits for a FRAME waits forever: `requestAnimationFrame`, an `IntersectionObserver`'s first callback, `waitForSelector` with `visible: true` (puppeteer polls a visibility wait on animation frames), `page.click()` (puppeteer first scrolls the target into view through an IntersectionObserver), and every screenshot. Puppeteer then reports `Runtime.callFunctionOn timed out` or a bare `TimeoutError`, which reads like a hung page. It is the whole browser, not the page: a fresh tab on a blank `data:` page stalls too.
 
 Measured 2026-10-05 on this machine (Apple M1 Max, Chrome compositing on ANGLE Metal with Skia Graphite). Six runs of a published-package e2e between 17:11 and 17:58 stalled, and every stall began inside a display-off window in `pmset -g log` (off at 17:05:56, on at 17:57:19). One stuck screenshot completed at 17:22:43, the exact second of a 16-second wake. The next two runs, with the display on, passed with GPU compositing on and with `--disable-gpu`; `--disable-gpu` has not been run with the display asleep. A new browser draws normally for its first one to three seconds, so a quick smoke test passes while a longer run stalls.
 

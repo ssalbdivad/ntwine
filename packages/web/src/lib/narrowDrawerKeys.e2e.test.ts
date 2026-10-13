@@ -33,8 +33,8 @@ test("plain keys reach an open thread drawer at every width, and a real dialog o
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const errors: string[] = []
   try {
     for (const width of [1200, 700]) {

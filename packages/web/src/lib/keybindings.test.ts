@@ -32,7 +32,6 @@ test("the default keys are the ones the sheet promises", () => {
     [key({ key: "c", code: "KeyC" }), "app.newThread"],
     [key({ key: "t", code: "KeyT" }), "thread.terminal"],
     [key({ key: "e", code: "KeyE" }), "thread.editor"],
-    [key({ key: "y", code: "KeyY" }), "thread.copyCommand"],
     [key({ key: "m", code: "KeyM" }), "thread.menu"],
     [key({ key: "n", code: "KeyN" }), "app.newProject"],
     [key({ key: "o", code: "KeyO" }), "thread.open"],
@@ -48,9 +47,9 @@ test("the default keys are the ones the sheet promises", () => {
 })
 
 // THE RULE (keybindings.ts header): a single-letter default is the initial of a word in its action's
-// label. These four break it on purpose — movement is placed by position, C is the web's compose and Y
-// is the terminal world's copy — and nothing else may, so a new action cannot quietly bring back a letter that has to be memorized.
-const NOT_AN_INITIAL = new Set(["queue.next", "queue.prev", "app.newThread", "thread.copyCommand"])
+// label. These three break it on purpose — movement is placed by position and C is the web's compose —
+// and nothing else may, so a new action cannot quietly bring back a letter that has to be memorized.
+const NOT_AN_INITIAL = new Set(["queue.next", "queue.prev", "app.newThread"])
 
 test("every single-letter default is its action's initial, bar the listed exceptions", () => {
   for (const action of ACTIONS) {

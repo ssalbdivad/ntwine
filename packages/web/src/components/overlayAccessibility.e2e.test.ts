@@ -19,7 +19,8 @@ import { MOBILE_MAX_PX } from "../lib/mobile.ts"
 // navigation (see the headless-browser skill). The app keeps working, but puppeteer's
 // requestAnimationFrame-polled waits never re-check, so a step whose state is already true times out
 // (measured 2026-10-05: 3 of 6 runs, the sheet already closed and the route already rewritten).
-// PUPPETEER_EXECUTABLE_PATH pointed at puppeteer's chrome-headless-shell keeps drawing (6 of 6).
+// puppeteer's chrome-headless-shell keeps drawing (6 of 6), and since 2026-10-11 it is the only browser
+// `launchHeadless()` starts.
 const baseUrl = process.env.FRIZZ_OVERLAY_E2E_URL
 const threadSlug = process.env.FRIZZ_OVERLAY_E2E_SLUG ?? "overlay-e2e"
 const nestedThreadSlug = process.env.FRIZZ_OVERLAY_E2E_NESTED_SLUG
@@ -61,8 +62,8 @@ test("Escape unwinds nested subagent drawers without dismissing their session", 
   skip: !baseUrl || !nestedThreadSlug,
   timeout: 90_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   try {
     const page = await browser.newPage()
     await page.evaluateOnNewDocument(installStoreHandle)
@@ -126,11 +127,8 @@ test("dialog portals, nested Select Escape, and thread sheets keep their keyboar
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--force-color-profile=srgb"],
-  })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   await page.evaluateOnNewDocument(installStoreHandle)
   await stubSupervisorStatus(page)

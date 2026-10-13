@@ -8,7 +8,7 @@ import { homedir, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { request } from "node:http"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { buildFrizzArtifact, defaultArtifactRoot, promoteFrizzArtifact } from "../src/artifacts.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
@@ -58,7 +58,7 @@ try {
   const api = createRpcClient(origin)
   await waitUntil(async () => { try { return await api.waitForHealth(500) } catch { return false } }, "waiting for promoted server")
   check("Promoted artifact serves the real UI", artifact.digest)
-  browser = await puppeteer.launch({ headless: true, executablePath: process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  browser = await launchHeadless()
   const page = await browser.newPage()
   const pageErrors = []
   page.on("pageerror", error => pageErrors.push(String(error)))

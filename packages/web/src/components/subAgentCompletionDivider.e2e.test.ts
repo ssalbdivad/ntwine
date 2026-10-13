@@ -20,8 +20,8 @@ test("a finished sub-agent draws the shell's wake divider, and every sub-agent t
   skip: !baseUrl,
   timeout: 120_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   // The bare fixture page serves no favicon, so Chrome logs a 404 whose console text carries no URL.

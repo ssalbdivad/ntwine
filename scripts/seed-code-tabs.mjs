@@ -109,7 +109,7 @@ const records = [
   ].join("\n")),
 ]
 
-// The card's body is REGISTERED (`mcp__frizz__done`), not written as a ```done fence: a signal fence
+// The card's body is REGISTERED (`frizzctl done`), not written as a ```done fence: a signal fence
 // ends at the first bare ``` line, so a code fence cannot be written inside one at all.
 const doneBody = [
   "Both entry points are written. Run the server with either runtime:",

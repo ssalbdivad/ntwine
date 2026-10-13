@@ -14,7 +14,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import puppeteer from "puppeteer"
+import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 import { resolveNpmCli } from "../src/server-release.ts"
 import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
@@ -175,7 +175,7 @@ try {
   assert.equal(owner.port, publicPort)
   evidence.cold = { ownerPid: owner.pid, npmExecPid: launcher.pid, status: before, owner, child: childBefore }
   assert.equal((await fetch(`${base}/_frizz/control/update-restart`, { method: "POST", headers: { origin: "https://example.invalid" } })).status, 403, "negative control: cross-origin update denied")
-  browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] })
+  browser = await launchHeadless()
   browserPid = browser.process()?.pid
   const page = await browser.newPage()
   page.on("pageerror", (error) => errors.push(`pageerror: ${error}`))

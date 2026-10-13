@@ -39,6 +39,21 @@ test("BoardStream takes the editor windows whole and leaves a compose ping to th
   store.editorWindows = []
 })
 
+// The one event that is not about the stream's own board: another tab reordered the rail (or renamed a
+// project, or added one), and this tab has to hear about it without a reload. It carries no seq, so it
+// must neither be sequenced against the board nor disturb the board's own sequence.
+test("BoardStream reports a changed project list without touching the board's sequence", () => {
+  let resyncs = 0
+  let changes = 0
+  const stream = new BoardStream(() => resyncs++, () => {}, () => changes++)
+
+  stream.handle({ type: "projects-changed" })
+  stream.handle({ type: "projects-changed" })
+
+  assert.equal(changes, 2)
+  assert.equal(resyncs, 0, "with no keyframe adopted, a board delta would resync here — this is not one")
+})
+
 // A DESKTOP NOTIFICATION IS CLICKED LATER — often much later, since it is only ever raised while the
 // window is hidden. By then the tab may be showing a different project, and `openThread` opens a slug
 // in whatever project is showing. Slugs are unique only WITHIN a project, so the click did not fail

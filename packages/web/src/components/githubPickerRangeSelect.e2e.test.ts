@@ -11,8 +11,8 @@ test("shift-clicking two rows in the GitHub picker selects every row in between,
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   const errors: string[] = []
   const notFound: string[] = []
@@ -134,8 +134,8 @@ test("a repo that fits on one page gets the totals line but no page controls", {
   skip: !baseUrl,
   timeout: 90_000,
 }, async () => {
-  const { default: puppeteer } = await import("puppeteer")
-  const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--force-color-profile=srgb"] })
+  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
+  const browser = await launchHeadless()
   const page = await browser.newPage()
   try {
     await page.setViewport({ width: 1100, height: 950, deviceScaleFactor: 1 })

@@ -12,6 +12,7 @@ Written 2026-08-08, after the singleton broke every non-launching project's friz
 - **The Reload plugins button and its RPC are gone**, since the thing they did by hand now happens.
 - **Verified** as the section below asks, with the control it insists on: `packages/server/src/backend/_live_plugin_sync.mts` against real claude 2.1.296 (a skill and a hook registration that exist only in the new version are live after a repoint, same daemon pid; with the sync off, neither is), and `scripts/verify-artifact-plugin-sync.mjs` on a built artifact across a server replacement.
 - **§0 still holds and is still the limit**: an MCP server is not re-spawned by any of this.
+- **Codex was never in this plan and has its own half.** A Codex thread has no plugin directory to repoint: it is rebuilt from the config bag of whichever `thread/resume` loads it, so the bridge now sends one whole bag with every resume and releases a thread between turns to make the resume rebuild it. `ARCHITECTURE.md` § Stable server updates has the rule, and `packages/server/src/backend/_live_codex_config_sync.mts` is the check. There §0 does not hold: a rebuilt Codex thread gets a new MCP child.
 
 ## 0. MEASURED 2026-08-08, before believing any of this
 

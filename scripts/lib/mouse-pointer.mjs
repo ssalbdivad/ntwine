@@ -7,4 +7,6 @@
 //
 // These Blink settings make the page a desktop with a mouse: hover-capable, fine pointer (Blink's
 // HoverType HOVER = 2, PointerType FINE = 4). Launch-time only — a browser you CONNECT to keeps its own.
-export const MOUSE_POINTER_ARG = "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4"
+// Pass `launchHeadless({ mouse: true })` (lib/headless-browser.mjs), which joins these with the colour
+// scheme into ONE `--blink-settings`: Chrome keeps only the last of a repeated switch.
+export const MOUSE_POINTER_SETTINGS = "primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4"
