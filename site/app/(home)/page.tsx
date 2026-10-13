@@ -90,7 +90,7 @@ export default function Home() {
           width={1760}
           height={1100}
           priority
-          alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with lettered options and a countdown to the recommended pick."
+          alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick."
         />
       </section>
 
@@ -130,7 +130,7 @@ export default function Home() {
       >
         <p>
           A worker keeps going until it reaches something only you can settle. Then it hands back a question with
-          lettered options and its own recommendation, and you answer with one keystroke.
+          numbered options and its own recommendation, and you answer with one keystroke.
         </p>
         <p>
           Threads waiting on their own sub-agents, on CI or on a review stay out of the queue, so nothing shows up just
