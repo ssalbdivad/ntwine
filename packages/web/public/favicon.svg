@@ -8,13 +8,13 @@
       <stop offset="1" stop-color="#0d0e10"/>
     </linearGradient>
     <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#e8b923" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#e8b923" stop-opacity="0"/>
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="ink" gradientUnits="userSpaceOnUse" cx="256" cy="256" r="250">
-      <stop offset="0" stop-color="#ffdf7f"/>
-      <stop offset="0.62" stop-color="#eabe2c"/>
-      <stop offset="1" stop-color="#cf9412"/>
+      <stop offset="0" stop-color="#87f1e0"/>
+      <stop offset="0.62" stop-color="#36d8c3"/>
+      <stop offset="1" stop-color="#11b29f"/>
     </radialGradient>
     <mask id="s0" maskUnits="userSpaceOnUse" x="-64" y="-64" width="640" height="640"><rect x="-64" y="-64" width="640" height="640" fill="#fff"/><path d="M350.2 384.3C349.8 381.5 349 373.1 347.4 367.8C345.8 362.5 343.5 357.3 340.6 352.6C337.7 347.8 333.9 343.5 330 339.6C326.2 335.6 321.8 332 317.4 328.6C313 325.2 308.3 322.1 303.7 319C299 315.9 294.3 312.9 289.5 310C284.8 307 280 304.1 275.2 301.2C270.5 298.4 265.6 295.5 260.8 292.7C256 289.8 248.8 285.6 246.4 284.1" fill="none" stroke="#000" stroke-width="86.69527896995709" stroke-linecap="butt"/></mask>
     <mask id="s1" maskUnits="userSpaceOnUse" x="-64" y="-64" width="640" height="640"><rect x="-64" y="-64" width="640" height="640" fill="#fff"/><path d="M149.3 309.6C150.7 307.2 154.2 299.5 157.4 294.9C160.6 290.3 164.5 286.2 168.5 282.2C172.4 278.2 176.7 274.6 181 271C185.4 267.5 189.9 264.1 194.5 260.8C199 257.6 203.7 254.4 208.4 251.3C213.1 248.2 217.8 245.2 222.6 242.3C227.3 239.3 232.1 236.4 237 233.5C241.8 230.6 246.6 227.8 251.4 224.9C256.3 222 263.5 217.7 265.9 216.3" fill="none" stroke="#000" stroke-width="86.69527896995709" stroke-linecap="butt"/></mask>

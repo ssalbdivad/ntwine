@@ -27,9 +27,9 @@ export function Mark({ className }: { className?: string }) {
     <svg ref={svg} viewBox={markViewBox} xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden>
       <defs>
         <radialGradient id="mark-ink" gradientUnits="userSpaceOnUse" cx="256" cy="256" r="250">
-          <stop offset="0" stopColor="#ffdf7f" />
-          <stop offset="0.62" stopColor="#eabe2c" />
-          <stop offset="1" stopColor="#cf9412" />
+          <stop offset="0" stopColor="#87f1e0" />
+          <stop offset="0.62" stopColor="#36d8c3" />
+          <stop offset="1" stopColor="#11b29f" />
         </radialGradient>
         {markCuts.map((cut, i) =>
           cut ? (
