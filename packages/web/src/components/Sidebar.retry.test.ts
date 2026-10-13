@@ -79,7 +79,7 @@ test("an exited-at-rest row (process gone, no done fence, not a crash) also gets
   assert.match(row({ runtime: "exited", crashed: false }), /data-sidebar-retry="stalled-thread"/)
 })
 
-// The stalled mark the operator looks for: the accent (yellow, #e8b923) checkbox around a bold "!".
+// The stalled mark the operator looks for: the accent (teal, #2dd4bf) checkbox around a bold "!".
 const STALLED_MARK = /border-accent\/90[\s\S]*?text-accent[^>]*>!</
 
 test("a usage-limit-HELD row gets the Retry button but keeps its HELD (hourglass) mark, not [!]", () => {

@@ -85,7 +85,7 @@ const declarations = (css: string) => Object.fromEntries([...css.matchAll(/(--[\
 test("the approved light palette keeps questions neutral and actions subtly outlined", () => {
   const css = readFileSync(new URL("../theme.css", import.meta.url), "utf8")
   const light = declarations(css.split(':root[data-theme="light"] {')[1]!.split("}")[0]!)
-  for (const [name, value] of Object.entries({ bg: "#f7f7f7", question: "#ffffff", "question-border": "#dcdcdc", accent: "#416896", selection: "#f1f5fa", "selection-border": "#7891ad" })) {
+  for (const [name, value] of Object.entries({ bg: "#f7f7f7", question: "#ffffff", "question-border": "#dcdcdc", accent: "#0f766e", selection: "#eff8f7", "selection-border": "#5f9f99" })) {
     assert.equal(light[`--ntwine-${name}`], value)
   }
   assert.equal(light["--shadow-ink"], "rgb(0 0 0 / .3)")
@@ -143,7 +143,7 @@ test("dark palette preserves existing canvases, code, marks and indexed terminal
   const expected = {
     "--ntwine-bg": "#0d0e10", "--ntwine-panel": "#131519", "--ntwine-panel-2": "#181b20", "--ntwine-elevated": "#1c1f25", "--ntwine-inset": "#090b10",
     "--ntwine-provisional": "color-mix(in oklab, var(--ntwine-fg) 50%, transparent)",
-    "--ntwine-fg": "#e6e7e9", "--ntwine-muted": "#8b8f96", "--ntwine-accent": "#e8b923", "--ntwine-user-bubble": "#202329", "--ntwine-user-bubble-fg": "#e6e7e9",
+    "--ntwine-fg": "#e6e7e9", "--ntwine-muted": "#8b8f96", "--ntwine-accent": "#2dd4bf", "--ntwine-user-bubble": "#202329", "--ntwine-user-bubble-fg": "#e6e7e9",
     "--ntwine-control-border": "#26282d", "--ntwine-control-strong": "#33363c", "--code-kw": "#f47067", "--code-com": "#768390", "--code-gutter": "#4b4f57",
     "--gh-fg-success": "#3fb950", "--gh-fg-danger": "#f85149", "--gh-fg-done": "#ab7df8", "--gh-neutral-border": "#3d444d", "--gh-label-fg-mix": "0%",
     "--sidebar-dim-opacity": ".65", "--mobile-dim-opacity": ".6", "--row-dim-hover-opacity": ".9", "--viz-destructive": "#ef6461", "--ntwine-danger-button": "var(--color-red-500)",
