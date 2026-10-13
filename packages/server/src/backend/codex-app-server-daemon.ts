@@ -228,7 +228,9 @@ function main(): void {
     queuedLines.push(line)
     queuedBytes += Buffer.byteLength(line) + 1
   }
-  const control = (payload: Record<string, unknown>): string => JSON.stringify({ ntwine: 1, ...payload })
+  // The control key stays `frizz` across the rename: a daemon outlives a server update, and an old
+  // daemon and a new host (or the reverse) must still recognise each other's control lines.
+  const control = (payload: Record<string, unknown>): string => JSON.stringify({ frizz: 1, ...payload })
 
   // ---- handshake ----------------------------------------------------------------------------------
   // The daemon performs `initialize` ITSELF, once, and caches the response. A reattaching client is

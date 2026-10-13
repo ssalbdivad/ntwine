@@ -242,6 +242,7 @@ export interface RelayHandshake {
  */
 export function relayHandshakeInput(name: string, pubkey: string, issuedAt: number): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(
-    ["ntwine-relay", `v${RELAY_PROTOCOL_VERSION}`, name, pubkey, String(issuedAt)].join(":")
+    // `frizz-relay` survives the rename: it is a signature domain tag the DEPLOYED relay verifies, never shown.
+    ["frizz-relay", `v${RELAY_PROTOCOL_VERSION}`, name, pubkey, String(issuedAt)].join(":")
   )
 }

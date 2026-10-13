@@ -274,7 +274,7 @@ function attach(record: AcpDaemonRecord, timeoutMs: number): Promise<{ process: 
     } as unknown as AcpProcess
 
     const adopt = (daemonId: number, clientId: number | string): void => {
-      try { socket.write(`${JSON.stringify({ ntwine: 1, adopt: { daemonId, clientId } })}\n`) } catch {}
+      try { socket.write(`${JSON.stringify({ frizz: 1, adopt: { daemonId, clientId } })}\n`) } catch {}
     }
 
     const decoder = new StringDecoder("utf8")
@@ -290,7 +290,7 @@ function attach(record: AcpDaemonRecord, timeoutMs: number): Promise<{ process: 
         if (!trimmed) continue
         // Control lines (a reserved `ntwine` key) are the daemon's own; everything else is verbatim
         // agent JSON-RPC and must reach the bridge's parser untouched.
-        if (trimmed.startsWith("{\"ntwine\":")) {
+        if (trimmed.startsWith("{\"frizz\":")) {
           if (!settled) {
             settled = true
             clearTimeout(timer)

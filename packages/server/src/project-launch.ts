@@ -362,7 +362,8 @@ function sameProjectIdentity(record: ProjectLaunchOwnerRecord, target: ProjectLa
 export function projectLaunchTokenProof(target: ProjectLaunchTarget, token: string): string {
   if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
   return createHash("sha256")
-    .update("ntwine-project-launch-v2\0")
+    // The pre-rename tag, kept: a launcher and a server from either side of the rename must agree.
+    .update("frizz-project-launch-v2\0")
     .update(target.projectId)
     .update("\0")
     .update(target.projectDir)

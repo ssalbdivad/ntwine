@@ -138,7 +138,7 @@ export async function readHealth(origin: string, timeoutMs = 1_000): Promise<Ntw
  */
 export function launchTokenProof(projectId: string, projectDir: string, token: string): string {
   return createHash("sha256")
-    .update("ntwine-project-launch-v2\0")
+    .update("frizz-project-launch-v2\0")
     .update(projectId)
     .update("\0")
     .update(projectDir)

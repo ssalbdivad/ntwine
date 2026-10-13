@@ -8,6 +8,7 @@ export function adoptFrizzEnv(env = process.env) {
     if (!key.startsWith('FRIZZ_') || value === undefined) continue;
     const renamed = `NTWINE_${key.slice('FRIZZ_'.length)}`;
     if (env[renamed] === undefined) env[renamed] = value;
+    delete env[key]; // moved, not copied — see legacy-env.ts
   }
 }
 

@@ -2982,7 +2982,7 @@ export class CodexAppServerBridge {
       // Exact 0.144.1 source sets our initialized client name as the originator, yielding
       // `ntwine/<package-version> ...`. Do not accept an expected-looking version buried elsewhere in
       // an incompatible user agent.
-      const version = initialized.userAgent.match(/^ntwine\/(\d+\.\d+\.\d+)(?:\s|\()/u)?.[1]
+      const version = initialized.userAgent.match(/^(?:ntwine|frizz)\/(\d+\.\d+\.\d+)(?:\s|\()/u)?.[1]
       handshakeVersion = version
       const verdict = codexVersionVerdict(version)
       // `!version` is already the refused case inside codexVersionVerdict; naming it here too is what

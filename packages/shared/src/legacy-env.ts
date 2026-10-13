@@ -8,6 +8,8 @@ export function adoptFrizzEnv(env: NodeJS.ProcessEnv = process.env): void {
     if (!key.startsWith("FRIZZ_") || value === undefined) continue
     const renamed = `NTWINE_${key.slice("FRIZZ_".length)}`
     if (env[renamed] === undefined) env[renamed] = value
+    // Moved, not copied: code that later deletes the NTWINE_* name must not see it come back from here.
+    delete env[key]
   }
 }
 

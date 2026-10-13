@@ -1,4 +1,5 @@
-name = "ntwine-registrar"
+# The deployed Worker keeps its pre-rename name: a new name is a new script, with no secrets.
+name = "frizz-registrar"
 main = "src/worker.ts"
 compatibility_date = "2026-08-24"
 

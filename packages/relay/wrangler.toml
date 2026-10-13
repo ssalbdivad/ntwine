@@ -1,4 +1,6 @@
-name = "ntwine-relay"
+# The deployed Worker keeps its pre-rename name: a new name is a new script, with no secrets and a
+# fresh Durable Object namespace.
+name = "frizz-relay"
 main = "src/worker.ts"
 compatibility_date = "2026-08-24"
 

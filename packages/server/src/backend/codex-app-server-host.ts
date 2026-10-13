@@ -352,7 +352,7 @@ function attach(record: CodexAppServerDaemonRecord, timeoutMs: number): Promise<
         buffer = buffer.slice(index + 1)
         const trimmed = line.trim()
         if (!trimmed) continue
-        if (trimmed.startsWith("{\"ntwine\":")) {
+        if (trimmed.startsWith("{\"frizz\":")) {
           if (!settled) {
             settled = true
             clearTimeout(timer)

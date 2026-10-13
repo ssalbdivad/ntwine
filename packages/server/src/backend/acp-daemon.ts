@@ -188,7 +188,9 @@ function main(): void {
     queuedLines.push(line)
     queuedBytes += Buffer.byteLength(line) + 1
   }
-  const control = (payload: Record<string, unknown>): string => JSON.stringify({ ntwine: 1, ...payload })
+  // The control key stays `frizz` across the rename: a daemon outlives a server update, and an old
+  // daemon and a new host (or the reverse) must still recognise each other's control lines.
+  const control = (payload: Record<string, unknown>): string => JSON.stringify({ frizz: 1, ...payload })
 
   // ---- id bookkeeping -----------------------------------------------------------------------------
   // daemon id -> the client id that currently owns the request (rewritten by `adopt` after a restart),
@@ -243,7 +245,7 @@ function main(): void {
   const readClientLine = (line: string): void => {
     let message: Record<string, unknown>
     try { message = JSON.parse(line) as Record<string, unknown> } catch { return }
-    if (message.ntwine === 1) {
+    if (message.frizz === 1) {
       // `adopt`: a reattached client takes ownership of a request the dead client left in flight.
       const adopt = message.adopt as { daemonId?: unknown; clientId?: unknown } | undefined
       if (adopt && typeof adopt.daemonId === "number" && (typeof adopt.clientId === "number" || typeof adopt.clientId === "string")) {

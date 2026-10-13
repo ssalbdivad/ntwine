@@ -96,7 +96,7 @@ function isDiskWrite(cmd) {
 // command. A QUOTED delimiter makes the body literal, so nothing in it runs however it reads. The body
 // ends at the first line that is exactly WORD, which is bash's own rule, and only blank lines may
 // follow. Anything else, `<<EOF` unquoted included, is not this and falls through to the table.
-const NTWINECTL_HEREDOC = /^ntwinectl(?: +[A-Za-z0-9_.\/:=@%+,-]+)* +<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*\n([\s\S]*)$/;
+const NTWINECTL_HEREDOC = /^(?:ntwine|frizz)ctl(?: +[A-Za-z0-9_.\/:=@%+,-]+)* +<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*\n([\s\S]*)$/;
 function isOwnNtwinectlHeredoc(cmd) {
   // Blanks are the SHELL's — space, tab, newline — and not JavaScript's `\s`, which also takes a
   // no-break space or a form feed: to bash and zsh those are ordinary characters of a word, so

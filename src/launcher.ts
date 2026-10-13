@@ -840,7 +840,27 @@ export const HEALTH_PROBE_TIMEOUT_MS = 1000;
  */
 export const JOIN_PROBE_TIMEOUT_MS = 15_000;
 
+/**
+ * A server started before the Frizz -> Ntwine rename answers only under `/_frizz`. Asking there too
+ * is what lets a new launcher JOIN that server rather than start a second one on the same data root.
+ */
+const HEALTH_PREFIXES = [NTWINE_ROUTE_PREFIX, "/_frizz"] as const;
+
 export async function probeNtwine(
+  port: number,
+  expected: ExpectedNtwineHealth,
+  fetcher: typeof fetch = fetch,
+  timeoutMs = HEALTH_PROBE_TIMEOUT_MS
+): Promise<NtwineHealth | null> {
+  for (const prefix of HEALTH_PREFIXES) {
+    const health = await probeNtwineAt(prefix, port, expected, fetcher, timeoutMs);
+    if (health) return health;
+  }
+  return null;
+}
+
+async function probeNtwineAt(
+  prefix: string,
   port: number,
   expected: ExpectedNtwineHealth,
   fetcher: typeof fetch = fetch,
@@ -850,7 +870,7 @@ export async function probeNtwine(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   timeout.unref?.();
   try {
-    const scope = expected.slug ? `${NTWINE_ROUTE_PREFIX}/${expected.slug}` : NTWINE_ROUTE_PREFIX;
+    const scope = expected.slug ? `${prefix}/${expected.slug}` : prefix;
     const response = await fetcher(`http://127.0.0.1:${port}${scope}/health`, {
       signal: controller.signal,
     });
@@ -887,11 +907,19 @@ export async function probeNtwine(
  * needs to learn before it can find that launch's owner record.
  */
 export async function readNtwineHealth(port: number, fetcher: typeof fetch = fetch, timeoutMs = HEALTH_PROBE_TIMEOUT_MS): Promise<NtwineHealth | null> {
+  for (const prefix of HEALTH_PREFIXES) {
+    const health = await readNtwineHealthAt(prefix, port, fetcher, timeoutMs);
+    if (health) return health;
+  }
+  return null;
+}
+
+async function readNtwineHealthAt(prefix: string, port: number, fetcher: typeof fetch, timeoutMs: number): Promise<NtwineHealth | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   timeout.unref?.();
   try {
-    const response = await fetcher(`http://127.0.0.1:${port}${NTWINE_ROUTE_PREFIX}/health`, { signal: controller.signal });
+    const response = await fetcher(`http://127.0.0.1:${port}${prefix}/health`, { signal: controller.signal });
     if (!response.ok) return null;
     const health = (await response.json()) as Partial<NtwineHealth>;
     if (health.ok !== true || typeof health.projectId !== "string" || typeof health.projectDir !== "string" || typeof health.bootId !== "string") return null;

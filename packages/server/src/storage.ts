@@ -1829,6 +1829,10 @@ export const STORAGE_TABLES = [
 export function ensureStorageSchema(db: Database): void {
   renameCommandThreadTable(db)
   db.exec(STORAGE_SCHEMA)
+  // The Frizz -> Ntwine rename (2026-10-13) renamed every thread's identity name, which
+  // validateSessionIdentity checks on each write. Idempotent and self-limiting, like the fray rename
+  // in legacy-project-db.ts: once no row matches, it is one no-op scan per boot.
+  db.exec("UPDATE session SET thread_name = 'ntwine-' || substr(thread_name, 7) WHERE thread_name LIKE 'frizz-%'")
   // Columns added AFTER the 2026-08-27 unification. CREATE TABLE IF NOT EXISTS cannot add a column to
   // a file that already exists, and every live install predates any column below — so each rides one
   // additive ALTER here, exactly the stack the schema comment above says the unified file was born
