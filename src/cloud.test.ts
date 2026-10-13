@@ -76,7 +76,7 @@ function tempHome() {
 
 test("a pasted URL, a trailing slash or a stray dot all resolve to the same hostname", () => {
   // People paste the address bar. Refusing that would be a pointless second question.
-  for (const raw of ["colin.frizz.sh", "https://colin.frizz.sh", "https://colin.frizz.sh/", "COLIN.Ntwine.SH", "colin.frizz.sh."]) {
+  for (const raw of ["colin.frizz.sh", "https://colin.frizz.sh", "https://colin.frizz.sh/", "COLIN.Frizz.SH", "colin.frizz.sh."]) {
     assert.equal(normalizeHostname(raw), "colin.frizz.sh", raw);
   }
   assert.equal(normalizeHostname("  https://colin.frizz.sh/board  "), "colin.frizz.sh");
@@ -157,6 +157,9 @@ test("an explicit cloudflared config wins; otherwise it is found or reported mis
     assert.equal(resolveTunnelConfigPath(base, home), null, "absent means let cloudflared use its own default");
 
     mkdirSync(join(home, ".cloudflared"), { recursive: true });
+    // The file a setup made before the Frizz -> Ntwine rename is still found; a current one outranks it.
+    writeFileSync(join(home, ".cloudflared", "frizz.yml"), "tunnel: colin\n");
+    assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "frizz.yml"));
     writeFileSync(join(home, ".cloudflared", "ntwine.yml"), "tunnel: colin\n");
     assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "ntwine.yml"));
 
