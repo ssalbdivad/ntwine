@@ -211,7 +211,7 @@ Distinguish the two errors. `EADDRINUSE` means something is listening and the us
 
 Degrade, do not refuse. Vite and Jupyter both move to another port; Docker fails hard. A local tool that will not start because something unrelated holds a port is worse than one that prints a different URL — the jump-then-scan above is the same policy, just correct about *where* to jump.
 
-And keep the identity handshake exactly as it is. `/health` returns `ownerProof` = `sha256("frizz-project-launch-v2\0" ‖ projectId ‖ projectDir ‖ token)`, and `probeNtwine` rejects any mismatch (`src/launcher.ts:593-630`). That is what guarantees a well-known port can never *silently* serve the wrong thing — it fails to start instead, which is the right failure. `--port` and `NTWINE_PORT` stay explicit-or-fail, with no scan.
+And keep the identity handshake exactly as it is. `/health` returns `ownerProof` = `sha256("ntwine-project-launch-v3\0" ‖ projectId ‖ projectDir ‖ token)`, and `probeNtwine` rejects any mismatch (`src/launcher.ts:593-630`). That is what guarantees a well-known port can never *silently* serve the wrong thing — it fails to start instead, which is the right failure. `--port` and `NTWINE_PORT` stay explicit-or-fail, with no scan.
 
 ---
 

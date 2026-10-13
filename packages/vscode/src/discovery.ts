@@ -138,8 +138,8 @@ export async function readHealth(origin: string, timeoutMs = 1_000): Promise<Ntw
  */
 export function launchTokenProof(projectId: string, projectDir: string, token: string): string {
   return createHash("sha256")
-    // The pre-rename tag, kept on purpose: see projectLaunchTokenProof.
-    .update("frizz-project-launch-v2\0")
+    // The same tag as projectLaunchTokenProof, byte for byte.
+    .update("ntwine-project-launch-v3\0")
     .update(projectId)
     .update("\0")
     .update(projectDir)
