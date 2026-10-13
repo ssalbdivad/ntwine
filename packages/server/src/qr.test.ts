@@ -5,7 +5,7 @@ import qrcode from "qrcode-generator"
 import { drawsBlockElements, qrAreaOf, qrSize, qrStyleFor, qrWidth, renderQr, renderQrLines } from "./qr.ts"
 
 const QUIET_ZONE = 4
-const SAMPLE = "https://dana.frizz.sh/?ntwine_code=pW58RJTeG4IMkc6ojgC"
+const SAMPLE = "https://dana.ntwine.app/?ntwine_code=pW58RJTeG4IMkc6ojgC"
 const DARK_BG = "\x1b[48;5;232m"
 const LIGHT_BG = "\x1b[48;5;231m"
 const DARK_FG = "\x1b[38;5;232m"

@@ -18,7 +18,7 @@ function harness() {
       applied.push(next);
       config = next;
     },
-    claim: async (name) => ({ hostname: `${name || "mk7w2qp9x4n3f6tbz5vh"}.frizz.sh`, claim: name || "mk7w2qp9x4n3f6tbz5vh", serve: "relay" }),
+    claim: async (name) => ({ hostname: `${name || "mk7w2qp9x4n3f6tbz5vh"}.ntwine.app`, claim: name || "mk7w2qp9x4n3f6tbz5vh", serve: "relay" }),
     issueLink: () => (config ? { url: `https://${config.hostname}/?ntwine_code=abc`, expiresAt: 1 } : null),
     probes,
   });

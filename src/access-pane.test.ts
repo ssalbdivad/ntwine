@@ -27,7 +27,7 @@ function fakeTty(isTty = true) {
 }
 
 function link(overrides: Partial<AccessLink> = {}): AccessLink {
-  return { code: "abc", url: "https://dana.frizz.sh/?ntwine_code=abc", expiresAt: 300_000, ...overrides };
+  return { code: "abc", url: "https://dana.ntwine.app/?ntwine_code=abc", expiresAt: 300_000, ...overrides };
 }
 
 test("L opens a pane with a scannable code, and any other key closes it", () => {

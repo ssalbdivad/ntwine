@@ -38,7 +38,7 @@ const LAUNCH_ARGS = ["--port", String(PORT), "--dev", "--no-app", "--cloud"];
  */
 const MODE = process.env.VERIFY_MODE === "claim" ? "claim" : "byo";
 const RUN_TOKEN = "run-token-from-the-registrar";
-const HOSTNAME = "e2e.frizz.sh";
+const HOSTNAME = "e2e.ntwine.app";
 const ORIGIN = `https://${HOSTNAME}`;
 
 const checks = [];

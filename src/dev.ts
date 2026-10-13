@@ -3,7 +3,7 @@
 // exactly as it reaches `ntwine-dev` or a published `ntwine`: the saved setup is served at boot,
 // Settings → Remote access works from this machine, and R / L work in this terminal.
 //
-// The wiring lives here, not in the server package, because the transports it drives (the frizz.sh
+// The wiring lives here, not in the server package, because the transports it drives (the ntwine.app
 // relay, cloudflared) belong to the launcher package, which depends on the server and not the reverse.
 import { runDev } from "@ntwine/server/dev";
 import { wireRemote } from "./remote-wiring.ts";

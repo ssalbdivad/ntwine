@@ -48,7 +48,7 @@ import { join } from "node:path";
 import { WebSocket as WsClient } from "ws";
 
 const NAME = process.env.NTWINE_PRODUCT_NAME ?? "dana";
-const ORIGIN = `https://${NAME}.frizz.sh`;
+const ORIGIN = `https://${NAME}.ntwine.app`;
 const PORT = Number(process.env.NTWINE_PRODUCT_PORT ?? 47990);
 const CLI = process.env.NTWINE_PRODUCT_CLI ?? join(process.cwd(), "dist/ntwine.js");
 
@@ -77,7 +77,7 @@ const until = async (label, fn, ms = 150_000) => {
 
 const socket = (headers) =>
   new Promise((resolve) => {
-    const ws = new WsClient(`wss://${NAME}.frizz.sh/_ntwine/ws`, { headers });
+    const ws = new WsClient(`wss://${NAME}.ntwine.app/_ntwine/ws`, { headers });
     const timer = setTimeout(() => resolve({ verdict: "hung" }), 45_000);
     ws.on("open", () => { clearTimeout(timer); resolve({ verdict: "open", ws }); });
     ws.on("error", (error) => { clearTimeout(timer); resolve({ verdict: "refused", detail: error.message }); });
@@ -103,11 +103,11 @@ try {
   git("init", "-q");
   git("commit", "-q", "--allow-empty", "-m", "init");
 
-  // What the R walkthrough writes once a frizz.sh name is chosen.
+  // What the R walkthrough writes once an ntwine.app name is chosen.
   mkdirSync(join(home, ".ntwine"), { recursive: true });
   writeFileSync(
     join(home, ".ntwine", "cloud.json"),
-    JSON.stringify({ hostname: `${NAME}.frizz.sh`, claim: NAME, serve: "relay" }, null, 2),
+    JSON.stringify({ hostname: `${NAME}.ntwine.app`, claim: NAME, serve: "relay" }, null, 2),
   );
 
   const env = { ...process.env, HOME: home, NTWINE_WAKERS_OFF: "1" };
@@ -126,7 +126,7 @@ try {
     const deadline = Date.now() + 180_000;
     let up = false;
     while (Date.now() < deadline && !up) {
-      up = /fresh sign-in link/.test(plain()) || plain().includes(`${NAME}.frizz.sh`);
+      up = /fresh sign-in link/.test(plain()) || plain().includes(`${NAME}.ntwine.app`);
       if (!up) await new Promise((r) => setTimeout(r, 2000));
     }
     if (!up) {
@@ -143,7 +143,7 @@ try {
       );
     }
   }
-  check("a saved frizz.sh name is served on a plain launch", true, ORIGIN);
+  check("a saved ntwine.app name is served on a plain launch", true, ORIGIN);
 
   // Mint the link with --link rather than scraping the readout: the readout shows it as a QR, which is
   // exactly right for a phone and useless to a harness.
@@ -223,7 +223,7 @@ try {
     if (existsSync(minted) && !existsSync(target)) {
       mkdirSync(join(homedir(), ".ntwine"), { recursive: true });
       copyFileSync(minted, target);
-      console.log(`\n  kept the claim identity at ${target} — it is what proves you own ${NAME}.frizz.sh`);
+      console.log(`\n  kept the claim identity at ${target} — it is what proves you own ${NAME}.ntwine.app`);
     }
   } catch (error) {
     console.log(`\n  WARNING: could not keep the claim identity: ${error.message}`);

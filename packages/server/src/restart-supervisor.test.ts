@@ -762,13 +762,13 @@ test("--public-origin without a session is not a reachable state: the gate cover
   const port = await freePort()
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
   try {
     await proxy.listen()
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
 
     // No session at all: refused, and the page must not advertise what lives here.
     const bare = await proxied(port, "/", publicHeaders)
@@ -819,7 +819,7 @@ test("the proxy tells the child who called: loopback or public, and which sessio
   const port = await freePort()
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
@@ -832,7 +832,7 @@ test("the proxy tells the child who called: loopback or public, and which sessio
     assert.equal((await proxied(port, "/", { ...loopback, [CALLER_HEADER]: forged })).status, 200)
     assert.deepEqual(decodeCallerStamp(seen.at(-1)), { via: "loopback", remote: "127.0.0.1", session: null })
 
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
     const cookie = String(exchange.headers?.["set-cookie"]).split(";")[0]!
     const sessions = JSON.parse((await proxied(port, SUPERVISOR_SESSIONS_PATH, loopback)).body) as { sessions: { id: string }[] }
@@ -843,7 +843,7 @@ test("the proxy tells the child who called: loopback or public, and which sessio
     const relayed = { ...publicHeaders, cookie, "cf-connecting-ip": "203.0.113.9", [CALLER_HEADER]: forged }
     assert.equal((await proxied(port, "/_ntwine/rpc/projectsList", relayed)).status, 200)
     const stamp = decodeCallerStamp(seen.at(-1))
-    assert.deepEqual(stamp, { via: "public", remote: "127.0.0.1", host: "dana.frizz.sh", clientIp: "203.0.113.9", session: id })
+    assert.deepEqual(stamp, { via: "public", remote: "127.0.0.1", host: "dana.ntwine.app", clientIp: "203.0.113.9", session: id })
     const raw = Buffer.from(seen.at(-1)!, "base64url").toString("utf8")
     assert.ok(!raw.includes(cookie.slice("ntwine_session=".length)), "the session value never leaves the proxy")
   } finally {
@@ -861,17 +861,17 @@ test("an access code is spent once over HTTP: it mints a session, then stops wor
   let consumed = 0
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     onCodeConsumed: () => { consumed++ },
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
   try {
     await proxy.listen()
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const code = proxy.issueAccessCode()
     assert.ok(code, "a declared public origin can mint codes")
-    assert.equal(proxy.accessUrl(code.code), `https://dana.frizz.sh/?ntwine_code=${code.code}`)
+    assert.equal(proxy.accessUrl(code.code), `https://dana.ntwine.app/?ntwine_code=${code.code}`)
 
     // No credential at all.
     assert.equal((await proxied(port, "/", publicHeaders)).status, 401)
@@ -917,13 +917,13 @@ test("a pre-rename code and session keep working, and a page load moves the cook
   const port = await freePort()
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
   try {
     await proxy.listen()
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const spent = await proxied(port, `/thread/x?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
     assert.equal(spent.status, 302)
     assert.equal(spent.headers?.location, "/thread/x", "the old parameter is stripped too")
@@ -954,7 +954,7 @@ test("--link mints from loopback only: a tunnelled session cannot hand out furth
   const port = await freePort()
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
@@ -965,15 +965,15 @@ test("--link mints from loopback only: a tunnelled session cannot hand out furth
     const minted = await proxied(port, SUPERVISOR_ACCESS_CODE_PATH, loopback, "POST")
     assert.equal(minted.status, 200)
     const { url } = JSON.parse(minted.body) as { url: string }
-    assert.match(url, /^https:\/\/dana\.frizz\.sh\/\?ntwine_code=/)
+    assert.match(url, /^https:\/\/dana\.ntwine\.app\/\?ntwine_code=/)
 
     // And the link it hands back actually works, which is the only thing that makes --link useful.
     const code = new URL(url).searchParams.get("ntwine_code")!
-    const redeemed = await proxied(port, `/?ntwine_code=${code}`, { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" })
+    const redeemed = await proxied(port, `/?ntwine_code=${code}`, { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" })
     assert.equal(redeemed.status, 302)
 
     // From the tunnel: refused outright, session or no session.
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const session = /ntwine_session=([^;]+)/.exec(String(redeemed.headers?.["set-cookie"]))![1]!
     // With no session the control plane's session gate answers first (see the control-plane gate test).
     assert.equal((await proxied(port, SUPERVISOR_ACCESS_CODE_PATH, publicHeaders, "POST")).status, 401)
@@ -1015,12 +1015,12 @@ test("setPublicOrigin flips the gate on a running board, and clearing it flips i
   const proxy = new RestartSupervisorProxy({ port, childPort: () => current.port, restart: async () => ({ state: "ready" }) })
   try {
     await proxy.listen()
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const loopback = { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }
     assert.equal(proxy.issueAccessCode(), null)
     assert.equal((await proxied(port, "/", publicHeaders)).status, 403)
 
-    proxy.setPublicOrigin("https://dana.frizz.sh")
+    proxy.setPublicOrigin("https://dana.ntwine.app")
     assert.equal((await proxied(port, "/", publicHeaders)).status, 401)
     const minted = proxy.issueAccessCode()
     assert.ok(minted)
@@ -1051,14 +1051,14 @@ test("sign out this device: a tunnelled session ends ITSELF, persisted, and can 
   const dir = mkdtempSync(join(tmpdir(), "ntwine-sign-out-"))
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     sessionDirectory: fileSessionDirectory(dir),
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
   try {
     await proxy.listen()
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const loopback = { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }
     const redeem = async () => {
       const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
@@ -1083,7 +1083,7 @@ test("sign out this device: a tunnelled session ends ITSELF, persisted, and can 
     // CSRF: a cross-site page cannot drive it. A foreign Origin fails the authority gate before any
     // session is looked at, and so does a POST with no Origin at all.
     assert.equal((await proxied(port, SUPERVISOR_SIGN_OUT_PATH, { ...publicHeaders, origin: "https://evil.example", cookie: phone }, "POST")).status, 403)
-    assert.equal((await proxied(port, SUPERVISOR_SIGN_OUT_PATH, { host: "dana.frizz.sh", cookie: phone }, "POST")).status, 403)
+    assert.equal((await proxied(port, SUPERVISOR_SIGN_OUT_PATH, { host: "dana.ntwine.app", cookie: phone }, "POST")).status, 403)
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: phone })).status, 200, "a refused attempt signed nothing out")
 
     // THE FEATURE. A body naming the LAPTOP's id is ignored — the id comes from the cookie, never the body.
@@ -1149,14 +1149,14 @@ test("the control plane is behind the session gate: no session through the tunne
   let updates = 0
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     childPort: () => current.port,
     restart: async () => { restarts++; return { state: "ready" } },
     updateRestart: async () => { updates++; return { state: "ready" } },
   })
   try {
     await proxy.listen()
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const loopback = { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }
     const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
     const session = String(exchange.headers?.["set-cookie"]).split(";")[0]!
@@ -1178,7 +1178,7 @@ test("the control plane is behind the session gate: no session through the tunne
     const unauthenticated: Array<Record<string, string>> = [
       publicHeaders,
       { ...publicHeaders, cookie: forged },
-      { host: "dana.frizz.sh", "sec-fetch-site": "same-origin" },
+      { host: "dana.ntwine.app", "sec-fetch-site": "same-origin" },
     ]
     for (const headers of unauthenticated) {
       for (const [path, method] of routes) {
@@ -1239,7 +1239,7 @@ test("remote access is changed from this machine only: a live session through th
   const calls: string[] = []
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
@@ -1277,7 +1277,7 @@ test("remote access is changed from this machine only: a live session through th
     assert.equal((await proxied(port, SUPERVISOR_REMOTE_PATH, { host: `127.0.0.1:${port}`, origin: "https://evil.example" }, "POST")).status, 403)
 
     // Through the tunnel, holding a live session: refused for both verbs, handler untouched.
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
     const session = String(exchange.headers?.["set-cookie"]).split(";")[0]!
     assert.equal((await proxied(port, SUPERVISOR_REMOTE_PATH, { ...publicHeaders, cookie: session })).status, 403)
@@ -1299,7 +1299,7 @@ test("an epoch bump reaches a RUNNING launcher: the server child signs every old
   const key = loadOrCreateSessionKey(dir)
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://dana.frizz.sh",
+    publicOrigin: "https://dana.ntwine.app",
     sessionKey: key,
     rotateSessionKey: () => rotateSessionKey(dir),
     sessionDirectory: fileSessionDirectory(dir),
@@ -1308,7 +1308,7 @@ test("an epoch bump reaches a RUNNING launcher: the server child signs every old
   })
   try {
     await proxy.listen()
-    const publicHeaders = { host: "dana.frizz.sh", origin: "https://dana.frizz.sh" }
+    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
     const redeem = async () => {
       const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
       return String(exchange.headers?.["set-cookie"])
@@ -1342,7 +1342,7 @@ test("an epoch bump reaches a RUNNING launcher: the server child signs every old
     const restartedPort = await freePort()
     const restarted = new RestartSupervisorProxy({
       port: restartedPort,
-      publicOrigin: "https://dana.frizz.sh",
+      publicOrigin: "https://dana.ntwine.app",
       sessionKey: loadOrCreateSessionKey(dir),
       sessionDirectory: fileSessionDirectory(dir),
       childPort: () => current.port,

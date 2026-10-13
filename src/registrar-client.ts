@@ -1,7 +1,7 @@
 import { CLAIM_PROTOCOL_VERSION, signClaim } from "@ntwine/shared";
 
 /**
- * The CLI half of claiming `<name>.frizz.sh`.
+ * The CLI half of claiming `<name>.ntwine.app`.
  *
  * Deliberately separate from the launch path in cloud.ts. This talks to the registrar and nothing
  * else, so it can be driven against a real HTTP server in a test without booting a board — and so
@@ -10,7 +10,7 @@ import { CLAIM_PROTOCOL_VERSION, signClaim } from "@ntwine/shared";
  */
 
 /** Overridable so a test, or a self-hoster running their own registrar, can point somewhere else. */
-export const DEFAULT_REGISTRAR = "https://registrar.frizz.sh";
+export const DEFAULT_REGISTRAR = "https://registrar.ntwine.app";
 
 export function registrarOrigin(env: NodeJS.ProcessEnv = process.env): string {
   return env.NTWINE_REGISTRAR?.trim() || DEFAULT_REGISTRAR;

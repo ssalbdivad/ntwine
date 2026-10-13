@@ -26,8 +26,8 @@ import { connectRelay } from "./relay-connection.ts";
  *
  * Three ways to have a hostname, told apart by the shape of the answer:
  *
- *   (empty)            -> CLAIM a private unguessable name on frizz.sh — no account, no sign-in
- *   dana               -> CLAIM `dana.frizz.sh` from the registrar, bound to your GitHub account
+ *   (empty)            -> CLAIM a private unguessable name on ntwine.app — no account, no sign-in
+ *   dana               -> CLAIM `dana.ntwine.app` from the registrar, bound to your GitHub account
  *                         through a no-permission GitHub sign-in (github-device-flow.ts). PAUSED
  *                         while CUSTOM_NAMES_OFFERED is false: the answer is refused up front.
  *   board.example.com  -> a tunnel you made yourself, which Ntwine only runs
@@ -38,7 +38,7 @@ import { connectRelay } from "./relay-connection.ts";
  */
 
 export interface CloudConfig {
-  /** The public hostname, e.g. `dana.frizz.sh`. Stored without a scheme; it is always https. */
+  /** The public hostname, e.g. `dana.ntwine.app`. Stored without a scheme; it is always https. */
   hostname: string;
   /**
    * The cloudflared tunnel name to run, for a tunnel the operator made themselves.
@@ -76,7 +76,7 @@ export function isExternalConfig(config: CloudConfig): boolean {
 
 /** The readout's name for how a board is reached, next to its public address. */
 export function describeCloudConfig(config: CloudConfig): string {
-  if (isClaimedConfig(config)) return "frizz.sh";
+  if (isClaimedConfig(config)) return "ntwine.app";
   if (isExternalConfig(config)) return config.provider === "tailscale" ? "Tailscale" : "your proxy";
   return "Cloudflare Tunnel";
 }
@@ -84,9 +84,10 @@ export function describeCloudConfig(config: CloudConfig): string {
 /**
  * Is there a registrar to claim names from yet?
  *
- * Yes since 2026-08-24: the Worker is deployed at registrar.frizz.sh and the whole loop is verified
- * against real Cloudflare and real GitHub. Set this back to `false` to withdraw the offer — it is the
- * whole gate, and a bare name then refuses up front instead of failing at a connection error.
+ * Yes: the Worker serves registrar.ntwine.app, and the whole loop was verified against real Cloudflare
+ * and real GitHub on 2026-08-24 (on the domain names lived on then). Set this back to `false` to
+ * withdraw the offer — it is the whole gate, and a bare name then refuses up front instead of failing
+ * at a connection error.
  *
  * Setting `NTWINE_REGISTRAR` points the CLI at a different registrar, which is how a deployment gets
  * tested before it takes the default hostname.
@@ -94,7 +95,7 @@ export function describeCloudConfig(config: CloudConfig): string {
 export const REGISTRAR_IS_LIVE = true;
 
 /**
- * Are CUSTOM names (`dana.frizz.sh`, bound to a GitHub account) offered?
+ * Are CUSTOM names (`dana.ntwine.app`, bound to a GitHub account) offered?
  *
  * No, as of 2026-10-08, until Ntwine's GitHub OAuth app is registered: the client id in
  * github-device-flow.ts is still the placeholder, so a custom claim could only refuse with
@@ -119,7 +120,7 @@ export function customNamesOffered(env: NodeJS.ProcessEnv = process.env): boolea
 
 /** Why a word answer is refused while custom names are withdrawn. */
 export const CUSTOM_NAMES_PAUSED =
-  "custom frizz.sh names are paused for now — press enter for a private name (no account needed), or answer with the hostname of a tunnel you run";
+  "custom ntwine.app names are paused for now — press enter for a private name (no account needed), or answer with the hostname of a tunnel you run";
 
 /** A claimed name runs a remotely-managed tunnel; a hand-made one runs by name from a config file. */
 export function isClaimedConfig(config: CloudConfig): boolean {
@@ -139,10 +140,10 @@ export function isRelayConfig(config: CloudConfig): boolean {
 }
 
 /** The zone the registrar hands names out in. Every hostname inside it is served by the relay. */
-export const CLAIM_ZONE = "frizz.sh";
+export const CLAIM_ZONE = "ntwine.app";
 
 /**
- * The claim label a hostname inside the zone stands for: `dana.frizz.sh` → `dana`. Null for a
+ * The claim label a hostname inside the zone stands for: `dana.ntwine.app` → `dana`. Null for a
  * hostname outside the zone, the zone apex, or a deeper name the registrar never hands out.
  */
 export function zoneClaimLabel(hostname: string): string | null {
@@ -187,7 +188,7 @@ export async function reconcileCloudConfig(
   if (!label) return config;
   if (!isAnonymousClaimName(label) && !customNamesOffered()) {
     throw new Error(
-      `${config.hostname} needs moving onto the Ntwine relay, which means claiming it again, and custom frizz.sh names are paused for now — press R to pick a private name or another setup`,
+      `${config.hostname} needs moving onto the Ntwine relay, which means claiming it again, and custom ntwine.app names are paused for now — press R to pick a private name or another setup`,
     );
   }
   onNotice?.(
@@ -213,10 +214,45 @@ export function cloudConfigPath(home = homedir()): string {
   return join(ntwinePaths({ home }).data, "cloud.json");
 }
 
+/**
+ * Zones names used to be handed out in, and nothing serves any more.
+ *
+ * Until 2026-10-13 hosted names lived on `frizz.sh`, on the original project's Cloudflare and Vercel
+ * accounts, which this repository can no longer deploy to; they moved to CLAIM_ZONE then, as a new
+ * deployment that kept no claims. A saved setup naming a host in one of these is not a setup at all —
+ * serving it would declare a public origin nobody can reach — so it reads as absent, and the R pane
+ * offers a fresh claim. This is the one place the old domain is spelled, on purpose.
+ */
+const RETIRED_CLAIM_ZONES: readonly string[] = ["frizz.sh"];
+
+function inRetiredZone(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return RETIRED_CLAIM_ZONES.some((zone) => host === zone || host.endsWith(`.${zone}`));
+}
+
+function readRawCloudConfig(home: string): Partial<CloudConfig> | null {
+  try {
+    const parsed = JSON.parse(readFileSync(cloudConfigPath(home), "utf8")) as Partial<CloudConfig> | null;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The hostname of a saved setup that readCloudConfig ignores because its zone is retired, so a launch
+ * can say why remote access went quiet. Null when there is none.
+ */
+export function retiredCloudHostname(home = homedir()): string | null {
+  const hostname = readRawCloudConfig(home)?.hostname;
+  return typeof hostname === "string" && inRetiredZone(hostname) ? hostname : null;
+}
+
 export function readCloudConfig(home = homedir()): CloudConfig | null {
   try {
-    const parsed = JSON.parse(readFileSync(cloudConfigPath(home), "utf8")) as Partial<CloudConfig>;
-    if (typeof parsed.hostname !== "string" || !parsed.hostname) return null;
+    const parsed = readRawCloudConfig(home);
+    if (!parsed || typeof parsed.hostname !== "string" || !parsed.hostname) return null;
+    if (inRetiredZone(parsed.hostname)) return null;
     // Exactly one of the two shapes must be present. A config naming NEITHER a tunnel nor a claim
     // describes a hostname nothing can serve, which is worse than having no config at all — the
     // launcher would arm the origin gate for an address with no tunnel behind it.
@@ -279,7 +315,7 @@ export function writeCloudConfig(config: CloudConfig, home = homedir()): void {
 export function normalizeHostname(raw: string): string {
   const trimmed = raw.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/\.$/, "");
   if (!trimmed || !trimmed.includes(".")) {
-    throw new Error(`invalid hostname: ${raw} (expected something like dana.frizz.sh)`);
+    throw new Error(`invalid hostname: ${raw} (expected something like dana.ntwine.app)`);
   }
   return trimmed.toLowerCase();
 }
@@ -288,7 +324,7 @@ export function normalizeHostname(raw: string): string {
  * Ask once, remember forever. Asked only when there is no saved config — the whole point is that the
  * second launch is a single flag.
  *
- * One question, not two. A bare label claims a name on frizz.sh; anything with a dot in it is a
+ * One question, not two. A bare label claims a name on ntwine.app; anything with a dot in it is a
  * hostname the operator already has a tunnel for. Asking "do you want to claim or bring your own"
  * first would be a fork most people cannot answer before they know what the options mean.
  */
@@ -303,7 +339,7 @@ export async function promptForCloudName(): Promise<string> {
     return (
       await rl.question(
         customNamesOffered()
-          ? "Name for this board — press enter for a private unguessable name (no account), a word claims <name>.frizz.sh (needs GitHub), or paste a hostname you already run a tunnel for: "
+          ? "Name for this board — press enter for a private unguessable name (no account), a word claims <name>.ntwine.app (needs GitHub), or paste a hostname you already run a tunnel for: "
           : "Name for this board — press enter for a private unguessable name (no account), or paste a hostname you already run a tunnel for: ",
       )
     ).trim();
@@ -348,7 +384,7 @@ export async function establishCloudConfig(
 
   if (!REGISTRAR_IS_LIVE && !origin && !process.env.NTWINE_REGISTRAR) {
     throw new Error(
-      "claiming a name on frizz.sh is not available yet.\n" +
+      "claiming a name on ntwine.app is not available yet.\n" +
         "       Reach this board through a tunnel of your own instead — see docs/remote-access.md — and\n" +
         "       answer with its hostname rather than a bare name.",
     );
@@ -375,9 +411,9 @@ export async function establishCloudConfig(
     // the zero-scope one the device flow mints — never the `gh` CLI's, which can push to every repo.
     const authorization = await github.authorize();
     token = authorization.token;
-    if (authorization.login) console.log(`  claiming ${name}.frizz.sh for GitHub user ${authorization.login}`);
+    if (authorization.login) console.log(`  claiming ${name}.ntwine.app for GitHub user ${authorization.login}`);
   } else {
-    console.log("  claiming a private name on frizz.sh — no account needed");
+    console.log("  claiming a private name on ntwine.app — no account needed");
   }
   let result;
   try {

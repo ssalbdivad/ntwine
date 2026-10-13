@@ -30,7 +30,7 @@ function build(overrides: Partial<Parameters<typeof createRemotePane>[0]> = {}) 
     port: 9393,
     current: () => current,
     apply: async (next) => { applied.push(next); current = next; },
-    claim: async (name) => ({ hostname: `${name}.frizz.sh`, claim: name, serve: "relay" }),
+    claim: async (name) => ({ hostname: `${name}.ntwine.app`, claim: name, serve: "relay" }),
     issueLink: () => (current ? { code: "c0de", url: `https://${current.hostname}/?ntwine_code=c0de`, expiresAt: Date.now() + 300_000 } : null),
     probes: {
       cloudflared: async () => ({ version: "2025.8.1" }),
@@ -88,13 +88,13 @@ test("Tailscale offers this machine's MagicDNS name and saves an external origin
   assert.deepEqual(applied, [{ hostname: "mac-mini.corgi-alpha.ts.net", serve: "external", provider: "tailscale" }]);
 });
 
-test("a frizz.sh name is claimed through a GitHub sign-in, and a failure goes back to the form", async () => {
+test("an ntwine.app name is claimed through a GitHub sign-in, and a failure goes back to the form", async () => {
   const claims: string[] = [];
   const { pane, out, applied, type } = build({
     claim: async (name) => {
       claims.push(name);
       if (name === "taken") throw new Error("that name is taken");
-      return { hostname: `${name}.frizz.sh`, claim: name, serve: "relay" };
+      return { hostname: `${name}.ntwine.app`, claim: name, serve: "relay" };
     },
   });
   pane.open();
@@ -113,8 +113,8 @@ test("a frizz.sh name is claimed through a GitHub sign-in, and a failure goes ba
   pane.key("\r");
   await settle();
   assert.deepEqual(claims, ["taken", "ada"]);
-  assert.deepEqual(applied, [{ hostname: "ada.frizz.sh", claim: "ada", serve: "relay" }]);
-  assert.match(out.text(), /Serving https:\/\/ada\.frizz\.sh \(frizz\.sh\)/);
+  assert.deepEqual(applied, [{ hostname: "ada.ntwine.app", claim: "ada", serve: "relay" }]);
+  assert.match(out.text(), /Serving https:\/\/ada\.ntwine\.app \(ntwine\.app\)/);
 });
 
 test("escape leaves a form for the menu, and leaves the menu for the readout", () => {
@@ -126,7 +126,7 @@ test("escape leaves a form for the menu, and leaves the menu for the readout", (
   assert.equal(pane.key("\x1b"), "close");
 });
 
-test("under --sandbox the frizz.sh screen says a claim is real, and the others say nothing", async () => {
+test("under --sandbox the ntwine.app screen says a claim is real, and the others say nothing", async () => {
   const { pane, out } = build({ sandbox: true });
   pane.open();
   pane.key("2");
@@ -147,7 +147,7 @@ test("a private name claims on the spot — no form, no GitHub, QR straight away
   const { pane, out, applied } = build({
     claim: async (name) => {
       claims.push(name);
-      return { hostname: "abcdefghjkmnpqrstuvw.frizz.sh", claim: "abcdefghjkmnpqrstuvw", serve: "relay" };
+      return { hostname: "abcdefghjkmnpqrstuvw.ntwine.app", claim: "abcdefghjkmnpqrstuvw", serve: "relay" };
     },
   });
   pane.open();
@@ -155,8 +155,8 @@ test("a private name claims on the spot — no form, no GitHub, QR straight away
   pane.key("\r");
   await settle();
   assert.deepEqual(claims, [""], "an empty name asks the claimer to mint one");
-  assert.deepEqual(applied, [{ hostname: "abcdefghjkmnpqrstuvw.frizz.sh", claim: "abcdefghjkmnpqrstuvw", serve: "relay" }]);
-  assert.match(out.text(), /Serving https:\/\/abcdefghjkmnpqrstuvw\.frizz\.sh \(frizz\.sh\)/);
+  assert.deepEqual(applied, [{ hostname: "abcdefghjkmnpqrstuvw.ntwine.app", claim: "abcdefghjkmnpqrstuvw", serve: "relay" }]);
+  assert.match(out.text(), /Serving https:\/\/abcdefghjkmnpqrstuvw\.ntwine\.app \(ntwine\.app\)/);
   assert.match(out.text(), /ntwine_code=c0de/, "the done screen offers the sign-in QR");
   assert.equal(pane.key("x"), "close");
 });
@@ -182,7 +182,7 @@ test("in an 80x24 window the done screen keeps the whole code on screen", async 
 });
 
 test("a saved private name shows as the current setup on the private row", () => {
-  const config: CloudConfig = { hostname: "abcdefghjkmnpqrstuvw.frizz.sh", claim: "abcdefghjkmnpqrstuvw", serve: "relay" };
+  const config: CloudConfig = { hostname: "abcdefghjkmnpqrstuvw.ntwine.app", claim: "abcdefghjkmnpqrstuvw", serve: "relay" };
   const { pane, out } = build({ current: () => config });
   pane.open();
   assert.match(out.text(), /❯ Private name/, "the cursor starts on the current setup");
@@ -208,7 +208,7 @@ test("a word claim shows GitHub's device code, and escape on that screen cancels
   type("ada");
   pane.key("\r");
   await settle();
-  assert.match(out.text(), /Confirm your GitHub account to claim ada\.frizz\.sh/);
+  assert.match(out.text(), /Confirm your GitHub account to claim ada\.ntwine\.app/);
   assert.match(out.text(), /Open\s+https:\/\/github\.com\/login\/device/);
   assert.match(out.text(), /Enter\s+WDJB-MJHT/);
   assert.match(out.text(), /esc cancel/);

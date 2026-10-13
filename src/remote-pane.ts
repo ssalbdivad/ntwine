@@ -30,7 +30,7 @@ export interface RemotePaneOptions {
   /** Switch the running board to `next`, or to loopback-only with null. Rejects with a message. */
   apply: (next: CloudConfig | null, options?: { justClaimed?: boolean }) => Promise<void>;
   /**
-   * Claim `<name>.frizz.sh`. An empty name mints a private unguessable one with no account; a word
+   * Claim `<name>.ntwine.app`. An empty name mints a private unguessable one with no account; a word
    * claims that word for a GitHub account, confirmed through a device code the pane shows via
    * `signIn.onDeviceCode`. Escape on that screen aborts `signIn.signal`. Rejects with a message. The
    * pane asks for a word only while custom names are offered (CUSTOM_NAMES_OFFERED in cloud.ts).
@@ -44,7 +44,7 @@ export interface RemotePaneOptions {
   };
   /** Told after a successful change, so the readout can say what the board is now reached at. */
   onChanged?: (config: CloudConfig | null) => void;
-  /** Running under --sandbox: everything is throwaway EXCEPT a claim, which the frizz.sh screen must say. */
+  /** Running under --sandbox: everything is throwaway EXCEPT a claim, which the ntwine.app screen must say. */
   sandbox?: boolean;
   output?: NodeJS.WriteStream;
 }
@@ -61,8 +61,8 @@ interface Choice {
 
 /** Every setup, in menu order. The menu shows the subset `choicesFor` picks, never this list directly. */
 const CHOICES: Choice[] = [
-  { kind: "private", title: "Private name", blurb: "an unguessable name on frizz.sh — no account, nothing to install" },
-  { kind: "ntwine", title: "Custom name", blurb: "<name>.frizz.sh of your choosing; needs a GitHub account" },
+  { kind: "private", title: "Private name", blurb: "an unguessable name on ntwine.app — no account, nothing to install" },
+  { kind: "ntwine", title: "Custom name", blurb: "<name>.ntwine.app of your choosing; needs a GitHub account" },
   { kind: "cloudflare", title: "Cloudflare Tunnel", blurb: "a domain you own on Cloudflare; cloudflared on this machine" },
   { kind: "tailscale", title: "Tailscale", blurb: "your tailnet; tailscale serve does the TLS" },
   { kind: "other", title: "Something else", blurb: "any proxy or tunnel you run — tell Ntwine its address" },
@@ -225,10 +225,10 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
   const formHead = (kind: FormKind): string[] => {
     if (kind === "ntwine") {
       return [
-        "Custom frizz.sh name",
+        "Custom ntwine.app name",
         "",
         ...wrap(
-          "Claims <name>.frizz.sh of your choosing, tied to your GitHub account so names cannot be squatted. The board dials out to frizz.sh — no port, no DNS record, no tunnel binary. One name per account; a name nobody runs for 30 days is released. (A private name needs none of this.)",
+          "Claims <name>.ntwine.app of your choosing, tied to your GitHub account so names cannot be squatted. The board dials out to ntwine.app — no port, no DNS record, no tunnel binary. One name per account; a name nobody runs for 30 days is released. (A private name needs none of this.)",
         ),
         ...(options.sandbox
           ? ["", ...wrap("This is a sandbox, but a claim is real: it binds this machine's one name to your account, and your real board keeps it. Only the setup saved here is thrown away.")]
@@ -345,7 +345,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
           onDeviceCode: (prompt) => {
             screen = {
               name: "busy",
-              message: `Confirm your GitHub account to claim ${name}.frizz.sh`,
+              message: `Confirm your GitHub account to claim ${name}.ntwine.app`,
               detail: [
                 `Open      ${prompt.verificationUri}`,
                 `Enter     ${prompt.userCode}`,

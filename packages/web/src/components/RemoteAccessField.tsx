@@ -22,8 +22,8 @@ import { Select } from "./ui/Select.tsx"
 
 const KINDS: { value: RemoteKind; label: string }[] = [
   { value: "off", label: "Off" },
-  { value: "private", label: "Private frizz.sh name" },
-  { value: "ntwine", label: "Custom frizz.sh name" },
+  { value: "private", label: "Private ntwine.app name" },
+  { value: "ntwine", label: "Custom ntwine.app name" },
   { value: "cloudflare", label: "Cloudflare Tunnel" },
   { value: "tailscale", label: "Tailscale" },
   { value: "other", label: "Something else" },
@@ -183,7 +183,7 @@ function KindDetails({
   const { probes, port } = state
   if (kind === "off") return null
   if (kind === "private") {
-    return <p className={HINT}>An unguessable name on frizz.sh. No account, nothing to install.</p>
+    return <p className={HINT}>An unguessable name on ntwine.app. No account, nothing to install.</p>
   }
   if (kind === "ntwine") {
     return (

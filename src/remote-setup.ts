@@ -43,7 +43,7 @@ export interface RemoteSetupDeps {
   /** Switch the running board to `next`, or to loopback-only with null. Rejects with a message. */
   apply: (next: CloudConfig | null, options?: { justClaimed?: boolean }) => Promise<void>;
   /**
-   * Claim `<name>.frizz.sh`; an empty name mints a private one. A word claims that word for a GitHub
+   * Claim `<name>.ntwine.app`; an empty name mints a private one. A word claims that word for a GitHub
    * account, confirmed through a zero-scope device flow whose code `signIn.onDeviceCode` shows (cloud.ts,
    * github-device-flow.ts). Rejects with a message, and on `signIn.signal`.
    */
@@ -72,7 +72,7 @@ export async function applyRemoteChoice(choice: RemoteChoice, deps: RemoteSetupD
   if (choice.kind === "private" || choice.kind === "ntwine") {
     const name = choice.kind === "ntwine" ? choice.name.trim() : "";
     if (choice.kind === "ntwine" && !name) throw new Error("a name is needed");
-    deps.progress?.(name ? `claiming ${name}.frizz.sh…` : "claiming a private name on frizz.sh…");
+    deps.progress?.(name ? `claiming ${name}.ntwine.app…` : "claiming a private name on ntwine.app…");
     next = await deps.claim(name, deps.signIn ?? { signal: new AbortController().signal, onDeviceCode: () => {} });
     justClaimed = true;
   } else if (choice.kind === "cloudflare") {
@@ -114,7 +114,7 @@ export interface RemoteSetupView {
   kind: RemoteKind;
   /** `https://<hostname>`, absent while loopback only. */
   origin?: string;
-  /** The claimed frizz.sh label, for a custom name. */
+  /** The claimed ntwine.app label, for a custom name. */
   name?: string;
   /** The cloudflared tunnel name, for a Cloudflare Tunnel. */
   tunnel?: string;

@@ -32,7 +32,7 @@ export const DEFAULT_CODE_TTL_MS = 5 * 60_000
  * How long a signed-in device stays signed in. A photographed QR is a real vector, so codes expire on a
  * human timescale (DEFAULT_CODE_TTL_MS); this is the session one.
  *
- * 30 days, down from 365 on 2026-10-08. A session cookie crossed a compromised frizz.sh relay for over
+ * 30 days, down from 365 on 2026-10-08. A session cookie crossed a compromised hosted relay (the old domain) for over
  * two weeks (2026-09-21 to 2026-10-08), and a year-long cookie copied there would have stayed good for
  * a year. A month bounds what any copied cookie is worth, at the cost of one QR scan a month per device.
  */
@@ -43,7 +43,7 @@ export const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60_000
  * before, on every board, once, at the next start: see advanceSessionEpoch. That is the whole response
  * to a leak of session cookies — bump this and release — with nothing for an operator to run.
  *
- *   1  2026-10-08  the frizz.sh relay was serving a backdoored build that copied every visitor's
+ *   1  2026-10-08  the hosted relay (on the old domain) was serving a backdoored build that copied every visitor's
  *                  `ntwine_session` cookie (2026-09-21 to 2026-10-08).
  *
  * Never lower it. A board that recorded a higher epoch than its code knows (a downgrade) is left alone.
@@ -576,7 +576,7 @@ export function advanceSessionEpoch(stateDir: string, epoch: number = SESSION_EP
 export function sessionEpochNotice(count: number): string | null {
   if (count <= 0) return null
   const devices = count === 1 ? "1 remote device" : `${count} remote devices`
-  return `Security update: signed out ${devices} (a phone or browser reaching this board through frizz.sh or a tunnel). Each must sign in again with a fresh link.`
+  return `Security update: signed out ${devices} (a phone or browser reaching this board through a hosted name or a tunnel). Each must sign in again with a fresh link.`
 }
 
 /**

@@ -35,9 +35,9 @@ function harness(overrides: Partial<Parameters<typeof connectRelay>[0]> = {}) {
       const conn = connectRelay({
         name: "ada",
         identity,
-        relayOrigin: "https://frizz.sh",
+        relayOrigin: "https://ntwine.app",
         boardOrigin: "http://127.0.0.1:1",
-        publicOrigin: "https://ada.frizz.sh",
+        publicOrigin: "https://ada.ntwine.app",
         socketFactory: (url) => { urls.push(url); const s = fakeSocket(); sockets.push(s); return s.socket; },
         onStatus: (s, d) => void status.push(d ? `${s}:${d}` : s),
         setTimer: (fn) => { timers.push(fn); return timers.length; },

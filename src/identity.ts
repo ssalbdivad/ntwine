@@ -10,7 +10,7 @@ import {
 } from "@ntwine/shared";
 
 /**
- * The keypair that owns this machine's `<name>.frizz.sh` names.
+ * The keypair that owns this machine's `<name>.ntwine.app` names.
  *
  * There is no account behind a claimed name — the key IS the account, which is what lets the feature
  * exist without Ntwine growing a login. Ownership moves the way an SSH key does: copy the file.
@@ -53,7 +53,7 @@ export async function loadOrCreateClaimIdentity(home = homedir()): Promise<Crypt
     const identity = await claimIdentityFromPrivateKey(new Uint8Array(stored));
     if (identity) return identity;
     throw new Error(
-      `${path} is not a usable Ntwine identity key. It is what proves you own your frizz.sh name, so it is not replaced automatically — restore it from a backup, or delete it to claim a new name.`
+      `${path} is not a usable Ntwine identity key. It is what proves you own your ntwine.app name, so it is not replaced automatically — restore it from a backup, or delete it to claim a new name.`
     );
   }
 

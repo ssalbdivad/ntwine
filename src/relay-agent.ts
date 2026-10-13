@@ -50,7 +50,7 @@ export interface ServeOptions {
  * the fix having shipped there. The failure it prevents is total, not cosmetic: a phone that has
  * the board cached revalidates every module on the next load, every one comes back 504, and the app
  * never boots — a blank page that a fresh browser (no cache, so no 304s) cannot reproduce. That is
- * exactly what took ssalbdivad.frizz.sh down on 2026-10-05 while the board itself ran fine.
+ * exactly what took the maintainer's hosted name down on 2026-10-05 while the board itself ran fine.
  *
  * The cost is a full 200 where a 304 would have done. Immutable assets never revalidate, so what is
  * re-sent is the small, uncached set: the HTML shell and the dev server's source modules.

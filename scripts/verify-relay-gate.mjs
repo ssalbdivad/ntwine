@@ -18,7 +18,7 @@ import { WebSocketServer } from "ws";
 import { RestartSupervisorProxy } from "@ntwine/server/restart-supervisor";
 import { serveRelayWebSocket } from "../src/relay-agent.ts";
 
-const PUBLIC_ORIGIN = "https://ada.frizz.sh";
+const PUBLIC_ORIGIN = "https://ada.ntwine.app";
 const checks = [];
 const check = (name, ok, detail = "") => {
   checks.push(ok);
@@ -74,7 +74,7 @@ try {
   //    see a PUBLIC arrival and demand the code, not read loopback and wave a shell through.
   const before = reached;
   const uninvited = await attempt(
-    [["host", "ada.frizz.sh"], ["origin", PUBLIC_ORIGIN]],
+    [["host", "ada.ntwine.app"], ["origin", PUBLIC_ORIGIN]],
     { origin: boardOrigin, publicOrigin: PUBLIC_ORIGIN },
   );
   check("a visitor without a redeemed access code is refused", uninvited.ok === false, `ack ok=${uninvited.ok}`);
@@ -93,7 +93,7 @@ try {
         host: "127.0.0.1",
         port,
         path: `/?ntwine_code=${encodeURIComponent(code.code)}`,
-        headers: { host: "ada.frizz.sh", origin: PUBLIC_ORIGIN },
+        headers: { host: "ada.ntwine.app", origin: PUBLIC_ORIGIN },
         setHost: false,
       },
       (res) => { res.resume(); resolve({ status: res.statusCode, setCookie: res.headers["set-cookie"] ?? [] }); },
@@ -105,7 +105,7 @@ try {
   check("an access code is traded for a session cookie", cookie.includes("ntwine_session="), `HTTP ${redeem.status}`);
 
   const invited = await attempt(
-    [["host", "ada.frizz.sh"], ["origin", PUBLIC_ORIGIN], ["cookie", cookie]],
+    [["host", "ada.ntwine.app"], ["origin", PUBLIC_ORIGIN], ["cookie", cookie]],
     { origin: boardOrigin, publicOrigin: PUBLIC_ORIGIN },
   );
   check("a visitor holding a redeemed session opens a terminal", invited.ok === true, `ack ok=${invited.ok}`);

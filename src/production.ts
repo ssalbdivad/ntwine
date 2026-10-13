@@ -146,7 +146,7 @@ Options:
   --port <port>          request a fixed port for a new workspace server
   --sandbox              a disposable Ntwine to try things in: throwaway home and project, its
                          own port, deleted when this terminal closes; credentials (gh,
-                         cloudflared, Claude, Codex, the machine's frizz.sh key) are shared
+                         cloudflared, Claude, Codex, the machine's ntwine.app key) are shared
   --link                 print a fresh single-use access link for the running board
   --sessions             list the devices signed in to the running board
   --sign-out <id|all>    sign one device out, or every one of them
@@ -157,7 +157,7 @@ Options:
 
 
 To reach the board from a phone or another machine, press R in the terminal running it: a short
-walkthrough sets up a private frizz.sh name (no account needed), a Cloudflare
+walkthrough sets up a private ntwine.app name (no account needed), a Cloudflare
 Tunnel, Tailscale, or a proxy of your own, and
 remembers the choice, so a plain launch serves it from then on. The board stays on loopback and
 shows a single-use sign-in link as a QR; press L for a fresh one, or run --link from another shell.`,

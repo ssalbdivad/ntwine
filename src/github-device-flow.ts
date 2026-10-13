@@ -152,7 +152,7 @@ export async function runDeviceFlow(options: DeviceFlowOptions): Promise<GithubA
   const clientId = options.clientId === undefined ? githubClientId() : options.clientId;
   if (!clientId) {
     throw new GithubSignInError(
-      "custom frizz.sh names are not available in this version of Ntwine yet: its GitHub sign-in is not set up. A private frizz.sh name needs no account and works today.",
+      "custom ntwine.app names are not available in this version of Ntwine yet: its GitHub sign-in is not set up. A private ntwine.app name needs no account and works today.",
       "not-configured",
     );
   }

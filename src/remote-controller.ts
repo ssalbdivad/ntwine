@@ -17,6 +17,7 @@ import {
   isExternalConfig,
   isRelayConfig,
   readCloudConfig,
+  retiredCloudHostname,
   readTunnelToken,
   reconcileCloudConfig,
   resolveRunToken,
@@ -121,7 +122,15 @@ export function createRemoteController(options: RemoteControllerOptions): Remote
     origin: () => originOf(config),
     async serveSaved() {
       const saved = readCloudConfig(home);
-      if (!saved) return;
+      if (!saved) {
+        const retired = retiredCloudHostname(home);
+        if (retired) {
+          const message = `${retired} no longer works. Press R to claim a new name.`;
+          options.log.warn("cloud", message);
+          options.say(message);
+        }
+        return;
+      }
       // A saved name inside the zone that is not yet a relay claim is claimed now (see
       // reconcileCloudConfig); that counts as a fresh claim, so the lease is not renewed twice.
       const reconciled = await reconcileCloudConfig(saved, options.port, home, (message) => {

@@ -7,7 +7,7 @@ import { serverAddressPathForStateDir } from "./ntwine-paths.ts"
 import { log as ntwineLog } from "./logging.ts"
 
 // ── The audit trail of high-impact board actions ────────────────────────────────────────────────────
-// On 2026-10-08 a board session stolen through a backdoored frizz.sh relay was used to add
+// On 2026-10-08 a board session stolen through a backdoored hosted relay (on the old domain) was used to add
 // `/private/tmp` as a project, dispatch about 13 workers into it, and later remove the project with
 // its data. Ntwine had logged none of it: no line said a project was added or removed, that a thread
 // was dispatched or messaged, whether the request came over loopback or through the relay, or which
@@ -39,7 +39,7 @@ export const CALLER_HEADER = "x-ntwine-caller"
 /**
  * How a request reached the launcher's proxy.
  *
- *  - `public`   — as the declared public origin: a frizz.sh relay, a tunnel, a proxy of the operator's.
+ *  - `public`   — as the declared public origin: an ntwine.app relay, a tunnel, a proxy of the operator's.
  *  - `network`  — from another machine straight to an exposed bind (`--host`), not as the public origin.
  *  - `loopback` — from this machine, under a loopback name.
  */

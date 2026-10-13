@@ -43,7 +43,7 @@ test("a response of known length comes back in ONE frame", async () => {
   try {
     await serveToEnd(
       { t: "req", id: "1", method: "GET", url: `${b.origin}/x`, headers: [] },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     assert.equal(out.frames.length, 1);
     const head = out.frames[0] as Extract<RelayUpFrame, { t: "res" }>;
@@ -62,9 +62,9 @@ test("the board sees the PUBLIC host, not loopback — without this it refuses e
   try {
     await serveToEnd(
       { t: "req", id: "1", method: "GET", url: `${b.origin}/`, headers: [["host", "127.0.0.1:1"]] },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
-    assert.equal(seen, "ada.frizz.sh");
+    assert.equal(seen, "ada.ntwine.app");
   } finally { await b.close(); }
 });
 
@@ -74,7 +74,7 @@ test("a CHUNKED response streams, because its length is unknowable up front", as
   try {
     await serveToEnd(
       { t: "req", id: "1", method: "GET", url: `${b.origin}/`, headers: [] },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     assert.equal((out.frames[0] as Extract<RelayUpFrame, { t: "res" }>).end, false);
     assert.equal(text(out.frames), "hi");
@@ -93,7 +93,7 @@ test("an SSE body streams instead of being buffered until it ends — which it n
   try {
     await serveToEnd(
       { t: "req", id: "1", method: "GET", url: `${b.origin}/events`, headers: [] },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     const head = out.frames[0] as Extract<RelayUpFrame, { t: "res" }>;
     assert.equal(head.t, "res");
@@ -111,7 +111,7 @@ test("a body too large for one frame is chunked, not dropped", async () => {
   try {
     await serveToEnd(
       { t: "req", id: "1", method: "GET", url: `${b.origin}/big`, headers: [] },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     const head = out.frames[0] as Extract<RelayUpFrame, { t: "res" }>;
     assert.equal(head.end, false, "an oversized body must take the streaming path");
@@ -135,7 +135,7 @@ test("a request body reaches the board", async () => {
         headers: [["content-type", "application/json"]],
         body: encodeBody(new TextEncoder().encode('{"a":1}')),
       },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     assert.equal(got, '{"a":1}');
   } finally { await b.close(); }
@@ -145,7 +145,7 @@ test("a board that is down answers 502 rather than leaving the visitor to time o
   const out = collect();
   await serveToEnd(
     { t: "req", id: "1", method: "GET", url: "http://127.0.0.1:1/", headers: [] },
-    { origin: "http://127.0.0.1:1", send: out.send, publicOrigin: "https://ada.frizz.sh" },
+    { origin: "http://127.0.0.1:1", send: out.send, publicOrigin: "https://ada.ntwine.app" },
   );
   const head = out.frames[0] as Extract<RelayUpFrame, { t: "res" }>;
   assert.equal(head.status, 502);
@@ -162,7 +162,7 @@ test("hop-by-hop headers are not replayed onto the local connection", async () =
         t: "req", id: "1", method: "GET", url: `${b.origin}/`,
         headers: [["connection", "keep-alive"], ["transfer-encoding", "chunked"], ["x-keep", "1"]],
       },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     assert.ok(seen.includes("x-keep"));
     assert.ok(!seen.includes("transfer-encoding"), "a hop-by-hop header was replayed");
@@ -185,7 +185,7 @@ test("a revalidating visitor gets a full 200, never a 304 a stale relay would tu
         t: "req", id: "1", method: "GET", url: `${b.origin}/src/main.tsx`,
         headers: [["if-none-match", '"v1"'], ["if-modified-since", "Mon, 05 Oct 2026 00:00:00 GMT"], ["x-keep", "1"]],
       },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     assert.ok(seen.includes("x-keep"));
     assert.ok(!seen.includes("if-none-match") && !seen.includes("if-modified-since"), "a conditional header reached the board");
@@ -241,8 +241,8 @@ test("a terminal opens locally and is acknowledged, so the visitor's pane goes l
   const t = await terminal();
   const out = collect();
   const session = serveRelayWebSocket(
-    { t: "ws-open", id: "w1", url: "https://ada.frizz.sh/terminal?id=abc", headers: [["x-keep", "1"]] },
-    { origin: t.origin, publicOrigin: "https://ada.frizz.sh", send: out.send },
+    { t: "ws-open", id: "w1", url: "https://ada.ntwine.app/terminal?id=abc", headers: [["x-keep", "1"]] },
+    { origin: t.origin, publicOrigin: "https://ada.ntwine.app", send: out.send },
   );
   try {
     const ack = (await until(out.frames, (f) => f.t === "ws-ack", "the ack")) as Extract<RelayUpFrame, { t: "ws-ack" }>;
@@ -256,8 +256,8 @@ test("what the visitor types reaches the local terminal, and its output comes ba
   const t = await terminal((ws, data) => ws.send(`echo:${data}`));
   const out = collect();
   const session = serveRelayWebSocket(
-    { t: "ws-open", id: "w1", url: "https://ada.frizz.sh/terminal", headers: [] },
-    { origin: t.origin, publicOrigin: "https://ada.frizz.sh", send: out.send },
+    { t: "ws-open", id: "w1", url: "https://ada.ntwine.app/terminal", headers: [] },
+    { origin: t.origin, publicOrigin: "https://ada.ntwine.app", send: out.send },
   );
   try {
     await until(out.frames, (f) => f.t === "ws-ack", "the ack");
@@ -270,15 +270,15 @@ test("what the visitor types reaches the local terminal, and its output comes ba
 
 test("a URL for the public host is dialled on LOOPBACK — the visitor's hostname is not a route to anywhere", async () => {
   // The frame carries the visitor's own URL. Connecting to it verbatim would leave the board trying to
-  // reach frizz.sh, which either fails or, far worse, loops back through the relay.
+  // reach ntwine.app, which either fails or, far worse, loops back through the relay.
   const t = await terminal();
   const out = collect();
   const dialled: string[] = [];
   const session = serveRelayWebSocket(
-    { t: "ws-open", id: "w1", url: "https://ada.frizz.sh/terminal?id=abc", headers: [] },
+    { t: "ws-open", id: "w1", url: "https://ada.ntwine.app/terminal?id=abc", headers: [] },
     {
       origin: t.origin,
-      publicOrigin: "https://ada.frizz.sh",
+      publicOrigin: "https://ada.ntwine.app",
       send: out.send,
       connect: (url) => { dialled.push(url); return new WebSocket(url) as never; },
     },
@@ -299,8 +299,8 @@ test("a terminal the board CANNOT open is refused, not left silently open", asyn
   const t = await terminal(undefined, false);
   const out = collect();
   const session = serveRelayWebSocket(
-    { t: "ws-open", id: "w1", url: "https://ada.frizz.sh/terminal", headers: [] },
-    { origin: t.origin, publicOrigin: "https://ada.frizz.sh", send: out.send },
+    { t: "ws-open", id: "w1", url: "https://ada.ntwine.app/terminal", headers: [] },
+    { origin: t.origin, publicOrigin: "https://ada.ntwine.app", send: out.send },
   );
   try {
     const ack = (await until(out.frames, (f) => f.t === "ws-ack", "the refusal")) as Extract<RelayUpFrame, { t: "ws-ack" }>;
@@ -312,8 +312,8 @@ test("a local terminal that ends tells the relay, so the visitor's pane closes w
   const t = await terminal((ws) => ws.close());
   const out = collect();
   const session = serveRelayWebSocket(
-    { t: "ws-open", id: "w1", url: "https://ada.frizz.sh/terminal", headers: [] },
-    { origin: t.origin, publicOrigin: "https://ada.frizz.sh", send: out.send },
+    { t: "ws-open", id: "w1", url: "https://ada.ntwine.app/terminal", headers: [] },
+    { origin: t.origin, publicOrigin: "https://ada.ntwine.app", send: out.send },
   );
   try {
     await until(out.frames, (f) => f.t === "ws-ack", "the ack");
@@ -334,21 +334,21 @@ test("the visitor's Host, Origin and session cookie reach the board — the gate
     {
       t: "ws-open",
       id: "w1",
-      url: "https://ada.frizz.sh/terminal",
+      url: "https://ada.ntwine.app/terminal",
       headers: [
-        ["host", "ada.frizz.sh"],
-        ["origin", "https://ada.frizz.sh"],
+        ["host", "ada.ntwine.app"],
+        ["origin", "https://ada.ntwine.app"],
         ["cookie", "ntwine_session=abc123"],
         ["sec-websocket-key", "someone-elses-key"],
         ["connection", "Upgrade"],
       ],
     },
-    { origin: t.origin, publicOrigin: "https://ada.frizz.sh", send: out.send },
+    { origin: t.origin, publicOrigin: "https://ada.ntwine.app", send: out.send },
   );
   try {
     await until(out.frames, (f) => f.t === "ws-ack", "the ack");
-    assert.equal(t.handshake.host, "ada.frizz.sh");
-    assert.equal(t.handshake.origin, "https://ada.frizz.sh");
+    assert.equal(t.handshake.host, "ada.ntwine.app");
+    assert.equal(t.handshake.origin, "https://ada.ntwine.app");
     assert.equal(t.handshake.cookie, "ntwine_session=abc123");
     // The handshake is OURS, not a replay of the visitor's — a borrowed key is answered with an
     // accept value computed for somebody else, which a strict client rejects.
@@ -364,8 +364,8 @@ test("a message too large for one relay frame is split below the wire limit", as
   const t = await terminal((ws) => ws.send(big));
   const out = collect();
   const session = serveRelayWebSocket(
-    { t: "ws-open", id: "w1", url: "https://ada.frizz.sh/terminal", headers: [] },
-    { origin: t.origin, publicOrigin: "https://ada.frizz.sh", send: out.send },
+    { t: "ws-open", id: "w1", url: "https://ada.ntwine.app/terminal", headers: [] },
+    { origin: t.origin, publicOrigin: "https://ada.ntwine.app", send: out.send },
   );
   try {
     await until(out.frames, (f) => f.t === "ws-ack", "the ack");
@@ -386,8 +386,8 @@ test("a chunked message from the relay is rebuilt before it reaches the local so
   const t = await terminal();
   const out = collect();
   const session = serveRelayWebSocket(
-    { t: "ws-open", id: "w1", url: "https://ada.frizz.sh/terminal", headers: [] },
-    { origin: t.origin, publicOrigin: "https://ada.frizz.sh", send: out.send },
+    { t: "ws-open", id: "w1", url: "https://ada.ntwine.app/terminal", headers: [] },
+    { origin: t.origin, publicOrigin: "https://ada.ntwine.app", send: out.send },
   );
   try {
     await until(out.frames, (f) => f.t === "ws-ack", "the ack");
@@ -414,7 +414,7 @@ test("cancel() aborts a stream mid-flight and goes quiet", async () => {
   try {
     const served = serveRelayRequest(
       { t: "req", id: "c1", method: "GET", url: `${b.origin}/events`, headers: [] },
-      { origin: b.origin, send: out.send, publicOrigin: "https://ada.frizz.sh" },
+      { origin: b.origin, send: out.send, publicOrigin: "https://ada.ntwine.app" },
     );
     const deadline = Date.now() + 5_000;
     while (out.frames.length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 1));

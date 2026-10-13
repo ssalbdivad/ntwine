@@ -1,5 +1,5 @@
 /**
- * The claim protocol for `<name>.frizz.sh`.
+ * The claim protocol for `<name>.ntwine.app`.
  *
  * A name is owned by whoever holds a private key — there is no account, no email and no password, so
  * this module is the entire ownership model. The CLI signs a claim; the registration Worker verifies
@@ -102,7 +102,7 @@ export function generateAnonymousClaimName(): string {
 }
 
 export interface ClaimPayload {
-  /** The label to the left of `.frizz.sh`. */
+  /** The label to the left of `.ntwine.app`. */
   name: string
   /** Which local port the tunnel's ingress should point at. */
   port: number

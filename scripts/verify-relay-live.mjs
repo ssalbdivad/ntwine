@@ -1,6 +1,6 @@
 #!/usr/bin/env nub
 /**
- * The relay that is ACTUALLY SERVING `*.frizz.sh`, checked from outside. Run it after every Workers
+ * The relay that is ACTUALLY SERVING `*.ntwine.app`, checked from outside. Run it after every Workers
  * deploy, and any time a relayed board misbehaves while the board itself is healthy.
  *
  * WHY IT EXISTS (2026-10-11, issue #49). The relay and the board ship separately, and nothing else in
@@ -124,7 +124,7 @@ export async function startToyBoard() {
 }
 
 /**
- * Everything a visitor can ask a relayed board for, against `origin` (`https://<name>.frizz.sh`).
+ * Everything a visitor can ask a relayed board for, against `origin` (`https://<name>.ntwine.app`).
  *
  * Exported with the toy board so the same checks can be held against a relay that is known to be
  * broken: a check that has only ever been seen passing proves nothing about what it catches.

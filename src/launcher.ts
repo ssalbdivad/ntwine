@@ -195,7 +195,7 @@ export const DEV_SANDBOX_HOME_ENV = "NTWINE_DEV_SANDBOX_HOME";
 const RETIRED_NETWORK_FLAGS = ["--host", "--allowed-host", "--public-origin", "--cloud"];
 
 function retiredFlagMessage(flag: string): string {
-  return `${flag} was retired — how a board is reached is set up from the running board now: press R in its terminal to pick a private frizz.sh name, a Cloudflare Tunnel, Tailscale or a proxy of your own. The choice is remembered, so a plain launch serves it.`;
+  return `${flag} was retired — how a board is reached is set up from the running board now: press R in its terminal to pick a private ntwine.app name, a Cloudflare Tunnel, Tailscale or a proxy of your own. The choice is remembered, so a plain launch serves it.`;
 }
 
 export function parseCliArgs(argv: string[]): CliOptions {
@@ -384,7 +384,7 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
  * What a sandbox SHARES with the real home: credentials, never state.
  *
  * The board reads credentials out of $HOME too — `gh` its config dir (for the GitHub cards and the
- * workers; a frizz.sh claim never reads it), cloudflared its cert and tunnel credentials, the agents
+ * workers; an ntwine.app claim never reads it), cloudflared its cert and tunnel credentials, the agents
  * their sessions — and a sandbox with none of them would say "not signed in" on every screen. So those are linked in. The one that MATTERS is the claim identity key:
  * the registrar knows a name's holder by that key alone, so a name claimed with a throwaway key would
  * be "taken" against the real board for the length of a lease. Linking the real key makes a sandbox
@@ -469,7 +469,7 @@ Options:
   --port <port>          request a fixed port for a new workspace server
   --sandbox              a disposable Ntwine to try things in: throwaway home and project, its
                          own port, deleted when this terminal closes; credentials (gh,
-                         cloudflared, Claude, Codex, the machine's frizz.sh key) are shared
+                         cloudflared, Claude, Codex, the machine's ntwine.app key) are shared
   --link                 print a fresh single-use access link for the already-running board
   --sessions             list the devices holding a session on the already-running board
   --sign-out <id|all>    revoke one device's session, or every one of them
@@ -486,7 +486,7 @@ Commands:
   top                    memory on this machine and Ntwine's share of it (--json, --watch)
 
 To reach the board from a phone or another machine, press R in the terminal running it: a short
-walkthrough sets up a private frizz.sh name (no account needed), a Cloudflare
+walkthrough sets up a private ntwine.app name (no account needed), a Cloudflare
 Tunnel, Tailscale, or a proxy of your own, and
 remembers the choice, so a plain launch serves it from then on. The board stays on loopback and
 shows a single-use sign-in link as a QR; press L for a fresh one, or run --link from another shell.

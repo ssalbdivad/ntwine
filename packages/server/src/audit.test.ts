@@ -73,7 +73,7 @@ const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebK
 test("a relayed dispatch records the public origin, the session id and device, and the prompt only as a digest", async () => {
   const sink = capture()
   const app = auditApp(sink, async () => ({ slug: "deploy-it", sessionId: "sess-1" }))
-  const stamp = encodeCallerStamp({ via: "public", remote: "127.0.0.1", host: "dana.frizz.sh", clientIp: "203.0.113.9", session: "Ab3dE9xY" })
+  const stamp = encodeCallerStamp({ via: "public", remote: "127.0.0.1", host: "dana.ntwine.app", clientIp: "203.0.113.9", session: "Ab3dE9xY" })
   const response = await rpc(app, "dispatch", { prompt: PROMPT }, { [CALLER_HEADER]: stamp, "user-agent": IPHONE })
   assert.equal(response.status, 200)
 
@@ -87,7 +87,7 @@ test("a relayed dispatch records the public origin, the session id and device, a
   assert.deepEqual(record!.origin, {
     via: "public",
     remote: "127.0.0.1",
-    host: "dana.frizz.sh",
+    host: "dana.ntwine.app",
     clientIp: "203.0.113.9",
     session: "Ab3dE9xY",
     device: "Safari on iPhone",
@@ -168,7 +168,7 @@ test("projectAdd through the app: a refused folder is recorded as refused, an ac
   mkdirSync(folder)
   const sink = capture()
   const app = auditApp(sink, async () => ({ slug: "unused", sessionId: "unused" }))
-  const stamp = encodeCallerStamp({ via: "public", remote: "127.0.0.1", host: "dana.frizz.sh", session: "Ab3dE9xY" })
+  const stamp = encodeCallerStamp({ via: "public", remote: "127.0.0.1", host: "dana.ntwine.app", session: "Ab3dE9xY" })
 
   // The home folder is the one folder the add refuses.
   const refused = await rpc(app, "projectAdd", { path: home }, { [CALLER_HEADER]: stamp })

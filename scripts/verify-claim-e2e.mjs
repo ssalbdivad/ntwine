@@ -169,7 +169,7 @@ const server = createServer((req, res) => {
     const outcome = await handleClaim(body, {
       api: cf.api,
       store: st.store,
-      zone: "frizz.sh",
+      zone: "ntwine.app",
       now: () => clock,
       ...(gate ? { github: gate } : {}),
     });
@@ -187,13 +187,13 @@ try {
   const identity = await loadOrCreateClaimIdentity(home);
 
   const first = await claimName({ name: "dana", port: 9393, identity, origin, now: () => clock });
-  check("a name is claimed end to end", first.hostname === "dana.frizz.sh", first.hostname);
+  check("a name is claimed end to end", first.hostname === "dana.ntwine.app", first.hostname);
   check("a run token comes back", typeof first.token === "string" && first.token.length > 0, first.token);
   check("the first claim is not a renewal", first.renewed === false);
   check(
     "the DNS record points at the tunnel",
-    cf.dns.get("dana.frizz.sh") === "tunnel-1.cfargotunnel.com",
-    cf.dns.get("dana.frizz.sh") ?? "(none)"
+    cf.dns.get("dana.ntwine.app") === "tunnel-1.cfargotunnel.com",
+    cf.dns.get("dana.ntwine.app") ?? "(none)"
   );
   check("the lease runs 30 days", first.leaseExpiresAt === clock + CLAIM_LEASE_MS);
 
@@ -226,7 +226,7 @@ try {
     // 4. Once the lease lapses, the same stranger CAN take it, and the old tunnel is gone.
     clock += CLAIM_LEASE_MS + 1;
     const takenOver = await claimName({ name: "dana", port: 4321, identity: stranger, origin, now: () => clock });
-    check("a lapsed name is reclaimable", takenOver.renewed === false && takenOver.hostname === "dana.frizz.sh");
+    check("a lapsed name is reclaimable", takenOver.renewed === false && takenOver.hostname === "dana.ntwine.app");
     check("the abandoned tunnel was torn down", cf.tunnels.has("tunnel-1") === false);
     check("exactly one tunnel remains", cf.tunnels.size === 1, `${cf.tunnels.size} tunnels`);
   } finally {
@@ -251,7 +251,7 @@ try {
     const anonIdentity = await loadOrCreateClaimIdentity(anonHome);
     const anonName = generateAnonymousClaimName();
     const anon = await claimName({ name: anonName, port: 9393, identity: anonIdentity, origin, now: () => clock });
-    check("an anonymous name claims through the gate with no GitHub", anon.hostname === `${anonName}.frizz.sh`, anon.hostname);
+    check("an anonymous name claims through the gate with no GitHub", anon.hostname === `${anonName}.ntwine.app`, anon.hostname);
 
     let gated = null;
     try {
@@ -293,7 +293,7 @@ try {
           onPrompt: (prompt) => prompts.push(prompt),
         }),
     });
-    check("a custom name claims through the device flow", config.claim === "device-word" && config.hostname === "device-word.frizz.sh", JSON.stringify(config));
+    check("a custom name claims through the device flow", config.claim === "device-word" && config.hostname === "device-word.ntwine.app", JSON.stringify(config));
     check("the code was shown to the person", prompts.length === 1 && prompts[0].userCode === "E2E0-CODE");
     check("the flow asked GitHub for no scope", githubSeen[0]?.path === "/login/device/code" && !("scope" in githubSeen[0].form), JSON.stringify(githubSeen[0]?.form));
     check("the claim carried the device-flow token and nothing else", received.length === 1 && received[0]?.github === ZERO, received[0]?.github ?? "(none)");

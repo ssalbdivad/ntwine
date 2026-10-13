@@ -1136,7 +1136,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         // HMR rides the board's OWN port: Vite takes its upgrades from `viteUpgrades`, which the
         // upgrade handler below feeds every VITE_HMR_PATH socket, and its client then connects to the
         // origin that served the page. So it reaches through the supervisor proxy and anything in
-        // front of it — a phone on a frizz.sh name gets hot reload, behind the same session gate as
+        // front of it — a phone on an ntwine.app name gets hot reload, behind the same session gate as
         // the board socket — and the tab reconnects to the next child after every recycle, because
         // the public port never moves. (A side port, childPort + 39000, did neither: a phone cannot
         // reach it, and it followed the child's random port, so the first recycle orphaned the tab.)

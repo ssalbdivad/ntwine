@@ -38,7 +38,7 @@ async function registrar(handler: (body: unknown) => { status: number; body: unk
 }
 
 const ok = {
-  hostname: "dana.frizz.sh",
+  hostname: "dana.ntwine.app",
   token: "run-token",
   leaseExpiresAt: 1_800_000_000_000,
   renewed: false,

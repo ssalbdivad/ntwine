@@ -10,7 +10,7 @@ import { createWakeLock, isWsl, wakeLockCommand, type WakeLock, type WakeLockPla
 // wake-lock.ts holds the machine awake only while an agent is working. That left remote access dark on
 // every quiet night (2026-10-07): the last turn ended at 23:11, the control plane logged "nothing running;
 // the machine may sleep", Windows idle-slept at 00:47 on its one-hour AC timeout, and
-// ssalbdivad.frizz.sh reported the board as not running until a keypress woke the laptop at 09:27. A
+// the maintainer's hosted name reported the board as not running until a keypress woke the laptop at 09:27. A
 // board that is reachable from a phone is only useful if the machine behind it is up.
 //
 // So while a public origin is declared — a relay name, a tunnel, any remote setup — the SUPERVISOR holds

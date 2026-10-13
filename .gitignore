@@ -53,7 +53,7 @@ package.json.publish-backup
 *.pem
 !packages/**/test/**/*.pem
 
-# vercel CLI link state for site/ (the frizz.sh one-pager)
+# vercel CLI link state for site/ (the ntwine.app one-pager)
 .vercel/
 
 # wrangler/miniflare's local emulation state — the KV and cache SQLite files `wrangler dev` writes
