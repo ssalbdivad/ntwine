@@ -1,6 +1,6 @@
-# Hosted Ntwine: `<name>.frizz.sh` as a paid service
+# Hosted Ntwine: `<name>.<zone>` as a paid service
 
-> **2026-10-13:** a dated design record. The service it describes moved from `frizz.sh` to `ntwine.app`, on a new Cloudflare account with none of the ids below; for the current setup see [`packages/registrar/README.md`](../packages/registrar/README.md).
+> **2026-10-13:** a dated design record. The service it describes moved from the pre-rename domain to `ntwine.app`, on a new Cloudflare account with none of the ids below. Throughout, `<zone>` stands for that pre-rename domain; for the current setup see [`packages/registrar/README.md`](../packages/registrar/README.md).
 
 Status: **BUILDING.** Owner effort: ntwine worker thread (remote-access). The design to build is [Stage 2, revised](#stage-2-revised-leased-names-keypair-ownership-no-accounts) at the bottom of this file, not the original Stage 2 sketch above it.
 
@@ -20,15 +20,15 @@ The one thing that stands: this must ship as a FEATURE OF NTWINE, never as a sta
 Both intuitive alternatives are closed, so the tunnels MUST live in our account. Verified 2026-08-24:
 
 - **A user's own tunnel, in their own Cloudflare account, under our name.** Impossible. The `<id>.cfargotunnel.com` target only resolves for DNS records in the SAME account; a cross-account CNAME returns [error 1014](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1014).
-- **Delegating `alice.frizz.sh` to the user as its own zone (NS delegation).** [Subdomain setup is Enterprise-only.](https://developers.cloudflare.com/dns/zone-setups/subdomain-setup/)
+- **Delegating `alice.<zone>` to the user as its own zone (NS delegation).** [Subdomain setup is Enterprise-only.](https://developers.cloudflare.com/dns/zone-setups/subdomain-setup/)
 
-So the choice is not between mechanisms. It is: tunnels in our account (below), our own relay (§ Building the tunnel ourselves), or the user brings their own domain (docs/remote-access.md). Only the first delivers `<name>.frizz.sh` with no setup.
+So the choice is not between mechanisms. It is: tunnels in our account (below), our own relay (§ Building the tunnel ourselves), or the user brings their own domain (docs/remote-access.md). Only the first delivers `<name>.<zone>` with no setup.
 
 ## The ceiling, which decides the plan more than anything else
 
 | Limit | Value | Source |
 | --- | --- | --- |
-| DNS records per zone, free | **200** for a zone created after 2024-09-01 — which `frizz.sh` is | [DNS features and plans](https://developers.cloudflare.com/dns/reference/all-features/) |
+| DNS records per zone, free | **200** for a zone created after 2024-09-01 — which `<zone>` is | [DNS features and plans](https://developers.cloudflare.com/dns/reference/all-features/) |
 | DNS records per zone, Pro/Business | 3,500 | same |
 | Tunnels per account | **1,000**, Enterprise to raise | [Account limits](https://developers.cloudflare.com/cloudflare-one/account-limits/) |
 
@@ -39,7 +39,7 @@ One user costs one DNS record and one tunnel. So the runway is **200 names free 
 Ntwine runs on your machine and binds loopback. Reaching it from anywhere means a tunnel, and today
 that means the user brings their own Cloudflare or Tailscale account and their own domain. The product
 idea is to sell the part that is annoying: identity, a stable name, and auth in front of a board that
-otherwise has none. `npx ntwine --cloud` and you are at `dana.frizz.sh` from your phone.
+otherwise has none. `npx ntwine --cloud` and you are at `dana.<zone>` from your phone.
 
 What you are selling is **reachability and identity, not compute**. The agents still run on the user's
 machine with the user's credentials. That is the whole reason the margin can be good — and it is also
@@ -56,8 +56,8 @@ These are the facts the design rests on. Each was checked, not recalled.
 | ⇒ a zone-writing token can never ship in the client | any user could then take/delete any subdomain, or repoint the apex |
 | A **per-tunnel run token** is narrow — runs that tunnel, nothing else | this is what makes the vending-machine design safe |
 | A **remotely-managed** tunnel (`config_src: "cloudflare"`) needs no `cert.pem` | created + configured via API, run via `cloudflared tunnel run --token` |
-| Universal SSL covers `*.frizz.sh` **one level only** | deeper (`a.b.frizz.sh`) needs Advanced Certificate Manager, paid, wildcard-per-level, 50 SANs/cert |
-| ⇒ the namespace must be flat: `dana.frizz.sh` | fine now that Ntwine is one server per machine |
+| Universal SSL covers `*.<zone>` **one level only** | deeper (`a.b.<zone>`) needs Advanced Certificate Manager, paid, wildcard-per-level, 50 SANs/cert |
+| ⇒ the namespace must be flat: `dana.<zone>` | fine now that Ntwine is one server per machine |
 | GitHub device flow needs only a **public `client_id`**, no secret | [octokit/auth-oauth-device](https://github.com/octokit/auth-oauth-device.js/) — the CLI can do the whole login itself |
 | Cloudflare Access free tier is **50 seats, then $7/user/mo** | [Access pricing](https://www.cloudflare.com/sase/products/access/) |
 | The Zero Trust reselling clause covers **Access, Gateway, RBI, email security, CASB, DLP** — **NOT Tunnel** | [Zero Trust service-specific terms](https://www.cloudflare.com/service-specific-terms-zero-trust-services/), product list read verbatim |
@@ -66,7 +66,7 @@ These are the facts the design rests on. Each was checked, not recalled.
 | Non-Enterprise accounts cap at **1,000 tunnels** | [Cloudflare One account limits](https://developers.cloudflare.com/cloudflare-one/account-limits/) — also 100 edge connections per tunnel |
 | **Cloudflare for SaaS** is the sanctioned "extend Cloudflare to your end customers" product | [docs](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/); Shopify, Webflow, Kinsta, Render ship on it |
 | DO **WebSocket hibernation applies to INCOMING connections** (`ctx.acceptWebSocket()`) | [Durable Objects WebSocket docs](https://developers.cloudflare.com/durable-objects/best-practices/websockets/) — the agent dials in, so this is the right direction |
-| `frizz.sh` moved to its own account on 2026-08-15 | zone `94acd4da90ceb813886c897e7f82a961`, account `dde3ec1f6b1f0a397ea82a9ed322f5ce`. The pre-move zone `2dc5dbf9…` in personal account `3eef35e2…` is DEAD — a token scoped to it authorizes nothing. |
+| `<zone>` moved to its own account on 2026-08-15 | zone `94acd4da90ceb813886c897e7f82a961`, account `dde3ec1f6b1f0a397ea82a9ed322f5ce`. The pre-move zone `2dc5dbf9…` in personal account `3eef35e2…` is DEAD — a token scoped to it authorizes nothing. |
 | Ntwine has **no authentication of any kind** today | reaching the port is the authorization; `EXPOSED_WARNING` says so |
 | cloudflared's origin-facing contract | port-less `Host`, `x-forwarded-for`, `x-forwarded-proto: https`, `cf-*`; app reads carry no Origin + `sec-fetch-site: same-origin` |
 
@@ -112,8 +112,8 @@ subdomain**, for the same reason.
 
 **Board auth: a signed session Ntwine verifies itself.**
 
-1. Browser hits `dana.frizz.sh`, Ntwine sees no session cookie.
-2. Redirect to `auth.frizz.sh/login?return=…`; GitHub OAuth; Worker mints a short-lived JWT naming the
+1. Browser hits `dana.<zone>`, Ntwine sees no session cookie.
+2. Redirect to `auth.<zone>/login?return=…`; GitHub OAuth; Worker mints a short-lived JWT naming the
    subdomain and the user.
 3. Redirect back; Ntwine validates the JWT against cached JWKS — **offline, no call to your Worker** —
    and sets an `HttpOnly; Secure; SameSite=Lax` cookie.
@@ -149,7 +149,7 @@ The free prototype needs almost no state. Billing changes that.
   point people are paying.
 - **Recovery and support.** Lost laptop, new machine, "my subdomain is stuck". Needs a re-issue path
   that proves identity (GitHub re-auth) and rotates the tunnel token.
-- **Abuse.** Someone will put a phishing page behind `*.frizz.sh`. You are the party of record. Needs a
+- **Abuse.** Someone will put a phishing page behind `*.<zone>`. You are the party of record. Needs a
   ToS, an abuse contact, and a per-user + global kill switch you have actually tested.
 - **Tax.** Stripe Tax; it is a checkbox and it is not optional for a real business.
 
@@ -166,12 +166,12 @@ The thing that would wreck this model is anything that puts you on the data plan
 **An Ntwine board runs shell commands as its owner. An auth bug here is remote code execution on your
 customers' laptops, not a data leak.** That reframes several ordinary choices:
 
-- **Vanity subdomains advertise the target list.** `dana.frizz.sh` lets anyone enumerate your customers
+- **Vanity subdomains advertise the target list.** `dana.<zone>` lets anyone enumerate your customers
   from GitHub handles. For a paid product vanity is part of the value, so buy it back with genuinely
   strong auth rather than obscurity — but know the trade you are making. (Microsoft's dev tunnels chose
   opaque ids for exactly this reason, and require the *same account on both ends*.)
 - **The per-tunnel token on the user's disk is a bearer credential.** Stolen, it does not reach their
-  machine — but it lets the thief serve traffic *as* `dana.frizz.sh`, which is a good phishing primitive.
+  machine — but it lets the thief serve traffic *as* `dana.<zone>`, which is a good phishing primitive.
   Make rotation a first-class operation, not a support ticket.
 - **Secrets never touch the client.** The Cloudflare zone token lives only as a Worker secret
   (`wrangler secret put`), never in `wrangler.toml`, never in the repo, never in the npm package. Add a
@@ -226,7 +226,7 @@ precise about:
 free tier where users authenticate with their own GitHub are not "selling access to the Services." Ask
 Cloudflare before Stage 3, when there is a real product to describe and the question is concrete.
 
-Also: move `frizz.sh` out of the personal Cloudflare account before it carries a business. Moving a zone
+Also: move `<zone>` out of the personal Cloudflare account before it carries a business. Moving a zone
 between accounts later means removing and re-adding it, with a DNS gap.
 
 ## Building the tunnel ourselves
@@ -234,7 +234,7 @@ between accounts later means removing and re-adding it, with a DNS gap.
 Worth costing, both as leverage in that conversation and as insurance if the answer is no.
 
 **Cloudflare Workers + Durable Objects — no servers, ~1–2 weeks for a credible v1.** One DO per subdomain
-holds a WebSocket the user's agent dials *in* on; the Worker routes `<name>.frizz.sh` to that DO, which
+holds a WebSocket the user's agent dials *in* on; the Worker routes `<name>.<zone>` to that DO, which
 forwards over the socket. Hibernation applies to incoming sockets, so idle tunnels cost approximately
 nothing and connections survive. No regions, no autoscaling, no machines.
 
@@ -264,9 +264,9 @@ rewrite. That is a day of design discipline now against a fortnight of migration
 ## Rejected
 
 - **Cloudflare Access as the product's auth** — $7/user COGS floor and probable ToS conflict. See above.
-- **A proxy Worker in front of `*.frizz.sh`** — removes per-user DNS writes, but puts you on the data
+- **A proxy Worker in front of `*.<zone>`** — removes per-user DNS writes, but puts you on the data
   plane: their bandwidth on your bill, your uptime in front of every board, and you can see everything.
-- **Nested `<repo>.<user>.frizz.sh`** — needs paid ACM with a wildcard per user, 50 SANs per cert. Moot
+- **Nested `<repo>.<user>.<zone>`** — needs paid ACM with a wildcard per user, 50 SANs per cert. Moot
   now that Ntwine is one server per machine.
 - **Shipping a Cloudflare token in the client** — impossible to scope safely; see verified premises.
 - **Vercel as the front** — no tunnel product, and `vercel.json` rewrites do not proxy WebSocket
@@ -335,8 +335,8 @@ The question this answers, because it is the one that keeps coming back: **does 
 `cloudflared tunnel run` create their subdomain?** No. That command only CONNECTS a tunnel that already
 exists. Both the tunnel and the DNS record are created by API calls against the zone, and the token that
 authorises them can never be on a user's machine — Cloudflare scopes tokens to a zone, never to a
-record, so anything strong enough to create `alice.frizz.sh` is also strong enough to delete
-`bob.frizz.sh` and repoint the apex.
+record, so anything strong enough to create `alice.<zone>` is also strong enough to delete
+`bob.<zone>` and repoint the apex.
 
 So a broker is required. One correction to how it is usually imagined: **it does not need to be
 persistent.** Registration is request/response, so a Worker is exactly right and nothing stays running.
@@ -349,7 +349,7 @@ persistent.** Registration is request/response, so a Worker is exactly right and
 | Worker | Authenticates the user (Stage 3 concern; v1 can be first-come-first-served) |
 | Worker → CF | `POST /accounts/{id}/cfd_tunnel` `{name, config_src:"cloudflare"}` → tunnel id **and its run token** |
 | Worker → CF | `PUT /accounts/{id}/cfd_tunnel/{id}/configurations` → ingress to `http://localhost:<port>` |
-| Worker → CF | `POST /zones/{id}/dns_records` → CNAME `<name>.frizz.sh` → `<tunnelid>.cfargotunnel.com`, proxied |
+| Worker → CF | `POST /zones/{id}/dns_records` → CNAME `<name>.<zone>` → `<tunnelid>.cfargotunnel.com`, proxied |
 | Worker | Returns **only the per-tunnel run token** |
 | CLI | Stores it under `~/.ntwine/`, runs `cloudflared tunnel run --token …` as a supervised child |
 
@@ -388,7 +388,7 @@ after the code assumes it never will. Ask, then build.
 
 ## "Just give them a subdomain pointing at their own IP" — can we stay off the data path entirely?
 
-The instinct: provision `<name>.frizz.sh`, point it at the user's own public IP, and let their machine
+The instinct: provision `<name>.<zone>`, point it at the user's own public IP, and let their machine
 serve the traffic. Ntwine-the-company does DNS and nothing else. Worth taking seriously, because it is
 the cheapest possible business and it fails for a reason that is easy to miss.
 
@@ -422,11 +422,11 @@ it does not, and no amount of engineering on our side changes that.
 
 Even where the IP works, an A record alone gets you `http://`. Ntwine over plain HTTP is not acceptable:
 no secure context (so no clipboard), and the session cookie crosses the internet in the clear. A
-certificate for `<name>.frizz.sh` needs a private key on the USER's machine, so we cannot issue it
+certificate for `<name>.<zone>` needs a private key on the USER's machine, so we cannot issue it
 centrally without shipping keys around.
 
 The clean answer is [ACME DNS-01 with CNAME delegation](https://cert-manager.io/docs/configuration/acme/dns01/):
-we host a `_acme-challenge.<name>.frizz.sh` record (or delegate it to a minimal challenge-only service,
+we host a `_acme-challenge.<name>.<zone>` record (or delegate it to a minimal challenge-only service,
 which is what [acmedns.org](https://acmedns.org/) does), the user's machine runs the ACME client, and
 Let's Encrypt issues the certificate directly to them. The private key never leaves their disk and we
 never hold it. That is a genuinely nice property and it is the piece worth remembering if the DNS-only
@@ -480,7 +480,7 @@ Unchanged from the original sketch, and it needs no database:
 | Is the name taken? | `GET /accounts/{id}/cfd_tunnel?name=u-<name>` — Cloudflare's own list IS the registry |
 | Create | `POST /accounts/{id}/cfd_tunnel` `{name, config_src:"cloudflare"}` → id + run token |
 | Point it at the board | `PUT /accounts/{id}/cfd_tunnel/{id}/configurations` → ingress `http://localhost:<port>` |
-| Publish the name | `POST /zones/{id}/dns_records` → proxied CNAME `<name>.frizz.sh` → `<id>.cfargotunnel.com` |
+| Publish the name | `POST /zones/{id}/dns_records` → proxied CNAME `<name>.<zone>` → `<id>.cfargotunnel.com` |
 | Return | the per-tunnel run token, and nothing else |
 
 The pubkey has to live somewhere to verify renewals, and so does the lease timestamp. **Workers KV**, one small JSON row per name — decided 2026-08-24 while building it, over two alternatives:

@@ -18,7 +18,7 @@ Every shell release since 2026-10-01, and the launcher commits that made each on
 | Shell | What forced it | A rule about folders? |
 | --- | --- | --- |
 | 0.13.7 | `R` after a restart, the sign-in screens, the QR glyphs | no, terminal readout |
-| 0.13.8 | custom frizz.sh names through a GitHub device flow | no, tunnel sign-in |
+| 0.13.8 | custom names on the old domain through a GitHub device flow | no, tunnel sign-in |
 | 0.13.9 | refuse a world-writable folder as a project; 30-day sessions | **partly** |
 | 0.13.10 | the first `ntwine` on a machine opens the folder it was run in | **yes, entirely** |
 | 0.13.11 | a folder that is not a project opens the dashboard; revert of 0.13.10 | **yes, entirely** |

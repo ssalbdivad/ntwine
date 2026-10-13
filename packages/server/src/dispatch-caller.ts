@@ -4,7 +4,7 @@
 // human types alone. It told the two apart by `spawnedFrom`, which the shim started sending at bd36deae —
 // but a worker's MCP shim is spawned once per session and lives as long as it, so every session started
 // before that commit kept dispatching without it, unchecked. @pullfrog-status (session started 16:21, the
-// guard landed 16:44) spawned @superset-impl into Home that evening with `/home/ssalb/frizz` in its brief:
+// guard landed 16:44) spawned @superset-impl into Home that evening with the Ntwine checkout in its brief:
 // the exact case the guard exists for, missed because the caller was too old to say it was a worker.
 //
 // The transport says it regardless of the shim's age. Only two clients POST `dispatch`: the board, from a
