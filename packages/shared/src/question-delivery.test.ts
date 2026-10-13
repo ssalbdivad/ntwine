@@ -79,7 +79,10 @@ test("the open-questions note names each question by text and id, and comes back
   assert.doesNotMatch(note, /\n/, "one line, so the stripper can anchor on it")
   assert.match(note, /^❓ Frizz: 2 questions you registered are still open: “Should the settings store use SQLite or a JSON file\?” \(qst_aaaaaaaaaaaa\), “x{99}…” \(qst_bbbbbbbbbbbb\)\./)
   // A typed message leaves them open, and the next rest names each one still needed or withdraws it.
-  assert.match(note, /The message above leaves them open\. When you next rest, name each one you still need under `questions:` in your ```awaiting fence, and withdraw the rest with `unask`\.$/)
+  // One the message moved past is withdrawn at once, not at the next rest: a stale card otherwise sits
+  // open above the new work, holding the thread as waiting on the human (2026-10-13).
+  assert.match(note, /If it moves past one — a new direction, a different priority — `unask` that one NOW, before any other work/)
+  assert.match(note, /Name each one still needed under `questions:` when you rest\.$/)
   assert.doesNotMatch(note, /set aside|`keep`/)
   assert.match(openQuestionsNote([{ id: "qst_1", question: "Merge it?" }])!, /^❓ Frizz: 1 question you registered is still open: “Merge it\?” \(qst_1\)\./)
 
@@ -92,6 +95,8 @@ test("the open-questions note names each question by text and id, and comes back
   assert.equal(stripOpenQuestionsNote(quoting), quoting)
   assert.equal(stripOpenQuestionsNote("ship it"), "ship it")
   // A transcript written under the 2026-09-29 wording keeps coming back off the bubble too.
+  const tenThirteen = "❓ Frizz: 1 question you registered is still open: “Merge it?” (qst_1). The message above leaves them open. When you next rest, name each one you still need under `questions:` in your ```awaiting fence, and withdraw the rest with `unask`."
+  assert.equal(stripOpenQuestionsNote(`ok\n\n${tenThirteen}`), "ok")
   const older = "❓ Frizz: 1 question you registered is still open: “Merge it?” (qst_1). If the message above made any of them moot, `unask` exactly those and say so; leave the rest open — they are still the human's to answer, and still your sign-off."
   assert.equal(stripOpenQuestionsNote(`ship it\n\n${older}`), "ship it")
   // …and the two set-aside wordings: 2026-10-02 (withdrawn at the next rest unless kept)…

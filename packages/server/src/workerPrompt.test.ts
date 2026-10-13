@@ -88,7 +88,7 @@ test("the contract teaches that a registered question draws itself at the bottom
     // `ask`'s own (its description and its refusal say so), so the contract does not restate it.
     assert.match(c, /AT EVERY LATER REST, SAY WHERE EACH OLD QUESTION STANDS/)
     assert.match(c, /A QUESTION STAYS OPEN UNTIL IT IS ANSWERED, THE USER DISMISSES IT, OR YOU WITHDRAW IT/)
-    assert.match(c, /A message the user types instead of answering changes nothing about it/)
+    assert.match(c, /A message\s+the user types instead of answering does not close it/)
     assert.doesNotMatch(c, /SETS IT ASIDE|`keep`|mcp__frizz__keep/)
     assert.doesNotMatch(c, /A REPLY PAST A QUESTION IS A PIVOT/)
     assert.doesNotMatch(c, /`unask` the old id and `ask` again/)

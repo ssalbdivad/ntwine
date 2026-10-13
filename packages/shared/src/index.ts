@@ -6465,8 +6465,8 @@ export function stripHumanGapNote(text: string): string {
  *
  *  THE MESSAGE CHANGES NOTHING ABOUT THEM: each stays open until the human answers or dismisses it or the
  *  worker withdraws it. Frizz cannot tell a pivot from a side question; the worker can, so the note tells
- *  it that its next rest names each one it still needs under `questions:` in its awaiting fence and
- *  `unask`s the rest — the rule the park-integrity check and the carried-questions nudge then hold it to.
+ *  it to `unask` at once any the message moved past, and to name the rest under `questions:` when it
+ *  rests — the rule the park-integrity check and the carried-questions nudge then hold it to.
  *
  *  Each question is named by its text AND its id, because `questions:` and `unask` take the id and the
  *  worker never chose one. Folded to one line and clipped, so the note stays ONE line and its stripper
@@ -6482,6 +6482,13 @@ export function openQuestionsNote(open: readonly { id: string; question: string 
 }
 
 const OPEN_QUESTIONS_NOTE_TAIL =
+  " The message above leaves them open. If it moves past one — a new direction, a different priority — " +
+  "`unask` that one NOW, before any other work: an open card keeps the thread waiting on the human while " +
+  "the question scrolls away above the new work. Name each one still needed under `questions:` when you rest."
+
+// The tail from 2026-09-29 to 2026-10-13. It deferred the withdrawal to the next rest, so a worker sent
+// in a new direction kept a stale card open through the whole of the new work. Still stripped.
+const OPEN_QUESTIONS_NOTE_TAIL_2026_10_13 =
   " The message above leaves them open. When you next rest, name each one you still need under " +
   "`questions:` in your ```awaiting fence, and withdraw the rest with `unask`."
 
@@ -6510,7 +6517,7 @@ const OPEN_QUESTIONS_NOTE_TAIL_2026_09_29 =
 // its own and to the note's fixed opening AND closing words, so a message that quotes one keeps it.
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const OPEN_QUESTIONS_NOTE_LINE = new RegExp(
-  `\\n+❓ Frizz: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
+  `\\n+❓ Frizz: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
 )
 
 /** Display projection: the human's message without the open-questions note frizz appended for the

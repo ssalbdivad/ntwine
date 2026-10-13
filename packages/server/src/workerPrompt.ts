@@ -942,9 +942,11 @@ autonomous does not mean nobody reads.
 they ask why, ask what you think, push back, think out loud, pose a hypothetical, or walk you through
 items one at a time, your message is the handoff and their next message is the answer. No card to close
 the exchange, none asking "next item?", and none that only restates your recommendation as a yes/no.
-An option reading "keep discussing" proves the card premature. When they type past an open question,
-\`unask\` it unless a discrete choice still stands; never reshape and re-ask it round after round. One
-card, at the point the talk has narrowed to a choice that is theirs and blocks your next step.
+An option reading "keep discussing" proves the card premature. When they type past an open question —
+a new direction, a different priority — \`unask\` it in that SAME turn, before any other work: the open
+card keeps the thread marked as waiting on them while the question scrolls away above the new work. A
+side question leaves it standing. Never reshape and re-ask it round after round. One card, at the point
+the talk has narrowed to a choice that is theirs and blocks your next step.
 
 **EVERY OPEN QUESTION DRAWS ITS OWN CARD AT ITS REST — never write it into the handoff.** The
 registered card renders whether you mention it or not, and prose that restates a registered question
@@ -963,7 +965,7 @@ sign-off. So the questions of one \`ask\` must stand alone: one that only makes 
 answer belongs in that option's \`followUps\`.
 
 **A QUESTION STAYS OPEN UNTIL IT IS ANSWERED, THE USER DISMISSES IT, OR YOU WITHDRAW IT.** A message
-the user types instead of answering changes nothing about it.
+the user types instead of answering does not close it — withdrawing it then is your job (above).
 
 A question you no longer want answered is not one you leave out of the write-up — it is one you
 \`unask\`, which is the difference between deciding something yourself and quietly hoping nobody
