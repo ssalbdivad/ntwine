@@ -214,45 +214,10 @@ export function cloudConfigPath(home = homedir()): string {
   return join(ntwinePaths({ home }).data, "cloud.json");
 }
 
-/**
- * Zones names used to be handed out in, and nothing serves any more.
- *
- * Until 2026-10-13 hosted names lived on `frizz.sh`, on the original project's Cloudflare and Vercel
- * accounts, which this repository can no longer deploy to; they moved to CLAIM_ZONE then, as a new
- * deployment that kept no claims. A saved setup naming a host in one of these is not a setup at all —
- * serving it would declare a public origin nobody can reach — so it reads as absent, and the R pane
- * offers a fresh claim. This is the one place the old domain is spelled, on purpose.
- */
-const RETIRED_CLAIM_ZONES: readonly string[] = ["frizz.sh"];
-
-function inRetiredZone(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  return RETIRED_CLAIM_ZONES.some((zone) => host === zone || host.endsWith(`.${zone}`));
-}
-
-function readRawCloudConfig(home: string): Partial<CloudConfig> | null {
-  try {
-    const parsed = JSON.parse(readFileSync(cloudConfigPath(home), "utf8")) as Partial<CloudConfig> | null;
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The hostname of a saved setup that readCloudConfig ignores because its zone is retired, so a launch
- * can say why remote access went quiet. Null when there is none.
- */
-export function retiredCloudHostname(home = homedir()): string | null {
-  const hostname = readRawCloudConfig(home)?.hostname;
-  return typeof hostname === "string" && inRetiredZone(hostname) ? hostname : null;
-}
-
 export function readCloudConfig(home = homedir()): CloudConfig | null {
   try {
-    const parsed = readRawCloudConfig(home);
-    if (!parsed || typeof parsed.hostname !== "string" || !parsed.hostname) return null;
-    if (inRetiredZone(parsed.hostname)) return null;
+    const parsed = JSON.parse(readFileSync(cloudConfigPath(home), "utf8")) as Partial<CloudConfig>;
+    if (typeof parsed.hostname !== "string" || !parsed.hostname) return null;
     // Exactly one of the two shapes must be present. A config naming NEITHER a tunnel nor a claim
     // describes a hostname nothing can serve, which is worse than having no config at all — the
     // launcher would arm the origin gate for an address with no tunnel behind it.

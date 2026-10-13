@@ -13,7 +13,6 @@ import {
   normalizeHostname,
   promptForCloudName,
   readCloudConfig,
-  retiredCloudHostname,
   reconcileCloudConfig,
   isRelayConfig,
   readTunnelToken,
@@ -287,39 +286,6 @@ test("a config naming neither a tunnel nor a claim reads as absent", () => {
     assert.equal(readCloudConfig(home), null);
     writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "dana.ntwine.app", claim: "dana" }));
     assert.deepEqual(readCloudConfig(home), { hostname: "dana.ntwine.app", claim: "dana" });
-  } finally {
-    rmSync(home, { recursive: true, force: true });
-  }
-});
-
-test("a setup saved on the retired zone reads as no setup, so the board offers a fresh claim", () => {
-  // Names moved from frizz.sh to ntwine.app on 2026-10-13 with no claims carried over. Serving the old
-  // relay config would declare an origin nothing answers for; reading it as absent is what makes the R
-  // pane offer a claim on the new zone instead.
-  const home = tempHome();
-  try {
-    mkdirSync(join(home, ".ntwine"), { recursive: true });
-    for (const saved of [
-      { hostname: "dana.frizz.sh", claim: "dana", serve: "relay" },
-      { hostname: "abcdefghjkmnpqrstuvw.frizz.sh", claim: "abcdefghjkmnpqrstuvw", serve: "relay" },
-      { hostname: "Dana.Frizz.SH", claim: "dana" },
-      { hostname: "dana.frizz.sh", tunnel: "dana" },
-    ]) {
-      writeFileSync(cloudConfigPath(home), JSON.stringify(saved));
-      assert.equal(readCloudConfig(home), null, JSON.stringify(saved));
-      assert.equal(retiredCloudHostname(home), saved.hostname);
-    }
-    // The same claim on the live zone, and a lookalike outside the retired one, still serve.
-    writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "dana.ntwine.app", claim: "dana", serve: "relay" }));
-    assert.deepEqual(readCloudConfig(home), { hostname: "dana.ntwine.app", claim: "dana", serve: "relay" });
-    assert.equal(retiredCloudHostname(home), null);
-    writeFileSync(cloudConfigPath(home), JSON.stringify({ hostname: "board.notfrizz.sh", tunnel: "board" }));
-    assert.deepEqual(readCloudConfig(home), { hostname: "board.notfrizz.sh", tunnel: "board" });
-    assert.equal(retiredCloudHostname(home), null);
-    // Claiming again overwrites the dead setup.
-    writeCloudConfig({ hostname: "abcdefghjkmnpqrstuvw.ntwine.app", claim: "abcdefghjkmnpqrstuvw", serve: "relay" }, home);
-    assert.equal(retiredCloudHostname(home), null);
-    assert.equal(readCloudConfig(home)?.hostname, "abcdefghjkmnpqrstuvw.ntwine.app");
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
