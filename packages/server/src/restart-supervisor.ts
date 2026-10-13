@@ -26,7 +26,7 @@ import {
 import { localImageHeaders, localImageStream, resolveLocalImage } from "./local-image.ts"
 import { recoveryPage, unauthorizedPage, unlistedHostPage } from "./supervisor-pages.ts"
 import { CALLER_HEADER, encodeCallerStamp, type CallerVia } from "./audit.ts"
-import { NTWINE_ROUTE_PREFIX, ntwineRoute } from "@ntwine/shared"
+import { adoptLegacyRoute, NTWINE_ROUTE_PREFIX, ntwineRoute } from "@ntwine/shared"
 
 export const SUPERVISOR_CONTROL_PREFIX = "/_ntwine/control"
 export const SUPERVISOR_RESTART_PATH = `${SUPERVISOR_CONTROL_PREFIX}/restart`
@@ -850,6 +850,7 @@ export class RestartSupervisorProxy {
   }
 
   private handle(req: IncomingMessage, res: ServerResponse): void {
+    if (req.url) req.url = adoptLegacyRoute(req.url)
     if (isControlRequest(req)) {
       void this.handleControl(req, res)
       return
@@ -904,6 +905,7 @@ export class RestartSupervisorProxy {
   }
 
   private handleUpgrade(req: IncomingMessage, socket: import("node:stream").Duplex, head: Buffer): void {
+    if (req.url) req.url = adoptLegacyRoute(req.url)
     // The board socket and every terminal come through here, so the bearer gate has to cover the
     // upgrade too — otherwise the shell is reachable without the secret the HTML path demands. No
     // query-param exchange here: a browser sends the cookie it was given on the page that opened it.

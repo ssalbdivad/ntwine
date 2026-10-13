@@ -8195,6 +8195,16 @@ export type ThreadLocation = z.infer<typeof ThreadLocation>
  * why nothing here said where the client half lived.)
  */
 export const NTWINE_ROUTE_PREFIX = "/_ntwine"
+/**
+ * The prefix before the Frizz -> Ntwine rename (2026-10-13). A worker's MCP server, a tab or a script
+ * started before it still calls `/_frizz/…`, so the server reads that prefix as this one.
+ */
+const LEGACY_ROUTE_PREFIX = "/_frizz"
+export function adoptLegacyRoute(url: string): string {
+  return url === LEGACY_ROUTE_PREFIX || url.startsWith(`${LEGACY_ROUTE_PREFIX}/`) || url.startsWith(`${LEGACY_ROUTE_PREFIX}?`)
+    ? `${NTWINE_ROUTE_PREFIX}${url.slice(LEGACY_ROUTE_PREFIX.length)}`
+    : url
+}
 export function ntwineRoute(path: string): string {
   return `${NTWINE_ROUTE_PREFIX}${path.startsWith("/") ? path : `/${path}`}`
 }
