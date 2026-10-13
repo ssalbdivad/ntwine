@@ -1,8 +1,8 @@
 # Local setup — the maintainer's own checkout
 
-This file is the operating manual for ONE machine: the maintainer's checkout of `colinhacks/frizz`, where Ntwine dispatches its own workers, where several agents and the human edit a single shared working tree at the same time, and where finished work lands by being committed to a local `main`. [`AGENTS.md`](AGENTS.md) links here; that file holds the norms that apply to everybody.
+This file is the operating manual for ONE machine: the maintainer's checkout of `ssalbdivad/ntwine`, where Ntwine dispatches its own workers, where several agents and the human edit a single shared working tree at the same time, and where finished work lands by being committed to a local `main`. [`AGENTS.md`](AGENTS.md) links here; that file holds the norms that apply to everybody.
 
-**None of this applies to an outside contributor.** If you cannot push to `colinhacks/frizz`, stop reading — fork the repo and open a pull request, which is the only way to offer a change from outside and is welcome.
+**None of this applies to an outside contributor.** If you cannot push to `ssalbdivad/ntwine`, stop reading — fork the repo and open a pull request, which is the only way to offer a change from outside and is welcome.
 
 # No pull requests — land on local `main`
 

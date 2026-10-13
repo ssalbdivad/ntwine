@@ -67,6 +67,8 @@ const NON_SOURCE_ROOT_DIRS = new Set([
   ".claude",
   ".agents",
   ".ntwine",
+  // The board's pre-rename name, now a link to `.ntwine` (project-root.ts adoptFrizzBoard).
+  ".frizz",
   "artifacts",
   "attachments",
   "qa-evidence",

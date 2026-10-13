@@ -13,11 +13,14 @@
     "ai"
   ],
   "license": "MIT",
-  "author": "Colin McDonnell",
-  "homepage": "https://github.com/colinhacks/frizz",
+  "author": "David Blass",
+  "contributors": [
+    "Colin McDonnell (original design, colinhacks/frizz)"
+  ],
+  "homepage": "https://github.com/ssalbdivad/ntwine",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/colinhacks/frizz.git"
+    "url": "git+https://github.com/ssalbdivad/ntwine.git"
   },
   "engines": {
     "node": "^22.13.0 || >=23.4.0"

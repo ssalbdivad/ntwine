@@ -1,7 +1,7 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { Wordmark } from "@/components/logo";
 
-export const githubUrl = "https://github.com/colinhacks/frizz";
+export const githubUrl = "https://github.com/ssalbdivad/ntwine";
 
 export const baseOptions: BaseLayoutProps = {
   nav: { title: <Wordmark /> },

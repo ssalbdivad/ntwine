@@ -2,15 +2,15 @@
   <h1 align="center"><img src="assets/logo-ntwine/final/tile.png" alt="" width="104" height="104"><br/>Ntwine</h1>
   <p align="center">An opinionated agent console for extreme productivity.
     <br/>
-    by <a href="https://x.com/colinhacks">@colinhacks</a>
+    by <a href="https://github.com/ssalbdivad">@ssalbdivad</a>, from an original design by <a href="https://x.com/colinhacks">@colinhacks</a>
   </p>
 </p>
 <br/>
 
 <p align="center">
-<a href="https://opensource.org/licenses/MIT" rel="nofollow"><img src="https://img.shields.io/github/license/colinhacks/frizz" alt="License"></a>
+<a href="https://opensource.org/licenses/MIT" rel="nofollow"><img src="https://img.shields.io/github/license/ssalbdivad/ntwine" alt="License"></a>
 <a href="https://www.npmjs.com/package/ntwine" rel="nofollow"><img src="https://img.shields.io/npm/dw/ntwine.svg" alt="npm"></a>
-<a href="https://github.com/colinhacks/frizz" rel="nofollow"><img src="https://img.shields.io/github/stars/colinhacks/frizz" alt="stars"></a>
+<a href="https://github.com/ssalbdivad/ntwine" rel="nofollow"><img src="https://img.shields.io/github/stars/ssalbdivad/ntwine" alt="stars"></a>
 </p>
 
 <br/>
@@ -23,7 +23,7 @@ Ntwine is for you if you have any of these opinions:
 
 Ntwine is a browser tab, a queue, and the agent CLIs you already pay for. Every agent that comes to rest needing you becomes a card, and you work the cards instead of polling ten terminals.
 
-> Ntwine is [David Blass](https://github.com/ssalbdivad)'s fork of **Ntwine**. The original design — the queue, the board and the principles below — is [Colin McDonnell](https://github.com/colinhacks)'s, from [colinhacks/frizz](https://github.com/colinhacks/frizz). This fork keeps every one of those principles and adds the features listed under [What this fork adds](#what-this-fork-adds).
+> **Attribution.** Ntwine began as Frizz, and its original design — the queue, the board and the principles below — is [Colin McDonnell](https://github.com/colinhacks)'s, from [colinhacks/frizz](https://github.com/colinhacks/frizz). Ntwine is [David Blass](https://github.com/ssalbdivad)'s standalone continuation: it keeps every one of those principles and adds the features listed under [What Ntwine adds](#what-ntwine-adds).
 
 <br/>
 
@@ -54,7 +54,7 @@ A browser tab opens on acme's board, because acme is already a project. In a rep
 
 <h2 align="center">Principles</h2>
 
-Colin designed Ntwine, the original, around a few commitments. Every feature, this fork's included, is held to them.
+Colin designed Frizz, the original, around a few commitments. Every feature Ntwine adds is held to them too.
 
 **The agent decides, and Ntwine checks.**
 
@@ -81,7 +81,7 @@ Colin designed Ntwine, the original, around a few commitments. Every feature, th
 - **No model of its own.** Ntwine drives your CLIs on your sign-in. The few small model calls it makes itself run on your Claude sign-in.
 - **No workflow of its own.** No branches or worktrees behind your back, no build steps, and no universal timeout on a background shell, since some run for days.
 
-**Where this fork bends one, on purpose.** Each is argued in [`ARCHITECTURE.md`](ARCHITECTURE.md#where-ntwine-acts-on-a-clock-or-with-a-model) and can be turned off or ignored:
+**Where Ntwine bends one, on purpose.** Each is argued in [`ARCHITECTURE.md`](ARCHITECTURE.md#where-ntwine-acts-on-a-clock-or-with-a-model) and can be turned off or ignored:
 
 - A question the agent marks as safe to default, unanswered 10m after its thread rests, takes the agent's recommended option; never one that posts, merges, publishes or spends. Every other question waits for you. The × under the card turns it off.
 - A parent waiting on its sub-agents is asked for a progress note every 30m, so a long fan-out never shows one stale line for hours.
@@ -107,7 +107,7 @@ Colin designed Ntwine, the original, around a few commitments. Every feature, th
 
 <br/>
 
-<h2 align="center">What this fork adds</h2>
+<h2 align="center">What Ntwine adds</h2>
 
 - **Threads that address each other**: every thread has an `@handle`, and agents read, message and wait on other threads by it. `#slug` names a project.
 - **Spinoff**: start a new thread from any card, carrying its context, without interrupting the one you are reading.

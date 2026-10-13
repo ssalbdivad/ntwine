@@ -1,6 +1,6 @@
 # Principles: never break one without explicit confirmation
 
-Colin McDonnell designed Frizz ([colinhacks/frizz](https://github.com/colinhacks/frizz)), and David Blass maintains this fork of it, Ntwine. Each line below is a decision one of them made on
+Colin McDonnell designed Frizz ([colinhacks/frizz](https://github.com/colinhacks/frizz)), the original, and David Blass maintains Ntwine, its standalone continuation. Each line below is a decision one of them made on
 purpose and has said matters most. **Do not write code, copy, docs or worker-contract text that breaks one unless the
 maintainer has explicitly confirmed it in the current conversation.** If a task seems to need it, that is a question to ask
 first, not a call to make. An approval given for one case does not carry over to the next. Detail lives where each line
@@ -51,7 +51,7 @@ points.
 
 # Git: how work lands here
 
-**Contributing from a fork.** Ntwine takes pull requests. Fork the repo, branch, open a PR against `main`, and CI runs on it — see [Contributing](README.md). **Keep "Allow edits by maintainers" checked on every PR you open** (GitHub offers it only on a fork owned by a personal account, not an organization, so fork into your own account), so the maintainer can push a follow-up commit onto your branch; with it cleared the push is rejected, and the follow-up lands on `main` separately after the merge instead of in your PR (maintainer 2026-10-10, on [#56](https://github.com/colinhacks/frizz/pull/56#issuecomment-6091787715)). `gh pr create` leaves it on unless passed `--no-maintainer-edit`; a PR opened through the REST API needs `"maintainer_can_modify": true` in its `POST /repos/colinhacks/frizz/pulls` body. Nothing else in this section concerns you.
+**Contributing from your own fork.** Ntwine takes pull requests. Fork the repo, branch, open a PR against `main`, and CI runs on it — see [Contributing](README.md). **Keep "Allow edits by maintainers" checked on every PR you open** (GitHub offers it only on a fork owned by a personal account, not an organization, so fork into your own account), so the maintainer can push a follow-up commit onto your branch; with it cleared the push is rejected, and the follow-up lands on `main` separately after the merge instead of in your PR (maintainer 2026-10-10, on [colinhacks/frizz#56](https://github.com/colinhacks/frizz/pull/56#issuecomment-6091787715)). `gh pr create` leaves it on unless passed `--no-maintainer-edit`; a PR opened through the REST API needs `"maintainer_can_modify": true` in its `POST /repos/ssalbdivad/ntwine/pulls` body. Nothing else in this section concerns you.
 
 **Working in the maintainer's own checkout** — which is every agent Ntwine dispatches on that machine, and every sub-agent it dispatches in turn — read [`AGENTS.local.md`](AGENTS.local.md) FIRST and follow it, because the git rules there are strict and this is the most-violated one in the repo: that checkout does NOT use pull requests, at all, ever. Finished work is committed to its local `main`, and `gh pr create` is always the wrong move there. The same file covers committing out of a working tree other agents are editing concurrently, which has its own traps.
 
