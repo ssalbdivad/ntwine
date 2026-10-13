@@ -354,7 +354,13 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
   const registeredDone = showsRegisteredDoneCard(thread, lastAgentIdx >= 0 ? presentationMessages[lastAgentIdx]?.text : undefined)
   // The RESIDUAL rung: a rest that carries no other card at all (RestedCard). Same final-message key. An
   // open question counts as this rest's card only where it renders at this rest (questionsAtCurrentRest).
-  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, openQuestions), [messages, openQuestions])
+  // Read off the BOARD's questions, not `openQuestions`: a question the human has just answered leaves
+  // the open list the instant they send, a beat before the board says the worker is running, and in that
+  // beat this rest read as one that asked nothing — "Rested without a sign-off" drew under the answer and
+  // was gone 25ms later (measured on a real worker, 2026-10-12). The rest did ask; answering it does not
+  // change that, and the board's own copy moves on together with the runtime that retires this rung.
+  const boardQuestions = thread?.questions ?? NO_QUESTIONS
+  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, boardQuestions), [messages, boardQuestions])
   const restedCard = showsRestedCard(thread, lastAgentIdx >= 0 ? presentationMessages[lastAgentIdx]?.text : undefined, questionsHere)
   // Everything the runtime-status ladder needs that it cannot work out itself — see runtimeStatusRung.
   const runtimeStatus: RuntimeStatusState = { thread, showWorking, registeredDone, restedCard, errorVisible: providerErrorVisible(presentationMessages, thread?.providerError) }
@@ -706,6 +712,18 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
 // trackpad momentum between discrete events, short enough that it never outlives the gesture itself.
 const READER_GESTURE_MS = 700
 
+// …and a press or a key ON A CONTROL in the transcript is not one. Done, Send answers, an option, a
+// question's text box: each starts the very changes the tail follow exists to absorb — the card folding
+// into its message, the bubble, the Working row — and a click read as the reader taking the scroller
+// left all of them to land inside the 700ms gesture window, where any distance from the bottom counts as
+// the reader's own choice. A reader at the tail who pressed Done was detached by the first transient
+// frame and shown "Jump to latest" (measured on a real worker, 2026-10-12). A press on the scrollbar
+// targets the scroller itself, and a drag that starts on a control still arrives as touchmove/wheel.
+const TRANSCRIPT_CONTROL = "button, a[href], input, textarea, select, summary, label, [role='button'], [role='checkbox'], [role='radio'], [contenteditable='true']"
+function onTranscriptControl(event: Event): boolean {
+  return event.target instanceof Element && event.target.closest(TRANSCRIPT_CONTROL) !== null
+}
+
 // How long an anchor restore (a pin move, a head trim) owns the scroller while the rows it disturbed
 // settle. The settling lands on a ResizeObserver pass one or more frames after the commit, so the restore
 // has to outlive the commit — but it must stay far under READER_GESTURE_MS, since a reader who scrolls
@@ -1015,8 +1033,10 @@ function VirtualizedThreadTranscript({
   // because no message carries it (lib/registeredDone). Keyed on the final assistant message so a worker
   // that also wrote the fence gets one card, from the message, not two.
   const registeredDone = showsRegisteredDoneCard(thread, lastAgentIdx >= 0 ? messages[lastAgentIdx]?.text : undefined)
-  // The RESIDUAL rung: a rest that carries no other card at all (RestedCard). Same final-message key.
-  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, openQuestions), [messages, openQuestions])
+  // The RESIDUAL rung: a rest that carries no other card at all (RestedCard). Same final-message key, and
+  // the same board questions as ChatView's copy of this rung, for the same reason.
+  const boardQuestions = thread?.questions ?? NO_QUESTIONS
+  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, boardQuestions), [messages, boardQuestions])
   const restedCard = showsRestedCard(thread, lastAgentIdx >= 0 ? messages[lastAgentIdx]?.text : undefined, questionsHere)
   // Everything the runtime-status ladder needs that it cannot work out itself — see runtimeStatusRung.
   // The row EXISTS when some rung wins, and its own gap is that same answer: the eager path derives both
@@ -1523,6 +1543,51 @@ function VirtualizedThreadTranscript({
     readerAnchorRef.current = captureReaderAnchor() ?? readerAnchorRef.current
   }, [captureReaderAnchor, transcriptRef])
 
+  // THE STALE FRAME. A row that is already mounted and changes height in a commit — the resting card
+  // folding into its message the moment the worker picks up a Done, an answered question greying in
+  // place — is otherwise measured only by the virtualizer's ResizeObserver. That runs after this commit
+  // has laid out, and the re-render its measurement asks for goes to React's scheduler, so the browser
+  // paints one frame with every row below at its OLD offset: the "Done" bubble drawn over the corner of
+  // the card it answers, the tail 64-147px off the bottom (measured on a real worker, 2026-10-12).
+  // Measuring the mounted rows here instead puts the new sizes in before paint — a state update
+  // scheduled from a layout effect renders synchronously — and the tail follow below then reconciles
+  // against the true height in that same frame. A row that changes on its own (an image decoding, a
+  // child's own state) still reaches the virtualizer through the observer, as before.
+  //
+  // `resizeItem` with a height read here, NOT `measureElement(row)`: without an observer entry the
+  // library's measurement answers from its own cache for any row it has sized before — exactly the rows
+  // this is for — and it skips measuring altogether while it thinks the list is scrolling, which the
+  // tail follow's own write makes it think for 150ms after every append. The reading is the observer's
+  // (border-box height, rounded), so when the observer then reports the same row it finds nothing to do.
+  //
+  // And the content box is set to the height those sizes add up to BEFORE they are handed over:
+  // `resizeItem` corrects the scroll offset itself (a row above the reader, or a reader at the end), and
+  // it writes that correction against whatever box the DOM has — still the old height until the
+  // re-render — so a growth at the tail was clamped away and a reader at the bottom was left 90-400px
+  // above it, with the library believing otherwise.
+  //
+  // The same stale frame is what scripts/verify-full-scroll-flash.mjs counts while a reader scrolls back
+  // through rows correcting from their estimates: 70 of 300 frames painted the correction with the rows
+  // not yet moved, and 0 with this pass (2026-10-12, same stack, same seed).
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!content) return
+    const known = new Map(virtualizer.getVirtualItems().map((item) => [item.index, item.size]))
+    const changed: { index: number; size: number }[] = []
+    let delta = 0
+    for (const row of content.querySelectorAll<HTMLElement>(":scope > [data-index]")) {
+      const index = virtualizer.indexFromElement(row)
+      const size = Math.round(row.getBoundingClientRect().height)
+      const was = known.get(index)
+      if (index < 0 || was === undefined || was === size) continue
+      changed.push({ index, size })
+      delta += size - was
+    }
+    if (changed.length === 0) return
+    content.style.height = `${virtualizer.getTotalSize() + delta}px`
+    for (const { index, size } of changed) virtualizer.resizeItem(index, size)
+  })
+
   // Every commit: a row that just mounted at its ESTIMATED height has already pushed the bottom away.
   // A layout effect (not an effect) so the correction lands in the same frame — no visible slip.
   useLayoutEffect(syncTailFollow)
@@ -1560,7 +1625,7 @@ function VirtualizedThreadTranscript({
       requestAnimationFrame(inspect)
     }
     const markKeyboardIntent = (event: KeyboardEvent) => {
-      if (!["ArrowUp", "PageUp", "Home", " "].includes(event.key)) return
+      if (!["ArrowUp", "PageUp", "Home", " "].includes(event.key) || onTranscriptControl(event)) return
       if (scroller.scrollTop <= 480) nearTopLoadArmedRef.current = true
       markReaderIntent()
     }
@@ -1568,15 +1633,19 @@ function VirtualizedThreadTranscript({
       if (event.deltaY < 0 && scroller.scrollTop <= 480) nearTopLoadArmedRef.current = true
       markReaderIntent()
     }
-    const markTouchIntent = () => {
+    const markTouchIntent = (event: TouchEvent) => {
+      if (event.type === "touchstart" && onTranscriptControl(event)) return
       if (scroller.scrollTop <= 480) nearTopLoadArmedRef.current = true
       markReaderIntent()
+    }
+    const markPointerIntent = (event: PointerEvent) => {
+      if (!onTranscriptControl(event)) markReaderIntent()
     }
     scroller.addEventListener("scroll", inspect, { passive: true })
     scroller.addEventListener("wheel", markWheelIntent, { passive: true })
     scroller.addEventListener("touchstart", markTouchIntent, { passive: true })
     scroller.addEventListener("touchmove", markTouchIntent, { passive: true })
-    scroller.addEventListener("pointerdown", markReaderIntent, { passive: true })
+    scroller.addEventListener("pointerdown", markPointerIntent, { passive: true })
     scroller.addEventListener("keydown", markKeyboardIntent)
     const frame = requestAnimationFrame(inspect)
     return () => {
@@ -1585,7 +1654,7 @@ function VirtualizedThreadTranscript({
       scroller.removeEventListener("wheel", markWheelIntent)
       scroller.removeEventListener("touchstart", markTouchIntent)
       scroller.removeEventListener("touchmove", markTouchIntent)
-      scroller.removeEventListener("pointerdown", markReaderIntent)
+      scroller.removeEventListener("pointerdown", markPointerIntent)
       scroller.removeEventListener("keydown", markKeyboardIntent)
     }
   }, [hasEarlier, loadingEarlier, requestEarlier, syncTailFollow, transcriptRef])
@@ -2159,6 +2228,8 @@ function withSpacers(blocks: ReactNode[], h: number | ((index: number) => number
 // caller's ordinary pitch otherwise. `edges` runs parallel to the block list. See PICTURE_STEP.
 type PictureEdges = { head: boolean; tail: boolean }
 const NO_PICTURE: PictureEdges = { head: false, tail: false }
+// A stable empty list for a thread with no `questions` yet, so the memos keyed on it hold.
+const NO_QUESTIONS: readonly RegisteredQuestionView[] = []
 function pictureAwareGap(edges: readonly PictureEdges[], ordinary: number): (index: number) => number {
   return (i) => (edges[i - 1]?.tail || edges[i]?.head ? PICTURE_STEP : ordinary)
 }

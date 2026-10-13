@@ -56,17 +56,6 @@ Reference: [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
 ## Recovery after publication
 
-The workflow waits up to 2m for the exact shell version's registry metadata before tagging. npm can acknowledge a publication before its read replicas expose it. A missing or invalid `gitHead` still fails closed; the workflow never substitutes its current checkout.
+The workflow publishes and waits for npm to serve each version; it does not tag. Tags and GitHub releases are made by the releaser after a green run, from its own `gh` session: `nub scripts/tag-release.mjs`. The script waits up to 30s for the exact shell version's registry metadata, fails closed on a missing or invalid `gitHead`, tags that commit and never a checkout, never moves an existing tag, and creates only what is missing.
 
-GitHub can reject a historical tag when that commit's workflow differs from the current run: its workflow token does not have permission to introduce that workflow revision. No additional CI credential is needed. After confirming the release is authorized, create the tag from a maintainer checkout with workflow permission, then rerun the failed workflow:
-
-```sh
-VERSION=0.13.0 # the shell version being reconciled
-GIT_HEAD=$(nub scripts/published-git-head.mjs frizz "$VERSION")
-git cat-file -e "$GIT_HEAD^{commit}"
-git tag -a "v$VERSION" "$GIT_HEAD" -m "frizz v$VERSION"
-git push origin "v$VERSION"
-gh workflow run release.yml --ref release
-```
-
-This procedure applies when the tag is absent. Never overwrite an existing tag or move it to the newer workflow commit. The rerun skips published versions and creates missing GitHub release metadata.
+The workflow tagged the shell itself until 2026-10-12. GitHub rejects a tag from the workflow's own token when that commit's workflow differs from the current run's, because the token may not introduce that workflow revision, and a later run reconciling an earlier shell is exactly that case (frizz 0.13.13).

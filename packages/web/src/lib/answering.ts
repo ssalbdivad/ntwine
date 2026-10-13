@@ -195,7 +195,7 @@ export function useLiveAnswering(
   // answers" gesture — Enter in a block's text box, the queue card's card-level Enter — is the prompt
   // box's send, which carries EVERY staged answer and whatever is typed in the box as one turn. With
   // none mounted (a phone thread page) `sendAnswers` sends on its own, scoped as it always was.
-  opts: { scrollToBottom?: boolean; onSendFailed?: () => void; composer?: ComposerSendHandle } = {},
+  opts: { onSendFailed?: () => void; composer?: ComposerSendHandle } = {},
 ): LiveAnswering {
   const followUp = useEagerFollowUp(slug)
   const [answers, setAnswers] = useState<Record<string, BlockAnswer>>({})
@@ -295,7 +295,6 @@ export function useLiveAnswering(
   const stagedCount = openAsks.reduce((n, a) => n + a.blocks.filter((blk, i) => composeBlockAnswer(blk, answerFor(a.identity, i)) !== "").length, 0)
   const anyAnswered = stagedCount > 0
 
-  const scrollToBottom = opts.scrollToBottom !== false
   // ONE place both send verbs go through, so the exit and its reversal are wired once: `sendAnswers`
   // composes its wire and hands it here, and the free-form composer calls it directly via
   // `submitOverride`. The caller's own `onRollback` (sendAnswers restores its drafts with it) runs
@@ -304,12 +303,11 @@ export function useLiveAnswering(
     (text: string, callbacks: EagerFollowUpCallbacks = {}) => {
       const submitted = followUp.submit(text, {
         ...callbacks,
-        scrollToBottom,
         onRollback: (failure) => { callbacks.onRollback?.(failure); onSendFailedRef.current?.() },
       })
       if (submitted) onSentRef.current?.()
     },
-    [followUp, scrollToBottom],
+    [followUp],
   )
   // The staged answers, composed, with the edges that clear them and put them back. `scope` narrows it
   // to one message's blocks (the fallback per-message send); the prompt box takes everything.

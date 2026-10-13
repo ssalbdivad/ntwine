@@ -512,19 +512,20 @@ export function appendQueuedMessage(
   text: string,
   // `held`: the operator sent it TO THE QUEUE while a turn runs, so the bubble says it is waiting for
   // the agent's rest from the first frame — the server's own copy (deliveryState "held") says the same.
-  opts: { scrollToBottom?: boolean; deliveryId?: string; held?: boolean } = {},
+  opts: { deliveryId?: string; held?: boolean } = {},
 ) {
   qc.setQueryData<TranscriptData>(["transcript", slug], (prev) => {
     const messages = prev?.messages ?? []
     return { ...prev, messages: [...messages, { role: "user", text, tools: [], parts: [], queued: true, deliveryId: opts.deliveryId, ...(opts.held ? { deliveryState: "held" as const } : {}) }] }
   })
-  // Chat replies commit to the conversation tail, so they normally force the page to the bottom even
-  // when the reader sent from up-thread. Queue cards opt out: their post-answer destination is the
-  // recorded next queue card, and a global bottom-pin would race it. rAF lets the optimistic bubble
-  // lay out before the document height is read.
-  if (opts.scrollToBottom !== false && typeof window !== "undefined") {
-    requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" }))
-  }
+  // NOTHING SCROLLS THE PAGE HERE. This smooth-scrolled the DOCUMENT to its bottom on every send until
+  // 2026-10-12, from when the thread view was itself the page scroll. It has not been for months — a
+  // transcript is its own scroller, kept at its tail by ChatView's tail follow — so the pin reached only
+  // two places: a drawer, where the locked page made it a no-op, and the QUEUE, which is a page of other
+  // threads' cards. Only the queue card's own composer and answers opted out; its steps Done, Retry,
+  // Restart worker, Continue and a failed bubble's retry did not, so pressing Done scrolled the queue
+  // 670-1800px toward its end during the card's 320ms fade (measured on a real stack) until the exit
+  // landing snapped it back — and wherever no landing followed, the reader was left at the very bottom.
 }
 
 // Roll back the optimistic bubble appendQueuedMessage added, when the send actually FAILS. Removes

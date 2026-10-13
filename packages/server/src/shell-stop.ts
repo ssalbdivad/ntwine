@@ -7,11 +7,12 @@
 // absence left a worker waiting on a watcher frizz had already killed. So the closures moved here, and
 // the only thing a caller chooses is the REASON the worker is told.
 import type { AppContext } from "./context.ts"
-import { coldResumePermission } from "./dispatch.ts"
+import { claudeWorkerSystemPrompt, coldResumePermission, workerCapabilities } from "./dispatch.ts"
+import { deadlineSection } from "./deadline.ts"
 import { workDirOf } from "./project.ts"
 import { shellStopNotice, type ShellStopReason } from "./shell-budget.ts"
 
-export type ShellStopDeps = Pick<AppContext, "project" | "storage" | "tailer" | "claudeBroker" | "codexAppServer" | "getSettings" | "board">
+export type ShellStopDeps = Pick<AppContext, "project" | "storage" | "tailer" | "claudeBroker" | "codexAppServer" | "getSettings" | "board" | "editors">
 
 // A CODEX background exec, resolved by the id its row carries — which for codex IS the `processId`
 // the kill needs (see tailer.ts codexBgShellViews: there is exactly one handle and no correlation
@@ -125,6 +126,12 @@ export async function noticeClaudeShellStopped(deps: ShellStopDeps, slug: string
       // takes, so a notice that loses the race cannot be the thing that rebuilds the worker at
       // Claude's `default` — see coldResumePermission.
       permissionMode: coldResumePermission(row, deps.getSettings()),
+      // …and the same contract: a cold resume with no appendSystemPrompt rebuilt the worker with no
+      // Frizz contract, scratch line or FRIZZ.md (upstream affc40a2).
+      appendSystemPrompt: claudeWorkerSystemPrompt(row.session_id, deps.project, {
+        capabilities: workerCapabilities(deps.editors, workDirOf(deps.project)),
+        deadline: deadlineSection(row),
+      }),
       model: row.model ?? undefined,
       effort: row.effort ?? undefined,
       // Frizz's own notice, not the operator's reply to anything: an open card stays open.

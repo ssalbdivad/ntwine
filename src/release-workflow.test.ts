@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { createServer } from "node:http";
+import { test, type TestContext } from "node:test";
 
 const repo = join(import.meta.dirname, "..");
 const workflow = readFileSync(join(repo, ".github", "workflows", "release.yml"), "utf8");
@@ -15,18 +17,68 @@ function step(name: string): string {
   return workflow.slice(start, end === -1 ? undefined : end);
 }
 
-test("a release retry reconciles shell tags and GitHub metadata after npm succeeds", () => {
-  const tag = step("Tag the released shell commit");
-  const release = step("Create the GitHub shell release");
+// GitHub refuses the workflow's own token a tag whose commit carries a different workflow file than
+// the run's checkout (frizz 0.13.13, 2026-10-12), so the releaser tags from its own `gh` session and
+// the job keeps read-only access to the repository.
+test("the workflow neither tags nor creates GitHub releases, and cannot write to the repository", () => {
+  const code = workflow.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  assert.doesNotMatch(code, /git tag|git push|gh release|GH_TOKEN/);
+  assert.match(workflow, /\n      contents: read\b/);
+  assert.doesNotMatch(workflow, /contents: write/);
+});
 
-  assert.doesNotMatch(tag, /\n\s+if:/, "tagging must run when publish_shell is false on a retry");
-  assert.doesNotMatch(release, /\n\s+if:/, "GitHub release creation must run when publish_shell is false on a retry");
-  assert.match(tag, /node scripts\/published-git-head.mjs frizz "\$VERSION"/);
-  assert.match(tag, /git fetch --no-tags --depth=1 origin "\$GIT_HEAD"/);
-  assert.match(tag, /git cat-file -e "\$GIT_HEAD\^\{commit\}"/);
-  assert.match(tag, /git tag -a "v\$VERSION" "\$GIT_HEAD" -m "frizz v\$VERSION"/);
-  assert.match(tag, /git ls-remote --exit-code --tags origin "v\$VERSION"/);
-  assert.match(release, /gh release view "v\$VERSION"/);
+function tagRelease(t: TestContext, existing: { ref?: string; release?: boolean } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "frizz-tag-release-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const log = join(dir, "gh.log");
+  // A `gh` that records every call and answers the few the script reads.
+  writeFileSync(join(dir, "gh"), `#!/bin/sh
+printf '%s\\n' "$*" >> "${log}"
+case "$*" in
+  "api repos/acme/frizz/git/ref/tags/"*) ${existing.ref ? `echo "${existing.ref}"` : "exit 1"} ;;
+  "api repos/acme/frizz/git/tags/tagobj"*) echo "${"a".repeat(40)}" ;;
+  "api -X POST repos/acme/frizz/git/tags"*) cat > "${dir}/tag.json"; echo tagobj ;;
+  "api -X POST repos/acme/frizz/git/refs"*) cat > "${dir}/ref.json"; echo refs/tags/v1.2.3 ;;
+  "release view"*) ${existing.release ? "exit 0" : "exit 1"} ;;
+esac
+`, { mode: 0o755 });
+  const server = createServer((request, response) => {
+    if (request.url === "/frizz/1.2.3") response.end(JSON.stringify({ name: "frizz", version: "1.2.3", gitHead: "a".repeat(40) }));
+    else { response.statusCode = 404; response.end(); }
+  });
+  return { dir, log, server, run: async () => {
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    t.after(() => server.close());
+    const { port } = server.address() as { port: number };
+    // Asynchronously: this process serves the registry the script reads, so it must not block.
+    const child = spawn(process.execPath, [join(repo, "scripts", "tag-release.mjs"), "1.2.3"], {
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, FRIZZ_RELEASE_REPO: "acme/frizz", FRIZZ_NPM_REGISTRY: `http://127.0.0.1:${port}/` },
+    });
+    let stderr = "";
+    child.stderr.on("data", (bytes) => { stderr += bytes; });
+    const [status] = await once(child, "exit") as [number | null];
+    return { status, stderr };
+  } };
+}
+
+test("tag-release.mjs tags npm's gitHead and creates the release, once", async (t) => {
+  const fresh = tagRelease(t);
+  const made = await fresh.run();
+  assert.equal(made.status, 0, made.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(join(fresh.dir, "tag.json"), "utf8")), { tag: "v1.2.3", message: "frizz v1.2.3", object: "a".repeat(40), type: "commit" });
+  assert.deepEqual(JSON.parse(readFileSync(join(fresh.dir, "ref.json"), "utf8")), { ref: "refs/tags/v1.2.3", sha: "tagobj" });
+  assert.match(readFileSync(fresh.log, "utf8"), /release create v1\.2\.3 --repo acme\/frizz --title frizz v1\.2\.3 .*--verify-tag/);
+
+  const done = tagRelease(t, { ref: "tagobj tag", release: true });
+  const rerun = await done.run();
+  assert.equal(rerun.status, 0, rerun.stderr);
+  assert.doesNotMatch(readFileSync(done.log, "utf8"), /POST|release create/, "a re-run creates nothing");
+
+  const moved = tagRelease(t, { ref: `${"b".repeat(40)} commit` });
+  const refused = await moved.run();
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /never moved/);
+  assert.doesNotMatch(readFileSync(moved.log, "utf8"), /POST/);
 });
 
 test("the release publishes the server, waits for npm to serve it, then publishes the shell", () => {
@@ -52,14 +104,12 @@ test("the release publishes the server, waits for npm to serve it, then publishe
   assert.match(workflow, /^ {4}timeout-minutes: 360$/m, "npm's review can take hours; the waits need the job's full six hours");
 
   // A shell fetches its pinned server from the registry on first boot, so the server must be served
-  // before the shell publishes; the tag and the GitHub release describe a served shell.
+  // before the shell publishes; a green run means npm serves the shell the releaser then tags.
   const order = [
     "- name: Build and publish frizz-server to npm",
     "- name: Wait for npm to serve frizz-server",
     "- name: Publish the frizz shell to npm",
     "- name: Wait for npm to serve frizz\n",
-    "- name: Tag the released shell commit",
-    "- name: Create the GitHub shell release",
   ].map((name) => workflow.indexOf(name));
   assert.ok(!order.includes(-1), "every release step is present");
   assert.deepEqual([...order].sort((a, b) => a - b), order, "server, server wait, shell, shell wait, tag, release");

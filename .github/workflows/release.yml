@@ -51,8 +51,13 @@ name: release
 # its own manifest from the registry on first boot, so a shell that goes live before that server
 # does is broken for anyone who installs it in between. With staging, the order of the two approvals
 # enforced that; now the steps do — publish the server, wait until npm serves it, then publish the
-# shell. And because npm holds every new version in automated review before serving it, the tag and
-# the GitHub release still wait for the registry, so neither describes a version npm does not serve.
+# shell, then wait until npm serves that too, so a green run means npm serves both.
+#
+# TAGS AND GITHUB RELEASES ARE NOT MADE HERE (2026-10-12). The shell is tagged at npm's recorded
+# gitHead, and GitHub refuses this job's token a ref whose commit carries a different
+# `.github/workflows/` than the run's own checkout — which a later run's routinely does (frizz 0.13.13).
+# The releaser tags from its own `gh` session once the run is green: `nub scripts/tag-release.mjs`.
+# That also leaves this job with read-only access to the repository.
 
 on:
   # DISPATCH ONLY (2026-09-23), and deliberately so. A `workflow_dispatch` needs a GitHub session or
@@ -93,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     # Six hours is a GitHub job's maximum, not a tunable. npm's review of a new version can take
     # hours (see npm-wait-served.sh for the measurements), and this job waits it out twice — the
-    # server before the shell publishes, the shell before the tag — against one shared deadline set
+    # server before the shell publishes, then the shell itself — against one shared deadline set
     # under this cap, so a stall is reported by the wait step, not by a job timeout. A version npm
     # serves later is not lost: re-run the job and it resumes from there.
     timeout-minutes: 360
@@ -102,7 +107,7 @@ jobs:
     environment: npm-publish
     permissions:
       id-token: write # required for Trusted Publishing (OIDC)
-      contents: write # tag the released commit and create the GitHub release
+      contents: read # tags and GitHub releases are the releaser's (scripts/tag-release.mjs)
     steps:
       # `release`, not main: this repo publishes the commit someone verified and moved the branch to,
       # never whatever main happens to hold (see the header). A step rather than a job-level `if:`,
@@ -154,7 +159,7 @@ jobs:
           echo "version=$SHELL_VERSION" >> "$GITHUB_OUTPUT"
           echo "server_version=$SERVER_VERSION" >> "$GITHUB_OUTPUT"
           # The one deadline both registry waits below share: 340 minutes from here leaves the
-          # install and typecheck above, and the tag and release below, inside the 360-minute cap.
+          # install and typecheck above inside the 360-minute cap.
           echo "RELEASE_DEADLINE=$(( $(date +%s) + 340 * 60 ))" >> "$GITHUB_ENV"
           # Registry checks, rather than commit diffs, make retries idempotent. Server releases are
           # intentionally independent: a compatible runtime fix can publish without moving the shell.
@@ -213,48 +218,11 @@ jobs:
             || { echo "::error::the shell pins frizz-server@$PINNED_SERVER, which npm does not serve; publish that server first"; exit 1; }
           bash .github/scripts/npm-publish.sh .
 
-      # The tag and the GitHub release below describe a published version, so they wait for npm to
-      # serve the shell. No `if:`, for the same retry reason as the server wait.
+      # A green run means npm serves the shell too, so the releaser's tag (scripts/tag-release.mjs)
+      # never describes a version npm does not serve. No `if:`, for the same retry reason as the server
+      # wait.
       - name: Wait for npm to serve frizz
         env:
           VERSION: ${{ steps.decide.outputs.version }}
         run: bash .github/scripts/npm-wait-served.sh frizz "$VERSION"
 
-      # Tags and GitHub releases belong to the stable shell only. This reconciliation deliberately
-      # runs even when the registry check skipped publishing: a retry after npm accepted the tarball
-      # but GitHub tagging/release creation failed must repair the missing metadata. The tag target is
-      # npm's recorded gitHead, never this workflow's checkout: a later server-only release can run at
-      # a newer commit while the shell version remains unchanged.
-      - name: Tag the released shell commit
-        env:
-          VERSION: ${{ steps.decide.outputs.version }}
-        run: |
-          if git ls-remote --exit-code --tags origin "v$VERSION" > /dev/null 2>&1; then
-            echo "v$VERSION is already tagged; nothing to do"
-            exit 0
-          fi
-          GIT_HEAD=$(node scripts/published-git-head.mjs frizz "$VERSION")
-          if ! printf '%s' "$GIT_HEAD" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "frizz@$VERSION has no valid npm gitHead; refusing to tag this workflow checkout" >&2
-            exit 1
-          fi
-          git fetch --no-tags --depth=1 origin "$GIT_HEAD"
-          git cat-file -e "$GIT_HEAD^{commit}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "v$VERSION" "$GIT_HEAD" -m "frizz v$VERSION"
-          git push origin "v$VERSION"
-
-      - name: Create the GitHub shell release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.decide.outputs.version }}
-        run: |
-          if gh release view "v$VERSION" > /dev/null 2>&1; then
-            echo "the v$VERSION release already exists; nothing to do"
-            exit 0
-          fi
-          gh release create "v$VERSION" \
-            --title "frizz v$VERSION" \
-            --notes "Published to npm: https://www.npmjs.com/package/frizz/v/$VERSION" \
-            --verify-tag

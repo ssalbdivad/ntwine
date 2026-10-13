@@ -94,10 +94,9 @@ export function ThreadComposerBox({
   above?: ReactNode
   // Replaces the default eager follow-up send. The queue card passes its useLiveAnswering `sendMessage`,
   // so the card's free-form reply and a reply that carries answers are literally the same send — one
-  // controller, one optimistic card dissolve, one scroll policy (the queue suppresses the bottom pin;
-  // it fights card exit/reorder). Callers WITHOUT an answering controller (the drawer) omit it and get
-  // the plain eager follow-up. Deliberately not split into separate `onSent`/`scrollToBottom` props:
-  // the override already carries both, and a second copy of them here could only ever disagree.
+  // controller, one optimistic card dissolve. Callers WITHOUT an answering controller (the drawer) omit
+  // it and get the plain eager follow-up. Deliberately not split into a separate `onSent` prop: the
+  // override already carries it, and a second copy here could only ever disagree.
   submitOverride?: (text: string, callbacks: EagerFollowUpCallbacks) => void
   // THE PHONE BAR'S THIRD STATE. While set, the drawer's resting phone bar renders this in place of
   // its row — a thread with open registered questions shows [keyboard] + "Answer N questions" there.
