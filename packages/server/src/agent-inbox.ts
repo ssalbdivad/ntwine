@@ -70,8 +70,6 @@ export function postToAgentInbox(sessionDir: string, agentId: string, message: {
 // the pair. A child already due sooner keeps its own limit.
 
 export const DEADLINES_DIRNAME = "ntwine-deadlines"
-/** The directory before the Frizz -> Ntwine rename, where a child started before it cached its limit. */
-const LEGACY_DEADLINES_DIRNAME = "frizz-deadlines"
 const STAGE_NAMES = ["half", "converge", "final", "over"] as const
 
 type ChildDeadlineFile = { atMs: number; setAtMs: number; announce: boolean; setBy?: "user" } | { none: true }
@@ -90,8 +88,7 @@ function readChildDeadline(dir: string, agentId: string): ChildDeadlineFile | un
 export function setChildDeadline(sessionDir: string, agentId: string, change: { atMs: number; nowMs: number } | null): boolean {
   if (!AGENT_ID.test(agentId)) throw new Error(`not an agent id: ${JSON.stringify(agentId)}`)
   const dir = join(sessionDir, DEADLINES_DIRNAME)
-  const legacyDir = join(sessionDir, LEGACY_DEADLINES_DIRNAME)
-  const current = readChildDeadline(dir, agentId) ?? readChildDeadline(legacyDir, agentId)
+  const current = readChildDeadline(dir, agentId)
   let next: ChildDeadlineFile
   if (change === null) {
     if (!current || "none" in current || current.setBy !== "user") return false
@@ -102,9 +99,7 @@ export function setChildDeadline(sessionDir: string, agentId: string, change: { 
   }
   mkdirSync(dir, { recursive: true })
   // A new limit is a new generation: its intro and every check-in are due again.
-  for (const marker of ["intro", ...STAGE_NAMES]) {
-    for (const at of [dir, legacyDir]) rmSync(join(at, `${agentId}.${marker}`), { force: true })
-  }
+  for (const marker of ["intro", ...STAGE_NAMES]) rmSync(join(dir, `${agentId}.${marker}`), { force: true })
   const tmp = join(dir, `.${agentId}.${randomUUID()}.tmp`)
   writeFileSync(tmp, JSON.stringify(next))
   renameSync(tmp, join(dir, `${agentId}.json`))

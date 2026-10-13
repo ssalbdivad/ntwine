@@ -3,6 +3,7 @@
 // launcher package, which this one cannot import); run directly, it is the same board without it.
 // Worker daemons remain independent.
 import "@ntwine/shared/legacy-env"
+import "./frizz-migration-boot.ts"
 import { fileURLToPath } from "node:url"
 import { DEFAULT_PORT } from "@ntwine/shared"
 import { fileSessionDirectory, loadOrCreateSessionKey } from "./access-codes.ts"

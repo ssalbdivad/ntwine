@@ -158,9 +158,6 @@ test("an explicit cloudflared config wins; otherwise it is found or reported mis
     assert.equal(resolveTunnelConfigPath(base, home), null, "absent means let cloudflared use its own default");
 
     mkdirSync(join(home, ".cloudflared"), { recursive: true });
-    // The file a setup made before the Frizz -> Ntwine rename is still found; a current one outranks it.
-    writeFileSync(join(home, ".cloudflared", "frizz.yml"), "tunnel: dana\n");
-    assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "frizz.yml"));
     writeFileSync(join(home, ".cloudflared", "ntwine.yml"), "tunnel: dana\n");
     assert.equal(resolveTunnelConfigPath(base, home), join(home, ".cloudflared", "ntwine.yml"));
 

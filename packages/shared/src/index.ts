@@ -8199,10 +8199,14 @@ export type ThreadLocation = z.infer<typeof ThreadLocation>
  */
 export const NTWINE_ROUTE_PREFIX = "/_ntwine"
 /**
- * The prefix before the Frizz -> Ntwine rename (2026-10-13). A worker's MCP server, a tab or a script
- * started before it still calls `/_frizz/…`, so the server reads that prefix as this one.
+ * LEGACY: the prefix before the Frizz -> Ntwine rename (2026-10-13). A process started before it — a
+ * worker's MCP server (`frizz-mcp.mjs`) that has run since, or the pre-rename dev supervisor probing its
+ * child — still calls `/_frizz/…`, so the server reads that prefix as this one.
+ *
+ * REMOVE, with adoptLegacyRoute's two callers, once no process started before the rename (67962b73) is
+ * alive: `pgrep -f frizz-mcp.mjs` finds none, and no `nub src/dev.ts` that old runs.
  */
-const LEGACY_ROUTE_PREFIX = "/_frizz"
+export const LEGACY_ROUTE_PREFIX = "/_frizz"
 export function adoptLegacyRoute(url: string): string {
   return url === LEGACY_ROUTE_PREFIX || url.startsWith(`${LEGACY_ROUTE_PREFIX}/`) || url.startsWith(`${LEGACY_ROUTE_PREFIX}?`)
     ? `${NTWINE_ROUTE_PREFIX}${url.slice(LEGACY_ROUTE_PREFIX.length)}`

@@ -362,7 +362,9 @@ function sameProjectIdentity(record: ProjectLaunchOwnerRecord, target: ProjectLa
 export function projectLaunchTokenProof(target: ProjectLaunchTarget, token: string): string {
   if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
   return createHash("sha256")
-    // The pre-rename tag, kept: a launcher and a server from either side of the rename must agree.
+    // The pre-rename tag, kept for good, not legacy: a new shell routinely pairs with an older published
+    // ntwine-server, which reports this proof in /health, so renaming it would make a shell take its own
+    // server for a foreign one. The bytes are never shown; only the shell and the server must agree.
     .update("frizz-project-launch-v2\0")
     .update(target.projectId)
     .update("\0")

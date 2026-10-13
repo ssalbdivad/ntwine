@@ -274,16 +274,6 @@ test("enumerateProcs (linux): slug from an exact environ entry; a literal inside
   assert.equal(byPid.get(200)!.ageMs, 9 * 60_000)
 })
 
-// A worker started before the Frizz -> Ntwine rename tags its processes FRIZZ_THREAD.
-test("enumerateProcs (linux): a pre-rename FRIZZ_THREAD entry names the thread too", async () => {
-  const base = ["  100 1 10:00 node x", "  200 1 10:00 node y"].join("\n")
-  const procs = await enumerateProcs(linuxPs(base), {
-    platform: "linux",
-    readEnv: environ({ 100: ["FRIZZ_THREAD=alpha"], 200: ["TASK_TEXT=FRIZZ_THREAD=spoofed"] }),
-  })
-  assert.deepEqual(procs.map((p) => p.slug), ["alpha", null])
-})
-
 test("enumerateProcs (linux): an unreadable environ (gone, or another user's) leaves the slug null", async () => {
   const base = ["  100 1 10:00 node x"].join("\n")
   const procs = await enumerateProcs(linuxPs(base), { platform: "linux", readEnv: () => null })

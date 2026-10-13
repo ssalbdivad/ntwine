@@ -1,4 +1,3 @@
-import "./lib/legacyStorage.ts"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query"
 import "@xterm/xterm/css/xterm.css"

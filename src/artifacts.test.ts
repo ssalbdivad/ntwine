@@ -840,7 +840,8 @@ test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads i
   try {
     const artifact = buildNtwineArtifact(source, root);
     assert.match(
-      execFileSync(process.execPath, [join(artifact.runtimeDir, "src", "index.js"), "--help"], { encoding: "utf8" }),
+      // Under a throwaway HOME: every launcher entry migrates a Frizz install it finds first (frizz-migration-boot.ts).
+      execFileSync(process.execPath, [join(artifact.runtimeDir, "src", "index.js"), "--help"], { encoding: "utf8", env: { ...process.env, HOME: join(root, "home") } }),
       /Ntwine source launcher/
     );
     assert.ok(artifact.manifest.dependencyCell, "runtime binds an immutable dependency cell");

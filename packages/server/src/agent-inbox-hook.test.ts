@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -204,33 +204,4 @@ test("a sooner limit the child already has is kept; a lift touches only a limit 
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, { atMs: now + 2 * 60_000, nowMs: now }), true, "sooner: taken")
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, null), true, "and the user's own limit can be lifted")
   assert.deepEqual(JSON.parse(readFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), "utf8")), { none: true })
-})
-
-// ---- state written before the Frizz -> Ntwine rename ----
-// A message the old server posted, and a limit a child cached, sit under the old directory names.
-
-test("a message waiting in the pre-rename frizz-inbox is delivered with today's, in post order", () => {
-  const s = newSession([{ id: AGENT }])
-  postToAgentInbox(s.sessionDir, AGENT, { from: "operator", text: "older" })
-  const current = join(s.sessionDir, INBOX_DIRNAME, AGENT)
-  const legacy = join(s.sessionDir, "frizz-inbox", AGENT)
-  mkdirSync(legacy, { recursive: true })
-  for (const name of readdirSync(current)) renameSync(join(current, name), join(legacy, name))
-  postToAgentInbox(s.sessionDir, AGENT, { from: "parent", text: "newer" })
-
-  const ctx: string = JSON.parse(runHook(postToolUse(s.transcript, AGENT))).hookSpecificOutput.additionalContext
-  assert.ok(ctx.includes("older") && ctx.indexOf("older") < ctx.indexOf("newer"), ctx)
-  assert.deepEqual(readdirSync(legacy), [], "drained, not redelivered")
-})
-
-test("a limit a child cached before the rename is still its limit, and a check-in it was sent is not sent again", () => {
-  const s = plainChild()
-  const now = Date.now()
-  const legacy = join(s.sessionDir, "frizz-deadlines")
-  mkdirSync(legacy, { recursive: true })
-  writeFileSync(join(legacy, `${PLAIN}.json`), JSON.stringify({ atMs: now - 1_000, setAtMs: now - 120_000, announce: false }))
-  assert.match(childSays(s.transcript), /Your time is up/, "the cached limit is read")
-  writeFileSync(join(legacy, `${PLAIN}.over`), "")
-  rmSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.over`), { force: true })
-  assert.equal(childSays(s.transcript), "", "a stage marked in the old directory counts as sent")
 })

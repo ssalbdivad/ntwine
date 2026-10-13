@@ -426,7 +426,6 @@ export function migrateLegacyProjectDatabase(db: Database): void {
   // there is nothing left to delete later.
   try {
     db.exec("UPDATE session SET thread_name = 'ntwine-' || substr(thread_name, 6) WHERE thread_name LIKE 'fray-%'")
-    db.exec("UPDATE session SET thread_name = 'ntwine-' || substr(thread_name, 7) WHERE thread_name LIKE 'frizz-%'")
   } catch {
     // A pre-schema database, or one without the column yet. The ALTERs above own that case.
   }

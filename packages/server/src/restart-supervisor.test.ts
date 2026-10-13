@@ -910,42 +910,6 @@ test("an access code is spent once over HTTP: it mints a session, then stops wor
   }
 })
 
-// A device signed in before the Frizz -> Ntwine rename holds `frizz_session`, and a link minted then
-// carries `?frizz_code=`. Both keep working; a page load moves the cookie to its new name.
-test("a pre-rename code and session keep working, and a page load moves the cookie to ntwine_session", async () => {
-  const current = await child("only")
-  const port = await freePort()
-  const proxy = new RestartSupervisorProxy({
-    port,
-    publicOrigin: "https://dana.ntwine.app",
-    childPort: () => current.port,
-    restart: async () => ({ state: "ready" }),
-  })
-  try {
-    await proxy.listen()
-    const publicHeaders = { host: "dana.ntwine.app", origin: "https://dana.ntwine.app" }
-    const spent = await proxied(port, `/thread/x?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
-    assert.equal(spent.status, 302)
-    assert.equal(spent.headers?.location, "/thread/x", "the old parameter is stripped too")
-    const session = /ntwine_session=([^;]+)/.exec(String(spent.headers?.["set-cookie"]))![1]!
-
-    const old = { ...publicHeaders, cookie: `frizz_session=${session}` }
-    assert.equal((await proxied(port, "/", old)).status, 200, "a fetch under the old cookie is served as it is")
-    assert.equal(await upgrade(port, old), "forwarded")
-    const moved = await proxied(port, "/thread/x", { ...old, "sec-fetch-mode": "navigate" })
-    assert.equal(moved.status, 302)
-    assert.equal(moved.headers?.location, "/thread/x")
-    const cookies = moved.headers?.["set-cookie"] ?? []
-    assert.ok(cookies.some((c) => c.startsWith(`ntwine_session=${session};`)), String(cookies))
-    assert.ok(cookies.some((c) => /^frizz_session=;.*Max-Age=0/.test(c)), String(cookies))
-
-    assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: "frizz_session=forged.x", "sec-fetch-mode": "navigate" })).status, 401, "a dead old cookie is not adopted")
-  } finally {
-    await proxy.close().catch(() => undefined)
-    await current.close().catch(() => undefined)
-  }
-})
-
 test("--link mints from loopback only: a tunnelled session cannot hand out further links", async () => {
   // The escalation this prevents: minting is how a NEW device gets in, so anyone who could mint from
   // the tunnel could turn one shared link into unlimited further links for people who were never let

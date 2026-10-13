@@ -473,12 +473,8 @@ export async function resolveRunToken(
 /** Where cloudflared's config for this tunnel lives, unless the operator named one. */
 export function resolveTunnelConfigPath(config: CloudConfig, home = homedir()): string | null {
   if (config.config) return config.config;
-  // `frizz.yml` is the same file from before the Frizz -> Ntwine rename (2026-10-13).
-  for (const name of ["ntwine.yml", "frizz.yml"]) {
-    const candidate = join(home, ".cloudflared", name);
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
+  const candidate = join(home, ".cloudflared", "ntwine.yml");
+  return existsSync(candidate) ? candidate : null;
 }
 
 export interface TunnelHandle {

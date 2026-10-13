@@ -24,6 +24,7 @@ import { sweepStaleSockets } from "./stale-socket-sweep.ts"
 import { socketPathOwnership } from "./socket-ownership.ts"
 import { leaseRuntime } from "../runtime-lease.ts"
 import { daemonBirthMarker } from "./daemon-identity.ts"
+import { DAEMON_CONTROL_KEY } from "./daemon-control.ts"
 
 interface DaemonConfig {
   projectId: string
@@ -228,9 +229,7 @@ function main(): void {
     queuedLines.push(line)
     queuedBytes += Buffer.byteLength(line) + 1
   }
-  // The control key stays `frizz` across the rename: a daemon outlives a server update, and an old
-  // daemon and a new host (or the reverse) must still recognise each other's control lines.
-  const control = (payload: Record<string, unknown>): string => JSON.stringify({ frizz: 1, ...payload })
+  const control = (payload: Record<string, unknown>): string => JSON.stringify({ [DAEMON_CONTROL_KEY]: 1, ...payload })
 
   // ---- handshake ----------------------------------------------------------------------------------
   // The daemon performs `initialize` ITSELF, once, and caches the response. A reattaching client is
