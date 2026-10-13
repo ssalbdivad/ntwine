@@ -1,4 +1,4 @@
-// `frizz top` — one terminal readout of the machine's memory and Frizz's share of it.
+// `ntwine top` — one terminal readout of the machine's memory and Ntwine's share of it.
 //
 // Four readings, each from the module that already owns it, so this file adds grouping and rendering
 // and no new parser of anyone's format:
@@ -7,8 +7,8 @@
 //     the same signal the job gate holds on (gate.ts readPressure). The sample's second is spent while
 //     the process table is read, so it costs no extra wall time.
 //   - THE JOB GATE: its state.json through gate.ts `readState` (which prunes dead wrappers on read and
-//     writes nothing), with each running job's tree RSS re-read, as `frizz-run status` does.
-//   - RSS PER THREAD TREE: processes grouped by the FRIZZ_THREAD=<slug> env marker, read by the orphan
+//     writes nothing), with each running job's tree RSS re-read, as `ntwine-run status` does.
+//   - RSS PER THREAD TREE: processes grouped by the NTWINE_THREAD=<slug> env marker, read by the orphan
 //     reaper's `enumerateProcs`. A Claude thread's broker daemon does NOT carry the marker (it is forked
 //     by the server, which is nobody's thread), so it is attributed through the session root it parents.
 //     An untagged process below a tagged one (a child that cleared its env) joins its ancestor's tree.
@@ -21,12 +21,12 @@
 //
 // Nothing here writes: no lock is taken, no state file is touched, nothing is signalled.
 import { readFileSync } from "node:fs"
-import { formatElapsed, type BoardSnapshot } from "@frizz/shared"
+import { formatElapsed, type BoardSnapshot } from "@ntwine/shared"
 import {
   psiSomeAvg10, readPswpin, readSettings, readState, scanProcs, treeRssMB,
   type Job, type ProcEntry,
 } from "../../../cc-worker/job-gate/gate.ts"
-import { serverAddressPath } from "./frizz-paths.ts"
+import { serverAddressPath } from "./ntwine-paths.ts"
 import { decideOrphans, enumerateProcs, isSessionRoot, ORPHAN_MIN_AGE_MS, selfAndAncestors, type ProcRow } from "./orphan-reaper.ts"
 import { listProjects } from "./project-registry.ts"
 import type { SessionRow } from "./storage.ts"
@@ -76,8 +76,8 @@ export function isBrokerDaemon(command: string): boolean {
   return /claude-agent-broker\.(?:ts|js|mjs)(?:\s|$)/.test(command)
 }
 
-export function isFrizzMcp(command: string): boolean {
-  return /frizz-mcp\.(?:mjs|ts|js)(?:\s|$)/.test(command)
+export function isNtwineMcp(command: string): boolean {
+  return /ntwine-mcp\.(?:mjs|ts|js)(?:\s|$)/.test(command)
 }
 
 /** The session id a Claude session root runs under, from its argv. */
@@ -92,7 +92,7 @@ export interface ThreadTree {
   brokerPid?: number
   pids: number[]
   rssKB: number
-  /** The fixed cost of a thread at rest: its broker, its `claude`, its frizz MCP server. */
+  /** The fixed cost of a thread at rest: its broker, its `claude`, its ntwine MCP server. */
   agentKB: number
   /** Everything else in the tree: shells, jobs, project MCP servers, browsers. */
   workKB: number
@@ -175,10 +175,10 @@ export function groupThreadTrees(procs: readonly TopProc[], opts: { selfPid?: nu
     }
     // A codex or a second claude root under one slug is possible; the oldest names the thread.
     const root = roots.reduce((a, b) => (b.ageMs > a.ageMs ? b : a))
-    // Its OWN broker is the root's parent; another broker in the list belongs to a Frizz this thread
+    // Its OWN broker is the root's parent; another broker in the list belongs to an Ntwine this thread
     // launched (an adhoc stack inherits the launching worker's marker) and counts as its work.
     const broker = list.find((p) => p.pid === root.ppid && isBrokerDaemon(p.command))
-    const agent = list.filter((p) => p === root || p === broker || (isFrizzMcp(p.command) && p.ppid === root.pid))
+    const agent = list.filter((p) => p === root || p === broker || (isNtwineMcp(p.command) && p.ppid === root.pid))
     const sessionId = sessionIdOf(root.command)
     threads.push({
       slug,
@@ -199,7 +199,7 @@ export function groupThreadTrees(procs: readonly TopProc[], opts: { selfPid?: nu
 
 /**
  * This readout and the launcher processes that exist only to run it — each ancestor carrying a bare
- * `top` argument — so `frizz top` run from a worker's shell does not count its own ~150MB against that
+ * `top` argument — so `ntwine top` run from a worker's shell does not count its own ~150MB against that
  * worker's thread. Measured 2026-10-09: without it, the thread that ran it read +37% against `ps`.
  */
 export function readoutChain(procs: readonly TopProc[], selfPid: number): Set<number> {
@@ -222,7 +222,7 @@ export function serverTree(procs: readonly TopProc[], serverPid: number, owner: 
   let top = serverPid
   for (let guard = 0; guard < 64; guard++) {
     const parent = byPid.get(byPid.get(top)!.ppid)
-    if (!parent || parent.pid <= 1 || !/frizz/.test(parent.command) || owner.has(parent.pid)) break
+    if (!parent || parent.pid <= 1 || !/ntwine/.test(parent.command) || owner.has(parent.pid)) break
     top = parent.pid
   }
   const children = new Map<number, number[]>()
@@ -303,7 +303,7 @@ async function fetchBoards(port: number, home?: string): Promise<{ boards: Proje
   for (const project of listProjects(home)) {
     if (project.stale) continue
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/_frizz/${encodeURIComponent(project.id)}/rpc/board`, {
+      const response = await fetch(`http://127.0.0.1:${port}/_ntwine/${encodeURIComponent(project.id)}/rpc/board`, {
         headers: { origin: `http://127.0.0.1:${port}` },
         signal: AbortSignal.timeout(5_000),
       })
@@ -317,13 +317,13 @@ async function fetchBoards(port: number, home?: string): Promise<{ boards: Proje
   return { boards, failed }
 }
 
-/** The session id a broker daemon serves, from its FRIZZ_CLAUDE_BROKER config. Only that one variable
+/** The session id a broker daemon serves, from its NTWINE_CLAUDE_BROKER config. Only that one variable
  *  is parsed; the rest of the environment is never retained. */
 function brokerSessionFromEnv(pid: number): string | undefined {
   try {
-    const entry = readFileSync(`/proc/${pid}/environ`, "utf8").split("\0").find((e) => e.startsWith("FRIZZ_CLAUDE_BROKER="))
+    const entry = readFileSync(`/proc/${pid}/environ`, "utf8").split("\0").find((e) => e.startsWith("NTWINE_CLAUDE_BROKER="))
     if (!entry) return undefined
-    const sessionId = (JSON.parse(entry.slice("FRIZZ_CLAUDE_BROKER=".length)) as { sessionId?: unknown }).sessionId
+    const sessionId = (JSON.parse(entry.slice("NTWINE_CLAUDE_BROKER=".length)) as { sessionId?: unknown }).sessionId
     return typeof sessionId === "string" ? sessionId : undefined
   } catch {
     return undefined
@@ -361,7 +361,7 @@ export interface TopReading {
   at: string
   host: HostMemory & { pressure: PressureReading }
   gate: { enabled: boolean; dir: string; jobs: GateJobView[] }
-  frizz: { totalKB: number; serverKB: number; threadsKB: number; orphansKB: number }
+  ntwine: { totalKB: number; serverKB: number; threadsKB: number; orphansKB: number }
   server: { pid: number; port: number; pids: number[]; rssKB: number; boardsRead: number; boardsFailed: string[] } | null
   threads: TopThread[]
   orphans: OrphanGroup[]
@@ -484,7 +484,7 @@ export async function readTop(opts: { home?: string; sampleMs?: number } = {}): 
     at: new Date(nowMs).toISOString(),
     host: { ...memory, pressure },
     gate: { enabled: settings.enabled, dir: settings.dir, jobs },
-    frizz: { totalKB: serverKB + threadsKB + orphansKB, serverKB, threadsKB, orphansKB },
+    ntwine: { totalKB: serverKB + threadsKB + orphansKB, serverKB, threadsKB, orphansKB },
     server,
     threads,
     orphans: grouping.orphans,
@@ -518,9 +518,9 @@ export function renderTop(reading: TopReading, opts: { width?: number } = {}): s
     : "memory pressure unknown"
   const usedPct = h.totalMB ? Math.round(((h.totalMB - h.availableMB) / h.totalMB) * 100) : 0
   out.push(`Memory  ${sizeLabel(h.availableMB * 1024)} available of ${sizeLabel(h.totalMB * 1024)} (${usedPct}% used) · swap ${sizeLabel(h.swapUsedMB * 1024)} of ${sizeLabel(h.swapTotalMB * 1024)} · ${pressure}`)
-  const f = reading.frizz
+  const f = reading.ntwine
   const share = h.totalMB ? ` (${Math.round((f.totalKB / 1024 / h.totalMB) * 100)}% of memory)` : ""
-  out.push(`Frizz   ${sizeLabel(f.totalKB)}${share} · server ${sizeLabel(f.serverKB)} · ${reading.threads.length} threads ${sizeLabel(f.threadsKB)}${reading.orphans.length ? ` · orphans ${sizeLabel(f.orphansKB)}` : ""}`)
+  out.push(`Ntwine   ${sizeLabel(f.totalKB)}${share} · server ${sizeLabel(f.serverKB)} · ${reading.threads.length} threads ${sizeLabel(f.threadsKB)}${reading.orphans.length ? ` · orphans ${sizeLabel(f.orphansKB)}` : ""}`)
 
   // ── gate
   out.push("")
@@ -555,7 +555,7 @@ export function renderTop(reading: TopReading, opts: { width?: number } = {}): s
       ])
     }
     for (const line of table(rows, new Set([3, 4, 5, 6, 7, 8]))) out.push(`  ${line}`)
-    out.push("  AGENT is the broker, claude and frizz MCP server; WORK is everything the thread started.")
+    out.push("  AGENT is the broker, claude and ntwine MCP server; WORK is everything the thread started.")
   }
 
   // ── idle accounting
@@ -563,7 +563,7 @@ export function renderTop(reading: TopReading, opts: { width?: number } = {}): s
     out.push("")
     out.push(reading.server
       ? "Hibernated threads and unowned brokers not shown: the server did not return any project's board."
-      : "Hibernated threads and unowned brokers not shown: no Frizz server is running.")
+      : "Hibernated threads and unowned brokers not shown: no Ntwine server is running.")
   } else {
     out.push("")
     out.push(`Hibernated (no process; a reply resumes it): ${reading.hibernated.length}`)
@@ -595,9 +595,9 @@ export function renderTop(reading: TopReading, opts: { width?: number } = {}): s
 
 // ───────────────────────────── the command
 
-export const TOP_USAGE = `Usage: frizz top [--json] [--watch]
+export const TOP_USAGE = `Usage: ntwine top [--json] [--watch]
 
-Memory on this machine and Frizz's share of it: the host, the job gate's queue,
+Memory on this machine and Ntwine's share of it: the host, the job gate's queue,
 RSS per thread, hibernated threads, and processes no thread owns.
 
   --json    print the reading as JSON
@@ -607,7 +607,7 @@ export async function runTop(argv: readonly string[]): Promise<number> {
   const known = new Set(["--json", "--watch", "--help", "-h"])
   const unknown = argv.find((a) => !known.has(a))
   if (unknown) {
-    process.stderr.write(`frizz top: unknown option ${unknown}\n${TOP_USAGE}\n`)
+    process.stderr.write(`ntwine top: unknown option ${unknown}\n${TOP_USAGE}\n`)
     return 1
   }
   if (argv.includes("--help") || argv.includes("-h")) {
@@ -615,7 +615,7 @@ export async function runTop(argv: readonly string[]): Promise<number> {
     return 0
   }
   if (process.platform !== "linux") {
-    process.stderr.write("frizz top: reads /proc, so it runs on Linux only\n")
+    process.stderr.write("ntwine top: reads /proc, so it runs on Linux only\n")
     return 1
   }
   const json = argv.includes("--json")

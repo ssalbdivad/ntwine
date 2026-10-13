@@ -1,4 +1,4 @@
-// Map a Claude tool-permission request (the SDK's canUseTool escalation) to a frizz InteractionStore
+// Map a Claude tool-permission request (the SDK's canUseTool escalation) to an ntwine InteractionStore
 // entry, and map the human's decision back to a ClaudePermissionDecision. Under permissionMode "auto"
 // the SDK's model classifier auto-approves the safe/common majority BEFORE canUseTool — so canUseTool
 // fires only for the genuinely risky minority the classifier escalates. Those are exactly the ones that
@@ -17,12 +17,12 @@ import {
   type InteractionField,
   type InteractionRequest as InteractionRequestType,
   type InteractionValues,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { redactCredentialSyntax } from "../credential-redaction.ts"
 import { validatePermissionDecision } from "./claude-agent-sdk-protocol.ts"
 import type { ClaudeJson, ClaudeJsonObject, ClaudePermissionDecision, ClaudePermissionRequest } from "./claude-agent-sdk-protocol.ts"
 
-// The decision IDs the frizz web CANONICALIZES for a permission-approval card (typedInteractions.ts
+// The decision IDs the ntwine web CANONICALIZES for a permission-approval card (typedInteractions.ts
 // specFor): the security verb is a fixed vocabulary, not provider-chosen, so an unrecognized id renders
 // NO button ("N advertised choices cannot be safely… shown"). `grant-turn` = approve-once, `deny` = deny.
 export const CLAUDE_PERMISSION_DECISIONS = {
@@ -112,10 +112,10 @@ export const CLAUDE_PERMISSION_LAPSED_MESSAGE =
   "taking a route that needs no approval where one exists (the Write/Edit tools instead of a shell heredoc, " +
   "a path inside the project instead of an outside directory). If the work genuinely cannot proceed without " +
   "this exact call, finish everything else first, then say what is blocked and why in your final message " +
-  "(or register it with `frizzctl ask`)."
+  "(or register it with `ntwinectl ask`)."
 
 // THE FIRST APPROVAL EACH AGENT NEEDS IS HELD BACK ONCE, SO THE AGENT CAN LOOK FOR ANOTHER WAY. The
-// journal's 38 Claude cards (2026-09-28..10-06, every one a Bash call) show what they are: in a frizz
+// journal's 38 Claude cards (2026-09-28..10-06, every one a Bash call) show what they are: in an ntwine
 // worker (auto or bypass, with cc-worker's perm-policy allowing everything else) an escalation is almost
 // always one of Claude Code's bypass-immune checks — an `rm` on a variable-built or globbed path
 // (`rm -rf $W/$t`, `rm -f copy/*`), a nested `bash -c "…"`, a heredoc-fed script outside the project —
@@ -154,7 +154,7 @@ function minutesOrSeconds(ms: number): string {
 
 /** The note an agent's FIRST escalation is denied with, or null when this escalation goes straight to
  *  the operator (see above). `permissionMode` is the mode the session's daemon launched under; undefined
- *  (a daemon forked before the record carried it) is treated as frizz's own permissive dispatch. */
+ *  (a daemon forked before the record carried it) is treated as ntwine's own permissive dispatch. */
 export function claudeFirstApprovalHint(request: ClaudePermissionRequest, permissionMode: string | undefined, deadlineMs: number): string | null {
   if (request.toolName === CLAUDE_ASK_USER_QUESTION_TOOL) return null
   if (permissionMode !== undefined && !FIRST_APPROVAL_HINT_MODES.includes(permissionMode)) return null
@@ -201,7 +201,7 @@ export function buildClaudePermissionInteraction(
     2_000,
   )
   // The input is UNTRUSTED provider text; redact credential syntax and bound it hard before it ever
-  // reaches a card. It is display-only and is never parsed or executed by frizz.
+  // reaches a card. It is display-only and is never parsed or executed by ntwine.
   const preview = inputPreview(request.input, request.description)
   const parsed = InteractionRequest.safeParse({
     protocolVersion: INTERACTION_PROTOCOL_VERSION,
@@ -295,19 +295,19 @@ const HAS_UNSAFE_TEXT = new RegExp(UNSAFE_TEXT_SOURCE, "u")
 
 // claude 2.1.220's own sentinel for "the operator left notes but picked no option" — its result mapper
 // special-cases this exact string (`if (!f || f === "(notes only)") return true`) so a notes-only answer
-// is not scored as an unadvertised pick. Matching it is what makes frizz's free-text box native rather
-// than a frizz-shaped approximation.
+// is not scored as an unadvertised pick. Matching it is what makes ntwine's free-text box native rather
+// than an ntwine-shaped approximation.
 const CLAUDE_NOTES_ONLY = "(notes only)"
 
 const CLAUDE_QUESTION_DECLINED =
-  "The operator did not answer this question from the frizz dashboard. Do not ask it again with this tool — " +
+  "The operator did not answer this question from the ntwine dashboard. Do not ask it again with this tool — " +
   "decide with the information you already have, or raise it in your final message."
 
-/** A question frizz could not represent EXACTLY (see parseClaudeAskUserQuestion). Denied with the `ask`
+/** A question ntwine could not represent EXACTLY (see parseClaudeAskUserQuestion). Denied with the `ask`
  *  redirect rather than downgraded to an approval card, whose bare allow the model reads as unanswered.
  *  (It redirected to a ```question fence until 2026-09-11, when the free-form fence was retired.) */
 export const CLAUDE_ASK_DENY_MESSAGE =
-  "Frizz could not render this question as a card. Register it with `frizzctl ask` instead — context, " +
+  "Ntwine could not render this question as a card. Register it with `ntwinectl ask` instead — context, " +
   "the question, options with a one-line trade-off each, the recommended one first — never as a ```question " +
   "fence, which is retired. The operator answers it from the queue and the reply arrives as your next user message."
 
@@ -317,7 +317,7 @@ export const CLAUDE_ASK_DENY_MESSAGE =
 export const CLAUDE_ASK_WITHDRAWN_MESSAGE =
   "This question was withdrawn before anyone answered it — most likely because the operator sent a message " +
   "instead. Read their next message and follow it. Do not ask this again with this tool; if you still need " +
-  "the decision, register it with `frizzctl ask`."
+  "the decision, register it with `ntwinectl ask`."
 
 function displayText(value: string, max: number, fallback: string, redact = true): string {
   const scrubbed = (redact ? redactCredentialSyntax(value) : value).replace(SCRUB_UNSAFE_TEXT, "").trim()
@@ -516,7 +516,7 @@ export function claudeQuestionDecisionFor(
     // free text rides `annotations[question].notes`, and a notes-only answer takes claude's own
     // NOTES_ONLY sentinel in `answers`. Both are read by the result mapper — the presence of notes
     // is precisely what makes it tell the model to read the answer carefully rather than treating a
-    // matched label as a clean pick. This is why free text is native here and not a frizz convention.
+    // matched label as a clean pick. This is why free text is native here and not an ntwine convention.
     answers[question.question] = picked === "" ? CLAUDE_NOTES_ONLY : picked
     if (notes !== "") annotations[question.question] = { notes }
   }
@@ -531,6 +531,6 @@ export function claudeQuestionDecisionFor(
   }
   return {
     behavior: "deny",
-    message: "Frizz could not return the operator's answer in a form this tool accepts. Ask the question in your final message instead.",
+    message: "Ntwine could not return the operator's answer in a form this tool accepts. Ask the question in your final message instead.",
   }
 }

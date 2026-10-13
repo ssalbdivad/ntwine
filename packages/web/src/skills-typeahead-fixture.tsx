@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { Composer } from "./components/Composer.tsx"
-import type { ThreadSkill } from "@frizz/shared"
+import type { ThreadSkill } from "@ntwine/shared"
 import "./styles.css"
 
 // Browser QA + e2e surface for the composer's SKILLS TYPEAHEAD (issue #21): a draft that is exactly
@@ -18,8 +18,8 @@ document.documentElement.dataset.font = font
 // One row per SOURCE the harness can report, plus one with none — the unlabelled row is the case that
 // matters, because "show it if we know it" means a harness that stays silent must still render.
 const SKILLS: ThreadSkill[] = [
-  { name: "frizz-stack", description: "Boot a real, fully-isolated, disposable Frizz you can poke", source: "project" },
-  { name: "frizz:gh", description: "The gh-CLI playbook for a frizz worker signed into GitHub", source: "plugin" },
+  { name: "ntwine-stack", description: "Boot a real, fully-isolated, disposable Ntwine you can poke", source: "project" },
+  { name: "ntwine:gh", description: "The gh-CLI playbook for an ntwine worker signed into GitHub", source: "plugin" },
   { name: "headless-browser", description: "Drive a local page in Chrome and capture it without putting a window on screen", source: "project" },
   { name: "optical-spacing", description: "Space a row of small marks by the ink the eye reads instead of the boxes CSS lays out", source: "user" },
   { name: "verify", description: "Check the pending changes on the current branch", source: "builtin" },

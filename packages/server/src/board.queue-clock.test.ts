@@ -18,14 +18,14 @@ const at = (hhmm: string) => `2026-09-24T${hhmm}:00.000Z`
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `${slug}-session`, thread_name: `frizz-${slug}`, spawned_at: at("08:00"), last_read_at: null,
+    slug, session_id: `${slug}-session`, thread_name: `ntwine-${slug}`, spawned_at: at("08:00"), last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
 }
 
 test("a snoozed thread let back into the queue joins the BACK, and keeps that place across a restart", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-queue-clock-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-queue-clock-"))
   const project: Project = { dir, id: "project-queue", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const telemetry = new Map<string, SessionTelemetry>([
     ["plain", { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:50") }],
@@ -108,7 +108,7 @@ test("a snoozed thread let back into the queue joins the BACK, and keeps that pl
 })
 
 test("a parent let go by its sub-agent is withheld while its wake lands, and neither queues nor notifies", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-queue-settle-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-queue-settle-"))
   const project: Project = { dir, id: "project-settle", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const child = { id: "toolu_child", label: "Review the diff", startedAt: at("09:00"), state: "running" as const }
   const resting = (over: Partial<SessionTelemetry> = {}): SessionTelemetry =>
@@ -182,7 +182,7 @@ test("a parent let go by its sub-agent is withheld while its wake lands, and nei
 })
 
 test("a thread woken by its own work keeps its place in line; one the human sent a follow-up to goes to the back", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-queue-keep-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-queue-keep-"))
   const project: Project = { dir, id: "project-keep", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const iso = (time: string) => `2026-09-24T${time}.000Z`
   const tele = (turn: "idle" | "in-flight", rested: string): SessionTelemetry =>

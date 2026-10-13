@@ -5,7 +5,7 @@
 //
 // Three messages land in the watcher thread: one from the coordinator thread (a fake live-session
 // registry entry traces its socket to that thread, so the line links it), one that arrived while the
-// watcher was idle (the wrapped delivery shape), and one from a session Frizz cannot place (no
+// watcher was idle (the wrapped delivery shape), and one from a session Ntwine cannot place (no
 // registry entry, so the line names the session without a link).
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
@@ -29,10 +29,10 @@ const pid = 990000 + Math.floor(Math.random() * 9000)
 const socket = `/tmp/cc-socks/${pid}.sock`
 mkdirSync(join(home, ".claude", "sessions"), { recursive: true })
 writeFileSync(join(home, ".claude", "sessions", `${pid}.json`), JSON.stringify({
-  pid, sessionId: coordinator.sessionId, cwd: project, kind: "interactive", messagingSocketPath: socket, name: "frizz-11", nameSource: "derived", status: "idle",
+  pid, sessionId: coordinator.sessionId, cwd: project, kind: "interactive", messagingSocketPath: socket, name: "ntwine-11", nameSource: "derived", status: "idle",
 }))
 
-const wrap = (body, from = `uds:${socket}`, name = "frizz-11") =>
+const wrap = (body, from = `uds:${socket}`, name = "ntwine-11") =>
   `<cross-session-message from="${from}" from-name="${name}" from-mode="bypass">\n${body}\n</cross-session-message>`
 const steer = "Remove `sfltool dumpbtm` from your watcher pass (`pass.sh` line 33) now: it puts a macOS admin-password dialog on the maintainer's screen every pass.\n\n- Never run a command that asks for a password or admin rights (`sfltool`, `sudo`, `security`).\n- Keep the BTM baseline you already captured; for later passes, watch the LaunchAgents/LaunchDaemons folders' mtimes only."
 const idle = "Second pass is clean on my side too. Rest until the next timer fires."
@@ -44,7 +44,7 @@ const watcherRecords = [
   { type: "user", timestamp: at(0), message: { role: "user", content: "You are a read-only security watcher. Run pass.sh every 10 minutes and report anything new." } },
   text("w1", "First pass done: no new launch agents, BTM baseline captured. I'll first confirm the second run has no attacker IOCs.", at(1)),
   { type: "queue-operation", operation: "enqueue", timestamp: at(2), content: wrap(steer) },
-  { type: "attachment", timestamp: at(2), isSidechain: false, attachment: { type: "queued_command", prompt: wrap(steer), commandMode: "prompt", isMeta: true, origin: { kind: "peer", from: `uds:${socket}`, verifiedPeerPid: pid, name: "frizz-11", fromMode: "bypass", body: steer } } },
+  { type: "attachment", timestamp: at(2), isSidechain: false, attachment: { type: "queued_command", prompt: wrap(steer), commandMode: "prompt", isMeta: true, origin: { kind: "peer", from: `uds:${socket}`, verifiedPeerPid: pid, name: "ntwine-11", fromMode: "bypass", body: steer } } },
   { type: "queue-operation", operation: "remove", timestamp: at(2.2), content: wrap(steer), reason: "absorbed_mid_turn" },
   text("w2", "Removed `sfltool dumpbtm` from `pass.sh`; later passes read folder mtimes only.", at(3)),
   { type: "queue-operation", operation: "enqueue", timestamp: at(8), content: wrap(idle) },
@@ -62,6 +62,6 @@ const write = (t, records) => writeFileSync(join(jsonlDir, `${t.sessionId}.jsonl
 write(watcher, watcherRecords)
 write(coordinator, coordinatorRecords)
 const insert = (t) => `INSERT INTO session (${cols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-  VALUES (${vals}'${t.slug}', '${t.sessionId}', 'frizz-${t.slug}', '${at(0)}', '${t.title}', 'claude', 'opus', 'high', 'default', '${at(13)}');`
+  VALUES (${vals}'${t.slug}', '${t.sessionId}', 'ntwine-${t.slug}', '${at(0)}', '${t.title}', 'claude', 'opus', 'high', 'default', '${at(13)}');`
 execFileSync("sqlite3", [sandbox.db, insert(coordinator) + insert(watcher)])
 console.log(JSON.stringify({ watcher: watcher.slug, coordinator: coordinator.slug, socket }))

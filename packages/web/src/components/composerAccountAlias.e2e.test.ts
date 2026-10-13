@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test, { after, before } from "node:test"
 
-// D7 REGRESSION. `/login` and `/logout` are frizz-owned account actions, intercepted at the composer
+// D7 REGRESSION. `/login` and `/logout` are ntwine-owned account actions, intercepted at the composer
 // submit boundary and never delivered to the worker as prompt text. That intercept used to live only in
 // the drawer's ThreadActionBar: the queue cue card had its own send path with NO alias check, so typing
 // `/login` into a card pasted the literal string into the running agent's stdin. The drawer renders
@@ -14,7 +14,7 @@ import test, { after, before } from "node:test"
 // `parseAccountAlias` now, and the card cases are back, on the card that exists.
 //
 // Skipped unless a Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts
-// here): start `vite` in packages/web and set FRIZZ_COMPOSER_ALIAS_E2E_URL to its origin.
+// here): start `vite` in packages/web and set NTWINE_COMPOSER_ALIAS_E2E_URL to its origin.
 //
 // ONE headless Chrome is shared across the whole file (via before/after) — a fresh browser per test is
 // wasteful and, on a loaded machine, times out. Each test wipes the draft cache + reloads so it never
@@ -23,7 +23,7 @@ import test, { after, before } from "node:test"
 // SENDING IS ⌘/Ctrl-Enter, not a bare Enter (maintainer 2026-08-26, `lib/composerKeyboard.ts`): every
 // prompt box reads as a form field, and a plain Enter is always a newline. These tests pressed a bare
 // Enter and so never submitted anything — the modal simply never opened.
-const baseUrl = process.env.FRIZZ_COMPOSER_ALIAS_E2E_URL
+const baseUrl = process.env.NTWINE_COMPOSER_ALIAS_E2E_URL
 
 const SLUG = "alias-thread"
 const CHAT = 'textarea[data-surface="chatComposer"]'
@@ -61,7 +61,7 @@ const boxValue = (sel: string): Promise<string> => page!.$eval(sel, (el) => (el 
 async function open(surface: "drawer" | "card", box: string) {
   errors = []
   await page!.goto(`${baseUrl}/composer-alias-fixture.html?surface=${surface}`, { waitUntil: "networkidle2" })
-  await page!.evaluate(() => localStorage.removeItem("frizz-drafts:v1"))
+  await page!.evaluate(() => localStorage.removeItem("ntwine-drafts:v1"))
   await page!.reload({ waitUntil: "networkidle2" })
   await page!.waitForSelector(box)
 }
@@ -127,7 +127,7 @@ for (const surface of ["drawer", "card"] as const) {
     assert.match(modal, /Sign out of Claude\?/, "…and it must be the sign-out confirmation")
     assert.deepEqual(await sent(), [], "/logout must NEVER be delivered to the worker")
 
-    // "/login please" is NOT an alias — frizz does not confiscate syntax it cannot prove is a command.
+    // "/login please" is NOT an alias — ntwine does not confiscate syntax it cannot prove is a command.
     await dismissModal()
     await typeAndSend(box, "/login please")
     assert.deepEqual(await sent(), ["/login please"], "only the exact alias is intercepted")

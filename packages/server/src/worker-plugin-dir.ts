@@ -2,8 +2,8 @@ import { existsSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-// The frizz-worker plugin (single-thread worker contract + hooks + the worker-facing bin/ scripts), a
-// sibling of board/ in the Frizz source tree. Deployed artifacts carry it at runtime/cc-worker, but
+// The ntwine-worker plugin (single-thread worker contract + hooks + the worker-facing bin/ scripts), a
+// sibling of board/ in the Ntwine source tree. Deployed artifacts carry it at runtime/cc-worker, but
 // pnpm may load this module through a nested store rather than the flat node_modules layout. Search
 // module ancestors so the closure remains discoverable in either layout; an explicitly verified
 // artifact path wins.
@@ -19,7 +19,7 @@ export function resolveWorkerPluginDir(
   moduleUrl = import.meta.url,
   env: NodeJS.ProcessEnv = process.env
 ): string | undefined {
-  const override = env.FRIZZ_WORKER_PLUGIN_DIR
+  const override = env.NTWINE_WORKER_PLUGIN_DIR
   if (override && existsSync(join(override, ".claude-plugin", "plugin.json")))
     return override
   let current = dirname(fileURLToPath(moduleUrl))

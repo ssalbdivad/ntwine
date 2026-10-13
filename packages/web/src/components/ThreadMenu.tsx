@@ -2,7 +2,7 @@ import { useRef, useState, type KeyboardEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { ChartColumn, Code, Ellipsis, FileDiff, FileText, Folder, Loader2, RefreshCw, SquareTerminal, Timer, Trash2 } from "lucide-react"
 import { useSnapshot } from "valtio"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import type { Api, ThreadFolderChoice } from "../api/contract.ts"
 import { captureFullscreenEnterAnchor, rememberFullscreenOrigin } from "../lib/fullscreenHandoff.ts"
 import { armFullscreenMorph } from "../lib/fullscreenMorph.ts"
@@ -19,7 +19,7 @@ import { ThreadInfoDialog } from "./ThreadInfoDialog.tsx"
 import { TimeLimitDialog } from "./DeadlineControl.tsx"
 import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
 import { Tooltip } from "./Tooltip.tsx"
-import { useDevFrizzBuild } from "../lib/devBuild.ts"
+import { useDevNtwineBuild } from "../lib/devBuild.ts"
 import { restartWorker } from "../lib/restartWorker.ts"
 import { closeDrawersById, showToast, store } from "../store.ts"
 import { baseName, runExternalOpen } from "../lib/externalOpen.ts"
@@ -68,7 +68,7 @@ export function openFullscreen(slug: string, from: HTMLElement | null, href = st
 // item in the menu below until 2026-09-29, when the maintainer asked for the header to keep only the
 // fullscreen door, the terminal and close: the terminal came up to an icon, LEADING the strip so the ⋯
 // menu stays beside close, and the verbs that had held icon space there (copy terminal command, Reload
-// plugins, Restart worker, the Frizz document) went down into the menu.
+// plugins, Restart worker, the Ntwine document) went down into the menu.
 //
 // One press opens a SHELL there, with nothing to fill in. It opened a folder + command dialog until
 // 2026-09-29 (maintainer: "it should open shell by default, don't ask what command to run"): the server
@@ -155,7 +155,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
   const queryClient = useQueryClient()
   const api = useThreadApi()
   const projectId = useThreadProjectId()
-  const devBuild = useDevFrizzBuild()
+  const devBuild = useDevNtwineBuild()
   const ownSession = thread.kind === "session" && thread.foreign !== true
   const [open, setOpen] = useState(false)
   // THE FOLDER CHOICE: when "Open in editor" finds the thread and its sub-agents in different checkouts,
@@ -217,7 +217,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
       <MenuContent align="end">
         {onDoc && (
           <MenuItem value="doc" onSelect={onDoc} icon={<FileText size={12} aria-hidden />}>
-            Frizz document
+            Ntwine document
           </MenuItem>
         )}
         {ownSession && (
@@ -374,7 +374,7 @@ function DeleteThreadDialog({ thread, onClose }: { thread: ThreadView; onClose: 
     >
       <div className="flex flex-col gap-3 p-4 text-[12.5px] leading-relaxed text-muted">
         <p>
-          {working ? "Its agent is stopped mid-turn, and the thread is" : "The thread is"} removed from Frizz with its notes and
+          {working ? "Its agent is stopped mid-turn, and the thread is" : "The thread is"} removed from Ntwine with its notes and
           terminals. Its name is free for a new thread. This cannot be undone.
         </p>
         {error ? <p className="text-[11.5px] text-danger">{error}</p> : null}

@@ -1,9 +1,9 @@
-// THE PAGE HALF of the editor → Frizz check: a real Frizz page, focused on one project, sits open while
-// a real VS Code (scripts/e2e.ts in REAL mode with FRIZZ_E2E_PAGE_CLAIMS=1) runs "Add to Frizz prompt".
+// THE PAGE HALF of the editor → Ntwine check: a real Ntwine page, focused on one project, sits open while
+// a real VS Code (scripts/e2e.ts in REAL mode with NTWINE_E2E_PAGE_CLAIMS=1) runs "Add to Ntwine prompt".
 // It passes when the page claimed the item and its new-thread box holds the chip token — the one place
 // the insert can be seen landing, since the server only holds the item until a page takes it.
 //
-// `scripts/e2e.ts --stack` runs it beside the suite. Standalone, against a Frizz you started:
+// `scripts/e2e.ts --stack` runs it beside the suite. Standalone, against an Ntwine you started:
 //
 //   nub packages/vscode/e2e/page-claim.ts --origin=http://127.0.0.1:<port> --project=<slug> \
 //     --token=@sample.ts:2-3 [--shot=<png>] [--timeout-ms=240000]
@@ -47,7 +47,7 @@ const NEW_THREAD_BOX = '[data-surface="newComposer"]'
 export async function watchPageClaim(options: PageClaimOptions): Promise<PageClaimResult> {
   const log = options.log ?? ((line: string) => console.log(`page-claim: ${line}`))
   const deadline = Date.now() + (options.timeoutMs ?? 240_000)
-  const profile = mkdtempSync(join(tmpdir(), "frizz-page-claim-"))
+  const profile = mkdtempSync(join(tmpdir(), "ntwine-page-claim-"))
   // protocolTimeout well past puppeteer's 180s: a screenshot on a machine where a dozen agents are
   // compiling at once can take minutes, and the failure reads like a bug in the page (scripts/shot.mjs).
   const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"], userDataDir: profile, protocolTimeout: 600_000 })

@@ -15,7 +15,7 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 // THE PAGE IN AN EDITOR'S SIDEBAR — the desktop app's left column, alone (ARCHITECTURE.md § VS Code extension
 // § The editor in the sidebar, and the app's own feel). The VS Code extension frames this page at any
 // width from ~250px up (lib/embed.ts), and it is the DESKTOP app narrowed, not the phone app: someone who
-// uses Frizz in the browser must recognize every surface in it.
+// uses Ntwine in the browser must recognize every surface in it.
 //
 // The desktop page is two columns: on the left the prompt box over the project list, on the right the
 // queue's cards, with a thread's drawer sliding over them. The left column is already a sidebar — it is
@@ -23,7 +23,7 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 // desktop's own parts at the desktop's own sizes: the prompt box (AllQueues.tsx FocusedComposer, the
 // picker in its bottom strip on All projects), and the list (ProjectList.tsx), its 13px rows, rest times,
 // spinners, hover verbs and quiet bands unchanged. The right column has no room, so a thread opens in its
-// DRAWER, full width (styles.css `html[data-embed] .frizz-sheet-panel`), with the same header, transcript,
+// DRAWER, full width (styles.css `html[data-embed] .ntwine-sheet-panel`), with the same header, transcript,
 // reply box, Snooze and Mark as done the card and the drawer carry on the desktop; ✕ or Esc comes back here.
 //
 // Rejected, each drawn at 300 and 450px before choosing (build2-shell.md): the desktop's stacked page
@@ -32,7 +32,7 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 // title, tabs no desktop has, and touch targets.
 //
 // NO HEADER. VS Code's title row above the frame is the header (lib/embedRoute.ts): the view's name and
-// its counts go there, and its buttons come back as `frizz:command` (lib/embedCommand.ts). What the
+// its counts go there, and its buttons come back as `ntwine:command` (lib/embedCommand.ts). What the
 // desktop's status row carried that the title row cannot is kept in the page: the view's switcher heads
 // the list (ProjectList `switcher`), in the slot the status row's title leaves empty on the desktop.
 //

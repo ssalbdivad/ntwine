@@ -16,7 +16,7 @@ import {
 // One sandbox HOME with as many project databases as a test wants: the record under test is
 // machine-level, so the interesting cases are all "two projects, one home".
 function sandbox(): { home: string; open: (name: string) => ReturnType<typeof createStorage>; done: () => void } {
-  const home = mkdtempSync(join(tmpdir(), "frizz-dispatch-preferences-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-dispatch-preferences-"))
   const opened: ReturnType<typeof createStorage>[] = []
   return {
     home,

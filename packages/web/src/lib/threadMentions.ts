@@ -1,4 +1,4 @@
-import { addressSegments, HANDLE_SEGMENT, SUB_AGENT_SEPARATOR, sectionOf, threadHandle, type ProjectQueue, type SubAgentDirectory, type SubAgentDirectoryEntry, type ThreadView } from "@frizz/shared"
+import { addressSegments, HANDLE_SEGMENT, SUB_AGENT_SEPARATOR, sectionOf, threadHandle, type ProjectQueue, type SubAgentDirectory, type SubAgentDirectoryEntry, type ThreadView } from "@ntwine/shared"
 import { orderByInteraction, threadHandleOf } from "../groups.ts"
 import { compactAge } from "./activityTime.ts"
 import { formatCompactElapsed } from "./durationLabels.ts"
@@ -35,7 +35,7 @@ const DONE_CANDIDATES = 20
 
 /** The threads a prompt box can mention: every open thread with a handle, most recently active first,
  *  then the most recent done ones. `excludeSlug` drops the thread being written INTO — the prompt box
- *  re-adds it LAST (Composer `ownMention`), so it never outranks a thread the message means. External rows are never offered: Frizz holds no name for them.
+ *  re-adds it LAST (Composer `ownMention`), so it never outranks a thread the message means. External rows are never offered: Ntwine holds no name for them.
  *  `doneLimit` is the typeahead's bound; a surface that only RESOLVES what was already written (agent
  *  prose, lib/mentionAutolink.ts) lifts it, since an old thread named there is still that thread. */
 export function mentionCandidates(threads: readonly ThreadView[], excludeSlug?: string, doneLimit = DONE_CANDIDATES): MentionCandidate[] {
@@ -84,7 +84,7 @@ function computeMentionCandidates(threads: readonly ThreadView[], excludeSlug: s
 
 // ACROSS PROJECTS (David 2026-09-30: "tagging threads with @ should work cross project in cross
 // project mode"). Showing All projects, a prompt box offers every open project's threads, not only its
-// own: the worker resolves a handle its own project does not carry in the other projects Frizz has open
+// own: the worker resolves a handle its own project does not carry in the other projects Ntwine has open
 // (server router resolveElsewhere). Its OWN project still wins there — names are unique only within a
 // project — so another project's thread whose handle folds to one this project already has is not
 // offered: inserted, it would name this project's thread instead. Finished threads too (2026-09-30: "can
@@ -119,7 +119,7 @@ function queueCandidates(queue: ProjectQueue): MentionCandidate[] {
   return list
 }
 
-// The characters a handle runs over, and what may sit right before its `@` — mirrors @frizz/shared
+// The characters a handle runs over, and what may sit right before its `@` — mirrors @ntwine/shared
 // threadMentions, so what the typeahead completes is exactly what the server reads back as a mention.
 // The query may run on through `.` (`@port-the-parser.ca`, a sub-agent under its thread) but never START
 // with one: `@.` is not a mention of anything.
@@ -293,7 +293,7 @@ export function resolveMention(candidates: readonly MentionCandidate[], mention:
  *  `address` (without the `@`), which is resolved against the thread's directory only when clicked. */
 export type MentionSegment = { kind: "text"; text: string } | { kind: "mention"; text: string; slug: string; status?: string; address?: string; project?: string }
 
-// Same boundary rule and the same dotted continuation as @frizz/shared threadMentions: a mention starts
+// Same boundary rule and the same dotted continuation as @ntwine/shared threadMentions: a mention starts
 // after a non-word character, and runs on through a `.` only when another segment follows it. The TAIL
 // guard is this side's own, because here a mention becomes a LINK and a wrong one is worse than none:
 // a mention cut short by a `/` or an `@` is a package or a path (`@types/node`, `@scope/pkg@2`), and

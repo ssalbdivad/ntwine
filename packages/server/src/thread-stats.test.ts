@@ -16,7 +16,7 @@ const response = (id: string, at: string, u: ReturnType<typeof usage>, extra: Re
 ]
 
 function claudeWorld() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-thread-stats-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-thread-stats-"))
   const path = join(dir, "s1.jsonl")
   const records = [
     { type: "user", timestamp: "2026-10-01T00:00:00.000Z", message: { role: "user", content: "do the thing" } },
@@ -105,5 +105,5 @@ test("Codex: the newest cumulative token_count is the total, cached input split 
 
 test("a missing transcript reads as unrecorded, not as zero usage", async () => {
   resetThreadStatsCache()
-  assert.equal((await readThreadStats({ backend: "claude", path: join(tmpdir(), "frizz-no-such-transcript.jsonl") })).recorded, false)
+  assert.equal((await readThreadStats({ backend: "claude", path: join(tmpdir(), "ntwine-no-such-transcript.jsonl") })).recorded, false)
 })

@@ -1,4 +1,4 @@
-// SPINOFFS: the child's composed prompt and the chat's reading of it back, the context Frizz assembles
+// SPINOFFS: the child's composed prompt and the chat's reading of it back, the context Ntwine assembles
 // for it, and the request an older build delivered to the parent's worker, which the chat still reads.
 import { test } from "node:test"
 import assert from "node:assert/strict"
@@ -23,7 +23,7 @@ test("a delivered spinoff request still reads back as the human's instructions, 
   const message = delivered(instructions)
   assert.deepEqual(parseSpinoffRequest(message), { id, instructions })
   // The transcript drops "plumbing" by prefix; the request is the human's and must survive that filter
-  // (a `<frizz-…>` tag did not, and the request vanished from the parent's timeline).
+  // (a `<ntwine-…>` tag did not, and the request vanished from the parent's timeline).
   assert.equal(isInjectedNoise(message), false)
 })
 
@@ -93,7 +93,7 @@ test("the child's first prompt reads back into the human's instructions and its 
 
 // THE SUMMARY ROUTE's context (server router.ts summarySpinoff): the parent's request and handoff,
 // quoted, then where to read the rest — and, across projects, where the parent lives.
-test("the context Frizz assembles quotes the parent's request and handoff, then says how to read more", () => {
+test("the context Ntwine assembles quotes the parent's request and handoff, then says how to read more", () => {
   const context = spinoffContext({
     parentSlug: "cache-bug", parentTitle: "Cache bug", parentHandle: "cache-bug", readAs: "cache-bug",
     request: "Why does the resolver miss?", handoff: "Fixed the key.\n\n```done\nShipped.\n```",

@@ -1,8 +1,8 @@
 #!/usr/bin/env nub
 // Clean npm tarballs -> private registry -> npm exec -> stable launcher -> browser -> restart.
 // Run after creating tarballs with the root npm lifecycle:
-//   nub scripts/verify-server-package.mjs --shell=/abs/frizz-0.13.0.tgz --server=/abs/frizz-server-0.13.0.tgz --out=/abs/evidence
-// Add --update=/abs/frizz-server-next.tgz for a browser update; --public=1 uses npmjs directly.
+//   nub scripts/verify-server-package.mjs --shell=/abs/ntwine-0.13.0.tgz --server=/abs/ntwine-server-0.13.0.tgz --out=/abs/evidence
+// Add --update=/abs/ntwine-server-next.tgz for a browser update; --public=1 uses npmjs directly.
 // --worker=codex proves a real detached worker survives that update and answers a follow-up.
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
@@ -17,7 +17,7 @@ import { setTimeout as delay } from "node:timers/promises"
 import { launchHeadless } from "./lib/headless-browser.mjs"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 import { resolveNpmCli } from "../src/server-release.ts"
-import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
+import { ntwinePaths } from "../packages/server/src/ntwine-paths.ts"
 
 const arg = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
 const shellTarball = resolve(arg("shell") ?? "")
@@ -27,23 +27,23 @@ const publicRegistry = arg("public") === "1"
 const worker = arg("worker")
 assert.ok(!worker || worker === "codex", "supported worker: codex")
 if (!existsSync(shellTarball) || !existsSync(serverTarball) || !arg("out"))
-  throw new Error("usage: verify-server-package.mjs --shell=/abs/frizz.tgz --server=/abs/frizz-server.tgz --out=/abs/evidence")
+  throw new Error("usage: verify-server-package.mjs --shell=/abs/ntwine.tgz --server=/abs/ntwine-server.tgz --out=/abs/evidence")
 mkdirSync(out, { recursive: true })
 
-const root = mkdtempSync(join(tmpdir(), "frizz-package-smoke-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-package-smoke-"))
 const home = join(root, "home"), project = join(root, "project"), cache = join(root, "npm-cache")
 mkdirSync(home); mkdirSync(project)
 execFileSync("git", ["init", "-q"], { cwd: project })
-const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(FRIZZ_|npm_|NPM_|NODE_OPTIONS|NODE_PATH|XDG_|HOME|USERPROFILE|CODEX_HOME)/u.test(key)))
+const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(NTWINE_|npm_|NPM_|NODE_OPTIONS|NODE_PATH|XDG_|HOME|USERPROFILE|CODEX_HOME)/u.test(key)))
 Object.assign(env, {
   HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, "config"), XDG_DATA_HOME: join(home, "data"),
   XDG_STATE_HOME: join(home, "state"), XDG_CACHE_HOME: join(home, "cache"), npm_config_cache: cache,
   npm_config_userconfig: join(root, "npmrc"), npm_config_fetch_retries: "0", npm_config_audit: "false", npm_config_fund: "false",
-  FRIZZ_ORPHAN_REAPER_OFF: "1", FRIZZ_RUNTIMES_DIR: join(frizzPaths().cache, "runtimes"),
+  NTWINE_ORPHAN_REAPER_OFF: "1", NTWINE_RUNTIMES_DIR: join(ntwinePaths().cache, "runtimes"),
   PATH: `${dirname(process.execPath)}${process.platform === "win32" ? ";" : ":"}${process.env.PATH}`,
 })
 writeFileSync(env.npm_config_userconfig, "")
-writeFileSync(join(project, "FRIZZ.md"), "Disposable release test. Follow the exact prompt. No goals, delegation, unrelated work, or commits.\n")
+writeFileSync(join(project, "NTWINE.md"), "Disposable release test. Follow the exact prompt. No goals, delegation, unrelated work, or commits.\n")
 if (worker) {
   mkdirSync(join(home, ".codex"))
   cpSync(join(process.env.HOME, ".codex/auth.json"), join(home, ".codex/auth.json"))
@@ -57,9 +57,9 @@ function packed(file) {
 }
 const shell = packed(shellTarball), server = packed(serverTarball)
 const update = arg("update") ? packed(resolve(arg("update"))) : undefined
-assert.equal(shell.manifest.name, "frizz"); assert.equal(server.manifest.name, "frizz-server")
-assert.equal(shell.manifest.frizzServer?.package, "frizz-server"); assert.equal(shell.manifest.frizzServer?.version, server.manifest.version)
-if (update) { assert.equal(update.manifest.name, "frizz-server"); assert.notEqual(update.manifest.version, server.manifest.version) }
+assert.equal(shell.manifest.name, "ntwine"); assert.equal(server.manifest.name, "ntwine-server")
+assert.equal(shell.manifest.ntwineServer?.package, "ntwine-server"); assert.equal(shell.manifest.ntwineServer?.version, server.manifest.version)
+if (update) { assert.equal(update.manifest.name, "ntwine-server"); assert.notEqual(update.manifest.version, server.manifest.version) }
 assert.ok(!worker || update, "worker continuity requires --update")
 
 async function port() {
@@ -75,11 +75,11 @@ async function until(label, test, timeout = 120_000) {
   throw new Error(`timed out waiting for ${label}${last ? `: ${last}` : ""}`)
 }
 function ownerAddress() {
-  const file = join(home, "state", "frizz", "frizz-server", "address.json")
+  const file = join(home, "state", "ntwine", "ntwine-server", "address.json")
   return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined
 }
 function childGeneration() {
-  const projects = join(home, "data", "frizz", "projects")
+  const projects = join(home, "data", "ntwine", "projects")
   for (const id of existsSync(projects) ? readdirSync(projects) : []) {
     const lock = join(projects, id, "server.lock")
     if (existsSync(lock)) return JSON.parse(readFileSync(lock, "utf8"))
@@ -88,13 +88,13 @@ function childGeneration() {
 }
 function alive(pid) { try { process.kill(pid, 0); return true } catch { return false } }
 function selected() {
-  const directory = join(home, "state/frizz/server-releases")
+  const directory = join(home, "state/ntwine/server-releases")
   const key = readdirSync(directory).find((name) => /^[0-9a-f]{16}$/.test(name))
   return JSON.parse(readFileSync(join(directory, key, "active.json"), "utf8"))
 }
 const workerPids = new Set()
 function workerRecord() {
-  const projects = join(home, "data/frizz/projects")
+  const projects = join(home, "data/ntwine/projects")
   for (const id of existsSync(projects) ? readdirSync(projects) : []) {
     const directory = join(projects, id, "codex-app-server-native")
     for (const file of existsSync(directory) ? readdirSync(directory).filter((name) => name.endsWith(".json")) : []) {
@@ -137,7 +137,7 @@ try {
       response.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/octet-stream" })
       response.end(Buffer.from(await upstream.arrayBuffer())); return
     }
-    const releases = name === "frizz-server" && update ? [server, update] : [release]
+    const releases = name === "ntwine-server" && update ? [server, update] : [release]
     if (pathname.includes("/-/")) {
       const exact = releases.find((value) => pathname.endsWith(`/${name}-${value.manifest.version}.tgz`))
       response.writeHead(exact ? 200 : 404); response.end(exact?.bytes); return
@@ -155,12 +155,12 @@ try {
   evidence.registry = env.npm_config_registry; evidence.url = base
   let launcherLog = ""
   function launch() {
-    launcher = spawn(process.execPath, [npmCli, "exec", "--yes", `--package=frizz@${shell.manifest.version}`, "--", "frizz", "--no-app", "--port", String(publicPort)], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] })
+    launcher = spawn(process.execPath, [npmCli, "exec", "--yes", `--package=ntwine@${shell.manifest.version}`, "--", "ntwine", "--no-app", "--port", String(publicPort)], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] })
     launcher.stdout.on("data", (b) => { launcherLog += b }); launcher.stderr.on("data", (b) => { launcherLog += b })
   }
   launch()
   const status = async () => {
-    const response = await fetch(`${base}/_frizz/control/status`, { headers: { origin: base }, signal: AbortSignal.timeout(2000) })
+    const response = await fetch(`${base}/_ntwine/control/status`, { headers: { origin: base }, signal: AbortSignal.timeout(2000) })
     assert.equal(response.status, 200); return response.json()
   }
   const before = await until("cold package boot", async () => {
@@ -174,7 +174,7 @@ try {
   assert.ok(alive(owner.pid), `stable launcher ${owner.pid} is alive`)
   assert.equal(owner.port, publicPort)
   evidence.cold = { ownerPid: owner.pid, npmExecPid: launcher.pid, status: before, owner, child: childBefore }
-  assert.equal((await fetch(`${base}/_frizz/control/update-restart`, { method: "POST", headers: { origin: "https://example.invalid" } })).status, 403, "negative control: cross-origin update denied")
+  assert.equal((await fetch(`${base}/_ntwine/control/update-restart`, { method: "POST", headers: { origin: "https://example.invalid" } })).status, 403, "negative control: cross-origin update denied")
   browser = await launchHeadless()
   browserPid = browser.process()?.pid
   const page = await browser.newPage()
@@ -182,8 +182,8 @@ try {
   page.on("console", (message) => {
     if (message.type() !== "error") return
     const event = `console: ${message.text()} @ ${message.location().url}`
-    if (message.location().url.includes("/_frizz/project-icon?") && message.text().includes("404")) expectedBrowserEvents.push(event)
-    else if (restartRequested && message.location().url.startsWith(`${base}/_frizz/`) && message.location().url.includes("/rpc/") && message.text() === "Failed to load resource: the server responded with a status of 503 (Service Unavailable)") expectedBrowserEvents.push(`server handoff: ${event}`)
+    if (message.location().url.includes("/_ntwine/project-icon?") && message.text().includes("404")) expectedBrowserEvents.push(event)
+    else if (restartRequested && message.location().url.startsWith(`${base}/_ntwine/`) && message.location().url.includes("/rpc/") && message.text() === "Failed to load resource: the server responded with a status of 503 (Service Unavailable)") expectedBrowserEvents.push(`server handoff: ${event}`)
     else if (restartRequested && /^WebSocket connection to .*failed: (Connection closed before receiving a handshake response|Error during WebSocket handshake: Unexpected response code: 503)/u.test(message.text())) expectedBrowserEvents.push(`restart: ${event}`)
     else errors.push(event)
   })
@@ -216,10 +216,10 @@ try {
     restartRequested = true
     await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 2 })
     await page.goto(`${base}/`, { waitUntil: "networkidle2" })
-    await page.waitForSelector('button[aria-label="Update Frizz"]:not(:disabled)', { visible: true })
+    await page.waitForSelector('button[aria-label="Update Ntwine"]:not(:disabled)', { visible: true })
     await page.screenshot({ path: join(out, "before-update.png") })
     const accepted = page.waitForResponse((response) => response.url().endsWith("/update-restart") && response.request().method() === "POST")
-    await page.click('button[aria-label="Update Frizz"]')
+    await page.click('button[aria-label="Update Ntwine"]')
     assert.equal((await accepted).status(), 202)
     const updated = await until("browser server update", async () => {
       const state = await status()
@@ -253,8 +253,8 @@ try {
     restartRequested = false
     await page.reload({ waitUntil: "networkidle2" })
     // The update installed the newest version the registry offers, so the button is in its greyed
-    // "up to date" state (1ea81aa1, 2026-09-25), not the plain "Restart Frizz" one.
-    await page.hover('button[aria-label="Frizz is up to date"]')
+    // "up to date" state (1ea81aa1, 2026-09-25), not the plain "Restart Ntwine" one.
+    await page.hover('button[aria-label="Ntwine is up to date"]')
     await page.waitForSelector("#update-restart-popover", { visible: true })
     await until("updated version in browser", () => page.$eval("#update-restart-popover .font-mono", (el, version) => el.textContent.replace(/^Server /, "") === version, currentVersion))
     const popover = await page.$("#update-restart-popover")
@@ -267,7 +267,7 @@ try {
   }
   const beforeRestart = childGeneration()
   restartRequested = true
-  const restarting = await fetch(`${base}/_frizz/control/restart`, { method: "POST", headers: { origin: base } })
+  const restarting = await fetch(`${base}/_ntwine/control/restart`, { method: "POST", headers: { origin: base } })
   assert.equal(restarting.status, 202)
   const after = await until("server restart", async () => {
     const state = await status(); return state.state === "ready" ? state : undefined

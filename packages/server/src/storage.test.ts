@@ -25,14 +25,14 @@ function profileHandoff(
 }
 
 function store(): Storage {
-  return createStorage(join(mkdtempSync(join(tmpdir(), "frizz-storage-")), "ui.db"), "p")
+  return createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-storage-")), "ui.db"), "p")
 }
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   const result = {
     slug: "t",
     session_id: "sid",
-    thread_name: "frizz-t",
+    thread_name: "ntwine-t",
     spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -47,7 +47,7 @@ function row(over: Partial<SessionRow> = {}): SessionRow {
     transcript_id: null,
     ...over,
   }
-  if (over.slug !== undefined && over.thread_name === undefined) result.thread_name = `frizz-${result.slug}`
+  if (over.slug !== undefined && over.thread_name === undefined) result.thread_name = `ntwine-${result.slug}`
   return result
 }
 
@@ -70,7 +70,7 @@ test("a thread is taught the MCP tools until a dispatch records that it was taug
 })
 
 test("a database written before the column existed gains it, and its threads read as taught the MCP tools", () => {
-  const path = join(mkdtempSync(join(tmpdir(), "frizz-storage-")), "ui.db")
+  const path = join(mkdtempSync(join(tmpdir(), "ntwine-storage-")), "ui.db")
   const first = createStorage(path, "p")
   first.upsertSession(row({ slug: "old" }))
   first.close()
@@ -92,7 +92,7 @@ test("storage close is idempotent", () => {
 })
 
 test("sub-agent drawer steers are durable, idempotent, ordered, and project-scoped", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-steers-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-steers-"))
   const path = join(dir, "ui.db")
   const first = createStorage(path, "first")
   const second = createStorage(path, "second")
@@ -115,7 +115,7 @@ test("sub-agent drawer steers are durable, idempotent, ordered, and project-scop
 })
 
 test("insertSessionIfAbsent atomically preserves the winner and writes backend identity in one claim", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-claim-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-claim-"))
   const path = join(dir, "ui.db")
   const first = createStorage(path, "p")
   const second = createStorage(path, "p")
@@ -439,7 +439,7 @@ test("observed runtime profiles persist only for the current generation outside 
 })
 
 test("session permission actual/pending values round-trip independently and survive reopen", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-permission-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-permission-"))
   const path = join(dir, "ui.db")
   const s = createStorage(path, "p")
   s.upsertSession(row({ slug: "permissioned", permission_mode: "auto" }))
@@ -461,7 +461,7 @@ test("session permission actual/pending values round-trip independently and surv
 })
 
 test("manual snooze persists exactly across restart, expires atomically, and Archive clears it", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-snooze-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-snooze-"))
   const path = join(dir, "ui.db")
   const exact = "2026-07-14T08:45:12.345Z"
   let s = createStorage(path, "p")
@@ -485,7 +485,7 @@ test("manual snooze persists exactly across restart, expires atomically, and Arc
 })
 
 test("a snooze carrying a prompt outlives its deadline for the waker, and the pair is written/cleared atomically", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-snooze-prompt-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-snooze-prompt-"))
   const path = join(dir, "ui.db")
   const exact = "2026-07-14T08:45:12.345Z"
   let s = createStorage(path, "p")
@@ -630,7 +630,7 @@ test("completeIfCurrent atomically settles one exact runtime generation", () => 
 })
 
 test("explicit thread title: replaces the generated fallback, clears title_auto, and survives reopen/resume", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-title-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-title-"))
   const path = join(dir, "ui.db")
   const s = createStorage(path, "p")
   s.upsertSession(row({ slug: "generated-slug", title: "generated-slug", title_auto: 1 }))
@@ -654,7 +654,7 @@ test("explicit thread title: replaces the generated fallback, clears title_auto,
 })
 
 test("conditional AI title commit cannot overwrite a manual rename or replacement session", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-title-cas-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-title-cas-"))
   const s = createStorage(join(dir, "ui.db"), "p")
   s.upsertSession(row({ slug: "rename-race", session_id: "old-session", title: "Old title", title_auto: 1 }))
   const expected = { sessionId: "old-session", title: "Old title", titleAuto: 1 }
@@ -670,9 +670,9 @@ test("conditional AI title commit cannot overwrite a manual rename or replacemen
   s.close()
 })
 
-// `setAgentTitle` is the WORKER's own considered name, from `mcp__frizz__title`. It writes what the
+// `setAgentTitle` is the WORKER's own considered name, from `mcp__ntwine__title`. It writes what the
 // auto-title CAS writes and is gated on the same lock, but keyed on the SLUG alone: its caller is the
-// live worker's MCP server, which knows only the slug frizz stamped into its env. Both backends reach
+// live worker's MCP server, which knows only the slug ntwine stamped into its env. Both backends reach
 // it — unlike the CAS, which the tailer runs for codex rows alone — because a Claude thread's name comes
 // from the provider's titler and is never persisted at all, so before this a rested Claude row fell all
 // the way back to the raw prompt chop.
@@ -729,7 +729,7 @@ test("automatic title CAS persists provenance and rejects manual, native-session
   const s = store()
   s.upsertSession(row({
     slug: "codex-title",
-    session_id: "frizz-session",
+    session_id: "ntwine-session",
     runtime_generation: 3,
     title: "raw initial prompt",
     title_auto: 1,
@@ -737,7 +737,7 @@ test("automatic title CAS persists provenance and rejects manual, native-session
   // Dispatch intentionally writes backend identity through dedicated setters after the shared upsert.
   s.setBackend("codex-title", "codex")
   s.setAgentSession("codex-title", "codex-native")
-  const expected = { sessionId: "frizz-session", nativeSessionId: "codex-native", runtimeGeneration: 3 }
+  const expected = { sessionId: "ntwine-session", nativeSessionId: "codex-native", runtimeGeneration: 3 }
 
   assert.equal(s.getSession("codex-title")?.title_agent, 0, "a freshly dispatched row holds its chop, not a worker's name")
   assert.equal(s.setAutoTitleIfCurrent("codex-title", "Useful generated title", expected), true)
@@ -780,11 +780,11 @@ test("automatic title CAS persists provenance and rejects manual, native-session
 
 test("a dispatch title a CALLER hard-coded is a final name no machine title replaces; only a human's locks", () => {
   const s = store()
-  // What the GitHub batch and `mcp__frizz__spawn_thread` write: a real-looking name (title_auto 0, so the
+  // What the GitHub batch and `mcp__ntwine__spawn_thread` write: a real-looking name (title_auto 0, so the
   // UI never hides it behind a placeholder) that no human chose (title_locked 0).
   s.upsertSession(row({
     slug: "gh-thread",
-    session_id: "frizz-session",
+    session_id: "ntwine-session",
     runtime_generation: 0,
     title: "Investigate acme/app#391",
     title_auto: 0,
@@ -792,7 +792,7 @@ test("a dispatch title a CALLER hard-coded is a final name no machine title repl
   }))
   s.setBackend("gh-thread", "codex")
   s.setAgentSession("gh-thread", "codex-native")
-  const expected = { sessionId: "frizz-session", nativeSessionId: "codex-native", runtimeGeneration: 0 }
+  const expected = { sessionId: "ntwine-session", nativeSessionId: "codex-native", runtimeGeneration: 0 }
 
   // It is the thread's name — its `@handle` on the board — so no machine title lands over it
   // (thread-names.ts: a name never changes once shown).
@@ -871,7 +871,7 @@ test("allSessions: a no-op write and writes to other tables keep the cached arra
 })
 
 test("allSessions: another connection's commit is seen from the next turn", async () => {
-  const file = join(mkdtempSync(join(tmpdir(), "frizz-storage-")), "ui.db")
+  const file = join(mkdtempSync(join(tmpdir(), "ntwine-storage-")), "ui.db")
   const a = createStorage(file, "p")
   const b = createStorage(file, "p")
   a.upsertSession(row({ slug: "one", session_id: "sid-1", title: "before" }))
@@ -1184,7 +1184,7 @@ test("a batch of answers is delivered in ASKED order, not shuffled by id", () =>
 // `thread_question.kept_at` was the retired `keep` tool's stamp. A file a build with `keep` wrote loses the
 // column on its next open, and the question it was stamped on is untouched.
 test("thread_question: a file carrying the retired kept_at column loses it, and its questions survive", () => {
-  const path = join(mkdtempSync(join(tmpdir(), "frizz-storage-kept-")), "ui.db")
+  const path = join(mkdtempSync(join(tmpdir(), "ntwine-storage-kept-")), "ui.db")
   const at = 1_700_000_000_000
   let s = createStorage(path, "p")
   s.askThreadQuestion({ id: "q_k", slug: "t", spec: '{"question":"old"}', askedAtMs: at })
@@ -1235,7 +1235,7 @@ test("withdrawn and dismissed are DIFFERENT settlements, and neither is delivera
 })
 
 test("pinned_at: a pre-pin unified file gains the column, the pin persists, and Archive leaves it", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-pin-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-pin-"))
   const path = join(dir, "ui.db")
   // THE FILE EVERY LIVE INSTALL HAS: a unified db created before the column existed. Built from the
   // real DDL with the one line stripped, so the ALTER in ensureStorageSchema is what must add it back —
@@ -1269,7 +1269,7 @@ test("pinned_at: a pre-pin unified file gains the column, the pin persists, and 
 })
 
 test("queued_at: a pre-clock unified file gains the column, and the stamp survives a restart", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-queued-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-queued-"))
   const path = join(dir, "ui.db")
   // Every live install's file predates the column; the ALTER in ensureStorageSchema must add it back.
   const preClock = new Database(path)
@@ -1304,7 +1304,7 @@ test("queued_at: a pre-clock unified file gains the column, and the stamp surviv
 // with no parent to show it under — is filed away rather than left open with nowhere to appear. Since
 // 2026-10-06 the same boot also renames that table to `thread_terminal` and drops its `queued_at`.
 test("thread_terminal: a pre-terminal command_thread file is renamed, gains the parent, folder and shell columns, and its old rows are archived", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-terminals-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-terminals-"))
   const path = join(dir, "ui.db")
   const old = new Database(path)
   // The table exactly as the fork shipped it before thread terminals.
@@ -1372,7 +1372,7 @@ const columnNames = (db: Database, table: string) =>
 // every later column added by ALTER on top, and a run that was live. Renamed in place, every row and
 // every value survives — the run's outcome included — and a second boot changes nothing.
 test("thread_terminal: the day-one command_thread table keeps every row and value through the rename, twice", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-rename-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-rename-"))
   const path = join(dir, "ui.db")
   const old = new Database(path)
   old.exec(`
@@ -1423,7 +1423,7 @@ test("thread_terminal: the day-one command_thread table keeps every row and valu
 // `thread_terminal`; a terminal it opens lands there. The next boot folds it back in and drops the old
 // table, and a slug already in `thread_terminal` keeps the newer build's row.
 test("thread_terminal: rows an older build wrote into a fresh command_thread are folded back in", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-merge-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-merge-"))
   const path = join(dir, "ui.db")
   let s = createStorage(path, "p")
   s.insertThreadTerminal({ slug: "term-new", parentSlug: "t", command: "make", cwd: dir, shell: false, createdAtMs: 1 })
@@ -1451,7 +1451,7 @@ test("thread_terminal: rows an older build wrote into a fresh command_thread are
 })
 
 test("subagents_snoozed_at: a pre-column unified file gains it, and the arming is session-guarded", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-subsnooze-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-subsnooze-"))
   const path = join(dir, "ui.db")
   // Every live install's file predates the column; the ALTER in ensureStorageSchema must add it back.
   const before = new Database(path)
@@ -1548,7 +1548,7 @@ test("the batched registry reads answer exactly what the per-thread reads answer
 // answer reading delivered and nothing re-offered it. The row now names the wake carrying it, and only
 // that wake landing flips `delivered` (scheduler.evalQuestionAnswers).
 test("thread_question.delivery_id: a pre-column file is migrated, and only the carrying wake marks a settlement received", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-qdeliv-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-qdeliv-"))
   const path = join(dir, "ui.db")
   try {
     // THE FILE EVERY LIVE INSTALL HAS, built from the real DDL with the one line stripped, so the ALTER
@@ -1585,7 +1585,7 @@ test("thread_question.delivery_id: a pre-column file is migrated, and only the c
 
 // ---- pr_watch.kind (2026-09-14) -----------------------------------------------------------------------
 test("pr_watch.kind: an issue watcher stores its kind, an older caller means pull, and a pre-column file is migrated", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-storage-kind-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-kind-"))
   const path = join(dir, "ui.db")
   try {
     // A LIVE FILE FROM BEFORE THE COLUMN: the table as CREATE TABLE IF NOT EXISTS wrote it then, with a

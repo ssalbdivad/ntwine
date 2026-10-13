@@ -12,10 +12,10 @@ import type { AppContext } from "./context.ts"
 // prefill and a `$ cmd` terminal can never name a different place than the token beside them.
 
 function world() {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-router-wd-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-router-wd-")))
   const project = join(root, "repo")
   mkdirSync(join(project, ".git"), { recursive: true })
-  const worktree = join(project, ".frizz", "worktrees", "probe")
+  const worktree = join(project, ".ntwine", "worktrees", "probe")
   mkdirSync(worktree, { recursive: true })
   writeFileSync(join(worktree, ".git"), "gitdir: x\n")
   resetCheckoutMemo()
@@ -25,7 +25,7 @@ function world() {
 function router(w: ReturnType<typeof world>, over: { workingDir?: string; backend?: string; execs?: { processId: string; command?: string; startedAtMs: number; cwd?: string }[] } = {}) {
   const started: { parent: string; command?: string; cwd: string }[] = []
   const ctx = {
-    project: { dir: w.project, stateDir: w.root, cwdSlug: "-frizz-router-wd-test-none" },
+    project: { dir: w.project, stateDir: w.root, cwdSlug: "-ntwine-router-wd-test-none" },
     // `setInteractedAt`: terminalStart is a human verb, so createRouter's wrapper stamps the thread first.
     storage: { getSession: (slug: string) => (slug === "t" ? { slug, session_id: "sid", backend: over.backend ?? "claude" } : undefined), setInteractedAt: () => {} },
     board: {},

@@ -345,7 +345,7 @@ export function RowRule({ inset = 16 }: { inset?: number }) {
 /**
  * Buttons, in the four weights this app actually needs.
  *
- * `accent` is spent ONLY on the verb that answers Frizz — send, dispatch, answer. The accent means
+ * `accent` is spent ONLY on the verb that answers Ntwine — send, dispatch, answer. The accent means
  * "awaiting you" everywhere else in the product, so a second accent button on the same screen would
  * make the reader hunt for which one is the ask.
  */
@@ -507,13 +507,13 @@ export function DoneBox({ size = MOBILE_BOX }: { size?: number }) {
 
 /** The liveness dot, in the app's three runtime hues: agent (accent), shell (blue), PR watch (violet). */
 export function LiveDot({ kind = "agent", quiet, ink }: { kind?: "agent" | "shell" | "github"; quiet?: boolean; ink?: string }) {
-  // The quiet variant carries its OWN hue modifier (`.frizz-live-dot-quiet--shell`), not the bright
-  // dot's — composing `frizz-live-dot-quiet` with `frizz-live-dot--shell` silently leaves the quiet dot
+  // The quiet variant carries its OWN hue modifier (`.ntwine-live-dot-quiet--shell`), not the bright
+  // dot's — composing `ntwine-live-dot-quiet` with `ntwine-live-dot--shell` silently leaves the quiet dot
   // on its accent default, which is how a background shell came out yellow.
   //
   // The dot aligns ITSELF and carries its own `data-ink` hook, so no caller ever needs to wrap it — see
   // the flex-item trap in the CAP_ALIGN note above, which is exactly what a measurement wrapper caused.
-  const base = quiet ? "frizz-live-dot-quiet" : "frizz-live-dot"
+  const base = quiet ? "ntwine-live-dot-quiet" : "ntwine-live-dot"
   return <span data-ink={ink} className={`${base} ${base}--${kind} ${CAP_ALIGN} ${INK.dot}`} style={capAlign(6)} />
 }
 

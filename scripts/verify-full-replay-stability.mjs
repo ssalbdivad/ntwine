@@ -11,7 +11,7 @@
 //
 // It is a DIAGNOSTIC first: it names the exact record that moved the reader, so a fix has a target.
 //
-// Usage — boot a disposable stack first (see .agents/skills/frizz-stack), then:
+// Usage — boot a disposable stack first (see .agents/skills/ntwine-stack), then:
 //   node scripts/verify-full-replay-stability.mjs --home=/abs/temp-home \
 //     --url=http://127.0.0.1:PORT/ --source=/abs/real.jsonl [--park=800] [--replay=200] [--seed-lines=600]
 import { execFileSync } from "node:child_process"
@@ -67,7 +67,7 @@ console.log(`source ${source}: ${records.length} records — seeding ${seed.leng
 
 writeFileSync(jsonl, seed.join("\n") + "\n")
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode)
-  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${new Date().toISOString()}', 'Replay ${parkTarget}px', 'claude', 'opus', 'high', 'default')`])
+  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${new Date().toISOString()}', 'Replay ${parkTarget}px', 'claude', 'opus', 'high', 'default')`])
 
 // A one-line label for the record that just landed, so a drift report names its own cause.
 const label = (line) => {

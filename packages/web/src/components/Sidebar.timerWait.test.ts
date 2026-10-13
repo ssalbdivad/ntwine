@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadRow, sessionIndicatorFor, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
@@ -57,10 +57,10 @@ function html(extra: Partial<ThreadView>) {
 }
 
 const HOURGLASS = /lucide-hourglass/
-const SHELL_DOT = /frizz-rail-dot/
+const SHELL_DOT = /ntwine-rail-dot/
 
 test("a queued thread resting on a registered timer wears the hourglass and names the wake", () => {
-  // The shape the worker contract steers toward: `mcp__frizz__timer` armed, then a bare rest. No fence
+  // The shape the worker contract steers toward: `mcp__ntwine__timer` armed, then a bare rest. No fence
   // to read, so the clause is synthesized and the countdown is the resting card's own words.
   const t = { ...base, id: "close-the-august-numbers", watches: [armedTimer] } as ThreadView
   const markup = html({ watches: [armedTimer] })

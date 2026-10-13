@@ -5,7 +5,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, DispatchInput } from "@frizz/shared"
+import type { BoardSnapshot, DispatchInput } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { createApp } from "./app.ts"
 import { createRouter } from "./router.ts"
@@ -19,8 +19,8 @@ import { projectsNamedIn, resolveSpawnProject, type SpawnProject } from "./spawn
 const HOME = "/home/u"
 const home: SpawnProject = { id: "h", slug: "home", name: "Home", dir: HOME }
 const arktype: SpawnProject = { id: "a", slug: "arktype", name: "arktype", dir: `${HOME}/arktype` }
-const frizz: SpawnProject = { id: "f", slug: "frizz", name: "frizz", dir: `${HOME}/frizz` }
-const open = [home, arktype, frizz]
+const ntwine: SpawnProject = { id: "f", slug: "ntwine", name: "ntwine", dir: `${HOME}/ntwine` }
+const open = [home, arktype, ntwine]
 const named = (prompt: string, here: SpawnProject) => projectsNamedIn(prompt, here, open, HOME).map((n) => [n.project.slug, n.mention])
 
 test("the @star-fallback brief, spawned from Home, names ArkType's checkout", () => {
@@ -29,18 +29,18 @@ test("the @star-fallback brief, spawned from Home, names ArkType's checkout", ()
 })
 
 test("a path is owned by the most specific project, absolute or under ~, trailing punctuation dropped", () => {
-  assert.deepEqual(named(`Edit /home/u/frizz/packages/server/src/router.ts.`, home), [["frizz", "/home/u/frizz/packages/server/src/router.ts"]])
-  assert.deepEqual(named("see (~/arktype/ark/docs), then ~/frizz.", home), [["arktype", "~/arktype/ark/docs"], ["frizz", "~/frizz"]])
+  assert.deepEqual(named(`Edit /home/u/ntwine/packages/server/src/router.ts.`, home), [["ntwine", "/home/u/ntwine/packages/server/src/router.ts"]])
+  assert.deepEqual(named("see (~/arktype/ark/docs), then ~/ntwine.", home), [["arktype", "~/arktype/ark/docs"], ["ntwine", "~/ntwine"]])
   assert.deepEqual(named("look at ~/arktype twice: ~/arktype/README.md", home), [["arktype", "~/arktype"]], "one entry per project")
 })
 
 test("this project's own paths, a project containing it, URLs and bare words are not evidence", () => {
-  assert.deepEqual(named("fix ~/frizz/packages/web and write notes to ~/.frizz/scratch/x", frizz), [], "Home contains frizz")
+  assert.deepEqual(named("fix ~/ntwine/packages/web and write notes to ~/.ntwine/scratch/x", ntwine), [], "Home contains ntwine")
   assert.deepEqual(named("the arktype docs at https://arktype.io/docs and github.com/arktypeio/arktype", home), [])
-  assert.deepEqual(named("ran /usr/bin/env and read /etc/hosts", frizz), [], "a path in no project")
+  assert.deepEqual(named("ran /usr/bin/env and read /etc/hosts", ntwine), [], "a path in no project")
   assert.deepEqual(named("ark/docs/components/GhStarButton.tsx in arktype", home), [], "a relative path names no project")
   // A sibling is evidence from anywhere, Home's folder included.
-  assert.deepEqual(named("port it to ~/arktype", frizz), [["arktype", "~/arktype"]])
+  assert.deepEqual(named("port it to ~/arktype", ntwine), [["arktype", "~/arktype"]])
 })
 
 test("a `project` argument resolves by slug, name, id or checkout path", () => {
@@ -55,7 +55,7 @@ test("a `project` argument resolves by slug, name, id or checkout path", () => {
 // ── The router: two projects, one database ────────────────────────────────────────────────────────
 
 const sessionRow = (slug: string): SessionRow => ({
-  slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-10-06T08:00:00.000Z", last_read_at: null,
+  slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-10-06T08:00:00.000Z", last_read_at: null,
   unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: slug, state: "open", meta: null, seen_at: null,
   transcript_id: null,
 })
@@ -86,12 +86,12 @@ function tenant(root: string, db: Database, id: string) {
 }
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), "frizz-spawn-project-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-spawn-project-"))
   // The router lists REGISTERED projects too (listWorkspaces reads the registry under HOME), so an empty
   // HOME keeps this machine's own projects out of the answer.
   const realHome = process.env.HOME
   process.env.HOME = join(root, "home")
-  const db = new Database(join(root, "frizz.db"))
+  const db = new Database(join(root, "ntwine.db"))
   const alpha = tenant(root, db, "alpha")
   const beta = tenant(root, db, "beta")
   const tenants = [alpha, beta].map((t) => ({ project: t.ctx.project, board: t.ctx.board, ctx: t.ctx }))
@@ -153,7 +153,7 @@ test("a registered project this server has not opened yet is a candidate, and sp
   const h = harness()
   try {
     // gamma: registered on the machine, no tenant open. The guard sees its checkout; `project` opens it.
-    const gamma = tenant(mkdtempSync(join(tmpdir(), "frizz-spawn-gamma-")), new Database(":memory:"), "gamma")
+    const gamma = tenant(mkdtempSync(join(tmpdir(), "ntwine-spawn-gamma-")), new Database(":memory:"), "gamma")
     mkdirSync(gamma.dir, { recursive: true })
     const { entry } = registerProject({ dir: gamma.dir, id: "gamma" })
     const opened: string[] = []
@@ -183,13 +183,13 @@ test("a worker too old to send `spawnedFrom` is still checked, and the board's d
     const app = createApp(Object.assign(h.alpha.ctx, { bootId: "boot" }), { port })
     const prompt = `Implement the plan in the fork at \`${h.beta.dir}\`.`
     const post = (headers: Record<string, string>) =>
-      app.request(`http://127.0.0.1:${port}/_frizz/rpc/dispatch`, {
+      app.request(`http://127.0.0.1:${port}/_ntwine/rpc/dispatch`, {
         method: "POST",
         headers: { host: `127.0.0.1:${port}`, "content-type": "application/json", ...headers },
         body: JSON.stringify({ prompt, model: "opus", effort: "xhigh", title: "Superset impl" }),
       })
 
-    // The shim's headers exactly (frizz-mcp.mjs postToFrizz, sent through node's fetch).
+    // The shim's headers exactly (ntwine-mcp.mjs postToNtwine, sent through node's fetch).
     const stale = await post({ "sec-fetch-site": "same-origin", "user-agent": "node" })
     const error = ((await stale.json()) as { error: string }).error
     assert.match(error, /^Nothing was spawned\./)

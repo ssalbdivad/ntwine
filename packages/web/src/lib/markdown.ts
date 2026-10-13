@@ -18,7 +18,7 @@ import { FRAMED_IMAGE, IMAGE_FRAME, IMAGE_FRAME_MAT } from "../components/ImageF
 // marked's GFM strikethrough opener is `~~?` — ONE tilde is enough. That misreads the tilde agents
 // actually type: `~` is the approximation sign ("takes ~2.7s", "around ~line 897") and the home
 // prefix (`~/.claude/settings.json`), so any line carrying two of them silently struck out
-// everything in between ("finished in <del>2.7s; see </del>/.frizz/quota-cache"). Nobody writes
+// everything in between ("finished in <del>2.7s; see </del>/.ntwine/quota-cache"). Nobody writes
 // single-tilde strikethrough deliberately, so require the unambiguous `~~…~~` — same rule marked
 // ships, with the optional second tilde made mandatory.
 const DOUBLE_TILDE_DEL = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/
@@ -135,11 +135,11 @@ const headerlessTableExtension: TokenizerAndRendererExtension = {
 // LOOSE-list branch injects the checkbox HTML into the first TEXT token at render time, so a wrapper
 // placed there during the walk would have displaced the checkbox and silently dropped it. One path
 // also means one status vocabulary and one set of tooltips instead of two.
-type FrizzTaskStatus = " " | "x" | "/" | "-" | "?"
-type FrizzTaskStatusToken = {
-  type: "frizzTaskStatus"
+type NtwineTaskStatus = " " | "x" | "/" | "-" | "?"
+type NtwineTaskStatusToken = {
+  type: "ntwineTaskStatus"
   raw: string
-  status: FrizzTaskStatus
+  status: NtwineTaskStatus
 }
 
 // GFM requires a SPACE after the bracket, so a bare `- [ ]` with nothing after it is not a task item
@@ -148,7 +148,7 @@ type FrizzTaskStatusToken = {
 // are therefore accepted here too, but ONLY at end-of-item — with trailing text they are still
 // Marked's to tokenize, and `item.task` is already true by the time this runs.
 const CUSTOM_TASK_STATUS = /^\[([ xX/\-?])\](?:[ \t]+|[ \t]*$)/
-const TASK_STATUS_META: Record<FrizzTaskStatus, { className: string; label: string }> = {
+const TASK_STATUS_META: Record<NtwineTaskStatus, { className: string; label: string }> = {
   " ": { className: "", label: "To do" },
   x: { className: "md-task-checked", label: "Done" },
   "/": { className: "md-task-in-progress", label: "In progress" },
@@ -157,7 +157,7 @@ const TASK_STATUS_META: Record<FrizzTaskStatus, { className: string; label: stri
 }
 
 const customTaskStatusExtension: TokenizerAndRendererExtension = {
-  name: "frizzTaskStatus",
+  name: "ntwineTaskStatus",
   level: "inline",
   // Tokens are inserted by `promoteTaskItem`; this tokenizer deliberately never claims source text on
   // its own, because only the enclosing list-item walk can prove the marker's position.
@@ -165,7 +165,7 @@ const customTaskStatusExtension: TokenizerAndRendererExtension = {
     return undefined
   },
   renderer(token) {
-    const { status } = token as FrizzTaskStatusToken
+    const { status } = token as NtwineTaskStatusToken
     const meta = TASK_STATUS_META[status]
     // NO space after the span (Marked's own checkbox emits one). The box is a zero-advance
     // inline-block hung in the list's gutter (styles.css `.md-body .md-task`), so a space here is a
@@ -178,16 +178,16 @@ const customTaskStatusExtension: TokenizerAndRendererExtension = {
 // alone. Without the wrapper the only handle was the `<li>`, and `text-decoration` PROPAGATES with no
 // way for a descendant to switch it off — so a live sub-task under a cancelled parent came out struck
 // through. A nested list is a sibling of this span, so it is untouched by construction.
-type FrizzTaskTextToken = { type: "frizzTaskText"; raw: string; tokens: Token[] }
+type NtwineTaskTextToken = { type: "ntwineTaskText"; raw: string; tokens: Token[] }
 
 const taskTextExtension: TokenizerAndRendererExtension = {
-  name: "frizzTaskText",
+  name: "ntwineTaskText",
   level: "inline",
   tokenizer() {
     return undefined
   },
   renderer(this: { parser: { parseInline: (tokens: Token[]) => string } }, token) {
-    return `<span class="md-task-text">${this.parser.parseInline((token as FrizzTaskTextToken).tokens)}</span>`
+    return `<span class="md-task-text">${this.parser.parseInline((token as NtwineTaskTextToken).tokens)}</span>`
   },
 }
 
@@ -196,9 +196,9 @@ function promoteTaskItem(item: Tokens.ListItem): void {
   const firstBlock = item.tokens[0]
   const inline = firstBlock && "tokens" in firstBlock ? firstBlock.tokens : undefined
   if (!Array.isArray(inline)) return
-  if (inline[0]?.type === "frizzTaskStatus") return // already walked
+  if (inline[0]?.type === "ntwineTaskStatus") return // already walked
 
-  let status: FrizzTaskStatus
+  let status: NtwineTaskStatus
   let raw: string
   if (item.task) {
     status = item.checked ? "x" : " "
@@ -231,13 +231,13 @@ function promoteTaskItem(item: Tokens.ListItem): void {
       if (inline[i].type === "text" && !inline[i].raw) inline.splice(i, 1)
 
     item.text = item.text.slice(match[0].length)
-    status = (match[1] === "X" ? "x" : match[1]) as FrizzTaskStatus
+    status = (match[1] === "X" ? "x" : match[1]) as NtwineTaskStatus
     raw = match[0]
   }
 
   const rest = inline.splice(0, inline.length)
-  inline.push({ type: "frizzTaskStatus", raw, status } as Token)
-  if (rest.length) inline.push({ type: "frizzTaskText", raw: "", tokens: rest } as Token)
+  inline.push({ type: "ntwineTaskStatus", raw, status } as Token)
+  if (rest.length) inline.push({ type: "ntwineTaskText", raw: "", tokens: rest } as Token)
 }
 
 // Exported so markdown.test.ts can drive the EXACT configuration the app renders with: mdToHtml
@@ -460,7 +460,7 @@ function walk(node: ParentNode, ctx: WalkContext) {
           // Don't turn a filesystem path into a bogus localhost URL or inert code. The app-wide
           // same-origin click handler sends this explicit action to the server, which realpath-gates
           // it before invoking the selected desktop opener — EXCEPT for a `.md` file, which that same
-          // handler opens in Frizz's own reader drawer instead. The markup is identical either way (one
+          // handler opens in Ntwine's own reader drawer instead. The markup is identical either way (one
           // `data-local-path` button); only the title says which of the two the click will do, because
           // the routing decision belongs to the click handler and not to every producer of a path.
           const readable = target.filePath && isLocalMarkdownFile(target.filePath)

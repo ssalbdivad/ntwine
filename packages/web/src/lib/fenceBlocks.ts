@@ -8,7 +8,7 @@
 // actions live in a stable footer), `awaiting` = a compact parked human/timer handoff. Distinct
 // from ```question blocks (their own machinery in questionBlocks.ts) — those never match here.
 
-import { insideFence, splitAwaitingFrontmatter, type AwaitingHint } from "@frizz/shared"
+import { insideFence, splitAwaitingFrontmatter, type AwaitingHint } from "@ntwine/shared"
 
 export type FenceKind = "done" | "awaiting"
 
@@ -26,7 +26,7 @@ const FENCE_BLOCK = /^```(done|awaiting)[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/gm
 // Split the body of a fence into its prose (hint lines removed) and its parsed hints. `done` fences
 // carry no hints — the whole body is prose.
 //
-// ONE PARSER, IN @frizz/shared, AND THIS IS WHY. This file used to carry its own copy of the grammar with
+// ONE PARSER, IN @ntwine/shared, AND THIS IS WHY. This file used to carry its own copy of the grammar with
 // a comment on it saying "THIS LIST MUST MATCH THE TAILER'S … keep them in step". The 2026-08-24 YAML
 // cutover moved the tailer and not this, so a correct current-grammar fence parked correctly on the
 // server and rendered `shells: [bzvtnt3ig]` as PROSE in the in-chat card — the raw frontmatter printed at
@@ -36,7 +36,7 @@ const FENCE_BLOCK = /^```(done|awaiting)[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/gm
 // THIS CALL IS WHY THE `yaml` PACKAGE IS IN THE ENTRY CHUNK, and it is not the barrel's doing.
 // Measured 2026-09-04 by building three ways: yaml stubbed out costs 97,450 bytes of the entry chunk;
 // with this one call removed and the barrel's `import … from "yaml"` left exactly as it is, rolldown
-// tree-shakes 66,095 of those away by itself. So a perf pass that moves the export out of @frizz/shared
+// tree-shakes 66,095 of those away by itself. So a perf pass that moves the export out of @ntwine/shared
 // into its own module buys nothing while ChatView, RestedCard and registeredDone.ts still call
 // splitFenceBlocks synchronously during render. The only way to get the bytes back is to stop needing
 // the parse in the browser — and a LAZY parse is not it: the degraded return before the module lands

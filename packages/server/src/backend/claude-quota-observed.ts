@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto"
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import type { QuotaWindow } from "@frizz/shared"
+import type { QuotaWindow } from "@ntwine/shared"
 
-// THE PLAN'S LIMITS AS CLAUDE CODE ITSELF REPORTS THEM, with no credential in Frizz's hands.
+// THE PLAN'S LIMITS AS CLAUDE CODE ITSELF REPORTS THEM, with no credential in Ntwine's hands.
 //
 // claude-quota.ts reads the usage endpoint with the OAuth token it finds on this machine. Claude Code
-// has more ways to be signed in than Frizz can read a token out of: an environment token a wrapper
+// has more ways to be signed in than Ntwine can read a token out of: an environment token a wrapper
 // exports, a key helper, a descriptor a host passes it, a front-end that writes a base-URL/token pair
-// into its settings — what people call a token broker. On such a machine Frizz's own read finds no
+// into its settings — what people call a token broker. On such a machine Ntwine's own read finds no
 // credential at all while every worker runs signed in, and the chip had nothing to show.
 //
 // It does not need the token. Every API response a subscription session receives carries the account's
@@ -31,7 +31,7 @@ import type { QuotaWindow } from "@frizz/shared"
 // account reports the same windows, so the latest one from any worker is the account's state. What no
 // session reports is the per-model weekly breakdown, which only the endpoint names.
 //
-// The broker daemon is the process that sees the stream, and it outlives the Frizz server, so IT writes
+// The broker daemon is the process that sees the stream, and it outlives the Ntwine server, so IT writes
 // the reading — one small file beside the endpoint's cache, keyed by the same config directory — and
 // the server only reads it. No frame, no protocol change, and nothing lost while no server is attached.
 

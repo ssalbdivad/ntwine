@@ -22,13 +22,13 @@
  *
  *   A SAVED CONFIG rather than the R walkthrough. Remote access is set up interactively now, and the
  *   walkthrough's cursor starts on whichever choice is CURRENT — so blind key-sending picks a
- *   different option depending on prior state. Seeding `~/.frizz/cloud.json` is what the walkthrough
+ *   different option depending on prior state. Seeding `~/.ntwine/cloud.json` is what the walkthrough
  *   writes, and it exercises the path every launch after the first one takes, which is the path that
  *   actually has to keep working.
  *
- *   A GIT REPOSITORY as the launch directory, from when Frizz refused a bare one. Neither is adopted
+ *   A GIT REPOSITORY as the launch directory, from when Ntwine refused a bare one. Neither is adopted
  *   any more — a launch from a folder that is not already a project lands on the dashboard, hosted
- *   on Frizz's own folder — and nothing below asks which board is open.
+ *   on Ntwine's own folder — and nothing below asks which board is open.
  *
  *   THE OWNING IDENTITY, seeded into the sandbox home. A name belongs to the key that claimed it, so a
  *   fresh key is correctly refused with "that name is already taken" — verified below, because that
@@ -47,10 +47,10 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { WebSocket as WsClient } from "ws";
 
-const NAME = process.env.FRIZZ_PRODUCT_NAME ?? "colin";
+const NAME = process.env.NTWINE_PRODUCT_NAME ?? "colin";
 const ORIGIN = `https://${NAME}.frizz.sh`;
-const PORT = Number(process.env.FRIZZ_PRODUCT_PORT ?? 47990);
-const CLI = process.env.FRIZZ_PRODUCT_CLI ?? join(process.cwd(), "dist/frizz.js");
+const PORT = Number(process.env.NTWINE_PRODUCT_PORT ?? 47990);
+const CLI = process.env.NTWINE_PRODUCT_CLI ?? join(process.cwd(), "dist/ntwine.js");
 
 const checks = [];
 const check = (name, ok, detail = "") => {
@@ -58,8 +58,8 @@ const check = (name, ok, detail = "") => {
   console.log(`${ok ? "  ok  " : " FAIL "} ${name}${detail ? ` — ${detail}` : ""}`);
 };
 
-const home = mkdtempSync(join(tmpdir(), "frizz-product-home-"));
-const project = mkdtempSync(join(tmpdir(), "frizz-product-repo-"));
+const home = mkdtempSync(join(tmpdir(), "ntwine-product-home-"));
+const project = mkdtempSync(join(tmpdir(), "ntwine-product-repo-"));
 let pty = null;
 
 const until = async (label, fn, ms = 150_000) => {
@@ -77,7 +77,7 @@ const until = async (label, fn, ms = 150_000) => {
 
 const socket = (headers) =>
   new Promise((resolve) => {
-    const ws = new WsClient(`wss://${NAME}.frizz.sh/_frizz/ws`, { headers });
+    const ws = new WsClient(`wss://${NAME}.frizz.sh/_ntwine/ws`, { headers });
     const timer = setTimeout(() => resolve({ verdict: "hung" }), 45_000);
     ws.on("open", () => { clearTimeout(timer); resolve({ verdict: "open", ws }); });
     ws.on("error", (error) => { clearTimeout(timer); resolve({ verdict: "refused", detail: error.message }); });
@@ -86,31 +86,31 @@ const socket = (headers) =>
 try {
   if (!existsSync(CLI)) throw new Error(`no artifact at ${CLI} — run scripts/build-package.mjs first`);
 
-  // The key that owns NAME. Defaults to this machine's own identity; FRIZZ_PRODUCT_IDENTITY points at
+  // The key that owns NAME. Defaults to this machine's own identity; NTWINE_PRODUCT_IDENTITY points at
   // a different key file when the run exercises a name claimed by a throwaway identity instead — an
   // anonymous name above all, whose whole point is that no account of ours is anywhere near it.
-  const owned = process.env.FRIZZ_PRODUCT_IDENTITY ?? join(homedir(), ".frizz", "identity.key");
+  const owned = process.env.NTWINE_PRODUCT_IDENTITY ?? join(homedir(), ".ntwine", "identity.key");
   if (existsSync(owned)) {
-    mkdirSync(join(home, ".frizz"), { recursive: true });
-    copyFileSync(owned, join(home, ".frizz", "identity.key"));
+    mkdirSync(join(home, ".ntwine"), { recursive: true });
+    copyFileSync(owned, join(home, ".ntwine", "identity.key"));
   }
 
   const git = (...args) =>
     execFileSync("git", args, {
       cwd: project,
-      env: { ...process.env, GIT_AUTHOR_NAME: "frizz", GIT_AUTHOR_EMAIL: "f@example.invalid", GIT_COMMITTER_NAME: "frizz", GIT_COMMITTER_EMAIL: "f@example.invalid" },
+      env: { ...process.env, GIT_AUTHOR_NAME: "ntwine", GIT_AUTHOR_EMAIL: "f@example.invalid", GIT_COMMITTER_NAME: "ntwine", GIT_COMMITTER_EMAIL: "f@example.invalid" },
     });
   git("init", "-q");
   git("commit", "-q", "--allow-empty", "-m", "init");
 
   // What the R walkthrough writes once a frizz.sh name is chosen.
-  mkdirSync(join(home, ".frizz"), { recursive: true });
+  mkdirSync(join(home, ".ntwine"), { recursive: true });
   writeFileSync(
-    join(home, ".frizz", "cloud.json"),
+    join(home, ".ntwine", "cloud.json"),
     JSON.stringify({ hostname: `${NAME}.frizz.sh`, claim: NAME, serve: "relay" }, null, 2),
   );
 
-  const env = { ...process.env, HOME: home, FRIZZ_WAKERS_OFF: "1" };
+  const env = { ...process.env, HOME: home, NTWINE_WAKERS_OFF: "1" };
   pty = spawnPty(process.execPath, [CLI, "--no-app", "--port", String(PORT)], {
     name: "xterm-color", cols: 100, rows: 30, cwd: project, env,
   });
@@ -132,14 +132,14 @@ try {
     if (!up) {
       // GREP THE WHOLE STREAM, not its tail. The readout is a TUI that repaints over itself, so an
       // error printed during boot is scrolled out of the visible frame while still sitting in the bytes.
-      const said = plain().split("\n").map((l) => l.trim()).filter((l) => l.startsWith("frizz:"));
+      const said = plain().split("\n").map((l) => l.trim()).filter((l) => l.startsWith("ntwine:"));
       // Is the seeded config still there, and still what we wrote? A boot path that rewrites it would
       // look exactly like one that ignored it.
       let onDisk = "(missing)";
-      try { onDisk = readFileSync(join(home, ".frizz", "cloud.json"), "utf8").replace(/\s+/g, " "); } catch { /* missing */ }
+      try { onDisk = readFileSync(join(home, ".ntwine", "cloud.json"), "utf8").replace(/\s+/g, " "); } catch { /* missing */ }
       console.log(`  cloud.json after boot: ${onDisk}`);
       throw new Error(
-        `the board never came up on its saved name.\n  frizz said: ${said.length ? said.join("\n  frizz said: ") : "(nothing)"}\n  tail:\n${plain().split("\n").filter((l) => l.trim()).slice(-8).join("\n")}`,
+        `the board never came up on its saved name.\n  ntwine said: ${said.length ? said.join("\n  ntwine said: ") : "(nothing)"}\n  tail:\n${plain().split("\n").filter((l) => l.trim()).slice(-8).join("\n")}`,
       );
     }
   }
@@ -148,7 +148,7 @@ try {
   // Mint the link with --link rather than scraping the readout: the readout shows it as a QR, which is
   // exactly right for a phone and useless to a harness.
   const minted = execFileSync(process.execPath, [CLI, "--link"], { cwd: project, env, encoding: "utf8" });
-  const code = (minted.match(/frizz_code=([A-Za-z0-9_-]+)/) ?? [])[1];
+  const code = (minted.match(/ntwine_code=([A-Za-z0-9_-]+)/) ?? [])[1];
   check("--link mints a fresh single-use link", !!code, code ? `${code.slice(0, 6)}…` : minted.trim().slice(0, 120));
   if (!code) throw new Error("no access code to redeem");
 
@@ -158,13 +158,13 @@ try {
   });
   check("the board answers at its own hostname, over the internet", cold.status === 401, `HTTP ${cold.status}`);
 
-  const redeem = await fetch(`${ORIGIN}/?frizz_code=${encodeURIComponent(code)}`, { redirect: "manual" });
+  const redeem = await fetch(`${ORIGIN}/?ntwine_code=${encodeURIComponent(code)}`, { redirect: "manual" });
   const cookie = (redeem.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
   // The refusal page names the reason, and the reasons point at very different bugs: "already used"
   // means something redeemed it first (a retry at the edge would do that, and single-use plus retry is
   // a broken sign-in); "no such link" means the code was minted against a different board.
   const why = redeem.status === 302 ? "" : (await redeem.text()).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 140);
-  check("the access link redeems into a session", redeem.status === 302 && cookie.includes("frizz_session="), `HTTP ${redeem.status}${why ? ` — ${why}` : ""}`);
+  check("the access link redeems into a session", redeem.status === 302 && cookie.includes("ntwine_session="), `HTTP ${redeem.status}${why ? ` — ${why}` : ""}`);
 
   const page = await fetch(ORIGIN, { headers: { cookie } });
   const html = await page.text();
@@ -217,11 +217,11 @@ try {
 } finally {
   // KEEP THE IDENTITY. The name is bound to this key, so discarding it would leave a claimed name
   // nobody can renew — and the lease still runs for 30 days.
-  const minted = join(home, ".frizz", "identity.key");
-  const target = join(homedir(), ".frizz", "identity.key");
+  const minted = join(home, ".ntwine", "identity.key");
+  const target = join(homedir(), ".ntwine", "identity.key");
   try {
     if (existsSync(minted) && !existsSync(target)) {
-      mkdirSync(join(homedir(), ".frizz"), { recursive: true });
+      mkdirSync(join(homedir(), ".ntwine"), { recursive: true });
       copyFileSync(minted, target);
       console.log(`\n  kept the claim identity at ${target} — it is what proves you own ${NAME}.frizz.sh`);
     }

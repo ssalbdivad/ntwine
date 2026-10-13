@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { queueOpsCounts } from "./queueOpsCounts.ts"
 
 // The drawer hands the counts the shells it reads off the transcript, which the board reports none of for

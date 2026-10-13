@@ -1,11 +1,11 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot } from "@frizz/shared"
+import type { BoardSnapshot } from "@ntwine/shared"
 import { ToolCardRouter, ThreadSlugContext } from "./components/ChatView.tsx"
 import { store } from "./store.ts"
 import "./styles.css"
 
-store.board = { projectDir: "/fixture/frizz", threads: [] } as unknown as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [] } as unknown as BoardSnapshot
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 const prompt = "Inspect the resolver.\n\nReport the failing case."
 const calls = [

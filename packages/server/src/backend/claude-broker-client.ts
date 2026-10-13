@@ -1,9 +1,9 @@
-// The frizz SIDE of the Claude session broker: a typed client that connects to a broker daemon's
+// The ntwine SIDE of the Claude session broker: a typed client that connects to a broker daemon's
 // socket (see claude-agent-broker.ts) and speaks the same newline-delimited typed protocol. It
 // auto-reconnects — both while the daemon is still binding right after spawn, and if the connection
-// drops — which is exactly what lets frizz reattach to a LIVE session after frizz itself restarts.
+// drops — which is exactly what lets ntwine reattach to a LIVE session after ntwine itself restarts.
 import net from "node:net"
-import { ThreadSkillSource } from "@frizz/shared"
+import { ThreadSkillSource } from "@ntwine/shared"
 import type {
   ClaudeDiagnostic,
   ClaudeInputMessage,
@@ -142,7 +142,7 @@ export function connectClaudeBroker(
   // Operator-facing: the router toasts these after "Steer failed — " and cuts at 160 characters.
   const undelivered = (written: boolean): Error => new Error(written
     ? "The Claude session did not confirm it received this message. Check the thread before resending."
-    : "Frizz could not reach this thread's Claude session, so the message was not delivered. Resend it.")
+    : "Ntwine could not reach this thread's Claude session, so the message was not delivered. Resend it.")
   // A client that is closing for good fails every delivery still waiting on it: nothing will ever
   // answer, and a caller left to its deadline would hold the operator's send for 30s to learn that.
   const failPendingInputs = (): void => {

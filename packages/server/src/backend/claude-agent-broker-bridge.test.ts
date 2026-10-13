@@ -73,7 +73,7 @@ async function runCase(decisionId: string, expectBehavior: "allow" | "deny") {
     const [rec] = store.listPending(scope)
     assert.equal(rec.provider.kind, "claude", "interaction is attributed to the claude broker")
     assert.equal(rec.payload.kind, "permission-approval", "escalation renders as an approval card")
-    // The IDs must be the frizz web's canonical permission verbs, else the approval buttons don't render.
+    // The IDs must be the ntwine web's canonical permission verbs, else the approval buttons don't render.
     assert.ok(rec.allowedDecisions.some((d) => d.id === "grant-turn" && d.semantic === "approve"))
     assert.ok(rec.allowedDecisions.some((d) => d.id === "deny" && d.semantic === "deny"))
     // The daemon must NOT have proceeded before the human decides.
@@ -187,7 +187,7 @@ test("an approval nobody answers is denied at its deadline and the turn carries 
 })
 
 // ---- the first approval each agent needs goes back to it with a note -----------------------------------
-// A frizz worker runs permissive, so an escalation is usually a check the agent could have routed around
+// An ntwine worker runs permissive, so an escalation is usually a check the agent could have routed around
 // (claude-permission-interactions.ts, claudeFirstApprovalHint). The first one is denied with a note
 // instead of raising a card; the agent's identical retry is what reaches the operator.
 async function hintCase(scenario: string, opts: { premarked?: boolean } = {}) {
@@ -213,7 +213,7 @@ async function hintCase(scenario: string, opts: { premarked?: boolean } = {}) {
         .filter((r) => r.kind === "host-response")
     } catch { return [] }
   }
-  // A frizz restart forgets everything but the disk: a session whose agent was told before one starts
+  // An ntwine restart forgets everything but the disk: a session whose agent was told before one starts
   // with only the marker to go on.
   if (opts.premarked) markPermissionHintGiven(dir, sessionId, "agent-main")
   const approveTheCard = async () => {
@@ -317,7 +317,7 @@ test("followUp: freshProcess retires the live daemon and cold-resumes; a plain f
     const second = recordOf()
     assert.ok(second, "a replacement daemon is published")
     assert.notEqual(second.daemonPid, first.daemonPid, "freshProcess must hand the message to a NEW process, not the latched one")
-    assert.notEqual(second.generation, first.generation, "a new generation is what tells frizz the runtime was swapped")
+    assert.notEqual(second.generation, first.generation, "a new generation is what tells ntwine the runtime was swapped")
     assert.equal(second.sessionId, sessionId, "the thread keeps its identity — this is a restart, not a new thread")
 
     // …and it RESUMED rather than starting blank, so every turn banked before the limit comes back
@@ -410,7 +410,7 @@ test("retireDaemon retires the process without ending the conversation, and the 
 
 // THE HANDLER `context.ts` INSTALLS IS THIS ONE, so this is where a refused input has to arrive. The
 // `input` frame carries no reply by design, so `deps.onDiagnostic` is the only channel by which the
-// frizz server can ever learn that a message the scheduler already recorded as `delivered` was thrown
+// ntwine server can ever learn that a message the scheduler already recorded as `delivered` was thrown
 // away — and until 2026-08-05 the server's end of it discarded everything that was not a daemon crash.
 // Thread `are-taking-over-an-in-flight-epic` refused every input for over two hours in total silence.
 // Since input-ack-v1 the refusal ALSO fails the follow-up itself — the daemon answers the frame with the
@@ -461,7 +461,7 @@ test("a refused input fails the follow-up with the daemon's reason, and still re
 })
 
 // THE ONE REAL GAP HIBERNATION OPENED, and it predates hibernation: `attach` reports a death whenever a
-// resume has to cold-start, because that is normally the only way frizz learns a daemon died unobserved.
+// resume has to cold-start, because that is normally the only way ntwine learns a daemon died unobserved.
 // But THREE paths retire a daemon on purpose while the conversation carries on — a permission-mode
 // change (retireDaemon), a usage-limit resume (freshProcess), and now hibernation — and every one of
 // them ends in exactly that cold start. Each was telling the operator their thread had crashed, in the
@@ -491,7 +491,7 @@ test("a cold resume after an INTENTIONAL retirement reports no death — and the
 
     // ---- hibernation: retire, then wake ----
     assert.equal(bridge.retireDaemon({ threadSlug: slug, sessionId, reason: "hibernate" }), true, "the resting daemon was retired")
-    assert.ok(existsSync(markPath), "…leaving the mark that says frizz did it on purpose")
+    assert.ok(existsSync(markPath), "…leaving the mark that says ntwine did it on purpose")
     await bridge.followUp({ threadSlug: slug, sessionId, cwd: dir, text: "wake up" })
     const second = recordOf()
     assert.ok(second, "the follow-up cold-resumed a replacement daemon")
@@ -552,14 +552,14 @@ test("the retirement mark is one-shot and names the exact daemon it explains", (
 
 // ---- the lifted worker caps actually reach a worker ------------------------------------------------
 // dispatch.ts lifts Claude Code's WebSearch and sub-agent ceilings far above their 200/200/20 defaults,
-// with a page of reasoning about why a long-lived frizz worker hits them and a chat session does not.
+// with a page of reasoning about why a long-lived ntwine worker hits them and a chat session does not.
 // None of it reached a worker. The caps were set only by `claudeWorkerEnvironment()`, which only the
 // argv builder called, and the argv builder has had no caller since the broker became the sole Claude
 // transport; the bridge spread `CLAUDE_WORKER_ENV`, which did not carry them. Nothing failed — the
 // worker simply ran on the defaults the lift existed to escape, and `backend/types.ts` recorded the
 // split as a known distinction rather than a defect (found 2026-08-19).
 //
-// Asserted against the REAL forked process's own environment rather than against the record frizz
+// Asserted against the REAL forked process's own environment rather than against the record ntwine
 // composes, because composing it correctly is exactly what was never in doubt.
 test("the lifted worker caps reach the process the broker actually forks", { timeout: 25_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), "cbrk-caps-"))
@@ -596,7 +596,7 @@ test("the lifted worker caps reach the process the broker actually forks", { tim
     assert.equal(env.autoCompactWindow, "123456", "Settings.autoCompactWindow reaches the worker as CLAUDE_CODE_AUTO_COMPACT_WINDOW")
     // …and comes back OUT again, which is how the board's context dial learns the room this session
     // actually has. The daemon stamps the ceiling it forked with onto its own record, so the value
-    // survives a frizz restart adopting it — that record, not today's Settings, is what a reattach
+    // survives an ntwine restart adopting it — that record, not today's Settings, is what a reattach
     // reports (see ClaudeRuntimeIngest.noteCompactionWindow).
     assert.equal(readBrokerRecord(claudeBrokerRecordPath(dir, sessionId))?.compactionWindow, 123_456, "the daemon records the ceiling it forked with")
     assert.deepEqual(reportedCeilings, [123_456], "…and the bridge reports it once, at attach")
@@ -666,7 +666,7 @@ test("a follow-up to a daemon that predates input acknowledgement still resolves
   const adopter = createClaudeAgentBrokerBridge({ stateDir: dir, executablePath: exe, env })
   try {
     await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: dir, prompt: "start", permissionMode: "default" })
-    bridge.close() // a frizz restart
+    bridge.close() // an ntwine restart
     const record = readBrokerRecord(recordPath)!
     assert.ok(record.capabilities?.includes(CLAUDE_BROKER_CAPABILITY_INPUT_ACK), "precondition: a current daemon advertises the capability")
     writeFileSync(recordPath, JSON.stringify({ ...record, capabilities: record.capabilities!.filter((c) => c !== CLAUDE_BROKER_CAPABILITY_INPUT_ACK) }))

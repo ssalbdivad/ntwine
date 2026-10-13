@@ -4,7 +4,7 @@ import {
   type CodexModel,
   type DispatchProfileSnapshot,
   type GithubBatchInput,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { CLAUDE_MODELS, claudeEfforts } from "./options.ts"
 
 // Validate the picker's live model/effort pair immediately before the final mutation. A Codex cache

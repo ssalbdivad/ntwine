@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
-import type { Settings } from "@frizz/shared"
+import type { Settings } from "@ntwine/shared"
 import { adoptPublishedSettings, publishMachineSettings, publishOwnSettings } from "./useSettingsAutosave.tsx"
 
 const base = {

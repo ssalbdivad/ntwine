@@ -6,11 +6,11 @@ import test from "node:test"
 // line of counts holds, and the line has to come back the moment the window is too narrow for the rail.
 // Real server, real tailer, real broker-row thread; only the absent launcher status probe is stubbed.
 // Boot scripts/adhoc-stack.mjs, then scripts/seed-full-rail-ops.mjs --port=<its port> --home=<its HOME>.
-// FRIZZ_FULL_RAIL_OPS_E2E_URL=http://127.0.0.1:<port> nub run test <this file>
+// NTWINE_FULL_RAIL_OPS_E2E_URL=http://127.0.0.1:<port> nub run test <this file>
 // Through the suite's runner, not a bare `nub --test`: nub 0.9.5 runs a file handed to `nub --test` twice
 // at once (in the runner process AND in its test child), and two copies of this test race one stack.
 // Step 4 clears a row, so every run needs a fresh seed.
-const baseUrl = process.env.FRIZZ_FULL_RAIL_OPS_E2E_URL
+const baseUrl = process.env.NTWINE_FULL_RAIL_OPS_E2E_URL
 
 test("/full lists the thread's ops in its rail, and over the prompt box only once the rail is gone", { skip: !baseUrl, timeout: 120_000 }, async () => {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -22,7 +22,7 @@ test("/full lists the thread's ops in its rail, and over the prompt box only onc
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
     await page.setRequestInterception(true)
     page.on("request", (r) => {
-      if (new URL(r.url()).pathname === "/_frizz/control/status") {
+      if (new URL(r.url()).pathname === "/_ntwine/control/status") {
         void r.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ protocol: 1, state: "ready", updateRestart: false }) })
       } else void r.continue()
     })
@@ -96,7 +96,7 @@ test("/full lists the thread's ops in its rail, and over the prompt box only onc
     assert.ok(await page.$(`${railRow("toolu_fro_agent2")} button[aria-label="Clear sub-agent: Audit the old projection"]`), "the stale child offers Clear")
     await page.click(`${railRow("toolu_fro_sh2")} button[aria-label="Clear background shell: Tail the old log"]`)
     await page.waitForFunction((sel) => !document.querySelector(sel), {}, railRow("toolu_fro_sh2"))
-    assert.equal(await page.$(".frizz-sheet-panel"), null, "the × did not open the shell's drawer")
+    assert.equal(await page.$(".ntwine-sheet-panel"), null, "the × did not open the shell's drawer")
 
     assert.deepEqual(errors, [])
   } finally {

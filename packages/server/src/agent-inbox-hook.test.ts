@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -39,8 +39,8 @@ function newSession(agents: Array<{ id: string; label?: string; done?: boolean }
   return { transcript, sessionDir, runDir }
 }
 
-function runHook(event: Record<string, unknown>, env: Record<string, string> = { FRIZZ_THREAD: "some-thread" }): string {
-  return execFileSync("node", [HOOK], { input: JSON.stringify(event), encoding: "utf8", env: { ...process.env, FRIZZ_THREAD: "", FRIZZ_PERM_DIR: "", ...env } })
+function runHook(event: Record<string, unknown>, env: Record<string, string> = { NTWINE_THREAD: "some-thread" }): string {
+  return execFileSync("node", [HOOK], { input: JSON.stringify(event), encoding: "utf8", env: { ...process.env, NTWINE_THREAD: "", NTWINE_PERM_DIR: "", ...env } })
 }
 
 const postToolUse = (transcript: string, agentId?: string) => ({
@@ -70,8 +70,8 @@ test("a queued message reaches the agent after its next tool call, once, in orde
   const out = JSON.parse(runHook(postToolUse(s.transcript, AGENT)))
   assert.equal(out.hookSpecificOutput.hookEventName, "PostToolUse")
   const ctx: string = out.hookSpecificOutput.additionalContext
-  assert.match(ctx, /⟦Frizz mailbox: message from the user operating Frizz⟧ first/)
-  assert.match(ctx, /⟦Frizz mailbox: message from the agent that dispatched you⟧ second/)
+  assert.match(ctx, /⟦Ntwine mailbox: message from the user operating Ntwine⟧ first/)
+  assert.match(ctx, /⟦Ntwine mailbox: message from the agent that dispatched you⟧ second/)
   assert.ok(ctx.indexOf("first") < ctx.indexOf("second"), "oldest first")
 
   assert.equal(runHook(postToolUse(s.transcript, AGENT)), "", "a delivered message is not delivered again")
@@ -83,7 +83,7 @@ test("nothing waiting, the main thread, or a non-worker session: the hook says n
   assert.equal(runHook(postToolUse(s.transcript, AGENT)), "")
   postToAgentInbox(s.sessionDir, AGENT, { from: "parent", text: "hello" })
   assert.equal(runHook(postToolUse(s.transcript)), "", "the main thread never reads a sub-agent's mail")
-  assert.equal(runHook(postToolUse(s.transcript, AGENT), { FRIZZ_THREAD: "" }), "", "inert outside a Frizz worker")
+  assert.equal(runHook(postToolUse(s.transcript, AGENT), { NTWINE_THREAD: "" }), "", "inert outside an Ntwine worker")
   assert.equal(runHook(postToolUse(s.transcript, "a-different-agent")), "", "another agent's mail is not this one's")
 })
 
@@ -95,11 +95,11 @@ test("every sub-agent is told about its mailbox before it runs anything", () => 
   const start = (agentType: string) => ({ hook_event_name: "SubagentStart", transcript_path: s.transcript, agent_id: AGENT, agent_type: agentType })
   const out = JSON.parse(runHook(start("workflow-subagent")))
   assert.equal(out.hookSpecificOutput.hookEventName, "SubagentStart")
-  assert.match(out.hookSpecificOutput.additionalContext, /⟦Frizz mailbox⟧/)
+  assert.match(out.hookSpecificOutput.additionalContext, /⟦Ntwine mailbox⟧/)
   assert.match(out.hookSpecificOutput.additionalContext, /not part of that tool's output/)
   // A plain sub-agent too (2026-10-08): the server now posts to any running child — a time limit's note, a
   // drawer steer, a message_thread to @thread.child — so it needs the same introduction.
-  assert.match(JSON.parse(runHook(start("general-purpose"))).hookSpecificOutput.additionalContext, /⟦Frizz mailbox⟧/)
+  assert.match(JSON.parse(runHook(start("general-purpose"))).hookSpecificOutput.additionalContext, /⟦Ntwine mailbox⟧/)
 })
 
 test("an agent about to finish is held for a waiting message, and only then", () => {
@@ -109,7 +109,7 @@ test("an agent about to finish is held for a waiting message, and only then", ()
   postToAgentInbox(s.sessionDir, AGENT, { from: "parent", text: "one more thing" })
   const out = JSON.parse(runHook(stop))
   assert.equal(out.decision, "block")
-  assert.match(out.reason, /⟦Frizz mailbox: message from the agent that dispatched you⟧ one more thing/)
+  assert.match(out.reason, /⟦Ntwine mailbox: message from the agent that dispatched you⟧ one more thing/)
   assert.equal(runHook({ ...stop, stop_hook_active: true }), "", "the message was taken, so the next stop goes through")
 })
 
@@ -117,16 +117,16 @@ test("SendMessage to a running Workflow agent is diverted into its mailbox and r
   const s = newSession([{ id: AGENT, label: "impl:errors" }])
   const out = JSON.parse(runHook(sendMessage(s.transcript, AGENT)))
   assert.equal(out.hookSpecificOutput.permissionDecision, "deny", "the native SendMessage would start a second copy")
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /^Delivered by Frizz\./)
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /^Delivered by Ntwine\./)
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /do not resend/)
 
   const delivered = JSON.parse(runHook(postToolUse(s.transcript, AGENT))).hookSpecificOutput.additionalContext
-  assert.match(delivered, /⟦Frizz mailbox: message from the agent that dispatched you⟧ switch to the parser fix/)
+  assert.match(delivered, /⟦Ntwine mailbox: message from the agent that dispatched you⟧ switch to the parser fix/)
 })
 
 test("SendMessage finds a running Workflow agent by its label when exactly one carries it", () => {
   const s = newSession([{ id: AGENT, label: "impl:errors" }, { id: "b1", label: "review" }, { id: "b2", label: "review" }])
-  assert.match(runHook(sendMessage(s.transcript, "impl:errors")), /Delivered by Frizz/)
+  assert.match(runHook(sendMessage(s.transcript, "impl:errors")), /Delivered by Ntwine/)
   assert.equal(runHook(sendMessage(s.transcript, "review")), "", "an ambiguous label is left to SendMessage's own resolution")
   assert.equal(existsSync(join(s.sessionDir, INBOX_DIRNAME, "b1")), false)
 })
@@ -142,7 +142,7 @@ test("SendMessage passes through untouched for anything that is not a RUNNING Wo
   assert.equal(runHook(sendMessage(live.transcript, "main")), "", "a message to the main thread is SendMessage's own")
   assert.equal(runHook(sendMessage(live.transcript, "some-plain-subagent")), "", "a plain sub-agent takes SendMessage natively")
   assert.equal(runHook(sendMessage(live.transcript, AGENT, { type: "shutdown_request" })), "", "a structured message is not text to deliver")
-  assert.match(runHook(sendMessage(live.transcript, AGENT)), /Delivered by Frizz/, "a run still marked running is live")
+  assert.match(runHook(sendMessage(live.transcript, AGENT)), /Delivered by Ntwine/, "a run still marked running is live")
 })
 
 test("a malformed agent id is refused rather than written outside the mailbox", () => {
@@ -150,11 +150,11 @@ test("a malformed agent id is refused rather than written outside the mailbox", 
   assert.throws(() => postToAgentInbox(s.sessionDir, "../escape", { from: "operator", text: "x" }), /not an agent id/)
 })
 
-test("a message from another Frizz thread is signed with that thread's handle", () => {
+test("a message from another Ntwine thread is signed with that thread's handle", () => {
   const s = newSession([{ id: AGENT }])
   postToAgentInbox(s.sessionDir, AGENT, { from: "@shell-budgets", text: "the cache key moved to src/keys.ts" })
   const ctx: string = JSON.parse(runHook(postToolUse(s.transcript, AGENT))).hookSpecificOutput.additionalContext
-  assert.match(ctx, /⟦Frizz mailbox: message from the Frizz thread @shell-budgets⟧ the cache key moved/)
+  assert.match(ctx, /⟦Ntwine mailbox: message from the Ntwine thread @shell-budgets⟧ the cache key moved/)
 })
 
 // ---- a running child's time limit, rewritten by the server (agent-inbox.ts setChildDeadline) ----
@@ -183,7 +183,7 @@ test("a child that cached no limit picks up the one the user set later, introduc
   const now = Date.now()
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, { atMs: now + 10 * 60_000, nowMs: now }), true)
   const intro = childSays(s.transcript)
-  assert.match(intro, /⏰ Your time limit: .* set by the user operating Frizz, after you started/)
+  assert.match(intro, /⏰ Your time limit: .* set by the user operating Ntwine, after you started/)
   assert.equal(childSays(s.transcript), "", "introduced once")
 
   // Past the deadline already: the next tool call brings the `over` check-in.
@@ -204,4 +204,33 @@ test("a sooner limit the child already has is kept; a lift touches only a limit 
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, { atMs: now + 2 * 60_000, nowMs: now }), true, "sooner: taken")
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, null), true, "and the user's own limit can be lifted")
   assert.deepEqual(JSON.parse(readFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), "utf8")), { none: true })
+})
+
+// ---- state written before the Frizz -> Ntwine rename ----
+// A message the old server posted, and a limit a child cached, sit under the old directory names.
+
+test("a message waiting in the pre-rename frizz-inbox is delivered with today's, in post order", () => {
+  const s = newSession([{ id: AGENT }])
+  postToAgentInbox(s.sessionDir, AGENT, { from: "operator", text: "older" })
+  const current = join(s.sessionDir, INBOX_DIRNAME, AGENT)
+  const legacy = join(s.sessionDir, "frizz-inbox", AGENT)
+  mkdirSync(legacy, { recursive: true })
+  for (const name of readdirSync(current)) renameSync(join(current, name), join(legacy, name))
+  postToAgentInbox(s.sessionDir, AGENT, { from: "parent", text: "newer" })
+
+  const ctx: string = JSON.parse(runHook(postToolUse(s.transcript, AGENT))).hookSpecificOutput.additionalContext
+  assert.ok(ctx.includes("older") && ctx.indexOf("older") < ctx.indexOf("newer"), ctx)
+  assert.deepEqual(readdirSync(legacy), [], "drained, not redelivered")
+})
+
+test("a limit a child cached before the rename is still its limit, and a check-in it was sent is not sent again", () => {
+  const s = plainChild()
+  const now = Date.now()
+  const legacy = join(s.sessionDir, "frizz-deadlines")
+  mkdirSync(legacy, { recursive: true })
+  writeFileSync(join(legacy, `${PLAIN}.json`), JSON.stringify({ atMs: now - 1_000, setAtMs: now - 120_000, announce: false }))
+  assert.match(childSays(s.transcript), /Your time is up/, "the cached limit is read")
+  writeFileSync(join(legacy, `${PLAIN}.over`), "")
+  rmSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.over`), { force: true })
+  assert.equal(childSays(s.transcript), "", "a stage marked in the old directory counts as sent")
 })

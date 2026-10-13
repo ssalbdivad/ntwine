@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { CLAIM_LEASE_MS, generateAnonymousClaimName, generateClaimIdentity, signClaim } from "@frizz/shared"
+import { CLAIM_LEASE_MS, generateAnonymousClaimName, generateClaimIdentity, signClaim } from "@ntwine/shared"
 import { handleClaim, sweepExpiredClaims, type ClaimDeps, type ClaimRecord } from "./claim-handler.ts"
 
 const NOW = 1_800_000_000_000
@@ -408,7 +408,7 @@ test("one key holds ONE name — a loop of claims cannot take the namespace", as
   assert.equal(second.status, 409)
   assert.deepEqual(second.body, {
     error: "one-name-per-key",
-    message: "this machine already holds a name — release it first, or claim from a different Frizz identity",
+    message: "this machine already holds a name — release it first, or claim from a different Ntwine identity",
   })
   assert.equal(cf.tunnels.size, 1, "the second name provisioned nothing")
 
@@ -455,7 +455,7 @@ test("a token that can do more than name its account is refused, and nothing is 
   )
   assert.equal(result.status, 400)
   assert.equal("error" in result.body && result.body.error, "github-token-scoped")
-  assert.match("message" in result.body ? result.body.message : "", /update Frizz/)
+  assert.match("message" in result.body ? result.body.message : "", /update Ntwine/)
   assert.deepEqual(cf.calls, [], "nothing was provisioned")
   assert.equal(st.rows.size, 0, "nothing was recorded")
 })

@@ -1,4 +1,4 @@
-import type { AwaitingHint, BoardSnapshot, ProjectCard, ProjectQueue, ProjectSchedules, RegisteredQuestionView, ThreadView } from "@frizz/shared"
+import type { AwaitingHint, BoardSnapshot, ProjectCard, ProjectQueue, ProjectSchedules, RegisteredQuestionView, ThreadView } from "@ntwine/shared"
 import { isPinned, orderByInteraction, orderQueue, queued, sectionOf, type QueueDirection } from "../groups.ts"
 import { crossProjectHref } from "./base-path.ts"
 import { splitFenceBlocks } from "./fenceBlocks.ts"
@@ -23,7 +23,7 @@ export interface QueuesProject {
   slug: string
   name: string
   card: ProjectCard | undefined
-  /** A board is open for it on this server. False: its directory is gone, another Frizz serves it, it
+  /** A board is open for it on this server. False: its directory is gone, another Ntwine serves it, it
    *  failed to open, or the server has not reached it yet this boot. */
   open: boolean
   stale: boolean
@@ -37,7 +37,7 @@ export interface QueuesProject {
    *  like the project's own board files them (groups.ts sectionThreads) — and are not in `doneCount`. */
   pinnedDone: ThreadView[]
   doneCount: number
-  /** Its schedules' count, and whether one wants the human (paused by Frizz, or a proposal to turn on) —
+  /** Its schedules' count, and whether one wants the human (paused by Ntwine, or a proposal to turn on) —
    *  the row's fourth quiet count. Absent when it has none. */
   schedules?: ProjectSchedules
 }

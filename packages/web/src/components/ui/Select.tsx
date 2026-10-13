@@ -26,7 +26,7 @@ export interface SelectGroup {
 // inline picker never scroll-locks <body> and breaks the app shell's sticky sidebar.
 // DropdownMenu RadioItem, like Radix Select, reserves the empty string internally. Map it to a
 // private printable sentinel on the way in and back out.
-const EMPTY = "__frizz_empty_select_value__"
+const EMPTY = "__ntwine_empty_select_value__"
 const toRadix = (v: string) => (v === "" ? EMPTY : v)
 const fromRadix = (v: string) => (v === EMPTY ? "" : v)
 
@@ -188,7 +188,7 @@ export function Select({
           side={side}
           sideOffset={5}
           // Select is often nested in a drawer/dialog. Radix dismisses the highest layer after this
-          // callback; stop the same native Escape from continuing to Frizz's window-level drawer
+          // callback; stop the same native Escape from continuing to Ntwine's window-level drawer
           // handler, which would otherwise close both layers in one keypress.
           onEscapeKeyDown={(event) => event.stopPropagation()}
           className={`${menuZClass} ${OPAQUE_SURFACE_BASE} min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg p-1 ${promptReadoutTypography}`}

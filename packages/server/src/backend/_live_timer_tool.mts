@@ -1,15 +1,15 @@
-// LIVE: the REAL `mcp__frizz__timer` tool arming a REAL row and being DELIVERED by the REAL scheduler,
+// LIVE: the REAL `mcp__ntwine__timer` tool arming a REAL row and being DELIVERED by the REAL scheduler,
 // through the whole chain a worker actually uses.
 //   nub packages/server/src/backend/_live_timer_tool.mts
 //
-// The unit tests cover the two ENDS in isolation — frizz-mcp.test.ts drives the real MCP server over real
+// The unit tests cover the two ENDS in isolation — ntwine-mcp.test.ts drives the real MCP server over real
 // stdio and asserts the exact RPC body it emits, thread-timers.test.ts drives the real scheduler pass
-// over real storage. What neither covers is the SEAM: the tool's HTTP call reaching frizz's real router,
+// over real storage. What neither covers is the SEAM: the tool's HTTP call reaching ntwine's real router,
 // landing on a real row, and that row then producing a real delivery. A wrong guard, a mistyped
 // procedure name or a units mismatch (epoch ms vs ISO) would hide exactly there and would look to the
 // worker like success.
 //
-// So this runs: the real frizz MCP server process → its real stdio JSON-RPC → its real `fetch` at the port
+// So this runs: the real ntwine MCP server process → its real stdio JSON-RPC → its real `fetch` at the port
 // it reads out of a real `server.lock` → the real Hono app → the real router mutations → real SQLite →
 // the real scheduler's own tick → the delivery a worker would receive. No model, because no model is
 // needed to test a seam.
@@ -21,7 +21,7 @@ import { serve } from "@hono/node-server"
 import { createApp } from "../app.ts"
 import { createStorage } from "../storage.ts"
 import { createScheduler } from "../scheduler.ts"
-import { resolveFrizzMcp } from "../dispatch.ts"
+import { resolveNtwineMcp } from "../dispatch.ts"
 import type { AppContext } from "../context.ts"
 import type { Tailer } from "../tailer.ts"
 
@@ -36,7 +36,7 @@ const storage = createStorage(join(stateDir, "ui.db"), "p")
 const now = new Date().toISOString()
 for (const slug of ["mine", "someone-else"]) {
   storage.upsertSession({
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: now,
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: now,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as Parameters<typeof storage.upsertSession>[0])
@@ -61,14 +61,14 @@ const app = createApp(ctx, { port: PORT })
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT })
 writeFileSync(join(stateDir, "server.lock"), JSON.stringify({ port: PORT }))
 
-const descriptor = resolveFrizzMcp(stateDir)
-if (!descriptor) throw new Error("the packaged frizz MCP script must be resolvable")
+const descriptor = resolveNtwineMcp(stateDir)
+if (!descriptor) throw new Error("the packaged ntwine MCP script must be resolvable")
 
 /** Drive the REAL MCP server over its real stdio transport, as its worker does. */
 function mcp(env: Record<string, string>) {
   const child = spawn(process.execPath, [descriptor!.scriptPath], {
     stdio: ["pipe", "pipe", "inherit"],
-    env: { ...process.env, FRIZZ_STATE_DIR: stateDir, ...env },
+    env: { ...process.env, NTWINE_STATE_DIR: stateDir, ...env },
   })
   const pending = new Map<number, (v: any) => void>()
   let buf = ""
@@ -122,7 +122,7 @@ const scheduler = createScheduler({
 })
 
 try {
-  const worker = mcp({ FRIZZ_THREAD_SLUG: "mine" })
+  const worker = mcp({ NTWINE_THREAD_SLUG: "mine" })
   await worker.init()
 
   // ---- SET, through the whole real chain ---------------------------------------------------------
@@ -188,7 +188,7 @@ try {
   worker.kill()
 
   // ---- A server with no thread identity must FAIL, never guess ----------------------------------
-  const anonymous = mcp({ FRIZZ_THREAD_SLUG: "", FRIZZ_THREAD: "" })
+  const anonymous = mcp({ NTWINE_THREAD_SLUG: "", NTWINE_THREAD: "" })
   await anonymous.init()
   const refused = await anonymous.call(1, "timer", { action: "set", prompt: "x", in_seconds: 60 })
   ok("an MCP server with no stamped thread refuses rather than guessing",

@@ -38,12 +38,12 @@
 // run. A check that cannot see must not go green.
 //
 //   CLOUDFLARE_READ_TOKEN=… GITHUB_TOKEN=… GITHUB_REPOSITORY=colinhacks/frizz \
-//     WORKERS_CI_AUTHOR=… node scripts/workers-drift.mjs [frizz-relay] [frizz-registrar]
+//     WORKERS_CI_AUTHOR=… node scripts/workers-drift.mjs [ntwine-relay] [ntwine-registrar]
 
 import { pathToFileURL } from "node:url"
 
 export const ACCOUNT_ID = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
-export const WORKERS = ["frizz-relay", "frizz-registrar"]
+export const WORKERS = ["ntwine-relay", "ntwine-registrar"]
 export const DEPLOY_WORKFLOW = ".github/workflows/workers-deploy.yml"
 export const LOOKBACK_MS = 2 * 60 * 60 * 1000
 // Cloudflare's and GitHub's clocks, and the gap between the run starting and wrangler's first call.

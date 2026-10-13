@@ -14,12 +14,12 @@ import { createRpcClient } from "../../../../scripts/lib/rpc-client.mjs"
 // ever sent. Start the stack in a separate terminal:
 //   nub scripts/adhoc-stack.mjs --port=45911
 // Its first JSON line contains the sandbox "home" field. With the stack still running:
-//   FRIZZ_PROMPT_DRAFT_TABS_E2E_URL=http://127.0.0.1:45911 \
-//   FRIZZ_PROMPT_DRAFT_TABS_E2E_HOME=<the "home" field> nub --test \
+//   NTWINE_PROMPT_DRAFT_TABS_E2E_URL=http://127.0.0.1:45911 \
+//   NTWINE_PROMPT_DRAFT_TABS_E2E_HOME=<the "home" field> nub --test \
 //     packages/web/src/components/promptDraftTabs.e2e.test.ts
 // Stop the disposable stack with Ctrl-C when finished.
-const baseUrl = process.env.FRIZZ_PROMPT_DRAFT_TABS_E2E_URL
-const home = process.env.FRIZZ_PROMPT_DRAFT_TABS_E2E_HOME
+const baseUrl = process.env.NTWINE_PROMPT_DRAFT_TABS_E2E_URL
+const home = process.env.NTWINE_PROMPT_DRAFT_TABS_E2E_HOME
 
 test("a draft typed on the queue card is in the thread's /full prompt box, in another tab and in this one", {
   skip: !baseUrl || !home, timeout: 120_000,
@@ -28,9 +28,9 @@ test("a draft typed on the queue card is in the thread's /full prompt box, in an
   const [project] = await api.query("projectsList") as Array<{ id: string; slug: string }>
   assert.ok(project)
   const slug = "prompt-draft-tabs"
-  execFileSync("sqlite3", [join(home!, ".frizz", "ui.db"), `INSERT OR REPLACE INTO session
+  execFileSync("sqlite3", [join(home!, ".ntwine", "ui.db"), `INSERT OR REPLACE INTO session
     (project_id, slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at)
-    VALUES ('${project.id}', '${slug}', 'aabbccdd-0000-4000-9000-0000000000d1', 'frizz-${slug}',
+    VALUES ('${project.id}', '${slug}', 'aabbccdd-0000-4000-9000-0000000000d1', 'ntwine-${slug}',
     '2026-10-11T00:00:00Z', 'Prompt draft tabs', 'claude', 'broker', 'opus', 'high', 'default', '2026-10-11T00:01:00Z')`])
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
   const browser = await launchHeadless({ protocolTimeout: 30_000 })
@@ -45,7 +45,7 @@ test("a draft typed on the queue card is in the thread's /full prompt box, in an
         // adhoc-stack has no launcher control server; throwaway projects have no icon. These 404s
         // are the app's normal fallback, unrelated to drafts.
         const url = m.location().url ?? ""
-        if (m.type() === "error" && !/\/_frizz\/(control\/status|project-icon)/.test(url)) errors.push(`${m.text()} ${url}`)
+        if (m.type() === "error" && !/\/_ntwine\/(control\/status|project-icon)/.test(url)) errors.push(`${m.text()} ${url}`)
       })
       return page
     }

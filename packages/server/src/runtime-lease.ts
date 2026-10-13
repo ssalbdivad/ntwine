@@ -2,7 +2,7 @@
 //
 // runtimes.ts sweeps every version directory the current pin superseded, and until 2026-09-10 it did
 // so on sight. That evening a source-tree stack pinned to Claude Code 2.1.268 booted against the
-// machine's real `~/.frizz/runtimes` root (the ad-hoc stack shares it on purpose, to skip a 200 MB
+// machine's real `~/.ntwine/runtimes` root (the ad-hoc stack shares it on purpose, to skip a 200 MB
 // download) and retired `claude/2.1.267/` — the directory the RUNNING 0.12.9 server handed to every
 // broker it forked. Daemons already up kept going (the binary stays mapped after the unlink); every
 // NEW thread died before it could publish its record, and the operator saw only "Claude broker …

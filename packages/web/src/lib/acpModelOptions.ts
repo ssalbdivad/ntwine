@@ -1,4 +1,4 @@
-import type { AcpAgentModels } from "@frizz/shared"
+import type { AcpAgentModels } from "@ntwine/shared"
 import type { SelectGroup, SelectOption } from "../components/ui/Select.tsx"
 
 // The rows of the model dropdown on an ACP thread, GROUPED BY PROVIDER (maintainer 2026-09-16: "we
@@ -7,7 +7,7 @@ import type { SelectGroup, SelectOption } from "../components/ui/Select.tsx"
 // provider as a prefix ("OpenAI/GPT-5.5", id "openai/gpt-5.5"), so the prefix becomes the section
 // header and the row keeps only the model's own name.
 //
-// The first section has no header and holds value "" — the agent's OWN default: Frizz asks for nothing
+// The first section has no header and holds value "" — the agent's OWN default: Ntwine asks for nothing
 // and the agent opens on whatever its config names — so a thread never has to name a model to run. The
 // list itself comes from the agent (session/new advertises it as a config option), so it is exactly
 // what the agent will honour: an OpenCode signed into one provider lists that provider's models and
@@ -17,7 +17,7 @@ export function acpModelGroups(models: AcpAgentModels | undefined, savedModelId:
   const lead: SelectOption[] = [{
     value: "",
     label: current ? `Default · ${splitProvider(current).model}` : "Default",
-    title: "The model the agent opens on when Frizz asks for none",
+    title: "The model the agent opens on when Ntwine asks for none",
   }]
   // A saved model the agent no longer lists stays VISIBLE and verbatim rather than snapping to
   // Default: the operator chose it, and the bridge will note the refusal in the transcript if the

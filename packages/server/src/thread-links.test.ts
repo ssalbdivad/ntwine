@@ -4,18 +4,18 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import test from "node:test"
-import { UpsertOwnLinkInput } from "@frizz/shared"
+import { UpsertOwnLinkInput } from "@ntwine/shared"
 import type { AppContext } from "./context.ts"
 import { createRouter } from "./router.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
 import { resolveThreadLink } from "./thread-links.ts"
 
 function harness() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-links-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-links-")))
   const path = join(dir, "ui.db")
   const storage = createStorage(path, "links-a")
   for (const slug of ["own", "other"]) storage.upsertSession({
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } satisfies SessionRow)
@@ -60,7 +60,7 @@ test("local files resolve from the project and keep the existing opener's trust 
     assert.equal(h.storage.listThreadLinks("own").length, 1)
     assert.throws(() => resolveThreadLink(h.dir, h.dir, [h.dir]), /not found|trusted roots/)
     assert.throws(() => resolveThreadLink("missing.md", h.dir, [h.dir]), /not found/)
-    const outside = mkdtempSync(join(tmpdir(), "frizz-link-outside-"))
+    const outside = mkdtempSync(join(tmpdir(), "ntwine-link-outside-"))
     try {
       writeFileSync(join(outside, "private.md"), "outside")
       symlinkSync(join(outside, "private.md"), join(h.dir, "escape.md"))

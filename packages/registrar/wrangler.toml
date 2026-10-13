@@ -1,8 +1,9 @@
+# The deployed Worker keeps its pre-rename name: a new name is a new script, with no secrets.
 name = "frizz-registrar"
 main = "src/worker.ts"
 compatibility_date = "2026-08-24"
 
-# The Frizz account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
+# The Ntwine account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
 # "More than one account available but unable to select one" — a machine with several accounts cannot
 # guess, and CI has nobody to ask. An account id is not a secret; the API token is, and that stays out.
 account_id = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
@@ -16,7 +17,7 @@ account_id = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
 # AN EXPLICIT ROUTE, NOT JUST A CUSTOM DOMAIN.
 #
 # The relay owns `*.frizz.sh/*`, and a WORKERS ROUTE BEATS A CUSTOM DOMAIN — so once the relay shipped,
-# the wildcard swallowed registrar.frizz.sh and signup started answering "No Frizz board has claimed
+# the wildcard swallowed registrar.frizz.sh and signup started answering "No Ntwine board has claimed
 # this name." A more specific route wins over the wildcard and puts this back. Both are declared: the
 # custom domain provisions the hostname, the route decides who serves it.
 [[routes]]
@@ -31,7 +32,7 @@ zone_name = "frizz.sh"
 crons = ["17 4 * * *"]
 
 [vars]
-FRIZZ_ZONE = "frizz.sh"
+NTWINE_ZONE = "frizz.sh"
 
 # Set with `wrangler secret put`, never here — this file is committed.
 #   wrangler secret put CF_API_TOKEN    # Tunnel:Edit + Zone DNS:Edit, and nothing else

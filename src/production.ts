@@ -1,22 +1,23 @@
 #!/usr/bin/env node
+import "@ntwine/shared/legacy-env"
 import type { RemoteController } from "./remote-controller.ts";
 import { wireRemote } from "./remote-wiring.ts";
-import { bindHostIsExposed } from "@frizz/server/local-origin";
-// The registry launcher is intentionally separate from index.ts. `frizz-dev` follows mutable
-// checkout source; `frizz` runs the package that npm resolved and never turns an npx cache into a
+import { bindHostIsExposed } from "@ntwine/server/local-origin";
+// The registry launcher is intentionally separate from index.ts. `ntwine-dev` follows mutable
+// checkout source; `ntwine` runs the package that npm resolved and never turns an npx cache into a
 // deployment directory.
 import { readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { launchApp, launchBrowserTab } from "./browser.ts";
-import { adoptSessionState, loadSessionState, sessionEpochLogLine, sessionEpochNotice } from "@frizz/server/access-codes";
-import { qrAreaOf, renderQrLines } from "@frizz/server/qr";
+import { adoptSessionState, loadSessionState, sessionEpochLogLine, sessionEpochNotice } from "@ntwine/server/access-codes";
+import { qrAreaOf, renderQrLines } from "@ntwine/server/qr";
 import { listSessions, signOutSession } from "./sessions-cli.ts";
-import { SUPERVISOR_ACCESS_CODE_PATH } from "@frizz/server/restart-supervisor";
+import { SUPERVISOR_ACCESS_CODE_PATH } from "@ntwine/server/restart-supervisor";
 import type { AccessPane } from "./access-pane.ts";
 import type { PaneHost } from "./pane-host.ts";
-import { LOOPBACK_BIND_HOST } from "@frizz/server/local-origin";
+import { LOOPBACK_BIND_HOST } from "@ntwine/server/local-origin";
 import { noticeOnlyReadout, Readout, renderSupervisorActivity, tildePath } from "./readout.ts";
 import {
   appendCrashRecord,
@@ -26,7 +27,7 @@ import {
   runLogPath,
   setAmbientLogger,
   type Logger,
-} from "@frizz/server/logging";
+} from "@ntwine/server/logging";
 import {
   acquireGlobalLaunchLock,
   allocatePort,
@@ -38,12 +39,12 @@ import {
   prepareSandbox,
   askLaunchRoute,
   hostWorkspace,
-  probeFrizz,
-  readFrizzHealth,
+  probeNtwine,
+  readNtwineHealth,
   readPreferredPort,
   resolveLaunchIntent,
   resolveLaunchControlTarget,
-  runningFrizzStatus,
+  runningNtwineStatus,
   stopProjectLaunch,
   waitForWorkspace,
   workspaceFromLaunchTarget,
@@ -59,30 +60,30 @@ import {
   projectLaunchTargetFromEnvironment,
   readProjectLaunchOwner,
   tryAcquireProjectLaunchOwner,
-} from "@frizz/server/project-launch";
-import { createSupervisorShutdownHandler, startDevSupervisor } from "@frizz/server/dev-supervisor";
+} from "@ntwine/server/project-launch";
+import { createSupervisorShutdownHandler, startDevSupervisor } from "@ntwine/server/dev-supervisor";
 import { planRegistryUpdate, PRODUCTION_PRINT_LAUNCHER_FLAG, PRODUCTION_REEXEC_FLAG, reexecArgv } from "./production-update.ts";
 import { npmServerPackageInstaller, serverGenerationLaunch, serverReleaseMinimum, serverReleaseSpec, ServerReleaseStore, type ServerGeneration } from "./server-release.ts";
 import { acquireStableServerOwner, publishStableServerAddress, readStableServerOwner, releaseStableServerOwner, type ServerOwnerLease } from "./server-owner.ts";
-import { offerPath, type LaunchRoute } from "@frizz/server/launch-routing";
+import { offerPath, type LaunchRoute } from "@ntwine/server/launch-routing";
 import { GLOBAL_INSTALL_ENV, isGlobalInstall, keepUpdateHint } from "./production-update.ts";
 import {
   assertLaunchPrerequisites,
   assertRequiredExecutables,
 } from "./preflight.ts";
-import { DEFAULT_PORT, fallbackPort } from "@frizz/shared";
-import { registerProject } from "@frizz/server/project-registry";
-import { resolveProjectLabel } from "@frizz/server/project-identity";
+import { DEFAULT_PORT, fallbackPort } from "@ntwine/shared";
+import { registerProject } from "@ntwine/server/project-registry";
+import { resolveProjectLabel } from "@ntwine/server/project-identity";
 
-const PACKAGE_NAME = process.env.FRIZZ_REGISTRY_PACKAGE ?? "frizz";
+const PACKAGE_NAME = process.env.NTWINE_REGISTRY_PACKAGE ?? "ntwine";
 
 /**
  * The version THIS bundle actually is, read from the package.json it ships inside.
  *
  * It used to be `process.env.npm_package_version ?? "0.0.1"`, and npm sets that variable only for
  * lifecycle scripts — NOT when a bin runs through the npx shim, which is how every real user starts
- * Frizz. So the launcher reported itself as `0.0.1` forever. Measured end-to-end against the published
- * package: a genuine 0.1.1 install served `artifactDigest: "npm:frizz@0.0.1"`, and still served
+ * Ntwine. So the launcher reported itself as `0.0.1` forever. Measured end-to-end against the published
+ * package: a genuine 0.1.1 install served `artifactDigest: "npm:ntwine@0.0.1"`, and still served
  * `0.0.1` after updating itself to 0.1.2.
  *
  * This is now the stable launcher's diagnostic version, not the separately selected server version
@@ -111,14 +112,14 @@ if (rawArgs.includes(PRODUCTION_PRINT_LAUNCHER_FLAG)) {
 // `top` reads the machine and exits: no project, lock or Node floor, so it works from any directory.
 // Shared with src/index.ts.
 if (rawArgs[0] === "top") {
-  const { runTop } = await import("@frizz/server/top");
+  const { runTop } = await import("@ntwine/server/top");
   process.exit(await runTop(rawArgs.slice(1)));
 }
 // A re-exec'd launch was started by the PREVIOUS release, whose argv may carry a project directory this
 // release refuses (0.7.0–0.12.10 all append one); see reexecArgv. A human's argv is parsed as written.
 const args = reexec ? reexecArgv(rawArgs) : rawArgs;
 const fail = (error: unknown): never => {
-  console.error(`frizz: ${error instanceof Error ? error.message : error}`);
+  console.error(`ntwine: ${error instanceof Error ? error.message : error}`);
   process.exit(1);
 };
 
@@ -127,23 +128,23 @@ const options: CliOptions = (() => {
 })();
 if (options.help) {
   console.log(
-    `Frizz production launcher
+    `Ntwine production launcher
 
 Usage: npx ${PACKAGE_NAME} [options]
 
 Run it anywhere. One server serves EVERY project on this machine, each on its own board, so a
 second run joins the one already going. In a folder that is already a project it opens that
 project's board; anywhere else it opens All projects, where projects are added. Runs the
-npm-resolved immutable Frizz package, then opens it in your default browser. Use frizz-dev only
+npm-resolved immutable Ntwine package, then opens it in your default browser. Use ntwine-dev only
 for a source checkout.
 
 Commands:
-  top                    memory on this machine and Frizz's share of it (--json, --watch)
+  top                    memory on this machine and Ntwine's share of it (--json, --watch)
 
 Options:
   --no-app               print the URL without opening a browser
   --port <port>          request a fixed port for a new workspace server
-  --sandbox              a disposable Frizz to try things in: throwaway home and project, its
+  --sandbox              a disposable Ntwine to try things in: throwaway home and project, its
                          own port, deleted when this terminal closes; credentials (gh,
                          cloudflared, Claude, Codex, the machine's frizz.sh key) are shared
   --link                 print a fresh single-use access link for the running board
@@ -175,7 +176,7 @@ let remote: RemoteController | null = null;
 /** The keyboard: L for a link, R for the remote-access walkthrough. Held so shutdown can restore the shell. */
 let paneHost: PaneHost | null = null;
 /**
- * A global bin (`npm i -g frizz`) is the one launch shape a self-update does not outlive: the release
+ * A global bin (`npm i -g ntwine`) is the one launch shape a self-update does not outlive: the release
  * lands in npm's execution cache and the bin on disk keeps pointing at this version. Decided here,
  * from THIS bundle's path, and handed down through the environment — the successor's own path is
  * always the cache and could never tell.
@@ -205,7 +206,7 @@ const workspace: Workspace = (() => {
   // BEFORE workspace preparation, so a machine running a Node the server's database cannot survive
   // learns it here by name instead of from whichever internal step tripped over it first. On an
   // unsupported release SQLite does not misbehave, it SEGFAULTS, and a segfault mid-boot is
-  // indistinguishable from Frizz being broken. The required executables list beside it is empty:
+  // indistinguishable from Ntwine being broken. The required executables list beside it is empty:
   // repository discovery can fall back to project markers when Git is absent (see preflight.ts).
   //
   // `--stop` and `--status` skip the Node floor deliberately: they only read a status file and signal
@@ -216,11 +217,11 @@ const workspace: Workspace = (() => {
     else assertLaunchPrerequisites();
   }
   const pinned = projectLaunchTargetFromEnvironment(process.env);
-  if (reexec || process.env.FRIZZ_PRODUCTION_SUPERVISOR === "1") {
+  if (reexec || process.env.NTWINE_PRODUCTION_SUPERVISOR === "1") {
     if (!pinned) throw new Error("registry successor is missing its pinned project identity");
     return workspaceFromLaunchTarget(pinned);
   }
-  // ALWAYS Frizz's own folder, whatever folder the command was typed in. The server was run on the
+  // ALWAYS Ntwine's own folder, whatever folder the command was typed in. The server was run on the
   // project being opened until now, which made a rule about folders something this launcher had to
   // hold BEFORE any server existed to ask: which folder is a project, which to offer, which to
   // refuse. Four of the seven shell releases between 2026-10-01 and 2026-10-11 changed nothing else,
@@ -236,7 +237,7 @@ const workspace: Workspace = (() => {
 // host folder deleted later left every child the launcher started without a working directory.
 
 /**
- * The port of the Frizz running on this machine, for the flags that talk to it rather than start it.
+ * The port of the Ntwine running on this machine, for the flags that talk to it rather than start it.
  * The machine-wide record first: it names a board whichever folder it was started on, including one
  * an older launcher is still running on a project.
  */
@@ -246,40 +247,40 @@ function runningBoardPort(): number | undefined {
   return liveWorkspaceOwner(workspace.stateDir, workspaceLaunchTarget(workspace))?.port;
 }
 
-/** Where `--stop` and `--status` look for a board whose record is not under Frizz's own folder. */
+/** Where `--stop` and `--status` look for a board whose record is not under Ntwine's own folder. */
 function controlPorts(): number[] {
   const machine = readStableServerOwner();
   return [...new Set([...(machine.kind === "running" ? [machine.port] : []), DEFAULT_PORT, fallbackPort(DEFAULT_PORT)])];
 }
 if (options.stop) {
-  // The farewell after a detached update has said "stop it with frizz --stop" since 0.12.10, and
+  // The farewell after a detached update has said "stop it with ntwine --stop" since 0.12.10, and
   // `--help` never listed it, because nothing here handled it: the flag fell through to the join
   // path below and OPENED A BROWSER TAB on the board it was asked to stop (audit 2026-09-11,
   // finding 2). The protocol is the dev launcher's (src/index.ts stopWorkspace): token-bound HTTP
   // stop, then reap only a provably stale owner — never a signal to a pid that might be recycled.
   try {
     // One server, every project, so there is one board to stop and the folder this was typed in does
-    // not choose it. Its record is under Frizz's own folder — or, for a board an older launcher is
+    // not choose it. Its record is under Ntwine's own folder — or, for a board an older launcher is
     // still running, under the project that launcher started it on, which its ports name.
     const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace), ports: controlPorts() });
     const result = await stopProjectLaunch({ stateDir: control.stateDir, target: control.target });
     console.log(
       result.kind !== "stopped"
-        ? "Frizz is not running"
+        ? "Ntwine is not running"
         : result.stale
           // A board that died without releasing its record (a kill, a crash) reads as "running" to
           // every later launch until someone reaps it; say what happened rather than claiming a stop.
-          ? "Frizz was not running; cleared the record a dead board left behind"
-          : "stopped Frizz; running agents keep going — they are detached daemons",
+          ? "Ntwine was not running; cleared the record a dead board left behind"
+          : "stopped Ntwine; running agents keep going — they are detached daemons",
     );
     process.exit(0);
   } catch (error) { fail(error); }
 }
 if (options.status) {
   const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace), ports: controlPorts() });
-  const running = await runningFrizzStatus({ stateDir: control.stateDir, target: control.target });
+  const running = await runningNtwineStatus({ stateDir: control.stateDir, target: control.target });
   if (!running) {
-    console.log("Frizz is not running");
+    console.log("Ntwine is not running");
     process.exit(1);
   }
   console.log(`running: http://127.0.0.1:${running.port}`);
@@ -294,19 +295,19 @@ if (options.sessions || options.signOut !== undefined) {
   // no board is up — starting one here would create an empty directory and answer a different question.
   const port = runningBoardPort();
   if (!port) {
-    console.error("frizz: Frizz is not running");
+    console.error("ntwine: Ntwine is not running");
     process.exit(1);
   }
   if (options.signOut !== undefined) await signOutSession(port, options.signOut);
   await listSessions(port);
 }
 if (options.link) {
-  // Mint from the RUNNING board rather than starting one — the same query frizz-dev answers
+  // Mint from the RUNNING board rather than starting one — the same query ntwine-dev answers
   // (src/index.ts): the answer for a board running detached or in someone else's terminal, where
   // the interactive QR pane cannot install.
   const port = runningBoardPort();
   if (!port) {
-    console.error("frizz: Frizz is not running");
+    console.error("ntwine: Ntwine is not running");
     process.exit(1);
   }
   const response = await fetch(`http://127.0.0.1:${port}${SUPERVISOR_ACCESS_CODE_PATH}`, {
@@ -315,7 +316,7 @@ if (options.link) {
   }).catch(() => undefined);
   if (!response?.ok) {
     const detail = response ? (await response.json().catch(() => undefined))?.error : undefined;
-    console.error(`frizz: ${detail ?? "could not mint an access link"}`);
+    console.error(`ntwine: ${detail ?? "could not mint an access link"}`);
     process.exit(1);
   }
   const { url } = (await response.json()) as { url: string };
@@ -329,35 +330,35 @@ if (options.link) {
 // Every launch leaves a complete record on disk, so a crash is never silent. The forked control-plane
 // child appends to this same file rather than writing to the terminal the readout is repainting.
 const logger: Logger = setAmbientLogger(
-  process.env.FRIZZ_LOG_FILE
-    ? createLogger({ file: process.env.FRIZZ_LOG_FILE, owner: false })
+  process.env.NTWINE_LOG_FILE
+    ? createLogger({ file: process.env.NTWINE_LOG_FILE, owner: false })
     : createLogger({ file: runLogPath(workspace.stateDir) }),
 );
-const readout = reexec || process.env.FRIZZ_PRODUCTION_SUPERVISOR === "1"
+const readout = reexec || process.env.NTWINE_PRODUCTION_SUPERVISOR === "1"
   ? undefined
   : new Readout({ debug: options.debug });
 /**
  * Where supervisor lifecycle beats print. Normally the boot readout — but a launcher that execve'd
- * itself into this release through Update Frizz has no boot to narrate and still owns the operator's
+ * itself into this release through Update Ntwine has no boot to narrate and still owns the operator's
  * terminal, so it gets a notice-only one rather than falling silent for the rest of the session. The
  * detached fallback successor has no terminal at all (stdio ignored) and stays quiet, as before.
  */
 const activityReadout =
   readout ?? (reexec && process.stdout.isTTY ? noticeOnlyReadout({}) : undefined);
-attachTerminalMirror(logger, options.debug || process.env.FRIZZ_DEBUG === "1");
+attachTerminalMirror(logger, options.debug || process.env.NTWINE_DEBUG === "1");
 readout?.plan([
   { key: "server", label: "Server" },
   { key: "browser", label: options.noApp ? "Address" : "Browser" },
 ]);
 readout?.begin("server", "starting");
-logger.info("launcher", `Frizz launcher ${PACKAGE_VERSION} starting in ${launchDir}`);
+logger.info("launcher", `Ntwine launcher ${PACKAGE_VERSION} starting in ${launchDir}`);
 const target = workspaceLaunchTarget(workspace);
 const expected = expectedOwnerHealth(target, readProjectLaunchOwner(workspace.stateDir));
 
 async function existingPort(): Promise<number | undefined> {
   const owner = liveWorkspaceOwner(workspace.stateDir, target);
   const ports = [owner?.port, readPreferredPort(workspace.stateDir)].filter((value): value is number => !!value);
-  for (const port of new Set(ports)) if (await probeFrizz(port, expected)) return port;
+  for (const port of new Set(ports)) if (await probeNtwine(port, expected)) return port;
   return undefined;
 }
 
@@ -386,7 +387,7 @@ function legacyProject(): { id: string; root: string; name: string; slug: string
   if (intent.kind !== "open") return undefined;
   const { id, root, name } = intent.workspace;
   try {
-    // `launched`: this registration IS a launch — `frizz` run here — so it stamps lastLaunchedAt, the
+    // `launched`: this registration IS a launch — `ntwine` run here — so it stamps lastLaunchedAt, the
     // board a bare `/` opens in a browser with no view on record and the project All projects' prompt
     // box aims a new thread at (web lib/crossProject.ts lastViewHref, defaultCrossProjectFocus). The
     // server's own answer stamps it the same way (launch-routing.ts routeLaunch). Only an `open` launch
@@ -404,7 +405,7 @@ function legacyProject(): { id: string; root: string; name: string; slug: string
  * on 2026-10-06, colinhacks/frizz 0a3b9139):
  *
  *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
- *   - run in a repository Frizz has not seen (`offer`): the add-project dialog asking about it,
+ *   - run in a repository Ntwine has not seen (`offer`): the add-project dialog asking about it,
  *     `/?add=<dir>`, over whichever view this browser was on last (web routes.tsx LastViewRedirect);
  *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
  *   - a project the registry cannot record, or a folder that cannot be opened: `/`, the browser's own
@@ -441,13 +442,13 @@ async function resolveLanding(port: number, ownerToken: string | undefined): Pro
  * opens a project joins it when it serves that project, exactly as it always has. Nothing about the
  * folder is read unless something is actually listening there.
  */
-async function joinPreSplitFrizz(): Promise<number | undefined> {
+async function joinPreSplitNtwine(): Promise<number | undefined> {
   for (const port of new Set([DEFAULT_PORT, fallbackPort(DEFAULT_PORT)])) {
-    if (!(await readFrizzHealth(port))) continue;
+    if (!(await readNtwineHealth(port))) continue;
     let project: ReturnType<typeof legacyProject>;
     try { project = legacyProject(); } catch { return undefined; }
     if (!project) return undefined;
-    if (await probeFrizz(port, { projectId: project.id, projectDir: project.root, slug: project.slug })) return port;
+    if (await probeNtwine(port, { projectId: project.id, projectDir: project.root, slug: project.slug })) return port;
   }
   return undefined;
 }
@@ -458,12 +459,12 @@ async function joinPreSplitFrizz(): Promise<number | undefined> {
  * dedicated app window, `--no-app` prints the URL and nothing else, and a browser that refuses to
  * open degrades to the URL instead of failing the launch.
  *
- * It printed the URL and stopped there from the day this file was written, so `npx frizz` never
- * opened anything while `frizz-dev` always did — the whole divergence the operator hit.
+ * It printed the URL and stopped there from the day this file was written, so `npx ntwine` never
+ * opened anything while `ntwine-dev` always did — the whole divergence the operator hit.
  */
 async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute): Promise<void> {
   const url = `http://127.0.0.1:${port}${landing.path}`;
-  logger.info("launcher", `${reused ? "reusing" : "started"} Frizz at ${url}`);
+  logger.info("launcher", `${reused ? "reusing" : "started"} Ntwine at ${url}`);
   readout?.settle("server", "done", reused ? `already running on port ${port}` : `port ${port}`);
   let browser: string | undefined;
   if (!options.noApp) {
@@ -471,7 +472,7 @@ async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute):
     try {
       if (options.appMode) {
         await launchApp(url, { dataPath: join(workspace.stateDir, "browser-profile") });
-        browser = reused ? "focused the Frizz app window" : "opened the Frizz app window";
+        browser = reused ? "focused the Ntwine app window" : "opened the Ntwine app window";
       } else {
         await launchBrowserTab(url);
         browser = "opened in your default browser";
@@ -492,7 +493,7 @@ async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute):
   if (sessionNotice && !reused) warnings.push(sessionNotice);
   if (landing.notice) warnings.push(landing.notice);
   if (!readout) {
-    console.log(`${reused ? "reusing" : "started"} Frizz${landing.project ? ` for ${landing.project.dir}` : ""}`);
+    console.log(`${reused ? "reusing" : "started"} Ntwine${landing.project ? ` for ${landing.project.dir}` : ""}`);
     console.log(url);
     if (publicOrigin) console.log(activeAccessLink?.url ?? `${publicOrigin}/`);
     for (const warning of warnings) console.log(warning);
@@ -504,13 +505,13 @@ async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute):
       { label: "Local", value: boardAddress(url), accent: true },
       ...(publicOrigin ? [{ label: "Public", value: activeAccessLink?.url ?? `${publicOrigin}/`, accent: true }] : []),
       // Only a launch that OPENED a project names one: the dashboard and an offer are about no
-      // project, and the folder the server runs on is Frizz's own.
+      // project, and the folder the server runs on is Ntwine's own.
       ...(landing.project ? [{ label: "Project", value: `${landing.project.name} — ${tildePath(landing.project.dir, home)}` }] : []),
       ...(logger.file ? [{ label: "Logs", value: tildePath(logger.file, home) }] : []),
     ],
     reused
       ? // This launch owns nothing and exits immediately, so ctrl-c would not stop what it reopened.
-        "reopened the Frizz already running on this machine · stop it from the terminal that started it"
+        "reopened the Ntwine already running on this machine · stop it from the terminal that started it"
       : options.debug
         ? undefined
         : publicOrigin
@@ -531,29 +532,29 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   const env = projectLaunchEnvironment(
     {
       ...process.env,
-      FRIZZ_PRODUCTION_SUPERVISOR: "1",
-      FRIZZ_SERVER_OWNERSHIP: JSON.stringify(projectLaunchEnvironment({}, serverOwner.target, serverOwner.token)),
+      NTWINE_PRODUCTION_SUPERVISOR: "1",
+      NTWINE_SERVER_OWNERSHIP: JSON.stringify(projectLaunchEnvironment({}, serverOwner.target, serverOwner.token)),
       ...logEnvironment(logger, options.debug ? "debug" : "info"),
-      ...(options.debug ? { FRIZZ_DEBUG: "1" } : {}),
+      ...(options.debug ? { NTWINE_DEBUG: "1" } : {}),
     },
     target,
     owner.token,
   );
   const manifest: unknown = JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8"));
-  const spec = serverReleaseSpec(manifest, process.env.FRIZZ_SERVER_PACKAGE);
+  const spec = serverReleaseSpec(manifest, process.env.NTWINE_SERVER_PACKAGE);
   const installer = npmServerPackageInstaller(env);
   const store = new ServerReleaseStore(spec, installer, undefined, undefined, serverReleaseMinimum(manifest));
-  // The one time starting Frizz replaces the server without a click on Update, so it is said out
+  // The one time starting Ntwine replaces the server without a click on Update, so it is said out
   // loud and written down: the selection moves, and the log is where someone asks why it did.
   const raise = store.belowMinimum();
   if (raise)
-    logger.info("launcher", `the installed Frizz server ${raise.selected} is older than this launcher works with (${raise.minimum}); starting on ${raise.pinned}`);
+    logger.info("launcher", `the installed Ntwine server ${raise.selected} is older than this launcher works with (${raise.minimum}); starting on ${raise.pinned}`);
   activityReadout?.notice(
     "progress",
     "Starting",
     raise
-      ? `installing Frizz server ${raise.pinned}: ${raise.selected} is older than this launcher works with`
-      : "loading the selected Frizz server release",
+      ? `installing Ntwine server ${raise.pinned}: ${raise.selected} is older than this launcher works with`
+      : "loading the selected Ntwine server release",
   );
   let active = await store.load();
   let pending: ServerGeneration | undefined;
@@ -566,7 +567,7 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   //
   // Seeded `false`, not `true`. It started optimistic so the button would not flip from Restart to
   // Update a second after load — but the flip that actually happens is the other way: right after
-  // an update the successor seeded `true` again and the reloaded tab showed "Update Frizz" naming a
+  // an update the successor seeded `true` again and the reloaded tab showed "Update Ntwine" naming a
   // version it already was, and a click in that window failed with "already current" presented as
   // an error; offline, the seed never cleared at all and every click was a red failure (audit
   // 2026-09-11, finding 5). A Restart that becomes Update once the registry answers is the cheaper
@@ -592,7 +593,7 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
       // that simply stopped offering updates with nothing anywhere to say so: on 2026-10-11 one had
       // failed every half hour for twenty hours, and the first sign of it was a failed Update click.
       const message = error instanceof Error ? error.message : String(error);
-      if (message !== probeFailure) logger.warn("launcher", `could not check npm for a newer Frizz server: ${message}`);
+      if (message !== probeFailure) logger.warn("launcher", `could not check npm for a newer Ntwine server: ${message}`);
       probeFailure = message;
     }
   };
@@ -600,8 +601,8 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   const updateAvailablePoll = setInterval(() => void refreshUpdateAvailable(), 30 * 60 * 1000);
   updateAvailablePoll.unref();
 
-  // Persisted in Frizz's own state folder, so a restart does not sign every device out — and neither
-  // does starting Frizz from a different folder, which it did while this lived under whichever
+  // Persisted in Ntwine's own state folder, so a restart does not sign every device out — and neither
+  // does starting Ntwine from a different folder, which it did while this lived under whichever
   // project the launch happened in. The first start here brings that project's state along
   // (adoptSessionState), so the move itself signs nobody out either.
   // Always, not only when public: the origin can be switched on later (press R), and a phone signed
@@ -651,13 +652,13 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
       previous = active;
       try {
         const plan = await planRegistryUpdate(spec.package, active.version, installer);
-        if (!plan) { updateAvailable = false; updateVersion = undefined; return { state: "failed" as const, message: `Frizz ${active.version} is already current` }; }
+        if (!plan) { updateAvailable = false; updateVersion = undefined; return { state: "failed" as const, message: `Ntwine ${active.version} is already current` }; }
         updateAvailable = true;
         updateVersion = plan.latestVersion;
         // Install while the current server serves. Selection remains provisional until the new
         // child is ready; the durable launcher, listener, terminal and tunnels never move.
         pending = await store.prepare(plan.latestVersion);
-        return { state: "ready" as const, message: `Frizz ${plan.latestVersion} is installed and compatible` };
+        return { state: "ready" as const, message: `Ntwine ${plan.latestVersion} is installed and compatible` };
       } catch (error) {
         return { state: "failed" as const, message: error instanceof Error ? error.message : String(error) };
       }
@@ -677,11 +678,11 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
     },
   });
   publishStableServerAddress(serverOwner, port);
-  // The first single-use link, minted now that the board can redeem it. The old `?frizz_token=` this
+  // The first single-use link, minted now that the board can redeem it. The old `?ntwine_token=` this
   // replaced was a STANDING secret: it never expired and never rotated, so anything that saw it once
   // — a screenshot, scrollback, a chat log — kept working forever.
   // Serve the saved setup, offer Settings → Remote access, and bind L and R (remote-wiring.ts).
-  const wiring = await wireRemote({ supervisor, port, log: logger, say: (message) => console.error(`frizz: ${message}`), sandbox: sandbox !== null });
+  const wiring = await wireRemote({ supervisor, port, log: logger, say: (message) => console.error(`ntwine: ${message}`), sandbox: sandbox !== null });
   remote = wiring.remote;
   activeAccessLink = wiring.firstLink;
   accessPane = wiring.accessPane;
@@ -705,12 +706,12 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
       const suffix = logger.file ? `\n  log: ${tildePath(logger.file, homedir())}` : "";
       process.stdout.write(
         code === 0
-          ? `\n  Frizz stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
-          : `\n  Frizz stopped with errors (exit ${code}).${suffix}\n\n`,
+          ? `\n  Ntwine stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
+          : `\n  Ntwine stopped with errors (exit ${code}).${suffix}\n\n`,
       );
       process.exit(code);
     },
-    error: (line) => logger.error("supervisor", line.startsWith("[frizz] ") ? line.slice(10) : line),
+    error: (line) => logger.error("supervisor", line.startsWith("[ntwine] ") ? line.slice(10) : line),
   });
   // SIGHUP is what closing a terminal sends, and Node's default action for it is to die on the spot —
   // so without this the launcher was killed WITHOUT running `stop`, and the control-plane child (which
@@ -730,7 +731,7 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
     activityReadout?.notice(
       "done",
       "Updated",
-      `Frizz ${active.version} is serving on port ${port} · ctrl-c to stop${globalInstall ? ` · ${keepUpdateHint(PACKAGE_NAME, PACKAGE_VERSION)}` : ""}`,
+      `Ntwine ${active.version} is serving on port ${port} · ctrl-c to stop${globalInstall ? ` · ${keepUpdateHint(PACKAGE_NAME, PACKAGE_VERSION)}` : ""}`,
     );
   }
   return await new Promise<never>(() => {});
@@ -740,32 +741,32 @@ try {
   // Hold this across downloads, child handoffs and recovery. A 503 from the application is never
   // permission to start a second scheduler, and a custom port is just as discoverable as the default.
   const globalClaim = acquireStableServerOwner();
-  if (globalClaim.kind === "busy") throw new Error("Frizz is starting or recovering on this machine; retry shortly");
+  if (globalClaim.kind === "busy") throw new Error("Ntwine is starting or recovering on this machine; retry shortly");
   if (globalClaim.kind === "running") {
     if (options.port && options.port !== globalClaim.port)
-      throw new Error(`Frizz is already running on port ${globalClaim.port}; --port cannot change a running server`);
+      throw new Error(`Ntwine is already running on port ${globalClaim.port}; --port cannot change a running server`);
     // The token in the record that named this server is what lets a launch in ANY folder ask it.
     await openOrPrint(globalClaim.port, true, await resolveLanding(globalClaim.port, globalClaim.owner.token));
     process.exit(0);
   }
   serverOwner = globalClaim.lease;
-  if (process.env.FRIZZ_PRODUCTION_SUPERVISOR === "1" || reexec) {
+  if (process.env.NTWINE_PRODUCTION_SUPERVISOR === "1" || reexec) {
     if (!options.port) throw new Error("internal registry supervisor launch is missing --port");
     const token = projectLaunchOwnerTokenFromEnvironment(process.env);
     if (!token) throw new Error("registry supervisor launch is missing project ownership");
     await runSupervisor(options.port, token);
   }
-  // A Frizz already running on Frizz's own folder that does not hold the machine-wide record — the
+  // An Ntwine already running on Ntwine's own folder that does not hold the machine-wide record — the
   // source launcher started outside a project. Its launch token is in the record it does publish.
   const existing = await existingPort();
   if (existing) {
     await openOrPrint(existing, true, await resolveLanding(existing, readProjectLaunchOwner(workspace.stateDir)?.token));
     process.exit(0);
   }
-  const preSplit = await joinPreSplitFrizz();
+  const preSplit = await joinPreSplitNtwine();
   if (preSplit) { await openOrPrint(preSplit, true, legacyLanding()); process.exit(0); }
   const claim = tryAcquireProjectLaunchOwner(target, "launcher");
-  if (claim.kind !== "acquired") throw new Error("Frizz is starting on this machine; retry shortly");
+  if (claim.kind !== "acquired") throw new Error("Ntwine is starting on this machine; retry shortly");
   let release: (() => void) | undefined = await acquireGlobalLaunchLock();
   let portReservation: (() => void) | undefined;
   try {
@@ -775,7 +776,7 @@ try {
     // The supervisor owns the rest of this process's life (runSupervisor never returns), so start it
     // WITHOUT awaiting and race it against health. Awaiting it directly is what made everything below
     // unreachable: parseCliArgs pins `foreground` to true, so the old `if (options.foreground) await
-    // runSupervisor(...)` always won and a cold `npx frizz` never printed its URL, never opened a
+    // runSupervisor(...)` always won and a cold `npx ntwine` never printed its URL, never opened a
     // browser, and never released the lock it took — the detached-spawn branch that used to follow was
     // dead code the day parseCliArgs stopped honouring --detach.
     let didPrepare!: () => void;
@@ -783,7 +784,7 @@ try {
     const running = runSupervisor(port, claim.lease.token, didPrepare);
     // Allocation is the only machine-shared step, so the machine-global lock ends HERE — the port
     // reservation above, not this lock, keeps `port` ours until the child listens. Holding it across
-    // the progress-tracked wait below meant one cold `npx frizz` could sit on it for minutes while
+    // the progress-tracked wait below meant one cold `npx ntwine` could sit on it for minutes while
     // every other repository's launcher gave up after a far shorter budget.
     release();
     release = undefined;

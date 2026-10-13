@@ -1,7 +1,7 @@
 // Which commands the job gate holds, and how heavy each starts out.
 //
 // Shared by the PreToolUse hook (hook.ts), which must decide in a few milliseconds whether to wrap a
-// Bash call, and by frizz-run (gate.ts), which needs a default estimate and a stable signature for a
+// Bash call, and by ntwine-run (gate.ts), which needs a default estimate and a stable signature for a
 // command it has never measured. So this module reads only its arguments: no fs, no /proc.
 //
 // The lists come from what workers on this machine actually run (a scan of 25k Bash calls across four

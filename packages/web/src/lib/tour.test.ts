@@ -24,17 +24,17 @@ test("a new browser starts the tour, and ending it is remembered", async () => {
   tour.setTourStep(2)
   tour.endTour()
   assert.equal(tour.hasOnboarded(), true)
-  assert.equal(map.get("frizz.onboarded"), "1")
+  assert.equal(map.get("ntwine.onboarded"), "1")
   const again = await load()
   assert.equal(again.hasOnboarded(), true, "the next page load does not start it again")
 })
 
 test("a browser that already showed a view, from before the onboarding, still gets it once", async () => {
-  const map = storage({ "frizz.lastView": "all" })
+  const map = storage({ "ntwine.lastView": "all" })
   const tour = await load()
   assert.equal(tour.hasOnboarded(), false)
   tour.endTour()
-  assert.equal(map.get("frizz.onboarded"), "1")
+  assert.equal(map.get("ntwine.onboarded"), "1")
 })
 
 test("with storage unavailable nothing could remember the tour, so it never starts on its own", async () => {

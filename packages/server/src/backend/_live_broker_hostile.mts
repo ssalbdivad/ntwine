@@ -14,7 +14,7 @@
 // the shapes that actually break validators, and asserts the only thing that finally matters: the
 // session is still alive and still answering afterwards.
 //
-// Every case below is either a shape that HAS broken frizz or one sitting directly on a bound in
+// Every case below is either a shape that HAS broken ntwine or one sitting directly on a bound in
 // claude-agent-sdk-protocol.ts. When you add a bound, add a case.
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs"
@@ -74,7 +74,7 @@ async function stillAlive(token: string, timeoutMs = 180_000): Promise<boolean> 
     if (!bridge.isDaemonAlive(sessionId)) return false
     if (readClaudeBrokerDiagnostics(stateDir, sessionId).some((r) => r.diagnostic.kind === "lifecycle" && r.diagnostic.phase === "crashed")) return false
     // Find the transcript by SCANNING for the session id rather than recomputing claude's cwd slug —
-    // the slug derivation is claude's, not frizz's, and getting it subtly wrong makes this helper
+    // the slug derivation is claude's, not ntwine's, and getting it subtly wrong makes this helper
     // report a dead session that is in fact perfectly healthy. (It did exactly that on first run.)
     if (transcriptText().includes(token)) return true
     await sleep(2_000)

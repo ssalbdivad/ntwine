@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
-import { deadlineStageAtMs, formatDeadlineLeft, parseDeadlineInput, type ThreadDeadlineView } from "@frizz/shared"
+import { deadlineStageAtMs, formatDeadlineLeft, parseDeadlineInput, type ThreadDeadlineView } from "@ntwine/shared"
 import { formatSnoozeWake } from "./snooze.ts"
 import { useNowMs } from "./liveClock.ts"
 
 // A THREAD'S TIME LIMIT, AS THE BROWSER READS AND WRITES IT (ARCHITECTURE.md § Time limits).
 //
-// The grammar and the reading are shared with the server (@frizz/shared deadline.ts): `parseDeadlineInput`
+// The grammar and the reading are shared with the server (@ntwine/shared deadline.ts): `parseDeadlineInput`
 // is the one parser of what the human types, `formatDeadlineLeft` the one "42m left" / "over by 8m". This
 // file holds only what is the browser's: how loud the reading is, how often it ticks, the "Ends 3:30 PM"
 // preview, and the arithmetic of the drawer's extend presets.

@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * frizz — agent-liveness helper for the Stop hook.
+ * ntwine — agent-liveness helper for the Stop hook.
  *
  * Background sub-agents are bound to their thread AUTOMATICALLY: the `agent-bind`
- * PostToolUse hook records `agentId → thread` into `.frizz/.agent-bindings.jsonl` at
+ * PostToolUse hook records `agentId → thread` into `.ntwine/.agent-bindings.jsonl` at
  * dispatch (see `./agent-bindings.mjs`). This module reads that ephemeral binding to learn
  * which agents serve which thread, then DERIVES each one's real liveness from ground truth
  * and returns reminder LINES for the Stop hook to surface. Hooks cannot call
@@ -37,8 +37,8 @@
  *   - (thread terminal / parked / downstream / fresh agent → say nothing.)
  *
  * Thresholds (minutes), tunable via env for experimentation:
- *   FRIZZ_IDLE_MIN    (default 10) — quiet this long → soft idle note.
- *   FRIZZ_DROPPED_MIN (default 45, FRIZZ_FROZEN_MIN honored as the old alias) — quiet this long
+ *   NTWINE_IDLE_MIN    (default 10) — quiet this long → soft idle note.
+ *   NTWINE_DROPPED_MIN (default 45, NTWINE_FROZEN_MIN honored as the old alias) — quiet this long
  *      AND rested → call it dropped. Deliberately generous: a real agent legitimately arms a
  *      CI watcher and sits silent for 30–40 min, so 45 min lets the watcher fire and resume it
  *      before we ever flag. Tune via the env var for faster- or slower-paced repos.
@@ -51,7 +51,7 @@ import { join } from 'node:path';
 import { deriveAgentState, findAgentOutputAge, IDLE_MIN, DROPPED_MIN, LONG_RUNTIME_MIN } from './agent-status.mjs';
 import { newestBindingByThread, downstreamThreads, restedAgentIds } from './agent-bindings.mjs';
 
-// Thread-level terminal statuses (frontmatter `status:`), matching scripts/frizz TERMINAL.
+// Thread-level terminal statuses (frontmatter `status:`), matching scripts/ntwine TERMINAL.
 const TERMINAL_THREAD = new Set(['done', 'dismissed']);
 
 /**
@@ -124,7 +124,7 @@ export function agentLivenessLines({ transcriptPath, projectDir, now = Date.now(
   const idle = [];
   try {
     const tasksDir = deriveTasksDir(transcriptPath); // may be null → agentAge falls back to glob
-    const frizzDir = join(projectDir, '.frizz');
+    const ntwineDir = join(projectDir, '.ntwine');
 
     // AUTOMATIC binding: the NEWEST agent serving each thread (a superseded older agent is
     // never considered). Plus the merge-cascade set (suppress mid-merge threads) and the rest
@@ -135,7 +135,7 @@ export function agentLivenessLines({ transcriptPath, projectDir, now = Date.now(
 
     let files;
     try {
-      files = readdirSync(frizzDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
+      files = readdirSync(ntwineDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
     } catch {
       return dropped;
     }
@@ -147,7 +147,7 @@ export function agentLivenessLines({ transcriptPath, projectDir, now = Date.now(
 
       let src;
       try {
-        src = readFileSync(join(frizzDir, f), 'utf8');
+        src = readFileSync(join(ntwineDir, f), 'utf8');
       } catch {
         continue;
       }
@@ -168,7 +168,7 @@ export function agentLivenessLines({ transcriptPath, projectDir, now = Date.now(
       if (state === 'dropped') {
         dropped.push(`⚠ ACTIVE THREAD, NO LIVE AGENT: ${slug} — its newest agent ${who} has been quiet ${Math.round(ageMin ?? 0)}m with no PR/merge in flight, so it likely finished or dropped. Fold its report and flip the thread to done, or resume it (SendMessage ${binding.id.slice(0, 9)}) if it's still mid-task.`);
       } else if (state === 'idle') {
-        idle.push(`frizz: thread ${slug} — agent ${who} quiet ${Math.round(ageMin ?? 0)}m. Fine if it's watching CI or mid-build; check in (SendMessage) if that's unexpected.`);
+        idle.push(`ntwine: thread ${slug} — agent ${who} quiet ${Math.round(ageMin ?? 0)}m. Fine if it's watching CI or mid-build; check in (SendMessage) if that's unexpected.`);
       }
       // 'terminal' (reconciled / parked / downstream), 'fresh' (working), 'unknown' (no file) → say nothing.
     }
@@ -212,7 +212,7 @@ export function liveBoundAgentForThread({ slug, transcriptPath, projectDir, now 
     if (!binding) return null;
     let src;
     try {
-      src = readFileSync(join(projectDir, '.frizz', `${slug}.md`), 'utf8');
+      src = readFileSync(join(projectDir, '.ntwine', `${slug}.md`), 'utf8');
     } catch {
       return null; // no thread file → nothing to steer
     }
@@ -244,12 +244,12 @@ export function liveBoundAgentForThread({ slug, transcriptPath, projectDir, now 
 export function runningAgentCount({ transcriptPath, projectDir, now = Date.now() }) {
   try {
     const tasksDir = deriveTasksDir(transcriptPath);
-    const frizzDir = join(projectDir, '.frizz');
+    const ntwineDir = join(projectDir, '.ntwine');
     const newest = newestBindingByThread(projectDir);
     const rested = restedAgentIds(projectDir);
     let files;
     try {
-      files = readdirSync(frizzDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
+      files = readdirSync(ntwineDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
     } catch {
       return 0;
     }
@@ -262,7 +262,7 @@ export function runningAgentCount({ transcriptPath, projectDir, now = Date.now()
       seen.add(binding.id);
       let src;
       try {
-        src = readFileSync(join(frizzDir, f), 'utf8');
+        src = readFileSync(join(ntwineDir, f), 'utf8');
       } catch {
         continue;
       }
@@ -316,12 +316,12 @@ export function longRunningAgentLines({ transcriptPath, projectDir, now = Date.n
   const out = [];
   try {
     const tasksDir = deriveTasksDir(transcriptPath);
-    const frizzDir = join(projectDir, '.frizz');
+    const ntwineDir = join(projectDir, '.ntwine');
     const newest = newestBindingByThread(projectDir);
     const downstream = downstreamThreads(projectDir);
     let files;
     try {
-      files = readdirSync(frizzDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
+      files = readdirSync(ntwineDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
     } catch {
       return out;
     }
@@ -331,7 +331,7 @@ export function longRunningAgentLines({ transcriptPath, projectDir, now = Date.n
       if (!binding) continue;
       let src;
       try {
-        src = readFileSync(join(frizzDir, f), 'utf8');
+        src = readFileSync(join(ntwineDir, f), 'utf8');
       } catch {
         continue;
       }

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * frizz — `frizz-update` (thread-update.mjs) write-time invariant tests.
+ * ntwine — `ntwine-update` (thread-update.mjs) write-time invariant tests.
  * Run with: `node --test board/*.test.mjs`.
  *
  * The load-bearing invariant: a `needs-human` thread — OR a `status: blocked` thread with NO
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const UPDATE = join(dirname(fileURLToPath(import.meta.url)), 'thread-update.mjs');
 
-/** Run frizz-update against a fixture dir; returns {code, stderr}. Never throws on non-zero. */
+/** Run ntwine-update against a fixture dir; returns {code, stderr}. Never throws on non-zero. */
 function update(dir, argv) {
   try {
     execFileSync(process.execPath, [UPDATE, ...argv], {
@@ -31,14 +31,14 @@ function update(dir, argv) {
   }
 }
 
-/** Stand up a `.frizz/<slug>.md` fixture with the given frontmatter body. */
+/** Stand up a `.ntwine/<slug>.md` fixture with the given frontmatter body. */
 function seed(dir, slug, fm) {
-  mkdirSync(join(dir, '.frizz'), { recursive: true });
-  writeFileSync(join(dir, '.frizz', `${slug}.md`), `---\ntitle: t\n${fm}\n---\nbody\n`);
+  mkdirSync(join(dir, '.ntwine'), { recursive: true });
+  writeFileSync(join(dir, '.ntwine', `${slug}.md`), `---\ntitle: t\n${fm}\n---\nbody\n`);
 }
 
-test('frizz-update: blocked with no mechanism and no status_text is REFUSED', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-upd-'));
+test('ntwine-update: blocked with no mechanism and no status_text is REFUSED', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-upd-'));
   try {
     seed(dir, 't', 'status: active');
     const r = update(dir, ['t', '--status', 'blocked']);
@@ -49,8 +49,8 @@ test('frizz-update: blocked with no mechanism and no status_text is REFUSED', ()
   }
 });
 
-test('frizz-update: --set blocking_threads=[] (empty) does NOT satisfy the machine-field exemption', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-upd-'));
+test('ntwine-update: --set blocking_threads=[] (empty) does NOT satisfy the machine-field exemption', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-upd-'));
   try {
     seed(dir, 't', 'status: active');
     // An empty list is "no machine field" → still human-blocked → still needs status_text.
@@ -60,14 +60,14 @@ test('frizz-update: --set blocking_threads=[] (empty) does NOT satisfy the machi
       assert.match(r.stderr, /reads as needs-human/, `--set ${empty} must not bypass the invariant`);
     }
     // The thread was never rewritten to the malformed state.
-    assert.match(readFileSync(join(dir, '.frizz', 't.md'), 'utf8'), /status: active/);
+    assert.match(readFileSync(join(dir, '.ntwine', 't.md'), 'utf8'), /status: active/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('frizz-update: a real machine field OR a status_text satisfies the invariant', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-upd-'));
+test('ntwine-update: a real machine field OR a status_text satisfies the invariant', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-upd-'));
   try {
     // (a) a non-empty blocking_threads exempts it (machine-blocked).
     seed(dir, 'm', 'status: active');
@@ -75,14 +75,14 @@ test('frizz-update: a real machine field OR a status_text satisfies the invarian
     // (b) a status_text write-up satisfies it (human-blocked, properly).
     seed(dir, 'h', 'status: active');
     assert.equal(update(dir, ['h', '--status', 'blocked', '--status-text', 'which default?']).code, 0);
-    assert.match(readFileSync(join(dir, '.frizz', 'h.md'), 'utf8'), /status_text: .*which default\?/);
+    assert.match(readFileSync(join(dir, '.ntwine', 'h.md'), 'utf8'), /status_text: .*which default\?/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('frizz-update: needs-human REQUIRES a status_text; with one it writes `status: needs-human`', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-upd-'));
+test('ntwine-update: needs-human REQUIRES a status_text; with one it writes `status: needs-human`', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-upd-'));
   try {
     // (a) needs-human with no status_text is REFUSED.
     seed(dir, 'n', 'status: active');
@@ -91,11 +91,11 @@ test('frizz-update: needs-human REQUIRES a status_text; with one it writes `stat
     assert.match(r.stderr, /needs-human.*REQUIRES a status_text/);
     // (b) needs-human WITH a status_text writes the canonical word.
     assert.equal(update(dir, ['n', '--status', 'needs-human', '--status-text', 'approve the API shape?']).code, 0);
-    assert.match(readFileSync(join(dir, '.frizz', 'n.md'), 'utf8'), /status: needs-human/);
+    assert.match(readFileSync(join(dir, '.ntwine', 'n.md'), 'utf8'), /status: needs-human/);
     // (c) the legacy `needs-decision` alias writes canonical `needs-human`.
     seed(dir, 'nd', 'status: active');
     assert.equal(update(dir, ['nd', '--status', 'needs-decision', '--status-text', 'pick a default']).code, 0);
-    assert.match(readFileSync(join(dir, '.frizz', 'nd.md'), 'utf8'), /status: needs-human/);
+    assert.match(readFileSync(join(dir, '.ntwine', 'nd.md'), 'utf8'), /status: needs-human/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

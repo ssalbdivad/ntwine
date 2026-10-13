@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Drag
 import { Layers, Plus } from "lucide-react"
 import { Link } from "react-router"
 import { useSnapshot } from "valtio"
-import type { ProjectCard, ProjectRailCounts } from "@frizz/shared"
-import { activeBandThread, boardAskThread } from "@frizz/shared"
+import type { ProjectCard, ProjectRailCounts } from "@ntwine/shared"
+import { activeBandThread, boardAskThread } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { queued } from "../groups.ts"
 import { asThreads } from "../hooks.ts"
@@ -24,7 +24,7 @@ import { Tooltip } from "./Tooltip.tsx"
 //
 // Slack's and Discord's rail, and for their reason: once a person is working across a dozen
 // workspaces, "which one am I in" and "take me to another" are constant questions, and a home page
-// answers neither without a round trip. Frizz reached the same point when one server started serving
+// answers neither without a round trip. Ntwine reached the same point when one server started serving
 // every project — upstream's project grid at `/` (this fork's All projects, `/all`) is a fine front door
 // and a poor switcher.
 //
@@ -473,7 +473,7 @@ export function ProjectRail() {
       aria-label="Projects"
       className={`fixed inset-y-0 left-0 z-[60] flex flex-col items-center border-r border-border bg-panel/60 py-3 max-[800px]:hidden ${RAIL_WIDTH_CLASS}`}
     >
-      {/* A STROKE GLYPH, not the Frizz mark. Two reasons, and the second is why it stopped being the
+      {/* A STROKE GLYPH, not the Ntwine mark. Two reasons, and the second is why it stopped being the
           mark: this slot is a destination ("all projects"), and the wordmark said whose app you are
           in — which the rail's own presence already says. And `favicon.svg` carries an feDropShadow
           inside a 512 viewBox with 16px of bleed around a 480 tile, so at 26px it cast a soft shadow
@@ -507,7 +507,7 @@ export function ProjectRail() {
         data-overflowing={overflowing || undefined}
         // `pb-1.5` absorbs the last square's queue badge (5px below its square): without it the badge
         // extends the scroll height, which the bottom fade reads as "there is more" and dims the square.
-        className="frizz-rail-scroll flex w-full min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto pb-1.5"
+        className="ntwine-rail-scroll flex w-full min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto pb-1.5"
       >
         {projects.map((project, index) => (
           <RailLink

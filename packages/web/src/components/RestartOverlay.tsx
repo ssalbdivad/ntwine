@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from "react"
 import { AlertTriangle, RefreshCw, X } from "lucide-react"
 
-// The default copy shown while the supervisor rebuilds and promotes a fresh Frizz artifact. The
+// The default copy shown while the supervisor rebuilds and promotes a fresh Ntwine artifact. The
 // supervisor may hand us a more specific `message`; when it does we show that as the sub-line.
-const RESTART_HEADING = "Updating and restarting Frizz"
+const RESTART_HEADING = "Updating and restarting Ntwine"
 const RESTART_BODY =
   "This may take a moment while the new build is being prepared. All of your threads will continue running normally."
 
 // The copy once the hold has run past its deadline (finding 1, audit 2026-09-11): the old process is
 // gone, nothing answers on the port, and the only remedy is the terminal. `silentFor` is the house
 // duration reading (`3m`, never "3 minutes"), measured by App from the first unanswered poll.
-export const STALLED_HEADING = "Frizz did not come back"
+export const STALLED_HEADING = "Ntwine did not come back"
 export function stalledRestartCopy(silentFor: string | undefined): string {
   const silence = silentFor ? `Nothing has answered for ${silentFor}.` : "Nothing is answering."
-  return `${silence} Restart Frizz from the terminal with npx frizz (or frizz, if it is installed globally). This page reconnects on its own once the board is back.`
+  return `${silence} Restart Ntwine from the terminal with npx ntwine (or ntwine, if it is installed globally). This page reconnects on its own once the board is back.`
 }
 
 // Keys swallowed while the overlay is up, so no background control can be reached or activated:
@@ -23,9 +23,9 @@ export function stalledRestartCopy(silentFor: string | undefined): string {
 //    This covers portaled surfaces (Radix dialogs/menus) that live outside the inert app subtree too.
 //  • Enter — a composer submit, belt-and-suspenders with the blur/focus move.
 //  • ⌘/Ctrl + K/I — the global palette/doc chords (App.tsx), which would otherwise open surfaces
-//    behind the scrim. NOT N: ⌘N is the browser's new-window shortcut and frizz no longer binds it,
+//    behind the scrim. NOT N: ⌘N is the browser's new-window shortcut and ntwine no longer binds it,
 //    so swallowing it here would hijack the browser for no gain.
-// The rpc-layer mutation gate remains as a final backstop; between these, the "Frizz is restarting"
+// The rpc-layer mutation gate remains as a final backstop; between these, the "Ntwine is restarting"
 // red error is unreachable through ordinary interaction.
 function swallowsInteractionKey(event: KeyboardEvent): boolean {
   if (event.key === "Tab" || event.key === "Enter") return true
@@ -41,10 +41,10 @@ function swallowsInteractionKey(event: KeyboardEvent): boolean {
  * Full-viewport blocking modal shown for the entire rebuild+reload window. Unlike the frosted
  * dialogs, this is a HARD block: it grays out the whole app, intercepts every pointer path through
  * its scrim, parks focus on itself and neutralizes the focus/activation keys — the user simply
- * cannot act until Frizz is ready, at which point App reloads this exact route. Sits at z-[300], above
+ * cannot act until Ntwine is ready, at which point App reloads this exact route. Sits at z-[300], above
  * ALL app chrome and every modal (the tallest of which — the shared Radix Dialog — is z-[200]).
  *
- * `stalled` is the one way out that is not "Frizz came back": past the hold's deadline the block is
+ * `stalled` is the one way out that is not "Ntwine came back": past the hold's deadline the block is
  * lifted — no scrim, no focus trap, no key guard, App drops `inert` in step — and the card becomes a
  * dismissible notice pinned to the top, because the board underneath is dead and the operator needs
  * to read what to do, not be walled off from a page that can no longer do anything. Polling continues
@@ -100,7 +100,7 @@ export function RestartOverlay({
           role="alert"
           className="pointer-events-auto w-[min(26rem,calc(100vw-2rem))] rounded-2xl border border-danger-fill/45 bg-elevated p-5 text-left shadow-2xl shadow-shadow-ink/60"
         >
-          {/* The same header row as RestartFailureNotice (RestartFrizzButton.tsx) — mark, title,
+          {/* The same header row as RestartFailureNotice (RestartNtwineButton.tsx) — mark, title,
               dismiss — so the two failure surfaces read as one design and share its measured rhythm. */}
           <div className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-danger-fill/15 text-danger-soft">

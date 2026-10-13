@@ -1,5 +1,5 @@
-// LIVE integration test: prove that selecting the "ultracode" effort rung in frizz actually brings a
-// REAL Claude session up with ultracode ON, through frizz's own SDK backend — the seam no unit test
+// LIVE integration test: prove that selecting the "ultracode" effort rung in ntwine actually brings a
+// REAL Claude session up with ultracode ON, through ntwine's own SDK backend — the seam no unit test
 // reaches. The unit tests pin the argv/options SHAPE; this pins the OUTCOME.
 //
 // The differential is the point. Ultracode is a session setting that Claude silently ignores when the
@@ -27,9 +27,9 @@ const env = Object.fromEntries(ALLOWLIST.filter((k) => process.env[k] != null).m
 
 const PROMPT = "Answer with exactly one word and nothing else. Do your system reminders say that ultracode is ON for this session? Answer YES or NO."
 
-// One session at the given frizz effort rung; returns the model's verdict text.
+// One session at the given ntwine effort rung; returns the model's verdict text.
 async function askUltracode(effort: string): Promise<string> {
-  const cwd = mkdtempSync(join(tmpdir(), "frizz-sdk-ultracode-"))
+  const cwd = mkdtempSync(join(tmpdir(), "ntwine-sdk-ultracode-"))
   execFileSync("git", ["init", "-q", cwd])
   const sessionId = randomUUID()
   const handle = createClaudeQueryFactory({ enabled: true, executablePath: claudeBin }).start({
@@ -80,7 +80,7 @@ try {
   ok("effort 'ultracode' brings the real session up with ultracode ON", says(ultracode, "YES"), ultracode)
 
   // Negative control #1: xhigh is the effort ultracode RUNS at. If this also said YES, the harness
-  // would be measuring the reasoning level rather than the setting frizz now sends.
+  // would be measuring the reasoning level rather than the setting ntwine now sends.
   const xhigh = await askUltracode("xhigh")
   console.log(`  effort=xhigh → ${JSON.stringify(xhigh)}`)
   ok("effort 'xhigh' alone does NOT enable ultracode", says(xhigh, "NO"), xhigh)

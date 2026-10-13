@@ -21,7 +21,7 @@ async function waitFor(predicate: () => boolean, what: string, timeoutMs = 4_000
 }
 
 function scratch(): { dir: string; file: string; cleanup: () => void } {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-file-watch-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-file-watch-"))
   const file = join(dir, "doc.md")
   writeFileSync(file, "one\n")
   return { dir, file, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
@@ -137,6 +137,6 @@ test("readers share one watch per path, and the last release closes it", async (
 
 test("a directory that does not exist cannot be watched, and leaves nothing behind", () => {
   const base = watchedLocalFileCount()
-  assert.throws(() => watchLocalFile(join(tmpdir(), "frizz-no-such-dir-" + process.pid, "x.md"), () => {}))
+  assert.throws(() => watchLocalFile(join(tmpdir(), "ntwine-no-such-dir-" + process.pid, "x.md"), () => {}))
   assert.equal(watchedLocalFileCount(), base)
 })

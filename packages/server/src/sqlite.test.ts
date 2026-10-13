@@ -8,13 +8,13 @@ import Database, { namedParameters } from "./sqlite.ts"
 /**
  * These assertions were written by running them against better-sqlite3 13.0.2 FIRST and recording
  * what it did, so this file pins the adapter to measured behaviour rather than to what the port's
- * author hoped node:sqlite would do. Every case below is one Frizz's storage layer actually depends
+ * author hoped node:sqlite would do. Every case below is one Ntwine's storage layer actually depends
  * on; the four marked DIVERGENCE are places raw node:sqlite behaves differently and the adapter has
  * to correct it.
  */
 
 function withDb<T>(fn: (db: Database, dir: string) => T): T {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sqlite-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sqlite-"))
   const db = new Database(join(dir, "t.db"))
   try {
     return fn(db, dir)
@@ -24,7 +24,7 @@ function withDb<T>(fn: (db: Database, dir: string) => T): T {
   }
 }
 
-test("the pragmas Frizz sets on every connection apply", () => {
+test("the pragmas Ntwine sets on every connection apply", () => {
   withDb((db) => {
     db.pragma("journal_mode = WAL")
     db.pragma("busy_timeout = 5000")
@@ -43,7 +43,7 @@ test("exec returns the database, so chained setup keeps working", () => {
   })
 })
 
-test("statements bind positionally and by bare name, exactly as Frizz calls them", () => {
+test("statements bind positionally and by bare name, exactly as Ntwine calls them", () => {
   withDb((db) => {
     db.exec("create table t (a integer primary key, b text, c integer)")
     db.prepare("insert into t (a,b,c) values (?,?,?)").run(1, "positional", 10)
@@ -58,7 +58,7 @@ test("statements bind positionally and by bare name, exactly as Frizz calls them
 test("a prefixed key also binds — a documented SUPERSET of better-sqlite3, not a port of it", () => {
   // Recorded so the difference is deliberate rather than discovered later: better-sqlite3 REJECTS
   // `{"@a": 1}` with `Missing named parameter "a"`, while node:sqlite accepts the prefixed spelling.
-  // Nothing in Frizz writes keys this way; being laxer here cannot break a caller that never did.
+  // Nothing in Ntwine writes keys this way; being laxer here cannot break a caller that never did.
   withDb((db) => {
     db.exec("create table t (a integer primary key, b text)")
     assert.doesNotThrow(() => db.prepare("insert into t (a,b) values (@a,@b)").run({ "@a": 1, "@b": "prefixed" }))
@@ -80,7 +80,7 @@ test("run reports changes and lastInsertRowid as plain numbers", () => {
 })
 
 test("a whole row object may be bound to a statement that uses only some of its fields", () => {
-  // DIVERGENCE: raw node:sqlite throws "Unknown named parameter". Frizz does this everywhere —
+  // DIVERGENCE: raw node:sqlite throws "Unknown named parameter". Ntwine does this everywhere —
   // normalizeSessionRow hands full SessionRow objects to narrow statements.
   withDb((db) => {
     db.exec("create table t (a integer primary key, b text)")
@@ -231,8 +231,8 @@ test("a default transaction takes the WRITE lock up front, unlike better-sqlite3
   // lock to a write lock, which SQLite cannot always wait for — busy_timeout does not help, the write
   // just fails with "database is locked" and is LOST. Measured across 6 processes × 40 read-then-write
   // transactions: deferred managed 186/240 on better-sqlite3 and 109/240 here; immediate is 240/240 on
-  // both. Frizz's default transactions are all write paths, so they take the lock they are going to need.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sqlite-lock-"))
+  // both. Ntwine's default transactions are all write paths, so they take the lock they are going to need.
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sqlite-lock-"))
   const path = join(dir, "t.db")
   try {
     const writer = new Database(path)
@@ -331,7 +331,7 @@ test("inTransaction is true inside a transaction() body and false once it settle
 })
 
 test("the database exposes its path, and opens read-only on request", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sqlite-ro-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sqlite-ro-"))
   const path = join(dir, "ui.db")
   try {
     const writable = new Database(path)
@@ -350,7 +350,7 @@ test("the database exposes its path, and opens read-only on request", () => {
 })
 
 test("data written by one connection is visible to the next, through a real file", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sqlite-reopen-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sqlite-reopen-"))
   const path = join(dir, "ui.db")
   try {
     const first = new Database(path)

@@ -42,7 +42,7 @@ const snoozedUntil = () =>
 // Negative control: the durable grammar must STILL reject the raw fence shape — the fix normalizes
 // upstream, it does not widen what storage accepts — and must say so in a string the UI can render.
 // Hand-rolled rather than through rpc-client, because the raw status and body ARE what is under test.
-const raw = await fetch(`${origin}/_frizz/rpc/setThreadSnooze`, {
+const raw = await fetch(`${origin}/_ntwine/rpc/setThreadSnooze`, {
   method: "POST",
   headers: { "content-type": "application/json", origin },
   body: JSON.stringify({ slug, until: "2026-07-24T17:00:00Z" }),

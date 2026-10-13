@@ -17,7 +17,7 @@ const sessionMessageLine = () => readFileSync(new URL("./SessionMessageLine.tsx"
 // the virtualized requestEarlier anchor queries it and expects it on ROW wrappers (which also carry
 // data-transcript-row-key). (The project board's queue card anchored on it too, through
 // lib/transcriptPagination's viewport-anchor helpers, until both went on 2026-09-28.) Stamping the same attribute on each nested MESSAGE root would put non-row
-// nodes into those result sets. A message root's own handle is the SEPARATE `data-frizz-msg`
+// nodes into those result sets. A message root's own handle is the SEPARATE `data-ntwine-msg`
 // attribute. One legitimate site: the virtual row wrapper.
 test("a message root never joins the pagination-anchor attribute", () => {
   const source = chatView()
@@ -26,12 +26,12 @@ test("a message root never joins the pagination-anchor attribute", () => {
   assert.match(source, /data-transcript-source-id=\{row\.kind === "message" \? row\.message\.sourceId : undefined\}/)
 })
 
-// `data-frizz-msg` outlived the hover-revealed debug-id chip it was introduced for (dropped 2026-08-01,
+// `data-ntwine-msg` outlived the hover-revealed debug-id chip it was introduced for (dropped 2026-08-01,
 // maintainer: "they're not necessary anymore"). It stays because it is the only per-message handle the
 // e2e suites can select on — workingTailSpacing, metaColumnRhythm, pictureSpacing, singleAnswerCard and
-// frizzWake all query it to find message roots and read their geometry. Losing it in a later cleanup would take
+// ntwineWake all query it to find message roots and read their geometry. Losing it in a later cleanup would take
 // those with it, so the count is pinned here.
-test("every rendered message variant still carries its own data-frizz-msg handle", () => {
+test("every rendered message variant still carries its own data-ntwine-msg handle", () => {
   const sources = [chatView(), wakeDivider(), answersCard(), agentMessage(), sessionMessageLine()]
   // assistant turn, user bubble, event line, reasoning block, the chat-style message one agent sends
   // another (AgentMessage.tsx, 2026-10-08), a slash command's output block (CommandOutputBlock,
@@ -42,6 +42,6 @@ test("every rendered message variant still carries its own data-frizz-msg handle
   // …and, since 2026-10-11 (upstream), answers sent with a note: one message drawn as a card and a
   // bubble, whose shared wrapper carries the handle (AnswersWithNote) so neither half claims it alone;
   // and a message from another session (SessionMessageLine), which took over PeerSessionMessageLine's.
-  const hosts = sources.reduce((n, source) => n + [...source.matchAll(/data-frizz-msg=\{(?:m\.)?sourceId\}/g)].length, 0)
+  const hosts = sources.reduce((n, source) => n + [...source.matchAll(/data-ntwine-msg=\{(?:m\.)?sourceId\}/g)].length, 0)
   assert.equal(hosts, 11, "each rendered message variant must stamp its own sourceId")
 })

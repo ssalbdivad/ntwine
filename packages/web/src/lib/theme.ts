@@ -1,4 +1,4 @@
-import { EMBED_THEME_COLORS } from "@frizz/shared"
+import { EMBED_THEME_COLORS } from "@ntwine/shared"
 import { embedPalette, embedTheme, rememberEmbedTheme, type HostPalette } from "./embed.ts"
 import { derivedTokens } from "./hostPalette.ts"
 
@@ -10,7 +10,7 @@ export interface ThemeSnapshot {
   resolved: ResolvedTheme
 }
 
-export const THEME_STORAGE_KEY = "frizz-theme"
+export const THEME_STORAGE_KEY = "ntwine-theme"
 
 const DARK_CANVAS = "#0d0e10"
 const LIGHT_CANVAS = "#f7f7f7"
@@ -19,15 +19,15 @@ let snapshot: ThemeSnapshot = { preference: "system", resolved: "dark" }
 let media: MediaQueryList | undefined
 let dispose: (() => void) | undefined
 // THE EDITOR'S THEME, while this page is framed by one (lib/embed.ts): VS Code says light or dark, by the
-// frame's query at boot and by `frizz:theme` whenever its own theme changes, and that wins over the
-// stored preference and the OS for this session. It is never written to `frizz-theme` — the preference
+// frame's query at boot and by `ntwine:theme` whenever its own theme changes, and that wins over the
+// stored preference and the OS for this session. It is never written to `ntwine-theme` — the preference
 // stays what the human chose, and the Settings control still shows that choice; only the RESOLVED theme
 // follows the editor. index.html's guard reads the same override before first paint.
 let hostTheme: ResolvedTheme | undefined
-// …and its COLOURS, while the editor sends them (`frizz.matchEditorTheme`, on by default): each one set on
+// …and its COLOURS, while the editor sends them (`ntwine.matchEditorTheme`, on by default): each one set on
 // the root as the custom property VS Code itself names it (`--vscode-sideBar-background`), and the root
 // marked `data-host-colors="<surface>"`, which is what theme.css § The editor's colours keys on to map them
-// onto Frizz's own tokens. Values arrive checked (embed.ts parsePalette), so a property is never anything
+// onto Ntwine's own tokens. Values arrive checked (embed.ts parsePalette), so a property is never anything
 // but a colour. Cleared when a theme message comes without them: the setting turned off.
 
 // Three tokens hang on a contrast no theme promises (lib/hostPalette.ts says which and why): those are
@@ -106,7 +106,7 @@ export function setThemePreference(preference: ThemePreference) {
 
 /**
  * The editor framing this page changed its theme (lib/embedHost.ts): apply it, for this session only —
- * its kind, and its colours when it sent them (none: Frizz's own palette).
+ * its kind, and its colours when it sent them (none: Ntwine's own palette).
  */
 export function setHostTheme(theme: ResolvedTheme, palette?: HostPalette): void {
   hostTheme = theme

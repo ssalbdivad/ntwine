@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * frizz — liveness derivation + binding-join tests. Run with: `node --test 'board/*.test.mjs'`.
+ * ntwine — liveness derivation + binding-join tests. Run with: `node --test 'board/*.test.mjs'`.
  *
  * Covers the three false-positives the smart-surfacing rework fixes:
  *   1. keys on the NEWEST binding, never a superseded older agent;
@@ -45,17 +45,17 @@ test('deriveAgentState: frozenMin is honored as the back-compat alias for droppe
 });
 
 // ── binding joins — fixture-backed ──────────────────────────────────────────────
-/** Make a throwaway project dir with a `.frizz/`. */
+/** Make a throwaway project dir with a `.ntwine/`. */
 function tmpProject() {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-livetest-'));
-  mkdirSync(join(dir, '.frizz'), { recursive: true });
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-livetest-'));
+  mkdirSync(join(dir, '.ntwine'), { recursive: true });
   return dir;
 }
 
 test('newestBindingByThread: the newest binding wins, a superseded older agent is dropped', () => {
   const dir = tmpProject();
   try {
-    const f = join(dir, '.frizz', '.agent-bindings.jsonl');
+    const f = join(dir, '.ntwine', '.agent-bindings.jsonl');
     writeFileSync(f,
       JSON.stringify({ ts: '2026-06-26T10:00:00.000Z', agent_id: 'OLD_dead_agent', thread: 'gvs', label: 'old' }) + '\n' +
       JSON.stringify({ ts: '2026-06-26T11:00:00.000Z', agent_id: 'NEW_live_agent', thread: 'gvs', label: 'new' }) + '\n');
@@ -71,8 +71,8 @@ test('downstreamThreads + restedAgentIds parse their logs (fail-open on missing)
   try {
     assert.equal(downstreamThreads(dir).size, 0, 'no merge-queue → empty, suppress nothing');
     assert.equal(restedAgentIds(dir).size, 0, 'no rest log → empty');
-    writeFileSync(join(dir, '.frizz', 'merge-queue.jsonl'), JSON.stringify({ pr: 182, thread: 'shipping-thread' }) + '\n');
-    writeFileSync(join(dir, '.frizz', '.rested-agents.jsonl'), JSON.stringify({ agent_id: 'A1', thread: 't' }) + '\nbad json\n');
+    writeFileSync(join(dir, '.ntwine', 'merge-queue.jsonl'), JSON.stringify({ pr: 182, thread: 'shipping-thread' }) + '\n');
+    writeFileSync(join(dir, '.ntwine', '.rested-agents.jsonl'), JSON.stringify({ agent_id: 'A1', thread: 't' }) + '\nbad json\n');
     assert.ok(downstreamThreads(dir).has('shipping-thread'));
     assert.ok(restedAgentIds(dir).has('A1'), 'parses valid lines, skips malformed ones');
   } finally {
@@ -86,9 +86,9 @@ test('newBoundRestsSince: a nested/unbound sub-agent rest does NOT nag; a bound 
     // The orchestrator dispatched ONE thread-owning agent → it is bound. A worker the
     // orchestrator dispatched then spawned its OWN self-review sub-agent (no THREAD tag →
     // no binding → unbound), which also rested. Plus an anon (no-id) rest.
-    writeFileSync(join(dir, '.frizz', '.agent-bindings.jsonl'),
+    writeFileSync(join(dir, '.ntwine', '.agent-bindings.jsonl'),
       JSON.stringify({ ts: '2026-06-26T10:00:00.000Z', agent_id: 'BOUND', thread: 'mythread', label: 'L' }) + '\n');
-    writeFileSync(join(dir, '.frizz', '.rested-agents.jsonl'),
+    writeFileSync(join(dir, '.ntwine', '.rested-agents.jsonl'),
       JSON.stringify({ ts: '2026-06-26T11:00:00.000Z', agent_id: 'BOUND', thread: 'mythread' }) + '\n' +
       JSON.stringify({ ts: '2026-06-26T11:05:00.000Z', agent_id: 'NESTED_unbound', thread: null }) + '\n' +
       JSON.stringify({ ts: '2026-06-26T11:06:00.000Z', agent_id: null, thread: null }) + '\n');
@@ -109,20 +109,20 @@ test('newBoundRestsSince: a nested/unbound sub-agent rest does NOT nag; a bound 
 
 // ── agentLivenessLines — the full thread-centric join ───────────────────────────
 /**
- * Stand up a fixture: a project `.frizz/<thread>.md` (status), a newest binding, an optional
+ * Stand up a fixture: a project `.ntwine/<thread>.md` (status), a newest binding, an optional
  * rest record + merge-queue entry, and a tasks-dir `.output` file with a chosen age. Returns
  * `{ dir, transcriptPath, cleanup }`. The tasks dir lives under a `/tmp/claude-*` path so the
  * hook's `deriveTasksDir` (which globs `claude-*`) finds it from `transcriptPath`.
  */
 function fixture({ status = 'active', agentId = 'A_newest', ageMin, rested = false, downstream = false, extraBindings = [], extraOutputs = [] }) {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-livejoin-'));
-  mkdirSync(join(dir, '.frizz'), { recursive: true });
-  writeFileSync(join(dir, '.frizz', 'mythread.md'), `---\ntitle: t\nstatus: ${status}\n---\nbody\n`);
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-livejoin-'));
+  mkdirSync(join(dir, '.ntwine'), { recursive: true });
+  writeFileSync(join(dir, '.ntwine', 'mythread.md'), `---\ntitle: t\nstatus: ${status}\n---\nbody\n`);
 
   const bindings = [{ ts: '2026-06-26T09:00:00.000Z', agent_id: agentId, thread: 'mythread', label: 'L' }, ...extraBindings];
-  writeFileSync(join(dir, '.frizz', '.agent-bindings.jsonl'), bindings.map((b) => JSON.stringify(b)).join('\n') + '\n');
-  if (rested) writeFileSync(join(dir, '.frizz', '.rested-agents.jsonl'), JSON.stringify({ agent_id: agentId, thread: 'mythread' }) + '\n');
-  if (downstream) writeFileSync(join(dir, '.frizz', 'merge-queue.jsonl'), JSON.stringify({ pr: 1, thread: 'mythread' }) + '\n');
+  writeFileSync(join(dir, '.ntwine', '.agent-bindings.jsonl'), bindings.map((b) => JSON.stringify(b)).join('\n') + '\n');
+  if (rested) writeFileSync(join(dir, '.ntwine', '.rested-agents.jsonl'), JSON.stringify({ agent_id: agentId, thread: 'mythread' }) + '\n');
+  if (downstream) writeFileSync(join(dir, '.ntwine', 'merge-queue.jsonl'), JSON.stringify({ pr: 1, thread: 'mythread' }) + '\n');
 
   // A tasks dir reachable from a transcript_path: /tmp/claude-<rand>/<projslug>/<session>/tasks.
   // deriveTasksDir only globs `/tmp` + `/private/tmp` for `claude-*` dirs, so the claude root
@@ -131,7 +131,7 @@ function fixture({ status = 'active', agentId = 'A_newest', ageMin, rested = fal
   const session = 'sess-123';
   // deriveTasksDir globs exactly ['/tmp','/private/tmp'], so the fixture MUST live under one of
   // them — os.tmpdir() would not be found. macOS has both (/tmp -> /private/tmp); Linux only /tmp.
-  const claudeRoot = mkdtempSync(join(existsSync('/private/tmp') ? '/private/tmp' : '/tmp', 'claude-frizztest-'));
+  const claudeRoot = mkdtempSync(join(existsSync('/private/tmp') ? '/private/tmp' : '/tmp', 'claude-ntwinetest-'));
   const tasksDir = join(claudeRoot, projSlug, session, 'tasks');
   mkdirSync(tasksDir, { recursive: true });
   const now = Date.now();

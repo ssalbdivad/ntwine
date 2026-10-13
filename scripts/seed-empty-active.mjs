@@ -48,7 +48,7 @@ for (const [i, s] of done.entries()) {
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at, archived, state, exited)
-     VALUES (${sessionVals}'${s.slug}', '${s.sessionId}', 'frizz-${s.slug}', '${at(i)}', '${s.title}', 'claude', 'opus', 'high', 'default', '${at(i + 1)}', 1, 'archived', 1)`,
+     VALUES (${sessionVals}'${s.slug}', '${s.sessionId}', 'ntwine-${s.slug}', '${at(i)}', '${s.title}', 'claude', 'opus', 'high', 'default', '${at(i + 1)}', 1, 'archived', 1)`,
   ])
   console.log(`seeded ${s.slug} → done`)
 }

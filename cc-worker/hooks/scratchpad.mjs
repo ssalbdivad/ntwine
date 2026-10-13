@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // @ts-check
-// SCRATCH-DIRECTORY hook (frizz-worker) — keeps a worker aware of the per-thread scratch directory
-// (`.frizz/threads/<sid>/`) it may use, and re-orients it on that directory when its context is lost.
+// SCRATCH-DIRECTORY hook (ntwine-worker) — keeps a worker aware of the per-thread scratch directory
+// (`.ntwine/threads/<sid>/`) it may use, and re-orients it on that directory when its context is lost.
 // Run directly with node (zero deps, max Node compat), mirroring the other hooks in this plugin.
 //
-// WHAT THIS USED TO BE, AND WHY IT IS NOT ANY MORE. Until 2026-08-06 frizz provisioned ONE canonical
+// WHAT THIS USED TO BE, AND WHY IT IS NOT ANY MORE. Until 2026-08-06 ntwine provisioned ONE canonical
 // `scratch.md` per thread and this hook spliced its HEAD into the context window after every compaction,
 // on the argument that a bare "remember to read your scratchpad" routes recovery through a decision the
 // model can skip. That argument was sound and the mechanism still lost: it made a maintained file the
@@ -13,8 +13,8 @@
 // what their worker would be told.
 //
 // The maintainer's replacement (chosen deliberately over keeping a canonical doc): the thread gets a
-// free-form scratch DIRECTORY, and compaction recovery moves to `frizzctl goal`'s
-// post-compaction trigger — the worker writes whatever doc it likes and LINKS it in a prompt frizz
+// free-form scratch DIRECTORY, and compaction recovery moves to `ntwinectl goal`'s
+// post-compaction trigger — the worker writes whatever doc it likes and LINKS it in a prompt ntwine
 // re-sends when the context is summarized away. Durable in SQLite, visible in the thread footer,
 // editable by the human. This hook's job is therefore reduced to two honest things:
 //
@@ -33,7 +33,7 @@
 //
 // THE WRITE-SIDE NUDGE — two channels:
 //   UserPromptSubmit — the turn boundary.
-//   PostToolUse      — MID-TURN, and this is the one that matters. A frizz worker runs enormous
+//   PostToolUse      — MID-TURN, and this is the one that matters. An ntwine worker runs enormous
 //                      autonomous turns (dozens of tool calls between human prompts), so a
 //                      turn-boundary-only nudge can miss an entire session's worth of work. PostToolUse
 //                      additionalContext was verified live against cli 2.1.220: a real session quoted a
@@ -54,20 +54,21 @@
 // tried and REMOVED on 2026-07-02 (maintainer's call): the block-until-file-edited nag forced even
 // trivial workers into Read/Edit dances that render as noise in the chat UI. This nudges; it never
 // blocks.
+import { boardDirName } from '../lib/legacy-env.mjs';
 import { readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, openSync, readSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
-import { currentSessionId } from '../scripts/frizz/config.mjs';
+import { currentSessionId } from '../scripts/ntwine/config.mjs';
 
 /** How many filenames a listing names before it summarizes the rest. A worker with 200 scratch files
  *  needs to know that, not to be handed 200 lines of them. */
-const MAX_LISTED_FILES = intFromEnv('FRIZZ_SCRATCH_MAX_LISTED', 40);
+const MAX_LISTED_FILES = intFromEnv('NTWINE_SCRATCH_MAX_LISTED', 40);
 
 /** Context-token growth since the last scratch write that marks the directory stale. 60k is ~a third of
  *  a 200k window and ~6% of a 1M one: frequent enough that a long effort is reminded while there is
  *  still something to record, rare enough not to be chatter. Also the first-write trigger — an EMPTY
  *  directory has no clock of its own, so the baseline is zero and the first nudge lands once a session
  *  has accumulated 60k tokens actually worth persisting. */
-const STALE_TOKENS = intFromEnv('FRIZZ_SCRATCHPAD_STALE_TOKENS', 60000);
+const STALE_TOKENS = intFromEnv('NTWINE_SCRATCHPAD_STALE_TOKENS', 60000);
 
 /** @param {string} name @param {number} fallback */
 function intFromEnv(name, fallback) {
@@ -94,11 +95,11 @@ const via = flagValue('--via') ?? 'plugin';
 // The escape hatch is an env var, not a setting, because it is for a one-off ("this session is doing
 // something where the injection is in the way"), not a project posture. Anything affirmative-looking
 // is ignored: only an explicit off value disables.
-if (/^(off|0|false|no|disabled)$/i.test((process.env.FRIZZ_SCRATCHPAD_HOOK ?? '').trim())) process.exit(0);
+if (/^(off|0|false|no|disabled)$/i.test((process.env.NTWINE_SCRATCHPAD_HOOK ?? '').trim())) process.exit(0);
 
-// The repo-local registration defers to the plugin one for frizz workers (see --via, and the
-// registration note in DECISIONS.md) so a frizz worker never injects twice.
-if (via === 'project' && (process.env.FRIZZ_THREAD ?? '').trim()) process.exit(0);
+// The repo-local registration defers to the plugin one for ntwine workers (see --via, and the
+// registration note in DECISIONS.md) so an ntwine worker never injects twice.
+if (via === 'project' && (process.env.NTWINE_THREAD ?? '').trim()) process.exit(0);
 
 /** @type {{ agent_id?: unknown, agentId?: unknown, source?: string, trigger?: string, session_id?: string, transcript_path?: string }} */
 let input = {};
@@ -112,21 +113,21 @@ const childId = input.agent_id ?? input.agentId;
 // exception: it constrains the undifferentiated scratchpad instruction the child otherwise inherits.
 if (childId && mode !== 'subagent-start') process.exit(0);
 
-// WHERE THE BOARD IS. Its cwd, for a worker in a registered project — the checkout holds `.frizz/`. Not
+// WHERE THE BOARD IS. Its cwd, for a worker in a registered project — the checkout holds `.ntwine/`. Not
 // for one in the Home workspace (server/home-workspace.ts): it runs in the operator's home folder, and its
-// board is in Frizz's state directory, because `~/.frizz` is Frizz's own legacy data root and creating it
-// on a newer install switches every project's data back to it on the next boot. Frizz says so with
-// FRIZZ_BOARD_ROOT (Claude) or `--board-root` (codex's shared app-server carries no per-thread env), and
+// board is in Ntwine's state directory, because `~/.ntwine` is Ntwine's own legacy data root and creating it
+// on a newer install switches every project's data back to it on the next boot. Ntwine says so with
+// NTWINE_BOARD_ROOT (Claude) or `--board-root` (codex's shared app-server carries no per-thread env), and
 // then the worker is told the directory by its absolute path, since the relative one names the wrong place.
-const boardRoot = (flagValue('--board-root') || process.env.FRIZZ_BOARD_ROOT || '').trim();
+const boardRoot = (flagValue('--board-root') || process.env.NTWINE_BOARD_ROOT || '').trim();
 const projectDir = boardRoot || process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
-// WHICH session keys the pad. On Claude the hook's `session_id` IS frizz's thread session id, so the
+// WHICH session keys the pad. On Claude the hook's `session_id` IS ntwine's thread session id, so the
 // derived path is correct. On CODEX it is NOT: codex reports its own rollout session id (measured —
 // e.g. `019fb427-93aa-…`, with transcript_path pointing into ~/.codex/sessions), which has nothing to
-// do with `.frizz/threads/<frizz sessionId>/scratch.md`. Deriving the path there would silently address
+// do with `.ntwine/threads/<ntwine sessionId>/scratch.md`. Deriving the path there would silently address
 // a pad that does not exist and the worker would look unreinforced for a reason nobody could see. So
-// frizz bakes `--session=<frizz sessionId>` into the codex hook command, and an explicit value always
+// ntwine bakes `--session=<ntwine sessionId>` into the codex hook command, and an explicit value always
 // wins over the reported one.
 const explicitSession = flagValue('--session');
 let sid = null;
@@ -138,8 +139,9 @@ try {
 // Without a session id there is no key, and an unkeyed pad would bleed between sessions.
 if (!sid) process.exit(0);
 
-const threadDir = join(projectDir, '.frizz', 'threads', sid);
-const relPath = boardRoot ? threadDir + '/' : '.frizz/threads/' + sid + '/';
+const boardDir = boardDirName(projectDir);
+const threadDir = join(projectDir, boardDir, 'threads', sid);
+const relPath = boardRoot ? threadDir + '/' : boardDir + '/threads/' + sid + '/';
 
 // ── mode: subagent-start (Codex child-only merge epilogue) ───────────────────────────────────────
 if (mode === 'subagent-start') {
@@ -151,7 +153,7 @@ if (mode === 'subagent-start') {
         'the top-level `/root` worker and any sibling agents. If you want notes on disk, create your ' +
         'own file in it — never edit, replace or delete a file another agent wrote, and never treat a ' +
         'document you did not create as yours to rewrite. One file per writer means there is nothing ' +
-        'to merge and nothing to clobber. Writing your own file here is Frizz coordination state, not ' +
+        'to merge and nothing to clobber. Writing your own file here is Ntwine coordination state, not ' +
         'a project deliverable or source edit: it remains allowed when a delegated task limits your ' +
         'deliverable paths with phrases such as “write only <path>” or “do not modify the repo”, and ' +
         'must never be classified as unauthorized or rolled back. Other project files, including files ' +
@@ -167,7 +169,7 @@ if (mode === 'subagent-start') {
   process.exit(0);
 }
 
-// Ensure the directory exists so a first Write lands. frizz's dispatcher already provisions this for
+// Ensure the directory exists so a first Write lands. ntwine's dispatcher already provisions this for
 // a real thread; this only covers a session that started outside a dispatch.
 try {
   mkdirSync(threadDir, { recursive: true });
@@ -176,7 +178,7 @@ try {
 }
 
 /** The worker's own files in the scratch directory, newest first — name, size, and how long ago it was
- *  touched. Dotfiles are excluded: frizz keeps its own per-thread bookkeeping in here
+ *  touched. Dotfiles are excluded: ntwine keeps its own per-thread bookkeeping in here
  *  (`.scratchpad-state.json`), and reporting that back to the worker as its own notes would be a lie.
  *  @returns {{ name: string, size: number, mtimeMs: number }[]} */
 function listScratch() {
@@ -220,8 +222,8 @@ function emitJson(additionalContext, hookEventName) {
 // ── mode: session-start ──────────────────────────────────────────────────────────────────────────
 if (mode === 'session-start') {
   // A CODEX resume loses nothing: the thread is rebuilt from its rollout with the whole conversation in
-  // it, and Frizz resumes a thread routinely — its first message after every Frizz restart, and again
-  // when a newer Frizz hands it new hooks. Telling that worker "Context was just lost" would be false
+  // it, and Ntwine resumes a thread routinely — its first message after every Ntwine restart, and again
+  // when a newer Ntwine hands it new hooks. Telling that worker "Context was just lost" would be false
   // every time, so the Codex registration says so with a flag and this stays silent. (On Claude a
   // resume is a cold start of the process and keeps the wording below.)
   if (input.source === 'resume' && argv.includes('--resume-keeps-context')) process.exit(0);
@@ -259,7 +261,7 @@ if (mode === 'session-start') {
         '. You have files in your scratch directory `' + relPath + '`:\n' + describe(files) +
         '\n\nRead whichever of them bears on what you were doing BEFORE acting, and treat what you ' +
         'wrote there as authoritative over anything the summary implies. (A goal armed with ' +
-        '`frizzctl goal start --post-compaction` can hand a link back at the next ' +
+        '`ntwinectl goal start --post-compaction` can hand a link back at the next ' +
         'compaction without relying on this note.)' +
         compactedNote,
     );
@@ -270,10 +272,10 @@ if (mode === 'session-start') {
     parts.push(
       '⟦scratch directory⟧ Context was just compacted or resumed, and your scratch directory `' +
         relPath + '` is EMPTY — you left yourself nothing to recover from. Do not search other ' +
-        '`.frizz/threads/*/` directories for a substitute, and do not broadly reload repo docs or ' +
+        '`.ntwine/threads/*/` directories for a substitute, and do not broadly reload repo docs or ' +
         'skills merely to reconstruct context. Recover from the retained compaction summary and any ' +
         'task-specific handoff it directly names. The directory is still available if you want notes ' +
-        'this time, and a goal armed with `frizzctl goal start --post-compaction` can ' +
+        'this time, and a goal armed with `ntwinectl goal start --post-compaction` can ' +
         're-send a prompt linking them at the next compaction.' +
         compactedNote,
     );
@@ -283,7 +285,7 @@ if (mode === 'session-start') {
     parts.push(
       '⟦scratch directory⟧ `' + relPath + '` is yours: any files you like, no format expected, and ' +
         'nothing in it is read automatically. Use it if you want it. If you ever want a note to come ' +
-        'back after a compaction, a goal armed with `frizzctl goal start ' +
+        'back after a compaction, a goal armed with `ntwinectl goal start ' +
         '--post-compaction` re-sends a prompt of your choosing — one that can link a file here.',
     );
   }
@@ -415,12 +417,12 @@ if (mode === 'nudge') {
     mtimeMs
       ? '⟦scratch notes stale⟧ Your context has grown ~' + k + 'k tokens since you last wrote anything ' +
           'in `' + relPath + '`. Top the notes up in passing if you still want them current (a goal ' +
-          'armed with `frizzctl goal start --post-compaction` can link them). This is a background note, NOT a task and ' +
+          'armed with `ntwinectl goal start --post-compaction` can link them). This is a background note, NOT a task and ' +
           'NOT a reason to pause: do not stop working to service it, and never end a turn on it while ' +
           'the user\'s instruction still has parts left.'
       : '⟦scratch directory empty⟧ This session is ~' + k + 'k tokens deep and `' + relPath + '` is ' +
           'empty. That is fine — notes are optional and writing them is not doing the work. The ' +
-          'directory is available if you want notes, and `frizzctl goal start ' +
+          'directory is available if you want notes, and `ntwinectl goal start ' +
           '--post-compaction` can re-send a prompt linking them after a compaction. This is a ' +
           'background note, NOT a task and NOT a reason to pause: keep going with what you were asked to do.',
     event,

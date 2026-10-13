@@ -1,5 +1,5 @@
 {
-  "name": "@frizz/shared",
+  "name": "@ntwine/shared",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./editor-protocol": "./src/editor-protocol.ts",
     "./file-position": "./src/file-position.ts",
-    "./embed-protocol": "./src/embed-protocol.ts"
+    "./embed-protocol": "./src/embed-protocol.ts",
+    "./legacy-env": "./src/legacy-env.ts"
   },
   "dependencies": {
     "yaml": "^2.9",

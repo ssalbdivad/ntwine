@@ -57,7 +57,7 @@ let n = 0
 const uuid = () => `00000000-0000-4000-9000-${String(++n).padStart(12, "0")}`
 
 function seed({ slug, sessionId, title, prompt, dispatches, closing }) {
-  const threadName = `frizz-${slug}`
+  const threadName = `ntwine-${slug}`
   const assistant = (id, ts, content, stop) => ({
     parentUuid: null, isSidechain: false, type: "assistant", uuid: uuid(), timestamp: ts, session_id: sessionId, cwd,
     message: { model: "claude-opus-5", id, type: "message", role: "assistant", stop_reason: stop, content, usage: { input_tokens: 2, output_tokens: 60 } },
@@ -101,7 +101,7 @@ seed({
   dispatches: [
     {
       tool: "Agent", id: "toolu_rest_agent", ack: "Async agent launched successfully",
-      input: { description: "Audit the pricing parser for tier-boundary rounding", prompt: "Audit it.", run_in_background: true, subagent_type: "frizz:opus-high" },
+      input: { description: "Audit the pricing parser for tier-boundary rounding", prompt: "Audit it.", run_in_background: true, subagent_type: "ntwine:opus-high" },
     },
     {
       tool: "Bash", id: "toolu_rest_shell", ack: "Command running in background",

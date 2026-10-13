@@ -8,7 +8,7 @@
 // and the panel's own pixels must contain none of it.
 //
 // The supervisor is reached only over HTTP, so the failure state is produced by intercepting
-// `/_frizz/control/status` — the app's REAL polling path, its REAL store transition and the REAL
+// `/_ntwine/control/status` — the app's REAL polling path, its REAL store transition and the REAL
 // component render. Nothing about the panel is stubbed.
 //
 // Usage: node scripts/verify-restart-failure-panel.mjs --base=http://127.0.0.1:4967/
@@ -21,18 +21,18 @@ const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
 const BASE = flags.base ?? process.env.BASE ?? "http://127.0.0.1:4967/"
-const OUT = join(tmpdir(), "frizz-restart-failure")
+const OUT = join(tmpdir(), "ntwine-restart-failure")
 mkdirSync(OUT, { recursive: true })
 
 // The maintainer's actual failure, verbatim from the screenshot — the shape the panel must survive.
 const SUPERVISOR_LOG = [
-  "Command failed: nub run typecheck from /Users/colinmcd94/.frizz/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca",
-  "> @frizz/web@0.0.1 typecheck /Users/colinmcd94/.frizz/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web",
+  "Command failed: nub run typecheck from /Users/colinmcd94/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca",
+  "> @ntwine/web@0.0.1 typecheck /Users/colinmcd94/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web",
   "> tsc --noEmit",
   "src/groups.ts(440,27): error TS2304: Cannot find name 'restedQueueHandoff'.",
-  "/Users/colinmcd94/.frizz/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web:",
-  "ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @frizz/web@0.0.1 typecheck: `tsc --noEmit` Exit status 2",
-  "$ tsc -b packages/shared packages/rpc packages/server . && pnpm --filter @frizz/web typecheck",
+  "/Users/colinmcd94/.ntwine/builds/.source-snapshot-31038-bc7e214d-e24a-48b4-8ce6-1e084df7ecca/packages/web:",
+  "ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @ntwine/web@0.0.1 typecheck: `tsc --noEmit` Exit status 2",
+  "$ tsc -b packages/shared packages/rpc packages/server . && pnpm --filter @ntwine/web typecheck",
 ].join("\n")
 
 const results = []
@@ -114,7 +114,7 @@ try {
   await page.setRequestInterception(true)
   page.on("request", (req) => {
     const path = new URL(req.url()).pathname
-    if (path === "/_frizz/control/status") {
+    if (path === "/_ntwine/control/status") {
       return void req.respond(json(
         supervisorFailed
           ? { protocol: 1, state: "failed", message: SUPERVISOR_LOG }
@@ -122,7 +122,7 @@ try {
       ))
     }
     // Accept the POST the way the real supervisor does — it takes the job, then fails while building.
-    if (path === "/_frizz/control/update-restart") {
+    if (path === "/_ntwine/control/update-restart") {
       supervisorFailed = true
       return void req.respond(json({ protocol: 1, state: "restarting" }))
     }
@@ -131,7 +131,7 @@ try {
 
   await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 })
   await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 30000 })
-  await page.waitForSelector('[aria-label="Update Frizz"]', { timeout: 30000 })
+  await page.waitForSelector('[aria-label="Update Ntwine"]', { timeout: 30000 })
   // Let the seeded board paint behind the panel — an empty board cannot show a bleed-through.
   await page.waitForSelector("[data-sidebar-item]", { timeout: 30000 })
   await new Promise((r) => setTimeout(r, 1200))
@@ -142,14 +142,14 @@ try {
 
   // Baseline the SHIPPED popover's chip+heading row first (a real hover — React's enter/leave can't be
   // faked with dispatchEvent). The failure card mirrors this row, so this is the number it must match.
-  const reload = await page.$('[aria-label="Update Frizz"]')
+  const reload = await page.$('[aria-label="Update Ntwine"]')
   await reload.hover()
   await page.waitForSelector("#update-restart-popover", { timeout: 10000 })
   await new Promise((r) => setTimeout(r, 300))
   const popoverInk = await page.evaluate(measureChipRow, "#update-restart-popover")
   await page.screenshot({ path: join(OUT, "00b-popover-baseline.png"), clip: { x: 0, y: 0, width: 560, height: 260 } })
 
-  await page.click('[aria-label="Update Frizz"]')
+  await page.click('[aria-label="Update Ntwine"]')
   await page.waitForSelector('[role="alert"]', { timeout: 20000 })
   await page.mouse.move(1200, 500)
   await new Promise((r) => setTimeout(r, 600))
@@ -274,7 +274,7 @@ try {
     else fail(`the failure toast spans the viewport: ${toast.w}px of ${toast.viewport}px`)
     if (toast.h <= 44) pass(`the toast stays ${toast.h}px — one line, not a panel`)
     else fail(`the toast grew to ${toast.h}px: "${toast.text}"`)
-    if (!/\.frizz\/builds|ERR_PNPM|tsc --noEmit/.test(toast.text)) pass(`the toast announces the failure without re-pasting the build log ("${toast.text}")`)
+    if (!/\.ntwine\/builds|ERR_PNPM|tsc --noEmit/.test(toast.text)) pass(`the toast announces the failure without re-pasting the build log ("${toast.text}")`)
     else fail(`the toast is dumping the supervisor's raw log: "${toast.text}"`)
   }
 

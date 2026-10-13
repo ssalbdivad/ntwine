@@ -1,18 +1,18 @@
-// FRIZZ'S RPC SURFACE, from the extension host — the same procedures the page calls, over plain fetch.
+// NTWINE'S RPC SURFACE, from the extension host — the same procedures the page calls, over plain fetch.
 //
 // The wire is packages/rpc/src/server.ts: a query is `GET <prefix>/<proc>?input=<url-encoded JSON>`, a
 // mutation is `POST` with a JSON body, and the answer is `{ result }` or `{ error, retryable? }`.
 // `retryable: true` means the server refused at a contention gate before anything took effect, so the
 // identical request may be sent again; any other failure is ambiguous and must not be.
 //
-// Always PROJECT-ID-addressed: `/_frizz/<projectId>/rpc/<proc>`. An unprefixed path is whichever project
+// Always PROJECT-ID-addressed: `/_ntwine/<projectId>/rpc/<proc>`. An unprefixed path is whichever project
 // launched the server, and a slug can be renamed out from under a long-lived client.
 //
 // The origin gate (server app.ts) admits a request with no Origin only when it carries
 // `sec-fetch-site: same-origin`, which a browser never lets a cross-site page send — exactly what the
-// worker MCP shim sends (cc-worker/bin/frizz-mcp.mjs), and what this sends.
+// worker MCP shim sends (cc-worker/bin/ntwine-mcp.mjs), and what this sends.
 
-import type { DispatchInput, DispatchPreferences } from "@frizz/shared"
+import type { DispatchInput, DispatchPreferences } from "@ntwine/shared"
 import type { Api } from "../../web/src/api/contract.ts"
 
 export type Procedure = keyof Api
@@ -38,11 +38,11 @@ export class RpcError extends Error {
   }
 }
 
-export class FrizzRpc {
+export class NtwineRpc {
   constructor(readonly origin: string) {}
 
   path(projectId: string, procedure: Procedure): string {
-    return `/_frizz/${encodeURIComponent(projectId)}/rpc/${procedure}`
+    return `/_ntwine/${encodeURIComponent(projectId)}/rpc/${procedure}`
   }
 
   query<P extends Procedure>(projectId: string, procedure: P, input?: ProcedureInput<P>, timeoutMs = 15_000): Promise<ProcedureOutput<P>> {
@@ -68,10 +68,10 @@ export class FrizzRpc {
       })
     } catch (error) {
       const cause = (error as { cause?: { code?: string } }).cause?.code
-      if ((error as Error).name === "TimeoutError") throw new RpcError(`Frizz did not answer within ${Math.round(timeoutMs / 1000)}s`, "unanswered")
-      // A connection Frizz took and then dropped (a restart mid-request) is as ambiguous as a timeout.
-      if (cause === "ECONNRESET" || cause === "UND_ERR_SOCKET" || cause === "EPIPE") throw new RpcError(`Frizz dropped the request (${cause})`, "unanswered")
-      throw new RpcError(`Frizz isn't reachable (${cause ?? (error as Error).message})`, "unreachable")
+      if ((error as Error).name === "TimeoutError") throw new RpcError(`Ntwine did not answer within ${Math.round(timeoutMs / 1000)}s`, "unanswered")
+      // A connection Ntwine took and then dropped (a restart mid-request) is as ambiguous as a timeout.
+      if (cause === "ECONNRESET" || cause === "UND_ERR_SOCKET" || cause === "EPIPE") throw new RpcError(`Ntwine dropped the request (${cause})`, "unanswered")
+      throw new RpcError(`Ntwine isn't reachable (${cause ?? (error as Error).message})`, "unreachable")
     }
     const text = await response.text()
     let body: { result?: unknown; error?: unknown; retryable?: unknown } | undefined
@@ -109,22 +109,22 @@ export type RpcAction = "ask" | "send" | "read"
 
 const UNANSWERED: Record<RpcAction, string> = {
   // No retry and no idempotency key: a dispatch that went unanswered may still have started its thread.
-  ask: "Frizz didn't answer in time. Check Frizz before asking again: it may have started the thread.",
-  send: "Frizz didn't answer in time. Check the thread before sending again: the message may have arrived.",
-  read: "Frizz didn't answer in time. Try again.",
+  ask: "Ntwine didn't answer in time. Check Ntwine before asking again: it may have started the thread.",
+  send: "Ntwine didn't answer in time. Check the thread before sending again: the message may have arrived.",
+  read: "Ntwine didn't answer in time. Try again.",
 }
 
 /**
  * Words for a failure, for a notification. A signed-out provider is the one the human can fix in a
- * click, so it says where; an unreachable server says Frizz is not running, which is almost always why.
- * An unanswered one is NOT that — Frizz is up and slow, and what to do depends on what was asked of it.
+ * click, so it says where; an unreachable server says Ntwine is not running, which is almost always why.
+ * An unanswered one is NOT that — Ntwine is up and slow, and what to do depends on what was asked of it.
  */
 export function describeRpcError(error: unknown, action: RpcAction = "read"): string {
-  if (error instanceof RpcError && error.kind === "unreachable") return "Frizz isn't running."
+  if (error instanceof RpcError && error.kind === "unreachable") return "Ntwine isn't running."
   if (error instanceof RpcError && error.kind === "unanswered") return UNANSWERED[action]
   const message = error instanceof Error ? error.message : String(error)
   const auth = /^AUTH_REQUIRED:(claude|codex)$/u.exec(message)
-  if (auth) return `Sign in to ${auth[1] === "claude" ? "Claude" : "Codex"} in Frizz first.`
+  if (auth) return `Sign in to ${auth[1] === "claude" ? "Claude" : "Codex"} in Ntwine first.`
   return message
 }
 

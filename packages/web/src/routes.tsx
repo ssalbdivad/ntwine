@@ -19,7 +19,7 @@ import { ALL_PROJECTS, ALL_PROJECTS_HREF, legacyViewRedirect, resolveView, viewA
 import { useIsMobile } from "./lib/mobile.ts"
 import { embedded } from "./lib/embed.ts"
 import { useProjectRailVisible } from "./lib/projectRail.ts"
-import type { ProjectCard } from "@frizz/shared"
+import type { ProjectCard } from "@ntwine/shared"
 import { rpc } from "./api/rpc.ts"
 import { projectsQueuesQuery } from "./lib/projectsQueuesRead.ts"
 import { LightboxHost } from "./components/Lightbox.tsx"
@@ -202,7 +202,7 @@ function PageRoute() {
  * A BARE `/` — what a typed address or an old bookmark is — goes back to the
  * view this browser showed last: a project's board, or All projects (lib/crossProject.ts lastViewHref). A
  * browser that never showed one gets a board, never All projects, because a board is the default: the
- * project `frizz` was last run in, else the first. With no project at all it is the welcome.
+ * project `ntwine` was last run in, else the first. With no project at all it is the welcome.
  *
  * It replaces its history entry, so Back never lands on a `/` that would only send it forward again. The
  * two arrivals from outside (usePageResolution below: the launcher's `?add=`, the server's `?unknown=`)
@@ -267,7 +267,7 @@ function CrossProjectPage() {
   useRouterTransition()
   useState(() => primeReturnFromFullscreen(thread))
   // A browser's first board starts the tour (lib/tour.ts) — whether it was picked on `/` or opened directly,
-  // as `frizz` run in a project does.
+  // as `ntwine` run in a project does.
   const boardShown = page.kind === "page" && page.view.kind === "project"
   useEffect(() => {
     if (boardShown && !embedded()) startTourOnFirstRun()
@@ -303,11 +303,11 @@ type PageResolution =
  *
  * Two more arrive from outside, usually at `/` (LastViewRedirect answers them there), and are answered
  * HERE when they reach the page itself:
- *  - `?add=<dir>` is the LAUNCHER asking: running `frizz` in an unknown folder does not adopt it, it
+ *  - `?add=<dir>` is the LAUNCHER asking: running `ntwine` in an unknown folder does not adopt it, it
  *    sends the operator here to say yes. It opens the one add-project dialog, pre-filled.
  *  - `?unknown=<slug>` is the SERVER saying it sent a page here rather than let it hang: a board or a
  *    drawer for a project nobody has would render the app, 404 every call and sit on its boot spinner
- *    forever (index.ts `unknownProjectPage`). A URL that silently became the home page reads as Frizz
+ *    forever (index.ts `unknownProjectPage`). A URL that silently became the home page reads as Ntwine
  *    having swallowed it.
  */
 function usePageResolution(routeSlug: string | undefined): PageResolution {

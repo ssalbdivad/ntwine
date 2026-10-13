@@ -1,5 +1,5 @@
 // macOS-only real-runtime regression: invalidate ONLY a throwaway child's bootstrap port, then
-// drive dispatch through the built Frizz artifact. Never disrupt WindowServer or the user's session.
+// drive dispatch through the built Ntwine artifact. Never disrupt WindowServer or the user's session.
 // Usage: CODEX_BIN=/absolute/pinned/codex nub scripts/verify-codex-execution-health.mjs
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync
 import { homedir, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { WebSocket } from "ws"
-import { buildFrizzArtifact } from "../src/artifacts.ts"
+import { buildNtwineArtifact } from "../src/artifacts.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { nativeListenCodexAppServerHost, readNativeRecord, stopNativeListener } from "../packages/server/src/backend/codex-app-server-native.ts"
 import { probeHostMacOSServices } from "../packages/server/src/backend/codex-execution-health.ts"
@@ -19,7 +19,7 @@ assert.equal(process.platform, "darwin", "this harness requires macOS")
 const codex = process.env.CODEX_BIN
 assert.ok(codex?.startsWith("/"), "set CODEX_BIN to the absolute Codex binary")
 assert.ok(await probeHostMacOSServices(), "the parent must have working local service access")
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-health-e2e-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-health-e2e-")))
 const projectDir = join(root, "project"), stateDir = join(root, "state"), home = join(root, "home")
 for (const dir of [projectDir, stateDir, home]) mkdirSync(dir, { recursive: true })
 execFileSync("git", ["init", "-q", projectDir])
@@ -52,7 +52,7 @@ async function rpc(record) {
     socket.send(JSON.stringify({ id: key, method, params }))
   })
   // Codex latches the FIRST client's name as its user-agent originator for this process.
-  await request("initialize", { clientInfo: { name: "frizz", version: "1" }, capabilities: { experimentalApi: true } })
+  await request("initialize", { clientInfo: { name: "ntwine", version: "1" }, capabilities: { experimentalApi: true } })
   socket.send(JSON.stringify({ method: "initialized" }))
   return { request, close: () => { socket.close(); sockets.delete(socket) } }
 }
@@ -87,18 +87,18 @@ try {
   staleRpc.close()
   console.log("PASS real Codex child reproduces launchctl 141 with a healthy parent")
 
-  const artifact = buildFrizzArtifact(resolve(import.meta.dirname, ".."), join(root, "artifacts"))
+  const artifact = buildNtwineArtifact(resolve(import.meta.dirname, ".."), join(root, "artifacts"))
   console.log("Artifact", artifact.digest)
   async function startServer() {
     child = spawn(process.execPath, [join(artifact.runtimeDir, "src", "index.js")], {
       cwd: projectDir,
       env: projectLaunchEnvironment({
         ...process.env, HOME: home, CODEX_HOME: process.env.CODEX_HOME ?? join(homedir(), ".codex"),
-        FRIZZ_RUNTIMES: "path", PATH: `${join(codex, "..")}:${process.env.PATH}`,
-        FRIZZ_CODEX_NATIVE_LISTEN: "1", FRIZZ_DEV_CHILD: "1", FRIZZ_DEV_PORT: String(port),
-        FRIZZ_WAKERS_OFF: "1", FRIZZ_ORPHAN_REAPER_OFF: "1", FRIZZ_TENANT_PRIME_OFF: "1",
-        FRIZZ_STABLE_ARTIFACT: artifact.digest, FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-        FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"), FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
+        NTWINE_RUNTIMES: "path", PATH: `${join(codex, "..")}:${process.env.PATH}`,
+        NTWINE_CODEX_NATIVE_LISTEN: "1", NTWINE_DEV_CHILD: "1", NTWINE_DEV_PORT: String(port),
+        NTWINE_WAKERS_OFF: "1", NTWINE_ORPHAN_REAPER_OFF: "1", NTWINE_TENANT_PRIME_OFF: "1",
+        NTWINE_STABLE_ARTIFACT: artifact.digest, NTWINE_STABLE_WEB_DIST: artifact.webDir,
+        NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"), NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
       }, target, owner.token),
       stdio: ["ignore", "pipe", "pipe"],
     })

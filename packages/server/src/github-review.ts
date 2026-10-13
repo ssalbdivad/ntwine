@@ -157,7 +157,7 @@ function conciseError(error: unknown): string {
 }
 
 // Exported because the hovercard fetcher (github-hovercard.ts) needs the SAME token, read the same
-// way: `gh auth token` is the one credential source frizz has, and duplicating this would mean two
+// way: `gh auth token` is the one credential source ntwine has, and duplicating this would mean two
 // copies of the ENOENT/timeout/`githubFailureKind` classification drifting apart.
 export async function defaultGetToken(): Promise<string> {
   try {
@@ -263,7 +263,7 @@ const ROLLUP_NODE_FIELDS = `
 export function parseGithubPrSnapshot(pr: unknown): GithubPrSnapshot | undefined {
   if (!pr || typeof pr !== "object") return undefined
   const p = pr as Record<string, any>
-  // A SHAPE SURPRISE IS INDETERMINATE, exactly as the `gh` path reads it: no string `state` means frizz
+  // A SHAPE SURPRISE IS INDETERMINATE, exactly as the `gh` path reads it: no string `state` means ntwine
   // cannot say whether this PR is open, and a fabricated "OPEN with no checks" would arm a verdict.
   if (typeof p.state !== "string" || !p.state) return undefined
   const commit = Array.isArray(p.commits?.nodes) ? p.commits.nodes[0]?.commit : undefined
@@ -510,7 +510,7 @@ export function createGithubReviewFetcher(deps: GithubReviewFetcherDeps = {}): G
         accept: "application/vnd.github+json",
         authorization: `Bearer ${authToken}`,
         "content-type": "application/json",
-        "user-agent": "frizz-pr-watch",
+        "user-agent": "ntwine-pr-watch",
         "x-github-api-version": "2022-11-28",
       },
       body: JSON.stringify({ query, variables }),

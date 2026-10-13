@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadRow, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
@@ -142,7 +142,7 @@ test("on an unpinned row that offers Retry, the pin keeps its place left of Retr
   assert.ok(html.indexOf("data-sidebar-pin=") < html.indexOf("data-sidebar-retry="), "pin → Retry")
 })
 
-// A terminal thread frizz only reads offers no pin and no Retry, so it draws no strip at all — an empty
+// A terminal thread ntwine only reads offers no pin and no Retry, so it draws no strip at all — an empty
 // one would still paint its backing and fade over the title, and take the rest time away on hover.
 test("a row with no verb draws no strip", () => {
   const html = row({ foreign: true })

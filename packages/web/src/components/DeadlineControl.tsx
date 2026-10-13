@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { Timer } from "lucide-react"
-import { parseDeadlineInput, type ThreadDeadlineView, type ThreadView } from "@frizz/shared"
+import { parseDeadlineInput, type ThreadDeadlineView, type ThreadView } from "@ntwine/shared"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { showToast } from "../store.ts"
 import { useDraft } from "../lib/drafts.ts"

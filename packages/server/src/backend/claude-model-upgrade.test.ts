@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { ClaudeModel } from "@frizz/shared"
+import type { ClaudeModel } from "@ntwine/shared"
 import type { SessionRow } from "../storage.ts"
 import type { SessionTelemetry } from "../tailer.ts"
 import type { HibernationCandidate } from "../thread-hibernation.ts"

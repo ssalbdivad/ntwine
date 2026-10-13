@@ -11,8 +11,8 @@ function sel(anchor: { line: number; character: number }, active: { line: number
 }
 
 test("the hint names the chord in effect: Ctrl+L, or ⌘L where the UI is a Mac", () => {
-  assert.equal(hintText(false), "Ctrl+L to add to Frizz")
-  assert.equal(hintText(true), "⌘L to add to Frizz")
+  assert.equal(hintText(false), "Ctrl+L to add to Ntwine")
+  assert.equal(hintText(true), "⌘L to add to Ntwine")
 })
 
 test("the hint goes on the selection's line nearest the caret, by the chip's own line count", () => {
@@ -41,7 +41,7 @@ test("a select-all spans the whole document; anything short of it does not", () 
   assert.equal(wholeDocument(sel(at(0, 0), at(0, 12)), 1, 12), true)
 })
 
-test("Cursor and Windsurf draw their own selection hint, so Frizz draws none there", () => {
+test("Cursor and Windsurf draw their own selection hint, so Ntwine draws none there", () => {
   assert.equal(ownHintApp("Cursor"), true)
   assert.equal(ownHintApp("Windsurf"), true)
   assert.equal(ownHintApp("Visual Studio Code"), false)

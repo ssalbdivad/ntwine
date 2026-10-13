@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Opt-in like the other *.e2e.test.ts here: start `vite` in packages/web and set
-// FRIZZ_CODE_TABS_E2E_URL to its origin, e.g.
-//   FRIZZ_CODE_TABS_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/codeTabs.e2e.test.ts
-const baseUrl = process.env.FRIZZ_CODE_TABS_E2E_URL
+// NTWINE_CODE_TABS_E2E_URL to its origin, e.g.
+//   NTWINE_CODE_TABS_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/codeTabs.e2e.test.ts
+const baseUrl = process.env.NTWINE_CODE_TABS_E2E_URL
 
 // lib/codeTabs.test.ts pins the grouping and the markup. What only a browser can say is whether that
 // markup survives the sanitizer with its roles, whether the stylesheet shows one panel and lines the
@@ -80,7 +80,7 @@ test("labelled fences render as tabs that switch, copy the open tab and stay cho
     assert.deepEqual(install.panelRoles, ["tabpanel", "tabpanel", "tabpanel"])
     assert.equal(install.shown, 1, "only the open tab's panel is displayed")
     assert.equal(install.copyButtons, 1)
-    assert.match(install.shownText, /^npm install frizz/)
+    assert.match(install.shownText, /^npm install ntwine/)
 
     // The header lines up with the code under it, at every scale a fence renders at.
     for (const id of ["install", "files", "titled", "list", "card", "chip", "narrow"]) {
@@ -106,7 +106,7 @@ test("labelled fences render as tabs that switch, copy the open tab and stay cho
     assert.equal(clicked.active, 1)
     assert.equal(clicked.shown, 1)
     assert.equal(clicked.shownIndex, 1)
-    assert.match(clicked.shownText, /^pnpm add frizz/)
+    assert.match(clicked.shownText, /^pnpm add ntwine/)
     // A group with the same labels elsewhere on the page is left as it was: no live sync.
     assert.deepEqual((await read("card"))!.selected, ["true", "false", "false"])
 
@@ -115,7 +115,7 @@ test("labelled fences render as tabs that switch, copy the open tab and stay cho
     await page.waitForFunction(() => getComputedStyle(document.querySelector("[data-case=install] .md-code-copy")!).opacity === "1")
     await page.click("[data-case=install] .md-code-copy")
     await page.waitForFunction(() => document.querySelector("[data-case=install] .md-code-copy")!.classList.contains("is-copied"))
-    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "pnpm add frizz\npnpm dlx frizz")
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "pnpm add ntwine\npnpm dlx ntwine")
 
     // Arrow keys step and wrap, Home and End jump; selection follows focus.
     const focused = () => page.evaluate(() => document.activeElement?.textContent ?? null)
@@ -132,7 +132,7 @@ test("labelled fences render as tabs that switch, copy the open tab and stay cho
     await page.keyboard.press("End")
     const ended = (await read("install"))!
     assert.equal(ended.active, 2)
-    assert.match(ended.shownText, /^yarn add frizz/)
+    assert.match(ended.shownText, /^yarn add ntwine/)
 
     // A rebuild of the same markdown — a streaming delta, a virtualized remount — opens on the tab that
     // was chosen, and so does every other group with those labels.
@@ -141,7 +141,7 @@ test("labelled fences render as tabs that switch, copy the open tab and stay cho
     for (const id of ["install", "card", "chip"]) {
       const rebuilt = (await read(id))!
       assert.equal(rebuilt.active, 2, `${id} reopens on yarn`)
-      assert.match(rebuilt.shownText, /^yarn add frizz/)
+      assert.match(rebuilt.shownText, /^yarn add ntwine/)
     }
     // A different set of labels was never chosen from: it is on its first tab.
     assert.equal((await read("list"))!.active, 0)
@@ -155,7 +155,7 @@ test("labelled fences render as tabs that switch, copy the open tab and stay cho
     })
     assert.equal(hit, true)
     await page.click("[data-case=chip] .md-code-tab:nth-child(1)")
-    assert.match((await read("chip"))!.shownText, /^npm install frizz/)
+    assert.match((await read("chip"))!.shownText, /^npm install ntwine/)
 
     // More tabs than the row holds: the strip scrolls rather than wrapping, and opening a tab that is
     // cut off brings it fully into view.

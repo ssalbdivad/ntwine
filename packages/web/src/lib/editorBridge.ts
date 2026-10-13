@@ -1,10 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query"
 import { subscribe } from "valtio"
-import type { EditorComposeInput, EditorComposeItem, EditorWindowSummary, ProjectCard, Settings } from "@frizz/shared"
+import type { EditorComposeInput, EditorComposeItem, EditorWindowSummary, ProjectCard, Settings } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { isRemoteSession } from "../api/signOut.ts"
 import { supervisorStatusQueryOptions } from "../api/supervisorStatus.ts"
-import { getFrizzSupervisorStatus } from "../api/restart.ts"
+import { getNtwineSupervisorStatus } from "../api/restart.ts"
 import { publishMachineSettings } from "../hooks/useSettingsAutosave.tsx"
 import { closeImageViewer, openThread, pushDrawer, showToast, store, topThreadSlug } from "../store.ts"
 import { crossProjectHref, innerPath, projectSlug } from "./base-path.ts"
@@ -31,7 +31,7 @@ import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 //     `editors` event. The settings drawer marks the Local file links editor that has a window behind it.
 //  2. THE FIRST-CONNECTION OFFER — the first time this browser sees an accepting VS Code or Cursor window
 //     while its code files go elsewhere, a toast offers to send them there. Once per editor per browser.
-//  3. PROMPT-BOX INSERTS — "Add to Frizz prompt" in an editor leaves an item on the server and pings every
+//  3. PROMPT-BOX INSERTS — "Add to Ntwine prompt" in an editor leaves an item on the server and pings every
 //     page (`compose-pending`). The page the human is LOOKING AT claims it (`composeTake`, first caller
 //     wins) and puts it in the box in front of them — on the ping when it has focus, else on the focus
 //     that follows (the human switching from their editor to this tab), and once at boot. There is no
@@ -40,12 +40,12 @@ import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 // IN AN EDITOR'S SIDEBAR (lib/embed.ts) jobs 2 and 3 stand down. The offer asks where code files should
 // go, and inside the editor's own sidebar they go to that editor already (lib/local-file-links.ts). And
 // the page never claims a held item: the extension that frames it posts its selections straight in
-// (`frizz:compose`, lib/embedHost.ts → composeInto below), so a held item is one from a window WITHOUT a
+// (`ntwine:compose`, lib/embedHost.ts → composeInto below), so a held item is one from a window WITHOUT a
 // sidebar — meant for a browser tab — and a sidebar that claimed it on the human's next click into it
 // would take it from that tab.
 
 let queryClient: QueryClient | null = null
-const OFFERED_KEY = "frizz.editorOffered"
+const OFFERED_KEY = "ntwine.editorOffered"
 
 export function initEditorBridge(client: QueryClient): void {
   queryClient = client
@@ -157,7 +157,7 @@ export async function codeFilesGoToEditor(): Promise<boolean> {
   try {
     const [settings, remote] = await Promise.all([
       queryClient ? queryClient.fetchQuery({ queryKey: ["settingsGet"], queryFn: () => rpc.settingsGet() }) : rpc.settingsGet(),
-      queryClient ? queryClient.ensureQueryData(supervisorStatusQueryOptions).then(isRemoteSession) : getFrizzSupervisorStatus().then(isRemoteSession),
+      queryClient ? queryClient.ensureQueryData(supervisorStatusQueryOptions).then(isRemoteSession) : getNtwineSupervisorStatus().then(isRemoteSession),
     ])
     const phone = typeof window !== "undefined" && phoneLayout()
     return codeFilesDestination({ windows: store.editorWindows, opener: settings.localFileOpener, phone, remote }) === "editor"
@@ -170,7 +170,7 @@ export async function codeFilesGoToEditor(): Promise<boolean> {
 // one shared poll's cache when it is fresh. Strict like isRemoteSession: an unreachable supervisor reads
 // "not remote", and the phone check still stands beside it.
 async function readRemoteSession(): Promise<boolean> {
-  const status = queryClient ? await queryClient.fetchQuery(supervisorStatusQueryOptions) : await getFrizzSupervisorStatus()
+  const status = queryClient ? await queryClient.fetchQuery(supervisorStatusQueryOptions) : await getNtwineSupervisorStatus()
   return isRemoteSession(status)
 }
 
@@ -252,10 +252,10 @@ async function insertComposeItem(item: EditorComposeItem): Promise<void> {
 }
 
 /**
- * Which box an editor's item goes into (embed-protocol.ts `frizz:compose`): "front" is the box in front
+ * Which box an editor's item goes into (embed-protocol.ts `ntwine:compose`): "front" is the box in front
  * of the human — the open thread's reply box, else the new-thread box; "new" the new-thread box, whatever
  * is open; `{ thread, project }` that thread's reply box, its drawer opened first. `focus` puts the caret
- * there; false leaves focus where it is (in the editor, for "Add to Frizz prompt" from its sidebar).
+ * there; false leaves focus where it is (in the editor, for "Add to Ntwine prompt" from its sidebar).
  *
  * `{ box }` is the page's own: the box whose context bar asked for this item (lib/editorContext.ts
  * `requestEditorContext`), which the host's answer — aimed at "front" — is routed back to. `note` is
@@ -275,7 +275,7 @@ export type ComposeOutcome = { ok: true } | { ok: false; reason: string }
  * and one the sidebar's extension posted (lib/embedHost.ts). The chip is the ⌘I token composeEdit
  * builds, spliced at the END of the box's prose — a chip boundary, never inside a word being typed — and
  * staged under the same draft key, so the box renders and sends it exactly as a selection made in
- * Frizz's own viewer.
+ * Ntwine's own viewer.
  *
  * On the phone layout — which is also every sidebar's — the new-thread box lives in a sheet that is
  * closed until opened, so an item for it opens the sheet: an insert nobody can see reads as one that
@@ -292,7 +292,7 @@ export async function composeInto(item: EditorComposeInput, request: ComposeRequ
   if (named) {
     const shown = () => threadInFront()?.slug === named.thread && projectSlug() === named.project
     if (!shown()) {
-      if (!(await threadIsThere(named.thread, named.project))) return { ok: false, reason: "That thread isn't in Frizz." }
+      if (!(await threadIsThere(named.thread, named.project))) return { ok: false, reason: "That thread isn't in Ntwine." }
       store.showSettings = false
       store.phoneNewThread = null
       // The thread's drawer is about to be what the human sees, so nothing may sit over it.

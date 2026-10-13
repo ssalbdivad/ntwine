@@ -1,4 +1,4 @@
-import { EMBED_PROBLEMS_PATH, type EmbedHostMessage } from "@frizz/shared"
+import { EMBED_PROBLEMS_PATH, type EmbedHostMessage } from "@ntwine/shared"
 import { closeImageViewer, pushDrawer, showToast, store } from "../store.ts"
 import { boardOrTimeout, composeInto, holdsBoardOf, openNamedThread, threadIsThere } from "./editorBridge.ts"
 import { isTerminalPath } from "./composerContext.ts"
@@ -20,13 +20,13 @@ import { setHostTheme } from "./theme.ts"
 // THE PAGE'S SIDE OF THE SIDEBAR'S WIRE, live (lib/embed.ts holds the state and the pure checks;
 // packages/shared/src/embed-protocol.ts the contract). Installed once, at boot, and only in embed mode:
 //
-//  - host → page: `frizz:theme`, `frizz:compose`, `frizz:navigate`, `frizz:editor-context` (lib/
-//    editorContext.ts), `frizz:command` (lib/embedCommand.ts), and `frizz:editor-extras` and
-//    `frizz:context-picks` (lib/editorReach.ts), accepted only from `window.parent`
+//  - host → page: `ntwine:theme`, `ntwine:compose`, `ntwine:navigate`, `ntwine:editor-context` (lib/
+//    editorContext.ts), `ntwine:command` (lib/embedCommand.ts), and `ntwine:editor-extras` and
+//    `ntwine:context-picks` (lib/editorReach.ts), accepted only from `window.parent`
 //    — the relay the extension's webview runs — and only in a shape the contract defines.
-//  - page → host: `frizz:ready` once the page can act on those, and `frizz:key` for the chords the
-//    page left alone. (`frizz:open-file` and `frizz:open-external` leave from the link handlers that
-//    decide them, lib/local-file-links.ts and lib/external-links.ts; `frizz:add-context` from the
+//  - page → host: `ntwine:ready` once the page can act on those, and `ntwine:key` for the chords the
+//    page left alone. (`ntwine:open-file` and `ntwine:open-external` leave from the link handlers that
+//    decide them, lib/local-file-links.ts and lib/external-links.ts; `ntwine:add-context` from the
 //    context bar over the sidebar's composers, lib/editorContext.ts.)
 
 export function initEmbedHost(): void {
@@ -45,20 +45,20 @@ export function initEmbedHost(): void {
   // Capture, because stopping a key is not taking it: a question's answer box stops every key it sees
   // (QuestionBlockCard), so that its letters never reach the page's shortcuts — and a listener on the
   // window's bubble phase then never heard Ctrl+Shift+P, Ctrl+B or Ctrl+` typed there, while the options
-  // grid and the prompt box forwarded them (sweep 2026-10-01). What Frizz handles itself still stays home:
+  // grid and the prompt box forwarded them (sweep 2026-10-01). What Ntwine handles itself still stays home:
   // ⌘K, ⌘I, ⌘, and Ctrl+Enter in a box are prevented by their handlers, and so is a chord the ? sheet is
   // recording.
   //
   // Asked after dispatch, because neither phase is late enough by itself: the shortcut runtime listens on
   // the window too (keyboardRuntime useShortcutListener), and a listener installed at boot runs before
-  // it — so every chord Frizz binds went to VS Code as well as to Frizz (driven 2026-10-01,
+  // it — so every chord Ntwine binds went to VS Code as well as to Ntwine (driven 2026-10-01,
   // build2-shell.md). The next task runs after dispatch has finished, and the event keeps its
-  // `defaultPrevented` after it. A chord Frizz binds stays home even where nothing prevented it — the
-  // answer box stops ⌘K before the shortcut runtime can hear it — since it is Frizz's, not VS Code's.
+  // `defaultPrevented` after it. A chord Ntwine binds stays home even where nothing prevented it — the
+  // answer box stops ⌘K before the shortcut runtime can hear it — since it is Ntwine's, not VS Code's.
   window.addEventListener("keydown", (event) => {
     setTimeout(() => {
       const chord = hostKeyChord(event)
-      if (chord && !frizzChord(event)) postToHost(chord)
+      if (chord && !ntwineChord(event)) postToHost(chord)
     }, 0)
   }, true)
   // ⌘L / Ctrl+L, the chord the context bar names, is Cursor's TOGGLE: from the editor it comes here (with a
@@ -86,7 +86,7 @@ export function initEmbedHost(): void {
 let cachedOverrides: unknown = null
 let cachedLookup = bindingLookup(effectiveBindings({}))
 
-function frizzChord(event: KeyboardEvent): boolean {
+function ntwineChord(event: KeyboardEvent): boolean {
   if (prefs.keybindings !== cachedOverrides) {
     cachedOverrides = prefs.keybindings
     cachedLookup = bindingLookup(effectiveBindings(prefs.keybindings))
@@ -99,7 +99,7 @@ function frizzChord(event: KeyboardEvent): boolean {
 // A frame inside VS Code is not a browser tab. In a tab, a script calling `focus()` while the human is in
 // another window moves nothing; in a VS Code webview it takes the keyboard from the EDITOR. Driven in real
 // VS Code 1.140 and 1.90 (scripts/e2e-sidebar.ts, 2026-10-01): with a thread open, every selection in the
-// editor posted `frizz:editor-context`, the context bar re-rendered inside the drawer, Radix's focus trap
+// editor posted `ntwine:editor-context`, the context bar re-rendered inside the drawer, Radix's focus trap
 // saw the frame's `activeElement` fall back to <body> (Chromium does that in a frame that has lost focus)
 // and called `focus()` on the drawer — and 150-300ms after the selection the webview had the keyboard,
 // even with the sidebar hidden. Ctrl+I then never reached the editor, and the next letters typed were the
@@ -149,33 +149,33 @@ function guardFocus(): void {
 }
 
 async function handle(message: EmbedHostMessage): Promise<void> {
-  if (message.type === "frizz:command" || message.type === "frizz:navigate" || (message.type === "frizz:compose" && message.focus)) allowHostFocus()
-  if (message.type === "frizz:theme") {
+  if (message.type === "ntwine:command" || message.type === "ntwine:navigate" || (message.type === "ntwine:compose" && message.focus)) allowHostFocus()
+  if (message.type === "ntwine:theme") {
     const { colors, surface, contrast } = message
     setHostTheme(message.theme, colors ? { colors, ...(surface ? { surface } : {}), ...(contrast ? { contrast } : {}) } : undefined)
     return
   }
-  if (message.type === "frizz:editor-context") {
+  if (message.type === "ntwine:editor-context") {
     setEditorContext(message)
     return
   }
-  if (message.type === "frizz:host-state") {
+  if (message.type === "ntwine:host-state") {
     setHostState(message)
     return
   }
-  if (message.type === "frizz:editor-extras") {
+  if (message.type === "ntwine:editor-extras") {
     setEditorExtras(message)
     return
   }
-  if (message.type === "frizz:context-picks") {
+  if (message.type === "ntwine:context-picks") {
     takeContextPicks(message)
     return
   }
-  if (message.type === "frizz:command") {
+  if (message.type === "ntwine:command") {
     runHostCommand(message.command)
     return
   }
-  if (message.type === "frizz:navigate") {
+  if (message.type === "ntwine:navigate") {
     // Whatever is over the page goes: the human asked to see a thread or a queue, not Settings — closed
     // by its own close, which sends a change still in its debounce. The picture viewer too, which sits
     // over every drawer: left up, it covered the queue it was sent back to, and the thread it was sent to.
@@ -192,7 +192,7 @@ async function handle(message: EmbedHostMessage): Promise<void> {
       // the drawer that says so, as a link to it does; another project's is a toast.
       if (await threadIsThere(to.thread, to.project)) openNamedThread(to.thread, to.project, "open")
       else if (holdsBoardOf(to.project)) pushDrawer("thread", to.thread)
-      else showToast("That thread isn't in Frizz.")
+      else showToast("That thread isn't in Ntwine.")
     }
     else spaNavigate(projectViewHref(to.project))
     return
@@ -209,7 +209,7 @@ async function handle(message: EmbedHostMessage): Promise<void> {
   const what = isTerminalPath(message.item.path) ? "the terminal output" : message.item.path === EMBED_PROBLEMS_PATH ? "the problems" : basename(message.item.path)
   postToHost(
     outcome.ok
-      ? { type: "frizz:composed", id: message.id, ok: true }
-      : { type: "frizz:composed", id: message.id, ok: false, error: `Couldn't add ${what} to Frizz's prompt box. ${outcome.reason}` },
+      ? { type: "ntwine:composed", id: message.id, ok: true }
+      : { type: "ntwine:composed", id: message.id, ok: false, error: `Couldn't add ${what} to Ntwine's prompt box. ${outcome.reason}` },
   )
 }

@@ -13,7 +13,7 @@ const { draftKey, draftStore } = await import("./drafts.ts")
 
 const now = 1_000_000_000
 const send = (over: Partial<Parameters<typeof pendingSends.add>[0]> = {}) => ({
-  deliveryId: "d1", apiBase: "/_frizz/p1", projectDir: "/repo", slug: "fix-auth", sessionId: "s1", message: "yes, ship it", at: now, ...over,
+  deliveryId: "d1", apiBase: "/_ntwine/p1", projectDir: "/repo", slug: "fix-auth", sessionId: "s1", message: "yes, ship it", at: now, ...over,
 })
 
 test("an in-flight send is recorded until it settles, and a corrupt ledger reads as empty", async () => {
@@ -33,7 +33,7 @@ test("a send orphaned by a reload is replayed under its ORIGINAL deliveryId, the
   pendingSends.add(send())
   const attempts: string[] = []
   await replayPendingSends(now + 5_000, async (s) => { attempts.push(`${s.apiBase} ${s.slug} ${s.deliveryId} ${s.message}`) })
-  assert.deepEqual(attempts, ["/_frizz/p1 fix-auth d1 yes, ship it"])
+  assert.deepEqual(attempts, ["/_ntwine/p1 fix-auth d1 yes, ship it"])
   assert.deepEqual(pendingSends.list(), [])
   assert.equal(draftStore.get(draftKey.followUp("/repo", "fix-auth", "s1")), "")
 })

@@ -12,11 +12,11 @@ import { join } from "node:path"
 
 // Every Claude transcript reader resolves `~/.claude/projects/<cwdSlug>/`; point it at a sandbox BEFORE
 // anything reads it (os.homedir() reads $HOME on every call).
-const HOME = mkdtempSync(join(tmpdir(), "frizz-fork-home-"))
+const HOME = mkdtempSync(join(tmpdir(), "ntwine-fork-home-"))
 process.env.HOME = HOME
 process.on("exit", () => rmSync(HOME, { recursive: true, force: true }))
 
-import { parseSpinoffChildPrompt, spinoffChildPrompt, spinoffForkPrompt } from "@frizz/shared"
+import { parseSpinoffChildPrompt, spinoffChildPrompt, spinoffForkPrompt } from "@ntwine/shared"
 import { __clearForkPointsForTests, forkPointOf, isInheritedSessionMetadata } from "./fork-point.ts"
 import { createTailer } from "./tailer.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -46,7 +46,7 @@ const PARENT_HISTORY = [
   user(1, `${"x".repeat(10)} the parent's own task: remember PAPAYA-7731 and fix the cache bug`),
   toolUse(2, "toolu_sh", "Bash", { command: "sleep 9999", run_in_background: true, description: "wait on the deploy" }),
   toolResult(3, "toolu_sh", "Command running in background with ID: bParent. Output is being written to: /tmp/tasks/bParent.output."),
-  toolUse(4, "toolu_ag", "Agent", { description: "audit the cache", run_in_background: true, subagent_type: "frizz:high" }),
+  toolUse(4, "toolu_ag", "Agent", { description: "audit the cache", run_in_background: true, subagent_type: "ntwine:high" }),
   toolResult(5, "toolu_ag", "Async agent launched successfully.\nagentId: aParent\noutput_file: /tmp/aParent.output\nDo not read this file."),
   say(6, "Fixed the cache bug.\n\n```done\nThe cache now invalidates on write.\n```"),
   aiTitle("Cache invalidation fix"),
@@ -87,7 +87,7 @@ test("fork prompt: the child's header projects the human's words with no brief, 
 
 test("fork point: pending until the anchor record lands, then the offset of its line, found incrementally", () => {
   __clearForkPointsForTests()
-  const dir = mkdtempSync(join(tmpdir(), "frizz-fork-point-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-fork-point-"))
   try {
     const path = join(dir, "child.jsonl")
     writeFileSync(path, lines([...FORK_HEAD, ...PARENT_HISTORY]))
@@ -113,14 +113,14 @@ test("fork point: pending until the anchor record lands, then the offset of its 
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug: "child", session_id: CHILD_SID, thread_name: "frizz-child", spawned_at: ts(8), last_read_at: null, unread: 0, exited: 0,
+    slug: "child", session_id: CHILD_SID, thread_name: "ntwine-child", spawned_at: ts(8), last_read_at: null, unread: 0, exited: 0,
     archived: 0, rested_at: null, title_auto: 1, title: null, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
 }
 
 function tailHarness(forked: boolean) {
   __clearForkPointsForTests()
-  const root = mkdtempSync(join(tmpdir(), "frizz-fork-tail-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-fork-tail-"))
   const logDir = join(root, "-a-project")
   mkdirSync(logDir, { recursive: true })
   const storage = createStorage(join(logDir, "ui.db"), "p")
@@ -199,7 +199,7 @@ test("tailer (negative control): the same bytes WITHOUT the anchor hand the chil
 function projectFixture() {
   __clearForkPointsForTests()
   __clearTranscriptCacheForTests()
-  const dir = mkdtempSync(join(tmpdir(), "frizz-fork-chat-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-fork-chat-"))
   const cwdSlug = `fork-chat-${Math.random().toString(16).slice(2)}`
   const project: Project = { dir, id: "fork-chat", name: "t", label: "t", stateDir: dir, cwdSlug }
   const logDir = join(homedir(), ".claude", "projects", cwdSlug)
@@ -240,7 +240,7 @@ test("chat: a forked child opens on its spinoff header, with none of the parent'
 test("chat: a request draws its card in the parent's chat from its row, at the instant it was asked", () => {
   const f = projectFixture()
   try {
-    f.storage.upsertSession(row({ slug: "parent", session_id: PARENT_SID, thread_name: "frizz-parent" }))
+    f.storage.upsertSession(row({ slug: "parent", session_id: PARENT_SID, thread_name: "ntwine-parent" }))
     f.storage.setBackend("parent", "claude")
     f.storage.setClaudeRuntime("parent", "broker")
     // An older build DELIVERED one request to the worker: it is in the transcript, and draws from there.
@@ -274,7 +274,7 @@ test("chat: a request draws its card in the parent's chat from its row, at the i
 // ---- discovery -------------------------------------------------------------------------------------------
 
 test("discovery: a parent whose transcript went missing never adopts its forked child's file", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-fork-discover-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-fork-discover-"))
   try {
     // The child's head carries the PARENT's scratch sentinel, copied with the parent's opening prompt.
     const copiedOpening = composePrompt(PARENT_SID, "the parent's task")
@@ -289,7 +289,7 @@ test("discovery: a parent whose transcript went missing never adopts its forked 
 // ---- storage -------------------------------------------------------------------------------------------
 
 test("storage: the anchor survives a resume of the same session and is dropped by a re-dispatch", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-fork-storage-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-fork-storage-"))
   try {
     const storage = createStorage(join(dir, "ui.db"), "p")
     storage.upsertSession(row())

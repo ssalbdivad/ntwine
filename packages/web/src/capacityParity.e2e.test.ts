@@ -13,10 +13,10 @@ import type { Browser } from "puppeteer"
 // CAPACITY PARITY — the gate on "the default shows at least as much as upstream's default".
 //
 // Opt-in, and unlike every other *.e2e.test.ts here it needs NOTHING running: it boots its own three
-// disposable Frizz stacks (`scripts/adhoc-stack.mjs`, sandbox HOME, throwaway port), seeds each, renders
+// disposable Ntwine stacks (`scripts/adhoc-stack.mjs`, sandbox HOME, throwaway port), seeds each, renders
 // it in its own headless Chrome and tears all of it down, pass or fail. One command runs it end to end:
-//   FRIZZ_CAPACITY_E2E=1 nub run test packages/web/src/capacityParity.e2e.test.ts
-// Set FRIZZ_CAPACITY_E2E_SHOTS=/abs/dir to also keep a screenshot of every measurement. It is listed in
+//   NTWINE_CAPACITY_E2E=1 nub run test packages/web/src/capacityParity.e2e.test.ts
+// Set NTWINE_CAPACITY_E2E_SHOTS=/abs/dir to also keep a screenshot of every measurement. It is listed in
 // scripts/e2e-web.mjs's NEEDS_REAL_STACK (it drives the real app, not a fixture page), so neither
 // `nub run test` nor `nub run test:e2e` boots its stacks: three Vite-served servers and six page loads
 // took 2.5-3.5 minutes on 2026-10-06, which the unit suite should not pay on every run.
@@ -67,8 +67,8 @@ import type { Browser } from "puppeteer"
 // 17 / 22 lines, i.e. 11 rows + 6 headers / 14 rows + 8 headers (FAILS — each project group then cost
 // ~60px beyond its rows: a header, a "N more" row and a rule); David's load 8 of 8 loud rows at both.
 // The rail-on readings start with the commit that restored the rail (2026-10-06, on us-default).
-const enabled = process.env.FRIZZ_CAPACITY_E2E === "1"
-const shotsDir = process.env.FRIZZ_CAPACITY_E2E_SHOTS
+const enabled = process.env.NTWINE_CAPACITY_E2E === "1"
+const shotsDir = process.env.NTWINE_CAPACITY_E2E_SHOTS
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url))
 
@@ -196,7 +196,7 @@ async function freePort(): Promise<number> {
 }
 
 async function bootStack(seed: Load): Promise<Stack> {
-  const scratch = mkdtempSync(join(tmpdir(), `frizz-capacity-${seed.name}-`))
+  const scratch = mkdtempSync(join(tmpdir(), `ntwine-capacity-${seed.name}-`))
   ownedDirs.add(scratch)
   // Plain git repos named for the project: the slug is the folder's name, so the views read like a
   // real machine's (and the first one is the launcher).
@@ -211,7 +211,7 @@ async function bootStack(seed: Load): Promise<Stack> {
   const log = join(scratch, "stack.log")
   const fd = openSync(log, "w")
   // stdout to a FILE, never a pipe we might stop reading: the stack logs every Vite update, and a write
-  // to a closed pipe kills it with SIGPIPE mid-run (frizz-stack skill).
+  // to a closed pipe kills it with SIGPIPE mid-run (ntwine-stack skill).
   const child = spawn("nub", ["scripts/adhoc-stack.mjs", `--port=${port}`, `--project=${dirs[0]}`, ...dirs.slice(1).map((d) => `--also-project=${d}`)], {
     cwd: repoRoot, stdio: ["ignore", fd, fd], detached: true,
   })
@@ -247,7 +247,7 @@ async function bootStack(seed: Load): Promise<Stack> {
     const all = [{ id: info.launcher.id, slug: info.launcher.slug, dir: dirs[0]! }, ...info.tenants]
     assert.equal(all.length, seed.projects.length, `the stack registered ${all.length} of ${seed.projects.length} projects:\n${readFileSync(log, "utf8").slice(-3000)}`)
     const projects = all.map((p, i) => ({ ...p, dir: realpathSync(p.dir), threads: seed.projects[i]!.threads }))
-    return { base: `http://127.0.0.1:${port}`, home: info.home, db: join(info.home, ".frizz", "ui.db"), projects, stop, log }
+    return { base: `http://127.0.0.1:${port}`, home: info.home, db: join(info.home, ".ntwine", "ui.db"), projects, stop, log }
   } catch (error) {
     await stop()
     throw error
@@ -275,7 +275,7 @@ function seedStack(stack: Stack): ChildProcess {
     for (const project of stack.projects) {
       const transcriptDir = join(stack.home, ".claude", "projects", project.dir.replace(/[/.]/g, "-"))
       mkdirSync(transcriptDir, { recursive: true })
-      const brokerDir = join(stack.home, ".frizz", "projects", project.id, "claude-broker")
+      const brokerDir = join(stack.home, ".ntwine", "projects", project.id, "claude-broker")
       mkdirSync(brokerDir, { recursive: true })
       for (const t of project.threads) {
         const h = createHash("sha256").update(`capacity/${project.slug}/${t.slug}`).digest("hex")
@@ -297,7 +297,7 @@ function seedStack(stack: Stack): ChildProcess {
           writeFileSync(join(brokerDir, `${key}.json`), JSON.stringify({ sessionId, daemonPid: daemon.pid, socketPath: join(brokerDir, `${t.slug}.sock`) }))
         }
         insert.run(
-          project.id, t.slug, sessionId, `frizz-${t.slug}`, ago(rest + 13), t.title,
+          project.id, t.slug, sessionId, `ntwine-${t.slug}`, ago(rest + 13), t.title,
           done ? null : "broker", done ? "archived" : "open", done ? 1 : 0,
           inFlight ? null : ago(rest), t.band === "snoozed" ? later(6) : null, t.band === "pinned" ? ago(rest + 5) : null,
         )
@@ -319,7 +319,7 @@ async function waitForBoards(stack: Stack) {
     const want = new Set(project.threads.map((t) => t.slug))
     let seen = 0
     for (;;) {
-      const res = await fetch(`${stack.base}/_frizz/${project.slug}/rpc/board`, { headers }).catch(() => undefined)
+      const res = await fetch(`${stack.base}/_ntwine/${project.slug}/rpc/board`, { headers }).catch(() => undefined)
       const body = res?.ok ? ((await res.json()) as { result?: { threads?: { slug?: string; id?: string }[] } }) : undefined
       const threads = body?.result?.threads ?? []
       seen = threads.filter((t) => want.has(String(t.slug ?? t.id))).length
@@ -348,8 +348,8 @@ type Measurement = {
 /** Turn the project rail on or off: a machine setting, written through the server's own RPC. */
 async function setRail(stack: Stack, on: boolean): Promise<void> {
   const headers = { origin: stack.base, "content-type": "application/json" }
-  const current = (await (await fetch(`${stack.base}/_frizz/rpc/settingsGet`, { headers })).json()) as { result: Record<string, unknown> }
-  const res = await fetch(`${stack.base}/_frizz/rpc/settingsSet`, { method: "POST", headers, body: JSON.stringify({ ...current.result, projectRail: on }) })
+  const current = (await (await fetch(`${stack.base}/_ntwine/rpc/settingsGet`, { headers })).json()) as { result: Record<string, unknown> }
+  const res = await fetch(`${stack.base}/_ntwine/rpc/settingsSet`, { method: "POST", headers, body: JSON.stringify({ ...current.result, projectRail: on }) })
   assert.equal(res.status, 200, `settingsSet projectRail=${on}: ${await res.text()}`)
 }
 

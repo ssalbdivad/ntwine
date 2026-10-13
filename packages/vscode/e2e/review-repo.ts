@@ -17,7 +17,7 @@ import { dirname, join } from "node:path"
 export interface ReviewRepo {
   /** The project folder: the repository's main checkout. */
   dir: string
-  /** The thread's worktree, `<dir>/.frizz/worktrees/<slug>`, real-pathed. */
+  /** The thread's worktree, `<dir>/.ntwine/worktrees/<slug>`, real-pathed. */
   worktree: string
   branch: string
   /** The commit the branch was made at: the review's base. */
@@ -35,7 +35,7 @@ export const LOOP_AFTER = "export function loop(xs: number[]): number {\n  retur
 const RENAMED = "export const renamed = 'a file long enough for git to pair its rename across the commit'\n"
 
 function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", ["-c", "user.name=frizz e2e", "-c", "user.email=e2e@frizz.invalid", "-c", "commit.gpgsign=false", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()
+  return execFileSync("git", ["-c", "user.name=ntwine e2e", "-c", "user.email=e2e@ntwine.invalid", "-c", "commit.gpgsign=false", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()
 }
 
 function write(path: string, text: string | Buffer): void {
@@ -54,9 +54,9 @@ export function seedReviewRepo(dir: string, branch = "tidy-the-loop"): ReviewRep
     git(dir, "add", ".")
     git(dir, "commit", "-qm", "init")
   }
-  // The project ignores its own `.frizz/`, as every Frizz project does — which is exactly what made a
+  // The project ignores its own `.ntwine/`, as every Ntwine project does — which is exactly what made a
   // worktree's files read as ignored from the project root.
-  write(join(dir, ".gitignore"), ".frizz/\nnode_modules/\n")
+  write(join(dir, ".gitignore"), ".ntwine/\nnode_modules/\n")
   write(join(dir, "src", "loop.ts"), LOOP_BEFORE)
   write(join(dir, "src", "rename-me.ts"), RENAMED)
   write(join(dir, "docs", "old.md"), "# old notes\n")
@@ -64,7 +64,7 @@ export function seedReviewRepo(dir: string, branch = "tidy-the-loop"): ReviewRep
   git(dir, "commit", "-qm", "the code the thread starts from")
   const base = git(dir, "rev-parse", "HEAD")
 
-  const at = join(dir, ".frizz", "worktrees", branch)
+  const at = join(dir, ".ntwine", "worktrees", branch)
   git(dir, "worktree", "add", "-q", "-b", branch, at)
   const worktree = realpathSync(at)
   write(join(worktree, "src", "loop.ts"), LOOP_AFTER)

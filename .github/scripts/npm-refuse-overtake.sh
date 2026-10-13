@@ -2,7 +2,7 @@
 # Refuse to publish <name>@<version> past a version npm does not serve yet.
 #
 # npm holds every new version in automated review and does not release them in the order they
-# arrived. On 2026-10-10 frizz 0.13.10 was accepted at 21:40 UTC and held for 14h 56m; the run
+# arrived. On 2026-10-10 ntwine 0.13.10 was accepted at 21:40 UTC and held for 14h 56m; the run
 # waiting on it hit its deadline, the queued run behind it published 0.13.11, and npm served 0.13.11
 # eighteen minutes BEFORE 0.13.10. `latest` stayed on the higher version, so nobody installed the
 # wrong one, but the older shell was the newest publish and 0.13.12 was cut only to put that right.
@@ -11,7 +11,7 @@
 # be published must be the IMMEDIATE successor of the highest one npm serves: the next patch, or the
 # first release of the next minor or major. Anything further ahead means a version in between was
 # either accepted and is still in review, or was never published at all (a number skipped because
-# its run was cancelled, as frizz-server 0.15.21 was). Only a person can tell those apart: wait for
+# its run was cancelled, as ntwine-server 0.15.21 was). Only a person can tell those apart: wait for
 # the first, and say so for the second by dispatching with `-f allow_version_gap=true`, which
 # release.yml hands down as ALLOW_VERSION_GAP.
 #

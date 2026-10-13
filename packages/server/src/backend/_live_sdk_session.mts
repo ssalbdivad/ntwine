@@ -1,4 +1,4 @@
-// LIVE integration test: exercise a COMPLEX real-claude session through frizz's SDK backend to prove
+// LIVE integration test: exercise a COMPLEX real-claude session through ntwine's SDK backend to prove
 // the rewritten pump holds across the boundaries unit tests can't reach with a fake CLI —
 // multiple turns (per-turn re-init), setPermissionMode mid-session, and interrupt.
 //   nub packages/server/src/backend/_live_sdk_session.mts
@@ -11,7 +11,7 @@ import { createClaudeQueryFactory } from "./claude-agent-sdk.ts"
 import type { ClaudeQueryEvent } from "./claude-agent-sdk-protocol.ts"
 
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
-const cwd = mkdtempSync(join(tmpdir(), "frizz-sdk-session-"))
+const cwd = mkdtempSync(join(tmpdir(), "ntwine-sdk-session-"))
 execFileSync("git", ["init", "-q", cwd])
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }

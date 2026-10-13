@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { draftForSeconds, draftIntervalSeconds, draftMaxRuns, seedsDefaults } from "./RecurringPromptControl.tsx"
 import { goalLoopReading } from "../lib/goalLoop.ts"
 

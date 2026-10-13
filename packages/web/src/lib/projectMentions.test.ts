@@ -1,7 +1,7 @@
 import { test, after } from "node:test"
 import assert from "node:assert/strict"
 import { Marked } from "marked"
-import type { ProjectCard } from "@frizz/shared"
+import type { ProjectCard } from "@ntwine/shared"
 import { MARKDOWN_OPTIONS } from "./markdown.ts"
 import { setGithubRepo } from "./githubAutolink.ts"
 import { mentionIndexVersion } from "./mentionAutolink.ts"
@@ -18,11 +18,11 @@ import {
 const card = (slug: string, name: string, over: Partial<ProjectCard> = {}) =>
   ({ id: `id-${slug}`, slug, name, path: `/home/u/${slug}`, lastOpenedAt: "", stale: false, iconStatus: "unknown", ...over }) as ProjectCard
 
-const CARDS = [card("home", "Home"), card("arktype", "ArkType"), card("frizz-web", "Frizz web"), card("gone", "Gone", { stale: true }), card("2024", "2024")]
+const CARDS = [card("home", "Home"), card("arktype", "ArkType"), card("ntwine-web", "Ntwine web"), card("gone", "Gone", { stale: true }), card("2024", "2024")]
 const PROJECTS = projectMentionCandidates(CARDS)
 
 test("every project whose directory still exists, in the list's order", () => {
-  assert.deepEqual(PROJECTS.map((p) => p.slug), ["home", "arktype", "frizz-web", "2024"])
+  assert.deepEqual(PROJECTS.map((p) => p.slug), ["home", "arktype", "ntwine-web", "2024"])
 })
 
 test("the query at the caret starts at a word boundary and never after another #, an & or a /", () => {
@@ -38,10 +38,10 @@ test("the query at the caret starts at a word boundary and never after another #
 })
 
 test("ranking: slug prefix, word prefix, inside, display name, letters in order; digits are GitHub's", () => {
-  assert.deepEqual(matchProjects(PROJECTS, "").map((p) => p.slug), ["home", "arktype", "frizz-web", "2024"])
+  assert.deepEqual(matchProjects(PROJECTS, "").map((p) => p.slug), ["home", "arktype", "ntwine-web", "2024"])
   assert.deepEqual(matchProjects(PROJECTS, "ark").map((p) => p.slug), ["arktype"])
-  assert.deepEqual(matchProjects(PROJECTS, "web").map((p) => p.slug), ["frizz-web"])
-  assert.deepEqual(matchProjects(PROJECTS, "fw").map((p) => p.slug), ["frizz-web"])
+  assert.deepEqual(matchProjects(PROJECTS, "web").map((p) => p.slug), ["ntwine-web"])
+  assert.deepEqual(matchProjects(PROJECTS, "nw").map((p) => p.slug), ["ntwine-web"])
   assert.deepEqual(matchProjects(PROJECTS, "12"), [])
 })
 
@@ -55,7 +55,7 @@ test("completion replaces the whole token and leaves one space after it", () => 
 test("a finished mention resolves only when it IS a slug, case aside, and never a digit run or a path", () => {
   const found = (text: string) => scanProjectMentions(text, PROJECTS).map((m) => [m.start, m.text, m.slug])
   assert.deepEqual(found("move it to #arktype, then #Home."), [[11, "#arktype", "arktype"], [26, "#Home", "home"]])
-  assert.deepEqual(found("#frizz-web—ok"), [[0, "#frizz-web", "frizz-web"]])
+  assert.deepEqual(found("#ntwine-web—ok"), [[0, "#ntwine-web", "ntwine-web"]])
   assert.deepEqual(found("#nobody #gone #2024 #123"), [], "unknown, stale, and digit runs (GitHub refs)")
   assert.deepEqual(found("#home/src x.com/#home ##home &#home #home-x #home.ts"), [], "a path, a fragment, a heading, an entity, a longer token")
 })

@@ -1,4 +1,4 @@
-// LIVE DEPTH PROBE: does anything frizz can see describe a GRANDCHILD — a sub-agent dispatched by a
+// LIVE DEPTH PROBE: does anything ntwine can see describe a GRANDCHILD — a sub-agent dispatched by a
 // sub-agent — and if so, where?
 //   nub packages/server/src/backend/_live_broker_depth.mts
 //
@@ -141,7 +141,7 @@ function scanTranscript(path: string): { agents: Array<{ id: string; description
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

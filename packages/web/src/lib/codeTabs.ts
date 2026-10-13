@@ -2,11 +2,11 @@
 // fence, and a lone labelled fence gets its label as a title bar.
 //
 //   ```bash npm
-//   npm install frizz
+//   npm install ntwine
 //   ```
 //
 //   ```bash pnpm
-//   pnpm add frizz
+//   pnpm add ntwine
 //   ```
 //
 // THE LABEL IS THE WHOLE TRIGGER, and there is no wrapper. A run of fences is what the author would
@@ -82,7 +82,7 @@ export function parseFenceLabel(infoString?: string): FenceLabel | null {
   const headless = /[=[{]/.test(first)
   const language = headless ? "" : first
   const tail = headless ? info : info.slice(first.length)
-  // The fences Frizz draws as something other than code are never tabs, whatever follows the name.
+  // The fences Ntwine draws as something other than code are never tabs, whatever follows the name.
   if (/^(?:lightbox|mermaid|question|done|awaiting)$/i.test(language)) return null
 
   const keyed = KEYED_LABEL.exec(tail)

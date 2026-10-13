@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router"
 import { useSnapshot } from "valtio"
-import type { BoardSnapshot, RegisteredQuestionView, ThreadHandoff, ThreadView as ThreadViewModel } from "@frizz/shared"
+import type { BoardSnapshot, RegisteredQuestionView, ThreadHandoff, ThreadView as ThreadViewModel } from "@ntwine/shared"
 import { AllQueuesCard } from "./components/AllQueuesCard.tsx"
 import { SettingsDrawer } from "./components/SettingsDrawer.tsx"
 import { CommandPalette } from "./components/CommandPalette.tsx"
@@ -38,8 +38,8 @@ import "./styles.css"
 //                 a legacy marker for ONE of them mid-prose, with a paragraph under it. The marker must
 //                 draw NOTHING (lib/allQueues handoffParts): both cards render together UNDER the whole
 //                 handoff, one stack, one Send.
-//   ?woken=1    — the worker asked and rested, then frizz WOKE it (a PR watcher expired) and it wrote a
-//                 newer handoff with the question still open. Only frizz has spoken since, so the card
+//   ?woken=1    — the worker asked and rested, then ntwine WOKE it (a PR watcher expired) and it wrote a
+//                 newer handoff with the question still open. Only ntwine has spoken since, so the card
 //                 must render at the BOTTOM, under the newer handoff — not frozen above the wake.
 //   ?default=1  — the question will take its recommended option in ~7m unless answered: the countdown
 //                 caption under the card, with its own × that turns the default off (2026-10-05).
@@ -72,7 +72,7 @@ const SETTINGS: RegisteredQuestionView = {
         description: "zero dependencies and hand-editable, but racy under concurrent writes",
         // The RETIRED shape, still carried by stored rows: folds into the same always-visible body
         // under the one-line trade-off, never behind a pick.
-        preview: "```json\n{ \"theme\": \"dark\", \"font\": \"mono\" }\n```\nOne file at `~/.frizz/settings.json`. Two servers writing it at once is the failure mode.",
+        preview: "```json\n{ \"theme\": \"dark\", \"font\": \"mono\" }\n```\nOne file at `~/.ntwine/settings.json`. Two servers writing it at once is the failure mode.",
       },
     ],
   },
@@ -181,7 +181,7 @@ const TABLE: RegisteredQuestionView = {
   },
 }
 
-// The ask a frizz wake used to strand above the worker's newer handoff (2026-09-28, a real thread's
+// The ask an ntwine wake used to strand above the worker's newer handoff (2026-09-28, a real thread's
 // shape: asked on one day, the PR watcher expired four days later, the worker re-armed and rested again).
 const MERGE: RegisteredQuestionView = {
   id: "qst_0007abab",
@@ -221,7 +221,7 @@ const wokenHandoff = "[#1403](https://github.com/pullfrog/app/pull/1403) is stil
 const handoff: ThreadHandoff = placed
   ? { asked: "Add a settings store.", askedAt: ago(12), text: placedHandoff, at: ago(1) }
   : woken
-  // Only frizz has spoken since the ask — a wake is not the human's — so the pair is the human's own ask
+  // Only ntwine has spoken since the ask — a wake is not the human's — so the pair is the human's own ask
   // and the worker's NEWER handoff.
   ? { asked: "Get #1403 merge-ready.", askedAt: ago(40), text: wokenHandoff, at: ago(4) }
   : past
@@ -255,7 +255,7 @@ const thread = {
   backend: "claude",
   permissionMode: "default",
   subAgents: params.get("busy") === "1"
-    ? [{ id: "agent-a", label: "Audit the parser for edge cases", subagentType: "frizz:high", startedAt: ago(4), state: "running" }]
+    ? [{ id: "agent-a", label: "Audit the parser for edge cases", subagentType: "ntwine:high", startedAt: ago(4), state: "running" }]
     : [],
   bgShells: params.get("busy") === "1"
     ? [{ id: "toolu_ci", taskId: "bzvtnt3ig", label: "gh run watch 1842", startedAt: ago(6), state: "running" }]
@@ -271,17 +271,17 @@ const thread = {
 // ?keys=1's second card: the same rest, asking only the commit gates.
 const gatesThread = { ...thread, id: "registered-question-gates", title: "Pick the commit gates", questions: [GATES], lastActivityAt: ago(2) } as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: keys ? [thread, gatesThread] : [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: keys ? [thread, gatesThread] : [thread] } as BoardSnapshot
 Object.assign(window, { fixtureStore: store })
 
 const project: QueuesProject = {
   id: "fixture",
-  slug: "frizz",
-  name: "frizz",
+  slug: "ntwine",
+  name: "ntwine",
   card: undefined,
   open: true,
   stale: false,
-  projectDir: "/fixture/frizz",
+  projectDir: "/fixture/ntwine",
   homeDir: "/fixture",
   githubRepo: undefined,
   queued: keys ? [thread, gatesThread] : [thread],
@@ -294,9 +294,9 @@ const project: QueuesProject = {
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  // The card addresses its OWN project (`/_frizz/<project id>/rpc/…`, api/rpc.ts projectRpc), so every
+  // The card addresses its OWN project (`/_ntwine/<project id>/rpc/…`, api/rpc.ts projectRpc), so every
   // route is matched on the rpc name alone.
-  const rpc = /^\/_frizz\/[^/]+\/rpc\/([^/]+)$/.exec(url.pathname)?.[1] ?? null
+  const rpc = /^\/_ntwine\/[^/]+\/rpc\/([^/]+)$/.exec(url.pathname)?.[1] ?? null
   // Every write, in order, for a probe asserting WHICH sends happened and in what sequence (a reply sent
   // with answers staged must send the answers first — registeredQuestionAutoSend.e2e).
   if (rpc !== null && rpc !== "threadHandoff") ((window as unknown as { __rpcs?: string[] }).__rpcs ??= []).push(rpc)

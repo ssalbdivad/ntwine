@@ -4,8 +4,8 @@ import test from "node:test"
 // Opt-in, like every other e2e here: start `vite` in packages/web and point this at its origin (or run
 // `nub run test:e2e`, which does both).
 //   cd packages/web && nubx vite --port 5234 --strictPort --host 127.0.0.1 &
-//   FRIZZ_SETTLED_STEPS_E2E_URL=http://127.0.0.1:5234 nub --test src/components/settledSteps.e2e.test.ts
-const baseUrl = process.env.FRIZZ_SETTLED_STEPS_E2E_URL
+//   NTWINE_SETTLED_STEPS_E2E_URL=http://127.0.0.1:5234 nub --test src/components/settledSteps.e2e.test.ts
+const baseUrl = process.env.NTWINE_SETTLED_STEPS_E2E_URL
 
 // A STEPS CARD OUTLIVES ITS REST (2026-10-08, maintainer: "We need to continue showing the to do
 // instructions even after they are complete & the thread has moved on"). Every other settled ```awaiting
@@ -41,7 +41,7 @@ test("a steps card stays in the transcript after its rest, with no Done", {
           cards: cards.map((el) => ({
             chip: (el.querySelector("[data-card-chip]") as HTMLElement | null)?.innerText.trim(),
             title: (el.querySelector("[data-card-title]") as HTMLElement | null)?.innerText.trim(),
-            steps: [...el.querySelectorAll("[data-awaiting-steps] .frizz-step-text")].map((li) => (li as HTMLElement).innerText.trim()),
+            steps: [...el.querySelectorAll("[data-awaiting-steps] .ntwine-step-text")].map((li) => (li as HTMLElement).innerText.trim()),
             done: !!el.querySelector("[data-steps-done]"),
             // The stepper ticks only while the thread rests on these steps; a settled card is a record.
             ticks: el.querySelectorAll("[data-awaiting-steps] button[role=checkbox]").length,

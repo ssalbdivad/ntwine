@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import type { ThreadView, TranscriptMessage } from "@frizz/shared"
+import type { ThreadView, TranscriptMessage } from "@ntwine/shared"
 import { ProviderErrorCard, providerErrorVisible } from "./components/ProviderErrorCard.tsx"
 import { showsRestedCard } from "./components/RestedCard.tsx"
 

@@ -4,15 +4,15 @@
 // command. Everything a human does — keys, clicks, typing — the harness does from outside, over the
 // workbench's debugging port, and everything it asserts about the page it reads from the page itself.
 //
-// It asks the harness for the next operation over HTTP (FRIZZ_E2E_AGENT, a loopback address the harness
+// It asks the harness for the next operation over HTTP (NTWINE_E2E_AGENT, a loopback address the harness
 // serves), runs it, and posts the answer back, until the harness says `done`.
 
 import { realpathSync } from "node:fs"
 import * as vscode from "vscode"
-import type { FrizzExtensionApi } from "../src/app.ts"
+import type { NtwineExtensionApi } from "../src/app.ts"
 import { hasShellExecutions } from "../src/extras-feed.ts"
 
-const control = process.env.FRIZZ_E2E_AGENT ?? ""
+const control = process.env.NTWINE_E2E_AGENT ?? ""
 
 /** `[startLine, startCharacter, endLine, endCharacter]`, 0-based as the API counts; an end character of -1 is the line's end. */
 export type Range4 = [number, number, number, number]
@@ -35,14 +35,14 @@ export type AgentOp =
 export interface AgentStatus {
   version: string
   appName: string
-  status: ReturnType<FrizzExtensionApi["status"]>
-  sidebar: ReturnType<FrizzExtensionApi["sidebar"]>
-  editorContext: ReturnType<FrizzExtensionApi["editorContext"]>
+  status: ReturnType<NtwineExtensionApi["status"]>
+  sidebar: ReturnType<NtwineExtensionApi["sidebar"]>
+  editorContext: ReturnType<NtwineExtensionApi["editorContext"]>
   theme: number
   /** The hint beside the selection as the extension draws it now (null for none). */
-  selectionHint: ReturnType<FrizzExtensionApi["selectionHint"]> | null
+  selectionHint: ReturnType<NtwineExtensionApi["selectionHint"]> | null
   /** The threads open in editor tabs. */
-  threadTabs: ReturnType<FrizzExtensionApi["threadTabs"]>
+  threadTabs: ReturnType<NtwineExtensionApi["threadTabs"]>
 }
 
 /** A setting as `inspect` reads it: what each level sets, and what wins. */
@@ -70,7 +70,7 @@ function plain(value: unknown): unknown {
   }
 }
 
-async function perform(api: FrizzExtensionApi, op: AgentOp): Promise<unknown> {
+async function perform(api: NtwineExtensionApi, op: AgentOp): Promise<unknown> {
   switch (op.op) {
     case "status":
       return {
@@ -139,7 +139,7 @@ async function perform(api: FrizzExtensionApi, op: AgentOp): Promise<unknown> {
     case "terminal": {
       // A bash terminal, its command run through shell integration (VS Code 1.93+), and the run's end
       // awaited — what the bar's "Add last terminal command" then offers.
-      const terminal = vscode.window.createTerminal({ name: "frizz e2e", shellPath: "/bin/bash" })
+      const terminal = vscode.window.createTerminal({ name: "ntwine e2e", shellPath: "/bin/bash" })
       terminal.show(true)
       if (!hasShellExecutions(vscode.version)) {
         // Before 1.93 shell integration is not the extension API's: `terminal.shellIntegration` is a
@@ -186,11 +186,11 @@ async function perform(api: FrizzExtensionApi, op: AgentOp): Promise<unknown> {
 }
 
 export async function run(): Promise<void> {
-  if (!control) throw new Error("FRIZZ_E2E_AGENT is not set: this runs under scripts/e2e-sidebar.ts")
-  const extension = vscode.extensions.getExtension<FrizzExtensionApi>("ssalbdivad.frizz-vscode")
+  if (!control) throw new Error("NTWINE_E2E_AGENT is not set: this runs under scripts/e2e-sidebar.ts")
+  const extension = vscode.extensions.getExtension<NtwineExtensionApi>("ssalbdivad.ntwine-vscode")
   if (!extension) throw new Error("the extension under test is not installed")
   const api = await extension.activate()
-  console.log(`frizz e2e agent: ${vscode.env.appName} ${vscode.version}, asking ${control}`)
+  console.log(`ntwine e2e agent: ${vscode.env.appName} ${vscode.version}, asking ${control}`)
   let seq = 0
   let misses = 0
   for (;;) {
@@ -206,7 +206,7 @@ export async function run(): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, 1_000))
         continue
       }
-      console.log(`frizz e2e agent: the harness is gone (${(error as Error).message})`)
+      console.log(`ntwine e2e agent: the harness is gone (${(error as Error).message})`)
       return
     }
     seq = next.seq

@@ -1,12 +1,12 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { SCHEDULE_NOT_FOUND_COPY, SCHEDULE_PRESENCE_COPY, SCHEDULE_SPACING_COPY, cutPhrase, locatePhrase } from "@frizz/shared"
+import { SCHEDULE_NOT_FOUND_COPY, SCHEDULE_PRESENCE_COPY, SCHEDULE_SPACING_COPY, cutPhrase, locatePhrase } from "@ntwine/shared"
 import type { ClaudeOneShotRequest } from "./backend/claude-oneshot.ts"
 import { createScheduleInterpreter, interpreterClock, interpreterSystemPrompt } from "./schedule-interpreter.ts"
 import type { ThreadScheduleRow } from "./schedule-store.ts"
 
 // The interpreter's VALIDATION around the model (schedule-interpreter.ts): the model is scripted here, so
-// these pin what Frizz does with each kind of answer — accept, retry once with the reason, or refuse with
+// these pin what Ntwine does with each kind of answer — accept, retry once with the reason, or refuse with
 // the human's copy. What a real model makes of real phrasings is recorded by a live run instead
 // (ARCHITECTURE.md § Scheduled threads; the five phrasings were read for real on 2026-10-05).
 

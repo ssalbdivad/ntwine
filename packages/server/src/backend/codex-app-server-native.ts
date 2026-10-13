@@ -1,14 +1,14 @@
 // The NATIVE transport: host the Codex app-server on its own unix-socket listener
-// (`codex app-server --listen unix://PATH`) instead of inside frizz's hand-written daemon.
+// (`codex app-server --listen unix://PATH`) instead of inside ntwine's hand-written daemon.
 //
 // This is a drop-in `CodexAppServerHost` — same seam as `daemonCodexAppServerHost`, same
-// `CodexAppServerProcess` shape out the other end — but there is no frizz-authored daemon process in
-// the middle. frizz spawns the codex binary DETACHED and talks to it over a WebSocket on a socket path
-// frizz chose. What the daemon was hand-building, the app-server already does:
+// `CodexAppServerProcess` shape out the other end — but there is no ntwine-authored daemon process in
+// the middle. ntwine spawns the codex binary DETACHED and talks to it over a WebSocket on a socket path
+// ntwine chose. What the daemon was hand-building, the app-server already does:
 //
 //   - lifetime      codex is spawned `detached` + `stdio:"ignore"` + `unref()`, so it outlives this
 //                   runtime. Verified: the listener survives a SIGKILL of the process that spawned it.
-//   - reattachment  the socket keeps accepting after every client goes away, so the next frizz
+//   - reattachment  the socket keeps accepting after every client goes away, so the next ntwine
 //                   generation just connects again.
 //   - handshake     `initialize` is per-CONNECTION here, not per-process. The daemon had to perform
 //                   the handshake itself and replay a cached response to every reattaching client;
@@ -18,8 +18,8 @@
 //                   already in use", so the binary itself enforces one-per-project.
 //
 // Deliberately NOT `codex app-server daemon start`: that uses a MACHINE-GLOBAL socket
-// (`~/.codex/app-server-control/app-server-control.sock`) shared by every project and every frizz, and
-// a codex-managed binary version. Spawning the listener ourselves keeps frizz's per-project socket
+// (`~/.codex/app-server-control/app-server-control.sock`) shared by every project and every ntwine, and
+// a codex-managed binary version. Spawning the listener ourselves keeps ntwine's per-project socket
 // path, its audited env allowlist, and its pinned `CODEX_APP_SERVER_SUPPORTED_VERSION`.
 //
 // KNOWN TRADE-OFF vs the daemon: while NO client is attached the app-server DROPS server->client
@@ -38,15 +38,15 @@ import { join } from "node:path"
 import { PassThrough, Writable, type Readable } from "node:stream"
 import { StringDecoder } from "node:string_decoder"
 import { WebSocket } from "ws"
-import { frizzIpcPath } from "./ipc-path.ts"
+import { ntwineIpcPath } from "./ipc-path.ts"
 import { codexAppServerArgv } from "./codex-mcp.ts"
 import type { CodexAppServerProcess } from "./codex-app-server.ts"
 import type { CodexAppServerAttachment, CodexAppServerHost, CodexAppServerHostOptions } from "./codex-app-server-host.ts"
-import { log as frizzLog } from "../logging.ts"
+import { log as ntwineLog } from "../logging.ts"
 
 export interface NativeListenerRecord {
   projectId: string
-  /** Identity of the app-server PROCESS — stable across a frizz restart, new only when the listener
+  /** Identity of the app-server PROCESS — stable across an ntwine restart, new only when the listener
    *  itself was replaced. Drives the bridge's `sameProcess` check. */
   generation: string
   listenerPid: number
@@ -66,13 +66,13 @@ export function nativeRecordPath(stateDir: string, projectId: string): string {
 
 /** Unix sockets have a hard ~104-byte path limit on macOS/BSD, so hash the identity into a short name
  *  — the same trick `codexAppServerSocketPath` uses for the daemon — and let ipc-path.ts spell it for
- *  the platform. Note that frizz does not SELECT this transport on Windows: `selectCodexHostKind`
+ *  the platform. Note that ntwine does not SELECT this transport on Windows: `selectCodexHostKind`
  *  returns "daemon" there, because the listener is a codex process and codex's own `--listen` is the
  *  half that would have to bind the pipe. The win32 spelling still has to be right, because the
  *  adapter below is exercised on Windows by its own tests. */
 export function nativeListenSocketPath(stateDir: string, projectId: string): string {
   const key = createHash("sha256").update(stateDir).update("\0").update(projectId).digest("hex").slice(0, 16)
-  return frizzIpcPath(`frizz-codex-native-${key}`)
+  return ntwineIpcPath(`ntwine-codex-native-${key}`)
 }
 
 function pidAlive(pid: number): boolean {
@@ -112,7 +112,7 @@ export function liveNativeRecord(stateDir: string, projectId: string): NativeLis
 }
 
 /** Terminate the listener. Only for an explicit teardown — never for a restart: this transport's
- *  entire value is that the listener OUTLIVES frizz, so nothing on the shutdown path may call this.
+ *  entire value is that the listener OUTLIVES ntwine, so nothing on the shutdown path may call this.
  *  Inert when there is no record, which is every project not on this transport. */
 export function killNativeListener(stateDir: string, projectId: string): void {
   const record = liveNativeRecord(stateDir, projectId)
@@ -203,7 +203,7 @@ function ipcWebSocket(endpoint: string): WebSocket {
  * message per WebSocket frame, so this adapter is purely a framing translation.
  *
  * `kill()` DETACHES. It closes this WebSocket and leaves the app-server — and every turn running
- * inside it — alone. That one line is what makes quitting frizz leave Codex running.
+ * inside it — alone. That one line is what makes quitting ntwine leave Codex running.
  */
 function attach(record: NativeListenerRecord, timeoutMs: number): Promise<CodexAppServerProcess> {
   return new Promise((resolve, reject) => {
@@ -298,7 +298,7 @@ async function startListener(options: CodexAppServerHostOptions): Promise<Native
   }
 
   const generation = randomUUID()
-  const child = spawn(options.codexBin, codexAppServerArgv(["--listen", `unix://${socketPath}`], options.frizzMcp), {
+  const child = spawn(options.codexBin, codexAppServerArgv(["--listen", `unix://${socketPath}`], options.ntwineMcp), {
     cwd: options.cwd,
     env: options.env,
     detached: true,
@@ -390,7 +390,7 @@ export const nativeListenCodexAppServerHost: CodexAppServerHost = async (options
       authAccountId: record.authAccountId,
     }
   } catch (error) {
-    // A concurrent frizz may have won the bind between our probe and our spawn ("app-server control
+    // A concurrent ntwine may have won the bind between our probe and our spawn ("app-server control
     // socket is already in use"). Its record is authoritative; join it rather than fighting for it.
     const raced = liveNativeRecord(options.stateDir, options.projectId)
     if (raced) {
@@ -403,8 +403,8 @@ export const nativeListenCodexAppServerHost: CodexAppServerHost = async (options
         authAccountId: raced.authAccountId,
       }
     }
-    frizzLog.error("codex", `codex app-server native listener unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive a frizz restart`)
-    const child = spawn(options.codexBin, codexAppServerArgv(["--stdio"], options.frizzMcp), { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
+    ntwineLog.error("codex", `codex app-server native listener unavailable (${(error as Error).message}); falling back to an in-process app-server — turns will NOT survive an ntwine restart`)
+    const child = spawn(options.codexBin, codexAppServerArgv(["--stdio"], options.ntwineMcp), { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
     return { process: child as unknown as CodexAppServerProcess, generation: randomUUID(), reattached: false, daemonPid: process.pid, droppedWhileDetached: 0, authAccountId: options.authAccountId }
   }
 }

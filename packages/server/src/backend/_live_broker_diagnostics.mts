@@ -6,7 +6,7 @@
 // through claude-broker-client.ts and the bridge never supplied a handler).
 //
 // The load-bearing assertion is the third one. `lifecycle:started` is emitted while the SDK query
-// spins up, which is BEFORE the daemon's socket is listening and long before frizz can attach — so the
+// spins up, which is BEFORE the daemon's socket is listening and long before ntwine can attach — so the
 // socket relay is structurally incapable of carrying it, and the `if (client) write(...)` the daemon
 // used to do meant it went nowhere at all. Only a write from inside the daemon catches it.
 import { execFileSync } from "node:child_process"

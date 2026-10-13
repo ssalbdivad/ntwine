@@ -4,7 +4,7 @@
 // parse of the same final bytes — including sourceIds, which are byte offsets, and including
 // back-filled messages far behind the tail (tool_result completion, queued_command un-graying).
 //
-// Runs against a REAL session JSONL (the biggest one in the frizz project dir by default) replayed in
+// Runs against a REAL session JSONL (the biggest one in the ntwine project dir by default) replayed in
 // chunks, which is the only way to exercise torn multibyte characters and torn lines at real scale.
 //
 //   node scripts/verify-paged-projection-cache.mjs [/abs/session.jsonl]
@@ -20,7 +20,7 @@ const check = (name, ok, detail = "") => {
 }
 
 function biggestSessionFile() {
-  const dir = join(homedir(), ".claude", "projects", "-Users-colinmcd94-Documents-projects-frizz")
+  const dir = join(homedir(), ".claude", "projects", "-Users-colinmcd94-Documents-projects-ntwine")
   const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => join(dir, f))
   return files.map((f) => ({ f, size: statSync(f).size })).sort((a, b) => b.size - a.size)[0]?.f
 }
@@ -32,7 +32,7 @@ console.log(`source ${source} (${(full.length / 1e6).toFixed(1)} MB)`)
 
 // A fake project/storage pair pointing at a temp claude log dir, so readLatestThreadTranscriptPage
 // exercises the REAL paged reader (snapshot → cached projection → page slice → cursor), not a stub.
-const home = mkdtempSync(join(tmpdir(), "frizz-projcache-"))
+const home = mkdtempSync(join(tmpdir(), "ntwine-projcache-"))
 const cwdSlug = "-verify-projection-cache"
 const logDir = join(home, ".claude", "projects", cwdSlug)
 process.env.HOME = home

@@ -112,7 +112,7 @@ try {
     await page.waitForSelector('[data-live-rows]')
     await shot('subagent-rows', '[data-live-rows]')
     await page.click('[data-live-rows] button')
-    await page.waitForSelector('.frizz-sheet-panel')
+    await page.waitForSelector('.ntwine-sheet-panel')
     await shot('subagent-drawer')
     await load('fence-card-gallery')
     await page.waitForSelector('main > div')

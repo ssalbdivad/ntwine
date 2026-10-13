@@ -53,7 +53,7 @@ function write(slug, sessionId, title, prompt, description, command) {
   execFileSync("sqlite3", [
     db,
     `INSERT INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived)
-     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
+     VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
   ])
   console.log(`seeded ${slug} (${sessionId})`)
 }

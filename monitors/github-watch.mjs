@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
 
-export const PROTOCOL = "frizz.github-monitor/v1"
+export const PROTOCOL = "ntwine.github-monitor/v1"
 const SUCCESS = new Set(["SUCCESS", "SKIPPED", "NEUTRAL"])
 const FAILURE = new Set(["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "STARTUP_FAILURE"])
 export const GH_TIMEOUT_MS = 30_000

@@ -1,5 +1,5 @@
 // LIVE harness (not a unit test; excluded from the *.test.ts glob). Proves the ACTUAL user-facing
-// claim end-to-end against the REAL `codex app-server`: a frizz-dispatched Codex thread never stalls on
+// claim end-to-end against the REAL `codex app-server`: an ntwine-dispatched Codex thread never stalls on
 // an approval, and it never silently loses its sandbox across a cold resume.
 //
 // It reproduces the exact live incident (2026-07-24, thread `we-need-to-revisit-the-sandboxing`): a
@@ -18,7 +18,7 @@ import { createInteractionStore } from "../interaction-store.ts"
 import { CodexAppServerBridge, type CodexAppServerSpawn } from "./codex-app-server.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const dir = mkdtempSync(join(tmpdir(), "frizz-live-approvals-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-live-approvals-"))
 const project = join(dir, "project")
 const outside = join(dir, "outside")
 mkdirSync(project, { recursive: true })
@@ -65,7 +65,7 @@ async function waitTurnClear(ms = 180_000): Promise<void> {
 
 ;(async () => {
   try {
-    console.log("=== dispatch a worker exactly as frizz's dispatch path does ===")
+    console.log("=== dispatch a worker exactly as ntwine's dispatch path does ===")
     const { binding } = await bridge.spawnDispatch({
       threadSlug: slug,
       sessionId,
@@ -111,7 +111,7 @@ async function waitTurnClear(ms = 180_000): Promise<void> {
     // `intended_sandbox` arrived as an additive ALTER, so every thread dispatched before it exists with
     // the column NULL — which is exactly what the incident row looked like. The old override returned
     // `{}` for those, handing the decision to config.toml (workspace-write + on-request).
-    db.prepare("UPDATE codex_app_server_session SET intended_sandbox = NULL, sandbox = NULL WHERE project_id = 'live' AND frizz_session_id = ?").run(sessionId)
+    db.prepare("UPDATE codex_app_server_session SET intended_sandbox = NULL, sandbox = NULL WHERE project_id = 'live' AND ntwine_session_id = ?").run(sessionId)
     for (const child of children) { try { child.kill("SIGKILL") } catch {} }
     await sleep(1_500)
     const legacy = await bridge.resumeOwnedSession(slug, sessionId)

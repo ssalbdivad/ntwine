@@ -8,9 +8,9 @@
 // when it OPENS the message; anywhere else it is plain text the model reads. A SKILL is invocable by
 // name anywhere. So a command is offered, and tinted, only as the draft's first token, and a skill at
 // any boundary — the tint never promises something the send will not do. A USER command
-// (`~/.agents/commands/armstrong.md`) is Frizz's to expand, and it expands anywhere, so it rides as a skill.
+// (`~/.agents/commands/armstrong.md`) is Ntwine's to expand, and it expands anywhere, so it rides as a skill.
 
-import { insideCodeFence, type ThreadSkill } from "@frizz/shared"
+import { insideCodeFence, type ThreadSkill } from "@ntwine/shared"
 
 // A `/` after the start of the draft or whitespace, then the token typed so far, up to the caret. A
 // second `/` or an `@` ends it: `/tmp/foo` is a path and `/a@b` is not a name either.
@@ -32,7 +32,7 @@ export function draftStart(prose: string): number {
 }
 
 /** The rows on offer for a query: prefix matches first (what completion usually wants), then substring
- *  matches, which surface a namespaced skill (`frizz:gh`) from its bare name. Commands only when the
+ *  matches, which surface a namespaced skill (`ntwine:gh`) from its bare name. Commands only when the
  *  token opens the draft. */
 export function matchSlashItems(items: readonly ThreadSkill[], query: string, opensDraft: boolean): ThreadSkill[] {
   const q = query.toLowerCase()
@@ -55,7 +55,7 @@ export function insertSlashCommand(prose: string, start: number, caret: number, 
 export type SlashSegment = { kind: "text"; text: string } | { kind: "command"; text: string }
 
 // A finished token: `/` at a boundary, then a run with no whitespace or second slash. Sentence
-// punctuation after it ("run /frizz-stack, then…") is not part of the name.
+// punctuation after it ("run /ntwine-stack, then…") is not part of the name.
 const SLASH_TOKEN = /(^|\s)(\/[^\s/@]+?)(?=[.,;!?)]*(?:\s|$))/gu
 
 /** `text` split into plain runs and the `/name` tokens that name something in `items`. `offset` is

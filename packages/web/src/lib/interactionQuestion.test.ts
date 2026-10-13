@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { settledAskView } from "./interactionQuestion.ts"
-import type { AskQuestion } from "@frizz/shared"
+import type { AskQuestion } from "@ntwine/shared"
 
 // PRODUCER 4 — the settled native ask. The mapping this file defends: the recorded answer names its
 // option by LABEL (single-select verbatim, multi-select joined ", "), an answer that names none is

@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 import { checkoutOf, liftCheckout, liftWorkingDir, newestToolWorkdir, newestTranscriptCwd, resetCheckoutMemo, resolveThreadWorkingDir, subAgentFolders, terminalFolder } from "./thread-cwd.ts"
 
 // WHERE A TERMINAL OPENED ON A THREAD STARTS. Real folders and real JSONL files: the reading is the
@@ -11,12 +11,12 @@ import { checkoutOf, liftCheckout, liftWorkingDir, newestToolWorkdir, newestTran
 // to the checkout it lies in.
 
 function fixture() {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-cwd-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-cwd-")))
   const project = join(root, "repo")
   mkdirSync(join(project, ".git"), { recursive: true })
   mkdirSync(join(project, "packages", "web", "src"), { recursive: true })
   // A linked worktree: its `.git` is a FILE pointing back at the main checkout's.
-  const worktree = join(project, ".frizz", "worktrees", "fix-auth")
+  const worktree = join(project, ".ntwine", "worktrees", "fix-auth")
   mkdirSync(join(worktree, "packages", "server"), { recursive: true })
   writeFileSync(join(worktree, ".git"), `gitdir: ${join(project, ".git", "worktrees", "fix-auth")}\n`)
   return { root, project, worktree, cleanup: () => rmSync(root, { recursive: true, force: true }) }
@@ -94,10 +94,10 @@ test("Claude: the thread's own latest folder, lifted; a vanished or missing read
     assert.deepEqual(resolveThreadWorkingDir({ projectDir: project, backend: "claude", transcriptPath: path }), { dir: worktree, source: "transcript" })
 
     // The agent removed its worktree since: the reading names a folder that is gone.
-    writeFileSync(path, record({ cwd: join(project, ".frizz", "worktrees", "gone") }) + "\n")
+    writeFileSync(path, record({ cwd: join(project, ".ntwine", "worktrees", "gone") }) + "\n")
     assert.deepEqual(resolveThreadWorkingDir({ projectDir: project, backend: "claude", transcriptPath: path }), { dir: project, source: "project" })
     assert.deepEqual(resolveThreadWorkingDir({ projectDir: project, backend: "claude" }), { dir: project, source: "project" })
-    // An ACP agent has no reading Frizz knows how to take.
+    // An ACP agent has no reading Ntwine knows how to take.
     assert.deepEqual(resolveThreadWorkingDir({ projectDir: project, backend: "acp", transcriptPath: path }), { dir: project, source: "project" })
   } finally {
     cleanup()
@@ -171,8 +171,8 @@ test("liftCheckout: absent for the project root, a worktree when .git is a FILE,
     mkdirSync(join(elsewhere, "src"))
     assert.deepEqual(liftCheckout(join(elsewhere, "src"), project), { dir: elsewhere, kind: "folder" })
     // A folder that is gone is NO reading — never a stale name.
-    assert.equal(liftCheckout(join(project, ".frizz", "worktrees", "removed"), project), undefined)
-    assert.equal(liftWorkingDir(join(project, ".frizz", "worktrees", "removed"), project), undefined)
+    assert.equal(liftCheckout(join(project, ".ntwine", "worktrees", "removed"), project), undefined)
+    assert.equal(liftWorkingDir(join(project, ".ntwine", "worktrees", "removed"), project), undefined)
     // And with nothing to compare against there is nothing to say.
     assert.equal(liftCheckout(worktree, undefined), undefined)
     assert.equal(liftCheckout("relative/path", project), undefined)

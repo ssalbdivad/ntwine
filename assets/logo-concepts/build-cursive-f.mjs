@@ -96,7 +96,7 @@ const concepts = [
     idea: "A single-storey f with a straight stem, a shallow top hook and a descender that curls left. Barely cursive — this is the version that would sit comfortably next to body text in a wordmark.",
     small: "The most stable f here. Nothing crosses, nothing closes, and the crossbar has 84 units of clearance.",
     risk: "Loses the thread metaphor almost entirely. At this point it is a letter, not a mark.",
-    verdict: "The conservative pick. Take it if the icon has to work as a lockup with the word Frizz beside it.",
+    verdict: "The conservative pick. Take it if the icon has to work as a lockup with the word Ntwine beside it.",
     mark: `<path d="${smooth(uprightSpine)}" stroke-width="56"/>
       <path d="M176 252 H332" stroke-width="52"/>`,
   },
@@ -135,14 +135,14 @@ const concepts = [
     mark: `<path d="${smooth(integralSpine)}" stroke-width="60"/>`,
   },
   {
-    id: "f-frizzed",
-    name: "Frizzed",
+    id: "f-ntwineed",
+    name: "Ntwineed",
     rank: "no",
-    tagline: "The f with the frizz made literal",
+    tagline: "The f with the ntwine made literal",
     idea: "The Integral f with fibres springing off the top terminal — the old rope mark's idea grafted onto the new letter.",
     small: "Fails, and it fails for exactly the reason the outgoing icon does: the fibres are drawn light to stay subordinate to the letter, and light means gone.",
     risk: "None worth listing. This is the mistake the current icon already makes, repeated in a new shape.",
-    verdict: "Included as the control. It is the proof that the frizz cannot be depicted at favicon size — it has to be implied by the curl of the letter itself.",
+    verdict: "Included as the control. It is the proof that the ntwine cannot be depicted at favicon size — it has to be implied by the curl of the letter itself.",
     mark: `<path d="${smooth(integralSpine)}" stroke-width="56"/>
       <path d="M392 196 C424 168 436 138 430 110" stroke-width="34"/>
       <path d="M386 186 C404 148 400 116 384 96" stroke-width="34"/>`,

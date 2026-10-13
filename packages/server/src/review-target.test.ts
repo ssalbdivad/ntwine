@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { EDITOR_REVIEW_MAX_FILES } from "@frizz/shared"
+import { EDITOR_REVIEW_MAX_FILES } from "@ntwine/shared"
 import { reviewTargetOf } from "./review-target.ts"
 import { resetCheckoutMemo } from "./thread-cwd.ts"
 
@@ -12,17 +12,17 @@ import { resetCheckoutMemo } from "./thread-cwd.ts"
 // own `.git` files, and a mocked one would only confirm what this module already believes.
 function project(): { dir: string; worktree: (slug: string, at?: string) => string } {
   resetCheckoutMemo()
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-review-target-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-review-target-")))
   const git = (cwd: string, ...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@e", ...args], { cwd, stdio: "ignore" })
   git(dir, "init", "-q", "-b", "main")
-  writeFileSync(join(dir, ".gitignore"), ".frizz/\n")
+  writeFileSync(join(dir, ".gitignore"), ".ntwine/\n")
   mkdirSync(join(dir, "src"))
   writeFileSync(join(dir, "src", "a.ts"), "export {}\n")
   git(dir, "add", ".")
   git(dir, "commit", "-qm", "init")
   return {
     dir,
-    worktree(slug, at = join(dir, ".frizz", "worktrees", slug)) {
+    worktree(slug, at = join(dir, ".ntwine", "worktrees", slug)) {
       git(dir, "worktree", "add", "-q", "-b", slug, at)
       return realpathSync(at)
     },
@@ -64,7 +64,7 @@ test("a thread working in the project folder with nothing written has nothing to
 test("a sibling worktree outside the project is the same repository, so its edits are reviewed; another repository's are not", () => {
   const { dir, worktree } = project()
   const sibling = worktree("perf", `${dir}-perf`)
-  const other = realpathSync(mkdtempSync(join(tmpdir(), "frizz-review-other-")))
+  const other = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-review-other-")))
   execFileSync("git", ["init", "-q"], { cwd: other, stdio: "ignore" })
   const target = reviewTargetOf({ projectDir: dir, title: "t", edited: [{ path: join(other, "x.ts") }, { path: join(sibling, "src", "a.ts") }] })
   assert.deepEqual(target.checkouts, [{ dir: sibling, scope: "branch", files: [join(sibling, "src", "a.ts")] }])

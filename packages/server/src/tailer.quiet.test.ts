@@ -27,18 +27,18 @@ const watcherShell = [
   toolResult(2, "toolu_sh", "Command running in background with ID: bWatch. Output is being written to: /tmp/tasks/bWatch.output. You will be notified when it completes."),
 ]
 const helperAgent = [
-  toolUse(1, "toolu_ag", "Agent", { description: "Auditing the parser", run_in_background: true, subagent_type: "frizz:high" }),
+  toolUse(1, "toolu_ag", "Agent", { description: "Auditing the parser", run_in_background: true, subagent_type: "ntwine:high" }),
   toolResult(2, "toolu_ag", "Async agent launched successfully.\nagentId: abc123\noutput_file: /tmp/tasks/abc123.output\nDo not read this file."),
 ]
 
 function row(slug: string, sessionId: string): SessionRow {
-  return { slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: at(0), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null }
+  return { slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: at(0), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null }
 }
 
 function fixture() {
   // Nested one level, like `~/.claude/projects/<cwdSlug>/`: the tailer's cross-directory recovery
   // sweeps the PARENT, and rooted at tmpdir() that would be every other test's fixtures.
-  const root = mkdtempSync(join(tmpdir(), "frizz-quiet-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-quiet-"))
   const logDir = join(root, "-a-project")
   mkdirSync(logDir)
   const storage = createStorage(join(root, "ui.db"), "p")
@@ -57,7 +57,7 @@ function fixture() {
   })
   return {
     storage, tailer, clock, changes, logDir,
-    /** A thread frizz dispatched: a broker row with a transcript. */
+    /** A thread ntwine dispatched: a broker row with a transcript. */
     thread(slug: string, lines: string[], over: { stopped?: boolean; archived?: boolean } = {}) {
       const sessionId = `sid-${slug}`
       storage.upsertSession(row(slug, sessionId))
@@ -67,7 +67,7 @@ function fixture() {
       if (over.archived) storage.setState(slug, "archived")
       writeFileSync(join(logDir, `${sessionId}.jsonl`), lines.map((line) => line + "\n").join(""))
     },
-    /** Somebody resumed the session from a terminal: the transcript grows and nothing tells frizz. */
+    /** Somebody resumed the session from a terminal: the transcript grows and nothing tells ntwine. */
     appendFromATerminal(slug: string, line: string) {
       appendFileSync(join(logDir, `sid-${slug}.jsonl`), line + "\n")
     },
@@ -115,7 +115,7 @@ test("a registry write ends a quiet board's wait at the very next look", () => {
     f.settle()
     assert.equal(f.look(1000), "skipped")
 
-    // A dispatch: frizz writes the row before the worker has written a byte.
+    // A dispatch: ntwine writes the row before the worker has written a byte.
     f.thread("fresh", [prompt(0, "start")])
     assert.equal(f.look(1000), "ticked", "the new row is seen one look after it lands")
     assert.equal(f.tailer.get("fresh")?.turn, "in-flight")

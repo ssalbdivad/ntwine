@@ -29,7 +29,7 @@ The research behind every claim, with file:line, is in the planning thread's scr
 
 | # | Principle | His words (standup notes) |
 |---|---|---|
-| S1 | **Every thread belongs to one of five rails, and that status distinction is core information** that must never be lost from view | "a unified sidebar loses important conceptual information in Frizz, especially thread status distinctions, because each thread belongs to one of '5 rails.'" |
+| S1 | **Every thread belongs to one of five rails, and that status distinction is core information** that must never be lost from view | "a unified sidebar loses important conceptual information in Ntwine, especially thread status distinctions, because each thread belongs to one of '5 rails.'" |
 | S2 | **Workspaces/projects stay separate** | "his strongest product intuition is still that workspaces/projects should stay separate, which aligns with other tools like Claude, ChatGPT, and T3." |
 | S3 | **The default must hold up at heavy load,** e.g. his 17 projects and ~70 open threads, against a sidebar that fits ~15–20 rows. No view fits 70, upstream's included, so in practice this means **capacity parity: the default shows at least as much as his does** (§2) | "the unified-sidebar model does not scale for his usage because he currently has '17 projects' and around '70 active threads'"; "a single sidebar only fits around '20' threads at most, and closer to '15' once project-group spacing is included" |
 | S4 | **Mainline takes changes in pieces:** cherry-picks, soundness fixes first, no wholesale structural changes | "integrating the fork will likely be 'a cherry-pick situation'"; "substantive structural changes in the fork that he does not want to pull back into main wholesale"; "use agents to categorize changes from the fork and identify soundness fixes worth cherry-picking" |
@@ -49,8 +49,8 @@ argued rather than hidden.
 | P1 | One board is home; cross-project means awareness, not content (2498ad77) | **Changed, argued.** All projects is home: a project-grouped awareness surface that carries every project's counts, the rail's job, and gives up no capacity (§2). Each project's own board is one click away at its own URL. |
 | P2 | Five named bands; Queue and Running never hidden (Sidebar.tsx:47-48, 259; 45ce008e) | **Upheld** in the project board, with S1 (§2); in All projects every row keeps its band mark. |
 | P3 | His vocabulary: Queue, Running, board | **Adopted** (§2): no feature cost, and the fork's own CLAUDE.md already teaches agents his band names. |
-| P4 | `/project/<slug>` URLs; `?project=` was rejected (singleton-frizz.md:131) | **Adopted** for the project board (§2). |
-| P5 | Frizz runs no model of its own (ARCHITECTURE.md:5) | **Kept, with an off switch.** See below. |
+| P4 | `/project/<slug>` URLs; `?project=` was rejected (singleton-ntwine.md:131) | **Adopted** for the project board (§2). |
+| P5 | Ntwine runs no model of its own (ARCHITECTURE.md:5) | **Kept, with an off switch.** See below. |
 | P6 | The worker contract is mechanics only; every token costs | **Kept, trimmed where inert.** Tools and sections tied to an absent capability are not listed (§5). |
 | P7 | Few settings | No setting for the view (the URL names it, §2). One setting for model calls, replacing today's env-only switches. |
 | P8 | Keyboard is ⌘K, ⌘I and Esc | **Kept on.** The single-key layer is visible (the `?` sheet) and rebindable. |
@@ -236,13 +236,13 @@ goes upstream as a PR naming that bug.
 The fork's contract and tools stay. Under P6 two cheap changes remove cost without removing a feature:
 
 - **List a tool only when its capability exists.** `editor` only while an editor is connected; terminal-related text only
-  when node-pty loads. The server already advertises `__procedures`, so frizz-mcp can read capabilities from it.
+  when node-pty loads. The server already advertises `__procedures`, so ntwine-mcp can read capabilities from it.
 - **Render a contract section only when its feature can fire.** For example, the editor section only with an editor
   connected. Sections for features that are always on stay as they are.
 - **Fix the placement-marker text** (§3).
 - **Send the generic guidance upstream as small PRs,** each with the failure that motivated it: answer in full prose, give a
   requested list in full, a human question outranks work in flight, run long gates in the background, stop unneeded shells,
-  stop critique loops when findings stop falling, exclude `.frizz/` from repo-wide lint.
+  stop critique loops when findings stop falling, exclude `.ntwine/` from repo-wide lint.
 
 ---
 
@@ -269,10 +269,10 @@ The fork's contract and tools stay. Under P6 two cheap changes remove cost witho
 
 ## 7. The plugin system (built, then removed)
 
-Step 9 built a plugin system (loader, web slots, per-plugin database, Settings → Frizz plugins) to hold features that
+Step 9 built a plugin system (loader, web slots, per-plugin database, Settings → Ntwine plugins) to hold features that
 don't make the product, with lazy threads as its one plugin. On 2026-10-07 David removed lazy threads and then the
 system, since it had no other user: an empty extension API is structure Colin never asked for. It can be restored from
-git (`refactor(plugins): remove the Frizz plugin system`) if a declined feature needs a home. The held-thread primitive
+git (`refactor(plugins): remove the Ntwine plugin system`) if a declined feature needs a home. The held-thread primitive
 it introduced stays, because a schedule's next run is one.
 
 ---
@@ -299,8 +299,8 @@ it introduced stays, because a schedule's next run is one.
    - 0609f501 + 7a1e60df: a reused PID read as a live daemon can SIGTERM an unrelated process. Check against upstream
      88f468d8 first.
    - 722a566d: a worker inherits the human's `$EDITOR`.
-   - From the server audit: awake-time sub-agent staleness, the stray `~/.frizz` data-root guard, follow-up dedupe, the
-     board's fallback when watching `.frizz` fails, the sign-off nudge exclusions.
+   - From the server audit: awake-time sub-agent staleness, the stray `~/.ntwine` data-root guard, follow-up dedupe, the
+     board's fallback when watching `.ntwine` fails, the sign-off nudge exclusions.
 2. **The rule fixes from §4:** ask-last, arrival-order queue, merged answers.
 3. **The generic contract guidance** (§5).
 4. **The VS Code extension and editor bridge.** The extension package is already separate: 70 files, talking through two
@@ -341,7 +341,7 @@ intended difference, listed in §4) or a parity bug.
 | 3 All projects (§2): compact one-line groups, folded counts with Pinned, pinned-Done, names, grid details on hover, poll only while mounted; the capacity test | ProjectList, router `projectsQueues`, allQueues, listBands, one new e2e test | low; the test settles the parity claim | no |
 | 4 queue card parity (§3): transcript fold, Load earlier, collapse, resting card, deep-link landing, status route | AllQueuesCard, store, routes | medium | no |
 | 5 rules (§4): lift-back adopted; quiet-turn row marking | board.ts, groups | low | no |
-| 6 agent surface (§5) | frizz-mcp, workerPrompt | low | the guidance PRs |
+| 6 agent surface (§5) | ntwine-mcp, workerPrompt | low | the guidance PRs |
 | 7 hygiene (§6) | docs, scripts, quotes, one table | low | no |
 | 8 Background summaries setting (§1) | context.ts, settings | low | no |
 | 9 plugin seams 1–4, lazy threads out (§7) | ~450 base lines, lazy code moves | medium | the loader, the held thread |
@@ -382,7 +382,7 @@ Each line names the step it amends.
   phone and the editor sidebar never land on a card. Upstream's landing hold was still needed, because the fork's
   viewport lock holds the reading line, not the landed card.
 - The ⋯ project menu moved into the status row beside the repo link. Folds of the quiet bands persist per project
-  in `frizz.boardOpenBands`, apart from All projects' folds.
+  in `ntwine.boardOpenBands`, apart from All projects' folds.
 - The phone header keeps "working" for the spinning rows (Colin's own phone board says it) and now says "queued"
   for the rest of the queue.
 
@@ -396,7 +396,7 @@ Each line names the step it amends.
   thread. `doneCount` excludes pinned Done threads, as the board's Done band does.
 - On the project board the cross-project poll slows to 30s for the switcher's counts, rather than reading on open
   (counts would change under the pointer). The notification observer now polls only while the tab is hidden.
-- The capacity test boots its own three stacks behind `FRIZZ_CAPACITY_E2E=1` and seeds the database directly,
+- The capacity test boots its own three stacks behind `NTWINE_CAPACITY_E2E=1` and seeds the database directly,
   since no RPC can create a running thread without a real agent.
 - Measured on the merged branch: All projects at Colin's load 23 lines at 1440x900 and 30 at 1920x1080 (bars 22 and
   28); the project board with 70 open threads 22 and 29.
@@ -417,7 +417,7 @@ Each line names the step it amends.
   thread terminals, so nothing is gated on node-pty.
 - "Capability" means an editor window has this project open, not any editor connected; otherwise every project's
   workers would be shown a tool that answers "none has this project open".
-- A new `workerCapabilities` RPC reports it (`__procedures` lists procedures, not live state). frizz-mcp polls it
+- A new `workerCapabilities` RPC reports it (`__procedures` lists procedures, not live state). ntwine-mcp polls it
   every 10s and notifies the client; Claude Code 2.1.287 re-reads the tool list. The contract section is fixed per
   worker process, so the two can briefly disagree.
 
@@ -432,7 +432,7 @@ Each line names the step it amends.
   The rename keeps every row; `queued_at` is dropped.
 - Upstream's `pendingCallDeadline` kept with the fork's awake time passed in. Two behaviours now follow upstream: a
   dead child mid-call reads stale 15m past its call's deadline (the fork said 2m), and only Bash declares a bound.
-- Spinoff's legacy side-turn path is NOT cut. Codex has no session fork in Frizz's app-server client, ACP has none
+- Spinoff's legacy side-turn path is NOT cut. Codex has no session fork in Ntwine's app-server client, ACP has none
   that is portable, cross-project spinoffs use the brief route by David's 2026-09-30 call (cce227b4), and a parent
   with no transcript has nothing to fork.
 - Quotes: fork-added `maintainer YYYY-MM-DD` quotes dated from the fork point (2026-09-26) whose text is not in
@@ -450,7 +450,7 @@ unified sidebar loses the five rails and does not scale to his 17 projects and ~
 workspace navigation, "the project sidebar that looks like Discord", to one sidebar holding everything; always-on
 status lines may be too dense in the sidebar. David had told him a unified sidebar is fine "especially if it is not
 the default". So:
-- `/` opens the view this browser showed last (`frizz.lastView`, a board or All projects); a browser that never chose
+- `/` opens the view this browser showed last (`ntwine.lastView`, a board or All projects); a browser that never chose
   lands on a project board (last launched, else the machine order's first). No projects: Welcome. On a phone `/`
   stays the projects list, upstream's phone home.
 - All projects lives at `/all` (drawers `/all/<slug>/thread/<t>`); `/?all` and the old aliases redirect there.
@@ -464,14 +464,14 @@ the default". So:
 - Capacity is unchanged, with the rail off and on: All projects 23/30, the board 22/29.
 
 **Step 9 (plugins)**
-- User-visible copy says "Frizz plugins", apart from Claude Code plugins ("Reload plugins"). The final name is
+- User-visible copy says "Ntwine plugins", apart from Claude Code plugins ("Reload plugins"). The final name is
   Colin's call (§8).
 - The held thread keeps a downgrade-safe shadow: every held row also carries a non-null `lazy_prompt`, so an
   older server generation reads it as an unstarted thread. Nothing is dropped.
 - A schedule's pending run is a row held by `schedules` and keeps its per-run note in `lazy_prompt`.
 - An orphaned held row (its plugin missing or failed) is not queued; it sits in Running's place as "Not started",
   with no band stamp, and starts on its next message with base's copy of the latest note.
-- `plugins` is a reserved project slug (the `/_frizz/plugins/<id>/…` asset route).
+- `plugins` is a reserved project slug (the `/_ntwine/plugins/<id>/…` asset route).
 - Lazy threads shipped in the repo as `plugins/lazy` until 2026-10-07 (below). Existing lazy threads are held
   by `lazy`, a holder that no longer exists, so they wait in Running's place as "Not started".
 
@@ -486,10 +486,10 @@ the default". So:
 
 David asked that nothing reach Colin that reads as bloat. He picked these from a ranked audit, and each is one commit
 whose body says what went and what replaced it:
-- **The Frizz plugin system** (`refactor(plugins): remove the Frizz plugin system`). Held threads stay for schedules;
+- **The Ntwine plugin system** (`refactor(plugins): remove the Ntwine plugin system`). Held threads stay for schedules;
   the `plugins` slug is no longer reserved; the alternate submit beside Send went with its slot.
 - **The desktop app** (`refactor(desktop): remove the Electron desktop app`), with its release workflow and docs.
-- **Spinoff's side turn** (`refactor(spinoff): replace the side-turn brief route with a summary Frizz builds itself`).
+- **Spinoff's side turn** (`refactor(spinoff): replace the side-turn brief route with a summary Ntwine builds itself`).
   This supersedes Step 7's "NOT cut". A Codex, ACP, cross-project or no-transcript parent now gets a fresh child whose
   prompt carries the parent's request and latest handoff. Nothing reaches the parent, and no model is called.
 - **The Bash pre-filter** (`refactor(cc-worker): the per-Bash hook calls node directly; …`). The cost is about 67ms
@@ -500,16 +500,16 @@ whose body says what went and what replaced it:
 Not removed, after the audit: terminals, schedules and their live reading, time limits, cords, ImageViewer, Remote
 access in Settings, the rarely-used settings and thread info.
 
-From Colin's tenets on hand-off (the worker's own last word decides a thread's state; Frizz only checks it), David
+From Colin's tenets on hand-off (the worker's own last word decides a thread's state; Ntwine only checks it), David
 chose three changes:
-- **A typed message leaves questions open.** Set-aside and `keep` are gone, so Frizz never withdraws a question by
+- **A typed message leaves questions open.** Set-aside and `keep` are gone, so Ntwine never withdraws a question by
   omission. This supersedes §4's row and §8's item. The 10-minute default still skips a question the human typed past.
 - **A wait on another thread takes the awaiting fence**, naming it under `threads:`. `await_reply` no longer parks on
   its own, and its own timeout is gone; the fence's `for:` is the timeout.
 - **A running thread never queues.** Quiet-turn queueing is gone, superseding Step 5's note. A terminal waiting at a
   prompt still queues its thread, which is a separate rule from the same commit.
 
-Kept by David's choice, and documented in ARCHITECTURE.md as Frizz acting on a clock or with a model: the 10-minute
+Kept by David's choice, and documented in ARCHITECTURE.md as Ntwine acting on a clock or with a model: the 10-minute
 default answer, the 30-minute check-in on sub-agent parks, model-written names and status lines (Background
 summaries), and per-question delivery.
 

@@ -2,11 +2,11 @@
 //
 // The edited-files rail derived its rows from Edit/Write/MultiEdit tool calls alone, so a worker that
 // wrote through the shell wrote invisibly (maintainer 2026-09-04, on a real doc a nub thread authored
-// with `cat > .frizz/sandbox-direction-decisions.md <<'MD'`: "Frizz failed to detect this file … I
+// with `cat > .ntwine/sandbox-direction-decisions.md <<'MD'`: "Ntwine failed to detect this file … I
 // don't see that file showing up in the sidebar"). That is not a worker going off-contract — Claude
 // Code's `auto` permission mode instructs the worker to "make file changes with sed, heredocs, or
 // short scripts, rather than using the dedicated Read, Edit, or Write tools", and it is the mode the
-// maintainer's own threads run in. Frizz cannot switch that instruction off, so the readout has to
+// maintainer's own threads run in. Ntwine cannot switch that instruction off, so the readout has to
 // read the shell instead of wishing it away.
 //
 // WHY THIS IS A TOKENIZER AND NOT A REGEX. A `>` is a redirect only OUTSIDE quotes and outside a

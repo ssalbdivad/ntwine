@@ -35,10 +35,10 @@ const notification = (agentId: string, toolUseId: string, status: string, at: st
       "</task-notification>",
     ].join("\n"),
   })
-const dispatch = (id: string, description: string) => ({ type: "tool_use", id, name: "Agent", input: { description, subagent_type: "frizz:high", prompt: `Do ${description}.`, run_in_background: true } })
+const dispatch = (id: string, description: string) => ({ type: "tool_use", id, name: "Agent", input: { description, subagent_type: "ntwine:high", prompt: `Do ${description}.`, run_in_background: true } })
 
 function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-directory-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-directory-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const subagents = join(dir, SESSION, "subagents")
   mkdirSync(subagents, { recursive: true })
@@ -59,13 +59,13 @@ function fixture() {
   ].join("\n") + "\n")
 
   const hour = (h: number) => new Date(Date.UTC(2026, 8, 30, h))
-  sidecar("aOldReview", { agentType: "frizz:high", description: "Review", toolUseId: "toolu_old_review", spawnDepth: 1 }, hour(0))
+  sidecar("aOldReview", { agentType: "ntwine:high", description: "Review", toolUseId: "toolu_old_review", spawnDepth: 1 }, hour(0))
   transcript("aOldReview", [JSON.stringify({ type: "user", timestamp: "2026-09-30T00:00:00.000Z", message: { role: "user", content: "Review the first cut." } }), assistant([{ type: "text", text: "The first cut is fine." }], "2026-09-30T00:05:00.000Z")])
-  sidecar("aKeys", { agentType: "frizz:high", description: "Cache keys", toolUseId: "toolu_keys", spawnDepth: 1 }, hour(2))
+  sidecar("aKeys", { agentType: "ntwine:high", description: "Cache keys", toolUseId: "toolu_keys", spawnDepth: 1 }, hour(2))
   transcript("aKeys", [assistant([dispatch("toolu_trace", "Trace collision")])])
-  sidecar("aReview", { agentType: "frizz:high", description: "Review", toolUseId: "toolu_review", spawnDepth: 1 }, hour(2))
+  sidecar("aReview", { agentType: "ntwine:high", description: "Review", toolUseId: "toolu_review", spawnDepth: 1 }, hour(2))
   transcript("aReview", [assistant([{ type: "text", text: "Reviewed." }])])
-  sidecar("aPath", { agentType: "frizz:high", description: "Migration path", toolUseId: "toolu_path", spawnDepth: 1 }, hour(2))
+  sidecar("aPath", { agentType: "ntwine:high", description: "Migration path", toolUseId: "toolu_path", spawnDepth: 1 }, hour(2))
   transcript("aPath", [assistant([{ type: "text", text: "Could not finish." }])])
   // A grandchild under the live child, and one whose parent has no sidecar (cannot be placed).
   sidecar("aTrace", { agentType: "general-purpose", description: "Trace collision", toolUseId: "toolu_trace", parentAgentId: "aKeys", spawnDepth: 2 }, hour(2))
@@ -73,7 +73,7 @@ function fixture() {
   sidecar("aOrphan", { agentType: "general-purpose", description: "Orphan", toolUseId: "toolu_orphan", parentAgentId: "aGone", spawnDepth: 2 }, hour(1))
 
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: new Date().toISOString(),
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   })

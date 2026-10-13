@@ -1,6 +1,6 @@
 // THE WORKSPACE'S FILES, FOR THE SIDEBAR'S PROMPT — the glue between VS Code and file-picks.ts.
 //
-// The page asks (`frizz:pick-context`) in two ways and this answers both with `frizz:context-picks`:
+// The page asks (`ntwine:pick-context`) in two ways and this answers both with `ntwine:context-picks`:
 //
 //  - `@` typed in a prompt box: `query` is what follows it. An empty one is answered with the files open
 //    in tabs (the active one first), which is what an `@` with nothing after it most often means; a query
@@ -27,8 +27,8 @@ import { execFile } from "node:child_process"
 import { stat } from "node:fs/promises"
 import { relative, sep } from "node:path"
 import type * as vscode from "vscode"
-import type { EditorProject } from "@frizz/shared/editor-protocol"
-import { EMBED_MAX_PICKS, type EmbedPickContextMessage, type EmbedPickedFile } from "@frizz/shared/embed-protocol"
+import type { EditorProject } from "@ntwine/shared/editor-protocol"
+import { EMBED_MAX_PICKS, type EmbedPickContextMessage, type EmbedPickedFile } from "@ntwine/shared/embed-protocol"
 import { fileLabel } from "./editor-context.ts"
 import { enabledPatterns, globMatcher, normalizeQuery, rankFiles, type IndexedFile } from "./file-picks.ts"
 import { projectForPath } from "./projects.ts"
@@ -42,7 +42,7 @@ const REBUILD_MS = 3_000
 const GIT_TIMEOUT_MS = 15_000
 
 export interface WorkspaceFiles {
-  /** The answer to a `frizz:pick-context`: the files a query names, or the dropped resources on disk. */
+  /** The answer to a `ntwine:pick-context`: the files a query names, or the dropped resources on disk. */
   pick(message: EmbedPickContextMessage): Promise<EmbedPickedFile[]>
 }
 

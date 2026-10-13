@@ -8,7 +8,7 @@ import {
   WsMessageAssembler,
   type RelayDownFrame,
   type RelayUpFrame,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
 /**
  * One board's live connection, and the requests in flight over it.

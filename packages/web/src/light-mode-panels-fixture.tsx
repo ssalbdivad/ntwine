@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { InteractionRecord } from "@frizz/shared"
+import type { InteractionRecord } from "@ntwine/shared"
 import { TerminalSheet } from "./components/TerminalSheet.tsx"
 import { FileReaderDrawer } from "./components/FileReaderDrawer.tsx"
 import { FileViewerPanel } from "./components/FileViewerPanel.tsx"
@@ -28,7 +28,7 @@ const markdown = "---\ntitle: Palette verification\nstatus: ready\n---\n# Palett
 window.fetch = async (input, init) => {
   const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(href, location.href)
-  if (!url.pathname.startsWith("/_frizz/rpc/")) return nativeFetch(input, init)
+  if (!url.pathname.startsWith("/_ntwine/rpc/")) return nativeFetch(input, init)
   const method = url.pathname.split("/").at(-1)
   if (method === "localMarkdown") return json({ path: "/fixture/review.md", markdown, truncated: false })
   if (method === "localFile") return json({ path: "/fixture/theme.ts", text: "// Browser-local appearance\nexport const palette = {\n  canvas: '#f7f7f7',\n  question: '#ffffff',\n  outline: '#dcdcdc',\n}\n", truncated: false })

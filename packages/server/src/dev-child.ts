@@ -1,6 +1,6 @@
 // Disposable dev control-plane child. The long-lived supervisor forks this process and replaces it
 // whenever server/shared/RPC source changes. Claude and Codex workers are unaffected: each lives in its
-// own detached daemon, which this process neither owns nor forks. It owns only Frizz's HTTP/Vite/watch/
+// own detached daemon, which this process neither owns nor forks. It owns only Ntwine's HTTP/Vite/watch/
 // tailer/storage handles.
 import { projectFromLaunchTarget } from "./project.ts"
 import { existsSync } from "node:fs"
@@ -13,7 +13,7 @@ import {
   verifyProjectLaunchDelegate,
 } from "./project-launch.ts"
 import { ShutdownTimeoutError } from "./shutdown.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 import { sessionEpochLogLine } from "./access-codes.ts"
 import { signOutOlderSessionEpoch } from "./session-epoch-child.ts"
 
@@ -21,17 +21,17 @@ import { signOutOlderSessionEpoch } from "./session-epoch-child.ts"
 // launcher may have already repainted past. Its stdio is still inherited, so an uncaught stack would
 // otherwise land on the operator's screen and nowhere durable.
 process.on("uncaughtException", (error) => {
-  frizzLog.error("dev-child", `uncaught exception: ${error instanceof Error ? error.stack ?? error.message : error}`)
+  ntwineLog.error("dev-child", `uncaught exception: ${error instanceof Error ? error.stack ?? error.message : error}`)
   process.exit(1)
 })
 process.on("unhandledRejection", (reason) => {
-  frizzLog.error("dev-child", `unhandled rejection: ${reason instanceof Error ? reason.stack ?? reason.message : reason}`)
+  ntwineLog.error("dev-child", `unhandled rejection: ${reason instanceof Error ? reason.stack ?? reason.message : reason}`)
 })
 
-const rawPort = process.env.FRIZZ_DEV_PORT
+const rawPort = process.env.NTWINE_DEV_PORT
 const port = Number(rawPort)
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  frizzLog.error("dev-child", `invalid FRIZZ_DEV_PORT: ${rawPort ?? "<unset>"}`)
+  ntwineLog.error("dev-child", `invalid NTWINE_DEV_PORT: ${rawPort ?? "<unset>"}`)
   process.exit(1)
 }
 
@@ -69,7 +69,7 @@ process.once("disconnect", () => {
     void shutdown()
     return
   }
-  frizzLog.info("dev-child", "supervisor disconnected before the server was up; exiting")
+  ntwineLog.info("dev-child", "supervisor disconnected before the server was up; exiting")
   process.exit(0)
 })
 if (typeof process.send === "function" && !process.connected) process.exit(1)
@@ -83,8 +83,8 @@ try {
   // importing/opening the server; leave this delegate until process death, not merely server.close().
   // A successor must observe this exact generation gone before another scheduler can start.
   let machineOwnerToken: string | undefined
-  if (process.env.FRIZZ_SERVER_OWNERSHIP) {
-    const ownership = JSON.parse(process.env.FRIZZ_SERVER_OWNERSHIP) as NodeJS.ProcessEnv
+  if (process.env.NTWINE_SERVER_OWNERSHIP) {
+    const ownership = JSON.parse(process.env.NTWINE_SERVER_OWNERSHIP) as NodeJS.ProcessEnv
     const serverTarget = projectLaunchTargetFromEnvironment(ownership)
     const serverToken = projectLaunchOwnerTokenFromEnvironment(ownership)
     if (!serverTarget || !serverToken) throw new Error("stable server is missing global launch ownership")
@@ -93,14 +93,14 @@ try {
   }
   const { startServer } = await import("./index.ts")
   const project = projectFromLaunchTarget(target)
-  const stableWebDist = process.env.FRIZZ_STABLE_WEB_DIST
-  const stableArtifact = process.env.FRIZZ_STABLE_ARTIFACT
+  const stableWebDist = process.env.NTWINE_STABLE_WEB_DIST
+  const stableArtifact = process.env.NTWINE_STABLE_ARTIFACT
   if (stableArtifact && !stableWebDist)
-    throw new Error("stable artifact launch is missing FRIZZ_STABLE_WEB_DIST")
+    throw new Error("stable artifact launch is missing NTWINE_STABLE_WEB_DIST")
   if (stableWebDist) {
     const required = [
-      ["FRIZZ_SCRIPTS_DIR", process.env.FRIZZ_SCRIPTS_DIR, "index.mjs"],
-      ["FRIZZ_WORKER_PLUGIN_DIR", process.env.FRIZZ_WORKER_PLUGIN_DIR, ".claude-plugin/plugin.json"],
+      ["NTWINE_SCRIPTS_DIR", process.env.NTWINE_SCRIPTS_DIR, "index.mjs"],
+      ["NTWINE_WORKER_PLUGIN_DIR", process.env.NTWINE_WORKER_PLUGIN_DIR, ".claude-plugin/plugin.json"],
     ] as const
     if (!existsSync(stableWebDist)) throw new Error("stable artifact launch is missing its verified web directory")
     for (const [name, directory, requiredFile] of required) {
@@ -117,10 +117,10 @@ try {
     project,
     launchOwnerToken,
     ...(machineOwnerToken ? { machineOwnerToken } : {}),
-    requestOwnerStop: () => notifySupervisor({ type: "frizz-stop-owner", token: launchOwnerToken }),
+    requestOwnerStop: () => notifySupervisor({ type: "ntwine-stop-owner", token: launchOwnerToken }),
   })
   notifySupervisor({
-    type: "frizz-ready",
+    type: "ntwine-ready",
     ...currentProcessGeneration(),
     port: server.port,
     bootId: server.ctx.bootId,
@@ -132,9 +132,9 @@ try {
     void signOutOlderSessionEpoch({ stateDir: target.stateDir, supervisorPid: process.ppid })
       .then(({ advance, signedOut }) => {
         const line = sessionEpochLogLine(advance, signedOut)
-        if (line) frizzLog.warn("dev-child", `${line} (a launcher older than this release refuses the rest from its next start)`)
+        if (line) ntwineLog.warn("dev-child", `${line} (a launcher older than this release refuses the rest from its next start)`)
       })
-      .catch((error) => frizzLog.warn("dev-child", `session epoch: ${error instanceof Error ? error.message : error}`))
+      .catch((error) => ntwineLog.warn("dev-child", `session epoch: ${error instanceof Error ? error.message : error}`))
   }
 
   let shuttingDown = false
@@ -151,16 +151,16 @@ try {
       // Do not turn that diagnostic into an immediate process exit: doing so repeatedly kills clean
       // late drains and makes the supervisor log a misleading restart storm.
       if (err instanceof ShutdownTimeoutError) {
-        frizzLog.warn("dev-child", `shutdown exceeded ${err.timeoutMs}ms; retaining ownership while the drain completes`)
+        ntwineLog.warn("dev-child", `shutdown exceeded ${err.timeoutMs}ms; retaining ownership while the drain completes`)
         try {
           await server.shutdownFence.whenSafe()
           process.exit(0)
           return
         } catch (drainError) {
-          frizzLog.error("dev-child", `late shutdown drain failed: ${drainError instanceof Error ? drainError.stack ?? drainError.message : drainError}`)
+          ntwineLog.error("dev-child", `late shutdown drain failed: ${drainError instanceof Error ? drainError.stack ?? drainError.message : drainError}`)
         }
       }
-      frizzLog.error("dev-child", `shutdown failed: ${err instanceof Error ? err.stack ?? err.message : err}`)
+      ntwineLog.error("dev-child", `shutdown failed: ${err instanceof Error ? err.stack ?? err.message : err}`)
       process.exit(1)
     }
   }
@@ -174,6 +174,6 @@ try {
   process.on("SIGINT", () => void stop())
   process.on("SIGTERM", () => void stop())
 } catch (err) {
-  frizzLog.error("dev-child", `failed to start: ${err instanceof Error ? err.stack ?? err.message : err}`)
+  ntwineLog.error("dev-child", `failed to start: ${err instanceof Error ? err.stack ?? err.message : err}`)
   process.exit(1)
 }

@@ -18,7 +18,7 @@ import { createInteractionStore } from "../interaction-store.ts"
 import { CodexAppServerBridge, type CodexAppServerSpawn } from "./codex-app-server.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const dir = mkdtempSync(join(tmpdir(), "frizz-goal-turn-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-goal-turn-"))
 const db = new Database(join(dir, "ui.db"))
 db.pragma("journal_mode = WAL")
 let iid = 0, cid = 0

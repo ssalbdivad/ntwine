@@ -13,7 +13,7 @@ test("inline visualizations require the current source and request acknowledgeme
 })
 
 test("inline visualizations retry a complete palette on readiness and resolved theme changes", () => {
-  assert.match(source, /frizz-inline-vis-ready[\s\S]{0,80}sendTheme\(\)/)
+  assert.match(source, /ntwine-inline-vis-ready[\s\S]{0,80}sendTheme\(\)/)
   assert.match(source, /useEffect\(\(\) => \{\s*sendTheme\(\)\s*\}, \[resolved, sendTheme\]\)/)
   assert.match(source, /visualizationThemeMessage\(requestId, root\.colorScheme === "light" \? "light" : "dark", vars\)/)
   assert.match(source, /window\.setTimeout\(\(\) => setAvailable\(false\), 5000\)/)

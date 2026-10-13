@@ -3,11 +3,11 @@
 // around it under each sandbox?
 //
 //   env -u NODE_COMPAT nub packages/server/src/backend/_live_codex_shell_identity.mts
-//   CODEX_BIN=/path/to/codex overrides the binary (default: Frizz's own provisioned pin, then PATH)
+//   CODEX_BIN=/path/to/codex overrides the binary (default: Ntwine's own provisioned pin, then PATH)
 //   PROBE_MODEL=<slug> overrides the model slug the tool list is built for (default gpt-5.6-sol)
 //
-// Why it exists. A command-line program a worker runs from its own shell has to work out WHICH Frizz
-// thread is running it. A Claude thread has a process of its own with FRIZZ_THREAD in it. A Codex
+// Why it exists. A command-line program a worker runs from its own shell has to work out WHICH Ntwine
+// thread is running it. A Claude thread has a process of its own with NTWINE_THREAD in it. A Codex
 // thread does not: one `codex app-server` per project serves every Codex thread in it, so the process
 // environment cannot name a thread, and the MCP mount got its identity from a per-thread `mcp_servers`
 // override instead (codexThreadMcpConfig in codex-mcp.ts). This asks what the SHELL has.
@@ -26,7 +26,7 @@
 // The app-server is driven over raw JSON-RPC on `--stdio`, not through CodexAppServerBridge, so the
 // config bag on `thread/start` and `thread/resume` is exactly what this file writes. The thread-level
 // params are the ones the bridge sends (`approvalPolicy: "never"`, `sandbox` as a plain mode string),
-// and the process environment is Frizz's own rule (inheritWorkerEnvironment: everything, minus FRIZZ_*).
+// and the process environment is Ntwine's own rule (inheritWorkerEnvironment: everything, minus NTWINE_*).
 //
 // The load-bearing evidence is a MARKER FILE the shell command writes itself, never the model's prose
 // (there is no model). Where the sandbox forbids every write, the reading is the listener's own record
@@ -44,21 +44,21 @@
 //      value for a top-level thread; `CODEX_VERSION`, `CODEX_CI=1` and `CODEX_HOME` come with them.
 //
 //      A SUB-AGENT is the exception that matters (`spawn_agent`, measured one level deep): its shell
-//      sees a `CODEX_THREAD_ID` of its OWN, which no `thread/start` ever returned to Frizz, and a
-//      `CODEX_SESSION_ID` equal to the PARENT thread's id. So the variable that names the Frizz-bound
+//      sees a `CODEX_THREAD_ID` of its OWN, which no `thread/start` ever returned to Ntwine, and a
+//      `CODEX_SESSION_ID` equal to the PARENT thread's id. So the variable that names the Ntwine-bound
 //      thread from anywhere in its tree is `CODEX_SESSION_ID`, not `CODEX_THREAD_ID`.
 //
-//   2. Per-thread shell environment. `config: { shell_environment_policy: { set: { FRIZZ_THREAD } } }`
+//   2. Per-thread shell environment. `config: { shell_environment_policy: { set: { NTWINE_THREAD } } }`
 //      on `thread/start` reaches that thread's shell commands, each thread its own value. Three
 //      spellings all work: the nested table, the dotted key `"shell_environment_policy.set": {…}`, and
-//      the fully dotted `"shell_environment_policy.set.FRIZZ_THREAD": "…"`. It ADDS to what the
+//      the fully dotted `"shell_environment_policy.set.NTWINE_THREAD": "…"`. It ADDS to what the
 //      process environment gave; it does not replace it. A sub-agent inherits its parent's value.
 //      It is NOT in the rollout: a thread resumed on a fresh app-server with no bag has no
-//      FRIZZ_THREAD at all, and one resumed with a bag sees the value that resume sent. So it has to
+//      NTWINE_THREAD at all, and one resumed with a bag sees the value that resume sent. So it has to
 //      ride every bag the way `mcp_servers` does (threadConfig in codex-app-server.ts).
 //
 //   3. Process-level inheritance. Variables in the app-server's own environment reach every shell
-//      command under the default policy: FRIZZ_STATE_DIR and FRIZZ_PROJECT_ID did, and so did ones
+//      command under the default policy: NTWINE_STATE_DIR and NTWINE_PROJECT_ID did, and so did ones
 //      named `*TOKEN*` and `*KEY*` (the default excludes are not applied). A directory prepended to
 //      the app-server's PATH is in the shell's PATH and a bare name in it resolves, but it is NEVER
 //      FIRST. Codex puts two entries of its own ahead of the inherited PATH (`…/codex-path` and
@@ -71,13 +71,13 @@
 //   4. Sandbox reach.
 //        danger-full-access  loopback TCP yes; unix sockets yes; writes anywhere.
 //        workspace-write     NO loopback TCP and NO unix socket (curl exit 7), not even a socket inside
-//                            the cwd's own `.frizz/`. Writes land under the cwd, under `.frizz/` in it
+//                            the cwd's own `.ntwine/`. Writes land under the cwd, under `.ntwine/` in it
 //                            (an existing directory and a new one) and under $TMPDIR; `.git/` and
 //                            anywhere outside the cwd are refused.
 //        read-only           no loopback, no unix socket, no write anywhere ($TMPDIR included). A
-//                            program run from this shell has no channel back to Frizz at all.
+//                            program run from this shell has no channel back to Ntwine at all.
 //      Sandboxed shells see `CODEX_SANDBOX=seatbelt` and `CODEX_SANDBOX_NETWORK_DISABLED=1`.
-//      Two arms Frizz does NOT use today, for what opening the network would take: workspace-write
+//      Two arms Ntwine does NOT use today, for what opening the network would take: workspace-write
 //      with `sandbox_workspace_write: { network_access: true }` in the bag, and read-only with
 //      `sandboxPolicy: { type: "readOnly", networkAccess: true }` on `turn/start`, both reach loopback
 //      TCP and both unix sockets with their file rules unchanged. That is the whole network, not
@@ -97,32 +97,32 @@ import { CLIENT_CAPABILITIES, CLIENT_INFO, CODEX_APP_SERVER_SUPPORTED_VERSION } 
 import { codexAppServerArgv } from "./codex-mcp.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
 
-// The binary Frizz itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
+// The binary Ntwine itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
 const CODEX_BIN = process.env.CODEX_BIN
   || provisionedBinary("codex", runtimesRoot(), CODEX_APP_SERVER_SUPPORTED_VERSION)
   || "codex"
 const MODEL = process.env.PROBE_MODEL || "gpt-5.6-sol"
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-codex-shell-identity-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-codex-shell-identity-")))
 const codexHome = join(root, "codex-home")
 const markers = join(root, "markers")
-const binDir = join(root, "frizz-bin")
+const binDir = join(root, "ntwine-bin")
 const stateDir = join(root, "state")
 for (const dir of [codexHome, markers, binDir, stateDir]) mkdirSync(dir)
-// The sandbox arm's directories live OUTSIDE the temp directory on purpose: `workspace-write` as Frizz
+// The sandbox arm's directories live OUTSIDE the temp directory on purpose: `workspace-write` as Ntwine
 // sends it leaves $TMPDIR and /tmp writable, so a cwd under either could not tell "the cwd is writable"
 // from "the temp directory is". Removed again in the `finally`.
 const outsideBase = join(homedir(), process.platform === "darwin" ? "Library/Caches" : ".cache")
 mkdirSync(outsideBase, { recursive: true })
-const outside = realpathSync(mkdtempSync(join(outsideBase, "frizz-codex-shell-identity-")))
-const unixSocket = `/tmp/frizz-si-${process.pid}.sock`
+const outside = realpathSync(mkdtempSync(join(outsideBase, "ntwine-codex-shell-identity-")))
+const unixSocket = `/tmp/ntwine-si-${process.pid}.sock`
 
 // The program a worker would run by bare name. It writes its own marker: who ran it, and what it saw.
-const CLI_NAME = "frizz-probe-cli"
+const CLI_NAME = "ntwine-probe-cli"
 writeFileSync(join(binDir, CLI_NAME), [
   "#!/bin/sh",
-  `{ echo "argv0=$0"; echo "label=$1"; env | grep -E '^(CODEX_|FRIZZ_|PATH=)' | sort; } > ${JSON.stringify(markers)}/"$1".txt`,
+  `{ echo "argv0=$0"; echo "label=$1"; env | grep -E '^(CODEX_|NTWINE_|PATH=)' | sort; } > ${JSON.stringify(markers)}/"$1".txt`,
   "",
 ].join("\n"))
 chmodSync(join(binDir, CLI_NAME), 0o755)
@@ -271,8 +271,8 @@ class AppServer {
   private readonly pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>()
 
   constructor(readonly label: string, extraEnv: Record<string, string> = {}, pathPrefix?: string) {
-    // What Frizz gives its own app-server (codexAppServerEnvironment): everything it has, minus FRIZZ_*.
-    // This process may itself be a Frizz worker, so that subtraction is also what keeps the reading honest.
+    // What Ntwine gives its own app-server (codexAppServerEnvironment): everything it has, minus NTWINE_*.
+    // This process may itself be an Ntwine worker, so that subtraction is also what keeps the reading honest.
     const env: Record<string, string> = { ...inheritWorkerEnvironment(process.env) }
     for (const key of Object.keys(env)) if (key.startsWith("CODEX_")) delete env[key]
     Object.assign(env, { CODEX_HOME: codexHome }, extraEnv)
@@ -327,7 +327,7 @@ class AppServer {
     return String(response.userAgent)
   }
 
-  /** The thread-level params Frizz sends on `thread/start` (startDisposableSession), plus this bag. */
+  /** The thread-level params Ntwine sends on `thread/start` (startDisposableSession), plus this bag. */
   async startThread(cwd: string, sandbox: string, config?: Record<string, unknown>): Promise<{ id: string; sessionId: string }> {
     const response = await this.request("thread/start", {
       cwd, model: null, approvalPolicy: "never", approvalsReviewer: "user", sandbox,
@@ -389,7 +389,7 @@ function shellOutput(id: string): string {
 const valueIn = (text: string | null | undefined, key: string): string | undefined =>
   text?.split("\n").find((line) => line.startsWith(`${key}=`))?.slice(key.length + 1)
 /** The shell's own view of the three things in question, written by the shell to a file. */
-const envTo = (label: string) => `sh -c 'env | grep -E "^(CODEX_|FRIZZ_|PATH=)" | sort > ${join(markers, `${label}.txt`)}'`
+const envTo = (label: string) => `sh -c 'env | grep -E "^(CODEX_|NTWINE_|PATH=)" | sort > ${join(markers, `${label}.txt`)}'`
 /** Where the directory the app-server was given FIRST in its PATH ended up in the shell's. */
 function pathPosition(text: string | null | undefined): { at: number; of: number; first: string[] } {
   const entries = valueIn(text, "PATH")?.split(":") ?? []
@@ -415,7 +415,7 @@ try {
   console.log(`[shell-identity] codex ${CODEX_BIN}\n[shell-identity] ${execFileSync(CODEX_BIN, ["--version"]).toString().trim()} · model slug ${MODEL} · workspace ${root}`)
   const cwdOf = (label: string) => { const dir = join(root, `cwd-${label}`); mkdirSync(dir, { recursive: true }); return dir }
   const FULL = "danger-full-access"
-  const setThread = (value: string) => ({ shell_environment_policy: { set: { FRIZZ_THREAD: value } } })
+  const setThread = (value: string) => ({ shell_environment_policy: { set: { NTWINE_THREAD: value } } })
 
   // ==== 1 + 2: one app-server, several threads =======================================================
   console.log("\n======== ONE app-server (plain environment), several threads ========")
@@ -426,8 +426,8 @@ try {
     a: setThread("thread-a"),
     b: setThread("thread-b"),
     c: undefined,
-    d: { "shell_environment_policy.set": { FRIZZ_THREAD: "thread-d" } },
-    e: { "shell_environment_policy.set.FRIZZ_THREAD": "thread-e" },
+    d: { "shell_environment_policy.set": { NTWINE_THREAD: "thread-d" } },
+    e: { "shell_environment_policy.set.NTWINE_THREAD": "thread-e" },
   }
   const threads: Record<string, { id: string; sessionId: string }> = {}
   for (const [label, config] of Object.entries(bags)) {
@@ -457,10 +457,10 @@ try {
   finding("CODEX_SESSION_ID is there too, and for a top-level thread it is the same value", ["a", "b", "c"].every((label) => valueIn(marker(`${label}-1`), "CODEX_SESSION_ID") === threads[label]?.sessionId && threads[label]?.sessionId === threads[label]?.id))
   finding("it holds on a later turn of the same thread", valueIn(marker("a-2"), "CODEX_THREAD_ID") === threads.a?.id)
   finding("nested `shell_environment_policy: { set: {…} }` reaches the shell, each thread its own value",
-    valueIn(marker("a-1"), "FRIZZ_THREAD") === "thread-a" && valueIn(marker("b-1"), "FRIZZ_THREAD") === "thread-b" && valueIn(marker("a-2"), "FRIZZ_THREAD") === "thread-a")
-  finding("a thread started with no bag has no FRIZZ_THREAD (the control)", marker("c-1") !== null && valueIn(marker("c-1"), "FRIZZ_THREAD") === undefined)
-  finding('the dotted key `"shell_environment_policy.set": {…}` works as well', valueIn(marker("d-1"), "FRIZZ_THREAD") === "thread-d")
-  finding('and so does `"shell_environment_policy.set.FRIZZ_THREAD": "…"`', valueIn(marker("e-1"), "FRIZZ_THREAD") === "thread-e")
+    valueIn(marker("a-1"), "NTWINE_THREAD") === "thread-a" && valueIn(marker("b-1"), "NTWINE_THREAD") === "thread-b" && valueIn(marker("a-2"), "NTWINE_THREAD") === "thread-a")
+  finding("a thread started with no bag has no NTWINE_THREAD (the control)", marker("c-1") !== null && valueIn(marker("c-1"), "NTWINE_THREAD") === undefined)
+  finding('the dotted key `"shell_environment_policy.set": {…}` works as well', valueIn(marker("d-1"), "NTWINE_THREAD") === "thread-d")
+  finding('and so does `"shell_environment_policy.set.NTWINE_THREAD": "…"`', valueIn(marker("e-1"), "NTWINE_THREAD") === "thread-e")
 
   // ==== 1 + 2 across a restart: a FRESH app-server, thread/resume ====================================
   console.log("\n======== a FRESH app-server: thread/resume ========")
@@ -478,15 +478,15 @@ try {
   console.log("")
   finding("a thread resumed on a fresh app-server still sees its own CODEX_THREAD_ID",
     valueIn(marker("a-resumed-nobag"), "CODEX_THREAD_ID") === threads.a?.id && valueIn(marker("b-resumed-bag"), "CODEX_THREAD_ID") === threads.b?.id)
-  finding("resumed with NO bag, the thread has LOST its FRIZZ_THREAD: the rollout does not carry it", marker("a-resumed-nobag") !== null && valueIn(marker("a-resumed-nobag"), "FRIZZ_THREAD") === undefined)
-  finding("resumed WITH a bag, the shell sees the value that resume sent", valueIn(marker("b-resumed-bag"), "FRIZZ_THREAD") === "thread-b-resumed")
+  finding("resumed with NO bag, the thread has LOST its NTWINE_THREAD: the rollout does not carry it", marker("a-resumed-nobag") !== null && valueIn(marker("a-resumed-nobag"), "NTWINE_THREAD") === undefined)
+  finding("resumed WITH a bag, the shell sees the value that resume sent", valueIn(marker("b-resumed-bag"), "NTWINE_THREAD") === "thread-b-resumed")
 
   // ==== 3: what the PROCESS was given ================================================================
-  console.log("\n======== an app-server started with a PATH entry and FRIZZ_ variables of its own ========")
+  console.log("\n======== an app-server started with a PATH entry and NTWINE_ variables of its own ========")
   const processEnv = {
-    FRIZZ_STATE_DIR: stateDir, FRIZZ_PROJECT_ID: "abc",
-    // Codex's default excludes are named `*KEY*` / `*SECRET*` / `*TOKEN*`: do they bite a Frizz variable?
-    FRIZZ_PROBE_SECRET_TOKEN: "tok", FRIZZ_PROBE_API_KEY: "key",
+    NTWINE_STATE_DIR: stateDir, NTWINE_PROJECT_ID: "abc",
+    // Codex's default excludes are named `*KEY*` / `*SECRET*` / `*TOKEN*`: do they bite an Ntwine variable?
+    NTWINE_PROBE_SECRET_TOKEN: "tok", NTWINE_PROBE_API_KEY: "key",
   }
   const three = new AppServer("three", processEnv, binDir)
   await three.initialize()
@@ -509,12 +509,12 @@ try {
   finding(`a bare \`${CLI_NAME}\` resolves to the script in the directory the app-server was given`, cliLabels.every((label) => valueIn(marker(label), "argv0") === join(binDir, CLI_NAME)))
   finding("but that directory is NEVER first in the shell's PATH: Codex and the login shell put entries ahead of it",
     cliLabels.every((label) => pathPosition(marker(label)).at > 0), cliLabels.map((label) => `${label}: #${pathPosition(marker(label)).at + 1}`).join(", "))
-  finding("FRIZZ_STATE_DIR and FRIZZ_PROJECT_ID reach the shell under the default policy",
-    cliLabels.every((label) => valueIn(marker(label), "FRIZZ_STATE_DIR") === stateDir && valueIn(marker(label), "FRIZZ_PROJECT_ID") === "abc"))
+  finding("NTWINE_STATE_DIR and NTWINE_PROJECT_ID reach the shell under the default policy",
+    cliLabels.every((label) => valueIn(marker(label), "NTWINE_STATE_DIR") === stateDir && valueIn(marker(label), "NTWINE_PROJECT_ID") === "abc"))
   finding("so do variables named *TOKEN* and *KEY*: the default excludes are not applied",
-    cliLabels.every((label) => valueIn(marker(label), "FRIZZ_PROBE_SECRET_TOKEN") === "tok" && valueIn(marker(label), "FRIZZ_PROBE_API_KEY") === "key"))
+    cliLabels.every((label) => valueIn(marker(label), "NTWINE_PROBE_SECRET_TOKEN") === "tok" && valueIn(marker(label), "NTWINE_PROBE_API_KEY") === "key"))
   finding("a per-thread `set` ADDS to what the process gave; it does not replace it",
-    valueIn(marker("g-with-bag"), "FRIZZ_THREAD") === "thread-g" && valueIn(marker("g-with-bag"), "FRIZZ_PROJECT_ID") === "abc" && valueIn(marker("f-login-default"), "FRIZZ_THREAD") === undefined)
+    valueIn(marker("g-with-bag"), "NTWINE_THREAD") === "thread-g" && valueIn(marker("g-with-bag"), "NTWINE_PROJECT_ID") === "abc" && valueIn(marker("f-login-default"), "NTWINE_THREAD") === undefined)
 
   // ==== beyond the four questions: a sub-agent's shell ===============================================
   console.log("\n======== a sub-agent (`spawn_agent`) of a thread that has a bag ========")
@@ -532,15 +532,15 @@ try {
   } else {
     finding("a sub-agent's shell sees a CODEX_THREAD_ID of its OWN, not its parent's", ![undefined, h.id].includes(valueIn(marker("h-child"), "CODEX_THREAD_ID")), valueIn(marker("h-child"), "CODEX_THREAD_ID"))
     finding("its CODEX_SESSION_ID is the PARENT thread's id", valueIn(marker("h-child"), "CODEX_SESSION_ID") === h.id, valueIn(marker("h-child"), "CODEX_SESSION_ID"))
-    finding("and it inherits the parent's per-thread FRIZZ_THREAD", valueIn(marker("h-child"), "FRIZZ_THREAD") === "thread-h", valueIn(marker("h-child"), "FRIZZ_THREAD") ?? "absent")
+    finding("and it inherits the parent's per-thread NTWINE_THREAD", valueIn(marker("h-child"), "NTWINE_THREAD") === "thread-h", valueIn(marker("h-child"), "NTWINE_THREAD") ?? "absent")
   }
 
   // ==== 4: sandbox reach, on that same process =======================================================
   console.log("\n======== sandbox reach: loopback, unix sockets, and writes ========")
   const notCwd = join(outside, "not-the-cwd")
   mkdirSync(notCwd)
-  // The first three are the modes Frizz uses, sent as Frizz sends them. The last two are NOT something
-  // Frizz does today: they ask what it would take to open the network under the same file rules.
+  // The first three are the modes Ntwine uses, sent as Ntwine sends them. The last two are NOT something
+  // Ntwine does today: they ask what it would take to open the network under the same file rules.
   const arms: Array<{ label: string; sandbox: string; config?: Record<string, unknown>; sandboxPolicy?: Record<string, unknown> }> = [
     { label: "danger-full-access", sandbox: "danger-full-access" },
     { label: "workspace-write", sandbox: "workspace-write" },
@@ -552,10 +552,10 @@ try {
   const reach: Record<string, Reach> = {}
   for (const arm of arms) {
     const cwd = join(outside, arm.label)
-    mkdirSync(join(cwd, ".frizz"), { recursive: true })
+    mkdirSync(join(cwd, ".ntwine"), { recursive: true })
     execFileSync("git", ["init", "-q", cwd])
-    // A socket inside the project's own `.frizz/`, which `workspace-write` can write to.
-    const cwdSocket = join(cwd, ".frizz", "s.sock")
+    // A socket inside the project's own `.ntwine/`, which `workspace-write` can write to.
+    const cwdSocket = join(cwd, ".ntwine", "s.sock")
     await listener("unix-cwd", cwdSocket)
     const thread = await three.startThread(cwd, arm.sandbox, arm.config)
     const write = (name: string, target: string) => `( echo ok > ${target} ) 2>/dev/null; echo "${name}_exit=$?"`
@@ -565,13 +565,13 @@ try {
       curl("unix_tmp", `--unix-socket ${unixSocket} http://localhost/hit/${arm.label}`),
       curl("unix_cwd", `--unix-socket ${cwdSocket} http://localhost/hit/${arm.label}`),
       write("cwd", "probe-cwd.txt"),
-      write("dotfrizz", ".frizz/probe.txt"),
-      `( mkdir -p .frizz/threads/x && echo ok > .frizz/threads/x/probe.txt ) 2>/dev/null; echo "dotfrizz_mkdir_exit=$?"`,
+      write("dotntwine", ".ntwine/probe.txt"),
+      `( mkdir -p .ntwine/threads/x && echo ok > .ntwine/threads/x/probe.txt ) 2>/dev/null; echo "dotntwine_mkdir_exit=$?"`,
       write("dotgit", ".git/probe.txt"),
       write("outside_cwd", join(notCwd, `${arm.label}.txt`)),
       write("tmpdir", join(markers, `sandbox-${arm.label}.txt`)),
       `${CLI_NAME} sandbox-cli-${arm.label} 2>/dev/null; echo "cli_exit=$?"`,
-      `env | grep -E "^(CODEX_SANDBOX|FRIZZ_PROJECT_ID)" | sort`,
+      `env | grep -E "^(CODEX_SANDBOX|NTWINE_PROJECT_ID)" | sort`,
     ].join("; ")
     const status = await three.run(thread.id, `sandbox-${arm.label}`, cmd, arm.sandboxPolicy ? { sandboxPolicy: arm.sandboxPolicy } : {})
     await sleep(200)
@@ -582,8 +582,8 @@ try {
       exits,
       hits: hits.filter((hit) => hit.endsWith(`/hit/${arm.label}`)).map((hit) => hit.split(" ")[0]!),
       files: {
-        cwd: existsSync(join(cwd, "probe-cwd.txt")), dotfrizz: existsSync(join(cwd, ".frizz/probe.txt")),
-        dotfrizzMkdir: existsSync(join(cwd, ".frizz/threads/x/probe.txt")), dotgit: existsSync(join(cwd, ".git/probe.txt")),
+        cwd: existsSync(join(cwd, "probe-cwd.txt")), dotntwine: existsSync(join(cwd, ".ntwine/probe.txt")),
+        dotntwineMkdir: existsSync(join(cwd, ".ntwine/threads/x/probe.txt")), dotgit: existsSync(join(cwd, ".git/probe.txt")),
         outsideCwd: existsSync(join(notCwd, `${arm.label}.txt`)), tmpdir: existsSync(join(markers, `sandbox-${arm.label}.txt`)),
         cliMarker: marker(`sandbox-cli-${arm.label}`) !== null,
       },
@@ -599,12 +599,12 @@ try {
 
   console.log("")
   const all = (value: boolean, files: Record<string, boolean>, keys: string[]) => keys.every((key) => files[key] === value)
-  const everyFile = ["cwd", "dotfrizz", "dotfrizzMkdir", "dotgit", "outsideCwd", "tmpdir", "cliMarker"]
+  const everyFile = ["cwd", "dotntwine", "dotntwineMkdir", "dotgit", "outsideCwd", "tmpdir", "cliMarker"]
   finding("danger-full-access: loopback TCP and both unix sockets are reached, every write lands (the positive control)",
     reach["danger-full-access"]!.hits.length === 3 && all(true, reach["danger-full-access"]!.files, everyFile))
-  finding("workspace-write: NO loopback TCP and NO unix socket, not even one inside the cwd's .frizz/", reach["workspace-write"]!.hits.length === 0, reach["workspace-write"]!.exits)
-  finding("workspace-write: the shell can write under its cwd and under .frizz/ in it (existing or new directory), and under $TMPDIR",
-    all(true, reach["workspace-write"]!.files, ["cwd", "dotfrizz", "dotfrizzMkdir", "tmpdir", "cliMarker"]))
+  finding("workspace-write: NO loopback TCP and NO unix socket, not even one inside the cwd's .ntwine/", reach["workspace-write"]!.hits.length === 0, reach["workspace-write"]!.exits)
+  finding("workspace-write: the shell can write under its cwd and under .ntwine/ in it (existing or new directory), and under $TMPDIR",
+    all(true, reach["workspace-write"]!.files, ["cwd", "dotntwine", "dotntwineMkdir", "tmpdir", "cliMarker"]))
   finding("workspace-write: it cannot write into .git/ or outside the cwd (the negative control)", all(false, reach["workspace-write"]!.files, ["dotgit", "outsideCwd"]))
   finding("read-only: no loopback, no unix socket, and no write anywhere, $TMPDIR included",
     reach["read-only"]!.hits.length === 0 && all(false, reach["read-only"]!.files, everyFile), reach["read-only"]!.exits)

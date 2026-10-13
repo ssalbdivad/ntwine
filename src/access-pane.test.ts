@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { EventEmitter } from "node:events";
-import { renderQrLines } from "@frizz/server/qr";
+import { renderQrLines } from "@ntwine/server/qr";
 import { fitScreen, installAccessPane, type AccessLink } from "./access-pane.ts";
 
 /** A stand-in TTY pair, so the pane can be driven without a real terminal. */
@@ -27,7 +27,7 @@ function fakeTty(isTty = true) {
 }
 
 function link(overrides: Partial<AccessLink> = {}): AccessLink {
-  return { code: "abc", url: "https://colin.frizz.sh/?frizz_code=abc", expiresAt: 300_000, ...overrides };
+  return { code: "abc", url: "https://colin.frizz.sh/?ntwine_code=abc", expiresAt: 300_000, ...overrides };
 }
 
 test("L opens a pane with a scannable code, and any other key closes it", () => {
@@ -48,7 +48,7 @@ test("L opens a pane with a scannable code, and any other key closes it", () => 
   assert.equal(issued, 1, "L mints exactly one link");
   const opened = tty.all();
   assert.match(opened, /\x1b\[\?1049h/, "uses the alternate screen, so the QR is not left in scrollback");
-  assert.match(opened, /frizz_code=abc/, "prints the URL for anyone who cannot scan");
+  assert.match(opened, /ntwine_code=abc/, "prints the URL for anyone who cannot scan");
   assert.match(opened, /Single use, expires in 300s/);
   assert.match(opened, /[▀▄]/, "renders the QR itself");
 
@@ -66,7 +66,7 @@ test("pressing L twice mints a second link rather than re-showing the first", ()
   const codes = ["one", "two"];
   let n = 0;
   const pane = installAccessPane({
-    issue: () => link({ code: codes[n]!, url: `https://x/?frizz_code=${codes[n++]}` }),
+    issue: () => link({ code: codes[n]!, url: `https://x/?ntwine_code=${codes[n++]}` }),
     input: tty.input,
     output: tty.output,
     now: () => 0,
@@ -76,7 +76,7 @@ test("pressing L twice mints a second link rather than re-showing the first", ()
   tty.input.emit("data", "q");
   tty.written.length = 0;
   tty.input.emit("data", "L");
-  assert.match(tty.all(), /frizz_code=two/, "uppercase L works too, and mints fresh");
+  assert.match(tty.all(), /ntwine_code=two/, "uppercase L works too, and mints fresh");
   pane.dispose();
 });
 
@@ -87,7 +87,7 @@ test("L while the pane is open mints a fresh link in place instead of closing", 
   const codes = ["one", "two", "three"];
   let n = 0;
   const pane = installAccessPane({
-    issue: () => link({ code: codes[n]!, url: `https://x/?frizz_code=${codes[n++]}` }),
+    issue: () => link({ code: codes[n]!, url: `https://x/?ntwine_code=${codes[n++]}` }),
     input: tty.input,
     output: tty.output,
     now: () => 0,
@@ -97,10 +97,10 @@ test("L while the pane is open mints a fresh link in place instead of closing", 
   tty.written.length = 0;
   tty.input.emit("data", "l");
   assert.doesNotMatch(tty.all(), /\x1b\[\?1049l/, "the pane stays up");
-  assert.match(tty.all(), /frizz_code=two/, "and shows a freshly minted code");
+  assert.match(tty.all(), /ntwine_code=two/, "and shows a freshly minted code");
   tty.written.length = 0;
   tty.input.emit("data", "L");
-  assert.match(tty.all(), /frizz_code=three/, "uppercase L re-mints too");
+  assert.match(tty.all(), /ntwine_code=three/, "uppercase L re-mints too");
   tty.input.emit("data", "x");
   assert.match(tty.all(), /\x1b\[\?1049l/, "any other key still closes");
   pane.dispose();
@@ -152,7 +152,7 @@ test("disposing always restores raw mode, and is safe to call twice", () => {
   assert.ok(pane);
   assert.equal(tty.input.rawMode, true);
   pane.dispose();
-  assert.equal(tty.input.rawMode, false, "a shell left in raw mode echoes nothing after Frizz stops");
+  assert.equal(tty.input.rawMode, false, "a shell left in raw mode echoes nothing after Ntwine stops");
   pane.dispose();
   assert.equal(tty.input.rawMode, false);
 });
@@ -233,7 +233,7 @@ test("in an 80x24 window the whole code stays on screen, quiet zone included", (
   const top = rows.indexOf(code[0]!);
   assert.ok(top >= 0, "the code's top quiet-zone row is on screen");
   assert.deepEqual(rows.slice(top, top + code.length), code, "every row of the code, in order");
-  assert.ok(rows.some((row) => row.includes("frizz_code=abc")), "the URL still fits");
+  assert.ok(rows.some((row) => row.includes("ntwine_code=abc")), "the URL still fits");
   pane.dispose();
 });
 

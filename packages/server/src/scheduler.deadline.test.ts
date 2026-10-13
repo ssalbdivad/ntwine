@@ -23,7 +23,7 @@ const BUDGET = 40 * M // half at +20m, converge at +32m, final at +35m (5m lead)
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: new Date(START).toISOString(),
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: new Date(START).toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: slug,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   } as SessionRow
@@ -34,7 +34,7 @@ function tele(turn: TurnState, over: Partial<SessionTelemetry> = {}): SessionTel
 }
 
 function harness(opts: { wakeQuietWindowMs?: number } = { wakeQuietWindowMs: 0 }) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-deadline-sched-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-deadline-sched-"))
   const dbPath = join(dir, "ui.db")
   let storage: Storage = createStorage(dbPath, "p")
   const teleMap = new Map<string, SessionTelemetry>()
@@ -203,7 +203,7 @@ test("negative control: no deadline, no check-ins and no time on the clock line"
   try {
     h.storage.upsertSession(row("t"))
     h.tele.set("t", tele("in-flight"))
-    // A one-off timer, so SOME frizz wake goes out and its clock line can be read.
+    // A one-off timer, so SOME ntwine wake goes out and its clock line can be read.
     h.storage.armThreadTimer({ id: "tmr_x", slug: "t", prompt: "check the build", fireAtMs: START + 30 * M, createdAtMs: START })
     const s = h.make()
     for (const at of [20, 32, 35, 40, 60]) {

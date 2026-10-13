@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { BatteryWarning, ExternalLink, X } from "lucide-react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { spanUntil } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"

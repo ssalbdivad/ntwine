@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { handleDialogEscape } from "../../lib/selectOverlay.ts"
 
 // Centered modal dialog on Radix. Dark scrim, elevated panel with a soft shadow and a titled
-// header with a close affordance. Shared by the frizz-document viewer and settings.
+// header with a close affordance. Shared by the ntwine-document viewer and settings.
 export function Dialog({
   open,
   onOpenChange,

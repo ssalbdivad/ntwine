@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query"
 import { Loader2, RotateCw } from "lucide-react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { aiRenameAvailability } from "../lib/threadTitle.ts"

@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadRow, sessionIndicatorFor, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
@@ -53,7 +53,7 @@ const HOURGLASS = /lucide-hourglass/
 const ALARM = /lucide-alarm-clock/
 // The shell's live-work dot is not a lucide icon — it is a styled span (Sidebar.tsx shellDot), so its
 // class is the handle. Deliberately the same mark the Active band's `background` row wears.
-const SHELL_DOT = /frizz-rail-dot/
+const SHELL_DOT = /ntwine-rail-dot/
 
 const FAR_FUTURE = "2999-01-01T00:00:00.000Z"
 const watch = (value: string) => ({ kind: "pr" as const, value })
@@ -201,7 +201,7 @@ test("a QUEUED thread awaiting a PR wears GitHub's mark — no snooze involved",
 })
 
 test("a REGISTERED watch with no fence at all still wears GitHub's mark", () => {
-  // The shape the worker contract now steers toward — `mcp__frizz__watch_pr` creates the row the
+  // The shape the worker contract now steers toward — `mcp__ntwine__watch_pr` creates the row the
   // scheduler polls, and the `prs:` fence line only echoes it. Reading the fence alone (which every arm
   // did before) meant a worker that registered a watch and then rested without fencing got the ellipsis.
   const html = row({ needsYou: true, watches: armedWatch("acme/app#391") } as Partial<ThreadView>)

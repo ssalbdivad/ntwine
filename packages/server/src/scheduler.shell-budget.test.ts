@@ -28,7 +28,7 @@ import {
 //  · ONE warning per deadline, however many passes and however many restarts see it overrun;
 //  · the kill GRACE after that warning, through the injected stop (the operator's × in production);
 //  · an extension moving the deadline defers both, and supersedes a warning still in the outbox;
-//  · a shell frizz cannot stop is warned and never killed — and told so.
+//  · a shell ntwine cannot stop is warned and never killed — and told so.
 
 const HOUR = 60 * 60_000
 const START = Date.parse("2026-09-29T09:00:00.000Z")
@@ -48,10 +48,10 @@ test("a launch's budget is only what it DECLARED: its `timeout`, clamped to [1m,
 })
 
 test("the kill notice says WHY: the operator's words stay put, a budget stop names the budget", () => {
-  assert.match(shellStopNotice("Watching CI"), /^\[frizz\] The operator stopped your background command "Watching CI" from the Frizz dashboard/)
+  assert.match(shellStopNotice("Watching CI"), /^\[ntwine\] The operator stopped your background command "Watching CI" from the Ntwine dashboard/)
   const budget = shellStopNotice("npx vite", { kind: "budget", ranMs: HOUR + 10 * 60_000, budgetMs: HOUR })
-  assert.match(budget, /^\[frizz\] Frizz stopped your background command "npx vite" after 1h 10m: it ran past its 1h budget/)
-  assert.match(budget, /frizzctl extend-shell/)
+  assert.match(budget, /^\[ntwine\] Ntwine stopped your background command "npx vite" after 1h 10m: it ran past its 1h budget/)
+  assert.match(budget, /ntwinectl extend-shell/)
   assert.match(budget, /do not wait on it/)
 })
 
@@ -59,7 +59,7 @@ test("the kill notice says WHY: the operator's words stay put, a budget stop nam
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-09-29T08:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-09-29T08:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: slug,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   } as SessionRow
@@ -82,7 +82,7 @@ function harness(opts: {
   delivery?: { retryBaseMs?: number; retryMaxMs?: number; deliveryLeaseMs?: number; maxDeliveryAttempts?: number }
   wakeRuntimeState?: () => "alive" | "dead" | "unknown"
 } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-shell-budget-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-shell-budget-"))
   const dbPath = join(dir, "ui.db")
   let storage: Storage = createStorage(dbPath, "p")
   const teleMap = new Map<string, SessionTelemetry>()
@@ -152,10 +152,10 @@ test("inside its budget a shell is left alone; past it, ONE warning — across p
     assert.equal(h.storage.getShellBudget("t", "toolu_sh")?.warned_deadline, START + HOUR, "the warning is durable on the budget row, not only in the outbox")
     const w = warnings(h.resumes)[0]!
     assert.match(w.message, /Your background shell `bvite1` \(npx vite --port 5231\) has been running 1h, past its 1h budget/)
-    assert.match(w.message, /Frizz stops it in 10m unless you extend it/)
-    assert.match(w.message, /`frizzctl extend-shell bvite1 --for <duration>`/)
+    assert.match(w.message, /Ntwine stops it in 10m unless you extend it/)
+    assert.match(w.message, /`ntwinectl extend-shell bvite1 --for <duration>`/)
     assert.match(w.message, /TaskStop/)
-    assert.match(w.message, /⏱ /, "frizz-authored, so it carries the wall clock")
+    assert.match(w.message, /⏱ /, "ntwine-authored, so it carries the wall clock")
     await s.stop()
 
     // A RESTART — the outbox row is still there, and more to the point the budget row records the
@@ -396,7 +396,7 @@ test("a warning still QUEUED when the worker extends is superseded, not delivere
   }
 })
 
-test("a shell frizz cannot stop is WARNED, told frizz cannot stop it, and never killed", async () => {
+test("a shell ntwine cannot stop is WARNED, told ntwine cannot stop it, and never killed", async () => {
   const h = harness({ stoppable: false })
   try {
     h.storage.upsertSession(row("t"))
@@ -405,8 +405,8 @@ test("a shell frizz cannot stop is WARNED, told frizz cannot stop it, and never 
     h.clock.ms = START + HOUR + 1_000
     await s.tick()
     assert.equal(warnings(h.resumes).length, 1)
-    assert.match(warnings(h.resumes)[0]!.message, /Frizz cannot stop this one for you/)
-    assert.doesNotMatch(warnings(h.resumes)[0]!.message, /Frizz stops it in/)
+    assert.match(warnings(h.resumes)[0]!.message, /Ntwine cannot stop this one for you/)
+    assert.doesNotMatch(warnings(h.resumes)[0]!.message, /Ntwine stops it in/)
     h.clock.ms += 5 * SHELL_BUDGET_GRACE_MS
     await s.tick()
     assert.deepEqual(h.stops, [])

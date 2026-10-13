@@ -2,7 +2,7 @@
 // whole, and the assertion that says so loudly at build time.
 //
 // It lives in its own module because TWO build paths stage that tree and both must hold the same
-// opinion about it: `artifacts.ts` (the frizz-dev promoted artifact, `~/.frizz/builds/<digest>/runtime`)
+// opinion about it: `artifacts.ts` (the ntwine-dev promoted artifact, `~/.ntwine/builds/<digest>/runtime`)
 // and `scripts/prepare-package.mjs` (the published package, `<pkg>/runtime`). Each used to keep its own
 // hand-copy of the list, so widening the closure meant editing both — and the two were only ever in
 // agreement between the first edit and the second. Widening it used to mean typing the same string
@@ -22,7 +22,7 @@
 // same 2026-08-26 deletion above left every earlier instance refusing to update, naming a file the new
 // source was right not to have. The rule the build path follows now: the list travels with the tree.
 // `artifacts.ts` runs `scripts/assert-worker-plugin-closure.mjs` out of the captured SNAPSHOT rather
-// than importing this module, and skips the closure half of `readFrizzArtifact` for an artifact it
+// than importing this module, and skips the closure half of `readNtwineArtifact` for an artifact it
 // just built. Boot-path reads and prepack still import it directly, because there the list and the
 // tree come from one checkout.
 //
@@ -38,14 +38,17 @@ export const WORKER_PLUGIN_REQUIRED_FILES = [
   "cc-worker/.claude-plugin/plugin.json",
   "cc-worker/hooks/session-seed.mjs",
   "cc-worker/hooks/agent-bind.mjs",
-  "cc-worker/bin/frizz",
-  "cc-worker/bin/frizz-update",
+  "cc-worker/bin/ntwine",
+  "cc-worker/bin/ntwine-update",
   // The worker command line: its launcher, the front-end the launcher runs, and the registry both the
   // front-end and the legacy MCP front-end import. Since 2026-10-11 this is how a worker asks, waits
   // and signs off, so a tree without any one of the three dispatches workers that can do none of it.
+  "cc-worker/bin/ntwinectl",
+  "cc-worker/bin/ntwinectl.mjs",
+  "cc-worker/lib/ntwine-tools.mjs",
+  "cc-worker/lib/legacy-env.mjs",
   "cc-worker/bin/frizzctl",
-  "cc-worker/bin/frizzctl.mjs",
-  "cc-worker/lib/frizz-tools.mjs",
+  "cc-worker/bin/frizz-mcp.mjs",
   "board/config.mjs",
   "board/agent-bindings.mjs",
   "board/index.mjs",
@@ -56,6 +59,6 @@ export const WORKER_PLUGIN_REQUIRED_FILES = [
 export function assertWorkerPluginClosure(root: string): void {
   for (const file of WORKER_PLUGIN_REQUIRED_FILES) {
     if (!existsSync(join(root, file)))
-      throw new Error(`Frizz worker plugin closure is missing ${file}`);
+      throw new Error(`Ntwine worker plugin closure is missing ${file}`);
   }
 }

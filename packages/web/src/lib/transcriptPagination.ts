@@ -1,4 +1,4 @@
-import type { TranscriptMessage, TranscriptPage } from "@frizz/shared"
+import type { TranscriptMessage, TranscriptPage } from "@ntwine/shared"
 
 export type PaginatedTranscriptData = TranscriptPage & { historyLoaded?: boolean }
 

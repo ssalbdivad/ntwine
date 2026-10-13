@@ -28,7 +28,7 @@ export const QUEUE_WRAP = "[overflow-wrap:anywhere] [&_pre]:whitespace-pre-wrap 
 //      own color, flush with the card's own left padding. It used to be a 10px UPPERCASE eyebrow,
 //      which reads as a metadata tag stuck above the card rather than as the card's headline.
 //   2. The glyph LEADS the title row, top-LEFT, beside the title — but it is not a gutter. shadcn
-//      indents the description to clear its icon; frizz does not, because that indent spends ~24px of
+//      indents the description to clear its icon; ntwine does not, because that indent spends ~24px of
 //      every card's width on a decoration and leaves the body hanging off the one edge that should be
 //      flush (maintainer 2026-07-29: "I don't like how much space there is left padding for the actual
 //      content"). Only the TITLE steps right of the glyph; body and actions start on the card's own x.
@@ -41,7 +41,7 @@ export const QUEUE_WRAP = "[overflow-wrap:anywhere] [&_pre]:whitespace-pre-wrap 
 // tone is a two-token swap on the border and the title, never a different card:
 //   neutral   — a statement of fact (done, awaiting, a question)
 //   attention — a FOREIGN session is blocked on you, answerable only in the terminal you run it in
-//   caution   — frizz paused itself and will continue on its own (a usage limit)
+//   caution   — ntwine paused itself and will continue on its own (a usage limit)
 //   risk      — the ACTION is irreversible, but nothing is wrong (a destructive gate awaiting a choice)
 //   danger    — something is BROKEN (a sign-in fault)
 //
@@ -188,7 +188,7 @@ export function CardHead({
   return (
     <div className="flex min-w-0 items-start gap-2">
       {Icon && <CardGlyph icon={Icon} className={head} />}
-      {/* The title WRAPS rather than truncating: frizz's kinds are short sentences ("Waiting on your
+      {/* The title WRAPS rather than truncating: ntwine's kinds are short sentences ("Waiting on your
           answer — in your external terminal"), and the half of one that survives a narrow queue card
           is not the half that carries the meaning. It takes the row's slack, which is what pushes the
           aside to the right edge — and a wrapped second line stays indented under the title's own

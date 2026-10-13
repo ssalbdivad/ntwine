@@ -2,8 +2,9 @@
 // `nub run dev` runs it through src/dev.ts, which attaches remote access (the transport lives in the
 // launcher package, which this one cannot import); run directly, it is the same board without it.
 // Worker daemons remain independent.
+import "@ntwine/shared/legacy-env"
 import { fileURLToPath } from "node:url"
-import { DEFAULT_PORT } from "@frizz/shared"
+import { DEFAULT_PORT } from "@ntwine/shared"
 import { fileSessionDirectory, loadOrCreateSessionKey } from "./access-codes.ts"
 import type { DevSupervisor } from "./dev-supervisor.ts"
 import { logEnvironment, openRunLogger } from "./logging.ts"
@@ -33,7 +34,7 @@ export interface RunDevOptions {
 }
 
 export async function runDev(options: RunDevOptions = {}): Promise<void> {
-  if (process.env.FRIZZ_DEV_CHILD === "1") {
+  if (process.env.NTWINE_DEV_CHILD === "1") {
     const childTarget = projectLaunchTargetFromEnvironment(process.env)
     const childToken = projectLaunchOwnerTokenFromEnvironment(process.env)
     if (!childTarget || !childToken) throw new Error("dev child is missing pinned project launch ownership")
@@ -46,9 +47,9 @@ export async function runDev(options: RunDevOptions = {}): Promise<void> {
     const project = inheritedTarget && inheritedToken ? projectFromLaunchTarget(inheritedTarget) : resolveProject()
     // The run log, opened as soon as the project (and so its state dir) is known. This entry used to
     // install no logger at all, so every supervisor and control-plane record went nowhere — the child
-    // adopts the file through FRIZZ_LOG_FILE in launchEnv, the same mechanism the launchers use
+    // adopts the file through NTWINE_LOG_FILE in launchEnv, the same mechanism the launchers use
     // (logging.ts `openRunLogger`).
-    const debug = process.env.FRIZZ_DEBUG === "1"
+    const debug = process.env.NTWINE_DEBUG === "1"
     const logger = openRunLogger(project.stateDir, { debug })
     const target = projectLaunchTarget(project)
     let launchOwner: ReturnType<typeof acquireProjectLaunchOwner>
@@ -93,8 +94,8 @@ export async function runDev(options: RunDevOptions = {}): Promise<void> {
         onActivity: (event) =>
           console.log(
             event.kind === "ready" && event.ms !== undefined
-              ? `[frizz] restarted in ${Math.round(event.ms)}ms`
-              : `[frizz] ${event.kind}: ${event.message}`,
+              ? `[ntwine] restarted in ${Math.round(event.ms)}ms`
+              : `[ntwine] ${event.kind}: ${event.message}`,
           ),
       })
       boot = await supervisor.firstBoot
@@ -106,14 +107,14 @@ export async function runDev(options: RunDevOptions = {}): Promise<void> {
     // Say where the board is once it answers. Without this line the last thing in the terminal was
     // Vite's "bundling dependencies…", so a server that had been ready for minutes looked hung. The log
     // path rides along because this terminal shows almost nothing else; the file has the whole feed.
-    console.log(`[frizz] ready at http://127.0.0.1:${boot.port}/${logger.file ? ` — log: ${logger.file}` : ""}`)
+    console.log(`[ntwine] ready at http://127.0.0.1:${boot.port}/${logger.file ? ` — log: ${logger.file}` : ""}`)
     attachment = await options.attach?.({ supervisor, port: supervisor.port, logger })
 
     const stop = createSupervisorShutdownHandler({
       close: () => supervisor.close(),
       force: () => supervisor.forceStop(),
       release: () => { launchOwner.release() },
-      onStop: () => console.log("[frizz] stopping: draining the control plane — press ctrl-c again to force"),
+      onStop: () => console.log("[ntwine] stopping: draining the control plane — press ctrl-c again to force"),
       exit: (code) => {
         attachment?.dispose()
         process.exit(code)

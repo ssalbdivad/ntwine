@@ -4,7 +4,7 @@
 // The unit tests (router.test.ts, delivery-ledger.held.test.ts) pin the logic with a stubbed bridge and
 // a hand-published turn-done event. What they cannot prove is the seam this feature lives on: that the
 // REAL tailer reports a real turn as in-flight when the hold is requested, that its real in-flight →
-// idle edge reaches the router over the real bus, and that the message Frizz was holding then starts a
+// idle edge reaches the router over the real bus, and that the message Ntwine was holding then starts a
 // real next turn — carrying the answers and the note as ONE user turn the model reads.
 //
 // Proves, with a real daemon and a real tailer:
@@ -25,7 +25,7 @@ import { resolveProject } from "../project.ts"
 import { parseDeliveryLedger } from "../delivery-ledger.ts"
 import { claudeBrokerRecordPath, readBrokerRecord } from "./claude-broker-host.ts"
 
-process.env.FRIZZ_CLAUDE_BROKER_BRIDGE = "1"
+process.env.NTWINE_CLAUDE_BROKER_BRIDGE = "1"
 // The harness may be run from inside a Claude Code session; the worker must not think it is nested.
 delete process.env.CLAUDECODE
 delete process.env.CLAUDE_CODE_ENTRYPOINT
@@ -33,10 +33,10 @@ const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const repo = mkdtempSync(join(tmpdir(), "brk-hold-repo-"))
 execFileSync("git", ["init", "-q", repo])
 execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"])
-// A throwaway home for Frizz's own state. resolveProject REGISTERS the directory it resolves, and
+// A throwaway home for Ntwine's own state. resolveProject REGISTERS the directory it resolves, and
 // under the real home that is the operator's project list: every run left a dead card on their rail.
-const frizzHome = mkdtempSync(join(tmpdir(), "brk-hold-home-"))
-const project = resolveProject(repo, frizzHome)
+const ntwineHome = mkdtempSync(join(tmpdir(), "brk-hold-home-"))
+const project = resolveProject(repo, ntwineHome)
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -112,7 +112,7 @@ try {
   const back = await router.unqueueFollowUp.handler({ input: { slug, sessionId, deliveryId: "d-live-takeback" } })
   ok("a held message is taken back", back.unqueued === true && !ledger().some((i) => i.id === "d-live-takeback"))
 
-  // ---- 3: the turn ends → Frizz releases it by itself ---------------------------------------------
+  // ---- 3: the turn ends → Ntwine releases it by itself ---------------------------------------------
   await waitFor(() => existsSync(fileB), 300_000, "the released message to run (file B)")
   ok("the held message was released at rest and ran as the next turn", existsSync(fileB))
   // ORDER, read off the transcript itself: the first turn ENDS, and only then does the held message
@@ -130,10 +130,10 @@ try {
   const heldAt = shape.findIndex((x) => x.startsWith("user:Answers to earlier"))
   const turnOneEnd = shape.findIndex((x) => x.startsWith("assistant:end_turn"))
   ok("the held message landed AFTER the first turn ended, as the next turn's opening record", turnOneEnd >= 0 && heldAt > turnOneEnd, `end_turn@${turnOneEnd} held@${heldAt}`)
-  // …and off Frizz's own side: the release followed the tailer's turn-done edge, never preceded it.
+  // …and off Ntwine's own side: the release followed the tailer's turn-done edge, never preceded it.
   const edge = events.findIndex((e) => e.endsWith("bus turn-done"))
   const left = events.findIndex((e) => /ledger d-live-hold (sending|delivered|enqueued)/.test(e))
-  ok("Frizz released it on the tailer's turn-done edge", edge >= 0 && left > edge, `turn-done@${edge} released@${left}`)
+  ok("Ntwine released it on the tailer's turn-done edge", edge >= 0 && left > edge, `turn-done@${edge} released@${left}`)
 
   // ---- 4: one turn, both halves ------------------------------------------------------------------
   const wrote = readFileSync(fileB, "utf8").trim()
@@ -165,7 +165,7 @@ try {
     }
   } catch {}
   rmSync(repo, { recursive: true, force: true })
-  try { rmSync(frizzHome, { recursive: true, force: true }) } catch {}
+  try { rmSync(ntwineHome, { recursive: true, force: true }) } catch {}
   try { rmSync(join(process.env.HOME ?? "", ".claude", "projects", project.cwdSlug), { recursive: true, force: true }) } catch {}
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`)
   process.exit(failures === 0 ? 0 : 1)

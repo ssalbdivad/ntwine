@@ -91,7 +91,7 @@ const NOTHING_HELD: Held = { mod: false, alt: false, shift: false }
 
 function KeyboardShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const sidebar = embedded()
-  // Whether Alt+K is Frizz's in this editor: not while Claude Code's extension holds it (lib/embedKeys.ts).
+  // Whether Alt+K is Ntwine's in this editor: not while Claude Code's extension holds it (lib/embedKeys.ts).
   const { altK } = useEditorContext()
   const overrides = useSnapshot(prefs).keybindings as typeof prefs.keybindings
   const bindings = effectiveBindings(overrides)

@@ -12,7 +12,7 @@ import { serveStatic } from "./index.ts"
 // behaviour a fake req/res cannot show: which validator the browser gets back, whether a conditional
 // request is answered 304 with no body, and whether a rebuilt index.html is picked up rather than
 // served from the client's cache. The regression this pins is the one that hurts most — an
-// immutably-cached shell would leave a user on the old build after Frizz promotes a new artifact and
+// immutably-cached shell would leave a user on the old build after Ntwine promotes a new artifact and
 // restarts, with no way out but a manual cache clear.
 
 let dist: string
@@ -20,7 +20,7 @@ let origin: string
 let server: ReturnType<typeof createServer>
 
 before(async () => {
-  dist = mkdtempSync(join(tmpdir(), "frizz-static-"))
+  dist = mkdtempSync(join(tmpdir(), "ntwine-static-"))
   mkdirSync(join(dist, "assets"))
   writeFileSync(join(dist, "index.html"), "<!doctype html><script src=\"/assets/index-AAAA.js\"></script>")
   // Over MIN_COMPRESS_BYTES, or the compressor declines and the encoding assertions below prove nothing.
@@ -87,13 +87,13 @@ test("a conditional request is answered 304 with no body", async () => {
 // it CANNOT say the browser asks. Whether a reload revalidates at all is decided by the
 // `cache-control` the test above pins, inside the browser's cache — flip index.html to `immutable`
 // and this test still passes while every real reload serves the old build from disk. The other half
-// was driven in Chrome (2026-09-04, .frizz notes): rebuild, reload, new asset hash fetched.
+// was driven in Chrome (2026-09-04, .ntwine notes): rebuild, reload, new asset hash fetched.
 test("a rebuilt shell is served rather than revalidated, so a promoted artifact is picked up", async () => {
   const before = await fetch(`${origin}/`)
   const etag = before.headers.get("etag")!
   assert.match(await before.text(), /index-AAAA\.js/)
 
-  // What `frizz-update` does: a new artifact with different asset hashes, then a restart. The
+  // What `ntwine-update` does: a new artifact with different asset hashes, then a restart. The
   // browser comes back holding the old shell's validator.
   writeFileSync(join(dist, "index.html"), "<!doctype html><script src=\"/assets/index-BBBB.js\"></script>")
 

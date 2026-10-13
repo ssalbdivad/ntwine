@@ -4,7 +4,7 @@ import { ownedByThisPage } from "./projectOwnership.ts"
 
 test("a payload is refused only when it NAMES a project and that project is not this page's", () => {
   assert.equal(ownedByThisPage("zod", "/all/zod/thread/x"), true)
-  assert.equal(ownedByThisPage("zod", "/all/frizz/thread/x"), false, "the whole point")
+  assert.equal(ownedByThisPage("zod", "/all/ntwine/thread/x"), false, "the whole point")
   assert.equal(ownedByThisPage("zod", "/all/zodiac/thread/x"), false, "a prefix is not a match")
 })
 

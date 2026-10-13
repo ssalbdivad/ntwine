@@ -87,7 +87,7 @@ try {
   // already records WITH its URL — kept once, where it says what failed.
   page.on("console", (message) => { if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) errors.push(`console: ${message.text()}`) })
   page.on("response", (response) => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`) })
-  // Every WRITE the page makes, by path — `/_frizz/<project id>/rpc/<procedure>` names who it went to.
+  // Every WRITE the page makes, by path — `/_ntwine/<project id>/rpc/<procedure>` names who it went to.
   //
   // RECORDED TWICE, because neither record is complete alone. CDP's `request` event leaves the renderer
   // only once the task that made the fetch has finished, and a card's Mark as done runs the queue's whole
@@ -102,17 +102,17 @@ try {
   page.on("request", (request) => { if (request.method() === "POST" && request.url().includes("/rpc/")) writes.push(new URL(request.url()).pathname) })
   await page.evaluateOnNewDocument(() => {
     const send = window.fetch
-    window.__frizzWrites = []
+    window.__ntwineWrites = []
     window.fetch = function (input, init) {
       const request = input instanceof Request ? input : null
       const path = new URL(request ? request.url : String(input), location.href).pathname
-      if ((init?.method ?? request?.method ?? "GET").toUpperCase() === "POST" && path.includes("/rpc/")) window.__frizzWrites.push(path)
+      if ((init?.method ?? request?.method ?? "GET").toUpperCase() === "POST" && path.includes("/rpc/")) window.__ntwineWrites.push(path)
       return send.apply(this, arguments)
     }
   })
-  const pageWrites = () => page.evaluate(() => window.__frizzWrites ?? [])
+  const pageWrites = () => page.evaluate(() => window.__ntwineWrites ?? [])
   const writesSoFar = async () => [...new Set([...writes, ...(await pageWrites())])]
-  const wrote = async (project, procedure) => (await writesSoFar()).includes(`/_frizz/${ids[project]}/rpc/${procedure}`)
+  const wrote = async (project, procedure) => (await writesSoFar()).includes(`/_ntwine/${ids[project]}/rpc/${procedure}`)
   // A button by what it SAYS to a person: its text, or its accessible name when it is a glyph. The card's
   // lifecycle verbs became glyphs in its header on 2026-10-05 (ThreadLifecycle.tsx, upstream's move out of
   // the footer): Mark as done is a ✓ whose words live in `aria-label` now, and a text-only search found
@@ -470,7 +470,7 @@ try {
     await waitFor("the follow-up to go out", async () => writes.slice(before).some((w) => w.endsWith("/rpc/followUp")) || null, 8000)
     const sent = writes.slice(before).filter((w) => w.endsWith("/rpc/followUp"))
     // The drawer is the PAGE's, so it addresses the tenant by the page's own prefix — its slug.
-    check("a follow-up typed in a tenant's drawer goes to the tenant, not the focus's namesake", sent.length === 1 && sent[0] === "/_frizz/marketing-site/rpc/followUp", sent.join(", ") || "none")
+    check("a follow-up typed in a tenant's drawer goes to the tenant, not the focus's namesake", sent.length === 1 && sent[0] === "/_ntwine/marketing-site/rpc/followUp", sent.join(", ") || "none")
     await closeDrawer()
     await page.waitForFunction((paths) => paths.includes(location.pathname), { timeout: 8000 }, ALL_PATHS)
   })
@@ -558,7 +558,7 @@ try {
     const round = await box("newComposer")
     const pending = await page.evaluate(() => window.__xqPending)
     // The draft is one draft, filed under the project the box ended on and nowhere else.
-    const filed = await page.evaluate(() => Object.entries(JSON.parse(sessionStorage.getItem("frizz-drafts:v1") ?? "{}").entries ?? {}).filter(([, entry]) => entry.value.includes("that follows the key")).map(([key]) => decodeURIComponent(key)))
+    const filed = await page.evaluate(() => Object.entries(JSON.parse(sessionStorage.getItem("ntwine-drafts:v1") ?? "{}").entries ?? {}).filter(([, entry]) => entry.value.includes("that follows the key")).map(([key]) => decodeURIComponent(key)))
     check(
       "⌥↓ wraps round to the first project, never blanking the box, with the draft filed only there",
       home && round?.value === "DraftX that follows the key" && round.focused && pending === 0 && filed.length === 1 && filed[0].includes(`${stack.launcher.dir}:new`),
@@ -647,7 +647,7 @@ try {
     // Two 404s that are answers, not faults, and happen on every page that draws them: the board's
     // supervisor probe on a stack with no supervisor, and a project square's icon request, which is
     // what triggers the lazy icon scan and 404s for a project that has none (ProjectSquare).
-    const real = errors.filter((e) => !/\/_frizz\/control\/status|\/_frizz\/project-icon\?/.test(e))
+    const real = errors.filter((e) => !/\/_ntwine\/control\/status|\/_ntwine\/project-icon\?/.test(e))
     check("the page raised no errors", real.length === 0, real.slice(0, 5).join(" | "))
   })
 } finally {

@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Opt-in like the other *.e2e.test.ts here: start `vite` in packages/web and set
-// FRIZZ_CODE_COPY_E2E_URL to its origin, e.g.
-//   FRIZZ_CODE_COPY_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/copyCodeBlock.e2e.test.ts
-const baseUrl = process.env.FRIZZ_CODE_COPY_E2E_URL
+// NTWINE_CODE_COPY_E2E_URL to its origin, e.g.
+//   NTWINE_CODE_COPY_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/copyCodeBlock.e2e.test.ts
+const baseUrl = process.env.NTWINE_CODE_COPY_E2E_URL
 
 // The pieces of this are unit-testable in isolation and that proves nothing: the markup comes out of
 // lib/syntaxHighlight.ts, the DOM sanitizer decides whether the wrapper's class and the button survive
@@ -127,8 +127,8 @@ test("a fenced code block copies its own source, minus the renderer's trailing n
 })
 
 // The SAME shipped path with `navigator.clipboard` GONE — not a contrived state: the async clipboard
-// API exists only in a secure context, and a Frizz served over `--host` to a LAN address is plain
-// http, where every copy affordance used to refuse with "copy the code from a secure Frizz page". The
+// API exists only in a secure context, and an Ntwine served over `--host` to a LAN address is plain
+// http, where every copy affordance used to refuse with "copy the code from a secure Ntwine page". The
 // fallback selects the text in an off-screen textarea and execCommand("copy")s it, so this shadows the
 // API exactly the way an insecure origin removes it, clicks the shipped button inside a real trusted
 // gesture, and reads the REAL clipboard back through the un-shadowed API afterwards.

@@ -18,7 +18,7 @@ Verified after merging upstream `main` into the PR branch:
 - On a disposable **Windows Server 2022** VM with **Node 24.15.0**, all **17 native filesystem/opener-command tests passed with zero skips**. This includes mixed-case aliases, case-distinct NTFS siblings, escaping symlinks, trusted junctions, outside hard links, URL-shaped Markdown paths, and image reads.
 - The original PR's containment implementation failed the same native case-distinct-sibling test with `Missing expected exception`; the revised implementation passed. The earlier source-level finding is now reproduced on the real filesystem.
 
-The native run used `FRIZZ_REQUIRE_CASE_SENSITIVE_FS=1` so unavailable NTFS case-sensitivity support could not silently skip its regression. Evidence is retained in `.frizz/threads/34b7874a-d89b-42ba-a69f-73c7c7c0b4a4/windows-tests.log`; the full macOS output is in `full-tests.log`. The desktop applications themselves were not launched: opener tests capture the command or exercise copy mode. These changes do not alter desktop process launching.
+The native run used `NTWINE_REQUIRE_CASE_SENSITIVE_FS=1` so unavailable NTFS case-sensitivity support could not silently skip its regression. Evidence is retained in `.ntwine/threads/34b7874a-d89b-42ba-a69f-73c7c7c0b4a4/windows-tests.log`; the full macOS output is in `full-tests.log`. The desktop applications themselves were not launched: opener tests capture the command or exercise copy mode. These changes do not alter desktop process launching.
 
 ## Original review of `5cf9f39a`
 
@@ -47,7 +47,7 @@ Observed output:
 | Observation | Current `main` | PR head |
 | --- | --- | --- |
 | Button's `data-local-path` | `null` | `D:/fixture/plan.md` |
-| Image's `src` | `null` (image removed) | `/_frizz/local-image?path=D%3A%2Ffixture%2Fshot.png` |
+| Image's `src` | `null` (image removed) | `/_ntwine/local-image?path=D%3A%2Ffixture%2Fshot.png` |
 | Relative `./plan.md` under `D:\fixture` | Display only | Actionable `D:\fixture\plan.md` |
 | Browser page errors | None | None |
 
@@ -139,4 +139,4 @@ The owned Chrome exited and both Vite instances were closed. No product styling 
 
 ## Local evidence
 
-The differential harness and raw results are retained in `.frizz/threads/34b7874a-d89b-42ba-a69f-73c7c7c0b4a4/reproduce.mjs` and `reproduction.json`; the CI-command output is in `ci-monitors.log`. The harness expects the PR checkout at the sibling `pr-37` directory with dependencies installed. Recreate that detached worktree at the reviewed head before rerunning `FRIZZ_E2E_STATIC_VITE=1 nub .frizz/threads/34b7874a-d89b-42ba-a69f-73c7c7c0b4a4/reproduce.mjs`.
+The differential harness and raw results are retained in `.ntwine/threads/34b7874a-d89b-42ba-a69f-73c7c7c0b4a4/reproduce.mjs` and `reproduction.json`; the CI-command output is in `ci-monitors.log`. The harness expects the PR checkout at the sibling `pr-37` directory with dependencies installed. Recreate that detached worktree at the reviewed head before rerunning `NTWINE_E2E_STATIC_VITE=1 nub .ntwine/threads/34b7874a-d89b-42ba-a69f-73c7c7c0b4a4/reproduce.mjs`.

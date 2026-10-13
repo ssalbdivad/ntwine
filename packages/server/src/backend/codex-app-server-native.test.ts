@@ -6,7 +6,7 @@
 //
 // End-to-end proof that the transport actually carries Codex lives in the artifact harnesses
 // (`scripts/verify-artifact-daemon-closure.mjs` and `verify-artifact-restart-survival.mjs`, both run
-// with FRIZZ_CODEX_NATIVE_LISTEN=1).
+// with NTWINE_CODEX_NATIVE_LISTEN=1).
 import assert from "node:assert/strict"
 import { spawn } from "node:child_process"
 import { createServer, type Server } from "node:http"
@@ -22,7 +22,7 @@ import {
   liveNativeRecord,
 } from "./codex-app-server-native.ts"
 import { stopCodexAppServerDaemon } from "./codex-app-server-host.ts"
-import { frizzIpcPath } from "./ipc-path.ts"
+import { ntwineIpcPath } from "./ipc-path.ts"
 
 interface Fixture {
   stateDir: string
@@ -38,14 +38,14 @@ interface Fixture {
 }
 
 async function fixture(): Promise<Fixture> {
-  const root = mkdtempSync(join(tmpdir(), "frizz-native-host-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-native-host-"))
   const stateDir = join(root, "state")
   const projectId = randomUUID()
   // Windows has no filesystem sockets — `listen()` on a `.sock` path there fails EACCES — so the
   // fixture's endpoint is a named pipe, exactly as nativeListenSocketPath() derives in production.
   // The POSIX spelling stays a file under `root` so cleanup() still takes it with the directory.
   const socketPath = process.platform === "win32"
-    ? frizzIpcPath(`frizz-native-test-${randomUUID().replace(/-/gu, "").slice(0, 16)}`)
+    ? ntwineIpcPath(`ntwine-native-test-${randomUUID().replace(/-/gu, "").slice(0, 16)}`)
     : join(root, "listener.sock")
   mkdirSync(join(stateDir, "codex-app-server-native"), { recursive: true })
 
@@ -164,7 +164,7 @@ test("kill() detaches the attachment and leaves the listener running", async () 
     assert.equal(f.closes, 1, "the WebSocket must be closed")
     assert.equal(exited, true, "a lost attachment surfaces to the bridge as an exit")
     // The listener is untouched — still bound, still discoverable, still reattachable. This is the
-// property the operator explicitly likes: quitting frizz does not stop Codex.
+// property the operator explicitly likes: quitting ntwine does not stop Codex.
     assert.ok(liveNativeRecord(f.stateDir, f.projectId), "the record must survive a detach")
     const again = await nativeListenCodexAppServerHost(hostOptions(f))
     await settle()
@@ -175,7 +175,7 @@ test("kill() detaches the attachment and leaves the listener running", async () 
 })
 
 // ---- lifecycle ownership ---------------------------------------------------------------------------
-// The counterpart to the detach test above: frizz must be able to END a listener it can start, or an
+// The counterpart to the detach test above: ntwine must be able to END a listener it can start, or an
 // upgraded codex or a newly selected account can never displace the process holding this project's
 // socket. Production teardown is `stopCodexAppServerDaemon` (the bridge's version/auth refork), which
 // cannot tell the transports apart — so it is what this drives, not `killNativeListener` directly.

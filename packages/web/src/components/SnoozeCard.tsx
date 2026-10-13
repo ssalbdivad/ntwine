@@ -14,7 +14,7 @@
 // (same rule showsRestingCard already applies to the event-snooze).
 import { useEffect, useState } from "react"
 import { AlarmClock } from "lucide-react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { futureSnoozedUntil } from "../groups.ts"
 import { formatCountdown } from "../lib/durationLabels.ts"

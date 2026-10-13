@@ -1,7 +1,7 @@
 /**
  * How a board is reached from outside, as one object both launchers drive.
  *
- * The saved setup (`cloud.json` in the data root, see `cloudConfigPath`) is the whole configuration: a plain `npx frizz` serves
+ * The saved setup (`cloud.json` in the data root, see `cloudConfigPath`) is the whole configuration: a plain `npx ntwine` serves
  * whatever it says, and the R pane changes it on the running board. This controller owns the three
  * things that have to move together when it changes — the transport (a relay socket or a cloudflared
  * child, or nothing for a setup the operator runs), the public origin the supervisor gates, and the
@@ -84,7 +84,7 @@ export function createRemoteController(options: RemoteControllerOptions): Remote
         });
       }
       transport = await startRelay(next, options.port, home, (message) => options.log.info("relay", message));
-      options.log.info("relay", `serving ${next.hostname} through the Frizz relay`);
+      options.log.info("relay", `serving ${next.hostname} through the Ntwine relay`);
       return;
     }
     // The tunnel is a CHILD of this launcher, so the two halves share a lifetime. A tunnel outliving

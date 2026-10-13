@@ -57,6 +57,6 @@ writeFileSync(join(brokerDir, `${createHash("sha256").update(SESSION).digest("he
 
 execFileSync("sqlite3", [sandbox.db, `DELETE FROM session WHERE slug = '${SLUG}';`])
 execFileSync("sqlite3", [sandbox.db, `INSERT INTO session (${cols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode)
-  VALUES (${vals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${at(0)}', 'Ghost floor', 'claude', 'broker', 'opus', 'high', 'default')`])
+  VALUES (${vals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${at(0)}', 'Ghost floor', 'claude', 'broker', 'opus', 'high', 'default')`])
 
 console.log(JSON.stringify({ slug: SLUG, jsonl, standInPid: standIn.pid }))

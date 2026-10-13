@@ -9,7 +9,7 @@ import { spaNavigate } from "../lib/router.ts"
 import { mentionSegments, type MentionCandidate, type MentionSegment } from "../lib/threadMentions.ts"
 import { scanProjectMentions, useProjectMentions } from "../lib/projectMentions.ts"
 import { projectViewHref } from "../lib/pageView.ts"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { displayName, displayTitle, threadHandleOf } from "../groups.ts"
 import { useBoard } from "../hooks.ts"
 import { openThread, threadBySlug } from "../store.ts"
@@ -121,9 +121,9 @@ function ThreadMentionLink({ segment, href, onOpen, title, className = "underlin
   )
 }
 
-// A THREAD NAMED BY FRIZZ, NOT BY A HUMAN'S TEXT — the spinoff card's child, the child's way back to its
+// A THREAD NAMED BY NTWINE, NOT BY A HUMAN'S TEXT — the spinoff card's child, the child's way back to its
 // parent (Spinoff.tsx). It is the mention link above with the name filled in from the board rather than
-// scanned out of prose, so a thread Frizz points at reads and clicks exactly like one the human typed:
+// scanned out of prose, so a thread Ntwine points at reads and clicks exactly like one the human typed:
 // `@handle`, a plain click opens its drawer, a modified click follows the address. One link style, not
 // a third (David 2026-09-30: "link and mention the spinoff by name with the new @ feature").
 //

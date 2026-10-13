@@ -3,7 +3,7 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { SubAgentView, ThreadView } from "@frizz/shared"
+import type { SubAgentView, ThreadView } from "@ntwine/shared"
 import { RailRow, SubAgentRows, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 

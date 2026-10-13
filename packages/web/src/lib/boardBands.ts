@@ -1,4 +1,4 @@
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { externalThreads, isPinned, orderByInteraction, sectionThreads } from "../groups.ts"
 import type { QueuesProject } from "./allQueues.ts"
 import { loudBands, type LoudBands } from "./listBands.ts"

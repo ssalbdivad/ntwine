@@ -20,7 +20,7 @@ const until = async (cond: () => boolean, ms = 3_000) => {
 }
 
 function stateDir(): string {
-  return mkdtempSync(join(tmpdir(), "frizz-secret-"))
+  return mkdtempSync(join(tmpdir(), "ntwine-secret-"))
 }
 
 test("the value is read ONCE: the first reader gets it and the path is gone", async () => {

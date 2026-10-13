@@ -6,7 +6,7 @@
 //   router.followUp → bridge.followUp → client.sendInput(...) → daemon → handle.send(message)
 // `sendInput` writes a socket frame and returns, the frame carries no reply, and the daemon used to
 // `.catch(() => {})` the send. So a message `validateInputMessage` refused was discarded inside the
-// daemon with nobody to tell, while frizz had already answered its RPC with success and opened an
+// daemon with nobody to tell, while ntwine had already answered its RPC with success and opened an
 // `enqueued` ledger item that never times out — the operator watched their own message render as
 // delivered, forever, and the thread just "went quiet".
 //

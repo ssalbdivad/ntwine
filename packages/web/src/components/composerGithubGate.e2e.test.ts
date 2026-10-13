@@ -9,8 +9,8 @@ import test, { after, before } from "node:test"
 // composer-icons fixture, whose `?unauthed` query stubs the signed-out githubStatus.
 //
 // Skipped unless a Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts
-// here): start `vite` in packages/web and set FRIZZ_COMPOSER_ICONS_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_COMPOSER_ICONS_E2E_URL
+// here): start `vite` in packages/web and set NTWINE_COMPOSER_ICONS_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_COMPOSER_ICONS_E2E_URL
 
 type PuppeteerModule = typeof import("puppeteer")
 type Browser = Awaited<ReturnType<PuppeteerModule["launch"]>>

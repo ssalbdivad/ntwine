@@ -1,7 +1,7 @@
 import * as RadixDialog from "@radix-ui/react-dialog"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query"
-import { expandUserCommandDraft, type AccountBackend, type CreateScheduleInput, type DispatchInput } from "@frizz/shared"
+import { expandUserCommandDraft, type AccountBackend, type CreateScheduleInput, type DispatchInput } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { useSnapshot } from "valtio"
 import { showToast, store } from "../store.ts"
@@ -102,7 +102,7 @@ function PromptForm({
   // A new thread can be pointed at any thread on the board it is dispatched into (`@shell-budgets`).
   const mentions = useMentionCandidates()
   // No session yet, so no harness to list skills: the `/` menu here is the operator's own user commands,
-  // which Frizz expands itself (useUserCommands.ts) — `/commit` starts a thread on that prompt.
+  // which Ntwine expands itself (useUserCommands.ts) — `/commit` starts a thread on that prompt.
   const userCommandsQuery = useUserCommands()
   const userCommands = userCommandsQuery.data?.commands
   const slashSuggest = useMemo(() => () => Promise.resolve(userCommandItems(userCommands ?? [])), [userCommands])
@@ -306,14 +306,14 @@ function PromptForm({
   // schedule word the model has not answered for yet leave the box at once and are settled when it does.
   function submit() {
     if (!prompt.trim() || !resolved || savingSettings) return
-    // `/login` and `/logout` are frizz-owned aliases for the typed provider account actions — they
+    // `/login` and `/logout` are ntwine-owned aliases for the typed provider account actions — they
     // invoke the sign-in / sign-out flow for the SELECTED backend and never become prompt text.
     const alias = parseAccountAlias(prompt)
     if (alias) {
       // The text was an account action, not this thread: the pick it is about to sign in to stays.
       clearDispatchDraft(projectDir, { keepPick: true })
       if (resolved.backend === "acp") {
-        showToast("An ACP agent signs in through its own CLI — Frizz holds no account for it")
+        showToast("An ACP agent signs in through its own CLI — Ntwine holds no account for it")
         return
       }
       if (alias === "login") {
@@ -583,7 +583,7 @@ export function NewThreadDialog({ onClose }: { onClose: () => void }) {
   // Over whatever drawers are open — `c`, the palette's New thread or an editor's New thread button all
   // open it on top of a thread (lib/overlaySurface.ts aboveDrawersZ, which says why not z-[200]).
   const z = aboveDrawersZ(useSnapshot(store).drawers.length)
-  // Frizz opens this dialog by writing store state, not through RadixDialog.Trigger. Capture the real
+  // Ntwine opens this dialog by writing store state, not through RadixDialog.Trigger. Capture the real
   // opener during the mount render so close can restore it explicitly.
   const openerRef = useRef<HTMLElement | null>(
     typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null,

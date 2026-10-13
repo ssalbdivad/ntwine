@@ -1,6 +1,6 @@
 #!/usr/bin/env nub
 // verify-spinoff-fork.ts — the CLAUDE SPINOFF ROUTE, end to end: a Spinoff on a Claude thread FORKS the
-// parent's session into the new thread (router.ts forkSpinoff), on a REAL Frizz with REAL haiku workers.
+// parent's session into the new thread (router.ts forkSpinoff), on a REAL Ntwine with REAL haiku workers.
 //
 // What it proves:
 //   (a) THE PARENT IS UNTOUCHED. Its transcript is byte-identical before and after the spinoff (no request

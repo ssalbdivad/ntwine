@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { drawsSubAgentWaitCard, showsSubAgentWait, subAgentWait, subAgentWaitHeading } from "./subAgentWait.ts"
 
 const running = (id: string, over: Partial<ThreadView["subAgents"][number]> = {}) => ({ id, label: id, startedAt: "2026-09-29T10:00:00.000Z", state: "running" as const, ...over })

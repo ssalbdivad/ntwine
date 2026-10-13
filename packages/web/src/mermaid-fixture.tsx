@@ -6,7 +6,7 @@ import type { BlockAnswer, ParsedQuestion } from "./lib/questionBlocks.ts"
 import { setThemePreference, type ThemePreference } from "./lib/theme.ts"
 import { FenceCard } from "./components/ChatView.tsx"
 import { FileViewerPanel } from "./components/FileViewerPanel.tsx"
-import { FrizzWake } from "./components/FrizzWake.tsx"
+import { NtwineWake } from "./components/NtwineWake.tsx"
 import { FileReaderDrawer } from "./components/FileReaderDrawer.tsx"
 import { QuestionBlockCard } from "./components/QuestionBlockCard.tsx"
 import { SessionMessageLine } from "./components/SessionMessageLine.tsx"
@@ -14,7 +14,7 @@ import { ThreadDrawer } from "./components/ThreadDrawer.tsx"
 
 // The ```mermaid fence on every surface that renders a worker's Markdown as ONE string of HTML, each
 // through its REAL component: a done card (FenceCard), a question's context and options
-// (QuestionBlockCard), the two transcript asides (SessionMessageLine, FrizzWake) and the readers
+// (QuestionBlockCard), the two transcript asides (SessionMessageLine, NtwineWake) and the readers
 // (FileViewerPanel inline; FileReaderDrawer and ThreadDrawer, which are sheets, under `?mode=`). The
 // diagrams are drawn by the real mermaid, loaded the way the app loads it. Driven by
 // components/mermaid.e2e.test.ts.
@@ -39,7 +39,7 @@ const fence = (lines: string[], info = "mermaid") => ["```" + info, ...lines, "`
 const FLOW = fence(["flowchart LR", "  A[Prompt] --> B{Queue}", "  B -->|rested| C[Card]", "  B -->|active| D[Worker]"])
 const WIDE = fence(["flowchart LR", "  A[Read the prompt] --> B[Split the fences] --> C[Render the Markdown] --> D[Sanitize the HTML] --> E[Swap the islands] --> F[Draw the diagram]"])
 const TALL = fence(["flowchart TD", "  A[Dispatch] --> B[Spawn the broker]", "  B --> C[Attach the bridge]", "  C --> D[Stream the turn]", "  D --> E[Parse the fence]", "  E --> F[Rest the thread]", "  F --> G[Queue the card]", "  G --> H[Wake on answer]"])
-const SEQUENCE = fence(["sequenceDiagram", "  participant W as Worker", "  participant F as Frizz", "  participant H as Human", "  W->>F: ask(question)", "  F->>H: question card", "  H-->>F: answer", "  F-->>W: wake"])
+const SEQUENCE = fence(["sequenceDiagram", "  participant W as Worker", "  participant F as Ntwine", "  participant H as Human", "  W->>F: ask(question)", "  F->>H: question card", "  H-->>F: answer", "  F-->>W: wake"])
 const INVALID = fence(["flowchart LR", "  A --> --> ]["])
 // A fence being SHOWN, not drawn: nested in a longer fence it is that block's text.
 const QUOTED = ["````markdown", "```mermaid", "flowchart LR", "  Q --> R", "```", "````"].join("\n")
@@ -59,7 +59,7 @@ const json = (result: unknown) => new Response(JSON.stringify({ result }), { hea
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.href)
-  if (!url.pathname.startsWith("/_frizz/rpc/")) return nativeFetch(input, init)
+  if (!url.pathname.startsWith("/_ntwine/rpc/")) return nativeFetch(input, init)
   const method = url.pathname.split("/").at(-1)
   if (method === "resolveLocalPaths") return json({ resolved: [] })
   if (method === "localMarkdown") return json({ path: "/fixture/ask-flow.md", markdown: window.__doc, truncated: false })
@@ -135,7 +135,7 @@ createRoot(document.getElementById("root")!).render(
           <SessionMessageLine peer={{ name: "docs" }} text={["Here is the flow I mean:", "", FLOW].join("\n")} />
         </section>
         <section data-fixture-wake className="mb-8">
-          <FrizzWake text={["A review comment landed:", "", FLOW].join("\n")} />
+          <NtwineWake text={["A review comment landed:", "", FLOW].join("\n")} />
         </section>
         <section data-fixture-reader className="mb-8 h-[720px] border border-border">
           <FileViewerPanel slug="fixture" path="/fixture/ask-flow.md" active />

@@ -8,7 +8,7 @@ test("VS Code's four theme kinds fold to the page's two", () => {
 })
 
 test("the frame's URL is this window's project's board, carrying the embed switch and the theme", () => {
-  assert.equal(embedUrl("http://127.0.0.1:9393", "dark", "frizz"), "http://127.0.0.1:9393/project/frizz?embed=vscode&theme=dark")
+  assert.equal(embedUrl("http://127.0.0.1:9393", "dark", "ntwine"), "http://127.0.0.1:9393/project/ntwine?embed=vscode&theme=dark")
   assert.equal(embedUrl("http://127.0.0.1:9393", "light", undefined), "http://127.0.0.1:9393/all?embed=vscode&theme=light", "All projects when no folder maps to one")
   const odd = new URL(embedUrl("http://127.0.0.1:9393", "dark", "a b&theme=light#x"))
   assert.equal(odd.pathname, "/project/a%20b%26theme%3Dlight%23x", "a slug is one path segment")
@@ -16,22 +16,22 @@ test("the frame's URL is this window's project's board, carrying the embed switc
   assert.equal(odd.hash, "")
 })
 
-test("a host the window reaches Frizz by is framed as such; a different port is refused, never framed", () => {
+test("a host the window reaches Ntwine by is framed as such; a different port is refused, never framed", () => {
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/?embed=vscode", "http://127.0.0.1:9393/?embed=vscode"), {
     kind: "frame",
     url: "http://127.0.0.1:9393/?embed=vscode",
     origin: "http://127.0.0.1:9393",
   })
-  // Cursor's Remote-WSL tunnel hands back localhost on the same port, which Frizz accepts.
+  // Cursor's Remote-WSL tunnel hands back localhost on the same port, which Ntwine accepts.
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/?embed=vscode", "http://localhost:9393/?embed=vscode"), {
     kind: "frame",
     url: "http://localhost:9393/?embed=vscode",
     origin: "http://localhost:9393",
   })
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/", "http://127.0.0.1:49152/"), { kind: "remapped", port: 9393, external: 49152 })
-  // A default port is a port: an https tunnel on 443 is not Frizz's 9393, and an explicit :80 is http's 80.
+  // A default port is a port: an https tunnel on 443 is not Ntwine's 9393, and an explicit :80 is http's 80.
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/", "https://abc.tunnel.example/"), { kind: "remapped", port: 9393, external: 443 })
-  assert.equal(frameTarget("http://frizz.local/", "http://frizz.local:80/").kind, "frame")
+  assert.equal(frameTarget("http://ntwine.local/", "http://ntwine.local:80/").kind, "frame")
 })
 
 test("only a plain http(s) origin may go into the policy and the relay", () => {
@@ -44,20 +44,20 @@ test("only a plain http(s) origin may go into the policy and the relay", () => {
 })
 
 test("every page message the contract names is taken, with only its own fields", () => {
-  assert.deepEqual(parsePageMessage({ type: "frizz:ready", v: 1, extra: true }), { type: "frizz:ready", v: 1 })
-  assert.deepEqual(parsePageMessage({ type: "frizz:composed", id: "n", ok: false, error: "No box." }), { type: "frizz:composed", id: "n", ok: false, error: "No box." })
-  assert.deepEqual(parsePageMessage({ type: "frizz:composed", id: "n", ok: true }), { type: "frizz:composed", id: "n", ok: true })
-  assert.deepEqual(parsePageMessage({ type: "frizz:open-file", path: "/r/a.ts", line: 12, column: 3, endLine: 20, evil: 1 }), {
-    type: "frizz:open-file",
+  assert.deepEqual(parsePageMessage({ type: "ntwine:ready", v: 1, extra: true }), { type: "ntwine:ready", v: 1 })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:composed", id: "n", ok: false, error: "No box." }), { type: "ntwine:composed", id: "n", ok: false, error: "No box." })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:composed", id: "n", ok: true }), { type: "ntwine:composed", id: "n", ok: true })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:open-file", path: "/r/a.ts", line: 12, column: 3, endLine: 20, evil: 1 }), {
+    type: "ntwine:open-file",
     path: "/r/a.ts",
     line: 12,
     column: 3,
     endLine: 20,
   })
-  assert.deepEqual(parsePageMessage({ type: "frizz:open-file", path: "C:\\r\\a.ts" }), { type: "frizz:open-file", path: "C:\\r\\a.ts" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:open-external", url: "https://github.com/x/y/pull/1" }), { type: "frizz:open-external", url: "https://github.com/x/y/pull/1" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:key", key: "P", code: "KeyP", ctrl: true, meta: false, shift: true, alt: false }), {
-    type: "frizz:key",
+  assert.deepEqual(parsePageMessage({ type: "ntwine:open-file", path: "C:\\r\\a.ts" }), { type: "ntwine:open-file", path: "C:\\r\\a.ts" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:open-external", url: "https://github.com/x/y/pull/1" }), { type: "ntwine:open-external", url: "https://github.com/x/y/pull/1" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:key", key: "P", code: "KeyP", ctrl: true, meta: false, shift: true, alt: false }), {
+    type: "ntwine:key",
     key: "P",
     code: "KeyP",
     ctrl: true,
@@ -65,36 +65,36 @@ test("every page message the contract names is taken, with only its own fields",
     shift: true,
     alt: false,
   })
-  assert.deepEqual(parsePageMessage({ type: "frizz:add-context", what: "selection", text: "x" }), { type: "frizz:add-context", what: "selection" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:add-context", what: "file", path: "/r/a.ts" }), { type: "frizz:add-context", what: "file", path: "/r/a.ts" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:add-context", what: "problems" }), { type: "frizz:add-context", what: "problems" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:add-context", what: "terminal" }), { type: "frizz:add-context", what: "terminal" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:pick-context", id: "n1", query: "" }), { type: "frizz:pick-context", id: "n1", query: "" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:pick-context", id: "n1", query: "src/App", x: 1 }), { type: "frizz:pick-context", id: "n1", query: "src/App" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:add-context", what: "selection", text: "x" }), { type: "ntwine:add-context", what: "selection" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:add-context", what: "file", path: "/r/a.ts" }), { type: "ntwine:add-context", what: "file", path: "/r/a.ts" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:add-context", what: "problems" }), { type: "ntwine:add-context", what: "problems" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:add-context", what: "terminal" }), { type: "ntwine:add-context", what: "terminal" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:pick-context", id: "n1", query: "" }), { type: "ntwine:pick-context", id: "n1", query: "" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:pick-context", id: "n1", query: "src/App", x: 1 }), { type: "ntwine:pick-context", id: "n1", query: "src/App" })
   assert.deepEqual(
-    parsePageMessage({ type: "frizz:pick-context", id: "n2", uris: ["file:///r/a.ts", "vscode-remote://wsl%2Bubuntu/r/b"] }),
-    { type: "frizz:pick-context", id: "n2", uris: ["file:///r/a.ts", "vscode-remote://wsl%2Bubuntu/r/b"] },
+    parsePageMessage({ type: "ntwine:pick-context", id: "n2", uris: ["file:///r/a.ts", "vscode-remote://wsl%2Bubuntu/r/b"] }),
+    { type: "ntwine:pick-context", id: "n2", uris: ["file:///r/a.ts", "vscode-remote://wsl%2Bubuntu/r/b"] },
   )
-  assert.deepEqual(parsePageMessage({ type: "frizz:route", view: "thread", title: "hello-there", description: "Ready", x: 1 }), {
-    type: "frizz:route",
+  assert.deepEqual(parsePageMessage({ type: "ntwine:route", view: "thread", title: "hello-there", description: "Ready", x: 1 }), {
+    type: "ntwine:route",
     view: "thread",
     title: "hello-there",
     description: "Ready",
   })
-  assert.deepEqual(parsePageMessage({ type: "frizz:route", view: "queue", title: "All projects", description: "" }), { type: "frizz:route", view: "queue", title: "All projects" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:route", view: "queue", title: "All projects", description: "" }), { type: "ntwine:route", view: "queue", title: "All projects" })
   // The eye: share the editor or stop — a boolean, nothing else.
-  assert.deepEqual(parsePageMessage({ type: "frizz:share-editor", on: false, extra: 1 }), { type: "frizz:share-editor", on: false })
-  assert.equal(parsePageMessage({ type: "frizz:share-editor", on: "off" }), undefined)
-  assert.equal(parsePageMessage({ type: "frizz:share-editor" }), undefined)
-  assert.deepEqual(parsePageMessage({ type: "frizz:open-external", url: "mailto:someone@example.com?subject=Hi" }), { type: "frizz:open-external", url: "mailto:someone@example.com?subject=Hi" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:share-editor", on: false, extra: 1 }), { type: "ntwine:share-editor", on: false })
+  assert.equal(parsePageMessage({ type: "ntwine:share-editor", on: "off" }), undefined)
+  assert.equal(parsePageMessage({ type: "ntwine:share-editor" }), undefined)
+  assert.deepEqual(parsePageMessage({ type: "ntwine:open-external", url: "mailto:someone@example.com?subject=Hi" }), { type: "ntwine:open-external", url: "mailto:someone@example.com?subject=Hi" })
   // A review names a thread and its project — and nothing the page could point at a folder with.
-  assert.deepEqual(parsePageMessage({ type: "frizz:review", thread: "tidy-the-loop", project: "acme-api", dir: "/etc" }), { type: "frizz:review", thread: "tidy-the-loop", project: "acme-api" })
-  assert.deepEqual(parsePageMessage({ type: "frizz:review", thread: "tidy", project: "acme-api", title: "Tidy the loop" }), { type: "frizz:review", thread: "tidy", project: "acme-api", title: "Tidy the loop" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:review", thread: "tidy-the-loop", project: "acme-api", dir: "/etc" }), { type: "ntwine:review", thread: "tidy-the-loop", project: "acme-api" })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:review", thread: "tidy", project: "acme-api", title: "Tidy the loop" }), { type: "ntwine:review", thread: "tidy", project: "acme-api", title: "Tidy the loop" })
 })
 
 test("a route's address is kept only on the frame's own origin, and the route without it otherwise", () => {
   const origin = "http://127.0.0.1:9393"
-  const route = { type: "frizz:route", view: "thread", title: "Split the constants" }
+  const route = { type: "ntwine:route", view: "thread", title: "Split the constants" }
   assert.deepEqual(parsePageMessage({ ...route, href: "http://127.0.0.1:9393/all/acme-api/thread/split-constants" }, origin), {
     ...route,
     href: "http://127.0.0.1:9393/all/acme-api/thread/split-constants",
@@ -110,57 +110,57 @@ test("anything else from the page is nothing: unknown types, wrong shapes, other
   const refused: unknown[] = [
     undefined,
     null,
-    "frizz:ready",
+    "ntwine:ready",
     [],
-    { type: "frizz:compose", id: "x" },
-    { type: "frizz:theme", theme: "dark" },
-    { type: "frizz:unknown" },
-    { type: "frizz:ready", v: 2 },
-    { type: "frizz:ready" },
-    { type: "frizz:composed", id: "n" },
-    { type: "frizz:composed", id: "", ok: true },
-    { type: "frizz:composed", id: "n", ok: "yes" },
-    { type: "frizz:composed", id: "n", ok: false, error: 5 },
-    { type: "frizz:open-file", path: "src/a.ts" },
-    { type: "frizz:open-file", path: "/r/a\0.ts" },
-    { type: "frizz:open-file", path: "/r/a.ts", line: 0 },
-    { type: "frizz:open-file", path: "/r/a.ts", line: 1.5 },
-    { type: "frizz:open-file", path: "/r/a.ts", line: "3" },
-    { type: "frizz:open-external", url: "javascript:alert(1)" },
-    { type: "frizz:open-external", url: "file:///etc/passwd" },
-    { type: "frizz:open-external", url: "command:workbench.action.terminal.new" },
-    { type: "frizz:open-external", url: "vscode://ssalbdivad.frizz-vscode/x" },
-    { type: "frizz:open-external", url: "not a url" },
-    { type: "frizz:open-external", url: "mailto:" },
-    { type: "frizz:key", key: "p", code: "KeyP", ctrl: true },
-    { type: "frizz:key", key: "p", code: "KeyP", ctrl: 1, meta: false, shift: false, alt: false },
-    { type: "frizz:add-context" },
-    { type: "frizz:add-context", what: "selection", path: "/r/a.ts" },
-    { type: "frizz:add-context", what: "file" },
-    { type: "frizz:add-context", what: "file", path: "src/a.ts" },
-    { type: "frizz:add-context", what: "file", path: "/r/a\0.ts" },
-    { type: "frizz:add-context", what: "line", path: "/r/a.ts" },
-    { type: "frizz:add-context", what: "problems", path: "/r/a.ts" },
-    { type: "frizz:pick-context", query: "a" },
-    { type: "frizz:pick-context", id: "", query: "a" },
-    { type: "frizz:pick-context", id: "n", query: 3 },
-    { type: "frizz:pick-context", id: "n", query: "x".repeat(201) },
-    { type: "frizz:pick-context", id: "n", query: "a", uris: ["file:///r/a.ts"] },
-    { type: "frizz:pick-context", id: "n" },
-    { type: "frizz:pick-context", id: "n", uris: [] },
-    { type: "frizz:pick-context", id: "n", uris: ["file:///r/a\0.ts"] },
-    { type: "frizz:pick-context", id: "n", uris: [7] },
-    { type: "frizz:pick-context", id: "n", uris: Array.from({ length: 51 }, (_, i) => `file:///r/${i}`) },
-    { type: "frizz:route", view: "drawer", title: "x" },
-    { type: "frizz:route", view: "thread" },
-    { type: "frizz:route", view: "thread", title: "x".repeat(501) },
-    { type: "frizz:route", view: "queue", title: "All projects", description: 3 },
-    { type: "frizz:review", thread: "tidy" },
-    { type: "frizz:review", thread: "../../etc", project: "acme" },
-    { type: "frizz:review", thread: "tidy", project: "acme/api" },
-    { type: "frizz:review", thread: "", project: "acme" },
-    { type: "frizz:review", thread: 3, project: "acme" },
-    { type: "frizz:review", thread: "tidy", project: "acme", title: 3 },
+    { type: "ntwine:compose", id: "x" },
+    { type: "ntwine:theme", theme: "dark" },
+    { type: "ntwine:unknown" },
+    { type: "ntwine:ready", v: 2 },
+    { type: "ntwine:ready" },
+    { type: "ntwine:composed", id: "n" },
+    { type: "ntwine:composed", id: "", ok: true },
+    { type: "ntwine:composed", id: "n", ok: "yes" },
+    { type: "ntwine:composed", id: "n", ok: false, error: 5 },
+    { type: "ntwine:open-file", path: "src/a.ts" },
+    { type: "ntwine:open-file", path: "/r/a\0.ts" },
+    { type: "ntwine:open-file", path: "/r/a.ts", line: 0 },
+    { type: "ntwine:open-file", path: "/r/a.ts", line: 1.5 },
+    { type: "ntwine:open-file", path: "/r/a.ts", line: "3" },
+    { type: "ntwine:open-external", url: "javascript:alert(1)" },
+    { type: "ntwine:open-external", url: "file:///etc/passwd" },
+    { type: "ntwine:open-external", url: "command:workbench.action.terminal.new" },
+    { type: "ntwine:open-external", url: "vscode://ssalbdivad.ntwine-vscode/x" },
+    { type: "ntwine:open-external", url: "not a url" },
+    { type: "ntwine:open-external", url: "mailto:" },
+    { type: "ntwine:key", key: "p", code: "KeyP", ctrl: true },
+    { type: "ntwine:key", key: "p", code: "KeyP", ctrl: 1, meta: false, shift: false, alt: false },
+    { type: "ntwine:add-context" },
+    { type: "ntwine:add-context", what: "selection", path: "/r/a.ts" },
+    { type: "ntwine:add-context", what: "file" },
+    { type: "ntwine:add-context", what: "file", path: "src/a.ts" },
+    { type: "ntwine:add-context", what: "file", path: "/r/a\0.ts" },
+    { type: "ntwine:add-context", what: "line", path: "/r/a.ts" },
+    { type: "ntwine:add-context", what: "problems", path: "/r/a.ts" },
+    { type: "ntwine:pick-context", query: "a" },
+    { type: "ntwine:pick-context", id: "", query: "a" },
+    { type: "ntwine:pick-context", id: "n", query: 3 },
+    { type: "ntwine:pick-context", id: "n", query: "x".repeat(201) },
+    { type: "ntwine:pick-context", id: "n", query: "a", uris: ["file:///r/a.ts"] },
+    { type: "ntwine:pick-context", id: "n" },
+    { type: "ntwine:pick-context", id: "n", uris: [] },
+    { type: "ntwine:pick-context", id: "n", uris: ["file:///r/a\0.ts"] },
+    { type: "ntwine:pick-context", id: "n", uris: [7] },
+    { type: "ntwine:pick-context", id: "n", uris: Array.from({ length: 51 }, (_, i) => `file:///r/${i}`) },
+    { type: "ntwine:route", view: "drawer", title: "x" },
+    { type: "ntwine:route", view: "thread" },
+    { type: "ntwine:route", view: "thread", title: "x".repeat(501) },
+    { type: "ntwine:route", view: "queue", title: "All projects", description: 3 },
+    { type: "ntwine:review", thread: "tidy" },
+    { type: "ntwine:review", thread: "../../etc", project: "acme" },
+    { type: "ntwine:review", thread: "tidy", project: "acme/api" },
+    { type: "ntwine:review", thread: "", project: "acme" },
+    { type: "ntwine:review", thread: 3, project: "acme" },
+    { type: "ntwine:review", thread: "tidy", project: "acme", title: 3 },
   ]
   for (const message of refused) assert.equal(parsePageMessage(message), undefined, JSON.stringify(message))
   assert.equal(webUrl("http://"), undefined)
@@ -199,10 +199,10 @@ test("a chord the allowlist does not name, or with one modifier more or less, ru
   for (const [key, mac] of none) assert.equal(chordCommand(key, mac), undefined, JSON.stringify({ key, mac }))
 })
 
-test("Add to Frizz prompt goes to the sidebar whenever it is on and there is a Frizz to frame, opened or not", () => {
-  assert.equal(addRoute({ enabled: true, frizz: true }), "sidebar", "a window that never opened the sidebar opens it")
-  assert.equal(addRoute({ enabled: false, frizz: true }), "server", "the setting keeps the browser flow")
-  assert.equal(addRoute({ enabled: true, frizz: false }), "server", "no Frizz: the server path, which says why")
+test("Add to Ntwine prompt goes to the sidebar whenever it is on and there is an Ntwine to frame, opened or not", () => {
+  assert.equal(addRoute({ enabled: true, ntwine: true }), "sidebar", "a window that never opened the sidebar opens it")
+  assert.equal(addRoute({ enabled: false, ntwine: true }), "server", "the setting keeps the browser flow")
+  assert.equal(addRoute({ enabled: true, ntwine: false }), "server", "no Ntwine: the server path, which says why")
 })
 
 test("Ask and Send write in the sidebar unless it is off or the caller passed the text to send", () => {
@@ -224,7 +224,7 @@ function fakeSidebar(behaviour: { ready: boolean; answer?: { ok: boolean; error?
     },
     async compose(input, ms) {
       calls.push(`compose ${JSON.stringify(input.target)} ${input.focus} ${ms}`)
-      return behaviour.answer && { type: "frizz:composed", id: "c1", ...behaviour.answer }
+      return behaviour.answer && { type: "ntwine:composed", id: "c1", ...behaviour.answer }
     },
   }
   return { sidebar, calls }
@@ -241,12 +241,12 @@ test("a selection the page takes is done: revealed, waited for, posted, answered
 
 test("a page that never gets ready, never answers or refuses leaves the selection to the command's old path", async () => {
   const notReady = fakeSidebar({ ready: false })
-  assert.deepEqual(await composeInSidebar(notReady.sidebar, composeInput, timing), { ok: false, why: "The Frizz sidebar didn't load in time." })
+  assert.deepEqual(await composeInSidebar(notReady.sidebar, composeInput, timing), { ok: false, why: "The Ntwine sidebar didn't load in time." })
   assert.deepEqual(notReady.calls, ["reveal false", "wait 15000"], "nothing is posted to a page that is not listening")
   const silent = fakeSidebar({ ready: true })
-  assert.deepEqual(await composeInSidebar(silent.sidebar, composeInput, timing), { ok: false, why: "The Frizz sidebar didn't answer." })
-  const refused = fakeSidebar({ ready: true, answer: { ok: false, error: "Its project isn't in Frizz." } })
-  assert.deepEqual(await composeInSidebar(refused.sidebar, composeInput, timing), { ok: false, why: "The Frizz sidebar couldn't take it: Its project isn't in Frizz." })
+  assert.deepEqual(await composeInSidebar(silent.sidebar, composeInput, timing), { ok: false, why: "The Ntwine sidebar didn't answer." })
+  const refused = fakeSidebar({ ready: true, answer: { ok: false, error: "Its project isn't in Ntwine." } })
+  assert.deepEqual(await composeInSidebar(refused.sidebar, composeInput, timing), { ok: false, why: "The Ntwine sidebar couldn't take it: Its project isn't in Ntwine." })
 })
 
 test("a thread's tab frames the thread's own address in embed mode, with its project and theme", () => {

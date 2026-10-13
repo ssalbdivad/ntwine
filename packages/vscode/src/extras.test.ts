@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { EMBED_MAX_COMMAND } from "@frizz/shared/embed-protocol"
+import { EMBED_MAX_COMMAND } from "@ntwine/shared/embed-protocol"
 import { countsPhrase, extrasMessage, listedProblems, MAX_PROBLEMS, plainTerminalText, problemsText, terminalCommandText, type FileProblem } from "./extras.ts"
 import { QUOTE_MAX_BYTES, QUOTE_MAX_LINES } from "./message.ts"
 
@@ -72,14 +72,14 @@ test("a long output keeps its END, where a failure says what failed, and says wh
 })
 
 test("the menu is told counts and a one-line command, and only what there is to offer", () => {
-  assert.deepEqual(extrasMessage({}), { type: "frizz:editor-extras" })
-  assert.deepEqual(extrasMessage({ problems: { label: "a.ts", counts: { errors: 0, warnings: 0, infos: 0 } } }), { type: "frizz:editor-extras" })
+  assert.deepEqual(extrasMessage({}), { type: "ntwine:editor-extras" })
+  assert.deepEqual(extrasMessage({ problems: { label: "a.ts", counts: { errors: 0, warnings: 0, infos: 0 } } }), { type: "ntwine:editor-extras" })
   assert.deepEqual(
     extrasMessage({ problems: { label: "a.ts", counts: { errors: 2, warnings: 0, infos: 1 } }, terminal: { command: "nub run\n  test", exitCode: 0 } }),
-    { type: "frizz:editor-extras", problems: { label: "a.ts", errors: 2, warnings: 0, infos: 1 }, terminal: { command: "nub run test", exitCode: 0 } },
+    { type: "ntwine:editor-extras", problems: { label: "a.ts", errors: 2, warnings: 0, infos: 1 }, terminal: { command: "nub run test", exitCode: 0 } },
   )
   // VS Code before 1.93: a terminal is open, its commands unknown.
-  assert.deepEqual(extrasMessage({ terminal: {} }), { type: "frizz:editor-extras", terminal: {} })
+  assert.deepEqual(extrasMessage({ terminal: {} }), { type: "ntwine:editor-extras", terminal: {} })
   assert.equal(extrasMessage({ terminal: { command: "x".repeat(1000) } }).terminal!.command!.length, EMBED_MAX_COMMAND)
 })
 

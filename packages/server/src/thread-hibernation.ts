@@ -1,15 +1,15 @@
 // Idle-thread hibernation — reclaim the memory a RESTING worker holds, without ending it.
 //
-// A frizz worker is expensive at rest and free to restart. Measured on the maintainer's machine
+// An ntwine worker is expensive at rest and free to restart. Measured on the maintainer's machine
 // 2026-08-19 (64 GB, 38 live worker threads, ALL 38 idle, 19 GB held): 504 MB per thread all-in —
 // a `claude` CLI at 289 MB, a chrome-devtools MCP pair at 159 MB, the broker daemon at 39 MB and the
-// frizz MCP server at 17 MB. That browser was frizz's own always-on mount, removed 2026-08-26: a
+// ntwine MCP server at 17 MB. That browser was ntwine's own always-on mount, removed 2026-08-26: a
 // thread now carries only the MCP servers the PROJECT configured, so the same measurement in a repo
 // with no `.mcp.json` would read ~345 MB, and since 2026-10-05 so does one whose `.mcp.json` brings a browser
 // until a tool call starts it (lazy-mcp-host.ts) — still the largest reclaimable block on the machine. Seventeen of those threads had been idle for an hour or
-// more; the oldest for 19.5 hours, still holding its full 504 MB. Nothing in frizz ever collected them:
+// more; the oldest for 19.5 hours, still holding its full 504 MB. Nothing in ntwine ever collected them:
 // the broker daemon's own IDLE_EXIT_MS is six hours AND only fires when no client is attached, which
-// for a frizz-managed thread is never.
+// for an ntwine-managed thread is never.
 //
 // SIXTY MINUTES is the threshold because it is the Anthropic prompt-cache TTL. A thread idle longer
 // than that has ALREADY lost its cache, so tearing its process down and cold-resuming it later costs no
@@ -27,38 +27,38 @@
 // with no record of what it was doing, and an approval the daemon is parked on can never be answered.
 // So every unknown — no telemetry, no transcript, an unparseable timestamp, an enumeration that threw —
 // is a REFUSAL to hibernate, and the predicate below is the union of every "this thread is busy"
-// reading frizz already has rather than the minimum that would look sufficient.
-import { formatElapsed, isDirectSubAgent } from "@frizz/shared"
+// reading ntwine already has rather than the minimum that would look sufficient.
+import { formatElapsed, isDirectSubAgent } from "@ntwine/shared"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
 import { isBrokerClaudeRow, type SessionRow } from "./storage.ts"
 import type { SessionTelemetry } from "./tailer.ts"
 
 /** The prompt-cache TTL. Above it a cold resume is free; below it, it is not. */
 export const HIBERNATE_IDLE_MS = 60 * 60_000
-/** How often the sweep looks. Cheap — an in-memory pass over rows frizz already holds. */
+/** How often the sweep looks. Cheap — an in-memory pass over rows ntwine already holds. */
 export const HIBERNATE_SWEEP_INTERVAL_MS = 5 * 60_000
 /** A daemon younger than this is never hibernated regardless of its transcript's age: a thread woken
  *  seconds ago still reads as idle for the moment before its first record lands. The delivery-ledger
  *  and turn checks below both catch that too — this is the belt to their braces. */
 export const HIBERNATE_MIN_DAEMON_AGE_MS = 5 * 60_000
 
-/** Minutes, from FRIZZ_HIBERNATE_IDLE_MINUTES. A missing/garbage/non-positive value keeps the default
- *  rather than disabling the guard — an operator who wants it off has FRIZZ_HIBERNATE_OFF. */
+/** Minutes, from NTWINE_HIBERNATE_IDLE_MINUTES. A missing/garbage/non-positive value keeps the default
+ *  rather than disabling the guard — an operator who wants it off has NTWINE_HIBERNATE_OFF. */
 export function hibernateIdleMs(env: NodeJS.ProcessEnv = process.env): number {
-  const minutes = Number(env.FRIZZ_HIBERNATE_IDLE_MINUTES)
+  const minutes = Number(env.NTWINE_HIBERNATE_IDLE_MINUTES)
   return Number.isFinite(minutes) && minutes > 0 ? minutes * 60_000 : HIBERNATE_IDLE_MS
 }
 
-/** Seconds, from FRIZZ_HIBERNATE_SWEEP_SECONDS. Paired with the threshold above rather than a knob of
+/** Seconds, from NTWINE_HIBERNATE_SWEEP_SECONDS. Paired with the threshold above rather than a knob of
  *  its own: a two-minute threshold swept every five minutes is incoherent, and moving one without the
  *  other is the mistake this exists to make impossible. */
 export function hibernateSweepIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
-  const seconds = Number(env.FRIZZ_HIBERNATE_SWEEP_SECONDS)
+  const seconds = Number(env.NTWINE_HIBERNATE_SWEEP_SECONDS)
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : HIBERNATE_SWEEP_INTERVAL_MS
 }
 
 export function hibernationEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.FRIZZ_HIBERNATE_OFF !== "1"
+  return env.NTWINE_HIBERNATE_OFF !== "1"
 }
 
 /** Everything one decision reads, gathered by the caller so the decision itself stays pure. */
@@ -130,7 +130,7 @@ export function lastActivityMs(tele: Pick<SessionTelemetry, "lastActivityAt" | "
  *  - that gate asks "is a HUMAN about to lose something they can see", and a human who clicks through
  *    it has decided; this asks the same question with NOBODY WATCHING, so `stale` and `rested`
  *    sub-agents count too. A `rested` child means its own fan-out is still running IN-PROCESS, and a
- *    `stale` child is one whose completion signal frizz merely lost.
+ *    `stale` child is one whose completion signal ntwine merely lost.
  *  - a pending permission card is safe to STOP through (the session is ending anyway) and catastrophic
  *    to hibernate through (the session is not — and the promise it is parked on dies unanswered).
  */
@@ -165,9 +165,9 @@ export function hibernationVerdict(
   // a direct child, so reading the top level loses nothing. Any state counts, unlike the queue rules.
   if (tele.subAgents.some(isDirectSubAgent)) return { hibernate: false, blockedBy: "sub-agents" }
   if (tele.bgShells.length > 0) return { hibernate: false, blockedBy: "background-shells" }
-  // A send frizz has accepted but not yet watched land is text sitting in the DAEMON'S queue. Killing
+  // A send ntwine has accepted but not yet watched land is text sitting in the DAEMON'S queue. Killing
   // the process throws it away, and the ledger row would go on claiming for an hour that the provider
-  // holds it — the exact failure the dropped-input diagnostic exists to prevent, caused by frizz itself.
+  // holds it — the exact failure the dropped-input diagnostic exists to prevent, caused by ntwine itself.
   // A write-ahead `sending` send is a delivery (often a cold resume) in progress right now. A `failed`
   // one does NOT hold the daemon: its words are in the ledger, not the process.
   if (parseDeliveryLedger(row.delivery_ledger).some((d) => d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "unconfirmed")) {

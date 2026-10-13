@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto"
 import { mkdtempSync, mkdirSync, rmSync, existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
 import { join, resolve } from "node:path"
-import { buildFrizzArtifact } from "../src/artifacts.ts"
+import { buildNtwineArtifact } from "../src/artifacts.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { DETACHED_DAEMON_ENTRIES, detachedDaemonOutputName } from "../packages/server/src/detached-daemons.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
@@ -25,10 +25,10 @@ const SOURCE = resolve(import.meta.dirname, "..")
 const PORT = Number(process.env.VERIFY_PORT ?? 4941)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const log = (...a) => console.log("[verify]", ...a)
-// FRIZZ_CODEX_NATIVE_LISTEN=1 swaps the hand-written daemon for `codex app-server --listen unix://`
+// NTWINE_CODEX_NATIVE_LISTEN=1 swaps the hand-written daemon for `codex app-server --listen unix://`
 // (codex-app-server-native.ts). It reaches the booted runtime through this script's own environment,
 // so the same closure assertions run against either transport — only the record dir differs.
-const NATIVE = process.env.FRIZZ_CODEX_NATIVE_LISTEN === "1" || process.env.FRIZZ_CODEX_NATIVE_LISTEN === "true"
+const NATIVE = process.env.NTWINE_CODEX_NATIVE_LISTEN === "1" || process.env.NTWINE_CODEX_NATIVE_LISTEN === "true"
 const RECORD_DIR = NATIVE ? "codex-app-server-native" : "codex-app-server"
 let failures = 0
 const check = (ok, label, detail = "") => {
@@ -36,11 +36,11 @@ const check = (ok, label, detail = "") => {
   if (!ok) failures++
 }
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-verify-codex-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-verify-codex-")))
 const home = join(root, "home")
-mkdirSync(join(home, ".frizz"), { recursive: true })
+mkdirSync(join(home, ".ntwine"), { recursive: true })
 // A THROWAWAY project dir, never the operator's checkout: launch ownership is held per project dir,
-// and the live frizz server already owns the real one. The codex worker runs here too, so nothing it
+// and the live ntwine server already owns the real one. The codex worker runs here too, so nothing it
 // does can touch real work.
 const PROJECT_DIR = join(root, "project")
 mkdirSync(PROJECT_DIR, { recursive: true })
@@ -55,7 +55,7 @@ const api = createRpcClient(`http://127.0.0.1:${PORT}/`)
 
 try {
   log("building a real artifact from the current checkout…")
-  const artifact = buildFrizzArtifact(SOURCE, join(root, "artifacts"))
+  const artifact = buildNtwineArtifact(SOURCE, join(root, "artifacts"))
   log("artifact", artifact.digest)
 
   // 1. The packaging invariant: every detached daemon is a real, loadable file in the artifact.
@@ -64,7 +64,7 @@ try {
     check(existsSync(emitted), `artifact ships ${detachedDaemonOutputName(entry)}`, emitted)
   }
 
-  // 2. Boot the real frizz server FROM the artifact.
+  // 2. Boot the real ntwine server FROM the artifact.
   const projectId = randomUUID()
   const target = { projectId, projectDir: PROJECT_DIR, stateDir }
   const owner = acquireProjectLaunchOwner(target, "launcher")
@@ -77,15 +77,15 @@ try {
         ...process.env,
         HOME: home,
         CODEX_HOME: join(homedir(), ".codex"),
-        FRIZZ_DEV_CHILD: "1",
-        FRIZZ_DEV_PORT: String(PORT),
-        FRIZZ_WAKERS_OFF: "1",
-        FRIZZ_ORPHAN_REAPER_OFF: "1",
-        FRIZZ_SANDBOX_TAG: `frizz-verify-${PORT}-${process.pid}`,
-        FRIZZ_STABLE_ARTIFACT: artifact.digest,
-        FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-        FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
-        FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
+        NTWINE_DEV_CHILD: "1",
+        NTWINE_DEV_PORT: String(PORT),
+        NTWINE_WAKERS_OFF: "1",
+        NTWINE_ORPHAN_REAPER_OFF: "1",
+        NTWINE_SANDBOX_TAG: `ntwine-verify-${PORT}-${process.pid}`,
+        NTWINE_STABLE_ARTIFACT: artifact.digest,
+        NTWINE_STABLE_WEB_DIST: artifact.webDir,
+        NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
+        NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
       },
       target,
       owner.token,
@@ -130,7 +130,7 @@ try {
   }
   check(records.length > 0, `the DETACHED ${NATIVE ? "native listener" : "daemon"} started and published its record`, `${recordDir} → ${records.join(",") || "(empty)"}`)
 
-  // A frizz-created codex worker is headless: it must launch at danger-full-access, because a
+  // An ntwine-created codex worker is headless: it must launch at danger-full-access, because a
   // restrictive sandbox just stalls an unattended worker on a modal nobody is watching.
   const stored = execFileSync("sqlite3", [
     join(stateDir, "ui.db"),

@@ -1,6 +1,6 @@
 name: release
 
-# Publishes `frizz` from the `release` branch — NOT from main — and only when a maintainer
+# Publishes `ntwine` from the `release` branch — NOT from main — and only when a maintainer
 # dispatches it by hand. See the `on:` block for why the push trigger is gone.
 #
 # WHAT CHANGED, AND WHY (2026-09-08). This published on every push to main that touched package.json.
@@ -36,8 +36,8 @@ name: release
 # Renaming the environment breaks publishing exactly as renaming this file does. Trusted publishing
 # attaches provenance automatically; --provenance is unnecessary.
 #
-# STAGED PUBLISHING WAS TRIED AND DROPPED. From 2026-09-22 the trusted publisher on `frizz` and on
-# `frizz-server` was stage-only: this workflow ran `npm stage publish`, and neither version was
+# STAGED PUBLISHING WAS TRIED AND DROPPED. From 2026-09-22 the trusted publisher on `ntwine` and on
+# `ntwine-server` was stage-only: this workflow ran `npm stage publish`, and neither version was
 # installable until the maintainer approved it with 2FA. That put a proof of presence no stolen
 # credential can supply between CI and the registry — the answer to the 2026-09-21 nubjs/nub
 # compromise, where a stolen push credential cut a tag and 18 packages published unattended. But it
@@ -47,7 +47,7 @@ name: release
 # allow `npm publish`. The dispatch-only trigger below STAYS: it is what still stops a stolen push
 # credential from starting a release.
 #
-# ORDER IS THE WORKFLOW'S JOB AGAIN. A `frizz` shell fetches the `frizz-server` version pinned in
+# ORDER IS THE WORKFLOW'S JOB AGAIN. A `ntwine` shell fetches the `ntwine-server` version pinned in
 # its own manifest from the registry on first boot, so a shell that goes live before that server
 # does is broken for anyone who installs it in between. With staging, the order of the two approvals
 # enforced that; now the steps do — publish the server, wait until npm serves it, then publish the
@@ -55,7 +55,7 @@ name: release
 #
 # TAGS AND GITHUB RELEASES ARE NOT MADE HERE (2026-10-12). The shell is tagged at npm's recorded
 # gitHead, and GitHub refuses this job's token a ref whose commit carries a different
-# `.github/workflows/` than the run's own checkout — which a later run's routinely does (frizz 0.13.13).
+# `.github/workflows/` than the run's own checkout — which a later run's routinely does (ntwine 0.13.13).
 # The releaser tags from its own `gh` session once the run is green: `nub scripts/tag-release.mjs`.
 # That also leaves this job with read-only access to the repository.
 
@@ -80,7 +80,7 @@ on:
     inputs:
       # npm-refuse-overtake.sh refuses to publish a version unless it directly follows the highest
       # one npm serves, because npm serves two versions held in review in whichever order it likes
-      # (frizz 0.13.11 before 0.13.10, 2026-10-11). A number that was never published looks the same
+      # (ntwine 0.13.11 before 0.13.10, 2026-10-11). A number that was never published looks the same
       # from here as one still in review, so skipping one takes this flag.
       allow_version_gap:
         description: "Publish past a version number npm does not serve (one that was never published)"
@@ -90,7 +90,7 @@ on:
 # Two releases racing would fight over the same version; let an in-flight one finish rather than
 # cancelling it mid-publish.
 concurrency:
-  group: release-frizz
+  group: release-ntwine
   cancel-in-progress: false
 
 jobs:
@@ -165,25 +165,25 @@ jobs:
           # intentionally independent: a compatible runtime fix can publish without moving the shell.
           # A version npm accepted but still holds in review is not served, so it reads as unpublished
           # here and the publish below tries it again — npm refuses, which npm-publish.sh tolerates.
-          if npm view "frizz-server@$SERVER_VERSION" version > /dev/null 2>&1; then
-            echo "frizz-server@$SERVER_VERSION is already published"
+          if npm view "ntwine-server@$SERVER_VERSION" version > /dev/null 2>&1; then
+            echo "ntwine-server@$SERVER_VERSION is already published"
             echo "publish_server=false" >> "$GITHUB_OUTPUT"
           else
-            echo "frizz-server@$SERVER_VERSION is not on the registry; publishing"
+            echo "ntwine-server@$SERVER_VERSION is not on the registry; publishing"
             echo "publish_server=true" >> "$GITHUB_OUTPUT"
           fi
-          if npm view "frizz@$SHELL_VERSION" version > /dev/null 2>&1; then
-            echo "frizz@$SHELL_VERSION is already published"
+          if npm view "ntwine@$SHELL_VERSION" version > /dev/null 2>&1; then
+            echo "ntwine@$SHELL_VERSION is already published"
             echo "publish_shell=false" >> "$GITHUB_OUTPUT"
           else
-            echo "frizz@$SHELL_VERSION is not on the registry; publishing"
+            echo "ntwine@$SHELL_VERSION is not on the registry; publishing"
             echo "publish_shell=true" >> "$GITHUB_OUTPUT"
           fi
 
       # Root prepack stages this package before either pack operation. `--ignore-scripts` makes the
       # server tarball exactly the staging that the shell's local artifact tests consume; it avoids a
       # second, package-directory lifecycle that cannot see the source workspace.
-      - name: Build and publish frizz-server to npm
+      - name: Build and publish ntwine-server to npm
         if: steps.decide.outputs.publish_server == 'true'
         env:
           ALLOW_VERSION_GAP: ${{ inputs.allow_version_gap }}
@@ -196,33 +196,33 @@ jobs:
       # (see the header), and a direct publish is not served until npm's review finishes. No `if:`:
       # on a retry the server was published by an earlier run and may still be in review, and a
       # version npm already serves returns at once.
-      - name: Wait for npm to serve frizz-server
+      - name: Wait for npm to serve ntwine-server
         env:
           SERVER_VERSION: ${{ steps.decide.outputs.server_version }}
-        run: bash .github/scripts/npm-wait-served.sh frizz-server "$SERVER_VERSION"
+        run: bash .github/scripts/npm-wait-served.sh ntwine-server "$SERVER_VERSION"
 
       # Shell prepack creates its launcher bundle, leaves server staging intact for future standalone
       # packs, and strips workspace-only development links from the root manifest.
       #
-      # The server the shell pins in `frizzServer.version` is usually the one this run just waited
+      # The server the shell pins in `ntwineServer.version` is usually the one this run just waited
       # for, but a shell may pin an older server that an earlier run published. This run publishes
       # no other server version, so a pin npm does not serve by now never arrives: refuse, rather
       # than ship a shell with no server behind it.
-      - name: Publish the frizz shell to npm
+      - name: Publish the ntwine shell to npm
         if: steps.decide.outputs.publish_shell == 'true'
         env:
           ALLOW_VERSION_GAP: ${{ inputs.allow_version_gap }}
         run: |
-          PINNED_SERVER=$(node -p "require('./package.json').frizzServer.version")
-          curl -sf "https://registry.npmjs.org/frizz-server/$PINNED_SERVER" > /dev/null \
-            || { echo "::error::the shell pins frizz-server@$PINNED_SERVER, which npm does not serve; publish that server first"; exit 1; }
+          PINNED_SERVER=$(node -p "require('./package.json').ntwineServer.version")
+          curl -sf "https://registry.npmjs.org/ntwine-server/$PINNED_SERVER" > /dev/null \
+            || { echo "::error::the shell pins ntwine-server@$PINNED_SERVER, which npm does not serve; publish that server first"; exit 1; }
           bash .github/scripts/npm-publish.sh .
 
       # A green run means npm serves the shell too, so the releaser's tag (scripts/tag-release.mjs)
       # never describes a version npm does not serve. No `if:`, for the same retry reason as the server
       # wait.
-      - name: Wait for npm to serve frizz
+      - name: Wait for npm to serve ntwine
         env:
           VERSION: ${{ steps.decide.outputs.version }}
-        run: bash .github/scripts/npm-wait-served.sh frizz "$VERSION"
+        run: bash .github/scripts/npm-wait-served.sh ntwine "$VERSION"
 

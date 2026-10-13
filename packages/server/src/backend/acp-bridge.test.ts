@@ -14,7 +14,7 @@ import { processStartTime } from "../process-generation.ts"
 import { acpTranscriptPath, parseAcpRecord, projectAcpTranscript, type AcpRecord } from "./acp-transcript.ts"
 import { newTailState } from "../tailer.ts"
 import { createAcpBackend } from "./acp-transcript.ts"
-import type { FrizzCli } from "./types.ts"
+import type { NtwineCli } from "./types.ts"
 
 // The bridge against the REAL fake agent over REAL stdio and a REAL InteractionStore: what the tailer
 // will fold and the drawer will project is read back from the transcript file the bridge wrote.
@@ -23,7 +23,7 @@ const FAKE = fileURLToPath(new URL("./acp.fixtures/fake-acp-agent.mjs", import.m
 
 interface Rig { bridge: AcpBridge; stateDir: string; store: InteractionStore; status: number; diagnostics: string[] }
 
-function rig(mode = "", opts: { customCommand?: string; stateDir?: string; direct?: boolean; host?: AcpHost; agentLog?: string; frizzCli?: FrizzCli; mountsMcp?: (slug: string) => boolean } = {}): Rig {
+function rig(mode = "", opts: { customCommand?: string; stateDir?: string; direct?: boolean; host?: AcpHost; agentLog?: string; ntwineCli?: NtwineCli; mountsMcp?: (slug: string) => boolean } = {}): Rig {
   const stateDir = opts.stateDir ?? mkdtempSync(join(tmpdir(), "acp-bridge-"))
   const store = createInteractionStore(new Database(":memory:"))
   const r: Rig = { stateDir, store, status: 0, diagnostics: [], bridge: undefined as unknown as AcpBridge }
@@ -34,8 +34,8 @@ function rig(mode = "", opts: { customCommand?: string; stateDir?: string; direc
     env: { ...process.env, FAKE_ACP_MODE: mode, ...(opts.agentLog ? { FAKE_ACP_LOG: opts.agentLog } : {}) },
     // The fake is "installed" as an operator-configured agent whose command is node itself.
     customAgents: () => [{ id: "fake", label: "Fake agent", command: opts.customCommand ?? process.execPath, args: opts.customCommand ? [] : [FAKE] }],
-    frizzMcp: { scriptPath: "/opt/frizz/frizz-mcp.mjs", stateDir: "/opt/state", projectId: "proj-1" },
-    ...(opts.frizzCli ? { frizzCli: opts.frizzCli } : {}),
+    ntwineMcp: { scriptPath: "/opt/ntwine/ntwine-mcp.mjs", stateDir: "/opt/state", projectId: "proj-1" },
+    ...(opts.ntwineCli ? { ntwineCli: opts.ntwineCli } : {}),
     ...(opts.mountsMcp ? { mountsMcp: opts.mountsMcp } : {}),
     onStatusChange: () => { r.status++ },
     onDiagnostic: (d) => { if (d.kind !== "stderr") r.diagnostics.push(`${d.kind}: ${d.message}`) },
@@ -68,7 +68,7 @@ async function untilIdle(r: Rig, sessionId: string, slug = "t1", timeoutMs = 5_0
   }
 }
 
-test("acp-bridge: a dispatch opens a session with the frizz MCP server, runs the first turn, and writes a foldable transcript", async () => {
+test("acp-bridge: a dispatch opens a session with the ntwine MCP server, runs the first turn, and writes a foldable transcript", async () => {
   const r = rig()
   try {
     const info = await r.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", prompt: "CONTRACT…\n\nMake hello.txt", userText: "Make hello.txt" })
@@ -101,33 +101,33 @@ test("acp-bridge: a dispatch opens a session with the frizz MCP server, runs the
 })
 
 // An ACP agent is one daemon per thread, so the environment it is forked with can say who is calling.
-// That, and the command's directory on PATH, is everything `frizzctl` needs from the agent's own shell.
+// That, and the command's directory on PATH, is everything `ntwinectl` needs from the agent's own shell.
 test("acp-bridge: the agent is forked with the worker command on its PATH and this thread's identity", async () => {
   const cli = { binDir: "/plugin/bin", stateDir: "/data/projects/proj-1", serverLock: "/data/server.lock", projectId: "proj-1" }
   const forked: Array<Record<string, string | undefined>> = []
-  const r = rig("", { frizzCli: cli, host: async (o) => { forked.push({ ...o.env }); return daemonAcpHost(o) } })
+  const r = rig("", { ntwineCli: cli, host: async (o) => { forked.push({ ...o.env }); return daemonAcpHost(o) } })
   try {
     await r.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", prompt: "CONTRACT…\n\nhi", userText: "hi" })
     await untilIdle(r, "s1")
     assert.equal(forked.length, 1)
     const env = forked[0]!
-    assert.equal(env.FRIZZ_THREAD_SLUG, "t1")
-    assert.equal(env.FRIZZ_THREAD, undefined, "FRIZZ_THREAD is the orphan reaper's tag, and an ACP agent has no session root to keep it live")
-    assert.equal(env.FRIZZ_STATE_DIR, "/data/projects/proj-1")
-    assert.equal(env.FRIZZ_PROJECT_ID, "proj-1")
-    assert.equal(env.FRIZZ_SERVER_LOCK, "/data/server.lock")
-    assert.equal(env.FRIZZ_NODE, process.execPath)
+    assert.equal(env.NTWINE_THREAD_SLUG, "t1")
+    assert.equal(env.NTWINE_THREAD, undefined, "NTWINE_THREAD is the orphan reaper's tag, and an ACP agent has no session root to keep it live")
+    assert.equal(env.NTWINE_STATE_DIR, "/data/projects/proj-1")
+    assert.equal(env.NTWINE_PROJECT_ID, "proj-1")
+    assert.equal(env.NTWINE_SERVER_LOCK, "/data/server.lock")
+    assert.equal(env.NTWINE_NODE, process.execPath)
     assert.equal((env.PATH ?? env.Path)!.split(process.platform === "win32" ? ";" : ":")[0], "/plugin/bin")
   } finally { await teardown(r) }
 })
 
-// The whole path a real ACP worker's command takes, with only the agent's brain and Frizz's router stood
+// The whole path a real ACP worker's command takes, with only the agent's brain and Ntwine's router stood
 // in for: the bridge forks the REAL detached daemon, the daemon forks the agent, the agent's shell runs
-// `frizzctl` by BARE NAME, and the plugin's real launcher reaches a real http server. The test above
+// `ntwinectl` by BARE NAME, and the plugin's real launcher reaches a real http server. The test above
 // reads the environment at the fork; this one proves that environment is enough, where it is used.
-test("acp-bridge: a command the agent's own shell runs reaches Frizz as that agent's thread", { skip: process.platform === "win32" }, async () => {
+test("acp-bridge: a command the agent's own shell runs reaches Ntwine as that agent's thread", { skip: process.platform === "win32" }, async () => {
   const seen: Array<{ url: string; body: unknown }> = []
-  const frizz = createServer((req, res) => {
+  const ntwine = createServer((req, res) => {
     let raw = ""
     req.on("data", (c) => (raw += c))
     req.on("end", () => {
@@ -137,17 +137,17 @@ test("acp-bridge: a command the agent's own shell runs reaches Frizz as that age
       res.end(JSON.stringify({ result: { accepted: true, title: body.title } }))
     })
   })
-  await new Promise<void>((resolve) => frizz.listen(0, "127.0.0.1", resolve))
-  const projectState = join(mkdtempSync(join(tmpdir(), "acp-frizz-")), "projects", "proj-1")
+  await new Promise<void>((resolve) => ntwine.listen(0, "127.0.0.1", resolve))
+  const projectState = join(mkdtempSync(join(tmpdir(), "acp-ntwine-")), "projects", "proj-1")
   mkdirSync(projectState, { recursive: true })
-  writeFileSync(join(projectState, "server.lock"), JSON.stringify({ port: (frizz.address() as { port: number }).port }))
-  const cli: FrizzCli = { binDir: fileURLToPath(new URL("../../../../cc-worker/bin", import.meta.url)), stateDir: projectState, projectId: "proj-1" }
+  writeFileSync(join(projectState, "server.lock"), JSON.stringify({ port: (ntwine.address() as { port: number }).port }))
+  const cli: NtwineCli = { binDir: fileURLToPath(new URL("../../../../cc-worker/bin", import.meta.url)), stateDir: projectState, projectId: "proj-1" }
 
   const stateDir = mkdtempSync(join(tmpdir(), "acp-bridge-"))
   const agentLog = join(stateDir, "agent-frames.jsonl")
-  const r = rig("shell", { stateDir, agentLog, frizzCli: cli, mountsMcp: () => false })
+  const r = rig("shell", { stateDir, agentLog, ntwineCli: cli, mountsMcp: () => false })
   try {
-    const prompt = 'CONTRACT…\n\nRUN: frizzctl title "From an ACP agent"; echo "exit=$?"; command -v frizzctl'
+    const prompt = 'CONTRACT…\n\nRUN: ntwinectl title "From an ACP agent"; echo "exit=$?"; command -v ntwinectl'
     await r.bridge.spawnDispatch({ threadSlug: "acp-thread", sessionId: "s1", cwd: r.stateDir, agentId: "fake", prompt, userText: "hi" })
     await untilIdle(r, "s1", "acp-thread")
     const ran = readFileSync(agentLog, "utf8").split("\n").filter(Boolean)
@@ -155,16 +155,16 @@ test("acp-bridge: a command the agent's own shell runs reaches Frizz as that age
       .find((f) => f.shell)?.shell
     assert.ok(ran, "the agent ran the command")
     assert.equal(ran.stderr, "")
-    assert.deepEqual(ran.stdout.trim().split("\n"), ['This thread is now named "From an ACP agent" on the board.', "exit=0", join(cli.binDir, "frizzctl")])
-    assert.deepEqual(seen, [{ url: "/_frizz/proj-1/rpc/setOwnThreadTitle", body: { slug: "acp-thread", title: "From an ACP agent" } }])
+    assert.deepEqual(ran.stdout.trim().split("\n"), ['This thread is now named "From an ACP agent" on the board.', "exit=0", join(cli.binDir, "ntwinectl")])
+    assert.deepEqual(seen, [{ url: "/_ntwine/proj-1/rpc/setOwnThreadTitle", body: { slug: "acp-thread", title: "From an ACP agent" } }])
   } finally {
     await teardown(r)
-    frizz.close()
+    ntwine.close()
   }
 })
 
 // An ACP thread's contract is its first prompt, so it has the contract it was started with for good.
-test("acp-bridge: only a thread whose contract taught the MCP tools is opened with the frizz MCP server", async () => {
+test("acp-bridge: only a thread whose contract taught the MCP tools is opened with the ntwine MCP server", async () => {
   const stateDir = mkdtempSync(join(tmpdir(), "acp-bridge-"))
   const agentLog = join(stateDir, "agent-frames.jsonl")
   const r = rig("", { stateDir, agentLog, mountsMcp: (slug) => slug === "taught-mcp" })
@@ -176,8 +176,8 @@ test("acp-bridge: only a thread whose contract taught the MCP tools is opened wi
     const opened = readFileSync(agentLog, "utf8").split("\n").filter(Boolean)
       .map((l) => JSON.parse(l) as { method?: string; params?: { mcpServers?: Array<{ name: string; env: Array<{ name: string; value: string }> }> } })
       .filter((f) => f.method === "session/new")
-    assert.deepEqual(opened.map((f) => f.params?.mcpServers?.map((m) => m.name)), [[], ["frizz"]])
-    assert.equal(opened[1]!.params!.mcpServers![0]!.env.find((e) => e.name === "FRIZZ_THREAD_SLUG")?.value, "taught-mcp")
+    assert.deepEqual(opened.map((f) => f.params?.mcpServers?.map((m) => m.name)), [[], ["ntwine"]])
+    assert.equal(opened[1]!.params!.mcpServers![0]!.env.find((e) => e.name === "NTWINE_THREAD_SLUG")?.value, "taught-mcp")
   } finally { await teardown(r) }
 })
 
@@ -368,7 +368,7 @@ test("acp-bridge: agentModels reads the advertised list through a throwaway sess
 
 // ---- THE DETACHED DAEMON: an agent and its turn outlive the bridge ----------------------------------
 // The whole reason acp-daemon.ts exists (maintainer 2026-09-24: an ACP restart ended the agent, its
-// turn and every sub-agent inside it). Bridge A is shut down MID-TURN — exactly what a Frizz restart
+// turn and every sub-agent inside it). Bridge A is shut down MID-TURN — exactly what an Ntwine restart
 // does — and bridge B, a fresh instance over the same state dir, warms up and carries the turn to its
 // real ending. The plain-child control shows the turn dying instead.
 

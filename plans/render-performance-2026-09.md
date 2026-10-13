@@ -1,6 +1,6 @@
 # React render performance — 2026-09-04, measured
 
-Written after the queue-card jitter fix (`b90997c8`) prompted "you need to deeply investigate all React rendering performance issues like this". It is a record at a point in time, not a description of how Frizz works now; read [`plans/README.md`](README.md) first. Its companion is [`plans/performance-2026-09.md`](performance-2026-09.md), which covers the SERVER, the bundle and first load; this one covers only what happens in the browser after the app is up.
+Written after the queue-card jitter fix (`b90997c8`) prompted "you need to deeply investigate all React rendering performance issues like this". It is a record at a point in time, not a description of how Ntwine works now; read [`plans/README.md`](README.md) first. Its companion is [`plans/performance-2026-09.md`](performance-2026-09.md), which covers the SERVER, the bundle and first load; this one covers only what happens in the browser after the app is up.
 
 Every number here came from an instrument. The one thing this document most wants to prevent is the next reader re-deriving the plausible wrong version of the headline, so the disproved readings are kept beside the ones that survived.
 
@@ -15,7 +15,7 @@ A board of 600 threads (571 archived, 29 queued — the shape of the maintainer'
 
 The mutation counts are the liveness control: both pages are receiving and applying the same deltas, so the production reading is not a dead page. Production held 721 animation frames in 12s with **none** over 32ms.
 
-**The maintainer's Frizz is a production build** — the global `frizz` CLI resolves into `~/.frizz/builds/<hash>/runtime/…`, a promoted artifact. So the ~80ms task that fires once a second is something an agent sees on `nub run dev` and the operator never sees at all. Every dev-build render cost in this document is inflated by `jsxDEV`, per-commit prop diffing (`addObjectDiffToProperties`), owner stacks (`createTask`) and `logComponentRender`, which together were 34% of busy time in a CPU profile and are absent from the shipped bundle.
+**The maintainer's Ntwine is a production build** — the global `ntwine` CLI resolves into `~/.ntwine/builds/<hash>/runtime/…`, a promoted artifact. So the ~80ms task that fires once a second is something an agent sees on `nub run dev` and the operator never sees at all. Every dev-build render cost in this document is inflated by `jsxDEV`, per-commit prop diffing (`addObjectDiffToProperties`), owner stacks (`createTask`) and `logComponentRender`, which together were 34% of busy time in a CPU profile and are absent from the shipped bundle.
 
 Repeated in every heavy state that could be constructed, all on the production build, all with the board churning:
 
@@ -27,7 +27,7 @@ Repeated in every heavy state that could be constructed, all on the production b
 
 ## What IS true, and is build-independent: the render COUNT
 
-Measured with the repo's own `?scan=1` instrument ([`packages/web/src/perf-scan.ts`](../packages/web/src/perf-scan.ts) → `window.__frizzScan`), 10s windows, no StrictMode (`main.tsx` disables it, so nothing is doubled):
+Measured with the repo's own `?scan=1` instrument ([`packages/web/src/perf-scan.ts`](../packages/web/src/perf-scan.ts) → `window.__ntwineScan`), 10s windows, no StrictMode (`main.tsx` disables it, so nothing is doubled):
 
 - **Four churning agents: 24,141 component renders in 10s — 2,414/s.**
 - The same board with nothing churning: 4,230 in 10s. So ~83% of the render work is the board delta.
@@ -86,7 +86,7 @@ One thing found on the way and left alone: `appendQueuedMessage` smooth-scrolls 
 
 ## The instruments, if this is picked up again
 
-All under `.frizz/threads/c633d7a0-0826-4791-8cc2-ec3c9682f077/` at the time of writing — scratch, not tracked, and reproducible from this description if they are gone.
+All under `.ntwine/threads/c633d7a0-0826-4791-8cc2-ec3c9682f077/` at the time of writing — scratch, not tracked, and reproducible from this description if they are gone.
 
 - `seed-big-board.mjs` — 600 simulated threads at the real archived/queued ratio, with realistic `lastAssistant` lengths (short strings flatter every comparator measurement).
 - `churn.mjs` — appends a tool call to N threads on a timer, which is what a real worker does and what makes the server push deltas.

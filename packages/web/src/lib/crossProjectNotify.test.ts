@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { ProjectQueue, ThreadView } from "@frizz/shared"
+import type { ProjectQueue, ThreadView } from "@ntwine/shared"
 import { notify } from "../api/board-stream.ts"
 import { store } from "../store.ts"
 import { queueArrivals } from "./crossProjectNotify.ts"

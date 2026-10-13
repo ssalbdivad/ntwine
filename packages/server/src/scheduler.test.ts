@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_TRAILER, QUESTION_DEFAULT_AFTER_MS, QUESTION_DEFAULT_ENGAGED_GRACE_MS, wakeDeliveryToken, type QuotaSnapshot } from "@frizz/shared"
+import { ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_TRAILER, QUESTION_DEFAULT_AFTER_MS, QUESTION_DEFAULT_ENGAGED_GRACE_MS, wakeDeliveryToken, type QuotaSnapshot } from "@ntwine/shared"
 import { createStorage, type Storage, type SessionRow } from "./storage.ts"
 import { ANSWER_REOFFER_BACKOFF_MS, createScheduler, enqueueInterruptEndedWake, enqueueThreadMessageWake, parsePrRef, ghPrViewArgs, evalRollup, parseGithubReviewActivities, isBotGithubActor, MID_TURN_HOLD_MAX_MS, type GithubReviewActivity, type PrRef, type PrStatus } from "./scheduler.ts"
 import { createGithubReviewFetcher, type GithubReviewFetchResult } from "./github-review.ts"
@@ -79,14 +79,14 @@ test("evalRollup: empty → pending; all-complete → done; in-progress → pend
 // ---- scheduler harness ----
 
 function tmpStorage(): Storage {
-  return createStorage(join(mkdtempSync(join(tmpdir(), "frizz-sched-")), "ui.db"), "p")
+  return createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-sched-")), "ui.db"), "p")
 }
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
     slug,
     session_id: `sid-${slug}`,
-    thread_name: `frizz-${slug}`,
+    thread_name: `ntwine-${slug}`,
     spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -124,7 +124,7 @@ function fakeTailer(map: Map<string, SessionTelemetry>): Tailer {
 
 interface Harness {
   storage: Storage
-  /** Register a PR watcher the way `mcp__frizz__watch_pr` does. A `pr-watch:` fence line DECLARES a wait
+  /** Register a PR watcher the way `mcp__ntwine__watch_pr` does. A `pr-watch:` fence line DECLARES a wait
    *  and no longer arms anything (2026-08-14), so every test below that expects a wake registers first. */
   watch(slug: string, ref: string, kind?: "pull" | "issue", by?: "worker" | "human"): void
   tele: Map<string, SessionTelemetry>
@@ -192,7 +192,7 @@ const iso = (ms: number) => new Date(ms).toISOString()
 
 // ARM A REAL TIMER ROW. The `timer: <ISO instant>` fence these tests used to arm from is deleted
 // (2026-08-15) — a worker computed that instant, and one wrote it 5h55m in the past, which parsed,
-// armed nothing and stalled its thread for 5.5 hours. `mcp__frizz__timer` creates the row; the
+// armed nothing and stalled its thread for 5.5 hours. `mcp__ntwine__timer` creates the row; the
 // scheduler fires it (SOURCE: evalTimers) through the same outbox path the fence used to feed.
 let timerSeq = 0
 function armTimer(h: Harness, slug: string, fireAtMs: number, prompt = "Re-poll the rollout."): string {
@@ -230,7 +230,7 @@ test("a fence arms NOTHING: an elapsed instant, a merged PR and a dead shell nev
 
 // ---- REGISTERED WATCHES: the expiry sweep and the finish sweep (2026-08-26) ----
 //
-// `mcp__frizz__watch` turns a wait from a line the worker restates at every rest into a row it creates
+// `mcp__ntwine__watch` turns a wait from a line the worker restates at every rest into a row it creates
 // once (plans/rest-by-registration.md). Two settle conditions, and only ONE of them is news:
 //
 //   • EXPIRED → settled, and the worker TOLD. The expiry is the whole mechanism that stops a
@@ -271,7 +271,7 @@ test("watch: an expired row is settled AND the worker is told, once", async () =
   assert.match(h.resumes[0].message, /Your watch on the background shell `bzvtnt3ig` has expired/)
   // The re-registration instruction is the point of telling it at all: the worker re-decides rather
   // than silently losing a wait it still holds.
-  assert.match(h.resumes[0].message, /register it again with `frizzctl watch` and a fresh `--for`/)
+  assert.match(h.resumes[0].message, /register it again with `ntwinectl watch` and a fresh `--for`/)
 })
 
 test("watch: a row whose shell has finished is settled SILENTLY", async () => {
@@ -289,7 +289,7 @@ test("watch: a row whose shell has finished is settled SILENTLY", async () => {
   assert.deepEqual(h.resumes, [], "the finish is not this pass's news to deliver")
 })
 
-test("watch: NO TELEMETRY is not `not live` — a healthy row survives a thread frizz cannot read", async () => {
+test("watch: NO TELEMETRY is not `not live` — a healthy row survives a thread ntwine cannot read", async () => {
   const h = harness()
   h.storage.upsertSession(row("t"))
   const id = armWatch(h, "t")
@@ -333,7 +333,7 @@ test("question: the first rest after a typed message withdraws nothing, and a ba
   const s = h.make()
   h.tele.set("t", { ...tele(), lastHumanAt: iso(humanAt), lastUserAt: iso(humanAt), lastAssistantAt: iso(humanAt + 2_000) })
   await s.tick()
-  assert.equal(h.storage.getThreadQuestion("qst_plain")?.state, "open", "Frizz never withdraws it")
+  assert.equal(h.storage.getThreadQuestion("qst_plain")?.state, "open", "Ntwine never withdraws it")
   assert.equal(h.resumes.length, 1)
   assert.match(h.resumes[0].message, /qst_plain/)
   assert.match(h.resumes[0].message, /questions:/)
@@ -374,12 +374,12 @@ test("question: an answer is handed over once, and the row is not re-delivered",
   await s.tick()
   await s.tick() // the row is delivered → must not go round again
   assert.equal(h.resumes.length, 1)
-  // THE WIRE FORM IS THE ATTRIBUTION. This lands as a frizz WAKE, and a wake renders as frizz's own
+  // THE WIRE FORM IS THE ATTRIBUTION. This lands as an ntwine WAKE, and a wake renders as ntwine's own
   // notification card unless the text is in the form the chat reads as the human's Answers card — which
   // it checks first. Getting it wrong does not fail; the answer just stops being the human's words on
   // screen (the 2026-08-27 regression).
   assert.match(h.resumes[0].message, /^Answers to earlier questions:$/m)
-  // IT RESTATES THE QUESTION, because the worker never saw the id — frizz minted it.
+  // IT RESTATES THE QUESTION, because the worker never saw the id — ntwine minted it.
   assert.match(h.resumes[0].message, /^1\. “SQLite or a JSON file\?” → SQLite$/m)
   assert.equal(h.storage.getThreadQuestion("qst_1")?.delivered, 1)
 })
@@ -460,7 +460,7 @@ test("question: a rested thread's unanswered question takes its recommended opti
   for (const id of ["qst_free", "qst_none", "qst_multi"]) assert.equal(h.storage.getThreadQuestion(id)?.state, "open", id)
   assert.equal(h.resumes.length, 1, "delivered in the same tick")
   // The pick and the note travel as upstream's checked-list answer (shared answerPicksText).
-  assert.match(h.resumes[0].message, /^1\. “Narrow the error rule\?” → - \[x\] Narrow\n {2}\n {2}No reply in 10m, so Frizz took the recommended option$/m)
+  assert.match(h.resumes[0].message, /^1\. “Narrow the error rule\?” → - \[x\] Narrow\n {2}\n {2}No reply in 10m, so Ntwine took the recommended option$/m)
   assert.match(h.resumes[0].message, /“Rewrite the brief\?” → Yes$/m)
   h.storage.close()
 })
@@ -611,7 +611,7 @@ test("question: answers that piled up as SEPARATE rows while none could go reach
   askQ(h, "t", "qst_2", "Which dist-tag?")
   askQ(h, "t", "qst_3", "Rename it first?")
   const s = h.make()
-  // No telemetry: frizz cannot read the thread, so nothing goes — but each answer is its own row, minted
+  // No telemetry: ntwine cannot read the thread, so nothing goes — but each answer is its own row, minted
   // by its own pass.
   answerQ(h, "qst_1", "Which store?", "SQLite")
   await s.tick()
@@ -627,7 +627,7 @@ test("question: answers that piled up as SEPARATE rows while none could go reach
   await s.tick()
   assert.equal(h.resumes.length, 1, "one delivery, not one per row")
   // ONE header and every row renumbered in order: the chat reads this by position, so a second header or
-  // a heading per part would print frizz's text inside the human's answer chip.
+  // a heading per part would print ntwine's text inside the human's answer chip.
   const lines = h.resumes[0].message.split("\n")
   assert.equal(lines.filter((line) => line === "Answers to earlier questions:").length, 1)
   assert.deepEqual(lines.filter((line) => /^\d+\. /.test(line)), ["1. “Which store?” → SQLite", "2. “Which dist-tag?” → next", "3. “Rename it first?” → No"])
@@ -957,13 +957,13 @@ test("registered future timer crosses during server downtime and fires exactly o
 
 // THE LEGACY `pr:` / `ci:` FENCE CONDITIONS ARE GONE, and the tests for them went with them
 // (2026-08-15). A fence used to name a PR or a CI target as free text and the scheduler polled it; that
-// is deleted, because a line frizz cannot check is a wait that can silently never resolve. A PR is now a
-// REGISTERED watcher — `mcp__frizz__watch_pr`, scheduler SOURCE 11 — and its coverage lives under
+// is deleted, because a line ntwine cannot check is a wait that can silently never resolve. A PR is now a
+// REGISTERED watcher — `mcp__ntwine__watch_pr`, scheduler SOURCE 11 — and its coverage lives under
 // "THE REGISTERED PR WATCHERS" below, including CI waking on every terminal transition in both
 // directions, which is strictly more than these ever pinned.
 
 // ---- THE REGISTERED PR WATCHERS (scheduler SOURCE 11) ----
-// A watcher exists because a worker called `mcp__frizz__watch_pr`, never because it wrote a fence line
+// A watcher exists because a worker called `mcp__ntwine__watch_pr`, never because it wrote a fence line
 // (2026-08-14). So every test here arms with `h.watch(slug, ref)`; the `pr-watch:` hint that sits beside
 // it in the telemetry is the DECLARATION the thread rests on, and arms nothing. Both are written here
 // because both are what a correct worker does — registering and then declaring what it waits on.
@@ -1439,7 +1439,7 @@ test("pr-watch: precise failures are coalesced in logs and recovery is explicit"
 // These tests are about the DELIVERY MACHINERY — crash boundaries, leases, retry windows, supersession
 // — and they only ever needed some source that fires at a known instant. That used to be a
 // `timer: <ISO instant>` fence, which is deleted (2026-08-15): a worker computed that instant and one
-// wrote it 5h55m in the past. The timer is now a ROW the worker creates through `mcp__frizz__timer`,
+// wrote it 5h55m in the past. The timer is now a ROW the worker creates through `mcp__ntwine__timer`,
 // so that is what arms these. Same enqueue → lease → deliver → ack path; only the source differs.
 let dueTimerSeq = 0
 function dueTimer(h: Harness, slug: string, delayMs = 1_000): { target: number; id: string } {
@@ -1629,7 +1629,7 @@ test("a pending wake whose timer is cancelled becomes superseded without deliver
   await scheduler.tick()
   h.clock.ms = target + 1
   await assert.rejects(scheduler.tick(), /simulated scheduler hard crash/)
-  // The worker withdrew it (`mcp__frizz__timer` action "cancel") before the enqueued wake went out.
+  // The worker withdrew it (`mcp__ntwine__timer` action "cancel") before the enqueued wake went out.
   h.storage.cancelThreadTimer("human-won", id, h.clock.ms)
 
   await h.make().tick()
@@ -1725,7 +1725,7 @@ test("attempt counts surface only where they inform: the failure, then the deliv
 })
 
 test("two scheduler instances on separate SQLite connections atomically claim one wake", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sched-concurrent-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sched-concurrent-"))
   const path = join(dir, "ui.db")
   const firstStorage = createStorage(path, "p")
   const secondStorage = createStorage(path, "p")
@@ -2028,7 +2028,7 @@ test("limit: a MODEL-scoped cap steps the thread down a rung and restarts it imm
   const s = h.make()
   await s.tick()
   assert.deepEqual(h.resumes.map((r) => r.slug), ["m"], "the account still has capacity — only Fable ran out")
-  assert.match(h.resumes[0].message, /The Fable 5 limit that interrupted you is still closed — frizz restarted this thread on Opus\. Continue/)
+  assert.match(h.resumes[0].message, /The Fable 5 limit that interrupted you is still closed — ntwine restarted this thread on Opus\. Continue/)
   const after = h.storage.getSession("m")
   assert.equal(after?.model, "opus", "the cold resume forks from the row, so the new model has to be persisted")
   assert.equal(after?.effort, "high", "the thread's own effort rides across when the target offers it")
@@ -2068,7 +2068,7 @@ test("limit: a cap on a model this thread is NOT running leaves its profile alon
 })
 
 test("limit: a thread with LIVE background work is never restarted onto another model", async () => {
-  // The switch only takes effect through a cold fork, and frizz does not kill a live child to restart
+  // The switch only takes effect through a cold fork, and ntwine does not kill a live child to restart
   // a thread on its own initiative. Same fail-closed predicate the resume's freshProcess decision uses.
   const h = limitHarness()
   const faultAt = "2026-08-31T17:31:18.427Z"
@@ -2101,7 +2101,7 @@ test("limit: capping the rung below steps down AGAIN, and the walk is what makes
   await s.tick()
   assert.equal(h.storage.getSession("m")?.model, "sonnet")
   assert.deepEqual(h.resumes.map((r) => r.slug), ["m", "m"])
-  assert.match(h.resumes[1].message, /The Opus 5 limit .* frizz restarted this thread on Sonnet\./)
+  assert.match(h.resumes[1].message, /The Opus 5 limit .* ntwine restarted this thread on Sonnet\./)
 
   // …and a fault that names a model the thread is no longer on (the switch never took) cannot walk it
   // any further: the guard declines and the thread falls back to waiting.
@@ -2135,7 +2135,7 @@ test("limit: with the Fable fallback ON, a session-limited thread restarts on Fa
   const s = h.make({ readQuota: fableQuota(40), fableFallback: () => true })
   await s.tick()
   assert.deepEqual(h.resumes.map((r) => r.slug), ["f"], "Fable's own budget has room, so nothing waits for the 5h reset")
-  assert.match(h.resumes[0].message, /The session limit that interrupted you is still closed — frizz restarted this thread on Fable\. Continue/)
+  assert.match(h.resumes[0].message, /The session limit that interrupted you is still closed — ntwine restarted this thread on Fable\. Continue/)
   const after = h.storage.getSession("f")
   assert.equal(after?.model, "fable", "persisted before the wake, so the cold fork carries it")
   assert.equal(after?.effort, "xhigh")
@@ -2360,7 +2360,7 @@ test("snooze: a snooze WITHOUT a prompt never wakes the agent (it is a reminder 
 test("snooze: an OVERDUE snooze found at boot does fire — unlike an unregistered timer fence", async () => {
   // The deliberate divergence from the boot-mass-fire guard. A fence hint is only a claim in a
   // transcript, so an already-past one is untrustworthy; a snooze row is an explicit durable promise
-  // the human made, so a deadline that crossed while frizz was down is exactly what it is FOR.
+  // the human made, so a deadline that crossed while ntwine was down is exactly what it is FOR.
   const h = harness()
   h.storage.upsertSession(snoozeRow("s", iso(h.clock.ms - 3 * 3_600_000), "Pick this back up."))
   h.tele.set("s", tele())
@@ -2971,7 +2971,7 @@ test("shell: a thread that signed off done is not woken when a shell it walked a
   await s.tick()
   assert.deepEqual(h.resumes, [], "a fenced done is done")
 
-  // Registered done (`mcp__frizz__done`), the rest itself bare.
+  // Registered done (`mcp__ntwine__done`), the rest itself bare.
   h.storage.markThreadDone("d", "shipped", Date.parse(rested) + 1)
   h.tele.set("d", { ...tele(), lastAssistantAt: rested, retiredShells: [retired] })
   await s.tick()
@@ -3279,7 +3279,7 @@ test("coalesce: the mid-turn hold has a ceiling — a wake held longer than MID_
 })
 
 // ---- ISSUE WATCHERS (2026-09-14) ------------------------------------------------------------------------
-// `mcp__frizz__watch_issue` arms a `pr_watch` row with `kind: "issue"`. The poll asks GitHub for the ISSUE,
+// `mcp__ntwine__watch_issue` arms a `pr_watch` row with `kind: "issue"`. The poll asks GitHub for the ISSUE,
 // never falls back to `gh pr view`, baselines what predates the registration exactly as a PR watcher
 // does, and reports comments, label and assignee movement, and the close — with the issue's own trailer.
 const issueSnap = (over: Partial<NonNullable<Extract<GithubReviewFetchResult, { status: "ok" }>["issue"]>> = {}) =>
@@ -3358,7 +3358,7 @@ test("issue-watch: the expiry wake names the issue tool, not watch_pr", async ()
   assert.equal(h.resumes.length, 1)
   assert.match(h.resumes[0].message, /Your watcher on acme\/app#7 has expired/)
   assert.match(h.resumes[0].message, /nothing on that issue will wake/)
-  assert.match(h.resumes[0].message, /`frizzctl watch-issue add`/)
+  assert.match(h.resumes[0].message, /`ntwinectl watch-issue add`/)
 })
 
 // ---- SOURCE 10: THE INTERRUPT NOTE (interrupt-ended.ts) ----

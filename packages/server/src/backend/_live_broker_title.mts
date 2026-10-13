@@ -4,7 +4,7 @@
 // `ai-title` transcript record — and that the tailer surfaces it as the board's `aiTitle`.
 //
 // The bug this guards: Claude Code's automatic titling is suppressed on the Agent-SDK transport
-// whenever a SessionStart hook is registered, which is always true for a frizz broker worker. With no
+// whenever a SessionStart hook is registered, which is always true for an ntwine broker worker. With no
 // `ai-title` record the board shows "Spinning up a thread…" for SPIN_UP_MS and then falls back to a
 // truncation of the raw dispatch prompt, forever. The broker therefore ASKS for the title explicitly
 // (claude-agent-broker.ts → seedSessionTitle → generate_session_title with persist).
@@ -18,14 +18,14 @@ import { createContext } from "../context.ts"
 import { resolveProject } from "../project.ts"
 import { claudeBrokerRecordPath, readBrokerRecord } from "./claude-broker-host.ts"
 
-process.env.FRIZZ_CLAUDE_BROKER_BRIDGE = "1"
+process.env.NTWINE_CLAUDE_BROKER_BRIDGE = "1"
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const repo = mkdtempSync(join(tmpdir(), "brk-title-repo-"))
 execFileSync("git", ["init", "-q", repo]); execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"])
-// A throwaway home for Frizz's own state. resolveProject REGISTERS the directory it resolves, and
+// A throwaway home for Ntwine's own state. resolveProject REGISTERS the directory it resolves, and
 // under the real home that is the operator's project list: every run left a dead card on their rail.
-const frizzHome = mkdtempSync(join(tmpdir(), "brk-title-home-"))
-const project = resolveProject(repo, frizzHome)
+const ntwineHome = mkdtempSync(join(tmpdir(), "brk-title-home-"))
+const project = resolveProject(repo, ntwineHome)
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -72,7 +72,7 @@ try {
 } finally {
   try { if (daemonPid) process.kill(daemonPid, "SIGKILL") } catch {}
   rmSync(repo, { recursive: true, force: true })
-  try { rmSync(frizzHome, { recursive: true, force: true }) } catch {}
+  try { rmSync(ntwineHome, { recursive: true, force: true }) } catch {}
   try { rmSync(join(homedir(), ".claude", "projects", project.cwdSlug), { recursive: true, force: true }) } catch {}
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`)
   process.exit(failures === 0 ? 0 : 1)

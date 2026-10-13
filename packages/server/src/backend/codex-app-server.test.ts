@@ -10,7 +10,7 @@ import { createInteractionStore, InteractionStoreError } from "../interaction-st
 import { createStorage, type SessionRow } from "../storage.ts"
 import { directChildHost } from "./codex-app-server-host.ts"
 import { CodexExecutionHealth } from "./codex-execution-health.ts"
-import { FRIZZ_MCP } from "./types.ts"
+import { NTWINE_MCP } from "./types.ts"
 import {
   CODEX_APP_SERVER_PROTOCOL_REVISION,
   CODEX_APP_SERVER_SUPPORTED_VERSION,
@@ -149,7 +149,7 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
       this.send({
         id,
         result: {
-          userAgent: `frizz/${this.version} (test; bridge)`,
+          userAgent: `ntwine/${this.version} (test; bridge)`,
           codexHome: "/tmp/fake-codex-home",
           platformFamily: "unix",
           platformOs: "macos",
@@ -246,10 +246,10 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
         cwd,
         errors: [],
         skills: [
-          { name: "frizz-stack", description: "Boot a disposable Frizz", enabled: true, path: `${cwd}/.agents/skills/frizz-stack/SKILL.md`, scope: "repo" },
+          { name: "ntwine-stack", description: "Boot a disposable Ntwine", enabled: true, path: `${cwd}/.agents/skills/ntwine-stack/SKILL.md`, scope: "repo" },
           { name: "agent-browser", description: "Drive a browser", enabled: true, path: "/home/x/.agents/skills/agent-browser/SKILL.md", scope: "user" },
           { name: "imagegen", description: "Generate an image", enabled: true, path: "/home/x/.codex/skills/.system/imagegen/SKILL.md", scope: "system" },
-          { name: "from-the-future", description: "Resolved from a root frizz has no name for", enabled: true, path: "/elsewhere/SKILL.md", scope: "someFutureRoot" },
+          { name: "from-the-future", description: "Resolved from a root ntwine has no name for", enabled: true, path: "/elsewhere/SKILL.md", scope: "someFutureRoot" },
           { name: "switched-off", description: "Present on disk but disabled", enabled: false, path: `${cwd}/off/SKILL.md`, scope: "user" },
         ],
       })) } })
@@ -274,9 +274,9 @@ function harness(
   attachmentAccountId?: (requested: string | undefined, attachment: number) => string | undefined,
   authReplacementWaitMs?: number,
   getSettings?: () => { codexContextWindow?: number },
-  frizzMcp?: import("./types.ts").FrizzMcp,
+  ntwineMcp?: import("./types.ts").NtwineMcp,
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-codex-app-server-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-app-server-"))
   const dbPath = join(dir, "ui.db")
   const db = new Database(dbPath)
   db.pragma("journal_mode = WAL")
@@ -321,7 +321,7 @@ function harness(
       codexAuthAccountId: codexAuthAccountId ?? (() => undefined),
       ...(authReplacementWaitMs === undefined ? {} : { authReplacementWaitMs }),
       ...(getSettings ? { getSettings } : {}),
-      ...(frizzMcp ? { frizzMcp } : {}),
+      ...(ntwineMcp ? { ntwineMcp } : {}),
     })
     bridges.push(bridge)
     return bridge
@@ -447,7 +447,7 @@ test("an existing thread uses a newly activated ChatGPT account on its next turn
   const h = harness(CODEX_APP_SERVER_SUPPORTED_VERSION, undefined, () => accountId)
   const binding = await h.bridge.startDisposableSession({
     threadSlug: "rotated-account",
-    sessionId: "frizz-session-account",
+    sessionId: "ntwine-session-account",
     cwd: h.dir,
     ephemeral: false,
   })
@@ -552,7 +552,7 @@ function sessionRow(slug: string, sessionId: string, backend = "claude"): Sessio
   return {
     slug,
     session_id: sessionId,
-    thread_name: `frizz-${slug}`,
+    thread_name: `ntwine-${slug}`,
     spawned_at: "2026-07-13T12:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -575,25 +575,25 @@ test("bridge is the sole codex transport (always enabled) and negotiates exact i
   const h = harness()
   const binding = await h.bridge.startDisposableSession({
     threadSlug: "bridge-thread",
-    sessionId: "frizz-session-1",
+    sessionId: "ntwine-session-1",
     cwd: h.dir,
   })
   assert.equal(binding.ephemeral, true)
   assert.equal(h.calls.length, 1)
   // `app-server <mcp -c overrides…> --stdio`. The overrides sit BETWEEN the subcommand and the
   // transport flag, and carrying them is why this is no longer a bare two-element argv: codex has no
-  // `--mcp-config`, so frizz's MCP server can only reach a worker as process-level `-c` config on the
+  // `--mcp-config`, so ntwine's MCP server can only reach a worker as process-level `-c` config on the
   // app-server itself (see codex-mcp.ts). Asserted structurally rather than byte-for-byte so adding an
-  // override does not fail this test. This harness supplies NO frizz descriptor, so no `mcp_servers.*`
-  // override is expected: frizz mounts the `frizz` server or nothing at all — the always-on
-  // chrome-devtools mount was removed 2026-08-26. The frizz mount's own shape is pinned in
+  // override does not fail this test. This harness supplies NO ntwine descriptor, so no `mcp_servers.*`
+  // override is expected: ntwine mounts the `ntwine` server or nothing at all — the always-on
+  // chrome-devtools mount was removed 2026-08-26. The ntwine mount's own shape is pinned in
   // codex-mcp.test.ts.
   const args = h.calls[0]!.args
   assert.equal(args[0], "app-server")
   assert.equal(args[args.length - 1], "--stdio")
   assert.ok(args.includes("-c"), "app-server argv carries no -c overrides")
   assert.ok(!args.some((a) => a.startsWith("mcp_servers.")), "nothing should be mounted without a descriptor")
-  assert.ok(!args.some((a) => a.includes("chrome-devtools")), "frizz must inject no browser")
+  assert.ok(!args.some((a) => a.includes("chrome-devtools")), "ntwine must inject no browser")
   assert.ok(args.some((a) => a === 'default_tools_approval_mode="approve"'), "MCP calls would be cancelled at use")
   assert.equal(h.calls[0]!.binary, "/opt/codex")
   // Spelled out rather than derived, on purpose: this is the ONE place the audited coordinate has to
@@ -632,14 +632,14 @@ test("bridge is the sole codex transport (always enabled) and negotiates exact i
   h.close()
 })
 
-// The app-server inherits the operator's environment and drops only frizz's OWN control plane. This
+// The app-server inherits the operator's environment and drops only ntwine's OWN control plane. This
 // REVERSES a prior ~35-key allowlist (see worker-env.ts for the full reasoning): the curated lists had
 // drifted between backends — this one carried HTTP_PROXY/SSL_CERT_FILE and the claude ones did not, so
 // the same task succeeded or failed depending on which backend the operator picked — and none of them
 // carried SSH_AUTH_SOCK or any toolchain variable, so a build inside a worker diverged from the same
 // build in the operator's shell. This is explicitly NOT a secrets boundary: a worker has a shell and
 // filesystem read, so anything worth stealing is already on disk.
-test("child environment inherits the operator's variables and withholds only frizz's own control plane", () => {
+test("child environment inherits the operator's variables and withholds only ntwine's own control plane", () => {
   const source: NodeJS.ProcessEnv = {
     HOME: "/Users/tester",
     PATH: "/opt/codex/bin:/usr/bin",
@@ -651,23 +651,23 @@ test("child environment inherits the operator's variables and withholds only fri
     SSH_AUTH_SOCK: "/tmp/ssh-agent.sock",
     NVM_DIR: "/Users/tester/.nvm",
     GITHUB_TOKEN: "github-secret",
-    FRIZZ_CLAUDE_BROKER: "frizz-daemon-payload",
-    FRIZZ_LAUNCH_OWNER_TOKEN: "frizz-owner-secret",
+    NTWINE_CLAUDE_BROKER: "ntwine-daemon-payload",
+    NTWINE_LAUNCH_OWNER_TOKEN: "ntwine-owner-secret",
     UNDEFINED_ENTRY: undefined,
   }
   const environment = codexAppServerEnvironment(source)
   assert.notEqual(environment, source, "the child gets a point-in-time snapshot, not the live object")
 
-  // The two things that must never cross: frizz's daemon payload and its launch identity. Asserted
+  // The two things that must never cross: ntwine's daemon payload and its launch identity. Asserted
   // BEFORE the deepEqual below, whose `asserts actual is T` signature narrows `environment` to the
   // literal and would make these lookups a type error.
-  assert.equal(environment.FRIZZ_CLAUDE_BROKER, undefined)
-  assert.equal(environment.FRIZZ_LAUNCH_OWNER_TOKEN, undefined)
-  assert.equal(JSON.stringify(environment).includes("frizz-owner-secret"), false)
+  assert.equal(environment.NTWINE_CLAUDE_BROKER, undefined)
+  assert.equal(environment.NTWINE_LAUNCH_OWNER_TOKEN, undefined)
+  assert.equal(JSON.stringify(environment).includes("ntwine-owner-secret"), false)
   // An undefined value is dropped rather than forwarded as the string "undefined".
   assert.equal("UNDEFINED_ENTRY" in environment, false)
 
-  // Everything that is not frizz's own — including the variables the old allowlist silently dropped.
+  // Everything that is not ntwine's own — including the variables the old allowlist silently dropped.
   assert.deepEqual(environment, {
     HOME: source.HOME,
     PATH: source.PATH,
@@ -686,7 +686,7 @@ test("command response is written once and the journal resolves only after serve
   const h = harness()
   const binding = await h.bridge.startDisposableSession({
     threadSlug: "bridge-thread",
-    sessionId: "frizz-session-1",
+    sessionId: "ntwine-session-1",
     cwd: h.dir,
   })
   const { turnId } = await h.bridge.startTurn({
@@ -1265,7 +1265,7 @@ test("only locally witnessed turn ids may own provider requests and notification
 })
 
 // A codex thread goal makes the app-server open a continuation turn BY ITSELF the instant the previous
-// one completes, on the connection Frizz holds. Ignoring that `turn/started` left `current_turn_id`
+// one completes, on the connection Ntwine holds. Ignoring that `turn/started` left `current_turn_id`
 // null for the turn's whole life: the operator's steer was refused as an outside writer and the board
 // saw no bridge turn (live 2026-09-10). Such a turn is adopted, steered, and retired like a local one.
 test("a turn the app-server starts on its own is adopted as the current turn and steerable", async () => {
@@ -1298,13 +1298,13 @@ test("listSkills asks the app-server for the session cwd's skills and drops disa
   const h = harness()
   const binding = await h.bridge.startDisposableSession({ threadSlug: "skills-thread", sessionId: "skills-session", cwd: h.dir })
   const skills = await h.bridge.listSkills(binding.threadSlug, binding.sessionId)
-  // Codex's own scope vocabulary, normalized: repo→project, user→user, system→builtin. A scope frizz
+  // Codex's own scope vocabulary, normalized: repo→project, user→user, system→builtin. A scope ntwine
   // has no mapping for keeps its row and loses only its label — a wrong label is worse than none.
   assert.deepEqual(skills, [
-    { name: "frizz-stack", description: "Boot a disposable Frizz", source: "project" },
+    { name: "ntwine-stack", description: "Boot a disposable Ntwine", source: "project" },
     { name: "agent-browser", description: "Drive a browser", source: "user" },
     { name: "imagegen", description: "Generate an image", source: "builtin" },
-    { name: "from-the-future", description: "Resolved from a root frizz has no name for", source: undefined },
+    { name: "from-the-future", description: "Resolved from a root ntwine has no name for", source: undefined },
   ])
   const request = h.processes[0]!.clientRequests.find((message) => message.method === "skills/list")!
   assert.deepEqual(request.params, { cwds: [h.dir] })
@@ -1337,7 +1337,7 @@ test("steerTurn injects into the active turn; interruptTurn cancels it and is a 
 
 // interruptTurn is the ONLY thing that stops an app-server Codex worker (there is no pane to kill),
 // and since the app-server moved into a detached daemon a turn it fails to stop has no backstop — it
-// keeps running with no frizz-side owner. So it must never report a stop that did not happen, and the
+// keeps running with no ntwine-side owner. So it must never report a stop that did not happen, and the
 // router marks the row exited/done strictly on its word.
 test("interruptTurn is honest: a turn that ended under it is 'nothing to stop', a rejection while it still runs is a failure", async () => {
   const h = harness()
@@ -1443,7 +1443,7 @@ test("a turn never survives its connection: rebinding clears the dead turn so fo
 })
 
 // A bridge constructed at server boot owns no connection, so no binding it INHERITS can still be
-// active. Without this, a SIGKILLed frizz (close() never ran) left rows claiming `active` at the last
+// active. Without this, a SIGKILLed ntwine (close() never ran) left rows claiming `active` at the last
 // epoch, and every ownership check — including the board's liveness read — took that at face value.
 test("a fresh bridge inherits no active bindings: boot detaches what a SIGKILLed process abandoned", async () => {
   const h = harness()
@@ -1470,30 +1470,30 @@ test("a fresh bridge inherits no active bindings: boot detaches what a SIGKILLed
   h.close()
 })
 
-// The resume a Frizz RESTART issues: the fresh bridge's warmUp() reconciles every row that was mid-turn
-// when its app-server died. That `thread/resume` carried no per-thread frizz mount until 2026-09-18, so
+// The resume an Ntwine RESTART issues: the fresh bridge's warmUp() reconciles every row that was mid-turn
+// when its app-server died. That `thread/resume` carried no per-thread ntwine mount until 2026-09-18, so
 // a codex worker that was working through a restart came back onto the new app-server with no
-// `mcp__frizz__*` at all and could neither ask nor sign off (hypergres/this-is-a-fresh-project-i: "The
-// restart removed Frizz's question-registration tool"). The argv mount is no fallback on that path —
+// `mcp__ntwine__*` at all and could neither ask nor sign off (hypergres/this-is-a-fresh-project-i: "The
+// restart removed Ntwine's question-registration tool"). The argv mount is no fallback on that path —
 // see codexThreadMcpConfig — so the mount has to ride this resume exactly as it rides the lazy one.
-test("a mid-turn thread reconciled onto a FRESH app-server carries the per-thread frizz mount on its thread/resume", async () => {
+test("a mid-turn thread reconciled onto a FRESH app-server carries the per-thread ntwine mount on its thread/resume", async () => {
   const h = harness(undefined, undefined, undefined, undefined, undefined, undefined, {
-    scriptPath: "/plugin/bin/frizz-mcp.mjs", stateDir: "/state/project-1", projectId: "project-1",
+    scriptPath: "/plugin/bin/ntwine-mcp.mjs", stateDir: "/state/project-1", projectId: "project-1",
   })
   const binding = await h.bridge.startDisposableSession({ threadSlug: "mid-turn", sessionId: "mid-turn-session", cwd: h.dir, ephemeral: false })
   const { turnId } = await h.bridge.startTurn({ threadSlug: binding.threadSlug, sessionId: binding.sessionId, text: "Work" })
   await waitFor(() => h.bridge.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === turnId, "turn active")
 
-  // A SIGKILLed frizz: close() never ran, the row still says active with a turn — the boot reconcile
+  // A SIGKILLed ntwine: close() never ran, the row still says active with a turn — the boot reconcile
   // is the only thing that will ever resume it.
   const restarted = h.newBridge()
   await restarted.warmUp()
   const resume = h.processes[1]!.clientRequests.find((message) => message.method === "thread/resume")!
   const config = (resume.params as Message).config as { mcp_servers: Record<string, { env: Record<string, string>; cwd: string; default_tools_approval_mode: string }> }
-  const frizz = config.mcp_servers[FRIZZ_MCP.name]!
-  assert.equal(frizz.env.FRIZZ_THREAD_SLUG, "mid-turn", "the resumed thread must know who it is")
-  assert.equal(frizz.default_tools_approval_mode, "approve")
-  assert.equal(frizz.cwd, "/state/project-1")
+  const ntwine = config.mcp_servers[NTWINE_MCP.name]!
+  assert.equal(ntwine.env.NTWINE_THREAD_SLUG, "mid-turn", "the resumed thread must know who it is")
+  assert.equal(ntwine.default_tools_approval_mode, "approve")
+  assert.equal(ntwine.cwd, "/state/project-1")
   assert.equal((resume.params as Message).cwd, undefined, "a recorded cwd that still exists is left alone")
   // ...and the recovery nudge went out on the mounted thread, as before.
   assert.ok(h.processes[1]!.clientRequests.some((message) => message.method === "turn/start"), "the interrupted turn is auto-resumed")
@@ -1559,7 +1559,7 @@ test("the Codex context window from Settings rides thread/start AND a cold threa
   assert.equal(startConfig.model_reasoning_summary, "detailed")
 
   // The operator raises the window while the thread is detached; the resume by a FRESH app-server (the
-  // one after a daemon death or a Frizz restart) is exactly when a thread would otherwise keep the old
+  // one after a daemon death or an Ntwine restart) is exactly when a thread would otherwise keep the old
   // window for the rest of its life.
   settings.codexContextWindow = 1_000_000
   const restarted = h.newBridge()
@@ -1800,7 +1800,7 @@ test("restart never blindly replays a sent response, and retires the card whose 
   const h = harness()
   const binding = await h.bridge.startDisposableSession({
     threadSlug: "persisted-thread",
-    sessionId: "frizz-session-persisted",
+    sessionId: "ntwine-session-persisted",
     cwd: h.dir,
     ephemeral: false,
   })
@@ -2107,7 +2107,7 @@ test("secret user-input capability is unavailable instead of rendering an unusab
 })
 
 test("an OLDER Codex fails negotiation before any thread is created", async () => {
-  // The floor. An older binary may genuinely lack params frizz sends, and that is the direction where
+  // The floor. An older binary may genuinely lack params ntwine sends, and that is the direction where
   // proceeding produces silent misbehaviour rather than a loud failure.
   const h = harness("0.143.0")
   await assert.rejects(
@@ -2132,7 +2132,7 @@ function aheadOfPin(): string {
 test("a NEWER Codex RUNS, and records that it is ahead of the audit", async () => {
   // This case used to be a hard refusal, and that made one `npm i -g @openai/codex` a total,
   // permanent Codex outage: no fallback transport, every operation gated behind ensureConnected, recovery
-  // only by editing a source constant and rebuilding frizz. codex ships a stable roughly every two
+  // only by editing a source constant and rebuilding ntwine. codex ships a stable roughly every two
   // days, so the pin is behind a published stable almost immediately after every re-audit.
   // Derived from the pin rather than written as a literal: a re-pin used to silently turn this test's
   // hardcoded "newer" version into an OLDER one, testing the refusal path under the ahead path's name.
@@ -2184,7 +2184,7 @@ test("shutdown re-detaches a binding written by an operation already past its RP
 })
 
 test("registry replacement releases only its exact native binding, process requests, and delivery authority", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-codex-lifecycle-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-lifecycle-"))
   const storage = createStorage(join(dir, "ui.db"), "project-1")
   const processes: FakeAppServerProcess[] = []
   const bridge = new CodexAppServerBridge({
@@ -2292,7 +2292,7 @@ test("bridge close detaches persisted bindings and makes pending delivery rows n
   assert.equal(h.processes[0]!.killed, true)
   assert.equal(h.bridge.ownsInteraction(scope, pending.id), false)
   const persisted = h.db.prepare<[string], { state: string; current_turn_id: string | null }>(`
-    SELECT state, current_turn_id FROM codex_app_server_session WHERE project_id = 'project-1' AND frizz_session_id = ?
+    SELECT state, current_turn_id FROM codex_app_server_session WHERE project_id = 'project-1' AND ntwine_session_id = ?
   `).get(binding.sessionId)
   assert.deepEqual(persisted, { state: "detached", current_turn_id: turnId })
   assert.equal(h.interactions.providerDelivery(scope, pending.id)?.state, "awaiting-user")
@@ -2300,7 +2300,7 @@ test("bridge close detaches persisted bindings and makes pending delivery rows n
 })
 
 test("bridge persistence refuses malformed or future authority schemas before spawning Codex", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-codex-app-server-corrupt-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-app-server-corrupt-"))
   const dbPath = join(dir, "ui.db")
   const db = new Database(dbPath)
   const interactions = createInteractionStore(db)
@@ -2359,9 +2359,9 @@ test("bridge persistence refuses malformed or future authority schemas before sp
  *  fields are the entire input to the bridge's "did my turns survive?" decision. */
 function scriptedHostHarness(
   script: () => { generation: string; reattached: boolean; droppedWhileDetached: number; serviceExitCode?: number },
-  worker: Pick<import("./codex-app-server.ts").CodexAppServerBridgeOptions, "frizzMcp" | "mountsMcp" | "frizzCli" | "workerConfig"> = {},
+  worker: Pick<import("./codex-app-server.ts").CodexAppServerBridgeOptions, "ntwineMcp" | "mountsMcp" | "ntwineCli" | "workerConfig"> = {},
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-codex-attachment-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-attachment-"))
   const dbPath = join(dir, "ui.db")
   const db = new Database(dbPath)
   db.pragma("journal_mode = WAL")
@@ -2372,7 +2372,7 @@ function scriptedHostHarness(
   const processes: FakeAppServerProcess[] = []
   const bridges: CodexAppServerBridge[] = []
   /** What each app-server was STARTED with — its process-wide config, as opposed to a thread's bag. */
-  const hostCalls: Array<{ frizzMcp?: unknown }> = []
+  const hostCalls: Array<{ ntwineMcp?: unknown }> = []
   let nextResumeThreadStatus: { type: string; activeFlags?: string[] } | undefined
   let nextBackgroundTerminals: Record<string, Array<Record<string, unknown>>> | undefined
   const newBridge = () => {
@@ -2383,7 +2383,7 @@ function scriptedHostHarness(
       interactions,
       codexBin: "/opt/codex",
       host: async (options) => {
-        hostCalls.push({ frizzMcp: options.frizzMcp })
+        hostCalls.push({ ntwineMcp: options.ntwineMcp })
         const process_ = new FakeAppServerProcess()
         // Applied at CREATION: the reconnect's process does not exist until the bridge connects, which
         // is the same call whose reconciliation the status has to steer.
@@ -2461,7 +2461,7 @@ test("a lossless reattach to the same app-server keeps the in-flight turn exactl
   })
   const { turnId } = await bridge.startTurn({ threadSlug: binding.threadSlug, sessionId: binding.sessionId, text: "Work" })
   await waitFor(() => bridge.binding(binding.threadSlug, binding.sessionId)?.currentTurnId === turnId, "turn active")
-  bridge.close() // the frizz runtime is recycled; the daemon and the turn keep going
+  bridge.close() // the ntwine runtime is recycled; the daemon and the turn keep going
 
   plan = { generation: "gen-A", reattached: true, droppedWhileDetached: 0 }
   const restarted = h.newBridge()
@@ -2567,7 +2567,7 @@ test("a reattach that lost events is not a rejoin: the thread resumes instead of
 
 // ---- a background exec survives a rejoin, and so must its row -----------------------------------
 // A yielded exec keeps running in the app-server's PTY after the turn that started it, and the
-// app-server outlives both a Frizz restart and a dropped socket. Its `item/started` went to the client
+// app-server outlives both an Ntwine restart and a dropped socket. Its `item/started` went to the client
 // that is gone and is never sent again, so the row (and its ×) used to vanish on every rejoin until the
 // exec ended. These pin the re-seed from `thread/backgroundTerminals/list`, and the cases that must NOT
 // seed.
@@ -2591,14 +2591,14 @@ async function threadWithBackgroundExec(h: ReturnType<typeof scriptedHostHarness
   return { binding, terminal }
 }
 
-test("a Frizz restart that rejoins the same app-server re-learns a background exec that is still running", async () => {
+test("an Ntwine restart that rejoins the same app-server re-learns a background exec that is still running", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
   const h = scriptedHostHarness(() => plan)
   try {
     const bridge = h.newBridge()
     const { binding, terminal } = await threadWithBackgroundExec(h, bridge, "bg-restart")
     const quiet = await bridge.startDisposableSession({ threadSlug: "bg-quiet", sessionId: "bg-quiet-session", cwd: h.dir, ephemeral: false })
-    bridge.close() // frizz restarts; the listener and its PTY keep going
+    bridge.close() // ntwine restarts; the listener and its PTY keep going
 
     // Every native reattach is lossy by construction (droppedWhileDetached: 1) — and it is still the
     // same process, so its PTYs are still the ones the list names.
@@ -2710,7 +2710,7 @@ test("a NEW app-server is never asked for background execs: its processIds name 
 // to rebuilds it; the resume of a mid-turn or subscribed thread ignores the bag. These pin what the
 // bridge does about both — and that it never rebuilds a thread under a turn or a background command.
 
-const WORKER_MCP = { scriptPath: "/gen-b/cc-worker/bin/frizz-mcp.mjs", stateDir: "/state/project-1", projectId: "project-1" }
+const WORKER_MCP = { scriptPath: "/gen-b/cc-worker/bin/ntwine-mcp.mjs", stateDir: "/state/project-1", projectId: "project-1" }
 const workerHooks = (_slug: string, sessionId: string) => ({
   model_reasoning_summary: "detailed",
   hooks: { SessionStart: [`scratchpad --session=${sessionId}`] },
@@ -2724,14 +2724,14 @@ const bagOf = (request: Message): Record<string, unknown> | undefined =>
 
 test("a worker's hooks ride thread/start and every thread/resume, and a resume sends the same bag the start did", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
-  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, workerConfig: workerHooks })
   try {
     const bridge = h.newBridge()
     const binding = await bridge.startDisposableSession({ threadSlug: "hooked", sessionId: "hooked-session", cwd: h.dir, ephemeral: false })
     const started = bagOf(requestsOf(h.processes[0]!, "thread/start")[0]!)!
     assert.equal(started.model_reasoning_summary, "detailed")
     assert.deepEqual(started.hooks, { SessionStart: ["scratchpad --session=hooked-session"] })
-    assert.ok((started.mcp_servers as Record<string, unknown>)[FRIZZ_MCP.name], "beside the thread's own MCP mount")
+    assert.ok((started.mcp_servers as Record<string, unknown>)[NTWINE_MCP.name], "beside the thread's own MCP mount")
 
     // A disposable session is not a worker: it gets the mount and none of a worker's hooks.
     await bridge.startDisposableSession({ threadSlug: "probe", sessionId: "probe-session", cwd: h.dir })
@@ -2755,8 +2755,8 @@ test("a worker's hooks ride thread/start and every thread/resume, and a resume s
 test("each thread's shell is told which thread it is, at thread/start and again at thread/resume", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
   const cli = { binDir: "/gen-b/cc-worker/bin", stateDir: "/state/project-1", projectId: "project-1" }
-  const h = scriptedHostHarness(() => plan, { frizzCli: cli })
-  const who = (bag: Record<string, unknown> | undefined) => bag?.["shell_environment_policy.set.FRIZZ_THREAD_SLUG"]
+  const h = scriptedHostHarness(() => plan, { ntwineCli: cli })
+  const who = (bag: Record<string, unknown> | undefined) => bag?.["shell_environment_policy.set.NTWINE_THREAD_SLUG"]
   try {
     const bridge = h.newBridge()
     const one = await bridge.startDisposableSession({ threadSlug: "thread-one", sessionId: "session-one", cwd: h.dir, ephemeral: false })
@@ -2764,8 +2764,8 @@ test("each thread's shell is told which thread it is, at thread/start and again 
     const [first, second] = requestsOf(h.processes[0]!, "thread/start").map(bagOf)
     assert.equal(who(first), "thread-one")
     assert.equal(who(second), "thread-two")
-    assert.equal(first!["shell_environment_policy.set.FRIZZ_STATE_DIR"], "/state/project-1")
-    assert.equal(first!["shell_environment_policy.set.FRIZZ_PROJECT_ID"], "project-1")
+    assert.equal(first!["shell_environment_policy.set.NTWINE_STATE_DIR"], "/state/project-1")
+    assert.equal(first!["shell_environment_policy.set.NTWINE_PROJECT_ID"], "project-1")
     assert.match(String(first!["shell_environment_policy.set.PATH"]), /^\/gen-b\/cc-worker\/bin[:;]/)
     bridge.close()
 
@@ -2780,22 +2780,22 @@ test("each thread's shell is told which thread it is, at thread/start and again 
 // was never told about the tools and is not given them; one that predates it still is, at every resume.
 test("the MCP mount rides only the threads whose contract taught it", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
-  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, mountsMcp: (slug) => slug === "taught-mcp" })
+  const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, mountsMcp: (slug) => slug === "taught-mcp" })
   try {
     const bridge = h.newBridge()
     const legacy = await bridge.startDisposableSession({ threadSlug: "taught-mcp", sessionId: "session-legacy", cwd: h.dir, ephemeral: false })
     const cli = await bridge.startDisposableSession({ threadSlug: "taught-cli", sessionId: "session-cli", cwd: h.dir, ephemeral: false })
     const [legacyBag, cliBag] = requestsOf(h.processes[0]!, "thread/start").map(bagOf)
-    assert.ok((legacyBag!.mcp_servers as Record<string, unknown>)[FRIZZ_MCP.name])
+    assert.ok((legacyBag!.mcp_servers as Record<string, unknown>)[NTWINE_MCP.name])
     assert.equal(cliBag?.mcp_servers, undefined)
     // …and switched OFF, for the app-server from before the update that still mounts it process-wide:
     // `enabled = false` with a command beside it, the one spelling codex 0.161.0 accepts on both kinds
     // of app-server (`_live_codex_mcp_disable.mts`).
-    assert.equal(cliBag?.[`mcp_servers.${FRIZZ_MCP.name}.enabled`], false)
-    assert.equal(cliBag?.[`mcp_servers.${FRIZZ_MCP.name}.command`], process.execPath)
+    assert.equal(cliBag?.[`mcp_servers.${NTWINE_MCP.name}.enabled`], false)
+    assert.equal(cliBag?.[`mcp_servers.${NTWINE_MCP.name}.command`], process.execPath)
     // …and nothing mounts it process-wide behind the bag's back: the app-server's own argv carries
     // no `mcp_servers` override, or every thread in the project would have the tools again.
-    assert.ok(!h.hostCalls.some((call) => call.frizzMcp), "the app-server was started with a process-wide MCP mount")
+    assert.ok(!h.hostCalls.some((call) => call.ntwineMcp), "the app-server was started with a process-wide MCP mount")
     bridge.close()
 
     plan = { generation: "gen-B", reattached: false, droppedWhileDetached: 0 }
@@ -2803,15 +2803,15 @@ test("the MCP mount rides only the threads whose contract taught it", async () =
     await restarted.resumeOwnedSession(legacy.threadSlug, legacy.sessionId)
     await restarted.resumeOwnedSession(cli.threadSlug, cli.sessionId)
     const [legacyResume, cliResume] = requestsOf(h.processes[1]!, "thread/resume").map(bagOf)
-    assert.ok((legacyResume!.mcp_servers as Record<string, unknown>)[FRIZZ_MCP.name])
+    assert.ok((legacyResume!.mcp_servers as Record<string, unknown>)[NTWINE_MCP.name])
     assert.equal(cliResume?.mcp_servers, undefined)
-    assert.equal(cliResume?.[`mcp_servers.${FRIZZ_MCP.name}.enabled`], false)
+    assert.equal(cliResume?.[`mcp_servers.${NTWINE_MCP.name}.enabled`], false)
   } finally { h.close() }
 })
 
-test("a thread idle at a Frizz restart is released and resumed with the new server's bag before its next turn", async () => {
+test("a thread idle at an Ntwine restart is released and resumed with the new server's bag before its next turn", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
-  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, workerConfig: workerHooks })
   try {
     const bridge = h.newBridge()
     const binding = await bridge.startDisposableSession({ threadSlug: "idle", sessionId: "idle-session", cwd: h.dir, ephemeral: false })
@@ -2837,7 +2837,7 @@ test("a thread idle at a Frizz restart is released and resumed with the new serv
 
 test("a thread that was mid-turn at a restart is rebuilt before its NEXT turn, once, and never under the running one", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
-  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, workerConfig: workerHooks })
   try {
     const bridge = h.newBridge()
     const binding = await bridge.startDisposableSession({ threadSlug: "busy", sessionId: "busy-session", cwd: h.dir, ephemeral: false })
@@ -2879,7 +2879,7 @@ test("a thread that was mid-turn at a restart is rebuilt before its NEXT turn, o
 // gone after the new server's warm-up). A production bridge always has a bag, so every restart did this.
 test("a thread holding a background command is rejoined with no bag, and rebuilt only once the command has ended", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
-  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, workerConfig: workerHooks })
   try {
     const bridge = h.newBridge()
     const { binding, terminal } = await threadWithBackgroundExec(h, bridge, "bg-config")
@@ -2918,7 +2918,7 @@ test("a thread holding a background command is rejoined with no bag, and rebuilt
 
 test("a Codex with no thread/unsubscribe is asked once; its threads keep taking turns on the config they have", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
-  const h = scriptedHostHarness(() => plan, { frizzMcp: WORKER_MCP, workerConfig: workerHooks })
+  const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, workerConfig: workerHooks })
   try {
     const bridge = h.newBridge()
     const binding = await bridge.startDisposableSession({ threadSlug: "old-codex", sessionId: "old-codex-session", cwd: h.dir, ephemeral: false })
@@ -2949,7 +2949,7 @@ test("a Codex with no thread/unsubscribe is asked once; its threads keep taking 
 })
 
 // ---- non-interactive by construction ------------------------------------------------------------
-// A frizz worker runs with nobody watching its pane, so an approval request is not a safety gate — it is
+// An ntwine worker runs with nobody watching its pane, so an approval request is not a safety gate — it is
 // a thread that stops working until a human opens the dashboard hours later. These pin the two wire
 // moments where that guarantee is made, because the live incident came from BOTH being wrong: the
 // thread was started `on-request`, and its cold resume sent no policy at all.
@@ -2976,7 +2976,7 @@ test("a cold resume with NO recorded intent still states full access + approvals
     sandbox: "danger-full-access",
   })
   // Exactly what a pre-migration row looks like: no intent recorded anywhere.
-  h.db.prepare("UPDATE codex_app_server_session SET intended_sandbox = NULL, sandbox = NULL WHERE project_id = 'project-1' AND frizz_session_id = ?")
+  h.db.prepare("UPDATE codex_app_server_session SET intended_sandbox = NULL, sandbox = NULL WHERE project_id = 'project-1' AND ntwine_session_id = ?")
     .run(binding.sessionId)
   h.processes[0]!.disconnect()
   h.bridge.close()
@@ -3006,7 +3006,7 @@ test("a same-process rejoin retires the approval orphaned on the connection it l
   h.processes[0]!.request("orphan-approval", "item/commandExecution/requestApproval", commandParams(binding.codexThreadId, turnId))
   await waitFor(() => h.interactions.listPending(scope).length === 1, "approval card raised")
   const orphaned = h.interactions.listPending(scope)[0]!
-  bridge.close() // frizz restarts; the daemon and its blocked turn keep going
+  bridge.close() // ntwine restarts; the daemon and its blocked turn keep going
 
   plan = { generation: "gen-A", reattached: true, droppedWhileDetached: 0 }
   const restarted = h.newBridge()
@@ -3055,7 +3055,7 @@ test("a cold-recovery nudge tells the model its sub-agents died and to re-spawn 
 })
 
 // Transport selection: native is the default everywhere it works (the app-server owns its socket and
-// truly outlives frizz), the --stdio daemon stays the default only on win32 whose named-pipe path native
+// truly outlives ntwine), the --stdio daemon stays the default only on win32 whose named-pipe path native
 // does not implement, an injected spawn is always the direct-child test transport, and the flag forces
 // either way. This is the flip that made a codex worker's app-server + sub-agents survive a daemon death.
 test("selectCodexHostKind: native is the default on macOS/Linux, daemon on Windows", () => {

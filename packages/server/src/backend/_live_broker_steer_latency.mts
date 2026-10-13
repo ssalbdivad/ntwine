@@ -1,5 +1,5 @@
 // LIVE PROBE: a mid-turn follow-up on the BROKER path — how fast does the model SEE it, how fast does
-// it ACT on it, and how fast does the transcript frizz renders actually SHOW it?
+// it ACT on it, and how fast does the transcript ntwine renders actually SHOW it?
 //   nub packages/server/src/backend/_live_broker_steer_latency.mts
 //
 // THE COMPLAINT (maintainer, 2026-08-01): "a lot of times, there's a ton of tool calls that happen
@@ -11,8 +11,8 @@
 // what a real steer looks like. Three separable latencies hide behind one complaint, and this
 // separates them against ONE long tool-heavy turn:
 //
-//   L1 SEEN     send → the CLI puts the input on the event stream (frizz's own transport)
-//   L2 ON DISK  send → the user record lands in the session JSONL (what the frizz TRANSCRIPT reads;
+//   L1 SEEN     send → the CLI puts the input on the event stream (ntwine's own transport)
+//   L2 ON DISK  send → the user record lands in the session JSONL (what the ntwine TRANSCRIPT reads;
 //                      if this trails, the operator watches tool calls pile up above their message)
 //   L3 ACTED    send → the model does the thing the message asked for (pure model behaviour)
 //
@@ -47,7 +47,7 @@ let seenOnDisk: Hit | null = null
 let actedAt: Hit | null = null
 let turnEnd: Hit | null = null
 
-// ── JSONL tail: when does the operator's message become visible to frizz's transcript? ─────────────
+// ── JSONL tail: when does the operator's message become visible to ntwine's transcript? ─────────────
 let offset = 0
 let pendingText = ""
 function drainDisk(): void {
@@ -145,7 +145,7 @@ try {
   const line = (label: string, hit: { ms: number; tools: number } | null): string =>
     hit ? `${label}: ${hit.ms - sentAt}ms, ${hit.tools - toolsAtSend} tool uses later` : `${label}: NEVER`
   console.log(line("L1 SEEN    (event stream)   ", seenOnStream))
-  console.log(line("L2 ON DISK (frizz transcript)", seenOnDisk))
+  console.log(line("L2 ON DISK (ntwine transcript)", seenOnDisk))
   console.log(line("L3 ACTED   (model behaviour)", actedAt))
   console.log(line("   turn end (BOOT-DONE)     ", turnEnd))
   // Read through locals: these are assigned inside the event callback, so TS's control-flow analysis

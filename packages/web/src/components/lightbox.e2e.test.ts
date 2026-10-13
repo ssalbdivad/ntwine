@@ -9,14 +9,14 @@ import { crc32, deflateSync } from "node:zlib"
 // only a browser settles: that an Escape the viewer handled never reaches the page (where it would unwind
 // a drawer or leave the fullscreen page), that focus comes back to the picture that opened it, and that
 // a phone's Back closes the viewer rather than leaving the page. Skipped unless a Vite URL serving the
-// fixtures is provided: start `vite` in packages/web and set FRIZZ_LIGHTBOX_E2E_URL to its origin (or run
+// fixtures is provided: start `vite` in packages/web and set NTWINE_LIGHTBOX_E2E_URL to its origin (or run
 // `nub run test:e2e`, which does both).
 //
-// The pictures are drawn HERE. A plain Vite has no /_frizz/local-image route, so the test intercepts it
+// The pictures are drawn HERE. A plain Vite has no /_ntwine/local-image route, so the test intercepts it
 // and answers with a PNG of the size the fixture's path names; `missing` paths get the real route's 404.
 // A `.webm` gets CLIP — 1.5s of ffmpeg's `testsrc2` at 320×180, VP9, which every Chrome decodes — in the
 // byte ranges a <video> asks for, as the real route answers them (server/local-image.ts).
-const baseUrl = process.env.FRIZZ_LIGHTBOX_E2E_URL
+const baseUrl = process.env.NTWINE_LIGHTBOX_E2E_URL
 const CLIP = readFileSync(new URL("./lightbox-e2e-clip.webm", import.meta.url))
 
 // A solid-colour RGB PNG of the given size — enough to give the gallery real shapes to lay out.
@@ -63,7 +63,7 @@ async function launch(viewport: typeof DESKTOP | typeof PHONE = DESKTOP) {
   await page.setRequestInterception(true)
   page.on("request", (request) => {
     const url = new URL(request.url())
-    if (url.pathname !== "/_frizz/local-image") return void request.continue()
+    if (url.pathname !== "/_ntwine/local-image") return void request.continue()
     const path = url.searchParams.get("path") ?? ""
     if (path.endsWith(".webm")) {
       const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers().range ?? "")

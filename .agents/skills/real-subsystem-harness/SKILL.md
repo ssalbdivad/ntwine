@@ -1,6 +1,6 @@
 ---
 name: real-subsystem-harness
-description: Verify backend behavior a browser cannot reach — the broker socket, spawn/exec paths, resume and wake, SQLite migrations, the scheduler, a detached daemon's environment — by writing a small `nub` script that spins the REAL resource and asserts the REAL function, with a negative control that proves the harness can fail. Load this when the thing you changed has no UI, when a unit test would only prove your mock matches your belief, or when a feature SPANS processes and the seam between them is where the bug lives. Also carries the polling discipline (early exit on the failure signal, not just success) that keeps a verification run from burning its whole timeout, and the rule that a green harness over a stubbed seam is worse than honest incompleteness. Pair with `frizz-stack` when the real resource is a running Frizz.
+description: Verify backend behavior a browser cannot reach — the broker socket, spawn/exec paths, resume and wake, SQLite migrations, the scheduler, a detached daemon's environment — by writing a small `nub` script that spins the REAL resource and asserts the REAL function, with a negative control that proves the harness can fail. Load this when the thing you changed has no UI, when a unit test would only prove your mock matches your belief, or when a feature SPANS processes and the seam between them is where the bug lives. Also carries the polling discipline (early exit on the failure signal, not just success) that keeps a verification run from burning its whole timeout, and the rule that a green harness over a stubbed seam is worse than honest incompleteness. Pair with `ntwine-stack` when the real resource is a running Ntwine.
 version: 0.1.0
 metadata:
   internal: true
@@ -68,7 +68,7 @@ work" is not "it works".
 
 ## Composes with
 
-- **`frizz-stack`** — when the real resource is a running Frizz (a real server, real tenants, a real
+- **`ntwine-stack`** — when the real resource is a running Ntwine (a real server, real tenants, a real
   dispatched worker), boot it there rather than hand-rolling one.
-- **`frizz-artifact-e2e`** — when the behavior could differ between dev source and the promoted artifact.
+- **`ntwine-artifact-e2e`** — when the behavior could differ between dev source and the promoted artifact.
 - **`headless-browser`** — for the half of the system a harness cannot see.

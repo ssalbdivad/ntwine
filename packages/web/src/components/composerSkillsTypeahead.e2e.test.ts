@@ -13,8 +13,8 @@ import test, { after, before } from "node:test"
 // the menu is open the menu claims the unmodified Enter as its accept key.
 //
 // Skipped unless a Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts
-// here): start `vite` in packages/web and set FRIZZ_SKILLS_TYPEAHEAD_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_SKILLS_TYPEAHEAD_E2E_URL
+// here): start `vite` in packages/web and set NTWINE_SKILLS_TYPEAHEAD_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_SKILLS_TYPEAHEAD_E2E_URL
 
 const BOX = 'textarea[data-surface="chatComposer"]'
 const MENU = "[data-slash-menu]"
@@ -53,7 +53,7 @@ const boxValue = (): Promise<string> => page!.$eval(BOX, (el) => (el as HTMLText
 // Option-Enter newline path uses, because a controlled re-render has to commit before the offset means
 // anything. A human cannot type inside that ~16ms; puppeteer's `type()` dispatches CDP events with no
 // frame pacing and does, which lands the first characters at the OLD offset and scrambles the draft
-// ("/frizz:gh heck the PRc"). Measured at roughly one run in four, on this file's own base. So wait for
+// ("/ntwine:gh heck the PRc"). Measured at roughly one run in four, on this file's own base. So wait for
 // the caret the product actually reaches rather than racing it — this asserts the post-accept state, it
 // does not paper over it.
 const waitForCaretAtEnd = (): Promise<unknown> => page!.waitForFunction((sel) => {
@@ -97,8 +97,8 @@ test("typing `/` opens the menu once fetched, filters as the name grows, and a s
   assert.equal((await menuRows()).length, 8, "a bare slash opening the draft offers the whole list, commands included")
 
   await page!.type(BOX, "fr")
-  // Prefix matches lead; the namespaced `frizz:gh` is still reachable this way.
-  assert.deepEqual(await menuRows(), ["/frizz-stack", "/frizz:gh"])
+  // Prefix matches lead; the namespaced `ntwine:gh` is still reachable this way.
+  assert.deepEqual(await menuRows(), ["/ntwine-stack", "/ntwine:gh"])
 
   await page!.type(BOX, "izz-stack now")
   assert.equal(await menuVisible(), false, "arguments have begun — the menu must be gone")
@@ -106,7 +106,7 @@ test("typing `/` opens the menu once fetched, filters as the name grows, and a s
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
 })
 
-// Where a skill came FROM, which the harness reports and frizz normalizes to one vocabulary. The
+// Where a skill came FROM, which the harness reports and ntwine normalizes to one vocabulary. The
 // column has to be ONE width across every row — including the row whose source is unknown — or an
 // unlabelled row's description truncates ~50px further right than its neighbours' and the list reads
 // ragged. The width is reserved by invisible sizers so the browser measures it in whichever of this
@@ -120,7 +120,7 @@ test("each suggestion names its source, in one column that every row shares", {
   await page!.waitForSelector(MENU)
   const cells = await menuSources()
   assert.deepEqual(cells.map((cell) => cell?.label), ["project", "plugin", "project", "global", "built-in", "global", "", "built-in"],
-    "the harness's own scopes, in frizz's vocabulary — and an empty cell where it reported none")
+    "the harness's own scopes, in ntwine's vocabulary — and an empty cell where it reported none")
   const lefts = new Set(cells.map((cell) => cell!.left))
   const rights = new Set(cells.map((cell) => cell!.right))
   assert.equal(lefts.size, 1, `every source cell starts at one x: ${[...lefts].join(", ")}`)
@@ -138,13 +138,13 @@ test("ArrowDown+Enter completes the highlighted skill instead of sending, and th
   await page!.keyboard.press("ArrowDown")
   await page!.keyboard.press("Enter")
   // The exact value also proves the accept swallowed the key: no newline, no send.
-  assert.equal(await boxValue(), "/frizz:gh ", "Enter with the menu open completes, with a trailing space for arguments")
+  assert.equal(await boxValue(), "/ntwine:gh ", "Enter with the menu open completes, with a trailing space for arguments")
   assert.deepEqual((await hooks()).submitted, [], "…and must NOT send the draft")
 
   await waitForCaretAtEnd()
   await page!.type(BOX, "check the PR")
   await pressSendChord()
-  assert.deepEqual((await hooks()).submitted, ["/frizz:gh check the PR"], "⌘-Enter with the menu closed sends as always")
+  assert.deepEqual((await hooks()).submitted, ["/ntwine:gh check the PR"], "⌘-Enter with the menu closed sends as always")
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
 })
 
@@ -156,7 +156,7 @@ test("⌘-Enter overrides the open menu and sends the draft as typed", {
   await page!.type(BOX, "/fr")
   await page!.waitForSelector(MENU)
   // The menu claims only the UNMODIFIED Enter. A send chord mid-name is the operator overriding the
-  // suggestion, so the draft goes out uncompleted rather than turning into `/frizz-stack`.
+  // suggestion, so the draft goes out uncompleted rather than turning into `/ntwine-stack`.
   await pressSendChord()
   assert.deepEqual((await hooks()).submitted, ["/fr"], "the send chord is not the menu's accept key")
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
@@ -207,10 +207,10 @@ test("a `/` mid-sentence offers skills, completes in place, and tints the name i
   assert.ok(!rows.includes("/context"), "a command mid-sentence would be plain text to Claude")
 
   await page!.type(BOX, "fri")
-  assert.deepEqual(await menuRows(), ["/frizz-stack", "/frizz:gh"])
+  assert.deepEqual(await menuRows(), ["/ntwine-stack", "/ntwine:gh"])
   await page!.keyboard.press("Enter")
   await waitForCaretAtEnd()
-  assert.equal(await boxValue(), "then run /frizz-stack ", "completed in place, the prose before it kept")
+  assert.equal(await boxValue(), "then run /ntwine-stack ", "completed in place, the prose before it kept")
   assert.deepEqual((await hooks()).submitted, [], "Enter accepted the row; nothing was sent")
 
   const tint = await page!.evaluate(() => {
@@ -221,12 +221,12 @@ test("a `/` mid-sentence offers skills, completes in place, and tints the name i
     return [...document.querySelectorAll("[data-composer-command]")].map((el) => ({ text: el.textContent, color: getComputedStyle(el).color, mention }))
   })
   assert.equal(tint.length, 1)
-  assert.equal(tint[0]!.text, "/frizz-stack")
+  assert.equal(tint[0]!.text, "/ntwine-stack")
   assert.notEqual(tint[0]!.color, tint[0]!.mention, "its own colour, not the @ mention's")
 
   // A path is never a name, and an unknown name stays plain.
   await page!.type(BOX, "in /tmp/x and /nope ")
-  assert.deepEqual(await page!.evaluate(() => [...document.querySelectorAll("[data-composer-command]")].map((el) => el.textContent)), ["/frizz-stack"])
+  assert.deepEqual(await page!.evaluate(() => [...document.querySelectorAll("[data-composer-command]")].map((el) => el.textContent)), ["/ntwine-stack"])
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
 })
 

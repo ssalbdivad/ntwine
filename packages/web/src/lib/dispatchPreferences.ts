@@ -10,7 +10,7 @@ import {
   type ClaudeModel,
   type CodexModel,
   type DispatchPreferences,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import type { SelectGroup, SelectOption } from "../components/ui/Select.tsx"
 import type { ProfileGridGroup, ProfileGridOption } from "./profileGrid.ts"
 import {
@@ -193,7 +193,7 @@ export function resolveDispatchPreferences(
       : acpAgents.some((candidate) => candidate.available && candidate.id === acpAgentId)
   // Auto unless the operator made another level the default: the server picks one from the prompt.
   const defaultEffort = backend === "claude" || codexModel ? AUTO_EFFORT : preset?.defaultEffort ?? ""
-  // An ACP agent has no effort axis in Frizz — it runs on its own CLI's model and effort — so its
+  // An ACP agent has no effort axis in Ntwine — it runs on its own CLI's model and effort — so its
   // effort is "" and always "available": there is nothing to be unavailable. A preset has one.
   const effort = backend === "acp" && !preset ? "" : profile.effort ?? defaultEffort
   const autoOptions = [{ value: AUTO_EFFORT, label: "Auto" }]

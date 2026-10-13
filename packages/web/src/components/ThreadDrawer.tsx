@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react"
 import { useSnapshot } from "valtio"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { store, threadBySlug, showToast } from "../store.ts"
-import type { BoardSnapshot } from "@frizz/shared"
+import type { BoardSnapshot } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { useInnerHtml } from "../lib/innerHtml.ts"
 import { stripFrontmatter } from "../lib/markdown.ts"
@@ -14,8 +14,8 @@ import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 import { draftKey, draftStore, useDraft, useProjectDir } from "../lib/drafts.ts"
 
-// The frizz-document drawer: a RIGHT side sheet (same slide/backdrop family as settings and the
-// Open-thread sheet — nothing renders as a centered dialog) showing the thread's .frizz/<slug>.md body
+// The ntwine-document drawer: a RIGHT side sheet (same slide/backdrop family as settings and the
+// Open-thread sheet — nothing renders as a centered dialog) showing the thread's .ntwine/<slug>.md body
 // — the Goal / Status / Decisions / Next-step contract — as markdown. Content is agent-written and
 // thus only semi-trusted — rendered through the shared allowlist sanitizer (lib/markdown.ts).
 //

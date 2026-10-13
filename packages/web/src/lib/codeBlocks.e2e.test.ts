@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Opt-in like the other *.e2e.test.ts here: start `vite` in packages/web and set
-// FRIZZ_CODE_BLOCKS_E2E_URL to its origin, e.g.
-//   FRIZZ_CODE_BLOCKS_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/codeBlocks.e2e.test.ts
-const baseUrl = process.env.FRIZZ_CODE_BLOCKS_E2E_URL
+// NTWINE_CODE_BLOCKS_E2E_URL to its origin, e.g.
+//   NTWINE_CODE_BLOCKS_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/codeBlocks.e2e.test.ts
+const baseUrl = process.env.NTWINE_CODE_BLOCKS_E2E_URL
 
 // lib/codeBlock.test.ts pins what a fence's info string turns into. What only a browser can say is
 // whether that markup survives the sanitizer, whether the stylesheet draws a marked line and a diff row

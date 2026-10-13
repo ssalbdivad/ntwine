@@ -4,8 +4,8 @@ import { createHash } from "node:crypto"
 import { promisify } from "node:util"
 import { basename, dirname, isAbsolute, join, resolve, win32 } from "node:path"
 import { homedir, tmpdir } from "node:os"
-import type { AskQuestion, AwaitingHint, CodexModel, LiveTool, SubAgentDirectoryEntry, WorkCheckout } from "@frizz/shared"
-import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, parseCrossSessionMessage, PermissionMode, questionFencesLive, saysAllDone, splitAwaitingFrontmatter } from "@frizz/shared"
+import type { AskQuestion, AwaitingHint, CodexModel, LiveTool, SubAgentDirectoryEntry, WorkCheckout } from "@ntwine/shared"
+import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, parseCrossSessionMessage, PermissionMode, questionFencesLive, saysAllDone, splitAwaitingFrontmatter } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { permMarkerPath, workDirOf, type Project } from "./project.ts"
 import { isBrokerClaudeRow, isHeadlessRow, isHeldRow } from "./storage.ts"
@@ -35,8 +35,8 @@ import {
   type TailCacheEntry,
   type TailStateCache,
 } from "./tail-cache.ts"
-import { log as frizzLog } from "./logging.ts"
-import { frizzTempDir } from "./frizz-paths.ts"
+import { log as ntwineLog } from "./logging.ts"
+import { ntwineTempDir } from "./ntwine-paths.ts"
 import { declaredShellBudgetMs } from "./shell-budget.ts"
 import { vetHarnessOutputPath } from "./background-shell-output.ts"
 import { leadingCd, liftRepoWorktree, liftWorkingDir } from "./thread-cwd.ts"
@@ -60,7 +60,7 @@ import { redactToolPayload } from "./credential-redaction.ts"
 // on any schema surprise rather than crashing.
 //
 // ---- TURN-STATE HEURISTIC (chosen empirically) ----
-// Investigated the 15 real transcripts in ~/.claude/projects/-Users-colinmcd94-Documents-projects-frizz/.
+// Investigated the 15 real transcripts in ~/.claude/projects/-Users-colinmcd94-Documents-projects-ntwine/.
 // Record `type`s observed: assistant, user, attachment, queue-operation, last-prompt, ai-title,
 // permission-mode, mode, bridge-session, file-history-snapshot, system. Only `assistant`, `user`,
 // and `system` carry a `timestamp`; the rest are sidecar metadata (no timestamp).
@@ -123,9 +123,9 @@ const EMPTY_BUFFER = Buffer.alloc(0)
 const MAX_POLL_MS = 10_000
 // How often a QUIET board is read in full (see `poll`). A board is quiet when every thread on it is at
 // rest with nothing running, nothing waiting on a person and nothing still being delivered, and the
-// last tick changed nothing. Everything frizz itself does to such a board wakes the tailer at once — a
+// last tick changed nothing. Everything ntwine itself does to such a board wakes the tailer at once — a
 // registry write is seen by the next one-second look, and a provider event nudges — so this interval
-// bounds only what frizz cannot be told about: a transcript appended from a terminal, a transcript
+// bounds only what ntwine cannot be told about: a transcript appended from a terminal, a transcript
 // that moved, a daemon that died. Five seconds is the foreign scan's own cadence (FOREIGN_SCAN_EVERY
 // ticks), so a session started in a terminal still appears as quickly as it always has.
 //
@@ -143,7 +143,7 @@ export const DORMANT_SWEEP_MS = 10_000
 //
 // The window MUST exceed the longest a LIVE child can legitimately stay silent. A child writes its
 // tool_use record, then blocks, and a foreground Bash call that names no `timeout` is moved to the
-// background at Claude Code's default timeout (120 s; frizz pinned 60 s until 2026-10-10) — so a call
+// background at Claude Code's default timeout (120 s; ntwine pinned 60 s until 2026-10-10) — so a call
 // the child did not size buys at most two minutes of silence. The old 5-minute window sat UNDER the
 // 10-minute ceiling any Bash call had then (Claude's own BASH_MAX_TIMEOUT_MS) and therefore declared
 // healthy children dead: a child dispatched to own a CI wait (the contract's prescribed way to wait)
@@ -152,7 +152,7 @@ export const DORMANT_SWEEP_MS = 10_000
 // 15 minutes clears that with headroom and still clears a genuinely dead child promptly; across 1366
 // real child transcripts (176k inter-record gaps) only 0.04% exceed it, while the p99 gap is 95s.
 //
-// A call that DOES name a `timeout` is the exception, and it has no fixed ceiling any more: frizz lifted
+// A call that DOES name a `timeout` is the exception, and it has no fixed ceiling any more: ntwine lifted
 // BASH_MAX_TIMEOUT_MS to 24 hours on 2026-08-11. Such a call sets its own window — see
 // pendingCallDeadline.
 //
@@ -167,7 +167,7 @@ const SUBAGENT_STALE_MS = 15 * 60_000
 
 // A CHILD BLOCKED IN A WAIT IT SIZED ITSELF IS QUIET BY DECLARATION, NOT DEAD (2026-10-03).
 //
-// The window above rested on Claude's 600_000 ms ceiling for a foreground Bash call, and frizz lifted
+// The window above rested on Claude's 600_000 ms ceiling for a foreground Bash call, and ntwine lifted
 // that ceiling to 24 hours on 2026-08-11 so a worker may block on a wait it sized itself. A child that
 // does exactly that — `until grep -q '^DONE' gates.log; do sleep 15; done` with `timeout: 3600000`,
 // waiting on a Rust build — writes its tool_use and then nothing for the hour it asked for. At minute
@@ -276,17 +276,17 @@ function readTranscriptTail(path: string, size: number, window: number): string 
 
 // IS A BACKGROUND SHELL STILL ALIVE? Asked of the OPERATING SYSTEM, not guessed from age or output.
 //
-// Frizz spawns none of these processes — Claude/Codex does — and the runtime records no pid anywhere
-// frizz can read (measured 2026-08-19: the task dir holds `<taskId>.output` and nothing else). So until
+// Ntwine spawns none of these processes — Claude/Codex does — and the runtime records no pid anywhere
+// ntwine can read (measured 2026-08-19: the task dir holds `<taskId>.output` and nothing else). So until
 // now the ONLY thing that retired a shell was its `<task-notification>`, and one whose process died
 // without emitting one stayed "running" forever: the maintainer's board showed `RUNNING · 2583 MIN` —
 // 43 hours — for a process that did not exist.
 //
-// The correlation key frizz already holds is the OUTPUT PATH. A background shell's stdout and stderr are
+// The correlation key ntwine already holds is the OUTPUT PATH. A background shell's stdout and stderr are
 // redirected into `<taskId>.output`, so whichever process holds that file open IS the shell. Verified
 // against a known-alive control (two holders, fds 1w and 2w, pid visible) and a known-dead one (zero).
 // That makes this an exact question with an exact answer, which is what an age threshold could never be —
-// and it matters here specifically because frizz's own contract tells workers to wait with
+// and it matters here specifically because ntwine's own contract tells workers to wait with
 // `until <cond>; do sleep 5; done`, a healthy shell that prints nothing for hours by design.
 //
 // UNDEFINED means "cannot tell" and is never treated as dead: no probe, no path, or a platform without
@@ -300,18 +300,18 @@ function readTranscriptTail(path: string, size: number, window: number): string 
 // verdict is the OS's own handle table, not a heuristic. It runs through PowerShell because that is
 // the only spawnable thing present on every supported Windows (see process-generation.ts for the
 // measurements); one process answers the whole batch. A pid probe (`process.kill(pid, 0)`) would be
-// cheaper, but nothing records a shell's pid anywhere frizz can read — the launch result carries a
+// cheaper, but nothing records a shell's pid anywhere ntwine can read — the launch result carries a
 // task id and an output path and nothing else — and the exclusive open names no holder, so on Windows
 // there is no pid to ask about. (On POSIX lsof names its holders, and those pids ARE asked about
 // between probes — see shellProbeTtlMs.)
 //
-// The failure directions are the same as lsof's. A sharing violation is "held" (alive) — a Frizz
+// The failure directions are the same as lsof's. A sharing violation is "held" (alive) — an Ntwine
 // reader with the file open for the drawer momentarily reads as alive, which costs a TTL, never a
 // verdict; any other outcome is "unknown", which is never dead; and only a clean exclusive open of an
 // existing file is "free", i.e. gone. That last one is the only thing that ever demotes a shell.
 //
 // "NOBODY HOLDS IT" IS NOT "NOBODY IS RUNNING IT" (2026-10-05). A command that `exec`s AND redirects
-// its own output — `exec nub e2e.mjs > e2e.out 2>&1`, the shape the frizz-stack skill teaches plus the
+// its own output — `exec nub e2e.mjs > e2e.out 2>&1`, the shape the ntwine-stack skill teaches plus the
 // `exec` workers add — replaces the shell with a process whose fds 1 and 2 point somewhere else, so
 // `<taskId>.output` is closed within milliseconds of launch while the work runs for an hour. lsof found
 // zero holders for exactly that shell while its nub and node were alive, and the board demoted it to
@@ -327,7 +327,7 @@ const SHELL_PROBE_GRACE_MS = 60_000 // a just-launched shell is alive by constru
 // is the backstop for a shell that ended WITHOUT its completion notice — the notice is how every
 // ordinary ending is learned, at once — and what it costs does not depend on the shell: `lsof` walks
 // every process on the machine. Asked every 30s for as long as a shell lived, that made a thread
-// parked on a watcher the most expensive idle thing frizz did. Measured 2026-10-11 on the maintainer's
+// parked on a watcher the most expensive idle thing ntwine did. Measured 2026-10-11 on the maintainer's
 // machine (1,641 processes, six projects each holding one watcher, the oldest 20 hours in): 13 `lsof`
 // runs in 65 seconds at 0.28-0.47 CPU-seconds apiece, about 8% of a core — more than the server
 // process itself was using.
@@ -350,7 +350,7 @@ const SHELL_PROBE_GRACE_MS = 60_000 // a just-launched shell is alive by constru
 // TTL is still for: a pid the OS has handed to some new process reads alive here, so a recycled pid
 // keeps a dead shell "running" until its full re-probe — the bound this pinning replaced, never worse.
 // A verdict that named no pid (win32's exclusive open, an unknown, a held file whose only holder is
-// Frizz itself) has nothing to pin, and stands for its whole TTL exactly as before.
+// Ntwine itself) has nothing to pin, and stands for its whole TTL exactly as before.
 const SHELL_PROBE_TTL_MAX_MS = 10 * 60_000
 const SHELL_PROBE_TTL_AGE_SHARE = 0.1
 export function shellProbeTtlMs(ageMs: number): number {
@@ -400,7 +400,7 @@ export async function probeShellsAlive(
 }
 
 /** A live verdict, carrying its pids when there are any. A process probing itself is never one of them:
- *  Frizz holding a file open for the drawer proves nothing about the shell, so it may keep the file
+ *  Ntwine holding a file open for the drawer proves nothing about the shell, so it may keep the file
  *  "held" but cannot pin the verdict. */
 function liveVerdict(pids: Iterable<number>): ShellVerdict {
   const own = [...new Set(pids)].filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid)
@@ -520,7 +520,7 @@ export async function probeShellVerdicts(
 //
 // So the shell's process is a live process forked inside its launch window — after the tool_use, before
 // the ack — whose parent's argv names this session. That is an identity, not a threshold: nothing about
-// age or output enters it, and the `until …; do sleep 5; done` waiter frizz's own contract recommends is
+// age or output enters it, and the `until …; do sleep 5; done` waiter ntwine's own contract recommends is
 // as alive here as anywhere. `ps` reports fork time to the SECOND, so the window is widened by one
 // second each way: the instrument's resolution, not a tolerance for slow work.
 //
@@ -608,7 +608,7 @@ async function findShellProcessPids(
 /** The win32 probe: one PowerShell invocation that tries an exclusive open of every path and prints one
  *  word per path, in order — `held`, `free`, or `unknown`. Anchored to %SystemRoot% rather than resolved
  *  through PATH, because Windows searches the CURRENT DIRECTORY first and that is a project checkout
- *  frizz does not own (the same rule process-generation.ts follows). Exported for the test that pins
+ *  ntwine does not own (the same rule process-generation.ts follows). Exported for the test that pins
  *  the shape on the machines that cannot run it. */
 export function windowsShellHolderCommand(paths: readonly string[], env: NodeJS.ProcessEnv = process.env): [string, string[]] {
   // path.win32 explicitly, so the shape this builds is the same one the test on a POSIX machine sees.
@@ -694,7 +694,7 @@ const DISCOVER_RETRY_MAX_MS = 15 * 60_000
 
 export type TurnState = "in-flight" | "idle"
 
-// A live background sub-agent as surfaced to the board (mirrors @frizz/shared SubAgentView; kept
+// A live background sub-agent as surfaced to the board (mirrors @ntwine/shared SubAgentView; kept
 // as a local shape so the tailer's telemetry stays decoupled from the wire schema).
 export interface SubAgentView {
   label: string
@@ -702,7 +702,7 @@ export interface SubAgentView {
   // "rested" = a DIRECT child whose run ended (the harness reported completed/failed) while the fan-out
   // it dispatched is still running. See anchorRoots below for why `completed` is not "finished".
   state: "running" | "stale" | "rested"
-  subagentType?: string // the dispatch's input.subagent_type verbatim (e.g. "frizz:frizz-opus-high"); absent when unset
+  subagentType?: string // the dispatch's input.subagent_type verbatim (e.g. "ntwine:ntwine-opus-high"); absent when unset
   id: string // the dispatch tool_use id — the drill-in drawer's stable handle to this exact child
   // The RUNTIME agent id (Claude's `agentId: a01b2d20b32feab11` in the Agent launch ack) — the handle the
   // MODEL was shown, so the one a worker naturally writes in an `agents:` line or a `watch`. Absent until
@@ -732,7 +732,7 @@ export interface SubAgentView {
   phase?: string // on a workflow agent's row: the script phase it runs in
 }
 
-// A signal fence parsed from the FINAL assistant message (mirrors @frizz/shared ThreadFence; kept
+// A signal fence parsed from the FINAL assistant message (mirrors @ntwine/shared ThreadFence; kept
 // as a local shape so the tailer's telemetry stays decoupled from the wire schema). The fence
 // language IS the state, the body is the message; `hints` are `<kind>: <value>` lines parsed from an
 // awaiting body. Only meaningful while it is the final message — any newer user record clears it.
@@ -758,7 +758,7 @@ export interface SessionTelemetry extends NormalizedTail {
   primed?: boolean
   turn: TurnState
   permPrompt: boolean // paused on an interactive permission prompt (from the marker; no jsonl signal)
-  // The last allow/deny frizz's permission POLICY made for this thread, and how many denials it has
+  // The last allow/deny ntwine's permission POLICY made for this thread, and how many denials it has
   // made this session. Purely informational — a policy decision never blocks anyone, which is exactly
   // why it needs surfacing: it is otherwise invisible.
   permPolicy?: PermPolicyView
@@ -875,14 +875,14 @@ interface SubAgentProgress {
   durationMs?: number
 }
 
-// A live background shell as surfaced to the board (mirrors @frizz/shared BgShellView).
+// A live background shell as surfaced to the board (mirrors @ntwine/shared BgShellView).
 export interface BgShellView {
   label: string
   startedAt: string
   state: "running" | "stale"
   id?: string
   /**
-   * The tailer's HALF of "can frizz end this shell": we hold a provider task handle for it. The board
+   * The tailer's HALF of "can ntwine end this shell": we hold a provider task handle for it. The board
    * ANDs it with the thread's transport before an × is offered — see the full contract on the shared
    * schema, which has carried this field since the stop landed. This twin did not, so the tree did
    * not typecheck (`tailer.test.ts` reads it) and no artifact could be built.
@@ -959,7 +959,7 @@ export interface RetiredSubAgentView {
   subagentType?: string
 }
 
-// A pending native AskUserQuestion (structured, capped). Mirrors @frizz/shared PendingAsk; `id` is
+// A pending native AskUserQuestion (structured, capped). Mirrors @ntwine/shared PendingAsk; `id` is
 // the tool_use id used to clear it when its tool_result lands.
 export interface PendingAskData {
   id: string
@@ -1053,9 +1053,9 @@ export interface TailState extends FoldState {
   // what re-projects the transcript to already-subscribed clients within one tick.
   deliveryLedgerSeen?: string | null
   // A FOREIGN thread (a maintainer terminal discovered from the log dir, no registry row). Structural
-  // guarantee that this state does none of the things frizz does to a thread it owns — no permission
-  // sniff, no owner-death check, no notify / storage write — since frizz never dispatched it and holds
-  // no `frizz-<slug>` runtime for it. Keyed by session id, not slug.
+  // guarantee that this state does none of the things ntwine does to a thread it owns — no permission
+  // sniff, no owner-death check, no notify / storage write — since ntwine never dispatched it and holds
+  // no `ntwine-<slug>` runtime for it. Keyed by session id, not slug.
   foreign: boolean
   offset: number
   partial: string
@@ -1096,7 +1096,7 @@ export interface TailState extends FoldState {
   // are NOT written in a fixed order: the queue-operation bookkeeping is FLUSHED and can land at a file
   // position AFTER the inline attachment that delivered it (the same reordering that made carrier (c)
   // load-bearing for background shells, tailer 2026-07-22). Without this set that late queue-op would
-  // re-park an already-delivered report and frizz would "repair" a report the agent had read.
+  // re-park an already-delivered report and ntwine would "repair" a report the agent had read.
   deliveredReports: Set<string>
   // Every `tool_use` id THIS session's own model emitted — the OWNERSHIP key for a completion report.
   //
@@ -1105,7 +1105,7 @@ export interface TailState extends FoldState {
   // root's for all of them). Meanwhile a CHILD's op is delivered into the CHILD's transcript, which this
   // TailState never reads — so from here a descendant's op looks queued-and-never-delivered forever,
   // which is byte-for-byte the signature of the runtime drop `queuedReports` exists to repair. Without
-  // an owner test frizz therefore "repaired" other agents' completions into this one: measured across
+  // an owner test ntwine therefore "repaired" other agents' completions into this one: measured across
   // four real threads, 66% of completed background-op notifications in a parent transcript belong to a
   // descendant (1354 of 2052 on the worst), and on the one thread where the repair was live ALL 283 of
   // its relays were for ops this session never launched.
@@ -1205,7 +1205,7 @@ export interface TailState extends FoldState {
   // HISTORICAL, and the field it documented is already gone: Claude permission sidecars are
   // untimestamped, so an incremental observation used to be held until the worker's redrawn footer
   // proved which generation emitted it, rather than losing a genuine record that arrived a tick before
-  // that footer became visible. Nothing renders a footer frizz can read now — the marker file carries
+  // that footer became visible. Nothing renders a footer ntwine can read now — the marker file carries
   // its own timestamp (see permMarkerBlocks).
 }
 
@@ -1377,7 +1377,7 @@ function setAssistantPreview(state: FoldState, raw: string): void {
 // registers as an ask here exactly as it still renders as a card in the web.
 // A QUOTED opener never counts: a worker documenting the protocol wraps its sample in an outer ````
 // fence, and flagging that as a live ask parks the thread in "awaiting you" over an example. The
-// fenced-interior scan is the one piece genuinely SHARED with the web (@frizz/shared) rather than
+// fenced-interior scan is the one piece genuinely SHARED with the web (@ntwine/shared) rather than
 // mirrored — the renderer and this flag must agree on what an opener is. `parseSignalFence` needs no
 // such guard: its end-anchor already rejects any fence that isn't the final content of the message.
 const QUESTION_BLOCK_RE = /^```question(?:[ \t]+[A-Za-z][^\r\n]*?)?[ \t]*\r?\n[\s\S]*?\r?\n```[ \t]*$/gm
@@ -1446,7 +1446,7 @@ export function parseSignalFence(text: string | undefined): FenceView | undefine
   // Prose after the last fence means it was quoted/explanatory, not a signal — no excusal.
   if (norm.slice(end).trim() !== "") return undefined
   if (kind === "done") return { kind, body: capFenceBody(raw.trim()), hints: [] }
-  // awaiting: YAML frontmatter, then Markdown. The split lives in @frizz/shared because the CLIENT parses
+  // awaiting: YAML frontmatter, then Markdown. The split lives in @ntwine/shared because the CLIENT parses
   // the same fence to decide how it RENDERS while this decides whether the thread PARKS — and those were
   // two implementations, each with a comment asking the next reader to keep them in step. The 2026-08-24
   // YAML cutover moved one and not the other, and a correct fence promptly printed its own raw
@@ -1468,7 +1468,7 @@ export function isRealUserMessage(content: unknown): boolean {
 }
 
 // The CLI's own receipt for a LOCAL slash command — one it runs itself instead of handing to the model.
-// A manual `/compact` is the one that reaches a frizz thread: Claude Code 2.1.282 writes the compact
+// A manual `/compact` is the one that reaches an ntwine thread: Claude Code 2.1.282 writes the compact
 // boundary, the carry-over summary, the command's `<command-name>` envelope and then this record as the
 // command's output, all `type:"user"`, and then nothing but sidecars — no assistant record, so nothing
 // the fold read as the end of a turn, and the thread showed running until the next real message. The
@@ -1495,7 +1495,7 @@ function isLocalCommandReceipt(content: unknown): boolean {
 // same SHARED classifier, so a record the chat does not even draw can never again change what the board
 // says the human owes. The row-order key below wants exactly this predicate too — its own comment
 // demanded it, and it was enforcing only the two cases anyone had hit.
-/** Of the turns isHumanSpeaking admits, did the human TYPE this one — or did frizz deliver it? A
+/** Of the turns isHumanSpeaking admits, did the human TYPE this one — or did ntwine deliver it? A
  *  scheduler wake delivery is a real user turn to the model, but nobody typed it. The answers to
  *  registered questions ride a wake too (the worker may be down when the human answers), and they do
  *  NOT count here: this is the clock questionRepliedPast reads (information only since 2026-09-29), and
@@ -1615,7 +1615,7 @@ function trackDispatches(state: TailState, rec: Record): void {
     if (b.name === "Agent") {
       if (input.run_in_background === false) continue // foreground (blocking) — visible via the spinner
       // The worker-profile cell (model+effort). Resolved rather than taken verbatim: an effort-only
-      // profile (`frizz:high`) carries no model, and the model it inherits is the one THIS record ran
+      // profile (`ntwine:high`) carries no model, and the model it inherits is the one THIS record ran
       // at — see subagent-profile.ts, which composes both halves into the one form every surface reads.
       const subagentType = dispatchProfileCell({ subagentType: input.subagent_type, model: input.model, turnModel: rec.message?.model, turnEffort: rec.effort })
       state.subAgents.set(id, { kind: "agent", toolUseId: id, label: desc ?? "sub-agent", startedAt, subagentType, outputFile })
@@ -1751,7 +1751,7 @@ const LAUNCH_ACK_RE = /^\s*(Async agent launched successfully|Spawned successful
 //    Output is being written to: …/tasks/bhlfxzwg1.output. You will be notified when it completes."
 // From that instant it is an ordinary detached shell: it outlives the turn, it keeps the worker's own
 // work live across a rest, and it terminates with the same <task-notification> (carrying the ORIGINAL
-// tool_use id, so retirement correlates normally). frizz used to see none of it — `trackDispatches`
+// tool_use id, so retirement correlates normally). ntwine used to see none of it — `trackDispatches`
 // only registers `run_in_background: true` — so such a shell was invisible on every surface, could not
 // hold its thread Active, and its completion correlated to nothing. 881 of these acks sit in the local
 // transcript corpus; one thread hit it three times in an hour (2026-07-30, reported as "a background
@@ -1879,7 +1879,7 @@ function launchOutputFile(state: TailState, text: string): string | undefined {
 // path-only older Agent ack, which has no manual-stop handle and clears on its notification anyway.
 // The app-server reports a model-run command as the ARGV it actually spawned —
 // `/bin/zsh -lc 'sleep 900'` — while codex's own `backgroundTerminals/list`, the rollout, and therefore
-// frizz's transcript-projected row all say `sleep 900`. Two things ride on stripping the wrapper: the
+// ntwine's transcript-projected row all say `sleep 900`. Two things ride on stripping the wrapper: the
 // operator reads the command they asked for rather than the launcher's plumbing, and the board row and
 // the transcript row become reconcilable at all (lib/childOps.ts mergeBackgroundShells keys on it —
 // without this they render as two rows for one process).
@@ -1959,7 +1959,7 @@ const DESCENDANT_NOTIFY_GRACE_MS = 5_000
 // Read a session's descendant sidecars. DEGRADES at every level and never throws — a missing dir, an
 // unreadable file, half-written JSON, a body that is not an object are each skipped, because this runs
 // on the drawer's read path and a throw there is a dead drawer (and, historically in this subsystem, a
-// dead thread). A sidecar frizz cannot parse simply does not resolve, which is the state it was in
+// dead thread). A sidecar ntwine cannot parse simply does not resolve, which is the state it was in
 // before this existed.
 function readDescendantSidecars(sessionDir: string, mtimeMs: (path: string) => number | undefined): DescendantSidecar[] {
   let names: string[]
@@ -2204,7 +2204,7 @@ function parseResumeAck(text: string): ResumeAck | undefined {
   return { agentId, outputFile: message.match(/Output:\s*(\S+)/)?.[1]?.replace(/\.$/, "") }
 }
 
-// Correlate a restart ack to a row frizz already holds. The runtime task id is the primary key (both
+// Correlate a restart ack to a row ntwine already holds. The runtime task id is the primary key (both
 // the launch ack's `agentId:` and this ack's `resumedAgentId` are that same id); the output path is a
 // second, independent key, since both acks state it verbatim. Two keys because a MISS here mints a
 // duplicate row for a child that is already on the board — the failure mode that costs the most.
@@ -2345,7 +2345,7 @@ function trackCompletions(state: TailState, rec: Record): void {
   //
   // That guard exists because retiring needs a live/retired row to correlate against. Delivery
   // accounting needs no such row: what it tracks is whether the notification's TEXT ever reached the
-  // model, which is true or false regardless of what frizz happens to have in its maps. Running it
+  // model, which is true or false regardless of what ntwine happens to have in its maps. Running it
   // after the guard would silently skip exactly the notifications that arrive when the maps are empty
   // — which, on a busy orchestrator whose children have all been retired already, is a great many.
   trackReportDelivery(state, rec, raw)
@@ -2463,7 +2463,7 @@ function trackReportDelivery(state: TailState, rec: Record, raw: string): void {
   boundReportMaps(state)
 }
 
-// A repair frizz injected is a plain user record, so the notification fold above never sees it. This is
+// A repair ntwine injected is a plain user record, so the notification fold above never sees it. This is
 // what makes the repair idempotent across a re-fold without persisting anything — see report-delivery.
 function trackRelayEchoes(state: TailState, rec: Record): void {
   if (!isModelFacingCarrier(rec.type)) return
@@ -2538,7 +2538,7 @@ function trackStops(state: TailState, rec: Record): void {
   }
 }
 
-// The defensive parse of the untrusted `input.questions` payload lives in @frizz/shared
+// The defensive parse of the untrusted `input.questions` payload lives in @ntwine/shared
 // (parseAskUserQuestionInput), so this safety net and the transcript projector's read-only question
 // card can never cap or shape the same tool call differently.
 // Capture a PENDING native AskUserQuestion: an AskUserQuestion tool_use whose tool_result hasn't landed
@@ -2759,7 +2759,7 @@ export function applyRecord(state: TailState, rec: Record): void {
     // …EXCEPT the question, which is a HUMAN GATE and can only be discharged by the human. The other two
     // are the agent's claims about ITSELF — re-invoked, it is no longer done and no longer parked, so any
     // record that wakes it supersedes them honestly. An unanswered question is the opposite: it is an
-    // obligation on the reader, and nothing frizz injects on the agent's behalf pays it off. Clearing it
+    // obligation on the reader, and nothing ntwine injects on the agent's behalf pays it off. Clearing it
     // on ANY user record meant a task-notification, a wake pulse or a bare tool_result — none of which
     // the chat even renders — silently emptied the queue's evidence that the human was being waited on,
     // while the same record flipped the turn in-flight. The thread then drew its ```question card AND the
@@ -2807,7 +2807,7 @@ export function applyRecord(state: TailState, rec: Record): void {
     // Written by /rename (bare /rename auto-generates a slug; /rename <name> sets it). Keep it in a
     // dedicated observation slot only: the rename controller must confirm the readable second record
     // and atomically persist it before any board/file surface changes. Promoting an intermediate or
-    // mismatched record to aiTitle leaked rejected slugs into the UI and paired .frizz files.
+    // mismatched record to aiTitle leaked rejected slugs into the UI and paired .ntwine files.
     if (typeof rec.customTitle === "string" && rec.customTitle.trim()) {
       state.customTitle = rec.customTitle.trim()
       state.customTitleRevision++
@@ -2819,7 +2819,7 @@ export function applyRecord(state: TailState, rec: Record): void {
   // carrier — see notificationText), so it's checked for EVERY record regardless of type (the helper
   // self-guards on shape + tracked ids).
   trackCompletions(state, rec)
-  // A repair frizz injected earlier carries no <task-notification>, so it needs its own pass.
+  // A repair ntwine injected earlier carries no <task-notification>, so it needs its own pass.
   trackRelayEchoes(state, rec)
 }
 
@@ -3024,7 +3024,7 @@ export function computeTurn(state: TailState, nowMs: number): TurnState {
   if (state.lastKind === undefined) return state.turn
   // An INTERRUPT is a user record that ENDS a turn rather than opening one (see applyRecord).
   // It gets the same 5s-silence treatment the unknown-stop-reason branch above uses, and for the same
-  // reason: frizz interrupts as a FEATURE — "send now" cuts the turn short so the worker reads the
+  // reason: ntwine interrupts as a FEATURE — "send now" cuts the turn short so the worker reads the
   // queue at once — and there the real prompt lands milliseconds later and re-opens the turn. Flipping
   // idle the instant the receipt appears would flash a rest through every send-now, and a rest is not
   // cosmetic here: it cards the row into the queue and can fire the sign-off nudge at a thread that
@@ -3106,7 +3106,7 @@ export interface Tailer {
   // unknown (never dispatched, or aged out of the retained ring). The router maps undefined → "gone".
   // `outputFormat` tells the reader which schema the file is: absent = Claude JSONL, "codex" = the
   // child's codex rollout (a codex sub-agent is itself a codex thread).
-  // `direct` marks the ONE case frizz can address a steer at: an Agent-tool child THIS thread's own
+  // `direct` marks the ONE case ntwine can address a steer at: an Agent-tool child THIS thread's own
   // session dispatched and is still tracking live. A background shell, a retired child, and a
   // DESCENDANT (a grandchild, resolved through the sidecar index — its dispatch happened inside
   // another agent's process, so this session's CLI has never heard of its tool_use id) are all
@@ -3140,7 +3140,7 @@ export interface Tailer {
   backgroundShell?(slug: string, id: string): BackgroundShellLookup | undefined
   // "Is the process that owned this thread's background ops gone?" — ONE authority for a question three
   // runtimes answer differently, already computed once per tick as `paneDead` (see paneDeadForRow): a
-  // broker whose daemon record fails its pid probe, an app-server codex row frizz stopped, or a
+  // broker whose daemon record fails its pid probe, an app-server codex row ntwine stopped, or a
   // pre-cutover row with no transport left, which answers dead by default.
   // Exposed because the TRANSCRIPT producers need it too. `bgShellViews` drops a dead owner's shells
   // from the board, but the ops strip is a UNION of that list and the transcript's own pending
@@ -3323,7 +3323,7 @@ export interface TailerDeps {
   // The folder a CODEX session runs in (its app-server binding's `cwd`) — what a RELATIVE tool `workdir`
   // is relative to, since Codex resolves it against the turn's own folder. The router's fallback reading
   // (thread-cwd.ts resolveThreadWorkingDir) resolves against the same folder, so the two cannot name
-  // different places for one `workdir`. Absent ⇒ the project root, which is where Frizz starts a session.
+  // different places for one `workdir`. Absent ⇒ the project root, which is where Ntwine starts a session.
   codexSessionCwd?: (threadSlug: string, sessionId: string) => string | undefined
   // The model's context SIZE for a broker Claude session, as the SDK reported it on that session's
   // `result` message (backend/claude-runtime-ingest.ts). It is the only place Claude names the number:
@@ -3363,7 +3363,7 @@ export function markerDecision(marker: Pick<PermMarker, "decision">): PermDecisi
   return marker.decision === "allow" || marker.decision === "deny" ? marker.decision : "defer"
 }
 
-// The last policy DENIAL frizz observed for a thread, for display. Only denials appear here: a
+// The last policy DENIAL ntwine observed for a thread, for display. Only denials appear here: a
 // deferred request is already fully represented by permPrompt ("Needs you"), and an approval is
 // routine — it used to render as a quiet line, which pinned itself to the bottom of the thread
 // forever after one unremarkable command and told the maintainer nothing they wanted
@@ -3419,7 +3419,7 @@ function defaultReadPermMarker(project: Project): (slug: string) => PermMarker |
 // from the same discovery record the bridge connects through (a `{daemonPid}` JSON under
 // <stateDir>/claude-broker) plus a signal-0 probe of that pid.
 //
-// This exists because `exited` alone is NOT that answer. `exited` is stamped only when frizz DELIBERATELY
+// This exists because `exited` alone is NOT that answer. `exited` is stamped only when ntwine DELIBERATELY
 // stops a session, so a daemon that dies any other way — SIGKILL, OOM, an idle-timeout, a crash — leaves
 // the row reading alive forever. Measured over this machine's whole broker corpus 2026-08-02: 276 daemon
 // starts against 223 recorded exits, so ~19% of daemons vanish leaving no breadcrumb at all. That is the
@@ -3547,7 +3547,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   const logDir = deps.sessionLogDir ?? defaultLogDir(deps.project)
   // Keyed on THIS project's state dir: the stall log is named for a thread slug alone, which is not
   // unique across projects (and, in a shared /tmp, not across OS users either).
-  const stallLogDir = frizzTempDir("frizz-worker-logs", deps.project.stateDir)
+  const stallLogDir = ntwineTempDir("ntwine-worker-logs", deps.project.stateDir)
   const mtimeMs = deps.mtimeMs ?? defaultMtimeMs
   const awakeBetween = deps.awakeBetween ?? (deps.now ? wallSpan : processAwakeClock.awakeBetween)
   const readPermMarker = deps.readPermMarker ?? defaultReadPermMarker(deps.project)
@@ -3632,7 +3632,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // Claude's context WINDOW, latched onto the fold from the broker event stream. One-way and
   // latching by design: the SDK only names the window when a turn ends, so it must survive the
   // in-between ticks, and it lands in TailState (not a side map) so the durable tail cache carries it
-  // across a frizz restart — otherwise every resting Claude thread would lose its readout on reload and
+  // across an ntwine restart — otherwise every resting Claude thread would lose its readout on reload and
   // not get it back until its next turn finished. The tokens half needs none of this: it is on disk.
   //
   // The ingest may answer with a window BORROWED from another session on the same model alias, which is
@@ -3659,7 +3659,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     const doomed: Array<{ entry: SubAgentEntry; task: ClaudeRuntimeTask }> = []
     for (const entry of state.subAgents.values()) {
       // tool_use id first — it is the key BOTH sides mint at dispatch, so it cannot be confused. The
-      // task id is the fallback for a launch ack frizz parsed but an SDK build that omits tool_use_id.
+      // task id is the fallback for a launch ack ntwine parsed but an SDK build that omits tool_use_id.
       const task = byToolUse.get(entry.toolUseId) ?? (entry.taskId ? byTaskId.get(entry.taskId) : undefined)
       if (!task) continue
       // Backfill the manual-stop correlation key from the structured pairing, so a `TaskStop` on this
@@ -3703,7 +3703,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // HEADLESS row (broker claude / app-server codex), plus, for a broker row, a probe of its daemon's
   // own pid.
   //
-  // HISTORY, because it is the whole reason the guard below exists. Frizz used to run each worker in a
+  // HISTORY, because it is the whole reason the guard below exists. Ntwine used to run each worker in a
   // terminal of its own and read that terminal's death as the answer. A headless row never had one, so
   // asking that question about one could only ever answer "dead" — the exact trap deriveRuntime
   // (board.ts) and reconcileSessions (context.ts) each refuse by name — and the tailer fell into it at
@@ -3712,7 +3712,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // bgShellViews returned [] for all of them: a live CI watcher, correctly tracked by the fold,
   // rendered nowhere (measured 2026-07-29 — 13 threads holding live shell entries, the only one with
   // paneDead=false a legacy pre-broker row). `exited` is the headless stand-in: nothing observes a
-  // process death to set it, so it is stamped only when frizz genuinely stops the session.
+  // process death to set it, so it is stamped only when ntwine genuinely stops the session.
   //
   // Which makes `exited` a FLOOR, not the whole answer — it knows the deliberate stop and no other death.
   // A BROKER claude row can do better, because its daemon publishes a discovery record naming its pid; an
@@ -3721,7 +3721,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     // A BROKER claude row has a second, honest reading available: its daemon's own discovery record.
     // `exited` covers only the deliberate stop, which is why a daemon killed outright used to leave this
     // false forever — and with it every background shell the dead process owned, rendering as live. See
-    // defaultBrokerDaemonAlive; it fails safe to ALIVE, so this can only ever ADD deaths frizz can prove.
+    // defaultBrokerDaemonAlive; it fails safe to ALIVE, so this can only ever ADD deaths ntwine can prove.
     if (isBrokerClaudeRow(row)) return row.exited === 1 || !brokerDaemonAlive(row.session_id)
     if (isHeadlessRow(row)) return row.exited === 1
     const binding = adoptionBinding(row)
@@ -4065,7 +4065,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     for (const e of state.subAgents.values()) {
       if (e.kind !== "shell") continue
       const lastActivityAt = entryLastActivity(state, e)
-      // `stoppable` is only HALF the answer here — "frizz holds a provider task handle for this shell".
+      // `stoppable` is only HALF the answer here — "ntwine holds a provider task handle for this shell".
       // board.ts ANDs it with the thread's transport before the × is offered (see BgShellView.stoppable).
       // Emitted only when a handle exists, so the row cannot advertise a control during the window
       // between its tool_use (which creates the entry) and its launch ack (which names the task).
@@ -4153,7 +4153,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // Codex has no launch-time knob for a lifetime, so a background exec carries NO budget unless the
       // worker gives it one with `extend_shell` (shell-budget.ts) — the same as an undeclared Claude shell.
       // Codex hands a yielded command's output back only when the MODEL polls it — there is no file
-      // for frizz to tail. The row still opens its drawer — its command, its folder and its Stop are all
+      // for ntwine to tail. The row still opens its drawer — its command, its folder and its Stop are all
       // real — and the drawer says plainly that the output stays with Codex.
       outputUnavailable: true,
       // The item's own folder when codex names one, and then only (codex-app-server backgroundExecs). One it
@@ -4328,7 +4328,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   //   notification lands.</result>
   //
   // That child had RESTED holding five live grandchildren, and its own transcript kept appending two
-  // minutes later. frizz retired it on the notification (correctly — that is the only terminal signal it
+  // minutes later. ntwine retired it on the notification (correctly — that is the only terminal signal it
   // gets) and the whole branch went dark: the root's row left every surface, and `rootedInAnchor` then
   // dropped its five RUNNING grandchildren too, because a descendant may only hang off a root the thread
   // still tracks. Six rows of live fan-out, invisible under the prompt box — for 107 s in that session,
@@ -4343,7 +4343,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   //
   // `killed` is deliberately excluded. That status means the OPERATOR dismissed the row (the × says
   // "stop tracking this finished operation"), a `TaskStop` ended it, or the owning process died and a
-  // new session swept it — each an explicit "this branch is over", which frizz must honour over any
+  // new session swept it — each an explicit "this branch is over", which ntwine must honour over any
   // mtime under it. Only the ambiguous terminals (`completed`/`failed`, the ones a resumable rest also
   // emits) keep anchoring.
   //
@@ -4487,7 +4487,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // needed"). The board lists only LIVE children; this is what `@thread.subAgent` resolves against, in
   // the prompt box's completion and in `read_thread`, once a child has returned as well as while it runs.
   //
-  // Frizz keeps NO history of its own for this, because the provider already does, durably: every
+  // Ntwine keeps NO history of its own for this, because the provider already does, durably: every
   // Claude sub-agent at every depth writes a sidecar (name, dispatch id, parent) and its transcript into
   // the session's flat `subagents/` dir at spawn, and neither is ever deleted — so a child that returned
   // an hour, or a restart, ago is still on disk exactly as it ran, for as long as Claude keeps the
@@ -4645,7 +4645,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     }
     // A DESCENDANT — a child of a child, of a child, at any depth. Its dispatch is in an ANCESTOR's
     // transcript rather than this thread's, so neither map above can hold it; the flat sidecar index
-    // resolves it by the same tool_use id. Still undefined when nothing matches, so an id frizz genuinely
+    // resolves it by the same tool_use id. Still undefined when nothing matches, so an id ntwine genuinely
     // cannot place keeps degrading to the drawer's stated "unavailable" — this ADDS a resolution, it
     // never invents one.
     const descendant = descendantSidecar(state, id)
@@ -4871,7 +4871,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   //
   // A RUNNING shell's reading is asked again once a minute. The folder is where its process is NOW — a `cd`
   // inside the command moves it, and the row's tooltip says "Runs in" — and it was taken once and kept for
-  // the shell's life, so a single bad sample (the shell mid-`cd`, or before the pid fix a Frizz read holding
+  // the shell's life, so a single bad sample (the shell mid-`cd`, or before the pid fix an Ntwine read holding
   // the log) could never be corrected. A shell with no answer at all is still asked only a few times.
   // Both maps are keyed by output path, one entry per background shell ever seen, so both are bounded
   // the way the line counter's scan cache is: insertion order, oldest out (a shell that finished long ago
@@ -5016,15 +5016,15 @@ export function createTailer(deps: TailerDeps): Tailer {
   // status "killed" — so it leaves every live surface (banner, counts, completion-hold, sidebar) at
   // once, and onChange() reflects that immediately instead of waiting for the next tick. This is the
   // escape hatch for the ONE residual the `stopped` recovery can't reach: a finished op whose completion
-  // was never recorded while its parent stays alive. It is NOT a process kill — frizz tracks these by
+  // was never recorded while its parent stays alive. It is NOT a process kill — ntwine tracks these by
   // folding the worker's transcript and does not own the child processes, so a genuinely-still-running
-  // child ends only when the process owning it dies; the × just stops frizz showing a phantom. Returns whether
+  // child ends only when the process owning it dies; the × just stops ntwine showing a phantom. Returns whether
   // an entry was actually live to dismiss (a no-op for an unknown/already-gone id).
   function dismissOp(slug: string, id: string): boolean {
     const state = states.get(slug)
     if (!state || !registeredStateIsCurrent(state)) return false
     // DURABLE FIRST, and unconditionally — before the in-memory retirement and regardless of whether
-    // anything was live to retire. The in-memory maps do not survive a frizz restart, and the op's
+    // anything was live to retire. The in-memory maps do not survive an ntwine restart, and the op's
     // dispatch record does; a dismissal that lived only in memory is exactly how a killed shell came
     // back reading "57hr 18m" on the maintainer's board. Recording it for an id that is already gone
     // is harmless (the fold simply never mints it again) and is the honest reading of the click.
@@ -5060,7 +5060,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     permPrompt: boolean
   }
 
-  // A live PermissionRequest marker (Claude workers with the frizz plugin) is an ACTIVE block iff the
+  // A live PermissionRequest marker (Claude workers with the ntwine plugin) is an ACTIVE block iff the
   // policy hook DEFERRED it to a human AND its timestamp is newer than the last transcript activity —
   // a resolved request always advances the transcript past it. The caller gates this on
   // turn === "in-flight" (a real block is always mid tool_use) and on the row being non-codex, which
@@ -5137,7 +5137,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // that emit no PermissionRequest (pre-boot workspace-trust, /login and other selectors) and
   // plugin-less foreign sessions; a headless worker renders no screen, so that cover went with it. The
   // native structured detector (Codex) rode the same capture; every approval it used to scrape off the
-  // TUI now reaches frizz as a typed request on the app-server channel (see codex-app-server.ts —
+  // TUI now reaches ntwine as a typed request on the app-server channel (see codex-app-server.ts —
   // item/commandExecution/requestApproval, item/fileChange/requestApproval,
   // item/permissions/requestApproval and MCP elicitation, each raised through interactionRequest).
   //
@@ -5160,7 +5160,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   function permBlocked(state: TailState, row: SessionRow, turn: TurnState): boolean {
     if (state.foreign) return false
     // The MARKER path is all that is left, and it is the one that always worked headlessly: the
-    // cc-worker hook writes a marker into FRIZZ_PERM_DIR when a tool call is waiting on the operator.
+    // cc-worker hook writes a marker into NTWINE_PERM_DIR when a tool call is waiting on the operator.
     // Below this there used to be a fallback that captured the worker's rendered terminal and matched
     // the TUI's modal chrome by regex — the only way to see a prompt on a screen. No worker renders one
     // now, and a broker thread's approvals arrive as typed permission requests over the control channel
@@ -5198,9 +5198,9 @@ export function createTailer(deps: TailerDeps): Tailer {
   let primeProgress: ((done: number, total: number) => void) | undefined
 
   // Every id a registry row OWNS, in any of the three columns a transcript can be keyed by, plus the
-  // graveyard. A foreign scan that misses one of these surfaces a DUPLICATE of a thread frizz is
+  // graveyard. A foreign scan that misses one of these surfaces a DUPLICATE of a thread ntwine is
   // already driving — read-only, unsteerable, and sitting in a band that promises the opposite.
-  //   • `session_id`       — the frizz-minted id; for Claude it IS the transcript's name.
+  //   • `session_id`       — the ntwine-minted id; for Claude it IS the transcript's name.
   //   • `transcript_id`    — a DISCOVERED (drifted) transcript, owned by its row.
   //   • `agent_session_id` — the backend's OWN id where it differs. Codex mints its rollout id itself,
   //                          so this is the ONLY column that names a codex thread's file. Omitting it
@@ -5225,7 +5225,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // affordable and for the two filters (sub-agent children, project cwd) it applies.
   //
   // Both cwd spellings are offered because a rollout records the cwd the codex PROCESS had, which on
-  // macOS resolves symlinks — a project frizz knows as `/tmp/x` writes `/private/tmp/x`.
+  // macOS resolves symlinks — a project ntwine knows as `/tmp/x` writes `/private/tmp/x`.
   function scanForeignCodex(nowMs: number): { id: string; path: string; title?: string }[] {
     const workDir = workDirOf(deps.project)
     if (!workDir) return []
@@ -5284,8 +5284,8 @@ export function createTailer(deps: TailerDeps): Tailer {
 
   // Tail one FOREIGN state: same fold/derivation as a registered session (consume → computeTurn →
   // derivedSignature, priming the first sighting silently) but with NO permission sniff, NO owner-death
-  // check, and NO notify / storage write — frizz never dispatched a foreign thread, so it has no
-  // frizz-owned runtime and no registry row.
+  // check, and NO notify / storage write — ntwine never dispatched a foreign thread, so it has no
+  // ntwine-owned runtime and no registry row.
   // Returns whether its derived telemetry changed (→ board dirty). Pushes to transcriptDirty on bytes.
   function tailForeign(state: TailState, nowMs: number, transcriptDirty: string[], backend: TailBackend): boolean {
     const key = `foreign:${state.slug}`
@@ -5374,7 +5374,7 @@ export function createTailer(deps: TailerDeps): Tailer {
 
   // Drop the sends that died with the process holding them, at the ONE moment that can be said
   // honestly: after this tick's records have been correlated out of `items`, so anything the agent
-  // actually read is already gone from the list, and only against a daemon frizz can PROVE is dead.
+  // actually read is already gone from the list, and only against a daemon ntwine can PROVE is dead.
   //
   // `pending`/`enqueued` are both claims about a live process — one was handed the message, one
   // receipted it into its own queue. When that daemon is gone the claim is false, but the row survives
@@ -5386,11 +5386,11 @@ export function createTailer(deps: TailerDeps): Tailer {
   //
   // DROPPED, not tombstoned, for that function's reason: a tombstone would suppress a matching JSONL
   // enqueue bubble, hiding a message that DID land in the sliver before the death. This only stops
-  // frizz projecting its own synthetic bubble; nothing about the real message is touched.
+  // ntwine projecting its own synthetic bubble; nothing about the real message is touched.
   //
   // BROKER-ONLY. `paneDeadForRow` is the reading that fails safe to ALIVE (defaultBrokerDaemonAlive
   // answers "dead" only on a positively ABSENT discovery record or an ESRCH pid probe), so this can
-  // only ever retire sends frizz can prove are stranded. Observed 2026-08-11 on
+  // only ever retire sends ntwine can prove are stranded. Observed 2026-08-11 on
   // `in-codex-threads-tool-calls-ike`: receipted 19:45:05.771, daemon dead 760ms later.
   function retireDeliveriesLostWithTheDaemon(
     row: SessionRow,
@@ -5788,7 +5788,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     // diagnostics log, which records the session's lifecycle and any dropped input.
     //
     // This is now the WHOLE detail, because the screen capture that used to precede it is gone: no
-    // runtime frizz drives renders a terminal, and nothing wired a capture into the tailer. The
+    // runtime ntwine drives renders a terminal, and nothing wired a capture into the tailer. The
     // boot-failure auth classifier that read the captured text (`isClaudeAuthErrorText` over the frozen
     // final screen, setting authFault="authentication_rejected") went with it — it had been running on
     // the empty string. The fold-side classifier is unaffected and is the live one: applyRecord sets
@@ -5801,7 +5801,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // old "(pane empty / unavailable)" described output that SHOULD have existed and sent the reader
       // hunting for a screen that cannot exist. Say why there is nothing instead.
       : "no worker output captured (this build captures no terminal)"
-    frizzLog.error(
+    ntwineLog.error(
       "tailer",
       `thread ${row.slug} (session ${row.session_id}): no transcript ${DISCOVERY_GRACE_MS / 1000}s after dispatch — likely a boot failure. ${detail.slice(0, 4000)}`,
     )
@@ -6027,7 +6027,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // notice by the clock — a turn still running (and the 5s backstop that ends an unlabelled one), a
   // permission block, a sub-agent at work, a transcript that has not appeared yet, a send still being
   // aged toward its timeout. A thread with none of them changes only when something is DONE to it, and
-  // each such thing announces itself: frizz's own writes move the registry row, a provider event
+  // each such thing announces itself: ntwine's own writes move the registry row, a provider event
   // nudges, and a codex exec is asked for by name.
   //
   // A BACKGROUND SHELL DOES NOT UNSETTLE A THREAD AT REST, and that is most of what this buys: a thread
@@ -6047,7 +6047,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     return codexBgShellViews(state).length === 0
   }
 
-  // DORMANT: settled, and frizz has stopped it and filed it away. Its process is gone and stamped
+  // DORMANT: settled, and ntwine has stopped it and filed it away. Its process is gone and stamped
   // gone, so the only way its transcript grows is a `claude --resume` from somebody's terminal. The
   // ledger arms are exact rather than "nothing live": a row whose ledger the tailer has not yet
   // accounted for still owes one projection, and that is not a row to skip.
@@ -6161,7 +6161,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // for either — a claude row (agent_session_id NULL) falls to transcript_id ?? session_id (its old
       // deterministic path); a codex row (transcript_id NULL) falls to agent_session_id ?? session_id.
       // An ACP row is the exception: its `agent_session_id` is the AGENT's session (kept for
-      // session/load), but the transcript is FRIZZ-written and keyed by the frizz session id
+      // session/load), but the transcript is NTWINE-written and keyed by the ntwine session id
       // (acp-transcript.ts) — so its stem is always `session_id`.
       const backend = resolveBackend(row.backend)
       const nativeId = nativeIdOf(row)
@@ -6236,7 +6236,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // CLAUDE-ONLY: the discovery scan targets the claude log dir + scratchpad sentinel; a codex row
       // locates its rollout by the agent_session_id pinned at dispatch, so running claude discovery on it
       // would wrongly flag noTranscript (a codex discovery-miss is a separate follow-up). An ACP row's
-      // file is deterministic too (frizz writes it), so it takes the same exemption.
+      // file is deterministic too (ntwine writes it), so it takes the same exemption.
       const prevNoTranscript = state.noTranscript
       if (row.backend !== "codex" && row.backend !== "acp" && !resolveTranscript(state, row, nowMs)) {
         unsettled = true // a discovered transcript lost its claim; the next tick decides again
@@ -6246,7 +6246,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // First sighting of a session (fresh dispatch OR restored after a server restart): read the
       // whole transcript to date and adopt its state as the baseline WITHOUT firing turn-done /
       // exited notifies — those pre-restart events are history, not new activity. The REST ITSELF is
-      // not an event though, it is a fact about the thread, and one taken while frizz was not watching
+      // not an event though, it is a fact about the thread, and one taken while ntwine was not watching
       // still has to be recorded: `onPrimedAtRest` below stamps it, silently. See its own block.
       if (!state.primed) {
         // Bounded so activation never blocks the loop for seconds. The row keeps its place in the
@@ -6274,7 +6274,7 @@ export function createTailer(deps: TailerDeps): Tailer {
         drainUnretiredOps(state, row)
         if (state.offset !== primeOffset) transcriptDirty.push(row.slug)
         state.turn = turnFor(row, state, nowMs)
-        // The turn this prime just adopted may BE a rest frizz never saw happen. Stamped before the
+        // The turn this prime just adopted may BE a rest ntwine never saw happen. Stamped before the
         // board's first assemble, so `rested_at` is already honest by the time anything reads it.
         onPrimedAtRest(row, state)
         const pane = sniffPane(
@@ -6302,7 +6302,7 @@ export function createTailer(deps: TailerDeps): Tailer {
           // (verified on both standalone TUIs). Preserve a valid exact launch mode across restart;
           // backfill only unknown legacy rows, or accept a timestamped Codex event from this process
           // generation. Incremental sidecars below still persist genuine live transitions.
-          // An app-server thread is the ONE case where the rollout is not evidence about frizz's thread:
+          // An app-server thread is the ONE case where the rollout is not evidence about ntwine's thread:
           // the same file is written by any terminal `codex resume` (config default `workspace-write`)
           // and by the app-server's own config-defaulted cold resume. Folding that back over the stored
           // mode does not just mis-DISPLAY the thread — `sandboxFor` reads this column, so the next cold
@@ -6443,7 +6443,7 @@ export function createTailer(deps: TailerDeps): Tailer {
         }
       } else {
         // Nothing to observe a death ON for a headless row, but the "owning process is gone" flag still
-        // has to stay CURRENT: it is what clears a headless thread's background shells when frizz stops
+        // has to stay CURRENT: it is what clears a headless thread's background shells when ntwine stops
         // the session. Assigned without the death EDGE — onPaneDeath stamps `exited` and fires the
         // one-shot notify, and for a headless row `exited` is the input here, not the output. Left out,
         // the prime-time reading would latch for the life of the process.
@@ -6451,7 +6451,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       }
 
       // The provider's own report of those ops, folded over the entries the transcript fold tracks:
-      // progress the JSONL does not carry at all, plus terminal statuses that reach frizz SECONDS before
+      // progress the JSONL does not carry at all, plus terminal statuses that reach ntwine SECONDS before
       // (or, when a notification never lands on disk, INSTEAD of) the prose the fold waits for.
       applyRuntimeTasks(row, state, nowMs)
       applyRuntimeContextWindow(row, state)
@@ -6490,7 +6490,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       // BOTH agents' terminals, tagged with the backend that has to FOLD each one — a rollout put
       // through the Claude parser yields a silent empty thread, not an error. Claude first so that if
       // the two ever exceed the cap together it is the codex tail that is dropped: Claude's scan is the
-      // one that reads a directory frizz itself writes to, so it is never speculative.
+      // one that reads a directory ntwine itself writes to, so it is never speculative.
       const next = [
         ...scanForeign(nowMs).map((f) => ({ ...f, backend: "claude" as const })),
         ...scanForeignCodex(nowMs).map((f) => ({ ...f, backend: "codex" as const })),
@@ -6562,13 +6562,13 @@ export function createTailer(deps: TailerDeps): Tailer {
   //
   // `onTurnDone` above is the only thing that stamps `rested_at`, and it fires on a LIVE in-flight →
   // idle transition. The prime path has no edge to fire: it folds a whole transcript and ADOPTS the
-  // turn it finds. So a turn that ended while frizz was not watching was never recorded as a rest at
+  // turn it finds. So a turn that ended while ntwine was not watching was never recorded as a rest at
   // all, and nothing repaired it afterwards — prime runs once per session per process, so the row kept
   // `rested_at` NULL for the rest of its life while sitting visibly at rest on the board.
   //
   // That window is not exotic. A worker is a DETACHED broker daemon in its own process group, so it
-  // keeps working across a frizz restart BY DESIGN (ARCHITECTURE.md) — which makes "the turn ended
-  // while frizz was down" the ordinary case every time the server bounces, not an edge.
+  // keeps working across an ntwine restart BY DESIGN (ARCHITECTURE.md) — which makes "the turn ended
+  // while ntwine was down" the ordinary case every time the server bounces, not an edge.
   //
   // The consequences are all downstream of the column simply being WRONG:
   //   • `snoozeAwaitingBackground` refuses the thread outright — "This thread is not at rest; nothing
@@ -6662,7 +6662,7 @@ export function createTailer(deps: TailerDeps): Tailer {
         overBudgetTicks++
         // Log the first, then decimate: a saturated server must not spend its remaining budget logging.
         if (overBudgetTicks === 1 || overBudgetTicks % 30 === 0) {
-          frizzLog.warn(
+          ntwineLog.warn(
             "tailer",
             `tick took ${Math.round(elapsed)}ms (poll ${POLL_MS}ms, ${states.size} sessions) — ` +
             `the event loop is blocked for that long, so RPCs and board pushes are delayed (occurrence ${overBudgetTicks})`,
@@ -6686,7 +6686,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   function reportTickFailure(error: unknown): void {
     tickFailures++
     if (tickFailures === 1 || tickFailures % 50 === 0) {
-      frizzLog.error("tailer", `tick threw (occurrence ${tickFailures}; the loop keeps running): ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+      ntwineLog.error("tailer", `tick threw (occurrence ${tickFailures}; the loop keeps running): ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
     }
   }
 
@@ -6695,7 +6695,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // snapshot is already keyed on) and nothing else until QUIET_POLL_MS has passed.
   //
   // The registry probe is what makes that safe to do on a timer rather than on a list of call sites.
-  // Everything frizz does to a thread — a dispatch, a follow-up, a resume, a stop, an archive, a
+  // Everything ntwine does to a thread — a dispatch, a follow-up, a resume, a stop, an archive, a
   // scheduled wake — writes its row before it does anything else, so the first look after it runs a
   // full tick exactly as before, and no path has to remember to say so.
   function poll(): "skipped" | "ticked" | "swept" {
@@ -6722,7 +6722,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       timer = null
       // RE-ARM EVEN IF THE TICK THREW. tickWithBudget is try/finally, not try/catch, so an exception
       // out of tick() used to escape a timer callback — which in node means an uncaughtException and,
-      // with no process-level handler anywhere in this server, the whole frizz process. The tailer is
+      // with no process-level handler anywhere in this server, the whole ntwine process. The tailer is
       // the only source of turn/liveness telemetry: it must degrade to a logged bad tick, never take
       // the server (or its own loop) down with it.
       try { poll() } catch (error) { reportTickFailure(error) }
@@ -6806,7 +6806,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     // agent. The board reports both, and `boardRuntime` decides which one the row is allowed to draw.
     //
     // AND ONLY FOR A THREAD THAT STILL SPEAKS THE FENCE (2026-09-11). The free-form ```question fence
-    // is retired from the worker contract — a worker asks via `mcp__frizz__ask`, a registered row —
+    // is retired from the worker contract — a worker asks via `mcp__ntwine__ask`, a registered row —
     // so for a thread dispatched at or after the cutover a fence in its prose is prose: it must not
     // queue the thread, degrade its runtime, excuse the sign-off nudge or turn the Goal's bump. A
     // thread dispatched BEFORE it is a legacy worker whose fence is still its ask, and everything
@@ -6929,7 +6929,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     subAgentByTaskId,
     subAgentDescendantTasks,
     backgroundShell: backgroundShellLookup,
-    // Registered rows only. A FOREIGN thread (a maintainer's own terminal) is not frizz's to declare
+    // Registered rows only. A FOREIGN thread (a maintainer's own terminal) is not ntwine's to declare
     // dead — nothing here owns its process — so it answers false and its cards are left alone.
     ownerGone: (slug) => states.get(slug)?.paneDead ?? false,
     dismissOp,

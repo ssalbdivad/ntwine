@@ -11,7 +11,7 @@ import { useCallback, useMemo, useSyncExternalStore } from "react"
 // live in a component. The key is the step text rather than a thread slug because a transcript fence
 // reaches the card with no thread at all; two threads handing over word-for-word the same steps would
 // share their ticks, which is harmless.
-const PREFIX = "frizz-steps-ticked:"
+const PREFIX = "ntwine-steps-ticked:"
 const listeners = new Set<() => void>()
 
 function subscribe(listener: () => void): () => void {

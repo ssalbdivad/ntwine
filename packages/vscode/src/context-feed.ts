@@ -1,9 +1,9 @@
-// THE EDITOR'S LIVE CONTEXT, FED TO THE SIDEBAR — `frizz:editor-context` (packages/shared/src/
+// THE EDITOR'S LIVE CONTEXT, FED TO THE SIDEBAR — `ntwine:editor-context` (packages/shared/src/
 // embed-protocol.ts): the text editor in front, its selection with the primary selection's text (or the
 // caret's line, with nothing selected), whether it is unsaved or untitled, and the other files open in
 // tabs, posted to the sidebar's page whenever it is ready and they change. The page's context bar shows
 // it, and a message sent from the sidebar carries the selection, or the file and line, while the human
-// shares the editor (frizz.shareEditorState, the bar's eye; packages/web/src/lib/editorContext.ts
+// shares the editor (ntwine.shareEditorState, the bar's eye; packages/web/src/lib/editorContext.ts
 // outgoingMessage). The text is in the feed rather than fetched at send so Enter sends at once.
 //
 // WHAT is in front is not this file's to decide: editor-watcher.ts holds the one rule (editor-front.ts),
@@ -30,9 +30,9 @@
 // Only `import type` from vscode, like app.ts.
 
 import type * as vscode from "vscode"
-import type { EditorProject } from "@frizz/shared/editor-protocol"
-import type { EmbedEditorContextMessage, EmbedEditorFile } from "@frizz/shared/embed-protocol"
-import { EMBED_MAX_SELECTION_TEXT } from "@frizz/shared/embed-protocol"
+import type { EditorProject } from "@ntwine/shared/editor-protocol"
+import type { EmbedEditorContextMessage, EmbedEditorFile } from "@ntwine/shared/embed-protocol"
+import { EMBED_MAX_SELECTION_TEXT } from "@ntwine/shared/embed-protocol"
 import { editorContextMessage, fileLabel, openFiles, pageActive, Recency } from "./editor-context.ts"
 import { selectedText } from "./editor-front.ts"
 import type { EditorWatcher } from "./editor-watcher.ts"
@@ -48,7 +48,7 @@ export interface ContextFeedHost {
   onReady(listener: (ready: boolean) => void): void
   post(message: EmbedEditorContextMessage): Promise<boolean>
   projects(): readonly EditorProject[]
-  /** Whether the human shares the editor with Frizz (frizz.shareEditorState). */
+  /** Whether the human shares the editor with Ntwine (ntwine.shareEditorState). */
   shared(): boolean
 }
 

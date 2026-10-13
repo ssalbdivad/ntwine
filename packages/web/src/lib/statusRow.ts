@@ -1,6 +1,6 @@
 // The one icon-action treatment used by every button in the status row above the prompt box (settings,
-// reload). It lives here rather than in StatusRow.tsx because RestartFrizzButton also needs it, and
-// importing it from StatusRow — which itself renders RestartFrizzButton — would be an import cycle.
+// reload). It lives here rather than in StatusRow.tsx because RestartNtwineButton also needs it, and
+// importing it from StatusRow — which itself renders RestartNtwineButton — would be an import cycle.
 //
 // 24px square: the WCAG 2.2 minimum pointer target, and the largest size that still reads as part of a
 // 12px text strip rather than as chrome parked next to it. The old corner button was 32px, which
@@ -24,7 +24,7 @@
 // carries a glyph whose ink does NOT reach lucide's outer 24-unit bound — this constant is one
 // number for both buttons only because their two glyphs happen to paint the same 12px:
 //   nub scripts/ink-gaps.mjs http://localhost:<vite>/status-row-fixture.html \
-//     '[data-status-row] button[aria-label="Settings"],[data-status-row] button[aria-label="Update Frizz"]' \
+//     '[data-status-row] button[aria-label="Settings"],[data-status-row] button[aria-label="Update Ntwine"]' \
 //     --dsf=4 --pad=0
 export const STATUS_ROW_ACTION =
   "-mx-1.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg/75 outline-none transition-colors hover:bg-elevated hover:text-fg focus-visible:ring-1 focus-visible:ring-border-strong disabled:opacity-55"

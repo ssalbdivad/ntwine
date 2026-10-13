@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { mutation, query } from "@frizz/rpc/server"
+import { mutation, query } from "@ntwine/rpc/server"
 import {
   CreateScheduleInput,
   GetScheduleResult,
@@ -14,11 +14,11 @@ import {
   ScheduleView,
   SetScheduleStateInput,
   UpdateScheduleInput,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import type { AppContext } from "./context.ts"
 
 // THE SCHEDULE RPCs (ARCHITECTURE.md § Scheduled threads). Spread into the router (router.ts createRouter), so
-// they are ordinary procedures of the tenant they are addressed to — `/_frizz/<project>/rpc/<name>` — and
+// they are ordinary procedures of the tenant they are addressed to — `/_ntwine/<project>/rpc/<name>` — and
 // every one is mirrored in packages/web/src/api/contract.ts, which rpc-contract.ts holds to these schemas.
 //
 // Two audiences. The HUMAN's (the prompt box, which reads its own words for a schedule as they are typed; the
@@ -97,7 +97,7 @@ export function scheduleProcedures(ctx: AppContext) {
     }),
 
     // Start the next run now. Calls the start directly, never the scheduler's kick, so it works on a server
-    // whose wakers are off (FRIZZ_WAKERS_OFF), where a kick does nothing.
+    // whose wakers are off (NTWINE_WAKERS_OFF), where a kick does nothing.
     runScheduleNow: mutation({
       input: ScheduleIdInput,
       output: RunScheduleNowResult,
@@ -120,7 +120,7 @@ export function scheduleProcedures(ctx: AppContext) {
       },
     }),
 
-    // The worker's `schedule` tool (cc-worker/bin/frizz-mcp.mjs). `text` is relayed verbatim.
+    // The worker's `schedule` tool (cc-worker/bin/ntwine-mcp.mjs). `text` is relayed verbatim.
     ownSchedule: mutation({
       input: OwnScheduleInput,
       output: OwnScheduleResult,

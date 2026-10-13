@@ -22,12 +22,12 @@ const project = { stateDir: state }
 const permDir = permRequestDir(project)
 const slug = "demo-thread"
 
-// Run the hook the way Claude Code does: JSON payload on stdin, FRIZZ_THREAD + FRIZZ_PERM_DIR in env.
+// Run the hook the way Claude Code does: JSON payload on stdin, NTWINE_THREAD + NTWINE_PERM_DIR in env.
 function runHook(payload, env = {}) {
   return execFileSync("node", [HOOK], {
     input: JSON.stringify(payload),
     encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: slug, [PERM_DIR_ENV]: permDir, FRIZZ_PERM_POLICY: "auto", ...env },
+    env: { ...process.env, NTWINE_THREAD: slug, [PERM_DIR_ENV]: permDir, NTWINE_PERM_POLICY: "auto", ...env },
   })
 }
 const marker = () => JSON.parse(readFileSync(permMarkerPath(project, slug), "utf8"))
@@ -87,17 +87,17 @@ try {
   const bypassRm = JSON.parse(runHook(bash("rm -rf ~", { permission_mode: "bypassPermissions" })) || "{}")
   check("deny: bypassPermissions still refuses a catastrophic delete", bypassRm.hookSpecificOutput?.decision?.behavior === "deny" && marker().rule === "catastrophic-delete")
 
-  // 4c. THE WORKER'S OWN FRIZZ COMMAND is approved in a restrictive mode too, in the one shape Claude
-  // Code's `Bash(frizzctl:*)` rule does not carry: a quoted heredoc. The shapes it must NOT approve are
+  // 4c. THE WORKER'S OWN NTWINE COMMAND is approved in a restrictive mode too, in the one shape Claude
+  // Code's `Bash(ntwinectl:*)` rule does not carry: a quoted heredoc. The shapes it must NOT approve are
   // pinned in packages/server/src/perm-policy-hook.test.ts.
-  const asking = "frizzctl ask --input - <<'EOF'\n{\"question\":\"Ship it?\"}\nEOF"
+  const asking = "ntwinectl ask --input - <<'EOF'\n{\"question\":\"Ship it?\"}\nEOF"
   const own = JSON.parse(runHook(bash(asking, { permission_mode: "default" })) || "{}")
-  check("allow: a restrictive thread's own `frizzctl … <<'EOF'` is approved", own.hookSpecificOutput?.decision?.behavior === "allow" && marker().rule === "own-frizzctl", marker().rule)
+  check("allow: a restrictive thread's own `ntwinectl … <<'EOF'` is approved", own.hookSpecificOutput?.decision?.behavior === "allow" && marker().rule === "own-ntwinectl", marker().rule)
   check("defer: …and the same line with something after the heredoc is not", runHook(bash(`${asking}\ntouch y`, { permission_mode: "default" })) === "" && marker().rule === "restrictive-mode", marker().rule)
 
   // 5. DEFER — the review-policy escape hatch, without changing how workers launch.
-  const review = runHook(bash("touch z"), { FRIZZ_PERM_POLICY: "review" })
-  check("defer: FRIZZ_PERM_POLICY=review emits NOTHING", review === "")
+  const review = runHook(bash("touch z"), { NTWINE_PERM_POLICY: "review" })
+  check("defer: NTWINE_PERM_POLICY=review emits NOTHING", review === "")
   check("defer: marker names the review rule", marker().rule === "review-policy", marker().rule)
 
   // 6. Back-compat: an OLD observe-era marker (no `decision`) still reads as a block.
@@ -115,16 +115,16 @@ try {
   check("ExitPlanMode writes NO marker and emits nothing", planWrote === false && plan === "")
 
   // 9. FAIL-SAFE gates. A hook that can APPROVE must fall back to ASKING, never to allowing.
-  const noThread = runHook(bash("touch x"), { FRIZZ_THREAD: "" })
-  check("no FRIZZ_THREAD → inert (never decides a foreign session)", noThread === "")
+  const noThread = runHook(bash("touch x"), { NTWINE_THREAD: "" })
+  check("no NTWINE_THREAD → inert (never decides a foreign session)", noThread === "")
   const bad = execFileSync("node", [HOOK], {
     input: "{ not json", encoding: "utf8",
-    env: { ...process.env, FRIZZ_THREAD: slug, [PERM_DIR_ENV]: permDir },
+    env: { ...process.env, NTWINE_THREAD: slug, [PERM_DIR_ENV]: permDir },
   })
   check("unparseable payload → emits nothing (defers to the human)", bad === "")
   // No marker dir: the decision must still be made and emitted — telemetry loss never stalls a worker.
   const noDir = JSON.parse(runHook(bash("touch x"), { [PERM_DIR_ENV]: "" }) || "{}")
-  check("no FRIZZ_PERM_DIR → still decides (marker is telemetry, not a gate)", noDir.hookSpecificOutput?.decision?.behavior === "allow")
+  check("no NTWINE_PERM_DIR → still decides (marker is telemetry, not a gate)", noDir.hookSpecificOutput?.decision?.behavior === "allow")
 
   // 10. Corrupt/half-written marker → reader degrades to undefined (fail-safe), never throws.
   mkdirSync(permDir, { recursive: true })

@@ -1,7 +1,0 @@
-#!/usr/bin/env node
-// frizz-run — on the worker's Bash PATH while the frizz-worker plugin is enabled. The gate itself is
-// ../job-gate/frizz-run.ts; this shim only exists because a PATH command cannot carry a `.ts` name.
-import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-
-await import(pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'job-gate', 'frizz-run.ts')).href);

@@ -1,6 +1,6 @@
-// The MCP servers a frizz worker mounts BESIDES the unified `frizz` server — and, since 2026-09-03, the
+// The MCP servers an ntwine worker mounts BESIDES the unified `ntwine` server — and, since 2026-09-03, the
 // ONLY servers it mounts: every worker launches under `--strict-mcp-config`, so what this module returns
-// plus the frizz mount (claudeMcpConfig, dispatch.ts) is the whole MCP surface of a thread.
+// plus the ntwine mount (claudeMcpConfig, dispatch.ts) is the whole MCP surface of a thread.
 //
 // WHY STRICT. Without it the CLI discovers every scope a plain `claude` would: the project's `.mcp.json`
 // AND the operator's user-scope servers in `~/.claude.json`. Measured 2026-09-02 on the maintainer's
@@ -21,7 +21,7 @@
 //      `.claude/settings.local.json`, the user settings file, and the cwd's record in `~/.claude.json`,
 //      unioned. A headless worker cannot answer the approval prompt, so an unapproved server is skipped
 //      exactly as `claude -p` skips it.
-//   3. the `frizz` server, which always wins (workerMcpServers below).
+//   3. the `ntwine` server, which always wins (workerMcpServers below).
 // User-scope STDIO servers are the one thing deliberately absent. An operator who wants one in the fleet
 // declares it in the project's `.mcp.json`: that is the scope that means "this repo's sessions".
 //
@@ -30,7 +30,7 @@
 // command on the first tool call (lazy-mcp-host.ts). What a worker CAN reach is decided here, unchanged.
 //
 // `${VAR}` and `${VAR:-default}` in command/args/env/url/headers are expanded HERE against the worker's
-// environment: under strict mode the CLI receives these servers in a config file frizz writes, and frizz should
+// environment: under strict mode the CLI receives these servers in a config file ntwine writes, and ntwine should
 // not depend on whether it expands that config the way it expands a discovered file. A reference with no value
 // and no default drops that server, which is what the CLI does with a discovered one.
 //
@@ -167,7 +167,7 @@ function userScopeRemoteServers(account: JsonObject | undefined, cwd: string, en
   return out
 }
 
-/** Everything a worker in `cwd` mounts besides the frizz server. See the header for the rule. */
+/** Everything a worker in `cwd` mounts besides the ntwine server. See the header for the rule. */
 export function projectMcpServers(cwd: string, options: ProjectMcpServersOptions = {}): WorkerMcpServers {
   const env = options.env ?? process.env
   const home = options.home ?? homedir()
@@ -195,8 +195,8 @@ export function projectMcpServers(cwd: string, options: ProjectMcpServersOptions
   return out
 }
 
-/** The complete mount for one worker: the project's servers with the frizz server layered over them, so
- *  a project cannot shadow `frizz` by declaring a server of that name. */
-export function workerMcpServers(project: WorkerMcpServers | undefined, frizz: WorkerMcpServers | undefined): WorkerMcpServers {
-  return { ...(project ?? {}), ...(frizz ?? {}) }
+/** The complete mount for one worker: the project's servers with the ntwine server layered over them, so
+ *  a project cannot shadow `ntwine` by declaring a server of that name. */
+export function workerMcpServers(project: WorkerMcpServers | undefined, ntwine: WorkerMcpServers | undefined): WorkerMcpServers {
+  return { ...(project ?? {}), ...(ntwine ?? {}) }
 }

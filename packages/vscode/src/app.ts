@@ -11,12 +11,12 @@ import { stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, dirname, resolve } from "node:path"
 import type * as vscode from "vscode"
-import { EDITOR_FEATURES, type EditorComposeInput, type EditorComposed, type EditorOpen, type EditorProject } from "@frizz/shared/editor-protocol"
-import { EMBED_PROBLEMS_PATH, EMBED_TERMINAL_PATH, type EmbedAddContextMessage, type EmbedCommandMessage, type EmbedComposeMessage, type EmbedEditorContextMessage, type EmbedEditorExtrasMessage, type EmbedReviewMessage } from "@frizz/shared/embed-protocol"
+import { EDITOR_FEATURES, type EditorComposeInput, type EditorComposed, type EditorOpen, type EditorProject } from "@ntwine/shared/editor-protocol"
+import { EMBED_PROBLEMS_PATH, EMBED_TERMINAL_PATH, type EmbedAddContextMessage, type EmbedCommandMessage, type EmbedComposeMessage, type EmbedEditorContextMessage, type EmbedEditorExtrasMessage, type EmbedReviewMessage } from "@ntwine/shared/embed-protocol"
 import { BUILD, buildLabel, builtAtLabel, installedBuild } from "./build-info.ts"
 import { EditorConnection, FocusRecency, type ConnectionStatus, type OpenResult } from "./connection.ts"
 import { registerContextFeed } from "./context-feed.ts"
-import { discoverFrizz, pageAddressNote, SOURCE_WORDS, type FoundFrizz } from "./discovery.ts"
+import { discoverNtwine, pageAddressNote, SOURCE_WORDS, type FoundNtwine } from "./discovery.ts"
 import { fixNote, fixTitle, lineSpan, terminalText, type Problem } from "./editor-context.ts"
 import { registerEditorStateFeed, SHARE_SETTING } from "./editor-state-feed.ts"
 import { registerEditorWatcher } from "./editor-watcher.ts"
@@ -28,7 +28,7 @@ import { registerReviews, type ReviewSnapshot } from "./review-view.ts"
 import { registerSelectionHint, type SelectionHintShown } from "./selection-hint.ts"
 import type { PageComposer } from "./framed-page.ts"
 import { registerThreadPanels, type ThreadPanelSnapshot, type ThreadTab } from "./thread-panel.ts"
-import { describeRpcError, dispatchProfile, FrizzRpc, withRetry } from "./rpc.ts"
+import { describeRpcError, dispatchProfile, NtwineRpc, withRetry } from "./rpc.ts"
 import { registerSidebar, type SidebarSnapshot } from "./sidebar.ts"
 import { notConnectedMessage, statusView } from "./status.ts"
 import { findThread, pickerThreads, threadHandleOf, threadItem, displayName, displayTitle, windowThread, windowThreadFirst, type PickerThread } from "./threads.ts"
@@ -37,15 +37,15 @@ import { registerWorkspaceFiles } from "./workspace-files.ts"
 type Vscode = typeof vscode
 
 /** What `activate` returns — read by the end-to-end suite, since a status bar item's text cannot be queried. */
-export interface FrizzExtensionApi {
+export interface NtwineExtensionApi {
   windowId: string
   status(): ConnectionStatus
   statusBar(): { text: string; tooltip: string; command: string }
   origin(): string | undefined
-  /** Where the last discovery found Frizz, and how — set even when the editor connection was refused. */
-  discovered(): FoundFrizz | undefined
+  /** Where the last discovery found Ntwine, and how — set even when the editor connection was refused. */
+  discovered(): FoundNtwine | undefined
   projects(): EditorProject[]
-  /** What the Frizz sidebar shows and what its page asked of it. */
+  /** What the Ntwine sidebar shows and what its page asked of it. */
   sidebar(): SidebarSnapshot
   /** The editor's context as the sidebar's page was last told it. */
   editorContext(): EmbedEditorContextMessage | undefined
@@ -57,7 +57,7 @@ export interface FrizzExtensionApi {
   build: string
   /** A different build found installed under this window, which it offered to reload into. */
   reloadOffered(): string | undefined
-  /** The hint beside the selection (`Ctrl+L to add to Frizz`), as it is drawn now; undefined when none is. */
+  /** The hint beside the selection (`Ctrl+L to add to Ntwine`), as it is drawn now; undefined when none is. */
   selectionHint(): SelectionHintShown | undefined
   /** Every thread open in an editor tab, as it is now. */
   threadTabs(): ThreadPanelSnapshot[]
@@ -83,7 +83,7 @@ const FLASH_MS = 1_500
 const INSTALL_POLL_MS = 4_000
 
 /** What Ask gives for a selection it cannot place; Send to thread says the same rather than dropping it. */
-const OPEN_A_FILE = "Open a file to ask Frizz about it."
+const OPEN_A_FILE = "Open a file to ask Ntwine about it."
 
 /**
  * How long Ask and Send to thread wait for the sidebar's page to be ready — a cold open of the view boots
@@ -94,12 +94,12 @@ const SIDEBAR_READY_MS = 15_000
 const SIDEBAR_COMPOSE_MS = 5_000
 
 /** The quick fix's command: it carries the problem it was offered for, so it is never in the palette. */
-const FIX_COMMAND = "frizz.askToFix"
+const FIX_COMMAND = "ntwine.askToFix"
 /** Quick fixes offered per request, at most: one per problem under the caret, and a line of them is noise. */
 const MAX_FIXES = 5
 
-export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): FrizzExtensionApi {
-  const log = api.window.createOutputChannel("Frizz", { log: true })
+export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): NtwineExtensionApi {
+  const log = api.window.createOutputChannel("Ntwine", { log: true })
   context.subscriptions.push(log)
   const windowId = randomUUID()
   // This build's label — the version, the commit and whether its sources were dirty (build-info.ts). Run
@@ -109,7 +109,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   let projects: EditorProject[] = []
   let status: ConnectionStatus = { kind: "connecting" }
 
-  const config = () => api.workspace.getConfiguration("frizz")
+  const config = () => api.workspace.getConfiguration("ntwine")
   const folders = () => (api.workspace.workspaceFolders ?? []).filter((folder) => folder.uri.scheme === "file").map((folder) => folder.uri.fsPath)
   const windowState = () => ({ folders: folders(), focused: api.window.state.focused, acceptsOpens: config().get<boolean>("openFileLinks", true) })
   const focus = new FocusRecency()
@@ -119,19 +119,19 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   // Its host reads the connection, the discovery and the openers below only when the view asks, which
   // is never before activation returns.
   const sidebar = registerSidebar(api, context, {
-    // Like the browser page, the sidebar needs no editor connection: a Frizz discovery found serves its page.
+    // Like the browser page, the sidebar needs no editor connection: an Ntwine discovery found serves its page.
     origin: () => connection.origin ?? found?.origin,
     projectSlug: () => workspaceProjects(folders(), projects)[0]?.slug,
     notFound: () => (status.kind === "offline" || status.kind === "incompatible" ? status.reason : undefined),
-    // A Frizz whose welcome names neither the sidebar nor the editor's picture (which came after the
+    // An Ntwine whose welcome names neither the sidebar nor the editor's picture (which came after the
     // sidebar), or that answered the editor socket with a 404, serves a page from before the sidebar.
     pageSupport: () => {
       const features = connection.features
       if (features) return features.has(EDITOR_FEATURES.sidebar) || features.has(EDITOR_FEATURES.editorState) ? "yes" : "no"
       return connection.predatesBridge ? "no" : "unknown"
     },
-    openFile: (message) => openFromFrizz(message),
-    openInBrowser: () => openFrizz(),
+    openFile: (message) => openFromNtwine(message),
+    openInBrowser: () => openNtwine(),
     reconnect: () => connection.reconnect(),
     addContext: (message, into) => addContextFromPage(message, into),
     hostState: () => ({ shareEditor: shared(), altK: !claudeCode }),
@@ -144,7 +144,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   // the sidebar does, for a conversation that wants the editor's width.
   const panels = registerThreadPanels(api, context, {
     origin: () => connection.origin ?? found?.origin,
-    openFile: (message) => openFromFrizz(message),
+    openFile: (message) => openFromNtwine(message),
     addContext: (message, into) => addContextFromPage(message, into),
     hostState: () => ({ shareEditor: shared(), altK: !claudeCode }),
     setShareEditor: (on) => setShareEditor(on),
@@ -155,7 +155,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     log: { info: (line) => log.info(line), warn: (line) => log.warn(line) },
   })
 
-  // WHICH FRIZZ THE HUMAN USED LAST — the sidebar or a thread's tab, by which one's page last took the
+  // WHICH NTWINE THE HUMAN USED LAST — the sidebar or a thread's tab, by which one's page last took the
   // keyboard (the relay says so). The editor's Ctrl+L (and every add, and Ctrl+L with nothing selected)
   // goes to that one's prompt box while it is on screen: a human reading a thread in a tab beside the code
   // means that thread's reply box, not a sidebar that may be hidden. Ask and Send keep the sidebar — they
@@ -163,7 +163,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   let lastFrame: "sidebar" | ThreadTab | undefined
   sidebar.onFocus(() => (lastFrame = "sidebar"))
   panels.onFocus((tab) => (lastFrame = tab))
-  /** The tab the editor's adds go to, when one does: the Frizz used last, still on screen. */
+  /** The tab the editor's adds go to, when one does: the Ntwine used last, still on screen. */
   const frontTab = (): ThreadTab | undefined => (lastFrame && lastFrame !== "sidebar" && lastFrame.visible() ? lastFrame : undefined)
 
   /**
@@ -183,9 +183,9 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     },
   }
   const useSidebar = () => config().get<boolean>("useSidebar", true)
-  // Whether the human shares the editor with Frizz — THE switch: the page's feed carries the selection's
+  // Whether the human shares the editor with Ntwine — THE switch: the page's feed carries the selection's
   // text and a send attaches the block only while it is on, and the agents' frame says only `shared: false`
-  // while it is off. The bar's eye reads and writes it (`frizz:host-state` / `frizz:share-editor`).
+  // while it is off. The bar's eye reads and writes it (`ntwine:host-state` / `ntwine:share-editor`).
   const shared = () => config().get<boolean>(SHARE_SETTING, true)
 
   /**
@@ -199,27 +199,27 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     try {
       await config().update(SHARE_SETTING, on, where)
     } catch (error) {
-      log.warn(`Couldn't ${on ? "turn on" : "turn off"} sharing the editor with Frizz: ${(error as Error).message}`)
+      log.warn(`Couldn't ${on ? "turn on" : "turn off"} sharing the editor with Ntwine: ${(error as Error).message}`)
       return "refused"
     }
-    log.info(on ? "Sharing the editor with Frizz." : "Not sharing the editor with Frizz: sends carry no editor context, and agents can't read it.")
+    log.info(on ? "Sharing the editor with Ntwine." : "Not sharing the editor with Ntwine: sends carry no editor context, and agents can't read it.")
     return shared() === on ? (on ? "on" : "off") : "overridden"
   }
 
   // CLAUDE CODE'S CHORD. Its VS Code extension (anthropic.claude-code) binds Alt+K with the same `when` as
-  // Frizz's ("editorTextFocus"), so with both installed which one answered depended on the order the
-  // extensions loaded — on the maintainer's own machine (review-final.md, 2026-10-02). Frizz steps aside:
+  // Ntwine's ("editorTextFocus"), so with both installed which one answered depended on the order the
+  // extensions loaded — on the maintainer's own machine (review-final.md, 2026-10-02). Ntwine steps aside:
   // its Alt+K binding is gated on this context key, set now and whenever the extension set changes, and
   // the page stops naming the chord. Ctrl+L, the chord the page teaches, is not Claude Code's.
   const CLAUDE_CODE = "anthropic.claude-code"
   let claudeCode = api.extensions.getExtension(CLAUDE_CODE) !== undefined
-  const applyClaudeCode = () => void api.commands.executeCommand("setContext", "frizz.claudeCodeInstalled", claudeCode)
+  const applyClaudeCode = () => void api.commands.executeCommand("setContext", "ntwine.claudeCodeInstalled", claudeCode)
   applyClaudeCode()
   context.subscriptions.push(api.extensions.onDidChange(() => {
     const next = api.extensions.getExtension(CLAUDE_CODE) !== undefined
     if (next === claudeCode) return
     claudeCode = next
-    log.info(next ? "Claude Code's extension is installed: Alt+K is its, not Frizz's." : "Claude Code's extension is gone: Alt+K adds to Frizz's prompt again.")
+    log.info(next ? "Claude Code's extension is installed: Alt+K is its, not Ntwine's." : "Claude Code's extension is gone: Alt+K adds to Ntwine's prompt again.")
     applyClaudeCode()
     sidebar.pushState()
     panels.pushState()
@@ -239,13 +239,13 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     post: (message) => pages.post(message),
   })
   const workspaceFiles = registerWorkspaceFiles(api, context, { projects: () => projects })
-  // Cursor's "⌘L to chat" beside a fresh selection, for Frizz's chord (selection-hint.ts says when, where
-  // and why not). Only while connected: the chord says Frizz isn't running otherwise.
+  // Cursor's "⌘L to chat" beside a fresh selection, for Ntwine's chord (selection-hint.ts says when, where
+  // and why not). Only while connected: the chord says Ntwine isn't running otherwise.
   const hint = registerSelectionHint(api, context, { connected: () => status.kind === "connected", mac: () => sidebar.mac() })
 
   // ── status bar ───────────────────────────────────────────────────────────────────────────────────
-  const item = api.window.createStatusBarItem("frizz.status", api.StatusBarAlignment.Right, 100)
-  item.name = "Frizz"
+  const item = api.window.createStatusBarItem("ntwine.status", api.StatusBarAlignment.Right, 100)
+  item.name = "Ntwine"
   context.subscriptions.push(item)
   let shown = statusView(status, [])
   const renderStatus = () => {
@@ -270,38 +270,38 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   // bases (Cursor 3.11 is 1.125) — have no such command. After an OPEN the file has already opened by
   // the time the window is raised, so the answer is still ok: refusing would toast an error over a file
   // that opened. A FOCUS request is nothing but the raise, though, so it answers that it could not, and
-  // Frizz falls back to the editor's own command line, which raises the window holding the folder.
+  // Ntwine falls back to the editor's own command line, which raises the window holding the folder.
   let raiseMissing = false
   const focusWindow = async (): Promise<boolean> => {
     try {
       await api.commands.executeCommand("workbench.action.focusWindow")
       return true
     } catch (error) {
-      if (!raiseMissing) log.info(`${api.env.appName} ${api.version} can't bring its own window to the front (${(error as Error).message}); Frizz's file links still open here.`)
+      if (!raiseMissing) log.info(`${api.env.appName} ${api.version} can't bring its own window to the front (${(error as Error).message}); Ntwine's file links still open here.`)
       raiseMissing = true
       return false
     }
   }
 
-  // What this window shows — file, selection, tabs, problems — for Frizz's agents to read
-  // (`mcp__frizz__editor`), sent on every change to a Frizz that takes it. `frizz.shareEditorState` off
+  // What this window shows — file, selection, tabs, problems — for Ntwine's agents to read
+  // (`mcp__ntwine__editor`), sent on every change to an Ntwine that takes it. `ntwine.shareEditorState` off
   // sends that it is off, and nothing else.
   const editorState = registerEditorStateFeed(api, context, watcher, { send: () => connection.sendEditor(), shared })
 
-  // A thread's changes as a multi-file diff (review-view.ts): pushed by Frizz when the human asks from a
+  // A thread's changes as a multi-file diff (review-view.ts): pushed by Ntwine when the human asks from a
   // browser tab (the window then comes to the front), asked for by the sidebar's page, or picked here.
   const reviews = registerReviews(api, context, { info: (line) => log.info(line), warn: (line) => log.warn(line) })
 
   let lastNotes: string | undefined
   /** The last discovery's answer: the origin a page opens on even when the editor connection was refused. */
-  let found: FoundFrizz | undefined
+  let found: FoundNtwine | undefined
   const connection = new EditorConnection({
     async discover() {
-      const result = await discoverFrizz({ serverUrl: config().get<string>("serverUrl", "") })
+      const result = await discoverNtwine({ serverUrl: config().get<string>("serverUrl", "") })
       // Where it looked, in full the first time and whenever the answer changes; the same misses on
       // every retry are only for the debug level.
       const notes = result.notes.join("\n")
-      for (const note of result.notes) (notes === lastNotes ? log.debug : log.info).call(log, `Looked for Frizz: ${note}`)
+      for (const note of result.notes) (notes === lastNotes ? log.debug : log.info).call(log, `Looked for Ntwine: ${note}`)
       lastNotes = notes
       found = result.found
       return result.found ? { origin: result.found.origin, detail: `found through ${SOURCE_WORDS[result.found.source]}` } : undefined
@@ -313,7 +313,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     },
     state: windowState,
     editor: () => editorState.snapshot(),
-    open: (message) => openFromFrizz(message),
+    open: (message) => openFromNtwine(message),
     async focus() {
       return (await focusWindow()) ? { ok: true } : { ok: false, error: `${api.env.appName} can't bring its window to the front.` }
     },
@@ -343,11 +343,11 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   context.subscriptions.push({ dispose: () => connection.stop() })
 
 
-  async function openFromFrizz(message: EditorOpen): Promise<OpenResult> {
+  async function openFromNtwine(message: EditorOpen): Promise<OpenResult> {
     let path = message.path
     let entry = await stat(path).catch(() => undefined)
     if (!entry) {
-      // A link into a thread's worktree that Done has since removed: Frizz names the main checkout's copy,
+      // A link into a thread's worktree that Done has since removed: Ntwine names the main checkout's copy,
       // which the work was merged into (settleMissing). Asked only for a path that is not there, so an
       // ordinary open never waits on the server.
       const settled = await settleMissing(path)
@@ -416,14 +416,14 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   async function openWindowThread(): Promise<void> {
     const origin = connection.origin ?? found?.origin
     const project = workspaceProjects(folders(), projects)[0]
-    // Frizz's project list has not arrived yet: try again when it does (the `projects` callback).
+    // Ntwine's project list has not arrived yet: try again when it does (the `projects` callback).
     if (!origin || !project) {
       windowThreadCheck = undefined
       return
     }
     let thread: PickerThread | undefined
     try {
-      thread = windowThread((await new FrizzRpc(origin).query(project.id, "board", undefined, 5_000)).threads, folders(), sameFolder)
+      thread = windowThread((await new NtwineRpc(origin).query(project.id, "board", undefined, 5_000)).threads, folders(), sameFolder)
     } catch (error) {
       log.info(`Could not read the board to find this window's thread: ${(error as Error).message}`)
       return
@@ -443,17 +443,17 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
 
   /**
    * The main checkout's copy of a file in a worktree that is gone (the server's `settleLocalPath`), or
-   * undefined. A file link the sidebar's page hands over (`frizz:open-file`) comes straight here, not
-   * through Frizz's opener, which settles its own; an agent that worked in `.frizz/worktrees/<slug>` wrote
+   * undefined. A file link the sidebar's page hands over (`ntwine:open-file`) comes straight here, not
+   * through Ntwine's opener, which settles its own; an agent that worked in `.ntwine/worktrees/<slug>` wrote
    * its links there, and Done removes the worktree. Asked of the project the path lies in, else the
-   * window's; a Frizz too old for the procedure, or no answer within a moment, leaves the path missing.
+   * window's; an Ntwine too old for the procedure, or no answer within a moment, leaves the path missing.
    */
   async function settleMissing(path: string): Promise<string | undefined> {
     const origin = connection.origin ?? found?.origin
     const project = projectForPath(path, projects)?.project ?? windowProject()
     if (!origin || !project) return undefined
     try {
-      const settled = (await new FrizzRpc(origin).query(project.id, "settleLocalPath", { path }, 3_000)).path
+      const settled = (await new NtwineRpc(origin).query(project.id, "settleLocalPath", { path }, 3_000)).path
       return settled && settled !== path ? settled : undefined
     } catch {
       return undefined
@@ -472,9 +472,9 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
       sidebar.refresh()
     }),
     api.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("frizz.serverUrl")) connection.reconnect()
-      else if (event.affectsConfiguration("frizz.openFileLinks")) connection.sendState()
-      if (event.affectsConfiguration(`frizz.${SHARE_SETTING}`)) {
+      if (event.affectsConfiguration("ntwine.serverUrl")) connection.reconnect()
+      else if (event.affectsConfiguration("ntwine.openFileLinks")) connection.sendState()
+      if (event.affectsConfiguration(`ntwine.${SHARE_SETTING}`)) {
         editorState.sharingChanged()
         feed.refresh()
         sidebar.pushState()
@@ -495,7 +495,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     const label = buildLabel(next)
     offered = { id: next.id, label }
     log.info(`A different build of the extension is installed: ${label}. Reload the window to run it; this one runs ${extensionVersion}.`)
-    void api.window.showInformationMessage(`Frizz's extension was updated to ${label}. Reload the window to use it.`, "Reload window").then((choice) => {
+    void api.window.showInformationMessage(`Ntwine's extension was updated to ${label}. Reload the window to use it.`, "Reload window").then((choice) => {
       if (choice === "Reload window") void api.commands.executeCommand("workbench.action.reloadWindow")
     })
   }, INSTALL_POLL_MS)
@@ -580,15 +580,15 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
 
   /**
    * The project a file belongs to and how to show its path. A file no project's folder holds offers
-   * Home instead (labelled for the command at hand), or opening Frizz's add-folder dialog on it.
+   * Home instead (labelled for the command at hand), or opening Ntwine's add-folder dialog on it.
    */
   async function place(target: Target, origin: string, homeLabel: string): Promise<{ project: EditorProject; ref: FileRef } | undefined> {
     const match = projectForPath(target.path, projects)
     const ref = (path: string, display: string): FileRef => ({ path, display, selection: target.selection, cursorLine: target.cursorLine })
     if (match) return { project: match.project, ref: ref(match.path, match.relative || match.path) }
     const home = projects.find((project) => project.home)
-    const add = "Add folder to Frizz"
-    const choice = await api.window.showWarningMessage(`${basename(target.path)} isn't in a Frizz project.`, ...(home ? [homeLabel] : []), add)
+    const add = "Add folder to Ntwine"
+    const choice = await api.window.showWarningMessage(`${basename(target.path)} isn't in an Ntwine project.`, ...(home ? [homeLabel] : []), add)
     if (choice === homeLabel && home) return { project: home, ref: ref(target.path, target.path) }
     if (choice === add) {
       const folder = api.workspace.getWorkspaceFolder(target.uri)?.uri.fsPath ?? dirname(target.path)
@@ -622,7 +622,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   async function composeInTab(tab: ThreadTab, input: Omit<EmbedComposeMessage, "type" | "id">): Promise<EditorComposed | undefined> {
     const result = await composeVia(tab, input, { preserveFocus: false, readyMs: SIDEBAR_READY_MS, composeMs: SIDEBAR_COMPOSE_MS })
     if (result.ok) return { t: "composed", id: result.id, ok: true }
-    log.warn(result.why.replace("The Frizz sidebar", "The thread's tab"))
+    log.warn(result.why.replace("The Ntwine sidebar", "The thread's tab"))
     sidebarWhy = result.why
     return undefined
   }
@@ -655,7 +655,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     if (typeof named.thread === "string") {
       const project = typeof named.project === "string" ? named.project : windowProject()?.slug
       if (!project) {
-        void api.window.showInformationMessage("Open a folder that's a Frizz project to open its threads here.")
+        void api.window.showInformationMessage("Open a folder that's an Ntwine project to open its threads here.")
         return undefined
       }
       target = { thread: named.thread, project }
@@ -665,12 +665,12 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
       else {
         const project = windowProject()
         if (!project) {
-          void api.window.showInformationMessage("Open a folder that's a Frizz project to open its threads here.")
+          void api.window.showInformationMessage("Open a folder that's an Ntwine project to open its threads here.")
           return undefined
         }
         let threads: PickerThread[]
         try {
-          const open = pickerThreads((await new FrizzRpc(origin).query(project.id, "board")).threads)
+          const open = pickerThreads((await new NtwineRpc(origin).query(project.id, "board")).threads)
           // A window on a thread's worktree offers that thread first (threads.ts windowThread).
           threads = windowThreadFirst(open, windowThread(open, folders(), sameFolder))
         } catch (error) {
@@ -720,29 +720,29 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     const question = typeof options.question === "string"
       ? options.question
       : await api.window.showInputBox({
-          title: "Ask Frizz",
-          prompt: `Ask Frizz about ${refLabel(ref)}`,
+          title: "Ask Ntwine",
+          prompt: `Ask Ntwine about ${refLabel(ref)}`,
           placeHolder: "What do you want to know or change?",
           ignoreFocusOut: true,
-          validateInput: (value) => (value.trim() ? undefined : "Type a question for Frizz."),
+          validateInput: (value) => (value.trim() ? undefined : "Type a question for Ntwine."),
         })
     if (question === undefined || !question.trim()) return undefined
-    const rpc = new FrizzRpc(origin)
+    const rpc = new NtwineRpc(origin)
     try {
-      const result = await api.window.withProgress({ location: api.ProgressLocation.Notification, title: "Asking Frizz…" }, async () => {
+      const result = await api.window.withProgress({ location: api.ProgressLocation.Notification, title: "Asking Ntwine…" }, async () => {
         // The operator's saved backend, model and effort, as the page's prompt box sends them: a
         // dispatch with no backend means Claude whatever the preference says.
         const preferences = await rpc.query(project.id, "dispatchPreferencesGet")
         // No retry: a dispatch that timed out may still have started its thread.
         return rpc.mutation(project.id, "dispatch", { prompt: composeMessage(question, ref), ...dispatchProfile(preferences) }, 60_000)
       })
-      log.info(`Asked Frizz in ${project.name}: thread ${result.slug}.`)
-      void api.window.showInformationMessage("Asked Frizz.", "Open thread").then((choice) => {
+      log.info(`Asked Ntwine in ${project.name}: thread ${result.slug}.`)
+      void api.window.showInformationMessage("Asked Ntwine.", "Open thread").then((choice) => {
         if (choice) openUrl(threadUrl(origin, project, result.slug))
       })
       return { slug: result.slug }
     } catch (error) {
-      log.error(`Asking Frizz failed: ${(error as Error).message}`)
+      log.error(`Asking Ntwine failed: ${(error as Error).message}`)
       void api.window.showErrorMessage(describeRpcError(error, "ask"))
       return undefined
     }
@@ -768,10 +768,10 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
       project = windowProject()
     }
     if (!project) {
-      void api.window.showInformationMessage("Open a file in a Frizz project to send it to a thread.")
+      void api.window.showInformationMessage("Open a file in an Ntwine project to send it to a thread.")
       return undefined
     }
-    const rpc = new FrizzRpc(origin)
+    const rpc = new NtwineRpc(origin)
     let threads: (PickerThread & { sessionId: string })[]
     try {
       threads = pickerThreads((await rpc.query(project.id, "board")).threads)
@@ -790,7 +790,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
       }
     } else {
       if (!threads.length) {
-        void api.window.showInformationMessage(`${project.name} has no open threads. Ask Frizz to start one.`)
+        void api.window.showInformationMessage(`${project.name} has no open threads. Ask Ntwine to start one.`)
         return undefined
       }
       const picked = await api.window.showQuickPick(
@@ -851,21 +851,21 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   }
 
   /**
-   * Put items into the prompt box the human looks at — the one way in for Add to Frizz prompt, a file, a
+   * Put items into the prompt box the human looks at — the one way in for Add to Ntwine prompt, a file, a
    * problem's quick fix and a terminal selection. With the sidebar (embed.ts addRoute): its FRONT composer
    * (the reply box of the thread it shows, else its new-thread box), the view revealed — opened, the first
    * time in a window — and the caret after the last chip, with `note` written after it. Otherwise, and for
-   * whatever the sidebar did not take (it never loaded, or refused), Frizz holds each item for a browser
+   * whatever the sidebar did not take (it never loaded, or refused), Ntwine holds each item for a browser
    * page to claim, the path from before the sidebar, so a selection is never simply lost — unless the item
    * means nothing outside the sidebar (`sidebarOnly`: a terminal selection). The note rides the sidebar
    * only; a held item has no place for one.
    */
   async function deliver(items: readonly EditorComposeInput[], options: { note?: string; sidebarOnly?: boolean } = {}): Promise<EditorComposed | undefined> {
     let left = items
-    const frizz = (connection.origin ?? found?.origin) !== undefined
-    if (addRoute({ enabled: useSidebar(), frizz }) === "sidebar") {
+    const ntwine = (connection.origin ?? found?.origin) !== undefined
+    if (addRoute({ enabled: useSidebar(), ntwine }) === "sidebar") {
       let composed: EditorComposed | undefined
-      // The thread's tab when that is the Frizz used last and it is on screen (frontTab), else the sidebar.
+      // The thread's tab when that is the Ntwine used last and it is on screen (frontTab), else the sidebar.
       const tab = frontTab()
       while (left.length) {
         const [item, ...rest] = left
@@ -877,15 +877,15 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
         left = rest
       }
       if (!left.length && composed) {
-        api.window.setStatusBarMessage("Added to Frizz's prompt box", 4_000)
+        api.window.setStatusBarMessage("Added to Ntwine's prompt box", 4_000)
         return composed
       }
-      if (!options.sidebarOnly) log.info("Handing it to Frizz for its page instead.")
+      if (!options.sidebarOnly) log.info("Handing it to Ntwine for its page instead.")
     }
     if (options.sidebarOnly) {
-      if (!useSidebar()) void api.window.showInformationMessage("Turn on the Frizz sidebar (frizz.useSidebar) to add this to Frizz's prompt box.")
-      else if (!frizz) showNotConnected()
-      else void api.window.showErrorMessage(sidebarWhy || "The Frizz sidebar couldn't take it.")
+      if (!useSidebar()) void api.window.showInformationMessage("Turn on the Ntwine sidebar (ntwine.useSidebar) to add this to Ntwine's prompt box.")
+      else if (!ntwine) showNotConnected()
+      else void api.window.showErrorMessage(sidebarWhy || "The Ntwine sidebar couldn't take it.")
       return undefined
     }
     const origin = requireOrigin()
@@ -895,13 +895,13 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
       composed = await connection.compose(item)
       if (!composed.ok) {
         log.warn(`Adding to the prompt box failed: ${composed.error ?? "no reason given"}`)
-        void api.window.showErrorMessage(`Couldn't add to Frizz's prompt box: ${composed.error ?? "Frizz refused it."}`)
+        void api.window.showErrorMessage(`Couldn't add to Ntwine's prompt box: ${composed.error ?? "Ntwine refused it."}`)
         return composed
       }
     }
-    api.window.setStatusBarMessage("Added to Frizz's prompt box", 4_000)
+    api.window.setStatusBarMessage("Added to Ntwine's prompt box", 4_000)
     const project = left[0]?.projectId ? projects.find((candidate) => candidate.id === left[0]!.projectId) : undefined
-    void api.window.showInformationMessage("Added to Frizz's prompt box.", "Open Frizz").then((choice) => {
+    void api.window.showInformationMessage("Added to Ntwine's prompt box.", "Open Ntwine").then((choice) => {
       if (choice) openUrl(projectUrl(origin, project ?? windowProject()))
     })
     return composed
@@ -914,7 +914,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   }
 
   /**
-   * Add to Frizz prompt — Ctrl+L / ⌘L (Cursor's chord) or Ctrl+I / ⌘I with a selection, the editor's Frizz
+   * Add to Ntwine prompt — Ctrl+L / ⌘L (Cursor's chord) or Ctrl+I / ⌘I with a selection, the editor's Ntwine
    * menu, the palette: the selection, else the caret's line.
    */
   async function addToPrompt(...args: unknown[]): Promise<EditorComposed | undefined> {
@@ -922,14 +922,14 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     hint.added()
     const target = targetOf(uri)
     if (!target) {
-      void api.window.showInformationMessage("Open a file to add it to Frizz's prompt box.")
+      void api.window.showInformationMessage("Open a file to add it to Ntwine's prompt box.")
       return undefined
     }
     return deliver([itemFor(target)])
   }
 
   /**
-   * Add file to Frizz prompt — an editor tab's menu, the explorer (every file selected there), the palette
+   * Add file to Ntwine prompt — an editor tab's menu, the explorer (every file selected there), the palette
    * (the file in front): a reference to each whole file. Folders are left out; a prompt names files.
    */
   async function addFileToPrompt(...args: unknown[]): Promise<EditorComposed | undefined> {
@@ -946,7 +946,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
       items.push(itemFor({ path: uri.fsPath }))
     }
     if (!items.length) {
-      void api.window.showInformationMessage("Pick a file on disk to add it to Frizz's prompt box.")
+      void api.window.showInformationMessage("Pick a file on disk to add it to Ntwine's prompt box.")
       return undefined
     }
     return deliver(items)
@@ -954,8 +954,8 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
 
   /**
    * Alt+K (Option+K on a Mac) — Claude Code's chord for an @-mention of the code in front: the selection
-   * when there is one, as Add to Frizz prompt adds it; with only a caret, the whole file, as Add file to
-   * Frizz prompt adds it. Not the caret's line, which is what the palette's Add to Frizz prompt falls back
+   * when there is one, as Add to Ntwine prompt adds it; with only a caret, the whole file, as Add file to
+   * Ntwine prompt adds it. Not the caret's line, which is what the palette's Add to Ntwine prompt falls back
    * to: a mention with nothing selected names the file, which is what the human is looking at.
    */
   async function addSelectionOrFile(...args: unknown[]): Promise<EditorComposed | undefined> {
@@ -964,7 +964,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   }
 
   /**
-   * Ask Frizz to fix — the quick fix on a problem: the problem's lines with their text, and the problem
+   * Ask Ntwine to fix — the quick fix on a problem: the problem's lines with their text, and the problem
    * itself written after the chip (`Fix: Cannot find name 'foo'. ts(2304)`), so the box reads as a request
    * the human can send as it is.
    */
@@ -986,7 +986,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
    */
   async function readTerminalSelection(): Promise<string | undefined> {
     const before = await api.env.clipboard.readText()
-    const marker = `frizz-terminal-${randomUUID()}`
+    const marker = `ntwine-terminal-${randomUUID()}`
     await api.env.clipboard.writeText(marker)
     try {
       await api.commands.executeCommand("workbench.action.terminal.copySelection")
@@ -997,7 +997,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     }
   }
 
-  /** Add to Frizz prompt from the terminal's menu: its selection as an `@terminal` chip. Sidebar only; see deliver. */
+  /** Add to Ntwine prompt from the terminal's menu: its selection as an `@terminal` chip. Sidebar only; see deliver. */
   async function addTerminalSelection(): Promise<EditorComposed | undefined> {
     const checked = terminalText((await readTerminalSelection()) ?? "")
     if (!checked.ok) {
@@ -1009,7 +1009,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   }
 
   /**
-   * Add problems in this file — the palette, the editor's Frizz menu: the file in front's errors and
+   * Add problems in this file — the palette, the editor's Ntwine menu: the file in front's errors and
    * warnings, each with its line, as one `@problems` chip (extras.ts problemsText). Sidebar only, like a
    * terminal selection: the chip's text has no file to fall back to as a reference.
    */
@@ -1038,7 +1038,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   }
 
   /**
-   * The page's context bar asked for the editor's context (`frizz:add-context`): the selection of the file
+   * The page's context bar asked for the editor's context (`ntwine:add-context`): the selection of the file
    * in front, or a whole file, into the composer it shows. It came from the sidebar, so it goes back there
    * or nowhere; and it carries the text as the editor has it NOW — nothing when the selection or the file
    * is gone by the time the click arrives.
@@ -1083,7 +1083,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   }
 
   /**
-   * A thread's changes, by name: Frizz says which checkouts it wrote in (`reviewTarget`), this window opens
+   * A thread's changes, by name: Ntwine says which checkouts it wrote in (`reviewTarget`), this window opens
    * them. What went wrong is said here — the human is in the editor — and returned for the record.
    */
   async function reviewThread(project: EditorProject, slug: string, title?: string): Promise<string> {
@@ -1094,7 +1094,7 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     }
     let target
     try {
-      target = await new FrizzRpc(origin).query(project.id, "reviewTarget", { slug, ...(title ? { title } : {}) })
+      target = await new NtwineRpc(origin).query(project.id, "reviewTarget", { slug, ...(title ? { title } : {}) })
     } catch (error) {
       log.warn(`Reading ${slug}'s changes failed: ${(error as Error).message}`)
       void api.window.showErrorMessage(`Couldn't review the changes: ${describeRpcError(error)}`)
@@ -1105,11 +1105,11 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     return result.ok ? "opened" : `nothing: ${result.error ?? ""}`
   }
 
-  /** The sidebar's ⋯ Review changes (`frizz:review`): the thread its page names, in this window. */
+  /** The sidebar's ⋯ Review changes (`ntwine:review`): the thread its page names, in this window. */
   async function reviewFromPage(message: EmbedReviewMessage): Promise<string> {
     const project = projects.find((candidate) => candidate.slug === message.project) ?? projects.find((candidate) => candidate.id === message.project)
     if (!project) {
-      void api.window.showErrorMessage(`Frizz has no project ${message.project}.`)
+      void api.window.showErrorMessage(`Ntwine has no project ${message.project}.`)
       return "unknown project"
     }
     return reviewThread(project, message.thread, message.title)
@@ -1125,12 +1125,12 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
     const { options } = splitArgs(args)
     const project = windowProject()
     if (!project) {
-      void api.window.showInformationMessage("Open a folder that's a Frizz project to review its threads' changes.")
+      void api.window.showInformationMessage("Open a folder that's an Ntwine project to review its threads' changes.")
       return undefined
     }
     let threads: PickerThread[]
     try {
-      threads = pickerThreads((await new FrizzRpc(origin).query(project.id, "board")).threads)
+      threads = pickerThreads((await new NtwineRpc(origin).query(project.id, "board")).threads)
     } catch (error) {
       void api.window.showErrorMessage(describeRpcError(error))
       return undefined
@@ -1165,28 +1165,28 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
    */
   async function sidebarCommand(command: EmbedCommandMessage["command"]): Promise<boolean> {
     await sidebar.reveal(false)
-    if ((await waitSidebarReady(SIDEBAR_READY_MS)) && (await sidebar.post({ type: "frizz:command", command }))) return true
+    if ((await waitSidebarReady(SIDEBAR_READY_MS)) && (await sidebar.post({ type: "ntwine:command", command }))) return true
     log.warn(`The sidebar's page isn't ready, so ${command} did nothing.`)
     return false
   }
 
-  /** Ctrl+L with nothing selected: the prompt box of the Frizz used last (frontTab), else the sidebar's. */
+  /** Ctrl+L with nothing selected: the prompt box of the Ntwine used last (frontTab), else the sidebar's. */
   async function focusPrompt(): Promise<boolean> {
     const tab = frontTab()
     if (!tab) return sidebarCommand("prompt")
     await tab.reveal(false)
-    if ((await tab.waitReady(SIDEBAR_READY_MS)) && (await tab.post({ type: "frizz:command", command: "prompt" }))) return true
+    if ((await tab.waitReady(SIDEBAR_READY_MS)) && (await tab.post({ type: "ntwine:command", command: "prompt" }))) return true
     log.warn("The thread's tab isn't ready, so going to its prompt box did nothing.")
     return false
   }
 
-  function openFrizz(): void {
-    // The page needs no editor connection: a Frizz that answered discovery but refused the socket (an
-    // older Frizz, a version mismatch) still serves its page.
+  function openNtwine(): void {
+    // The page needs no editor connection: an Ntwine that answered discovery but refused the socket (an
+    // older Ntwine, a version mismatch) still serves its page.
     const origin = connection.origin ?? found?.origin
     if (!origin) return showNotConnected()
     // What the sidebar shows, when it is in sight — a thread up in it opens as that thread — on this
-    // window's own address for Frizz (under a remote window the frame's is the forwarded one); else this
+    // window's own address for Ntwine (under a remote window the frame's is the forwarded one); else this
     // window's project.
     const shown = sidebar.href()
     const page = shown ? new URL(shown) : undefined
@@ -1194,27 +1194,27 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
   }
 
   context.subscriptions.push(
-    api.commands.registerCommand("frizz.ask", ask),
-    api.commands.registerCommand("frizz.sendToThread", sendToThread),
-    api.commands.registerCommand("frizz.addToPrompt", addToPrompt),
-    api.commands.registerCommand("frizz.addFileToPrompt", addFileToPrompt),
-    api.commands.registerCommand("frizz.addSelectionOrFile", addSelectionOrFile),
-    api.commands.registerCommand("frizz.addTerminalSelection", addTerminalSelection),
-    api.commands.registerCommand("frizz.addProblems", addProblems),
-    api.commands.registerCommand("frizz.addTerminalOutput", addTerminalOutput),
+    api.commands.registerCommand("ntwine.ask", ask),
+    api.commands.registerCommand("ntwine.sendToThread", sendToThread),
+    api.commands.registerCommand("ntwine.addToPrompt", addToPrompt),
+    api.commands.registerCommand("ntwine.addFileToPrompt", addFileToPrompt),
+    api.commands.registerCommand("ntwine.addSelectionOrFile", addSelectionOrFile),
+    api.commands.registerCommand("ntwine.addTerminalSelection", addTerminalSelection),
+    api.commands.registerCommand("ntwine.addProblems", addProblems),
+    api.commands.registerCommand("ntwine.addTerminalOutput", addTerminalOutput),
     api.commands.registerCommand(FIX_COMMAND, askToFix),
-    api.commands.registerCommand("frizz.sidebar.newThread", () => sidebarCommand("new-thread")),
-    api.commands.registerCommand("frizz.sidebar.queue", () => sidebarCommand("queue")),
-    api.commands.registerCommand("frizz.sidebar.jump", () => sidebarCommand("jump")),
-    api.commands.registerCommand("frizz.sidebar.settings", () => sidebarCommand("settings")),
-    api.commands.registerCommand("frizz.sidebar.shortcuts", () => sidebarCommand("shortcuts")),
+    api.commands.registerCommand("ntwine.sidebar.newThread", () => sidebarCommand("new-thread")),
+    api.commands.registerCommand("ntwine.sidebar.queue", () => sidebarCommand("queue")),
+    api.commands.registerCommand("ntwine.sidebar.jump", () => sidebarCommand("jump")),
+    api.commands.registerCommand("ntwine.sidebar.settings", () => sidebarCommand("settings")),
+    api.commands.registerCommand("ntwine.sidebar.shortcuts", () => sidebarCommand("shortcuts")),
     // Ctrl+L / ⌘L in the editor with nothing selected: Cursor's chord to its chat, here the prompt box of the
-    // Frizz used last — a thread's tab on screen, else the sidebar — revealed and focused, the caret at the
+    // Ntwine used last — a thread's tab on screen, else the sidebar — revealed and focused, the caret at the
     // end of what it holds. Ctrl+L there comes back (embed.ts, thread-panel.ts).
-    api.commands.registerCommand("frizz.focusPrompt", () => focusPrompt()),
-    api.commands.registerCommand("frizz.openThreadInTab", openThreadInTab),
-    // "Ask Frizz to fix" on any problem in a file on disk, in every language. Offered only with the sidebar
-    // on: without it the problem's message has nowhere to go, and a bare chip is Add to Frizz prompt.
+    api.commands.registerCommand("ntwine.focusPrompt", () => focusPrompt()),
+    api.commands.registerCommand("ntwine.openThreadInTab", openThreadInTab),
+    // "Ask Ntwine to fix" on any problem in a file on disk, in every language. Offered only with the sidebar
+    // on: without it the problem's message has nowhere to go, and a bare chip is Add to Ntwine prompt.
     api.languages.registerCodeActionsProvider({ scheme: "file" }, {
       provideCodeActions(document, _range, codeContext) {
         if (!codeContext.diagnostics.length || !useSidebar()) return []
@@ -1230,17 +1230,17 @@ export function activateFrizz(api: Vscode, context: vscode.ExtensionContext): Fr
         })
       },
     }, { providedCodeActionKinds: [api.CodeActionKind.QuickFix] }),
-    api.commands.registerCommand("frizz.reviewThread", reviewCommand),
-    api.commands.registerCommand("frizz.open", openFrizz),
-    api.commands.registerCommand("frizz.showLog", () => log.show()),
-    api.commands.registerCommand("frizz.sidebar.reload", () => sidebar.reload()),
-    api.commands.registerCommand("frizz.reconnect", () => {
+    api.commands.registerCommand("ntwine.reviewThread", reviewCommand),
+    api.commands.registerCommand("ntwine.open", openNtwine),
+    api.commands.registerCommand("ntwine.showLog", () => log.show()),
+    api.commands.registerCommand("ntwine.sidebar.reload", () => sidebar.reload()),
+    api.commands.registerCommand("ntwine.reconnect", () => {
       log.info("Reconnecting.")
       connection.reconnect()
     }),
   )
 
-  log.info(`Frizz extension ${extensionVersion}${builtAt ? ` (built ${builtAt})` : ""} in ${api.env.appName} ${api.version}, window ${windowId}.`)
+  log.info(`Ntwine extension ${extensionVersion}${builtAt ? ` (built ${builtAt})` : ""} in ${api.env.appName} ${api.version}, window ${windowId}.`)
   connection.start()
 
   return {

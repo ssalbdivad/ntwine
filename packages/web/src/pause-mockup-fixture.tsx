@@ -16,12 +16,12 @@ import "./styles.css"
 // Not shipped UI and not a test: a design surface, in the shape pin-mockup-fixture.tsx established.
 // The ask (maintainer 2026-09-03): "add a Pause feature — mock up the UIs and behavior".
 //
-// WHAT A PAUSE IS, and what it is not. Frizz already has two ways to take a thread out of your way, and
+// WHAT A PAUSE IS, and what it is not. Ntwine already has two ways to take a thread out of your way, and
 // neither stops the worker:
 //   • SNOOZE parks the CARD until an instant. The agent keeps running, its watchers keep waking it, and
 //     the card comes back on the clock. It is about the human's queue.
 //   • MARK AS DONE ends the session and files the thread away.
-// PAUSE is the missing third: the AGENT stops, and nothing Frizz would otherwise send it — the goal, a
+// PAUSE is the missing third: the AGENT stops, and nothing Ntwine would otherwise send it — the goal, a
 // fired timer, a shell ending, a PR going green, a snooze bump — reaches it until the human presses play.
 // Everything that would have woken it is HELD, listed, and delivered in order on resume. Your own
 // messages queue (the queued-bubble mechanism that already exists). A pause has no clock: it ends when
@@ -346,7 +346,7 @@ createRoot(document.getElementById("root")!).render(
       <>
         <h1 className="mb-1 text-[15px] font-semibold">Pause — a thread the human has frozen</h1>
         <p className="mb-10 max-w-[760px] text-[11.5px] leading-[16px] text-muted-60">
-          Snooze parks the card and Mark as done ends the session; neither stops the worker. Pause does: the agent halts, and nothing Frizz would otherwise deliver — the goal, a timer, a shell ending, a PR going green, a snooze bump — reaches it until you press play. Every wake that arrives meanwhile is held and listed; your own messages queue. On resume, Frizz sends one message carrying every held wake in order, then the queued sends. A pause has no clock.
+          Snooze parks the card and Mark as done ends the session; neither stops the worker. Pause does: the agent halts, and nothing Ntwine would otherwise deliver — the goal, a timer, a shell ending, a PR going green, a snooze bump — reaches it until you press play. Every wake that arrives meanwhile is held and listed; your own messages queue. On resume, Ntwine sends one message carrying every held wake in order, then the queued sends. A pause has no clock.
         </p>
       </>
     )}
@@ -463,7 +463,7 @@ createRoot(document.getElementById("root")!).render(
       </Panel>
     </Frame>
 
-    <Frame id="resume" title="6 · After play" note={<>Resume writes a hairline into the transcript — the wake-divider family every child event already uses, with the pause's duration on it — and then delivers ONE frizz wake carrying every held item in arrival order, so the worker reads what happened while it was stopped as a single briefing rather than four separate bumps. Queued sends follow as their own bubbles. The pause card itself stays in the transcript, collapsed to its title, as the record of the stop.</>}>
+    <Frame id="resume" title="6 · After play" note={<>Resume writes a hairline into the transcript — the wake-divider family every child event already uses, with the pause's duration on it — and then delivers ONE ntwine wake carrying every held item in arrival order, so the worker reads what happened while it was stopped as a single briefing rather than four separate bumps. Queued sends follow as their own bubbles. The pause card itself stays in the transcript, collapsed to its title, as the record of the stop.</>}>
       <Panel title="Transcript tail, four minutes after resume" width={560}>
         <Drawer width={558} header={<HeaderStrip />} composer={<ComposerGhost />} footer={<Footer state="today" pauseVerb />}>
           <AssistantProse>The v2 driver port is done for x86 and I have started on arm64.</AssistantProse>
@@ -472,7 +472,7 @@ createRoot(document.getElementById("root")!).render(
           </div>
           <WakeDivider icon={Play} at={minutesAgo(4)}>Resumed — 4 held wakes delivered</WakeDivider>
           <div className="rounded-xl border border-border/60 bg-panel-2 p-4 text-[13px] leading-5 text-fg/75">
-            <div className="petite-caps mb-1.5 text-[11px] tracking-wide text-muted-60">frizz</div>
+            <div className="petite-caps mb-1.5 text-[11px] tracking-wide text-muted-60">ntwine</div>
             <p>▶ Resumed after being paused for <b className="font-medium text-fg/85">2h 35m</b>. While you were paused:</p>
             <ol className="mt-1.5 list-decimal space-y-0.5 pl-5">
               <li>Goal (stop hook), fired 3×: “Keep porting drivers until the three-platform run is green”</li>
@@ -487,11 +487,11 @@ createRoot(document.getElementById("root")!).render(
       </Panel>
     </Frame>
 
-    <Frame id="board" title="7 · Pause all (scope question, not a proposal)" note={<>The same switch at board altitude: every open thread in this project pauses at once, and new dispatches start paused, until Resume all. Useful before a Frizz restart, a quota crunch, or a machine you are about to close. Drawn small because it is a second feature riding the first's mechanics — the question is whether it ships with Pause or later.</>}>
+    <Frame id="board" title="7 · Pause all (scope question, not a proposal)" note={<>The same switch at board altitude: every open thread in this project pauses at once, and new dispatches start paused, until Resume all. Useful before an Ntwine restart, a quota crunch, or a machine you are about to close. Drawn small because it is a second feature riding the first's mechanics — the question is whether it ships with Pause or later.</>}>
       <Panel title="Rail top while the board is paused" note="A caution strip under the prompt box; the ⏸ beside the project name is the switch.">
         <div className="p-3">
           <div className="mb-3 flex items-center justify-between px-1">
-            <span className="text-[12px] font-medium text-fg/85">frizz</span>
+            <span className="text-[12px] font-medium text-fg/85">ntwine</span>
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/10 text-accent"><Pause size={12} fill="currentColor" /></span>
           </div>
           <PromptBoxGhost>

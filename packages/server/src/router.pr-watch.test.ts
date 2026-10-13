@@ -1,7 +1,7 @@
 // THE PR WATCHER REGISTRY at the RPC boundary — the real router against real SQLite.
 //
-// `mcp__frizz__watch_pr` is proven callable over its real stdio transport in frizz-mcp.test.ts; that
-// test stands a fake http server in for frizz, so it pins the tool's half of the wire and nothing about
+// `mcp__ntwine__watch_pr` is proven callable over its real stdio transport in ntwine-mcp.test.ts; that
+// test stands a fake http server in for ntwine, so it pins the tool's half of the wire and nothing about
 // what the server does with it. This is the other half: given the exact body that tool sends, does a row
 // appear, and do the refusals refuse?
 //
@@ -13,8 +13,8 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, Settings } from "@frizz/shared"
-import { PR_WATCH_DEFAULT_FOR_MS, PR_WATCH_FOR_MAX_MS, PR_WATCH_MAX_ARMED } from "@frizz/shared"
+import type { BoardSnapshot, Settings } from "@ntwine/shared"
+import { PR_WATCH_DEFAULT_FOR_MS, PR_WATCH_FOR_MAX_MS, PR_WATCH_MAX_ARMED } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import type { PrRef, PrProbe } from "./scheduler.ts"
 import { createRouter } from "./router.ts"
@@ -24,7 +24,7 @@ import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
 
 function harness(opts: { probe?: (ref: PrRef) => PrProbe; probeIssue?: (ref: PrRef) => PrProbe } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-pr-watch-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-pr-watch-rpc-"))
   const project: Project = { dir, id: "prw", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -59,7 +59,7 @@ function harness(opts: { probe?: (ref: PrRef) => PrProbe; probeIssue?: (ref: PrR
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-08-14T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-08-14T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -112,7 +112,7 @@ test("the same PR in a different letter case is the same watcher — GitHub name
   } finally { h.close() }
 })
 
-// REFUSED, NOT STORED. A ref frizz cannot parse names no PR, so the watcher could never fire — and the
+// REFUSED, NOT STORED. A ref ntwine cannot parse names no PR, so the watcher could never fire — and the
 // worker would rest believing it was covered. The refusal has to say what a good ref looks like, since
 // the model's next move is to try again.
 test("a ref that names no pull request is refused, and nothing is written", async () => {
@@ -203,7 +203,7 @@ test("list answers with each PR's latest checks, from the same book the board re
     assert.equal(listed.watches[0].github?.checks, "failing")
     assert.deepEqual(listed.watches[0].github?.failing, ["lint"])
 
-    // An UNPOLLED PR carries no status at all rather than an invented one — "frizz has not looked yet"
+    // An UNPOLLED PR carries no status at all rather than an invented one — "ntwine has not looked yet"
     // and "this PR has no CI" are different facts, and only the second means the wait is nearly over.
     await h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "acme/app#392", for: "2h" } })
     const both = await h.router.listOwnPrWatches.handler({ input: { slug: "t" } })
@@ -297,7 +297,7 @@ test("addOwnPrWatch: an already-armed PR answers idempotently even when the prob
   } finally { h.close() }
 })
 
-// ---- ISSUES (2026-09-14): the same RPC with `kind: "issue"`, which is what `mcp__frizz__watch_issue` sends ----
+// ---- ISSUES (2026-09-14): the same RPC with `kind: "issue"`, which is what `mcp__ntwine__watch_issue` sends ----
 
 test("issue add: an issue URL normalizes to the ref, stores kind issue under an isw_ id, and probes with gh issue view", async () => {
   const probed: { pr: PrRef[]; issue: PrRef[] } = { pr: [], issue: [] }

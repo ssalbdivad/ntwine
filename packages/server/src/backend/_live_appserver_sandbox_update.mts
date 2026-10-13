@@ -27,7 +27,7 @@ import {
 } from "./codex-app-server.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const dir = mkdtempSync(join(tmpdir(), "frizz-live-sandbox-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-live-sandbox-"))
 const db = new Database(join(dir, "ui.db"))
 db.pragma("journal_mode = WAL")
 let iid = 0, cid = 0
@@ -40,7 +40,7 @@ const spawn: CodexAppServerSpawn = (binary, args, options) => {
   return child
 }
 
-// The operator's intent, exactly as frizz's registry would hold it. The bridge reads it through
+// The operator's intent, exactly as ntwine's registry would hold it. The bridge reads it through
 // `sandboxFor` on every cold resume — this is the seam that makes "saved for the next resume" true.
 let operatorSandbox: CodexSandboxMode = "read-only"
 
@@ -229,7 +229,7 @@ const WRITE_PROMPT = [
     // then is the resume genuinely COLD — closing the connection object is not enough, the daemon would
     // still hold the thread and silently ignore the override (finding 5).
     await bridge.setSandbox({ threadSlug: slug, sessionId, sandbox: "danger-full-access" })
-    // THE HOSTILE CASE. frizz's registry is NOT a reliable home for a codex row's sandbox intent: the
+    // THE HOSTILE CASE. ntwine's registry is NOT a reliable home for a codex row's sandbox intent: the
     // tailer overwrites `sessions.permission_mode` with the mode the ROLLOUT reports, and a change that
     // only takes effect next turn is still described by the old policy. Observed live on 2026-07-23 —
     // a confirmed mid-turn change to `plan` was reverted to `default` in the registry seconds later.

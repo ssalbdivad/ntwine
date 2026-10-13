@@ -29,7 +29,7 @@
 // worker said: a card stays where it was asked until a later rest claims it, and a claim moves it to the
 // end of that rest — under the fence that named it.
 
-import { awaitingQuestions } from "@frizz/shared"
+import { awaitingQuestions } from "@ntwine/shared"
 import { splitFenceBlocks } from "./fenceBlocks.ts"
 
 export interface AnchorMessage {
@@ -40,7 +40,7 @@ export interface AnchorMessage {
   text?: string
 }
 
-/** A real human turn — a typed reply or one of frizz's own deliveries, which land as user records and
+/** A real human turn — a typed reply or one of ntwine's own deliveries, which land as user records and
  *  count deliberately (the thread moved on, whoever moved it). Punctuation with a nominal role (an event
  *  line, a reasoning summary) is not a turn. */
 function isTurn(m: AnchorMessage): boolean {

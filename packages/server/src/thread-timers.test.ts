@@ -23,14 +23,14 @@ const SLUG = "alarmed"
 const T0 = "2026-08-04T12:00:00.000Z"
 
 function fixture(tele: Partial<SessionTelemetry> = {}, opts: { now?: string; archived?: boolean } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-timer-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-timer-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
-  // Frizz's built-in sign-off nudge (scheduler SOURCE 9) fires on any FENCELESS rest with no Goal stop
+  // Ntwine's built-in sign-off nudge (scheduler SOURCE 9) fires on any FENCELESS rest with no Goal stop
   // hook armed, which every thread in this harness is. Silenced so each test counts only the deliveries
   // it is about; the nudge has its own file.
   storage.setSetting("signoffNudge", "off")
   storage.upsertSession({
-    slug: SLUG, session_id: "sid", thread_name: `frizz-${SLUG}`, spawned_at: T0,
+    slug: SLUG, session_id: "sid", thread_name: `ntwine-${SLUG}`, spawned_at: T0,
     last_read_at: null, unread: 0, exited: 0, archived: opts.archived ? 1 : 0, rested_at: null,
     title_auto: 1, title: SLUG, state: opts.archived ? "archived" : "open", meta: null, seen_at: null,
     transcript_id: null,
@@ -63,16 +63,16 @@ function fixture(tele: Partial<SessionTelemetry> = {}, opts: { now?: string; arc
 }
 
 test("storage: timers are many per thread, cancel is slug-scoped, and firing is one-way", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-timer-store-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-timer-store-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
-  // Frizz's built-in sign-off nudge (scheduler SOURCE 9) fires on any FENCELESS rest with no Goal stop
+  // Ntwine's built-in sign-off nudge (scheduler SOURCE 9) fires on any FENCELESS rest with no Goal stop
   // hook armed, which every thread in this harness is. Silenced so each test counts only the deliveries
   // it is about; the nudge has its own file.
   storage.setSetting("signoffNudge", "off")
   try {
     for (const slug of ["mine", "yours"]) {
       storage.upsertSession({
-        slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: T0,
+        slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: T0,
         last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
         title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
       } as SessionRow)
@@ -198,7 +198,7 @@ test("an archived thread is skipped, and its timer is left armed rather than bur
 
 // The snooze pass's rule, for the same reason: the row IS the durable registration, so "you asked to be
 // woken at 15:00" does not stop being true because the server was restarted at 14:59.
-test("an alarm that came due while frizz was down still fires when it comes back", async () => {
+test("an alarm that came due while ntwine was down still fires when it comes back", async () => {
   const f = fixture({}, { now: "2026-08-05T09:00:00.000Z" })
   try {
     f.arm("tmr_stale", "2026-08-04T12:05:00.000Z", "the deploy finished hours ago")

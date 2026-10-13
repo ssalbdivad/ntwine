@@ -208,7 +208,7 @@ const SETTLE_MS = 250
 
 // ---- across a reload ----------------------------------------------------------------------------------
 
-const RELOAD_KEY = "frizz.queueReading.v1"
+const RELOAD_KEY = "ntwine.queueReading.v1"
 /** A note older than this is from an earlier visit, not the reload that is loading now. */
 const RELOAD_FRESH_MS = 60_000
 /**

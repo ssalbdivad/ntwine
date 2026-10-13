@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { tmpdir } from "node:os"
 import test from "node:test"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { createRouter } from "./router.ts"
 import type { AppContext } from "./context.ts"
 import type { BoardManager } from "./board.ts"

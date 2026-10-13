@@ -113,7 +113,7 @@ test("a session SURVIVES a restart when the signing key is persisted", () => {
 })
 
 test("the session key is persisted at 0600 and reloaded, not regenerated", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-session-key-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-session-key-"))
   const first = loadOrCreateSessionKey(dir)
   const second = loadOrCreateSessionKey(dir)
   assert.deepEqual(second, first, "a second start must reuse the key, or every restart signs out")
@@ -121,7 +121,7 @@ test("the session key is persisted at 0600 and reloaded, not regenerated", () =>
   // The mode bits only — everything above this line is asserted on every platform. Windows has no
   // POSIX permission bits: NTFS access is an ACL, `fs.chmod` there sets nothing but the read-only
   // flag, and node reports 0666 for any writable file. The key is still written with mode 0o600, which
-  // is simply inert there; restricting it would take an icacls ACL, which frizz does not attempt.
+  // is simply inert there; restricting it would take an icacls ACL, which ntwine does not attempt.
   if (process.platform !== "win32") {
     assert.equal(statSync(join(dir, "session-key")).mode & 0o777, 0o600, "a world-readable key is a forgeable session")
   }
@@ -130,7 +130,7 @@ test("the session key is persisted at 0600 and reloaded, not regenerated", () =>
 
 test("a truncated key file is replaced rather than used", () => {
   // A short read would silently weaken every signature; treat it as absent.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-session-key-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-session-key-"))
   writeFileSync(join(dir, "session-key"), Buffer.alloc(4))
   const key = loadOrCreateSessionKey(dir)
   assert.equal(key.byteLength, 32)
@@ -247,7 +247,7 @@ test("a device label is coarse on purpose, and never invents one", () => {
 })
 
 test("a sign-out survives a restart, because a forgotten one is not a sign-out", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sessions-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sessions-"))
   try {
     const key = Buffer.alloc(32, 3)
     const first = new AccessStore({ signingKey: key, sessions: fileSessionDirectory(dir) })
@@ -264,7 +264,7 @@ test("a sign-out survives a restart, because a forgotten one is not a sign-out",
 })
 
 test("an unreadable session directory leaves the board running rather than taking it down", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sessions-bad-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sessions-bad-"))
   try {
     writeFileSync(join(dir, "sessions.json"), "{ this is not json")
     const store = new AccessStore({ sessions: fileSessionDirectory(dir) })
@@ -279,7 +279,7 @@ test("an unreadable session directory leaves the board running rather than takin
 test("a session signs ITSELF out: its own id is revoked and persisted, and no other device is touched", () => {
   // The phone's "Sign out this device". The id is taken from the verified session, so the only
   // credential it can end is the one presented — the laptop beside it must not notice.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sign-self-out-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sign-self-out-"))
   try {
     const store = new AccessStore({ sessions: fileSessionDirectory(dir) })
     const phone = store.redeem(store.issue().code, "Safari on iPhone")
@@ -289,7 +289,7 @@ test("a session signs ITSELF out: its own id is revoked and persisted, and no ot
     assert.deepEqual(store.signOutSession(phone.session), { result: "revoked", id: phone.id })
     assert.equal(store.verifySession(phone.session), false, "the phone still works after signing itself out")
     assert.equal(store.verifySession(laptop.session), true, "signing the phone out kicked the laptop")
-    // On disk, where a restart and `frizz --sessions` both read it.
+    // On disk, where a restart and `ntwine --sessions` both read it.
     assert.equal(fileSessionDirectory(dir).isRevoked(phone.id), true)
     assert.equal(fileSessionDirectory(dir).isRevoked(laptop.id), false)
 
@@ -368,7 +368,7 @@ function preEpochBoard(dir: string) {
 }
 
 test("an epoch bump refuses every session from before it, once, and a new one works", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-epoch-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-epoch-"))
   try {
     const { phone, legacy } = preEpochBoard(dir)
 
@@ -400,7 +400,7 @@ test("an epoch bump refuses every session from before it, once, and a new one wo
 })
 
 test("a first run records the epoch without claiming to have signed anyone out", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-epoch-fresh-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-epoch-fresh-"))
   try {
     const fresh = loadSessionState(dir)
     assert.deepEqual(fresh.advance, { advanced: true, from: 0, to: SESSION_EPOCH, rotatedKey: false })
@@ -414,7 +414,7 @@ test("a first run records the epoch without claiming to have signed anyone out",
 })
 
 test("a board that recorded a newer epoch than its code (a downgrade) is left alone", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-epoch-down-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-epoch-down-"))
   try {
     advanceSessionEpoch(dir, SESSION_EPOCH + 1)
     const key = loadOrCreateSessionKey(dir)
@@ -426,7 +426,7 @@ test("a board that recorded a newer epoch than its code (a downgrade) is left al
 })
 
 test("an unreadable epoch record errs towards one more sign-out, never towards keeping a session", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-epoch-bad-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-epoch-bad-"))
   try {
     const key = loadOrCreateSessionKey(dir)
     writeFileSync(join(dir, "session-epoch"), "{ not json")
@@ -439,7 +439,7 @@ test("an unreadable epoch record errs towards one more sign-out, never towards k
 })
 
 test("sign out all rotates the key, so a session the denylist cannot name dies too", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-signout-all-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-signout-all-"))
   try {
     const { phone, legacy } = preEpochBoard(dir)
     let rotated: Buffer | undefined
@@ -469,7 +469,7 @@ test("an expired device is not counted as signed out", () => {
 })
 
 test("a state folder with no sign-in state takes over the one a device signed in to most recently", () => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-session-adopt-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-session-adopt-"))
   try {
     const [own, older, newer, empty] = ["own", "older", "newer", "empty"].map((name) => join(root, name))
     for (const dir of [older, newer, empty]) mkdirSync(dir)

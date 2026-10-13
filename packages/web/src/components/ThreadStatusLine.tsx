@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { isActivelyRunning, type ThreadView } from "@frizz/shared"
+import { isActivelyRunning, type ThreadView } from "@ntwine/shared"
 import { formatFixedDuration } from "../lib/durationLabels.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 

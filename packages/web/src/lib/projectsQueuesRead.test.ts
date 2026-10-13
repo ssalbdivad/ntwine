@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { ProjectQueue } from "@frizz/shared"
+import type { ProjectQueue } from "@ntwine/shared"
 import { QueryClient } from "@tanstack/react-query"
 import { projectsQueuesQuery, readStartedAt } from "./projectsQueuesRead.ts"
 

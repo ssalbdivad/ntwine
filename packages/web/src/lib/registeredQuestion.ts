@@ -12,7 +12,7 @@
 // A BRANCH NOT TAKEN CONTRIBUTES NOTHING. Deselecting an option does not blank its follow-ups' staged
 // answers (the human may come back), but they stop being live, so they never reach the payload: an
 // absent follow-up means "not asked", never "asked and skipped".
-import type { AskedOption, AskedQuestion, RegisteredQuestionView, QuestionAnswer } from "@frizz/shared"
+import type { AskedOption, AskedQuestion, RegisteredQuestionView, QuestionAnswer } from "@ntwine/shared"
 import { optionNumber, type BlockAnswer, type ParsedQuestion } from "./questionBlocks.ts"
 
 

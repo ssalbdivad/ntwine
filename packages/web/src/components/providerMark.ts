@@ -1,7 +1,7 @@
-import { acpAgentIdFromModel } from "@frizz/shared"
+import { acpAgentIdFromModel } from "@ntwine/shared"
 
 /** One entry per mark ProviderMark can draw: the two rich backends, the generic ACP plug, and a brand
- *  mark per ACP agent Frizz has a CC0 glyph for. `acp:<id>` keys match the catalogue ids in
+ *  mark per ACP agent Ntwine has a CC0 glyph for. `acp:<id>` keys match the catalogue ids in
  *  packages/server/src/backend/acp-agents.ts. */
 export type ProviderMarkKey =
   | "claude" | "codex" | "acp"
@@ -52,8 +52,8 @@ export const PROVIDER_MARK_GEOMETRY: Record<ProviderMarkKey, string> = {
 const PROVIDER_MARKS: Record<ProviderMarkKey, ProviderMarkDefinition> = {
   claude: { key: "claude", backend: "claude", label: "Claude Code" },
   codex: { key: "codex", backend: "codex", label: "OpenAI Codex" },
-  // The generic mark for an ACP agent Frizz has no brand glyph for (Grok Build, pi, Kilo, goose):
-  // the protocol is the identity Frizz can vouch for, the agent is named in the profile readout.
+  // The generic mark for an ACP agent Ntwine has no brand glyph for (Grok Build, pi, Kilo, goose):
+  // the protocol is the identity Ntwine can vouch for, the agent is named in the profile readout.
   acp: { key: "acp", backend: "acp", label: "ACP agent" },
   "acp:opencode": { key: "acp:opencode", backend: "acp", label: "OpenCode" },
   "acp:cursor": { key: "acp:cursor", backend: "acp", label: "Cursor agent" },

@@ -15,15 +15,15 @@ import { setTimeout as delay } from "node:timers/promises"
 import { launchHeadless } from "./lib/headless-browser.mjs"
 import { resolveNpmCli } from "../src/server-release.ts"
 import { SESSION_EPOCH } from "../packages/server/src/access-codes.ts"
-import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
+import { ntwinePaths } from "../packages/server/src/ntwine-paths.ts"
 import { ensureProjectIdFile } from "../packages/server/src/project-root.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
 const workspace = resolve(import.meta.dirname, "..")
 const argument = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
-const out = resolve(argument("out") ?? mkdtempSync(join(tmpdir(), "frizz-server-evidence-")))
+const out = resolve(argument("out") ?? mkdtempSync(join(tmpdir(), "ntwine-server-evidence-")))
 mkdirSync(out, { recursive: true })
-const root = mkdtempSync(join(tmpdir(), "frizz-server-e2e-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-server-e2e-"))
 const home = join(root, "home"), repo = join(root, "project"), eventFile = join(root, "children.jsonl")
 mkdirSync(home); mkdirSync(repo)
 // Resolved now: the last scenario deletes the folder, and cleanup still needs both spellings.
@@ -40,20 +40,20 @@ if (workerBackends.includes("codex")) {
 if (workerBackends.includes("claude")) {
   for (const name of [".claude", ".claude.json"]) symlinkSync(join(process.env.HOME, name), join(home, name))
 }
-writeFileSync(join(repo, "FRIZZ.md"), "This is a disposable upgrade test project. Follow the exact test prompt; do not inspect other repositories, create goals, delegate, commit, or perform unrelated work. Once the requested command finishes, answer and stop.\n")
-const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(FRIZZ_|npm_|NPM_|NODE_OPTIONS|NODE_PATH|CODEX_HOME)/u.test(key)))
+writeFileSync(join(repo, "NTWINE.md"), "This is a disposable upgrade test project. Follow the exact test prompt; do not inspect other repositories, create goals, delegate, commit, or perform unrelated work. Once the requested command finishes, answer and stop.\n")
+const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(NTWINE_|npm_|NPM_|NODE_OPTIONS|NODE_PATH|CODEX_HOME)/u.test(key)))
 Object.assign(env, {
   PATH: `${dirname(runtime)}${process.platform === "win32" ? ";" : ":"}${process.env.PATH}`,
   HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, "config"), XDG_DATA_HOME: join(home, "data"),
   XDG_STATE_HOME: join(home, "state"), XDG_CACHE_HOME: join(home, "cache"),
   npm_config_cache: join(root, "npm-cache"), npm_config_userconfig: join(root, "empty.npmrc"),
-  npm_config_fetch_retries: "0", FRIZZ_ORPHAN_REAPER_OFF: "1", FRIZZ_TEST_CHILD_EVENTS: eventFile,
-  FRIZZ_RUNTIMES_DIR: join(frizzPaths().cache, "runtimes"),
+  npm_config_fetch_retries: "0", NTWINE_ORPHAN_REAPER_OFF: "1", NTWINE_TEST_CHILD_EVENTS: eventFile,
+  NTWINE_RUNTIMES_DIR: join(ntwinePaths().cache, "runtimes"),
 })
 writeFileSync(env.npm_config_userconfig, "")
 execFileSync("git", ["init", "-q"], { cwd: repo })
-// A launch opens the folder it is run in only when Frizz already knows it as a project. Anywhere
-// else it lands on the dashboard, hosted on a folder of Frizz's own (49000c91), and no project is
+// A launch opens the folder it is run in only when Ntwine already knows it as a project. Anywhere
+// else it lands on the dashboard, hosted on a folder of Ntwine's own (49000c91), and no project is
 // registered at all. Every scenario below is about the project the launcher was started in.
 ensureProjectIdFile(repo, home)
 const events = [], failures = [], consoleErrors = [], processes = []
@@ -64,7 +64,7 @@ const publishedPids = new Set()
 const packages = new Map()
 let browser, page, registry, base, shellPid, listenerMonitor, monitorEnabled = false
 let downloadGate
-// While set, the registry cannot say which frizz-server is latest: the launcher's probe fails.
+// While set, the registry cannot say which ntwine-server is latest: the launcher's probe fails.
 let probeOutage = false
 function record(event, data = {}) {
   const row = { at: new Date().toISOString(), event, ...data }
@@ -112,15 +112,15 @@ function serverFixture(version, fault) {
   cpSync(join(workspace, "packages/server-release"), directory, { recursive: true, filter: (source) => !source.includes("node_modules") })
   const manifest = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"))
   manifest.version = version
-  if (fault === "epoch") manifest.frizzServer.dataEpoch++
-  if (fault === "protocol") manifest.frizzServer.protocol++
+  if (fault === "epoch") manifest.ntwineServer.dataEpoch++
+  if (fault === "protocol") manifest.ntwineServer.protocol++
   const entry = join(directory, "dist/dev-child.js")
   const instrumentation = `
 import {appendFileSync as _proofAppend,readFileSync as _proofRead} from 'node:fs';
-const _proof = (event) => _proofAppend(process.env.FRIZZ_TEST_CHILD_EVENTS, JSON.stringify({event,pid:process.pid,parent:process.ppid,version:${JSON.stringify(version)},node:process.version,at:Date.now()})+'\\n');
-for (const row of _proofRead(process.env.FRIZZ_TEST_CHILD_EVENTS,'utf8').trim().split('\\n').filter(Boolean).map(JSON.parse)) {if(row.event==='start' && row.pid!==process.pid) {try{process.kill(row.pid,0);_proof('overlapping-server')}catch{}}}
+const _proof = (event) => _proofAppend(process.env.NTWINE_TEST_CHILD_EVENTS, JSON.stringify({event,pid:process.pid,parent:process.ppid,version:${JSON.stringify(version)},node:process.version,at:Date.now()})+'\\n');
+for (const row of _proofRead(process.env.NTWINE_TEST_CHILD_EVENTS,'utf8').trim().split('\\n').filter(Boolean).map(JSON.parse)) {if(row.event==='start' && row.pid!==process.pid) {try{process.kill(row.pid,0);_proof('overlapping-server')}catch{}}}
 _proof('start'); process.on('exit',()=>_proof('exit'));
-const _send = process.send.bind(process); process.send=(message,...args)=>{if(message.type==='frizz-ready'){_proof('ready');${fault === "crash" ? "setTimeout(()=>process.exit(86),100);" : ""}} return _send(message,...args)};
+const _send = process.send.bind(process); process.send=(message,...args)=>{if(message.type==='ntwine-ready'){_proof('ready');${fault === "crash" ? "setTimeout(()=>process.exit(86),100);" : ""}} return _send(message,...args)};
 ${fault === "exit" ? "throw new Error('INJECTED_BOOT_FAILURE');" : ""}
 `
   let contents = readFileSync(entry, "utf8")
@@ -143,16 +143,16 @@ ${fault === "exit" ? "throw new Error('INJECTED_BOOT_FAILURE');" : ""}
   writeFileSync(entry, instrumentation + contents)
   if (fault === "missing") rmSync(join(directory, "web-dist/index.html"))
   // npm must not run this: an install that touches the sentinel is a test failure.
-  manifest.scripts = { postinstall: `node -e "require('fs').writeFileSync(process.env.FRIZZ_TEST_CHILD_EVENTS+'.postinstall','bad')"` }
+  manifest.scripts = { postinstall: `node -e "require('fs').writeFileSync(process.env.NTWINE_TEST_CHILD_EVENTS+'.postinstall','bad')"` }
   return pack(directory, manifest)
 }
 async function status() {
-  const response = await fetch(`${base}/_frizz/control/status`, { headers: { origin: base }, signal: AbortSignal.timeout(2000) })
+  const response = await fetch(`${base}/_ntwine/control/status`, { headers: { origin: base }, signal: AbortSignal.timeout(2000) })
   assert.equal(response.status, 200)
   return response.json()
 }
 async function action(name = "update-restart") {
-  const response = await fetch(`${base}/_frizz/control/${name}`, { method: "POST", headers: { origin: base }, signal: AbortSignal.timeout(name === "restart" ? 90_000 : 5000) })
+  const response = await fetch(`${base}/_ntwine/control/${name}`, { method: "POST", headers: { origin: base }, signal: AbortSignal.timeout(name === "restart" ? 90_000 : 5000) })
   assert.equal(response.status, 202)
 }
 async function healthy(version) {
@@ -165,23 +165,23 @@ async function healthy(version) {
 function launcherLogs(from = home) {
   let text = ""
   for (const base of ["data", "state"]) {
-    const projects = join(from, base, "frizz/projects")
+    const projects = join(from, base, "ntwine/projects")
     if (!existsSync(projects)) continue
     for (const project of readdirSync(projects)) {
       const logs = join(projects, project, "logs")
       if (!existsSync(logs)) continue
-      for (const name of readdirSync(logs).filter((file) => /^frizz-.*\.log$/.test(file))) text += readFileSync(join(logs, name), "utf8")
+      for (const name of readdirSync(logs).filter((file) => /^ntwine-.*\.log$/.test(file))) text += readFileSync(join(logs, name), "utf8")
     }
   }
   return text
 }
 function selected(from = home) {
-  const directory = join(from, "state/frizz/server-releases")
+  const directory = join(from, "state/ntwine/server-releases")
   const key = readdirSync(directory).find((name) => /^[0-9a-f]{16}$/.test(name))
   return JSON.parse(readFileSync(join(directory, key, "active.json"), "utf8"))
 }
 function workerRecord(backend) {
-  const projects = join(home, "data/frizz/projects")
+  const projects = join(home, "data/ntwine/projects")
   for (const project of readdirSync(projects)) {
     for (const name of backend === "codex" ? ["codex-app-server-native", "codex-app-server"] : ["claude-broker"]) {
     const directory = join(projects, project, name)
@@ -209,7 +209,7 @@ function cwdOf(pid) {
 }
 async function launch(version = "0.13.0", cwd = repo) {
   const before = children().length
-  const child = start(`launcher-${processes.length}`, [npmCli, "exec", "--yes", `--package=frizz@${version}`, "--", "frizz", "--no-app", "--port", new URL(base).port], cwd)
+  const child = start(`launcher-${processes.length}`, [npmCli, "exec", "--yes", `--package=ntwine@${version}`, "--", "ntwine", "--no-app", "--port", new URL(base).port], cwd)
   const entry = await until("server process", () => {
     if (child.exitCode !== null) throw new Error(`npm launcher exited ${child.exitCode}`)
     return children().slice(before).find((event) => event.event === "start")
@@ -223,7 +223,7 @@ async function secondLaunch(expectedExit) {
   const directory = join(root, "second-project")
   if (!existsSync(directory)) { mkdirSync(directory); execFileSync("git", ["init", "-q"], { cwd: directory }) }
   const before = children().length
-  const child = start(`second-launch-${processes.length}`, [npmCli, "exec", "--yes", "--package=frizz@0.13.0", "--", "frizz", "--no-app"], directory)
+  const child = start(`second-launch-${processes.length}`, [npmCli, "exec", "--yes", "--package=ntwine@0.13.0", "--", "ntwine", "--no-app"], directory)
   await until("second invocation exits without another server", () => child.exitCode !== null || child.signalCode !== null, 30_000)
   assert.equal(child.exitCode, expectedExit)
   assert.equal(children().slice(before).some((event) => event.event === "start"), false)
@@ -236,9 +236,9 @@ try {
   const manifest = JSON.parse(readFileSync(join(workspace, "package.json"), "utf8"))
   // These are local fixture coordinates, independent of either package's current release version.
   manifest.version = "0.13.0"
-  manifest.frizzServer.version = "0.13.0"
+  manifest.ntwineServer.version = "0.13.0"
   // A minimum is its own scenario, at the end; every shell before it declares none.
-  delete manifest.frizzServer.minimum
+  delete manifest.ntwineServer.minimum
   delete manifest.devDependencies; delete manifest.scripts; delete manifest.pnpm
   const shellRelease = pack(shellDir, manifest)
   const legacyTarball = argument("legacy-tarball")
@@ -246,7 +246,7 @@ try {
     const tarball = readFileSync(legacyTarball)
     const legacy = JSON.parse(execFileSync("tar", ["-xOzf", legacyTarball, "package/package.json"], { encoding: "utf8" }))
     assert.equal(legacy.version, "0.12.10")
-    packages.get("frizz").releases.set(legacy.version, { manifest: legacy, tarball, integrity: `sha512-${createHash("sha512").update(tarball).digest("base64")}` })
+    packages.get("ntwine").releases.set(legacy.version, { manifest: legacy, tarball, integrity: `sha512-${createHash("sha512").update(tarball).digest("base64")}` })
   }
   serverFixture("0.13.0")
   serverFixture("0.13.1", "slow")
@@ -273,13 +273,13 @@ try {
       }
       if (path.includes("/-/")) {
         const version = path.slice(path.lastIndexOf("/") + 1, -4)
-        if (packageName === "frizz-server" && version === "0.13.9") { response.writeHead(503); response.end("INJECTED_DOWNLOAD_FAILURE"); return }
-        if (packageName === "frizz-server" && version === "0.13.10") { response.writeHead(200); response.end("INJECTED_INTEGRITY_FAILURE"); return }
-        if (packageName === "frizz-server" && downloadGate?.version === version) { downloadGate.requested = true; await downloadGate.promise }
+        if (packageName === "ntwine-server" && version === "0.13.9") { response.writeHead(503); response.end("INJECTED_DOWNLOAD_FAILURE"); return }
+        if (packageName === "ntwine-server" && version === "0.13.10") { response.writeHead(200); response.end("INJECTED_INTEGRITY_FAILURE"); return }
+        if (packageName === "ntwine-server" && downloadGate?.version === version) { downloadGate.requested = true; await downloadGate.promise }
         const release = entry.releases.get(version)
         response.writeHead(release ? 200 : 404); response.end(release?.tarball); return
       }
-      if (packageName === "frizz-server" && probeOutage) { response.writeHead(503); response.end("INJECTED_REGISTRY_OUTAGE"); return }
+      if (packageName === "ntwine-server" && probeOutage) { response.writeHead(503); response.end("INJECTED_REGISTRY_OUTAGE"); return }
       const versions = Object.fromEntries([...entry.releases].map(([version, release]) => [version, {
         ...release.manifest, dist: { tarball: `${env.npm_config_registry}${packageName}/-/${version}.tgz`, integrity: release.integrity },
       }]))
@@ -292,15 +292,15 @@ try {
   base = `http://127.0.0.1:${await freePort()}`
   record("fixture", { root, out, base, registry: env.npm_config_registry, shellIntegrity: shellRelease.integrity })
   if (legacyTarball) {
-    start("legacy-launcher", [npmCli, "exec", "--yes", "--package=frizz@0.12.10", "--", "frizz", "--no-app", "--port", new URL(base).port])
+    start("legacy-launcher", [npmCli, "exec", "--yes", "--package=ntwine@0.12.10", "--", "ntwine", "--no-app", "--port", new URL(base).port])
     await healthy("0.12.10")
     browser = await launchHeadless()
     page = await browser.newPage()
-    const project = JSON.parse(readFileSync(join(home, "data/frizz/registry.json"), "utf8")).projects[0]
+    const project = JSON.parse(readFileSync(join(home, "data/ntwine/registry.json"), "utf8")).projects[0]
     await page.goto(`${base}/project/${project.slug}/`, { waitUntil: "networkidle2" })
-    await page.waitForSelector('button[aria-label="Update Frizz"]', { visible: true })
+    await page.waitForSelector('button[aria-label="Update Ntwine"]', { visible: true })
     const accepted = page.waitForResponse((response) => response.url().endsWith("/update-restart") && response.request().method() === "POST").catch((error) => ({ error }))
-    await page.click('button[aria-label="Update Frizz"]')
+    await page.click('button[aria-label="Update Ntwine"]')
     const response = await accepted
     if (response.error) throw response.error
     assert.equal(response.status(), 202)
@@ -319,30 +319,30 @@ try {
   const initialPid = shellPid
   await healthy("0.13.0")
   await until("initial selection committed", () => selected().version === "0.13.0")
-  const registered = (directory) => JSON.parse(readFileSync(join(home, "data/frizz/registry.json"), "utf8")).projects.find((project) => project.path === realpathSync(directory))
+  const registered = (directory) => JSON.parse(readFileSync(join(home, "data/ntwine/registry.json"), "utf8")).projects.find((project) => project.path === realpathSync(directory))
   // The launch was typed in the project, and that is all the project is to the launcher: the server
-  // runs on Frizz's own folder, and it was the SERVER that opened the project — registered it and
-  // said where to land — when the launcher asked it (POST /_frizz/control/launch). A 0.12.10 launcher
+  // runs on Ntwine's own folder, and it was the SERVER that opened the project — registered it and
+  // said where to land — when the launcher asked it (POST /_ntwine/control/launch). A 0.12.10 launcher
   // predates all of this and still runs the server on the project.
   let opened
   if (!legacyTarball) {
     opened = await until("the server opened the project the launch was typed in", () => registered(repo), 30_000)
-    await until("the launcher landed where the server said", () => launcherLogs().includes(`started Frizz at ${base}/project/${opened.slug}`), 30_000)
+    await until("the launcher landed where the server said", () => launcherLogs().includes(`started Ntwine at ${base}/project/${opened.slug}`), 30_000)
     assert.doesNotMatch(launcherLogs(), /did not say where this launch lands/, "the server answered; the launcher's own rules were not used")
     const server = children().find((event) => event.event === "ready").pid
     if (cwdOf(server) !== undefined) {
-      assert.equal(cwdOf(server), realpathSync(join(home, "data/frizz/host")), "the server runs on Frizz's own folder, not the project")
+      assert.equal(cwdOf(server), realpathSync(join(home, "data/ntwine/host")), "the server runs on Ntwine's own folder, not the project")
       assert.equal(cwdOf(shellPid), realpathSync(repo), "the launcher stays in the folder the command was typed in")
     }
     // A second launch, typed in another project, joins this server and lands on THAT project.
     const other = join(root, "other-project")
     mkdirSync(other); execFileSync("git", ["init", "-q"], { cwd: other }); ensureProjectIdFile(other, home)
     const before = children().length
-    const joining = start(`join-${processes.length}`, [npmCli, "exec", "--yes", "--package=frizz@0.13.0", "--", "frizz", "--no-app"], other)
+    const joining = start(`join-${processes.length}`, [npmCli, "exec", "--yes", "--package=ntwine@0.13.0", "--", "ntwine", "--no-app"], other)
     await until("the second launch exits", () => joining.exitCode !== null || joining.signalCode !== null, 60_000)
     assert.equal(joining.exitCode, 0)
     assert.equal(children().slice(before).some((event) => event.event === "start"), false, "a second launch starts no server")
-    assert.ok(launcherLogs().includes(`reusing Frizz at ${base}/project/${registered(other).slug}`), "the second launch lands on the project it was typed in")
+    assert.ok(launcherLogs().includes(`reusing Ntwine at ${base}/project/${registered(other).slug}`), "the second launch lands on the project it was typed in")
     record("server-routed-the-launch", { opened: opened.slug, joined: registered(other).slug, host: cwdOf(server) })
   }
   const api = createRpcClient(base, opened?.slug)
@@ -371,14 +371,14 @@ try {
   page ??= await browser.newPage()
   page.on("pageerror", (error) => failures.push({ page: String(error) }))
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()) })
-  const project = opened ?? JSON.parse(readFileSync(join(home, "data/frizz/registry.json"), "utf8")).projects[0]
+  const project = opened ?? JSON.parse(readFileSync(join(home, "data/ntwine/registry.json"), "utf8")).projects[0]
   await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 2 })
   await page.goto(`${base}/project/${project.slug}/`, { waitUntil: "networkidle2" })
   await page.screenshot({ path: join(out, "before-desktop.png") })
   // Slow transfer proves preparation does not stop the healthy child or its existing browser.
   let releaseDownload
   downloadGate = { version: "0.13.1", requested: false, promise: new Promise((done) => { releaseDownload = done }), release: () => releaseDownload() }
-  packages.get("frizz-server").latest = "0.13.1"
+  packages.get("ntwine-server").latest = "0.13.1"
   await action()
   await until("candidate download requested", () => downloadGate.requested)
   if (argument("singleton")) await secondLaunch(0)
@@ -413,15 +413,15 @@ try {
     writeFileSync(join(out, `${worker.backend}-transcript.json`), JSON.stringify(transcript, null, 2))
     record("worker-survived-and-answered-followup", { backend: worker.backend, thread: worker.thread, daemon: worker.daemon })
   }
-  // The recovered board's control reads "Frizz is up to date" once the launcher has confirmed there
-  // is nothing newer (greyed rather than hidden since 1ea81aa1), and "Restart Frizz" until then.
-  await until("browser recovered", () => page.evaluate(() => !!document.querySelector('button[aria-label="Restart Frizz"], button[aria-label="Frizz is up to date"]')))
+  // The recovered board's control reads "Ntwine is up to date" once the launcher has confirmed there
+  // is nothing newer (greyed rather than hidden since 1ea81aa1), and "Restart Ntwine" until then.
+  await until("browser recovered", () => page.evaluate(() => !!document.querySelector('button[aria-label="Restart Ntwine"], button[aria-label="Ntwine is up to date"]')))
   if (argument("visual")) {
     for (const font of ["sans", "mono"]) {
       await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 6 })
       await api.mutate("settingsSet", { ...await api.query("settingsGet"), font })
       await page.reload({ waitUntil: "networkidle2" })
-      await page.hover('button[aria-label="Restart Frizz"]')
+      await page.hover('button[aria-label="Restart Ntwine"]')
       await page.waitForSelector("#update-restart-popover", { visible: true })
       await until("browser version poll catches up", () => page.evaluate(() => document.querySelector("#update-restart-popover .font-mono")?.textContent === "0.13.1"), 15_000)
       await delay(250)
@@ -447,10 +447,10 @@ try {
       })
       assert.equal(measurements.font, font)
       assert.ok(Math.abs(measurements.groupCentreResidual) < 0.2)
-      assert.match(measurements.copy, /Restart Frizz0.13.1/)
+      assert.match(measurements.copy, /Restart Ntwine0.13.1/)
       assert.doesNotMatch(measurements.copy, /Launcher/)
       record("version-optical-geometry", measurements)
-      const ink = execFileSync(process.execPath, [join(workspace, "scripts/ink-gaps.mjs"), page.url(), "#update-restart-popover > div > span,#update-restart-popover > div > div", "--dsf=6", "--w=1280", "--h=850", `--before=document.documentElement.dataset.font='${font}'`, '--hover=button[aria-label="Restart Frizz"]'], { cwd: workspace, encoding: "utf8", timeout: 90_000, maxBuffer: 1e6 })
+      const ink = execFileSync(process.execPath, [join(workspace, "scripts/ink-gaps.mjs"), page.url(), "#update-restart-popover > div > span,#update-restart-popover > div > div", "--dsf=6", "--w=1280", "--h=850", `--before=document.documentElement.dataset.font='${font}'`, '--hover=button[aria-label="Restart Ntwine"]'], { cwd: workspace, encoding: "utf8", timeout: 90_000, maxBuffer: 1e6 })
       writeFileSync(join(out, `ink-${font}.json`), ink)
     }
     await page.mouse.move(1000, 800)
@@ -462,7 +462,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
   await page.screenshot({ path: join(out, "after-narrow.png") })
   for (const [version, reason] of [["0.13.2", "incompatible epoch"], ["0.13.3", "missing asset"], ["0.13.4", "boot failure"], ["0.13.5", "early crash"], ["0.13.6", "boot timeout"], ["0.13.9", "download failure"], ["0.13.10", "integrity failure"], ["0.13.11", "incompatible protocol"]]) {
-    packages.get("frizz-server").latest = version
+    packages.get("ntwine-server").latest = version
     await action()
     if (version === "0.13.6" && argument("singleton")) {
       await until("candidate stalled before ready", () => children().some((event) => event.event === "start" && event.version === version))
@@ -475,7 +475,7 @@ try {
     await api.query("board")
     record("candidate-rejected", { version, reason, status: failed })
   }
-  packages.get("frizz-server").latest = "0.13.7"
+  packages.get("ntwine-server").latest = "0.13.7"
   await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 2 })
   // Repeated failed boots can exhaust the recovery page's bounded polling budget. The rollback
   // server is healthy above; exercise its explicit retry link before using the app's update control.
@@ -486,10 +486,10 @@ try {
   }
   await delay(600)
   // The real browser button sends the final recovery update, after all injected failures.
-  await page.waitForSelector('button[aria-label="Update Frizz"]:not(:disabled)', { visible: true })
-  record("browser-control", { url: page.url(), control: await page.$eval('button[aria-label="Update Frizz"]', (element) => element.outerHTML) })
+  await page.waitForSelector('button[aria-label="Update Ntwine"]:not(:disabled)', { visible: true })
+  record("browser-control", { url: page.url(), control: await page.$eval('button[aria-label="Update Ntwine"]', (element) => element.outerHTML) })
   const accepted = page.waitForResponse((response) => response.url().endsWith("/update-restart") && response.request().method() === "POST").catch((error) => ({ error }))
-  await page.click('button[aria-label="Update Frizz"]')
+  await page.click('button[aria-label="Update Ntwine"]')
   const response = await accepted
   if (response.error) throw response.error
   assert.equal(response.status(), 202)
@@ -498,13 +498,13 @@ try {
   record("browser-update-after-failures-passed")
   // Kill the launcher while a candidate is stuck before ready. The early disconnect guard must
   // reclaim that child; a relaunch must choose the last committed server, not the pending package.
-  packages.get("frizz-server").latest = "0.13.8"
+  packages.get("ntwine-server").latest = "0.13.8"
   await action()
   const stuck = await until("hanging candidate started", () => children().find((event) => event.event === "start" && event.version === "0.13.8"))
   await stopShell("SIGKILL")
   await until("orphan candidate exited", () => !alive(stuck.pid), 20_000)
   assert.equal(selected().version, "0.13.7")
-  packages.get("frizz-server").latest = "0.13.7"
+  packages.get("ntwine-server").latest = "0.13.7"
   await launch(); await healthy("0.13.7")
   await api.query("board")
   record("crash-before-commit-recovered", { pid: shellPid })
@@ -513,7 +513,7 @@ try {
   record("committed-selection-survived-launcher-crash", { pid: shellPid })
   await stopShell()
   const saved = selected()
-  rmSync(join(home, "cache/frizz/server-releases", createHash("sha256").update(saved.package).digest("hex").slice(0, 16), saved.id), { recursive: true })
+  rmSync(join(home, "cache/ntwine/server-releases", createHash("sha256").update(saved.package).digest("hex").slice(0, 16), saved.id), { recursive: true })
   await launch(); await healthy("0.13.7")
   assert.equal(selected().version, "0.13.7")
   assert.notEqual(selected().id, saved.id)
@@ -523,17 +523,17 @@ try {
   // on 2026-10-11 a board had failed one every half hour for twenty hours, never offered an update,
   // and the first anyone knew was a failed click.
   await stopShell()
-  assert.doesNotMatch(launcherLogs(), /could not check npm for a newer Frizz server/, "no probe has failed yet")
+  assert.doesNotMatch(launcherLogs(), /could not check npm for a newer Ntwine server/, "no probe has failed yet")
   probeOutage = true
   await launch(); await healthy("0.13.7")
-  await until("the failed probe is logged", () => /could not check npm for a newer Frizz server: .*INJECTED_REGISTRY_OUTAGE|could not check npm for a newer Frizz server: .*503/su.test(launcherLogs()), 60_000)
+  await until("the failed probe is logged", () => /could not check npm for a newer Ntwine server: .*INJECTED_REGISTRY_OUTAGE|could not check npm for a newer Ntwine server: .*503/su.test(launcherLogs()), 60_000)
   probeOutage = false
   await api.query("board")
   record("failed-probe-logged")
-  // The folder Frizz was started FROM is deleted while it runs. On 2026-10-11 a board started in a
+  // The folder Ntwine was started FROM is deleted while it runs. On 2026-10-11 a board started in a
   // scratch folder that was removed a day later could no longer update or restart: the server ran ON
   // that folder, and nothing forks into a directory that is gone. The folder is now only where the
-  // command was typed — the server runs on Frizz's own — so the board restarts and updates with it
+  // command was typed — the server runs on Ntwine's own — so the board restarts and updates with it
   // gone, and with the launcher itself left standing in a directory that no longer exists.
   const serving = children().filter((event) => event.event === "ready").at(-1).pid
   rmSync(repo, { recursive: true, force: true })
@@ -544,7 +544,7 @@ try {
     return pid !== serving && (await status()).state === "ready" && pid
   })
   assert.equal(alive(serving), false)
-  packages.get("frizz-server").latest = "0.13.12"
+  packages.get("ntwine-server").latest = "0.13.12"
   await action(); await healthy("0.13.12")
   await until("the update is committed", () => selected().version === "0.13.12")
   assert.equal(alive(restarted), false)
@@ -557,15 +557,15 @@ try {
   const outside = join(root, "outside")
   mkdirSync(outside)
   await launch("0.13.0", outside); await healthy("0.13.12")
-  await until("an outside launch lands on All projects", () => new RegExp(`started Frizz at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/all$`, "m").test(launcherLogs()), 30_000)
+  await until("an outside launch lands on All projects", () => new RegExp(`started Ntwine at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/all$`, "m").test(launcherLogs()), 30_000)
   if (cwdOf(shellPid) !== undefined) assert.equal(cwdOf(shellPid), realpathSync(outside), "the launcher stays in the folder the command was typed in")
   await machine.query("projectsList")
   record("outside-launch-lands-on-the-dashboard")
   // A shell newer than the installed server is the ordinary pairing, not a rare one: npx fetches the
   // newest shell on every run and the server moves only on Update. So a shell that depends on what a
-  // server release learned says so (`frizzServer.minimum`), and starts an older machine on its
-  // pinned release. The older server here is the REAL frizz-server 0.15.20 from npm — the last one
-  // that lists Frizz's own launch folder as a project, which is where a shell from 0.13.13 hosts
+  // server release learned says so (`ntwineServer.minimum`), and starts an older machine on its
+  // pinned release. The older server here is the REAL ntwine-server 0.15.20 from npm — the last one
+  // that lists Ntwine's own launch folder as a project, which is where a shell from 0.13.13 hosts
   // every launch outside one. A new machine, so nothing above bears on it.
   await stopShell()
   const OLD_SERVER = "0.15.20"
@@ -574,17 +574,17 @@ try {
     assert.equal(response.status, 200, `npm did not serve ${path}`)
     return response
   }
-  const oldTarball = Buffer.from(await (await published(`frizz-server/-/frizz-server-${OLD_SERVER}.tgz`)).arrayBuffer())
-  packages.get("frizz-server").releases.set(OLD_SERVER, {
-    manifest: await (await published(`frizz-server/${OLD_SERVER}`)).json(),
+  const oldTarball = Buffer.from(await (await published(`ntwine-server/-/ntwine-server-${OLD_SERVER}.tgz`)).arrayBuffer())
+  packages.get("ntwine-server").releases.set(OLD_SERVER, {
+    manifest: await (await published(`ntwine-server/${OLD_SERVER}`)).json(),
     tarball: oldTarball,
     integrity: `sha512-${createHash("sha512").update(oldTarball).digest("base64")}`,
   })
   serverFixture("0.15.99")
   const shellFixture = (version, server, minimum) => {
     const next = structuredClone(manifest)
-    next.version = version; next.frizzServer.version = server
-    if (minimum) next.frizzServer.minimum = minimum
+    next.version = version; next.ntwineServer.version = server
+    if (minimum) next.ntwineServer.minimum = minimum
     pack(shellDir, next)
   }
   shellFixture("0.13.20", OLD_SERVER) // what put the old server on the machine
@@ -597,29 +597,29 @@ try {
     XDG_STATE_HOME: join(newHome, "state"), XDG_CACHE_HOME: join(newHome, "cache"),
   })
   base = `http://127.0.0.1:${await freePort()}`
-  const launchFolder = () => realpathSync(join(newHome, "data/frizz/host"))
+  const launchFolder = () => realpathSync(join(newHome, "data/ntwine/host"))
   const listed = async () => (await createRpcClient(base).query("projectsList")).map((project) => project.path)
   // A published server reports nothing to the fixtures' event file, so the launcher is found by the
   // record it publishes and readiness by the supervisor's own status.
   const launchPublished = async (shell, server, cwd = nowhere) => {
-    const landings = () => launcherLogs(newHome).match(/started Frizz at /g)?.length ?? 0
+    const landings = () => launcherLogs(newHome).match(/started Ntwine at /g)?.length ?? 0
     const landed = landings()
-    start(`launcher-${processes.length}`, [npmCli, "exec", "--yes", `--package=frizz@${shell}`, "--", "frizz", "--no-app", "--port", new URL(base).port], cwd)
+    start(`launcher-${processes.length}`, [npmCli, "exec", "--yes", `--package=ntwine@${shell}`, "--", "ntwine", "--no-app", "--port", new URL(base).port], cwd)
     await until(`server ${server} under shell ${shell}`, async () => { const value = await status(); return value.state === "ready" && value.version === server }, 300_000)
     // The supervisor answers before the launcher has asked where it lands, and a launcher stopped in
     // that window never asked at all. Its own line says the launch is finished.
     await until(`shell ${shell} says where it landed`, () => landings() > landed, 30_000)
-    const projects = join(newHome, "data/frizz/projects")
+    const projects = join(newHome, "data/ntwine/projects")
     const pidIn = (name) => readdirSync(projects).map((project) => {
       try { return JSON.parse(readFileSync(join(projects, project, name), "utf8")).pid } catch { return undefined }
     }).find((pid) => Number.isInteger(pid) && alive(pid))
     shellPid = await until("the launcher's owner record", () => pidIn("project-launch.owner"), 10_000)
     for (const pid of [shellPid, pidIn("server.lock")]) if (pid) publishedPids.add(pid)
   }
-  // This machine ran Frizz before the server moved onto its own folder, so its remote sign-ins are
+  // This machine ran Ntwine before the server moved onto its own folder, so its remote sign-ins are
   // under the project it was last started in. The first launch brings them along: the launcher goes
   // on signing sessions with the key the phones already hold, and the move signs nobody out.
-  const formerHost = join(newHome, "data/frizz/projects/11111111-1111-4111-8111-111111111111")
+  const formerHost = join(newHome, "data/ntwine/projects/11111111-1111-4111-8111-111111111111")
   const sessionKey = randomBytes(32)
   mkdirSync(formerHost, { recursive: true })
   writeFileSync(join(formerHost, "session-key"), sessionKey, { mode: 0o600 })
@@ -628,7 +628,7 @@ try {
   assert.equal(selected(newHome).version, OLD_SERVER)
   await until("the launcher says whose sign-in state it carried over", () => /carried the remote sign-in state over from \S*11111111-1111-4111-8111-111111111111$/m.test(launcherLogs(newHome)), 10_000)
   const sessionKeys = readdirSync(dirname(formerHost)).map((project) => join(dirname(formerHost), project, "session-key")).filter((path) => existsSync(path))
-  assert.equal(sessionKeys.length, 2, "the former host's key, and the one Frizz's own folder now holds")
+  assert.equal(sessionKeys.length, 2, "the former host's key, and the one Ntwine's own folder now holds")
   for (const path of sessionKeys) assert.ok(readFileSync(path).equals(sessionKey), `${path} is the key the devices already hold`)
   record("remote-sign-ins-carried-over", { from: formerHost, keys: sessionKeys })
   await stopShell()
@@ -639,7 +639,7 @@ try {
   mkdirSync(theirs); execFileSync("git", ["init", "-q"], { cwd: theirs }); ensureProjectIdFile(theirs, newHome)
   await launchPublished("0.13.21", OLD_SERVER, theirs)
   assert.equal(selected(newHome).version, OLD_SERVER, "a shell without a minimum never moves the installed server")
-  assert.match(launcherLogs(newHome), new RegExp(`started Frizz at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/project/their-project$`, "m"), "the launcher opened the project by its own rules")
+  assert.match(launcherLogs(newHome), new RegExp(`started Ntwine at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/project/their-project$`, "m"), "the launcher opened the project by its own rules")
   // Both launches so far met a server with no launch route: the one that installed it, and this one.
   assert.equal(launcherLogs(newHome).match(/did not say where this launch lands; using this launcher's own rules/g)?.length, 2)
   assert.ok((await listed()).includes(realpathSync(theirs)))
@@ -647,15 +647,15 @@ try {
   await stopShell()
   // Then typed outside one, which is the launch that leaves the dashboard with a project the operator
   // never added and cannot open usefully. It has to be this launch: the one above registered a
-  // project through the launcher's own registry code, which writes the list back without Frizz's
+  // project through the launcher's own registry code, which writes the list back without Ntwine's
   // folder, and the older server only puts it there as it boots.
   await launchPublished("0.13.21", OLD_SERVER)
-  await until("the older server lists Frizz's own launch folder", async () => (await listed()).includes(launchFolder()), 30_000)
+  await until("the older server lists Ntwine's own launch folder", async () => (await listed()).includes(launchFolder()), 30_000)
   record("older-server-lists-the-launch-folder", { server: OLD_SERVER, listed: await listed() })
   await stopShell()
   await launch("0.13.22", nowhere); await healthy("0.15.99")
   await until("the pinned release is selected once it is up", () => selected(newHome).version === "0.15.99", 30_000)
-  assert.match(launcherLogs(newHome), new RegExp(`the installed Frizz server ${OLD_SERVER.replaceAll(".", "\\.")} is older than this launcher works with \\(0\\.15\\.21\\); starting on 0\\.15\\.99`))
+  assert.match(launcherLogs(newHome), new RegExp(`the installed Ntwine server ${OLD_SERVER.replaceAll(".", "\\.")} is older than this launcher works with \\(0\\.15\\.21\\); starting on 0\\.15\\.99`))
   assert.deepEqual(await listed(), [realpathSync(theirs)], "the entry the older server wrote is gone from the dashboard")
   record("minimum-starts-an-older-machine-on-the-pinned-server", { from: OLD_SERVER, to: selected(newHome).version, listed: await listed() })
   assert.equal(children().some((event) => event.event === "overlapping-server"), false, "no server process may overlap its predecessor")
@@ -672,7 +672,7 @@ try {
   monitorEnabled = false
   downloadGate?.release()
   if (browser) { await browser.close(); record("browser-closed") }
-  const projects = join(home, "data/frizz/projects")
+  const projects = join(home, "data/ntwine/projects")
   if (existsSync(projects)) for (const project of readdirSync(projects)) {
     for (const name of ["codex-app-server-native", "codex-app-server", "claude-broker"]) {
       const directory = join(projects, project, name)

@@ -8,7 +8,7 @@ import { applyRecord, newTailState } from "./tailer.ts"
 // transcript — a sub-agent's included — and the record names no owner. A descendant's op is delivered
 // into the DESCENDANT's transcript, which this TailState never reads, so from here it looks queued and
 // never delivered: byte-for-byte the signature of the runtime drop the repair exists to fix. Without an
-// owner test frizz injected other agents' completions into this one, telling it that work it never
+// owner test ntwine injected other agents' completions into this one, telling it that work it never
 // started was lost. Measured over four real threads, 66% of the completed background-op notifications
 // in a parent transcript belong to a descendant, and on the one thread where the repair was live all
 // 283 of its relays were for ops that session never launched.

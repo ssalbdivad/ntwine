@@ -8,12 +8,12 @@ Durable Object holding that socket and framed down it.
 per name, so the 200-record ceiling that bounded the original design is gone. The [registrar](../registrar)
 records who owns a name; this serves it.
 
-**This IS on the data path**, unlike the registrar, and that is the trade the design makes deliberately: unlimited names cost us the traffic. A visitor still meets Frizz's own single-use access gate on the far side, but every byte passes through the relay in plaintext — the access code as it is redeemed, the session cookie on every later request, prompts, transcripts and terminal keystrokes. **Whoever can deploy this Worker controls every board behind it.** That happened between 2026-09-21 and 2026-10-08: a stolen Cloudflare token was used to deploy a build that copied all of it out and drove a board with a copied cookie. That is why deploys go through CI only (below), and [`plans/blind-relay.md`](../../plans/blind-relay.md) is the design that takes the plaintext away from this hop.
+**This IS on the data path**, unlike the registrar, and that is the trade the design makes deliberately: unlimited names cost us the traffic. A visitor still meets Ntwine's own single-use access gate on the far side, but every byte passes through the relay in plaintext — the access code as it is redeemed, the session cookie on every later request, prompts, transcripts and terminal keystrokes. **Whoever can deploy this Worker controls every board behind it.** That happened between 2026-09-21 and 2026-10-08: a stolen Cloudflare token was used to deploy a build that copied all of it out and drove a board with a copied cookie. That is why deploys go through CI only (below), and [`plans/blind-relay.md`](../../plans/blind-relay.md) is the design that takes the plaintext away from this hop.
 
 ## What it carries
 
 A board is mostly a live surface, so a plain request/response proxy would be useless for it. The
-protocol in [`@frizz/shared/relay-protocol.ts`](../shared/src/relay-protocol.ts) frames three things:
+protocol in [`@ntwine/shared/relay-protocol.ts`](../shared/src/relay-protocol.ts) frames three things:
 
 - **a unary request**, answered in one frame;
 - **a streamed response**, because the board's event feed is SSE and never ends — the head and the body
@@ -82,7 +82,7 @@ identity passes there and would fail against the real thing. `verify-relay-gate.
 another host: the real edge re-compresses a body and weakens its ETag on the way out (`"v1"` arrives
 as `W/"v1"`), so the validator a browser sends back is not the one the board minted, and it carries a
 2 MiB frame through an edge where the message cap is enforced. It claims one private name from the
-production registrar and keeps it, with its key, in Frizz's state root, so every later run renews that
+production registrar and keeps it, with its key, in Ntwine's state root, so every later run renews that
 name instead of leaving a new row behind. Held against the relay source from before `7264ab4c` on
 local workerd it fails the 304, 204, empty-200, HEAD and redirect checks and passes the other twelve
 (2026-10-11) — the same checks pass 20 of 20 against the relay deployed that day.

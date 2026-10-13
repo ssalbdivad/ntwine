@@ -1,6 +1,6 @@
 import { isAbsolute } from "node:path"
 import { fileURLToPath } from "node:url"
-import type { ThreadLinkView } from "@frizz/shared"
+import type { ThreadLinkView } from "@ntwine/shared"
 import { resolveOpenableFile } from "./local-file.ts"
 import type { ThreadLinkRow } from "./storage.ts"
 
@@ -24,6 +24,6 @@ export function resolveThreadLink(target: string, projectDir: string, roots: rea
     throw new Error("Register an HTTP(S) URL or a local file")
   }
   const resolved = resolveOpenableFile(path, projectDir, roots)
-  if (!resolved) throw new Error("Local file was not found or is outside Frizz's trusted roots")
+  if (!resolved) throw new Error("Local file was not found or is outside Ntwine's trusted roots")
   return { kind: "file", target: resolved }
 }

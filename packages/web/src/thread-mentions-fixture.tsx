@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, ProjectCard, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ProjectCard, ThreadView } from "@ntwine/shared"
 import { ThreadRow, type RowScope } from "./components/Sidebar.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { Composer } from "./components/Composer.tsx"
@@ -54,18 +54,18 @@ const threads = [
   t({ id: "legacy", title: "Rework the session-limit banner so the countdown reads in the house grammar", runtime: "turn-idle" }),
   t({ id: "billing", title: "Billing webhooks", state: "archived", archived: true, runtime: "exited", statusLine: "Merged", lastAssistantAt: "2026-09-28T10:00:00Z" }),
 ]
-store.board = { threads, projectSlug: "frizz" } as unknown as BoardSnapshot
+store.board = { threads, projectSlug: "ntwine" } as unknown as BoardSnapshot
 // What setBoard does on a real page: point the markdown mention linker at this board.
-setMentionIndex("frizz", threads)
+setMentionIndex("ntwine", threads)
 const projectCard = (slug: string, name: string, stale = false) =>
   ({ id: `id-${slug}`, slug, name, path: `/home/u/${slug}`, lastOpenedAt: "", stale, iconStatus: "unknown" }) as ProjectCard
-setProjectMentions([projectCard("frizz", "Frizz"), projectCard("home", "Home"), projectCard("arktype", "ArkType"), projectCard("beanemachine", "Beane machine"), projectCard("gone", "Gone", true)])
+setProjectMentions([projectCard("ntwine", "Ntwine"), projectCard("home", "Home"), projectCard("arktype", "ArkType"), projectCard("beanemachine", "Beane machine"), projectCard("gone", "Gone", true)])
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 const DIRECTORY = {
   threadHandle: "shell-budgets",
   agents: [
-    { id: "toolu_keys", label: "Cache keys", address: "shell-budgets.cache-keys", depth: 1, state: "running", startedAt: minutesAgo(12), subagentType: "frizz:opus-high" },
+    { id: "toolu_keys", label: "Cache keys", address: "shell-budgets.cache-keys", depth: 1, state: "running", startedAt: minutesAgo(12), subagentType: "ntwine:opus-high" },
     { id: "toolu_wave", label: "Wave 2", address: "shell-budgets.wave-2", depth: 1, state: "running", workflow: true, startedAt: minutesAgo(30) },
     { id: "wave2:impl-w3", label: "impl:W3", address: "shell-budgets.wave-2.impl-w3", parentId: "toolu_wave", depth: 2, state: "stale", startedAt: minutesAgo(40) },
     { id: "toolu_sentence", label: "Look at every call site of the cap and report back", depth: 1, state: "running", startedAt: minutesAgo(5) },
@@ -78,7 +78,7 @@ const directoryRequests: string[] = []
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof Request ? input.url : input.toString(), window.location.origin)
-  if (url.pathname === "/_frizz/rpc/subAgentDirectory") {
+  if (url.pathname === "/_ntwine/rpc/subAgentDirectory") {
     const slug = (JSON.parse(url.searchParams.get("input") ?? "{}") as { slug?: string }).slug ?? ""
     directoryRequests.push(slug)
     const result = slug === "shell-budgets" ? DIRECTORY : { threadHandle: undefined, agents: [] }

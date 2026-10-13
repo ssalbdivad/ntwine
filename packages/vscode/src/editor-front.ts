@@ -1,7 +1,7 @@
 // THE EDITOR IN FRONT — the one reading of "what the human has in front of them" that BOTH of the
 // extension's editor feeds derive from: the sidebar's page feed (context-feed.ts → the context bar, and the
 // block a sidebar send carries on its own) and the agents' feed (editor-state-feed.ts → the `editor` frame
-// → `mcp__frizz__editor`). Pure: no `vscode` here, so every rule is a unit test under plain node
+// → `mcp__ntwine__editor`). Pure: no `vscode` here, so every rule is a unit test under plain node
 // (editor-front.test.ts); editor-watcher.ts is the glue that holds the window's editors to these rules.
 //
 // WHY ONE. Until 2026-10-02 the two feeds were two observers written by two builders, and they disagreed
@@ -84,7 +84,7 @@ export function pickFront<E extends EditorLike>(active: E | undefined, last: E |
 
 // ── secrets ───────────────────────────────────────────────────────────────────────────────────────────
 //
-// A selection's TEXT goes to Frizz without the human asking in two ways: the block on every sidebar send,
+// A selection's TEXT goes to Ntwine without the human asking in two ways: the block on every sidebar send,
 // and the agents' tool. Neither should carry the contents of a file that obviously holds credentials — a
 // selection left standing in `.env` while the human asks an unrelated question would put the keys into a
 // transcript, and from there into a provider's logs. The path is still named (the agent may need to know

@@ -1,7 +1,7 @@
-import { FRIZZ_MCP, frizzMcpEnv, type FrizzMcp } from "./types.ts"
+import { NTWINE_MCP, ntwineMcpEnv, type NtwineMcp } from "./types.ts"
 
 // ---- Codex MCP injection -------------------------------------------------------------------------
-// The codex twin of dispatch.ts's `claudeMcpFlags`. Claude mounts frizz's MCP server via one
+// The codex twin of dispatch.ts's `claudeMcpFlags`. Claude mounts ntwine's MCP server via one
 // `--mcp-config` file named on the worker's argv; codex has no such flag, so it rides a `-c` TOML override
 // on the APP-SERVER's argv instead.
 //
@@ -16,7 +16,7 @@ import { FRIZZ_MCP, frizzMcpEnv, type FrizzMcp } from "./types.ts"
 // unblocks and why the argv mount is still here.
 //
 // The app-server is PER-PROJECT (its socket key is sha256(stateDir + projectId)), so one process-level
-// mount serves every codex thread in that project with the right FRIZZ_STATE_DIR. Note the app-server
+// mount serves every codex thread in that project with the right NTWINE_STATE_DIR. Note the app-server
 // is long-lived: a change here only reaches NEWLY spawned ones.
 //
 // `default_tools_approval_mode="approve"` is not optional. Under a restrictive approval policy with no
@@ -53,10 +53,10 @@ function serverTable(command: string, args: readonly string[], cwd: string, env?
 }
 
 /**
- * The `-c` overrides that mount frizz's MCP server into a codex app-server.
+ * The `-c` overrides that mount ntwine's MCP server into a codex app-server.
  *
- * The unified `frizz` server is the ONLY server frizz mounts, and only when its descriptor resolved;
- * absent ⇒ the worker simply lacks those tools, exactly as on the claude side. Frizz injects no
+ * The unified `ntwine` server is the ONLY server ntwine mounts, and only when its descriptor resolved;
+ * absent ⇒ the worker simply lacks those tools, exactly as on the claude side. Ntwine injects no
  * browser on EITHER backend (see types.ts) — a `chrome-devtools` mount rode every app-server until
  * 2026-08-26. Whatever the operator configured themselves in `~/.codex/config.toml` still loads: these
  * are overrides layered ON the config, not a replacement for it.
@@ -64,16 +64,16 @@ function serverTable(command: string, args: readonly string[], cwd: string, env?
  * Returns a flat argv fragment: ["-c", "…", "-c", "…"]. Pure and exported so a regression cannot
  * silently stop mounting it — the shape is unit-pinned rather than only observable by running codex.
  */
-export function codexMcpConfigArgs(frizzMcp?: FrizzMcp, nodeBin: string = process.execPath): string[] {
+export function codexMcpConfigArgs(ntwineMcp?: NtwineMcp, nodeBin: string = process.execPath): string[] {
   const args: string[] = []
-  if (frizzMcp) {
+  if (ntwineMcp) {
     // The ABSOLUTE node path, never bare "node": the app-server spawns this itself and its PATH varies
     // by launch context (a GUI-launched app, a login-shell difference). The claude side pins the same
     // thing for the same reason — a bare "node" that is not on PATH makes the server silently never
     // start, so the tool merely never appears.
     args.push(
       "-c",
-      `mcp_servers.${FRIZZ_MCP.name}=${serverTable(nodeBin, [frizzMcp.scriptPath], frizzMcp.stateDir, frizzMcpEnv(frizzMcp))}`,
+      `mcp_servers.${NTWINE_MCP.name}=${serverTable(nodeBin, [ntwineMcp.scriptPath], ntwineMcp.stateDir, ntwineMcpEnv(ntwineMcp))}`,
     )
   }
   // Headless workers cannot answer an approval prompt, and an unapproved MCP call is cancelled at the
@@ -87,14 +87,14 @@ export function codexMcpConfigArgs(frizzMcp?: FrizzMcp, nodeBin: string = proces
  * the same mount as the argv one above, plus the one thing the argv can never carry: WHO IS CALLING.
  *
  * WHY THIS EXISTS AT ALL. The app-server is per-PROJECT and serves every codex thread in it, so the
- * argv mount's env is shared by all of them and cannot name a thread. `FRIZZ_THREAD_SLUG` was therefore
- * simply absent on codex, and every frizz tool that acts on the CALLER'S OWN thread — `title`, `ask`,
+ * argv mount's env is shared by all of them and cannot name a thread. `NTWINE_THREAD_SLUG` was therefore
+ * simply absent on codex, and every ntwine tool that acts on the CALLER'S OWN thread — `title`, `ask`,
  * `done`, `watch`, `watch_pr`, `unask`, `unwatch`, `timer`, `goal`, `activity`, ten call sites through
- * `threadSlug()` in cc-worker/bin/frizz-mcp.mjs — failed at the moment of use with "this frizz MCP
+ * `threadSlug()` in cc-worker/bin/ntwine-mcp.mjs — failed at the moment of use with "this ntwine MCP
  * server was not told which thread it belongs to". Only `spawn_thread` worked. That is most of the
  * worker contract: a codex worker could not name its own thread, register a question, or sign off, and
- * one of them said so in its own final message ("Frizz's completion registration also failed because
- * the server lacked FRIZZ_THREAD_SLUG; the fence below is the sign-off").
+ * one of them said so in its own final message ("Ntwine's completion registration also failed because
+ * the server lacked NTWINE_THREAD_SLUG; the fence below is the sign-off").
  *
  * WHY IT WORKS NOW AND DID NOT BEFORE. The header above says a per-conversation `mcp_servers` override
  * "does not work: MCP servers are PROCESS-level". That was measured on codex-cli 0.146.0 and it was
@@ -104,7 +104,7 @@ export function codexMcpConfigArgs(frizzMcp?: FrizzMcp, nodeBin: string = proces
  * with `~/.codex/config.toml` rather than replacing it.
  *
  * THE ARGV MOUNT STAYS, as the process-wide default for a thread that reaches the app-server with no
- * per-thread config (an adopted or pre-upgrade thread), and EVERY resume frizz issues carries this
+ * per-thread config (an adopted or pre-upgrade thread), and EVERY resume ntwine issues carries this
  * override — the lazy one, adoption, and the boot-time reconcile of a thread that was mid-turn when
  * its app-server died. That last one did not until 2026-09-18, and the claim that the argv mount
  * would then "degrade to tools present, no identity" was measured false the same day
@@ -122,21 +122,21 @@ export function codexMcpConfigArgs(frizzMcp?: FrizzMcp, nodeBin: string = proces
  * the THREAD's cwd unless the entry names its own, and a thread whose recorded cwd no longer exists —
  * a project directory rename, hypergres → porg on 2026-09-18 — gets NO MCP children at all: measured
  * with `STALE_CWD=1`, no child was spawned and the model answered NOTOOL, which is exactly the
- * incident's "no `mcp__frizz__*` in the registry" (the operator's own gmail server survived it
+ * incident's "no `mcp__ntwine__*` in the registry" (the operator's own gmail server survived it
  * because its config.toml entry pins a `cwd`). The state dir exists for as long as the project is
  * registered, and the script reads nothing relative to its cwd. The thread's own cwd is retargeted
  * separately, on resume — see resumeCwdOverride in codex-app-server.ts.
  */
-export function codexThreadMcpConfig(frizzMcp: FrizzMcp | undefined, slug: string, nodeBin: string = process.execPath): Record<string, unknown> {
-  if (!frizzMcp) return {}
+export function codexThreadMcpConfig(ntwineMcp: NtwineMcp | undefined, slug: string, nodeBin: string = process.execPath): Record<string, unknown> {
+  if (!ntwineMcp) return {}
   return {
     mcp_servers: {
-      [FRIZZ_MCP.name]: {
+      [NTWINE_MCP.name]: {
         // The ABSOLUTE node path, for the same reason the argv mount pins it — see codexMcpConfigArgs.
         command: nodeBin,
-        args: [frizzMcp.scriptPath],
-        cwd: frizzMcp.stateDir,
-        env: frizzMcpEnv({ ...frizzMcp, slug }),
+        args: [ntwineMcp.scriptPath],
+        cwd: ntwineMcp.stateDir,
+        env: ntwineMcpEnv({ ...ntwineMcp, slug }),
         default_tools_approval_mode: "approve",
       },
     },
@@ -144,30 +144,38 @@ export function codexThreadMcpConfig(frizzMcp: FrizzMcp | undefined, slug: strin
 }
 
 /**
- * The PER-THREAD switch that turns the frizz MCP server OFF for a thread taught `frizzctl` instead.
+ * The PER-THREAD switch that turns the ntwine MCP server OFF for a thread taught `ntwinectl` instead.
  *
- * Needed because an app-server outlives the server that started it: Frizz reattaches to it, for as long
+ * Needed because an app-server outlives the server that started it: Ntwine reattaches to it, for as long
  * as a client keeps coming back. One started before 2026-10-11 still carries the process-wide argv
- * mount `-c mcp_servers.frizz=…`, with no thread identity in its env, so a NEW thread started on it is
- * offered sixteen `mcp__frizz__*` tools its contract never mentions, every one of which fails.
+ * mount `-c mcp_servers.ntwine=…`, with no thread identity in its env, so a NEW thread started on it is
+ * offered sixteen `mcp__ntwine__*` tools its contract never mentions, every one of which fails.
  *
- * MEASURED on codex-cli 0.161.0 (`_live_codex_mcp_disable.mts`, the real `frizz-mcp.mjs` mounted, an
+ * MEASURED on codex-cli 0.161.0 (`_live_codex_mcp_disable.mts`, the real `ntwine-mcp.mjs` mounted, an
  * operator server in config.toml beside it): a dotted key MERGES into the server entry the argv made,
  * so `enabled = false` switches it off there — no tool offered, no process started, on a resume and in
  * a `spawn_agent` child as long as the bag is re-sent. But on an app-server with NO such entry (every
  * one started after the update) `enabled = false` alone is an entry with no transport, and
- * `thread/start` is refused: "invalid transport in `mcp_servers.frizz`". A `command` beside it makes the
+ * `thread/start` is refused: "invalid transport in `mcp_servers.ntwine`". A `command` beside it makes the
  * entry valid on both, and a disabled entry's command is never run. The other spellings tried: a nested
  * `mcp_servers` table replaces the whole table (works, but would also drop any server a later bag key
  * adds), `enabled_tools: []` / `disabled_tools` hide the tools but still start the process, and an
  * empty table is refused. The operator's own config.toml servers survived every one.
  */
 export function codexThreadMcpOff(nodeBin: string = process.execPath): Record<string, unknown> {
-  return {
-    [`mcp_servers.${FRIZZ_MCP.name}.enabled`]: false,
-    [`mcp_servers.${FRIZZ_MCP.name}.command`]: nodeBin,
+  const off: Record<string, unknown> = {}
+  // `frizz` too: an app-server started before the Frizz -> Ntwine rename (2026-10-13) mounted the same
+  // server under that name, and its script path is gone once the plugin link moves on. The pair is
+  // valid with or without an existing entry, for the reason above.
+  for (const name of [NTWINE_MCP.name, LEGACY_MCP_NAME]) {
+    off[`mcp_servers.${name}.enabled`] = false
+    off[`mcp_servers.${name}.command`] = nodeBin
   }
+  return off
 }
+
+/** The MCP server's name before the Frizz -> Ntwine rename. */
+const LEGACY_MCP_NAME = "frizz"
 
 /**
  * The app-server's full argv for a transport.
@@ -179,7 +187,7 @@ export function codexThreadMcpOff(nodeBin: string = process.execPath): Record<st
  */
 export function codexAppServerArgv(
   transport: readonly string[],
-  frizzMcp?: FrizzMcp,
+  ntwineMcp?: NtwineMcp,
 ): string[] {
-  return ["app-server", ...codexMcpConfigArgs(frizzMcp), ...transport]
+  return ["app-server", ...codexMcpConfigArgs(ntwineMcp), ...transport]
 }

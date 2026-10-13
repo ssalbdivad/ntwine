@@ -5,7 +5,7 @@ import { delimiter, dirname, isAbsolute, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import * as claudeRuntime from "@frizz/claude-agent-sdk-runtime"
+import * as claudeRuntime from "@ntwine/claude-agent-sdk-runtime"
 import { claudeWorkerEnv } from "./types.ts"
 import {
   CLAUDE_AGENT_SDK_FOUNDATION_FLAG,
@@ -99,7 +99,7 @@ test("real SDK + fake executable: init owns the requested session, input streams
   // flip this assertion. Clearing them through the override path keeps the baseline deterministic AND
   // exercises buildEnvironment's delete branch. The worker caps are the same hazard inverted: in
   // production the BRIDGE spreads claudeWorkerEnv() into the daemon env and the foundation inherits
-  // it, so a test process outside a frizz worker has no CLAUDE_CODE_MAX_* at all — until 2026-08-24
+  // it, so a test process outside an ntwine worker has no CLAUDE_CODE_MAX_* at all — until 2026-08-24
   // this test read them from ambient env and only passed INSIDE a dispatched worker (first caught by
   // a suite run on a plain Linux box). claudeWorkerEnv({}) is the bridge's spread at its defaults.
   const harness = startHarness("basic", {
@@ -110,13 +110,13 @@ test("real SDK + fake executable: init owns the requested session, input streams
     ARBITRARY_SECRET: undefined,
     // The SAME hazard as the caps below, one variable later and from the OTHER direction: the bridge
     // spreads claudeCompactionEnv(settings) into a real daemon's env, so a suite run INSIDE a
-    // dispatched frizz worker inherits CLAUDE_CODE_AUTO_COMPACT_WINDOW and captures it here, while a
+    // dispatched ntwine worker inherits CLAUDE_CODE_AUTO_COMPACT_WINDOW and captures it here, while a
     // run on a plain box does not. Cleared, so the baseline is the same in both places.
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: undefined,
     // THE SAME HAZARD A THIRD TIME, and this one fooled a bump (2026-09-05). The SDK writes
     // CLAUDE_CODE_ENTRYPOINT only when the child's env does not already carry it (`if(!c.CLAUDE_CODE_
     // ENTRYPOINT)c.CLAUDE_CODE_ENTRYPOINT="sdk-ts"` in sdk.mjs, 0.3.260 through 0.3.263 alike), and
-    // every Claude-launched shell already does: an interactive `claude` exports `sdk-cli`, a frizz
+    // every Claude-launched shell already does: an interactive `claude` exports `sdk-cli`, an ntwine
     // broker worker exports `sdk-ts`. So the fixture echoed the RUNNER's tag, and the 0.3.261 bump read
     // its own shell's `sdk-cli` as a vendor rename — a suite run from a broker worker then failed on the
     // exact assertion that comment said must never be loosened. Cleared, so the SDK's own default is what
@@ -164,10 +164,10 @@ test("real SDK + fake executable: init owns the requested session, input streams
     assert.ok(argv.includes("--setting-sources=user,project,local"), `argv had: ${argv.filter((a) => a.startsWith("--setting-sources")).join(",") || "no --setting-sources flag"}`)
     assert.equal(flagValue(argv, "--session-id"), SESSION_ID)
     assert.deepEqual(startup.environment, {
-      frizzFakeInheritedPresent: false,
-      frizzFakeOverridePresent: false,
-      clientApp: "frizz/claude-agent-sdk-foundation",
-      // The SDK's own marker for how it launched the CLI, observed rather than set: Frizz never reads
+      ntwineFakeInheritedPresent: false,
+      ntwineFakeOverridePresent: false,
+      clientApp: "ntwine/claude-agent-sdk-foundation",
+      // The SDK's own marker for how it launched the CLI, observed rather than set: Ntwine never reads
       // or writes CLAUDE_CODE_ENTRYPOINT, and the fixture only echoes it back. `sdk-ts` is the SDK's
       // default for a child whose env does not already carry the variable — which the harness now
       // guarantees (see the CLAUDE_CODE_ENTRYPOINT override above; the `sdk-cli` this pinned from
@@ -186,7 +186,7 @@ test("real SDK + fake executable: init owns the requested session, input streams
       githubTokenPresent: false,
       openaiApiKeyPresent: false,
       awsSecretAccessKeyPresent: false,
-      frizzSecretPresent: false,
+      ntwineSecretPresent: false,
       arbitrarySecretPresent: false,
       // The lifted worker caps, from claudeWorkerEnv() — WORKER_MAX_WEB_SEARCHES /
       // WORKER_MAX_SUBAGENTS / WORKER_MAX_CONCURRENT_SUBAGENTS in types.ts, against provider defaults
@@ -202,7 +202,7 @@ test("real SDK + fake executable: init owns the requested session, input streams
       uuid: INPUT_ID,
       text: "hello from streaming input",
       // An ordinary send is a MAIN-THREAD turn and must stay one. `null` here is the whole guarantee
-      // that adding sub-agent addressing did not quietly re-route every follow-up frizz sends.
+      // that adding sub-agent addressing did not quietly re-route every follow-up ntwine sends.
       parentToolUseId: null,
     })
   } finally {
@@ -232,20 +232,20 @@ test("host runtime injection is stripped whatever case the OS spells its variabl
   }
 })
 
-test("listSkills offers the skills and the built-in commands a Frizz thread can run", { timeout: 10_000 }, async () => {
+test("listSkills offers the skills and the built-in commands an Ntwine thread can run", { timeout: 10_000 }, async () => {
   const harness = startHarness("basic")
   try {
     await withTimeout(harness.handle.ready(), "session init")
     // The fixture's initialize response carries "review", "compact", "explore" and three built-ins
     // that must stay out ("clear", "__remote-workflow", "extra-usage"); its init frame names only
     // "review" and "explore" as skills. Each carries the source `get_context_usage` reported for it —
-    // "review" from a root frizz maps, "explore" from an invented one that must degrade to no label
+    // "review" from a root ntwine maps, "explore" from an invented one that must degrade to no label
     // rather than a wrong one, and the built-in "compact" from claude's own "built-in".
     const skills = await withTimeout(harness.handle.listSkills(), "skill listing")
     assert.deepEqual(skills, [
       // "review" arrives as "Review changes (project)" and loses the suffix, because the column is
       // about to say the same thing. "explore" keeps "(dynamic workflow)": it is a parenthetical, not
-      // a source, and nothing frizz renders would contradict it.
+      // a source, and nothing ntwine renders would contradict it.
       { name: "review", description: "Review changes", source: "project" },
       { name: "compact", description: "Compact the conversation", source: "builtin", command: true },
       { name: "explore", description: "Explore the repository (dynamic workflow)", source: undefined },
@@ -370,7 +370,7 @@ test("a same-session re-init is RELAYED (real claude re-emits init every turn) a
     // only frame that names the session's resolved model, and that alias is what picks this thread's row
     // out of `result.modelUsage` — the sole source of the context meter's denominator. It used to be
     // swallowed here, which announced the alias once per DAEMON lifetime; a broker daemon outlives the
-    // frizz server, so every reattached thread lost its context readout permanently.
+    // ntwine server, so every reattached thread lost its context readout permanently.
     const reinit = await harness.handle.next()
     assert.equal(reinit.value?.kind, "init")
     assert.equal(reinit.value?.kind === "init" && reinit.value.model, "claude-sonnet-test")
@@ -396,7 +396,7 @@ test("control frames that precede the session init are tolerated (same session) 
 })
 
 // The frame maps to a payload-free `kind:"other"`, so the plan windows it carries are read off the RAW
-// frame and handed to the observer — the only way a machine whose token Frizz cannot read has a usage
+// frame and handed to the observer — the only way a machine whose token Ntwine cannot read has a usage
 // reading at all (claude-quota-observed.ts). The observer here throws, because it runs inside the pump:
 // a telemetry consumer that fails must not take the session with it.
 test("a rate_limit_event hands its plan windows to the observer raw, and an observer that throws costs the session nothing", { timeout: 10_000 }, async () => {
@@ -484,7 +484,7 @@ test("canUseTool request and structured allow response traverse the real SDK con
       observedRequest = request
       return {
         behavior: "allow",
-        updatedInput: { ...request.input, approvedBy: "frizz-test" },
+        updatedInput: { ...request.input, approvedBy: "ntwine-test" },
         updatedPermissions: [{
           type: "addRules",
           rules: [{ toolName: "Bash", ruleContent: "printf *" }],
@@ -518,7 +518,7 @@ test("canUseTool request and structured allow response traverse the real SDK con
     const response = records.find((row) => row.kind === "host-response")?.response as Record<string, unknown>
     assert.deepEqual(response.response, {
       behavior: "allow",
-      updatedInput: { command: "printf safe", approvedBy: "frizz-test" },
+      updatedInput: { command: "printf safe", approvedBy: "ntwine-test" },
       updatedPermissions: [{ type: "addRules", rules: [{ toolName: "Bash", ruleContent: "printf *" }], behavior: "allow", destination: "session" }],
       toolUseID: "tool-use-permission-1",
     })
@@ -690,7 +690,7 @@ test("provider-consumed input cannot bypass UUID backpressure or duplicate prote
 // session for good: no input → no turn → no `assistant`/`result` → no release → no input. Measured on
 // the maintainer's own board 2026-08-05 on thread `are-taking-over-an-in-flight-epic` — the set filled
 // at 19:25:05Z and every delivery after it, 21 heartbeats and the operator's own messages alike, was
-// refused for the remaining life of the daemon while frizz recorded each one as delivered.
+// refused for the remaining life of the daemon while ntwine recorded each one as delivered.
 test("inputs the provider will never echo cannot wedge the session for good", { timeout: 20_000 }, async () => {
   const harness = startHarness("unechoed-inputs")
   try {
@@ -728,7 +728,7 @@ test("inputs the provider will never echo cannot wedge the session for good", { 
 // A SUB-AGENT STEER is one addressed input frame and nothing else — there is no per-agent control
 // request in the SDK (`stopTask` / `backgroundTasks` are the whole per-task surface). So the ONE thing
 // the adapter must get right is which value lands in `parent_tool_use_id`: null keeps the message on
-// the session's main thread (every follow-up frizz has ever sent, which must stay byte-identical), and
+// the session's main thread (every follow-up ntwine has ever sent, which must stay byte-identical), and
 // the child's dispatch tool_use id routes it into that child's own conversation. Asserted on the wire
 // frame the CLI actually reads, because that is where the routing decision is consumed.
 test("addressing an input routes it to the sub-agent; omitting it stays a main-thread turn", { timeout: 10_000 }, async () => {
@@ -1153,23 +1153,23 @@ test("a provider event flood trips the bounded output queue instead of retaining
   }
 })
 
-// A worker INHERITS the operator's environment and is denied only frizz's own control plane. This
+// A worker INHERITS the operator's environment and is denied only ntwine's own control plane. This
 // reverses the allowlist this test used to pin (it asserted GITHUB_TOKEN / OPENAI_API_KEY /
 // AWS_SECRET_ACCESS_KEY / an arbitrary secret were all withheld); worker-env.ts carries the full
 // reasoning, but the short version is that the allowlists had drifted apart between backends — proxy
 // and CA variables reached codex workers and not claude ones — while withholding a token from a
 // process that can read ~/.config/gh/hosts.yml was never a real boundary.
 //
-// What this test still guards is the part that IS load-bearing: FRIZZ_* never crosses, so a worker
-// dispatched to work on frizz cannot read the broker's daemon payload or the launch identity, and the
+// What this test still guards is the part that IS load-bearing: NTWINE_* never crosses, so a worker
+// dispatched to work on ntwine cannot read the broker's daemon payload or the launch identity, and the
 // cc-worker hooks cannot pick up the SERVER's thread identity instead of their own.
-test("child environment inherits ambient variables and withholds only frizz's own control plane", { timeout: 10_000 }, async () => {
+test("child environment inherits ambient variables and withholds only ntwine's own control plane", { timeout: 10_000 }, async () => {
   const ambient = {
     GITHUB_TOKEN: "github-should-cross",
     OPENAI_API_KEY: "openai-should-cross",
     AWS_SECRET_ACCESS_KEY: "aws-should-cross",
     ARBITRARY_SECRET: "arbitrary-should-cross",
-    FRIZZ_SHOULD_NOT_LEAK: "frizz-must-not-cross",
+    NTWINE_SHOULD_NOT_LEAK: "ntwine-must-not-cross",
   } as const
   const previous = Object.fromEntries(Object.keys(ambient).map((key) => [key, process.env[key]]))
   Object.assign(process.env, ambient)
@@ -1185,7 +1185,7 @@ test("child environment inherits ambient variables and withholds only frizz's ow
     assert.equal(environment.awsSecretAccessKeyPresent, true)
     assert.equal(environment.arbitrarySecretPresent, true)
     // The one thing that must never cross.
-    assert.equal(environment.frizzSecretPresent, false, "FRIZZ_* is frizz's control plane, not the operator's environment")
+    assert.equal(environment.ntwineSecretPresent, false, "NTWINE_* is ntwine's control plane, not the operator's environment")
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]
@@ -1281,7 +1281,7 @@ test("input, JSON, environment, and executable boundaries reject unsafe payloads
     // No "not allowlisted" case any more, and no value-shaped throws either: the broker hands the
     // operator's WHOLE environment down this branch, so anything that throws here kills the daemon
     // rather than reporting a bug (see buildEnvironment, and the degrade test below). What is left
-    // are the two things only frizz's own code can produce — a malformed key, and a non-text value.
+    // are the two things only ntwine's own code can produce — a malformed key, and a non-text value.
     assert.throws(() => factory.start({
       cwd: harness.dir,
       session: { kind: "new", sessionId: SESSION_ID },
@@ -1307,7 +1307,7 @@ test("a Windows-shaped environment key — ProgramFiles(x86) — is a valid over
   // daemon hands the WHOLE inherited environment to start() as overrides (claude-agent-broker.ts). The
   // key rule used to be a POSIX shell identifier, so the daemon threw "invalid key" on startup, never
   // published its record, and every Claude dispatch on Windows timed out with "did not become ready"
-  // (measured on Windows Server 2022, frizz 0.8.1, 2026-09-01). The OS accepts any name without `=` or
+  // (measured on Windows Server 2022, ntwine 0.8.1, 2026-09-01). The OS accepts any name without `=` or
   // NUL; that is the rule now. The malformed-key guard above (`INVALID=KEY`) still holds.
   const harness = startHarness("windows-env-key", {
     "ProgramFiles(x86)": "C:\\Program Files (x86)",
@@ -1330,32 +1330,32 @@ test("a short credential value and an oversized value DEGRADE instead of killing
   // skipped, exactly as the inherit loop skips it.
   const harness = startHarness("env-degrade", {
     ANTHROPIC_API_KEY: "abc",
-    FRIZZ_FAKE_OVERRIDE: "x".repeat(200_000),
+    NTWINE_FAKE_OVERRIDE: "x".repeat(200_000),
   })
   try {
     await withTimeout(harness.handle.ready(), "session init")
     const records = await waitForCapture(harness.capturePath, (rows) => rows.some((row) => row.kind === "startup"))
     const environment = records.find((row) => row.kind === "startup")?.environment as Record<string, unknown>
     assert.equal(environment.anthropicApiKeyPresent, true, "a short credential value reaches the worker rather than killing it")
-    assert.equal(environment.frizzFakeOverridePresent, false, "an oversized value is dropped, not thrown on")
+    assert.equal(environment.ntwineFakeOverridePresent, false, "an oversized value is dropped, not thrown on")
   } finally {
     await harness.close()
   }
 })
 
-test("an over-full environment trims its oldest ambient entries and keeps frizz's own", { timeout: 10_000 }, async () => {
+test("an over-full environment trims its oldest ambient entries and keeps ntwine's own", { timeout: 10_000 }, async () => {
   // A shell carrying more than MAX_ENV_ENTRIES variables used to throw "too many overrides" and take the
-  // daemon with it. It now trims — from the FRONT, because the broker merges the per-thread frizz vars
-  // last, and a worker without FRIZZ_THREAD or its plugin dir is broken in ways an operator cannot see.
-  // FRIZZ_FAKE_OVERRIDE can only arrive as an override (inheritWorkerEnvironment strips every FRIZZ_ key
+  // daemon with it. It now trims — from the FRONT, because the broker merges the per-thread ntwine vars
+  // last, and a worker without NTWINE_THREAD or its plugin dir is broken in ways an operator cannot see.
+  // NTWINE_FAKE_OVERRIDE can only arrive as an override (inheritWorkerEnvironment strips every NTWINE_ key
   // from the ambient half), so its presence is proof the tail survived the trim.
   const crowded = Object.fromEntries(Array.from({ length: 600 }, (_, index) => [`AMBIENT_${index}`, "v"]))
-  const harness = startHarness("env-trim", { ...crowded, FRIZZ_FAKE_OVERRIDE: "kept" })
+  const harness = startHarness("env-trim", { ...crowded, NTWINE_FAKE_OVERRIDE: "kept" })
   try {
     await withTimeout(harness.handle.ready(), "session init")
     const records = await waitForCapture(harness.capturePath, (rows) => rows.some((row) => row.kind === "startup"))
     const environment = records.find((row) => row.kind === "startup")?.environment as Record<string, unknown>
-    assert.equal(environment.frizzFakeOverridePresent, true, "frizz's own overrides survive the trim")
+    assert.equal(environment.ntwineFakeOverridePresent, true, "ntwine's own overrides survive the trim")
   } finally {
     await harness.close()
   }
@@ -1368,7 +1368,7 @@ function startHarness(
   session: Parameters<ReturnType<typeof createClaudeQueryFactory>["start"]>[0]["session"] = { kind: "new", sessionId: SESSION_ID },
   extra: Partial<Parameters<ReturnType<typeof createClaudeQueryFactory>["start"]>[0]> = {},
 ): Harness {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-claude-sdk-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-claude-sdk-"))
   const capturePath = join(dir, "capture.jsonl")
   const executablePath = join(dir, `fake-claude--${scenario}.mjs`)
   copyFileSync(fakeExecutable, executablePath)
@@ -1479,7 +1479,7 @@ test("a tool input with a control character DEGRADES instead of killing the sess
   assert.equal(event.kind, "assistant")
   assert.equal(event.toolUses.length, 1, "the tool call is still reported")
   assert.equal(event.toolUses[0]!.name, "Bash", "id and name survive — only the arguments degrade")
-  assert.ok("__frizzUnrepresentable" in event.toolUses[0]!.input, `input was ${JSON.stringify(event.toolUses[0]!.input)}`)
+  assert.ok("__ntwineUnrepresentable" in event.toolUses[0]!.input, `input was ${JSON.stringify(event.toolUses[0]!.input)}`)
 })
 
 test("an ordinary tool input is untouched by the degrade path", () => {
@@ -1530,7 +1530,7 @@ test("an unrepresentable PERMISSION input is denied, not thrown — content vs p
   // calls, which is exactly where Bash commands (and therefore ANSI escapes) live.
   //
   // The validator stays strict — this decides whether authority is granted, so sanitizing the bytes
-  // the provider will act on would be a security bug. What changed is the CONSEQUENCE: an input frizz
+  // the provider will act on would be a security bug. What changed is the CONSEQUENCE: an input ntwine
   // cannot represent denies that one call instead of rejecting the SDK callback, which is how a
   // formatting problem used to become a dead session.
   const esc = String.fromCharCode(27)
@@ -1558,7 +1558,7 @@ test("mapTask carries the whole sub-agent payload, not just two strings", () => 
     task_id: "task_abc",
     tool_use_id: "toolu_child",
     description: "Audit the tailer fold",
-    subagent_type: "frizz:opus-high",
+    subagent_type: "ntwine:opus-high",
     last_tool_name: "Bash",
     summary: "running the live harness",
     usage: { total_tokens: 40123, tool_uses: 18, duration_ms: 92_000 },
@@ -1568,7 +1568,7 @@ test("mapTask carries the whole sub-agent payload, not just two strings", () => 
   assert.equal(event.taskId, "task_abc")
   assert.equal(event.toolUseId, "toolu_child")
   assert.equal(event.description, "Audit the tailer fold")
-  assert.equal(event.subagentType, "frizz:opus-high")
+  assert.equal(event.subagentType, "ntwine:opus-high")
   assert.equal(event.lastToolName, "Bash")
   assert.equal(event.summary, "running the live harness")
   assert.deepEqual(event.usage, { totalTokens: 40123, toolUses: 18, durationMs: 92_000 })
@@ -1628,7 +1628,7 @@ test("strictMcpConfig hands the CLI --strict-mcp-config, and the mounted servers
   const token = "Bearer napi_secret_token_for_the_argv_test"
   const harness = startHarness("strict-mcp", {}, {}, { kind: "new", sessionId: SESSION_ID }, {
     strictMcpConfig: true,
-    mcpServers: { frizz: { command: process.execPath, args: ["/abs/frizz-mcp.mjs"] }, Neon: { type: "http", url: "https://mcp.example/mcp", headers: { Authorization: token } } },
+    mcpServers: { ntwine: { command: process.execPath, args: ["/abs/ntwine-mcp.mjs"] }, Neon: { type: "http", url: "https://mcp.example/mcp", headers: { Authorization: token } } },
   })
   try {
     await harness.handle.ready()
@@ -1649,7 +1649,7 @@ test("strictMcpConfig hands the CLI --strict-mcp-config, and the mounted servers
     assert.ok(startup.mcpConfigFileContent, "the CLI could read the file at startup")
     assert.equal(startup.mcpConfigFileMode, 0o600, "owner-only while it exists")
     const cfg = JSON.parse(startup.mcpConfigFileContent!)
-    assert.deepEqual(Object.keys(cfg.mcpServers).sort(), ["Neon", "frizz"])
+    assert.deepEqual(Object.keys(cfg.mcpServers).sort(), ["Neon", "ntwine"])
     assert.equal(cfg.mcpServers.Neon.headers.Authorization, token)
   } finally {
     await harness.close()

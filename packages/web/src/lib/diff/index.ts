@@ -1,4 +1,4 @@
-// frizz's diff renderer: turn (old, next, file) into structured, syntax-highlighted diff lines the
+// ntwine's diff renderer: turn (old, next, file) into structured, syntax-highlighted diff lines the
 // chat view can render as React. Self-contained (no Shiki, no server round-trip) — see highlight.ts
 // for the tokenizer rationale. The return is DATA, not HTML: the client owns the markup + theme, so
 // there's nothing to sanitize and the shape is trivially unit-testable.

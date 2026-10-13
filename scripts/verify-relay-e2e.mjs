@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket as WsClient, WebSocketServer } from "ws";
-import { exportClaimPublicKey, generateClaimIdentity } from "@frizz/shared";
+import { exportClaimPublicKey, generateClaimIdentity } from "@ntwine/shared";
 import { connectRelay } from "../src/relay-connection.ts";
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -57,7 +57,7 @@ const wait = async (label, fn, ms = 90_000) => {
 let dev = null;
 let boardServer = null;
 let connection = null;
-const state = mkdtempSync(join(tmpdir(), "frizz-relay-e2e-"));
+const state = mkdtempSync(join(tmpdir(), "ntwine-relay-e2e-"));
 
 try {
   const identity = await generateClaimIdentity();
@@ -86,12 +86,12 @@ try {
   writeFileSync(
     devConfig,
     [
-      'name = "frizz-relay-dev"',
+      'name = "ntwine-relay-dev"',
       `main = "${join(repo, "packages/relay/src/worker.ts")}"`,
       'compatibility_date = "2026-08-24"',
       "",
       "[vars]",
-      'FRIZZ_ZONE = "localhost"',
+      'NTWINE_ZONE = "localhost"',
       "",
       "[[durable_objects.bindings]]",
       'name = "BOARD"',
@@ -187,7 +187,7 @@ try {
     res.writeHead(200, { "content-type": "text/plain", "content-length": "13", "x-board": "yes" });
     res.end("BOARD-REACHED");
   });
-  // A REAL terminal on the board, because a relayed board you cannot type into is not Frizz. This is
+  // A REAL terminal on the board, because a relayed board you cannot type into is not Ntwine. This is
   // the seam nothing else exercises: the visitor's socket lives in workerd, this one is on loopback,
   // and every keystroke is a frame carried between two different runtimes.
   const wss = new WebSocketServer({ noServer: true });
@@ -278,7 +278,7 @@ try {
     // link nothing else covers: whether workerd puts Origin and Cookie into the frame at all. If it
     // drops them, the board's access gate never sees a visitor and a real terminal is refused.
     const visitor = new WsClient(`ws://ada.localhost:${DEV_PORT}/terminal?id=abc`, {
-      headers: { origin: `http://ada.localhost:${DEV_PORT}`, cookie: "frizz_session=probe-value" },
+      headers: { origin: `http://ada.localhost:${DEV_PORT}`, cookie: "ntwine_session=probe-value" },
     });
     const timer = setTimeout(() => resolve({ error: "the terminal never answered" }), 20_000);
     visitor.on("open", () => visitor.send("ls -la"));
@@ -294,7 +294,7 @@ try {
   check("a terminal opens THROUGH the relay and echoes what was typed", typed.data === "pty:ls -la", typed.error ?? JSON.stringify(typed.data));
   check(
     "the visitor's Origin and session cookie survive workerd and reach the board",
-    handshake.origin === `http://ada.localhost:${DEV_PORT}` && handshake.cookie === "frizz_session=probe-value",
+    handshake.origin === `http://ada.localhost:${DEV_PORT}` && handshake.cookie === "ntwine_session=probe-value",
     `origin=${handshake.origin} cookie=${handshake.cookie}`,
   );
   check("and the board is addressed by its PUBLIC host, which is what arms the access gate", handshake.host === `ada.localhost:${DEV_PORT}`, `host=${handshake.host}`);

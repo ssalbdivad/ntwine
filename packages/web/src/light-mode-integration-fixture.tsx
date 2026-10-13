@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadWatchView } from "@frizz/shared"
+import type { ThreadWatchView } from "@ntwine/shared"
 import { AcpModelSelect } from "./components/AcpModelSelect.tsx"
 import { GithubWatchRow, WaitGrid } from "./components/AwaitingBackgroundCard.tsx"
 import { ProviderMark } from "./components/ProviderMark.tsx"
@@ -20,7 +20,7 @@ const agents = ["opencode", "cursor", "gemini", "copilot", "qwen", "kimi", "grok
 const originalFetch = window.fetch.bind(window)
 window.fetch = (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin)
-  if (url.pathname === '/_frizz/rpc/githubRefPreview') {
+  if (url.pathname === '/_ntwine/rpc/githubRefPreview') {
     const { refs } = JSON.parse(url.searchParams.get('input') ?? '{}')
     return Promise.resolve(new Response(JSON.stringify({ result: { cards: [], missing: refs } }), { headers: { 'content-type': 'application/json' } }))
   }

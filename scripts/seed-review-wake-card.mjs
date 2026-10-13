@@ -16,7 +16,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-review-wake-card.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -90,7 +90,7 @@ const CASES = [
 
 CASES.forEach((c, n) => {
   const sessionId = `${c.slug}-0000-4000-8000-000000000000`.slice(0, 36)
-  const threadName = `frizz-${c.slug}`
+  const threadName = `ntwine-${c.slug}`
   const at = ago(3)
   const text = `${formatGithubWakeSteer(c.steer)}${c.extraTail ?? ""}\n\n${wakeDeliveryToken(`${c.slug}`.padEnd(64, "0"))}`
   const records = [

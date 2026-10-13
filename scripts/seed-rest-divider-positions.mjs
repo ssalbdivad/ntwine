@@ -1,7 +1,7 @@
 // Seed a disposable adhoc stack with ONE simulated worker whose transcript puts the "Agent rested"
 // hairline in all three positions it can land in, in reading order:
 //
-//   1. above a frizz WAKE DELIVERY (the sign-off nudge) — the back-to-back pair the maintainer called
+//   1. above an ntwine WAKE DELIVERY (the sign-off nudge) — the back-to-back pair the maintainer called
 //      out on 2026-08-13 ("we're just getting these back-to-back hairlines");
 //   2. above the HUMAN'S own next message — the one position where the rule discriminates, since
 //      without it a reply to a finished agent reads exactly like a steer typed mid-turn;
@@ -11,7 +11,7 @@
 // judged against each other, at the same type size, in the same scroll — including the message rhythm
 // either side of a rule that is no longer there.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads. No pane, no process:
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads. No pane, no process:
 // liveness comes from the row.
 // Usage: nub scripts/seed-rest-divider-positions.mjs --home=/abs/temp-home --port=NNNN
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -60,7 +60,7 @@ const assistant = (min, text) => ({
   },
 })
 
-const SIGNOFF = `${SIGNOFF_NUDGE_MARKER} Nothing about your task has changed, and this is not a request to do more work.\n\nYou came to rest without a signal fence, so nobody can triage this thread. Re-read your last message and close it with the fence that matches where the work actually stands.\n\n<!-- frizz-wake:sgnf0001 -->`
+const SIGNOFF = `${SIGNOFF_NUDGE_MARKER} Nothing about your task has changed, and this is not a request to do more work.\n\nYou came to rest without a signal fence, so nobody can triage this thread. Re-read your last message and close it with the fence that matches where the work actually stands.\n\n<!-- ntwine-wake:sgnf0001 -->`
 
 const records = [
   user(0, "TASK:\nThe rested hairline reads as noise when a wake divider follows it. Work out whether it earns its place."),
@@ -75,7 +75,7 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${at(0)}', 'Rest divider positions', 'claude', 'opus', 'high', 'default', '${at(33)}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${at(0)}', 'Rest divider positions', 'claude', 'opus', 'high', 'default', '${at(33)}')`,
 ])
 
 const api = createRpcClient(`http://127.0.0.1:${port}/`)

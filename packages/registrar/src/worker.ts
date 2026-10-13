@@ -12,7 +12,7 @@ import { createCloudflareApi } from "./cloudflare.ts"
  *
  * It runs during signup and never again — it is not on the data plane, so a board that is already
  * running keeps working whether or not this is up. Protecting that property is worth more than any
- * other choice here: nothing in Frizz should ever have to reach this to stay reachable.
+ * other choice here: nothing in Ntwine should ever have to reach this to stay reachable.
  */
 
 /**
@@ -40,7 +40,7 @@ export interface KvNamespace {
  *
  * ONLY A ZERO-SCOPE TOKEN IS ACCEPTED. Until 2026-10-08 the CLI sent its `gh` token, which can push to
  * every repository its owner can, and a compromised build of this Worker collected them. The CLI now
- * signs in through Frizz's own OAuth App, which asks for no scopes, so its token can read only the
+ * signs in through Ntwine's own OAuth App, which asks for no scopes, so its token can read only the
  * public profile. Two checks hold every client to that, an old one above all:
  *
  * - The shape, BEFORE GitHub is asked anything: an OAuth App user token is `gho_…`. A classic PAT
@@ -63,7 +63,7 @@ export function githubVerifier(
           authorization: `Bearer ${token}`,
           accept: "application/vnd.github+json",
           // GitHub rejects an API request with no user agent.
-          "user-agent": "frizz-registrar",
+          "user-agent": "ntwine-registrar",
         },
       })
       if (!response.ok) return null
@@ -84,7 +84,7 @@ export interface RegistrarEnv {
   CF_ACCOUNT_ID: string
   CF_ZONE_ID: string
   /** The apex names hang off, e.g. `frizz.sh`. */
-  FRIZZ_ZONE: string
+  NTWINE_ZONE: string
   /** "0" turns the GitHub gate OFF. Anything else, including absent, leaves it ON. */
   REQUIRE_GITHUB?: string
   /** Overrides the built-in name ceiling, so a plan upgrade needs no deploy. */
@@ -220,7 +220,7 @@ function claimDeps(env: RegistrarEnv, anonymousBudget?: () => Promise<boolean>) 
         }
       : {}),
     store: kvClaimStore(env.CLAIMS),
-    zone: env.FRIZZ_ZONE,
+    zone: env.NTWINE_ZONE,
     now: () => Date.now(),
     // ON unless explicitly disabled. A gate that defaults off is a gate that ships off by accident.
     maxNames: env.MAX_NAMES ? Number(env.MAX_NAMES) : env.CLOUD_MODE === "tunnel" ? MAX_NAMES : MAX_NAMES_RELAY,

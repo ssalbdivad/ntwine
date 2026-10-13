@@ -6,7 +6,7 @@ import { mdToHtml, mdInlineToHtml } from "./lib/markdown.ts"
 // can't reach) over the tilde shapes agent prose actually contains. Only `~~…~~` may produce a <del>;
 // the approximation tilde ("~2.7s") and the home prefix ("~/.claude") must render as plain text.
 const CASES: { id: string; md: string }[] = [
-  { id: "approx", md: "Backend returns in ~2.7s; the shared cache `~/.frizz/quota-cache` is healthy." },
+  { id: "approx", md: "Backend returns in ~2.7s; the shared cache `~/.ntwine/quota-cache` is healthy." },
   { id: "paths", md: "SYSTEM ~/.claude/settings.json and the global hook (~/.orca/claude-hook.sh) on UserPromptSubmit." },
   { id: "budget", md: "Poll injection, timeout per poll. ~1 file. **~0.5-1 day.**" },
   { id: "single", md: "~one tilde~" },

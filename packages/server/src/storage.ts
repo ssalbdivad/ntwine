@@ -1,21 +1,21 @@
 import Database from "./sqlite.ts"
-import { ThreadSlug, slugify, threadIdentityName } from "@frizz/shared"
+import { ThreadSlug, slugify, threadIdentityName } from "@ntwine/shared"
 import { createInteractionStore, type InteractionStore } from "./interaction-store.ts"
 import { scopeDatabase, type ProjectScope } from "./project-scope.ts"
 import { createScheduleStore, type ScheduleStore } from "./schedule-store.ts"
 import { log } from "./logging.ts"
 
-// The UI-state store (never .frizz/): session registry + settings. ONE SQLite file for the whole
-// machine, `<data>/ui.db` (frizz-db.ts), every row tagged with its project and every statement here
+// The UI-state store (never .ntwine/): session registry + settings. ONE SQLite file for the whole
+// machine, `<data>/ui.db` (ntwine-db.ts), every row tagged with its project and every statement here
 // scoped to one (project-scope.ts) — it was one file per project until 2026-08-27. WAL for concurrent
-// read while the watcher writes. Frizz thread files stay the source of truth for STATUS; this DB
+// read while the watcher writes. Ntwine thread files stay the source of truth for STATUS; this DB
 // holds only runtime overlay (which worker session backs a thread, unread, last-read) and settings.
 
 export interface SessionRow {
   slug: string
   session_id: string
   /**
-   * The thread's IDENTITY STRING, `frizz-<slug>`, re-derived and checked on every write by
+   * The thread's IDENTITY STRING, `ntwine-<slug>`, re-derived and checked on every write by
    * validateSessionIdentity (see threadIdentityName). The column was called `tmux_name` and is
    * renamed in place on first boot — see THE COLUMN THAT OUTLIVED THE MULTIPLEXER below. The VALUE
    * never named a multiplexer pane, only a name that happened to be given to one, and no worker has
@@ -28,7 +28,7 @@ export interface SessionRow {
   exited: number // 0 | 1
   archived: number // 0 | 1 — user hid the row from the nav; any respawn/resume un-archives
   // ISO8601 — when the agent last came to REST. Written on the live in-flight→idle edge and, for a
-  // turn that ended while frizz was not watching, off the prime that folds it (tailer.onPrimedAtRest).
+  // turn that ended while ntwine was not watching, off the prime that folds it (tailer.onPrimedAtRest).
   // It does NOT drive nav order (this line said so until 2026-09-05): the board sorts on telemetry
   // (`lastAssistantAt`) and this column is not even on ThreadView. Its two readers are both the
   // awaiting-background snooze — router.snoozeAwaitingBackground refuses a null, and board.bgSnoozeArmed
@@ -38,10 +38,10 @@ export interface SessionRow {
   // it is what makes the UI show "Spinning up…"/"Untitled thread" instead of an internal-looking slug.
   // It does NOT decide whether a later machine title may land — that is `title_locked` below.
   title_auto: number
-  // 0 | 1 — a HUMAN named this thread (explicit rename, native /rename, or an adopted `.frizz/<slug>.md`
+  // 0 | 1 — a HUMAN named this thread (explicit rename, native /rename, or an adopted `.ntwine/<slug>.md`
   // heading), so no backend auto-title may ever replace it. A title HARD-CODED by a dispatch CALLER is
   // NOT this: `Investigate acme/app#391` from the GitHub batch, or a parent agent's guess through
-  // `frizzctl spawn-thread`, is shown as a real name (title_auto = 0) and is FINAL like any other name
+  // `ntwinectl spawn-thread`, is shown as a real name (title_auto = 0) and is FINAL like any other name
   // (thread-names.ts) — unlocked only in that a human rename still records as the human's. The human-facing
   // new-thread composer has no title field at all, so a dispatch title never means "a human typed this".
   // INVARIANT, relied on by the idempotent boot repair: title_locked = 1 ⇒ title_auto = 0.
@@ -57,11 +57,11 @@ export interface SessionRow {
   // discarding a perfectly good persisted title (maintainer 2026-08-07). Cleared by every other title
   // writer (human rename, re-dispatch) so it always describes the CURRENT text.
   // Optional in the TS shape for the same reason as `title_locked`: pre-existing row literals.
-  // Since 2026-09-29 it also marks the name Frizz MINTS at dispatch (thread-names.ts): any non-zero value
+  // Since 2026-09-29 it also marks the name Ntwine MINTS at dispatch (thread-names.ts): any non-zero value
   // is a persisted machine name that outranks the transcript's live title, and the dispatch-time writers
   // (the mint, the Codex marker CAS) land only while it is still 0 — the first name to land stands.
   title_agent?: number
-  // 0 | 1 — the worker has named its thread (`mcp__frizz__title`). Since 2026-09-30 it can only do that
+  // 0 | 1 — the worker has named its thread (`mcp__ntwine__title`). Since 2026-09-30 it can only do that
   // for a thread that has NO name yet (a mint that failed, no model wired): a name is its `@handle`, and
   // once the board has shown one it never changes except by a human rename (thread-names.ts). A
   // re-dispatch over the slug clears this.
@@ -85,7 +85,7 @@ export interface SessionRow {
   // duplicate thread. See tailer.ts / discover.ts. session_id stays the pinned resume/scratchpad key.
   transcript_id: string | null
   // Lifecycle: 'open' | 'archived'. NULL = never explicitly set (pre-migration row) — the board derives
-  // an effective state (archived flag ⇒ archived; paired legacy .frizz file with terminal status ⇒
+  // an effective state (archived flag ⇒ archived; paired legacy .ntwine file with terminal status ⇒
   // archived; else open) so historical sessions don't flood the working rail. Written ONLY by explicit
   // Archive/Reopen (the done FENCE mutates nothing — maintainer-settled).
   state: string | null
@@ -211,9 +211,9 @@ export interface SessionRow {
   // + the many test-fixture literals predate it); the SQLite column carries a "claude" DEFAULT so every
   // existing row and all current behavior are unchanged. Phase 1 only ever writes "claude".
   backend?: string
-  // The backend's OWN native session id when it differs from the frizz-minted session_id (Codex-support
+  // The backend's OWN native session id when it differs from the ntwine-minted session_id (Codex-support
   // epic, Phase 2). Claude pins session_id via --session-id, so its native id IS session_id and this
-  // stays NULL. Codex mints its OWN rollout id (discovered post-spawn), so session_id remains the frizz
+  // stays NULL. Codex mints its OWN rollout id (discovered post-spawn), so session_id remains the ntwine
   // UUID (the sentinel + scratchpad key) and the discovered codex id is pinned HERE — the id the tailer
   // locates the rollout with and resume re-attaches. Readers use `agent_session_id ?? session_id`, so a
   // claude row (NULL) is byte-identical to before.
@@ -221,7 +221,7 @@ export interface SessionRow {
   // The resolved model + reasoning-effort values this session was STARTED with. These are deliberately
   // session metadata, not a live read of Settings: changing the global dispatch defaults later must not
   // relabel an existing thread. Nullable/optional keeps migrated, adopted-old, and foreign sessions honest
-  // when frizz never observed a concrete CLI value.
+  // when ntwine never observed a concrete CLI value.
   model?: string | null
   effort?: string | null
   // A live profile request is armed as one complete pair. The committed model/effort stay visible
@@ -257,18 +257,18 @@ export interface SessionRow {
   // Durable Claude follow-up delivery ledger (delivery-ledger.ts): small JSON array of not-yet-
   // delivered sends, correlated by the tailer and projected into the rendered transcript.
   delivery_ledger?: string | null
-  // Monotonic process incarnation for this Frizz session. Incremented atomically before every
+  // Monotonic process incarnation for this Ntwine session. Incremented atomically before every
   // respawn/reattach so output or async completion from an older process cannot mutate the new one.
   runtime_generation?: number
   // Durable, mutually-exclusive native runtime control. The revision prevents ABA when one control
   // finishes and another starts with the same kind while an async runtime operation is still returning.
   runtime_control?: string | null
   runtime_control_revision?: number
-  // Codex transport: 'app-server' = a bridge-owned JSON-RPC session, and the only value frizz writes.
+  // Codex transport: 'app-server' = a bridge-owned JSON-RPC session, and the only value ntwine writes.
   // NULL/'tmux' is the PRE-APP-SERVER legacy value, left on rows that have not been dispatched since
   // the cutover; no code path can create one now. Only meaningful for backend='codex' rows.
   codex_runtime?: string | null
-  // Claude transport: 'broker' = a session-broker-owned Agent SDK session, and the only value frizz
+  // Claude transport: 'broker' = a session-broker-owned Agent SDK session, and the only value ntwine
   // writes. NULL/'tmux' is the PRE-BROKER legacy value, readable on an old database and never written
   // again. Only meaningful for backend='claude' rows.
   claude_runtime?: string | null
@@ -310,9 +310,9 @@ export interface SessionRow {
   // the board parks it in Snoozed with its wake time even once that time has passed, and the scheduler
   // (schedules.ts), not snooze expiry, decides when it starts.
   schedule_id?: string | null
-  // Which worker surface this thread's CONTRACT taught it: 'cli' = the `frizzctl` command line, written
+  // Which worker surface this thread's CONTRACT taught it: 'cli' = the `ntwinectl` command line, written
   // by every dispatch since 2026-10-11. NULL = a thread started before that, whose contract tells it
-  // to call `mcp__frizz__*` tools. It matters on the two backends whose contract is fixed when the
+  // to call `mcp__ntwine__*` tools. It matters on the two backends whose contract is fixed when the
   // thread starts — codex (baseInstructions) and ACP (the first prompt) — because such a thread is told
   // about tools for the rest of its life, so it must go on being given them (workerTaughtMcp). A Claude
   // thread is handed the current contract at every fork and never reads this.
@@ -333,7 +333,7 @@ export function isHeldRow(row: Pick<SessionRow, "held_by"> | undefined | null): 
 }
 
 /** Whether `row`'s worker was taught the MCP tools rather than the command line, and so still needs
- *  the `frizz` MCP server mounted. No row at all is a thread being started right now, or a session
+ *  the `ntwine` MCP server mounted. No row at all is a thread being started right now, or a session
  *  that is not a worker: neither was taught anything, so neither is given the mount. */
 export function workerTaughtMcp(row: Pick<SessionRow, "worker_surface"> | undefined | null): boolean {
   return row != null && row.worker_surface !== "cli"
@@ -343,7 +343,7 @@ export function workerTaughtMcp(row: Pick<SessionRow, "worker_surface"> | undefi
  * A HEADLESS thread has no terminal of its own: input goes through a bridge, liveness comes from the
  * bridge / the on-disk transcript, and there is no interactive UI for anything to read back. Every
  * bridge-owned transport is headless — codex over its app-server, claude over its session broker, an
- * ACP agent over its stdio bridge — which between them is every row frizz creates. Use this wherever
+ * ACP agent over its stdio bridge — which between them is every row ntwine creates. Use this wherever
  * the intent is "is this row bridge-owned?" rather than a backend-specific branch; the false side is
  * only ever a legacy row left by the pre-cutover interactive path.
  */
@@ -562,7 +562,7 @@ export interface PrWatchRow {
   /** JSON: `{ seen: string[]; checks?: string }` — the review activity already reported, and the last
    *  check verdict reported, so only a CHANGE fires. Opaque to storage; the scheduler owns its grammar. */
   cursor: string | null
-  /** Who armed it (2026-10-07). `worker` is `mcp__frizz__watch_pr` / `watch_issue`; `human` is the Watch
+  /** Who armed it (2026-10-07). `worker` is `mcp__ntwine__watch_pr` / `watch_issue`; `human` is the Watch
    *  button on a done card (router.watchDoneRef). A human's watch is not the worker's outstanding wait, so
    *  it does not block `done`, it leaves the done card standing, and its wake says whose it is. Optional so
    *  a row read through an older select still types; absent reads as `worker`. */
@@ -606,16 +606,16 @@ export interface ThreadSpinoffRow {
   /** Where the child starts when that is ANOTHER project (a cross-project spinoff); null for this one. */
   child_project_id: string | null
   /** 1 when the child is a FORK of the parent's session (the Claude route, router.ts forkSpinoff), 0 when
-   *  it started fresh on the context Frizz assembled (router.ts summarySpinoff) — or, on an older row,
+   *  it started fresh on the context Ntwine assembled (router.ts summarySpinoff) — or, on an older row,
    *  when the parent's worker briefed it. */
   forked: number
 }
 
 /** One row of `command_watch` — a shell command the SERVER re-runs on this thread's behalf until it
- *  exits 0 (2026-10-11, `frizzctl watch-command`).
+ *  exits 0 (2026-10-11, `ntwinectl watch-command`).
  *
  *  ONE-SHOT like a timer, unlike a PR watcher: the first passing run settles it (`passed`) and wakes the
- *  thread once. `expired` is its own `for:` running out, `cancelled` is Frizz stopping it because the
+ *  thread once. `expired` is its own `for:` running out, `cancelled` is Ntwine stopping it because the
  *  thread's permission mode or sandbox changed under it, `dropped` is the worker withdrawing it. The
  *  `last_*` columns are the most recent check, kept so the worker's read-back and the expiry wake can say
  *  WHY it has not passed — a command failing on a missing binary looks exactly like one still waiting. */
@@ -660,7 +660,7 @@ export interface ThreadLinkRow {
  *
  *  ONE-SHOT, unlike PrWatchRow: the thing it names either finishes, in which case the runtime's own
  *  completion notification wakes the thread and the row settles, or the row's own timeout elapses and
- *  frizz wakes the thread to re-decide. There is no cursor because there is no stream of events to be
+ *  ntwine wakes the thread to re-decide. There is no cursor because there is no stream of events to be
  *  caught up on — a shell finishes once. */
 export interface ThreadWatchRow {
   id: string
@@ -677,7 +677,7 @@ export interface ThreadWatchRow {
 }
 
 /** One background shell's RUNTIME-BUDGET bookkeeping (shell-budget.ts, 2026-09-29). Written lazily —
- *  only when the worker extends a shell or frizz warns about one — so a shell that finishes inside its
+ *  only when the worker extends a shell or ntwine warns about one — so a shell that finishes inside its
  *  launch budget never gets a row at all.
  *
  *  `started_at` is the shell's own launch instant and is part of its identity: a codex `processId` can
@@ -694,7 +694,7 @@ export interface ShellBudgetRow {
    *  since moved (an extension) no longer matches, which is what re-arms the next warning. */
   warned_at: number | null
   warned_deadline: number | null
-  /** When frizz enforced the budget. Informational: the stop retires the shell from tracking. */
+  /** When ntwine enforced the budget. Informational: the stop retires the shell from tracking. */
   stopped_at: number | null
   updated_at: number
 }
@@ -736,7 +736,7 @@ export interface ThreadQuestionRow {
   default_off?: number | null
 }
 
-/** One operator-authored steer that Frizz delivered into a sub-agent from its drawer.
+/** One operator-authored steer that Ntwine delivered into a sub-agent from its drawer.
  *
  * The Claude broker accepts the plaintext but does not write a user record into the child's JSONL,
  * so without this tiny delivery journal the drawer permanently forgets the operator's own message.
@@ -755,7 +755,7 @@ export interface SubAgentSteerRow {
 // is fine at ten threads and is not fine at six hundred: measured on a copy of the maintainer's own
 // board (558 rows), a single rebuild issued 2,794 statements, of which 2,790 were exactly these five
 // asked 558 times each, and took 30.5ms. node:sqlite is SYNCHRONOUS, so that is 30.5ms of blocked event
-// loop — and a rebuild fires on a 150ms debounce whenever any agent writes into `.frizz`, plus every
+// loop — and a rebuild fires on a 150ms debounce whenever any agent writes into `.ntwine`, plus every
 // 15s regardless. On the live server that landed as a board RPC answering in 49-1069ms (median ~270ms)
 // against 4.5-10ms on an idle one, and 220 "tick took Nms" warnings in a day.
 //
@@ -807,7 +807,7 @@ export interface Storage extends ScheduleStore {
   allAdoptionClaims(): AdoptionClaimRow[]
   allRetiredAdoptionAttempts(): RetiredAdoptionAttemptRow[]
   // INSERT ... WHERE no session owner exists. The slug PK and token UNIQUE constraint serialize
-  // separate Frizz processes/connections; a loser never reaches the spawn.
+  // separate Ntwine processes/connections; a loser never reaches the spawn.
   reserveAdoptionClaim(reservation: AdoptionReservation): boolean
   recordAdoptionPane(
     slug: string,
@@ -919,11 +919,11 @@ export interface Storage extends ScheduleStore {
   // Session-guarded: this comes from a browser tab that may be looking at a thread which has since been
   // re-dispatched.
   setRecurringPromptIfCurrent(slug: string, sessionId: string, generation: number, write: RecurringWrite): boolean
-  // The WORKER's path to the same row, from `frizzctl goal`. Deliberately keyed on the
+  // The WORKER's path to the same row, from `ntwinectl goal`. Deliberately keyed on the
   // slug ALONE, with no session/generation guard, because the MCP server cannot satisfy one: it is
   // spawned with its thread's slug and keeps it across a resume, while the session id and generation
   // bump underneath it — so a guard here would fail exactly on the long-lived thread this exists for.
-  // The slug is stamped into that server's env by frizz itself and is not attacker-controlled.
+  // The slug is stamped into that server's env by ntwine itself and is not attacker-controlled.
   setRecurringPromptBySlug(slug: string, write: RecurringWrite): boolean
   // ---- ONE-OFF TIMERS (scheduler SOURCE 6) -------------------------------------------------------
   // Arm one. `id` is minted by the caller so the row and the scheduler's delivery id agree without a
@@ -989,7 +989,7 @@ export interface Storage extends ScheduleStore {
   recordCommandWatchRun(id: string, run: CommandWatchRunRecord): boolean
   /** The worker's own withdrawal. Scoped to the slug, so one thread can never drop another's. */
   dropCommandWatch(slug: string, id: string, settledAtMs: number): boolean
-  /** Terminal: the command passed, ran out of time, or Frizz may no longer run it. Guarded on `armed`. */
+  /** Terminal: the command passed, ran out of time, or Ntwine may no longer run it. Guarded on `armed`. */
   settleCommandWatch(id: string, state: "passed" | "expired" | "cancelled", settledAtMs: number): boolean
   // A label is a stable slot: re-registering it updates the destination without moving the row.
   /** `childProjectId` names the project the child is to start in when that is not this one. */
@@ -1113,16 +1113,16 @@ export interface Storage extends ScheduleStore {
   // ---- THE BUILT-IN SIGN-OFF NUDGE ----------------------------------------------------------------
   // Count one delivered nudge against this thread. It only ever INCREMENTS — the count is cleared by
   // `resetSignoffNudges` when the thread signs off, and by nothing else. It used to reset whenever a
-  // supplied anchor changed, which was wrong twice over: anchored on the human's last word, frizz's own
+  // supplied anchor changed, which was wrong twice over: anchored on the human's last word, ntwine's own
   // delivery (a user record) reset it; anchored on the rest, every new rest reset it. Either way the cap
   // never bit. `anchor` is the delivery id being counted, and counting the SAME one twice is a no-op —
   // one rest yields one delivery id, so a repeat is always a double count rather than a second rest.
   countSignoffNudge(slug: string, anchor: string | null): void
   // Give the allowance back. Called when the thread SIGNS OFF — the only event that proves the nudge
-  // worked, and the only one frizz cannot cause by nudging.
+  // worked, and the only one ntwine cannot cause by nudging.
   resetSignoffNudges(slug: string): void
   // The same pair for SOURCE 12's corrective bumps. Counted on delivery; the allowance comes back only
-  // when the thread rests on a park frizz can actually honour.
+  // when the thread rests on a park ntwine can actually honour.
   countParkBump(slug: string, anchor: string | null): void
   resetParkBumps(slug: string): void
   // Stamp a delivered ON REST prompt, guarded on the generation so one settling after an edit cannot
@@ -1151,14 +1151,14 @@ export interface Storage extends ScheduleStore {
   // atomic with the text write so no board refresh, transcript ai-title, resume upsert, or server
   // restart can see the new title as machine-generated or still replaceable.
   setTitle(slug: string, title: string): void
-  // Persist the WORKER's own considered name (`frizzctl title`), marked `title_agent = 1` so the
+  // Persist the WORKER's own considered name (`ntwinectl title`), marked `title_agent = 1` so the
   // display can trust it once live telemetry is gone. Refused — `false`, not a throw — when a human has
   // claimed the name, because that is a legitimate answer the worker should be told rather than an
   // error it will retry. Never touches `title_auto`: which machine wrote the current text does not
   // change the row's display provenance, and leaving it set is what keeps a human rename outranking.
   // Refused the same way when the thread already has a name: this only names a thread nothing else could.
   setAgentTitle(slug: string, title: string): boolean
-  // Persist the name Frizz MINTED at dispatch (thread-names.ts). Lands only on the same session, only
+  // Persist the name Ntwine MINTED at dispatch (thread-names.ts). Lands only on the same session, only
   // while no human has claimed the name and no machine name is persisted yet — the first name stands.
   setMintedTitle(slug: string, sessionId: string, title: string): boolean
   // Write the thread's live status line (periodic-status.ts, live-status.ts), keyed on the session it was
@@ -1200,7 +1200,7 @@ export interface Storage extends ScheduleStore {
   // nothing to the transcript when it stops one (backend/_live_shell_stop_notice.mts) and leaves no
   // disk trace either (backend/_live_shell_stop_trace.mts, whose control shows a normally-finished
   // shell keeps its output file exactly as a killed one does). So the fold has no way to learn the op
-  // ended, and any re-prime — a frizz restart above all — re-creates it as LIVE off a tool_use that
+  // ended, and any re-prime — an ntwine restart above all — re-creates it as LIVE off a tool_use that
   // will never get a result.
   //
   // That is not hypothetical: the maintainer's own board carried a killed shell reading "57hr 18m",
@@ -1303,13 +1303,13 @@ export type SessionLifecycleEvent =
   | { type: "deleted"; previous: SessionRow }
 
 /**
- * Every table Frizz keeps for a project, in ONE database shared by every project (2026-08-27).
+ * Every table Ntwine keeps for a project, in ONE database shared by every project (2026-08-27).
  *
  * Complete AS OF the 2026-08-27 unification: this schema is only ever created by this code, into a
  * file this code owns, so there is no PRE-unification shape to reconcile with. Columns added since
  * ride the short additive ALTER list in ensureStorageSchema below — an existing unified file cannot
  * gain a column any other way. A project's pre-unification file is read by `legacy-project-db.ts`,
- * which still carries the old ALTER stack, and imported row by row by `frizz-db.ts`. Every table's first column is `project_id`, every
+ * which still carries the old ALTER stack, and imported row by row by `ntwine-db.ts`. Every table's first column is `project_id`, every
  * natural key is prefixed with it, and every index leads with it — a tenant only ever asks for its
  * own rows (project-scope.ts), so that is the prefix every lookup has.
  *
@@ -1367,7 +1367,7 @@ export const STORAGE_SCHEMA = `
       acp_agent TEXT,
       -- When the thread last entered the queue (queue-clock.ts); also in the ALTER list below.
       queued_at TEXT,
-      -- 'cli' = this thread's contract taught the frizzctl command line; NULL = it predates that and
+      -- 'cli' = this thread's contract taught the ntwinectl command line; NULL = it predates that and
       -- was taught the MCP tools (SessionRow.worker_surface). Also in the ALTER list below.
       worker_surface TEXT,
       -- THE RECURRING PROMPT (scheduler.ts SOURCES 4, 5 and 7): one text, three independent triggers —
@@ -1396,7 +1396,7 @@ export const STORAGE_SCHEMA = `
       deadline_set_at TEXT,
       deadline_set_by TEXT,
       deadline_stage TEXT,
-      -- THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9): how many times in a row frizz has told this
+      -- THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9): how many times in a row ntwine has told this
       -- thread how to sign off without a fence appearing, and the last-nudged delivery id.
       signoff_nudges INTEGER NOT NULL DEFAULT 0,
       signoff_nudge_anchor TEXT,
@@ -1469,7 +1469,7 @@ export const STORAGE_SCHEMA = `
     -- A background op the operator RETIRED (the × on its row), by its dispatch tool_use id.
     --
     -- This has to be durable, and the reason is measured rather than defensive. Killing a background
-    -- shell writes NOTHING anywhere frizz can re-read: not a tool_result in the session JSONL (verified
+    -- shell writes NOTHING anywhere ntwine can re-read: not a tool_result in the session JSONL (verified
     -- in backend/_live_shell_stop_notice.mts — the transcript gains not one record), and not on disk
     -- (backend/_live_shell_stop_trace.mts — the output file survives the kill exactly as a normally
     -- finished shell's does, so file-absence proves nothing). The tailer's retirement therefore lived
@@ -1548,7 +1548,7 @@ export const STORAGE_SCHEMA = `
       ON pr_watch(project_id, state);
     CREATE INDEX IF NOT EXISTS pr_watch_slug
       ON pr_watch(project_id, thread_slug, state, created_at);
-    -- A worker's registered COMMAND WATCHES (2026-10-11, \`frizzctl watch-command\`): a shell command the
+    -- A worker's registered COMMAND WATCHES (2026-10-11, \`ntwinectl watch-command\`): a shell command the
     -- SERVER re-runs every every_ms until it exits 0, so a wait on an outside condition holds nothing in
     -- the thread's own process tree and the thread can hibernate under it. One-shot like a timer: the
     -- first pass settles the row ('passed') and wakes the thread once. expires_at is REQUIRED, chosen by
@@ -1576,7 +1576,7 @@ export const STORAGE_SCHEMA = `
       ON command_watch(project_id, thread_slug, state, created_at);
     -- Saved destinations have no liveness or expiry. The label is a stable slot within one thread.
     -- A SPINOFF (2026-09-29): the human asked for a NEW thread from this one ("fix this", "investigate
-    -- perf"). The row is the request, and the link it becomes: Frizz starts the child itself (router.ts
+    -- perf"). The row is the request, and the link it becomes: Ntwine starts the child itself (router.ts
     -- spinoff) and writes the row with CHILD_SLUG already stamped, the edge both threads render (the
     -- parent's card links forward, the child's header links back). A row with no child is a request an
     -- older build handed to the parent's worker that never became a thread.
@@ -1657,12 +1657,12 @@ export const STORAGE_SCHEMA = `
       project_id  TEXT NOT NULL,
       thread_slug TEXT NOT NULL,
       -- The question TREE as the worker submitted it, validated at the RPC boundary and stored verbatim
-      -- (AskedQuestion in @frizz/shared). JSON rather than columns because the shape is recursive: an
+      -- (AskedQuestion in @ntwine/shared). JSON rather than columns because the shape is recursive: an
       -- option may carry follow-ups, three levels deep.
       spec        TEXT NOT NULL,
       state       TEXT NOT NULL CHECK (state IN ('open', 'answered', 'withdrawn', 'dismissed')),
       -- The structured answer, keyed by question id and RESTATING each question's text, because the
-      -- worker never saw the id -- frizz minted it -- so an id alone cannot be correlated back. Null
+      -- worker never saw the id -- ntwine minted it -- so an id alone cannot be correlated back. Null
       -- until the human sends; null forever on a withdrawn or dismissed row.
       answer      TEXT,
       -- Has the worker RECEIVED this answer yet? A question is answered by the human and DELIVERED
@@ -1690,7 +1690,7 @@ export const STORAGE_SCHEMA = `
     --
     -- ONE ROW PER THREAD, replaced on each call: a worker declaring itself done twice has not finished
     -- two things. There is no state column and no settled_at, because a done row is spent by the human
-    -- SENDING MORE WORK rather than by anything frizz does -- board.ts compares done_at against the
+    -- SENDING MORE WORK rather than by anything ntwine does -- board.ts compares done_at against the
     -- newest user record and simply stops honouring an older one. That mirrors the fence exactly (the
     -- next assistant message replaced it) without a sweep to forget one.
     CREATE TABLE IF NOT EXISTS thread_done (
@@ -1702,7 +1702,7 @@ export const STORAGE_SCHEMA = `
       PRIMARY KEY (project_id, thread_slug)
     );
     -- Operator-authored steers sent from a sub-agent drawer. The Claude broker intentionally does not
-    -- persist these as user records in the child's provider transcript, but Frizz possesses the text
+    -- persist these as user records in the child's provider transcript, but Ntwine possesses the text
     -- at delivery time and the drawer must not forget what the operator sent.
     CREATE TABLE IF NOT EXISTS subagent_steer (
       project_id  TEXT NOT NULL,
@@ -1716,7 +1716,7 @@ export const STORAGE_SCHEMA = `
     CREATE INDEX IF NOT EXISTS subagent_steer_timeline
       ON subagent_steer(project_id, thread_slug, subagent_id, sent_at);
     -- A background shell's RUNTIME BUDGET bookkeeping (2026-09-29, shell-budget.ts): the worker's
-    -- extend_shell deadline and frizz's own warned/stopped marks, so neither an extension nor the
+    -- extend_shell deadline and ntwine's own warned/stopped marks, so neither an extension nor the
     -- one-warning-per-deadline rule is lost to a restart. Written lazily; see ShellBudgetRow.
     CREATE TABLE IF NOT EXISTS shell_budget (
       project_id      TEXT NOT NULL,
@@ -1825,10 +1825,14 @@ export const STORAGE_TABLES = [
   "thread_terminal", "shell_budget", "thread_spinoff", "thread_schedule", "thread_schedule_run", "command_watch",
 ] as const
 
-/** Idempotent; run by every createStorage and by frizz-db.ts before an import. */
+/** Idempotent; run by every createStorage and by ntwine-db.ts before an import. */
 export function ensureStorageSchema(db: Database): void {
   renameCommandThreadTable(db)
   db.exec(STORAGE_SCHEMA)
+  // The Frizz -> Ntwine rename (2026-10-13) renamed every thread's identity name, which
+  // validateSessionIdentity checks on each write. Idempotent and self-limiting, like the fray rename
+  // in legacy-project-db.ts: once no row matches, it is one no-op scan per boot.
+  db.exec("UPDATE session SET thread_name = 'ntwine-' || substr(thread_name, 7) WHERE thread_name LIKE 'frizz-%'")
   // Columns added AFTER the 2026-08-27 unification. CREATE TABLE IF NOT EXISTS cannot add a column to
   // a file that already exists, and every live install predates any column below — so each rides one
   // additive ALTER here, exactly the stack the schema comment above says the unified file was born
@@ -1926,7 +1930,7 @@ export function ensureStorageSchema(db: Database): void {
   // written under the old name — a worker told its sub-agent's address a second before it renamed the
   // thread kept writing that address in every handoff, and none of them linked. So the old name is kept
   // and mentions resolve it too (ThreadView.formerTitles). A TRIGGER rather than one more clause on each
-  // statement: five writers change `title` (human rename and its CAS, the Codex marker, Frizz's mint, the
+  // statement: five writers change `title` (human rename and its CAS, the Codex marker, Ntwine's mint, the
   // worker's own rename), and a sixth must not be able to forget. Only a NAME is kept: a dispatch guess
   // (title_auto = 1 with no persisted name, title_agent = 0) is a chop of the prompt nobody addressed
   // anything by. A re-dispatch over the slug is a new thread: it moves `session_id`, which the trigger
@@ -2017,7 +2021,7 @@ function tableColumns(db: Database, table: string): string[] {
 /**
  * A project's view of the registry.
  *
- * `source` is either the SHARED connection (production: one file, every project — see frizz-db.ts),
+ * `source` is either the SHARED connection (production: one file, every project — see ntwine-db.ts),
  * in which case `close()` releases only this project's listeners and leaves the connection to its
  * owner, or a PATH (tests, and any caller that wants a private file), in which case the connection is
  * this storage's own and `close()` closes it. Either way every statement below is prepared through the
@@ -2897,14 +2901,14 @@ export function createStorage(source: string | Database, projectId: string): Sto
   // name. It is what lets the display trust a persisted codex title once the live telemetry is gone.
   //
   // Lands only while the row carries NO persisted name yet (`title_agent = 0`): the Codex marker is a
-  // DISPATCH-TIME name, and so is Frizz's own mint (setMintedTitle), so whichever lands first stands and
+  // DISPATCH-TIME name, and so is Ntwine's own mint (setMintedTitle), so whichever lands first stands and
   // the other never renames the thread behind it (thread-names.ts — a name is stable).
   const autoTitleCasStmt = scope.prepare(`
     UPDATE session SET title = ?, title_agent = 1
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND agent_session_id IS ?
       AND runtime_generation = ? AND title_locked = 0 AND title_auto = 1 AND title_agent = 0 AND title_worker_renamed = 0
   `)
-  // Frizz's dispatch-time NAME (thread-names.ts mint). Same gate as the marker CAS above, keyed on the
+  // Ntwine's dispatch-time NAME (thread-names.ts mint). Same gate as the marker CAS above, keyed on the
   // session id so a mint that finishes after a re-dispatch over the slug cannot name the new session.
   const mintedTitleStmt = scope.prepare(`
     UPDATE session SET title = ?, title_agent = 1
@@ -2917,10 +2921,10 @@ export function createStorage(source: string | Database, projectId: string): Sto
     UPDATE session SET status_at = CASE WHEN status IS ? THEN status_at ELSE ? END, status = ?
     WHERE project_id = @project_id AND slug = ? AND session_id = ?
   `)
-  // The WORKER's own considered name for its thread, from `frizzctl title`. Writes exactly what the
+  // The WORKER's own considered name for its thread, from `ntwinectl title`. Writes exactly what the
   // auto-title CAS writes — the text plus `title_agent = 1`, gated on the LOCK so a human rename always
   // outranks it — but keyed on the SLUG alone. The caller is the live worker's own MCP server, which
-  // knows the slug frizz stamped into its env and nothing about the session id underneath it; that env
+  // knows the slug ntwine stamped into its env and nothing about the session id underneath it; that env
   // survives every resume, while the session id does not.
   //
   // Only for a thread with NO name yet — the same gate as the mint and the marker CAS: a row that already
@@ -2949,7 +2953,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     scope.prepare(`
       UPDATE codex_app_server_session
       SET state = 'detached', current_turn_id = NULL, updated_at = ?
-      WHERE project_id = @project_id AND thread_slug = ? AND frizz_session_id = ?
+      WHERE project_id = @project_id AND thread_slug = ? AND ntwine_session_id = ?
     `).run(at, threadSlug, sessionId)
   }
   const forgetOwnedRow = (existing: SessionRow): SessionRow => {
@@ -3138,7 +3142,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
   // "Skip while the pick is newer than the observation" lapses on the very next record a mid-turn thread
   // writes, and the clobber lands anyway.
   //
-  // COST, stated because it is real: on a claude row whose profile was set by hand, a model change frizz
+  // COST, stated because it is real: on a claude row whose profile was set by hand, a model change ntwine
   // never made and cannot see — a worker's own `/model`, a provider substituting silently — is no longer
   // learned back. The scheduler's model-scoped fallback is unaffected: it goes through setProfile
   // (evalLimits), which re-stamps the target rather than needing to be observed.
@@ -3967,7 +3971,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
       closed = true
       lifecycleListeners.clear()
       interactions.dispose()
-      // A shared connection belongs to frizz-db.ts, which closes it once every tenant is gone.
+      // A shared connection belongs to ntwine-db.ts, which closes it once every tenant is gone.
       if (owned) db.close()
     },
   }

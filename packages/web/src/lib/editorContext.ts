@@ -1,4 +1,4 @@
-import type { EmbedEditorContextMessage, EmbedHostStateMessage } from "@frizz/shared"
+import type { EmbedEditorContextMessage, EmbedHostStateMessage } from "@ntwine/shared"
 import { proxy, useSnapshot } from "valtio"
 import { appendEditorContext, appendWorktreeNote, buildMessageWithContext, contextChipLabel, hasToken, previousEditorQuote, serializeEditorContext, worktreeNote, type ComposerContextItem } from "./composerContext.ts"
 import { embedded, postToHost } from "./embed.ts"
@@ -7,27 +7,27 @@ import { formatChord, type Chord, type Platform } from "./keybindings.ts"
 import { messagePresentationText } from "./messagePresentation.ts"
 import { basename } from "./paths.ts"
 
-// WHAT THE EDITOR AROUND THE SIDEBAR HAS OPEN — the latest `frizz:editor-context` (packages/shared/src/
+// WHAT THE EDITOR AROUND THE SIDEBAR HAS OPEN — the latest `ntwine:editor-context` (packages/shared/src/
 // embed-protocol.ts), kept for the context bar over the sidebar's composers (components/
 // EditorContextBar.tsx) and for the send, which carries it (`outgoingMessage`): the file in front, its
 // selection with the primary selection's text, or the caret's line. Empty outside embed mode, where
 // nothing ever writes it.
 //
-// And the extension's own state the page shows (`frizz:host-state`): whether the human shares the editor
-// with Frizz — the one switch, `frizz.shareEditorState`, which the bar's eye shows and flips — and whether
-// Alt+K is Frizz's in this window. And the page's own one-shot exception to that switch: what is in front
+// And the extension's own state the page shows (`ntwine:host-state`): whether the human shares the editor
+// with Ntwine — the one switch, `ntwine.shareEditorState`, which the bar's eye shows and flips — and whether
+// Alt+K is Ntwine's in this window. And the page's own one-shot exception to that switch: what is in front
 // right now, left out of the messages by the bar's × until it changes (`leaveOut`).
 
 export interface EditorContextState {
   active: EmbedEditorContextMessage["active"]
   open: EmbedEditorContextMessage["open"]
   /**
-   * The human shares the editor with Frizz: sends carry the block, agents can read the editor. The
-   * extension's setting, as its last `frizz:host-state` said — or, before one arrives (an extension from
+   * The human shares the editor with Ntwine: sends carry the block, agents can read the editor. The
+   * extension's setting, as its last `ntwine:host-state` said — or, before one arrives (an extension from
    * before the message), on, as the setting defaults, with the eye this page's alone until a reload.
    */
   share: boolean
-  /** Alt+K in the editor is Frizz's here (not while Claude Code's extension holds it). */
+  /** Alt+K in the editor is Ntwine's here (not while Claude Code's extension holds it). */
   altK: boolean
   /**
    * What the human left out with the bar's × (`leaveOut`), by its `leaveOutKey` — kept while the editor
@@ -39,7 +39,7 @@ export interface EditorContextState {
 export const editorContext = proxy<EditorContextState>({ active: null, open: [], share: true, altK: true, leftOut: null })
 
 /**
- * A `frizz:editor-context` from the host replaces the last one whole — and ends a leave-out the moment the
+ * A `ntwine:editor-context` from the host replaces the last one whole — and ends a leave-out the moment the
  * editor shows something else (`leaveOutKey`), so a new selection goes with the message again on its own.
  * Dropped rather than merely compared: selecting other lines and then the same lines again is a new choice
  * to point at them, and the human should not find them still left out from before.
@@ -85,7 +85,7 @@ export function leaveOut(on: boolean): void {
   editorContext.leftOut = on ? leaveOutKey(editorContext.active) : null
 }
 
-/** A `frizz:host-state`: what the extension's settings say now — the truth, over anything the eye assumed. */
+/** A `ntwine:host-state`: what the extension's settings say now — the truth, over anything the eye assumed. */
 export function setHostState(message: EmbedHostStateMessage): void {
   editorContext.share = message.shareEditor
   editorContext.altK = message.altK
@@ -93,11 +93,11 @@ export function setHostState(message: EmbedHostStateMessage): void {
 
 /**
  * The eye, flipped: shown at once, and asked of the extension, which writes its setting and answers with
- * `frizz:host-state` — so a write that did not take (a workspace value that wins) puts the eye back.
+ * `ntwine:host-state` — so a write that did not take (a workspace value that wins) puts the eye back.
  */
 export function setShareEditor(on: boolean): void {
   editorContext.share = on
-  postToHost({ type: "frizz:share-editor", on })
+  postToHost({ type: "ntwine:share-editor", on })
 }
 
 export function useEditorContext(): EditorContextState {
@@ -167,7 +167,7 @@ export function editorAddChord(platform: Platform): string {
  */
 export function barHints(state: { sending: boolean; selection: boolean; withheld: boolean; chord: string; leftOut?: boolean }): string[] {
   const { sending, selection, withheld, chord, leftOut } = state
-  if (!sending) return selection ? [`Not shared · ${chord} still adds it`, "Not shared"] : ["Not shared with Frizz", "Not shared"]
+  if (!sending) return selection ? [`Not shared · ${chord} still adds it`, "Not shared"] : ["Not shared with Ntwine", "Not shared"]
   // Left out with the ×: what brings it back is the editor moving on, which is what the human will do next
   // anyway — so that is what the hint says, and the ×'s own hover says a click puts it back.
   if (leftOut) return selection ? ["Left out until you select something else", "Left out"] : ["Left out until you switch files", "Left out"]
@@ -211,7 +211,7 @@ let pending: PendingAdd | null = null
  */
 export function requestEditorContext(box: ContextBox, what: { what: "selection" } | { what: "file"; path: string } | { what: "problems" } | { what: "terminal" }): void {
   pending = { box, at: Date.now() }
-  postToHost({ type: "frizz:add-context", ...what })
+  postToHost({ type: "ntwine:add-context", ...what })
 }
 
 /** The box a "front" compose arriving now belongs to, if a bar asked within the window. Pure, for its test. */
@@ -282,7 +282,7 @@ export function addEditorContextByKey(focused: Element | null, drawerOpen: boole
 
 /**
  * What a send from this page carries of the editor: what is in front, in an editor's sidebar, while the
- * human shares the editor (the bar's eye — the extension's `frizz.shareEditorState`, a VS Code setting, so
+ * human shares the editor (the bar's eye — the extension's `ntwine.shareEditorState`, a VS Code setting, so
  * it holds across reloads and windows, and the same switch keeps the agents' tool out of the editor), and
  * unless what is in front now is what the human left out with the bar's × (`leaveOut`). Null: nothing of
  * the editor goes. Pure — `inSidebar` is `embedded()` — for its test.

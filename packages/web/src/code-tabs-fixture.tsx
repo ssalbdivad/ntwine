@@ -16,9 +16,9 @@ setThemePreference(params.get("theme") === "light" ? "light" : "dark")
 const fence = (info: string, body: string) => `\`\`\`${info}\n${body}\n\`\`\``
 
 const install = [
-  fence("bash npm", "npm install frizz\nnpx frizz"),
-  fence("bash pnpm", "pnpm add frizz\npnpm dlx frizz"),
-  fence("bash yarn", "yarn add frizz"),
+  fence("bash npm", "npm install ntwine\nnpx ntwine"),
+  fence("bash pnpm", "pnpm add ntwine\npnpm dlx ntwine"),
+  fence("bash yarn", "yarn add ntwine"),
 ].join("\n\n")
 
 export const CASES: [string, string][] = [
@@ -41,10 +41,10 @@ export const CASES: [string, string][] = [
     fence("ts b.ts", "export {}"),
   ].join("\n\n")],
   ["wide", [
-    fence("bash one-liner", `curl -fsSL https://example.com/install.sh | FRIZZ_HOME=/opt/frizz FRIZZ_CHANNEL=stable FRIZZ_TELEMETRY=off bash -s -- --yes --no-modify-path --quiet`),
-    fence("ansi Output", "\\e[32m✔\\e[0m installed frizz 0.13.12"),
+    fence("bash one-liner", `curl -fsSL https://example.com/install.sh | NTWINE_HOME=/opt/ntwine NTWINE_CHANNEL=stable NTWINE_TELEMETRY=off bash -s -- --yes --no-modify-path --quiet`),
+    fence("ansi Output", "\\e[32m✔\\e[0m installed ntwine 0.13.12"),
   ].join("\n\n")],
-  ["list", `1. Install it:\n\n   ${fence("bash npm", "npm install frizz").replace(/\n/g, "\n   ")}\n\n   ${fence("bash pnpm", "pnpm add frizz").replace(/\n/g, "\n   ")}\n2. Run \`npx frizz\`.`],
+  ["list", `1. Install it:\n\n   ${fence("bash npm", "npm install ntwine").replace(/\n/g, "\n   ")}\n\n   ${fence("bash pnpm", "pnpm add ntwine").replace(/\n/g, "\n   ")}\n2. Run \`npx ntwine\`.`],
   ["plain", `Unlabelled neighbours stay two blocks — a command and its output:\n\n${fence("bash", "nub run test")}\n\n${fence("text", "ℹ pass 63\nℹ fail 0")}`],
 ]
 

@@ -1,4 +1,4 @@
-import type { EmbedCommandMessage } from "@frizz/shared"
+import type { EmbedCommandMessage } from "@ntwine/shared"
 import { closeDrawersById, closeImageViewer, store } from "../store.ts"
 import { innerPath } from "./base-path.ts"
 import { openDispatch } from "./newThreadDoor.ts"
@@ -7,9 +7,9 @@ import { homeHref } from "./pageView.ts"
 import { spaNavigate } from "./router.ts"
 import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 
-// THE TITLE ROW'S BUTTONS — VS Code's own row above the sidebar's frame carries what a Frizz header would
+// THE TITLE ROW'S BUTTONS — VS Code's own row above the sidebar's frame carries what an Ntwine header would
 // (ARCHITECTURE.md § VS Code extension), and each button arrives here as a
-// `frizz:command`. Each is the app's own door, called rather than re-implemented, so a button and the key
+// `ntwine:command`. Each is the app's own door, called rather than re-implemented, so a button and the key
 // or menu item it stands for cannot drift:
 //
 //   new-thread  `c`'s door (lib/newThreadDoor.ts): the caret in the page's prompt box, or, over an open

@@ -1,26 +1,26 @@
 #!/usr/bin/env node
 // @ts-check
-// Decisions view, DERIVED from frizz threads (no static store). Scans the project's .frizz/*.md
+// Decisions view, DERIVED from ntwine threads (no static store). Scans the project's .ntwine/*.md
 // and selects the `needs-human` threads — the effective awaiting-a-human state: canonical
 // `status: needs-human`, the legacy `needs-decision` alias, OR a legacy `status: blocked` with
 // NEITHER a `blocking_threads`/`depends_on` field NOR a `revalidate_at` timer (which reads as
 // needs-human). The two machine mechanisms wait on non-human work and are NOT pending decisions.
 // Prints each selected thread's slug + its FULL status_text (the ask write-up) — the rich
-// inline-reading view that complements the one-line-per-thread board (scripts/frizz/index.mjs).
+// inline-reading view that complements the one-line-per-thread board (scripts/ntwine/index.mjs).
 //
 // Self-contained + importable: `collectDecisions()` is reused by the thread updater
-// (thread-update.mjs) to print the queue after every edit, and by `frizz decisions`.
+// (thread-update.mjs) to print the queue after every edit, and by `ntwine decisions`.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { revalidateState, effectiveStatus, parseDeps } from './config.mjs';
 
 // The project root comes from the environment, NOT this script's own path: the tool
-// ships inside the frizz PLUGIN (and after a marketplace install lives in
+// ships inside the ntwine PLUGIN (and after a marketplace install lives in
 // ~/.claude/plugins/cache/…), so a script-relative root would point at the PLUGIN,
 // never the project. CLAUDE_PROJECT_DIR is exported to hook + bin processes; when run
 // by hand from the repo root, process.cwd() is correct.
 const root = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const frizzDir = join(root, '.frizz');
+const ntwineDir = join(root, '.ntwine');
 
 const STATUS_TEXT_KEY = 'status_text';
 
@@ -49,7 +49,7 @@ function unquote(raw) {
 export function collectDecisions() {
   let files;
   try {
-    files = readdirSync(frizzDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
+    files = readdirSync(ntwineDir).filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('.'));
   } catch {
     return [];
   }
@@ -57,7 +57,7 @@ export function collectDecisions() {
   for (const f of files.sort()) {
     let text;
     try {
-      text = readFileSync(join(frizzDir, f), 'utf8');
+      text = readFileSync(join(ntwineDir, f), 'utf8');
     } catch {
       continue;
     }

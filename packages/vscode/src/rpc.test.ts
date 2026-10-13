@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { createServer, type IncomingMessage } from "node:http"
 import type { AddressInfo } from "node:net"
-import { describeRpcError, dispatchProfile, FrizzRpc, RpcError, withRetry } from "./rpc.ts"
+import { describeRpcError, dispatchProfile, NtwineRpc, RpcError, withRetry } from "./rpc.ts"
 
 interface Seen {
   method?: string
@@ -38,12 +38,12 @@ async function rpcServer(answer: (seen: Seen) => { status: number; body: string 
 test("queries GET ?input=, mutations POST JSON, both project-id addressed with the same-origin header", async () => {
   const server = await rpcServer((seen) => ({ status: 200, body: JSON.stringify({ result: seen.method === "GET" ? { threads: [] } : { slug: "new-thread", sessionId: "s" } }) }))
   try {
-    const rpc = new FrizzRpc(server.origin)
+    const rpc = new NtwineRpc(server.origin)
     assert.deepEqual(await rpc.query("6f1c id/x", "board"), { threads: [] })
     assert.deepEqual(await rpc.query("p1", "threadLocate", { slug: "a b" }), { threads: [] })
     assert.deepEqual(await rpc.mutation("p1", "dispatch", { prompt: "hi", backend: "claude" }), { slug: "new-thread", sessionId: "s" })
-    assert.equal(server.seen[0]?.url, "/_frizz/6f1c%20id%2Fx/rpc/board")
-    assert.equal(server.seen[1]?.url, `/_frizz/p1/rpc/threadLocate?input=${encodeURIComponent(JSON.stringify({ slug: "a b" }))}`)
+    assert.equal(server.seen[0]?.url, "/_ntwine/6f1c%20id%2Fx/rpc/board")
+    assert.equal(server.seen[1]?.url, `/_ntwine/p1/rpc/threadLocate?input=${encodeURIComponent(JSON.stringify({ slug: "a b" }))}`)
     assert.equal(server.seen[2]?.method, "POST")
     assert.equal(server.seen[2]?.headers["content-type"], "application/json")
     assert.deepEqual(JSON.parse(server.seen[2]?.body ?? ""), { prompt: "hi", backend: "claude" })
@@ -57,7 +57,7 @@ test("a void mutation's `{result:null}` is a success, and the error envelope kee
   let reply = { status: 200, body: JSON.stringify({ result: null }) }
   const server = await rpcServer(() => reply)
   try {
-    const rpc = new FrizzRpc(server.origin)
+    const rpc = new NtwineRpc(server.origin)
     assert.equal(await rpc.mutation("p1", "followUp", { slug: "a", sessionId: "s", message: "m" }), null)
     reply = { status: 500, body: JSON.stringify({ error: "a permission change is in flight", retryable: true }) }
     const busy = await rpc.mutation("p1", "followUp", { slug: "a", sessionId: "s", message: "m" }).catch((e: unknown) => e)
@@ -73,42 +73,42 @@ test("a void mutation's `{result:null}` is a success, and the error envelope kee
   }
 })
 
-test("nothing listening is `unreachable`, which reads as Frizz not running", async () => {
+test("nothing listening is `unreachable`, which reads as Ntwine not running", async () => {
   const server = await rpcServer(() => ({ status: 200, body: "{}" }))
   const origin = server.origin
   await server.close()
-  const error = await new FrizzRpc(origin).query("p1", "board").catch((e: unknown) => e)
+  const error = await new NtwineRpc(origin).query("p1", "board").catch((e: unknown) => e)
   assert.ok(error instanceof RpcError)
   assert.equal(error.kind, "unreachable")
-  assert.equal(describeRpcError(error), "Frizz isn't running.")
+  assert.equal(describeRpcError(error), "Ntwine isn't running.")
 })
 
-test("a request Frizz took and never answered is `unanswered`, not Frizz being down — and Ask says to check before asking again", async () => {
+test("a request Ntwine took and never answered is `unanswered`, not Ntwine being down — and Ask says to check before asking again", async () => {
   // A dispatch on a busy server (a cold Codex app-server) can run past the extension's 60s: the
-  // request is held, the thread may well be started, and "Frizz isn't running" would invite a second.
+  // request is held, the thread may well be started, and "Ntwine isn't running" would invite a second.
   const held: import("node:http").ServerResponse[] = []
   const slow = createServer((_request, response) => void held.push(response))
   await new Promise<void>((resolve) => slow.listen(0, "127.0.0.1", resolve))
   const origin = `http://127.0.0.1:${(slow.address() as AddressInfo).port}`
   try {
-    const timedOut = await new FrizzRpc(origin).mutation("p1", "dispatch", { prompt: "hi", backend: "claude" }, 150).catch((e: unknown) => e)
+    const timedOut = await new NtwineRpc(origin).mutation("p1", "dispatch", { prompt: "hi", backend: "claude" }, 150).catch((e: unknown) => e)
     assert.ok(timedOut instanceof RpcError)
     assert.equal(timedOut.kind, "unanswered")
     assert.equal(timedOut.retryable, false, "never resent: it may have taken effect")
-    assert.equal(describeRpcError(timedOut, "ask"), "Frizz didn't answer in time. Check Frizz before asking again: it may have started the thread.")
-    assert.match(describeRpcError(timedOut, "send"), /^Frizz didn't answer in time\. Check the thread before sending again/)
-    assert.equal(describeRpcError(timedOut), "Frizz didn't answer in time. Try again.")
+    assert.equal(describeRpcError(timedOut, "ask"), "Ntwine didn't answer in time. Check Ntwine before asking again: it may have started the thread.")
+    assert.match(describeRpcError(timedOut, "send"), /^Ntwine didn't answer in time\. Check the thread before sending again/)
+    assert.equal(describeRpcError(timedOut), "Ntwine didn't answer in time. Try again.")
   } finally {
     for (const response of held) response.destroy()
     slow.closeAllConnections()
     await new Promise((resolve) => slow.close(resolve))
   }
 
-  // A connection dropped mid-request (Frizz restarting under it) is the same kind of ambiguous.
+  // A connection dropped mid-request (Ntwine restarting under it) is the same kind of ambiguous.
   const dropping = createServer((request) => request.socket.destroy())
   await new Promise<void>((resolve) => dropping.listen(0, "127.0.0.1", resolve))
   try {
-    const dropped = await new FrizzRpc(`http://127.0.0.1:${(dropping.address() as AddressInfo).port}`).mutation("p1", "dispatch", { prompt: "hi", backend: "claude" }, 5_000).catch((e: unknown) => e)
+    const dropped = await new NtwineRpc(`http://127.0.0.1:${(dropping.address() as AddressInfo).port}`).mutation("p1", "dispatch", { prompt: "hi", backend: "claude" }, 5_000).catch((e: unknown) => e)
     assert.ok(dropped instanceof RpcError)
     assert.equal(dropped.kind, "unanswered", dropped.message)
     assert.doesNotMatch(describeRpcError(dropped, "ask"), /isn't running/)
@@ -141,8 +141,8 @@ test("only a retryable refusal is retried, on the page's schedule, and the attem
 })
 
 test("a signed-out provider says where to sign in", () => {
-  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:claude", "failed", false, 500)), "Sign in to Claude in Frizz first.")
-  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:codex", "failed", false, 500)), "Sign in to Codex in Frizz first.")
+  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:claude", "failed", false, 500)), "Sign in to Claude in Ntwine first.")
+  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:codex", "failed", false, 500)), "Sign in to Codex in Ntwine first.")
   assert.equal(describeRpcError(new Error("something else")), "something else")
 })
 

@@ -3,7 +3,7 @@ import { test } from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { MemoryRouter } from "react-router"
-import type { ProjectCard, ProjectRailCounts } from "@frizz/shared"
+import type { ProjectCard, ProjectRailCounts } from "@ntwine/shared"
 import { RailLink } from "./ProjectRail.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 

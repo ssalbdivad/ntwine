@@ -28,7 +28,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary.tsx"
 import { RestartOverlay } from "./components/RestartOverlay.tsx"
 import { useSupervisorStatus } from "./api/supervisorStatus.ts"
 import {
-  frizzBuildIdentity,
+  ntwineBuildIdentity,
   IDLE_RESTART_HOLD,
   nextControlPlane,
   nextRestartHold,
@@ -102,7 +102,7 @@ export function App() {
   // The public supervisor survives replacement of the app child. It is consequently the only
   // trustworthy transition signal: an old child can still say ready while the next artifact builds.
   // The READ is shared — api/supervisorStatus.ts owns the one poll (gentle at rest, prompt across a
-  // handoff) that this board, the Restart Frizz button and the dev-build probe all observe; this effect
+  // handoff) that this board, the Restart Ntwine button and the dev-build probe all observe; this effect
   // is only what the BOARD does with each answer. Writes are gated in rpc.ts but drafts remain
   // session-backed and editable throughout.
   const { data: supervisorStatus, dataUpdatedAt: supervisorAnsweredAt } = useSupervisorStatus()
@@ -133,7 +133,7 @@ export function App() {
       store.controlPlaneState = plane.state
       store.controlPlaneMessage = plane.message
       store.controlPlaneRestartAttempt = plane.attempt
-      if (seenBuild.current === null) seenBuild.current = frizzBuildIdentity(status)
+      if (seenBuild.current === null) seenBuild.current = ntwineBuildIdentity(status)
     }
     // Step the hold on EVERY answer, null included — the null ones are the whole point. `restarting`
     // is what the board shows after applying this poll, so silence only ever accrues under the overlay.
@@ -264,7 +264,7 @@ export function App() {
       if (added === "nothing") showToast("Open a file in the editor to add it.")
       if (added) return
     }
-    // The frizz document for the topmost open thread (stacks another layer / pops its own).
+    // The ntwine document for the topmost open thread (stacks another layer / pops its own).
     const top = topDrawer()
     const target = topThreadSlug()
     if (top?.kind === "doc") {
@@ -291,7 +291,7 @@ export function App() {
   useEffect(() => { resolveRoutedThread() }, [board, snap.routeThreadSlug])
 
   // The window title is set by what is showing: the page names its view (AllQueues.tsx), StandaloneThreadPage
-  // its thread, and index.html's "Frizz" stands elsewhere. No effect here — it would run after the page's on
+  // its thread, and index.html's "Ntwine" stands elsewhere. No effect here — it would run after the page's on
   // mount and overwrite it.
 
   return (

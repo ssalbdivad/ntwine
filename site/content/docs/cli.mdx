@@ -1,19 +1,19 @@
 ---
 title: CLI
-description: Everything npx frizz takes.
+description: Everything npx ntwine takes.
 ---
 
-Run it anywhere. One server serves every project on the machine, each with its own board, so a second run joins the one already going. In a folder that is already a project it opens that board; in a repository Frizz has not seen it asks whether to add it; anywhere else it opens All projects.
+Run it anywhere. One server serves every project on the machine, each with its own board, so a second run joins the one already going. In a folder that is already a project it opens that board; in a repository Ntwine has not seen it asks whether to add it; anywhere else it opens All projects.
 
 ```bash
-npx frizz [options]
+npx ntwine [options]
 ```
 
 | Option | What it does |
 | --- | --- |
 | `--no-app` | Print the URL without opening a browser |
 | `--port <port>` | Request a fixed port for a new server |
-| `--sandbox` | A disposable Frizz to try things in: throwaway home and project, its own port, deleted when this terminal closes. Credentials (`gh`, cloudflared, Claude, Codex, the machine's frizz.sh key) are shared |
+| `--sandbox` | A disposable Ntwine to try things in: throwaway home and project, its own port, deleted when this terminal closes. Credentials (`gh`, cloudflared, Claude, Codex, the machine's frizz.sh key) are shared |
 | `--link` | Print a fresh single-use sign-in link for the running board |
 | `--sessions` | List the devices signed in to the running board |
 | `--sign-out <id\|all>` | Sign one device out, or every one of them |
@@ -24,7 +24,7 @@ npx frizz [options]
 
 ## Keys in the terminal
 
-While Frizz runs, its terminal takes two keys:
+While Ntwine runs, its terminal takes two keys:
 
 | Key | What it does |
 | --- | --- |
@@ -35,5 +35,5 @@ While Frizz runs, its terminal takes two keys:
 
 | Variable | What it does |
 | --- | --- |
-| `FRIZZ_CLAUDE_BIN` | Run this Claude Code build instead of the one Frizz pins |
-| `FRIZZ_CODEX_BIN` | Run this Codex build instead of the one Frizz pins |
+| `NTWINE_CLAUDE_BIN` | Run this Claude Code build instead of the one Ntwine pins |
+| `NTWINE_CODEX_BIN` | Run this Codex build instead of the one Ntwine pins |

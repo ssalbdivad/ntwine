@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router"
-import type { BoardSnapshot, ThreadView as ThreadViewModel } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel } from "@ntwine/shared"
 import { FocusRail } from "./components/FocusRail.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
@@ -25,7 +25,7 @@ document.documentElement.dataset.font = params.get("font") === "mono" ? "mono" :
 if (params.get("theme") === "light") document.documentElement.dataset.theme = "light"
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
 const HOME = "/Users/demo"
-const DIR = `${HOME}/projects/frizz/.frizz/threads/4204dab2`
+const DIR = `${HOME}/projects/ntwine/.ntwine/threads/4204dab2`
 
 const thread = {
   id: SLUG,
@@ -41,10 +41,10 @@ const thread = {
   kind: "session",
   backend: "claude",
   subAgents: [
-    { id: "toolu_a", label: "Sweep E+F: edit every rotation doc to the new key names", subagentType: "frizz:opus-high", startedAt: ago(133), state: "running", depth: 1 },
-    { id: "toolu_b", label: "Vector: npm supply-chain audit of the last 30 days", subagentType: "frizz:opus-xhigh", startedAt: ago(61), state: "running", depth: 1 },
-    { id: "toolu_c", label: "Vector: local, a compromised laptop as the entry point", subagentType: "frizz:opus-xhigh", startedAt: ago(60), state: "running", depth: 1 },
-    { id: "toolu_d", label: "Audit the old projection for a stale key", subagentType: "frizz:sonnet-low", startedAt: ago(200), state: "stale", depth: 1 },
+    { id: "toolu_a", label: "Sweep E+F: edit every rotation doc to the new key names", subagentType: "ntwine:opus-high", startedAt: ago(133), state: "running", depth: 1 },
+    { id: "toolu_b", label: "Vector: npm supply-chain audit of the last 30 days", subagentType: "ntwine:opus-xhigh", startedAt: ago(61), state: "running", depth: 1 },
+    { id: "toolu_c", label: "Vector: local, a compromised laptop as the entry point", subagentType: "ntwine:opus-xhigh", startedAt: ago(60), state: "running", depth: 1 },
+    { id: "toolu_d", label: "Audit the old projection for a stale key", subagentType: "ntwine:sonnet-low", startedAt: ago(200), state: "stale", depth: 1 },
   ],
   bgShells: [
     { id: "toolu_s", taskId: "b7k2m1xq0", label: "vite dev --host --port 5173", startedAt: ago(18), state: "running" },
@@ -54,7 +54,7 @@ const thread = {
       id: "github:demo:colinhacks/frizz#412", kind: "github", target: "colinhacks/frizz#412", state: "armed", createdAt: ago(40),
       github: { checks: "failing", running: 1, passed: 9, failed: 2, failing: ["lint", "e2e (chromium)"], merge: "blocked", state: "open", polledAt: ago(1) },
     },
-    { id: "timer:demo:1", kind: "timer", target: "tmr_a1b2c3d4e5f6", state: "armed", createdAt: ago(5), timer: { fireAt: new Date(Date.now() + 34 * 60_000).toISOString(), prompt: "Re-check npm for any publish of frizz after 0.13.8 and compare its tarball hash against the one CI built" } },
+    { id: "timer:demo:1", kind: "timer", target: "tmr_a1b2c3d4e5f6", state: "armed", createdAt: ago(5), timer: { fireAt: new Date(Date.now() + 34 * 60_000).toISOString(), prompt: "Re-check npm for any publish of ntwine after 0.13.8 and compare its tarball hash against the one CI built" } },
   ],
   links: [
     { id: "l1", kind: "file", label: "Rotation checklist (every credential, in order)", target: `${DIR}/rotation.md` },
@@ -69,7 +69,7 @@ const thread = {
   lastActivityAt: ago(1),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: `${HOME}/projects/frizz`, homeDir: HOME, threads: [thread] } as unknown as BoardSnapshot
+store.board = { projectDir: `${HOME}/projects/ntwine`, homeDir: HOME, threads: [thread] } as unknown as BoardSnapshot
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } })
 client.setQueryData(["transcript", SLUG], {
@@ -79,9 +79,9 @@ client.setQueryData(["transcript", SLUG], {
   beforeCursor: null,
   reachedTurnBoundary: true,
   editedFiles: [
-    { path: `${HOME}/projects/frizz/packages/web/src/components/FocusRail.tsx`, edits: 3, added: 24, removed: 9 },
-    { path: `${HOME}/projects/frizz/packages/web/src/components/AwaitingBackgroundCard.tsx`, edits: 5, added: 41, removed: 12 },
-    { path: `${HOME}/projects/frizz/docs/rotation.md`, edits: 1, added: 80 },
+    { path: `${HOME}/projects/ntwine/packages/web/src/components/FocusRail.tsx`, edits: 3, added: 24, removed: 9 },
+    { path: `${HOME}/projects/ntwine/packages/web/src/components/AwaitingBackgroundCard.tsx`, edits: 5, added: 41, removed: 12 },
+    { path: `${HOME}/projects/ntwine/docs/rotation.md`, edits: 1, added: 80 },
   ],
 })
 

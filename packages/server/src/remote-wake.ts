@@ -2,7 +2,7 @@ import { execFile } from "node:child_process"
 import { readdirSync, readFileSync } from "node:fs"
 import { release as osRelease } from "node:os"
 import { join } from "node:path"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 import { createWakeLock, isWsl, wakeLockCommand, type WakeLock, type WakeLockPlatform } from "./wake-lock.ts"
 
 // ── KEEP A PLUGGED-IN MACHINE AWAKE WHILE REMOTE ACCESS IS ON ────────────────────────────────────────
@@ -103,7 +103,7 @@ export function startRemoteWake(
   probe: () => Promise<PowerSource> = () => readPowerSource({ platform: process.platform, env: process.env, kernelRelease: osRelease() }),
   lock: WakeLock = createWakeLock(wakeLockCommand({ platform: process.platform, env: process.env, kernelRelease: osRelease() })),
   intervalMs = REMOTE_WAKE_POLL_MS,
-  log: Pick<typeof frizzLog, "info"> = frizzLog,
+  log: Pick<typeof ntwineLog, "info"> = ntwineLog,
 ): RemoteWake {
   let remote = false
   let stopped = false

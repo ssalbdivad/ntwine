@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { useSnapshot } from "valtio"
 import { AlarmClock, AlarmClockOff, Loader2 } from "lucide-react"
-import { SNOOZE_PROMPT_MAX, type ThreadView } from "@frizz/shared"
+import { SNOOZE_PROMPT_MAX, type ThreadView } from "@ntwine/shared"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { futureSnoozedUntil } from "../groups.ts"
 import {
@@ -334,7 +334,7 @@ export function SnoozeMenu({
           <TextareaCodeFences value={promptValue} />
           <p className="min-h-4 text-[10.5px] text-muted-65">
             {promptValue.trim()
-              ? "frizz will resume this thread with the prompt at the wake time."
+              ? "ntwine will resume this thread with the prompt at the wake time."
               : "Leave empty to just bring the card back to your queue."}
           </p>
           {customError && <p role="alert" className="text-[11px] text-danger">{customError}</p>}

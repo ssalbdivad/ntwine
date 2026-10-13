@@ -45,11 +45,11 @@ test("hop-by-hop headers are dropped, and content-length with them", () => {
     ["Transfer-Encoding", "chunked"],
     ["Content-Length", "42"],
     ["Upgrade", "websocket"],
-    ["X-Frizz", "keep"],
+    ["X-Ntwine", "keep"],
   ])
   assert.deepEqual(kept, [
     ["Content-Type", "text/html"],
-    ["X-Frizz", "keep"],
+    ["X-Ntwine", "keep"],
   ])
 })
 

@@ -14,7 +14,7 @@ import { createClaudeBackend } from "./backend/claude.ts"
 import type { AgentBackend } from "./backend/types.ts"
 import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
-import type { Settings, ThreadView, BoardSnapshot } from "@frizz/shared"
+import type { Settings, ThreadView, BoardSnapshot } from "@ntwine/shared"
 import type { PaneIdentity as PaneSnapshot } from "./adoption-recovery.ts"
 
 // bump-unarchives: BUMPING (followUp/resume) an ARCHIVED thread must UN-ARCHIVE it so it moves from the
@@ -126,7 +126,7 @@ function armRecovery(
 }
 
 function harness(): { storage: Storage; board: BoardManager; dir: string } {
-  const dir = tmpDir("frizz-resume-")
+  const dir = tmpDir("ntwine-resume-")
   const storage = createStorage(join(dir, "ui.db"), "p")
   const board = createBoard(fakeProject(dir), storage, new Bus(), noopTailer, "test-boot")
   return { storage, board, dir }
@@ -136,7 +136,7 @@ function sessionRow(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
     slug,
     session_id: `sid-${slug}`,
-    thread_name: `frizz-${slug}`,
+    thread_name: `ntwine-${slug}`,
     spawned_at: "2026-07-01T00:00:00.000Z",
     last_read_at: null,
     unread: 0,

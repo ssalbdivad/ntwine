@@ -1,9 +1,9 @@
-import type { ServerEvent } from "@frizz/shared"
+import type { ServerEvent } from "@ntwine/shared"
 import type { QueryClient } from "@tanstack/react-query"
 import { store } from "../store.ts"
 import { BoardStream, refreshProjectList } from "./board-stream.ts"
 import { invalidateInteractionQueries } from "./interaction-cache.ts"
-import { frizzRoute } from "@frizz/shared"
+import { ntwineRoute } from "@ntwine/shared"
 import { apiBase, projectSlug } from "../lib/base-path.ts"
 
 // The SSE transport — the FALLBACK path once the /ws multiplex exists (socket.ts calls connectSSE() when

@@ -3,17 +3,17 @@ title: Introduction
 description: An opinionated agent console for extreme productivity.
 ---
 
-Frizz runs your coding agents — Claude Code, Codex, and any agent that speaks the Agent Client Protocol — from one browser tab. Every agent that comes to rest needing you becomes a card in one queue, so you work through a list instead of checking on ten terminals.
+Ntwine runs your coding agents — Claude Code, Codex, and any agent that speaks the Agent Client Protocol — from one browser tab. Every agent that comes to rest needing you becomes a card in one queue, so you work through a list instead of checking on ten terminals.
 
 ```bash
-npx frizz
+npx ntwine
 ```
 
 It brings no model of its own and no workflow of its own. It drives the CLIs you already pay for, under your sign-in, and keeps every opinion it has in a text file you can edit.
 
-<Shot src="/img/board.png" width={1760} height={1100} alt="Frizz focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with lettered options and a countdown to the recommended pick." />
+<Shot src="/img/board.png" width={1760} height={1100} alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with lettered options and a countdown to the recommended pick." />
 
-## Frizz is for you if
+## Ntwine is for you if
 
 - Terminal UIs feel dated and get in the way of good user experience.
 - Orchestrator apps like Conductor feel overly complex.
@@ -32,7 +32,7 @@ It brings no model of its own and no workflow of its own. It drives the CLIs you
     One server serves every repo on your machine. Each has its own board, and All projects is a click away.
   </Card>
   <Card title="Headless" href="/docs/threads">
-    Each agent runs in its own background process. Close the tab or stop Frizz, and it keeps working.
+    Each agent runs in its own background process. Close the tab or stop Ntwine, and it keeps working.
   </Card>
   <Card title="Threads that talk" href="/docs/handles">
     Every thread has an `@handle`. Agents read, message and wait on each other by it.
@@ -41,16 +41,16 @@ It brings no model of its own and no workflow of its own. It drives the CLIs you
     "Every weekday at 9am" starts a fresh thread each time. "2h" bounds one.
   </Card>
   <Card title="Your editor" href="/docs/editor">
-    Frizz in VS Code, Cursor or Windsurf, with your selection sent along.
+    Ntwine in VS Code, Cursor or Windsurf, with your selection sent along.
   </Card>
   <Card title="From anywhere" href="/docs/remote-access">
-    Reach Frizz from your phone with a private frizz.sh name, a tunnel, or Tailscale.
+    Reach Ntwine from your phone with a private frizz.sh name, a tunnel, or Tailscale.
   </Card>
 </Cards>
 
 ## What it is not
 
-- **Not a model.** Frizz drives the CLIs you already have signed in, on your subscription.
+- **Not a model.** Ntwine drives the CLIs you already have signed in, on your subscription.
 - **Not a cloud.** No account, no telemetry. The server binds `127.0.0.1`, and its state lives in your user directory, never in your checkout.
 - **Not a workflow.** No worktrees, branches, or build steps behind your back. A thread behaves like a session you started yourself.
 
@@ -61,7 +61,7 @@ It brings no model of its own and no workflow of its own. It drives the CLIs you
     The commitments every feature is held to.
   </Card>
   <Card title="Quick start" href="/docs/quick-start">
-    From `npx frizz` to your first answered question.
+    From `npx ntwine` to your first answered question.
   </Card>
   <Card title="FAQ" href="/docs/faq">
     What leaves your machine, what lands in your repo, and what happens when you close the tab.

@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { agentSuffix, handoffLine, liveAgentCount, rowSecondLine, wakeAt } from "./mobileBoardRow.ts"
 
 const now = Date.parse("2026-09-30T12:00:00.000Z")

@@ -1,5 +1,5 @@
 // @ts-check
-// A SUB-AGENT'S TIME LIMIT (frizz-worker) — ARCHITECTURE.md § Time limits. A library, not a hook:
+// A SUB-AGENT'S TIME LIMIT (ntwine-worker) — ARCHITECTURE.md § Time limits. A library, not a hook:
 // agent-dispatch.mjs carves the child's share when the Agent call is made, and agent-inbox.mjs, which
 // already speaks to a running sub-agent after each of its tool calls, delivers its check-ins.
 //
@@ -18,12 +18,13 @@
 // every line indented. So its hook computes the share itself, the first time it runs, from the agent's
 // own `Time limit:` line, the thread's deadline and the agent's start (the record's timestamp).
 //
-// THE ARITHMETIC IS A TWIN of @frizz/shared deadline.ts (`childDeadlineMs`, `deadlineStageAtMs`): this
+// THE ARITHMETIC IS A TWIN of @ntwine/shared deadline.ts (`childDeadlineMs`, `deadlineStageAtMs`): this
 // runs under bare node down to the engines floor (22.13), which does not strip types, so it cannot
 // import the TS. agent-deadline-hook.test.ts pins the two together over a grid of inputs.
 //
-// Everything here fails soft — a deadline Frizz cannot read is one it does not keep — and callers wrap
+// Everything here fails soft — a deadline Ntwine cannot read is one it does not keep — and callers wrap
 // it in their own fail-open.
+import '../lib/legacy-env.mjs';
 import { mkdirSync, openSync, closeSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
@@ -37,13 +38,17 @@ export const STAGES = /** @type {const} */ (['half', 'converge', 'final', 'over'
 /** The `Time limit:` line a parent writes into a child's prompt, on a line of its own. */
 export const TIME_LIMIT_LINE = /^[ \t]*time limit:[ \t]*([^\n]+?)[ \t]*$/im;
 /** The line the dispatch hook appends: the child's deadline and the instant its budget started. */
-export const DEADLINE_MARKER = /⟦frizz-deadline⟧ (\S+) (\S+)/g;
+// `frizz-deadline` is the same marker in a prompt written before the Frizz -> Ntwine rename.
+export const DEADLINE_MARKER = /⟦(?:ntwine|frizz)-deadline⟧ (\S+) (\S+)/g;
 
 const FETCH_TIMEOUT_MS = 1500;
-const STATE_DIRNAME = 'frizz-deadlines';
+const STATE_DIRNAME = 'ntwine-deadlines';
+// The same directory before the Frizz -> Ntwine rename. A child that started before it cached its limit and
+// marked its sent check-ins there; both are still read, and only the current directory is written.
+const LEGACY_STATE_DIRNAME = 'frizz-deadlines';
 const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-// ---- THE ARITHMETIC (twin of @frizz/shared deadline.ts) ---------------------------------------------
+// ---- THE ARITHMETIC (twin of @ntwine/shared deadline.ts) ---------------------------------------------
 
 /** @param {Stage} stage @param {number} budgetMs */
 function stageFraction(stage, budgetMs) {
@@ -133,13 +138,13 @@ function budget(ms) {
  *  @param {number} atMs @param {number} setAtMs */
 export function deadlineParagraph(atMs, setAtMs) {
   return (
-    `\n\n[TIME LIMIT — set by your dispatcher, kept by Frizz] Your deadline is ${clock(atMs)} (a ${budget(atMs - setAtMs)} budget). ` +
+    `\n\n[TIME LIMIT — set by your dispatcher, kept by Ntwine] Your deadline is ${clock(atMs)} (a ${budget(atMs - setAtMs)} budget). ` +
     `Your final message is due by then: return the best result you can by ${clock(atMs)}, not the complete one eventually. ` +
-    'Frizz checks in after your tool calls — at half-time, at 80%, just before the deadline and at it — in messages headed "⏰". ' +
+    'Ntwine checks in after your tool calls — at half-time, at 80%, just before the deadline and at it — in messages headed "⏰". ' +
     'They are your dispatcher\'s clock speaking, with the same authority as this task, not output of the tool you ran. Commit ' +
     'to an approach early, keep what you have in a state you could report, and when time runs short end your turn with what ' +
     'you have, saying what is unfinished.' +
-    `\n⟦frizz-deadline⟧ ${new Date(atMs).toISOString()} ${new Date(setAtMs).toISOString()}`
+    `\n⟦ntwine-deadline⟧ ${new Date(atMs).toISOString()} ${new Date(setAtMs).toISOString()}`
   );
 }
 
@@ -160,19 +165,19 @@ export function shareIntoPrompt(prompt, at) {
 }
 
 /** The thread's deadline in ms, read from the running server the way agent-address.mjs reaches it:
- *  FRIZZ_PERM_DIR is `<frizz root>/projects/<project id>/perm-requests`, and the root's `server.lock`
+ *  NTWINE_PERM_DIR is `<ntwine root>/projects/<project id>/perm-requests`, and the root's `server.lock`
  *  names the port. Undefined for no deadline, and for anything that goes wrong.
  *  @param {NodeJS.ProcessEnv} env @returns {Promise<number | undefined>} */
 export async function threadDeadlineMs(env = process.env) {
   try {
-    const slug = (env.FRIZZ_THREAD ?? '').trim();
-    const permDir = (env.FRIZZ_PERM_DIR ?? '').trim();
+    const slug = (env.NTWINE_THREAD ?? '').trim();
+    const permDir = (env.NTWINE_PERM_DIR ?? '').trim();
     if (!slug || !permDir) return undefined;
     const stateDir = dirname(permDir);
     const lock = JSON.parse(readFileSync(join(dirname(dirname(stateDir)), 'server.lock'), 'utf8'));
     if (!Number.isInteger(lock?.port)) return undefined;
     const query = encodeURIComponent(JSON.stringify({ slug }));
-    const res = await fetch(`http://127.0.0.1:${lock.port}/_frizz/${encodeURIComponent(basename(stateDir))}/rpc/threadDeadline?input=${query}`, {
+    const res = await fetch(`http://127.0.0.1:${lock.port}/_ntwine/${encodeURIComponent(basename(stateDir))}/rpc/threadDeadline?input=${query}`, {
       headers: { 'sec-fetch-site': 'same-origin' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
@@ -221,7 +226,7 @@ function firstRecord(path) {
   return { text, atMs: Number.isFinite(atMs) ? atMs : undefined };
 }
 
-/** What a child's deadline is, worked out once and kept in `<sessionDir>/frizz-deadlines/<id>.json`.
+/** What a child's deadline is, worked out once and kept in `<sessionDir>/ntwine-deadlines/<id>.json`.
  *  `announce` is true when its prompt did not already say (a Workflow agent): the first check-in
  *  then introduces the limit.
  *  @param {string} sessionDir @param {string} agentId @param {{ nowMs: number, threadDeadline: () => Promise<number | undefined> }} deps
@@ -229,10 +234,12 @@ function firstRecord(path) {
 export async function agentDeadline(sessionDir, agentId, deps) {
   if (!AGENT_ID.test(agentId)) return undefined;
   const file = join(sessionDir, STATE_DIRNAME, `${agentId}.json`);
-  try {
-    return JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    /* not worked out yet */
+  for (const cached of [file, join(sessionDir, LEGACY_STATE_DIRNAME, `${agentId}.json`)]) {
+    try {
+      return JSON.parse(readFileSync(cached, 'utf8'));
+    } catch {
+      /* not worked out yet */
+    }
   }
   const transcript = transcriptOf(sessionDir, agentId);
   if (!transcript) return undefined; // not written yet — the next tool call tries again
@@ -259,8 +266,12 @@ export async function agentDeadline(sessionDir, agentId, deps) {
  *  and false once any later stage was sent. @param {string} sessionDir @param {string} agentId @param {Stage} stage */
 function claimStage(sessionDir, agentId, stage) {
   const dir = join(sessionDir, STATE_DIRNAME);
-  for (const later of STAGES.slice(STAGES.indexOf(stage))) if (existsSync(join(dir, `${agentId}.${later}`))) return false;
+  const legacy = join(sessionDir, LEGACY_STATE_DIRNAME);
+  for (const later of STAGES.slice(STAGES.indexOf(stage))) {
+    if (existsSync(join(dir, `${agentId}.${later}`)) || existsSync(join(legacy, `${agentId}.${later}`))) return false;
+  }
   try {
+    mkdirSync(dir, { recursive: true });
     closeSync(openSync(join(dir, `${agentId}.${stage}`), 'wx'));
     return true;
   } catch {
@@ -298,10 +309,12 @@ export async function childDeadlineContext(sessionDir, agentId, deps) {
   if (d.announce) {
     const intro = join(sessionDir, STATE_DIRNAME, `${agentId}.intro`);
     try {
+      if (existsSync(join(sessionDir, LEGACY_STATE_DIRNAME, `${agentId}.intro`))) throw new Error('introduced before the rename');
+      mkdirSync(dirname(intro), { recursive: true });
       closeSync(openSync(intro, 'wx'));
       out.push(
-        `⏰ Your time limit: ${clock(d.atMs)} (a ${budget(d.atMs - d.setAtMs)} budget, set by ${d.setBy === 'user' ? 'the user operating Frizz, after you started' : 'the agent that dispatched you'}). Your ` +
-        'final message is due by then: return the best result you can by that time, not the complete one eventually. Frizz ' +
+        `⏰ Your time limit: ${clock(d.atMs)} (a ${budget(d.atMs - d.setAtMs)} budget, set by ${d.setBy === 'user' ? 'the user operating Ntwine, after you started' : 'the agent that dispatched you'}). Your ` +
+        'final message is due by then: return the best result you can by that time, not the complete one eventually. Ntwine ' +
         'checks in after your tool calls at half-time, at 80%, just before the deadline and at it.',
       );
     } catch {

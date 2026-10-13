@@ -2,7 +2,7 @@ import { spawn, type SpawnOptions } from "node:child_process"
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path"
-import { goToArgument, splitFilePosition, type EditorKind, type FilePosition, type LocalFileOpener } from "@frizz/shared"
+import { goToArgument, splitFilePosition, type EditorKind, type FilePosition, type LocalFileOpener } from "@ntwine/shared"
 import { normalizeLocalPath } from "./local-path.ts"
 
 export type LocalFileOpenResult = { action: "opened"; path: string } | { action: "copy"; path: string }
@@ -19,7 +19,7 @@ export type LocalFileSpawn = (command: string, args: readonly string[], options:
 
 /**
  * Whether the canonical path `real` is `root` or lies beneath it, after resolving `root`'s own links.
- * The one containment rule Frizz has: the openable-roots gate below, and the editor bridge choosing the
+ * The one containment rule Ntwine has: the openable-roots gate below, and the editor bridge choosing the
  * window whose workspace folder holds a file (editor-bridge.ts), which must agree with it on what
  * "inside" means — a symlinked folder, a Windows path in another case.
  */
@@ -71,7 +71,7 @@ export function resolveLocalFileAt(rawPath: string, roots: readonly string[]): {
     try { real = realpathSync(split.path) } catch { throw new Error("Local file was not found") }
     position = split.position
   }
-  if (!roots.some((root) => isUnder(real, root))) throw new Error("Local file is outside Frizz's trusted roots")
+  if (!roots.some((root) => isUnder(real, root))) throw new Error("Local file is outside Ntwine's trusted roots")
   try {
     if (!statSync(real).isFile()) throw new Error("Local path is not a regular file")
   } catch (error) {
@@ -119,8 +119,8 @@ export function resolveOpenableFile(
  * What it is for: a link an agent wrote while it worked in a worktree names the worktree's copy, and the
  * worktree is usually removed once its branch is merged into the main checkout, so the same relative path
  * there is the file the link meant — and the same holds for a file an agent in a worktree names that was
- * never in its worktree at all (`.frizz/threads/<id>/notes.md`, untracked, lives only in the main
- * checkout). The caller names the folder (router.ts settleWorktreePath: `<project>/.frizz/worktrees`), and
+ * never in its worktree at all (`.ntwine/threads/<id>/notes.md`, untracked, lives only in the main
+ * checkout). The caller names the folder (router.ts settleWorktreePath: `<project>/.ntwine/worktrees`), and
  * the first segment under it is taken as a worktree's name.
  */
 export function mainCheckoutCopy(path: string, projectDir: string, worktreeRoot: string): string | undefined {
@@ -135,7 +135,7 @@ function relativePath(from: string, to: string): string {
   return relative(from, to).split(sep).join("/")
 }
 
-// A local Markdown file is the ONE local-file kind Frizz renders itself instead of handing to the
+// A local Markdown file is the ONE local-file kind Ntwine renders itself instead of handing to the
 // desktop opener, so its bytes are the only ones this gate lets into the page. Both the requested path
 // and its canonical real path must carry the extension: a normal `.md` symlink (a skill file linked out
 // of `.agents/`) still reads, while a symlink whose target is some other file cannot ride a `.md` href
@@ -162,7 +162,7 @@ export type LocalTextRead = { path: string; text: string; truncated: boolean }
  * transcripts, 41% of every file a worker wrote sat outside every registered project dir: git
  * worktrees at `~/.cache/<tool>/worktrees/<slug>/`, sibling clones, `/tmp` scratch, the project's own
  * `attachments` state dir. Every one of those rail rows answered a click with "Local file is outside
- * Frizz's trusted roots" — while a `.md` in the SAME directory opened fine through the reader, which
+ * Ntwine's trusted roots" — while a `.md` in the SAME directory opened fine through the reader, which
  * had home-and-below all along (maintainer 2026-09-03: "why do we have this? I see it a lot, and it's
  * annoying").
  *
@@ -240,7 +240,7 @@ export async function awaitOpenerStart(child: SpawnedOpener, command: string): P
 
 /**
  * Wait until the opener has HANDED THE PATH OFF — the point the window is up or about to be — rather
- * than merely started. Every GUI opener Frizz runs is a launcher that exits once the app has the path:
+ * than merely started. Every GUI opener Ntwine runs is a launcher that exits once the app has the path:
  * `code`/`cursor` exit when the running instance (or the one it started) acknowledges the window — over
  * WSL after the remote handshake too, which is the multi-second part — `open -a`, `xdg-open` and
  * `explorer.exe` once the handler is dispatched. So the exit is the "it is showing" signal the page
@@ -322,7 +322,7 @@ function isTerminalEditor(words: readonly string[]): boolean {
  */
 export function envEditorCommand(env: NodeJS.ProcessEnv): string[] {
   const candidates = [env.VISUAL, env.EDITOR].map((raw) => splitEditorCommand(raw?.trim() ?? "")).filter((w) => w.length > 0)
-  if (candidates.length === 0) throw new Error("$EDITOR is not set where Frizz was started")
+  if (candidates.length === 0) throw new Error("$EDITOR is not set where Ntwine was started")
   const usable = candidates.find((words) => !isTerminalEditor(words))
   if (!usable) throw new Error(`$EDITOR is ${candidates[0]![0]}, which needs a terminal; set a GUI editor`)
   return usable
@@ -362,7 +362,7 @@ export function editorKindsForOpener(opener: LocalFileOpener | "editor", env: No
 }
 
 // The CLI inside each editor's macOS app bundle — what `code` / `cursor` on PATH link to once the human
-// runs "Install 'code' command in PATH", which a GUI-launched Frizz cannot count on having on its PATH.
+// runs "Install 'code' command in PATH", which a GUI-launched Ntwine cannot count on having on its PATH.
 // It is the only macOS opener that takes a line silently: `open -a <app> a.ts:12` opens a file NAMED
 // that, and `open vscode://file/a.ts:12` makes VS Code (and Cursor, its fork) stop on a confirmation
 // dialog every time until the human ticks it off (security.promptForLocalFileProtocolHandling).

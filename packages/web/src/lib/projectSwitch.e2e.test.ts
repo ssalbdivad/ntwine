@@ -3,15 +3,15 @@ import { execFileSync } from "node:child_process"
 import { join } from "node:path"
 import test from "node:test"
 
-// Opt-in like the other *.e2e.test.ts here. Needs a REAL Frizz serving at least two projects, which
+// Opt-in like the other *.e2e.test.ts here. Needs a REAL Ntwine serving at least two projects, which
 // `scripts/adhoc-stack.mjs` builds in one command:
 //   nub scripts/adhoc-stack.mjs --port=45781 --project=/abs/a --also-project=/abs/b > /tmp/stack.log 2>&1 &
-//   FRIZZ_PROJECT_SWITCH_E2E_URL=http://127.0.0.1:45781 nub --test --test-force-exit \
+//   NTWINE_PROJECT_SWITCH_E2E_URL=http://127.0.0.1:45781 nub --test --test-force-exit \
 //     packages/web/src/lib/projectSwitch.e2e.test.ts
 // The stale-render test below also seeds threads, so it needs the sandbox HOME the stack printed:
-//   FRIZZ_PROJECT_SWITCH_E2E_HOME=<the "home" field of the stack's json line>
-const baseUrl = process.env.FRIZZ_PROJECT_SWITCH_E2E_URL
-const sandboxHome = process.env.FRIZZ_PROJECT_SWITCH_E2E_HOME
+//   NTWINE_PROJECT_SWITCH_E2E_HOME=<the "home" field of the stack's json line>
+const baseUrl = process.env.NTWINE_PROJECT_SWITCH_E2E_URL
+const sandboxHome = process.env.NTWINE_PROJECT_SWITCH_E2E_HOME
 
 // WHICH PROJECT THE LIVE FEED IS POINTED AT, after a client-side switch — the one thing no unit test
 // here can reach. The pieces are all individually fine and were when this broke: `apiBase()` derives
@@ -40,10 +40,10 @@ test("switching the page to another project re-points the live feed at that proj
   // Every registered project, opened: the server activates a tenant on its first request, and the page
   // only binds a project the server has open.
   const headers = { origin: baseUrl!, "content-type": "application/json" }
-  const listed = (await (await fetch(`${baseUrl}/_frizz/rpc/projectsList`, { headers })).json()) as { result: Array<{ slug: string; home?: boolean; stale?: boolean }> }
+  const listed = (await (await fetch(`${baseUrl}/_ntwine/rpc/projectsList`, { headers })).json()) as { result: Array<{ slug: string; home?: boolean; stale?: boolean }> }
   const slugs = listed.result.filter((p) => !p.home && !p.stale).map((p) => p.slug)
   assert.ok(slugs.length >= 2, `needs a stack serving ≥2 projects, saw: ${slugs.join(", ") || "none"}`)
-  for (const slug of slugs) await fetch(`${baseUrl}/_frizz/${slug}/rpc/board`, { headers })
+  for (const slug of slugs) await fetch(`${baseUrl}/_ntwine/${slug}/rpc/board`, { headers })
 
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
   const browser = await launchHeadless()
@@ -68,7 +68,7 @@ test("switching the page to another project re-points the live feed at that proj
     await page.evaluate(() => { (window as unknown as { __sameDocument: boolean }).__sameDocument = true })
 
     // The BOARD socket for a project, ignoring any other socket the page opens. Matched
-    // with a regex rather than `endsWith("…")`, which frizzRouteUrls.test.ts reads as a hand-built
+    // with a regex rather than `endsWith("…")`, which ntwineRouteUrls.test.ts reads as a hand-built
     // client URL — this only recognises one, it never constructs one.
     const isBoard = /\/ws$/
     const boardSocket = async () => (await page.evaluate(() =>
@@ -95,11 +95,11 @@ test("switching the page to another project re-points the live feed at that proj
       // The rebind is an effect + a socket open, so give the new one a moment to be constructed.
       await page.waitForFunction((s) =>
         ((window as unknown as { __wsUrls: string[] }).__wsUrls
-          .filter((u) => /\/ws$/.test(u)).at(-1) ?? "").includes(`/_frizz/${s}/`), { timeout: 15_000 }, slug)
+          .filter((u) => /\/ws$/.test(u)).at(-1) ?? "").includes(`/_ntwine/${s}/`), { timeout: 15_000 }, slug)
         .catch(() => {})
       assert.match(
         (await boardSocket()) ?? "",
-        new RegExp(`/_frizz/${slug}/ws$`),
+        new RegExp(`/_ntwine/${slug}/ws$`),
         `${how}: the page's feed, switched to ${slug}, must address ${slug}, not whichever project it was last bound to`,
       )
       // …and the keyframe that feed delivers actually lands: the prompt box swaps its stand-in for the
@@ -145,16 +145,16 @@ test("a project switch sends none of the old project's thread slugs to the new p
 }, async () => {
   const headers = { origin: baseUrl!, "content-type": "application/json" }
   const get = async (path: string) => ((await (await fetch(`${baseUrl}${path}`, { headers })).json()) as { result: unknown }).result
-  const projects = (await get("/_frizz/rpc/projectsList")) as Array<{ id: string; slug: string }>
+  const projects = (await get("/_ntwine/rpc/projectsList")) as Array<{ id: string; slug: string }>
   assert.ok(projects.length >= 2, "needs a stack serving two projects")
   const [a, b] = projects as [{ id: string; slug: string }, { id: string; slug: string }]
 
   // A bare session row is a thread at rest ("exited"), which is all a drawer or a queue card needs.
-  const db = join(sandboxHome!, ".frizz", "ui.db")
+  const db = join(sandboxHome!, ".ntwine", "ui.db")
   const sql = (q: string) => execFileSync("sqlite3", [db, q], { encoding: "utf8" }).trim()
   const seed = (project: string, slug: string, n: number) => sql(
     `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at)
-     VALUES ('${project}', '${slug}', 'e2e5517c-0000-4000-9000-${String(n).padStart(12, "0")}', 'frizz-${slug}', '2026-10-08T18:00:00.000Z', '${slug}', 'claude', 'broker', 'opus', 'high', 'default', '2026-10-08T18:02:00.000Z')`)
+     VALUES ('${project}', '${slug}', 'e2e5517c-0000-4000-9000-${String(n).padStart(12, "0")}', 'ntwine-${slug}', '2026-10-08T18:00:00.000Z', '${slug}', 'claude', 'broker', 'opus', 'high', 'default', '2026-10-08T18:02:00.000Z')`)
   seed(a.id, "switch-shared", 1)
   seed(a.id, "switch-only-a", 2)
   seed(b.id, "switch-shared", 3)
@@ -164,14 +164,14 @@ test("a project switch sends none of the old project's thread slugs to the new p
   for (const p of [a, b]) {
     const deadline = Date.now() + 15_000
     for (;;) {
-      const board = (await get(`/_frizz/${p.slug}/rpc/board`)) as { threads: Array<{ id: string }> }
+      const board = (await get(`/_ntwine/${p.slug}/rpc/board`)) as { threads: Array<{ id: string }> }
       if (board.threads.some((t) => t.id === "switch-shared")) break
       assert.ok(Date.now() < deadline, `${p.slug}'s board never showed the seeded threads`)
       await new Promise((r) => setTimeout(r, 250))
     }
   }
-  const settings = await get("/_frizz/rpc/settingsGet")
-  await fetch(`${baseUrl}/_frizz/rpc/settingsSet`, { method: "POST", headers, body: JSON.stringify({ ...(settings as object), projectRail: true }) })
+  const settings = await get("/_ntwine/rpc/settingsGet")
+  await fetch(`${baseUrl}/_ntwine/rpc/settingsSet`, { method: "POST", headers, body: JSON.stringify({ ...(settings as object), projectRail: true }) })
 
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
   const browser = await launchHeadless()
@@ -210,7 +210,7 @@ test("a project switch sends none of the old project's thread slugs to the new p
         .catch(() => assert.fail(`${shape.name}: ${b.slug}'s board never rendered after the switch`))
       await new Promise((r) => setTimeout(r, 1500))
 
-      const toB = sent.filter((r) => r.phase === shape.name && r.path.startsWith(`/_frizz/${b.slug}/rpc/`))
+      const toB = sent.filter((r) => r.phase === shape.name && r.path.startsWith(`/_ntwine/${b.slug}/rpc/`))
       const leaked = toB.filter((r) => r.input.includes("switch-only-a") || r.path.endsWith("/threadSeen"))
       assert.deepEqual(leaked, [], `${shape.name}: requests to ${b.slug} carrying ${a.slug}'s threads`)
       if (shape.width === 1440) {

@@ -6,7 +6,7 @@ import test from "node:test"
 import { backgroundShellLineCount, readBackgroundShellOutput, resetBackgroundShellLineCounts, vetHarnessOutputPath } from "./background-shell-output.ts"
 
 test("background shell output reads a bounded, presentation-safe tail", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-shell-output-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-shell-output-"))
   try {
     const path = join(dir, "task.output")
     // 37 bytes; the window is the last 24, which hold no line break — one long overprinted line is kept
@@ -25,15 +25,15 @@ test("background shell output reads a bounded, presentation-safe tail", () => {
 })
 
 test("background shell output degrades safely when the task file is unavailable", () => {
-  assert.deepEqual(readBackgroundShellOutput("/definitely/missing/frizz-shell-output"), { output: "", truncated: false, reset: false, more: false }, "no cursor: the next read is a first read again")
+  assert.deepEqual(readBackgroundShellOutput("/definitely/missing/ntwine-shell-output"), { output: "", truncated: false, reset: false, more: false }, "no cursor: the next read is a first read again")
   // A caller mid-stream keeps its cursor, so a vanished log never sends it back to byte 0.
-  assert.equal(readBackgroundShellOutput("/definitely/missing/frizz-shell-output", { from: 4096 }).end, 4096)
+  assert.equal(readBackgroundShellOutput("/definitely/missing/ntwine-shell-output", { from: 4096 }).end, 4096)
 })
 
 // ── READING BY OFFSET — the agent-terminal drawer's poll ──────────────────────────────────────────
 
 function withShellFile(run: (path: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-shell-delta-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-shell-delta-"))
   try {
     run(join(dir, "task.output"))
   } finally {
@@ -108,7 +108,7 @@ test("`end` never splits a multi-byte character — the rest is read next time",
 // ── THE LIVE COUNTER on a shell row ──────────────────────────────────────────────────────────────
 
 function withOutputFile(run: (path: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-shell-lines-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-shell-lines-"))
   resetBackgroundShellLineCounts()
   try {
     run(join(dir, "task.output"))
@@ -187,7 +187,7 @@ test("the line counter re-counts when a LARGER file replaces the one at that pat
 })
 
 test("the line counter reports nothing — never zero — for a file it cannot read", () => {
-  assert.equal(backgroundShellLineCount("/definitely/missing/frizz-shell-output"), undefined)
+  assert.equal(backgroundShellLineCount("/definitely/missing/ntwine-shell-output"), undefined)
 })
 
 // ── THE HARNESS-PATH GUARD ────────────────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ test("the line counter reports nothing — never zero — for a file it cannot r
 // own task-log shape may be opened.
 
 test("vetHarnessOutputPath: only a real file shaped tasks/<taskId>.output passes", () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-vet-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-vet-")))
   try {
     const tasks = join(root, "claude-1000", "-proj", "sid", "tasks")
     mkdirSync(tasks, { recursive: true })

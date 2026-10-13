@@ -1,11 +1,11 @@
-import type { ProviderQuota } from "@frizz/shared"
+import type { ProviderQuota } from "@ntwine/shared"
 import type { QuotaWindowLike } from "./usage-limit.ts"
 
 // ---- The FABLE FALLBACK (the `fableFallback` setting, off by default) -----------------------------
 //
 // On a plan where Fable carries its own weekly cap (the endpoint's scoped `weekly-fable` window), the
 // base windows — the 5-hour session and the all-models weekly — can run dry while Fable's own budget
-// still has room. With the setting on, Frizz spends that room rather than leaving work stalled:
+// still has room. With the setting on, Ntwine spends that room rather than leaving work stalled:
 //
 //   - a NEW Claude thread dispatched while the base is nearly out launches on Fable (dispatch.ts), and
 //   - a thread a base limit has paused restarts on Fable at once instead of waiting out the window

@@ -1,9 +1,9 @@
-// The operator's USER SLASH COMMANDS (UserCommand in @frizz/shared), for the composer's `/` menu, the send
+// The operator's USER SLASH COMMANDS (UserCommand in @ntwine/shared), for the composer's `/` menu, the send
 // that expands them, and the Settings editor that writes them. One query, keyed by the page's project
 // because a project's own `.agents/commands` is part of the list.
 
 import { useQuery, type QueryClient } from "@tanstack/react-query"
-import type { ThreadSkill, ThreadSkillSource, UserCommand, UserCommandSource } from "@frizz/shared"
+import type { ThreadSkill, ThreadSkillSource, UserCommand, UserCommandSource } from "@ntwine/shared"
 import { rpc, type Api } from "../api/rpc.ts"
 import { useProjectDir } from "../lib/drafts.ts"
 
@@ -36,9 +36,9 @@ export function invalidateUserCommands(qc: QueryClient): Promise<void> {
   return qc.invalidateQueries({ queryKey: ["userCommands"] })
 }
 
-const MENU_SOURCE: Record<UserCommandSource, ThreadSkillSource> = { frizz: "frizz", project: "project", global: "user" }
+const MENU_SOURCE: Record<UserCommandSource, ThreadSkillSource> = { ntwine: "ntwine", project: "project", global: "user" }
 
-/** User commands as menu rows. Not built-in COMMANDS in the menu's sense: Frizz expands a user command at
+/** User commands as menu rows. Not built-in COMMANDS in the menu's sense: Ntwine expands a user command at
  *  any word boundary (expandUserCommandDraft), so like a skill it is offered and tinted anywhere. */
 export function userCommandItems(commands: readonly UserCommand[]): ThreadSkill[] {
   return commands.map((c) => ({ name: c.name, description: c.description, source: MENU_SOURCE[c.source] }))

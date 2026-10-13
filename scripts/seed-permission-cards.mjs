@@ -19,7 +19,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: nub scripts/seed-permission-cards.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -27,8 +27,8 @@ if (!home) {
 
 const sandbox = resolveSandboxDb(home)
 // `projectId` comes from the resolver, NOT from the database's own parent directory. It was
-// `dirname(db).split("/").pop()`, which the 2026-08-27 move to one machine-wide `~/.frizz/ui.db` turned
-// into the literal string `.frizz` — so every card this script seeded was owned by a project that does
+// `dirname(db).split("/").pop()`, which the 2026-08-27 move to one machine-wide `~/.ntwine/ui.db` turned
+// into the literal string `.ntwine` — so every card this script seeded was owned by a project that does
 // not exist, the board derived `pendingInteraction: false` for it, and `pendingInteractionScope` then
 // returned undefined and drew nothing at all. The resolver reads it off the project state dir, which
 // survived the move under both layouts.
@@ -76,14 +76,14 @@ const CARDS = [
     toolName: "Write",
     description: "Writing the release note",
     input: {
-      file_path: "/Users/colinmcd94/Documents/projects/frizz/RELEASE.md",
+      file_path: "/Users/colinmcd94/Documents/projects/ntwine/RELEASE.md",
       content: "# Release\n\n- The approval card leads with what it is authorizing.\n",
     },
   },
   {
     slug: "perm-bare",
     title: "tool · no arguments",
-    toolName: "mcp__frizz__spawn_thread",
+    toolName: "mcp__ntwine__spawn_thread",
     input: {},
   },
 ]
@@ -153,7 +153,7 @@ const interactions = createInteractionStore(database)
 
 for (const card of [...CARDS, CODEX_CARD, MCP_CARD]) {
   const sessionId = `${card.slug}-0000-4000-8000-000000000000`.slice(0, 36)
-  const threadName = `frizz-${card.slug}`
+  const threadName = `ntwine-${card.slug}`
   const records = [
     {
       parentUuid: null,

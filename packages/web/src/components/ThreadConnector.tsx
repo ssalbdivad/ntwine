@@ -144,7 +144,7 @@ function readRail(dpr: number): Rail | null {
 function measure(key: string, rail: Rail, dpr: number): ThreadGeometry | null {
   const row = document.querySelector<HTMLElement>(`[data-xq-rail] [data-xq-rail-row="${CSS.escape(key)}"]`)
   const slot = document.querySelector<HTMLElement>(`[data-xq-card="${CSS.escape(key)}"]`)
-  const card = slot?.querySelector<HTMLElement>(".frizz-card-body")
+  const card = slot?.querySelector<HTMLElement>(".ntwine-card-body")
   if (!row || !slot || !card || slot.dataset.queueLeaving === "true") return null
   const y1 = snapToPixels(rowInk(row), dpr)
   // A row scrolled out of the rail's own list has nowhere to leave from.
@@ -360,22 +360,22 @@ export function ThreadConnector({ activeKey }: { activeKey: string | null }) {
       className={`group/thread pointer-events-none fixed inset-0 z-[5] h-full w-full overflow-visible ${embedded() ? "" : "max-[800px]:hidden"}`}
     >
       <defs>
-        <mask id="frizz-thread-cords" maskUnits="userSpaceOnUse" x={-1e4} y={-1e4} width={2e4} height={2e4}>
+        <mask id="ntwine-thread-cords" maskUnits="userSpaceOnUse" x={-1e4} y={-1e4} width={2e4} height={2e4}>
           <rect ref={listRef} x={-1e4} width={2e4} fill="white" />
           <path ref={iconsRef} fill="black" />
         </mask>
-        <linearGradient ref={seamGradientRef} id="frizz-thread-seam" gradientUnits="userSpaceOnUse" x1="0" x2="0">
+        <linearGradient ref={seamGradientRef} id="ntwine-thread-seam" gradientUnits="userSpaceOnUse" x1="0" x2="0">
           <stop offset="0" className="[stop-color:var(--color-accent)] [stop-opacity:0]" />
           <stop offset="0.5" className="[stop-color:var(--color-accent)] [stop-opacity:0.7]" />
           <stop offset="1" className="[stop-color:var(--color-accent)] [stop-opacity:0]" />
         </linearGradient>
       </defs>
-      <g data-thread-cords fill="none" strokeWidth={1} mask="url(#frizz-thread-cords)" className="stroke-accent opacity-70">
+      <g data-thread-cords fill="none" strokeWidth={1} mask="url(#ntwine-thread-cords)" className="stroke-accent opacity-70">
         <path ref={strandRefs[0]} />
         <path ref={strandRefs[1]} />
       </g>
       <g className="opacity-0 transition-opacity duration-150 group-data-[shown=true]/thread:opacity-100">
-        <rect ref={seamRef} width={1} fill="url(#frizz-thread-seam)" />
+        <rect ref={seamRef} width={1} fill="url(#ntwine-thread-seam)" />
         <path ref={pathRef} pathLength={1} strokeDasharray="1 1" fill="none" strokeWidth={1} strokeLinecap="round" className="stroke-accent/55" />
         <circle ref={knotRef} r={2.25} className="fill-accent [transform-box:fill-box] [transform-origin:center]" />
       </g>

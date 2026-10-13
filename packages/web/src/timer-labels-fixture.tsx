@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import "./styles.css"
 import { Message } from "./components/ChatView.tsx"
 import { ThreadRow, type RowScope } from "./components/Sidebar.tsx"

@@ -1,5 +1,5 @@
 import { TriangleAlert } from "lucide-react"
-import type { ProviderError, TranscriptMessage } from "@frizz/shared"
+import type { ProviderError, TranscriptMessage } from "@ntwine/shared"
 import { CARD_BODY, TranscriptCard } from "./TranscriptCard.tsx"
 
 export function providerErrorVisible(messages: readonly TranscriptMessage[], error: ProviderError | undefined): boolean {

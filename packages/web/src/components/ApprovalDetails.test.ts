@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import type { InteractionPayload } from "@frizz/shared"
+import type { InteractionPayload } from "@ntwine/shared"
 import { ApprovalDetails } from "./ApprovalDetails.ts"
 
 type ApprovalPayload = Extract<InteractionPayload, {

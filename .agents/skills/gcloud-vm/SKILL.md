@@ -2,7 +2,7 @@
 name: gcloud-vm
 description: >-
   Provision, start, reach and use Google Cloud VMs — for any real-OS work the macOS host and Docker
-  cannot do. Above all: REAL WINDOWS, which is the only way to check that Frizz still runs there now
+  cannot do. Above all: REAL WINDOWS, which is the only way to check that Ntwine still runs there now
   that tmux is gone. Invoke whenever you think "I need a Windows box" or "I need a Linux box": you can
   START the standing `nub-linux`/`nub-win` instances or CREATE a fresh one on demand. Carries the
   gotchas that each cost a cycle — IPs change on every restart, the SSH user is `nub` with key
@@ -20,7 +20,7 @@ You have `gcloud` and can create/start/stop VMs yourself. Any time a task needs 
 and Docker cannot give you, spin one up. Project `pullfrog`, zone **`us-central1-a`** — gcloud's default
 zone is `us-west1-a`, so **always pass `--zone us-central1-a` explicitly**.
 
-**For Frizz specifically, the case that matters is Windows.** tmux is gone, so Windows is a supported
+**For Ntwine specifically, the case that matters is Windows.** tmux is gone, so Windows is a supported
 platform on paper; the only way to keep that true is to actually run there. See the Windows section
 below — the bring-up is fiddly and the recipe here is the one that works.
 
@@ -50,13 +50,13 @@ and `nub-win2` refused the `nub-vm` key with "Too many authentication failures".
 **create your own throwaway box** rather than fighting theirs, and delete it when done.
 
 ```sh
-gcloud compute instances create frizz-win-tmp \
+gcloud compute instances create ntwine-win-tmp \
   --zone us-central1-a --project pullfrog \
   --machine-type e2-standard-4 \
   --image-family windows-2022 --image-project windows-cloud \
   --boot-disk-size 50GB
 
-gcloud compute instances delete frizz-win-tmp --zone us-central1-a --quiet   # a created VM bills its disk even when STOPPED
+gcloud compute instances delete ntwine-win-tmp --zone us-central1-a --quiet   # a created VM bills its disk even when STOPPED
 ```
 
 ## SSH — user `nub`, key `~/.ssh/nub-vm`, and the IP is DYNAMIC
@@ -109,12 +109,12 @@ Restart-Service sshd -ErrorAction SilentlyContinue
 ```
 
 ```sh
-gcloud compute instances create frizz-win-tmp --zone us-central1-a --project pullfrog \
+gcloud compute instances create ntwine-win-tmp --zone us-central1-a --project pullfrog \
   --machine-type e2-standard-4 --image-family windows-2022 --image-project windows-cloud \
   --boot-disk-size 50GB \
   --metadata enable-windows-ssh=TRUE,ssh-keys="nub:$(cat ~/.ssh/nub-vm.pub)" \
   --metadata-from-file windows-startup-script-ps1=win-ssh-setup.ps1
-gcloud compute instances reset frizz-win-tmp --zone us-central1-a --project pullfrog
+gcloud compute instances reset ntwine-win-tmp --zone us-central1-a --project pullfrog
 ```
 
 Then poll for `$env:PROCESSOR_ARCHITECTURE` to come back `AMD64`. Read the progression: `Operation

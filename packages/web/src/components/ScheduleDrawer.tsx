@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
-import { type ScheduleRunView, type ScheduleView, type UpdateScheduleInput } from "@frizz/shared"
+import { type ScheduleRunView, type ScheduleView, type UpdateScheduleInput } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { closeDrawersById, pushDrawer, showToast, store } from "../store.ts"
 import { projectSlug } from "../lib/base-path.ts"
@@ -41,7 +41,7 @@ export function useScheduleQuery(scheduleId: string, projectId: string | undefin
   return useQuery({
     queryKey: scheduleKeys.get(projectId || "page", scheduleId),
     queryFn: () => api.getSchedule({ id: scheduleId }),
-    // The next run moves, a run starts, Frizz pauses it: nothing pushes a schedule to the page, so the
+    // The next run moves, a run starts, Ntwine pauses it: nothing pushes a schedule to the page, so the
     // drawer re-reads while it is open.
     refetchInterval: 5_000,
   })
@@ -212,7 +212,7 @@ function Banner({ tone, text, children }: { tone: "attention" | "quiet"; text: s
   )
 }
 
-/** The echo the human confirmed, from the rule Frizz fires, and the next run — the held thread that
+/** The echo the human confirmed, from the rule Ntwine fires, and the next run — the held thread that
  *  stands for it, a click away (Mark as done on it skips it; snoozing it moves it). */
 function Echo({ schedule }: { schedule: ScheduleView }) {
   const now = useNowMs()

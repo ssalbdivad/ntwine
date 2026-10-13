@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { SetThreadSnoozeInput, type AwaitingHint } from "@frizz/shared"
+import { SetThreadSnoozeInput, type AwaitingHint } from "@ntwine/shared"
 import {
   AWAITING_FALLBACK_TITLE,
   AWAITING_NO_PROSE,
@@ -21,7 +21,7 @@ const now = Date.parse("2026-07-21T18:00:00.000Z")
 // What these replaced was a matrix: every hint kind had a park action ("Scheduled snooze", "Awaiting
 // human"), a synthesized sentence ("Wait for Alice", "Scheduled for tomorrow at 9"), and a snooze target
 // derived from whatever instant the worker had typed. All of it is gone with the kinds — a worker no
-// longer describes its wait in prose frizz has to parse back, it NAMES things frizz can look up, and it
+// longer describes its wait in prose ntwine has to parse back, it NAMES things ntwine can look up, and it
 // writes exactly one line for a human. So there is nothing left to synthesize and nothing to get wrong.
 //
 // `awaitingParkAction` — the reader that turned a hint kind into a button — went with the last caller on
@@ -151,7 +151,7 @@ test("hintGloss is the phone's one line, and it is the PR ref", () => {
   assert.equal(hintGloss([{ kind: "shell", value: "bvg44v4ij" }]), null)
 })
 
-// THE WORKER'S REASON, SET AS A SENTENCE. It stands alone everywhere frizz draws it — its own paragraph
+// THE WORKER'S REASON, SET AS A SENTENCE. It stands alone everywhere ntwine draws it — its own paragraph
 // under the rail popover's sentence, its own line on the card — and it arrives lowercase because the
 // shipped contract's example was a fragment (maintainer 2026-08-19: "why is that second sentence
 // fucking lowercase?"). The contract now models a sentence; this carries every worker dispatched before
@@ -181,7 +181,7 @@ test("a reason that opens on CODE is left exactly as written", () => {
 // WHAT THE POPOVER READS, and why it is not `reason:` — a key since retired outright (2026-08-24), when
 // the frontmatter became YAML and could no longer hold prose. An awaiting fence is FRONTMATTER, THEN
 // MARKDOWN (2026-08-17): structural keys, a `---`, and below it as much prose as the worker wants —
-// optional prose, since what frizz requires is a live item and a `for:`. Reading only `reason:` dropped the
+// optional prose, since what ntwine requires is a live item and a `for:`. Reading only `reason:` dropped the
 // handoff of every fence written that way, which is exactly what the rail popover did (maintainer
 // 2026-08-19: "the actual block content … was all below the triple hyphen, sort of like a front matter
 // with Markdown beneath it").
@@ -254,7 +254,7 @@ test("the wait clause counts steps first, as a wait on the reader", () => {
   const steps = [{ kind: "step" as const, value: "Run `npm login`" }, { kind: "step" as const, value: "Approve the prompt" }]
   assert.equal(awaitingWaitClause(steps.slice(0, 1)), "waiting on a step from you")
   assert.equal(awaitingWaitClause(steps), "waiting on 2 steps from you")
-  // Order is by kind, never by where the worker wrote the key: the reader outranks anything frizz watches.
+  // Order is by kind, never by where the worker wrote the key: the reader outranks anything ntwine watches.
   assert.equal(awaitingWaitClause([{ kind: "pr", value: "acme/app#391" }, ...steps]), "waiting on 2 steps from you and acme/app#391")
   assert.equal(awaitingWaitClause([{ kind: "step", value: "  " }]), null, "a blank step names nothing")
 })

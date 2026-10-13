@@ -3,7 +3,7 @@ export type { AppRouter } from "./router.ts"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { readFileSync, existsSync, statSync } from "node:fs"
 import { basename, dirname, join, resolve, extname, posix, sep } from "node:path"
-import { DEFAULT_PORT, FRIZZ_ROUTE_PREFIX } from "@frizz/shared"
+import { adoptLegacyRoute, DEFAULT_PORT, NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 import {
 ContextStartupError,
   createContext,
@@ -42,13 +42,13 @@ import {
   type ProjectLaunchLease,
   type ProcessGeneration,
 } from "./project-launch.ts"
-import { serverAddressPathForStateDir } from "./frizz-paths.ts"
+import { serverAddressPathForStateDir } from "./ntwine-paths.ts"
 import { pidIsAlive } from "./project-identity.ts"
 import { createBootProgressPublisher } from "./boot-progress.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 import { describeRuntime, resolveRuntimes, type ResolvedRuntimes, type ResolveRuntimesOptions } from "./runtimes.ts"
 import { createTenantMap } from "./tenants.ts"
-import { openFrizzDatabase, type FrizzDatabase, type OpenFrizzDatabaseOptions } from "./frizz-db.ts"
+import { openNtwineDatabase, type NtwineDatabase, type OpenNtwineDatabaseOptions } from "./ntwine-db.ts"
 import { startTenantPrime, type TenantPrimeRun } from "./tenant-prime.ts"
 import { startWakeLockLoop, type WakeLockLoop } from "./wake-lock.ts"
 import { startIdleWorktreeSweep, type WorktreeSweepLoop } from "./worktree-sweep.ts"
@@ -86,14 +86,14 @@ export type ServerStartupPhase =
 
 type HttpServer = ReturnType<typeof createServer>
 
-/** Where Vite's HMR client connects, on the board's own port. Reserved under `/_frizz/` like every route. */
-const VITE_HMR_PATH = "/_frizz/vite-hmr"
+/** Where Vite's HMR client connects, on the board's own port. Reserved under `/_ntwine/` like every route. */
+const VITE_HMR_PATH = "/_ntwine/vite-hmr"
 
 /** Vite's own sockets, by path and the subprotocol its client always sends. */
 function isViteHmrUpgrade(req: IncomingMessage): boolean {
   const protocol = req.headers["sec-websocket-protocol"]
   return (protocol === "vite-hmr" || protocol === "vite-ping")
-    && new URL(req.url ?? "/", "http://frizz.invalid").pathname === VITE_HMR_PATH
+    && new URL(req.url ?? "/", "http://ntwine.invalid").pathname === VITE_HMR_PATH
 }
 type TerminalServer = ReturnType<typeof createTerminalServer>
 type AppSocketServer = ReturnType<typeof createAppSocketServer>
@@ -108,8 +108,8 @@ type ViteServer = import("vite").ViteDevServer
 
 /** Dependency seam for deterministic startup-rollback tests. Production callers must not set it. */
 export interface StartServerRuntime {
-  /** The unified database (frizz-db.ts); a rollback test substitutes an in-memory one. */
-  openDatabase(options: OpenFrizzDatabaseOptions): FrizzDatabase
+  /** The unified database (ntwine-db.ts); a rollback test substitutes an in-memory one. */
+  openDatabase(options: OpenNtwineDatabaseOptions): NtwineDatabase
   /** The pinned Claude Code and Codex (runtimes.ts); a fixture substitutes stand-ins without a download. */
   resolveRuntimes(options: ResolveRuntimesOptions): Promise<ResolvedRuntimes>
   createContext(options: ContextOptions): AppContext | Promise<AppContext>| Promise<AppContext>
@@ -140,7 +140,7 @@ export interface StartServerRuntime {
 }
 
 const defaultStartServerRuntime: StartServerRuntime = {
-  openDatabase: openFrizzDatabase,
+  openDatabase: openNtwineDatabase,
   resolveRuntimes,
   createContext,
   initGithub,
@@ -185,7 +185,7 @@ export class ServerStartupError extends Error {
   }) {
     const startupMessage = options.startupError instanceof Error ? options.startupError.message : String(options.startupError)
     const cleanupMessage = options.cleanupError instanceof Error ? `; rollback failed: ${options.cleanupError.message}` : ""
-    super(`Frizz server startup failed during ${options.phase}: ${startupMessage}${cleanupMessage}`, {
+    super(`Ntwine server startup failed during ${options.phase}: ${startupMessage}${cleanupMessage}`, {
       cause: options.startupError,
     })
     this.name = "ServerStartupError"
@@ -231,10 +231,10 @@ export interface StartedServer {
   readonly shutdownFence: ServerShutdownFence
 }
 
-// Everything Frizz serves is under the reserved prefix now, so this is one test instead of a list
+// Everything Ntwine serves is under the reserved prefix now, so this is one test instead of a list
 // that had to grow with every new route — and a prefixed request that missed the old allowlist fell
 // through to the SPA shell with a 200, i.e. a blank page rather than an error.
-const isApiUrl = (url: string) => url === FRIZZ_ROUTE_PREFIX || url.startsWith(`${FRIZZ_ROUTE_PREFIX}/`)
+const isApiUrl = (url: string) => url === NTWINE_ROUTE_PREFIX || url.startsWith(`${NTWINE_ROUTE_PREFIX}/`)
 
 /**
  * The liveness record this process publishes: pid, owner tokens and the PORT.
@@ -258,18 +258,18 @@ function readServerAddressHolder(path: string): { pid: number; port: number } | 
 }
 
 /**
- * Split `/_frizz/<project>/rest` into its project segment and the request the tenant's own app should
+ * Split `/_ntwine/<project>/rest` into its project segment and the request the tenant's own app should
  * see.
  *
- * A project segment and a route name share this position, so `/_frizz/rpc/board` and
- * `/_frizz/nub/rpc/board` look alike until you know which projects exist. The registry settles it, and
- * cannot be ambiguous: it refuses to mint a slug that shadows one of Frizz's own route names.
+ * A project segment and a route name share this position, so `/_ntwine/rpc/board` and
+ * `/_ntwine/nub/rpc/board` look alike until you know which projects exist. The registry settles it, and
+ * cannot be ambiguous: it refuses to mint a slug that shadows one of Ntwine's own route names.
  *
  * The segment is a slug OR a project id. The browser uses the slug, because it is what the operator
- * reads in the URL bar; a worker's frizz MCP server uses the ID, because it is handed the segment once
+ * reads in the URL bar; a worker's ntwine MCP server uses the ID, because it is handed the segment once
  * at spawn and then holds it for hours in a detached daemon — a rename would silently strand it.
  *
- * An unprefixed `/_frizz/rpc/…` stays the LAUNCHING project, so a client that has not learned about
+ * An unprefixed `/_ntwine/rpc/…` stays the LAUNCHING project, so a client that has not learned about
  * project segments yet keeps working.
  */
 export function splitTenantRequest(
@@ -277,27 +277,27 @@ export function splitTenantRequest(
   isKnownSlug: (slug: string) => boolean,
 ): { slug: string; rest: string } | undefined {
   if (!isApiUrl(url)) return undefined
-  const after = url.slice(FRIZZ_ROUTE_PREFIX.length)
+  const after = url.slice(NTWINE_ROUTE_PREFIX.length)
   const match = /^\/([^/?#]+)(.*)$/u.exec(after)
   if (!match) return undefined
   const [, first = "", rest = ""] = match
   if (!isKnownSlug(first)) return undefined
-  return { slug: first, rest: `${FRIZZ_ROUTE_PREFIX}${rest || "/"}` }
+  return { slug: first, rest: `${NTWINE_ROUTE_PREFIX}${rest || "/"}` }
 }
 
 /**
- * Answer `/_frizz/<slug>/health` for a registered project WITHOUT opening it.
+ * Answer `/_ntwine/<slug>/health` for a registered project WITHOUT opening it.
  *
- * The launcher's join probe asks this exact question to decide whether to use the Frizz already
- * running on this machine or start a second one (`src/index.ts` joinRunningFrizz). Letting it route
- * through routeToTenant made "is this machine's Frizz serving my project" cost a full tenant
+ * The launcher's join probe asks this exact question to decide whether to use the Ntwine already
+ * running on this machine or start a second one (`src/index.ts` joinRunningNtwine). Letting it route
+ * through routeToTenant made "is this machine's Ntwine serving my project" cost a full tenant
  * activation — createContext plus the board/tailer/scheduler cold prime, measured at 34.5s against a
- * live server on 2026-08-12 and at 1.5-7.5s in plans/singleton-frizz.md §6b. The probe gives up long
+ * live server on 2026-08-12 and at 1.5-7.5s in plans/singleton-ntwine.md §6b. The probe gives up long
  * before that, so which server the operator got was decided by a race, and LOSING it starts a rival
- * server: two Frizzes, two schedulers, one board fired twice.
+ * server: two Ntwinees, two schedulers, one board fired twice.
  *
  * §4b of that plan specifies this shape directly — assert the machine identity, then confirm the
- * specific project is REGISTERED. The registry is the authority on which projects this Frizz serves
+ * specific project is REGISTERED. The registry is the authority on which projects this Ntwine serves
  * and answering from it is one file read.
  *
  * An already-open project falls through to its own app instead, because that is what carries
@@ -315,7 +315,7 @@ export function registeredTenantHealth(
   if (method !== "GET") return undefined
   const split = splitTenantRequest(url, (segment) => lookup(segment) !== undefined)
   if (!split) return undefined
-  const health = `${FRIZZ_ROUTE_PREFIX}/health`
+  const health = `${NTWINE_ROUTE_PREFIX}/health`
   if (split.rest !== health && !split.rest.startsWith(`${health}?`)) return undefined
   const entry = lookup(split.slug)
   if (!entry || isOpen(entry.id)) return undefined
@@ -445,7 +445,7 @@ export function createShutdownSignalHandler(options: ShutdownSignalHandlerOption
       options.exit(code)
     }
     force = scheduleForce(() => {
-      options.error?.(`[frizz] shutdown force deadline exceeded after ${forceAfterMs}ms`)
+      options.error?.(`[ntwine] shutdown force deadline exceeded after ${forceAfterMs}ms`)
       decide(1)
     }, forceAfterMs)
     if (decided) clearTimeout(force)
@@ -453,7 +453,7 @@ export function createShutdownSignalHandler(options: ShutdownSignalHandlerOption
     void options.close().then(
       () => decide(0),
       (error) => {
-        options.error?.(`[frizz] shutdown failed: ${error instanceof Error ? error.stack ?? error.message : error}`)
+        options.error?.(`[ntwine] shutdown failed: ${error instanceof Error ? error.stack ?? error.message : error}`)
         decide(1)
       },
     )
@@ -473,7 +473,7 @@ export function createShutdownSignalHandler(options: ShutdownSignalHandlerOption
  *
  * index.html is the opposite case and must never get that treatment: it is the document that NAMES
  * the current hashes, so an immutably-cached copy strands the browser on the old build's asset URLs.
- * Frizz updates itself by promoting a new artifact and restarting, which means "restart and reload"
+ * Ntwine updates itself by promoting a new artifact and restarting, which means "restart and reload"
  * has to be enough to land on the new app — caching the shell would break exactly that. `no-cache`
  * says "store it, but revalidate before every use": the reload still costs ~300 bytes when nothing
  * changed (a 304 off the ETag below) and picks up a new build the moment there is one. Verified by
@@ -486,7 +486,7 @@ const STATIC_CACHE_REVALIDATE = "no-cache"
 /**
  * Encoded static bodies, keyed by file + mtime + size + encoding.
  *
- * Brotli takes the cold load from 1,568,997 to 473,271 bytes — 70% — which is what a Frizz reached
+ * Brotli takes the cold load from 1,568,997 to 473,271 bytes — 70% — which is what an Ntwine reached
  * through the relay from a remote origin actually pays, the same reason /rpc is compressed (app.ts).
  * It is NOT free-but-pointless locally either: measured 2026-09-04 against one server with the only
  * variable being the client's accept-encoding, median cold FCP was 260 ms with brotli and 280 ms with
@@ -561,7 +561,7 @@ export function serveStatic(distDir: string, req: IncomingMessage, res: ServerRe
       etag,
       "last-modified": stats.mtime.toUTCString(),
       // Sent on every static response, not just the compressed ones: a shared cache in front of a
-      // tunnelled Frizz must not hand a brotli body to a client that asked for identity.
+      // tunnelled Ntwine must not hand a brotli body to a client that asked for identity.
       vary: "Accept-Encoding",
     }
     if (staticIsFresh(req, etag, stats.mtimeMs)) {
@@ -598,10 +598,10 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   const effectiveOwnerToken = ownerToken ?? ownedLaunch!.token
 
   let startupPhase: ServerStartupPhase = "launch ownership"
-  // The one database every project shares (frizz-db.ts). Opened in its own boot phase before the
+  // The one database every project shares (ntwine-db.ts). Opened in its own boot phase before the
   // launching context, handed to every tenant through contextOptions, and closed by the storage phase
   // of shutdown — after the launching project's storage, which is the last tenant standing by then.
-  let frizzDb: FrizzDatabase | undefined
+  let ntwineDb: NtwineDatabase | undefined
   // The resolved Claude Code and Codex executables (the "runtimes" phase); read lazily by the tenant
   // map's contextOptions, which is built before the phase runs.
   let runtimes: ResolvedRuntimes | undefined
@@ -615,7 +615,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   // Holds the OS's idle-sleep request while any open project has work running (wake-lock.ts).
   let wakeLock: WakeLockLoop | undefined
   // Settings → Remove idle worktrees after: one machine-wide pass over every registered project's
-  // `.frizz/worktrees`, shortly after boot and daily after (worktree-sweep.ts).
+  // `.ntwine/worktrees`, shortly after boot and daily after (worktree-sweep.ts).
   let worktreeSweep: WorktreeSweepLoop | undefined
   // The standing announcement that tells every open tab the project list changed
   // (projects-changed.ts). Armed at the end of boot; disarmed by the "other projects" shutdown phase.
@@ -629,7 +629,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
    *
    * Two tailers on one SQLite file is the survivable half — two SCHEDULERS is not: both would
    * independently decide the same recurring prompt or timer was due and dispatch it twice into the
-   * same worker. The launch lease guarded only the folder a server runs on, and the installed Frizz
+   * same worker. The launch lease guarded only the folder a server runs on, and the installed Ntwine
    * runs on its own folder now, so every project it opens needs a claim of its own. A claim whose
    * server has gone never blocks, so this only ever refuses the board that is genuinely taken.
    */
@@ -656,7 +656,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     const entry = findWorkspaceById(projectId)
     return entry ? tenants.activate(projectForEntry(entry)) : undefined
   }
-  // The editor windows connected over `/_frizz/editor` (editor-bridge.ts): ONE for the machine, like
+  // The editor windows connected over `/_ntwine/editor` (editor-bridge.ts): ONE for the machine, like
   // this server, handed to every project's context so any project's file link can reach any window.
   // Its upgrade is answered before tenant routing below; it has no boot phase because it holds nothing
   // until a window connects, which cannot happen before the server is accepting.
@@ -691,7 +691,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     // `closed`. Rows first: the directory holds nothing the database refers to, and a purge that
     // fails leaves a project the operator can still see and retry rather than a ghost with no files.
     if (options?.deleteState) {
-      frizzDb?.purgeProject(projectId)
+      ntwineDb?.purgeProject(projectId)
       deleteProjectState(projectId)
     }
     return { closed, stoppedWorkers }
@@ -721,7 +721,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       teardownProject,
       launchProjectId: project.id,
       editors,
-      get database() { return frizzDb?.db },
+      get database() { return ntwineDb?.db },
     },
     // Each project's app carries ITS OWN owner proof, so /health stays honest per project rather than
     // answering for whichever one happened to launch the server. The socket is per project for a
@@ -742,7 +742,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     startProducers: async (tenantCtx) => {
       await tenantCtx.board.start()
       await tenantCtx.tailer.start()
-      if (process.env.FRIZZ_WAKERS_OFF !== "1") await tenantCtx.scheduler.start()
+      if (process.env.NTWINE_WAKERS_OFF !== "1") await tenantCtx.scheduler.start()
       // detectGithub reads THIS project's directory, so the cache is per project too. The
       // githubStatus handler live-detects and back-fills when it is missing, which is why the gap
       // hides while `gh` is authed — but unauthed it has nothing to fall back to and reports the
@@ -817,7 +817,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     diagnostics.push(event)
     if (opts.shutdownDiagnostic) opts.shutdownDiagnostic(event)
     else {
-      frizzLog.warn(
+      ntwineLog.warn(
         "shutdown",
         `${event.phase}: ${event.message}${event.error instanceof Error ? ` — ${event.error.message}` : ""}`,
       )
@@ -881,7 +881,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   const cleanupGithub = createRetryableCleanup(async () => { await githubInit })
   const cleanupStorage = createRetryableCleanup(async () => {
     await tenant.storage()
-    frizzDb?.close()
+    ntwineDb?.close()
   })
 
   const createLifecycleBarrier = (): ShutdownBarrier => createShutdownBarrier({
@@ -913,7 +913,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       { name: "idle worktree sweep", run: cleanupWorktreeSweep },
       { name: "other projects", run: cleanupExtraTenants },
       { name: "tailer producer", run: cleanupTailer },
-      // Hang up every thread terminal, so a dev server started from Frizz stops with it.
+      // Hang up every thread terminal, so a dev server started from Ntwine stops with it.
       { name: "thread terminals", run: cleanupTerminalRunner },
       { name: "context subscriptions", run: cleanupSubscriptions },
       { name: "wake scheduler", run: cleanupScheduler },
@@ -946,7 +946,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     const attempt = (async () => {
       removeSignalHandlers()
       if (statusPath && statusIdentity) runtime.removeStatus(statusPath, statusIdentity)
-      // Identity-checked, so a second frizz that has since taken the machine address keeps its own
+      // Identity-checked, so a second ntwine that has since taken the machine address keeps its own
       // record and only the process that actually published this one retires it.
       if (statusPath && statusIdentity) {
         try { runtime.removeStatus(serverAddressPathForStateDir(dirname(statusPath)), statusIdentity) } catch {}
@@ -956,7 +956,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       try {
         releaseServing(project.id)
       } catch (error) {
-        frizzLog.warn("server", `could not record that ${project.name} closed: ${error instanceof Error ? error.message : error}`)
+        ntwineLog.warn("server", `could not record that ${project.name} closed: ${error instanceof Error ? error.message : error}`)
       }
       // Ownership is always the final resource. A thrown status cleanup leaves this exact fence live.
       delegatedLaunch?.release()
@@ -993,7 +993,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     },
     whenSafe() {
       if (finalized) return Promise.resolve()
-      return activeSafety ?? Promise.reject(new Error("Frizz server shutdown has not started"))
+      return activeSafety ?? Promise.reject(new Error("Ntwine server shutdown has not started"))
     },
     recover() {
       if (finalized) return Promise.resolve()
@@ -1043,16 +1043,16 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     runtimes = await phase("runtimes", () => runtime.resolveRuntimes({
       claudeBin: opts.claudeBin,
       codexBin: opts.codexBin,
-      log: (level, message) => frizzLog[level]("server", message),
+      log: (level, message) => ntwineLog[level]("server", message),
       onProgress: (backend, message) => bootProgress(`runtimes: ${backend} ${message}`),
     }))
-    for (const backend of ["claude", "codex"] as const) frizzLog.info("server", `runtimes: ${describeRuntime(backend, runtimes[backend])}`)
+    for (const backend of ["claude", "codex"] as const) ntwineLog.info("server", `runtimes: ${describeRuntime(backend, runtimes[backend])}`)
     // A provisioned Claude Code must not update itself out from under the pin. Every worker, and every
-    // `claude auth status` / `claude auth login` Frizz runs, inherits the server's environment.
+    // `claude auth status` / `claude auth login` Ntwine runs, inherits the server's environment.
     if (runtimes.claude.source === "provisioned") process.env.DISABLE_AUTOUPDATER = "1"
     // Committed through the ledger callback, like the context below: an injected failure right after
     // this phase throws before the assignment would run, and the rollback must still find the handle.
-    frizzDb = await phase("database", () => runtime.openDatabase({ stateDir: project.stateDir }), (value) => { frizzDb = value })
+    ntwineDb = await phase("database", () => runtime.openDatabase({ stateDir: project.stateDir }), (value) => { ntwineDb = value })
     ctx = await phase(
       "context",
       () => runtime.createContext({
@@ -1060,7 +1060,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         codexBin: runtimes!.codex.bin,
         codexVersion: runtimes!.codex.version === "unknown" ? undefined : runtimes!.codex.version,
         project,
-        database: frizzDb!.db,
+        database: ntwineDb!.db,
         serverLockPath: serverLockPathFor(project),
         activeTenants,
         openProject,
@@ -1081,13 +1081,13 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     )
     tenants.adopt(project, ctx)
     // Recover the projects this machine already has state for. Without it a machine that has been
-    // running Frizz for months reaches its first project list with ONE project, and the only way to fill it is
+    // running Ntwine for months reaches its first project list with ONE project, and the only way to fill it is
     // to visit every repository in a terminal — the chore one server per machine exists to end.
     try {
       const recovered = backfillRegistry()
-      if (recovered > 0) frizzLog.info("server", `registry: recovered ${recovered} project(s) from existing state`)
+      if (recovered > 0) ntwineLog.info("server", `registry: recovered ${recovered} project(s) from existing state`)
     } catch (error) {
-      frizzLog.warn("server", `registry backfill skipped: ${error instanceof Error ? error.message : error}`)
+      ntwineLog.warn("server", `registry backfill skipped: ${error instanceof Error ? error.message : error}`)
     }
 
     // Resolve GitHub detection in the background. The original promise is retained and drained on
@@ -1119,7 +1119,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     await phase("tailer producer", () => ctx!.tailer.start((done, total) => {
       bootProgress(`tailer producer ${done}/${total}`)
     }))
-    if (process.env.FRIZZ_WAKERS_OFF !== "1") {
+    if (process.env.NTWINE_WAKERS_OFF !== "1") {
       await phase("wake scheduler", () => ctx!.scheduler.start())
     } else {
       await phase("wake scheduler", () => undefined)
@@ -1147,7 +1147,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         })
       } catch (error) {
         if (opts.requireDevWeb) throw error
-        frizzLog.warn(
+        ntwineLog.warn(
           "server",
           `vite dev middleware unavailable — serving API only: ${error instanceof Error ? error.message : error}`,
         )
@@ -1156,7 +1156,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     await runtime.afterPhase?.("Vite")
 
     /**
-     * Route a `/_frizz/<slug>/…` request at the project that owns it, opening that project on first
+     * Route a `/_ntwine/<slug>/…` request at the project that owns it, opening that project on first
      * use. This is the lazy activation §4 settles on: nothing is opened before something addresses it,
      * and the first request for a board pays the (now bounded) activation.
      *
@@ -1176,7 +1176,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       if (!entry) return undefined
       const existing = tenants.appFor(entry.id)
       // The open app is only the answer while it was built at the path the registry NOW records: a
-      // renamed checkout is re-registered at its new path by the next `frizz` run or add from the page, and the
+      // renamed checkout is re-registered at its new path by the next `ntwine` run or add from the page, and the
       // tenant that opened at the old one has to be reopened there (tenants.activate does that). The
       // launching project is exempt — its context is owned by the boot phases, not the map, and it is
       // the one directory this process is standing in. An entry's path is where its agents run, which
@@ -1192,6 +1192,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
 
     accepting = true
     httpServer = await phase("HTTP server", () => runtime.createHttpServer((req, res) => {
+      if (req.url) req.url = adoptLegacyRoute(req.url)
       if (!accepting) {
         res.writeHead(503, { connection: "close" })
         res.end("server shutting down")
@@ -1268,6 +1269,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     httpServer.keepAliveTimeout = 5000
     httpServer.headersTimeout = 10000
     httpServer.on("upgrade", (req, socket, head) => {
+      if (req.url) req.url = adoptLegacyRoute(req.url)
       if (!accepting) {
         socket.destroy()
         return
@@ -1281,7 +1283,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       // The editor socket is machine-wide and answered here, BEFORE routing: a project prefix would only
       // open a project for nothing. `editor` is a reserved slug, so no project can shadow the path.
       if (editors.handleUpgrade(req, socket, head)) return
-      // A `/_frizz/<slug>/ws` upgrade has to reach THAT project's socket, so this resolves the tenant
+      // A `/_ntwine/<slug>/ws` upgrade has to reach THAT project's socket, so this resolves the tenant
       // exactly as the request path does — asynchronously, because the project may not be open yet.
       // The socket simply waits; there is nothing to answer with until we know whose feed it wants.
       void routeToTenant(req.url ?? "/")
@@ -1323,12 +1325,12 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         bootId: ctx!.bootId,
       }
       runtime.writeStatus(statusPath!, status)
-      // …and the SAME record at the machine's one fixed address. A worker's frizz MCP server re-reads
+      // …and the SAME record at the machine's one fixed address. A worker's ntwine MCP server re-reads
       // this on every call, so an "Update & Restart" — which moves the port, and may even move which
       // project is the launcher — reaches every live detached worker without any of them restarting.
       //
-      // CLAIMED ONLY IF NOBODY LIVE HOLDS IT. One machine runs one frizz, but "one" is an intent, not
-      // an invariant: a second server really can boot (a stray `frizz` in another repo, a supervised
+      // CLAIMED ONLY IF NOBODY LIVE HOLDS IT. One machine runs one ntwine, but "one" is an intent, not
+      // an invariant: a second server really can boot (a stray `ntwine` in another repo, a supervised
       // child racing its parent). Overwriting a live holder's record is the half that bites — the
       // removal is already identity-checked, so the intruder's own clean exit then RETIRES the address
       // out from under a server that is still serving, and every live worker loses the one path that
@@ -1339,25 +1341,25 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       // point of this file is to be the ANSWER, so a live holder keeps it.
       try {
         // Derived from THIS project's state dir, never from homedir(): a test or a sandbox stack must
-        // publish inside its own sandbox, not over the real machine's address. See frizz-paths.ts.
+        // publish inside its own sandbox, not over the real machine's address. See ntwine-paths.ts.
         const addressPath = serverAddressPathForStateDir(ctx!.project.stateDir)
         const held = readServerAddressHolder(addressPath)
         if (held && held.pid !== status.pid && pidIsAlive(held.pid)) {
-          frizzLog.warn(
+          ntwineLog.warn(
             "server",
-            `machine server address is held by a live frizz (pid ${held.pid}, port ${held.port}); leaving it — this server is reachable at its project lock`,
+            `machine server address is held by a live ntwine (pid ${held.pid}, port ${held.port}); leaving it — this server is reachable at its project lock`,
           )
         } else {
           runtime.writeStatus(addressPath, status)
         }
       } catch (error) {
-        frizzLog.warn("server", `could not publish the machine server address: ${error instanceof Error ? error.message : error}`)
+        ntwineLog.warn("server", `could not publish the machine server address: ${error instanceof Error ? error.message : error}`)
       }
     })
     // The launcher owns what the operator sees; this is the control plane's PRIVATE port behind the
     // supervisor proxy, and printing it beside the real one left two addresses on screen with no way
     // to tell which to open. It belongs in the log.
-    frizzLog.info(
+    ntwineLog.info(
       "server",
       `control plane listening on 127.0.0.1:${port} (${opts.dev ? "dev" : "prod"}) — project ${ctx.project.name}`,
     )
@@ -1391,7 +1393,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     // square with its queue size instead of only the ones the operator has clicked into. Deliberately
     // after bootProgress.done(): this must never be something a launcher waits on. See tenant-prime.ts
     // for why opening them all is affordable, and for the serialization.
-    if (process.env.FRIZZ_TENANT_PRIME_OFF !== "1") {
+    if (process.env.NTWINE_TENANT_PRIME_OFF !== "1") {
       tenantPrime = startTenantPrime({
         // Home included: its queue badges and its scheduler should exist before anyone clicks into it,
         // exactly like a project's.
@@ -1404,14 +1406,14 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     }
 
     // Every open project, read on each poll, so one tenant-prime opens later is covered from then on.
-    if (process.env.FRIZZ_WAKE_LOCK_OFF !== "1") {
+    if (process.env.NTWINE_WAKE_LOCK_OFF !== "1") {
       wakeLock = startWakeLockLoop(() => tenants.active().map(({ ctx: open }) => ({
         sessions: () => open.storage.allSessions(),
         telemetry: (slug: string) => open.tailer.get(slug),
       })))
     }
 
-    if (process.env.FRIZZ_WORKTREE_SWEEP_OFF !== "1") {
+    if (process.env.NTWINE_WORKTREE_SWEEP_OFF !== "1") {
       const settingsOf = ctx!
       worktreeSweep = startIdleWorktreeSweep({
         days: () => settingsOf.getSettings().removeIdleWorktreesDays ?? 7,

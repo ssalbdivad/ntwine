@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
 import vm from "node:vm"
-import { EMBED_COLOR_VALUE, EMBED_THEME_COLORS } from "@frizz/shared"
+import { EMBED_COLOR_VALUE, EMBED_THEME_COLORS } from "@ntwine/shared"
 import { hostKeyChord, parseHostMessage, readEmbedState } from "./embed.ts"
 import { HOST_CHORDS, hostChordEvent } from "./embedKeys.ts"
 
@@ -66,8 +66,8 @@ test("the pre-paint guard wears the editor's colours from the first address's fr
     })
     return { dataset: documentElement.dataset, props, last }
   }
-  const sent = { type: "frizz:theme", theme: "dark", surface: "sideBar", colors: { "sideBar-background": "#080d17", foreground: "rgba(204, 204, 204, 0.9)", focusBorder: "red; background: url(https://evil.example/)", "made-up": "#ffffff" } }
-  const first = run("?embed=vscode&theme=dark&project=nub", null, `#frizz-theme=${encodeURIComponent(JSON.stringify(sent))}`)
+  const sent = { type: "ntwine:theme", theme: "dark", surface: "sideBar", colors: { "sideBar-background": "#080d17", foreground: "rgba(204, 204, 204, 0.9)", focusBorder: "red; background: url(https://evil.example/)", "made-up": "#ffffff" } }
+  const first = run("?embed=vscode&theme=dark&project=nub", null, `#ntwine-theme=${encodeURIComponent(JSON.stringify(sent))}`)
   assert.equal(first.dataset.hostColors, "sideBar")
   assert.deepEqual(first.props, { "--vscode-sideBar-background": "#080d17", "--vscode-foreground": "rgba(204, 204, 204, 0.9)" }, "a value that is not a colour, and a name not in the contract, are dropped")
   assert.equal(first.last.replaced, "/?embed=vscode&theme=dark&project=nub", "the fragment leaves the address")
@@ -77,27 +77,27 @@ test("the pre-paint guard wears the editor's colours from the first address's fr
   const again = run("", JSON.stringify(record), "")
   assert.equal(again.dataset.hostColors, "sideBar")
   assert.equal(again.props["--vscode-sideBar-background"], "#080d17")
-  // No background among them: nothing to paint with, so Frizz's palette.
-  const bare = run("?embed=vscode&theme=dark", null, `#frizz-theme=${encodeURIComponent(JSON.stringify({ colors: { foreground: "#ffffff" } }))}`)
+  // No background among them: nothing to paint with, so Ntwine's palette.
+  const bare = run("?embed=vscode&theme=dark", null, `#ntwine-theme=${encodeURIComponent(JSON.stringify({ colors: { foreground: "#ffffff" } }))}`)
   assert.equal(bare.dataset.hostColors, undefined)
   assert.deepEqual(bare.props, {})
   // A browser tab with a fragment that looks the part is not embedded, and wears nothing.
-  const tab = run("", null, `#frizz-theme=${encodeURIComponent(JSON.stringify(sent))}`)
+  const tab = run("", null, `#ntwine-theme=${encodeURIComponent(JSON.stringify(sent))}`)
   assert.deepEqual({ ...tab.dataset }, { theme: "light" })
   assert.equal(tab.last.replaced, null)
 })
 
 test("the editor's colours are taken only where the contract allows, and kept across a reload of the frame", () => {
   const colors = { "sideBar-background": "#181818", foreground: "#cccccc", "list-hoverBackground": "rgba(90, 93, 94, 0.31)" }
-  assert.deepEqual(parseHostMessage({ type: "frizz:theme", theme: "dark", colors, surface: "sideBar" }), { type: "frizz:theme", theme: "dark", colors, surface: "sideBar" })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:theme", theme: "dark", colors, surface: "sideBar" }), { type: "ntwine:theme", theme: "dark", colors, surface: "sideBar" })
   assert.deepEqual(
-    parseHostMessage({ type: "frizz:theme", theme: "dark", colors: { ...colors, focusBorder: "#0078d4;}*{display:none", "badge-background": "var(--x)", menu: "#000000", "button-background": "#".padEnd(70, "f") }, contrast: true, surface: "elsewhere" }),
-    { type: "frizz:theme", theme: "dark", colors, contrast: true },
+    parseHostMessage({ type: "ntwine:theme", theme: "dark", colors: { ...colors, focusBorder: "#0078d4;}*{display:none", "badge-background": "var(--x)", menu: "#000000", "button-background": "#".padEnd(70, "f") }, contrast: true, surface: "elsewhere" }),
+    { type: "ntwine:theme", theme: "dark", colors, contrast: true },
     "an injection, a var(), an unknown name and an overlong value are each dropped; an unknown surface is the side bar",
   )
-  assert.deepEqual(parseHostMessage({ type: "frizz:theme", theme: "dark", colors: { foreground: "#cccccc" } }), { type: "frizz:theme", theme: "dark" }, "no background: no palette")
-  assert.deepEqual(parseHostMessage({ type: "frizz:theme", theme: "dark", colors: { "editor-background": "#1f1f1f" }, surface: "editor" }), { type: "frizz:theme", theme: "dark", colors: { "editor-background": "#1f1f1f" }, surface: "editor" })
-  assert.deepEqual(parseHostMessage({ type: "frizz:theme", theme: "dark", colors: "#000" }), { type: "frizz:theme", theme: "dark" })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:theme", theme: "dark", colors: { foreground: "#cccccc" } }), { type: "ntwine:theme", theme: "dark" }, "no background: no palette")
+  assert.deepEqual(parseHostMessage({ type: "ntwine:theme", theme: "dark", colors: { "editor-background": "#1f1f1f" }, surface: "editor" }), { type: "ntwine:theme", theme: "dark", colors: { "editor-background": "#1f1f1f" }, surface: "editor" })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:theme", theme: "dark", colors: "#000" }), { type: "ntwine:theme", theme: "dark" })
   // The frame's record keeps them whichever way the mode was found: the guard put them there this boot.
   const stored = JSON.stringify({ host: "vscode", theme: "dark", palette: { colors } })
   assert.deepEqual(readEmbedState("?embed=vscode&theme=light", stored), { host: "vscode", theme: "light", palette: { colors } })
@@ -106,7 +106,7 @@ test("the editor's colours are taken only where the contract allows, and kept ac
 })
 
 const compose = {
-  type: "frizz:compose",
+  type: "ntwine:compose",
   id: "n1",
   item: { app: "Visual Studio Code", path: "/repo/a.ts", text: "const a = 1", startLine: 3, endLine: 5, projectId: "p1" },
   target: "front",
@@ -114,22 +114,22 @@ const compose = {
 }
 
 test("host messages are accepted in the contract's shapes only", () => {
-  assert.deepEqual(parseHostMessage({ type: "frizz:theme", theme: "light" }), { type: "frizz:theme", theme: "light" })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:theme", theme: "light" }), { type: "ntwine:theme", theme: "light" })
   assert.deepEqual(parseHostMessage(compose), compose)
   assert.deepEqual(parseHostMessage({ ...compose, target: { thread: "fix", project: "nub" }, focus: true }), { ...compose, target: { thread: "fix", project: "nub" }, focus: true })
-  assert.deepEqual(parseHostMessage({ type: "frizz:navigate", to: "queue" }), { type: "frizz:navigate", to: "queue" })
-  assert.deepEqual(parseHostMessage({ type: "frizz:navigate", to: { project: "nub" } }), { type: "frizz:navigate", to: { project: "nub" } })
-  assert.deepEqual(parseHostMessage({ type: "frizz:navigate", to: { project: "nub", thread: "fix" } }), { type: "frizz:navigate", to: { thread: "fix", project: "nub" } })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:navigate", to: "queue" }), { type: "ntwine:navigate", to: "queue" })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:navigate", to: { project: "nub" } }), { type: "ntwine:navigate", to: { project: "nub" } })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:navigate", to: { project: "nub", thread: "fix" } }), { type: "ntwine:navigate", to: { thread: "fix", project: "nub" } })
   // Only the fields the contract names travel on: a stray one is not passed into the prompt box's code.
   assert.deepEqual(parseHostMessage({ ...compose, item: { ...compose.item, extra: "x" }, more: 1 }), compose)
   // A note is one line of prose: newlines and runs of space fold to one space.
   assert.deepEqual(parseHostMessage({ ...compose, note: "Fix: Cannot find\n  name 'a'." }), { ...compose, note: "Fix: Cannot find name 'a'." })
   assert.deepEqual(parseHostMessage({ ...compose, note: "" }), compose)
   const file = { path: "/repo/a.ts", label: "src/a.ts", projectId: "p1" }
-  const context = { type: "frizz:editor-context", active: { ...file, selection: { startLine: 3, endLine: 9, chars: 120 } }, open: [{ path: "/repo/b.ts", label: "b.ts" }] }
+  const context = { type: "ntwine:editor-context", active: { ...file, selection: { startLine: 3, endLine: 9, chars: 120 } }, open: [{ path: "/repo/b.ts", label: "b.ts" }] }
   assert.deepEqual(parseHostMessage(context), context)
   assert.deepEqual(parseHostMessage({ ...context, active: { ...file, extra: 1 } }), { ...context, active: file })
-  assert.deepEqual(parseHostMessage({ type: "frizz:editor-context", active: null, open: [] }), { type: "frizz:editor-context", active: null, open: [] })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:editor-context", active: null, open: [] }), { type: "ntwine:editor-context", active: null, open: [] })
   // The selection's text, which a sidebar send carries, up to the feed's ceiling; the caret's line beside no selection.
   const withText = { ...context, active: { ...file, selection: { startLine: 3, endLine: 9, chars: 120, text: "const a = 1\nconst b = 2" } } }
   assert.deepEqual(parseHostMessage(withText), withText)
@@ -138,28 +138,28 @@ test("host messages are accepted in the contract's shapes only", () => {
   assert.deepEqual(parseHostMessage({ ...context, active: { ...file, cursorLine: 40 } }), { ...context, active: { ...file, cursorLine: 40 } })
   // A caret line beside a selection is not the contract's, and is dropped (the selection's lines say where).
   assert.deepEqual(parseHostMessage({ ...context, active: { ...file, cursorLine: 40, selection: context.active.selection } }), context)
-  for (const command of ["new-thread", "queue", "jump", "settings", "shortcuts"]) assert.deepEqual(parseHostMessage({ type: "frizz:command", command }), { type: "frizz:command", command })
+  for (const command of ["new-thread", "queue", "jump", "settings", "shortcuts"]) assert.deepEqual(parseHostMessage({ type: "ntwine:command", command }), { type: "ntwine:command", command })
   // What the block must say about the copy on disk, and a file whose text stays home.
   const flagged = { ...context, active: { ...file, selection: { startLine: 3, endLine: 9, chars: 120 }, untitled: true, dirty: true, withheld: true } }
   assert.deepEqual(parseHostMessage(flagged), flagged)
   assert.deepEqual(parseHostMessage({ ...context, active: { ...file, cursorLine: 2, dirty: true } }), { ...context, active: { ...file, cursorLine: 2, dirty: true } })
   // The extension's own state: the one switch, and whose Alt+K it is.
-  assert.deepEqual(parseHostMessage({ type: "frizz:host-state", shareEditor: false, altK: true, extra: 1 }), { type: "frizz:host-state", shareEditor: false, altK: true })
-  const picks = { type: "frizz:context-picks", id: "n1", files: [{ ...file, folder: true }, { path: "/repo/b.ts", label: "b.ts" }] }
+  assert.deepEqual(parseHostMessage({ type: "ntwine:host-state", shareEditor: false, altK: true, extra: 1 }), { type: "ntwine:host-state", shareEditor: false, altK: true })
+  const picks = { type: "ntwine:context-picks", id: "n1", files: [{ ...file, folder: true }, { path: "/repo/b.ts", label: "b.ts" }] }
   assert.deepEqual(parseHostMessage({ ...picks, extra: 1 }), picks)
-  assert.deepEqual(parseHostMessage({ type: "frizz:context-picks", id: "n1", files: [] }), { type: "frizz:context-picks", id: "n1", files: [] })
-  const extras = { type: "frizz:editor-extras", problems: { label: "src/a.ts", errors: 2, warnings: 0, infos: 1 }, terminal: { command: "nub run test", exitCode: 1 } }
+  assert.deepEqual(parseHostMessage({ type: "ntwine:context-picks", id: "n1", files: [] }), { type: "ntwine:context-picks", id: "n1", files: [] })
+  const extras = { type: "ntwine:editor-extras", problems: { label: "src/a.ts", errors: 2, warnings: 0, infos: 1 }, terminal: { command: "nub run test", exitCode: 1 } }
   assert.deepEqual(parseHostMessage(extras), extras)
-  assert.deepEqual(parseHostMessage({ type: "frizz:editor-extras" }), { type: "frizz:editor-extras" })
-  assert.deepEqual(parseHostMessage({ type: "frizz:editor-extras", terminal: {} }), { type: "frizz:editor-extras", terminal: {} })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:editor-extras" }), { type: "ntwine:editor-extras" })
+  assert.deepEqual(parseHostMessage({ type: "ntwine:editor-extras", terminal: {} }), { type: "ntwine:editor-extras", terminal: {} })
 
   const refused: unknown[] = [
     null,
-    "frizz:theme",
-    { type: "frizz:theme", theme: "sepia" },
-    { type: "frizz:unknown" },
-    { type: "frizz:navigate", to: "everything" },
-    { type: "frizz:navigate", to: { thread: "fix" } },
+    "ntwine:theme",
+    { type: "ntwine:theme", theme: "sepia" },
+    { type: "ntwine:unknown" },
+    { type: "ntwine:navigate", to: "everything" },
+    { type: "ntwine:navigate", to: { thread: "fix" } },
     { ...compose, id: "" },
     { ...compose, focus: "yes" },
     { ...compose, target: "back" },
@@ -184,14 +184,14 @@ test("host messages are accepted in the contract's shapes only", () => {
     { ...context, active: { ...file, selection: { startLine: 3, endLine: 9, chars: 4, text: "x".repeat(16 * 1024 + 1) } } },
     { ...context, active: { ...file, cursorLine: 0 } },
     { ...context, active: { ...file, cursorLine: "40" } },
-    { type: "frizz:command", command: "close" },
-    { type: "frizz:command" },
+    { type: "ntwine:command", command: "close" },
+    { type: "ntwine:command" },
     { ...context, active: { ...file, dirty: false } },
     { ...context, active: { ...file, untitled: "yes" } },
     // A withheld file's text is not there to be sent, whatever arrived.
     { ...context, active: { ...file, withheld: true, selection: { startLine: 3, endLine: 9, chars: 4, text: "API_KEY=1" } } },
-    { type: "frizz:host-state", shareEditor: "on", altK: true },
-    { type: "frizz:host-state", shareEditor: true },
+    { type: "ntwine:host-state", shareEditor: "on", altK: true },
+    { type: "ntwine:host-state", shareEditor: true },
     { ...picks, id: "" },
     { ...picks, files: "a.ts" },
     { ...picks, files: [{ path: "/repo/a.ts" }] },
@@ -212,8 +212,8 @@ const key = (over: Partial<KeyboardEvent>) =>
   ({ key: "p", code: "KeyP", ctrlKey: true, metaKey: false, shiftKey: true, altKey: false, defaultPrevented: false, repeat: false, isComposing: false, ...over }) as KeyboardEvent
 
 test("Ctrl and Cmd chords the page left alone go to the editor; the editing chords never do", () => {
-  assert.deepEqual(hostKeyChord(key({})), { type: "frizz:key", key: "p", code: "KeyP", ctrl: true, meta: false, shift: true, alt: false })
-  assert.deepEqual(hostKeyChord(key({ key: "b", code: "KeyB", ctrlKey: false, metaKey: true, shiftKey: false })), { type: "frizz:key", key: "b", code: "KeyB", ctrl: false, meta: true, shift: false, alt: false })
+  assert.deepEqual(hostKeyChord(key({})), { type: "ntwine:key", key: "p", code: "KeyP", ctrl: true, meta: false, shift: true, alt: false })
+  assert.deepEqual(hostKeyChord(key({ key: "b", code: "KeyB", ctrlKey: false, metaKey: true, shiftKey: false })), { type: "ntwine:key", key: "b", code: "KeyB", ctrl: false, meta: true, shift: false, alt: false })
   // The editing chords, exactly: the plain ones, and with Shift only redo and paste as plain text.
   for (const [editing, shift] of [["c", false], ["x", false], ["v", false], ["z", false], ["y", false], ["a", false], ["Insert", false], ["Z", true], ["V", true]] as const) {
     assert.equal(hostKeyChord(key({ key: editing, shiftKey: shift })), null, editing)

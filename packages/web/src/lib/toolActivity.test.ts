@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { TranscriptToolCall } from "@frizz/shared"
+import type { TranscriptToolCall } from "@ntwine/shared"
 import type { ChatMessage } from "../hooks.ts"
 import {
   coalesceToolActivityMessages,
@@ -151,8 +151,8 @@ test("an orphaned codex poll folds into the run while a real detached job keeps 
 test("a call whose result is a picture folds into the run like any other call", () => {
   // An image Read: the harness returns the picture as the WHOLE result, so there is no excerpt text —
   // `outputImage` is the only signal that this Read is a screenshot rather than a source file.
-  const imageRead = tool("Read", { detail: "/tmp/shots/board.png", outputImage: "/tmp/frizz-tool-images/ab.png", status: "completed" })
-  const shot = tool("mcp__chrome-devtools__take_screenshot", { outputImage: "/tmp/frizz-tool-images/cd.png", status: "completed" })
+  const imageRead = tool("Read", { detail: "/tmp/shots/board.png", outputImage: "/tmp/ntwine-tool-images/ab.png", status: "completed" })
+  const shot = tool("mcp__chrome-devtools__take_screenshot", { outputImage: "/tmp/ntwine-tool-images/cd.png", status: "completed" })
   for (const call of [imageRead, shot]) {
     assert.equal(isToolActivityException(call), false)
     assert.equal(isPictureTool(call), false, "a folded call is never a picture edge for the spacing")
@@ -170,7 +170,7 @@ test("a call whose result is a picture folds into the run like any other call", 
 })
 
 test("a delivery of pictures to the human keeps its card and splits the run", () => {
-  const delivery = tool("SendUserFile", { sentImages: ["/tmp/frizz-tool-images/ef.png"], caption: "before vs after", status: "completed" })
+  const delivery = tool("SendUserFile", { sentImages: ["/tmp/ntwine-tool-images/ef.png"], caption: "before vs after", status: "completed" })
   assert.equal(isToolActivityException(delivery), true)
   assert.equal(isPictureTool(delivery), true)
 
@@ -207,7 +207,7 @@ test("ordinary calls batched ahead of a dispatch in one message fold into the ru
     ],
   }
   const toolSearch = tool("ToolSearch", { detail: "select:SendMessage", status: "completed" })
-  const dispatch = tool("Agent", { agentId: "call-1", prompt: "Audit the token overhead", detail: "Auditing Frizz token overhead", status: "pending" })
+  const dispatch = tool("Agent", { agentId: "call-1", prompt: "Audit the token overhead", detail: "Auditing Ntwine token overhead", status: "pending" })
   const mixed = toolMessage("mixed", [toolSearch, dispatch], "2026-07-30T12:00:03.000Z")
 
   const compact = coalesceToolActivityMessages([lead, mixed])
@@ -542,7 +542,7 @@ test("activity labels are gerunds with a clean fallback for arbitrary tools", ()
 })
 
 test("in-project absolute paths render project-relative in the live label", () => {
-  const root = "/Users/me/Documents/projects/frizz"
+  const root = "/Users/me/Documents/projects/ntwine"
   const edit = tool("Edit", { detail: `${root}/packages/web/src/lib/toolActivity.ts` })
   assert.equal(toolActivityLabel(edit, root), "Editing packages/web/src/lib/toolActivity.ts")
   // No root (a board snapshot that has not landed yet) leaves the label exactly as before.
@@ -569,8 +569,8 @@ test("in-project absolute paths render project-relative in the live label", () =
   // A sibling checkout that merely shares the prefix is NOT in the project, so it keeps its own path
   // (home-collapsed, not project-relative) — the trailing slash is part of the needle.
   assert.equal(
-    toolActivityLabel(tool("Read", { detail: "/Users/me/Documents/projects/frizz-old/ui/a.ts" }), root),
-    "Reading ~/Documents/projects/frizz-old/ui/a.ts",
+    toolActivityLabel(tool("Read", { detail: "/Users/me/Documents/projects/ntwine-old/ui/a.ts" }), root),
+    "Reading ~/Documents/projects/ntwine-old/ui/a.ts",
   )
   // Outside the project the home prefix still collapses, inferred from the project root's own.
   assert.equal(
@@ -578,7 +578,7 @@ test("in-project absolute paths render project-relative in the live label", () =
     "Reading ~/.claude/CLAUDE.md",
   )
   assert.equal(
-    toolActivityLabel(tool("Read", { detail: "/Users/me/.claude/CLAUDE.md" }), "/opt/checkouts/frizz"),
+    toolActivityLabel(tool("Read", { detail: "/Users/me/.claude/CLAUDE.md" }), "/opt/checkouts/ntwine"),
     "Reading /Users/me/.claude/CLAUDE.md",
   )
   // Anything with no home prefix stays absolute: there is no root that makes it shorter and honest.
@@ -829,7 +829,7 @@ test("a Windows project root shortens labels the same way, and the board's homeD
     "Reading ~\\.claude\\CLAUDE.md",
   )
   assert.equal(
-    toolActivityLabel(tool("Read", { detail: "/Users/me/.claude/CLAUDE.md" }), "/opt/checkouts/frizz", "/Users/me"),
+    toolActivityLabel(tool("Read", { detail: "/Users/me/.claude/CLAUDE.md" }), "/opt/checkouts/ntwine", "/Users/me"),
     "Reading ~/.claude/CLAUDE.md",
   )
   // Another drive and a degenerate root stay as they are.

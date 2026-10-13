@@ -18,7 +18,7 @@ export async function checkThemePreferences({ browser, url, check }) {
     await loadingPage.waitForSelector('[data-surface="newComposer"]')
     await loadingPage.evaluate(async () => { (await import('/src/store.ts')).store.showSettings = true })
     await loadingPage.waitForSelector('button[aria-label="Appearance"]')
-    await loadingPage.waitForFunction(() => getComputedStyle(document.querySelector('.frizz-sheet-panel').parentElement).opacity === '1')
+    await loadingPage.waitForFunction(() => getComputedStyle(document.querySelector('.ntwine-sheet-panel').parentElement).opacity === '1')
     await loadingPage.waitForFunction(() => document.body.textContent.includes('Loading server settings'))
     for (const choice of ['Light', 'Dark']) {
       await loadingPage.click('button[aria-label="Appearance"]')
@@ -52,7 +52,7 @@ export async function checkThemePreferences({ browser, url, check }) {
       await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scenario.os }])
       await page.evaluateOnNewDocument(({ preference, deny, noMedia }) => {
         if (window !== top) return
-        if (preference !== null) localStorage.setItem("frizz-theme", preference)
+        if (preference !== null) localStorage.setItem("ntwine-theme", preference)
         if (deny) Object.defineProperty(window, "localStorage", { get() { throw new DOMException("Storage denied", "SecurityError") } })
         if (noMedia) Object.defineProperty(window, "matchMedia", { value: undefined })
         window.themeFrames = []
@@ -88,7 +88,7 @@ export async function checkThemePreferences({ browser, url, check }) {
   try {
     await control.evaluateOnNewDocument(() => {
       if (window !== top) return
-      localStorage.setItem("frizz-theme", "light")
+      localStorage.setItem("ntwine-theme", "light")
       window.delayedFrames = []
       requestAnimationFrame(() => {
         document.documentElement.dataset.theme = "dark"
@@ -125,9 +125,9 @@ export async function checkThemePreferences({ browser, url, check }) {
     await resolved(page, "dark")
     await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }])
     await resolved(page, "light")
-    assert.equal(await page.evaluate(() => localStorage.getItem("frizz-theme")), "system")
+    assert.equal(await page.evaluate(() => localStorage.getItem("ntwine-theme")), "system")
     check("System reacts live without persisting the resolved theme")
-    await page.evaluate(() => localStorage.removeItem("frizz-theme"))
+    await page.evaluate(() => localStorage.removeItem("ntwine-theme"))
     await resolved(peer, "dark")
     assert.equal(await peer.evaluate(async () => (await import("/src/lib/theme.ts")).getThemeSnapshot().preference), "system")
     await set("light")
@@ -182,7 +182,7 @@ export async function checkRichRendererState({ page, url, check }) {
   assert.equal(await page.evaluate(() => document.querySelector('[data-mermaid-state="ready"]').parentElement === window.richNode), true)
   assert.notEqual(after.color, before.color, "Chart colors respond to the selected palette")
   assert.ok(await frame.evaluate(() => window.themeEvents >= 2), "Cooperative renderers receive theme-change notifications")
-  await page.waitForFunction(() => !document.querySelector('[id^="dfrizz-mermaid-"]'))
+  await page.waitForFunction(() => !document.querySelector('[id^="dntwine-mermaid-"]'))
   check("Rapid theme changes preserve iframe controls and transcript nodes", { before, after })
   const initialHeight = await iframe.evaluate(el => el.getBoundingClientRect().height)
   await frame.evaluate(() => { const el = document.createElement("div"); el.style.height = "500px"; document.body.append(el) })
@@ -199,7 +199,7 @@ export async function checkRichRendererState({ page, url, check }) {
     await router.navigate(location.pathname.replace("theme-invalid", "theme-rich"))
   })
   await page.waitForSelector('iframe[title="theme counter"]')
-  await page.waitForFunction(() => !document.querySelector('[id^="dfrizz-mermaid-"]'))
+  await page.waitForFunction(() => !document.querySelector('[id^="dntwine-mermaid-"]'))
   check("Malformed diagrams do not block later jobs or leak scratch nodes on unmount")
 }
 
@@ -209,7 +209,7 @@ export async function checkIframeFirstPaint({ browser, url, check }) {
     try {
       await page.evaluateOnNewDocument(() => {
         if (window !== top) return
-        localStorage.setItem("frizz-theme", "light")
+        localStorage.setItem("ntwine-theme", "light")
         window.iframePaints = []
         const sample = () => {
           const frame = document.querySelector('iframe[title="theme counter"]')
@@ -223,7 +223,7 @@ export async function checkIframeFirstPaint({ browser, url, check }) {
         page.on("request", async req => {
           if (req.url().includes("/local-visualization?") && req.method() === "GET") {
             const response = await fetch(req.url())
-            const body = (await response.text()).replaceAll('type: "frizz-inline-vis-applied"', 'type: "deliberately-suppressed-ack"')
+            const body = (await response.text()).replaceAll('type: "ntwine-inline-vis-applied"', 'type: "deliberately-suppressed-ack"')
             await req.respond({ status: 200, contentType: "text/html", body })
           } else await req.continue()
         })

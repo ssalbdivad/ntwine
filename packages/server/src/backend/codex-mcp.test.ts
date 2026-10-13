@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { codexMcpConfigArgs, codexThreadMcpConfig } from "./codex-mcp.ts"
-import { FRIZZ_MCP, codexContextWindowConfig } from "./types.ts"
+import { codexMcpConfigArgs, codexThreadMcpConfig, codexThreadMcpOff } from "./codex-mcp.ts"
+import { NTWINE_MCP, codexContextWindowConfig } from "./types.ts"
 
 // These pin the SHAPE of the `-c` overrides. The shape is otherwise only observable by running a real
 // codex app-server (see _live_codex_mcp_inject.mts), so a refactor could silently stop mounting the
@@ -18,44 +18,44 @@ function values(args: string[]): string[] {
   return out
 }
 
-test("codexMcpConfigArgs: with no frizz descriptor, frizz mounts NOTHING", () => {
+test("codexMcpConfigArgs: with no ntwine descriptor, ntwine mounts NOTHING", () => {
   const vals = values(codexMcpConfigArgs(undefined, "/abs/node"))
   // A `chrome-devtools` override rode every app-server until 2026-08-26 — a browser nobody had asked
-  // for, whose tool schemas cost ~6,400 prefix tokens per worker. Frizz now injects the `frizz` server
+  // for, whose tool schemas cost ~6,400 prefix tokens per worker. Ntwine now injects the `ntwine` server
   // and nothing else, on BOTH backends; a project or operator that wants a browser configures it in
   // `~/.codex/config.toml` themselves, and these overrides layer on top of that rather than replacing it.
-  assert.ok(!vals.some((v) => v.startsWith("mcp_servers.")), `frizz must mount no server: ${vals.join(" ")}`)
-  assert.ok(!vals.some((v) => v.includes("chrome-devtools")), "frizz must inject no browser")
+  assert.ok(!vals.some((v) => v.startsWith("mcp_servers.")), `ntwine must mount no server: ${vals.join(" ")}`)
+  assert.ok(!vals.some((v) => v.includes("chrome-devtools")), "ntwine must inject no browser")
   // The approval override still rides along: it governs whatever MCP servers the OPERATOR configured,
   // and a headless worker has nobody to click a prompt for those either.
   assert.deepEqual(vals, ['default_tools_approval_mode="approve"'])
 })
 
 
-test("codexMcpConfigArgs: the frizz server carries an ABSOLUTE node path and its FRIZZ_STATE_DIR", () => {
-  const vals = values(codexMcpConfigArgs({ scriptPath: "/abs/plugin/bin/frizz-mcp.mjs", stateDir: "/abs/state" }, "/abs/node"))
-  const frizz = vals.find((v) => v.startsWith(`mcp_servers.${FRIZZ_MCP.name}=`))
-  assert.ok(frizz, "frizz override missing")
-  assert.match(frizz, /command="\/abs\/node"/)
-  assert.match(frizz, /args=\["\/abs\/plugin\/bin\/frizz-mcp\.mjs"\]/)
-  assert.match(frizz, /env=\{FRIZZ_STATE_DIR="\/abs\/state"\}/)
+test("codexMcpConfigArgs: the ntwine server carries an ABSOLUTE node path and its NTWINE_STATE_DIR", () => {
+  const vals = values(codexMcpConfigArgs({ scriptPath: "/abs/plugin/bin/ntwine-mcp.mjs", stateDir: "/abs/state" }, "/abs/node"))
+  const ntwine = vals.find((v) => v.startsWith(`mcp_servers.${NTWINE_MCP.name}=`))
+  assert.ok(ntwine, "ntwine override missing")
+  assert.match(ntwine, /command="\/abs\/node"/)
+  assert.match(ntwine, /args=\["\/abs\/plugin\/bin\/ntwine-mcp\.mjs"\]/)
+  assert.match(ntwine, /env=\{NTWINE_STATE_DIR="\/abs\/state"\}/)
 })
 
 // Both backends mount the same script through the same env builder. Pinned on the CODEX side too
 // because this is the half that gets forgotten: the claude path is the one anyone tests by hand, and a
 // codex worker whose tools quietly address the launching project's board looks identical until its
 // spawned thread turns up on the wrong card.
-test("codexMcpConfigArgs: the frizz server is told where the lock is and which project it serves", () => {
+test("codexMcpConfigArgs: the ntwine server is told where the lock is and which project it serves", () => {
   const vals = values(codexMcpConfigArgs({
-    scriptPath: "/abs/plugin/bin/frizz-mcp.mjs",
+    scriptPath: "/abs/plugin/bin/ntwine-mcp.mjs",
     stateDir: "/abs/state",
     serverLock: "/abs/launcher/server.lock",
     projectId: "b47f4055-4262-432a-af18-ded4cbfb3071",
   }, "/abs/node"))
-  const frizz = vals.find((v) => v.startsWith(`mcp_servers.${FRIZZ_MCP.name}=`))
-  assert.ok(frizz, "frizz override missing")
-  assert.match(frizz, /FRIZZ_SERVER_LOCK="\/abs\/launcher\/server\.lock"/)
-  assert.match(frizz, /FRIZZ_PROJECT_ID="b47f4055-4262-432a-af18-ded4cbfb3071"/)
+  const ntwine = vals.find((v) => v.startsWith(`mcp_servers.${NTWINE_MCP.name}=`))
+  assert.ok(ntwine, "ntwine override missing")
+  assert.match(ntwine, /NTWINE_SERVER_LOCK="\/abs\/launcher\/server\.lock"/)
+  assert.match(ntwine, /NTWINE_PROJECT_ID="b47f4055-4262-432a-af18-ded4cbfb3071"/)
 })
 
 test("codexMcpConfigArgs: approvals are pre-answered — a headless worker cannot click a prompt", () => {
@@ -65,11 +65,11 @@ test("codexMcpConfigArgs: approvals are pre-answered — a headless worker canno
 })
 
 test("codexMcpConfigArgs: values are TOML-quoted so a path with a space or quote cannot break parsing", () => {
-  const vals = values(codexMcpConfigArgs({ scriptPath: '/has space/and"quote/frizz-mcp.mjs', stateDir: "/s" }, "/node"))
-  const frizz = vals.find((v) => v.startsWith(`mcp_servers.${FRIZZ_MCP.name}=`))!
+  const vals = values(codexMcpConfigArgs({ scriptPath: '/has space/and"quote/ntwine-mcp.mjs', stateDir: "/s" }, "/node"))
+  const ntwine = vals.find((v) => v.startsWith(`mcp_servers.${NTWINE_MCP.name}=`))!
   // An unquoted/naively-quoted path would terminate the TOML string early and the whole override would
-  // fail to parse — codex then starts with NO frizz server and nothing says so.
-  assert.ok(frizz.includes('"/has space/and\\"quote/frizz-mcp.mjs"'), `not escaped: ${frizz}`)
+  // fail to parse — codex then starts with NO ntwine server and nothing says so.
+  assert.ok(ntwine.includes('"/has space/and\\"quote/ntwine-mcp.mjs"'), `not escaped: ${ntwine}`)
 })
 
 test("codexMcpConfigArgs: every emitted value is a well-formed `key=value` override", () => {
@@ -80,22 +80,22 @@ test("codexMcpConfigArgs: every emitted value is a well-formed `key=value` overr
 
 // ---- the PER-THREAD mount: the only channel that can name the caller ----
 
-test("codexThreadMcpConfig: mounts the frizz server with THIS thread's slug in its env", () => {
+test("codexThreadMcpConfig: mounts the ntwine server with THIS thread's slug in its env", () => {
   const config = codexThreadMcpConfig(
-    { scriptPath: "/plugin/bin/frizz-mcp.mjs", stateDir: "/state", serverLock: "/lock/server.lock", projectId: "proj-1" },
+    { scriptPath: "/plugin/bin/ntwine-mcp.mjs", stateDir: "/state", serverLock: "/lock/server.lock", projectId: "proj-1" },
     "compiled-hono",
     "/abs/node",
   )
-  const entry = (config.mcp_servers as Record<string, any>)[FRIZZ_MCP.name]
-  assert.ok(entry, "the frizz server is mounted for the thread")
+  const entry = (config.mcp_servers as Record<string, any>)[NTWINE_MCP.name]
+  assert.ok(entry, "the ntwine server is mounted for the thread")
   assert.equal(entry.command, "/abs/node") // absolute, never bare "node" — the app-server's PATH varies
-  assert.deepEqual(entry.args, ["/plugin/bin/frizz-mcp.mjs"])
+  assert.deepEqual(entry.args, ["/plugin/bin/ntwine-mcp.mjs"])
   // THE POINT OF THE WHOLE MOUNT. Without this, `title`/`ask`/`done`/`watch`/`timer`/`goal`/`activity`
-  // all fail with "this frizz MCP server was not told which thread it belongs to".
-  assert.equal(entry.env.FRIZZ_THREAD_SLUG, "compiled-hono")
+  // all fail with "this ntwine MCP server was not told which thread it belongs to".
+  assert.equal(entry.env.NTWINE_THREAD_SLUG, "compiled-hono")
   // …and the project half still rides along, so a tenant's worker reaches the right lock and board.
-  assert.equal(entry.env.FRIZZ_SERVER_LOCK, "/lock/server.lock")
-  assert.equal(entry.env.FRIZZ_PROJECT_ID, "proj-1")
+  assert.equal(entry.env.NTWINE_SERVER_LOCK, "/lock/server.lock")
+  assert.equal(entry.env.NTWINE_PROJECT_ID, "proj-1")
   // Per-SERVER, not inherited from the top-level argv key: an entry without it was refused on 0.153.2
   // with "MCP tool call requires approval, but approval policy is never".
   assert.equal(entry.default_tools_approval_mode, "approve")
@@ -112,9 +112,9 @@ test("codexThreadMcpConfig: no descriptor ⇒ an EMPTY bag, so no `config` key i
 // approval, but approval policy is never" — so the top-level `default_tools_approval_mode` beside it
 // was never enough on its own.
 test("codexMcpConfigArgs: the argv entry carries its OWN default_tools_approval_mode, not just the top-level key", () => {
-  const vals = values(codexMcpConfigArgs({ scriptPath: "/abs/plugin/bin/frizz-mcp.mjs", stateDir: "/abs/state" }, "/abs/node"))
-  const frizz = vals.find((v) => v.startsWith(`mcp_servers.${FRIZZ_MCP.name}=`))!
-  assert.match(frizz, /default_tools_approval_mode="approve"/)
+  const vals = values(codexMcpConfigArgs({ scriptPath: "/abs/plugin/bin/ntwine-mcp.mjs", stateDir: "/abs/state" }, "/abs/node"))
+  const ntwine = vals.find((v) => v.startsWith(`mcp_servers.${NTWINE_MCP.name}=`))!
+  assert.match(ntwine, /default_tools_approval_mode="approve"/)
 })
 
 // Codex runs a thread's stdio MCP children in the THREAD's cwd unless the entry pins its own, and a
@@ -123,11 +123,11 @@ test("codexMcpConfigArgs: the argv entry carries its OWN default_tools_approval_
 // state dir exists for as long as the project is registered, and the script reads nothing relative
 // to its cwd.
 test("both mounts pin the MCP child's cwd to the project state dir, never the thread's", () => {
-  const descriptor = { scriptPath: "/plugin/bin/frizz-mcp.mjs", stateDir: "/state/proj-1", projectId: "proj-1" }
-  const argv = values(codexMcpConfigArgs(descriptor, "/abs/node")).find((v) => v.startsWith(`mcp_servers.${FRIZZ_MCP.name}=`))!
+  const descriptor = { scriptPath: "/plugin/bin/ntwine-mcp.mjs", stateDir: "/state/proj-1", projectId: "proj-1" }
+  const argv = values(codexMcpConfigArgs(descriptor, "/abs/node")).find((v) => v.startsWith(`mcp_servers.${NTWINE_MCP.name}=`))!
   assert.match(argv, /cwd="\/state\/proj-1"/)
   const bag = codexThreadMcpConfig(descriptor, "compiled-hono", "/abs/node") as { mcp_servers: Record<string, { cwd: string }> }
-  assert.equal(bag.mcp_servers[FRIZZ_MCP.name]!.cwd, "/state/proj-1")
+  assert.equal(bag.mcp_servers[NTWINE_MCP.name]!.cwd, "/state/proj-1")
 })
 
 test("codexContextWindowConfig: a positive integer window becomes `model_context_window`, anything else sends nothing", () => {
@@ -142,4 +142,15 @@ test("codexContextWindowConfig: a positive integer window becomes `model_context
   for (const junk of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.deepEqual(codexContextWindowConfig({ codexContextWindow: junk }), {}, `${String(junk)} must send no override`)
   }
+})
+
+// An app-server started before the rename still mounts the server as `frizz`; the per-thread switch must
+// turn that one off as well, each with the `command` that makes a lone `enabled = false` a valid entry.
+test("codexThreadMcpOff switches off the pre-rename frizz mount alongside ntwine", () => {
+  assert.deepEqual(codexThreadMcpOff("/n"), {
+    "mcp_servers.ntwine.enabled": false,
+    "mcp_servers.ntwine.command": "/n",
+    "mcp_servers.frizz.enabled": false,
+    "mcp_servers.frizz.command": "/n",
+  })
 })

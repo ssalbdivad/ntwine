@@ -6,7 +6,7 @@ import { createCodexSubAgentTracker, type CodexSubAgentSink } from "./codex-suba
 
 // ---- REAL captured multi-agent rollout (codex, 2026-07-23) ----
 // Derived from the rollout that exposed the bug: a codex worker running eleven `spawn_agent` children
-// while frizz's board showed none. Trimmed to three children and their list_agents rosters; the fernet
+// while ntwine's board showed none. Trimmed to three children and their list_agents rosters; the fernet
 // dispatch blobs are elided and the completed reports clipped to one short line. Everything else —
 // record order, envelope shape, field names, call_id↔event_id correlation — is byte-faithful.
 const FIXTURE = readFileSync(join(import.meta.dirname, "backend/codex.fixtures/multi-agent.jsonl"), "utf8")

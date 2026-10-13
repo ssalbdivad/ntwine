@@ -3,9 +3,9 @@ import assert from "node:assert/strict"
 import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { WebSocket, WebSocketServer } from "ws"
-import { EDITOR_CLOSE, EDITOR_MAX_FOLDERS, EDITOR_MAX_PATH, EDITOR_SOCKET_PATH, EDITOR_STATE_MAX_SELECTION_TEXT, type EditorClientMessage, type EditorOpen, type EditorProject, type EditorServerMessage, type EditorSnapshot } from "@frizz/shared/editor-protocol"
-// The server's OWN frame rules (the extension never bundles these): a frame Frizz would refuse fails here.
-import { EditorClientMessageSchema } from "@frizz/shared"
+import { EDITOR_CLOSE, EDITOR_MAX_FOLDERS, EDITOR_MAX_PATH, EDITOR_SOCKET_PATH, EDITOR_STATE_MAX_SELECTION_TEXT, type EditorClientMessage, type EditorOpen, type EditorProject, type EditorServerMessage, type EditorSnapshot } from "@ntwine/shared/editor-protocol"
+// The server's OWN frame rules (the extension never bundles these): a frame Ntwine would refuse fails here.
+import { EditorClientMessageSchema } from "@ntwine/shared"
 import { EDITOR_MAX_FRAME_BYTES, EDITOR_MAX_PAYLOAD_BYTES } from "../../server/src/editor-bridge.ts"
 import { notConnectedMessage } from "./status.ts"
 import { backoffDelay, EditorConnection, fitFolders, FocusRecency, FOLDERS_MAX_BYTES, forServer, type ConnectionHost, type ConnectionOptions, type ConnectionStatus, type OpenResult } from "./connection.ts"
@@ -14,7 +14,7 @@ import { backoffDelay, EditorConnection, fitFolders, FocusRecency, FOLDERS_MAX_B
 // gate the real one has (an upgrade without `Origin: http://127.0.0.1:<port>` is refused), its frame
 // ceilings, and its schema: a frame the server would close 4401 is closed 4401 here too, and recorded,
 // and `close()` fails the test that sent it.
-class FakeFrizz {
+class FakeNtwine {
   readonly frames: EditorClientMessage[] = []
   /** Frames the real server would have refused, with why. */
   readonly refused: string[] = []
@@ -22,7 +22,7 @@ class FakeFrizz {
   readonly sockets: WebSocket[] = []
   /** Answer each hello with welcome + projects, as the server does. */
   welcome = true
-  /** What the welcome says this Frizz takes beyond v1, as the real one does; undefined is a Frizz from before the field. */
+  /** What the welcome says this Ntwine takes beyond v1, as the real one does; undefined is an Ntwine from before the field. */
   features: string[] | undefined = ["editor-state"]
   projects: EditorProject[] = [{ id: "p1", slug: "repo", name: "repo", dir: "/home/me/repo", ready: 2, working: 1 }]
   readonly #server: Server
@@ -114,7 +114,7 @@ interface TestHost extends ConnectionHost {
   answer: (message: EditorOpen) => Promise<OpenResult>
 }
 
-function makeHost(frizz: FakeFrizz): TestHost {
+function makeHost(ntwine: FakeNtwine): TestHost {
   const host: TestHost = {
     statuses: [],
     logs: [],
@@ -126,7 +126,7 @@ function makeHost(frizz: FakeFrizz): TestHost {
     answer: async () => ({ ok: true }),
     async discover() {
       host.discovered++
-      return host.reachable ? { origin: frizz.origin, detail: "test" } : undefined
+      return host.reachable ? { origin: ntwine.origin, detail: "test" } : undefined
     },
     hello: () => ({ windowId: "w-1", app: "Visual Studio Code", extensionVersion: "0.1.0", ...host.current, home: "/home/me", platform: "linux" }),
     state: () => ({ ...host.current }),
@@ -158,13 +158,13 @@ async function until(what: string, condition: () => boolean, timeoutMs = 3_000):
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function connected(options: ConnectionOptions = FAST): Promise<{ frizz: FakeFrizz; host: TestHost; connection: EditorConnection; done: () => Promise<void> }> {
-  const frizz = await new FakeFrizz().listen()
-  const host = makeHost(frizz)
+async function connected(options: ConnectionOptions = FAST): Promise<{ ntwine: FakeNtwine; host: TestHost; connection: EditorConnection; done: () => Promise<void> }> {
+  const ntwine = await new FakeNtwine().listen()
+  const host = makeHost(ntwine)
   const connection = new EditorConnection(host, options)
   const done = async () => {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
   connection.start()
   try {
@@ -174,21 +174,21 @@ async function connected(options: ConnectionOptions = FAST): Promise<{ frizz: Fa
     await done()
     throw error
   }
-  return { frizz, host, connection, done }
+  return { ntwine, host, connection, done }
 }
 
 test("the hello introduces the window, over an upgrade carrying the Origin the server's gate demands", async () => {
-  const { frizz, host, connection, done } = await connected()
+  const { ntwine, host, connection, done } = await connected()
   try {
-    assert.deepEqual(frizz.origins, [frizz.origin])
-    assert.deepEqual(frizz.of("hello"), [{
+    assert.deepEqual(ntwine.origins, [ntwine.origin])
+    assert.deepEqual(ntwine.of("hello"), [{
       t: "hello", v: 1, windowId: "w-1", app: "Visual Studio Code", extensionVersion: "0.1.0",
       folders: ["/home/me/repo"], focused: false, acceptsOpens: true, home: "/home/me", platform: "linux",
     }])
-    assert.deepEqual(connection.status, { kind: "connected", origin: frizz.origin, bootId: "boot-1" })
-    assert.equal(connection.origin, frizz.origin)
+    assert.deepEqual(connection.status, { kind: "connected", origin: ntwine.origin, bootId: "boot-1" })
+    assert.equal(connection.origin, ntwine.origin)
     await until("the projects push", () => host.received.length === 1)
-    assert.deepEqual(host.received[0], frizz.projects)
+    assert.deepEqual(host.received[0], ntwine.projects)
     assert.deepEqual(host.statuses.map((s) => s.kind), ["connecting", "connected"])
   } finally {
     await done()
@@ -196,42 +196,42 @@ test("the hello introduces the window, over an upgrade carrying the Origin the s
 })
 
 test("state is sent whole when it changes, and not at all when it has not", async () => {
-  const { frizz, host, connection, done } = await connected()
+  const { ntwine, host, connection, done } = await connected()
   try {
     connection.sendState()
     await sleep(60)
-    assert.equal(frizz.of("state").length, 0, "nothing changed since the hello")
+    assert.equal(ntwine.of("state").length, 0, "nothing changed since the hello")
     host.current = { ...host.current, focused: true }
     connection.sendState()
-    await until("a state frame", () => frizz.of("state").length === 1)
-    assert.deepEqual(frizz.of("state")[0], { t: "state", folders: ["/home/me/repo"], focused: true, acceptsOpens: true })
+    await until("a state frame", () => ntwine.of("state").length === 1)
+    assert.deepEqual(ntwine.of("state")[0], { t: "state", folders: ["/home/me/repo"], focused: true, acceptsOpens: true })
     connection.sendState()
     host.current = { ...host.current, folders: ["/home/me/repo", "/home/me/other"], acceptsOpens: false }
     connection.sendState()
-    await until("the second state frame", () => frizz.of("state").length === 2)
-    assert.deepEqual(frizz.of("state")[1], { t: "state", folders: ["/home/me/repo", "/home/me/other"], focused: true, acceptsOpens: false })
+    await until("the second state frame", () => ntwine.of("state").length === 2)
+    assert.deepEqual(ntwine.of("state")[1], { t: "state", folders: ["/home/me/repo", "/home/me/other"], focused: true, acceptsOpens: false })
   } finally {
     await done()
   }
 })
 
-test("a change between the hello and the welcome is sent as soon as Frizz welcomes the window", async () => {
-  const frizz = await new FakeFrizz().listen()
-  frizz.welcome = false
-  const host = makeHost(frizz)
+test("a change between the hello and the welcome is sent as soon as Ntwine welcomes the window", async () => {
+  const ntwine = await new FakeNtwine().listen()
+  ntwine.welcome = false
+  const host = makeHost(ntwine)
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
-    await until("the hello", () => frizz.of("hello").length === 1)
+    await until("the hello", () => ntwine.of("hello").length === 1)
     host.current = { ...host.current, focused: true }
     connection.sendState()
-    assert.equal(frizz.of("state").length, 0, "not before the welcome")
-    frizz.send(frizz.live, { t: "welcome", v: 1, bootId: "b" })
-    await until("the catch-up state", () => frizz.of("state").length === 1)
-    assert.equal(frizz.of("state")[0]?.focused, true)
+    assert.equal(ntwine.of("state").length, 0, "not before the welcome")
+    ntwine.send(ntwine.live, { t: "welcome", v: 1, bootId: "b" })
+    await until("the catch-up state", () => ntwine.of("state").length === 1)
+    assert.equal(ntwine.of("state")[0]?.focused, true)
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 })
 
@@ -247,10 +247,10 @@ function picture(selected: string, over: Partial<EditorSnapshot> = {}): EditorSn
   }
 }
 
-test("the editor's picture goes only to a Frizz whose welcome names it: on connect, then only when it changes", async () => {
-  // A Frizz from before the frame closes the socket on it (4401) — on every redial, forever — so it
+test("the editor's picture goes only to an Ntwine whose welcome names it: on connect, then only when it changes", async () => {
+  // An Ntwine from before the frame closes the socket on it (4401) — on every redial, forever — so it
   // must never hear one. Its welcome has no `features`.
-  const old = await new FakeFrizz().listen()
+  const old = await new FakeNtwine().listen()
   old.features = undefined
   const oldHost = makeHost(old)
   oldHost.editor = () => picture("x")
@@ -260,7 +260,7 @@ test("the editor's picture goes only to a Frizz whose welcome names it: on conne
     await until("the welcome", () => oldConnection.status.kind === "connected")
     oldConnection.sendEditor()
     await sleep(60)
-    assert.equal(old.of("editor").length, 0, "nothing an old Frizz would refuse")
+    assert.equal(old.of("editor").length, 0, "nothing an old Ntwine would refuse")
     assert.equal(oldConnection.sharesEditor, false)
     assert.match(oldHost.logs.join("\n"), /too old for its agents to read the editor/)
   } finally {
@@ -268,36 +268,36 @@ test("the editor's picture goes only to a Frizz whose welcome names it: on conne
     await old.close()
   }
 
-  const frizz = await new FakeFrizz().listen()
-  const host = makeHost(frizz)
+  const ntwine = await new FakeNtwine().listen()
+  const host = makeHost(ntwine)
   let selected = "let x = 1"
   host.editor = () => picture(selected)
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
-    await until("the picture, sent on the welcome", () => frizz.of("editor").length === 1)
-    assert.deepEqual(frizz.of("editor")[0], picture("let x = 1"))
+    await until("the picture, sent on the welcome", () => ntwine.of("editor").length === 1)
+    assert.deepEqual(ntwine.of("editor")[0], picture("let x = 1"))
     assert.equal(connection.sharesEditor, true)
     connection.sendEditor()
     await sleep(60)
-    assert.equal(frizz.of("editor").length, 1, "an unchanged picture is not sent again")
+    assert.equal(ntwine.of("editor").length, 1, "an unchanged picture is not sent again")
     selected = "let x = 2"
     connection.sendEditor()
-    await until("the changed picture", () => frizz.of("editor").length === 2)
-    assert.equal(frizz.of("editor")[1]?.active?.selection?.text, "let x = 2")
-    // A Frizz that restarted knows nothing: the same picture again on the new welcome.
-    frizz.live.close(1001, "restarting")
-    await until("the picture on the redial", () => frizz.of("editor").length === 3)
-    assert.deepEqual(frizz.of("editor")[2], frizz.of("editor")[1])
+    await until("the changed picture", () => ntwine.of("editor").length === 2)
+    assert.equal(ntwine.of("editor")[1]?.active?.selection?.text, "let x = 2")
+    // An Ntwine that restarted knows nothing: the same picture again on the new welcome.
+    ntwine.live.close(1001, "restarting")
+    await until("the picture on the redial", () => ntwine.of("editor").length === 3)
+    assert.deepEqual(ntwine.of("editor")[2], ntwine.of("editor")[1])
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 })
 
-test("a window says it can show a thread's changes only to a Frizz that asks, and answers a review with its result", async () => {
-  // A Frizz from before the feature: its welcome does not name it, so the frame it would refuse never goes.
-  const old = await new FakeFrizz().listen()
+test("a window says it can show a thread's changes only to an Ntwine that asks, and answers a review with its result", async () => {
+  // An Ntwine from before the feature: its welcome does not name it, so the frame it would refuse never goes.
+  const old = await new FakeNtwine().listen()
   const oldHost = makeHost(old)
   oldHost.review = async () => ({ ok: true })
   const oldConnection = new EditorConnection(oldHost, FAST)
@@ -311,9 +311,9 @@ test("a window says it can show a thread's changes only to a Frizz that asks, an
     await old.close()
   }
 
-  const frizz = await new FakeFrizz().listen()
-  frizz.features = ["editor-state", "review"]
-  const host = makeHost(frizz)
+  const ntwine = await new FakeNtwine().listen()
+  ntwine.features = ["editor-state", "review"]
+  const host = makeHost(ntwine)
   const asked: unknown[] = []
   host.review = async (message) => {
     asked.push(message)
@@ -322,26 +322,26 @@ test("a window says it can show a thread's changes only to a Frizz that asks, an
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
-    await until("the features frame", () => frizz.of("features").length === 1)
-    assert.deepEqual(frizz.of("features")[0], { t: "features", features: ["review"] })
-    const target = { title: "Tidy", checkouts: [{ dir: "/home/me/repo/.frizz/worktrees/tidy", scope: "branch" as const, files: [] }] }
-    frizz.send(frizz.live, { t: "review", id: "r1", ...target })
-    await until("the result", () => frizz.of("result").length === 1)
+    await until("the features frame", () => ntwine.of("features").length === 1)
+    assert.deepEqual(ntwine.of("features")[0], { t: "features", features: ["review"] })
+    const target = { title: "Tidy", checkouts: [{ dir: "/home/me/repo/.ntwine/worktrees/tidy", scope: "branch" as const, files: [] }] }
+    ntwine.send(ntwine.live, { t: "review", id: "r1", ...target })
+    await until("the result", () => ntwine.of("result").length === 1)
     assert.deepEqual(asked, [{ t: "review", id: "r1", ...target }])
-    assert.deepEqual(frizz.of("result")[0], { t: "result", id: "r1", ok: true })
-    frizz.send(frizz.live, { t: "review", id: "r2", ...target, title: "refuse" })
-    await until("the refusal", () => frizz.of("result").length === 2)
-    assert.deepEqual(frizz.of("result")[1], { t: "result", id: "r2", ok: false, error: "Nothing has changed in tidy yet." })
-    // A restarted Frizz is told again.
-    frizz.live.close(1001, "restarting")
-    await until("the features frame on the redial", () => frizz.of("features").length === 2)
+    assert.deepEqual(ntwine.of("result")[0], { t: "result", id: "r1", ok: true })
+    ntwine.send(ntwine.live, { t: "review", id: "r2", ...target, title: "refuse" })
+    await until("the refusal", () => ntwine.of("result").length === 2)
+    assert.deepEqual(ntwine.of("result")[1], { t: "result", id: "r2", ok: false, error: "Nothing has changed in tidy yet." })
+    // A restarted Ntwine is told again.
+    ntwine.live.close(1001, "restarting")
+    await until("the features frame on the redial", () => ntwine.of("features").length === 2)
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 
   // A host that cannot review never says it can, and answers a review it was sent anyway with why not.
-  const plain = await new FakeFrizz().listen()
+  const plain = await new FakeNtwine().listen()
   plain.features = ["editor-state", "review"]
   const plainConnection = new EditorConnection(makeHost(plain), FAST)
   try {
@@ -357,26 +357,26 @@ test("a window says it can show a thread's changes only to a Frizz that asks, an
   }
 })
 
-test("a picture past Frizz's ceiling is fitted before it is sent, never refused", async () => {
-  const { frizz, host, connection, done } = await connected()
+test("a picture past Ntwine's ceiling is fitted before it is sent, never refused", async () => {
+  const { ntwine, host, connection, done } = await connected()
   try {
     // 32 Ki NULs (six bytes each, encoded) and a hundred long diagnostics: ~220 KB as built. The fake
     // judges every frame with the server's schema and ceiling, and `done()` fails on any it would refuse.
     const diagnostics = Array.from({ length: 100 }, (_, i) => ({ path: `/home/me/repo/src/f${i}.ts`, line: i + 1, severity: "error" as const, message: "m".repeat(299) }))
     host.editor = () => picture("\u0000".repeat(EDITOR_STATE_MAX_SELECTION_TEXT), { diagnostics, problems: { errors: 100, warnings: 0 } })
     connection.sendEditor()
-    await until("the fitted picture", () => frizz.of("editor").length === 1)
-    const sent = frizz.of("editor")[0]!
+    await until("the fitted picture", () => ntwine.of("editor").length === 1)
+    const sent = ntwine.of("editor")[0]!
     assert.equal(sent.active?.selection?.truncated, true)
     assert.ok((sent.active?.selection?.text?.length ?? 0) > 0)
     assert.deepEqual(sent.problems, { errors: 100, warnings: 0 }, "the counts survive the trimming")
-    assert.equal(frizz.live.readyState, WebSocket.OPEN)
+    assert.equal(ntwine.live.readyState, WebSocket.OPEN)
   } finally {
     await done()
   }
 })
 
-test("a withheld selection is spelled the way each Frizz's schema takes it: `withheld` to one that names it, `truncated` to one from before", () => {
+test("a withheld selection is spelled the way each Ntwine's schema takes it: `withheld` to one that names it, `truncated` to one from before", () => {
   const frame: EditorSnapshot = {
     t: "editor",
     shared: true,
@@ -386,7 +386,7 @@ test("a withheld selection is spelled the way each Frizz's schema takes it: `wit
     problems: { errors: 0, warnings: 0 },
   }
   const now = forServer(frame, new Set(["editor-state", "editor-selection-withheld"]))
-  assert.equal(now, frame, "a Frizz that takes the field gets the frame as built")
+  assert.equal(now, frame, "an Ntwine that takes the field gets the frame as built")
   const before = forServer(frame, new Set(["editor-state"]))
   assert.deepEqual(before.active?.selection, { startLine: 1, endLine: 2, truncated: true })
   // Both spellings are frames today's server takes; the converted one carries nothing an older schema
@@ -397,172 +397,172 @@ test("a withheld selection is spelled the way each Frizz's schema takes it: `wit
 })
 
 test("every open and focus is answered with a result: ok, the window's own refusal, or what it threw", async () => {
-  const { frizz, host, done } = await connected()
+  const { ntwine, host, done } = await connected()
   try {
-    frizz.send(frizz.live, { t: "open", id: "o1", path: "/home/me/repo/a.ts", line: 12, column: 3 })
-    await until("result o1", () => frizz.of("result").length === 1)
+    ntwine.send(ntwine.live, { t: "open", id: "o1", path: "/home/me/repo/a.ts", line: 12, column: 3 })
+    await until("result o1", () => ntwine.of("result").length === 1)
     assert.deepEqual(host.opened[0], { t: "open", id: "o1", path: "/home/me/repo/a.ts", line: 12, column: 3 })
-    assert.deepEqual(frizz.of("result")[0], { t: "result", id: "o1", ok: true })
+    assert.deepEqual(ntwine.of("result")[0], { t: "result", id: "o1", ok: true })
 
     host.answer = async () => ({ ok: false, error: "/gone.ts doesn't exist." })
-    frizz.send(frizz.live, { t: "open", id: "o2", path: "/gone.ts" })
-    await until("result o2", () => frizz.of("result").length === 2)
-    assert.deepEqual(frizz.of("result")[1], { t: "result", id: "o2", ok: false, error: "/gone.ts doesn't exist." })
+    ntwine.send(ntwine.live, { t: "open", id: "o2", path: "/gone.ts" })
+    await until("result o2", () => ntwine.of("result").length === 2)
+    assert.deepEqual(ntwine.of("result")[1], { t: "result", id: "o2", ok: false, error: "/gone.ts doesn't exist." })
 
     host.answer = async () => { throw new Error("editor exploded") }
-    frizz.send(frizz.live, { t: "open", id: "o3", path: "/x.ts" })
-    await until("result o3", () => frizz.of("result").length === 3)
-    assert.deepEqual(frizz.of("result")[2], { t: "result", id: "o3", ok: false, error: "editor exploded" })
+    ntwine.send(ntwine.live, { t: "open", id: "o3", path: "/x.ts" })
+    await until("result o3", () => ntwine.of("result").length === 3)
+    assert.deepEqual(ntwine.of("result")[2], { t: "result", id: "o3", ok: false, error: "editor exploded" })
 
-    frizz.send(frizz.live, { t: "focus", id: "f1", path: "/home/me/repo" })
-    await until("result f1", () => frizz.of("result").length === 4)
-    assert.deepEqual(frizz.of("result")[3], { t: "result", id: "f1", ok: true })
+    ntwine.send(ntwine.live, { t: "focus", id: "f1", path: "/home/me/repo" })
+    await until("result f1", () => ntwine.of("result").length === 4)
+    assert.deepEqual(ntwine.of("result")[3], { t: "result", id: "f1", ok: true })
   } finally {
     await done()
   }
 })
 
-test("compose resolves with Frizz's own answer; offline or unanswered, it fails with words to show", async () => {
-  const frizz = await new FakeFrizz().listen()
-  const host = makeHost(frizz)
+test("compose resolves with Ntwine's own answer; offline or unanswered, it fails with words to show", async () => {
+  const ntwine = await new FakeNtwine().listen()
+  const host = makeHost(ntwine)
   const connection = new EditorConnection(host, { ...FAST, composeTimeoutMs: 150 })
   try {
     const offline = await connection.compose({ path: "/home/me/repo/a.ts" })
     assert.equal(offline.ok, false)
-    assert.equal(offline.error, "Frizz isn't running.")
+    assert.equal(offline.error, "Ntwine isn't running.")
 
     connection.start()
     await until("the welcome", () => connection.status.kind === "connected")
-    frizz.live.on("message", (data) => {
+    ntwine.live.on("message", (data) => {
       const frame = JSON.parse(data.toString()) as EditorClientMessage
-      if (frame.t === "compose" && frame.item.path.endsWith("a.ts")) frizz.send(frizz.live, { t: "composed", id: frame.id, ok: true })
+      if (frame.t === "compose" && frame.item.path.endsWith("a.ts")) ntwine.send(ntwine.live, { t: "composed", id: frame.id, ok: true })
     })
     const item = { projectId: "p1", path: "/home/me/repo/a.ts", text: "x", startLine: 3, endLine: 3 }
     const answered = await connection.compose(item)
     assert.equal(answered.ok, true)
-    assert.deepEqual(frizz.of("compose")[0]?.item, item)
-    assert.equal(answered.id, frizz.of("compose")[0]?.id)
+    assert.deepEqual(ntwine.of("compose")[0]?.item, item)
+    assert.equal(answered.id, ntwine.of("compose")[0]?.id)
 
     const unanswered = await connection.compose({ path: "/home/me/repo/b.ts" })
-    assert.deepEqual([unanswered.ok, unanswered.error], [false, "Frizz didn't answer."])
+    assert.deepEqual([unanswered.ok, unanswered.error], [false, "Ntwine didn't answer."])
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 })
 
 test("a dropped socket is dialled again from a fresh discovery, and says hello again", async () => {
-  const { frizz, host, done } = await connected()
+  const { ntwine, host, done } = await connected()
   try {
     const discoveredBefore = host.discovered
-    frizz.live.close(1001, "restarting")
-    await until("the second hello", () => frizz.of("hello").length === 2)
+    ntwine.live.close(1001, "restarting")
+    await until("the second hello", () => ntwine.of("hello").length === 2)
     assert.ok(host.discovered > discoveredBefore, "discovery ran again before the redial")
     await until("connected again", () => host.statuses.at(-1)?.kind === "connected")
     const kinds = host.statuses.map((s) => s.kind)
     assert.deepEqual(kinds.slice(-2), ["offline", "connected"])
-    assert.match(host.logs.join("\n"), /Frizz is restarting\. \[1001\]/)
+    assert.match(host.logs.join("\n"), /Ntwine is restarting\. \[1001\]/)
   } finally {
     await done()
   }
 })
 
-test("no Frizz is offline, retried on the backoff, and logged once rather than once per retry", async () => {
-  const frizz = await new FakeFrizz().listen()
-  const host = makeHost(frizz)
+test("no Ntwine is offline, retried on the backoff, and logged once rather than once per retry", async () => {
+  const ntwine = await new FakeNtwine().listen()
+  const host = makeHost(ntwine)
   host.reachable = false
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
     await until("several attempts", () => host.discovered >= 4)
-    assert.deepEqual(connection.status, { kind: "offline", reason: "Frizz isn't running." })
+    assert.deepEqual(connection.status, { kind: "offline", reason: "Ntwine isn't running." })
     assert.equal(host.logs.filter((line) => /isn't running/.test(line)).length, 1)
     host.reachable = true
-    await until("the connection once Frizz is up", () => connection.status.kind === "connected", 2_000)
+    await until("the connection once Ntwine is up", () => connection.status.kind === "connected", 2_000)
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 })
 
 test("silence is a dead link: 45s (here 150ms) without a frame tears the socket down and redials", async () => {
-  const { frizz, done } = await connected({ ...FAST, silenceMs: 150 })
+  const { ntwine, done } = await connected({ ...FAST, silenceMs: 150 })
   try {
-    await until("a redial after the silence", () => frizz.of("hello").length >= 2, 2_000)
+    await until("a redial after the silence", () => ntwine.of("hello").length >= 2, 2_000)
   } finally {
     await done()
   }
 })
 
 test("negative control: a heartbeat inside the silence window keeps the one socket", async () => {
-  const { frizz, done } = await connected({ ...FAST, silenceMs: 150 })
-  const beat = setInterval(() => frizz.sockets.forEach((ws) => ws.readyState === WebSocket.OPEN && frizz.send(ws, { t: "hb" })), 40)
+  const { ntwine, done } = await connected({ ...FAST, silenceMs: 150 })
+  const beat = setInterval(() => ntwine.sockets.forEach((ws) => ws.readyState === WebSocket.OPEN && ntwine.send(ws, { t: "hb" })), 40)
   try {
     await sleep(500)
-    assert.equal(frizz.of("hello").length, 1)
+    assert.equal(ntwine.of("hello").length, 1)
   } finally {
     clearInterval(beat)
     await done()
   }
 })
 
-test("close 4400 says to update Frizz or the extension, and retries only at the slowest pace", async () => {
-  const { frizz, host, connection, done } = await connected({ minBackoffMs: 10, maxBackoffMs: 400, random: () => 0.5 })
+test("close 4400 says to update Ntwine or the extension, and retries only at the slowest pace", async () => {
+  const { ntwine, host, connection, done } = await connected({ minBackoffMs: 10, maxBackoffMs: 400, random: () => 0.5 })
   try {
-    frizz.live.close(EDITOR_CLOSE.unsupportedVersion, "protocol 1 unsupported")
+    ntwine.live.close(EDITOR_CLOSE.unsupportedVersion, "protocol 1 unsupported")
     await until("the incompatible status", () => connection.status.kind === "incompatible")
-    assert.match((connection.status as { reason: string }).reason, /Update Frizz or the extension/)
-    assert.match(notConnectedMessage(connection.status), /Update Frizz or the extension/)
+    assert.match((connection.status as { reason: string }).reason, /Update Ntwine or the extension/)
+    assert.match(notConnectedMessage(connection.status), /Update Ntwine or the extension/)
     assert.ok(host.logs.some((line) => line.startsWith("error ") && line.includes("[4400]")))
     await sleep(250)
-    assert.equal(frizz.of("hello").length, 1, "no quick retry against a server that cannot speak to us")
-    await until("the slow retry", () => frizz.of("hello").length === 2, 1_000)
+    assert.equal(ntwine.of("hello").length, 1, "no quick retry against a server that cannot speak to us")
+    await until("the slow retry", () => ntwine.of("hello").length === 2, 1_000)
   } finally {
     await done()
   }
 })
 
 test("4401 and 4402 are refusals worth logging, then an ordinary reconnect", async () => {
-  const { frizz, host, done } = await connected()
+  const { ntwine, host, done } = await connected()
   try {
-    frizz.live.close(EDITOR_CLOSE.invalidMessage, "bad frame")
-    await until("the reconnect", () => frizz.of("hello").length === 2)
-    assert.match(host.logs.join("\n"), /Frizz refused a message from this window \(bad frame\)\. \[4401\]/)
-    frizz.live.close(EDITOR_CLOSE.helloRequired, "")
-    await until("the next reconnect", () => frizz.of("hello").length === 3)
+    ntwine.live.close(EDITOR_CLOSE.invalidMessage, "bad frame")
+    await until("the reconnect", () => ntwine.of("hello").length === 2)
+    assert.match(host.logs.join("\n"), /Ntwine refused a message from this window \(bad frame\)\. \[4401\]/)
+    ntwine.live.close(EDITOR_CLOSE.helloRequired, "")
+    await until("the next reconnect", () => ntwine.of("hello").length === 3)
     assert.match(host.logs.join("\n"), /introduce itself first\. \[4402\]/)
   } finally {
     await done()
   }
 })
 
-test("a Frizz from before the editor connection (a plain 404 on the upgrade) is told to update", async () => {
-  const frizz = await new FakeFrizz({ editorPath: false }).listen()
-  const host = makeHost(frizz)
+test("an Ntwine from before the editor connection (a plain 404 on the upgrade) is told to update", async () => {
+  const ntwine = await new FakeNtwine({ editorPath: false }).listen()
+  const host = makeHost(ntwine)
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
     await until("the offline status", () => connection.status.kind === "offline")
-    assert.deepEqual(connection.status, { kind: "offline", reason: "This Frizz has no editor connection yet. Update Frizz." })
-    assert.equal(notConnectedMessage(connection.status), "This Frizz has no editor connection yet. Update Frizz.", "a command says so too, not that Frizz is stopped")
+    assert.deepEqual(connection.status, { kind: "offline", reason: "This Ntwine has no editor connection yet. Update Ntwine." })
+    assert.equal(notConnectedMessage(connection.status), "This Ntwine has no editor connection yet. Update Ntwine.", "a command says so too, not that Ntwine is stopped")
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 })
 
-test("a Frizz that hangs up on the upgrade (one from before the editor connection, behind its supervisor) is told to update", async () => {
+test("an Ntwine that hangs up on the upgrade (one from before the editor connection, behind its supervisor) is told to update", async () => {
   const server = createServer()
   server.on("upgrade", (_request, socket) => socket.destroy())
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-  const host = makeHost({ origin } as FakeFrizz)
+  const host = makeHost({ origin } as FakeNtwine)
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
     await until("the offline status", () => connection.status.kind === "offline")
-    assert.deepEqual(connection.status, { kind: "offline", reason: "Frizz didn't accept the editor connection. Update Frizz if this keeps happening." })
-    assert.equal(notConnectedMessage(connection.status), "Frizz didn't accept the editor connection. Update Frizz if this keeps happening.")
+    assert.deepEqual(connection.status, { kind: "offline", reason: "Ntwine didn't accept the editor connection. Update Ntwine if this keeps happening." })
+    assert.equal(notConnectedMessage(connection.status), "Ntwine didn't accept the editor connection. Update Ntwine if this keeps happening.")
   } finally {
     connection.stop()
     await new Promise((resolve) => server.close(resolve))
@@ -570,38 +570,38 @@ test("a Frizz that hangs up on the upgrade (one from before the editor connectio
 })
 
 test("stop closes the socket cleanly and nothing redials", async () => {
-  const { frizz, connection, done } = await connected()
-  const closed = new Promise<number>((resolve) => frizz.live.on("close", (code) => resolve(code)))
+  const { ntwine, connection, done } = await connected()
+  const closed = new Promise<number>((resolve) => ntwine.live.on("close", (code) => resolve(code)))
   connection.stop()
   assert.equal(await closed, 1000)
   await sleep(150)
-  assert.equal(frizz.of("hello").length, 1)
+  assert.equal(ntwine.of("hello").length, 1)
   await done()
 })
 
-test("a window with more folders than Frizz takes still connects: the hello and every state are fitted, and the log says so once", async () => {
+test("a window with more folders than Ntwine takes still connects: the hello and every state are fitted, and the log says so once", async () => {
   // 70 roots and one path past the cap: sent whole, the hello is refused (4401) on every redial, forever.
   const many = Array.from({ length: 70 }, (_, i) => `/home/me/roots/r${String(i).padStart(2, "0")}`)
   const long = `/home/me/${"x".repeat(EDITOR_MAX_PATH)}`
-  const frizz = await new FakeFrizz().listen()
-  const host = makeHost(frizz)
+  const ntwine = await new FakeNtwine().listen()
+  const host = makeHost(ntwine)
   host.current = { ...host.current, folders: [long, ...many] }
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
     await until("the welcome", () => connection.status.kind === "connected")
-    const hello = frizz.of("hello")[0]!
+    const hello = ntwine.of("hello")[0]!
     assert.deepEqual(hello.folders, many.slice(0, EDITOR_MAX_FOLDERS), "the first 64 that fit, in the workspace's order")
     host.current = { ...host.current, folders: [...many, "/home/me/one-more"], focused: true }
     connection.sendState()
-    await until("the state frame", () => frizz.of("state").length === 1)
-    assert.equal(frizz.of("state")[0]!.folders.length, EDITOR_MAX_FOLDERS)
-    assert.deepEqual(host.logs.filter((line) => /Frizz takes/.test(line)), [
-      "warn This window has 71 folders; Frizz takes 64 of them (at most 64, none over 4096 characters), so file links to the rest open elsewhere.",
+    await until("the state frame", () => ntwine.of("state").length === 1)
+    assert.equal(ntwine.of("state")[0]!.folders.length, EDITOR_MAX_FOLDERS)
+    assert.deepEqual(host.logs.filter((line) => /Ntwine takes/.test(line)), [
+      "warn This window has 71 folders; Ntwine takes 64 of them (at most 64, none over 4096 characters), so file links to the rest open elsewhere.",
     ], "said once, not on every frame")
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 })
 
@@ -633,18 +633,18 @@ test("the hello says how long ago an unfocused window last had focus, so a recon
   now += 1_000
   assert.equal(focus.agoMs(false), 6_000, "a repeated unfocused report does not reset the moment")
 
-  const frizz = await new FakeFrizz().listen()
-  const host = makeHost(frizz)
+  const ntwine = await new FakeNtwine().listen()
+  const host = makeHost(ntwine)
   const hello = host.hello
   host.hello = () => ({ ...hello(), focusedAgoMs: focus.agoMs(false) })
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
     await until("the welcome", () => connection.status.kind === "connected")
-    assert.equal(frizz.of("hello")[0]?.focusedAgoMs, 6_000)
+    assert.equal(ntwine.of("hello")[0]?.focusedAgoMs, 6_000)
   } finally {
     connection.stop()
-    await frizz.close()
+    await ntwine.close()
   }
 })
 
@@ -656,8 +656,8 @@ test("the backoff doubles from 1s to a 30s ceiling, jittered ±20%", () => {
   assert.equal(backoffDelay(9, 1_000, 30_000, () => 1), 30_000, "jitter never pushes past the ceiling")
 })
 
-test("a Frizz that answers the editor socket with a 404 predates it; one that welcomes this window does not", async () => {
-  const old = await new FakeFrizz({ editorPath: false }).listen()
+test("an Ntwine that answers the editor socket with a 404 predates it; one that welcomes this window does not", async () => {
+  const old = await new FakeNtwine({ editorPath: false }).listen()
   const host = makeHost(old)
   const connection = new EditorConnection(host, FAST)
   try {

@@ -2,9 +2,9 @@
 // editor Source Control opens for "View changes"), the glue half: review.ts asks git, this shows it.
 // Design: ARCHITECTURE.md § VS Code extension.
 //
-// Claude Code and Cursor show an agent's edits as diffs in the editor. A Frizz worker edits files directly,
+// Claude Code and Cursor show an agent's edits as diffs in the editor. An Ntwine worker edits files directly,
 // usually in a worktree of its own, so here the review is of what is on disk: the LEFT side is the file
-// as the base commit had it, served by a content provider (`frizz-base:`, read-only); the RIGHT side is
+// as the base commit had it, served by a content provider (`ntwine-base:`, read-only); the RIGHT side is
 // the real file, so the human can fix what they see in place, with the language server running. Each
 // checkout's base is its own (a worktree's fork point; the project folder's HEAD), and one review can
 // span both when a thread wrote in both.
@@ -13,7 +13,7 @@
 
 import path from "node:path"
 import type * as vscode from "vscode"
-import type { EditorReviewTarget } from "@frizz/shared/editor-protocol"
+import type { EditorReviewTarget } from "@ntwine/shared/editor-protocol"
 import { BASE_SCHEME, baseQuery, baseText, nothingToReview, parseBaseQuery, reviewCheckout, type CheckoutReview } from "./review.ts"
 
 type Vscode = typeof vscode

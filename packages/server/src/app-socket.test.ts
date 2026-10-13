@@ -4,8 +4,8 @@ import { createServer, type Server } from "node:http"
 import { once } from "node:events"
 import { connect, type AddressInfo } from "node:net"
 import { WebSocket, type ClientOptions } from "ws"
-import type { BoardSnapshot, SocketServerMsg, TranscriptMessage } from "@frizz/shared"
-import { applyTranscriptPatch } from "@frizz/shared"
+import type { BoardSnapshot, SocketServerMsg, TranscriptMessage } from "@ntwine/shared"
+import { applyTranscriptPatch } from "@ntwine/shared"
 import { Bus, Emitter } from "./bus.ts"
 import {
   APP_SOCKET_MAX_MESSAGE_BYTES,
@@ -156,7 +156,7 @@ function collect(ws: WebSocket) {
   }
 }
 
-async function connectClient(port: number, path = "/_frizz/ws", options: ClientOptions = {}) {
+async function connectClient(port: number, path = "/_ntwine/ws", options: ClientOptions = {}) {
   const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, {
     origin: `http://127.0.0.1:${port}`,
     ...options,
@@ -170,7 +170,7 @@ async function rejectedClientDetails(
   port: number,
   options: ClientOptions = {},
 ): Promise<{ status: number; body: string }> {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/_frizz/ws`, options)
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/_ntwine/ws`, options)
   return await new Promise<{ status: number; body: string }>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("timed out waiting for /ws rejection")), 1_000)
     ws.once("unexpected-response", (_request, response) => {
@@ -299,7 +299,7 @@ test("resource control: process-wide connection capacity rejects before board wo
 async function malformedUpgradeStatus(port: number, headers: Record<string, string>, method = "GET"): Promise<number> {
   const socket = connect(port, "127.0.0.1")
   await once(socket, "connect")
-  const lines = [`${method} /_frizz/ws HTTP/1.1`, `Host: 127.0.0.1:${port}`, `Origin: http://127.0.0.1:${port}`, "Connection: Upgrade", "Upgrade: websocket"]
+  const lines = [`${method} /_ntwine/ws HTTP/1.1`, `Host: 127.0.0.1:${port}`, `Origin: http://127.0.0.1:${port}`, "Connection: Upgrade", "Upgrade: websocket"]
   for (const [name, value] of Object.entries(headers)) lines.push(`${name}: ${value}`)
   socket.write(lines.join("\r\n") + "\r\n\r\n")
   let response = ""
@@ -809,7 +809,7 @@ test("resource control: per-origin and global sliding read budgets are fair, typ
   })
   try {
     const originA = await connectClient(h.port)
-    const originB = await connectClient(h.port, "/_frizz/ws", {
+    const originB = await connectClient(h.port, "/_ntwine/ws", {
       origin: `http://localhost:${h.port}`,
       headers: { host: `localhost:${h.port}` },
     })
@@ -1314,7 +1314,7 @@ function fakeWatcher() {
     armed,
     released,
     watchFile(path: string, onChange: () => void): () => void {
-      if (path.includes("refused")) throw new Error("Local file is outside Frizz's trusted roots")
+      if (path.includes("refused")) throw new Error("Local file is outside Ntwine's trusted roots")
       armed.set(path, onChange)
       return () => {
         armed.delete(path)

@@ -24,7 +24,7 @@ class MemoryStorage {
   setItem(key: string, value: string) { this.values.set(key, value) }
 }
 
-const dir = "/work/frizz"
+const dir = "/work/ntwine"
 const promptKey = draftKey.dispatch(dir)
 const scheduleKey = draftKey.dispatchSchedule(dir)
 const pickKey = draftKey.dispatchProfile(dir)

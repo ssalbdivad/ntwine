@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 //     navigation that already replaced it (the thread closing under the sheet) is not answered with a
 //     second, wrong step back.
 //
-// The drawer layers that stack over a phone thread (the file reader, the frizz doc, a sub-agent, a
+// The drawer layers that stack over a phone thread (the file reader, the ntwine doc, a sub-agent, a
 // background shell) take an entry the same way — `useBackClosesLayer` below — so Back peels them one at
 // a time too. They share this file's tag and counter, so every entry either kind pushes is ordered
 // against every other.
@@ -35,10 +35,10 @@ let seq = Date.now()
 // Every token this document mints is above this; every token a previous document minted is below it.
 const documentStart = seq
 
-type LayerHistoryState = { frizzLayer?: number } | null
+type LayerHistoryState = { ntwineLayer?: number } | null
 
 function currentToken(): number | undefined {
-  return (history.state as LayerHistoryState)?.frizzLayer
+  return (history.state as LayerHistoryState)?.ntwineLayer
 }
 
 /**
@@ -73,7 +73,7 @@ export function stepOffStaleLayerEntries(): void {
 function pushLayerEntry(): number {
   const token = ++seq
   const base = history.state && typeof history.state === "object" ? history.state : {}
-  history.pushState({ ...base, frizzLayer: token }, "")
+  history.pushState({ ...base, ntwineLayer: token }, "")
   return token
 }
 
@@ -130,7 +130,7 @@ export function useBackDismiss(onDismissed: () => void): (then?: () => void) => 
  *
  * A thread layer has a history entry of its own because it has a URL (lib/router pushes one per opened
  * thread). The layers that stack over it do not: a reader opened from the Files and links sheet, the
- * frizz doc, a sub-agent's transcript, a background shell. With no entry of their own, Back popped the
+ * ntwine doc, a sub-agent's transcript, a background shell. With no entry of their own, Back popped the
  * THREAD's entry and closed the thread and the reader over it in one step. So each of those layers
  * pushes one tagged same-URL entry while it is open (the `useBackDismiss` entry above, the same tag),
  * and closes when the history moves below it.

@@ -1,7 +1,7 @@
 import { join } from "node:path"
 import { homedir } from "node:os"
 import { readdirSync, statSync, readFileSync, openSync, readSync, closeSync } from "node:fs"
-import { THREAD_HANDLE_MAX_CHARS, type PermissionMode } from "@frizz/shared"
+import { THREAD_HANDLE_MAX_CHARS, eitherBrand, type PermissionMode } from "@ntwine/shared"
 import { codexProviderError } from "./codex-error.ts"
 import { applyEvent } from "../tailer.ts"
 import type { AgentBackend, BuiltCommand, FoldState, NormalizedEvent, ResumeOpts, SpawnOpts } from "./types.ts"
@@ -31,7 +31,7 @@ function sessionsDir(codexHome: string): string {
 // belt: it is machine metadata, stripped from the chat by the transcript projector, and requests an
 // invisible attribute-style comment rather than a visible Markdown heading.
 export const CODEX_FIRST_FINAL_TITLE_TRANSPORT =
-  'FRIZZ TITLE TRANSPORT (required): your very first assistant message must begin with one concise `<!-- frizz title="Concise thread title" -->` comment before any commentary, acknowledgement, or tool call. Frizz removes that comment from chat and uses only its quoted title as this thread\'s automatic title.'
+  'NTWINE TITLE TRANSPORT (required): your very first assistant message must begin with one concise `<!-- ntwine title="Concise thread title" -->` comment before any commentary, acknowledgement, or tool call. Ntwine removes that comment from chat and uses only its quoted title as this thread\'s automatic title.'
 
 // Codex exposes no dedicated `--append-system-prompt` flag. Its app-server `newSession` takes a
 // `developerInstructions` field instead — a higher-priority, non-rendered surface — so the small title
@@ -47,16 +47,16 @@ export function codexFirstOutputTitleInstructions(taken: readonly string[]): str
   const avoid = taken.length
     ? ` It must differ, ignoring case and punctuation, from every name already taken: ${taken.map((name) => JSON.stringify(name)).join(", ")}.`
     : ""
-  return 'FRIZZ UI metadata protocol (mandatory): the very first assistant message in this new session, before any commentary, acknowledgement, tool call, or other action, MUST begin on its first line with exactly one `<!-- frizz title="..." -->` HTML comment. Replace `...` with the thread\'s name: ONE or TWO words, sentence case, naming the SUBJECT of the user\'s task rather than the action taken (e.g. "Shell budgets", "Focus mode", never "Fix the shell budget default"), short enough that its kebab-case handle ("shell-budgets") is at most ' + THREAD_HANDLE_MAX_CHARS + ' characters.' +
+  return 'NTWINE UI metadata protocol (mandatory): the very first assistant message in this new session, before any commentary, acknowledgement, tool call, or other action, MUST begin on its first line with exactly one `<!-- ntwine title="..." -->` HTML comment. Replace `...` with the thread\'s name: ONE or TWO words, sentence case, naming the SUBJECT of the user\'s task rather than the action taken (e.g. "Shell budgets", "Focus mode", never "Fix the shell budget default"), short enough that its kebab-case handle ("shell-budgets") is at most ' + THREAD_HANDLE_MAX_CHARS + ' characters.' +
     avoid +
-    " Put no text before the comment. You may continue the message normally after it. Emit this title comment exactly once. Do not explain the protocol. Frizz removes the comment before displaying the conversation."
+    " Put no text before the comment. You may continue the message normally after it. Emit this title comment exactly once. Do not explain the protocol. Ntwine removes the comment before displaying the conversation."
 }
 
 // Historical first prompts used a visible H1 as the transport. It remains a parse-compatible title
 // signal, and the transcript projector recognizes this exact retired trailer so old dispatch metadata
 // never appears as human chat content.
 export const CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT =
-  "FRIZZ TITLE TRANSPORT (required): on your first final answer, put one concise `# Title` H1 on its first line before the answer. Frizz removes that H1 from chat and uses it only as this thread's automatic title."
+  "NTWINE TITLE TRANSPORT (required): on your first final answer, put one concise `# Title` H1 on its first line before the answer. Ntwine removes that H1 from chat and uses it only as this thread's automatic title."
 
 // ---- codex reasoning-effort universe ----
 // Codex reasoning-effort universe (per ~/.codex/models_cache.json): low/medium/high/xhigh/max/ultra.
@@ -72,7 +72,7 @@ export function codexEffort(effort?: string): string | undefined {
   return undefined
 }
 
-// frizz permissionMode → codex --sandbox. codex "sandbox" is a different axis than Claude "permission
+// ntwine permissionMode → codex --sandbox. codex "sandbox" is a different axis than Claude "permission
 // mode" (§6), so this is a best-effort map, not an isomorphism: plan → read-only (no writes),
 // bypassPermissions → danger-full-access (unrestricted), everything else → workspace-write (edit inside
 // the repo, denied elsewhere). Approvals are ALWAYS `never` so an unattended worker NEVER blocks on an
@@ -93,12 +93,12 @@ export interface CodexBackendOptions {
   codexBin?: string // dispatch executable ("codex" by default); tests use a stand-in
 }
 
-const FRIZZ_TITLE_MAX = 200
-// The current, invisible title transport. Keep it intentionally strict: a first-line Frizz comment
+const NTWINE_TITLE_MAX = 200
+// The current, invisible title transport. Keep it intentionally strict: a first-line Ntwine comment
 // with exactly one quoted title attribute. An ordinary HTML comment must remain ordinary prose.
-const FRIZZ_TITLE_ATTRIBUTE = /^<!--\s*frizz\s+title="((?:[^"\\\r\n]|\\[^\r\n])*)"\s*-->(?:\r?\n|$)/
-const FRIZZ_TITLE_LINE = /^<!-- frizz-title: (.*) -->(?:\r?\n|$)/
-const FRIZZ_TITLE_H1 = /^# ([^\r\n]*)(?:\r?\n|$)/
+const NTWINE_TITLE_ATTRIBUTE = eitherBrand(/^<!--\s*ntwine\s+title="((?:[^"\\\r\n]|\\[^\r\n])*)"\s*-->(?:\r?\n|$)/)
+const NTWINE_TITLE_LINE = eitherBrand(/^<!-- ntwine-title: (.*) -->(?:\r?\n|$)/)
+const NTWINE_TITLE_H1 = /^# ([^\r\n]*)(?:\r?\n|$)/
 // Unicode's Bidi_Control property includes ALM/LRM/RLM as well as the embedding, override, and
 // isolate ranges; a handwritten range is easy to leave incomplete. Default-ignorables are likewise
 // replaced unless they carry real shaping/emoji semantics (joiners, variation selectors, emoji tags).
@@ -173,7 +173,7 @@ function meaningfulTitleDefaultIgnorable(
   return hasVisibleBaseBeforeAttachedModifiers(chars, index) && isVisibleTitleBase(chars[index + 1])
 }
 
-function sanitizeFrizzTitleValue(raw: string): string {
+function sanitizeNtwineTitleValue(raw: string): string {
   const chars = Array.from(raw)
   const semanticEmojiTags = emojiTagIndexes(chars)
   let safe = ""
@@ -196,25 +196,25 @@ function sanitizeFrizzTitleValue(raw: string): string {
 // Retain the historical 200-code-point bound, but stop before a whole grapheme that would cross it.
 // The caller sanitizes once more afterward because some scripts place ZWNJ at a grapheme boundary;
 // that second pass removes any joiner/selector/tag that truncation could otherwise orphan.
-function capFrizzTitleValue(raw: string): string {
+function capNtwineTitleValue(raw: string): string {
   let count = 0
   let capped = ""
   for (const { segment } of TITLE_GRAPHEME_SEGMENTER.segment(raw)) {
     const size = Array.from(segment).length
-    if (count + size > FRIZZ_TITLE_MAX) break
+    if (count + size > NTWINE_TITLE_MAX) break
     capped += segment
     count += size
   }
-  return sanitizeFrizzTitleValue(capped)
+  return sanitizeNtwineTitleValue(capped)
 }
 
-export interface CodexFrizzTitleSignal {
+export interface CodexNtwineTitleSignal {
   text: string
   title?: string
   markerFound: boolean
 }
 
-function decodeFrizzTitleAttribute(value: string): string {
+function decodeNtwineTitleAttribute(value: string): string {
   const backslashDecoded = value.replace(/\\(.)/g, (_whole, escaped: string) => {
     switch (escaped) {
       case "n": return "\n"
@@ -231,25 +231,25 @@ function decodeFrizzTitleAttribute(value: string): string {
 }
 
 // New workers emit a first-line attribute comment, which is invisible Markdown and carries a concise
-// display title. H1 and `frizz-title:` remain parse-only compatibility for already-running/old sessions.
+// display title. H1 and `ntwine-title:` remain parse-only compatibility for already-running/old sessions.
 // Every recognized transport is strict first-line only: ordinary comments and later headings stay prose.
-export function extractCodexFrizzTitle(text: string, allowLegacy = true): CodexFrizzTitleSignal {
-  const attribute = text.match(FRIZZ_TITLE_ATTRIBUTE)
-  const h1 = attribute || !allowLegacy ? undefined : text.match(FRIZZ_TITLE_H1)
-  const comment = attribute || h1 || !allowLegacy ? undefined : text.match(FRIZZ_TITLE_LINE)
+export function extractCodexNtwineTitle(text: string, allowLegacy = true): CodexNtwineTitleSignal {
+  const attribute = text.match(NTWINE_TITLE_ATTRIBUTE)
+  const h1 = attribute || !allowLegacy ? undefined : text.match(NTWINE_TITLE_H1)
+  const comment = attribute || h1 || !allowLegacy ? undefined : text.match(NTWINE_TITLE_LINE)
   const match = attribute ?? h1 ?? comment
   if (!match) return { text, markerFound: false }
   let visible = text.slice(match[0].length)
   // During the prior H1 transition a worker could emit an H1 followed by the old sidecar. Keep that
   // compatibility pair hidden; the new comment transport is fully self-contained.
   if (h1) {
-    const compatibility = visible.match(FRIZZ_TITLE_LINE)
+    const compatibility = visible.match(NTWINE_TITLE_LINE)
     if (compatibility) visible = visible.slice(compatibility[0].length)
   }
-  let title = sanitizeFrizzTitleValue(attribute ? decodeFrizzTitleAttribute(match[1]) : match[1])
+  let title = sanitizeNtwineTitleValue(attribute ? decodeNtwineTitleAttribute(match[1]) : match[1])
   // Angle brackets would make the supposedly one-line value look like markup on another surface.
   if (!title || /[<>]/.test(title)) return { text: visible, markerFound: true }
-  title = capFrizzTitleValue(title)
+  title = capNtwineTitleValue(title)
   return { text: visible, title: title || undefined, markerFound: true }
 }
 
@@ -275,8 +275,8 @@ export function extractCodexFrizzTitle(text: string, allowLegacy = true): CodexF
 //                                    echo (role=user/developer). Counting it would double the assistant
 //                                    text / fabricate user turns. The SEMANTIC events live in event_msg.
 //   response_item/reasoning        — the raw chain-of-thought (`encrypted_content`) is opaque and
-//                                    stays dropped, BUT the plaintext `summary[]` (present because Frizz
-//                                    launches codex with model_reasoning_summary; see FRIZZ_CODEX_OUTPUT_DEFAULTS) is
+//                                    stays dropped, BUT the plaintext `summary[]` (present because Ntwine
+//                                    launches codex with model_reasoning_summary; see NTWINE_CODEX_OUTPUT_DEFAULTS) is
 //                                    surfaced as a `reasoning` event → an expandable summary block.
 //   event_msg/token_count, thread_settings_applied, session_meta, turn_context, world_state — sidecar
 //   for the renderable event stream. turn_context's model/effort are folded separately as session
@@ -390,7 +390,7 @@ export function parseCodexLine(line: string): NormalizedEvent[] {
       // Per-request usage telemetry. `last_token_usage.total_tokens` is what the LAST request actually
       // carried — i.e. the size of the context at that moment — which is the reading codex's own TUI
       // uses for its remaining-context meter. `model_context_window` rides the same event and is the
-      // DENOMINATOR for the header's fullness readout: codex names the window itself, so frizz never
+      // DENOMINATOR for the header's fullness readout: codex names the window itself, so ntwine never
       // has to keep a per-model table that would go stale the moment a model ships a bigger context.
       // Consumed by the compaction bracket and by the fold's contextTokens/contextWindow.
       case "token_count": {
@@ -413,7 +413,7 @@ export function parseCodexLine(line: string): NormalizedEvent[] {
       // item_completed). The turn BRACKETS did not move — task_started/task_complete/turn_aborted and
       // token_count are still flat — which is exactly why the regression was so quiet: a codex thread
       // still went in-flight and still came to rest, so the board looked alive while every word the
-      // agent said, the human's own opening prompt, the `<!-- frizz title -->` signal and every
+      // agent said, the human's own opening prompt, the `<!-- ntwine title -->` signal and every
       // done/awaiting/question fence fell on the floor. Both spellings are read, because the old ones
       // are still on disk in every rollout written before the upgrade and the foreign scan folds those.
       case "item_completed": {
@@ -470,7 +470,7 @@ export function parseCodexLine(line: string): NormalizedEvent[] {
     if (pt === "reasoning") {
       // The raw CoT (`encrypted_content`) is opaque, but codex also emits a plaintext `summary`: an
       // array of {type:"summary_text", text} items (the gray reasoning headers its TUI shows), present
-      // because Frizz sets model_reasoning_summary. Join the items into one markdown body and surface it
+      // because Ntwine sets model_reasoning_summary. Join the items into one markdown body and surface it
       // as a reasoning event. An empty/absent summary (encryption-only) yields no event — unchanged.
       const summary = Array.isArray(p.summary) ? p.summary : []
       const text = summary
@@ -922,7 +922,7 @@ export function readCodexThreadNames(codexHome = defaultCodexHome()): Map<string
   return out
 }
 
-// ---- FOREIGN rollout discovery (a codex session in this project that frizz did NOT dispatch) ----
+// ---- FOREIGN rollout discovery (a codex session in this project that ntwine did NOT dispatch) ----
 //
 // The Claude side of this is a directory listing: Claude shards its transcripts by the cwd a session
 // was born in, so "every session in this project" is one readdir. Codex has ONE GLOBAL TREE for every
@@ -939,7 +939,7 @@ export function readCodexThreadNames(codexHome = defaultCodexHome()): Map<string
 //   • SUB-AGENT CHILDREN. A codex thread's children get their own rollouts in the same tree — 332 of
 //     the 621 files in a 30-day window on this machine. Each would otherwise list as its own session.
 //   • THE PROJECT. `cwd` is compared against BOTH the project dir and its realpath: a rollout records
-//     the cwd the process actually had, which on macOS is `/private/tmp/x` where frizz holds `/tmp/x`.
+//     the cwd the process actually had, which on macOS is `/private/tmp/x` where ntwine holds `/tmp/x`.
 const FOREIGN_ROLLOUT_HEAD_BYTES = 256 * 1024 // line 1 inlines `base_instructions`; 16KB truncates it
 export interface ForeignRolloutScan {
   cwds: readonly string[] // the project dir and any alias of it (realpath); a rollout matching ANY belongs here
@@ -948,7 +948,7 @@ export interface ForeignRolloutScan {
   exclude: ReadonlySet<string> // ids owned by a registry row — never surface one of those as foreign
   max: number
 }
-/** Rollouts in THIS project, fresh, human-started, and not owned by a frizz row — newest first.
+/** Rollouts in THIS project, fresh, human-started, and not owned by an ntwine row — newest first.
  *  Telemetry-grade: any fs/parse surprise skips that file, never throws. */
 export function scanForeignRollouts(scan: ForeignRolloutScan, codexHome = defaultCodexHome()): { id: string; path: string }[] {
   const wanted = new Set(scan.cwds)
@@ -1020,7 +1020,7 @@ export function createCodexBackend(opts: CodexBackendOptions = {}): AgentBackend
     },
 
     // Codex's id is minted by codex and not known until it writes session_meta, so there is no
-    // deterministic path from the frizz-advisory sessionId. Once the DISCOVERED id is pinned on the row,
+    // deterministic path from the ntwine-advisory sessionId. Once the DISCOVERED id is pinned on the row,
     // the tailer calls this with that id and we locate the (date-sharded) rollout by filename suffix.
     transcriptPath(sessionId: string): string | undefined {
       return findRolloutById(sessionId, codexHome)
@@ -1046,13 +1046,13 @@ export function createCodexBackend(opts: CodexBackendOptions = {}): AgentBackend
         state.permissionModeAt = profile.permissionModeAt
         state.permissionModeRevision = (state.permissionModeRevision ?? 0) + 1
       }
-      const applyTitleSignal = (signal: CodexFrizzTitleSignal, firstFinal: boolean) => {
+      const applyTitleSignal = (signal: CodexNtwineTitleSignal, firstFinal: boolean) => {
         // Native provider events always win. A valid later signal may repair only the bounded dispatch
         // fallback created after an omitted/malformed first signal; it cannot churn a good title.
         if (state.autoTitleSource === "native") return
         if (signal.title && (!state.aiTitle || state.autoTitleSource === "fallback")) {
           applyEvent(state, { kind: "title", title: signal.title })
-          state.autoTitleSource = "frizz"
+          state.autoTitleSource = "ntwine"
           return
         }
         // The dispatcher already persisted a bounded, topic-oriented automatic title. Record only
@@ -1065,7 +1065,7 @@ export function createCodexBackend(opts: CodexBackendOptions = {}): AgentBackend
           // which is normally commentary emitted before the first tool call. Attribute comments are
           // therefore recognized and hidden on every assistant phase. H1/legacy transports remain
           // final-only so an ordinary commentary heading can never be mistaken for metadata.
-          const signal = extractCodexFrizzTitle(ev.text, ev.final)
+          const signal = extractCodexNtwineTitle(ev.text, ev.final)
           applyEvent(state, { ...ev, text: signal.text })
           applyTitleSignal(signal, false)
           if (!ev.final) continue
@@ -1080,7 +1080,7 @@ export function createCodexBackend(opts: CodexBackendOptions = {}): AgentBackend
         if (ev.kind === "turn-end" && ev.finalText !== undefined && !state.titleCandidateFinalSeen) {
           state.titleCandidateFinalSeen = true
           state.titleCandidateFinalText = ev.finalText
-          const signal = extractCodexFrizzTitle(ev.finalText)
+          const signal = extractCodexNtwineTitle(ev.finalText)
           applyEvent(state, { ...ev, finalText: signal.text })
           applyTitleSignal(signal, true)
           continue
@@ -1092,11 +1092,11 @@ export function createCodexBackend(opts: CodexBackendOptions = {}): AgentBackend
         ) {
           // task_complete repeats the same first final_answer. Hide its transport line as part of the
           // same response, but never extract another candidate from a later, different final answer.
-          applyEvent(state, { ...ev, finalText: extractCodexFrizzTitle(ev.finalText).text })
+          applyEvent(state, { ...ev, finalText: extractCodexNtwineTitle(ev.finalText).text })
           continue
         }
         if (ev.kind === "turn-end" && ev.finalText !== undefined) {
-          const signal = extractCodexFrizzTitle(ev.finalText)
+          const signal = extractCodexNtwineTitle(ev.finalText)
           applyEvent(state, { ...ev, finalText: signal.text })
           applyTitleSignal(signal, false)
           continue

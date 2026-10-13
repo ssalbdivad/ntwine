@@ -1,4 +1,4 @@
-// Collect the unix-socket FILES that frizz's detached daemons leave behind, without ever touching a
+// Collect the unix-socket FILES that ntwine's detached daemons leave behind, without ever touching a
 // live one. Extracted verbatim from codex-app-server-daemon.ts (which was the only caller) so the
 // Claude session broker's sockets get the identical treatment rather than a second, subtly weaker
 // implementation.
@@ -6,7 +6,7 @@
 // The leak: a daemon that was SIGKILLed, or that skipped its own cleanup because a SUCCESSOR already
 // owned its record, leaves its socket file behind forever. Nothing ever revisits those paths — a host
 // only ever considers the one path belonging to the session/project it is connecting for — so they
-// accumulate. Measured 2026-07-27 in this machine's $TMPDIR: ~119 dead `frizz-claude-*.sock` against
+// accumulate. Measured 2026-07-27 in this machine's $TMPDIR: ~119 dead `ntwine-claude-*.sock` against
 // ~4 live ones.
 //
 // SAFETY IS THE ENTIRE DESIGN, and the danger is the opposite of the obvious one: a naive sweep does
@@ -33,7 +33,7 @@ import { join } from "node:path"
 export interface StaleSocketSweepOptions {
   /** Directory holding the socket files (their parent dir — $TMPDIR in practice). */
   dir: string
-  /** Filename prefix identifying this daemon family, e.g. `frizz-codex-` / `frizz-claude-`. */
+  /** Filename prefix identifying this daemon family, e.g. `ntwine-codex-` / `ntwine-claude-`. */
   prefix: string
   /** Paths that must never be swept regardless of the evidence — typically the caller's own socket. */
   keep?: readonly string[]

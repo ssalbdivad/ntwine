@@ -32,14 +32,14 @@ import {
   type FilePosition,
   type ServerEvent,
   type ThreadView,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { isHomeWorkspace } from "./home-workspace.ts"
 import { isUnder } from "./local-file.ts"
 import { isTrustedLocalWebSocketRequest, rejectWebSocketUpgrade } from "./local-origin.ts"
 
-// THE EDITOR BRIDGE — the server end of `/_frizz/editor`, the socket every VS Code / Cursor / Windsurf
-// window running the Frizz extension (packages/vscode) dials. Design: ARCHITECTURE.md § VS Code extension; the
-// wire: @frizz/shared editor-protocol.ts.
+// THE EDITOR BRIDGE — the server end of `/_ntwine/editor`, the socket every VS Code / Cursor / Windsurf
+// window running the Ntwine extension (packages/vscode) dials. Design: ARCHITECTURE.md § VS Code extension; the
+// wire: @ntwine/shared editor-protocol.ts.
 //
 // ONE PER MACHINE, like the server. index.ts builds it once beside the tenant map and answers the
 // upgrade before tenant routing, and every project's router reaches it through `ctx.editors`: a
@@ -141,7 +141,7 @@ export interface EditorBridge {
   focusFolder(dir: string, kinds: readonly EditorKind[]): Promise<boolean>
   /**
    * Show a thread's changes (`review`) in the window that should: one that can and takes things from
-   * Frizz, whose workspace folder holds a checkout of the review — the deepest, the first checkout first —
+   * Ntwine, whose workspace folder holds a checkout of the review — the deepest, the first checkout first —
    * or the project folder; else the window the human was in last that shares this server's filesystem.
    * True: it opened them. False: no window can, or it did not answer. THROWS with the window's own words
    * when it answered that it could not (nothing to review, not a repository).
@@ -168,7 +168,7 @@ export interface EditorBridge {
   /**
    * What a click on that line adds to a prompt box: the selection WITH its text — or, past what the frame
    * carried whole, or from a file whose text stays home, its lines alone — or with nothing selected the
-   * file. The compose shape an editor's own "Add to Frizz prompt" sends, so the page makes the same chip.
+   * file. The compose shape an editor's own "Add to Ntwine prompt" sends, so the page makes the same chip.
    * Null when `front` is, and for an untitled buffer, which no chip can name.
    */
   frontItem(dir: string): EditorComposeInput | null
@@ -440,7 +440,7 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
         closeWith(other, 1000, "superseded")
       }
     }
-    // A reconnect must not erase which window the human used last: after a Frizz restart every window
+    // A reconnect must not erase which window the human used last: after an Ntwine restart every window
     // redials while they are in the browser, and with every one at 0 the last to redial won each open
     // no folder claims. Clamped, so a window that says it was focused before the epoch ranks as never.
     const at = now()
@@ -482,7 +482,7 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
       // Before the schema, which would call any other version merely invalid: the extension has to be
       // able to tell "update one of us" from "a bug".
       if ((decoded as { v?: unknown }).v !== EDITOR_PROTOCOL_VERSION) {
-        return closeWith(conn, EDITOR_CLOSE.unsupportedVersion, `unsupported version; this Frizz speaks ${EDITOR_PROTOCOL_VERSION}`)
+        return closeWith(conn, EDITOR_CLOSE.unsupportedVersion, `unsupported version; this Ntwine speaks ${EDITOR_PROTOCOL_VERSION}`)
       }
     }
     if (t !== "compose" && bytes.length > EDITOR_MAX_FRAME_BYTES) return closeWith(conn, EDITOR_CLOSE.invalidMessage, "frame too large")
@@ -529,7 +529,7 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
     // compose: held for whichever page claims it (composeTake), announced to every open project's pages.
     pruneCompose()
     if (compose.length >= maxComposeItems) {
-      send(conn, { t: "composed", id: msg.id, ok: false, error: `${maxComposeItems} selections are already waiting. Open Frizz to insert them.` })
+      send(conn, { t: "composed", id: msg.id, ok: false, error: `${maxComposeItems} selections are already waiting. Open Ntwine to insert them.` })
       return
     }
     const at = now()

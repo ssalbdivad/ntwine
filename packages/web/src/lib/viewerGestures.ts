@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type RefObject } from "react"
 import { FIT, clampZoom, detailScale, maxScale, panBy, pinch, zoomAbout, type ZoomBounds, type ZoomState } from "./viewerZoom.ts"
 
-// THE PICTURE VIEWERS' GESTURES — the zoom, the pan and the swipe, stated once for both of Frizz's
+// THE PICTURE VIEWERS' GESTURES — the zoom, the pan and the swipe, stated once for both of Ntwine's
 // full-screen viewers: the lightbox a ```lightbox gallery opens (components/Lightbox.tsx, upstream's
 // 0e81902b) and the picture viewer a click on any single picture opens (components/ImageViewer.tsx, the
 // fork's). Each was written for one of them; the picture viewer had fit / actual size and ←/→ only, so a

@@ -15,7 +15,7 @@
 // thread at rest, so the transcript it shows cannot move until the thread rests again, and a new rest is a
 // new key. No socket, no poll, no watchdog — the same economy as the handoff.
 import { useQuery } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { projectRpc } from "../api/rpc.ts"
 import type { TranscriptData } from "../hooks.ts"
 

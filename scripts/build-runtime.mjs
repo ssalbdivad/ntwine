@@ -16,7 +16,7 @@ const shared = {
   // Node built-ins. In an ESM bundle esbuild otherwise installs a throwing require shim. Give
   // that shim a real, bundle-relative CommonJS resolver while preserving ESM/import.meta.
   banner: {
-    js: 'import { createRequire as __frizzCreateRequire } from "node:module"; const require = __frizzCreateRequire(import.meta.url);',
+    js: 'import { createRequire as __ntwineCreateRequire } from "node:module"; const require = __ntwineCreateRequire(import.meta.url);',
   },
   external: ["better-sqlite3", "node-pty", "@parcel/watcher", "vite"],
   logLevel: "silent",

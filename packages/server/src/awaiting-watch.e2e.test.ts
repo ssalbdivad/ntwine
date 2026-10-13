@@ -29,7 +29,7 @@ import { Bus } from "./bus.ts"
 import type { Project } from "./project.ts"
 import { GITHUB_STATUS_SETTING, readGithubStatusBook } from "./awaiting.ts"
 import { deriveNeedsYou, deriveAwaitingBackground, fenceWatchViews } from "./board.ts"
-import { NEEDS_INPUT_REQUIRED_AT } from "@frizz/shared"
+import { NEEDS_INPUT_REQUIRED_AT } from "@ntwine/shared"
 
 const SLUG = "watcher"
 const SESSION = "aaaaaaaa-bbbb-cccc-dddd-000000000001"
@@ -103,16 +103,16 @@ function retirementRecord(at: string): string {
 }
 
 async function harness(target?: string) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-watch-e2e-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-watch-e2e-"))
   const transcript = join(dir, `${SESSION}.jsonl`)
   const at = new Date(Date.now() - 60_000).toISOString()
   writeFileSync(transcript, launchRecords(at) + parkRecord(at, target))
   const storage = createStorage(join(dir, "ui.db"), "p")
-  // Frizz's own sign-off nudge fires on a FENCELESS rest; every rest here carries a fence, so it cannot
+  // Ntwine's own sign-off nudge fires on a FENCELESS rest; every rest here carries a fence, so it cannot
   // fire — but silence it anyway so a delivery count is unambiguous about what produced it.
   storage.setSetting("signoffNudge", "off")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: at,
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: at,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: at, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -162,7 +162,7 @@ test("a shell that finishes behind a RESTED agent wakes it, with no fence anywhe
 
     await h.finish()
     await h.s.tick()
-    assert.equal(h.delivered.length, 1, "frizz tells it, because the runtime did not")
+    assert.equal(h.delivered.length, 1, "ntwine tells it, because the runtime did not")
     assert.match(h.delivered[0], new RegExp(TASK_ID))
     assert.match(h.delivered[0], /after you came to rest/)
 
@@ -232,7 +232,7 @@ test("a shell that finished MID-TURN is never re-reported — the runtime alread
 // (a malformed entry is dropped so one bad row cannot take a board's worth of status with it) — which
 // is exactly the shape of seam that a pair of green unit tests on either side proves nothing about.
 test("a poll publishes a reading the BOARD can actually read, and the queue rule acts on it", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-prwatch-e2e-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-prwatch-e2e-"))
   const at = new Date(Date.now() - 60_000).toISOString()
   const transcript = join(dir, `${SESSION}.jsonl`)
   writeFileSync(transcript, line({
@@ -245,7 +245,7 @@ test("a poll publishes a reading the BOARD can actually read, and the queue rule
   // queue" is the LEGACY rule this seam feeds. A new-contract worker says where its rest belongs itself
   // (board.needsInputQueues), and no PR reading moves it.
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: new Date(Date.parse(NEEDS_INPUT_REQUIRED_AT) - 86_400_000).toISOString(),
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: new Date(Date.parse(NEEDS_INPUT_REQUIRED_AT) - 86_400_000).toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: at, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -333,7 +333,7 @@ test("a poll publishes a reading the BOARD can actually read, and the queue rule
 // So the assertions are about the SEQUENCE, and about what must NOT fire: a poll that finds the same
 // state says nothing, and the first poll never reports the backlog it was registered on top of.
 async function prHarness() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-prwatch-e2e-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-prwatch-e2e-"))
   const at = new Date(Date.now() - 60_000).toISOString()
   const transcript = join(dir, `${SESSION}.jsonl`)
   writeFileSync(transcript, line({
@@ -343,7 +343,7 @@ async function prHarness() {
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.setSetting("signoffNudge", "off")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: at,
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: at,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: at, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -602,7 +602,7 @@ test("a watcher that runs out of time tells its worker so", async () => {
     await h.tick()
     assert.equal(h.delivered.length, 1, "an expiry nobody receives is a thread waiting on nothing")
     assert.match(h.delivered[0], /acme\/app#391 has expired/)
-    assert.match(h.delivered[0], /`frizzctl watch-pr add`/, "…and how to re-register it")
+    assert.match(h.delivered[0], /`ntwinectl watch-pr add`/, "…and how to re-register it")
     // Settled on the way out, so it cannot fire twice or be polled again.
     await h.tick()
     assert.equal(h.delivered.length, 1, "one expiry, one report")
@@ -611,7 +611,7 @@ test("a watcher that runs out of time tells its worker so", async () => {
 
 // ---- THE STALL THAT SURFACED BOTH BUGS, REPLAYED THROUGH THE REAL FOLD ---------------------------
 // The maintainer's own thread, 2026-08-18: a worker signed off with `timer: none` — the WORD, not a
-// registered row — plus `for: 15m`. Frizz refused the park (correctly: nothing named there can wake
+// registered row — plus `for: 15m`. Ntwine refused the park (correctly: nothing named there can wake
 // anything), queued the correction (correctly), and then dropped it on the floor. The thread sat in the
 // queue for three hours with nothing able to reach it, and the maintainer asked why.
 //
@@ -640,13 +640,13 @@ function stalledParkRecord(at: string): string {
 }
 
 test("a fence naming a timer that was never registered is corrected, off a real transcript", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-stall-e2e-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-stall-e2e-"))
   const at = new Date(Date.now() - 60_000).toISOString()
   writeFileSync(join(dir, `${SESSION}.jsonl`), stalledParkRecord(at))
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.setSetting("signoffNudge", "off")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: at,
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: at,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: at, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -885,7 +885,7 @@ test("a poll served by the `gh` fallback does not flip a gated PR to passing and
 // be bounded is the `gh` FALLBACK, and the reason it matters is that the batch fails as a unit: an
 // expired token or a network blip sends every ref down the fallback in the same tick at once.
 async function fanoutHarness(prCount: number, review: () => Promise<unknown>) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-prwatch-fanout-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-prwatch-fanout-"))
   const at = new Date(Date.now() - 60_000).toISOString()
   writeFileSync(join(dir, `${SESSION}.jsonl`), line({
     type: "assistant", timestamp: at, sessionId: SESSION, uuid: "p1",
@@ -894,7 +894,7 @@ async function fanoutHarness(prCount: number, review: () => Promise<unknown>) {
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.setSetting("signoffNudge", "off")
   storage.upsertSession({
-    slug: SLUG, session_id: SESSION, thread_name: `frizz-${SLUG}`, spawned_at: at,
+    slug: SLUG, session_id: SESSION, thread_name: `ntwine-${SLUG}`, spawned_at: at,
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: at, title_auto: 1,
     title: SLUG, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
@@ -984,7 +984,7 @@ test("the ordinary poll shells out to nothing at all: the status rides the batch
 // runs: `markOwnDone` refuses while a watcher is armed, but ARCHIVING has no such gate, so a thread
 // parked on a 180d watcher could be archived and go on polling GitHub for six months.
 test("a watcher on an archived thread stays armed and stops costing GitHub anything", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-prwatch-archived-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-prwatch-archived-"))
   const at = new Date(Date.now() - 60_000).toISOString()
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.setSetting("signoffNudge", "off")
@@ -994,7 +994,7 @@ test("a watcher on an archived thread stays armed and stops costing GitHub anyth
       message: { role: "assistant", content: [{ type: "text", text: "PR is up." }] },
     }))
     storage.upsertSession({
-      slug, session_id: session, thread_name: `frizz-${slug}`, spawned_at: at,
+      slug, session_id: session, thread_name: `ntwine-${slug}`, spawned_at: at,
       last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: at, title_auto: 1,
       title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
     } as SessionRow)

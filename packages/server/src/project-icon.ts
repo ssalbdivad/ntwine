@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, dirname, extname, join, relative, sep } from "node:path"
 import { imageDimensions, MEASURABLE_IMAGE_EXTENSIONS, svgDeclaresColour, type ImageDimensions } from "./image-header.ts"
-import { projectStateDir } from "./frizz-paths.ts"
+import { projectStateDir } from "./ntwine-paths.ts"
 import { readRegistry, resolveProjectIcon } from "./project-registry.ts"
 
 // FINDING A PROJECT'S OWN ICON, in the project.
@@ -29,7 +29,7 @@ import { readRegistry, resolveProjectIcon } from "./project-registry.ts"
 //     project's icon home and lifts everything in it, which is how the larger sibling wins.
 //
 // The output is a path. Serving it, caching it, and letting the operator override it belong to
-// project-registry.ts and the `/_frizz/project-icon` route.
+// project-registry.ts and the `/_ntwine/project-icon` route.
 
 /** Bounded work: a pathological tree must not turn a rail render into a filesystem crawl. */
 const MAX_CANDIDATES = 400
@@ -447,7 +447,7 @@ export type ProjectIconResult =
   | { status: 200; contentType: string; body: Buffer }
 
 /**
- * Serve a project's icon by project id — the whole of what `/_frizz/project-icon` does.
+ * Serve a project's icon by project id — the whole of what `/_ntwine/project-icon` does.
  *
  * SVG IS SERVED HERE AND REFUSED BY `/local-image`, which is worth being explicit about because it
  * looks like an inconsistency. The two routes trust different inputs. `/local-image` takes an

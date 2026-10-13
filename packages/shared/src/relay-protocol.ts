@@ -9,7 +9,7 @@
  * DEPENDENCY-FREE, like claim.ts and for the same reason: the board runs this on Node and the relay
  * runs it on workerd.
  *
- * WHAT THIS HAS TO CARRY, and why a plain request/response relay would be useless for Frizz: the board
+ * WHAT THIS HAS TO CARRY, and why a plain request/response relay would be useless for Ntwine: the board
  * is mostly a live surface. Its event feed is SSE and its terminals are WebSockets. So the protocol
  * frames three things, not one — a unary request, a STREAMED response body, and a nested WebSocket.
  */
@@ -242,6 +242,7 @@ export interface RelayHandshake {
  */
 export function relayHandshakeInput(name: string, pubkey: string, issuedAt: number): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(
+    // `frizz-relay` survives the rename: it is a signature domain tag the DEPLOYED relay verifies, never shown.
     ["frizz-relay", `v${RELAY_PROTOCOL_VERSION}`, name, pubkey, String(issuedAt)].join(":")
   )
 }

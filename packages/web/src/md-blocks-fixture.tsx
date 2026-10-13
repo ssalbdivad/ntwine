@@ -24,7 +24,7 @@ const details = (summary: string, body: string, open = false) =>
 
 const TYPES = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const
 const BODY: Record<(typeof TYPES)[number], string> = {
-  NOTE: "The board reads this from `~/.frizz/config.json` on every boot.",
+  NOTE: "The board reads this from `~/.ntwine/config.json` on every boot.",
   TIP: "Press <kbd>⌘</kbd> <kbd>K</kbd> to open the palette from anywhere.",
   IMPORTANT: "Both packages must be published together, or a fresh install has no server behind it.",
   WARNING: "This rewrites history on `main`.",
@@ -57,7 +57,7 @@ export const CASES: [string, string][] = [
     "[!CAUTION]",
     "The migration is one-way.",
     "",
-    "- [x] Back up `frizz.db`",
+    "- [x] Back up `ntwine.db`",
     "- [ ] Stop every worker",
     "",
     fence("sh", "nub run migrate -- --to=41"),
@@ -90,7 +90,7 @@ const md = (id: string) => CASES.find(([name]) => name === id)![1]
 const CHIP = [
   "Publishes both packages. Press <kbd>⏎</kbd> to confirm; the footprint is 2<sup>10</sup> KB.",
   quote("[!WARNING]\nThis cannot be rolled back once npm serves it."),
-  details("What ships", `- \`frizz\` 0.14.0\n- \`frizz-server\` 0.14.0\n\n${fence("sh", "gh workflow run release.yml --ref release")}`),
+  details("What ships", `- \`ntwine\` 0.14.0\n- \`ntwine-server\` 0.14.0\n\n${fence("sh", "gh workflow run release.yml --ref release")}`),
 ].join("\n\n")
 
 const QUESTION: ParsedQuestion = {

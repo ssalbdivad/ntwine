@@ -607,7 +607,7 @@ function Frame(props: FrameProps) {
           el[c.id] = slot
           used.add(slot)
         } else {
-          const owner = at.closest("[data-frizz-msg]")?.getAttribute("data-frizz-msg")
+          const owner = at.closest("[data-ntwine-msg]")?.getAttribute("data-ntwine-msg")
           if (owner) msg[c.id] = owner
         }
       }

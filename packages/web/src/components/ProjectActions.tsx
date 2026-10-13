@@ -13,7 +13,7 @@ import { useDeferredValue, useEffect, useRef, useState, type ReactNode } from "r
 import { Ellipsis, Loader2 } from "lucide-react"
 import { useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
-import { PROJECT_ICON_EXTENSIONS, slugify, type ProjectAddResult, type ProjectCard, type ProjectEnclosed } from "@frizz/shared"
+import { PROJECT_ICON_EXTENSIONS, slugify, type ProjectAddResult, type ProjectCard, type ProjectEnclosed } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { innerPath, projectSlug } from "../lib/base-path.ts"
 import { showToast, store } from "../store.ts"
@@ -57,7 +57,7 @@ const MENU_ITEM = "block cursor-default rounded px-2 py-1.5 text-[12.5px] text-f
  * merge was for. Clicking the row itself opens the project in place (ProjectList.tsx). Its repo on GitHub
  * leads the menu when it has one — the link a project view's status row carried, which went with it on
  * 2026-09-28 when the project view folded into Everything. Delete is
- * last and red, the one irreversible act here, kept apart from those that only change what Frizz calls
+ * last and red, the one irreversible act here, kept apart from those that only change what Ntwine calls
  * a project.
  *
  * The short path heads the menu: it is the one place a project's directory is still shown, and it is
@@ -180,7 +180,7 @@ export function ProjectMenu({
               </>
             )}
             {project.home ? (
-              // The Home workspace is Frizz's, not a folder the operator registered: it has no icon to
+              // The Home workspace is Ntwine's, not a folder the operator registered: it has no icon to
               // choose, its name is fixed, and it cannot be deleted. What CAN change is the folder its
               // agents run in, which is a setting — so the menu opens Settings there.
               <RadixDropdown.Item className={MENU_ITEM} onSelect={() => { store.showSettings = true }}>
@@ -349,7 +349,7 @@ function RenameProjectDialog({
               <span className="text-[11.5px] text-muted-80">
                 {renameDirectory
                   ? <><span className="font-mono text-[11px]">{shortPath(project.path, home)}</span> becomes <span className="font-mono text-[11px]">{shortPath(parent + trimmed, home)}</span>. Running workers keep going.</>
-                  : "Left off, the folder keeps its name and only what Frizz calls it changes."}
+                  : "Left off, the folder keeps its name and only what Ntwine calls it changes."}
               </span>
             </span>
           </label>
@@ -432,7 +432,7 @@ function DeleteProjectDialog({
     >
       <div className="flex flex-col gap-3 p-4 text-[12.5px] leading-relaxed text-muted">
         <p>
-          Frizz forgets this project. The folder itself is not touched — nothing inside{" "}
+          Ntwine forgets this project. The folder itself is not touched — nothing inside{" "}
           <span className="font-mono text-[11.5px] text-fg/80">{shortPath(project.path, home)}</span> is
           changed or removed.
         </p>
@@ -452,7 +452,7 @@ function DeleteProjectDialog({
             <span>Also delete its threads and history</span>
             <span className="text-[11.5px] text-muted-80">
               {deleteData
-                ? "Everything Frizz has stored for this project, and any workers still running are stopped. This cannot be undone."
+                ? "Everything Ntwine has stored for this project, and any workers still running are stopped. This cannot be undone."
                 : "Left off, its threads are kept — adding the folder again brings them back."}
             </span>
           </span>
@@ -469,7 +469,7 @@ function AddProjectDialog({
   onClose,
 }: {
   reason?: string
-  /** A directory `frizz` was just run in. Pre-filled, never pre-registered. */
+  /** A directory `ntwine` was just run in. Pre-filled, never pre-registered. */
   proposed?: string
   onClose: () => void
 }) {
@@ -506,10 +506,10 @@ function AddProjectDialog({
           </RadixDialog.Title>
           <p className="mb-3.5 text-[12.5px] leading-relaxed text-muted">
             {proposed
-              ? "You ran Frizz here and it is not a project yet. Nothing has been written — adding it is what makes it one."
+              ? "You ran Ntwine here and it is not a project yet. Nothing has been written — adding it is what makes it one."
               : reason
-                ? `${reason}. Paste the folder instead — Frizz walks up to the repository root, the same way it does when you run it in a terminal.`
-                : "Paste the folder you want to add. Frizz walks up to the repository root, the same way it does when you run it in a terminal."}
+                ? `${reason}. Paste the folder instead — Ntwine walks up to the repository root, the same way it does when you run it in a terminal.`
+                : "Paste the folder you want to add. Ntwine walks up to the repository root, the same way it does when you run it in a terminal."}
           </p>
           <form
             onSubmit={(event) => {
@@ -548,7 +548,7 @@ function AddProjectDialog({
  * because that is what the operator calls it. Until 2026-09-28 that happened without a word: the add
  * reopened `~/app`, navigated to a board the operator already had open, and read as a silent failure.
  * Both answers are real ones: a package folder usually means its repository, but someone who pointed
- * at a folder may mean exactly that folder, and `exact` adopts it with its own `.frizz/.id`.
+ * at a folder may mean exactly that folder, and `exact` adopts it with its own `.ntwine/.id`.
  */
 function EnclosedProjectDialog({ enclosed, onClose }: { enclosed: ProjectEnclosed; onClose: () => void }) {
   const openAdded = useOpenAddedProject()
@@ -883,11 +883,11 @@ export function Welcome({ projects: cards }: { projects: readonly ProjectCard[] 
       <div data-home-welcome className="m-auto flex w-full max-w-[420px] flex-col items-center gap-2.5 px-6 py-14 text-center">
         <img src="/favicon.svg" width={MARK_PX} height={MARK_PX} alt="" className="rounded-[17px]" />
         <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">
-          {projects.length === 0 ? "Welcome to Frizz" : "No project folder can be found"}
+          {projects.length === 0 ? "Welcome to Ntwine" : "No project folder can be found"}
         </h1>
         <p className="text-[13px] leading-relaxed text-muted">
           {projects.length === 0
-            ? "A project is a folder on this machine. Frizz keeps each project's threads together."
+            ? "A project is a folder on this machine. Ntwine keeps each project's threads together."
             : "Every registered project's folder is missing. Add a folder, or delete the projects that are gone."}
         </p>
         <button
@@ -919,10 +919,10 @@ export function Welcome({ projects: cards }: { projects: readonly ProjectCard[] 
         )}
         {/* Not "it registers itself": the launcher adopts no folder. Run in a repository it sends you here
             with that folder proposed (`/?add=<dir>`), and nothing is written until yes; anywhere else it
-            just opens Frizz (upstream 49000c91). */}
+            just opens Ntwine (upstream 49000c91). */}
         <p className="mt-4 text-[11.5px] text-muted-70">
           Or run{" "}
-          <code className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-muted">frizz</code>{" "}
+          <code className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-muted">ntwine</code>{" "}
           inside a repository, and this page offers to add it.
         </p>
         {/* Choosing Home focuses the page on it (and makes it All projects' pick too) — the way to clone a

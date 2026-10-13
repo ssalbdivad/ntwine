@@ -1,7 +1,7 @@
 // DEV-ONLY render instrumentation, opt-in via `?scan=1`.
 //
 // NOTHING IN THE APP IMPORTS THIS FILE. It is loaded as its own `<script type="module">`, injected
-// into the head ahead of main.tsx by the `frizz:dev-render-scan` Vite plugin, which is `apply:
+// into the head ahead of main.tsx by the `ntwine:dev-render-scan` Vite plugin, which is `apply:
 // "serve"` — so this module and everything it drags in (react-scan, react-grab, preact, bippy:
 // 185,755 bytes of entry chunk, measured 2026-09-04) exist in dev and are absent from the production
 // graph by construction rather than by tree-shaking. main.tsx imported it until 2026-09-04 and
@@ -15,7 +15,7 @@
 //
 // It answers one question we otherwise can only guess at: when opening a thread drawer, WHICH
 // components render, how many times, and how much of that was avoidable? Results land on
-// `window.__frizzScan` for a CDP routine to read back.
+// `window.__ntwineScan` for a CDP routine to read back.
 import { scan } from "react-scan"
 
 interface ScanRecord {
@@ -31,7 +31,7 @@ interface ScanRecord {
 
 declare global {
   interface Window {
-    __frizzScan?: {
+    __ntwineScan?: {
       records: Map<string, ScanRecord>
       reset(): void
       dump(limit?: number): { name: string; count: number; selfTimeMs: number; unnecessary: number; judged: number }[]
@@ -46,7 +46,7 @@ function installRenderScan(): void {
   if (!new URLSearchParams(window.location.search).has("scan")) return
 
   const records = new Map<string, ScanRecord>()
-  window.__frizzScan = {
+  window.__ntwineScan = {
     records,
     reset: () => records.clear(),
     dump: (limit = 40) =>

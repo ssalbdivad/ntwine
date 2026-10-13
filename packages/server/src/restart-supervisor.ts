@@ -1,4 +1,4 @@
-// The durable launcher owns the browser-facing port.  A disposable Frizz control-plane child binds
+// The durable launcher owns the browser-facing port.  A disposable Ntwine control-plane child binds
 // only a private loopback port, which means a browser can still ask the owner to recover it after a
 // crash.  This intentionally contains no source-watch logic: stable and legacy launchers can share it.
 import { request as requestHttp, createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http"
@@ -26,9 +26,9 @@ import {
 import { localImageHeaders, localImageStream, resolveLocalImage } from "./local-image.ts"
 import { recoveryPage, unauthorizedPage, unlistedHostPage } from "./supervisor-pages.ts"
 import { CALLER_HEADER, encodeCallerStamp, type CallerVia } from "./audit.ts"
-import { FRIZZ_ROUTE_PREFIX, frizzRoute } from "@frizz/shared"
+import { adoptLegacyRoute, NTWINE_ROUTE_PREFIX, ntwineRoute } from "@ntwine/shared"
 
-export const SUPERVISOR_CONTROL_PREFIX = "/_frizz/control"
+export const SUPERVISOR_CONTROL_PREFIX = "/_ntwine/control"
 export const SUPERVISOR_RESTART_PATH = `${SUPERVISOR_CONTROL_PREFIX}/restart`
 export const SUPERVISOR_UPDATE_RESTART_PATH = `${SUPERVISOR_CONTROL_PREFIX}/update-restart`
 export const SUPERVISOR_STATUS_PATH = `${SUPERVISOR_CONTROL_PREFIX}/status`
@@ -87,7 +87,7 @@ export interface RestartResult {
 }
 
 export interface RestartSupervisorProxyOptions {
-  /** Public Frizz port held for the supervisor's whole lifetime. */
+  /** Public Ntwine port held for the supervisor's whole lifetime. */
   port: number
   /** Bind address for the public port. Defaults to loopback; `--host` moves it onto the network. */
   host?: string
@@ -124,16 +124,16 @@ export interface RestartSupervisorProxyOptions {
   /**
    * Is a NEWER artifact actually available right now? Distinct from `updateRestart`, which only says
    * the verb is WIRED — a distinction the UI needs and could not previously make, so a fully current
-   * production Frizz still advertised "Update Frizz" and reinstalled its own version on click.
+   * production Ntwine still advertised "Update Ntwine" and reinstalled its own version on click.
    *
    * Must be a CHEAP cached read: this runs on every status poll, so it may never touch the network.
-   * Omitting it means "assume available", which keeps frizz-dev (where an update rebuilds from source
+   * Omitting it means "assume available", which keeps ntwine-dev (where an update rebuilds from source
    * and is always meaningful) behaving exactly as before.
    */
   updateAvailable?: () => boolean
   /**
    * The version of the RUNNING application server. A child-only update changes this while its
-   * launcher remains alive, so stable launchers supply a getter. Omitted by frizz-dev and legacy
+   * launcher remains alive, so stable launchers supply a getter. Omitted by ntwine-dev and legacy
    * supervisors, preserving their versionless status payload and UI.
    */
   version?: string | (() => string | undefined)
@@ -149,11 +149,11 @@ export interface RestartSupervisorProxyOptions {
    */
   updateVersion?: () => string | undefined
   /**
-   * Is this Frizz a DEVELOPMENT build — launched from a source checkout by `frizz-dev` (src/index.ts)
-   * or `pnpm dev` (server/src/dev.ts), rather than the published `frizz` bin (src/production.ts)?
+   * Is this Ntwine a DEVELOPMENT build — launched from a source checkout by `ntwine-dev` (src/index.ts)
+   * or `pnpm dev` (server/src/dev.ts), rather than the published `ntwine` bin (src/production.ts)?
    *
    * It exists because the web client cannot answer this for itself. `import.meta.env.DEV` is a Vite
-   * COMPILE-TIME constant, true only under `vite dev` middleware — and frizz-dev's ordinary route
+   * COMPILE-TIME constant, true only under `vite dev` middleware — and ntwine-dev's ordinary route
    * builds an immutable artifact and serves the Vite PRODUCTION bundle, where it is statically
    * `false`. So every dev-only affordance gated on it was dead-code eliminated out of the build the
    * maintainer actually runs all day. The launcher is the only thing that truly knows, so it says so
@@ -185,7 +185,7 @@ function proxyHeaders(
   // Who called, as judged HERE — the child cannot tell once Host and Origin are rewritten below. Any
   // copy the client sent is replaced, never forwarded, so a visitor cannot forge their own attribution.
   headers[CALLER_HEADER] = callerStamp
-  // The child retains Frizz's strict local-origin policy. Translate public browser authority to the
+  // The child retains Ntwine's strict local-origin policy. Translate public browser authority to the
   // private child authority; no external proxy authority is ever trusted.
   headers.host = `127.0.0.1:${childPort}`
   if (typeof headers.origin === "string") headers.origin = `http://127.0.0.1:${childPort}`
@@ -201,8 +201,18 @@ function proxyHeaders(
   return headers
 }
 
-export const ACCESS_CODE_PARAM = "frizz_code"
-const SESSION_COOKIE = "frizz_session"
+export const ACCESS_CODE_PARAM = "ntwine_code"
+const SESSION_COOKIE = "ntwine_session"
+// The two names before the Frizz -> Ntwine rename (2026-10-13). A device signed in then, or a link
+// minted then, still works: the cookie is read under either name and moved to the new one on the next
+// page load (adoptLegacySession), and the code is redeemed under either.
+const LEGACY_ACCESS_CODE_PARAM = "frizz_code"
+const LEGACY_SESSION_COOKIE = "frizz_session"
+
+/** The remote session this request carries, under today's cookie name or the pre-rename one. */
+function sessionCookie(header: string | undefined): string | undefined {
+  return readCookie(header, SESSION_COOKIE) ?? readCookie(header, LEGACY_SESSION_COOKIE)
+}
 /** Loopback spellings the token gate must never challenge — the operator's own tab on the box. */
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"])
 
@@ -229,7 +239,7 @@ function isLoopbackAddress(address: string | null): boolean {
 }
 
 function isControlRequest(req: IncomingMessage): boolean {
-  const url = new URL(req.url ?? "/", "http://frizz.invalid")
+  const url = new URL(req.url ?? "/", "http://ntwine.invalid")
   return url.pathname === SUPERVISOR_RESTART_PATH
     || url.pathname === SUPERVISOR_UPDATE_RESTART_PATH
     || url.pathname === SUPERVISOR_STATUS_PATH
@@ -239,18 +249,18 @@ function isControlRequest(req: IncomingMessage): boolean {
     || url.pathname === SUPERVISOR_REMOTE_PATH
 }
 
-// `/_frizz/local-image` AND `/_frizz/<project>/local-image` — the client builds it from `apiBase()`,
+// `/_ntwine/local-image` AND `/_ntwine/<project>/local-image` — the client builds it from `apiBase()`,
 // which carries the project slug on every prefixed board. Matching only the unprefixed spelling meant
 // a prefixed board's inline screenshots were answered with the recovery HTML during a restart while an
 // unprefixed one's still rendered.
 function isLocalImageRequest(req: IncomingMessage): boolean {
   if (req.method !== "GET" && req.method !== "HEAD") return false
-  const { pathname } = new URL(req.url ?? "/", "http://frizz.invalid")
+  const { pathname } = new URL(req.url ?? "/", "http://ntwine.invalid")
   return LOCAL_IMAGE_PATH.test(pathname)
 }
-// Anchored on the reserved namespace, so only Frizz's own route matches — never some project file
+// Anchored on the reserved namespace, so only Ntwine's own route matches — never some project file
 // that happens to end in the same segment.
-const LOCAL_IMAGE_PATH = new RegExp(`^${FRIZZ_ROUTE_PREFIX}(?:/[^/]+)?/local-image$`)
+const LOCAL_IMAGE_PATH = new RegExp(`^${NTWINE_ROUTE_PREFIX}(?:/[^/]+)?/local-image$`)
 
 /**
  * Read a small JSON control body.
@@ -389,7 +399,7 @@ export class RestartSupervisorProxy {
    * Is this an Origin-less request that only LOOKS suspicious because the browser could not send
    * Fetch Metadata to a non-loopback authority? See authoritySendsFetchMetadata.
    *
-   * Frizz's missing-Origin rules ask for `Sec-Fetch-Site: same-origin`, which Chrome never sends over
+   * Ntwine's missing-Origin rules ask for `Sec-Fetch-Site: same-origin`, which Chrome never sends over
    * plain HTTP to a LAN address — so without this, `--host` serves the shell and then 403s every RPC
    * the app makes. Narrow on purpose: the Host must already be an authority this proxy accepts, there
    * must be no Origin at all (a present one still has to match, and is rejected above if it does not),
@@ -402,7 +412,7 @@ export class RestartSupervisorProxy {
    *
    * What this gives up, stated plainly: on an exposed board a cross-site GET carries no Origin and no
    * Fetch Metadata, so it is indistinguishable from the app's own read and is allowed. The response is
-   * still opaque to the caller (no CORS), Frizz's GET procedures are reads, and every mutation is a POST
+   * still opaque to the caller (no CORS), Ntwine's GET procedures are reads, and every mutation is a POST
    * — which a browser always stamps with an Origin, and which is therefore still refused.
    */
   private vouchesSameOrigin(req: IncomingMessage): boolean {
@@ -419,7 +429,7 @@ export class RestartSupervisorProxy {
       server.close((error) => error ? rejectClose(error) : resolveClose())
       server.closeAllConnections()
       // An upgraded socket is DETACHED from the http server, so closeAllConnections() cannot see it
-      // and server.close() waits on it forever. Frizz always has live WebSockets (the board socket and
+      // and server.close() waits on it forever. Ntwine always has live WebSockets (the board socket and
       // every open terminal), so without this the proxy never finishes closing once a browser has
       // connected. Measured: close() hung indefinitely after a single forwarded upgrade.
       for (const socket of this.upgradedSockets) socket.destroy()
@@ -435,7 +445,7 @@ export class RestartSupervisorProxy {
     // A RESTART drains the child the moment it is accepted, so the owner's acknowledged transition
     // is the truth from the first poll and the delegate's lingering "ready" must not leak through it.
     //
-    // An UPDATE is different: it has a PREPARE phase — frizz-dev's source build, the registry
+    // An UPDATE is different: it has a PREPARE phase — ntwine-dev's source build, the registry
     // launcher's npm install — during which the old child is untouched and serving, and which can
     // run for minutes (a native module compiled from source on a slow box) or stall on a registry.
     // Reporting "restarting" through all of it put every open tab behind the blocking overlay for the
@@ -453,17 +463,17 @@ export class RestartSupervisorProxy {
       ...(delegated ?? {}),
       ...reported,
       // Never infer this from the generic protocol: legacy/static supervisors can recover a child
-      // but cannot build and promote the canonical Frizz artifact.
+      // but cannot build and promote the canonical Ntwine artifact.
       updateRestart: typeof this.options.updateRestart === "function",
-      // Sent ONLY when the launcher can actually answer it, so an older client — and frizz-dev, which
+      // Sent ONLY when the launcher can actually answer it, so an older client — and ntwine-dev, which
       // has no notion of "already current" — keeps today's behaviour on its absence.
       ...(this.options.updateAvailable ? { updateAvailable: this.options.updateAvailable() === true } : {}),
-      // The active SERVER version changes on a child-only update. Its absence keeps frizz-dev and
+      // The active SERVER version changes on a child-only update. Its absence keeps ntwine-dev and
       // old monolithic supervisors' status payload and versionless UI exactly as they were.
       ...(version ? { version } : {}),
       ...(this.options.launcherVersion ? { launcherVersion: this.options.launcherVersion } : {}),
       ...(updateVersion ? { updateVersion } : {}),
-      // Sent only when TRUE, so a published Frizz's payload is byte-identical to what it sends today
+      // Sent only when TRUE, so a published Ntwine's payload is byte-identical to what it sends today
       // and an older client is unaffected. Absent therefore means "not a development build".
       ...(this.options.dev ? { dev: true } : {}),
     }
@@ -504,7 +514,7 @@ export class RestartSupervisorProxy {
   }
 
   private async handleControl(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const pathname = new URL(req.url ?? "/", "http://frizz.invalid").pathname
+    const pathname = new URL(req.url ?? "/", "http://ntwine.invalid").pathname
     // THE SESSION GATE, for the control plane. handle() sends every control path here BEFORE its own
     // session check, so without this the tunnel reached restart, update-restart and status with no
     // session at all: the authority check below keys on Host and Origin, which any non-browser client
@@ -662,7 +672,7 @@ export class RestartSupervisorProxy {
       return
     }
     if (pathname === SUPERVISOR_UPDATE_RESTART_PATH && !this.options.updateRestart) {
-      responseJson(res, 409, { protocol: SUPERVISOR_CONTROL_PROTOCOL, state: "failed", message: "Update & Restart is available only for a stable immutable Frizz artifact" })
+      responseJson(res, 409, { protocol: SUPERVISOR_CONTROL_PROTOCOL, state: "failed", message: "Update & Restart is available only for a stable immutable Ntwine artifact" })
       return
     }
     if (pathname === SUPERVISOR_UPDATE_RESTART_PATH) {
@@ -686,14 +696,14 @@ export class RestartSupervisorProxy {
       return
     }
 
-    const url = new URL(req.url ?? "/", "http://frizz.invalid")
+    const url = new URL(req.url ?? "/", "http://ntwine.invalid")
     const result = resolveLocalImage(url.searchParams.get("path") ?? undefined, req.headers.range)
     const origin = typeof req.headers.origin === "string"
       ? allowedLocalCorsOrigin(req.headers.origin, this.options.port, this.policy)
       : undefined
     const sharedHeaders = {
       ...(origin ? { "access-control-allow-origin": origin } : {}),
-      "access-control-expose-headers": "x-frizz-boot",
+      "access-control-expose-headers": "x-ntwine-boot",
       vary: "Origin",
     }
     if (result.status === 416) {
@@ -731,7 +741,7 @@ export class RestartSupervisorProxy {
 
   /**
    * Bearer check for the public origin. Two ways in: the cookie the exchange below sets, or the
-   * one-time `?frizz_token=` in the URL the operator was handed at launch.
+   * one-time `?ntwine_token=` in the URL the operator was handed at launch.
    *
    * Compared with `timingSafeEqual` on equal-length buffers — a plain `===` on a secret leaks its
    * prefix to a patient attacker, and this secret is the only thing between the internet and a shell.
@@ -739,13 +749,13 @@ export class RestartSupervisorProxy {
   /**
    * Is this request carrying a session this process minted?
    *
-   * Sessions only. A raw `?frizz_code=` is NOT accepted here — it is redeemed once by exchangeCode()
+   * Sessions only. A raw `?ntwine_code=` is NOT accepted here — it is redeemed once by exchangeCode()
    * below and traded for a session, so a code that has already been spent cannot keep working just by
    * staying in somebody's URL bar.
    */
   private sessionAccepted(req: IncomingMessage): boolean {
     if (!this.publicOrigin) return true
-    return this.access.verifySession(readCookie(req.headers.cookie, SESSION_COOKIE))
+    return this.access.verifySession(sessionCookie(req.headers.cookie))
   }
 
   /**
@@ -769,13 +779,13 @@ export class RestartSupervisorProxy {
       remote,
       ...(host ? { host: host.slice(0, 200) } : {}),
       ...(clientIp ? { clientIp: clientIp.slice(0, 200) } : {}),
-      session: this.access.sessionIdOf(readCookie(req.headers.cookie, SESSION_COOKIE)),
+      session: this.access.sessionIdOf(sessionCookie(req.headers.cookie)),
     })
   }
 
   /** Did this request arrive through the public origin carrying a live session? Loopback never does. */
   private carriesRemoteSession(req: IncomingMessage): boolean {
-    return this.arrivedPublicly(req) && this.access.verifySession(readCookie(req.headers.cookie, SESSION_COOKIE))
+    return this.arrivedPublicly(req) && this.access.verifySession(sessionCookie(req.headers.cookie))
   }
 
   /**
@@ -791,7 +801,7 @@ export class RestartSupervisorProxy {
         "content-type": "application/json; charset=utf-8",
         "cache-control": "no-store",
         // Same attributes the exchange set, so the browser matches and drops that exact cookie.
-        ...(clearCookie ? { "set-cookie": `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` } : {}),
+        ...(clearCookie ? { "set-cookie": [SESSION_COOKIE, LEGACY_SESSION_COOKIE].map((name) => `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`) } : {}),
       })
       res.end(JSON.stringify(body))
     }
@@ -799,7 +809,7 @@ export class RestartSupervisorProxy {
       reply(200, { protocol: SUPERVISOR_CONTROL_PROTOCOL, result: "no-remote-session" }, false)
       return
     }
-    const outcome = this.access.signOutSession(readCookie(req.headers.cookie, SESSION_COOKIE))
+    const outcome = this.access.signOutSession(sessionCookie(req.headers.cookie))
     if (outcome.result === "revoked") {
       reply(200, { protocol: SUPERVISOR_CONTROL_PROTOCOL, result: "signed-out", id: outcome.id }, true)
       return
@@ -814,16 +824,41 @@ export class RestartSupervisorProxy {
   }
 
   /**
-   * Trade `?frizz_code=…` for a cookie, then bounce to the same URL
+   * Move a live session from the pre-rename cookie to today's, on a page load: bounce to the same URL
+   * setting `ntwine_session` (expiring when the session does, as exchangeCode sets it) and clearing
+   * `frizz_session`. Only a top-level GET navigation is redirected — a fetch or a socket carrying the old
+   * cookie is simply accepted under it (sessionCookie), since a redirect there would break the call.
+   */
+  private adoptLegacySession(req: IncomingMessage, res: ServerResponse): boolean {
+    if (req.method !== "GET" || firstHeader(req.headers["sec-fetch-mode"]) !== "navigate") return false
+    if (readCookie(req.headers.cookie, SESSION_COOKIE) !== undefined) return false
+    const session = readCookie(req.headers.cookie, LEGACY_SESSION_COOKIE)
+    if (!session || !this.access.verifySession(session)) return false
+    const expiresAt = Number(session.slice(0, session.indexOf(".")))
+    const maxAge = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
+    res.writeHead(302, {
+      location: req.url || "/",
+      "set-cookie": [
+        `${SESSION_COOKIE}=${session}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`,
+        `${LEGACY_SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+      ],
+      "cache-control": "no-store",
+    })
+    res.end()
+    return true
+  }
+
+  /**
+   * Trade `?ntwine_code=…` for a cookie, then bounce to the same URL
    * without the secret, so it never lands in history, a Referer header, or a screenshot.
    */
   private exchangeCode(req: IncomingMessage, res: ServerResponse): boolean {
-    const url = new URL(req.url ?? "/", "http://frizz.invalid")
-    const code = url.searchParams.get(ACCESS_CODE_PARAM)
+    const url = new URL(req.url ?? "/", "http://ntwine.invalid")
+    const code = url.searchParams.get(ACCESS_CODE_PARAM) ?? url.searchParams.get(LEGACY_ACCESS_CODE_PARAM)
     if (code === null) return false
 
     // The User-Agent is the only thing a board ever records about a visitor's browser, and it exists
-    // so `frizz --sessions` can say "iPhone" instead of an opaque id nobody can match to a device.
+    // so `ntwine --sessions` can say "iPhone" instead of an opaque id nobody can match to a device.
     const redeemed = this.access.redeem(code, describeDevice(req.headers["user-agent"]))
     if (!redeemed?.ok) {
       // Say WHICH failure. "This link was already used" and "no such link" send a person to very
@@ -837,6 +872,7 @@ export class RestartSupervisorProxy {
     const maxAge = Math.max(0, Math.floor((redeemed.expiresAt - Date.now()) / 1000))
 
     url.searchParams.delete(ACCESS_CODE_PARAM)
+    url.searchParams.delete(LEGACY_ACCESS_CODE_PARAM)
     const target = `${url.pathname}${url.search}${url.hash}` || "/"
     // Secure + SameSite=Lax: the origin is https through the tunnel, and Lax still permits the
     // top-level navigation that lands here while refusing cross-site writes.
@@ -850,6 +886,7 @@ export class RestartSupervisorProxy {
   }
 
   private handle(req: IncomingMessage, res: ServerResponse): void {
+    if (req.url) req.url = adoptLegacyRoute(req.url)
     if (isControlRequest(req)) {
       void this.handleControl(req, res)
       return
@@ -857,6 +894,7 @@ export class RestartSupervisorProxy {
     // Exchange FIRST: the arriving link carries the credential, so judging before redeeming would
     // reject the very request that is meant to establish the session.
     if (this.arrivedPublicly(req) && this.exchangeCode(req, res)) return
+    if (this.arrivedPublicly(req) && this.adoptLegacySession(req, res)) return
     if (this.arrivedPublicly(req) && !this.sessionAccepted(req)) {
       res.writeHead(401, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
       res.end(unauthorizedPage())
@@ -904,6 +942,7 @@ export class RestartSupervisorProxy {
   }
 
   private handleUpgrade(req: IncomingMessage, socket: import("node:stream").Duplex, head: Buffer): void {
+    if (req.url) req.url = adoptLegacyRoute(req.url)
     // The board socket and every terminal come through here, so the bearer gate has to cover the
     // upgrade too — otherwise the shell is reachable without the secret the HTML path demands. No
     // query-param exchange here: a browser sends the cookie it was given on the page that opened it.

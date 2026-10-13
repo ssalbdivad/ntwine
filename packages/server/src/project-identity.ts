@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import {
   closeSync,
+  existsSync,
   fsyncSync,
   mkdirSync,
   openSync,
@@ -15,7 +16,7 @@ import {
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import { frizzPaths } from "./frizz-paths.ts"
+import { ntwinePaths } from "./ntwine-paths.ts"
 import {
   currentProcessGeneration,
   defaultProcessPlatformAdapter,
@@ -50,7 +51,7 @@ interface LockObservation {
 export type GitProjectIdentityScope = "repository" | "worktree"
 
 export interface GitProjectIdentity {
-  /** The Frizz instance id. Ordinary/main worktrees retain the repository-local `frizz.id`. */
+  /** The Ntwine instance id. Ordinary/main worktrees retain the repository-local `ntwine.id`. */
   id: string
   scope: GitProjectIdentityScope
   /** Canonical paths identify the exact checkout independently of symlink aliases. */
@@ -89,11 +90,11 @@ function canonicalHome(home: string): string {
 }
 
 export function globalLaunchLockPath(home = homedir()): string {
-  return join(frizzPaths({ home: canonicalHome(home) }).state, GLOBAL_LOCK_NAME)
+  return join(ntwinePaths({ home: canonicalHome(home) }).state, GLOBAL_LOCK_NAME)
 }
 
 function namedLaunchLockPath(home: string, name: string): string {
-  return join(frizzPaths({ home: canonicalHome(home) }).state, name)
+  return join(ntwinePaths({ home: canonicalHome(home) }).state, name)
 }
 
 export function pidIsAlive(pid: unknown): pid is number {
@@ -264,7 +265,7 @@ function tryAcquireGlobalLaunchLock(home: string, adapter: ProcessPlatformAdapte
 }
 
 export function portReservationPath(port: number, home = homedir()): string {
-  return join(frizzPaths({ home: canonicalHome(home) }).state, PORT_LOCK_DIR, `${port}.lock`)
+  return join(ntwinePaths({ home: canonicalHome(home) }).state, PORT_LOCK_DIR, `${port}.lock`)
 }
 
 /**
@@ -299,8 +300,8 @@ export function tryReservePort(
 function lockTimeoutError(observation: LockObservation): Error {
   return new Error(
     observation.ownerPid === undefined
-      ? "another Frizz launch still owns the global launch lock"
-      : `another Frizz launch (pid ${observation.ownerPid}) still owns the global launch lock`,
+      ? "another Ntwine launch still owns the global launch lock"
+      : `another Ntwine launch (pid ${observation.ownerPid}) still owns the global launch lock`,
   )
 }
 
@@ -355,7 +356,7 @@ function identityCreationLockName(worktree: Pick<GitWorktree, "commonGitDir">): 
 export function validateProjectId(value: string): string {
   const id = value.trim()
   if (!PROJECT_ID_RE.test(id)) {
-    throw new Error("git config --local frizz.id is invalid; expected exactly one UUID")
+    throw new Error("git config --local ntwine.id is invalid; expected exactly one UUID")
   }
   return id
 }
@@ -391,17 +392,31 @@ export function resolveGitWorktree(dir: string): GitWorktree {
     gitDir,
     commonGitDir,
     scope,
-    // Do not enable Git's repository-wide `extensions.worktreeConfig` merely to hold one private Frizz
+    // Do not enable Git's repository-wide `extensions.worktreeConfig` merely to hold one private Ntwine
     // value. A config file inside the linked worktree's own administrative directory has Git's atomic
     // config-lock behavior, survives `git worktree move`, and disappears with `git worktree remove`.
-    ...(scope === "worktree" ? { identityConfig: join(gitDir, "frizz.config") } : {}),
+    // A worktree whose id was written before the Frizz -> Ntwine rename keeps it in `frizz.config`.
+    ...(scope === "worktree"
+      ? { identityConfig: existsSync(join(gitDir, "ntwine.config")) || !existsSync(join(gitDir, "frizz.config"))
+        ? join(gitDir, "ntwine.config")
+        : join(gitDir, "frizz.config") }
+      : {}),
   }
 }
 
+/**
+ * The id under `ntwine.id`, or under `frizz.id` — the key before the Frizz -> Ntwine rename
+ * (2026-10-13). Read, never rewritten: a repository keeps the id it already committed to.
+ */
 function readProjectIdConfig(dir: string, args: string[], description: string): string | undefined {
+  return readProjectIdConfigKey(dir, args, description, "ntwine.id")
+    ?? readProjectIdConfigKey(dir, args, description.replace("ntwine.id", "frizz.id"), "frizz.id")
+}
+
+function readProjectIdConfigKey(dir: string, args: string[], description: string, key: string): string | undefined {
   let output: string
   try {
-    output = execFileSync("git", ["config", ...args, "--get-all", "frizz.id"], {
+    output = execFileSync("git", ["config", ...args, "--get-all", key], {
       cwd: dir,
       windowsHide: true,
       encoding: "utf8",
@@ -421,7 +436,7 @@ function readProjectIdConfig(dir: string, args: string[], description: string): 
 }
 
 export function readGitProjectId(dir: string): string | undefined {
-  return readProjectIdConfig(dir, ["--local"], "git config --local frizz.id")
+  return readProjectIdConfig(dir, ["--local"], "git config --local ntwine.id")
 }
 
 function readGitWorktreeProjectId(worktree: GitWorktree): string | undefined {
@@ -429,14 +444,14 @@ function readGitWorktreeProjectId(worktree: GitWorktree): string | undefined {
   return readProjectIdConfig(
     worktree.root,
     ["--file", worktree.identityConfig],
-    "linked-worktree frizz.id",
+    "linked-worktree ntwine.id",
   )
 }
 
 function syncGitConfigPath(path: string): void {
   // Windows FlushFileBuffers demands a WRITE handle — fsync on an "r" fd throws EPERM there, which
   // took every git-repo project registration down with "unable to persist git config --local
-  // frizz.id" (found by the first Windows suite run, 2026-08-24). POSIX fsyncs a read-only fd fine,
+  // ntwine.id" (found by the first Windows suite run, 2026-08-24). POSIX fsyncs a read-only fd fine,
   // and "r+" never writes, so the write-capable open is safe everywhere git itself just wrote the
   // file. The content is already durable in git's own rename; this fsync is belt-and-suspenders.
   const fd = openSync(path, process.platform === "win32" ? "r+" : "r")
@@ -458,7 +473,7 @@ function syncGitConfig(dir: string): void {
       stdio: ["ignore", "pipe", "ignore"],
     }).trim()
   } catch {
-    throw new Error("unable to locate git config after writing frizz.id")
+    throw new Error("unable to locate git config after writing ntwine.id")
   }
   const path = resolve(dir, raw)
   syncGitConfigPath(path)
@@ -469,17 +484,17 @@ function createGitProjectId(dir: string): string {
   try {
     // Git's own config lock writes and renames the file atomically. `--add` cannot silently replace an
     // external value; the mandatory reread below rejects duplicates or any unexpected winner.
-    execFileSync("git", ["config", "--local", "--add", "frizz.id", proposed], {
+    execFileSync("git", ["config", "--local", "--add", "ntwine.id", proposed], {
       cwd: dir,
       windowsHide: true,
       stdio: ["ignore", "ignore", "ignore"],
     })
     syncGitConfig(dir)
   } catch {
-    throw new Error("unable to persist git config --local frizz.id")
+    throw new Error("unable to persist git config --local ntwine.id")
   }
   const committed = readGitProjectId(dir)
-  if (committed !== proposed) throw new Error("git config --local frizz.id changed during creation")
+  if (committed !== proposed) throw new Error("git config --local ntwine.id changed during creation")
   return committed
 }
 
@@ -489,17 +504,17 @@ function createGitWorktreeProjectId(worktree: GitWorktree, repositoryId: string)
   let proposed = randomUUID()
   while (proposed === repositoryId) proposed = randomUUID()
   try {
-    execFileSync("git", ["config", "--file", config, "--add", "frizz.id", proposed], {
+    execFileSync("git", ["config", "--file", config, "--add", "ntwine.id", proposed], {
       cwd: worktree.root,
       windowsHide: true,
       stdio: ["ignore", "ignore", "ignore"],
     })
     syncGitConfigPath(config)
   } catch {
-    throw new Error("unable to persist linked-worktree frizz.id")
+    throw new Error("unable to persist linked-worktree ntwine.id")
   }
   const committed = readGitWorktreeProjectId(worktree)
-  if (committed !== proposed) throw new Error("linked-worktree frizz.id changed during creation")
+  if (committed !== proposed) throw new Error("linked-worktree ntwine.id changed during creation")
   return committed
 }
 
@@ -511,15 +526,15 @@ function resolvedIdentity(worktree: GitWorktree): GitProjectIdentity | undefined
   const worktreeId = readGitWorktreeProjectId(worktree)
   if (!repositoryId || !worktreeId) return undefined
   if (worktreeId === repositoryId) {
-    throw new Error("linked-worktree frizz.id is invalid; it must differ from the repository frizz.id")
+    throw new Error("linked-worktree ntwine.id is invalid; it must differ from the repository ntwine.id")
   }
   return { ...worktree, id: worktreeId }
 }
 
 /**
- * Resolve the durable Frizz identity for one exact Git checkout.
+ * Resolve the durable Ntwine identity for one exact Git checkout.
  *
- * The main/ordinary worktree keeps the historical repository-local `frizz.id` byte-for-byte, preserving
+ * The main/ordinary worktree keeps the historical repository-local `ntwine.id` byte-for-byte, preserving
  * its existing state directory. Each linked worktree stores a different UUID in its own Git administrative
  * directory, so aliases share it, moves retain it, and removal removes it.
  */
@@ -542,7 +557,7 @@ export function resolveGitProjectIdentity(dir: string, home = homedir()): GitPro
 
     const id = readGitWorktreeProjectId(worktree) ?? createGitWorktreeProjectId(worktree, repositoryId)
     if (id === repositoryId) {
-      throw new Error("linked-worktree frizz.id is invalid; it must differ from the repository frizz.id")
+      throw new Error("linked-worktree ntwine.id is invalid; it must differ from the repository ntwine.id")
     }
     return { ...worktree, id }
   } finally {

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * frizz — Revalidate (time-based recheck) tests. Run with: `node --test 'board/*.test.mjs'`.
+ * ntwine — Revalidate (time-based recheck) tests. Run with: `node --test 'board/*.test.mjs'`.
  *
  * Covers the three layers of the mechanism:
  *   1. The pure timer semantics (`revalidateState` / `formatEta`) — including the robustness
@@ -62,13 +62,13 @@ test('formatEta: minutes, hours, days; negatives clamp to 0m', () => {
 
 // ── board: due vs parked status + the malformed-timestamp warning ─────────────────
 test('board --json: future thread is parked (due=false), past thread is due (due=true)', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-reval-board-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-reval-board-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
     const future = new Date(Date.now() + 8 * 3_600_000).toISOString();
     const past = new Date(Date.now() - 3_600_000).toISOString();
-    writeFileSync(join(dir, '.frizz', 'parked.md'), `---\ntitle: p\nstatus: blocked\nstatus_text: "awaiting jdx review on PR #888"\nrevalidate_at: ${future}\n---\nbody\n`);
-    writeFileSync(join(dir, '.frizz', 'due.md'), `---\ntitle: d\nstatus: blocked\nstatus_text: "awaiting CI"\nrevalidate_at: ${past}\nlast_checked: 2026-06-01T00:00:00Z\n---\nbody\n`);
+    writeFileSync(join(dir, '.ntwine', 'parked.md'), `---\ntitle: p\nstatus: blocked\nstatus_text: "awaiting jdx review on PR #888"\nrevalidate_at: ${future}\n---\nbody\n`);
+    writeFileSync(join(dir, '.ntwine', 'due.md'), `---\ntitle: d\nstatus: blocked\nstatus_text: "awaiting CI"\nrevalidate_at: ${past}\nlast_checked: 2026-06-01T00:00:00Z\n---\nbody\n`);
     const { threads, errors } = JSON.parse(execFileSync(process.execPath, [INDEX, '--json'], {
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8',
     }));
@@ -83,10 +83,10 @@ test('board --json: future thread is parked (due=false), past thread is due (due
 });
 
 test('board: a present-but-unparseable revalidate_at surfaces a non-fatal warning, not an error', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-reval-bad-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-reval-bad-'));
   try {
-    mkdirSync(join(dir, '.frizz'), { recursive: true });
-    writeFileSync(join(dir, '.frizz', 'typo.md'), '---\ntitle: t\nstatus: blocked\nstatus_text: "x"\nrevalidate_at: tomorrow\n---\nbody\n');
+    mkdirSync(join(dir, '.ntwine'), { recursive: true });
+    writeFileSync(join(dir, '.ntwine', 'typo.md'), '---\ntitle: t\nstatus: blocked\nstatus_text: "x"\nrevalidate_at: tomorrow\n---\nbody\n');
     // --validate exits 0 (warnings never fail the gate) and prints the warning to stderr.
     const out = execFileSync(process.execPath, [INDEX, '--validate'], {
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
@@ -105,7 +105,7 @@ test('board: a present-but-unparseable revalidate_at surfaces a non-fatal warnin
 });
 
 // ── per-turn hook: due surfaces loudly; future is suppressed from the nag ──────────
-/** Stand up an ACTIVATED `.frizz/` project (sentinel ON), stamp a fresh reconcile, run the hook. */
+/** Stand up an ACTIVATED `.ntwine/` project (sentinel ON), stamp a fresh reconcile, run the hook. */
 function runReminder(dir, sessionId) {
   writeLastReconcile(dir, Date.now()); // keep the reconcile-stale block out of the output
   const raw = execFileSync(process.execPath, [REMINDER], {

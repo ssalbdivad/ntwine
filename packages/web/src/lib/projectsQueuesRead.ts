@@ -1,4 +1,4 @@
-import type { ProjectQueue } from "@frizz/shared"
+import type { ProjectQueue } from "@ntwine/shared"
 import { queryOptions, replaceEqualDeep } from "@tanstack/react-query"
 import { rpc } from "../api/rpc.ts"
 

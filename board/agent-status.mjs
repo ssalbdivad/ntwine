@@ -1,11 +1,11 @@
 // @ts-check
 /**
- * frizz — DERIVED agent state. The single shared derivation used by BOTH the Stop-hook
+ * ntwine — DERIVED agent state. The single shared derivation used by BOTH the Stop-hook
  * liveness helper (`./agent-liveness.mjs`) and the board (`./index.mjs`), so an agent's
  * reported state can never drift between the two.
  *
  * THE PRINCIPLE — compute, don't store (the same rule the board already follows for
- * thread status). The thread↔agent binding (`.frizz/.agent-bindings.jsonl`, written
+ * thread status). The thread↔agent binding (`.ntwine/.agent-bindings.jsonl`, written
  * AUTOMATICALLY by the agent-bind hook) records ONLY immutable-at-dispatch facts
  * (`agentId → thread`, plus a label); it carries NO per-agent `status`. (The old
  * hand-maintained `agents:` frontmatter is gone; a lingering one is an ignored no-op.)
@@ -61,11 +61,11 @@ export const DEFAULT_FROZEN_MIN = DEFAULT_DROPPED_MIN;
 export const DEFAULT_LONG_RUNTIME_MIN = 35;
 
 // Env-resolved thresholds, defined ONCE here so EVERY consumer (the Stop-hook liveness helper
-// AND the board) reads the same knobs and can never disagree. FRIZZ_FROZEN_MIN is honored as the
-// old alias for FRIZZ_DROPPED_MIN.
-export const IDLE_MIN = parseInt(process.env.FRIZZ_IDLE_MIN || '', 10) || DEFAULT_IDLE_MIN;
-export const DROPPED_MIN = parseInt(process.env.FRIZZ_DROPPED_MIN || process.env.FRIZZ_FROZEN_MIN || '', 10) || DEFAULT_DROPPED_MIN;
-export const LONG_RUNTIME_MIN = parseInt(process.env.FRIZZ_LONG_RUNTIME_MIN || '', 10) || DEFAULT_LONG_RUNTIME_MIN;
+// AND the board) reads the same knobs and can never disagree. NTWINE_FROZEN_MIN is honored as the
+// old alias for NTWINE_DROPPED_MIN.
+export const IDLE_MIN = parseInt(process.env.NTWINE_IDLE_MIN || '', 10) || DEFAULT_IDLE_MIN;
+export const DROPPED_MIN = parseInt(process.env.NTWINE_DROPPED_MIN || process.env.NTWINE_FROZEN_MIN || '', 10) || DEFAULT_DROPPED_MIN;
+export const LONG_RUNTIME_MIN = parseInt(process.env.NTWINE_LONG_RUNTIME_MIN || '', 10) || DEFAULT_LONG_RUNTIME_MIN;
 
 /**
  * GROUND-TRUTH age of an agent's last activity, in minutes — globbed across ALL local
@@ -143,7 +143,7 @@ export function findAgentOutputAge(agentId, now = Date.now()) {
  *                                       never triggers the no-live-agent warning. (Defaults
  *                                       true for backward-compat when a caller doesn't pass it.)
  * @param {boolean} [a.threadDownstream] does the thread have a PR landing via the merge
- *                                       cascade (`.frizz/merge-queue.jsonl`)? Such a thread is
+ *                                       cascade (`.ntwine/merge-queue.jsonl`)? Such a thread is
  *                                       legitimately `active` while it merges — the producing
  *                                       agent has finished and reconciled — so it is never a
  *                                       drop. (Defaults false.)

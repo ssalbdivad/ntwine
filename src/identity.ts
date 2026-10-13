@@ -1,34 +1,34 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { frizzPaths } from "@frizz/server/frizz-paths";
+import { ntwinePaths } from "@ntwine/server/ntwine-paths";
 import {
   claimIdentityFromPrivateKey,
   exportClaimPrivateKey,
   exportClaimPublicKey,
   generateClaimIdentity,
-} from "@frizz/shared";
+} from "@ntwine/shared";
 
 /**
  * The keypair that owns this machine's `<name>.frizz.sh` names.
  *
  * There is no account behind a claimed name — the key IS the account, which is what lets the feature
- * exist without Frizz growing a login. Ownership moves the way an SSH key does: copy the file.
+ * exist without Ntwine growing a login. Ownership moves the way an SSH key does: copy the file.
  */
 
 /**
- * One key per machine, beside the rest of Frizz's user-level state — which means the STATE ROOT
- * frizz-paths.ts resolves, not a literal `~/.frizz`. It was the literal until 2026-08-28: on a machine
- * that had never had a `~/.frizz` (every fresh install since the XDG split), the first claim created
- * one, and from then on frizz-paths.ts read that directory's existence as "legacy install" and routed
+ * One key per machine, beside the rest of Ntwine's user-level state — which means the STATE ROOT
+ * ntwine-paths.ts resolves, not a literal `~/.ntwine`. It was the literal until 2026-08-28: on a machine
+ * that had never had a `~/.ntwine` (every fresh install since the XDG split), the first claim created
+ * one, and from then on ntwine-paths.ts read that directory's existence as "legacy install" and routed
  * every root there — the registry, the projects and the database written under the XDG roots looked
- * gone. A machine that already has `~/.frizz` resolves to the same file as before.
+ * gone. A machine that already has `~/.ntwine` resolves to the same file as before.
  *
  * `env` is for the one caller that resolves two homes under two environments at once: the sandbox,
  * which links the operator's key (their XDG roots in force) into a throwaway home (those roots dropped).
  */
 export function claimIdentityPath(home = homedir(), env?: NodeJS.ProcessEnv): string {
-  return join(frizzPaths({ home, env }).state, "identity.key");
+  return join(ntwinePaths({ home, env }).state, "identity.key");
 }
 
 /**
@@ -53,7 +53,7 @@ export async function loadOrCreateClaimIdentity(home = homedir()): Promise<Crypt
     const identity = await claimIdentityFromPrivateKey(new Uint8Array(stored));
     if (identity) return identity;
     throw new Error(
-      `${path} is not a usable Frizz identity key. It is what proves you own your frizz.sh name, so it is not replaced automatically — restore it from a backup, or delete it to claim a new name.`
+      `${path} is not a usable Ntwine identity key. It is what proves you own your frizz.sh name, so it is not replaced automatically — restore it from a backup, or delete it to claim a new name.`
     );
   }
 

@@ -18,20 +18,20 @@ Object.assign(window, { __settingsWrites: writes })
 let retryableFailures = Number(new URLSearchParams(location.search).get("retryableFailures") ?? 0)
 
 const rpcResult = (result: unknown) => new Response(JSON.stringify({ result }), {
-  headers: { "content-type": "application/json", "x-frizz-boot": "settings-fixture" },
+  headers: { "content-type": "application/json", "x-ntwine-boot": "settings-fixture" },
 })
 
-const rpcRetryableError = () => new Response(JSON.stringify({ error: "Frizz is updating and restarting.", retryable: true }), {
+const rpcRetryableError = () => new Response(JSON.stringify({ error: "Ntwine is updating and restarting.", retryable: true }), {
   status: 503,
-  headers: { "content-type": "application/json", "x-frizz-boot": "settings-fixture" },
+  headers: { "content-type": "application/json", "x-ntwine-boot": "settings-fixture" },
 })
 
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(requestUrl, window.location.href)
-  if (url.pathname === "/_frizz/rpc/settingsGet") return rpcResult(settings)
-  if (url.pathname === "/_frizz/rpc/settingsSet") {
+  if (url.pathname === "/_ntwine/rpc/settingsGet") return rpcResult(settings)
+  if (url.pathname === "/_ntwine/rpc/settingsSet") {
     const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
     if (retryableFailures > 0) {
       retryableFailures -= 1
@@ -44,9 +44,9 @@ window.fetch = async (input, init) => {
     writes.push({ at: performance.now(), body, ok: true })
     return rpcResult(settings)
   }
-  if (url.pathname === "/_frizz/rpc/codexModels") return rpcResult([])
-  if (url.pathname === "/_frizz/rpc/acpAgents") return rpcResult([])
-  if (url.pathname === "/_frizz/rpc/githubPromptDefaults") {
+  if (url.pathname === "/_ntwine/rpc/codexModels") return rpcResult([])
+  if (url.pathname === "/_ntwine/rpc/acpAgents") return rpcResult([])
+  if (url.pathname === "/_ntwine/rpc/githubPromptDefaults") {
     return rpcResult({
       prompt: "Triage this GitHub issue/PR and make recommendations. Classify it, be dubious, and say what you actually checked.",
     })

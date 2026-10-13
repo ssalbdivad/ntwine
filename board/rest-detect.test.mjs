@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * frizz — rest-on-waiter detection tests. Run with: `node --test 'board/*.test.mjs'`.
+ * ntwine — rest-on-waiter detection tests. Run with: `node --test 'board/*.test.mjs'`.
  *
  * The contract: detectWaiterRest MUST block every real waiter-rest final message
  * captured from production (false rests that strand a task) and MUST allow every
@@ -120,7 +120,7 @@ test('structural — ALLOWS a genuine finish (last tool_use is foreground work)'
 });
 
 test('lastToolUse + detectStructuralRest — read a real-shaped transcript .jsonl', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'frizz-rest-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ntwine-rest-'));
   try {
     // Transcript schema mirrors production: each assistant content-block is its own
     // event line; an assistant turn carries message.content as an array; the bg-launch

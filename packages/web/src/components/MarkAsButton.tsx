@@ -1,6 +1,6 @@
 import { memo, useState } from "react"
 import { ChevronDown, Loader2 } from "lucide-react"
-import type { FrizzStatus } from "@frizz/shared"
+import type { NtwineStatus } from "@ntwine/shared"
 import { Menu, MenuTrigger, MenuContent, MenuItem } from "./ui/Menu.tsx"
 import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
@@ -42,7 +42,7 @@ export const MarkAsButton = memo(function MarkAsButton({
   onApplied?: () => void
   onFailed?: () => void
 }) {
-  const [armed, setArmed] = useState<FrizzStatus>("done")
+  const [armed, setArmed] = useState<NtwineStatus>("done")
   const [statusBusy, setStatusBusy] = useState(false)
   const busy = (armed === "done" && onDone ? doneBusy : statusBusy) ?? false
   const applyArmed = () => {

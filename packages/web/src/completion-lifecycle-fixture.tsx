@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { useEffect, useState } from "react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadLifecycleActions } from "./components/ThreadLifecycle.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import "./styles.css"
@@ -8,12 +8,12 @@ import "./styles.css"
 const mode = new URLSearchParams(window.location.search).get("mode") === "executing" ? "executing" : "resting"
 const nativeFetch = window.fetch.bind(window)
 const rpcResult = (result: unknown) => new Response(JSON.stringify({ result }), {
-  headers: { "content-type": "application/json", "x-frizz-boot": "completion-lifecycle-fixture" },
+  headers: { "content-type": "application/json", "x-ntwine-boot": "completion-lifecycle-fixture" },
 })
 
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input.toString(), window.location.origin)
-  if (url.pathname === "/_frizz/rpc/completeThread") {
+  if (url.pathname === "/_ntwine/rpc/completeThread") {
     const body = JSON.parse(String(init?.body ?? "{}")) as { terminateLive?: boolean }
     window.dispatchEvent(new CustomEvent("fixture-complete", { detail: body }))
     return rpcResult({ needsConfirmation: mode === "executing" && body.terminateLive !== true })

@@ -1,6 +1,6 @@
 // LIVE proof (not a unit test) that flipping the default transport from the daemon to the native
 // listener MIGRATES a live thread cleanly. A thread dispatched before the flip is bound to a
-// daemon-hosted app-server; after the flip a fresh frizz boots on the native default, which is a
+// daemon-hosted app-server; after the flip a fresh ntwine boots on the native default, which is a
 // different process — so the thread must cold-resume from its on-disk rollout and keep working, and
 // the orphaned daemon must not wedge or corrupt anything.
 //
@@ -16,7 +16,7 @@ import { daemonCodexAppServerHost, killCodexAppServerDaemon, liveDaemonRecord } 
 import { nativeListenCodexAppServerHost, liveNativeRecord, killNativeListener } from "./codex-app-server-native.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const root = mkdtempSync(join(tmpdir(), "frizz-migration-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-migration-"))
 const dbPath = join(root, "ui.db")
 const PROJECT = "migration"
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -73,13 +73,13 @@ function makeBridge(label: string, host: typeof daemonCodexAppServerHost) {
     console.log(`  daemon pid=${daemonRec.daemonPid} app-server pid=${daemonRec.childPid}`)
     check("the thread is bound to a live daemon app-server", alive(daemonRec.childPid))
 
-    console.log("  --- frizz restarts; the operator flipped the default to NATIVE ---")
+    console.log("  --- ntwine restarts; the operator flipped the default to NATIVE ---")
     before.bridge.close()
     await before.bridge.shutdown().catch(() => {})
     try { before.interactions.dispose(); before.db.close() } catch {}
     await sleep(1000)
 
-    // --- AFTER the flip: fresh frizz boots on the native default ---
+    // --- AFTER the flip: fresh ntwine boots on the native default ---
     const after = makeBridge("native", nativeListenCodexAppServerHost)
     await after.bridge.warmUp()
     await sleep(2000)

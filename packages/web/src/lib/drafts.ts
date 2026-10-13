@@ -21,7 +21,7 @@ import { store } from "../store.ts"
 //
 // Keep this schema tiny and text-only; server records, credentials and secret interaction fields must
 // never enter this cache — it is on disk now, and it outlives the tab.
-export const DRAFT_STORAGE_KEY = "frizz-drafts:v1"
+export const DRAFT_STORAGE_KEY = "ntwine-drafts:v1"
 export const DRAFT_SCHEMA_VERSION = 1
 const MAX_ENTRIES = 80
 const MAX_VALUE_BYTES = 512 * 1024

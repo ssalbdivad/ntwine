@@ -1,42 +1,57 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { markPath } from "./mark-path";
+import { markCuts, markCutWidth, markPen, markStrands, markViewBox } from "./mark-path";
 
-// The fff mark, drawn as the one continuous stroke it is: on load the dash is parked at the path's full
-// length and the transition in global.css unrolls it. Reduced motion skips the draw.
+// The ntwine mark, drawn as the three threads it is: on load each thread's dash is parked at its full
+// length and the transition in global.css unrolls all three together. Each thread's under-crossings are
+// a mask, so the weave holds while they draw. Reduced motion skips the draw.
 export function Mark({ className }: { className?: string }) {
-  const path = useRef<SVGPathElement>(null);
+  const svg = useRef<SVGSVGElement>(null);
   useEffect(() => {
-    const el = path.current;
-    if (!el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const len = el.getTotalLength();
-    el.style.transition = "none";
-    el.style.strokeDasharray = String(len);
-    el.style.strokeDashoffset = String(len);
-    el.getBoundingClientRect();
-    el.style.transition = "";
-    el.style.strokeDashoffset = "0";
+    if (!svg.current || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const strands = [...svg.current.querySelectorAll<SVGPathElement>(".mark-strand")];
+    for (const el of strands) {
+      const len = el.getTotalLength();
+      el.style.transition = "none";
+      el.style.strokeDasharray = String(len);
+      el.style.strokeDashoffset = String(len);
+    }
+    svg.current.getBoundingClientRect();
+    for (const el of strands) {
+      el.style.transition = "";
+      el.style.strokeDashoffset = "0";
+    }
   }, []);
   return (
-    <svg viewBox="144.5 41.7 435.4 428.5" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden>
+    <svg ref={svg} viewBox={markViewBox} xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden>
       <defs>
-        <radialGradient id="ink" gradientUnits="userSpaceOnUse" cx="362.2" cy="256.0" r="217.7">
+        <radialGradient id="mark-ink" gradientUnits="userSpaceOnUse" cx="256" cy="256" r="250">
           <stop offset="0" stopColor="#ffdf7f" />
           <stop offset="0.62" stopColor="#eabe2c" />
           <stop offset="1" stopColor="#cf9412" />
         </radialGradient>
+        {markCuts.map((cut, i) =>
+          cut ? (
+            <mask key={i} id={`mark-cut-${i}`} maskUnits="userSpaceOnUse" x="-64" y="-64" width="640" height="640">
+              <rect x="-64" y="-64" width="640" height="640" fill="#fff" />
+              <path d={cut} fill="none" stroke="#000" strokeWidth={markCutWidth} strokeLinecap="butt" />
+            </mask>
+          ) : null,
+        )}
       </defs>
-      <path
-        ref={path}
-        id="fff-path"
-        d={markPath}
-        fill="none"
-        stroke="url(#ink)"
-        strokeWidth="20.73"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {markStrands.map((d, i) => (
+        <path
+          key={i}
+          className="mark-strand"
+          d={d}
+          mask={markCuts[i] ? `url(#mark-cut-${i})` : undefined}
+          fill="none"
+          stroke="url(#mark-ink)"
+          strokeWidth={markPen}
+          strokeLinecap="round"
+        />
+      ))}
     </svg>
   );
 }

@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { useState } from "react"
-import type { ClaudeModel, CodexModel } from "@frizz/shared"
+import type { ClaudeModel, CodexModel } from "@ntwine/shared"
 import { ProfileGridSelector, type ProfileGridUpgrade } from "./components/ProfileGridSelector.tsx"
 import { dispatchProfileGroups } from "./lib/dispatchPreferences.ts"
 import "./styles.css"

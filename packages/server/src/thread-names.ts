@@ -1,4 +1,4 @@
-import { THREAD_HANDLE_MAX_CHARS, addressSegments, threadHandle, threadMentions } from "@frizz/shared"
+import { THREAD_HANDLE_MAX_CHARS, addressSegments, threadHandle, threadMentions } from "@ntwine/shared"
 import { sessionTitleLocked, type SessionRow, type Storage } from "./storage.ts"
 import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-oneshot.ts"
 
@@ -12,8 +12,8 @@ import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-onesh
 // A NAME IS THE THREAD'S ID, SO IT IS FINAL THE MOMENT IT EXISTS (David 2026-09-30: "once someone
 // sees the id, it cannot change"). The board shows a name as its `@handle`, and the operator types that
 // handle into other threads' prompts, so a name that moves strands every mention of it. The first name to
-// land stands: a caller's title (a spinoff, `spawn_thread`), else Frizz's mint, else the Codex marker,
-// else — only for a thread none of those could name — the worker's own `mcp__frizz__title`. Only a human
+// land stands: a caller's title (a spinoff, `spawn_thread`), else Ntwine's mint, else the Codex marker,
+// else — only for a thread none of those could name — the worker's own `mcp__ntwine__title`. Only a human
 // rename changes it after that. Two things used to move it and no longer can: Claude's own session title,
 // which showed as the name until the mint landed (and outranked a spinoff's name for good — a thread
 // dispatched as "Cache review" read `@pluggable-cache-store-changes-evaluation`), and the worker's
@@ -26,14 +26,14 @@ import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-onesh
 // NAMES ARE NEVER DUPLICATED: "that has to be part of the prompt". No two non-archived threads may share
 // a name once case and punctuation are folded away, and every writer is told the names already taken
 // rather than finding out afterwards. The rule is enforced at each writer — the dispatch mint and the AI
-// rename (here), the worker's own `mcp__frizz__title` and a human rename (router.ts), and the Codex
+// rename (here), the worker's own `mcp__ntwine__title` and a human rename (router.ts), and the Codex
 // first-output marker (tailer.ts) — because a writer that was merely ASKED to be distinct will eventually
 // not be.
 //
 // THE SET IS EVERY PROJECT THIS SERVER HAS OPEN, not the thread's own (2026-10-09). A handle is resolved
 // in the caller's project first and only falls through to the others when nothing there answers
 // (router.ts `resolveElsewhere`), so a local name equal to another project's open thread SHADOWS that
-// thread: a frizz-project thread auto-named "Issues audit" beside arktype's open `@issues-audit` made
+// thread: an ntwine-project thread auto-named "Issues audit" beside arktype's open `@issues-audit` made
 // `@issues-audit` answer the caller itself, and `@issues-audit.<sub-agent>` report no sub-agents. The
 // namer had been told only its own project's names, and its prompt @-mentioned the arktype thread — so a
 // name the request MENTIONS is taken too (`mentionedHandles`), open, done or not a thread at all: a thread
@@ -275,7 +275,7 @@ function stripDecoration(text: string): string {
 /** Sentence case that survives identifiers: the first word gets a capital only if it is a plain
  *  lowercase word ("zod" → "Zod", but `z.properties` and "ArkType" stay as written), and a later word
  *  in plain Title case is lowered UNLESS the request itself capitalizes it — "Shell Budget" is drift,
- *  "Focus mode for Frizz" is a proper noun. */
+ *  "Focus mode for Ntwine" is a proper noun. */
 export function sentenceCaseName(name: string, source: string): string {
   return name.split(" ").map((word, index) => {
     if (index === 0) return /^[a-z]+$/.test(word) ? word.charAt(0).toUpperCase() + word.slice(1) : word

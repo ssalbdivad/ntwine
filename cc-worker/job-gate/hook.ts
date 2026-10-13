@@ -1,4 +1,4 @@
-// The Bash-call half of the job gate: rewrite `pnpm test` into `<node> <frizz-run.ts> -- pnpm test`,
+// The Bash-call half of the job gate: rewrite `pnpm test` into `<node> <ntwine-run.ts> -- pnpm test`,
 // so the suite waits its turn in the host-wide queue (gate.ts) instead of starting into a full box.
 //
 // It runs inside bash-background.mjs, the one PreToolUse hook on Bash, rather than as a second hook:
@@ -13,15 +13,15 @@
 //
 // The rewrite is inserted at the heavy command's own position, after any `NAME=value` assignments, so
 // everything around it keeps its meaning: `cd ark/schema && pnpm test 2>&1 | tail -40` becomes
-// `cd ark/schema && '<node>' '<frizz-run.ts>' -- pnpm test 2>&1 | tail -40`. The shell still owns the
+// `cd ark/schema && '<node>' '<ntwine-run.ts>' -- pnpm test 2>&1 | tail -40`. The shell still owns the
 // `cd`, the redirect and the pipe; the wrapper inherits the cwd, stdio and environment.
 import { fileURLToPath } from "node:url"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { homedir } from "node:os"
 import { classify } from "./classify.ts"
+import { stateDir } from "./gate.ts"
 
-export const FRIZZ_RUN = fileURLToPath(new URL("./frizz-run.ts", import.meta.url))
+export const NTWINE_RUN = fileURLToPath(new URL("./ntwine-run.ts", import.meta.url))
 
 const KEYWORDS = new Set(["if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "select", "function", "time", "coproc", "!", "{", "}", "[[", "]]"])
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
@@ -138,11 +138,11 @@ function argvOf(words: Word[]): { head: Word; argv: string[] } | null {
 const shellQuote = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`
 
 /**
- * The command with every heavy simple command routed through frizz-run, or null to leave it alone.
+ * The command with every heavy simple command routed through ntwine-run, or null to leave it alone.
  * `prefix` is the wrapper invocation, already shell-quoted.
  */
 export function rewriteCommand(command: string, prefix: string): string | null {
-  if (!command.trim() || command.includes("frizz-run")) return null
+  if (!command.trim() || command.includes("ntwine-run")) return null
   const parsed = segments(command)
   if (!parsed) return null
   const inserts: number[] = []
@@ -163,8 +163,8 @@ export function rewriteCommand(command: string, prefix: string): string | null {
 /** The off-switch in the host-wide config file, so a running fleet can be switched off at once. */
 function gateDisabledByFile(env: Record<string, string | undefined>): boolean {
   try {
-    const dir = env.FRIZZ_GATE_DIR || join(env.XDG_STATE_HOME || join(env.HOME || homedir(), ".local", "state"), "frizz", "job-gate")
-    return String(JSON.parse(readFileSync(join(dir, "config.json"), "utf8"))?.FRIZZ_GATE) === "0"
+    const config = JSON.parse(readFileSync(join(stateDir(env), "config.json"), "utf8"))
+    return String(config?.NTWINE_GATE ?? config?.FRIZZ_GATE) === "0"
   } catch {
     return false
   }
@@ -176,11 +176,11 @@ function gateDisabledByFile(env: Record<string, string | undefined>): boolean {
  */
 export function jobGateCommand(input: unknown, env: Record<string, string | undefined> = process.env, execPath = process.execPath): string | null {
   if (process.platform !== "linux") return null
-  if (env.FRIZZ_GATE === "0" || gateDisabledByFile(env)) return null
+  if (env.NTWINE_GATE === "0" || gateDisabledByFile(env)) return null
   if (!input || typeof input !== "object") return null
   const { tool_input: toolInput, model } = input as Record<string, any>
   if (typeof model === "string") return null
   const command = toolInput?.command
   if (typeof command !== "string") return null
-  return rewriteCommand(command, `${shellQuote(execPath)} ${shellQuote(FRIZZ_RUN)} --hook --`)
+  return rewriteCommand(command, `${shellQuote(execPath)} ${shellQuote(NTWINE_RUN)} --hook --`)
 }

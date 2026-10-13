@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process"
 import { chmodSync, closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readdirSync, rmdirSync, rmSync, writeFileSync, writeSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { SECRET_TTL_MS } from "@frizz/shared"
+import { SECRET_TTL_MS } from "@ntwine/shared"
 
 /**
  * Where a SECRET answer goes instead of the database — the value the human pasted into a masked card
- * (`frizzctl secret`): a one-time code, a token, a password.
+ * (`ntwinectl secret`): a one-time code, a token, a password.
  *
  * NOT A FILE. The path the worker is given is a NAMED PIPE (a FIFO, 0600 in a 0700 dir under the
  * project's state dir), and the value lives only in this process's memory. When a reader opens the pipe
@@ -46,7 +46,7 @@ function secretsRoot(stateDir: string): string {
 }
 
 /** The path a secret question's value is served at. Deterministic, so `ask` can name it at registration.
- *  Both segments are frizz-minted (a validated thread slug and a `qst_` id), never worker text. */
+ *  Both segments are ntwine-minted (a validated thread slug and a `qst_` id), never worker text. */
 export function secretFilePath(stateDir: string, slug: string, questionId: string): string {
   return join(secretsRoot(stateDir), slug, questionId)
 }

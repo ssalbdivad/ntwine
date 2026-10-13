@@ -39,7 +39,7 @@ function machine() {
 }
 
 function project(t: TestContext) {
-  const root = mkdtempSync(join(tmpdir(), "frizz-serving-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-serving-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const projectDir = join(root, "repo")
   const stateDir = join(root, "state")
@@ -56,7 +56,7 @@ test("a second live server is refused a project the first has open, by its pid",
   assert.throws(
     () => claimProjectServing(target, { adapter: dev }),
     (error: unknown) => error instanceof ProjectServedElsewhereError && error.pid === 100
-      && /^kirby is already being served by another Frizz \(pid 100\)\. Stop that one first/.test(error.message),
+      && /^kirby is already being served by another Ntwine \(pid 100\)\. Stop that one first/.test(error.message),
   )
   assert.equal(projectServedElsewhere(target.stateDir, target.projectId, dev), 100)
   assert.equal(projectServedElsewhere(target.stateDir, target.projectId, installed), undefined, "a server is not another server to itself")
@@ -95,7 +95,7 @@ test("closing a project keeps its folder for registry recovery and drops only it
 })
 
 // The lease is how a server running ON a project said it had it before there was a record, and how a
-// frizz-dev that is still booting says so now. Under a supervisor, though, the lease on the project a
+// ntwine-dev that is still booting says so now. Under a supervisor, though, the lease on the project a
 // server was LAUNCHED on is the supervisor's, a different process, so that claim reads the record alone.
 test("a launch lease on the project refuses it as one of many, but not as the project the server was launched on", (t) => {
   const target = project(t)
@@ -128,7 +128,7 @@ test("a real server will not boot on a project another live process has open, an
     port: 65_124,
     project: { id: target.projectId, dir: target.projectDir, stateDir: target.stateDir, name: "kirby", label: "kirby", cwdSlug: "-kirby" },
   })
-  await assert.rejects(boot(), new RegExp(`kirby is already being served by another Frizz \\(pid ${holder.pid}\\)`))
+  await assert.rejects(boot(), new RegExp(`kirby is already being served by another Ntwine \\(pid ${holder.pid}\\)`))
   assert.equal(existsSync(join(target.stateDir, "ui.db")), false, "refused before it opened the board")
 
   // Once that process is gone its record is a dead one, and nothing is left to clean up by hand.

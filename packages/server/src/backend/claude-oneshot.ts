@@ -1,10 +1,10 @@
-import { query, startup, type Query, type SDKMessage, type WarmQuery } from "@frizz/claude-agent-sdk-runtime"
+import { query, startup, type Query, type SDKMessage, type WarmQuery } from "@ntwine/claude-agent-sdk-runtime"
 import { sanitizeProviderChildEnvironment } from "./claude-agent-sdk.ts"
 import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
-import { log as frizzLog } from "../logging.ts"
+import { log as ntwineLog } from "../logging.ts"
 
-// ONE SHORT COMPLETION with a system prompt Frizz writes — the thread NAMER and the thread STATUS line
+// ONE SHORT COMPLETION with a system prompt Ntwine writes — the thread NAMER and the thread STATUS line
 // (thread-names.ts) are its callers.
 //
 // Why not the SDK's own `generateSessionTitle`, which every thread already reaches through its broker
@@ -205,7 +205,7 @@ function runOnce(request: ClaudeOneShotRequest, options: ClaudeOneShotOptions, s
   const abort = spare?.abort ?? new AbortController()
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const timer = setTimeout(() => abort.abort(), timeoutMs)
-  const log = options.log ?? ((message: string) => frizzLog.warn("claude-oneshot", message))
+  const log = options.log ?? ((message: string) => ntwineLog.warn("claude-oneshot", message))
   const cold = (): Query => (options.query ?? query)({ prompt: request.prompt, options: sessionOptions(request, options, abort) })
   let q: Query | undefined
   const answer = (async () => {

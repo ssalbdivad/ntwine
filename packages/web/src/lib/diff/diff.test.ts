@@ -118,7 +118,7 @@ test("yaml reads a key under a sequence marker", () => {
 })
 
 test("toml colours table headers and keys", () => {
-  assert.ok(kinds("[tool.frizz]", "toml").includes("fn:[tool.frizz]"))
+  assert.ok(kinds("[tool.ntwine]", "toml").includes("fn:[tool.ntwine]"))
   assert.ok(kinds('port = 8080', "toml").includes("key:port"))
 })
 
@@ -135,7 +135,7 @@ test("html colours element names, attributes and comments", () => {
 test("the added grammars stay 1:1 with their source lines and lose no text", () => {
   const samples: Array<[string, string]> = [
     ["yaml", "on:\n  push:\n    branches: [main]\n\n# trailing"],
-    ["toml", '[pkg]\nname = "frizz"\nver = 1'],
+    ["toml", '[pkg]\nname = "ntwine"\nver = 1'],
     ["html", '<div class="a">\n  <!-- c\n  ontinued -->\n</div>'],
   ]
   for (const [lang, src] of samples) {

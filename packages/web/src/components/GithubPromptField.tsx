@@ -1,6 +1,6 @@
 import { useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { type Settings } from "@frizz/shared"
+import { type Settings } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { registerOpenSelect } from "../lib/selectOverlay.ts"
 import { SETTINGS_HELP } from "../lib/settingsHelp.ts"

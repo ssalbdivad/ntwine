@@ -11,7 +11,7 @@ import test from "node:test"
 // Runs against a `vite dev` server serving the web package (multi-page); the middleware dev server
 // hardcodes index.html and cannot serve a fixture route, so this is skip-gated on the URL exactly like
 // sidebarRetryButton.e2e.test.ts.
-const baseUrl = process.env.FRIZZ_TURN_RESTART_CARDS_E2E_URL
+const baseUrl = process.env.NTWINE_TURN_RESTART_CARDS_E2E_URL
 
 test("the provider-fault Retry and limit-pause Continue both send through the eager path", {
   skip: !baseUrl,

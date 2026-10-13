@@ -1,15 +1,15 @@
-// FRIZZ PROVISIONS ITS OWN CLAUDE CODE AND CODEX.
+// NTWINE PROVISIONS ITS OWN CLAUDE CODE AND CODEX.
 //
 // Until 2026-09-04 a worker was whatever `claude` or `codex` happened to be first on the operator's
-// PATH, and Frizz pinned only half of each pair. The Claude Agent SDK bundled into the artifact is
+// PATH, and Ntwine pinned only half of each pair. The Claude Agent SDK bundled into the artifact is
 // built against ONE Claude Code build (the SDK's package.json names it as `claudeCodeVersion`) and
 // Anthropic ships that matched binary as an optional platform package the SDK resolves by itself when
-// handed no executable path — Frizz overrode that with PATH, so a 0.3.207 SDK was driving a 2.1.260
+// handed no executable path — Ntwine overrode that with PATH, so a 0.3.207 SDK was driving a 2.1.260
 // CLI over a private wire nothing audited. Codex had a real audited pin (codex-app-server.ts) but no
 // binary behind it: the gate refused older and merely WARNED on newer, and the conformance test that
-// checks Frizz's parameters against the binary's own schema skipped on any machine that had moved on.
+// checks Ntwine's parameters against the binary's own schema skipped on any machine that had moved on.
 //
-// So each backend now has one pin, declared here, and Frizz fetches that exact platform binary from
+// So each backend now has one pin, declared here, and Ntwine fetches that exact platform binary from
 // the vendor's own npm package into the cache root the first time a server boots without it:
 //
 // (named by the constants below rather than by a sample version, because a sample one goes stale on
@@ -27,11 +27,11 @@
 // with the re-audit.
 //
 // RESOLUTION ORDER, per backend: an explicit executable (`StartOptions.claudeBin`, or the
-// `FRIZZ_CLAUDE_BIN` / `FRIZZ_CODEX_BIN` variables) wins outright and is never provisioned around;
+// `NTWINE_CLAUDE_BIN` / `NTWINE_CODEX_BIN` variables) wins outright and is never provisioned around;
 // then the provisioned pin; then the bare name on PATH as a WARNED fallback, so an offline or
 // firewalled machine still dispatches and the log says the version seam is open again.
-// `FRIZZ_RUNTIMES=path` skips provisioning altogether (the test runner sets it — a suite must never
-// pull half a gigabyte), and `FRIZZ_RUNTIMES_DIR` relocates the root (the ad-hoc stack points a
+// `NTWINE_RUNTIMES=path` skips provisioning altogether (the test runner sets it — a suite must never
+// pull half a gigabyte), and `NTWINE_RUNTIMES_DIR` relocates the root (the ad-hoc stack points a
 // sandbox HOME at the machine's real copies for the same reason).
 //
 // NOT done on purpose: reusing the vendor's own versioned install (`~/.local/share/claude/versions/`,
@@ -56,20 +56,20 @@ import { Readable, Transform, Writable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import { createGunzip } from "node:zlib"
 import { CODEX_APP_SERVER_SUPPORTED_VERSION } from "./backend/codex-app-server.ts"
-import { frizzRoots } from "./frizz-paths.ts"
+import { ntwineRoots } from "./ntwine-paths.ts"
 import { leaseRuntime, liveRuntimeLeases } from "./runtime-lease.ts"
 
-/** The Claude Agent SDK Frizz bundles. Must equal packages/claude-agent-sdk-runtime's dependency. */
+/** The Claude Agent SDK Ntwine bundles. Must equal packages/claude-agent-sdk-runtime's dependency. */
 export const CLAUDE_AGENT_SDK_VERSION = "0.3.296"
 /** The Claude Code build that SDK was built against — its package.json `claudeCodeVersion`.
  *
  *  Keep this CURRENT when bumping, not merely matched: the first provisioned build (2.1.207, the SDK
- *  Frizz had sat on since July) refused the default model outright — `API Error: 400 Claude Code
+ *  Ntwine had sat on since July) refused the default model outright — `API Error: 400 Claude Code
  *  2.1.207 does not support this model; version 2.1.251 or newer is required` — because a model's
- *  minimum CLI is enforced server-side. The pin makes Frizz's lag the worker's lag; a stale pin is a
+ *  minimum CLI is enforced server-side. The pin makes Ntwine's lag the worker's lag; a stale pin is a
  *  broken worker, not a conservative one. */
 export const CLAUDE_CODE_VERSION = "2.1.296"
-/** The Codex build Frizz audited the app-server protocol against. One coordinate, owned there. */
+/** The Codex build Ntwine audited the app-server protocol against. One coordinate, owned there. */
 export const CODEX_VERSION = CODEX_APP_SERVER_SUPPORTED_VERSION
 
 export type RuntimeBackend = "claude" | "codex"
@@ -77,7 +77,7 @@ export type RuntimeBackend = "claude" | "codex"
 export type RuntimeSource =
   /** An executable the operator or a test named explicitly. Never provisioned around. */
   | "override"
-  /** Frizz's own pinned copy under the cache root. */
+  /** Ntwine's own pinned copy under the cache root. */
   | "provisioned"
   /** The bare name on PATH — the pre-2026-09 behaviour, now the fallback. `note` says why. */
   | "path"
@@ -96,18 +96,18 @@ export interface ResolvedRuntimes {
   codex: ResolvedRuntime
 }
 
-export const RUNTIMES_MODE_ENV = "FRIZZ_RUNTIMES"
-export const RUNTIMES_DIR_ENV = "FRIZZ_RUNTIMES_DIR"
-export const CLAUDE_BIN_ENV = "FRIZZ_CLAUDE_BIN"
-export const CODEX_BIN_ENV = "FRIZZ_CODEX_BIN"
+export const RUNTIMES_MODE_ENV = "NTWINE_RUNTIMES"
+export const RUNTIMES_DIR_ENV = "NTWINE_RUNTIMES_DIR"
+export const CLAUDE_BIN_ENV = "NTWINE_CLAUDE_BIN"
+export const CODEX_BIN_ENV = "NTWINE_CODEX_BIN"
 
 const REGISTRY = "https://registry.npmjs.org"
 
-/** Where the pins live: `<cache>/runtimes`, or wherever FRIZZ_RUNTIMES_DIR points. */
+/** Where the pins live: `<cache>/runtimes`, or wherever NTWINE_RUNTIMES_DIR points. */
 export function runtimesRoot(env: NodeJS.ProcessEnv = process.env): string {
   const override = env[RUNTIMES_DIR_ENV]
   if (override && isAbsolute(override)) return override
-  return join(frizzRoots().cache, "runtimes")
+  return join(ntwineRoots().cache, "runtimes")
 }
 
 /** Is this Linux a musl one (Alpine)? The SDK ships a separate musl build; Codex ships musl for all. */
@@ -132,7 +132,7 @@ export interface RuntimeCoordinates {
 
 /**
  * The npm coordinates of one backend's pinned binary on one platform, or undefined where the vendor
- * publishes nothing for it (a platform Frizz does not support anyway; the caller falls back to PATH).
+ * publishes nothing for it (a platform Ntwine does not support anyway; the caller falls back to PATH).
  */
 export function runtimeCoordinates(
   backend: RuntimeBackend,
@@ -530,7 +530,7 @@ export interface SweepRuntimesDeps {
 // Windows cannot delete an executable that is currently mapped as a process image: rmSync gets
 // EBUSY/EPERM (or ENOTEMPTY for the directory, once the files inside it refused), and `force: true`
 // only forgives ENOENT. The version directory being swept is by design the one still-running daemons
-// execute from — they survive an update on purpose — and a daemon started by a Frizz older than
+// execute from — they survive an update on purpose — and a daemon started by an Ntwine older than
 // d37b8588 (2026-09-10) wrote no lease, so the lease check above cannot see it. `maxRetries` covers
 // the transient holders (a scanner, an exiting process); a refusal past that is a live one, and the
 // directory is KEPT and named rather than thrown about (Windows audit 2026-09-11, finding 2). The
@@ -623,11 +623,11 @@ async function resolveOne(backend: RuntimeBackend, explicit: string | undefined,
     })
   } catch (err) {
     const note = err instanceof Error ? err.message : String(err)
-    log("warn", `runtimes: could not provision ${backend} ${coordinates.label} (${note}); using ${bare} from PATH — the version Frizz was built against is not what will run`)
+    log("warn", `runtimes: could not provision ${backend} ${coordinates.label} (${note}); using ${bare} from PATH — the version Ntwine was built against is not what will run`)
     return { bin: bare, source: "path", version: "unknown", note }
   }
   if (provisioned.fetched) log("info", `runtimes: provisioned ${backend} ${provisioned.label} at ${provisioned.bin}`)
-  // Lease BEFORE sweeping: another Frizz on this machine (a stack booted from a source tree with a
+  // Lease BEFORE sweeping: another Ntwine on this machine (a stack booted from a source tree with a
   // newer pin, the successor of an in-place update) sweeps on ITS boot, and this is what tells it
   // the pin resolved here is still in use.
   leaseRuntime(provisioned.bin, "server")

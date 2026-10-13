@@ -35,8 +35,8 @@ import test, { after, before } from "node:test"
 //      tell apart, so this pins the handler itself).
 //
 // Skipped unless a Vite URL serving the fixtures is provided: `nub run test:e2e` sets it, or start
-// `vite` in packages/web and set FRIZZ_QUEUE_CARD_VISIBILITY_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_QUEUE_CARD_VISIBILITY_E2E_URL
+// `vite` in packages/web and set NTWINE_QUEUE_CARD_VISIBILITY_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_QUEUE_CARD_VISIBILITY_E2E_URL
 
 type PuppeteerModule = typeof import("puppeteer")
 type Browser = Awaited<ReturnType<PuppeteerModule["launch"]>>
@@ -60,7 +60,7 @@ before(async () => {
   // EVERY TEST STARTS AT THE TOP. The `many` page holds the viewport lock, which writes down the card being
   // read as a page goes and puts the next load of the same address back on it (lib/viewportLock.ts, "A
   // RELOAD") — so one test's scroll would become the next test's starting point.
-  await page.evaluateOnNewDocument(() => sessionStorage.removeItem("frizz.queueReading.v1"))
+  await page.evaluateOnNewDocument(() => sessionStorage.removeItem("ntwine.queueReading.v1"))
   // WARM A COLD VITE before any timed step (its first load optimizes dependencies and reloads the page).
   await page.goto(URL_MANY(), { waitUntil: "networkidle0", timeout: 120_000 })
   await page.waitForSelector("[data-xq-card]", { timeout: 120_000 })

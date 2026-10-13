@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { GithubBatchInput, type CodexModel } from "@frizz/shared"
+import { GithubBatchInput, type CodexModel } from "@ntwine/shared"
 import { buildGithubBatchInput, dispatchProfileError } from "./githubDispatch.ts"
 import { resolveDispatchPreferences } from "./dispatchPreferences.ts"
 import { closeGithubPicker, openGithubPicker, store } from "../store.ts"

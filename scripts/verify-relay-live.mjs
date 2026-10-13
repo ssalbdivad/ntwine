@@ -12,13 +12,13 @@
  * regression takes down every relayed board at once, so the check belongs here, on the relay, rather
  * than in a workaround on every board.
  *
- * HOW. A keypair of its own claims a private name from the production registrar — the call `frizz`
+ * HOW. A keypair of its own claims a private name from the production registrar — the call `ntwine`
  * makes when the name prompt is answered with enter — and a TOY board on loopback dials the live relay
- * with it: canned strings, no Frizz, nothing worth reading. Then a visitor asks for everything the
+ * with it: canned strings, no Ntwine, nothing worth reading. Then a visitor asks for everything the
  * frame protocol carries. Every request is on a deadline, because half of the failures this has to
  * catch are a response that never finishes rather than a wrong status.
  *
- * THE PROBE KEEPS ITS NAME. Key and name are saved in Frizz's state root (`relay-live-probe.json`), so
+ * THE PROBE KEEPS ITS NAME. Key and name are saved in Ntwine's state root (`relay-live-probe.json`), so
  * a second run RENEWS: the registrar charges a per-address budget for each NEW private name and has no
  * call to release one, and a fresh keypair per run would leave a row behind every time. It is never
  * the board's own `identity.key` — the registrar allows one live name per key, and that key's name is
@@ -32,7 +32,7 @@
  *
  *   nub scripts/verify-relay-live.mjs
  *
- * `FRIZZ_REGISTRAR` points it at another registrar, as it does for the CLI; `RELAY_PROBE_STATE` names
+ * `NTWINE_REGISTRAR` points it at another registrar, as it does for the CLI; `RELAY_PROBE_STATE` names
  * a different file for the saved key and name.
  */
 import { createServer } from "node:http";
@@ -42,21 +42,21 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { brotliCompressSync } from "node:zlib";
 import { WebSocket as WsClient, WebSocketServer } from "ws";
-import { frizzPaths } from "@frizz/server/frizz-paths";
+import { ntwinePaths } from "@ntwine/server/ntwine-paths";
 import {
   claimIdentityFromPrivateKey,
   exportClaimPrivateKey,
   generateAnonymousClaimName,
   generateClaimIdentity,
   isAnonymousClaimName,
-} from "@frizz/shared";
+} from "@ntwine/shared";
 import { claimName } from "../src/registrar-client.ts";
 import { connectRelay } from "../src/relay-connection.ts";
 
 /** Generous for a round trip that measures ~120 ms, and short enough that a hang reads as one. */
 const DEADLINE_MS = 15_000;
 const BIG = 2 * 1024 * 1024;
-const PROBE_COOKIE = "frizz_session=probe-value";
+const PROBE_COOKIE = "ntwine_session=probe-value";
 
 /**
  * The board every check talks to. Its `/cached` answers 304 to the weak form of its own tag as well as
@@ -264,7 +264,7 @@ async function main() {
     console.log(`${ok ? "  ok  " : " FAIL "} ${name}${detail ? ` — ${detail}` : ""}`);
   };
 
-  const statePath = process.env.RELAY_PROBE_STATE?.trim() || join(frizzPaths().state, "relay-live-probe.json");
+  const statePath = process.env.RELAY_PROBE_STATE?.trim() || join(ntwinePaths().state, "relay-live-probe.json");
   const board = await startToyBoard();
   let connection = null;
   try {

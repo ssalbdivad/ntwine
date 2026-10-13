@@ -1,6 +1,6 @@
 import type { ReactElement } from "react"
 import { Check, X } from "lucide-react"
-import type { WorkflowAgentView } from "@frizz/shared"
+import type { WorkflowAgentView } from "@ntwine/shared"
 import { subAgentName } from "../groups.ts"
 import { pushSubAgentDrawer } from "../store.ts"
 import { compactElapsedSince } from "../lib/durationLabels.ts"
@@ -63,7 +63,7 @@ function WorkflowAgentRow({ slug, agent, now }: { slug: string; agent: WorkflowA
   // centre vs cap-band centre, 2026-09-29): the dots and the ✕ read 0.78px low, the check 0.53px low.
   // In `em` so the lift tracks the row's font size. Re-measure rather than re-guess if the row changes.
   const mark =
-    agent.state === "running" ? <span aria-hidden className="frizz-live-dot frizz-live-dot--agent -translate-y-[0.06em]" data-running-indicator="workflow-agent" />
+    agent.state === "running" ? <span aria-hidden className="ntwine-live-dot ntwine-live-dot--agent -translate-y-[0.06em]" data-running-indicator="workflow-agent" />
     : agent.state === "stale" ? <span className={`${CHILD_STALE_DOT_CLASS} -translate-y-[0.06em]`} title={CHILD_STALE_TITLE} />
     : agent.state === "failed" ? <X aria-label="failed" className="h-3 w-3 shrink-0 -translate-y-[0.06em] text-danger-soft" strokeWidth={2.25} />
     : <Check aria-label="done" className="h-3 w-3 shrink-0 -translate-y-[0.04em] text-muted-45" strokeWidth={2.25} />

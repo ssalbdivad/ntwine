@@ -14,8 +14,8 @@
 //
 // Only paths count, never bare words: "arktype" in prose is a topic as often as a place, while
 // `~/arktype/ark/docs` names where the work happens. And a path inside a project that CONTAINS the
-// caller's (Home, for every repo under the home folder) is not evidence either — `~/.frizz/scratch` in a
-// Frizz thread's brief is Home's folder, but the work is still Frizz's.
+// caller's (Home, for every repo under the home folder) is not evidence either — `~/.ntwine/scratch` in a
+// Ntwine thread's brief is Home's folder, but the work is still Ntwine's.
 
 import { homedir } from "node:os"
 

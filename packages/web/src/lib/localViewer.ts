@@ -1,8 +1,8 @@
-import { ATTACHMENT_ARCHIVE_EXTENSIONS, ATTACHMENT_DATA_EXTENSIONS, ATTACHMENT_OFFICE_EXTENSIONS } from "@frizz/shared"
+import { ATTACHMENT_ARCHIVE_EXTENSIONS, ATTACHMENT_DATA_EXTENSIONS, ATTACHMENT_OFFICE_EXTENSIONS } from "@ntwine/shared"
 import { isLocalMarkdownFile } from "./markdownTargets.ts"
 import { basename } from "./paths.ts"
 
-// WHICH OF FRIZZ'S OWN VIEWERS A LOCAL FILE OPENS IN — or none, when only the desktop opener can show
+// WHICH OF NTWINE'S OWN VIEWERS A LOCAL FILE OPENS IN — or none, when only the desktop opener can show
 // it. A click on a path used to launch an app for everything but Markdown: a screenshot a worker just
 // took opened in whatever the OS maps `.png` to, which on a WSL box is a browser tab (maintainer
 // 2026-09-28: "clicking on it should expand it in-app, not try to open externally in a browser. same

@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { execFileSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { EditorComposeItem, EditorKind, FilePosition, LocalFileOpener } from "@frizz/shared"
+import type { EditorComposeItem, EditorKind, FilePosition, LocalFileOpener } from "@ntwine/shared"
 import { createRouter } from "./router.ts"
 import type { AppContext } from "./context.ts"
 import type { EditorBridge } from "./editor-bridge.ts"
@@ -19,7 +19,7 @@ interface Calls {
 }
 
 function fixture(t: TestContext) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-router-editor-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-router-editor-")))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const project = join(root, "project")
   const bin = join(root, "bin")
@@ -174,9 +174,9 @@ test("editorState asks the bridge about the folder the project's agents work in,
   assert.deepEqual(await router("/work/alpha", "vscode").editorState.handler({ input: {} }), { windows: [], connected: 0 })
 })
 
-// What a worker's frizz-mcp lists `editor` under (and what the contract's editor section is rendered
+// What a worker's ntwine-mcp lists `editor` under (and what the contract's editor section is rendered
 // under, dispatch.ts workerCapabilities): a window that has THIS project open — not merely one connected
-// to Frizz on another project, where the tool would only answer "none has this project open".
+// to Ntwine on another project, where the tool would only answer "none has this project open".
 test("workerCapabilities reports an editor only while a window has this project open", async () => {
   const window = { app: "Visual Studio Code", kind: "vscode", focused: true, folders: ["/work/alpha"] }
   let answer: { windows: unknown[]; connected: number } = { windows: [], connected: 0 }
@@ -198,13 +198,13 @@ test("workerCapabilities reports an editor only while a window has this project 
 // worktree sits outside the project folder. A real repository and a real `git worktree add`, because the
 // reading is the tailer's lift of a real folder (thread-cwd.ts), which checks `.git` on disk.
 test("editorState names the calling thread's own checkout, and only when it is not the project root", { skip: process.platform === "win32" }, async (t) => {
-  const base = realpathSync(mkdtempSync(join(tmpdir(), "frizz-router-checkout-")))
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-router-checkout-")))
   t.after(() => rmSync(base, { recursive: true, force: true }))
   const repo = join(base, "repo")
   const git = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "ignore" })
   execFileSync("git", ["init", "-q", "-b", "main", repo])
   git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init")
-  const inside = join(repo, ".frizz", "worktrees", "tidy")
+  const inside = join(repo, ".ntwine", "worktrees", "tidy")
   const sibling = join(base, "repo-perf")
   git("worktree", "add", "-q", inside, "-b", "tidy")
   git("worktree", "add", "-q", sibling, "-b", "perf")
@@ -233,7 +233,7 @@ test("editorState names the calling thread's own checkout, and only when it is n
 // A thread in a worktree links its own copy; once the worktree is removed, the same link opens the main
 // checkout's copy rather than "not found". A real repository, a real `git worktree add` and `remove`.
 test("file links: a thread's worktree first, the main checkout after it is gone, and the page's spelling kept", { skip: process.platform === "win32" }, async (t) => {
-  const repo = realpathSync(mkdtempSync(join(tmpdir(), "frizz-router-links-")))
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-router-links-")))
   t.after(() => rmSync(repo, { recursive: true, force: true }))
   const git = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "ignore" })
   execFileSync("git", ["init", "-q", "-b", "main", repo])
@@ -241,21 +241,21 @@ test("file links: a thread's worktree first, the main checkout after it is gone,
   writeFileSync(join(repo, "src", "a.ts"), "main copy\n")
   git("add", ".")
   git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init")
-  const tree = join(repo, ".frizz", "worktrees", "tidy")
+  const tree = join(repo, ".ntwine", "worktrees", "tidy")
   git("worktree", "add", "-q", tree, "-b", "tidy")
   writeFileSync(join(tree, "src", "a.ts"), "worktree copy\n")
   writeFileSync(join(tree, "src", "new.ts"), "only in the worktree\n")
-  mkdirSync(join(repo, ".frizz", "threads", "x"), { recursive: true })
-  writeFileSync(join(repo, ".frizz", "threads", "x", "notes.md"), "# only in the main checkout\n")
+  mkdirSync(join(repo, ".ntwine", "threads", "x"), { recursive: true })
+  writeFileSync(join(repo, ".ntwine", "threads", "x", "notes.md"), "# only in the main checkout\n")
   const r = router(repo, "copy")
 
   // Inline code from the worktree thread: its own copy first, then the project root.
-  const { resolved } = await r.resolveLocalPaths.handler({ input: { paths: ["src/a.ts", "src/new.ts", ".frizz/threads/x/notes.md", "src/nope.ts"], base: tree } })
-  assert.deepEqual(resolved.map((each) => each.path), [join(tree, "src", "a.ts"), join(tree, "src", "new.ts"), join(repo, ".frizz", "threads", "x", "notes.md"), null])
+  const { resolved } = await r.resolveLocalPaths.handler({ input: { paths: ["src/a.ts", "src/new.ts", ".ntwine/threads/x/notes.md", "src/nope.ts"], base: tree } })
+  assert.deepEqual(resolved.map((each) => each.path), [join(tree, "src", "a.ts"), join(tree, "src", "new.ts"), join(repo, ".ntwine", "threads", "x", "notes.md"), null])
   // Without a base, the project root as always.
   assert.equal((await r.resolveLocalPaths.handler({ input: { paths: ["src/a.ts"] } })).resolved[0]!.path, join(repo, "src", "a.ts"))
   // A link resolved into the worktree for a file only the main checkout has (the page's base is the worktree).
-  assert.equal((await r.settleLocalPath.handler({ input: { path: join(tree, ".frizz", "threads", "x", "notes.md") } })).path, join(repo, ".frizz", "threads", "x", "notes.md"))
+  assert.equal((await r.settleLocalPath.handler({ input: { path: join(tree, ".ntwine", "threads", "x", "notes.md") } })).path, join(repo, ".ntwine", "threads", "x", "notes.md"))
   // While the worktree stands, its own files are what they are.
   assert.equal((await r.settleLocalPath.handler({ input: { path: join(tree, "src", "a.ts") } })).path, join(tree, "src", "a.ts"))
   assert.equal((await r.localFile.handler({ input: { path: join(tree, "src", "a.ts") } })).text, "worktree copy\n")
@@ -265,7 +265,7 @@ test("file links: a thread's worktree first, the main checkout after it is gone,
   assert.equal(existsSync(tree), false)
   assert.deepEqual(await r.settleLocalPath.handler({ input: { path: join(tree, "src", "a.ts") } }), { path: join(repo, "src", "a.ts") })
   assert.deepEqual(await r.localFile.handler({ input: { path: join(tree, "src", "a.ts") } }), { path: join(repo, "src", "a.ts"), text: "main copy\n", truncated: false })
-  assert.equal((await r.localMarkdown.handler({ input: { path: join(tree, ".frizz", "threads", "x", "notes.md") } })).markdown, "# only in the main checkout\n")
+  assert.equal((await r.localMarkdown.handler({ input: { path: join(tree, ".ntwine", "threads", "x", "notes.md") } })).markdown, "# only in the main checkout\n")
   assert.deepEqual(await r.openLocalFile.handler({ input: { path: join(tree, "src", "a.ts"), line: 1 } }), { action: "copy", path: join(repo, "src", "a.ts") })
   assert.equal((await r.resolveLocalPaths.handler({ input: { paths: [join(tree, "src", "a.ts")] } })).resolved[0]!.path, join(repo, "src", "a.ts"))
   // A file the main checkout never had stays missing, as asked — the error it gets is unchanged.

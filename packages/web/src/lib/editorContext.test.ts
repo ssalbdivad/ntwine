@@ -27,9 +27,9 @@ test("the editor's add chord is Cursor's, spelled the way every other shortcut i
 })
 
 test("a new editor context replaces the last one whole", () => {
-  setEditorContext({ type: "frizz:editor-context", active: { ...file, selection: { startLine: 1, endLine: 2, chars: 5 } }, open: [{ path: "/w/b.ts", label: "b.ts" }] })
+  setEditorContext({ type: "ntwine:editor-context", active: { ...file, selection: { startLine: 1, endLine: 2, chars: 5 } }, open: [{ path: "/w/b.ts", label: "b.ts" }] })
   assert.equal(editorContext.open.length, 1)
-  setEditorContext({ type: "frizz:editor-context", active: null, open: [] })
+  setEditorContext({ type: "ntwine:editor-context", active: null, open: [] })
   assert.equal(editorContext.active, null)
   assert.deepEqual(editorContext.open, [])
 })
@@ -88,12 +88,12 @@ test("with nothing selected the send names the file and the caret's line, no fil
 })
 
 test("a send to a thread in a worktree writes its paths for the worktree and says whose copy the context is", () => {
-  const worktree = { dir: "/work/alpha/.frizz/worktrees/r2", kind: "worktree" }
+  const worktree = { dir: "/work/alpha/.ntwine/worktrees/r2", kind: "worktree" }
   const active = { ...file, selection: { startLine: 91, endLine: 92, chars: 40, text: "const sig = sign(key, body)\nreturn sig" } }
   const sent = outgoingMessageWith("why does this throw?", [], "/work/alpha", active, worktree)
-  assert.equal(sent.endsWith("\n\nThe context above is from the user's editor, which shows the project's main checkout (/work/alpha). You are working in your own worktree (/work/alpha/.frizz/worktrees/r2): the same relative path there is your copy, and it may differ from what they see."), true, sent)
+  assert.equal(sent.endsWith("\n\nThe context above is from the user's editor, which shows the project's main checkout (/work/alpha). You are working in your own worktree (/work/alpha/.ntwine/worktrees/r2): the same relative path there is your copy, and it may differ from what they see."), true, sent)
   // The window shows the worktree itself: the path is the worktree's, and nothing needs saying.
-  const own = outgoingMessageWith("why does this throw?", [], "/work/alpha", { ...active, path: "/work/alpha/.frizz/worktrees/r2/src/lib/r2-private.ts" }, worktree)
+  const own = outgoingMessageWith("why does this throw?", [], "/work/alpha", { ...active, path: "/work/alpha/.ntwine/worktrees/r2/src/lib/r2-private.ts" }, worktree)
   assert.equal(parseSentEditorContext(own)?.editor.display, "src/lib/r2-private.ts")
   assert.doesNotMatch(own, /main checkout/)
   // A chip alone from the main checkout gets the sentence too; plain words get nothing.
@@ -105,9 +105,9 @@ test("a send to a thread in a worktree writes its paths for the worktree and say
 
 test("outside an editor's sidebar nothing is attached, whatever the editor state says", () => {
   // Under plain node the page is not embedded, which is the browser tab's case: the chips alone go.
-  setEditorContext({ type: "frizz:editor-context", active: { ...file, selection: { startLine: 1, endLine: 1, chars: 1, text: "x" } }, open: [] })
+  setEditorContext({ type: "ntwine:editor-context", active: { ...file, selection: { startLine: 1, endLine: 1, chars: 1, text: "x" } }, open: [] })
   assert.equal(outgoingMessage("hello", [], "/work/alpha", true), "hello")
-  setEditorContext({ type: "frizz:editor-context", active: null, open: [] })
+  setEditorContext({ type: "ntwine:editor-context", active: null, open: [] })
 })
 
 test("the eye shows the extension's setting: the host's word wins over what the eye assumed", () => {
@@ -115,10 +115,10 @@ test("the eye shows the extension's setting: the host's word wins over what the 
   setShareEditor(false)
   assert.equal(editorContext.share, false, "shown at once")
   // The host answers with what is true: a workspace value that wins puts the eye back.
-  setHostState({ type: "frizz:host-state", shareEditor: true, altK: false })
+  setHostState({ type: "ntwine:host-state", shareEditor: true, altK: false })
   assert.equal(editorContext.share, true)
   assert.equal(editorContext.altK, false)
-  setHostState({ type: "frizz:host-state", shareEditor: true, altK: true })
+  setHostState({ type: "ntwine:host-state", shareEditor: true, altK: true })
 })
 
 test("the hint says what goes on its own and what the chord adds, and never teaches the step a question no longer needs", () => {
@@ -127,7 +127,7 @@ test("the hint says what goes on its own and what the chord adds, and never teac
   assert.deepEqual(hints({ selection: true }), ["Goes with your message · Ctrl+L puts it at the caret", "Goes with your message"])
   assert.deepEqual(hints({ selection: true, withheld: true }), ["Lines only: the file may hold secrets", "Lines only"])
   assert.deepEqual(hints({ sending: false, selection: true }), ["Not shared · Ctrl+L still adds it", "Not shared"])
-  assert.deepEqual(hints({ sending: false }), ["Not shared with Frizz", "Not shared"])
+  assert.deepEqual(hints({ sending: false }), ["Not shared with Ntwine", "Not shared"])
   for (const state of [{}, { selection: true }, { sending: false }]) {
     for (const hint of hints(state)) {
       assert.doesNotMatch(hint, /^Select code\b/u, "not the old 'Select code and press'")
@@ -153,7 +153,7 @@ test("a reply names a selection its thread was just sent, through the thread's o
 // ── the bar's ×: this one left out, until the editor shows something else ─────────────────────────
 
 const lines = (startLine: number, endLine: number, chars = 40) => ({ ...file, selection: { startLine, endLine, chars, text: "x".repeat(chars) } })
-const feed = (active: Parameters<typeof leaveOutKey>[0]) => setEditorContext({ type: "frizz:editor-context", active, open: [] })
+const feed = (active: Parameters<typeof leaveOutKey>[0]) => setEditorContext({ type: "ntwine:editor-context", active, open: [] })
 
 test("the × leaves this selection out until the selection changes, and a new one goes again", () => {
   feed(lines(12, 20))

@@ -13,7 +13,7 @@
 //   context-high  — 87% full  (nearly all the way round)
 //   context-none  — a claude row with a numerator and NO window ⇒ must render NOTHING, not an empty ring
 //
-// Follows the frizz-stack recipe: a session row + a transcript the tailer reads.
+// Follows the ntwine-stack recipe: a session row + a transcript the tailer reads.
 // Usage: node scripts/seed-context-meter.mjs --home=/abs/temp-home
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -39,7 +39,7 @@ const T0 = Date.now() - 25 * 60_000
 const at = (m) => new Date(T0 + m * 60_000).toISOString()
 
 function row({ slug, sessionId, agentSessionId, title, backend, restedAt }) {
-  const threadName = `frizz-${slug}`
+  const threadName = `ntwine-${slug}`
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, agent_session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)

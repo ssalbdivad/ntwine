@@ -1,10 +1,10 @@
 // THE WORKER SAYS WHETHER A REST NEEDS THE HUMAN (maintainer 2026-10-01) — the queue rule for a thread
 // dispatched under the `needs_input:` contract, and the grammar that carries the answer. See
-// NEEDS_INPUT_REQUIRED_AT in @frizz/shared for the decision, board.needsInputQueues for the rule, and
+// NEEDS_INPUT_REQUIRED_AT in @ntwine/shared for the decision, board.needsInputQueues for the rule, and
 // declared-park.test.ts for the scheduler's correction of a fence that gives no answer.
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { AWAITING_QUESTIONS_MAX, AWAITING_STEP_VALUE_MAX, AWAITING_STEPS_MAX, awaitingNeedsInput, awaitingQuestions, awaitingSteps, NEEDS_INPUT_REQUIRED_AT, needsInputRequired, RETIRED_AWAITING_REPLACEMENT, splitAwaitingFrontmatter, type AwaitingHint } from "@frizz/shared"
+import { AWAITING_QUESTIONS_MAX, AWAITING_STEP_VALUE_MAX, AWAITING_STEPS_MAX, awaitingNeedsInput, awaitingQuestions, awaitingSteps, NEEDS_INPUT_REQUIRED_AT, needsInputRequired, RETIRED_AWAITING_REPLACEMENT, splitAwaitingFrontmatter, type AwaitingHint } from "@ntwine/shared"
 import { deriveAwaitingBackground, deriveNeedsYou, hasDeclaredWait, type RegisteredWatch } from "./board.ts"
 import type { GithubStatusBook } from "./awaiting.ts"
 import { armedTimerKeys, replyWaitPrompt } from "./thread-mentions.ts"
@@ -19,7 +19,7 @@ const NOW = Date.parse(AT) + 5 * 60_000
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug: "t", session_id: "s", thread_name: "frizz-t", spawned_at: NEW_SPAWN, last_read_at: null,
+    slug: "t", session_id: "s", thread_name: "ntwine-t", spawned_at: NEW_SPAWN, last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: AT, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -75,7 +75,7 @@ test("the contract is by dispatch instant, and an unknown instant is legacy", ()
 
 // ---- THE QUEUE RULE ------------------------------------------------------------------------------
 
-test("false on a park frizz can honour keeps the thread out of the queue — and the card still states the wait", () => {
+test("false on a park ntwine can honour keeps the thread out of the queue — and the card still states the wait", () => {
   const t = tele({ subAgents: [LIVE_AGENT], ...agentPark("false") })
   assert.equal(needsYou(row(), t), false)
   // The FACT survives the excusal: the drawer and the full-screen page still say what it waits on.
@@ -95,7 +95,7 @@ test("no answer, or one that is neither true nor false, queues — it is never a
   assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...agentPark("yes") })), true)
 })
 
-test("a false frizz cannot honour queues: a dead name, a run-out for:, no for:, a dead worker", () => {
+test("a false ntwine cannot honour queues: a dead name, a run-out for:, no for:, a dead worker", () => {
   const dead = tele({ subAgents: [], ...agentPark("false") })
   assert.equal(needsYou(row(), dead), true, "the sub-agent it names is not running")
   const live = tele({ subAgents: [LIVE_AGENT], ...agentPark("false", "2h") })
@@ -105,7 +105,7 @@ test("a false frizz cannot honour queues: a dead name, a run-out for:, no for:, 
   assert.equal(needsYou(row(), live, { runtime: "exited" }), true, "a worker that is gone is waiting on nothing")
 })
 
-// THE GUESSES THIS REPLACES. Each pair is one wait the legacy rule excused on frizz's own inference; a
+// THE GUESSES THIS REPLACES. Each pair is one wait the legacy rule excused on ntwine's own inference; a
 // new-contract thread that rests on it without saying so is a bare rest, and the sign-off nudge teaches
 // the fence that would have kept it out.
 test("the per-wait guesses are gone for a new-contract thread, and unchanged for a legacy one", () => {
@@ -221,7 +221,7 @@ test("steps ARE the needs_input answer: the line may be left out, and a false be
   assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("needs_input: false\nsteps:\n  - Sign in").hints), true, "a thread waiting on its human never hides from them")
   // The retired `human:` gate now points at steps for an act, and at a question for a decision.
   assert.match(RETIRED_AWAITING_REPLACEMENT.human, /`steps:`/)
-  assert.match(RETIRED_AWAITING_REPLACEMENT.human, /registered with `frizzctl ask`/)
+  assert.match(RETIRED_AWAITING_REPLACEMENT.human, /registered with `ntwinectl ask`/)
 })
 
 // `questions:` (2026-10-05): a fence beside open questions names every one the worker still needs. The

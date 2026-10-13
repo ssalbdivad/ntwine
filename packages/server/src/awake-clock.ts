@@ -1,6 +1,6 @@
 // ── HOW LONG WAS THE MACHINE ACTUALLY AWAKE? ──────────────────────────────────────────────────────────
 //
-// Frizz judges silence by the wall clock: a child transcript untouched for 15 minutes reads stale, a turn
+// Ntwine judges silence by the wall clock: a child transcript untouched for 15 minutes reads stale, a turn
 // quiet for 15 minutes queues. But when the host sleeps, the wall clock keeps going while every process on
 // it is frozen — the agent, its command, and the harness's own `timeout` timer, which runs on a monotonic
 // clock. On wake, every quiet child reads dead at once for time nobody spent.

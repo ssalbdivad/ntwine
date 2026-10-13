@@ -4,7 +4,7 @@ Written 2026-09-03 as a design mockup, not a description of shipped behavior. Th
 
 ## What it is, next to what already exists
 
-Frizz has two ways to take a thread out of your way, and neither stops the worker. **Snooze** parks the CARD until an instant: the agent keeps running, its watchers keep waking it, and the card comes back on the clock. **Mark as done** ends the session and files the thread away. **Pause** is the missing third: the AGENT stops, and nothing Frizz would otherwise send it reaches it until the human presses play. A pause has no clock. It ends when you end it.
+Ntwine has two ways to take a thread out of your way, and neither stops the worker. **Snooze** parks the CARD until an instant: the agent keeps running, its watchers keep waking it, and the card comes back on the clock. **Mark as done** ends the session and files the thread away. **Pause** is the missing third: the AGENT stops, and nothing Ntwine would otherwise send it reaches it until the human presses play. A pause has no clock. It ends when you end it.
 
 ## The verb
 
@@ -20,11 +20,11 @@ Everything below is a rule about the scheduler and the delivery path, not about 
 | Source | While paused | On resume |
 | --- | --- | --- |
 | The goal (stop hook, heartbeat, post-compaction) | Held as ONE entry with a fire count | Delivered once |
-| Worker timers (`mcp__frizz__timer`) | Held, each | Delivered in arrival order |
+| Worker timers (`mcp__ntwine__timer`) | Held, each | Delivered in arrival order |
 | Shell watchers, sub-agent returns, Monitor timeouts | Held, each; the shell itself keeps running | Delivered in arrival order |
 | PR watchers (`watch_pr`) | Held, each; the watcher keeps watching | Delivered in arrival order |
 | A snooze bump (a snooze carrying a prompt) | Held | Delivered in arrival order |
-| Frizz's own sign-off nudge | DROPPED: a pause is not a rest to nudge | Nothing |
+| Ntwine's own sign-off nudge | DROPPED: a pause is not a rest to nudge | Nothing |
 | Human follow-ups (Enter) | QUEUED, the existing queued-bubble mechanism | Delivered after the held wakes, as their own bubbles |
 | `⌘⏎` in the composer | Resumes AND sends | Same as Resume, then the message |
 | Answers to a registered question | Queued like a follow-up | Delivered after the held wakes |
@@ -33,14 +33,14 @@ Everything below is a rule about the scheduler and the delivery path, not about 
 - **Pause at next rest** arms a pending pause: the thread keeps spinning, its footer reads `Pausing at next rest…` with a Cancel, and the pause takes at the next rest event, before any stop-hook goal fires.
 - **Rail (frame 5):** a paused thread has no queue card and no rest time. A pause outranks an open question, a permission prompt and a crash, exactly as a user snooze does (`isSnoozed`, `sessionIndicatorKind`). It wears a filled `⏸` in the status box where a snoozed row wears the hourglass, dimmed like its neighbours. Variant A files it in the Snoozed band, sorted first; variant B gives it a PAUSED band between Snoozed and Done, drawn only while something is paused. The tooltip reads `Paused 40m ago — 4 wakes held`.
 - **The thread (frame 4):** a caution-tone `TranscriptCard` titled `Paused by you` at the transcript's tail, one more member of the family the usage-limit pause card already belongs to. The held wakes are listed inside it (icon, label, age, a hover `×` to drop one). The composer stays open with a paused placeholder and a status line: `Paused · Enter queues · ⌘⏎ resumes and sends`.
-- **Other verbs while paused:** Mark as done archives and drops the held wakes (the dialog says so when any are held). Snooze is hidden. Restart worker and Reload plugins work as today; the thread stays paused. A `frizz` MCP call cannot arrive, because the worker is not running.
+- **Other verbs while paused:** Mark as done archives and drops the held wakes (the dialog says so when any are held). Snooze is hidden. Restart worker and Reload plugins work as today; the thread stays paused. A `ntwine` MCP call cannot arrive, because the worker is not running.
 - **Sub-agents:** a live sub-agent is what makes a thread un-snoozable today (`hasLiveSubAgents`). A pause is stronger: `Pause now` stops them with the turn, `Pause at next rest` waits for them. There is no state where a paused parent has live children.
 
 ## Resume (frame 6)
 
 1. The pause card collapses to its title line (`Paused by you · 2h 35m`) and stays as the record.
 2. A `WakeDivider` hairline: `▶ Resumed — 4 held wakes delivered · 4m ago`.
-3. ONE frizz wake, in the shape of the other wake prompts: `▶ Resumed after being paused for 2h 35m. While you were paused:` then the held items, numbered, in arrival order, then `Continue exactly where you left off.` Delivering them as one briefing rather than four bumps is the point: the worker reads what happened, not a burst of stale nudges.
+3. ONE ntwine wake, in the shape of the other wake prompts: `▶ Resumed after being paused for 2h 35m. While you were paused:` then the held items, numbered, in arrival order, then `Continue exactly where you left off.` Delivering them as one briefing rather than four bumps is the point: the worker reads what happened, not a burst of stale nudges.
 4. Queued follow-ups flush after it, through the existing queue path.
 5. With nothing held and nothing queued, Resume sends `Continue exactly where you left off.` alone, so the worker always gets one turn-starting message.
 

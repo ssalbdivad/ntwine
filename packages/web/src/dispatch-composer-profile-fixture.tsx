@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, CodexModel, DispatchInput, DispatchPreferences, SetDispatchPreferenceInput } from "@frizz/shared"
+import type { BoardSnapshot, CodexModel, DispatchInput, DispatchPreferences, SetDispatchPreferenceInput } from "@ntwine/shared"
 import { DispatchForm } from "./components/NewThreadModal.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { draftKey, draftStore } from "./lib/drafts.ts"
@@ -25,8 +25,8 @@ const dispatches: DispatchInput[] = []
 // object — and `?settingsDelay=N` holds each write for N ms, which is how the dispatch gate is driven.
 let settings: Record<string, unknown> = { permissionMode: "bypassPermissions", notifications: true, autoCompactWindow: 500000, promptCacheTtl: "auto" }
 const settingsWrites: Record<string, unknown>[] = []
-// The project's FRIZZ.md, as the "Project instructions" field sees it. `instructions.disk` stands in
-// for the file: a test rewrites it to play a worker editing FRIZZ.md behind the open panel, and a
+// The project's NTWINE.md, as the "Project instructions" field sees it. `instructions.disk` stands in
+// for the file: a test rewrites it to play a worker editing NTWINE.md behind the open panel, and a
 // write whose base revision no longer matches is refused the way the server refuses it.
 const instructions = { disk: "Run the tests before committing.", revision: 1, writes: [] as { content: string; baseRevision: string }[] }
 const settingsDelay = Number(new URL(window.location.href).searchParams.get("settingsDelay") ?? 0)
@@ -42,10 +42,10 @@ const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(requestUrl, window.location.origin)
-  if (url.pathname === "/_frizz/rpc/dispatchPreferencesGet") return json(preferences)
-  if (url.pathname === "/_frizz/rpc/codexModels") return json(codexModels)
-  if (url.pathname === "/_frizz/rpc/acpAgents") return json([])
-  if (url.pathname === "/_frizz/rpc/dispatchPreferenceSet") {
+  if (url.pathname === "/_ntwine/rpc/dispatchPreferencesGet") return json(preferences)
+  if (url.pathname === "/_ntwine/rpc/codexModels") return json(codexModels)
+  if (url.pathname === "/_ntwine/rpc/acpAgents") return json([])
+  if (url.pathname === "/_ntwine/rpc/dispatchPreferenceSet") {
     const update = JSON.parse(String(init?.body ?? "{}")) as SetDispatchPreferenceInput
     writes.push(update)
     if (update.field === "profile") {
@@ -58,9 +58,9 @@ window.fetch = async (input, init) => {
     window.dispatchComposerProfileFixture = { preferences, writes, dispatches, settingsWrites, instructions }
     return json(preferences)
   }
-  if (url.pathname === "/_frizz/rpc/settingsGet") return json(settings)
-  if (url.pathname === "/_frizz/rpc/projectInstructionsGet") return json({ content: instructions.disk, revision: String(instructions.revision), editable: true })
-  if (url.pathname === "/_frizz/rpc/projectInstructionsSet") {
+  if (url.pathname === "/_ntwine/rpc/settingsGet") return json(settings)
+  if (url.pathname === "/_ntwine/rpc/projectInstructionsGet") return json({ content: instructions.disk, revision: String(instructions.revision), editable: true })
+  if (url.pathname === "/_ntwine/rpc/projectInstructionsSet") {
     const body = JSON.parse(String(init?.body ?? "{}")) as { content: string; baseRevision: string }
     instructions.writes.push(body)
     if (body.baseRevision !== String(instructions.revision)) return json({ ok: false, reason: "conflict", content: instructions.disk, revision: String(instructions.revision) })
@@ -68,14 +68,14 @@ window.fetch = async (input, init) => {
     instructions.revision += 1
     return json({ ok: true, content: instructions.disk, revision: String(instructions.revision) })
   }
-  if (url.pathname === "/_frizz/rpc/settingsSet") {
+  if (url.pathname === "/_ntwine/rpc/settingsSet") {
     const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
     if (settingsDelay > 0) await new Promise((resolve) => window.setTimeout(resolve, settingsDelay))
     settings = body
     settingsWrites.push(body)
     return json(settings)
   }
-  if (url.pathname === "/_frizz/rpc/dispatch") {
+  if (url.pathname === "/_ntwine/rpc/dispatch") {
     // A deliberately isolated RPC seam for visual QA: no local server state, worker, terminal, or
     // live thread can be touched from this fixture. The short delay leaves the optimistic task card
     // visible long enough to inspect before either acknowledgement or rollback.
@@ -88,7 +88,7 @@ window.fetch = async (input, init) => {
 }
 
 function json(result: unknown): Response {
-  return new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-frizz-boot": "fixture" } })
+  return new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-ntwine-boot": "fixture" } })
 }
 
 store.board = { projectDir: "/fixture/dispatch-composer" } as BoardSnapshot

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { Message } from "./components/ChatView.tsx"
 import { useLiveAnswering } from "./lib/answering.ts"
 import type { ChatMessage } from "./hooks.ts"
@@ -19,7 +19,7 @@ const thread: ThreadView = {
   unread: false, archived: false, hasPlan: false, pendingQuestion: false, kind: "session", foreign: false,
   backend: "claude", permissionMode: "default", subAgents: [], bgShells: [], watches: [], questions: [],
 }
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 // A buried single-block ask: user request → the ask (sourceId "ask-db") → a LATER assistant work turn
 // (no human turn between) that makes the ask non-live. The ask stays answerable regardless.
@@ -47,13 +47,13 @@ const messages: ChatMessage[] = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), window.location.origin)
-  if (url.pathname === "/_frizz/rpc/followUp") {
+  if (url.pathname === "/_ntwine/rpc/followUp") {
     const body = JSON.parse(String(init?.body ?? "{}"))
     const node = document.querySelector("[data-sent-wire]")
     if (node) node.textContent = body.message
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname === "/_frizz/rpc/markRead") return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
+  if (url.pathname === "/_ntwine/rpc/markRead") return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   return originalFetch(input, init)
 }
 

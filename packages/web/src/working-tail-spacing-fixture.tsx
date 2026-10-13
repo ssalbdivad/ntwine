@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { createRoot } from "react-dom/client"
 import { useSnapshot } from "valtio"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { ThreadView } from "./components/ChatView.tsx"
 import { SubAgentSheet } from "./components/SubAgentSheet.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -65,7 +65,7 @@ const thread = {
   spawnedAt: AGO(900),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const agentCall = (agentId: string, detail: string) => ({
   name: "Agent",
@@ -100,27 +100,27 @@ const messages: TranscriptMessage[] = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : ((input as Request).url ?? input.toString()), location.origin)
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(
       JSON.stringify({ result: { messages, transcriptKey: `${SLUG}-key`, hasEarlier: false, historyLoaded: true } }),
       { headers: { "content-type": "application/json" } },
     )
   }
-  if (url.pathname === "/_frizz/rpc/subAgentTranscript") {
+  if (url.pathname === "/_ntwine/rpc/subAgentTranscript") {
     return new Response(JSON.stringify({ result: { messages, state: "running" } }), {
       headers: { "content-type": "application/json" },
     })
   }
   // The transcript reads its settled registered questions; `{}` would leave that query's data undefined,
   // which React Query reports to the console and the no-errors assertion trips on.
-  if (url.pathname === "/_frizz/rpc/threadSettledQuestions") {
+  if (url.pathname === "/_ntwine/rpc/threadSettledQuestions") {
     return new Response(JSON.stringify({ result: { questions: [] } }), { headers: { "content-type": "application/json" } })
   }
   // Lists too: the spinoff dialog iterates both.
-  if (url.pathname === "/_frizz/rpc/projectsQueues" || url.pathname === "/_frizz/rpc/projectsList") {
+  if (url.pathname === "/_ntwine/rpc/projectsQueues" || url.pathname === "/_ntwine/rpc/projectsList") {
     return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

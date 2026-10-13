@@ -44,7 +44,7 @@ const router = createRouter({
 
 try {
   storage.upsertSession({
-    slug: "t", session_id: "sid-t", thread_name: "frizz-t", spawned_at: new Date().toISOString(),
+    slug: "t", session_id: "sid-t", thread_name: "ntwine-t", spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: "t", state: "open", meta: null, seen_at: null, transcript_id: null,
   })

@@ -76,7 +76,7 @@ test("a line naming no image keeps the whole line, so the gallery can show what 
 test("a target resolves to the absolute path the image proxy serves, against the project and home", () => {
   const base = { dir: "/repo", home: "/Users/me" }
   assert.equal(resolveLightboxPath("/tmp/a.png", base), "/tmp/a.png")
-  assert.equal(resolveLightboxPath(".frizz/threads/t1/after.png", base), "/repo/.frizz/threads/t1/after.png")
+  assert.equal(resolveLightboxPath(".ntwine/threads/t1/after.png", base), "/repo/.ntwine/threads/t1/after.png")
   assert.equal(resolveLightboxPath("~/Desktop/a.png", base), "/Users/me/Desktop/a.png")
   assert.equal(resolveLightboxPath("file:///tmp/a.png", base), "/tmp/a.png")
   assert.equal(resolveLightboxPath(String.raw`C:\shots\a.png`, base), String.raw`C:\shots\a.png`)
@@ -110,8 +110,8 @@ test("a picture drawn some other way is captioned by its alt text, unless the al
   assert.deepEqual(lightboxImageFor("/tmp/s.png", ""), { path: "/tmp/s.png", label: "s.png", captioned: false })
   assert.deepEqual(lightboxImageFor("/tmp/s.png", null), { path: "/tmp/s.png", label: "s.png", captioned: false })
   // A tool's picture card: served from a hash-named cache copy, called by the file it was a copy of.
-  assert.deepEqual(lightboxImageFor("/tmp/frizz-tool-images-ab/9f2c.png", "Read: shots/board.png"), {
-    path: "/tmp/frizz-tool-images-ab/9f2c.png",
+  assert.deepEqual(lightboxImageFor("/tmp/ntwine-tool-images-ab/9f2c.png", "Read: shots/board.png"), {
+    path: "/tmp/ntwine-tool-images-ab/9f2c.png",
     label: "board.png",
     captioned: false,
   })

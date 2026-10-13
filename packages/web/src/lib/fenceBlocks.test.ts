@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { AWAITING_TITLE_MAX, isAwaitingItemKind } from "@frizz/shared"
+import { AWAITING_TITLE_MAX, isAwaitingItemKind } from "@ntwine/shared"
 import { splitFenceBlocks, parseFenceBody, hasFence } from "./fenceBlocks.ts"
 
 // ---- splitFenceBlocks ----
@@ -25,7 +25,7 @@ test("a done fence with surrounding prose", () => {
   ])
 })
 
-// THE YAML KEYS, and this parser IS the server's — one `splitAwaitingFrontmatter` in @frizz/shared, called
+// THE YAML KEYS, and this parser IS the server's — one `splitAwaitingFrontmatter` in @ntwine/shared, called
 // by both. It was two implementations with a comment on each asking the reader to keep them in step, and
 // on 2026-08-24 the cutover moved one and not the other: a correct fence parked correctly and rendered its
 // own raw frontmatter at the human. These cases pin the shared behaviour from the CLIENT's side.
@@ -139,7 +139,7 @@ test("an empty done body is allowed (body may be '')", () => {
 // THE CLIENT'S SPLIT IS THE TAILER'S — literally the same function since 2026-08-24. The server decides
 // whether a fence parks and the client decides how it reads, and a disagreement about where the structure
 // ends is a fence that renders one way and behaves another: the class of bug that had `pr-watch:` printing
-// at the human while frizz treated the fence as naming nothing, and that the cutover reproduced within the
+// at the human while ntwine treated the fence as naming nothing, and that the cutover reproduced within the
 // hour by moving one parser and not the other.
 test("a `---` line ends the frontmatter here too, and the prose survives intact", () => {
   const { hints, body } = parseFenceBody("shells: [bb4sns0ye]\nfor: 20m\n---\nKnown-answer control.\n\n- angular clean\n- puppeteer flagged", "awaiting")
@@ -163,7 +163,7 @@ test("a structural line AFTER the delimiter is prose, so quoting the grammar can
 })
 
 // ---- `title:` — the card's heading, in the worker's own words (2026-08-26) ----
-// A SCALAR beside `for:`, not an item: it names nothing frizz can look up, so it never counts toward the
+// A SCALAR beside `for:`, not an item: it names nothing ntwine can look up, so it never counts toward the
 // park (readAwaitingPark ignores it) and a fence carrying only a title still queues. It is capped at
 // PARSE time so the hint on the wire is already the string the card draws, and no consumer can render a
 // longer one (maintainer 2026-08-26: "let's let the agent specify its own title for these awaiting

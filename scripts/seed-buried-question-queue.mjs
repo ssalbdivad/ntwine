@@ -14,7 +14,7 @@
 //                 own "Send answers" action is down until a chip is filled — but the ask itself, once
 //                 "Load earlier messages" brings it back, still takes chips.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 // Nothing writes board state directly; the transcript records drive it.
 //
 // Usage: node scripts/seed-buried-question-queue.mjs <home> <unused> <projectDir>
@@ -97,7 +97,7 @@ function write(slug, sessionId, title, records) {
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'default', 'open', 0, 0, 0, '${T(59)}')`,
+     VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'default', 'open', 0, 0, 0, '${T(59)}')`,
   ])
   console.log(`seeded ${slug} (${sessionId})`)
 }

@@ -219,7 +219,7 @@ export function MermaidDiagram({ source }: { source: string }) {
       setState({ error: "Diagram source exceeds the 50 KB rendering limit" })
       return () => { live = false }
     }
-    const id = `frizz-mermaid-${reactId.replace(/[^a-zA-Z0-9]/g, "")}-${++nextMermaidRender}`
+    const id = `ntwine-mermaid-${reactId.replace(/[^a-zA-Z0-9]/g, "")}-${++nextMermaidRender}`
     void mermaidRenderer.enqueue({ id, source, resolved, palette: mermaidColors() })
       .then(({ svg }) => { if (live && generation.current === currentGeneration) setState({ html: svg }) })
       .catch((error: unknown) => {
@@ -252,7 +252,7 @@ const mermaidSource = (body: string) => body.replace(/\n$/, "")
  * every surface that injects a whole Markdown body as one string of HTML, where the transcript's splitter
  * (lib/imagePaths.ts splitProseAttachments) never runs: the done, awaiting and question cards (LinkedHtml),
  * the `.md` readers (MarkdownDrawer, FileViewerPanel, ThreadDrawer) and the transcript's two Markdown
- * asides (SessionMessageLine, FrizzWake). The finding and swapping is lib/fenceIslands.ts, shared with the
+ * asides (SessionMessageLine, NtwineWake). The finding and swapping is lib/fenceIslands.ts, shared with the
  * ```lightbox fence; the diagram is MermaidDiagram itself, so a source mermaid cannot parse reads here as
  * it does in the transcript — "Diagram unavailable", the parser's reason, and the source as code.
  *

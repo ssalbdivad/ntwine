@@ -18,11 +18,11 @@ import { createRemotePane } from "./remote-pane.ts";
 
 /**
  * Custom frizz.sh names as they SHIP while withdrawn (2026-10-08): CUSTOM_NAMES_OFFERED is false and
- * nothing here sets `FRIZZ_CUSTOM_NAMES`. cloud.test.ts and remote-pane.test.ts turn the override on
+ * nothing here sets `NTWINE_CUSTOM_NAMES`. cloud.test.ts and remote-pane.test.ts turn the override on
  * for their whole file to keep driving the path behind the gate; this file is the other half, and
  * runs as its own process, so their setting never reaches it.
  */
-for (const name of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "FRIZZ_CUSTOM_NAMES"]) delete process.env[name];
+for (const name of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "NTWINE_CUSTOM_NAMES"]) delete process.env[name];
 
 /** A registrar that answers every claim and records it, so "never called" is an observation. */
 async function claimServer(reply: unknown = { hostname: "x.frizz.sh", leaseExpiresAt: 0, renewed: false }) {
@@ -51,7 +51,7 @@ async function claimServer(reply: unknown = { hostname: "x.frizz.sh", leaseExpir
 }
 
 function tempHome() {
-  return mkdtempSync(join(tmpdir(), "frizz-paused-"));
+  return mkdtempSync(join(tmpdir(), "ntwine-paused-"));
 }
 
 /** A GitHub sign-in that fails the test if anything starts it. */
@@ -59,13 +59,13 @@ const untouchableGithub = {
   authorize: async (): Promise<never> => { throw new Error("GitHub must not be consulted"); },
 };
 
-// 2026-10-08: custom names are withdrawn until Frizz's GitHub OAuth app exists. Before the gate, a
+// 2026-10-08: custom names are withdrawn until Ntwine's GitHub OAuth app exists. Before the gate, a
 // custom claim reached the device flow and only then refused with "not-configured".
-test("custom names are off by default, and only FRIZZ_CUSTOM_NAMES=1 turns them on", () => {
+test("custom names are off by default, and only NTWINE_CUSTOM_NAMES=1 turns them on", () => {
   assert.equal(CUSTOM_NAMES_OFFERED, false, "withdrawn until the GitHub OAuth app is registered");
   assert.equal(customNamesOffered({}), false);
-  assert.equal(customNamesOffered({ FRIZZ_CUSTOM_NAMES: "true" }), false, "only the exact value 1 counts");
-  assert.equal(customNamesOffered({ FRIZZ_CUSTOM_NAMES: "1" }), true);
+  assert.equal(customNamesOffered({ NTWINE_CUSTOM_NAMES: "true" }), false, "only the exact value 1 counts");
+  assert.equal(customNamesOffered({ NTWINE_CUSTOM_NAMES: "1" }), true);
 });
 
 test("while custom names are paused, a word is refused before GitHub or the registrar hears of it", async () => {
@@ -126,7 +126,7 @@ test("while custom names are paused, a saved custom name that needs re-claiming 
     ]) {
       await assert.rejects(
         reconcileCloudConfig(stale, 9393, home, (m) => notices.push(m), server.origin, untouchableGithub),
-        /colin\.frizz\.sh needs moving onto the Frizz relay[\s\S]*custom frizz\.sh names are paused[\s\S]*press R/,
+        /colin\.frizz\.sh needs moving onto the Ntwine relay[\s\S]*custom frizz\.sh names are paused[\s\S]*press R/,
       );
     }
     assert.deepEqual(notices, [], "no notice promises a claim that is not going to happen");
@@ -158,7 +158,7 @@ function buildPane(initial: CloudConfig | null) {
     current: () => current,
     apply: async (next) => { applied.push(next); current = next; },
     claim: async () => { throw new Error("nothing may be claimed here"); },
-    issueLink: () => (current ? { code: "c0de", url: `https://${current.hostname}/?frizz_code=c0de`, expiresAt: Date.now() + 300_000 } : null),
+    issueLink: () => (current ? { code: "c0de", url: `https://${current.hostname}/?ntwine_code=c0de`, expiresAt: Date.now() + 300_000 } : null),
     probes: {
       cloudflared: async () => ({ version: "2025.8.1" }),
       tailscale: async () => ({ installed: true, dnsName: "mac-mini.corgi-alpha.ts.net" }),
@@ -210,5 +210,5 @@ test("while custom names are paused, a board already on a custom name shows it, 
   assert.deepEqual(applied, [saved], "the saved claim is applied as it is");
   assert.doesNotMatch(out.text(), /Custom frizz\.sh name|github\.com\/login\/device/, "no claim form, no sign-in");
   assert.match(out.text(), /Serving https:\/\/colin\.frizz\.sh \(frizz\.sh\)/);
-  assert.match(out.text(), /frizz_code=c0de/);
+  assert.match(out.text(), /ntwine_code=c0de/);
 });

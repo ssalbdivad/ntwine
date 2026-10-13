@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { BoardSnapshot } from "@frizz/shared"
+import type { BoardSnapshot } from "@ntwine/shared"
 import { markDrawerClosing, noteStandaloneThreadRender, pushDrawer, registerRoutedLanding, resolveRoutedThread, store } from "../store.ts"
 import { applyLocation, appPushedCurrentEntry, noteRouterTransition, primeReturnFromFullscreen, primeRoute, startRouter } from "./router.ts"
 
@@ -86,7 +86,7 @@ test("a frame for one project's thread is not taken by another project's same-na
     resetStore()
     store.pendingOpen = { projectSlug: "home", projectName: "Home", slug: "fix-auth", title: "Fix auth" }
     primeRoute("/thread/fix-auth")
-    store.board = { projectSlug: "frizz", threads: [{ id: "fix-auth", needsYou: false }] } as unknown as BoardSnapshot
+    store.board = { projectSlug: "ntwine", threads: [{ id: "fix-auth", needsYou: false }] } as unknown as BoardSnapshot
     resolveRoutedThread()
     assert.equal(store.drawers[0]?.routed, false)
     assert.equal(store.pendingOpen?.projectSlug, "home")
@@ -499,7 +499,7 @@ test("the store → URL writer waits out react-router's view transition", async 
 // numbers its entries from 0 at document load, so 0 (or no router state at all) is a cold link.
 test("appPushedCurrentEntry: only an entry the router pushed above the document's first counts", () => {
   assert.equal(appPushedCurrentEntry({ usr: null, key: "a", idx: 1 }), true)
-  assert.equal(appPushedCurrentEntry({ usr: null, key: "b", idx: 4, frizzLayer: 9 }), true)
+  assert.equal(appPushedCurrentEntry({ usr: null, key: "b", idx: 4, ntwineLayer: 9 }), true)
   assert.equal(appPushedCurrentEntry({ idx: 0 }), false)
   assert.equal(appPushedCurrentEntry({ usr: null, key: "c" }), false)
   assert.equal(appPushedCurrentEntry(null), false)

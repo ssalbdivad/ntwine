@@ -177,7 +177,7 @@ import type {
   DropOwnPrWatchResult,
   ListOwnPrWatchesInput,
   OwnPrWatchesResult,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
 // Per-call transport options — declared here (not in rpc.ts) only because two procedures name it in
 // their signature. It is a CLIENT-side extension: the drift gate compares `Parameters<…>[0]`, so an
@@ -201,7 +201,7 @@ export interface Api {
   threadBody(input: { slug: string }): Promise<{ markdown: string }>
   threadTranscript(input: { slug: string }): Promise<TranscriptPage>
   // A resting thread's final assistant message and the human's last one — the All queues page's card
-  // body. Called PROJECT-BOUND (`/_frizz/<projectId>/rpc`), like every per-thread verb that page uses.
+  // body. Called PROJECT-BOUND (`/_ntwine/<projectId>/rpc`), like every per-thread verb that page uses.
   threadHandoff(input: { slug: string }): Promise<ThreadHandoff>
   threadTranscriptEarlier(input: TranscriptEarlierInput): Promise<TranscriptPage>
   // The thread's answered registered questions, which the transcript keeps drawing where they stood.
@@ -289,35 +289,35 @@ export interface Api {
   // THE RECURRING PROMPT, armed entirely from the Goal panel: one text, and up to two triggers
   // (every rest, and/or every N minutes). Text, triggers and cadence travel together — they are one row.
   setThreadRecurringPrompt(input: SetThreadRecurringPromptInput): Promise<void>
-  // The WORKER-facing counterpart, called by `frizzctl goal` rather than by this client.
+  // The WORKER-facing counterpart, called by `ntwinectl goal` rather than by this client.
   // Declared here because rpc-contract.ts proves the two procedure NAME SETS are equal — an RPC the
   // client cannot name is one nothing checks the shape of. No browser call site uses it.
   setOwnThreadRecurringPrompt(input: SetOwnThreadRecurringPromptInput): Promise<SetOwnThreadRecurringPromptResult>
   // The READ half of the same tool (`action: "get"`), so a worker can see the row before it overwrites
   // it — after a compaction, or after the human edited the text in the Goal panel.
   getOwnThreadRecurringPrompt(input: GetOwnThreadRecurringPromptInput): Promise<OwnThreadRecurringPromptResult>
-  // THE WORKER NAMING ITS OWN THREAD, called by `frizzctl title`. Declared here for the drift gate
+  // THE WORKER NAMING ITS OWN THREAD, called by `ntwinectl title`. Declared here for the drift gate
   // alone — the browser's rename verbs are `renameThread` / `aiRenameThread`, which lock the name.
   setOwnThreadTitle(input: SetOwnThreadTitleInput): Promise<SetOwnThreadTitleResult>
   readThread(input: ReadThreadInput): Promise<ReadThreadResult>
   messageThread(input: MessageThreadInput): Promise<MessageThreadResult>
-  // THE PR WATCHER REGISTRY, called by `frizzctl watch-pr` rather than by this client. Declared here
+  // THE PR WATCHER REGISTRY, called by `ntwinectl watch-pr` rather than by this client. Declared here
   // for the same reason as its neighbours: rpc-contract.ts proves the two procedure NAME SETS are equal,
   // so an RPC the client cannot name is one nothing checks the shape of. No browser call site uses these.
   addOwnPrWatch(input: AddOwnPrWatchInput): Promise<AddOwnPrWatchResult>
   dropOwnPrWatch(input: DropOwnPrWatchInput): Promise<DropOwnPrWatchResult>
   listOwnPrWatches(input: ListOwnPrWatchesInput): Promise<OwnPrWatchesResult>
-  // THE COMMAND WATCHES, called by `frizzctl watch-command`. Declared for the drift gate, like the PR
+  // THE COMMAND WATCHES, called by `ntwinectl watch-command`. Declared for the drift gate, like the PR
   // watchers above; no browser call site uses them.
   addOwnCommandWatch(input: AddOwnCommandWatchInput): Promise<AddOwnCommandWatchResult>
   dropOwnCommandWatch(input: DropOwnCommandWatchInput): Promise<DropOwnCommandWatchResult>
   listOwnCommandWatches(input: ListOwnCommandWatchesInput): Promise<OwnCommandWatchesResult>
-  // THE WORKER'S OWN WATCHES on its own running work, called by `frizzctl watch` / `unwatch`. Same
+  // THE WORKER'S OWN WATCHES on its own running work, called by `ntwinectl watch` / `unwatch`. Same
   // story as the PR watchers above: declared for the drift gate, never called from the browser.
   addOwnWatch(input: AddOwnWatchInput): Promise<AddOwnWatchResult>
-  // `frizzctl extend-shell` — a background shell's runtime budget. Drift gate only, like its neighbours.
+  // `ntwinectl extend-shell` — a background shell's runtime budget. Drift gate only, like its neighbours.
   extendOwnShell(input: ExtendOwnShellInput): Promise<ExtendOwnShellResult>
-  // `frizzctl deadline` — the worker's own time limit. Drift gate only, like its neighbours.
+  // `ntwinectl deadline` — the worker's own time limit. Drift gate only, like its neighbours.
   ownDeadline(input: OwnDeadlineInput): Promise<OwnDeadlineResult>
   threadDeadline(input: { slug: string }): Promise<OwnDeadlineResult>
   // The drawer's time-limit control: set, move or clear (`deadline: null`) the thread's deadline.
@@ -343,14 +343,14 @@ export interface Api {
   dismissQuestions(input: DismissQuestionsInput): Promise<DismissQuestionsResult>
   holdQuestionDefault(input: HoldQuestionDefaultInput): Promise<HoldQuestionDefaultResult>
   // THE SUPERSEDED WORKER PROCEDURES, declared here only so the drift gate can see them. A worker's MCP
-  // server outlives every frizz restart, so a session dispatched before the stop hook and the heartbeat
+  // server outlives every ntwine restart, so a session dispatched before the stop hook and the heartbeat
   // merged is still POSTing these names; the router aliases them onto the one recurring-prompt row
   // (`applyLegacyWorkerTrigger`). No browser call site uses them, and none should — the gate proves the
   // two procedure NAME SETS are equal, so an alias the client cannot name is an alias nothing checks.
   setOwnThreadStopHook(input: SetOwnThreadStopHookInput): Promise<void>
   setOwnThreadHeartbeat(input: SetOwnThreadHeartbeatInput): Promise<void>
   setThreadHeartbeat(input: SetOwnThreadHeartbeatInput): Promise<void>
-  // THE ONE-OFF TIMERS, called by `frizzctl timer` rather than by this client. Declared here for the
+  // THE ONE-OFF TIMERS, called by `ntwinectl timer` rather than by this client. Declared here for the
   // same reason as the worker procedures above — the drift gate proves the two procedure NAME SETS are
   // equal, so an RPC the client cannot name is one nothing checks the shape of. All three are mutations
   // because the worker's MCP server POSTs every call; `listOwnThreadTimers` reads nothing and is one
@@ -401,9 +401,9 @@ export interface Api {
   // Claim what an editor sent to the prompt box (machine-wide, first caller wins). No id: the oldest.
   composeTake(input: { id?: string }): Promise<{ item: EditorComposeItem | null }>
   // What the editor windows that have this project open show: file in front, selection, tabs, problems.
-  // The workers' `frizzctl editor` reads it; the page does not.
+  // The workers' `ntwinectl editor` reads it; the page does not.
   editorState(input: { slug?: string }): Promise<EditorStateResult>
-  // Which capability-gated tools the workers' frizz MCP server lists (`editor` while a window has this
+  // Which capability-gated tools the workers' ntwine MCP server lists (`editor` while a window has this
   // project open). The worker's MCP server polls it; the page does not.
   workerCapabilities(input: { slug?: string }): Promise<{ editor: boolean }>
   // What a browser tab shows of the editor beside it: the file in front and its selection's lines, from
@@ -424,7 +424,7 @@ export interface Api {
   // The Claude aliases with the edition the pinned runtime resolves each to ("Opus 5.5"). The picker's
   // Claude rows take their labels from this; the bare family words cover loading and an older server.
   claudeModels(): Promise<ClaudeModel[]>
-  // The ACP agents Frizz can launch, with `available` for the ones on the server's PATH. The composer
+  // The ACP agents Ntwine can launch, with `available` for the ones on the server's PATH. The composer
   // lists the available ones as `acp:<id>` models (plans/acp-backend.md).
   acpAgents(): Promise<AcpAgent[]>
   // The models one ACP agent advertises (a throwaway session, cached server-side). Asked only when a
@@ -452,7 +452,7 @@ export interface Api {
   // server — this is how the page finds the thread instead of reporting it missing.
   threadLocate(input: { slug: string }): Promise<ThreadLocation[]>
   projectsList(): Promise<ProjectCard[]>
-  // Registering a folder as a project — the add-project dialog. Same authority as running `frizz`
+  // Registering a folder as a project — the add-project dialog. Same authority as running `ntwine`
   // there and strictly less: it resolves an id and writes the index, and dispatches nothing.
   // Opens the machine NATIVE folder picker, server-side, and adds what comes back. The browser API
   // withholds absolute paths on purpose, and a project is a path — so the picker cannot live here.
@@ -467,10 +467,10 @@ export interface Api {
   // The rail's manual order: the whole list of ids, because the client has just laid the squares out
   // and an index pair would have to be replayed against a server order that may already differ.
   projectsReorder(input: { ids: string[] }): Promise<ProjectCard[]>
-  // Delete a project: Frizz's record of it, never the folder it names. Without `deleteData` this only
+  // Delete a project: Ntwine's record of it, never the folder it names. Without `deleteData` this only
   // forgets the registry entry and closes the project, so adding the folder back restores the same
-  // board; with it, the project's live workers are stopped and everything Frizz holds for it is
-  // removed. The project Frizz is RUNNING from is refused — see the router.
+  // board; with it, the project's live workers are stopped and everything Ntwine holds for it is
+  // removed. The project Ntwine is RUNNING from is refused — see the router.
   projectRemove(input: { id: string; deleteData?: boolean }): Promise<{ removed: boolean; deletedData: boolean; stoppedWorkers: number }>
   // Queue size per OPEN project, keyed by project id — the rail's badges. A project with no board on
   // this server is absent (no honest count without one), which the rail draws as no badge rather than
@@ -523,7 +523,7 @@ export interface Api {
   // The shipped GitHub batch-dispatch prompt template — the Settings UI prefills its editor from this
   // and resets to it (an empty githubPrompt setting = the server default). One template, issues and PRs.
   githubPromptDefaults(): Promise<{ prompt: string }>
-  // The project's FRIZZ.md, edited from the agent settings panel. A write carries the revision it was
+  // The project's NTWINE.md, edited from the agent settings panel. A write carries the revision it was
   // based on; `ok: false` hands back the file as it now is (a worker edited it, or it is not writable).
   projectInstructionsGet(): Promise<{ content: string; revision: string; editable: boolean }>
   projectInstructionsSet(input: { content: string; baseRevision: string }): Promise<{

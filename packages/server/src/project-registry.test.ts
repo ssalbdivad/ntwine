@@ -23,21 +23,21 @@ import {
   resolveProjectIcon,
   setProjectIcon,
 } from "./project-registry.ts"
-import { launchHostDir } from "./frizz-paths.ts"
+import { launchHostDir } from "./ntwine-paths.ts"
 
 const A = "029a30af-f126-40e3-b04c-d80e74e3e090"
 const B = "50577e5e-802f-4567-bd0e-cf7cbf3d2ed5"
 
 function sandbox(): string {
-  const home = mkdtempSync(join(tmpdir(), "frizz-registry-"))
-  mkdirSync(join(home, ".frizz"), { recursive: true }) // legacy collapse root, so data lands under it
+  const home = mkdtempSync(join(tmpdir(), "ntwine-registry-"))
+  mkdirSync(join(home, ".ntwine"), { recursive: true }) // legacy collapse root, so data lands under it
   return home
 }
-/** A directory that looks like a registered project — `.frizz/.id` is what "still exists" means. */
+/** A directory that looks like a registered project — `.ntwine/.id` is what "still exists" means. */
 function project(home: string, rel: string, id?: string): string {
   const dir = join(home, rel)
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
-  if (id) writeFileSync(join(dir, ".frizz", ".id"), `${id}\n`)
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
+  if (id) writeFileSync(join(dir, ".ntwine", ".id"), `${id}\n`)
   return dir
 }
 
@@ -53,10 +53,10 @@ function canonical(path: string): string {
 test("a fresh registration takes the directory basename", () => {
   const home = sandbox()
   try {
-    const { entry, action } = registerProject({ dir: project(home, "code/frizz", A), id: A }, home)
+    const { entry, action } = registerProject({ dir: project(home, "code/ntwine", A), id: A }, home)
     assert.equal(action, "created")
-    assert.equal(entry?.slug, "frizz")
-    assert.equal(findBySlug("frizz", home)?.id, A)
+    assert.equal(entry?.slug, "ntwine")
+    assert.equal(findBySlug("ntwine", home)?.id, A)
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
@@ -117,15 +117,15 @@ test("on collision the incumbent keeps its slug and the newcomer is qualified", 
   }
 })
 
-test("a slug that would shadow Frizz's own routes is refused", () => {
+test("a slug that would shadow Ntwine's own routes is refused", () => {
   const taken = new Set<string>()
   // These are reachable: a repo really can be called `rpc`, `assets` or `editor`.
   for (const reserved of ["rpc", "assets", "events", "health", "editor"]) {
     assert.notEqual(deriveSlug(`/x/${reserved}`, taken), reserved, reserved)
   }
-  // `_frizz` itself is unreachable BY CONSTRUCTION — slugify strips the underscore, so a directory
-  // named `_frizz` derives `frizz`, and no derived slug can ever begin with one.
-  assert.equal(deriveSlug("/x/_frizz", taken), "frizz")
+  // `_ntwine` itself is unreachable BY CONSTRUCTION — slugify strips the underscore, so a directory
+  // named `_ntwine` derives `ntwine`, and no derived slug can ever begin with one.
+  assert.equal(deriveSlug("/x/_ntwine", taken), "ntwine")
 })
 
 // `home` is the Home workspace's address (home-workspace.ts). A project that took it would push Home
@@ -172,7 +172,7 @@ test("a copied checkout is detected rather than stealing the original's board", 
   const home = sandbox()
   try {
     registerProject({ dir: project(home, "orig", A), id: A }, home)
-    // `cp -R` brought .frizz/.id along, and the ORIGINAL still exists.
+    // `cp -R` brought .ntwine/.id along, and the ORIGINAL still exists.
     const copy = project(home, "copy", A)
     const result = registerProject({ dir: copy, id: A }, home)
     assert.equal(result.action, "duplicate")
@@ -246,7 +246,7 @@ test("moveProjectDirectory renames the folder to a sibling and re-registers the 
     assert.equal(moved.path, canonical(join(home, "work/porg")))
     assert.equal(moved.slug, "hypergres", "the slug is the rename dialog's to change, not the move's")
     assert.equal(existsSync(before), false)
-    assert.equal(existsSync(join(home, "work/porg/.frizz/.id")), true, "the id travelled with the tree")
+    assert.equal(existsSync(join(home, "work/porg/.ntwine/.id")), true, "the id travelled with the tree")
     assert.equal(readRegistry(home).projects.length, 1)
     assert.equal(moveProjectDirectory(A, "porg", home).path, moved.path, "the same name is a no-op")
   } finally {
@@ -266,7 +266,7 @@ test("moveProjectDirectory refuses a path, an occupied target and a missing fold
     registerProject({ dir: project(home, "gone/here", B), id: B }, home)
     rmSync(join(home, "gone/here"), { recursive: true, force: true })
     assert.throws(() => moveProjectDirectory(B, "there", home), /missing/)
-    assert.equal(existsSync(join(home, "work/one/.frizz/.id")), true, "nothing moved")
+    assert.equal(existsSync(join(home, "work/one/.ntwine/.id")), true, "nothing moved")
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
@@ -289,9 +289,9 @@ test("rename is the escape hatch, and it refuses a reserved or taken slug", () =
   }
 })
 
-// A `/_frizz/<segment>/…` request may name a project either way, and the id exists for exactly the
+// A `/_ntwine/<segment>/…` request may name a project either way, and the id exists for exactly the
 // case below: a worker is handed its project segment once, at spawn, and then holds it for hours
-// inside a detached daemon. A slug renamed under it would leave every frizz tool addressing an unknown
+// inside a detached daemon. A slug renamed under it would leave every ntwine tool addressing an unknown
 // segment — which falls through to whichever project launched the server, not to an error.
 test("a project segment resolves by slug OR by id, so a rename cannot strand a live worker", () => {
   const home = sandbox()
@@ -313,7 +313,7 @@ test("a corrupt registry reads as empty rather than throwing", () => {
   const home = sandbox()
   try {
     registerProject({ dir: project(home, "p", A), id: A }, home)
-    writeFileSync(join(home, ".frizz", "registry.json"), "{ not json")
+    writeFileSync(join(home, ".ntwine", "registry.json"), "{ not json")
     assert.deepEqual(readRegistry(home).projects, [], "an index that cannot be read is rebuilt, not fatal")
     const again = registerProject({ dir: project(home, "p", A), id: A }, home)
     assert.equal(again.action, "created")
@@ -322,21 +322,21 @@ test("a corrupt registry reads as empty rather than throwing", () => {
   }
 })
 
-test("an entry an older server wrote for Frizz's own launch folder is never listed, and the next write drops it", () => {
+test("an entry an older server wrote for Ntwine's own launch folder is never listed, and the next write drops it", () => {
   const home = sandbox()
   try {
     const host = launchHostDir(home)
-    mkdirSync(join(host, ".frizz"), { recursive: true })
-    writeFileSync(join(host, ".frizz", ".id"), `${B}\n`)
+    mkdirSync(join(host, ".ntwine"), { recursive: true })
+    writeFileSync(join(host, ".ntwine", ".id"), `${B}\n`)
     // A project of the operator's own that is merely NAMED host is theirs, and stays.
     const mine = registerProject({ dir: project(home, "code/host", A), id: A }, home).entry!
-    // What frizz-server 0.15.20 and older left behind: its boot backfill had no refusal for this folder.
+    // What ntwine-server 0.15.20 and older left behind: its boot backfill had no refusal for this folder.
     const file = JSON.parse(readFileSync(registryPath(home), "utf8"))
-    file.projects.push({ ...mine, id: B, path: canonical(host), slug: "frizz-host" })
+    file.projects.push({ ...mine, id: B, path: canonical(host), slug: "ntwine-host" })
     writeFileSync(registryPath(home), JSON.stringify(file))
 
     assert.deepEqual(listProjects(home).map((entry) => entry.id), [A])
-    assert.equal(findProjectBySegment("frizz-host", home), undefined)
+    assert.equal(findProjectBySegment("ntwine-host", home), undefined)
     assert.equal(findProjectBySegment(B, home), undefined)
     assert.equal(findByPath(host, home), undefined)
     assert.equal(findProjectBySegment(mine.slug, home)?.id, A)
@@ -362,13 +362,13 @@ test("forgetting a project removes exactly one card", () => {
   }
 })
 
-// A machine that has been running Frizz for months arrives at its first grid with ONE card, and the
+// A machine that has been running Ntwine for months arrives at its first grid with ONE card, and the
 // only way to fill it would be to visit every repository in a terminal — the chore one server per
 // machine exists to end. Everything needed is already on disk.
 test("backfill recovers projects from existing state dirs, and refuses to guess", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-backfill-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-backfill-"))
   try {
-    const stateDir = (id: string) => join(home, ".frizz", "projects", id)
+    const stateDir = (id: string) => join(home, ".ntwine", "projects", id)
     const seed = (id: string, dir: string, file = "server.lock") => {
       mkdirSync(stateDir(id), { recursive: true })
       writeFileSync(join(stateDir(id), file), JSON.stringify({ projectDir: dir }))
@@ -389,7 +389,7 @@ test("backfill recovers projects from existing state dirs, and refuses to guess"
     seed("id-gone", movedAway) // directory no longer exists
     seed("id-stale", reidentified) // the project claims a DIFFERENT id now
 
-    // Stands in for each project's own `.frizz/.id`.
+    // Stands in for each project's own `.ntwine/.id`.
     const claims: Record<string, string> = {
       [canonical(alpha)]: "id-alpha",
       [canonical(beta)]: "id-beta",
@@ -476,13 +476,13 @@ test("reordering a subset keeps the projects it did not name, after the ones it 
 // boron and pullfrog/app stayed missing from the maintainer's grid even after the identity fix that
 // was supposed to find them. `launcher.json` is the one that survives (2026-08-06).
 test("backfill recovers a project whose server is STOPPED, not just a running one", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-backfill-stopped-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-backfill-stopped-"))
   try {
     const stopped = join(home, "stopped-project")
     const running = join(home, "running-project")
     for (const [id, dir, file] of [["id-stopped", stopped, "launcher.json"], ["id-running", running, "server.lock"]]) {
       mkdirSync(dir, { recursive: true })
-      const sd = join(home, ".frizz", "projects", id)
+      const sd = join(home, ".ntwine", "projects", id)
       mkdirSync(sd, { recursive: true })
       writeFileSync(join(sd, file), JSON.stringify({ projectDir: dir }))
     }
@@ -494,13 +494,13 @@ test("backfill recovers a project whose server is STOPPED, not just a running on
   }
 })
 
-// A server on Frizz's own folder opens every project as one of many, and leaves no `launcher.json` in
+// A server on Ntwine's own folder opens every project as one of many, and leaves no `launcher.json` in
 // any of them: the serving record it keeps is what names the folder.
 test("backfill recovers a project a server opened as one of many, from its serving record", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-backfill-serving-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-backfill-serving-"))
   try {
     const dir = join(home, "opened-project")
-    const stateDir = join(home, ".frizz", "projects", A)
+    const stateDir = join(home, ".ntwine", "projects", A)
     mkdirSync(dir, { recursive: true })
     mkdirSync(stateDir, { recursive: true })
     writeFileSync(join(stateDir, "serving.json"), JSON.stringify({ version: 1, projectId: A, projectDir: dir, updatedAt: "2026-10-11T20:00:00.000Z" }))
@@ -515,10 +515,10 @@ test("backfill recovers a project a server opened as one of many, from its servi
 // So a project deleted from the grid came back at the next boot, and the project the server is hosted
 // on came back at every restart of the server under its launcher, whose owner record names it.
 test("a forgotten project is not recovered by backfill until it is opened again", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-backfill-forgotten-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-backfill-forgotten-"))
   try {
     const dir = join(home, "forgotten-project")
-    const stateDir = join(home, ".frizz", "projects", A)
+    const stateDir = join(home, ".ntwine", "projects", A)
     mkdirSync(dir, { recursive: true })
     mkdirSync(stateDir, { recursive: true })
     writeFileSync(join(stateDir, "launcher.json"), JSON.stringify({ projectDir: dir }))
@@ -548,7 +548,7 @@ test("a forgotten project is not recovered by backfill until it is opened again"
 // because the launcher realpaths and the grid's add path did not. On macOS /var IS a symlink, so this
 // is the default state of every temp path, not an edge case (2026-08-06).
 test("one directory registers once, whatever spelling of its path a caller uses", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-canonical-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-canonical-"))
   try {
     const real = realpathSync(home)
     const dir = join(real, "project")

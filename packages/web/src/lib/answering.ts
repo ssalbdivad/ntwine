@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react"
-import { BURIED_ANSWERS_HEADER, indentAnswerContinuation } from "@frizz/shared"
+import { BURIED_ANSWERS_HEADER, indentAnswerContinuation } from "@ntwine/shared"
 import { type ChatMessage } from "../hooks.ts"
 import { draftKey, draftStore, useDraftValues, useProjectDir, useThreadSessionId } from "./drafts.ts"
 import { useEagerFollowUp, type EagerFollowUpCallbacks } from "./eagerComposerSubmission.ts"

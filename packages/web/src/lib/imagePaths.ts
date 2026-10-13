@@ -6,7 +6,7 @@
 // code block stays code (see the fence tracking below). Detection happens on the raw markdown BEFORE
 // the sanitizer runs, so nothing loosens the HTML allowlist.
 
-import { ATTACHMENT_DOC_EXTENSIONS, insideFence } from "@frizz/shared"
+import { ATTACHMENT_DOC_EXTENSIONS, insideFence } from "@ntwine/shared"
 import { parseCodexHostDirective, type CodexHostDirective } from "./codexHostDirectives.ts"
 import { parseLightboxBody, type LightboxEntry } from "./lightbox.ts"
 
@@ -38,7 +38,7 @@ const DOC_LINE = new RegExp(String.raw`^\s*\`?(/${PATH_CHARS}\.(?:${ATTACHMENT_D
 // A standalone absolute path that lives INSIDE a code block (an agent pasting `ls`/`git`/`tree` output
 // is common) stays ordinary code, instead of being ripped into a chip that orphans the fence markers.
 // The composer's splitter finds those blocks by toggling on each such line; the prose splitter asks
-// @frizz/shared's CommonMark scanner instead (see splitProseAttachments).
+// @ntwine/shared's CommonMark scanner instead (see splitProseAttachments).
 const FENCE_LINE = /^\s{0,3}(?:```|~~~)/
 // A fence whose language the transcript draws as something other than code: a ```mermaid diagram, or a
 // ```lightbox gallery of the image paths it lists (lib/lightbox.ts). Only a CLOSED fence is taken; an
@@ -64,7 +64,7 @@ export function splitProseAttachments(md: string): ProsePart[] {
   // becomes the Markdown image it is shorthand for. A section never closed keeps everything after it,
   // which costs those blocks nothing but the lift.
   let sections = 0
-  // Which lines sit INSIDE a fenced code block, by CommonMark's rules (@frizz/shared code-fences): a
+  // Which lines sit INSIDE a fenced code block, by CommonMark's rules (@ntwine/shared code-fences): a
   // fence closes only on a bare run of its own character at least as long as its opener. A toggle on
   // every ``` line got that wrong exactly when it mattered — a worker quoting a ```lightbox or ```mermaid
   // sample inside a ```` block had the sample's inner ``` read as the CLOSE, so its image paths were

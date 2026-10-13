@@ -1,4 +1,4 @@
-// The ```lightbox fence: a worker lists image and video files, one per line, and Frizz renders them as
+// The ```lightbox fence: a worker lists image and video files, one per line, and Ntwine renders them as
 // ONE gallery the human can click through (components/Lightbox.tsx) instead of a stack of full-width
 // frames — in the transcript, and on every card and reader that renders a worker's Markdown. It is THE
 // way a worker shows the human a picture: a picture a tool returned folds into the collapsed tool digest
@@ -107,7 +107,7 @@ export function parseLightboxBody(body: string): LightboxEntry[] {
  * The absolute path a lightbox entry names, when it is an image or a video the `/local-image` proxy can
  * serve — else null. A relative target resolves against the project root and a `~` one against the server's
  * home, the same bases a Markdown link uses (lib/localPathBase.ts), so a worker can name a screenshot
- * under `.frizz/threads/<id>/` exactly as it typed it into the shell.
+ * under `.ntwine/threads/<id>/` exactly as it typed it into the shell.
  */
 export function resolveLightboxPath(target: string, base: { dir: string; home: string }): string | null {
   const absolute = resolveRelativeLocalPath(target, base.dir, base.home) ?? target

@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { EDITOR_MAX_PATH } from "@frizz/shared/editor-protocol"
-import { EMBED_MAX_NOTE, EMBED_MAX_OPEN_FILES, EMBED_MAX_SELECTION_TEXT } from "@frizz/shared/embed-protocol"
+import { EDITOR_MAX_PATH } from "@ntwine/shared/editor-protocol"
+import { EMBED_MAX_NOTE, EMBED_MAX_OPEN_FILES, EMBED_MAX_SELECTION_TEXT } from "@ntwine/shared/embed-protocol"
 import { editorContextMessage, editorSelection, fileLabel, fixNote, fixTitle, lineSpan, openFiles, Recency, terminalText } from "./editor-context.ts"
 import { QUOTE_MAX_LINES } from "./message.ts"
 
@@ -86,11 +86,11 @@ test("the message carries paths, labels, projects and lines, in the contract's s
     [{ path: "/r/b.ts", label: "b.ts" }, { path: "/r/c.ts", label: "c.ts", projectId: "" }],
   )
   assert.deepEqual(message, {
-    type: "frizz:editor-context",
+    type: "ntwine:editor-context",
     active: { path: "/r/src/a.ts", label: "src/a.ts", projectId: "p1", selection: { startLine: 2, endLine: 4, chars: 30 } },
     open: [{ path: "/r/b.ts", label: "b.ts" }, { path: "/r/c.ts", label: "c.ts" }],
   })
-  assert.deepEqual(editorContextMessage(null, []), { type: "frizz:editor-context", active: null, open: [] })
+  assert.deepEqual(editorContextMessage(null, []), { type: "ntwine:editor-context", active: null, open: [] })
   assert.deepEqual(editorContextMessage({ path: "", label: "x" }, []).active, null)
   // Extra fields a caller had on hand do not ride along — on the file, or on its selection.
   const leaky = editorContextMessage({ path: "/r/a.ts", label: "a.ts", text: "secret" } as never, [])
@@ -122,11 +122,11 @@ test("the fix note reads as the Problems panel spells the problem, one line, bou
   assert.ok(long.endsWith("…"))
 })
 
-test("one problem is 'Ask Frizz to fix'; several are told apart by their messages", () => {
-  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, false), "Ask Frizz to fix")
-  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, true), "Ask Frizz to fix: Cannot find name 'foo'.")
+test("one problem is 'Ask Ntwine to fix'; several are told apart by their messages", () => {
+  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, false), "Ask Ntwine to fix")
+  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, true), "Ask Ntwine to fix: Cannot find name 'foo'.")
   const title = fixTitle({ message: `A very long message that goes on\nand on ${"and on ".repeat(20)}` }, true)
-  assert.ok(title.length <= "Ask Frizz to fix: ".length + 60 && title.endsWith("…"), title)
+  assert.ok(title.length <= "Ask Ntwine to fix: ".length + 60 && title.endsWith("…"), title)
 })
 
 test("a terminal selection is taken as its text, trimmed, or refused with what to do", () => {

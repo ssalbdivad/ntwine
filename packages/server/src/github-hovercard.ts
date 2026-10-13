@@ -1,4 +1,4 @@
-import type { GithubRefCard, GithubRefPreviewResult } from "@frizz/shared"
+import type { GithubRefCard, GithubRefPreviewResult } from "@ntwine/shared"
 import { defaultGetToken } from "./github-review.ts"
 
 // Hovercard data for the GitHub references the web client autolinks into rendered prose — `#123`,
@@ -312,7 +312,7 @@ export function createGithubHovercardService(deps: GithubHovercardDeps = {}): Gi
           accept: "application/vnd.github+json",
           authorization: `Bearer ${authToken}`,
           "content-type": "application/json",
-          "user-agent": "frizz-hovercard",
+          "user-agent": "ntwine-hovercard",
           "x-github-api-version": "2022-11-28",
         },
         body: JSON.stringify({ query, variables }),

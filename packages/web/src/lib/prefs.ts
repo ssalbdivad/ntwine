@@ -7,7 +7,7 @@ import { sanitizeOverrides, type Overrides } from "./keybindings.ts"
 // (that's operator dispatch config; this is how one browser likes to render). Seeded synchronously
 // from localStorage so the first paint already reflects the saved choice, then mirrored back on
 // every change. Components read via useSnapshot(prefs).
-const KEY = "frizz.prefs.v1"
+const KEY = "ntwine.prefs.v1"
 
 export interface Prefs {
   // Collapse rendered diff blocks to just their header row (click a header to expand that one).
@@ -40,7 +40,7 @@ export interface Prefs {
   // (David 2026-10-09): Colin's density call keeps a folded band to its header unless asked.
   showRecentThreads: boolean
   // (No `sendEditorContext` here any more. The context bar's eye was a pref of the sidebar's frame from
-  // 2026-10-01 to 2026-10-02; it is now the extension's `frizz.shareEditorState` (lib/editorContext.ts
+  // 2026-10-01 to 2026-10-02; it is now the extension's `ntwine.shareEditorState` (lib/editorContext.ts
   // setShareEditor), the one switch that also keeps the agents' tool out of the editor. A stored value is
   // ignored: the eye had not reached anyone's installed extension.)
   // The prompt box's on-device dictation microphone (lib/dictation.ts). On by default; off for an

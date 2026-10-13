@@ -1,4 +1,4 @@
-import type { TranscriptMessage } from "@frizz/shared"
+import type { TranscriptMessage } from "@ntwine/shared"
 import { isBrokerClaudeRow, type SessionRow, type Storage } from "./storage.ts"
 
 // At every rest where the conversation has moved, write the thread's STATUS from the RECENT conversation.
@@ -21,7 +21,7 @@ import { isBrokerClaudeRow, type SessionRow, type Storage } from "./storage.ts"
 // transcript gained an agent reply or an operator message since the last write gets one Sonnet one-shot;
 // a rest that added nothing — a watcher tick the agent answered with no text — reuses the standing status.
 //
-// The WINDOW is still the last few operator exchanges. What counts there is the OPERATOR's messages, not every user-role record: frizz's wakes, a child's upward
+// The WINDOW is still the last few operator exchanges. What counts there is the OPERATOR's messages, not every user-role record: ntwine's wakes, a child's upward
 // `SendMessage`, completion boundaries and still-queued bubbles are all user-side turns nobody typed,
 // and counting them would rewrite a quiet thread's status every few watcher ticks. A SPINOFF REQUEST is not
 // one either (2026-09-30), though the human asked for it: it is about the NEW thread, so it neither moves

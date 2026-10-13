@@ -70,7 +70,7 @@ test("a codex shell reported by both sources collapses on its COMMAND", () => {
 })
 
 test("the command key never fires off a bare label — two same-named shells stay two rows", () => {
-  // The guard on the clause above. `command` is set ONLY where frizz really knows it (a codex row);
+  // The guard on the clause above. `command` is set ONLY where ntwine really knows it (a codex row);
   // falling back to the label would make two shells the model described identically collide, which is
   // the exact regression the id-is-the-identity test above exists to prevent.
   const merged = mergeBackgroundShells(
@@ -85,11 +85,11 @@ test("the command key never fires off a bare label — two same-named shells sta
 // The board's row is kept — it carries the × — and gains the folder, never a second row.
 test("the transcript's copy backfills a folder onto the board's row it merges into, and never duplicates it", () => {
   const board = [{ id: "p1", label: "nub test --watch", startedAt: "2026-07-31T19:11:28.190Z", command: "nub test --watch" }]
-  const transcript = [{ label: "Watching the tests", startedAt: "2026-07-31T19:11:32.200Z", command: "nub test --watch", cwd: "/repo/.frizz/worktrees/cx" }]
+  const transcript = [{ label: "Watching the tests", startedAt: "2026-07-31T19:11:32.200Z", command: "nub test --watch", cwd: "/repo/.ntwine/worktrees/cx" }]
   const merged = mergeBackgroundShells(board, transcript)
   assert.equal(merged.length, 1)
   assert.equal(merged[0]!.id, "p1", "the board's row is the one kept")
-  assert.equal(merged[0]!.cwd, "/repo/.frizz/worktrees/cx")
+  assert.equal(merged[0]!.cwd, "/repo/.ntwine/worktrees/cx")
   // A board row that already knows its folder keeps its own.
   const known = mergeBackgroundShells([{ ...board[0]!, cwd: "/repo" }], transcript)
   assert.equal(known[0]!.cwd, "/repo")

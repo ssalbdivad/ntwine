@@ -13,13 +13,13 @@ A worker keeps going until it reaches something only you can settle — a produc
 
 ## They run without the tab
 
-Every worker runs in its own detached background process, independent of the browser and of Frizz itself. Close the tab, quit the browser, stop the server, reboot: your threads are all still there when you come back, and Frizz reconnects to the ones still running rather than replaying them from disk.
+Every worker runs in its own detached background process, independent of the browser and of Ntwine itself. Close the tab, quit the browser, stop the server, reboot: your threads are all still there when you come back, and Ntwine reconnects to the ones still running rather than replaying them from disk.
 
-While an agent is working, Frizz keeps the machine from idle-sleeping, so an overnight run doesn't stall when the laptop decides nobody is there. Closing the lid or pressing sleep still works.
+While an agent is working, Ntwine keeps the machine from idle-sleeping, so an overnight run doesn't stall when the laptop decides nobody is there. Closing the lid or pressing sleep still works.
 
 ## Sub-agents
 
-A worker can dispatch **sub-agents** for independent prongs of its task. Frizz binds each one back to its parent, so the fan-out lists under the parent on its board and its card. A parent waiting on them wakes as each one returns, and a queued parent can be [snoozed](/docs/snooze#until-its-sub-agents-return) until all of them are back.
+A worker can dispatch **sub-agents** for independent prongs of its task. Ntwine binds each one back to its parent, so the fan-out lists under the parent on its board and its card. A parent waiting on them wakes as each one returns, and a queued parent can be [snoozed](/docs/snooze#until-its-sub-agents-return) until all of them are back.
 
 ## Names and status lines
 
@@ -27,7 +27,7 @@ Each new thread gets a short name, its [handle](/docs/handles), which never chan
 
 ## Scratch directory
 
-Each thread gets a folder of its own, `.frizz/threads/<id>/` in the project, where its agent can keep notes and files. It stays empty unless the agent writes something.
+Each thread gets a folder of its own, `.ntwine/threads/<id>/` in the project, where its agent can keep notes and files. It stays empty unless the agent writes something.
 
 ## Thread info
 
@@ -35,4 +35,4 @@ A thread's <kbd>⋯</kbd> menu has **Thread info**: its tokens, turns, model req
 
 ## Pinning and deleting
 
-Pin a thread to keep it at the very top of the list. Delete a thread you no longer need from its menu, or have Frizz delete done threads you have not touched in a while, under **Settings**. Pinned threads are never deleted.
+Pin a thread to keep it at the very top of the list. Delete a thread you no longer need from its menu, or have Ntwine delete done threads you have not touched in a while, under **Settings**. Pinned threads are never deleted.

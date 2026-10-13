@@ -112,10 +112,10 @@ test("a worktree thread's paths are asked with its worktree as the base, and cac
     asked.push(input)
     return { resolved: input.paths.map((path) => ({ input: path, path: `${input.base ?? "/work/d"}/${path}` })) }
   } }
-  await resolveUnknown(["src/a.ts"], "project-d\u0001/work/d/.frizz/worktrees/x", client as never, "/work/d/.frizz/worktrees/x")
+  await resolveUnknown(["src/a.ts"], "project-d\u0001/work/d/.ntwine/worktrees/x", client as never, "/work/d/.ntwine/worktrees/x")
   await resolveUnknown(["src/a.ts"], "project-d", client as never)
-  assert.deepEqual(asked, [{ paths: ["src/a.ts"], base: "/work/d/.frizz/worktrees/x" }, { paths: ["src/a.ts"] }])
-  assert.equal(cachedResolution("project-d\u0001/work/d/.frizz/worktrees/x", "src/a.ts"), "/work/d/.frizz/worktrees/x/src/a.ts")
+  assert.deepEqual(asked, [{ paths: ["src/a.ts"], base: "/work/d/.ntwine/worktrees/x" }, { paths: ["src/a.ts"] }])
+  assert.equal(cachedResolution("project-d\u0001/work/d/.ntwine/worktrees/x", "src/a.ts"), "/work/d/.ntwine/worktrees/x/src/a.ts")
   assert.equal(cachedResolution("project-d", "src/a.ts"), "/work/d/src/a.ts")
 })
 

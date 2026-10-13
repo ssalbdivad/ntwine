@@ -15,7 +15,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import type { GithubWatchStatus, ThreadWatchView } from "@frizz/shared"
+import type { GithubWatchStatus, ThreadWatchView } from "@ntwine/shared"
 import { checkCountLine, GithubWatchRow, showsRestingCard, watchCounterLine, watchStatusLine } from "./AwaitingBackgroundCard.tsx"
 
 const status = (over: Partial<GithubWatchStatus> = {}): GithubWatchStatus => ({
@@ -62,7 +62,7 @@ test("the merge verdict rides the counts, and stays silent when the checks alrea
   assert.equal(watchStatusLine(status({ checks: "running", running: 3, passed: 12, merge: "blocked" })), "3 in progress, 12 successful")
   assert.equal(watchStatusLine(status({ checks: "failing", failed: 2, passed: 9, merge: "blocked" })), "2 failing, 9 successful")
   // UNKNOWN IS SILENT: GitHub computes mergeability asynchronously, so a phrase for it would read as a
-  // verdict when it only means "frizz has not heard back".
+  // verdict when it only means "ntwine has not heard back".
   assert.equal(watchStatusLine(status({ checks: "passing", passed: 7, merge: "unknown" })), "7 successful")
 })
 

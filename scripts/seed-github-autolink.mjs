@@ -77,7 +77,7 @@ const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
 execFileSync("sqlite3", [db, `DELETE FROM session WHERE slug = '${SLUG}';`])
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session
   (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, unread, exited, archived, title_auto, runtime_generation, profile_revision)
-  VALUES (${sessionVals}'${SLUG}', '${SESSION_ID}', 'frizz-${SLUG}', '${now}', 'GitHub refs', 'claude', 'opus', 'high', 'default', 0, 0, 0, 0, 0, 0);`])
+  VALUES (${sessionVals}'${SLUG}', '${SESSION_ID}', 'ntwine-${SLUG}', '${now}', 'GitHub refs', 'claude', 'opus', 'high', 'default', 0, 0, 0, 0, 0, 0);`])
 
 const api = createRpcClient(`http://127.0.0.1:${port}/`)
 await api.waitForHealth()

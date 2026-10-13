@@ -3,14 +3,14 @@ import assert from "node:assert/strict"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { isInterruptEndedWake } from "@frizz/shared"
+import { isInterruptEndedWake } from "@ntwine/shared"
 import { createStorage, type Storage } from "./storage.ts"
 import { createWakeDeliveryStore } from "./wake-store.ts"
 import type { RetiredSubAgentView, SessionTelemetry, SubAgentView } from "./tailer.ts"
 import { noteSubAgentsEndedByInterrupt, runningSubAgentsOf } from "./interrupt-ended.ts"
 
 function tmpStorage(): Storage {
-  return createStorage(join(mkdtempSync(join(tmpdir(), "frizz-intr-")), "ui.db"), "p")
+  return createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-intr-")), "ui.db"), "p")
 }
 
 const child = (id: string, over: Partial<SubAgentView> = {}): SubAgentView => ({
@@ -47,7 +47,7 @@ test("a child the tailer retires as killed after the interrupt is named in one q
   storage.close()
 })
 
-// A child the tailer has NOT retired when the wait runs out is not reported: the note names what frizz
+// A child the tailer has NOT retired when the wait runs out is not reported: the note names what ntwine
 // saw killed, never what it presumed. The one that was killed is still reported.
 test("only the children that were actually killed are named; a survivor is left out", async () => {
   const storage = tmpStorage()

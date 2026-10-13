@@ -1,19 +1,19 @@
-# Frizz icon concepts
+# Ntwine icon concepts
 
 Three sheets of directions for the mark after the `fray` → `frizz` rename, each drawn as real geometry and judged at favicon size. Every page is self-contained — all renders are inlined as data URIs — so they need no server and no network.
 
 | Sheet | Open | What it covers |
 | --- | --- | --- |
-| Figure-eight | [`frizz-eight.html`](frizz-eight.html) | 144 variants matching the reference in [`reference/`](reference/): a closed figure-eight of two tall teardrop loops plus a separate arced crossbar. **Current direction.** |
-| fff variants | [`frizz-fff.html`](frizz-fff.html) | 75 rows varying spacing and outer tail length independently, at three weights. |
-| Round two, refined | [`frizz-two-refined.html`](frizz-two-refined.html) | 144 variants swept finely around the six picked from the grid above. **Current direction.** |
-| Two-crossing f, symmetric | [`frizz-two.html`](frizz-two.html) | 144 variants of the approved mark, made exactly 180° rotationally symmetric. Every one is a single stroke with exactly two self-crossings. **Current direction.** |
-| Cursive family | [`frizz-cursive-grid.html`](frizz-cursive-grid.html) | 77 variants: one swooping path, a bulb at each end, a curved spine that cannot kink. One bulb wholly in the upper-right quadrant, the other wholly in the lower-left. Three terminal treatments. **Current direction.** |
-| Slash spine | [`frizz-slash.html`](frizz-slash.html) | 144 variants with a **guaranteed-straight diagonal backbone** and a bulb hung off each end, in three terminal treatments: bleeding off the edge, stopping at the edge, and ending inside. |
-| Parametric grid | [`frizz-grid.html`](frizz-grid.html) | 144 variants of one construction, swept across blob size, tilt, axis, distance, wrap, origin side and tail length. Every one is exactly 180° rotationally symmetric. |
-| The cursive f | [`frizz-signature-f.html`](frizz-signature-f.html) | The written signature f from [`reference/reference-brief.png`](reference/reference-brief.png) — two loops crossing at a waist, with a crossbar. **Every mark is exactly 180° rotationally symmetric, and measured.** Eight weights and treatments. |
-| The hooked f | [`frizz-cursive-f.html`](frizz-cursive-f.html) | Eight lowercase `f`s built from hooks rather than loops — the favicon-viable family. |
-| Icon concepts | [`frizz-logo-concepts.html`](frizz-logo-concepts.html) | The original fifteen non-letterform directions: fan, curl, spark, lanes, knot and the rest. |
+| Figure-eight | [`ntwine-eight.html`](ntwine-eight.html) | 144 variants matching the reference in [`reference/`](reference/): a closed figure-eight of two tall teardrop loops plus a separate arced crossbar. **Current direction.** |
+| fff variants | [`ntwine-fff.html`](ntwine-fff.html) | 75 rows varying spacing and outer tail length independently, at three weights. |
+| Round two, refined | [`ntwine-two-refined.html`](ntwine-two-refined.html) | 144 variants swept finely around the six picked from the grid above. **Current direction.** |
+| Two-crossing f, symmetric | [`ntwine-two.html`](ntwine-two.html) | 144 variants of the approved mark, made exactly 180° rotationally symmetric. Every one is a single stroke with exactly two self-crossings. **Current direction.** |
+| Cursive family | [`ntwine-cursive-grid.html`](ntwine-cursive-grid.html) | 77 variants: one swooping path, a bulb at each end, a curved spine that cannot kink. One bulb wholly in the upper-right quadrant, the other wholly in the lower-left. Three terminal treatments. **Current direction.** |
+| Slash spine | [`ntwine-slash.html`](ntwine-slash.html) | 144 variants with a **guaranteed-straight diagonal backbone** and a bulb hung off each end, in three terminal treatments: bleeding off the edge, stopping at the edge, and ending inside. |
+| Parametric grid | [`ntwine-grid.html`](ntwine-grid.html) | 144 variants of one construction, swept across blob size, tilt, axis, distance, wrap, origin side and tail length. Every one is exactly 180° rotationally symmetric. |
+| The cursive f | [`ntwine-signature-f.html`](ntwine-signature-f.html) | The written signature f from [`reference/reference-brief.png`](reference/reference-brief.png) — two loops crossing at a waist, with a crossbar. **Every mark is exactly 180° rotationally symmetric, and measured.** Eight weights and treatments. |
+| The hooked f | [`ntwine-cursive-f.html`](ntwine-cursive-f.html) | Eight lowercase `f`s built from hooks rather than loops — the favicon-viable family. |
+| Icon concepts | [`ntwine-logo-concepts.html`](ntwine-logo-concepts.html) | The original fifteen non-letterform directions: fan, curl, spark, lanes, knot and the rest. |
 
 ## The shipped mark
 
@@ -63,13 +63,13 @@ nub build-two.mjs         # the symmetric two-crossing sweep -> out-two/
 nub build-cursive.mjs     # the cursive sweep           -> out-cursive/
 nub build-slash.mjs       # the slash-spine sweep       -> out-slash/
 nub build-grid.mjs        # the earlier parametric sweep -> out-grid/
-nub artifact-grid.mjs eight   # out-eight/   -> frizz-eight.html
-nub artifact-grid.mjs fff     # out-fff/     -> frizz-fff.html
-nub artifact-grid.mjs refined # out-two-refined/ -> frizz-two-refined.html
-nub artifact-grid.mjs two     # out-two/     -> frizz-two.html
-nub artifact-grid.mjs cursive # out-cursive/ -> frizz-cursive-grid.html
-nub artifact-grid.mjs slash   # out-slash/ -> frizz-slash.html
-nub artifact-grid.mjs grid    # out-grid/  -> frizz-grid.html
+nub artifact-grid.mjs eight   # out-eight/   -> ntwine-eight.html
+nub artifact-grid.mjs fff     # out-fff/     -> ntwine-fff.html
+nub artifact-grid.mjs refined # out-two-refined/ -> ntwine-two-refined.html
+nub artifact-grid.mjs two     # out-two/     -> ntwine-two.html
+nub artifact-grid.mjs cursive # out-cursive/ -> ntwine-cursive-grid.html
+nub artifact-grid.mjs slash   # out-slash/ -> ntwine-slash.html
+nub artifact-grid.mjs grid    # out-grid/  -> ntwine-grid.html
 nub build.mjs             # the fifteen icon concepts  -> out/
 nub build-cursive-f.mjs   # the hooked f family        -> out-f/
 nub build-signature-f.mjs # the written signature f    -> out-sig/

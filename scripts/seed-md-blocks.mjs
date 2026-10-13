@@ -14,7 +14,7 @@
 // `--append` writes one more exchange into the same thread, the way a worker's next turn does, so a
 // section the reader opened can be watched across a real transcript push.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: node scripts/seed-md-blocks.mjs --home=/abs/temp-home [--cwd=/abs/project] [--slug=md-blocks]
 //          [--gallery=/abs/picture.png] [--append]
@@ -113,7 +113,7 @@ const prose = [
 
 const records = [user("TASK:\nIs the branch ready to merge?"), assistant(prose)]
 
-// The card's body is REGISTERED (`frizzctl done`), not written as a ```done fence: a signal fence
+// The card's body is REGISTERED (`ntwinectl done`), not written as a ```done fence: a signal fence
 // ends at the first bare ``` line, so a code fence cannot be written inside one at all.
 const doneBody = [
   "Ready to merge. Press <kbd>⏎</kbd> to confirm.",
@@ -121,7 +121,7 @@ const doneBody = [
   "> [!IMPORTANT]",
   "> Both packages publish together.",
   "",
-  details("What ships", "- `frizz` 0.14.0", "- `frizz-server` 0.14.0", "", fence("sh", "gh workflow run release.yml --ref release")),
+  details("What ships", "- `ntwine` 0.14.0", "- `ntwine-server` 0.14.0", "", fence("sh", "gh workflow run release.yml --ref release")),
   ...(flags.gallery ? ["", details("The screenshots", fence("lightbox", `${flags.gallery} The glyph rows`))] : []),
 ].join("\n")
 
@@ -134,7 +134,7 @@ const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${now()}', 'Markdown blocks', 'claude', 'opus', 'high', 'default', '${now()}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${now()}', 'Markdown blocks', 'claude', 'opus', 'high', 'default', '${now()}')`,
 ])
 // `thread_done` exists only on the unified schema, where every row carries its project.
 if (sandbox.hasProjectId) {

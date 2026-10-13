@@ -92,7 +92,7 @@ const PROMPT = [
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -113,7 +113,7 @@ try {
     }
     await sleep(1_000)
   }
-  ok("frizz's tailer surfaces a live DIRECT child to steer", Boolean(childId), childId ?? "none found")
+  ok("ntwine's tailer surfaces a live DIRECT child to steer", Boolean(childId), childId ?? "none found")
   if (!childId) throw new Error("no live child appeared")
 
   // Let both loops get going, then confirm the regime under test actually holds: the PARENT's own

@@ -51,7 +51,7 @@ test("a steer and a real task stop reach the CLI, while a follow-up stays a main
   const bridge = createClaudeAgentBrokerBridge({
     stateDir: dir,
     executablePath: exe,
-    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", FRIZZ_FAKE_CLAUDE_CAPTURE: capturePath },
+    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", NTWINE_FAKE_CLAUDE_CAPTURE: capturePath },
   })
   const sessionId = randomUUID()
   const slug = "steer-thread"
@@ -98,7 +98,7 @@ test("a steer refuses a daemon from a build that predates addressing, instead of
   const bridge = createClaudeAgentBrokerBridge({
     stateDir: dir,
     executablePath: exe,
-    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", FRIZZ_FAKE_CLAUDE_CAPTURE: capturePath },
+    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", NTWINE_FAKE_CLAUDE_CAPTURE: capturePath },
   })
   const sessionId = randomUUID()
   const slug = "legacy-daemon"

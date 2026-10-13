@@ -5,7 +5,7 @@
  *  vocabulary the reader arrives already fluent in — they have just come from github.com, and the same
  *  mark for the same fact is one less thing to translate. Re-spelling a merged PR in accent-yellow
  *  would make a familiar object unreadable. These references resolve through theme.css's dedicated
- *  Primer palettes: a merged PR stays purple in either appearance, never Frizz accent-yellow.
+ *  Primer palettes: a merged PR stays purple in either appearance, never Ntwine accent-yellow.
  *
  *  WHY IT IS ONE MODULE AND NOT A LITERAL PER CALL SITE. Because it was the latter, and it drifted —
  *  which is the whole bug this file was written for. The hovercard spelled its greens in Primer while
@@ -74,8 +74,8 @@ export const PRIMER = {
 /** Primer danger ink and decoration resolve through CSS, including the legacy dark ink alpha. */
 export const PRIMER_DANGER_LINK = "text-[color:var(--gh-danger-link-fg)] decoration-[color:color-mix(in_srgb,var(--gh-danger-link)_30%,transparent)] hover:decoration-[color:var(--gh-danger-link)]"
 
-/** A mark that expresses FRIZZ's own state rather than GitHub's — "not polled yet", a sub-agent's
+/** A mark that expresses NTWINE's own state rather than GitHub's — "not polled yet", a sub-agent's
  *  spinner — keeps the app's palette and must NOT be pulled in here. GitHub has no such state, so
- *  there is no Primer value that means it, and dressing it in one would claim a verdict frizz has not
+ *  there is no Primer value that means it, and dressing it in one would claim a verdict ntwine has not
  *  got yet. The line is: does this mark mirror something github.com itself draws? */
 export type PrimerColor = (typeof PRIMER)[keyof typeof PRIMER]

@@ -16,10 +16,10 @@ importers:
         specifier: ^2.5
         version: 2.5.6
     devDependencies:
-      '@frizz/server':
+      '@ntwine/server':
         specifier: workspace:*
         version: link:packages/server
-      '@frizz/shared':
+      '@ntwine/shared':
         specifier: workspace:*
         version: link:packages/shared
       '@types/node':
@@ -58,7 +58,7 @@ importers:
 
   packages/registrar:
     dependencies:
-      '@frizz/shared':
+      '@ntwine/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -71,7 +71,7 @@ importers:
 
   packages/relay:
     dependencies:
-      '@frizz/shared':
+      '@ntwine/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -97,13 +97,13 @@ importers:
 
   packages/server:
     dependencies:
-      '@frizz/claude-agent-sdk-runtime':
+      '@ntwine/claude-agent-sdk-runtime':
         specifier: workspace:*
         version: link:../claude-agent-sdk-runtime
-      '@frizz/rpc':
+      '@ntwine/rpc':
         specifier: workspace:*
         version: link:../rpc
-      '@frizz/shared':
+      '@ntwine/shared':
         specifier: workspace:*
         version: link:../shared
       '@hono/node-server':
@@ -169,10 +169,10 @@ importers:
         specifier: ^8.18
         version: 8.21.0
     devDependencies:
-      '@frizz/server':
+      '@ntwine/server':
         specifier: workspace:*
         version: link:../server
-      '@frizz/shared':
+      '@ntwine/shared':
         specifier: workspace:*
         version: link:../shared
       '@types/node':
@@ -196,7 +196,7 @@ importers:
 
   packages/web:
     dependencies:
-      '@frizz/shared':
+      '@ntwine/shared':
         specifier: workspace:*
         version: link:../shared
       '@radix-ui/react-dialog':

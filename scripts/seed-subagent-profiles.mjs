@@ -3,7 +3,7 @@
 // judged in the REAL app — driven by the REAL tailer off a real transcript, not by a fixture that hands
 // the store a hand-written `subagentType`.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the tailer reads.
 // Nothing here writes board state directly; the Agent tool_use records drive it.
 //
 // Usage: node scripts/seed-subagent-profiles.mjs --home=/abs/temp-home
@@ -31,18 +31,18 @@ mkdirSync(jsonlDir, { recursive: true })
 
 const SLUG = "subagent-profiles"
 const SESSION = "5ubagen7-9r0f-4ile-8000-000000000001"
-const THREAD_NAME = `frizz-${SLUG}`
+const THREAD_NAME = `ntwine-${SLUG}`
 const now = () => new Date().toISOString()
 let n = 0
 const uuid = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`
 
-// One dispatch per shape the tag has to survive: a frizz cell with an effort, the older doubled
+// One dispatch per shape the tag has to survive: an ntwine cell with an effort, the older doubled
 // namespace, a profile with no effort axis, and a named agent type that carries NO profile (which must
 // render no tag at all rather than a guessed one).
 const DISPATCHES = [
-  { id: "toolu_p1", type: "frizz:opus-xhigh", label: "Audit the resume path for lost wakes" },
-  { id: "toolu_p2", type: "frizz:frizz-sonnet-medium", label: "Sweep every call site of the renamed projection helper" },
-  { id: "toolu_p3", type: "frizz:haiku", label: "Harvest the fixture inventory" },
+  { id: "toolu_p1", type: "ntwine:opus-xhigh", label: "Audit the resume path for lost wakes" },
+  { id: "toolu_p2", type: "ntwine:ntwine-sonnet-medium", label: "Sweep every call site of the renamed projection helper" },
+  { id: "toolu_p3", type: "ntwine:haiku", label: "Harvest the fixture inventory" },
   { id: "toolu_p4", type: "general-purpose", label: "Explore how the board signature is derived" },
 ]
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Tag a published `frizz` shell and create its GitHub release — the releaser's last step, run from
+// Tag a published `ntwine` shell and create its GitHub release — the releaser's last step, run from
 // its own `gh` session once release.yml is green (AGENTS.md § Cutting a release).
 //
 //   nub scripts/tag-release.mjs            the version in the root package.json
@@ -8,7 +8,7 @@
 // WHY THIS IS NOT IN THE WORKFLOW (maintainer 2026-10-12). release.yml tagged the shell itself until
 // GitHub refused it: a workflow's own token may not create a ref whose commit carries a different
 // `.github/workflows/` than the run's checkout, and the shell is tagged at npm's recorded gitHead,
-// which a later run routinely is not (frizz 0.13.13, tagged by a run whose own commit had changed
+// which a later run routinely is not (ntwine 0.13.13, tagged by a run whose own commit had changed
 // release.yml). The releaser's `gh` session holds the workflow scope, so the tag is made here instead,
 // and the workflow keeps no write access to the repository at all.
 //
@@ -28,9 +28,9 @@ const tag = `v${version}`
 const gh = (args, input) => execFileSync("gh", args, { encoding: "utf8", input, stdio: ["pipe", "pipe", "pipe"] }).trim()
 const ghOk = (args) => { try { gh(args); return true } catch { return false } }
 
-const repo = process.env.FRIZZ_RELEASE_REPO ?? gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
+const repo = process.env.NTWINE_RELEASE_REPO ?? gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
 // Fails closed: no served version, or one with no gitHead, is never tagged.
-const gitHead = await publishedGitHead("frizz", version, { registry: process.env.FRIZZ_NPM_REGISTRY, timeoutMs: 30_000 })
+const gitHead = await publishedGitHead("ntwine", version, { registry: process.env.NTWINE_NPM_REGISTRY, timeoutMs: 30_000 })
 
 let existing
 try { existing = gh(["api", `repos/${repo}/git/ref/tags/${tag}`, "--jq", ".object.sha + \" \" + .object.type"]) } catch { existing = undefined }
@@ -41,7 +41,7 @@ if (existing) {
   console.log(`${tag} is already tagged at ${gitHead}`)
 } else {
   const object = gh(["api", "-X", "POST", `repos/${repo}/git/tags`, "--input", "-", "--jq", ".sha"],
-    JSON.stringify({ tag, message: `frizz ${tag}`, object: gitHead, type: "commit" }))
+    JSON.stringify({ tag, message: `ntwine ${tag}`, object: gitHead, type: "commit" }))
   gh(["api", "-X", "POST", `repos/${repo}/git/refs`, "--input", "-", "--jq", ".ref"],
     JSON.stringify({ ref: `refs/tags/${tag}`, sha: object }))
   console.log(`tagged ${tag} at ${gitHead}`)
@@ -50,7 +50,7 @@ if (existing) {
 if (ghOk(["release", "view", tag, "--repo", repo])) {
   console.log(`the ${tag} release already exists`)
 } else {
-  gh(["release", "create", tag, "--repo", repo, "--title", `frizz ${tag}`,
-    "--notes", `Published to npm: https://www.npmjs.com/package/frizz/v/${version}`, "--verify-tag"])
+  gh(["release", "create", tag, "--repo", repo, "--title", `ntwine ${tag}`,
+    "--notes", `Published to npm: https://www.npmjs.com/package/ntwine/v/${version}`, "--verify-tag"])
   console.log(`created the ${tag} GitHub release`)
 }

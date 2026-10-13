@@ -11,7 +11,7 @@ test("allowed: http URL → ok", () => {
 })
 
 test("allowed: https URL → ok", () => {
-  const r = validateExternalUrl("https://github.com/frizz/ui/issues/1")
+  const r = validateExternalUrl("https://github.com/ntwine/ui/issues/1")
   assert.equal(r.ok, true)
 })
 

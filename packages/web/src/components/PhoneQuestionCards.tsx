@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react"
 import { Check, Keyboard } from "lucide-react"
-import type { AskedOption, RegisteredQuestionView } from "@frizz/shared"
+import type { AskedOption, RegisteredQuestionView } from "@ntwine/shared"
 import { oneLineDescription, stepKey } from "../lib/answerSheet.ts"
 import { nodeAnswered, ROOT_PATH } from "../lib/registeredQuestion.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"

@@ -1,4 +1,4 @@
-import type { LimitWindow } from "@frizz/shared"
+import type { LimitWindow } from "@ntwine/shared"
 // Type-only, so this never becomes a runtime cycle (types.ts reaches back here through tailer.ts).
 import type { LimitFault } from "./types.ts"
 
@@ -229,7 +229,7 @@ export function limitResumeNeedsFreshProcess(
  * Whether a thread MAY have background work in flight. Unknown counts as YES.
  *
  * This feeds needsFreshProcessForLimit, whose whole job is the invariant stated at the restart verb:
- * frizz "declines to kill a live child when FRIZZ is the one deciding to restart" (an operator asking
+ * ntwine "declines to kill a live child when NTWINE is the one deciding to restart" (an operator asking
  * outright is a different case and still kills them, deliberately).
  *
  * The call sites used to read `(tailer.get(slug)?.subAgents ?? []).some(running)`, which silently
@@ -268,7 +268,7 @@ export function mayHaveLiveBackgroundWork(
  * both are the same act: asking a walled-off thread to carry on.
  *
  * A thread with LIVE background work is deliberately exempt. A restart kills the in-memory sub-agents,
- * and frizz's completion invariant says an agent runs to its terminal return; a parent whose child is
+ * and ntwine's completion invariant says an agent runs to its terminal return; a parent whose child is
  * still producing is not the wedged case this exists for.
  */
 export function needsFreshProcessForLimit(

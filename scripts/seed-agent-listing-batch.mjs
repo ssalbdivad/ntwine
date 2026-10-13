@@ -7,7 +7,7 @@
 // real tailer → projection → push → `/thread/<slug>` render, which is the only way to see the run
 // splitting (ChatView is not unit-renderable and `*-fixture.html` is not servable through the stack).
 //
-// Follows the frizz-stack recipe: a session row + a transcript the tailer reads.
+// Follows the ntwine-stack recipe: a session row + a transcript the tailer reads.
 // Usage: node scripts/seed-agent-listing-batch.mjs --home=/abs/temp-home
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -71,7 +71,7 @@ const shard = join(home, ".codex", "sessions", "2026", "07", "31")
 mkdirSync(shard, { recursive: true })
 writeFileSync(join(shard, `rollout-2026-07-31T10-00-00-${ROLLOUT_ID}.jsonl`), lines.join("\n") + "\n")
 
-const threadName = `frizz-${SLUG}`
+const threadName = `ntwine-${SLUG}`
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, agent_session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)

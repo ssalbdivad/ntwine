@@ -37,7 +37,7 @@ test("every rendered image sits in the one frame: border, inset mat, centered pi
   assert.match(imageFrame, /className=\{IMAGE_FRAME\}/)
   assert.match(imageFrame, /className=\{IMAGE_FRAME_MAT\}/)
   // The outer border + the tool-card typography, so a framed picture belongs to the tool-card family.
-  assert.match(frame, /IMAGE_FRAME\s*=\s*"frizz-bash\b/)
+  assert.match(frame, /IMAGE_FRAME\s*=\s*"ntwine-bash\b/)
   // The mat: a little inset padding, a step lighter than the card so a dark screenshot keeps an edge,
   // and the picture centered in it however narrow the picture is.
   assert.match(frame, /IMAGE_FRAME_MAT\s*=\s*"[^"]*\bjustify-center\b[^"]*\bbg-panel-2\b[^"]*\bp-1\.5\b/)

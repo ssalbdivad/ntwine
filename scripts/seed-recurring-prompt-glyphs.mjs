@@ -2,7 +2,7 @@
 // prompt box's Goal mark in both of its states (armed ⇒ amber, idle ⇒ muted) and both transcript wake dividers
 // (a delivered stop hook, a delivered heartbeat) in one scroll.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads, with the delivered text
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads, with the delivered text
 // composed by the SAME shared formatters the scheduler uses (`restPromptMessage`/`schedulePromptMessage`) plus
 // the real wake-delivery token — so this exercises the production parse-and-render path rather than a
 // hand-written string that merely looks like one.
@@ -18,7 +18,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, port, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, port, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home || !port) {
   console.error("usage: nub scripts/seed-recurring-prompt-glyphs.mjs --home=/abs/temp-home --port=NNNN")
   process.exit(1)
@@ -116,7 +116,7 @@ for (const [n, c] of CASES.entries()) {
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-     VALUES (${sessionVals}'${c.slug}', '${sessionId}', 'frizz-${c.slug}', '${at}', '${c.title}', 'claude', 'opus', 'high', 'default', '${at}')`,
+     VALUES (${sessionVals}'${c.slug}', '${sessionId}', 'ntwine-${c.slug}', '${at}', '${c.title}', 'claude', 'opus', 'high', 'default', '${at}')`,
   ])
 
   // Arm through the REAL RPC the panel itself calls, so the rows are shaped exactly as production makes them.

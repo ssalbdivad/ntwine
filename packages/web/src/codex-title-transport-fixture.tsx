@@ -3,7 +3,7 @@ import type { ChatMessage } from "./hooks.ts"
 import { Message } from "./components/ChatView.tsx"
 import "./styles.css"
 
-// The server projection has already removed both pieces of Frizz-only protocol: the appended dispatch
+// The server projection has already removed both pieces of Ntwine-only protocol: the appended dispatch
 // reminder from the human bubble, and the first-final title comment from the assistant response.
 const messages: ChatMessage[] = [
   { sourceId: "user", role: "user", text: "Briefly confirm the Codex title transport is active, then stop.", tools: [], parts: [] },

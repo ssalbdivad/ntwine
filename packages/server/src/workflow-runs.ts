@@ -4,7 +4,7 @@ import { join } from "node:path"
 // ── CLAUDE CODE WORKFLOW RUNS, read off disk ─────────────────────────────────────────────────────────
 //
 // A `Workflow` tool call runs a script that fans out MANY agents, in phases, in the background. Until
-// this existed Frizz tracked none of it: the tool is neither `Agent` nor `Bash`, so a worker resting on
+// this existed Ntwine tracked none of it: the tool is neither `Agent` nor `Bash`, so a worker resting on
 // "the wave 2 workflow" showed no child at all — no row under the prompt box, nothing on the rail, and
 // no way into any of the dozen agents doing the actual work.
 //

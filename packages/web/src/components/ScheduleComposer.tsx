@@ -9,7 +9,7 @@ import {
   type CreateScheduleInput,
   type ScheduleView,
   type Span,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { flashScheduleCount, pushScheduleDrawer, showToast } from "../store.ts"
 import { invalidateSchedules } from "../lib/schedules.ts"

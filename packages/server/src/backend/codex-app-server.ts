@@ -19,7 +19,7 @@ import {
   type ResolveInteractionInput,
   type ThreadSkillSource,
   type ProviderError,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import {
   InteractionStoreError,
   type InteractionSessionScope,
@@ -41,8 +41,8 @@ import { codexThreadMcpConfig, codexThreadMcpOff } from "./codex-mcp.ts"
 import { codexThreadShellConfig } from "./codex-shell-env.ts"
 import { codexProviderError } from "./codex-error.ts"
 import { CodexExecutionHealth } from "./codex-execution-health.ts"
-import { codexContextWindowConfig, type FrizzCli, type FrizzMcp } from "./types.ts"
-import { log as frizzLog } from "../logging.ts"
+import { codexContextWindowConfig, type NtwineCli, type NtwineMcp } from "./types.ts"
+import { log as ntwineLog } from "../logging.ts"
 
 // Foundation-only bridge. It is deliberately not an AgentBackend: no current/default Codex TUI
 // session can accidentally cross this boundary. Context now wires it unconditionally
@@ -50,7 +50,7 @@ import { log as frizzLog } from "../logging.ts"
 export const CODEX_APP_SERVER_PROVIDER = "codex-app-server"
 // Opt-in transport switch. Off = the hand-written daemon; on = `codex app-server --listen unix://`.
 // Read at construction, per process, so a restart is all it takes to move a project either way.
-export const CODEX_NATIVE_LISTEN_FLAG = "FRIZZ_CODEX_NATIVE_LISTEN"
+export const CODEX_NATIVE_LISTEN_FLAG = "NTWINE_CODEX_NATIVE_LISTEN"
 
 export type CodexHostKind = "native" | "daemon" | "direct"
 
@@ -58,13 +58,13 @@ export type CodexHostKind = "native" | "daemon" | "direct"
  * Which app-server transport a bridge uses.
  *
  * The DEFAULT is the native listener (`codex app-server --listen unix://`): the app-server owns its own
- * socket, so it genuinely outlives every frizz process and there is no frizz-authored daemon in the middle
+ * socket, so it genuinely outlives every ntwine process and there is no ntwine-authored daemon in the middle
  * that could die and take the app-server — and every sub-agent turn inside it — down with it. The
- * hand-rolled `--stdio` daemon can only broker survival across a frizz restart; across its OWN death
+ * hand-rolled `--stdio` daemon can only broker survival across an ntwine restart; across its OWN death
  * (idle expiry, reachability self-collection, a signal, its child crashing) it kills the app-server. It
  * stays the default ONLY on win32, whose named-pipe socket path the native transport does not implement.
  *
- * Overrides: an injected `spawn` is always the direct-child test transport; `FRIZZ_CODEX_NATIVE_LISTEN`
+ * Overrides: an injected `spawn` is always the direct-child test transport; `NTWINE_CODEX_NATIVE_LISTEN`
  * forces the choice (`1`/`true` → native where supported, `0`/`false` → the daemon).
  */
 export function selectCodexHostKind(
@@ -111,10 +111,10 @@ export type CodexVersionVerdict =
  *
  * This was exact string equality against the audited version. That is unsafe-CLOSED, and it is the
  * single most dangerous property in the whole Codex integration: `codex` ships a stable release about
- * every two days, frizz has no second transport for it (dispatch.ts throws), and `ensureConnected` gates
+ * every two days, ntwine has no second transport for it (dispatch.ts throws), and `ensureConnected` gates
  * ALL EIGHT operation entry points — dispatch, follow-up, steer, interrupt, resume, warm-up, settings.
  * So one `npm i -g @openai/codex` turned every Codex thread into a permanent hard failure recoverable
- * only by editing a source constant and rebuilding frizz. The drift is continuous: the pin was 0.144.6
+ * only by editing a source constant and rebuilding ntwine. The drift is continuous: the pin was 0.144.6
  * on 2026-07-27 with `@openai/codex@0.145.0` already published, and by 2026-07-31 the installed stable
  * was 0.146.0 — the re-audit the pin recorded until 2026-09-04, when it moved to 0.153.2: the first
  * codex whose catalogue carries `gpt-6-astra` (`minimal_client_version: "0.153.0"` — the catalogue
@@ -122,13 +122,13 @@ export type CodexVersionVerdict =
  * test passed against that binary's own generated schema before the pin moved.
  *
  * The rule now: a FLOOR that refuses, and a CEILING that only warns.
- *  - BELOW the audited version → refuse. An older binary may genuinely lack params frizz sends, and
+ *  - BELOW the audited version → refuse. An older binary may genuinely lack params ntwine sends, and
  *    that is the direction where proceeding produces silent misbehaviour.
  *  - AT it → the audited path, unchanged.
  *  - ABOVE it → run, and say so loudly once. Codex's protocol is additive in practice and unknown
- *    fields are ignored, so "newer" is overwhelmingly compatible — and frizz already owns a REAL drift
+ *    fields are ignored, so "newer" is overwhelmingly compatible — and ntwine already owns a REAL drift
  *    detector that does not depend on guessing from a version number: codex-protocol-conformance.test.ts
- *    asks the INSTALLED binary for its own JSON schema and asserts every param frizz sends still exists.
+ *    asks the INSTALLED binary for its own JSON schema and asserts every param ntwine sends still exists.
  *    That test, not a string compare, is what should fail when the protocol actually moves.
  *
  * An unparseable version sorts below everything, so it is refused.
@@ -138,19 +138,19 @@ export function codexVersionVerdict(
   audited: string = CODEX_APP_SERVER_SUPPORTED_VERSION,
 ): CodexVersionVerdict {
   if (!received) {
-    return { kind: "refused", message: `Codex app-server did not report a parseable frizz/<version> user agent; expected ${audited}` }
+    return { kind: "refused", message: `Codex app-server did not report a parseable ntwine/<version> user agent; expected ${audited}` }
   }
   const cmp = compareCodexVersions(received, audited)
   if (cmp === 0) return { kind: "audited" }
   if (cmp < 0) {
     return {
       kind: "refused",
-      message: `Codex app-server ${received} is older than the audited protocol ${audited}. Upgrade codex (\`npm i -g @openai/codex\`) — frizz sends parameters this build may not accept.`,
+      message: `Codex app-server ${received} is older than the audited protocol ${audited}. Upgrade codex (\`npm i -g @openai/codex\`) — ntwine sends parameters this build may not accept.`,
     }
   }
   return {
     kind: "ahead",
-    message: `Codex app-server ${received} is NEWER than frizz's audited protocol ${audited} — running anyway (the protocol is additive and unknown fields are ignored). If Codex threads misbehave, re-audit and re-pin. Run \`npm test -- codex-protocol-conformance\` to check frizz's params against this binary's own schema.`,
+    message: `Codex app-server ${received} is NEWER than ntwine's audited protocol ${audited} — running anyway (the protocol is additive and unknown fields are ignored). If Codex threads misbehave, re-audit and re-pin. Run \`npm test -- codex-protocol-conformance\` to check ntwine's params against this binary's own schema.`,
   }
 }
 
@@ -165,7 +165,7 @@ const PROTOCOL_FINGERPRINT = [
 // The handshake identity. Shared with the daemon host, which performs `initialize` on our behalf and
 // serves the cached response to every later attachment — so the version gate below still reads the
 // REAL app-server userAgent, not something the daemon invented.
-export const CLIENT_INFO = Object.freeze({ name: "frizz", title: "Frizz", version: "0.0.1" })
+export const CLIENT_INFO = Object.freeze({ name: "ntwine", title: "Ntwine", version: "0.0.1" })
 export const CLIENT_CAPABILITIES = Object.freeze({
   experimentalApi: true,
   requestAttestation: false,
@@ -187,7 +187,7 @@ export const CLIENT_CAPABILITIES = Object.freeze({
   ],
 })
 // ---- sandbox: the app-server spells the SAME axis two different ways ----
-// `thread/start` and `thread/resume` take the plain `sandbox: SandboxMode` string frizz already uses.
+// `thread/start` and `thread/resume` take the plain `sandbox: SandboxMode` string ntwine already uses.
 // `thread/settings/update` and `turn/start` take `sandboxPolicy: SandboxPolicy`, a TAGGED OBJECT, and
 // there is NO string shorthand on those methods. Worse, the params structs are not
 // `deny_unknown_fields`: sending the thread-level `sandbox: "danger-full-access"` spelling to
@@ -243,9 +243,9 @@ export function codexSandboxPolicy(mode: CodexSandboxMode): CodexSandboxPolicy {
 }
 
 // The inverse, used to CONFIRM a reported policy against the mode we asked for. Deliberately compares
-// only the variant tag: frizz's axis is the mode, and the server is free to normalize the workspaceWrite
+// only the variant tag: ntwine's axis is the mode, and the server is free to normalize the workspaceWrite
 // detail fields (e.g. add a writable root of its own) without that meaning our request was refused.
-// `externalSandbox` — a variant frizz never requests — maps to undefined so it can never read as a match.
+// `externalSandbox` — a variant ntwine never requests — maps to undefined so it can never read as a match.
 export function codexSandboxModeOfPolicy(policy: { type?: unknown } | null | undefined): CodexSandboxMode | undefined {
   switch (policy?.type) {
     case "readOnly": return "read-only"
@@ -255,8 +255,8 @@ export function codexSandboxModeOfPolicy(policy: { type?: unknown } | null | und
   }
 }
 
-// The approval policy frizz establishes at `thread/start` (see startDisposableSession) and re-asserts on
-// every `thread/resume`. `never` is the ONLY correct value for a frizz worker: the worker runs headless
+// The approval policy ntwine establishes at `thread/start` (see startDisposableSession) and re-asserts on
+// every `thread/resume`. `never` is the ONLY correct value for an ntwine worker: the worker runs headless
 // inside a detached daemon with nobody watching, so an approval request is not a safety gate — it is a
 // thread that stops working until a human happens to open the dashboard. Under `never` a sandbox-denied action fails back to the model, which
 // can then adapt, say so, or ask the human in its own words; the sandbox stays the actual boundary.
@@ -269,8 +269,8 @@ export function codexSandboxModeOfPolicy(policy: { type?: unknown } | null | und
 // `approvalPolicy: "untrusted"` still reported `"untrusted"` in the `thread/settings/updated` payload
 // after a sandboxPolicy-only update).
 const CODEX_APPROVAL_POLICY = "never"
-// The sandbox a frizz-owned codex thread runs under when nothing narrower was explicitly recorded. Every
-// frizz-CREATED worker is dispatched at this level (WORKER_DISPATCH_PERMISSION.codex), and a resume that
+// The sandbox an ntwine-owned codex thread runs under when nothing narrower was explicitly recorded. Every
+// ntwine-CREATED worker is dispatched at this level (WORKER_DISPATCH_PERMISSION.codex), and a resume that
 // cannot find a stated intent must land here rather than fall through to the config.toml default —
 // letting config.toml decide is what downgraded live threads mid-flight.
 const CODEX_DEFAULT_SANDBOX: CodexSandboxMode = "danger-full-access"
@@ -298,7 +298,7 @@ const AUTH_REPLACEMENT_WAIT_MS = 20_000
 const MAX_AUTH_REPLACEMENT_ATTEMPTS = 3
 const BRIDGE_DB_SCHEMA_VERSION = 1
 
-// The app-server inherits frizz's environment minus frizz's own control plane — see worker-env.ts. This
+// The app-server inherits ntwine's environment minus ntwine's own control plane — see worker-env.ts. This
 // was a ~35-key allowlist until 2026-08-02; it is a denylist now because the curated lists across the
 // codex and claude transports had drifted (this one carried HTTP_PROXY/SSL_CERT_FILE, the claude ones
 // did not, so the same task succeeded or failed by backend) and because neither carried SSH_AUTH_SOCK
@@ -407,15 +407,15 @@ const FileChangeItem = z.object({
   status: z.enum(["inProgress", "completed", "failed", "declined"]),
 }).strict()
 // A model-run shell command, as the app-server reports it on the item stream. Deliberately NOT
-// `.strict()`: this is a large, evolving item type and frizz reads three fields off it — adding
+// `.strict()`: this is a large, evolving item type and ntwine reads three fields off it — adding
 // `deny_unknown_fields` semantics here would make every codex release that grows the item silently
 // stop reporting background execs.
 //
 // `processId` is the whole reason this schema exists. It is codex's LOGICAL PTY handle (verified live
 // in backend/_live_codex_bgterm.mts: `osPid` came back null every time and the value never equalled a
 // real OS pid), and it is the only thing `thread/backgroundTerminals/terminate` accepts. It appears
-// ONLY on an exec that yielded — the deliberate background handoff — which is exactly the set frizz
-// wants, and it is absent from the rollout frizz folds, so this stream is the place to get it
+// ONLY on an exec that yielded — the deliberate background handoff — which is exactly the set ntwine
+// wants, and it is absent from the rollout ntwine folds, so this stream is the place to get it
 // (`_live_codex_bgterm_match.mts`: the projected background row carried no handle at all) — with
 // `backgroundTerminals/list` as the backstop for an exec that started before we attached.
 const CommandExecutionItem = z.object({
@@ -441,8 +441,8 @@ export interface LiveBackgroundExec {
   cwd?: string
 }
 // The app-server's own snapshot of a thread's running background execs — the one way to learn about
-// an exec whose `item/started` went to a client connection frizz no longer has. Loose for the same
-// reason as CommandExecutionItem: frizz reads two fields off each entry (the probe in
+// an exec whose `item/started` went to a client connection ntwine no longer has. Loose for the same
+// reason as CommandExecutionItem: ntwine reads two fields off each entry (the probe in
 // backend/_live_codex_bgterm.mts shows the rest: `itemId`, `cwd`, `osPid`, …), and a codex release
 // that grows the entry must not stop the rows coming back. It carries NO start time, so a seeded row's
 // clock starts at the reattach that found it.
@@ -553,7 +553,7 @@ export type CodexAppServerDiagnostic =
   | { event: "connected"; version: string; connectionEpoch: number }
   | { event: "disconnected"; connectionEpoch: number; reason: "exit" | "error" | "closed" | "protocol" }
   | { event: "version-rejected"; expected: string; received: string }
-  // The app-server is NEWER than the audited protocol. Not a failure — frizz runs anyway; this is the
+  // The app-server is NEWER than the audited protocol. Not a failure — ntwine runs anyway; this is the
   // breadcrumb that says which build was actually driving if something later looks wrong.
   | { event: "version-ahead"; expected: string; received: string }
   | { event: "stderr"; bytes: number; truncated: boolean }
@@ -823,7 +823,7 @@ class JsonlRpcConnection {
       try {
         await this.onRequest(message.method, parsedId.data, message.params)
       } catch (error) {
-        const rpcError = error instanceof RpcProtocolError ? error : new RpcProtocolError(-32603, "Frizz could not stage the provider request")
+        const rpcError = error instanceof RpcProtocolError ? error : new RpcProtocolError(-32603, "Ntwine could not stage the provider request")
         await this.errorResponse(parsedId.data, rpcError.code, rpcError.message).catch(() => undefined)
       }
       return
@@ -865,7 +865,7 @@ class JsonlRpcConnection {
 }
 
 interface BindingRow {
-  frizz_session_id: string
+  ntwine_session_id: string
   project_id: string
   thread_slug: string
   codex_thread_id: string
@@ -885,19 +885,19 @@ interface BindingRow {
   auto_resume_count: number
   /**
    * What the app-server is believed to have as this thread's sandbox RIGHT NOW — a cache of observed
-   * server state, not of operator intent (intent lives in frizz's own `sessions.permission_mode`). It is
+   * server state, not of operator intent (intent lives in ntwine's own `sessions.permission_mode`). It is
    * written only from authoritative reads: the mode we passed to `thread/start`, the `sandbox` the
    * `thread/resume` RESPONSE reports back, and a `thread/settings/updated` notification. NULL means
-   * "unknown" (a row migrated from an older Frizz), which makes setSandbox demand a notification rather
+   * "unknown" (a row migrated from an older Ntwine), which makes setSandbox demand a notification rather
    * than assume a no-op.
    */
   sandbox: string | null
   /**
-   * The operator's last EXPLICIT sandbox intent for this thread, as issued through frizz. Distinct from
+   * The operator's last EXPLICIT sandbox intent for this thread, as issued through ntwine. Distinct from
    * `sandbox` (what the server is believed to hold): this one is forward-looking and is what every cold
    * `thread/resume` carries.
    *
-   * It exists because frizz's registry cannot be trusted to hold that intent for a codex row. The tailer
+   * It exists because ntwine's registry cannot be trusted to hold that intent for a codex row. The tailer
    * writes the ROLLOUT-OBSERVED mode back over `sessions.permission_mode` whenever a permission record
    * lands (tailer.ts, setObservedPermissionIfCurrent) — and since a mid-turn change only takes effect on
    * the NEXT turn, the very next record still describes the OLD policy and reverts the row. Observed live
@@ -909,7 +909,7 @@ interface BindingRow {
 }
 
 const BindingRowSchema = z.object({
-  frizz_session_id: Opaque,
+  ntwine_session_id: Opaque,
   project_id: z.string().min(1),
   thread_slug: ThreadSlug,
   codex_thread_id: Opaque,
@@ -925,7 +925,7 @@ const BindingRowSchema = z.object({
   updated_at: z.string().datetime(),
   auto_resumed_turn_id: Opaque.nullable(),
   auto_resume_count: z.number().int().nonnegative(),
-  // Bounded string rather than an enum: a value this Frizz does not recognise (a newer sandbox mode
+  // Bounded string rather than an enum: a value this Ntwine does not recognise (a newer sandbox mode
   // written by a later build) must degrade to "unknown", never poison the row as corrupt.
   sandbox: z.string().max(64).nullable(),
   intended_sandbox: z.string().max(64).nullable(),
@@ -952,8 +952,8 @@ function effectiveResumeSandbox(rawResponse: unknown): CodexSandboxMode | undefi
   return parsed.success ? codexSandboxModeOfPolicy(parsed.data.sandbox) : undefined
 }
 
-function turnKey(row: Pick<BindingRow, "thread_slug" | "frizz_session_id" | "connection_epoch">): string {
-  return `${row.thread_slug}\u0000${row.frizz_session_id}\u0000${row.connection_epoch}`
+function turnKey(row: Pick<BindingRow, "thread_slug" | "ntwine_session_id" | "connection_epoch">): string {
+  return `${row.thread_slug}\u0000${row.ntwine_session_id}\u0000${row.connection_epoch}`
 }
 
 export interface CodexAppServerSessionBinding {
@@ -981,10 +981,10 @@ export interface CodexAppServerTurnLiveness {
   /** The bridge is driving a turn for this thread on the CURRENT connection right now. */
   bridgeTurn: boolean
   /**
-   * When frizz last took this thread onto a connection. Nothing the rollout wrote BEFORE this instant
+   * When ntwine last took this thread onto a connection. Nothing the rollout wrote BEFORE this instant
    * can belong to a live turn — the connection that wrote it is gone. Rollout activity AFTER it means
    * some other writer (a `codex resume` in the operator's own terminal) is driving the thread, which
-   * is a real live turn frizz is merely mirroring.
+   * is a real live turn ntwine is merely mirroring.
    */
   ownedSince: string
 }
@@ -1034,16 +1034,16 @@ export interface CodexAppServerBridgeOptions {
   host?: CodexAppServerHost
   /** Where the daemon's record/socket live. Required for the default daemon host. */
   stateDir?: string
-  /** Mounts the unified `frizz` MCP server into this project's app-server. Absent ⇒ frizz mounts
+  /** Mounts the unified `ntwine` MCP server into this project's app-server. Absent ⇒ ntwine mounts
    *  nothing, and a worker sees only what the operator's own codex config configured. MCP servers are
    *  PROCESS-level, so this is resolved once here rather than per thread. */
-  frizzMcp?: FrizzMcp
+  ntwineMcp?: NtwineMcp
   /** Which threads get that mount. Absent ⇒ every thread, as before the command line. A thread started
-   *  under the `frizzctl` contract is given none: its registry stays free of sixteen tools it was
+   *  under the `ntwinectl` contract is given none: its registry stays free of sixteen tools it was
    *  never told about. Asked at every start and resume, so the answer follows the thread's own row. */
   mountsMcp?: (threadSlug: string) => boolean
-  /** Present ⇒ every thread's shell can run `frizzctl` as that thread — see codexThreadShellConfig. */
-  frizzCli?: FrizzCli
+  /** Present ⇒ every thread's shell can run `ntwinectl` as that thread — see codexThreadShellConfig. */
+  ntwineCli?: NtwineCli
   now?: () => Date
   id?: () => string
   requestTimeoutMs?: number
@@ -1062,7 +1062,7 @@ export interface CodexAppServerBridgeOptions {
    */
   shouldAutoResume?: (threadSlug: string, sessionId: string) => boolean
   /**
-   * The operator's CURRENT sandbox intent for a thread, read from frizz's own registry
+   * The operator's CURRENT sandbox intent for a thread, read from ntwine's own registry
    * (`sessions.permission_mode` → codexSandbox()). Consulted on every COLD `thread/resume` so a
    * sandbox the operator changed while the thread was detached actually takes effect — before this
    * existed, `setPermissionMode` wrote the row and nothing ever read it back, so "saved for the next
@@ -1079,7 +1079,7 @@ export interface CodexAppServerBridgeOptions {
    */
   getSettings?: () => { codexContextWindow?: number }
   /**
-   * What a Frizz WORKER thread carries beyond its MCP mount: the hooks, and the reasoning-summary
+   * What an Ntwine WORKER thread carries beyond its MCP mount: the hooks, and the reasoning-summary
    * setting. Asked for at `thread/start` and at EVERY `thread/resume`, because a resume that rebuilds
    * the thread rebuilds it from the bag in that one request and nothing else (see threadConfig) — the
    * bag used to reach `thread/start` alone, as the dispatcher's own argument, and every thread lost
@@ -1091,7 +1091,7 @@ export interface CodexAppServerBridgeOptions {
 function bindingFromRow(row: BindingRow): CodexAppServerSessionBinding {
   return {
     threadSlug: row.thread_slug,
-    sessionId: row.frizz_session_id,
+    sessionId: row.ntwine_session_id,
     codexThreadId: row.codex_thread_id,
     codexSessionId: row.codex_session_id,
     sessionEpoch: row.session_epoch,
@@ -1677,7 +1677,7 @@ const ThreadResponse = z.object({
 const TurnResponse = z.object({ turn: z.object({ id: Opaque }).passthrough() }).strict()
 // turn/steer returns a FLAT { turnId }, unlike turn/start's nested { turn: { id } }.
 const TurnSteerResponse = z.object({ turnId: Opaque }).passthrough()
-// `skills/list` — the app-server's OWN skill discovery (system/user/repo roots, enable state), so frizz
+// `skills/list` — the app-server's OWN skill discovery (system/user/repo roots, enable state), so ntwine
 // never re-implements or drifts from it. Loose by design: only the fields the composer typeahead needs
 // are read, and an unknown extra field must not fail the listing.
 const SkillsListResponse = z.object({
@@ -1695,7 +1695,7 @@ const SkillsListResponse = z.object({
   }).passthrough()).optional(),
 }).passthrough()
 
-// Codex's scope vocabulary → frizz's. `system` is the app-server's own bundled set, which is the same
+// Codex's scope vocabulary → ntwine's. `system` is the app-server's own bundled set, which is the same
 // thing Claude calls `built-in`. Anything unrecognized answers undefined, so a newer codex that grows
 // a fourth root renders an unlabelled row rather than a wrong one.
 function codexSkillSource(scope: string | undefined): ThreadSkillSource | undefined {
@@ -1705,7 +1705,7 @@ function codexSkillSource(scope: string | undefined): ThreadSkillSource | undefi
   return undefined
 }
 // `thread/resume` reports the thread's EFFECTIVE sandbox back as a tagged SandboxPolicy — the one
-// authoritative read of live server state frizz gets, and what keeps the binding's sandbox cache honest
+// authoritative read of live server state ntwine gets, and what keeps the binding's sandbox cache honest
 // whether the resume was cold (our override applied) or a live rejoin (our override was ignored).
 const ThreadResumeSandbox = z.object({ sandbox: z.object({ type: z.string().max(64) }).passthrough() }).passthrough()
 // GROUND TRUTH on a rejoin: `thread/resume` reports whether a turn is running RIGHT NOW.
@@ -1779,14 +1779,14 @@ function correlatedFileItemKey(threadId: string, turnId: string, itemId: string)
 }
 
 // A cwd is absolute on POSIX when it starts with "/" and on Windows when it carries a drive letter
-// (`C:\\…` or `C:/…`) — the same test `frizz-paths.ts` applies to an XDG variable. Checking only for a
+// (`C:\\…` or `C:/…`) — the same test `ntwine-paths.ts` applies to an XDG variable. Checking only for a
 // leading slash rejected EVERY Windows path, which failed 41 tests on a real Windows Server 2022 host.
 function isAbsoluteBoundedPath(value: string): boolean {
   if (value.length === 0 || value.length > 8_192) return false
   return value.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(value)
 }
 
-/** The bridge's tables, in the order the unified-database importer copies them (frizz-db.ts). */
+/** The bridge's tables, in the order the unified-database importer copies them (ntwine-db.ts). */
 export const CODEX_APP_SERVER_TABLES = ["codex_app_server_meta", "codex_app_server_session", "codex_app_server_delivery"] as const
 
 /**
@@ -1819,6 +1819,12 @@ export function ensureCodexAppServerSchema(db: Database): void {
   if (schemaVersion !== BRIDGE_DB_SCHEMA_VERSION) {
     throw new InteractionStoreError("schema-version", `unsupported Codex app-server bridge schema ${String(schemaVersion)}`)
   }
+  // The Frizz -> Ntwine rename (2026-10-13) renamed this table's key column; a database written before
+  // it still has the old name. A rename keeps every row, and the shape check below then holds.
+  const sessionColumns = db.prepare<[], { name: string }>("PRAGMA table_info(codex_app_server_session)").all()
+  if (sessionColumns.some((column) => column.name === "frizz_session_id")) {
+    db.exec("ALTER TABLE codex_app_server_session RENAME COLUMN frizz_session_id TO ntwine_session_id")
+  }
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS codex_app_server_meta (
@@ -1830,7 +1836,7 @@ export function ensureCodexAppServerSchema(db: Database): void {
       );
 
       CREATE TABLE IF NOT EXISTS codex_app_server_session (
-        frizz_session_id      TEXT PRIMARY KEY,
+        ntwine_session_id      TEXT PRIMARY KEY,
         project_id            TEXT NOT NULL,
         thread_slug           TEXT NOT NULL,
         codex_thread_id       TEXT NOT NULL,
@@ -1871,7 +1877,7 @@ export function ensureCodexAppServerSchema(db: Database): void {
   )
   const requiredMeta = ["project_id", "connection_epoch", "capability_revision", "protocol_fingerprint", "daemon_generation"]
   const requiredSession = [
-    "frizz_session_id", "project_id", "thread_slug", "codex_thread_id", "codex_session_id", "session_epoch",
+    "ntwine_session_id", "project_id", "thread_slug", "codex_thread_id", "codex_session_id", "session_epoch",
     "capability_revision", "connection_epoch", "current_turn_id", "cwd", "ephemeral", "state",
     "created_at", "updated_at", "auto_resumed_turn_id", "auto_resume_count", "sandbox", "intended_sandbox",
   ]
@@ -1926,7 +1932,7 @@ export class CodexAppServerBridge {
   private readonly settingsWaiters = new Map<string, Set<(observed: ObservedThreadSettings | undefined) => void>>()
   private readonly correlatedFileItems = new Map<string, CorrelatedFileItem>()
   // Codex's LIVE background execs, keyed codexThreadId → processId. Folded off the item stream because
-  // nothing else can supply it: the rollout frizz reads records the exec but not its `processId`, so the
+  // nothing else can supply it: the rollout ntwine reads records the exec but not its `processId`, so the
   // ops-strip row it projects has no handle to address a kill with. This map is what gives a codex
   // shell row an id, and the id it gives is exactly what `backgroundTerminals/terminate` accepts.
   //
@@ -1964,7 +1970,7 @@ export class CodexAppServerBridge {
     this.timeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
     this.authReplacementWaitMs = options.authReplacementWaitMs ?? AUTH_REPLACEMENT_WAIT_MS
     // Production hosts the app-server on its OWN unix listener (codex-app-server-native.ts) so it
-    // outlives this runtime with no frizz-authored daemon that could kill it — see selectCodexHostKind
+    // outlives this runtime with no ntwine-authored daemon that could kill it — see selectCodexHostKind
     // for the per-platform default and the overrides. An injected `spawn` — every unit test and the
     // live harnesses — keeps the historical direct-child behavior, where each connect is a new process.
     const hostKind = selectCodexHostKind(process.env[CODEX_NATIVE_LISTEN_FLAG], process.platform, Boolean(options.spawn))
@@ -1985,7 +1991,7 @@ export class CodexAppServerBridge {
     `).run()
     // A bridge that has just been constructed holds NO connection, so no binding it inherits from the
     // previous process can still be active. close()/handleDisconnect normally assert that, but a
-    // SIGKILLed frizz runs neither — leaving rows claiming `active` at the last epoch, which every
+    // SIGKILLed ntwine runs neither — leaving rows claiming `active` at the last epoch, which every
     // ownership check (and the board's liveness read) would take at face value. Reassert the invariant
     // here so the registry is honest before anything reads it. `current_turn_id` is deliberately left
     // in place: detach preserves it for diagnosis, and updateResumedBinding retires it — together with
@@ -1997,8 +2003,8 @@ export class CodexAppServerBridge {
   }
 
   async startDisposableSession(input: StartCodexAppServerSessionInput): Promise<CodexAppServerSessionBinding> {
-    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid Frizz thread slug")
-    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid Frizz session id")
+    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid Ntwine thread slug")
+    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid Ntwine session id")
     if (!isAbsoluteBoundedPath(input.cwd)) throw new Error("Codex app-server cwd must be an absolute bounded path")
     if (input.permissions && input.sandbox) throw new Error("Codex app-server permissions and sandbox are mutually exclusive")
     const startKeys = [`slug:${input.threadSlug}`, `session:${input.sessionId}`]
@@ -2011,7 +2017,7 @@ export class CodexAppServerBridge {
       if (this.bindingForScope(input.threadSlug, input.sessionId)) {
         throw new Error("Codex app-server session is already owned by this bridge")
       }
-      if (this.scope.prepare("SELECT 1 FROM codex_app_server_session WHERE project_id = @project_id AND (thread_slug = ? OR frizz_session_id = ?)").get(input.threadSlug, input.sessionId)) {
+      if (this.scope.prepare("SELECT 1 FROM codex_app_server_session WHERE project_id = @project_id AND (thread_slug = ? OR ntwine_session_id = ?)").get(input.threadSlug, input.sessionId)) {
         throw new Error("Codex app-server thread slug or session id is already bound")
       }
 
@@ -2035,7 +2041,7 @@ export class CodexAppServerBridge {
       const at = this.now().toISOString()
       this.scope.prepare(`
         INSERT INTO codex_app_server_session (
-          project_id, frizz_session_id, thread_slug, codex_thread_id, codex_session_id,
+          project_id, ntwine_session_id, thread_slug, codex_thread_id, codex_session_id,
           session_epoch, capability_revision, connection_epoch, current_turn_id,
           cwd, ephemeral, state, created_at, updated_at, sandbox, intended_sandbox
         ) VALUES (@project_id, ?, ?, ?, ?, 1, ?, ?, NULL, ?, ?, 'active', ?, ?, ?, ?)
@@ -2122,7 +2128,7 @@ export class CodexAppServerBridge {
   /**
    * Drop this connection's subscription to an IDLE thread, so the resume that follows rebuilds it.
    * True when the app-server answered, which is when the thread is known to have no subscriber left:
-   * Frizz is the only client an app-server of its own ever has.
+   * Ntwine is the only client an app-server of its own ever has.
    *
    * A refusal is remembered for the life of this bridge and the sync is left alone from then on: it
    * means this Codex has no such method, and asking before every turn would buy nothing. Any other
@@ -2143,13 +2149,13 @@ export class CodexAppServerBridge {
 
   /**
    * Whether there is anything of this server's own to put into a thread, and a way to do it.
-   * `FRIZZ_PLUGIN_SYNC_OFF=1` is the same opt-out a Claude worker's daemon reads (claude-plugin-sync.ts):
+   * `NTWINE_PLUGIN_SYNC_OFF=1` is the same opt-out a Claude worker's daemon reads (claude-plugin-sync.ts):
    * with it, no thread is released to be rebuilt, and each keeps whatever its last load gave it.
    */
   private syncsThreadConfig(): boolean {
     return !this.unsubscribeRefused
-      && process.env.FRIZZ_PLUGIN_SYNC_OFF !== "1"
-      && (this.options.frizzMcp !== undefined || this.options.workerConfig !== undefined)
+      && process.env.NTWINE_PLUGIN_SYNC_OFF !== "1"
+      && (this.options.ntwineMcp !== undefined || this.options.workerConfig !== undefined)
   }
 
   // Adopt a rollout this bridge did NOT create — a legacy Codex thread from before the app-server
@@ -2164,31 +2170,31 @@ export class CodexAppServerBridge {
     codexThreadId: string
     cwd: string
   }): Promise<CodexAppServerSessionBinding> {
-    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid Frizz thread slug")
-    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid Frizz session id")
+    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid Ntwine thread slug")
+    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid Ntwine session id")
     if (!input.codexThreadId || input.codexThreadId.length > 256) throw new Error("invalid Codex rollout id")
     if (!isAbsoluteBoundedPath(input.cwd)) throw new Error("Codex app-server cwd must be an absolute bounded path")
     const releaseOperation = this.beginOperation()
     try {
       const existing = this.bindingForScope(input.threadSlug, input.sessionId)
       if (existing) return bindingFromRow(existing)
-      if (this.scope.prepare("SELECT 1 FROM codex_app_server_session WHERE project_id = @project_id AND (thread_slug = ? OR frizz_session_id = ? OR codex_thread_id = ?)")
+      if (this.scope.prepare("SELECT 1 FROM codex_app_server_session WHERE project_id = @project_id AND (thread_slug = ? OR ntwine_session_id = ? OR codex_thread_id = ?)")
         .get(input.threadSlug, input.sessionId, input.codexThreadId)) {
         throw new Error("Codex app-server thread slug, session id, or rollout is already bound")
       }
       const connection = await this.ensureConnected()
-      // A legacy row's sandbox is whatever its CLI was launched with; frizz's registry is the
+      // A legacy row's sandbox is whatever its CLI was launched with; ntwine's registry is the
       // operator's stated intent, so adoption is the moment the two are unified.
       const adoptionOverride = this.resumeSandboxOverride({
-        thread_slug: input.threadSlug, frizz_session_id: input.sessionId, sandbox: null, intended_sandbox: null,
+        thread_slug: input.threadSlug, ntwine_session_id: input.sessionId, sandbox: null, intended_sandbox: null,
       })
       const rawResponse = await connection.request("thread/resume", {
         threadId: input.codexThreadId,
         excludeTurns: true,
         approvalsReviewer: "user",
         ...adoptionOverride,
-        // Adoption is the first time frizz owns this rollout, so it is also the first chance to give
-        // the thread a frizz MCP mount that knows its slug, and its hooks. The rollout belonged to a
+        // Adoption is the first time ntwine owns this rollout, so it is also the first chance to give
+        // the thread an ntwine MCP mount that knows its slug, and its hooks. The rollout belonged to a
         // process of its own, so this app-server is loading it cold and the bag is what it is built from.
         ...this.threadConfig(input.threadSlug, input.sessionId),
       })
@@ -2199,7 +2205,7 @@ export class CodexAppServerBridge {
       const at = this.now().toISOString()
       this.scope.prepare(`
         INSERT INTO codex_app_server_session (
-          project_id, frizz_session_id, thread_slug, codex_thread_id, codex_session_id,
+          project_id, ntwine_session_id, thread_slug, codex_thread_id, codex_session_id,
           session_epoch, capability_revision, connection_epoch, current_turn_id,
           cwd, ephemeral, state, created_at, updated_at, sandbox, intended_sandbox
         ) VALUES (@project_id, ?, ?, ?, ?, 1, ?, ?, NULL, ?, 0, 'active', ?, ?, ?, ?)
@@ -2244,7 +2250,7 @@ export class CodexAppServerBridge {
         // the ordinary rebind, which releases the thread and resumes it with this server's bag.
         this.scope.prepare(`
           UPDATE codex_app_server_session SET state = 'detached', updated_at = ?
-          WHERE project_id = @project_id AND frizz_session_id = ? AND thread_slug = ?
+          WHERE project_id = @project_id AND ntwine_session_id = ? AND thread_slug = ?
         `).run(this.now().toISOString(), input.sessionId, input.threadSlug)
         await this.resumeOwnedSession(input.threadSlug, input.sessionId)
         binding = this.bindingForScope(input.threadSlug, input.sessionId)!
@@ -2274,7 +2280,7 @@ export class CodexAppServerBridge {
         }
         const changed = this.scope.prepare(`
           UPDATE codex_app_server_session SET current_turn_id = ?, updated_at = ?
-          WHERE project_id = @project_id AND frizz_session_id = ? AND thread_slug = ? AND connection_epoch = ? AND state = 'active'
+          WHERE project_id = @project_id AND ntwine_session_id = ? AND thread_slug = ? AND connection_epoch = ? AND state = 'active'
             AND (current_turn_id IS NULL OR current_turn_id = ?)
         `).run(response.turn.id, this.now().toISOString(), input.sessionId, input.threadSlug, this.connectionEpoch, response.turn.id).changes
         if (changed !== 1) throw new Error("Codex app-server turn ownership changed during start")
@@ -2323,9 +2329,9 @@ export class CodexAppServerBridge {
   // cleared by the ensuing turn/completed notification.
   //
   // This is a TERMINATOR — for an app-server Codex thread it is the ONLY thing that stops the worker
-  // (the turn runs inside the daemon, so there is no worker process of frizz's own to kill), and since
+  // (the turn runs inside the daemon, so there is no worker process of ntwine's own to kill), and since
   // the app-server moved into a detached daemon the turn
-  // outlives the frizz runtime, so a stop that did not happen has no backstop. It therefore resolves
+  // outlives the ntwine runtime, so a stop that did not happen has no backstop. It therefore resolves
   // only once the stop is PROVED, and never reports one that did not land:
   //
   //   • A definitive server rejection (RpcProtocolError) means the turn reached its own ending in the
@@ -2593,7 +2599,7 @@ export class CodexAppServerBridge {
     const scope = {
       projectId: this.options.projectId,
       threadSlug: row.thread_slug,
-      sessionId: row.frizz_session_id,
+      sessionId: row.ntwine_session_id,
     }
     for (const pending of this.options.interactions.listPending(scope)) {
       const delivery = this.options.interactions.providerDelivery(scope, pending.id)
@@ -2616,10 +2622,10 @@ export class CodexAppServerBridge {
   }
 
   // Called only from the registry's exact old-session lifecycle event. It is intentionally scoped by
-  // both slug and Frizz session id, so replacing/deleting a TUI session cannot touch this bridge. The
+  // both slug and Ntwine session id, so replacing/deleting a TUI session cannot touch this bridge. The
   // registry transaction has already terminalized delivery rows and detached any matching binding;
   // this hook removes that binding and terminates the shared child so no native server request can
-  // remain waiting in a process Frizz no longer owns.
+  // remain waiting in a process Ntwine no longer owns.
   releaseSession(
     threadSlug: string,
     sessionId: string,
@@ -2636,7 +2642,7 @@ export class CodexAppServerBridge {
       this.options.interactions.cancelForSession(threadSlug, sessionId, reason)
       this.scope.prepare(`
         DELETE FROM codex_app_server_session
-        WHERE project_id = @project_id AND thread_slug = ? AND frizz_session_id = ?
+        WHERE project_id = @project_id AND thread_slug = ? AND ntwine_session_id = ?
       `).run(threadSlug, sessionId)
     } finally {
       if (ownsCurrentProcess) this.disconnectOwnedProcess()
@@ -2670,7 +2676,7 @@ export class CodexAppServerBridge {
     let detachError: unknown
     try {
       if (!this.dbReleased) {
-        // A clean Frizz shutdown may later resume a persisted native session, but no binding may stay
+        // A clean Ntwine shutdown may later resume a persisted native session, but no binding may stay
         // active against the process being killed. Preserve current_turn_id for witnessed replay/rebind.
         this.scope.prepare(`
           UPDATE codex_app_server_session SET state = 'detached', updated_at = ?
@@ -2785,7 +2791,7 @@ export class CodexAppServerBridge {
 
   private bindingForScope(threadSlug: string, sessionId: string): BindingRow | undefined {
     this.bindingForScopeStatement ??= this.scope.prepare<BindingRow>(`
-      SELECT * FROM codex_app_server_session WHERE project_id = @project_id AND thread_slug = ? AND frizz_session_id = ?
+      SELECT * FROM codex_app_server_session WHERE project_id = @project_id AND thread_slug = ? AND ntwine_session_id = ?
     `)
     const row = this.bindingForScopeStatement.get(threadSlug, sessionId) as BindingRow | undefined
     return row ? checkedBindingRow(row) : undefined
@@ -2859,7 +2865,7 @@ export class CodexAppServerBridge {
     } catch (error) {
       const detail = (error as Error).message
       this.options.diagnostic?.({ event: "execution-health-failed", detail })
-      frizzLog.error("codex", detail)
+      ntwineLog.error("codex", detail)
       throw error
     }
     if (this.connection !== connection) throw new Error("Codex app-server changed during its execution health check")
@@ -2923,7 +2929,7 @@ export class CodexAppServerBridge {
    * Attach to an app-server and negotiate.
    *
    * `refork` is the version-skew recovery. Alongside the idle-boundary auth refresh above, it is one
-   * of only two things in frizz that ever ends a Codex daemon's life. The daemon performs `initialize`
+   * of only two things in ntwine that ever ends a Codex daemon's life. The daemon performs `initialize`
    * once and caches the answer for as long as it
    * lives (up to six hours idle, unbounded while a client keeps reattaching). Bump
    * CODEX_APP_SERVER_SUPPORTED_VERSION and Update & Restart — the ordinary upgrade path — and the
@@ -2946,7 +2952,7 @@ export class CodexAppServerBridge {
       clientInfo: CLIENT_INFO,
       capabilities: CLIENT_CAPABILITIES,
       // NO process-wide MCP mount on the app-server's argv any more (2026-10-11). It gave every thread
-      // in the project the `frizz` tools, and a thread started under the `frizzctl` contract must not
+      // in the project the `ntwine` tools, and a thread started under the `ntwinectl` contract must not
       // have them. A thread that still needs the mount gets it from its own config bag, which every
       // start and resume carries (threadConfig) — the only channel that ever gave it an identity.
       authAccountId,
@@ -2974,9 +2980,9 @@ export class CodexAppServerBridge {
         capabilities: CLIENT_CAPABILITIES,
       }))
       // Exact 0.144.1 source sets our initialized client name as the originator, yielding
-      // `frizz/<package-version> ...`. Do not accept an expected-looking version buried elsewhere in
+      // `ntwine/<package-version> ...`. Do not accept an expected-looking version buried elsewhere in
       // an incompatible user agent.
-      const version = initialized.userAgent.match(/^frizz\/(\d+\.\d+\.\d+)(?:\s|\()/u)?.[1]
+      const version = initialized.userAgent.match(/^(?:ntwine|frizz)\/(\d+\.\d+\.\d+)(?:\s|\()/u)?.[1]
       handshakeVersion = version
       const verdict = codexVersionVerdict(version)
       // `!version` is already the refused case inside codexVersionVerdict; naming it here too is what
@@ -3000,7 +3006,7 @@ export class CodexAppServerBridge {
         })
         if (version !== aheadVersionWarned) {
           aheadVersionWarned = version
-          frizzLog.warn("codex", verdict.message)
+          ntwineLog.warn("codex", verdict.message)
         }
       }
       handshaking = false
@@ -3146,16 +3152,16 @@ export class CodexAppServerBridge {
       if (row) rows.push(row)
     }
     const detach = (row: BindingRow): void => {
-      this.scope.prepare("UPDATE codex_app_server_session SET state = 'detached', updated_at = ? WHERE project_id = @project_id AND frizz_session_id = ?")
-        .run(this.now().toISOString(), row.frizz_session_id)
+      this.scope.prepare("UPDATE codex_app_server_session SET state = 'detached', updated_at = ? WHERE project_id = @project_id AND ntwine_session_id = ?")
+        .run(this.now().toISOString(), row.ntwine_session_id)
     }
     for (const row of rows) {
       if (row.ephemeral === 1) { detach(row); continue }
       if (sameProcess) {
         this.scope.prepare(`
           UPDATE codex_app_server_session SET state = 'active', connection_epoch = ?, updated_at = ?
-          WHERE project_id = @project_id AND frizz_session_id = ?
-        `).run(this.connectionEpoch, this.now().toISOString(), row.frizz_session_id)
+          WHERE project_id = @project_id AND ntwine_session_id = ?
+        `).run(this.connectionEpoch, this.now().toISOString(), row.ntwine_session_id)
         // The TURN survived our restart, but its in-flight approval did not: that request was issued on
         // the client connection we just lost, and its rpc id means nothing on this new socket. Nothing
         // retires those cards on this path — the thread stays bound and never takes the resume branch
@@ -3173,12 +3179,12 @@ export class CodexAppServerBridge {
           approvalsReviewer: "user",
           ...this.resumeSandboxOverride(row),
           ...cwdOverride,
-          // The per-thread frizz MCP mount, exactly as resumeOwnedSession sends it. THIS is the resume a
-          // Frizz restart issues for every thread that was mid-turn when the app-server died, and it
+          // The per-thread ntwine MCP mount, exactly as resumeOwnedSession sends it. THIS is the resume a
+          // Ntwine restart issues for every thread that was mid-turn when the app-server died, and it
           // was the one resume that did not carry it (2026-09-18, hypergres/this-is-a-fresh-project-i:
           // the 0.13.9 restart replaced the daemon, this path resumed the thread with no mount, and the
-          // worker's next registry probe listed no `mcp__frizz__*` at all — "The restart removed
-          // Frizz's question-registration tool"). The argv mount is not a fallback here: a thread
+          // worker's next registry probe listed no `mcp__ntwine__*` at all — "The restart removed
+          // Ntwine's question-registration tool"). The argv mount is not a fallback here: a thread
           // resumed onto a FRESH app-server gets its MCP children from this call, so without the
           // override it keeps neither its identity nor, in practice, the tools.
           //
@@ -3189,7 +3195,7 @@ export class CodexAppServerBridge {
           // commands and ended every one of them instead (measured 2026-10-11 on codex 0.161.0: a
           // `sleep` alive after the old server left was gone after the new server's warm-up). Without
           // the bag the same resume only rejoins.
-          ...(execThreads.includes(row.codex_thread_id) ? {} : this.threadConfig(row.thread_slug, row.frizz_session_id)),
+          ...(execThreads.includes(row.codex_thread_id) ? {} : this.threadConfig(row.thread_slug, row.ntwine_session_id)),
         })
         const response = ThreadResponse.parse(rawResponse)
         if (response.thread.id !== row.codex_thread_id || response.thread.ephemeral) throw new Error("resume ownership mismatch")
@@ -3216,19 +3222,19 @@ export class CodexAppServerBridge {
           this.scope.prepare(`
             UPDATE codex_app_server_session SET
               codex_session_id = ?, connection_epoch = ?, state = 'active', updated_at = ?, sandbox = ?
-            WHERE project_id = @project_id AND frizz_session_id = ?
+            WHERE project_id = @project_id AND ntwine_session_id = ?
           `).run(
             response.thread.sessionId,
             this.connectionEpoch,
             this.now().toISOString(),
             effectiveResumeSandbox(rawResponse) ?? row.sandbox,
-            row.frizz_session_id,
+            row.ntwine_session_id,
           )
           continue
         }
         this.updateResumedBinding(row, response.thread.sessionId, effectiveResumeSandbox(rawResponse))
         // Record, don't nudge. Recovery is issued by warmUp() — see autoResumeInterruptedTurns().
-        if (interruptedTurn) this.pendingAutoResume.set(row.frizz_session_id, { row, interruptedTurn })
+        if (interruptedTurn) this.pendingAutoResume.set(row.ntwine_session_id, { row, interruptedTurn })
       } catch {
         detach(row)
       }
@@ -3241,14 +3247,14 @@ export class CodexAppServerBridge {
   // re-establish its own footing.
   //
   // The sub-agent paragraph is load-bearing. A `spawn_agent` child is a turn INSIDE the same
-  // app-server process, so it died with it — and frizz cannot resume it (thread/resume never revives a
+  // app-server process, so it died with it — and ntwine cannot resume it (thread/resume never revives a
   // running turn). Recovery of the children is therefore the PARENT model's job, and before this it
   // depended on the model happening to notice: the 2026-07-24 loss ("three had returned, but six did
   // not") only recovered because the model, on its own, thought to re-spawn. Naming the failure mode
   // explicitly makes that re-establishment reliable instead of lucky. `list_agents` is codex's own
   // authoritative snapshot, so it is the correct thing to point at.
   private static readonly RESTART_RECOVERY_NUDGE = [
-    "[frizz] Your previous turn was interrupted: the Codex app-server process running it exited (a Frizz",
+    "[ntwine] Your previous turn was interrupted: the Codex app-server process running it exited (an Ntwine",
     "restart or a crash). This was not a decision by you or the user, and nothing you had already done",
     "was rolled back — but any command or edit that was in flight at that moment may not have finished.",
     "Re-check the state of your work before trusting it, then continue from where you left off.",
@@ -3283,19 +3289,19 @@ export class CodexAppServerBridge {
       if (this.closed || this.dbReleased) return
       if (row.auto_resumed_turn_id === interruptedTurn) continue
       if (row.auto_resume_count >= CodexAppServerBridge.MAX_AUTO_RESUMES) continue
-      if (this.options.shouldAutoResume && !this.options.shouldAutoResume(row.thread_slug, row.frizz_session_id)) continue
+      if (this.options.shouldAutoResume && !this.options.shouldAutoResume(row.thread_slug, row.ntwine_session_id)) continue
       // Re-read: an operator follow-up may have opened a turn between the rebind and here, in which
       // case their message already IS the continuation and a nudge would be noise.
-      const current = this.bindingForScope(row.thread_slug, row.frizz_session_id)
+      const current = this.bindingForScope(row.thread_slug, row.ntwine_session_id)
       if (!current || current.state !== "active" || current.current_turn_id !== null) continue
       this.scope.prepare(`
         UPDATE codex_app_server_session SET auto_resumed_turn_id = ?, auto_resume_count = auto_resume_count + 1, updated_at = ?
-        WHERE project_id = @project_id AND frizz_session_id = ?
-      `).run(interruptedTurn, this.now().toISOString(), row.frizz_session_id)
+        WHERE project_id = @project_id AND ntwine_session_id = ?
+      `).run(interruptedTurn, this.now().toISOString(), row.ntwine_session_id)
       try {
         await this.startTurn({
           threadSlug: row.thread_slug,
-          sessionId: row.frizz_session_id,
+          sessionId: row.ntwine_session_id,
           text: CodexAppServerBridge.RESTART_RECOVERY_NUDGE,
         })
         this.options.diagnostic?.({ event: "turn-auto-resumed", threadSlug: row.thread_slug, interruptedTurnId: interruptedTurn })
@@ -3315,14 +3321,14 @@ export class CodexAppServerBridge {
   // replay/diagnosis; taking the thread onto a live connection is the edge that retires it.
   private updateResumedBinding(row: BindingRow, codexSessionId: string, effectiveSandbox?: CodexSandboxMode): void {
     if (row.capability_revision !== this.capabilityRevision) {
-      this.options.interactions.cancelForSession(row.thread_slug, row.frizz_session_id, "capabilities-changed")
+      this.options.interactions.cancelForSession(row.thread_slug, row.ntwine_session_id, "capabilities-changed")
     } else if (row.current_turn_id !== null) {
       // Everything scoped to the dead turn dies with it. An approval still pending for it can never be
       // answered — its response would be written to a connection that no longer exists, and the provider
       // can only re-ask inside a NEW turn (whose logical request id differs by construction), so no
       // rebind can ever reach it. `turn/completed` retires these cards on a normal ending; a turn that
       // died with its connection never sends one, so retire them here on the same grounds.
-      this.options.interactions.cancelForSession(row.thread_slug, row.frizz_session_id, "turn-ended")
+      this.options.interactions.cancelForSession(row.thread_slug, row.ntwine_session_id, "turn-ended")
     }
     // `sandbox` is taken from the resume RESPONSE, which reports the thread's effective policy — the
     // one read that is right whether our override applied (cold resume from disk) or was ignored (a
@@ -3332,14 +3338,14 @@ export class CodexAppServerBridge {
       UPDATE codex_app_server_session SET
         codex_session_id = ?, capability_revision = ?, connection_epoch = ?, state = 'active',
         current_turn_id = NULL, updated_at = ?, sandbox = ?
-      WHERE project_id = @project_id AND frizz_session_id = ? AND thread_slug = ? AND codex_thread_id = ?
+      WHERE project_id = @project_id AND ntwine_session_id = ? AND thread_slug = ? AND codex_thread_id = ?
     `).run(
       codexSessionId,
       this.capabilityRevision,
       this.connectionEpoch,
       this.now().toISOString(),
       effectiveSandbox ?? null,
-      row.frizz_session_id,
+      row.ntwine_session_id,
       row.thread_slug,
       row.codex_thread_id,
     )
@@ -3357,20 +3363,20 @@ export class CodexAppServerBridge {
    * Sending NOTHING is not an option, and that was the bug. A resume with no override hands the
    * decision to config.toml, whose defaults are `workspace-write` + `on-request` — so a thread
    * dispatched at full access came back sandboxed AND interactive after its app-server died. It then
-   * hit an approval on its next write, and frizz's observed-permission writeback recorded the
+   * hit an approval on its next write, and ntwine's observed-permission writeback recorded the
    * downgrade as if it were the operator's own choice, making it permanent.
    *
    * The observed `sandbox` cache is deliberately NOT an intent source for the same reason: it records
    * what some process (a terminal `codex resume`, a config default) last did to the SHARED rollout,
-   * never what frizz asked for.
+   * never what ntwine asked for.
    */
   /**
-   * The `config` bag for one thread's `thread/start` / `thread/resume`: frizz's MCP server mounted
+   * The `config` bag for one thread's `thread/start` / `thread/resume`: ntwine's MCP server mounted
    * PER THREAD so it knows who is calling, the operator's Codex context window from Settings, plus
    * whatever the caller passed.
    *
    * This is the only channel that can carry a caller identity on codex. The argv mount on the
-   * app-server is process-wide and serves every thread in the project, so `FRIZZ_THREAD_SLUG` was
+   * app-server is process-wide and serves every thread in the project, so `NTWINE_THREAD_SLUG` was
    * simply absent and every tool that acts on the caller's own thread failed at the moment of use —
    * see `codexThreadMcpConfig` for the list and the measurement. Returns `{}` when there is nothing
    * to send, so a caller with no config, no resolved MCP descriptor and no context-window setting
@@ -3388,7 +3394,7 @@ export class CodexAppServerBridge {
    * a resume rebuilds the thread, it is built from the bag in that request and nothing else: a bag with
    * only a context window in it left the thread on the process-wide MCP mount, with no slug; a bag with
    * no hooks left it with no hooks. That second one is what every resume sent until 2026-10-11, because
-   * the hooks were the dispatcher's own argument to `thread/start` — so after any Frizz restart each
+   * the hooks were the dispatcher's own argument to `thread/start` — so after any Ntwine restart each
    * Codex thread lost its hooks and its reasoning summaries at its next message, for the rest of its
    * life, and nothing reported it.
    *
@@ -3404,7 +3410,7 @@ export class CodexAppServerBridge {
    * - it is mid-turn, or some connection still subscribes to it: the bag is IGNORED and the resume
    *   only rejoins.
    *
-   * So the bag reaches a live thread when Frizz makes the second case happen, and only then:
+   * So the bag reaches a live thread when Ntwine makes the second case happen, and only then:
    * `thread/unsubscribe` first (rebindOwnedSession), on an idle thread with no background command.
    * That is how a thread that was mid-turn when this server came up moves onto this server's MCP shim
    * and hook registrations — before its next turn (startTurn), never during one. A thread holding a
@@ -3416,10 +3422,10 @@ export class CodexAppServerBridge {
     callerConfig?: Record<string, unknown>,
   ): { config?: Record<string, unknown> } {
     const config = {
-      // A thread taught `frizzctl` is given no frizz MCP server, and one an app-server from before the
+      // A thread taught `ntwinectl` is given no ntwine MCP server, and one an app-server from before the
       // update still mounts process-wide is switched off for it (codexThreadMcpOff).
-      ...(this.options.mountsMcp?.(threadSlug) === false ? codexThreadMcpOff() : codexThreadMcpConfig(this.options.frizzMcp, threadSlug)),
-      ...codexThreadShellConfig(this.options.frizzCli, threadSlug, codexAppServerEnvironment()),
+      ...(this.options.mountsMcp?.(threadSlug) === false ? codexThreadMcpOff() : codexThreadMcpConfig(this.options.ntwineMcp, threadSlug)),
+      ...codexThreadShellConfig(this.options.ntwineCli, threadSlug, codexAppServerEnvironment()),
       ...codexContextWindowConfig(this.options.getSettings?.()),
       ...(sessionId ? this.options.workerConfig?.(threadSlug, sessionId) : undefined),
       ...callerConfig,
@@ -3433,19 +3439,19 @@ export class CodexAppServerBridge {
     return this.syncsThreadConfig()
       && binding.ephemeral === 0
       && binding.current_turn_id === null
-      && !this.configApplied.has(binding.frizz_session_id)
+      && !this.configApplied.has(binding.ntwine_session_id)
       && (this.liveExecs.get(binding.codex_thread_id)?.size ?? 0) === 0
   }
 
   private resumeSandboxOverride(
-    row: Pick<BindingRow, "thread_slug" | "frizz_session_id" | "sandbox" | "intended_sandbox">,
+    row: Pick<BindingRow, "thread_slug" | "ntwine_session_id" | "sandbox" | "intended_sandbox">,
   ): { sandbox: CodexSandboxMode; approvalPolicy: string } {
     // `intended_sandbox` wins because it is the only record of an explicit narrowing (setSandbox writes
     // it before the wire call, so it survives a change that could not be delivered). `sandboxFor` is the
-    // registry's stated intent for rows written before that column existed. Everything else is a frizz
-    // worker, and a frizz worker runs at CODEX_DEFAULT_SANDBOX.
+    // registry's stated intent for rows written before that column existed. Everything else is an ntwine
+    // worker, and an ntwine worker runs at CODEX_DEFAULT_SANDBOX.
     const intent = (isCodexSandboxMode(row.intended_sandbox) ? row.intended_sandbox : undefined)
-      ?? this.options.sandboxFor?.(row.thread_slug, row.frizz_session_id)
+      ?? this.options.sandboxFor?.(row.thread_slug, row.ntwine_session_id)
       ?? CODEX_DEFAULT_SANDBOX
     return { sandbox: intent, approvalPolicy: CODEX_APPROVAL_POLICY }
   }
@@ -3457,11 +3463,11 @@ export class CodexAppServerBridge {
    * directory rename (3baa6371 reopens the project at its new path) leaves every existing codex thread
    * recorded at a path that no longer exists, and codex does not merely fail the thread's next command:
    * it spawns NO stdio MCP child for the thread at all, so the worker's registry lists no
-   * `mcp__frizz__*` and it cannot ask, sign off or name itself. Measured 2026-09-18 with
+   * `mcp__ntwine__*` and it cannot ask, sign off or name itself. Measured 2026-09-18 with
    * `_live_codex_resume_mcp.mts` (`STALE_CWD=1`: no child spawned, the model answers NOTOOL) after
    * hypergres → porg took `this-is-a-fresh-project-i` down exactly that way. `thread/resume` takes a
    * `cwd` override, so a resume whose recorded cwd is missing retargets the thread at the project's
-   * CURRENT directory — the only path a frizz worker was ever dispatched into — and the binding is
+   * CURRENT directory — the only path an ntwine worker was ever dispatched into — and the binding is
    * re-recorded on success (recordResumedCwd). A cwd that still exists is left alone: an adopted
    * external rollout may legitimately live somewhere else.
    */
@@ -3470,10 +3476,10 @@ export class CodexAppServerBridge {
     return { cwd: this.options.projectDir }
   }
 
-  private recordResumedCwd(row: Pick<BindingRow, "frizz_session_id">, override: { cwd?: string }): void {
+  private recordResumedCwd(row: Pick<BindingRow, "ntwine_session_id">, override: { cwd?: string }): void {
     if (!override.cwd) return
-    this.scope.prepare("UPDATE codex_app_server_session SET cwd = ?, updated_at = ? WHERE project_id = @project_id AND frizz_session_id = ?")
-      .run(override.cwd, this.now().toISOString(), row.frizz_session_id)
+    this.scope.prepare("UPDATE codex_app_server_session SET cwd = ?, updated_at = ? WHERE project_id = @project_id AND ntwine_session_id = ?")
+      .run(override.cwd, this.now().toISOString(), row.ntwine_session_id)
   }
 
   /**
@@ -3492,7 +3498,7 @@ export class CodexAppServerBridge {
    * tells the two apart, and an unknown cache falls to the strict "wait for the notification" branch.
    */
   /**
-   * The live background execs frizz is tracking for one thread — the source of its background-shell
+   * The live background execs ntwine is tracking for one thread — the source of its background-shell
    * rows. Empty for a thread with none, for a session this bridge does not own, and for the whole
    * lifetime of a codex older than the experimental API (nothing ever emits a `processId`).
    *
@@ -3518,20 +3524,20 @@ export class CodexAppServerBridge {
   }
 
   /**
-   * KILL ONE background exec, and tell the worker frizz did.
+   * KILL ONE background exec, and tell the worker ntwine did.
    *
-   * `thread/backgroundTerminals/terminate` is gated on `capabilities.experimentalApi`, which frizz has
+   * `thread/backgroundTerminals/terminate` is gated on `capabilities.experimentalApi`, which ntwine has
    * always sent (CLIENT_CAPABILITIES) — so no handshake change was needed to reach it. Verified live
    * against codex-cli 0.146.0 (backend/_live_codex_bgterm.mts): the call answers `{terminated:true}`,
    * the exec flips to `status:"failed" exitCode:-1`, and the real OS process — a descendant of the
-   * app-server frizz spawned — is gone.
+   * app-server ntwine spawned — is gone.
    *
    * The NOTICE is not optional politeness. The same probe measured codex's silence: after a terminate,
    * the model's own account was that the command "was running when I returned control … no exit code",
    * because completion in codex is POLLED, never pushed — the `exitCode:-1` goes to the CLIENT and
    * never enters model context. `thread/inject_items` ("Raw Responses API items to append to the
    * thread's model-visible history") is the channel that fixes it, and with the notice injected the
-   * model instead said the command "is stopped and will never report a result, because the Frizz
+   * model instead said the command "is stopped and will never report a result, because the Ntwine
    * operator explicitly terminated it from the dashboard".
    *
    * A notice that fails to land is REPORTED, never thrown: the process is already dead by then, and
@@ -3541,7 +3547,7 @@ export class CodexAppServerBridge {
     threadSlug: string
     sessionId: string
     processId: string
-    /** What to tell the worker. Absent ⇒ kill silently (nothing in frizz asks for that today). */
+    /** What to tell the worker. Absent ⇒ kill silently (nothing in ntwine asks for that today). */
     notice?: string
   }): Promise<{ terminated: boolean; noticeFailed: string | null }> {
     const releaseOperation = this.beginOperation()
@@ -3599,7 +3605,7 @@ export class CodexAppServerBridge {
       if (!binding) throw new Error("Codex app-server sandbox change requires a bridge-owned session")
       if (binding.state !== "active" || binding.connection_epoch !== this.connectionEpoch) {
         // A detached thread has to be back on this connection before the server will accept settings
-        // for it. The resume carries frizz's intent itself, so this frequently applies the change on
+        // for it. The resume carries ntwine's intent itself, so this frequently applies the change on
         // its own — the update below then confirms (or no-ops, which the cache reports honestly).
         await this.resumeOwnedSession(input.threadSlug, input.sessionId)
         binding = this.bindingForScope(input.threadSlug, input.sessionId)
@@ -3608,8 +3614,8 @@ export class CodexAppServerBridge {
       const threadId = binding.codex_thread_id
       // Record the INTENT before the wire call, and independently of whether it lands. Even a change
       // the app-server never confirms must survive to the next cold resume — that is the whole promise
-      // behind "saved for the next resume", and frizz's own registry cannot hold it for a codex row.
-      this.scope.prepare("UPDATE codex_app_server_session SET intended_sandbox = ?, updated_at = ? WHERE project_id = @project_id AND frizz_session_id = ? AND thread_slug = ?")
+      // behind "saved for the next resume", and ntwine's own registry cannot hold it for a codex row.
+      this.scope.prepare("UPDATE codex_app_server_session SET intended_sandbox = ?, updated_at = ? WHERE project_id = @project_id AND ntwine_session_id = ? AND thread_slug = ?")
         .run(input.sandbox, this.now().toISOString(), input.sessionId, input.threadSlug)
       // Sampled BEFORE the update: whether the operator's change was made against a running turn is
       // what decides the wording, and the turn can end while we wait for the confirmation.
@@ -3681,7 +3687,7 @@ export class CodexAppServerBridge {
   private ownedBinding(threadId: string, turnId: string | null): BindingRow {
     const row = this.bindingForCodexThread(threadId)
     if (!row || row.state !== "active" || row.connection_epoch !== this.connectionEpoch) {
-      throw new RpcProtocolError(-32602, "Codex request is not owned by this Frizz bridge connection")
+      throw new RpcProtocolError(-32602, "Codex request is not owned by this Ntwine bridge connection")
     }
     if (turnId !== null) {
       if (row.current_turn_id !== null && row.current_turn_id !== turnId) {
@@ -3695,8 +3701,8 @@ export class CodexAppServerBridge {
         // authority; pin it before journaling rather than inventing a client-side id.
         this.scope.prepare(`
           UPDATE codex_app_server_session SET current_turn_id = ?, updated_at = ?
-          WHERE project_id = @project_id AND frizz_session_id = ? AND connection_epoch = ? AND current_turn_id IS NULL
-        `).run(turnId, this.now().toISOString(), row.frizz_session_id, this.connectionEpoch)
+          WHERE project_id = @project_id AND ntwine_session_id = ? AND connection_epoch = ? AND current_turn_id IS NULL
+        `).run(turnId, this.now().toISOString(), row.ntwine_session_id, this.connectionEpoch)
         return this.bindingForCodexThread(threadId)!
       }
     }
@@ -3768,7 +3774,7 @@ export class CodexAppServerBridge {
     const binding = this.bindingForCodexThread(item.threadId)
     if (!binding || binding.connection_epoch !== item.connectionEpoch || binding.state !== "active") return false
     const result = this.options.interactions.invalidateProviderRequest(
-      { projectId: this.options.projectId, threadSlug: binding.thread_slug, sessionId: binding.frizz_session_id },
+      { projectId: this.options.projectId, threadSlug: binding.thread_slug, sessionId: binding.ntwine_session_id },
       item.interactionId,
       reason,
     )
@@ -3810,7 +3816,7 @@ export class CodexAppServerBridge {
       owner: {
         projectId: this.options.projectId,
         threadSlug: row.thread_slug,
-        sessionId: row.frizz_session_id,
+        sessionId: row.ntwine_session_id,
         turnId,
         itemId,
         sessionEpoch: row.session_epoch,
@@ -3821,7 +3827,7 @@ export class CodexAppServerBridge {
       payload,
       expiresAt,
     })
-    if (!parsed.success) throw new RpcProtocolError(-32602, "Codex request cannot be represented by the Frizz interaction protocol")
+    if (!parsed.success) throw new RpcProtocolError(-32602, "Codex request cannot be represented by the Ntwine interaction protocol")
     return parsed.data
   }
 
@@ -3886,7 +3892,7 @@ export class CodexAppServerBridge {
       // operations, or diff before Codex asks again. Bind dedupe/reconnect to the exact raw snapshot
       // fingerprint without persisting the raw (potentially secret-bearing) patch in provider context.
       logicalId = logicalRequestId(method, [params.threadId, params.turnId, params.itemId, correlated.snapshotFingerprint])
-      const scope = { projectId: this.options.projectId, threadSlug: row.thread_slug, sessionId: row.frizz_session_id }
+      const scope = { projectId: this.options.projectId, threadSlug: row.thread_slug, sessionId: row.ntwine_session_id }
       for (const stale of this.options.interactions.listPending(scope)) {
         if (
           stale.provider.kind !== "codex" ||
@@ -3964,7 +3970,7 @@ export class CodexAppServerBridge {
       if (!parsed.success) throw new RpcProtocolError(-32602, "Invalid Codex user-input request")
       const params = parsed.data
       if (params.questions.some((question) => question.isSecret)) {
-        // The exact protocol can carry secret answers, but Frizz's durable provider outbox cannot do
+        // The exact protocol can carry secret answers, but Ntwine's durable provider outbox cannot do
         // so without retaining plaintext. Keep this capability unavailable until transient encrypted
         // delivery exists; do not render an action that will inevitably fail. Turn interruption is a
         // separate `turn/interrupt` client request, never a fabricated user-input response.
@@ -3999,7 +4005,7 @@ export class CodexAppServerBridge {
       providerContext = { fingerprint: requestFingerprint(params) }
       if (params.mode === "openai/form") {
         // The initialize capability explicitly disables this opaque, vendor-extended form contract.
-        throw new RpcProtocolError(-32601, "OpenAI extended MCP forms are not supported by this Frizz bridge")
+        throw new RpcProtocolError(-32601, "OpenAI extended MCP forms are not supported by this Ntwine bridge")
       }
       const row = this.ownedBinding(params.threadId, params.turnId)
       const ownerTurnId = params.turnId ?? `mcp-unscoped-${params.threadId}`
@@ -4075,9 +4081,9 @@ export class CodexAppServerBridge {
   // item and a commandExecution is exactly that.
   //
   // Only an exec carrying a `processId` is tracked at all: the app-server sets it on the yielded/PTY
-  // execs and leaves it off ordinary foreground commands, which is the same distinction frizz's own
+  // execs and leaves it off ordinary foreground commands, which is the same distinction ntwine's own
   // `codexExplicitBackground()` draws in the rollout. So this level lands on the background set
-  // without frizz having to classify anything itself.
+  // without ntwine having to classify anything itself.
   private foldExecItem(threadId: string, rawItem: unknown, startedAtMs?: number): void {
     const parsed = CommandExecutionItem.safeParse(rawItem)
     if (!parsed.success) return
@@ -4111,7 +4117,7 @@ export class CodexAppServerBridge {
   // The level above is folded off `item/started`, and that notification went to the client connection
   // we just lost: the daemon queues only while NO client is attached, and the native listener queues
   // nothing, so neither ever replays it. The exec, meanwhile, is still running in that process's PTY —
-  // so without this its row vanished from the board after every Frizz restart or dropped socket and
+  // so without this its row vanished from the board after every Ntwine restart or dropped socket and
   // never came back until the exec ended, taking its × with it. `thread/backgroundTerminals/list` is
   // the app-server's own answer to "what is still running".
   //
@@ -4181,7 +4187,7 @@ export class CodexAppServerBridge {
       if (!parsed.success) return
       const binding = this.bindingForCodexThread(parsed.data.threadId)
       if (!binding || binding.state !== "active" || binding.connection_epoch !== this.connectionEpoch || binding.current_turn_id !== parsed.data.turnId) return
-      this.providerErrors.set(binding.frizz_session_id, codexProviderError(parsed.data.error, this.now().toISOString(), parsed.data.willRetry))
+      this.providerErrors.set(binding.ntwine_session_id, codexProviderError(parsed.data.error, this.now().toISOString(), parsed.data.willRetry))
       this.options.onStatusChange?.()
       return
     }
@@ -4189,7 +4195,7 @@ export class CodexAppServerBridge {
       const envelope = ItemStartedNotification.safeParse(rawParams)
       if (!envelope.success) return
       const binding = this.bindingForCodexThread(envelope.data.threadId)
-      if (binding?.state === "active" && binding.connection_epoch === this.connectionEpoch && binding.current_turn_id === envelope.data.turnId && this.providerErrors.delete(binding.frizz_session_id)) this.options.onStatusChange?.()
+      if (binding?.state === "active" && binding.connection_epoch === this.connectionEpoch && binding.current_turn_id === envelope.data.turnId && this.providerErrors.delete(binding.ntwine_session_id)) this.options.onStatusChange?.()
       this.foldExecItem(envelope.data.threadId, envelope.data.item, envelope.data.startedAtMs)
       const item = FileChangeItem.safeParse(envelope.data.item)
       if (!item.success || item.data.status !== "inProgress") return
@@ -4256,11 +4262,11 @@ export class CodexAppServerBridge {
         CODEX_APP_SERVER_PROVIDER,
         this.connectionEpoch,
         parsed.data.requestId,
-        { projectId: this.options.projectId, threadSlug: binding.thread_slug, sessionId: binding.frizz_session_id },
+        { projectId: this.options.projectId, threadSlug: binding.thread_slug, sessionId: binding.ntwine_session_id },
       )
       if (result && (
         result.interaction.owner.threadSlug !== binding.thread_slug ||
-        result.interaction.owner.sessionId !== binding.frizz_session_id
+        result.interaction.owner.sessionId !== binding.ntwine_session_id
       )) {
         throw new Error("Codex request acknowledgement crossed an owned session boundary")
       }
@@ -4291,19 +4297,19 @@ export class CodexAppServerBridge {
       if (!binding || binding.connection_epoch !== this.connectionEpoch || binding.state !== "active") return
       if (binding.current_turn_id !== null) {
         // Duplicate notification for the witnessed turn is harmless. A different id must never
-        // overwrite the authority already pinned to this Frizz-owned session.
+        // overwrite the authority already pinned to this Ntwine-owned session.
         return
       }
       // No local `turn/start` pending means the app-server opened this turn BY ITSELF — a thread goal
       // (`thread/goal/set`, which the worker can arm through codex's own `create_goal` tool) makes it
-      // start a continuation turn the instant the previous one completes, on the very connection Frizz
+      // start a continuation turn the instant the previous one completes, on the very connection Ntwine
       // holds. Those turns used to be ignored here, so `current_turn_id` stayed null for their whole
       // life and everything downstream read them as an OUTSIDE writer: the board saw rollout activity
       // with no bridge turn, followUp refused the operator's steer as "running in your terminal", and
       // an approval raised inside one was rejected as unwitnessed (live 2026-09-10, a goal-driven
-      // research thread the operator could not steer). A turn the app-server starts on Frizz's own
-      // connection is Frizz's turn: adopt it, and `turn/completed` retires it like any other.
-      this.providerErrors.delete(binding.frizz_session_id)
+      // research thread the operator could not steer). A turn the app-server starts on Ntwine's own
+      // connection is Ntwine's turn: adopt it, and `turn/completed` retires it like any other.
+      this.providerErrors.delete(binding.ntwine_session_id)
       this.scope.prepare(`
         UPDATE codex_app_server_session SET current_turn_id = ?, updated_at = ?
         WHERE project_id = @project_id AND codex_thread_id = ? AND connection_epoch = ? AND current_turn_id IS NULL
@@ -4316,9 +4322,9 @@ export class CodexAppServerBridge {
       const binding = this.bindingForCodexThread(parsed.data.threadId)
       if (binding?.state === "active" && binding.connection_epoch === this.connectionEpoch && binding.current_turn_id === parsed.data.turn.id) {
         if (parsed.data.turn.error != null || parsed.data.turn.status === "failed") {
-          this.providerErrors.set(binding.frizz_session_id, codexProviderError(parsed.data.turn.error, this.now().toISOString()))
+          this.providerErrors.set(binding.ntwine_session_id, codexProviderError(parsed.data.turn.error, this.now().toISOString()))
         } else {
-          this.providerErrors.delete(binding.frizz_session_id)
+          this.providerErrors.delete(binding.ntwine_session_id)
         }
       }
       for (const item of [...this.correlatedFileItems.values()]) {

@@ -17,7 +17,7 @@ import { createThreadNamer, foldThreadName, type ThreadNamer } from "./thread-na
 // first-output marker is told the same, and a caller's hard-coded title is held to the same rule.
 
 function harness(answers: string[]) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-dispatch-names-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-dispatch-names-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = { dir, id: "names", name: "t", label: "o/t", stateDir: dir, cwdSlug: cwdSlug(dir) }
   const board = {
@@ -77,7 +77,7 @@ function harness(answers: string[]) {
 
 function openNamed(storage: ReturnType<typeof createStorage>, slug: string, title: string): void {
   storage.upsertSession({
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-09-29T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-09-29T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1, title_locked: 0,
     title: "chop…", state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)

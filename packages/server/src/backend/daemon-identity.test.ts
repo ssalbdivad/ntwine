@@ -47,7 +47,7 @@ test("recordedDaemonIsLive: the pid and its birth, with every weaker reading kee
 })
 
 test("all three hosts disown a record whose pid now belongs to a stranger, and prune it", linuxOnly, async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-daemon-identity-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-daemon-identity-"))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const s = await strangerOnTheRecordedPid()
   t.after(s.stop)

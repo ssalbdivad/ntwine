@@ -36,7 +36,7 @@ if (!home) throw new Error("--home is required (take it from adhoc-stack's json 
 
 const SLUG = `subagent-taskid-${Date.now().toString(36)}`
 const SESSION = randomUUID()
-const CWD = "/Users/colinmcd94/Documents/projects/frizz"
+const CWD = "/Users/colinmcd94/Documents/projects/ntwine"
 const projectDir = join(home, ".claude", "projects", CWD.replace(/[/.]/g, "-"))
 const transcript = join(projectDir, `${SESSION}.jsonl`)
 
@@ -44,7 +44,7 @@ const transcript = join(projectDir, `${SESSION}.jsonl`)
 // Record shapes copied from the real bytes of nub session 0bb9560b (2026-07-30).
 const rec = (o) => `${JSON.stringify(o)}\n`
 const dispatch = (id, description, at) =>
-  rec({ type: "assistant", timestamp: at, message: { id: `m-${id}`, role: "assistant", content: [{ type: "tool_use", id, name: "Agent", input: { description, prompt: `do ${description}`, subagent_type: "frizz:opus-high", run_in_background: true } }] } })
+  rec({ type: "assistant", timestamp: at, message: { id: `m-${id}`, role: "assistant", content: [{ type: "tool_use", id, name: "Agent", input: { description, prompt: `do ${description}`, subagent_type: "ntwine:opus-high", run_in_background: true } }] } })
 const ack = (id, agentId, at) =>
   rec({
     type: "user",
@@ -79,7 +79,7 @@ const sandbox = resolveSandboxDb(home)
 // such column. `sessionProjectColumns` yields the right prefix pair for whichever this sandbox is.
 const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
 const dbPath = sandbox.db
-execFileSync("sqlite3", [dbPath, `INSERT INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode) VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${new Date().toISOString()}', 'Sub-agent task-id completion', 'claude', 'opus', 'high', 'auto')`])
+execFileSync("sqlite3", [dbPath, `INSERT INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode) VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${new Date().toISOString()}', 'Sub-agent task-id completion', 'claude', 'opus', 'high', 'auto')`])
 
 const api = createRpcClient(`http://127.0.0.1:${port}/`)
 await api.waitForHealth()

@@ -1,12 +1,12 @@
-# Codex support for frizz — investigation + adapter plan
+# Codex support for ntwine — investigation + adapter plan
 
 **Status:** investigation + design. No production code changed. All findings below are grounded in
 real experiments run against `codex-cli 0.144.1` (`~/.local/bin/codex`) on 2026-07-10, and in the
-current frizz source at `ui/packages/server/src/*`.
+current ntwine source at `ui/packages/server/src/*`.
 
 ## TL;DR
 
-- **Codex fits frizz's spawn + tail + resume model.** It runs headless (`codex exec`) and as an
+- **Codex fits ntwine's spawn + tail + resume model.** It runs headless (`codex exec`) and as an
   interactive TUI (`codex`), both write a durable JSONL transcript ("rollout") to
   `~/.codex/sessions/YYYY/MM/DD/`, and both resume the same session by id (`codex exec resume <id>` /
   `codex resume <id>`) appending to the **same** rollout file. That is structurally the same shape as
@@ -56,9 +56,9 @@ tailing depends on the rollout), `-c key=value` (arbitrary TOML config override)
 ### 1.2 A real headless run (exact command + result)
 
 ```bash
-cd /tmp/codex-frizz-exp   # a git repo with hello.txt = "test file"
+cd /tmp/codex-ntwine-exp   # a git repo with hello.txt = "test file"
 codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \
-  -o /tmp/codex-frizz-exp/last.txt \
+  -o /tmp/codex-ntwine-exp/last.txt \
   "Read hello.txt and tell me what it says in one sentence. Then end your message with a fenced code block: ```done newline all good newline ```"
 ```
 
@@ -97,13 +97,13 @@ codex exec resume 019f4cca-7ad6-74a1-a1f3-400a0deae173 \
 ```
 
 The resume **appended to the same** on-disk rollout file
-(`rollout-2026-07-10T09-09-25-019f4cca-…​.jsonl`) — no new file. This is exactly the property frizz's
+(`rollout-2026-07-10T09-09-25-019f4cca-…​.jsonl`) — no new file. This is exactly the property ntwine's
 tailer relies on: one growing transcript per session that a byte-offset cursor can follow across
 turns and across a dead-session resume.
 
 ### 1.4 Custom-instruction / worker-contract injection
 
-Frizz injects the fixed worker norms (`WORKER_PROMPT.md`) at **system** level via
+Ntwine injects the fixed worker norms (`WORKER_PROMPT.md`) at **system** level via
 `claude --append-system-prompt-file`. Codex has no `--append-system-prompt` flag. Two channels were
 tested; results:
 
@@ -156,7 +156,7 @@ put the AGENTS.md without polluting the repo — see §6.
 Every line is `{"timestamp": ISO8601, "type": <string>, "payload": {…}}`. Observed `type`s from the
 real 18-line rollout (a one-tool turn):
 
-| `type` | Role | Key payload fields frizz cares about |
+| `type` | Role | Key payload fields ntwine cares about |
 |---|---|---|
 | `session_meta` | First line; session header | `payload.session_id`, `payload.cwd`, `payload.originator` (`codex_exec`), `payload.source` (`exec`), `payload.cli_version`, `payload.base_instructions.text` (the full system prompt) |
 | `turn_context` | Per-turn config | `cwd`, `model`, `effort`, `approval_policy`, `sandbox_policy` |
@@ -166,7 +166,7 @@ real 18-line rollout (a one-tool turn):
 
 The two families overlap deliberately: `event_msg` is the high-level story (turn lifecycle + final
 answer), `response_item` is the low-level API trace (every tool call/result and reasoning block).
-**frizz should parse `event_msg` for state and `response_item` for tool-call rendering.**
+**ntwine should parse `event_msg` for state and `response_item` for tool-call rendering.**
 
 ### 2.3 The turn-state signal (cleaner than Claude's)
 
@@ -241,9 +241,9 @@ the rollout, the way `tailer.ts` recovers them for Claude — just off a differe
    `tailer.ts` → a codex rollout parser producing the same normalized folds.
 5. **Perm-prompt markers** — `matchesPermPrompt` regexes → codex TUI markers (or disabled for codex).
 6. **Sub-agent / bg-shell / native-ask tracking** — Claude-only; codex adapter returns empty.
-7. **Session-seed hooks** (`cc/hooks/session-seed.mjs`, gated on `FRIZZ_THREAD`): these are Claude
+7. **Session-seed hooks** (`cc/hooks/session-seed.mjs`, gated on `NTWINE_THREAD`): these are Claude
    Code hooks (`~/.claude` `SessionStart`). Codex has its own hook system
-   (`~/.codex` `frizz-session-start.mjs` etc. already exist in `codex/hooks/`). Worker-contract
+   (`~/.codex` `ntwine-session-start.mjs` etc. already exist in `codex/hooks/`). Worker-contract
    seeding for codex rides AGENTS.md instead; codex hooks are a separate, optional parity effort.
 
 ---
@@ -371,7 +371,7 @@ Goal: introduce `AgentBackend` + `NormalizedEvent` and move all Claude-specific 
 `ClaudeBackend`, with **byte-for-byte identical** observable behavior. Every gate stays green.
 
 1. Add the `AgentBackend` interface + `NormalizedEvent` union to a new `server/src/backend/` module
-   (or `@frizz/shared` for the types).
+   (or `@ntwine/shared` for the types).
 2. Extract `ClaudeBackend`: move the argv builders + `parseLine` (re-express `applyRecord` as
    `NormalizedEvent[]`) + `transcriptPath` + `matchesPermPrompt`.
 3. Rewrite `tailer.ts` to fold `NormalizedEvent`s from `backend.parseLine` into `NormalizedTail`
@@ -388,7 +388,7 @@ Goal: introduce `AgentBackend` + `NormalizedEvent` and move all Claude-specific 
    the regression proof. Then dogfood: spawn a real Claude worker, confirm sidebar runtime, turn-idle,
    fences, sub-agent drill-in, and wakers all behave as today.
 
-*Deliverable of Phase 1: identical frizz, now backend-pluggable.* This is the bulk of the work and
+*Deliverable of Phase 1: identical ntwine, now backend-pluggable.* This is the bulk of the work and
 carries all the risk; land it alone.
 
 ### Phase 2 — CodexBackend
@@ -427,13 +427,13 @@ carries all the risk; land it alone.
   discovered post-spawn. Every worker runs in the **same repo cwd**, so "newest fresh rollout in this
   cwd" is racy across concurrent codex dispatches. Mitigations to evaluate: (a) spawn codex via
   `codex exec --json` in a wrapper that captures `thread.started.thread_id` from stdout and writes it
-  to a known sidecar path frizz reads — but that only works headless, not for the attach-able TUI;
+  to a known sidecar path ntwine reads — but that only works headless, not for the attach-able TUI;
   (b) briefly serialize codex spawns and grab the single newest rollout created in a tight window;
-  (c) match on `session_meta.cwd` + a frizz marker we can force into the rollout (e.g. a unique
+  (c) match on `session_meta.cwd` + an ntwine marker we can force into the rollout (e.g. a unique
   sentinel in the first prompt) and scan for it. **Recommendation:** prototype (b)+(c) in Phase 2;
   this is the single biggest codex-adapter risk.
 - **AGENTS.md placement.** Writing a repo-root `AGENTS.md` pollutes the user's workspace and collides
-  with a repo that already has one. Options: (a) append frizz's contract to the existing AGENTS.md and
+  with a repo that already has one. Options: (a) append ntwine's contract to the existing AGENTS.md and
   restore on exit (fragile); (b) use `--add-dir` / a config-declared extra instructions dir if codex
   supports one; (c) rely on prompt-prepend for the contract and use AGENTS.md only if the repo has no
   own file. **Open — needs a focused codex-config spike** (does codex support an out-of-tree
@@ -447,7 +447,7 @@ carries all the risk; land it alone.
 - **Sub-agent parity.** Codex's multi-agent is `v1`/emerging; today there's no child-transcript to
   tail. The drill-in surface stays Claude-only until codex exposes a stable sub-agent artifact. Not a
   blocker — degrade to empty.
-- **Reasoning blocks are encrypted** (`response_item/reasoning.encrypted_content`). Fine — frizz never
+- **Reasoning blocks are encrypted** (`response_item/reasoning.encrypted_content`). Fine — ntwine never
   needed model reasoning; we render commentary `agent_message`s and tool calls.
 - **Two event families in the rollout** (`event_msg` vs `response_item`) describe overlapping
   activity. The parser must not double-count (e.g. count a turn from `task_started` **and** an
@@ -462,7 +462,7 @@ carries all the risk; land it alone.
 
 ---
 
-## Appendix — key file references (frizz)
+## Appendix — key file references (ntwine)
 
 - Tailer / JSONL parser (Claude-coupled): `ui/packages/server/src/tailer.ts`
 - Spawn + prompt compose + argv: `ui/packages/server/src/dispatch.ts`
@@ -472,8 +472,8 @@ carries all the risk; land it alone.
 - Runtime derivation: `ui/packages/server/src/board.ts` (`deriveRuntime`)
 - Wire schema / RuntimeState / DispatchInput / Settings: `ui/packages/shared/src/index.ts`
 - Worker contract (transfers): `ui/WORKER_PROMPT.md`, `cc-worker/skills/worker/SKILL.md`
-- Claude session-seed hook (gated on `FRIZZ_THREAD`): `cc/hooks/session-seed.mjs`
-- Existing codex hook stubs (parity effort): `codex/hooks/frizz-session-start.mjs` et al.
+- Claude session-seed hook (gated on `NTWINE_THREAD`): `cc/hooks/session-seed.mjs`
+- Existing codex hook stubs (parity effort): `codex/hooks/ntwine-session-start.mjs` et al.
 
 ## Appendix — reproducing the codex experiments
 

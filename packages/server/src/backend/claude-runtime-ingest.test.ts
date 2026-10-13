@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { createReceiptBus } from "@frizz/shared"
+import { createReceiptBus } from "@ntwine/shared"
 import { createClaudeRuntimeIngest, resolveRuntimeTurn, type ClaudeRuntimeReceipt } from "./claude-runtime-ingest.ts"
 import type { ClaudeQueryEvent } from "./claude-agent-sdk-protocol.ts"
 
@@ -248,13 +248,13 @@ test("tasks: a session with no task events reports an empty set", async () => {
 
 test("tasks: started → progress accumulates what the child is doing", async () => {
   const ingest = createClaudeRuntimeIngest({ nudge: () => {} })
-  ingest.onEvent("t", sessionId, task({ phase: "started", taskId: "k1", toolUseId: "toolu_1", description: "Audit the fold", subagentType: "frizz:opus-high" }))
+  ingest.onEvent("t", sessionId, task({ phase: "started", taskId: "k1", toolUseId: "toolu_1", description: "Audit the fold", subagentType: "ntwine:opus-high" }))
   ingest.onEvent("t", sessionId, task({ phase: "progress", taskId: "k1", lastToolName: "Bash", summary: "running the harness", usage: { totalTokens: 1234, toolUses: 7, durationMs: 9000 } }))
   await ingest.drain()
   const [entry] = ingest.tasks(sessionId)
   assert.equal(entry?.toolUseId, "toolu_1")
   assert.equal(entry?.description, "Audit the fold")
-  assert.equal(entry?.subagentType, "frizz:opus-high")
+  assert.equal(entry?.subagentType, "ntwine:opus-high")
   assert.equal(entry?.lastToolName, "Bash")
   assert.equal(entry?.summary, "running the harness")
   assert.equal(entry?.toolUses, 7)
@@ -281,7 +281,7 @@ test("tasks: a notification is terminal, and its outcome is normalized", async (
 })
 
 test("tasks: an UNKNOWN status is never terminal", async () => {
-  // A status frizz has never seen must not retire a live child. The whole point of this signal is to
+  // A status ntwine has never seen must not retire a live child. The whole point of this signal is to
   // remove phantoms, and "retire on anything unfamiliar" would manufacture the opposite failure —
   // the board reporting done while the work continues.
   const ingest = createClaudeRuntimeIngest({ nudge: () => {} })
@@ -358,7 +358,7 @@ test("tasks: the per-session table is bounded, evicting FINISHED tasks first", a
 // orchestrator session bills its sub-agents' models on the SAME result, so picking this thread's row
 // needs the alias `init` announced. There was no coverage here at all, which is how the reattach
 // regression below survived: the alias arrived once per DAEMON lifetime, and a broker daemon outlives
-// the frizz server, so every thread reattached after a restart lost its readout for good.
+// the ntwine server, so every thread reattached after a restart lost its readout for good.
 
 const initAs = (model: string): ClaudeQueryEvent => ({ ...ev.init, model })
 const resultBilling = (windows: Record<string, number>): ClaudeQueryEvent =>
@@ -401,12 +401,12 @@ test("context window: no alias + more than one billed model reports NOTHING", as
   ingest.close()
 })
 
-// THE REATTACH REGRESSION. frizz restarts; the broker daemon does not. The first events this ingest ever
+// THE REATTACH REGRESSION. ntwine restarts; the broker daemon does not. The first events this ingest ever
 // sees for a surviving session are mid-session, and the alias has to arrive on the NEXT turn's re-init
 // — which the SDK wrapper used to swallow (claude-agent-sdk.ts). Without it, this session's very next
 // multi-model result names no window and the thread's context dial never comes back, however long it
 // keeps working. Measured on the maintainer's board before the fix: 42 of 323 claude threads had a
-// reading, split exactly on which frizz process had forked the daemon.
+// reading, split exactly on which ntwine process had forked the daemon.
 test("context window: a session joined mid-flight relearns its alias from the next turn's re-init", async () => {
   const ingest = createClaudeRuntimeIngest({ nudge: () => {} })
   // Turn N ends first — we attached after its init, so there is no alias yet and nothing is guessed.
@@ -479,7 +479,7 @@ test("context window: latched — a later result that omits the row does not bla
 })
 
 // ---- the auto-compact ceiling ---------------------------------------------------------------------
-// Frizz dispatches at the 1M window and then hands the worker a 500K CLAUDE_CODE_AUTO_COMPACT_WINDOW,
+// Ntwine dispatches at the 1M window and then hands the worker a 500K CLAUDE_CODE_AUTO_COMPACT_WINDOW,
 // and Claude Code's effective window is the `min` of the two — its own /config help says so. The dial
 // divided by the model's number instead, so a session with 253,862 tokens of a 500K allowance rendered
 // "25% full" (maintainer 2026-09-01). The lowering lives here, once, so every reader downstream gets

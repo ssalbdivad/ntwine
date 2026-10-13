@@ -17,7 +17,7 @@ const SHA = "6b6436701f2a3c4d5e6f708192a3b4c5d6e7f809"
 const RUN = "18123456789"
 const CI_AUTHOR = "4f1c2b3a9d8e7f60a1b2c3d4e5f60718"
 const NOW = Date.parse("2026-10-09T12:00:00Z")
-const base = `/accounts/${ACCOUNT_ID}/workers/scripts/frizz-relay`
+const base = `/accounts/${ACCOUNT_ID}/workers/scripts/ntwine-relay`
 
 const ciVersion = (id, created_on, overrides = {}) => ({
   id,
@@ -73,7 +73,7 @@ function apis({ deployments, versions, runs = { [RUN]: run() } }) {
 
 const check = (fixture, options = {}) => {
   const { cf, gh } = apis(fixture)
-  return checkWorker("frizz-relay", { cf, gh, repo: REPO, expectedAuthor: CI_AUTHOR, now: NOW, ...options })
+  return checkWorker("ntwine-relay", { cf, gh, repo: REPO, expectedAuthor: CI_AUTHOR, now: NOW, ...options })
 }
 
 const v1 = "11111111-1111-4111-8111-111111111111"
@@ -205,7 +205,7 @@ test("an author email matches as well as an author id", async () => {
 
 test("a Worker with no deployments at all is a finding", async () => {
   const problems = await check({ deployments: [], versions: [] })
-  assert.deepEqual(problems, ["frizz-relay: Cloudflare lists no deployments at all"])
+  assert.deepEqual(problems, ["ntwine-relay: Cloudflare lists no deployments at all"])
 })
 
 async function server(t, handler) {

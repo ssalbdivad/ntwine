@@ -38,7 +38,7 @@ const router = (idx: number) => ({ usr: null, key: `k${idx}`, idx })
 
 test("a document that boots on a stale layer entry steps off it, and off every stale one under it", async () => {
   // board, thread, then two layers a previous document pushed (a reader over a reader): tokens from its clock.
-  const h = fakeHistory([router(0), router(1), { ...router(1), frizzLayer: 5 }, { ...router(1), frizzLayer: 6 }])
+  const h = fakeHistory([router(0), router(1), { ...router(1), ntwineLayer: 5 }, { ...router(1), ntwineLayer: 6 }])
   try {
     stepOffStaleLayerEntries()
     await settle()
@@ -65,7 +65,7 @@ test("a document that boots on the router's own entry does nothing", async () =>
 
 test("a layer token this document minted is never stepped off", async () => {
   // Every token this document mints starts from its own load-time clock, so one at or above now is live.
-  const h = fakeHistory([router(0), router(1), { ...router(1), frizzLayer: Date.now() + 60_000 }])
+  const h = fakeHistory([router(0), router(1), { ...router(1), ntwineLayer: Date.now() + 60_000 }])
   try {
     stepOffStaleLayerEntries()
     await settle()

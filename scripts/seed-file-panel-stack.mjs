@@ -31,5 +31,5 @@ const records = [
 ].map((r) => ({ ...r, uuid: randomUUID(), parentUuid: null, isSidechain: false, timestamp: now, session_id: sessionId, cwd: project }))
 writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stringify(r)).join("\n") + "\n")
 execFileSync("sqlite3", [sandbox.db, `INSERT INTO session (${cols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-  VALUES (${vals}'${slug}', '${sessionId}', 'frizz-${slug}', '${now}', 'File preview stack', 'claude', 'opus', 'high', 'default', '${now}')`])
+  VALUES (${vals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${now}', 'File preview stack', 'claude', 'opus', 'high', 'default', '${now}')`])
 console.log(JSON.stringify({ slug, docs }))

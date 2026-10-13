@@ -1,6 +1,6 @@
 // THE FILE'S PROBLEMS AND THE TERMINAL'S LAST COMMAND, live — the glue between VS Code and extras.ts.
 //
-// Two jobs. It tells the sidebar's page what else there is to add (`frizz:editor-extras`: the file in
+// Two jobs. It tells the sidebar's page what else there is to add (`ntwine:editor-extras`: the file in
 // front's problem counts, the last command's line and exit code) after the page says it is ready and on
 // every change, debounced like the editor-context feed; and it answers what a click on either (or the
 // palette's command) puts in the prompt: the problems' text, or the command with its output.
@@ -23,7 +23,7 @@
 
 import { randomUUID } from "node:crypto"
 import type * as vscode from "vscode"
-import type { EmbedEditorExtrasMessage } from "@frizz/shared/embed-protocol"
+import type { EmbedEditorExtrasMessage } from "@ntwine/shared/embed-protocol"
 import { fileLabel } from "./editor-context.ts"
 import { extrasMessage, listedProblems, problemCounts, problemsText, terminalCommandText, type FileProblem } from "./extras.ts"
 
@@ -208,7 +208,7 @@ export function registerExtrasFeed(api: Vscode, context: vscode.ExtensionContext
     if (!commands.includes("workbench.action.terminal.copyLastCommand") || !commands.includes("workbench.action.terminal.copyLastCommandOutput")) return undefined
     const before = await api.env.clipboard.readText()
     const copy = async (command: string) => {
-      const marker = `frizz-terminal-${randomUUID()}`
+      const marker = `ntwine-terminal-${randomUUID()}`
       await api.env.clipboard.writeText(marker)
       await api.commands.executeCommand(command)
       const copied = await api.env.clipboard.readText()
@@ -226,7 +226,7 @@ export function registerExtrasFeed(api: Vscode, context: vscode.ExtensionContext
   return {
     problems() {
       const editor = fileEditor()
-      if (!editor) return { ok: false, why: "Open a file to add its problems to Frizz's prompt box." }
+      if (!editor) return { ok: false, why: "Open a file to add its problems to Ntwine's prompt box." }
       const uri = editor.document.uri
       const label = fileLabel(uri.fsPath, api.workspace.asRelativePath(uri, (api.workspace.workspaceFolders?.length ?? 0) > 1))
       const text = problemsText(label, fileProblems(uri))
@@ -238,7 +238,7 @@ export function registerExtrasFeed(api: Vscode, context: vscode.ExtensionContext
         ? { command: captured.command, output: captured.chunks.join(""), ...(captured.exitCode !== undefined ? { exitCode: captured.exitCode } : {}) }
         : api.window.activeTerminal ? await copiedLastCommand() : undefined
       const text = found ? terminalCommandText(found) : undefined
-      return text ? { ok: true, text } : { ok: false, why: "Run a command in VS Code's terminal to add it and its output to Frizz's prompt box." }
+      return text ? { ok: true, text } : { ok: false, why: "Run a command in VS Code's terminal to add it and its output to Ntwine's prompt box." }
     },
     last: () => lastMessage,
   }

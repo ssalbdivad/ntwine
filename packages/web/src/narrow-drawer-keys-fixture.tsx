@@ -18,7 +18,7 @@ initFont()
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
-  if (!new URL(href, location.href).pathname.startsWith("/_frizz/rpc/")) return nativeFetch(input, init)
+  if (!new URL(href, location.href).pathname.startsWith("/_ntwine/rpc/")) return nativeFetch(input, init)
   return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
 }
 

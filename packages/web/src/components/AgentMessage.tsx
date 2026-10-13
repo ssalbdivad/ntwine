@@ -1,9 +1,9 @@
-// ONE AGENT TALKING TO ANOTHER, drawn as a message in a chat app rather than as Frizz machinery.
+// ONE AGENT TALKING TO ANOTHER, drawn as a message in a chat app rather than as Ntwine machinery.
 //
-// Four channels carry agent-to-agent words into a thread's transcript: another Frizz thread
-// (`mcp__frizz__message_thread`), another Claude session (cross-session `SendMessage`), a sub-agent
+// Four channels carry agent-to-agent words into a thread's transcript: another Ntwine thread
+// (`mcp__ntwine__message_thread`), another Claude session (cross-session `SendMessage`), a sub-agent
 // reporting up mid-flight, and this worker steering a child. Until 2026-10-08 each had its own shape — a
-// "Frizz" card that printed the recipient's own instructions under the message, a petite-caps hairline
+// "Ntwine" card that printed the recipient's own instructions under the message, a petite-caps hairline
 // with the body one or two clicks away, an outgoing call folded inside "Ran 1 tool call" — so an exchange
 // between two agents read as four unrelated system events (maintainer 2026-10-08: "a clean dedicated UI
 // for these type of agent exchanges that more closely mirrors an elegant message UI you'd have in a chat
@@ -52,7 +52,7 @@ export function AgentMessage({ direction, kind, name, body, at, sourceId, status
   const incoming = direction === "in"
   return (
     <div
-      data-frizz-msg={sourceId}
+      data-ntwine-msg={sourceId}
       data-agent-message={direction}
       data-agent-kind={kind}
       className={`flex min-w-0 max-w-[85%] gap-2.5 ${incoming ? "" : "flex-col gap-1"}`}

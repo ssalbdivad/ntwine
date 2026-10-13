@@ -3,9 +3,9 @@ import type { ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { FRIZZ_ROUTE_PREFIX } from "@frizz/shared";
+import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared";
 
-export const PRODUCTION_REEXEC_FLAG = "--_frizz-production-reexec";
+export const PRODUCTION_REEXEC_FLAG = "--_ntwine-production-reexec";
 
 /**
  * Whether this runtime can replace its own image with the successor. `typeof process.execve ===
@@ -26,7 +26,7 @@ export function canReexecInPlace(
  * an OLDER launcher finds the entry of the release it resolved through npm, so it can execve into it
  * (keeping this pid and this terminal) instead of guessing where npm put the execution cache.
  */
-export const PRODUCTION_PRINT_LAUNCHER_FLAG = "--_frizz-print-launcher";
+export const PRODUCTION_PRINT_LAUNCHER_FLAG = "--_ntwine-print-launcher";
 
 export interface NpmInvocation {
   command: string;
@@ -40,7 +40,7 @@ export interface NpmInvocation {
  * run a `.cmd` file without a shell. The reliable form is the one every shim ends in: this node binary
  * running `npm-cli.js`. Three places can hold that script, in this order:
  *
- *   1. beside `npm_execpath`, which npm sets for a bin it runs itself (`npx frizz`, `npm exec`);
+ *   1. beside `npm_execpath`, which npm sets for a bin it runs itself (`npx ntwine`, `npm exec`);
  *   2. beside node.exe (the Windows installer layout);
  *   3. under `../lib/node_modules` (the POSIX installer layout).
  *
@@ -80,7 +80,7 @@ export interface RegistryReleaseAdapter {
    */
   npmExec(request: {
     packageSpec: string;
-    /** Bin to invoke from the resolved package. Defaults to the package name (frizz). */
+    /** Bin to invoke from the resolved package. Defaults to the package name (ntwine). */
     bin: string;
     args: string[];
     cwd: string;
@@ -100,7 +100,7 @@ export interface RegistryUpdatePlan {
 /** A release npm has installed into an immutable execution cache, located by its own launcher bundle. */
 export interface RegistrySuccessor {
   plan: RegistryUpdatePlan;
-  /** Absolute path of the successor's launcher bundle (the file its `frizz` bin resolves to). */
+  /** Absolute path of the successor's launcher bundle (the file its `ntwine` bin resolves to). */
   entry: string;
 }
 
@@ -150,7 +150,7 @@ export async function planRegistryUpdate(
   const latestVersion = (await adapter.latestVersion(packageName)).trim();
   const comparison = compareReleaseVersions(currentVersion, latestVersion);
   if (comparison === null)
-    throw new Error(`cannot safely compare installed Frizz version ${currentVersion} with registry version ${latestVersion}`);
+    throw new Error(`cannot safely compare installed Ntwine version ${currentVersion} with registry version ${latestVersion}`);
   if (comparison >= 0) return null;
   return { packageName, currentVersion, latestVersion, packageSpec: `${packageName}@${latestVersion}` };
 }
@@ -158,11 +158,11 @@ export async function planRegistryUpdate(
 /**
  * The argv a successor is started with, after its entry. NO repository path: an internal launch
  * reads its pinned project out of the environment (`projectLaunchTargetFromEnvironment`), and
- * `parseCliArgs` REFUSES a positional path since the singleton (bc037f17) — "Frizz takes no
+ * `parseCliArgs` REFUSES a positional path since the singleton (bc037f17) — "Ntwine takes no
  * repository path". The handoff kept passing one anyway, so from that day every registry Update &
  * Restart started a successor that died on its first line, exit 1, into `stdio: "ignore"`, after the
  * launcher had already printed "taking over" and quit. Measured 2026-09-10 22:35: the npm debug log
- * for `npm exec --package=frizz@0.12.10` ends `verbose exit 1` four seconds in, no Frizz log was ever
+ * for `npm exec --package=ntwine@0.12.10` ends `verbose exit 1` four seconds in, no Ntwine log was ever
  * created, and the operator found a dead board with a note saying it had updated.
  */
 export function successorArgs(port: number): string[] {
@@ -176,16 +176,16 @@ export function successorArgs(port: number): string[] {
  * The launcher that starts a successor is the PREVIOUS release, so the argv arriving here was chosen
  * by code that already shipped. Every registry launcher from 0.7.0 — bc037f17, the commit that made
  * parseCliArgs refuse a positional — through 0.12.10 hands its successor
- * `--_frizz-production-reexec --port <n> <projectDir>`, and by the time the successor reads it the old
+ * `--_ntwine-production-reexec --port <n> <projectDir>`, and by the time the successor reads it the old
  * launcher has drained its board and quit. A successor that refuses the path is therefore one no
  * install in the field can update INTO: measured 2026-09-11 against the published 0.12.10 updating to
- * 0.12.11 — "Frizz 0.12.11 is taking over on port 47110", ECONNREFUSED one second later, never back.
- * That is the failure users report as "the update button kills Frizz and I have to run npx again".
+ * 0.12.11 — "Ntwine 0.12.11 is taking over on port 47110", ECONNREFUSED one second later, never back.
+ * That is the failure users report as "the update button kills Ntwine and I have to run npx again".
  *
  * The directory carries nothing the successor needs: a re-exec'd launch reads its pinned project out
  * of the environment (projectLaunchTargetFromEnvironment), which every one of those releases sets the
  * same way. So it is dropped here, never honoured — the refusal in parseCliArgs still guards a human's
- * `frizz /some/repo`. Flags and the value after `--port` pass through untouched.
+ * `ntwine /some/repo`. Flags and the value after `--port` pass through untouched.
  */
 export function reexecArgv(rawArgs: readonly string[]): string[] {
   const kept: string[] = [];
@@ -218,7 +218,7 @@ export async function resolveRegistrySuccessor(
 ): Promise<RegistrySuccessor> {
   const result = await adapter.npmExec({
     packageSpec: plan.packageSpec,
-    // The published bin name tracks the package name (frizz). Never hardcode a stale bin here or
+    // The published bin name tracks the package name (ntwine). Never hardcode a stale bin here or
     // a renamed release would resolve the new package but invoke a bin that no longer exists.
     bin: plan.packageName,
     args: [PRODUCTION_PRINT_LAUNCHER_FLAG],
@@ -249,8 +249,8 @@ export function reexecIntoRegistrySuccessor(
 ): never {
   return execve(process.execPath, [process.execPath, successor.entry, ...successorArgs(request.port)], {
     ...request.env,
-    FRIZZ_REGISTRY_PACKAGE: successor.plan.packageName,
-    FRIZZ_REGISTRY_VERSION: successor.plan.latestVersion,
+    NTWINE_REGISTRY_PACKAGE: successor.plan.packageName,
+    NTWINE_REGISTRY_VERSION: successor.plan.latestVersion,
   });
 }
 
@@ -277,14 +277,14 @@ export function handoffToRegistrySuccessor(
     cwd: request.cwd,
     env: {
       ...request.env,
-      FRIZZ_REGISTRY_PACKAGE: successor.plan.packageName,
-      FRIZZ_REGISTRY_VERSION: successor.plan.latestVersion,
+      NTWINE_REGISTRY_PACKAGE: successor.plan.packageName,
+      NTWINE_REGISTRY_VERSION: successor.plan.latestVersion,
     },
   });
   // The error still arrives on the next tick; without a listener it would throw and take this
   // process down before the caller could restore the board.
   child.once("error", () => {});
-  if (child.pid === undefined) throw new Error(`could not start Frizz ${successor.plan.latestVersion} from ${successor.entry}`);
+  if (child.pid === undefined) throw new Error(`could not start Ntwine ${successor.plan.latestVersion} from ${successor.entry}`);
   child.unref();
   return child;
 }
@@ -302,7 +302,7 @@ export interface SuccessorProcess {
 }
 
 export interface SuccessorWatch {
-  /** The successor's `/_frizz/control/status` answer, or undefined while nothing (or something else) answers. */
+  /** The successor's `/_ntwine/control/status` answer, or undefined while nothing (or something else) answers. */
   status: () => Promise<{ version?: string } | undefined>;
   deadlineMs?: number;
   intervalMs?: number;
@@ -344,7 +344,7 @@ export async function awaitRegistrySuccessor(
   try {
     const started = now();
     for (;;) {
-      if (exited) throw new Error(`Frizz ${expected.version} exited (${exited}) before it answered on port ${expected.port}${where}`);
+      if (exited) throw new Error(`Ntwine ${expected.version} exited (${exited}) before it answered on port ${expected.port}${where}`);
       const status = await watch.status();
       if (status?.version === expected.version) return;
       if (now() - started >= deadlineMs) {
@@ -352,7 +352,7 @@ export async function awaitRegistrySuccessor(
         // the board the caller is about to restore.
         try { child.kill(); } catch { /* already gone */ }
         throw new Error(
-          `Frizz ${expected.version} did not answer on port ${expected.port} within ${Math.round(deadlineMs / 1000)}s${where}`
+          `Ntwine ${expected.version} did not answer on port ${expected.port} within ${Math.round(deadlineMs / 1000)}s${where}`
         );
       }
       await sleep(intervalMs);
@@ -383,7 +383,7 @@ export async function readLauncherStatus(
     // The status route is same-origin gated: a request carrying neither Origin nor fetch metadata is
     // refused, and Node's fetch sends neither, so every read answered 403 and the successor wait ran
     // to its deadline on Windows (measured 2026-09-11). Say who is asking, the way a tab would.
-    const response = await fetcher(`http://127.0.0.1:${port}${FRIZZ_ROUTE_PREFIX}/control/status`, {
+    const response = await fetcher(`http://127.0.0.1:${port}${NTWINE_ROUTE_PREFIX}/control/status`, {
       signal: controller.signal,
       headers: launcherControlHeaders(port),
     });
@@ -401,16 +401,16 @@ export async function readLauncherStatus(
 }
 
 /**
- * Whether this bundle runs from a GLOBAL install (`npm i -g frizz`), the one shape a self-update
+ * Whether this bundle runs from a GLOBAL install (`npm i -g ntwine`), the one shape a self-update
  * does not persist: the release goes into npm's `_npx` execution cache, the global bin still points
- * at the old package, and the next `frizz` from a shell is the old version again with nothing said
- * (audit 2026-09-11, finding 9). `npx frizz` re-resolves `latest` on every run, so it self-heals.
+ * at the old package, and the next `ntwine` from a shell is the old version again with nothing said
+ * (audit 2026-09-11, finding 9). `npx ntwine` re-resolves `latest` on every run, so it self-heals.
  *
  * Deliberately a cheap heuristic and never fatal: npm sets `npm_execpath` for every bin it runs
  * itself (`npx`, `npm exec`; pnpm, yarn and bun set it to their own entry), so its ABSENCE says a
  * shell started this bin directly — and a path through `node_modules` that is not npm's `_npx`
  * cache is where a global bin's real file lives on every layout (nvm, Homebrew, the Windows
- * installer). The one false positive, `node <project>/node_modules/frizz/dist/frizz.js` by hand,
+ * installer). The one false positive, `node <project>/node_modules/ntwine/dist/ntwine.js` by hand,
  * gets a hint it does not need.
  */
 export function isGlobalInstall(bundleDir: string, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -420,7 +420,7 @@ export function isGlobalInstall(bundleDir: string, env: NodeJS.ProcessEnv = proc
 }
 
 /** The environment flag that carries `isGlobalInstall` to a successor, whose own path is always the `_npx` cache. */
-export const GLOBAL_INSTALL_ENV = "FRIZZ_REGISTRY_GLOBAL_INSTALL";
+export const GLOBAL_INSTALL_ENV = "NTWINE_REGISTRY_GLOBAL_INSTALL";
 
 /** The tail of a ready notice for a global install: the update lives in this process only. */
 export function keepUpdateHint(packageName: string, version: string): string {

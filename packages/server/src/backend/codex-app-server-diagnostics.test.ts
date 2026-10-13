@@ -7,7 +7,7 @@ import { join } from "node:path"
 import { createCodexDiagnosticSink, codexDiagnosticLogPath } from "./codex-app-server-diagnostics.ts"
 
 function fresh() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-codex-diag-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-diag-"))
   return { dir, path: codexDiagnosticLogPath(dir, "proj") }
 }
 
@@ -50,7 +50,7 @@ test("rotates to a single .1 file once the log passes its size cap, never growin
 
 test("a logging failure never throws into the bridge", () => {
   // An unwritable directory (the path's parent is a FILE) must be swallowed, not propagated.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-codex-diag-bad-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-diag-bad-"))
   writeFileSync(join(dir, "codex-app-server"), "not a directory")
   const sink = createCodexDiagnosticSink(dir, "proj")
   assert.doesNotThrow(() => sink({ event: "connected", version: "0.144.6", connectionEpoch: 1 }))

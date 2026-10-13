@@ -1,24 +1,24 @@
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, dirname, join } from "node:path"
-import { slugify } from "@frizz/shared"
-import { frizzPaths, launchHostDir } from "./frizz-paths.ts"
+import { slugify } from "@ntwine/shared"
+import { ntwinePaths, launchHostDir } from "./ntwine-paths.ts"
 import { existingProjectId } from "./project-root.ts"
 
 // THE MACHINE'S LIST OF PROJECTS.
 //
-// One Frizz per machine needs something no per-project server ever did: a list of every project, to
+// One Ntwine per machine needs something no per-project server ever did: a list of every project, to
 // draw a grid of them and to route `/<slug>` at one of them. That list did not exist — the mapping
 // only ever ran repo → id, with no reverse index, and 38 of this machine's 46 state directories have
 // no on-disk record of which repo they belong to at all.
 //
-// THIS FILE IS AN INDEX, NOT IDENTITY. The id lives in the project, at `.frizz/.id` (project-root.ts),
+// THIS FILE IS AN INDEX, NOT IDENTITY. The id lives in the project, at `.ntwine/.id` (project-root.ts),
 // and that stays the source of truth. Everything here is derived from it and rebuildable by opening a
 // project again — which is what makes a machine-level file acceptable at all after the deliberate
 // choice to keep identity local. Delete registry.json and you lose card ordering and URL slugs, not
 // a single thread.
 //
-// Keying on the id rather than the path is what makes a project SURVIVE BEING MOVED: `~/.frizz/
+// Keying on the id rather than the path is what makes a project SURVIVE BEING MOVED: `~/.ntwine/
 // projects/<id>/` already holds every thread, log and attachment, so a path-keyed registry would have
 // to re-key all of that on a `mv` or keep a path → id map anyway. The id is already the spine.
 //
@@ -28,7 +28,7 @@ import { existingProjectId } from "./project-root.ts"
 // own, and the registry sees it for free.
 
 export interface RegistryEntry {
-  /** The project id — the same UUID in that project's `.frizz/.id`. */
+  /** The project id — the same UUID in that project's `.ntwine/.id`. */
   id: string
   /** Canonical root, as resolved when it was last opened. */
   path: string
@@ -38,7 +38,7 @@ export interface RegistryEntry {
   name?: string
   lastOpenedAt: string
   /**
-   * When `frizz` was last RUN in this project — a launch that started the server or joined the running
+   * When `ntwine` was last RUN in this project — a launch that started the server or joined the running
    * one, stamped by the launcher alone (registerProject's `launched`). Not `lastOpenedAt`, which every
    * registration bumps: adding a project from the page, a move, a re-key. All projects' prompt box reads
    * this to aim a new thread at the repository the operator just launched from, when this browser has
@@ -111,11 +111,11 @@ const GENERIC = new Set([
 ])
 
 /**
- * Segments a project may never take, because Frizz itself answers on them. `_frizz` is the formal
+ * Segments a project may never take, because Ntwine itself answers on them. `_ntwine` is the formal
  * namespace; the rest are today's hardcoded routes and static assets, kept until they move under it.
  */
 const RESERVED = new Set([
-  "_frizz", "rpc", "events", "ws", "term", "attach", "local-image", "local-visualization",
+  "_ntwine", "rpc", "events", "ws", "term", "attach", "local-image", "local-visualization",
   // `control` answers `/control/stop` and `/control/status` — the supervisor channel the board polls
   // every few seconds. It was missing from this list, so a directory called `control` could have taken
   // the segment and routed the whole machine's supervisor polling into one project's app, which has no
@@ -125,14 +125,14 @@ const RESERVED = new Set([
   // The Home workspace's address (home-workspace.ts). A project already registered under it keeps it,
   // and Home answers on its id instead.
   "home",
-  // `/_frizz/editor`, the machine-wide socket editor extensions dial (editor-bridge.ts).
+  // `/_ntwine/editor`, the machine-wide socket editor extensions dial (editor-bridge.ts).
   "editor",
-  // `/_frizz/vite-hmr`, the dev board's Vite HMR socket (index.ts VITE_HMR_PATH).
+  // `/_ntwine/vite-hmr`, the dev board's Vite HMR socket (index.ts VITE_HMR_PATH).
   "vite-hmr",
 ])
 
 export function registryPath(home = homedir()): string {
-  return join(frizzPaths({ home }).data, "registry.json")
+  return join(ntwinePaths({ home }).data, "registry.json")
 }
 
 export function readRegistry(home = homedir()): Registry {
@@ -148,7 +148,7 @@ export function readRegistry(home = homedir()): Registry {
     // A malformed entry is dropped rather than poisoning the whole list — this is an index, and the
     // cost of forgetting one card is that opening that project re-registers it.
     const forgotten = Array.isArray(parsed.forgotten) ? parsed.forgotten.filter((id) => typeof id === "string") : []
-    // Frizz's own launch folder is never a project (registerProject refuses it), but a server older
+    // Ntwine's own launch folder is never a project (registerProject refuses it), but a server older
     // than 0.15.21 had no such refusal and its boot backfill registered the folder as "host" whenever
     // a newer launcher hosted it there. Dropped HERE so no reader ever sees that entry — the list, the
     // slug lookup, the rail — and the next write of any kind takes it out of the file.
@@ -177,7 +177,7 @@ const writeListeners = new Set<(path: string) => void>()
  * listener per call site would cover the ones somebody remembered. The path rides along because the
  * registry is addressed by `home`: a listener compares it against the file it cares about.
  *
- * In-process only. Another process's write (a second `frizz` launch registering its directory) is
+ * In-process only. Another process's write (a second `ntwine` launch registering its directory) is
  * not heard; a tab picks that one up at its next load or reconnect.
  */
 export function onRegistryWrite(listener: (path: string) => void): () => void {
@@ -273,7 +273,7 @@ function canonicalPath(dir: string): string {
 }
 
 /**
- * `launched` says this registration IS a launch — `frizz` run in this directory, landing the operator on
+ * `launched` says this registration IS a launch — `ntwine` run in this directory, landing the operator on
  * the page — and stamps `lastLaunchedAt` beside `lastOpenedAt`. Only the launchers pass it.
  */
 export function registerProject(
@@ -281,7 +281,7 @@ export function registerProject(
   home = homedir(),
 ): { entry?: RegistryEntry; action: RegisterAction } {
   input = { ...input, dir: canonicalPath(input.dir) }
-  // The folder the server is launched on when the machine has no project yet (frizz-paths.ts
+  // The folder the server is launched on when the machine has no project yet (ntwine-paths.ts
   // launchHostDir) has an id and a state dir like any project, and every caller that registers one —
   // the launchers, the boot backfill, the dashboard's add — comes through here. It is never listed.
   if (input.dir === canonicalPath(launchHostDir(home))) return { action: "unlisted" }
@@ -307,7 +307,7 @@ export function registerProject(
     }
     // The id is claimed by a path that is still there ⇒ this directory is a COPY of it, not the same
     // project relocated. Refuse rather than stealing the original's threads.
-    if (existsSync(join(byId.path, ".frizz", ".id"))) return { action: "duplicate" }
+    if (existsSync(join(byId.path, ".ntwine", ".id"))) return { action: "duplicate" }
     byId.path = input.dir
     touch(byId)
     writeRegistry(registry, home)
@@ -341,13 +341,13 @@ export function registerProject(
  * Seed the registry from state directories that predate it.
  *
  * WHY THIS EXISTS. The registry only learns about a project when something opens it, so a machine
- * that has been running Frizz for months arrives at its first project list with one project — and the operator's
+ * that has been running Ntwine for months arrives at its first project list with one project — and the operator's
  * only way to fill it is to visit every repository in a terminal, which is precisely the chore one
  * server for the machine was supposed to end. Everything needed is already on disk: each state dir is
  * named for its project id and records the directory it was opened from.
  *
  * CONSERVATIVE ON PURPOSE. A state dir is adopted only when the project STILL CLAIMS THAT ID. It may
- * claim it either way Frizz has ever stored one: `.frizz/.id`, or the older `git config frizz.id`.
+ * claim it either way Ntwine has ever stored one: `.ntwine/.id`, or the older `git config ntwine.id`.
  * Checking only the file was a real bug — boron and pullfrog/app both predate the gitless change and
  * had never been reopened since, so they carried a git-config id and no file, and the backfill
  * silently skipped two of the four projects actually in use (2026-08-06). A checkout that has since been re-identified (copied,
@@ -355,7 +355,7 @@ export function registerProject(
  * card that opens the wrong board. Same for a directory that no longer exists.
  *
  * DUPLICATES ARE REAL. Two ids can name one path — a project deleted and re-opened leaves the old
- * state dir behind, and this machine had two for nub and two for boron. The `.frizz/.id` check
+ * state dir behind, and this machine had two for nub and two for boron. The `.ntwine/.id` check
  * settles it: only the id the project currently claims is adopted.
  *
  * Runs once at boot and is idempotent: a path already registered is left exactly as it is, so an
@@ -367,7 +367,7 @@ export function backfillRegistry(
 ): number {
   let dirs: string[]
   try {
-    dirs = readdirSync(join(frizzPaths({ home }).data, "projects"), { withFileTypes: true })
+    dirs = readdirSync(join(ntwinePaths({ home }).data, "projects"), { withFileTypes: true })
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
   } catch {
@@ -383,7 +383,7 @@ export function backfillRegistry(
     if (forgotten.has(id)) continue
     // Canonical BEFORE the known-check: the registry stores canonical paths, so comparing a raw
     // recorded one misses its own entry and re-registers the same project on every single boot.
-    const recorded = recordedProjectDir(join(frizzPaths({ home }).data, "projects", id))
+    const recorded = recordedProjectDir(join(ntwinePaths({ home }).data, "projects", id))
     const dir = recorded ? canonicalPath(recorded) : undefined
     if (!dir || known.has(dir)) continue
     if (read(dir) !== id) continue
@@ -410,7 +410,7 @@ export function backfillRegistry(
  * boron and pullfrog/app, both stopped, stayed invisible even after the identity fix that was supposed
  * to find them (2026-08-06). `serving.json` leads: every server that opens the project writes it and
  * keeps the folder when it closes (project-serving.ts), where `launcher.json` is written only for the
- * folder a launcher ran the server on, which since the server moved onto Frizz's own folder is none.
+ * folder a launcher ran the server on, which since the server moved onto Ntwine's own folder is none.
  */
 function recordedProjectDir(stateDir: string): string | undefined {
   // `serving.json` is PROJECT_SERVING_FILE, spelled out rather than imported so the registry does not
@@ -478,7 +478,7 @@ export function reorderProjects(ids: readonly string[], home = homedir()): Regis
   return registry.projects
 }
 
-/** The entry for a directory Frizz already knows, if it knows it. */
+/** The entry for a directory Ntwine already knows, if it knows it. */
 export function findByPath(path: string, home = homedir()): RegistryEntry | undefined {
   // Canonical on both sides, or a caller passing the symlinked spelling misses its own entry.
   const canonical = canonicalPath(path)
@@ -494,10 +494,10 @@ export function findById(id: string, home = homedir()): RegistryEntry | undefine
 }
 
 /**
- * The project a `/_frizz/<segment>/…` request names: its slug, or its id.
+ * The project a `/_ntwine/<segment>/…` request names: its slug, or its id.
  *
  * The browser addresses a project by SLUG, because that is what the operator reads in the URL bar. A
- * worker's frizz MCP server addresses it by ID, because it is handed the segment once when it spawns
+ * worker's ntwine MCP server addresses it by ID, because it is handed the segment once when it spawns
  * and then holds it for the life of a detached daemon — a rename would silently strand it, and the
  * failure would be an unknown segment falling through to whichever project launched the server.
  *
@@ -534,7 +534,7 @@ export const ICON_SCAN_VERSION = 4
 /**
  * How long one scan's answer stands — a miss or a pick — before the next icon request scans again.
  *
- * Minutes, not hours, because a project's icon is a file somebody adds WHILE Frizz is running, and a
+ * Minutes, not hours, because a project's icon is a file somebody adds WHILE Ntwine is running, and a
  * scan is cheap: ~2ms warm per project, 23ms for a whole 12-project registry and 10ms for the largest
  * repo in it (measured 2026-10-11). It was 12 hours for a miss and forever for a pick until then, and
  * keyward, ccbroker and macwatch each committed a `logo.svg` hours after a scan had found nothing there;
@@ -576,7 +576,7 @@ export function projectIconStatus(
 
 /** Where an uploaded icon lands: the project's own state dir, never inside the repository. */
 export function customIconPath(id: string, extension: string, home = homedir()): string {
-  return join(frizzPaths({ home }).data, "projects", id, `icon${extension}`)
+  return join(ntwinePaths({ home }).data, "projects", id, `icon${extension}`)
 }
 
 function updateEntry(
@@ -687,7 +687,7 @@ export function renameProject(
   if (!entry) return undefined
   if (update.slug !== undefined) {
     const slug = slugifyProject(update.slug)
-    if (RESERVED.has(slug)) throw new Error(`"${slug}" is reserved by Frizz itself`)
+    if (RESERVED.has(slug)) throw new Error(`"${slug}" is reserved by Ntwine itself`)
     if (registry.projects.some((p) => p.id !== id && p.slug === slug)) {
       throw new Error(`another project already uses "${slug}"`)
     }
@@ -704,9 +704,9 @@ export function renameProject(
  * Rename a project's DIRECTORY to a sibling basename, and re-register it there.
  *
  * The one first-party way to change the folder itself. The id travels with the tree, so this is the
- * "moved" case `registerProject` already reconciles — the difference is that Frizz did the move and
- * knows about it at once, rather than learning at the next `frizz` run. Off by default in the rename
- * dialog: a folder is the operator's, and renaming Frizz's card must never rename it uninvited.
+ * "moved" case `registerProject` already reconciles — the difference is that Ntwine did the move and
+ * knows about it at once, rather than learning at the next `ntwine` run. Off by default in the rename
+ * dialog: a folder is the operator's, and renaming Ntwine's card must never rename it uninvited.
  *
  * A basename only — no separators, no `.`/`..` — so this can rename a folder and cannot move one
  * somewhere else. The target must not exist: `rename(2)` onto a directory either fails or, on some
@@ -742,7 +742,7 @@ export function forgetProject(id: string, home = homedir()): boolean {
   const before = registry.projects.length
   registry.projects = registry.projects.filter((p) => p.id !== id)
   if (registry.projects.length === before) return false
-  const stateRoot = join(frizzPaths({ home }).data, "projects")
+  const stateRoot = join(ntwinePaths({ home }).data, "projects")
   const forgotten = [...new Set([...(registry.forgotten ?? []), id])].filter((each) => existsSync(join(stateRoot, each)))
   if (forgotten.length > 0) registry.forgotten = forgotten
   else delete registry.forgotten

@@ -11,7 +11,7 @@
 // sheet therefore addresses a step by its KEY (`<question id>|<node path>`), never by its index, and
 // computes "the step after this pick" against the answers the pick is about to produce
 // (`stepAfterPick`) — the new list is not on screen yet in the tap that asks for it.
-import type { AskedQuestion, RegisteredQuestionView } from "@frizz/shared"
+import type { AskedQuestion, RegisteredQuestionView } from "@ntwine/shared"
 import type { BlockAnswer } from "./questionBlocks.ts"
 import { liveQuestionNodes, nodeAnswered } from "./registeredQuestion.ts"
 

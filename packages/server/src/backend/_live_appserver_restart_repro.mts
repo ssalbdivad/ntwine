@@ -1,13 +1,13 @@
 // LIVE repro (not a unit test; excluded from the *.test.ts glob). Reproduces the "codex threads stop
-// spontaneously" failure against the REAL `codex app-server`: a frizz runtime restart kills the shared
+// spontaneously" failure against the REAL `codex app-server`: an ntwine runtime restart kills the shared
 // app-server child mid-turn, and NOTHING ever resumes the interrupted turn.
 //
 //   nub packages/server/src/backend/_live_appserver_restart_repro.mts
 //
 // Two death modes are exercised, matching the two real ones:
-//   A. graceful  — bridge.close() (what a clean frizz shutdown / update-restart drain does)
-//   B. hard kill — SIGKILL the app-server child (what a SIGKILLed or crashed frizz runtime does)
-// After each, a SECOND bridge is constructed over the SAME SQLite db — i.e. the restarted frizz
+//   A. graceful  — bridge.close() (what a clean ntwine shutdown / update-restart drain does)
+//   B. hard kill — SIGKILL the app-server child (what a SIGKILLed or crashed ntwine runtime does)
+// After each, a SECOND bridge is constructed over the SAME SQLite db — i.e. the restarted ntwine
 // runtime — and we observe what it does about the in-flight turn.
 import { spawn as spawnChild, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { mkdtempSync, readdirSync, readFileSync } from "node:fs"
@@ -18,7 +18,7 @@ import { createInteractionStore } from "../interaction-store.ts"
 import { CodexAppServerBridge, type CodexAppServerSpawn } from "./codex-app-server.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const dir = mkdtempSync(join(tmpdir(), "frizz-restart-repro-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-restart-repro-"))
 const dbPath = join(dir, "ui.db")
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -108,8 +108,8 @@ async function scenario(label: string, kill: (b: CodexAppServerBridge) => Promis
 
   console.log(`  db rows AFTER death: ${JSON.stringify(bindingRow())}`)
 
-  // ---- the "restarted frizz runtime": a brand-new bridge over the same durable db ----
-  console.log(`  --- restarting the frizz runtime (new bridge, same db) ---`)
+  // ---- the "restarted ntwine runtime": a brand-new bridge over the same durable db ----
+  console.log(`  --- restarting the ntwine runtime (new bridge, same db) ---`)
   const two = makeBridge(`${label}2`)
   await sleep(4000) // give a hypothetical auto-recovery every chance to fire
   console.log(`  after restart, spawned app-servers so far: ${spawned.length}`)

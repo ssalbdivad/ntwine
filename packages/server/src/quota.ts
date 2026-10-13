@@ -1,15 +1,15 @@
-import type { QuotaSnapshot, ProviderQuota } from "@frizz/shared"
+import type { QuotaSnapshot, ProviderQuota } from "@ntwine/shared"
 import { readCodexQuota } from "./backend/codex-quota.ts"
 import { readClaudeQuota } from "./backend/claude-quota.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 
 // The polled provider-quota snapshot the sidebar status bar renders. Codex comes from the app-server's
-// live `account/rateLimits/read` (the rollout JSONL frizz tails is only its offline fallback, since a
+// live `account/rateLimits/read` (the rollout JSONL ntwine tails is only its offline fallback, since a
 // rollout cannot say which account wrote it). Claude reads the OAuth usage endpoint with the
 // credential already on the machine, and starts Claude Code only to refresh a token that endpoint
 // rejected — never for a machine that is signed out or offline (claude-quota.ts has the bound).
 //
-// FIXTURE SEAM: set FRIZZ_QUOTA_FIXTURE to one of the named states below to return deterministic data
+// FIXTURE SEAM: set NTWINE_QUOTA_FIXTURE to one of the named states below to return deterministic data
 // instead of touching the live sources. This lets the UI be exercised (and screenshotted) across all
 // visual states without invoking a real provider CLI or reading real credentials.
 
@@ -72,7 +72,7 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
   }
 }
 
-// `codexBin` must be the runtime Frizz dispatches with, never a bare `codex`: each live read starts a
+// `codexBin` must be the runtime Ntwine dispatches with, never a bare `codex`: each live read starts a
 // `codex app-server`, which refreshes the machine-wide ~/.codex/models_cache.json with ITS OWN version's
 // catalogue. An older CLI on PATH, polled every ~20s, overwrote the pinned runtime's catalogue and made
 // newer models (gpt-6-sol, gpt-6.1-sol) flicker out of the model picker.
@@ -84,11 +84,11 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
 export async function readQuota(opts: { claudeBin?: string; codexBin?: string; force?: boolean | "claude" | "codex" } = {}): Promise<QuotaSnapshot> {
   // The fixture seam is a DEV/QA affordance only — never honor it in a production build, so an env var
   // leaking into a real deploy can't silently paint fabricated quota numbers.
-  const fx = process.env.FRIZZ_QUOTA_FIXTURE
+  const fx = process.env.NTWINE_QUOTA_FIXTURE
   if (fx && process.env.NODE_ENV !== "production") {
     const snap = await fixture(fx)
     if (snap) {
-      frizzLog.warn("quota", `serving FIXTURE "${fx}" (FRIZZ_QUOTA_FIXTURE set; dev-only seam)`)
+      ntwineLog.warn("quota", `serving FIXTURE "${fx}" (NTWINE_QUOTA_FIXTURE set; dev-only seam)`)
       return snap
     }
   }

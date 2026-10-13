@@ -1,11 +1,11 @@
-// LIVE end-to-end test of STEERING A SUB-AGENT through frizz's OWN chain: a real claude session
+// LIVE end-to-end test of STEERING A SUB-AGENT through ntwine's OWN chain: a real claude session
 // dispatched by the real broker bridge, a real background child, then `bridge.steerSubAgent()` — the
 // exact call the subAgentSteer RPC makes — and an assertion that the CHILD (not the parent) obeyed it.
 //
 //   nub packages/server/src/backend/_live_broker_steer.mts
 //
 // WHY LIVE. Every claim under this feature is a claim about what a REAL CLI does with a
-// `parent_tool_use_id` on an input frame. Unit tests can only prove that frizz put the id on the wire
+// `parent_tool_use_id` on an input frame. Unit tests can only prove that ntwine put the id on the wire
 // (claude-agent-broker-bridge.steer.test.ts does exactly that against a fake CLI). They cannot prove
 // the CLI ROUTES it, and the routing is the entire feature.
 //
@@ -95,7 +95,7 @@ const PROMPT = [
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -117,7 +117,7 @@ try {
     }
     await sleep(1_000)
   }
-  ok("frizz's tailer surfaces a live DIRECT child to steer", Boolean(childId), childId ?? "none found")
+  ok("ntwine's tailer surfaces a live DIRECT child to steer", Boolean(childId), childId ?? "none found")
   if (!childId) throw new Error("no live child appeared")
   console.log(`${el()} steering child ${childId}`)
 

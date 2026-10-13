@@ -1,5 +1,5 @@
 import { proxy, useSnapshot } from "valtio"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { isActivelyRunning } from "../groups.ts"
 
 // OPTIMISTIC ARCHIVE STATE — "this thread is done", rendered on the rail the instant the operator

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// Opt-in like the other *.e2e.test.ts here. Needs a REAL Frizz serving at least three projects that
+// Opt-in like the other *.e2e.test.ts here. Needs a REAL Ntwine serving at least three projects that
 // each have an icon (`public/icon.svg` is enough), which `scripts/adhoc-stack.mjs` builds in one command:
 //   nub scripts/adhoc-stack.mjs --port=45782 --project=/abs/a --also-project=/abs/b --also-project=/abs/c > /tmp/stack.log 2>&1 &
-//   FRIZZ_PICKER_ICON_E2E_URL=http://127.0.0.1:45782 nub --test --test-force-exit \
+//   NTWINE_PICKER_ICON_E2E_URL=http://127.0.0.1:45782 nub --test --test-force-exit \
 //     packages/web/src/components/projectPickerIcon.e2e.test.ts
-const baseUrl = process.env.FRIZZ_PICKER_ICON_E2E_URL
+const baseUrl = process.env.NTWINE_PICKER_ICON_E2E_URL
 
 // STEPPING THE PROMPT BOX'S PROJECT WITH ⌥↓ DRAWS EACH ICON ON THE FRAME IT ARRIVES. Every step re-keys
 // the prompt box, so the picker pill's square is a fresh mount, and it used to start transparent and fade
@@ -17,10 +17,10 @@ test("stepping the picker with ⌥↓ never paints a project's icon square empty
   timeout: 90_000,
 }, async () => {
   const headers = { origin: baseUrl!, "content-type": "application/json" }
-  const listed = (await (await fetch(`${baseUrl}/_frizz/rpc/projectsList`, { headers })).json()) as { result: Array<{ slug: string; home?: boolean; stale?: boolean }> }
+  const listed = (await (await fetch(`${baseUrl}/_ntwine/rpc/projectsList`, { headers })).json()) as { result: Array<{ slug: string; home?: boolean; stale?: boolean }> }
   const slugs = listed.result.filter((p) => !p.home && !p.stale).map((p) => p.slug)
   assert.ok(slugs.length >= 3, `needs a stack serving ≥3 projects, saw: ${slugs.join(", ") || "none"}`)
-  for (const slug of slugs) await fetch(`${baseUrl}/_frizz/${slug}/rpc/board`, { headers })
+  for (const slug of slugs) await fetch(`${baseUrl}/_ntwine/${slug}/rpc/board`, { headers })
 
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
   const browser = await launchHeadless()

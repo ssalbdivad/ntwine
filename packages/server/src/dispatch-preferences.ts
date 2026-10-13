@@ -6,7 +6,7 @@ import {
   type PermissionMode,
   type SetDispatchPreferenceInput,
   type Settings,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { readMachineConfig, writeMachineConfig } from "./machine-config.ts"
 import type { Storage } from "./storage.ts"
 

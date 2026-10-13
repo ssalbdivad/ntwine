@@ -1,6 +1,6 @@
 // Ending a detached daemon AND everything under it, on both platforms.
 //
-// Frizz's two daemon families — the Claude session broker (claude-broker-host.ts) and the Codex
+// Ntwine's two daemon families — the Claude session broker (claude-broker-host.ts) and the Codex
 // app-server daemon (codex-app-server-host.ts) — are forked `detached` into their own process group,
 // and each runs the provider CLI as a CHILD: `claude` under the broker, `codex app-server` under the
 // daemon. An explicit teardown has to end the child too, or a "stopped" worker keeps editing files
@@ -14,7 +14,7 @@
 // TerminateProcess, so the handler NEVER runs, neither daemon's breadcrumb is written, and the child
 // — `codex app-server` at ~150 MB, or `claude.exe` mid-turn with tools still executing — is orphaned
 // with nobody left who could ever collect it: the daemon was forked `detached`, so it is in no job
-// object of ours, and the orphan reaper both keys on FRIZZ_THREAD (which a per-PROJECT daemon does
+// object of ours, and the orphan reaper both keys on NTWINE_THREAD (which a per-PROJECT daemon does
 // not carry) and explicitly PROTECTS any process named `claude` or `codex`. There are no process
 // groups to kill either — `process.kill(-pid, …)` is rejected outright with EINVAL. `taskkill /T`
 // instead walks the live parent/child snapshot, so it reaches exactly the child the signal handler

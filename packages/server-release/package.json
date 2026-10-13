@@ -1,12 +1,12 @@
 {
-  "name": "frizz-server",
+  "name": "ntwine-server",
   "version": "0.15.24",
   "private": false,
-  "description": "Replaceable Frizz server runtime",
+  "description": "Replaceable Ntwine server runtime",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/colinhacks/frizz.git"
+    "url": "git+https://github.com/ssalbdivad/ntwine.git"
   },
   "engines": {
     "node": "^22.13.0 || >=23.4.0"
@@ -17,7 +17,7 @@
     "web-dist",
     "runtime"
   ],
-  "frizzServer": {
+  "ntwineServer": {
     "protocol": 1,
     "dataEpoch": 1
   },

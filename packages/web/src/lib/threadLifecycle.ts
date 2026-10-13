@@ -1,5 +1,5 @@
-import type { CompletionHold, ThreadView } from "@frizz/shared"
-import { isDirectSubAgent } from "@frizz/shared"
+import type { CompletionHold, ThreadView } from "@ntwine/shared"
+import { isDirectSubAgent } from "@ntwine/shared"
 
 export interface ThreadLifecycleAvailability {
   // The header's lifecycle cluster renders (ThreadLifecycleActions). TRUE for any owned session thread,

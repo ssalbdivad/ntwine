@@ -3,14 +3,14 @@ import test from "node:test"
 
 // Runtime coverage for "a ONE-question ask answers into the Answers card too". Skipped unless a Vite URL
 // serving the fixtures is provided (same pattern as the other *.e2e.test.ts here): start `vite` in
-// packages/web and set FRIZZ_SINGLE_ANSWER_CARD_E2E_URL to its origin.
+// packages/web and set NTWINE_SINGLE_ANSWER_CARD_E2E_URL to its origin.
 //
 // A single-block ask used to send its answer as BARE text, which carried no marker for
 // parseAnswersMessage — so it rendered as a flat user bubble while every other answer shape got the
 // structured card. The fixture drives the REAL path end to end (chip click → useLiveAnswering →
 // composeAnswerWire → the echoed user turn → pairAllAnswers → Message), so the card is OBSERVED rather
 // than inferred from the wire string alone.
-const baseUrl = process.env.FRIZZ_SINGLE_ANSWER_CARD_E2E_URL
+const baseUrl = process.env.NTWINE_SINGLE_ANSWER_CARD_E2E_URL
 
 async function launch() {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -60,7 +60,7 @@ test("answering a one-question ask renders the Answers card, not a flat bubble",
 
     // The LEGACY pair: a bare answer matching an option cards up; a freeform reply keeps its bubble.
     const legacy = await page.$$eval("[data-legacy-thread] [data-answers-card]", (nodes) =>
-      nodes.map((n) => ({ id: n.getAttribute("data-frizz-msg"), text: (n.textContent ?? "").replace(/\s+/g, " ").trim() })))
+      nodes.map((n) => ({ id: n.getAttribute("data-ntwine-msg"), text: (n.textContent ?? "").replace(/\s+/g, " ").trim() })))
     assert.equal(legacy.length, 1, "only the option-matching bare answer is recovered")
     assert.equal(legacy[0].id, "legacy-answer")
     assert.match(legacy[0].text, /Delete the orphaned hardlinked binaries\?/)

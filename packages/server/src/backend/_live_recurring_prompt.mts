@@ -3,9 +3,9 @@
 //   nub packages/server/src/backend/_live_stop_hook.mts
 //
 // This is the proof for the feature, and the THIRD assertion is the one that matters. A stop hook
-// with no terminating condition is an infinite bump generator, so what has to be shown is not "frizz can
+// with no terminating condition is an infinite bump generator, so what has to be shown is not "ntwine can
 // re-send text" but the whole handshake: bump at rest → agent works → bump again at the NEXT rest →
-// agent says there is nothing left → frizz goes quiet and STAYS quiet.
+// agent says there is nothing left → ntwine goes quiet and STAYS quiet.
 //
 // Everything in the chain is the shipping thing: real `claude` broker session → real tailer fold (which
 // is where the sentinel is recognized) → real scheduler pass → real broker followUp → real agent turn.
@@ -133,7 +133,7 @@ try {
     prompt: "Reply with exactly READY and do nothing else. Do not read or write any files.",
   })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -206,7 +206,7 @@ try {
     await scheduler.tick()
     await sleep(2_000)
   }
-  ok("…and frizz delivered NOTHING further while that AWAITING stood",
+  ok("…and ntwine delivered NOTHING further while that AWAITING stood",
     delivered.length === beforeQuiet,
     `${delivered.length - beforeQuiet} bump(s) after the sentinel`)
   ok("the work file holds exactly one line per bump acted on — no runaway",

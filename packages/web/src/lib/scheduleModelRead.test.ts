@@ -4,7 +4,7 @@
 // read again (stale-while-revalidate).
 import assert from "node:assert/strict"
 import test from "node:test"
-import { SCHEDULE_NOT_FOUND_COPY, type InterpretScheduleResult } from "@frizz/shared"
+import { SCHEDULE_NOT_FOUND_COPY, type InterpretScheduleResult } from "@ntwine/shared"
 import {
   MODEL_CACHE_MAX,
   MODEL_CACHE_TTL_MS,

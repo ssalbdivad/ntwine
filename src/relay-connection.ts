@@ -7,7 +7,7 @@ import {
   type RelayDownFrame,
   type RelayHandshake,
   type RelayUpFrame,
-} from "@frizz/shared";
+} from "@ntwine/shared";
 import { serveRelayRequest, serveRelayWebSocket, type NestedSession, type RelayedRequest } from "./relay-agent.ts";
 
 /**

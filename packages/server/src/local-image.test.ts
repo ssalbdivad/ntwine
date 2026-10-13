@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url"
 import { byteRange, localImageHeaders, localImageStream, resolveLocalImage, type LocalImageFile } from "./local-image.ts"
 
 test("a Windows image URL pathname reads the same file as either drive separator", { skip: process.platform !== "win32" }, (t) => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-image-win-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-image-win-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const file = join(root, "shot space %.png")
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64")
@@ -53,7 +53,7 @@ test("a range past the end is unsatisfiable; one this does not serve is ignored 
 })
 
 test("a video resolves like a picture, and answers a range with exactly those bytes", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-video-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-video-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const file = join(root, "flow.webm")
   const bytes = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 251))
@@ -90,7 +90,7 @@ test("a video resolves like a picture, and answers a range with exactly those by
 })
 
 test("an empty file is an empty answer, never a span the reader cannot express", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "frizz-local-empty-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-local-empty-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const file = join(root, "empty.png")
   writeFileSync(file, "")

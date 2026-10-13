@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { createRoot } from "react-dom/client"
 import { useSnapshot } from "valtio"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { ThreadView } from "./components/ChatView.tsx"
 import { SubAgentSheet } from "./components/SubAgentSheet.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -15,7 +15,7 @@ import "./styles.css"
 // chunks a burst of calls arbitrarily, so the chunking must be invisible.
 //
 // The transcript below deliberately mixes every chunking shape in one column, so a single measurement
-// pass over `.frizz-bash` cards catches any boundary that reads wider than the intra-batch run:
+// pass over `.ntwine-bash` cards catches any boundary that reads wider than the intra-batch run:
 //   • a 3-call batch in ONE message (intra-batch pitch, the reference)
 //   • a following message that is ONE call (batch boundary)
 //   • a following message that is a 2-call batch (batch boundary + intra)
@@ -65,7 +65,7 @@ const thread = {
   spawnedAt: "2026-07-27T09:00:00.000Z",
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 
 const call = (over: Record<string, unknown>) => ({ name: "Bash", status: "completed", durationMs: 1200, ...over })
 
@@ -169,7 +169,7 @@ const messages: TranscriptMessage[] = [
             textPart("   "),
             toolsPart([call({
               name: "Bash",
-              command: "cd /fixture/frizz && actionlint .github/workflows/release.yml .github/workflows/ci.yml",
+              command: "cd /fixture/ntwine && actionlint .github/workflows/release.yml .github/workflows/ci.yml",
               // Noun-phrase descriptions occur in real Claude Bash calls. The authored description
               // must still beat the command fallback even though it is not already a gerund.
               desc: "Final workflow validation",
@@ -187,7 +187,7 @@ const messages: TranscriptMessage[] = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : ((input as Request).url ?? input.toString()), location.origin)
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(
       JSON.stringify({ result: { messages, transcriptKey: `${SLUG}-key`, hasEarlier: false, historyLoaded: true } }),
       { headers: { "content-type": "application/json" } },
@@ -195,21 +195,21 @@ window.fetch = async (input, init) => {
   }
   // The SUB-AGENT DRAWER reads its child's transcript from its own RPC — same messages, so the two
   // surfaces are directly comparable.
-  if (url.pathname === "/_frizz/rpc/subAgentTranscript") {
+  if (url.pathname === "/_ntwine/rpc/subAgentTranscript") {
     return new Response(JSON.stringify({ result: { messages, state: SETTLED ? "done" : "running" } }), {
       headers: { "content-type": "application/json" },
     })
   }
   // The transcript reads its settled registered questions; `{}` would leave that query's data undefined,
   // which React Query reports to the console and the no-errors assertion trips on.
-  if (url.pathname === "/_frizz/rpc/threadSettledQuestions") {
+  if (url.pathname === "/_ntwine/rpc/threadSettledQuestions") {
     return new Response(JSON.stringify({ result: { questions: [] } }), { headers: { "content-type": "application/json" } })
   }
   // Lists too: the spinoff dialog iterates both.
-  if (url.pathname === "/_frizz/rpc/projectsQueues" || url.pathname === "/_frizz/rpc/projectsList") {
+  if (url.pathname === "/_ntwine/rpc/projectsQueues" || url.pathname === "/_ntwine/rpc/projectsList") {
     return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

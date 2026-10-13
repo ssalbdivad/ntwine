@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { AgentBlock, BackgroundOpsStrip, ThreadSlugContext, ToolCardRouter, ToolStatusMeta } from "./components/ChatView.tsx"
 import { QueueSubAgentLines } from "./components/QueueSubAgentLines.tsx"
 import { ChildOpRow } from "./components/ChildOpRow.tsx"
@@ -50,15 +50,15 @@ const thread: ThreadView = {
   // regress — a child reporting NOTHING (a codex dispatch, or an older CLI), which has to read exactly as the
   // row did before those fields existed rather than leaving a gap where the step would go.
   subAgents: [
-    { id: "agent-a", label: "Inspect logs", startedAt: agoIso(4), state: "running", subagentType: "frizz:opus-xhigh", lastActivityAt: agoIso(0), activity: "Bash", activityDetail: "Running sleep for 20 seconds", toolUses: 12, tokens: 13_476 },
+    { id: "agent-a", label: "Inspect logs", startedAt: agoIso(4), state: "running", subagentType: "ntwine:opus-xhigh", lastActivityAt: agoIso(0), activity: "Bash", activityDetail: "Running sleep for 20 seconds", toolUses: 12, tokens: 13_476 },
     { id: "agent-b", label: "Run regression suite", startedAt: agoIso(12), state: "running", subagentType: "worker gpt-5.6-terra/high", lastActivityAt: agoIso(6), activity: "Edit", activityDetail: "Editing packages/server/src/tailer.ts", toolUses: 1, tokens: 947 },
-    { id: "agent-long", label: "Sweep every call site of the renamed board projection helper for stale imports", startedAt: agoIso(78), state: "running", subagentType: "frizz:sonnet-medium", lastActivityAt: agoIso(2), activity: "Grep", activityDetail: "Searching for every remaining reference to the old projection helper name across the workspace", toolUses: 148, tokens: 132_000 },
+    { id: "agent-long", label: "Sweep every call site of the renamed board projection helper for stale imports", startedAt: agoIso(78), state: "running", subagentType: "ntwine:sonnet-medium", lastActivityAt: agoIso(2), activity: "Grep", activityDetail: "Searching for every remaining reference to the old projection helper name across the workspace", toolUses: 148, tokens: 132_000 },
     // No task stream at all (a codex child / an older CLI): identity only, and no empty slot.
     { id: "agent-plain", label: "Explore the resume path", startedAt: agoIso(0.6), state: "running", subagentType: "general-purpose", lastActivityAt: agoIso(3) },
-    { id: "agent-stale", label: "Prior investigation", startedAt: agoIso(51), state: "stale", subagentType: "frizz:haiku", lastActivityAt: agoIso(42), activityDetail: "Reading the orphan reaper", toolUses: 3, tokens: 2_400_000 },
+    { id: "agent-stale", label: "Prior investigation", startedAt: agoIso(51), state: "stale", subagentType: "ntwine:haiku", lastActivityAt: agoIso(42), activityDetail: "Reading the orphan reaper", toolUses: 3, tokens: 2_400_000 },
     // RESTED: its own run ended while the fan-out it launched kept going — the hollow dot, on every
     // density and on the dispatch card that opens it.
-    { id: "agent-rested", label: "Fan out the migration sweep", startedAt: agoIso(23), state: "rested", subagentType: "frizz:opus-high", lastActivityAt: agoIso(18) },
+    { id: "agent-rested", label: "Fan out the migration sweep", startedAt: agoIso(23), state: "rested", subagentType: "ntwine:opus-high", lastActivityAt: agoIso(18) },
   ],
   bgShells: [
     { label: "Watch CI", startedAt: agoIso(34), state: "running", lastActivityAt: agoIso(1) },
@@ -78,16 +78,16 @@ function DisclosureFixture({ running }: { running: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const bodyId = `fixture-disclosure-${running ? "running" : "done"}`
   return (
-    <div className="frizz-bash">
+    <div className="ntwine-bash">
       <ToolDisclosureHeader
-        className="frizz-bash-header"
+        className="ntwine-bash-header"
         controls={bodyId}
         expanded={expanded}
         label={`${expanded ? "Collapse" : "Expand"} ${running ? "running" : "completed"} operation`}
         onToggle={() => setExpanded((value) => !value)}
         meta={<ToolStatusMeta status={running ? "pending" : "completed"} backgroundState={running ? "background" : undefined} />}
       >
-        <span className="petite-caps frizz-bash-label shrink-0">Bash</span>
+        <span className="petite-caps ntwine-bash-label shrink-0">Bash</span>
         <span className="min-w-0 truncate text-[11.5px] text-muted">{running ? "Watch CI until checks finish" : "Completed CI checks"}</span>
       </ToolDisclosureHeader>
       <div id={bodyId} hidden={!expanded} className="border-t border-border px-2.5 py-2 text-[11.5px] text-muted">Operation details remain available without changing the header alignment.</div>
@@ -146,18 +146,18 @@ createRoot(document.getElementById("root")!).render(
       <div className="mt-3 flex flex-col gap-2">
         <ThreadSlugContext.Provider value={thread.id}>
           {/* Live child, running: pulsing mark, bare live-ticking runtime, no state verb. */}
-          <AgentBlock detail="Measure private repo placeholder prevalence" prompt="Measure how many repos use the placeholder." subagentType="frizz:opus-high" agentId="agent-a" status="pending" />
+          <AgentBlock detail="Measure private repo placeholder prevalence" prompt="Measure how many repos use the placeholder." subagentType="ntwine:opus-high" agentId="agent-a" status="pending" />
           {/* Live child gone quiet: the flat stale mark, and no "running" badge to contradict it. */}
-          <AgentBlock detail="Prior investigation" prompt="Investigate the earlier failure." subagentType="frizz:sonnet-high" agentId="agent-stale" status="pending" />
+          <AgentBlock detail="Prior investigation" prompt="Investigate the earlier failure." subagentType="ntwine:sonnet-high" agentId="agent-stale" status="pending" />
           {/* Rested child: the hollow mark — it stopped, its own fan-out has not. */}
-          <AgentBlock detail="Fan out the migration sweep" prompt="Fan out the sweep across every package." subagentType="frizz:opus-high" agentId="agent-rested" status="pending" />
+          <AgentBlock detail="Fan out the migration sweep" prompt="Fan out the sweep across every package." subagentType="ntwine:opus-high" agentId="agent-rested" status="pending" />
           {/* Completed child: NO mark and no slot for one — the header starts flush at "Agent", and the
               bare runtime is what says it ran and stopped. Read this row against the three above it: the
               marked rows step in by the slot, these do not, and that is the point. A static "finished"
               dot filled the slot here for one commit and was removed (maintainer 2026-08-01: "remove the
               status indicator entirely for a sub-agent or background shell that has completed") — this
               column means "something is alive behind this row", and a finished child is not. */}
-          <AgentBlock detail="Diagnose remotion model routing anomaly" prompt="Diagnose the routing anomaly." subagentType="frizz:opus-high" agentId="agent-done" agentStatus="completed" agentElapsedMs={183_000} status="completed" durationMs={183_000} />
+          <AgentBlock detail="Diagnose remotion model routing anomaly" prompt="Diagnose the routing anomaly." subagentType="ntwine:opus-high" agentId="agent-done" agentStatus="completed" agentElapsedMs={183_000} status="completed" durationMs={183_000} />
           {/* A NON-nominal outcome keeps its verb — no mark can say it — but the two are TONED APART, and
               this pair is the coverage for that. A STOPPED child is not an error (interrupted, or timed
               out), so it reads at the same quiet weight as the "done · 32 sec" meta above; only a real
@@ -168,8 +168,8 @@ createRoot(document.getElementById("root")!).render(
               duration formatter, and a palette of exactly two tones. The column shipped with two of each
               — the four rows below reading lowercase sans at three alphas while these last two read
               petite-caps in amber and red — so a second treatment appearing here is the regression. */}
-          <AgentBlock detail="Interrupted long-running audit" prompt="Audit every call site." subagentType="frizz:sonnet-medium" agentId="agent-killed" agentStatus="killed" agentElapsedMs={2_460_000} status="completed" durationMs={2_460_000} />
-          <AgentBlock detail="Crashed dependency sweep" prompt="Sweep every dependency." subagentType="frizz:sonnet-medium" agentId="agent-failed" agentStatus="failed" agentElapsedMs={738_000} status="failed" durationMs={738_000} />
+          <AgentBlock detail="Interrupted long-running audit" prompt="Audit every call site." subagentType="ntwine:sonnet-medium" agentId="agent-killed" agentStatus="killed" agentElapsedMs={2_460_000} status="completed" durationMs={2_460_000} />
+          <AgentBlock detail="Crashed dependency sweep" prompt="Sweep every dependency." subagentType="ntwine:sonnet-medium" agentId="agent-failed" agentStatus="failed" agentElapsedMs={738_000} status="failed" durationMs={738_000} />
           {/* No child record at all — the meta slot is the ONLY status surface, so a terminal status
               and its duration must still render here (this is what the suppression must never eat). */}
           <AgentBlock detail="Cancelled dispatch (no child record)" prompt="This dispatch was interrupted." status="cancelled" />
@@ -199,7 +199,7 @@ createRoot(document.getElementById("root")!).render(
           {/* Tracked, but its process is GONE (the "Dev server" entry above): the flat stale dot beside
               the word "stale", although the call itself still reads pending. */}
           <ToolCardRouter t={{ name: "Bash", detail: "Dev server", desc: "Dev server", command: "nub run dev", backgroundState: "background", status: "pending", count: 1 }} />
-          {/* Detached, but frizz tracks no live op behind it: the mark is the pending-background dot. */}
+          {/* Detached, but ntwine tracks no live op behind it: the mark is the pending-background dot. */}
           <ToolCardRouter t={{ name: "Bash", detail: "Untracked background job", desc: "Untracked background job", command: "node worker.mjs", backgroundState: "background", status: "pending", count: 1 }} />
           {/* FOREGROUND pending, running a while: the SAME blue mark in the SAME slot. Detachment is not
               what the dot encodes any more — a shell that is running right now is one fact, and this row

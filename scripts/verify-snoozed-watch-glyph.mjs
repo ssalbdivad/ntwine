@@ -11,7 +11,7 @@
 // the tooltip — which SSR cannot see at all, because Radix mounts the content only once it opens.
 //
 // Run against snoozed-rows-fixture.html on a plain Vite dev server (fixtures are NOT servable through the
-// frizz stack — its Vite runs in middleware mode and falls back to index.html for every unknown path):
+// ntwine stack — its Vite runs in middleware mode and falls back to index.html for every unknown path):
 //   (cd packages/web && nubx vite --port 5421 --strictPort)
 //   nub scripts/verify-snoozed-watch-glyph.mjs --url=http://localhost:5421/snoozed-rows-fixture.html
 import { mkdirSync } from "node:fs"
@@ -26,7 +26,7 @@ const shots = opt("shots")
 // sentence: the park state leads (that is what the glyph claims) and the generated wait clause finishes
 // it — see Sidebar.tsx `popover`, which is the one place that shape is decided.
 const CASES = [
-  // The FIRST line only: frizz's own sentence. A fence's prose — its Markdown body, or a legacy
+  // The FIRST line only: ntwine's own sentence. A fence's prose — its Markdown body, or a legacy
   // `reason:` — follows as its own paragraph, and this fixture's watch row carries one.
   { slug: "watch-the-resolver-pr", icon: "lucide-github", tip: /^Snoozed until .* — waiting on acme\/app#391\n/ },
   // The other three Snoozed rows are the control: a timer park, a plain user snooze, and a usage-limit

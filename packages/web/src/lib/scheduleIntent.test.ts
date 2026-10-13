@@ -5,7 +5,7 @@
 // read (stale-while-revalidate), a "no schedule" answer taking it away.
 import assert from "node:assert/strict"
 import test from "node:test"
-import { SCHEDULE_NOT_FOUND_COPY, SCHEDULE_PRESENCE_COPY, SCHEDULE_SPACING_COPY, type InterpretScheduleResult } from "@frizz/shared"
+import { SCHEDULE_NOT_FOUND_COPY, SCHEDULE_PRESENCE_COPY, SCHEDULE_SPACING_COPY, type InterpretScheduleResult } from "@ntwine/shared"
 import {
   NO_TASK_COPY,
   UNCHECKED_NOTE,

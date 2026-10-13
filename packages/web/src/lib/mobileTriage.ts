@@ -1,4 +1,4 @@
-import type { CompletionHold, ThreadView } from "@frizz/shared"
+import type { CompletionHold, ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { closeDrawersById, openThread, showToast, store } from "../store.ts"
 import { appPushedCurrentEntry } from "./router.ts"
@@ -131,7 +131,7 @@ export async function markDoneAndAdvance(thread: ThreadView, opts: { terminateLi
 /**
  * Put a thread marked done back where it was, and reopen it.
  *
- * Frizz has no Reopen verb in its UI — sending a thread a message is what reopens it — but the server has
+ * Ntwine has no Reopen verb in its UI — sending a thread a message is what reopens it — but the server has
  * the explicit lifecycle write that verb would use (`setThreadState`, the only writer of `state`), and
  * that is all this does: `state` goes back to `open`. What completion also did stays done. A worker that
  * was resting live was stopped, and the next message resumes the conversation from disk in a new one,

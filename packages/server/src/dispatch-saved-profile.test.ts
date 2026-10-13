@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { ProviderQuota, Settings } from "@frizz/shared"
+import type { ProviderQuota, Settings } from "@ntwine/shared"
 import { createDispatcher } from "./dispatch.ts"
 import { createStorage } from "./storage.ts"
 import { defaultSettings } from "./settings.ts"
@@ -22,7 +22,7 @@ function harness(
   chooseEffort?: ChooseEffort,
   extra: { settings?: Partial<Settings>; readClaudeQuota?: () => Promise<ProviderQuota> } = {},
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-saved-profile-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-saved-profile-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = { dir, id: "saved-profile", name: "t", label: "o/t", stateDir: dir, cwdSlug: cwdSlug(dir) }
   const board = {

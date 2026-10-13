@@ -38,11 +38,11 @@ test("a path still carrying a `${…}` placeholder is a codex script's variable,
 const bash = (command: string) => ({ name: "Bash", detail: command.split("\n")[0], command })
 test("a file written by a shell redirect reaches the rail, resolved against the project", () => {
   const out = editedFilesOf(
-    [msg("2026-09-04T13:13:00Z", bash("cd /p/nub; cat > .frizz/notes.md <<'MD'\n# hi\nMD"))],
+    [msg("2026-09-04T13:13:00Z", bash("cd /p/nub; cat > .ntwine/notes.md <<'MD'\n# hi\nMD"))],
     "/p/nub",
     allPresent,
   )
-  assert.deepEqual(out, [{ path: "/p/nub/.frizz/notes.md", edits: 1, lastEditedAt: "2026-09-04T13:13:00Z" }])
+  assert.deepEqual(out, [{ path: "/p/nub/.ntwine/notes.md", edits: 1, lastEditedAt: "2026-09-04T13:13:00Z" }])
 })
 
 test("the same file written relatively and absolutely is ONE row", () => {
@@ -74,12 +74,12 @@ test("scratch, HOME and anything outside the project are not the worker's edits"
 
 test("a target severed by the command cap is dropped rather than shown as half a name", () => {
   // capCommand's tail verbatim — the leading newline is what makes the severed token look whole.
-  const truncated = "cat > .frizz/long-considered-fi\n… (truncated)"
+  const truncated = "cat > .ntwine/long-considered-fi\n… (truncated)"
   assert.deepEqual(editedFilesOf([msg("t", bash(truncated))], "/p/nub", allPresent), [])
   // The same text untruncated is a real write.
   assert.deepEqual(
-    editedFilesOf([msg("t", bash("cat > .frizz/name.md"))], "/p/nub", allPresent).map((f) => f.path),
-    ["/p/nub/.frizz/name.md"],
+    editedFilesOf([msg("t", bash("cat > .ntwine/name.md"))], "/p/nub", allPresent).map((f) => f.path),
+    ["/p/nub/.ntwine/name.md"],
   )
 })
 

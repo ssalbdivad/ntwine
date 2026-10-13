@@ -9,20 +9,20 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import Database from "./sqlite.ts"
 import { createStorage, isHeldRow, isScheduleHeldRow, type SessionRow } from "./storage.ts"
 import { heldThreadView } from "./board.ts"
 
 const row = (slug: string, patch: Partial<SessionRow> = {}): SessionRow => ({
-  slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-10-01T00:00:00.000Z",
+  slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-10-01T00:00:00.000Z",
   last_read_at: null, unread: 0, exited: 1, archived: 0, rested_at: null, title_auto: 0, title: slug,
   state: "open", meta: null, seen_at: null, transcript_id: null, ...patch,
 })
 
 /** A database as the build before held rows left it: same rows, no `held_by` column. */
 function legacyDatabase(rows: SessionRow[]): { dir: string; file: string } {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-held-migrate-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-held-migrate-"))
   const file = join(dir, "ui.db")
   const storage = createStorage(file, "p")
   for (const r of rows) storage.upsertSession(r)
@@ -77,7 +77,7 @@ test("the migration holds every legacy unstarted row, leaves its note where it w
 })
 
 test("a held row an OLDER server started after a rollback reads as started on the next open", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-held-rollback-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-held-rollback-"))
   try {
     const file = join(dir, "ui.db")
     const storage = createStorage(file, "p")
@@ -99,7 +99,7 @@ test("a held row an OLDER server started after a rollback reads as started on th
 })
 
 test("setHeldPrompt rewrites only a held row's prompt", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-held-prompt-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-held-prompt-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   try {
     storage.upsertSession(row("held", { lazy_prompt: "first", held_by: "lazy" }))
@@ -130,7 +130,7 @@ test("base never queues a held thread whose holder has not said so", () => {
 // its unstarted threads there, ensureStorageSchema moves them to `lazy_prompt`, and the held migration then
 // holds each under `lazy`, the id of the lazy-threads feature removed on 2026-10-07.
 test("a database from the build that named the column `todo` keeps its unstarted threads", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-lazy-migrate-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-lazy-migrate-"))
   try {
     const file = join(dir, "ui.db")
     const first = createStorage(file, "p")

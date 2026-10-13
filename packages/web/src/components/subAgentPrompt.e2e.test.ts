@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_SUBAGENT_PROMPT_E2E_URL
-const screenshotBase = process.env.FRIZZ_SUBAGENT_PROMPT_SCREENSHOT
+const baseUrl = process.env.NTWINE_SUBAGENT_PROMPT_E2E_URL
+const screenshotBase = process.env.NTWINE_SUBAGENT_PROMPT_SCREENSHOT
 
 test("expanded sub-agent dispatches show only the initial prompt", { skip: !baseUrl, timeout: 60_000 }, async () => {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -21,7 +21,7 @@ test("expanded sub-agent dispatches show only the initial prompt", { skip: !base
       await disclosure.click()
       assert.equal(await disclosure.evaluate((element) => element.getAttribute("aria-expanded")), "true")
     }
-    const bodies = await page.$$eval("[data-prompt-case] .frizz-bash-body", (elements) => elements.map((element) => element.textContent))
+    const bodies = await page.$$eval("[data-prompt-case] .ntwine-bash-body", (elements) => elements.map((element) => element.textContent))
     assert.deepEqual(bodies, [
       "Inspect the resolver.\n\nReport the failing case.",
       "Inspect the resolver.\n\nReport the failing case.",
@@ -29,11 +29,11 @@ test("expanded sub-agent dispatches show only the initial prompt", { skip: !base
       Array.from({ length: 20 }, (_, i) => `Instruction ${i + 1}`).join("\n"),
     ])
     assert.doesNotMatch(await page.$eval("main", (element) => element.textContent ?? ""), /fork_turns|service_tier|agent_id|agent_name/)
-    assert.equal(await page.$(".frizz-bash-output-label"), null)
-    assert.equal(await page.$(".frizz-bash-output-body"), null)
-    assert.ok(await page.$('[data-prompt-case="3"] .frizz-bash-clamp'))
-    await page.click('[data-prompt-case="3"] .frizz-bash-expand')
-    assert.equal(await page.$('[data-prompt-case="3"] .frizz-bash-clamp'), null)
+    assert.equal(await page.$(".ntwine-bash-output-label"), null)
+    assert.equal(await page.$(".ntwine-bash-output-body"), null)
+    assert.ok(await page.$('[data-prompt-case="3"] .ntwine-bash-clamp'))
+    await page.click('[data-prompt-case="3"] .ntwine-bash-expand')
+    assert.equal(await page.$('[data-prompt-case="3"] .ntwine-bash-clamp'), null)
 
     for (const font of ["sans", "mono"]) {
       await page.evaluate((value) => { document.documentElement.dataset.font = value }, font)

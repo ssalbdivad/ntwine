@@ -1,6 +1,6 @@
 // REMOVING IDLE WORKTREES — the predicate (pure), then the whole sweep against a REAL git repository.
 //
-// The repository test builds one worktree per keep/remove case under `.frizz/worktrees` and runs the
+// The repository test builds one worktree per keep/remove case under `.ntwine/worktrees` and runs the
 // real sweep over it: real `git worktree list`, `git status --ignored`, `git worktree remove`. Only
 // the eligible worktree may go, its branch must survive, and every other case is a negative control
 // that proves the sweep CAN keep (a sweep that removed everything would fail four ways).
@@ -10,7 +10,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import type { AppContext } from "./context.ts"
 import type { Project } from "./project.ts"
 import { threadFoldersInUse } from "./router.ts"
@@ -38,8 +38,8 @@ test("each check keeps the worktree on its own", () => {
   const cases: [Partial<WorktreeFacts>, RegExp][] = [
     [{ locked: true }, /locked/],
     [{ prunable: true }, /already gone/],
-    [{ project: "frizz-wt" }, /registered project frizz-wt/],
-    [{ inUseBy: { dir: "/nowhere/wt/packages", by: "frizz/fix-it" } }, /thread frizz\/fix-it is working in it/],
+    [{ project: "ntwine-wt" }, /registered project ntwine-wt/],
+    [{ inUseBy: { dir: "/nowhere/wt/packages", by: "ntwine/fix-it" } }, /thread ntwine\/fix-it is working in it/],
     [{ changes: [" M src/a.ts"] }, /uncommitted changes: {2}M src\/a\.ts/],
     [{ changes: ["?? notes.md"] }, /uncommitted changes/],
     [{ ignored: [".env"] }, /ignored files git cannot restore: \.env/],
@@ -66,20 +66,20 @@ test("only dependency and build output counts as regenerable", () => {
   for (const entry of ["node_modules/", "packages/web/node_modules/", "dist/", "build/", ".turbo/", ".cache/", ".next/", "coverage/", "tsconfig.tsbuildinfo", "packages/x/tsconfig.tsbuildinfo", "dist/inner.env", "__pycache__/", "a.pyc", ".DS_Store"]) {
     assert.equal(regenerable(entry, "/nowhere"), true, entry)
   }
-  for (const entry of [".env", ".env.local", "data/app.db", "local.sqlite", "secrets/", "fixtures/big.json", ".venv/", "out/", ".frizz/"]) {
+  for (const entry of [".env", ".env.local", "data/app.db", "local.sqlite", "secrets/", "fixtures/big.json", ".venv/", "out/", ".ntwine/"]) {
     assert.equal(regenerable(entry, "/nowhere"), false, entry)
   }
 })
 
-test("a .frizz folder is regenerable only when it holds nothing but Frizz's markers", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-wt-markers-"))
+test("a .ntwine folder is regenerable only when it holds nothing but Ntwine's markers", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-wt-markers-"))
   try {
-    mkdirSync(join(dir, ".frizz"))
-    writeFileSync(join(dir, ".frizz", ".id"), "x")
-    writeFileSync(join(dir, ".frizz", ".gitignore"), "*\n")
-    assert.equal(regenerable(".frizz/", dir), true)
-    mkdirSync(join(dir, ".frizz", "threads"))
-    assert.equal(regenerable(".frizz/", dir), false)
+    mkdirSync(join(dir, ".ntwine"))
+    writeFileSync(join(dir, ".ntwine", ".id"), "x")
+    writeFileSync(join(dir, ".ntwine", ".gitignore"), "*\n")
+    assert.equal(regenerable(".ntwine/", dir), true)
+    mkdirSync(join(dir, ".ntwine", "threads"))
+    assert.equal(regenerable(".ntwine/", dir), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -87,25 +87,25 @@ test("a .frizz folder is regenerable only when it holds nothing but Frizz's mark
 
 test("git worktree list --porcelain parses", () => {
   const parsed = parseWorktreeList(
-    "worktree /r\nHEAD aaa\nbranch refs/heads/main\n\nworktree /r/.frizz/worktrees/a\nHEAD bbb\ndetached\nlocked because\n\nworktree /r/.frizz/worktrees/b\nHEAD ccc\nbranch refs/heads/b\nprunable gitdir file points to non-existent location\n",
+    "worktree /r\nHEAD aaa\nbranch refs/heads/main\n\nworktree /r/.ntwine/worktrees/a\nHEAD bbb\ndetached\nlocked because\n\nworktree /r/.ntwine/worktrees/b\nHEAD ccc\nbranch refs/heads/b\nprunable gitdir file points to non-existent location\n",
   )
   assert.deepEqual(parsed, [
     { path: "/r", head: "aaa", branch: "refs/heads/main" },
-    { path: "/r/.frizz/worktrees/a", head: "bbb", locked: true },
-    { path: "/r/.frizz/worktrees/b", head: "ccc", branch: "refs/heads/b", prunable: true },
+    { path: "/r/.ntwine/worktrees/a", head: "bbb", locked: true },
+    { path: "/r/.ntwine/worktrees/b", head: "ccc", branch: "refs/heads/b", prunable: true },
   ])
 })
 
 // ── threadFoldersInUse: which threads count as open work ─────────────────────────────────────────────
 
 test("open, pinned and snoozed threads report their folders; an unpinned done one does not", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-wt-inuse-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-wt-inuse-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   try {
     const project: Project = { dir, id: "p", name: "proj", label: "proj", stateDir: dir, cwdSlug: "proj" }
     const view = (id: string, over: Partial<ThreadView>): ThreadView =>
       ({ kind: "session", id, state: "open", runtime: "exited", subAgents: [], bgShells: [], ...over }) as unknown as ThreadView
-    const wt = (name: string) => join(dir, ".frizz", "worktrees", name)
+    const wt = (name: string) => join(dir, ".ntwine", "worktrees", name)
     const threads = [
       view("running", { runtime: "running", checkout: { dir: wt("a"), kind: "worktree" } }),
       view("queued", { checkout: { dir: wt("b"), kind: "worktree" } }),
@@ -155,7 +155,7 @@ function age(dir: string, ms: number): void {
 }
 
 test("the real sweep removes only the idle, clean, unused worktree, and keeps its branch", async () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-wt-sweep-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-wt-sweep-")))
   const main = join(root, "repo")
   const old = Date.now() - 20 * DAY
   const oldDate = `${Math.floor(old / 1000)} +0000`
@@ -166,13 +166,13 @@ test("the real sweep removes only the idle, clean, unused worktree, and keeps it
     writeFileSync(join(main, "a.ts"), "export {}\n")
     sh(main, ["add", "-A"])
     sh(main, ["commit", "-q", "-m", "init"], { GIT_COMMITTER_DATE: oldDate, GIT_AUTHOR_DATE: oldDate })
-    // Frizz's own marker folder, ignored by its own .gitignore as in every Frizz project.
-    mkdirSync(join(main, ".frizz", "worktrees"), { recursive: true })
-    writeFileSync(join(main, ".frizz", ".gitignore"), "*\n")
-    writeFileSync(join(main, ".frizz", ".id"), "id\n")
+    // Ntwine's own marker folder, ignored by its own .gitignore as in every Ntwine project.
+    mkdirSync(join(main, ".ntwine", "worktrees"), { recursive: true })
+    writeFileSync(join(main, ".ntwine", ".gitignore"), "*\n")
+    writeFileSync(join(main, ".ntwine", ".id"), "id\n")
 
     const names = ["eligible", "dirty", "untracked", "dotenv", "recent", "in-use", "locked", "orphan"] as const
-    const wt = (name: string) => join(main, ".frizz", "worktrees", name)
+    const wt = (name: string) => join(main, ".ntwine", "worktrees", name)
     for (const name of names) {
       if (name === "orphan") sh(main, ["worktree", "add", "-q", "--detach", wt(name)])
       else sh(main, ["worktree", "add", "-q", "-b", name, wt(name)])
@@ -190,12 +190,12 @@ test("the real sweep removes only the idle, clean, unused worktree, and keeps it
     sh(wt("orphan"), ["add", "b.ts"])
     sh(wt("orphan"), ["commit", "-q", "-m", "orphan"], { GIT_COMMITTER_DATE: oldDate, GIT_AUTHOR_DATE: oldDate })
     // A folder in the worktree folder git does not know.
-    mkdirSync(join(main, ".frizz", "worktrees", "stray"))
-    writeFileSync(join(main, ".frizz", "worktrees", "stray", "keep.txt"), "x\n")
+    mkdirSync(join(main, ".ntwine", "worktrees", "stray"))
+    writeFileSync(join(main, ".ntwine", "worktrees", "stray", "keep.txt"), "x\n")
 
     // Everything is 20 days old — except the recent worktree, whose file was touched just now.
     for (const name of names) age(wt(name), old)
-    age(join(main, ".frizz", "worktrees", "stray"), old)
+    age(join(main, ".ntwine", "worktrees", "stray"), old)
     // The folder's own mtime is recent everywhere (we just wrote into it); it must not count.
     writeFileSync(join(wt("recent"), "a.ts"), "export {}\n") // same content: clean, but a fresh mtime
 

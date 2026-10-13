@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSnapshot } from "valtio"
-import type { ProjectQueue, ThreadView } from "@frizz/shared"
+import type { ProjectQueue, ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { projectsQueuesQuery } from "../lib/projectsQueuesRead.ts"
 import { store } from "../store.ts"

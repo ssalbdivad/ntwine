@@ -1,7 +1,7 @@
 import { useCallback, useState, useSyncExternalStore } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { subscribe } from "valtio"
-import type { Backend } from "@frizz/shared"
+import type { Backend } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { removeQueuedMessage } from "../hooks.ts"
 import { showToast, store, threadBySlug } from "../store.ts"
@@ -13,7 +13,7 @@ import { draftKey, mergeIntoDraft, useProjectDir } from "./drafts.ts"
 // the gray bubble — until the agent picks it up, which is anywhere from seconds to (measured) hours.
 // For that whole window the operator's own message is somewhere they cannot reach: the composer is
 // empty, the words are on screen, and the only way to change their mind was to send a second message
-// correcting the first. Clicking the bubble is the retraction: frizz asks the provider to drop it, and
+// correcting the first. Clicking the bubble is the retraction: ntwine asks the provider to drop it, and
 // on a confirmed drop hands the text back to the prompt box where it can be edited and re-sent.
 //
 // The whole thing is worth nothing unless it is TRUTHFUL, so nothing here is optimistic. The bubble
@@ -21,7 +21,7 @@ import { draftKey, mergeIntoDraft, useProjectDir } from "./drafts.ts"
 // already picked it up") leaves the bubble exactly where it is and says so. Silently clearing a bubble
 // for a message the agent is about to read would be worse than not having the feature.
 
-// Which surfaces can offer this at all. Only a Claude thread has a queue frizz holds a control channel
+// Which surfaces can offer this at all. Only a Claude thread has a queue ntwine holds a control channel
 // into; a codex steer goes straight into the running turn, so there is never anything to take back and
 // the affordance would be a dead click. (A LEGACY Claude row dispatched before the broker became the
 // sole transport also can't — its text was typed into Claude Code's own TUI composer — but nothing

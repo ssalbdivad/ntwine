@@ -2,7 +2,7 @@
 
 ## Decision
 
-Make the real shared Frizz board a **stable, built, explicitly promoted instance**. `frizz-dev` must default to that mode. It must not watch the Frizz checkout and it must not run Vite HMR. A source edit is therefore incapable of restarting, reloading, or shifting the board a person is using for real work.
+Make the real shared Ntwine board a **stable, built, explicitly promoted instance**. `ntwine-dev` must default to that mode. It must not watch the Ntwine checkout and it must not run Vite HMR. A source edit is therefore incapable of restarting, reloading, or shifting the board a person is using for real work.
 
 Keep fast iteration, but move it to an explicit, per-agent **isolated snapshot preview**. A preview is built from an immutable capture of the agent's current working tree (including that agent's uncommitted edits), gets an ephemeral port and a fresh test project/state namespace, and is destroyed when QA finishes. It is never allowed to become the NUB board and never attaches to NUB's SQLite database, tmux socket, native sessions, or browser profile.
 
@@ -10,16 +10,16 @@ This is the smallest robust staged architecture. It reuses the existing project 
 
 ## What exists now and why it fails for NUB
 
-The current source launcher (`packages/cli/src/index.ts` and `launcher.ts`) resolves the Git checkout into one project identity and state directory, allocates a port plus `port + 39000` for Vite HMR, and runs a durable supervisor. The supervisor (`dev-supervisor.ts`) watches the whole Frizz workspace. Edits to server/shared/RPC replace the disposable control-plane child; edits to launcher/config also re-exec the supervisor. Web edits are served through Vite middleware and HMR from the same source checkout. The child owns HTTP, Vite, tailers, SQLite handles, wake scheduler, and WebSocket transports.
+The current source launcher (`packages/cli/src/index.ts` and `launcher.ts`) resolves the Git checkout into one project identity and state directory, allocates a port plus `port + 39000` for Vite HMR, and runs a durable supervisor. The supervisor (`dev-supervisor.ts`) watches the whole Ntwine workspace. Edits to server/shared/RPC replace the disposable control-plane child; edits to launcher/config also re-exec the supervisor. Web edits are served through Vite middleware and HMR from the same source checkout. The child owns HTTP, Vite, tailers, SQLite handles, wake scheduler, and WebSocket transports.
 
 That is reasonable for a single developer scratch server, but not for the shared dogfood board: every agent's edit is an input to the same watcher. Child replacement closes HTTP/WebSocket/Vite state and changes `bootId`; browser clients necessarily reconnect or reload. If a source edit is temporarily invalid, the supervisor preserves the watcher and reports failure, but the real board has still been churned by unrelated development work.
 
 The live NUB instance makes this concrete on 2026-07-14:
 
-- port `4919` was held by a source-backed `frizz-dev --foreground --no-app --port 4919` supervisor;
+- port `4919` was held by a source-backed `ntwine-dev --foreground --no-app --port 4919` supervisor;
 - its authoritative NUB state record was `ready`, bound to NUB's existing project ID and state directory, with a disposable child on `4919`;
 - the direct `GET /health` probe timed out during the observation, while the child PID had recently changed. This is exactly the visible outage/churn the design must eliminate;
-- the running NUB agents live in the repository-scoped Frizz tmux socket and the durable NUB state directory. They are protected state, not preview input.
+- the running NUB agents live in the repository-scoped Ntwine tmux socket and the durable NUB state directory. They are protected state, not preview input.
 
 The existing restart model is valuable and should be retained: a durable supervisor owns project launch, the child is ownership-verified before readiness, `/health` includes project identity and an owner proof, and `--stop` deliberately preserves tmux agent sessions. The change is who may cause a restart, not a rewrite of lifecycle safety.
 
@@ -27,9 +27,9 @@ The existing restart model is valuable and should be retained: a durable supervi
 
 | Boundary | Stable NUB board | Agent preview |
 | --- | --- | --- |
-| Frizz source | Reads only a promoted immutable build; never watches the checkout | Reads only an immutable snapshot copied from the requesting agent's tree |
+| Ntwine source | Reads only a promoted immutable build; never watches the checkout | Reads only an immutable snapshot copied from the requesting agent's tree |
 | UI artifact | Content-addressed build directory, immutable after manifest verification | Separate content-addressed preview artifact, deleted by cleanup policy |
-| NUB project/state | Uses the existing NUB project ID, `~/.frizz/projects/<nub-id>/ui.db`, and its existing tmux socket | A new disposable Git/project identity, state directory, managed tmux socket, and browser profile |
+| NUB project/state | Uses the existing NUB project ID, `~/.ntwine/projects/<nub-id>/ui.db`, and its existing tmux socket | A new disposable Git/project identity, state directory, managed tmux socket, and browser profile |
 | Native agents / transcripts | The only writer/attacher for the real board; existing agents survive UI restart | No attach, resume, terminal input, dispatch, scheduler, wake, GitHub mutation, or native control against NUB |
 | Promotion authority | Explicit human/operator command only | Cannot promote itself; it can emit a candidate build digest and QA evidence |
 
@@ -52,34 +52,34 @@ These names are intentionally concrete enough to implement against the new launc
 
 ```sh
 # Default: serve the last promoted immutable build for this Git project.
-frizz-dev                         # opens/reuses stable board
-frizz-dev --status                # says stable | starting | degraded, artifact digest, boot, port
-frizz-dev --stop                  # authenticated controlled stop; tmux/native agents remain
+ntwine-dev                         # opens/reuses stable board
+ntwine-dev --status                # says stable | starting | degraded, artifact digest, boot, port
+ntwine-dev --stop                  # authenticated controlled stop; tmux/native agents remain
 
 # An operator creates a candidate build and explicitly replaces the stable generation.
-frizz-dev build                   # capture current tree -> verify -> immutable artifact digest
-frizz-dev promote <digest>        # validates candidate, then controlled restart on same stable port
-frizz-dev restart                 # restart the same promoted digest; never rebuild from source
-frizz-dev rollback [<digest>]     # restart the previous known-good promoted digest
+ntwine-dev build                   # capture current tree -> verify -> immutable artifact digest
+ntwine-dev promote <digest>        # validates candidate, then controlled restart on same stable port
+ntwine-dev restart                 # restart the same promoted digest; never rebuild from source
+ntwine-dev rollback [<digest>]     # restart the previous known-good promoted digest
 
 # An agent tests its own current, possibly uncommitted checkout contents.
-frizz-dev preview --name <agent-task> --no-app
-frizz-dev preview --name <agent-task> --hmr --no-app   # later, opt-in web-only speed path
-frizz-dev preview --status <id>
-frizz-dev preview --stop <id>
+ntwine-dev preview --name <agent-task> --no-app
+ntwine-dev preview --name <agent-task> --hmr --no-app   # later, opt-in web-only speed path
+ntwine-dev preview --status <id>
+ntwine-dev preview --stop <id>
 ```
 
-`frizz-dev` with no subcommand must **never** silently fall back to source/HMR. If no promoted artifact exists, it must say so and print `frizz-dev build` then `frizz-dev promote <digest>` (or an explicit temporary `frizz-dev source --unsafe-shared` during the migration window). `--dev` should remain a compatibility spelling only long enough to warn and map to the explicit unsafe command; it must not preserve the hazardous default.
+`ntwine-dev` with no subcommand must **never** silently fall back to source/HMR. If no promoted artifact exists, it must say so and print `ntwine-dev build` then `ntwine-dev promote <digest>` (or an explicit temporary `ntwine-dev source --unsafe-shared` during the migration window). `--dev` should remain a compatibility spelling only long enough to warn and map to the explicit unsafe command; it must not preserve the hazardous default.
 
 `build` is a build/capture operation, not a deploy. It produces a manifest with: source snapshot digest, dependency lock digest, Node/runtime version, server/CLI/web artifact digests, asset manifest, build timestamp, and schema compatibility range. It does not stop or touch a running board. `promote` is the only command allowed to select a new real-board artifact and the only normal development command allowed to restart NUB.
 
 ## Artifact and source implementation
 
 1. Add a production artifact builder for all launch-time code, not merely `web/dist`. The output must contain compiled/bundled JS for CLI/server/shared/RPC/runtime and the hashed web dist, with a locked dependency closure. The stable launcher executes the artifact entrypoint, never TypeScript modules in `packages/**/src` and never workspace `node_modules` through source symlinks.
-2. Store builds under a private Frizz build root, e.g. `~/.frizz/builds/<artifact-digest>/`, using a staging directory plus fsync/rename and a verified immutable manifest. Mark the artifact read-only after verification. Keep an atomically written per-project `stable.json` that names `current`, `previous`, compatibility metadata, and promotion time.
+2. Store builds under a private Ntwine build root, e.g. `~/.ntwine/builds/<artifact-digest>/`, using a staging directory plus fsync/rename and a verified immutable manifest. Mark the artifact read-only after verification. Keep an atomically written per-project `stable.json` that names `current`, `previous`, compatibility metadata, and promotion time.
 3. Treat the build root as tooling-owned. No preview, server process, or browser process writes artifacts after publication; no cleanup removes a digest referenced by `stable.json`, a live owner record, or a retained rollback slot.
 4. Change the stable control-plane boot to `dev: false`: serve the artifact's static web dist, no Vite middleware, no watcher, and no HMR companion socket. The stable port allocator therefore reserves only the HTTP port. Preview HMR, if implemented later, reserves its private companion port.
-5. Preserve the present source-backed supervisor only behind `frizz-dev source --unsafe-shared`, with a high-visibility warning and no automatic invocation. It is a temporary developer escape hatch, not a NUB operation.
+5. Preserve the present source-backed supervisor only behind `ntwine-dev source --unsafe-shared`, with a high-visibility warning and no automatic invocation. It is a temporary developer escape hatch, not a NUB operation.
 
 ## Stable lifecycle, health, promotion, and rollback
 
@@ -87,16 +87,16 @@ The existing per-project launch lease remains the authority. Extend its status/h
 
 ### Stable start
 
-1. Resolve the existing Git project identity exactly as today. For NUB this selects the current repository-scoped identity and its existing `~/.frizz/projects/<nub-id>` state directory and managed tmux socket.
+1. Resolve the existing Git project identity exactly as today. For NUB this selects the current repository-scoped identity and its existing `~/.ntwine/projects/<nub-id>` state directory and managed tmux socket.
 2. Read `stable.json`, verify its artifact manifest/digests/runtime compatibility before acquiring the launch lease, then fork that artifact's server entry with the pinned launch target.
 3. Start the normal producers and publish ready only after HTTP, app socket, terminal transport, tailer, storage migration checks, and health all succeed. Keep the existing token-bound ownership verification.
-4. Write status with the stable artifact digest and record a bounded local log for the generation. A healthy stable instance is unaffected by any write anywhere in the Frizz source checkout.
+4. Write status with the stable artifact digest and record a bounded local log for the generation. A healthy stable instance is unaffected by any write anywhere in the Ntwine source checkout.
 
 ### Explicit promotion/restart
 
 1. `promote <digest>` first verifies the immutable artifact and runs its preflight against a **disposable test project/state**, not NUB. Required checks: build-manifest integrity, static asset availability, startup/readiness, API/health identity, migration compatibility, and a smoke browser test.
 2. It atomically records a pending promotion intent containing old/new digest and expected project/owner identity. The old digest remains the rollback target.
-3. It asks the current authenticated stable owner to drain: stop accepting new HTTP/WebSocket work, close Frizz producers cleanly, retire exact status, and release only its control-plane delegate. It never kills tmux sessions or deletes/reinitializes NUB state.
+3. It asks the current authenticated stable owner to drain: stop accepting new HTTP/WebSocket work, close Ntwine producers cleanly, retire exact status, and release only its control-plane delegate. It never kills tmux sessions or deletes/reinitializes NUB state.
 4. Launch the new artifact on the **same** port and existing NUB launch target; wait for token-bound health and a readiness window (for example 10 seconds with HTTP, app socket connect, board snapshot, and no immediate process exit). Browser clients reconnect once and receive a new boot identity; this is an announced, bounded restart rather than surprise churn.
 5. Commit `stable.json.current` only after the readiness window. On pre-ready failure, relaunch the old digest with the same target/port, preserve the failed candidate logs, and leave `current` unchanged. On post-ready health failure during the window, automatically roll back once; after that, mark degraded and require an explicit operator action rather than looping.
 
@@ -106,29 +106,29 @@ The existing per-project launch lease remains the authority. Extend its status/h
 
 Do not move the live board's port, project ID, state directory, tmux socket, browser profile, or native threads.
 
-1. Build and preflight the first immutable artifact from the current known-good Frizz tree in an isolated test project. Do not install a global launcher until this plan's stable mode exists.
-2. Snapshot only metadata needed for recovery (current launcher/supervisor records and selected artifact); do not copy or rewrite NUB `ui.db`, `.frizz` thread files, tmux state, or transcripts.
+1. Build and preflight the first immutable artifact from the current known-good Ntwine tree in an isolated test project. Do not install a global launcher until this plan's stable mode exists.
+2. Snapshot only metadata needed for recovery (current launcher/supervisor records and selected artifact); do not copy or rewrite NUB `ui.db`, `.ntwine` thread files, tmux state, or transcripts.
 3. Announce one maintenance restart. Authenticate the current `4919` owner, perform its normal graceful stop, then start the stable artifact on `4919` using the exact current NUB launch target. The existing server restart/rebind behavior must reopen the same DB and discover/reattach existing tmux sessions.
 4. Verify health owner proof, board thread count/sample, existing terminal attach, and one browser reconnect before declaring success. If anything fails before the commit window, start the prior source-backed generation only through the authenticated legacy path, preserving the same NUB state; then diagnose offline. Do not start a second server against that state.
 5. After the stable generation is proven, remove the source watcher from `4919` permanently. Source edits thereafter require `build` and `promote`.
 
 ## Preview architecture: reliable QA for uncommitted work
 
-`frizz-dev preview` captures the caller's Frizz checkout at invocation into a temporary, read-only snapshot. It must include uncommitted, tracked, and intended untracked files subject to an explicit allowlist; it must exclude `.git`, `node_modules`, existing `dist`, artifacts, credentials, `.frizz` runtime state, and browser profiles. The command records the source path, Git HEAD, dirty-file list, and snapshot digest so screenshot evidence can say exactly what was tested.
+`ntwine-dev preview` captures the caller's Ntwine checkout at invocation into a temporary, read-only snapshot. It must include uncommitted, tracked, and intended untracked files subject to an explicit allowlist; it must exclude `.git`, `node_modules`, existing `dist`, artifacts, credentials, `.ntwine` runtime state, and browser profiles. The command records the source path, Git HEAD, dirty-file list, and snapshot digest so screenshot evidence can say exactly what was tested.
 
-The preview then builds that snapshot into its own immutable preview artifact and launches it against a generated fixture Git repository with a distinct Frizz project identity. Each preview receives:
+The preview then builds that snapshot into its own immutable preview artifact and launches it against a generated fixture Git repository with a distinct Ntwine project identity. Each preview receives:
 
 - an atomically allocated HTTP port from a preview range (suggest `4930–5099`) and, only with `--hmr`, an independently reserved HMR port; allocator records both ports and refuses collision;
-- `~/.frizz/previews/<preview-id>/state/` rather than `~/.frizz/projects/<nub-id>`;
+- `~/.ntwine/previews/<preview-id>/state/` rather than `~/.ntwine/projects/<nub-id>`;
 - a unique managed tmux socket, browser profile, log directory, and test fixture project;
-- `FRIZZ_WAKERS_OFF=1`, no production GitHub side effects, and a preview capability policy denying native attach/resume/input/dispatch and every mutation that could reach NUB;
+- `NTWINE_WAKERS_OFF=1`, no production GitHub side effects, and a preview capability policy denying native attach/resume/input/dispatch and every mutation that could reach NUB;
 - seeded deterministic board/session/transcript fixtures sufficient for desktop and narrow UI flows. Fixture setup must exercise the same public HTTP/WebSocket/RPC paths, not component-only mocks.
 
 For code changes needing a real backend behavior rather than a visual fixture, the preview launches the snapshot's whole server against the disposable fixture project and allows only disposable preview-created agents. It never points to the developer's shared NUB checkout. This gives an agent a reliable end-to-end Chrome target for its own uncommitted server or UI changes even while other agents change the shared branch.
 
 `--hmr` is phase two and web-only: it watches only the preview snapshot's `packages/web/src`, never the shared checkout, and can reload only that preview. Any server/shared/RPC/config edit causes that preview to rebuild/restart in isolation. HMR is a convenience after the snapshot preview contract is sound; it is not an availability dependency.
 
-For substantial parallel changes, agents should still use per-agent Git worktrees. A worktree gives source ownership and clean commit boundaries; `preview` gives runtime isolation. The recommended worker instruction becomes: create/use your assigned worktree, run `frizz-dev preview --name <task> --no-app` from that worktree, perform browser QA, retain its screenshot/log manifest, then stop the preview. The snapshot capture makes the same guarantee for a small uncommitted shared-checkout edit, but it cannot make concurrent file writes semantically coherent; the manifest should flag files whose mtime/content changed during capture and retry rather than silently test a torn tree.
+For substantial parallel changes, agents should still use per-agent Git worktrees. A worktree gives source ownership and clean commit boundaries; `preview` gives runtime isolation. The recommended worker instruction becomes: create/use your assigned worktree, run `ntwine-dev preview --name <task> --no-app` from that worktree, perform browser QA, retain its screenshot/log manifest, then stop the preview. The snapshot capture makes the same guarantee for a small uncommitted shared-checkout edit, but it cannot make concurrent file writes semantically coherent; the manifest should flag files whose mtime/content changed during capture and retry rather than silently test a torn tree.
 
 ## Port and state rules
 
@@ -145,7 +145,7 @@ Do not globally install the new source-backed default. Update launcher help, REA
 
 ### Stage 1 — artifact builder and stable server
 
-Add artifact manifest/build/promotion modules and tests. Add `mode`/artifact metadata to status and health. Teach the CLI to serve/reuse/restart/rollback a selected immutable build with the current ownership fencing. Switch stable server boot to static assets and no watcher/Vite. Make bare `frizz-dev` require a selected build and never infer source mode.
+Add artifact manifest/build/promotion modules and tests. Add `mode`/artifact metadata to status and health. Teach the CLI to serve/reuse/restart/rollback a selected immutable build with the current ownership fencing. Switch stable server boot to static assets and no watcher/Vite. Make bare `ntwine-dev` require a selected build and never infer source mode.
 
 ### Stage 2 — NUB migration and operational hardening
 
@@ -157,7 +157,7 @@ Implement safe snapshot capture, preview state/project provisioning, fixture see
 
 ### Stage 4 — optional blue-green research
 
-Only pursue a proxy when a measurable restart budget justifies it. First design a true single-writer handoff: standby can validate static assets and bind only a private readiness port; producer/state/tmux ownership transfers atomically; proxy switches only after new owner health; old generation drains without concurrent DB/native access. Do not run two fully active Frizz control planes against one project as a shortcut.
+Only pursue a proxy when a measurable restart budget justifies it. First design a true single-writer handoff: standby can validate static assets and bind only a private readiness port; producer/state/tmux ownership transfers atomically; proxy switches only after new owner health; old generation drains without concurrent DB/native access. Do not run two fully active Ntwine control planes against one project as a shortcut.
 
 ## Acceptance tests
 
@@ -190,4 +190,4 @@ Only pursue a proxy when a measurable restart budget justifies it. First design 
 
 ## Recommendation for the global launcher
 
-Do **not** install the current source-backed `frizz-dev` as the global/default launcher for NUB. Ship the stable artifact path first, make `frizz-dev` serve the last explicitly promoted immutable artifact, and provide `frizz-dev preview` as the normal agent QA command. Retain current shared HMR only as an explicit, temporary unsafe escape hatch; do not use it on NUB `4919`.
+Do **not** install the current source-backed `ntwine-dev` as the global/default launcher for NUB. Ship the stable artifact path first, make `ntwine-dev` serve the last explicitly promoted immutable artifact, and provide `ntwine-dev preview` as the normal agent QA command. Retain current shared HMR only as an explicit, temporary unsafe escape hatch; do not use it on NUB `4919`.

@@ -71,8 +71,8 @@ test("blockTaskIds reads every id in a recovery block and drops the orphan senti
 test("a repair is idempotent through the TRANSCRIPT — its own marker resolves it on re-fold", () => {
   const report: QueuedReport = { taskId: "a26ab44059b4cf3db", kind: "agent", chars: 14796, outputFile: "/t/a.output", summary: 'Agent "Impact analysis" finished' }
   const msg = relayMessage(report)
-  // This is the load-bearing round-trip: what frizz injects must be readable back as delivery evidence
-  // for exactly this task-id, or a frizz restart repairs the same report forever.
+  // This is the load-bearing round-trip: what ntwine injects must be readable back as delivery evidence
+  // for exactly this task-id, or an ntwine restart repairs the same report forever.
   assert.deepEqual(relayedTaskIds(msg), ["a26ab44059b4cf3db"])
   assert.deepEqual(relayedTaskIds("ordinary prose with no marker"), [])
 })
@@ -128,12 +128,12 @@ test("THE WATERMARK: a completion queued before this process started is never re
   assert.deepEqual(due.map((r) => r.taskId), ["new"], "history stays history; only this run is relayed")
 })
 
-test("the relay is INVISIBLE in the timeline — it opens with a <frizz-…> noise prefix", () => {
-  // transcript.ts NOISE_PREFIXES already contains "<frizz-", and isInjectedNoise skips those records,
+test("the relay is INVISIBLE in the timeline — it opens with a <ntwine-…> noise prefix", () => {
+  // transcript.ts NOISE_PREFIXES already contains "<ntwine-", and isInjectedNoise skips those records,
   // so the thread renders exactly as it did before. No UI change, no card, no narration.
   for (const kind of ["agent", "shell"] as const) {
     const msg = relayMessage({ taskId: "a1", kind, chars: 10, outputFile: "/t/o", summary: "x" })
-    assert.ok(msg.trimStart().startsWith("<frizz-"), `${kind}: ${msg.slice(0, 40)}`)
+    assert.ok(msg.trimStart().startsWith("<ntwine-"), `${kind}: ${msg.slice(0, 40)}`)
     assert.deepEqual(relayedTaskIds(msg), ["a1"], "still resolves itself on re-fold")
   }
 })

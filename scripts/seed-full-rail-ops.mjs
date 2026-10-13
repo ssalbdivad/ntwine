@@ -4,8 +4,8 @@
 // beside its rail the strip must draw none of them, and the rail must draw all of them, each in its own
 // state; below the split the strip is the only place they are.
 //
-// Follows the frizz-stack recipe: a broker session row + a JSONL the REAL tailer folds, then the saved
-// links through the worker's own RPC (upsertOwnLink), the way `frizzctl link` creates them. The tailer
+// Follows the ntwine-stack recipe: a broker session row + a JSONL the REAL tailer folds, then the saved
+// links through the worker's own RPC (upsertOwnLink), the way `ntwinectl link` creates them. The tailer
 // drops a thread's shells the moment its owner looks gone, and for a broker row "gone" is an absent
 // broker record — so, as in seed-resting-thread.mjs, the seed writes one naming a real live `sleep`.
 // Kill both pids (printed as `daemonPid` and `shellPid`) when you tear the stack down.
@@ -46,12 +46,12 @@ writeFileSync(
   JSON.stringify({ sessionId: SESSION, daemonPid: daemon.pid, socketPath: join(sandbox.stateDir, "claude-broker", `${SLUG}.sock`) }),
 )
 
-const AGENT = { id: "toolu_fro_agent", agent: "froA", type: "frizz:opus-xhigh", label: "Verify the rail carries every row" }
+const AGENT = { id: "toolu_fro_agent", agent: "froA", type: "ntwine:opus-xhigh", label: "Verify the rail carries every row" }
 const SHELL = { id: "toolu_fro_sh1", op: "bgfro001", label: "Run the dev server" }
 // The two rows the rail used to drop: a sub-agent quiet past its window, and a shell nobody holds open.
 // Both were launched 25 minutes ago — past the shell probe's grace window, and far enough back that the
 // child's transcript can be 20 minutes old.
-const STALE_AGENT = { id: "toolu_fro_agent2", agent: "froB", type: "frizz:sonnet-low", label: "Audit the old projection" }
+const STALE_AGENT = { id: "toolu_fro_agent2", agent: "froB", type: "ntwine:sonnet-low", label: "Audit the old projection" }
 const DEAD_SHELL = { id: "toolu_fro_sh2", op: "bgfro002", label: "Tail the old log" }
 const ago = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString()
 
@@ -168,7 +168,7 @@ writeFileSync(join(jsonlDir, `${SESSION}.jsonl`), records.map((r) => JSON.string
 execFileSync("sqlite3", [
   sandbox.db,
   `INSERT OR REPLACE INTO session (${cols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, claude_runtime, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-   VALUES (${vals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${now()}', 'Move the ops rows into the rail', 0, 'claude', 'broker', 'opus', 'xhigh', 'default', 'open', 0, 0, 0, '${now()}')`,
+   VALUES (${vals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${now()}', 'Move the ops rows into the rail', 0, 'claude', 'broker', 'opus', 'xhigh', 'default', 'open', 0, 0, 0, '${now()}')`,
 ])
 
 const api = createRpcClient(`http://127.0.0.1:${port}/`)

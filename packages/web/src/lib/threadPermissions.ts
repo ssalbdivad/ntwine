@@ -1,4 +1,4 @@
-// Foreign sessions have no Frizz-owned terminal. Running registered sessions remain editable because
+// Foreign sessions have no Ntwine-owned terminal. Running registered sessions remain editable because
 // the server persists first and uses the backend's in-band control rather than restarting the worker.
 export interface ThreadPermissionState {
   // Which runtime this row is. The two apply a permission change by completely different means, so

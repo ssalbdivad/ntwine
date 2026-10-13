@@ -17,7 +17,7 @@ test("open overlay is a full-viewport modal block above every modal", () => {
   assert.match(html, /fixed inset-0/)
   assert.match(html, /z-\[300\]/)
   assert.doesNotMatch(html, /z-\[200\]/)
-  assert.match(html, /Updating and restarting Frizz/)
+  assert.match(html, /Updating and restarting Ntwine/)
   assert.match(html, /animate-spin/)
   // The focusable card is what we park focus on so Tab cannot reach a background control.
   assert.match(html, /tabindex="-1"/)
@@ -35,7 +35,7 @@ test("a supervisor message renders as a status sub-line, blank ones are dropped"
 // three minutes of unanswered polls. Its whole point is that it does NOT block — a dead board behind a
 // modal that cannot be dismissed is the bug it replaces.
 test("the blocking shape never leaks the stalled copy or a dismiss control", () => {
-  const html = renderToStaticMarkup(createElement(RestartOverlay, { open: true, message: "installing frizz@0.5.0" }))
+  const html = renderToStaticMarkup(createElement(RestartOverlay, { open: true, message: "installing ntwine@0.5.0" }))
   assert.match(html, /bg-scrim-55/)
   assert.doesNotMatch(html, /Dismiss/)
   assert.doesNotMatch(html, /did not come back/)
@@ -56,16 +56,16 @@ test("past the deadline the overlay lifts its block and says what to do", () => 
   assert.match(html, new RegExp(STALLED_HEADING))
   // The copy names the remedy and reads the silence in the house duration grammar (`3m`).
   assert.match(html, /Nothing has answered for 3m\./)
-  assert.match(html, /npx frizz/)
+  assert.match(html, /npx ntwine/)
   assert.match(html, /reconnects on its own/)
   assert.doesNotMatch(html, /3 minutes/)
   // Sentence case, no shouting.
-  assert.equal(STALLED_HEADING, "Frizz did not come back")
+  assert.equal(STALLED_HEADING, "Ntwine did not come back")
 })
 
 test("the stalled copy still reads when no silence has been measured yet", () => {
-  assert.match(stalledRestartCopy(undefined), /^Nothing is answering\. Restart Frizz from the terminal/)
-  assert.match(stalledRestartCopy("2m"), /^Nothing has answered for 2m\. Restart Frizz/)
+  assert.match(stalledRestartCopy(undefined), /^Nothing is answering\. Restart Ntwine from the terminal/)
+  assert.match(stalledRestartCopy("2m"), /^Nothing has answered for 2m\. Restart Ntwine/)
 })
 
 test("closed is closed in the stalled shape too", () => {

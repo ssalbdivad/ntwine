@@ -15,7 +15,7 @@
 // callback has fully returned, in the state the browser is about to paint. A frame where the tracked row
 // sits somewhere other than where it was at the top of the frame, by more than the wheel step, is a flash.
 //
-// Usage — boot a disposable stack first (see .agents/skills/frizz-stack), then:
+// Usage — boot a disposable stack first (see .agents/skills/ntwine-stack), then:
 //   node scripts/verify-full-scroll-flash.mjs --home=… --url=… [--steps=300] [--step=40]
 //     [--source=/abs/real.jsonl] [--seed-lines=1200] [--label=…]
 import { execFileSync } from "node:child_process"
@@ -85,7 +85,7 @@ if (flags.source) {
 }
 writeFileSync(jsonl, seed.map((r) => JSON.stringify(r)).join("\n") + "\n")
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode)
-  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${now()}', 'Scroll flash', 'claude', 'opus', 'high', 'default')`])
+  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${now()}', 'Scroll flash', 'claude', 'opus', 'high', 'default')`])
 const api = createRpcClient(url)
 
 let failures = 0

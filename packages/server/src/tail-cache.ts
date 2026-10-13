@@ -103,7 +103,7 @@ let foldSchemaMemo: string | null = null
  */
 export function foldSchemaDigest(dir = import.meta.dirname): string {
   if (foldSchemaMemo) return foldSchemaMemo
-  const hash = createHash("sha256").update("frizz-tail-state-v1\0")
+  const hash = createHash("sha256").update("ntwine-tail-state-v1\0")
   let read = 0
   for (const name of FOLD_SOURCES) {
     try {
@@ -114,7 +114,7 @@ export function foldSchemaDigest(dir = import.meta.dirname): string {
       hash.update(name).update("\0missing\0")
     }
   }
-  foldSchemaMemo = read === 0 ? "frizz-tail-state-v1-unreadable" : hash.digest("hex").slice(0, 32)
+  foldSchemaMemo = read === 0 ? "ntwine-tail-state-v1-unreadable" : hash.digest("hex").slice(0, 32)
   return foldSchemaMemo
 }
 
@@ -237,7 +237,7 @@ interface CacheRow {
   state: string
 }
 
-/** The cache table, idempotent; frizz-db.ts creates it ahead of a legacy import. */
+/** The cache table, idempotent; ntwine-db.ts creates it ahead of a legacy import. */
 export const TAIL_STATE_TABLES = ["tail_state"] as const
 export function ensureTailStateSchema(db: Database): void {
   db.exec(`

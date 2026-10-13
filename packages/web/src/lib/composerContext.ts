@@ -15,7 +15,7 @@
 // dispatching thread's scratch directory — Zed, Copilot and Claude Code all key an inline mention
 // to a grouped tail this way).
 
-import { EMBED_PROBLEMS_PATH, EMBED_TERMINAL_PATH } from "@frizz/shared"
+import { EMBED_PROBLEMS_PATH, EMBED_TERMINAL_PATH } from "@ntwine/shared"
 import { joinComposerValue, splitComposerValue } from "./imagePaths.ts"
 import { basename, relativeTo } from "./paths.ts"
 
@@ -169,8 +169,8 @@ export function locateInSource(source: string, selected: string): { startLine: n
  * the panel's canonical path is the server's spelling and the worker reads the same one.
  *
  * `checkoutDir` is where the box's thread works when that is not the project root — a worktree, which
- * usually lies INSIDE the project (`.frizz/worktrees/<slug>`). A file under it is relative to IT: the agent
- * resolves a relative path against its own working folder, and `.frizz/worktrees/x/src/a.ts` from there
+ * usually lies INSIDE the project (`.ntwine/worktrees/<slug>`). A file under it is relative to IT: the agent
+ * resolves a relative path against its own working folder, and `.ntwine/worktrees/x/src/a.ts` from there
  * names nothing. A file of the main checkout stays relative to the project — the same relative path is the
  * agent's own copy, which the worktree note says (`worktreeNote`).
  */
@@ -296,7 +296,7 @@ export function parseSentContext(prose: string): { body: string; items: SentCont
 //
 // In an editor's sidebar every send carries what the editor around it has in front — the selection, or
 // with nothing selected the file and the caret's line — while the human shares the editor (the context
-// bar's eye, which is the extension's `frizz.shareEditorState`; lib/editorContext.ts outgoingMessage;
+// bar's eye, which is the extension's `ntwine.shareEditorState`; lib/editorContext.ts outgoingMessage;
 // ARCHITECTURE.md § VS Code extension). Claude Code's VS Code extension and Cursor both
 // work this way, and the maintainer called it "the #1 feature": an agent in the sidebar that cannot see the
 // highlighted code is not beside the editor at all. Asked "can you see the highlighted code?", the first
@@ -570,7 +570,7 @@ export function withoutEditorContext(value: string): string {
 
 // ── a thread in a WORKTREE: whose copy the context is ─────────────────────────────────────────────
 //
-// About one thread in seven works in a worktree of its own (`.frizz/worktrees/<slug>`, 22 of 144
+// About one thread in seven works in a worktree of its own (`.ntwine/worktrees/<slug>`, 22 of 144
 // substantial sessions in a week), while the human's editor shows the project's main checkout. A chip or
 // the editor block names `src/a.ts` relative to the project, and the agent resolves that against its OWN
 // working folder — its worktree's copy, which is the right file to edit but may not hold the text the

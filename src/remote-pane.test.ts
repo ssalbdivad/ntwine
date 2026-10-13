@@ -7,7 +7,7 @@ import { createRemotePane } from "./remote-pane.ts";
 // form behind the row is kept, and several cases below drive it — so this file runs with the override
 // on, for the whole file because `nub --test` runs a file's tests concurrently. The withdrawn menu is
 // pinned in custom-names-paused.test.ts.
-process.env.FRIZZ_CUSTOM_NAMES = "1";
+process.env.NTWINE_CUSTOM_NAMES = "1";
 
 function fakeOutput() {
   const chunks: string[] = [];
@@ -31,7 +31,7 @@ function build(overrides: Partial<Parameters<typeof createRemotePane>[0]> = {}) 
     current: () => current,
     apply: async (next) => { applied.push(next); current = next; },
     claim: async (name) => ({ hostname: `${name}.frizz.sh`, claim: name, serve: "relay" }),
-    issueLink: () => (current ? { code: "c0de", url: `https://${current.hostname}/?frizz_code=c0de`, expiresAt: Date.now() + 300_000 } : null),
+    issueLink: () => (current ? { code: "c0de", url: `https://${current.hostname}/?ntwine_code=c0de`, expiresAt: Date.now() + 300_000 } : null),
     probes: {
       cloudflared: async () => ({ version: "2025.8.1" }),
       tailscale: async () => ({ installed: true, dnsName: "mac-mini.corgi-alpha.ts.net" }),
@@ -72,7 +72,7 @@ test("Cloudflare Tunnel asks for the hostname and the tunnel, then serves them",
   await settle();
   assert.deepEqual(applied, [{ hostname: "board.example.com", tunnel: "my-board" }]);
   assert.match(out.text(), /Serving https:\/\/board\.example\.com \(Cloudflare Tunnel\)/);
-  assert.match(out.text(), /frizz_code=c0de/);
+  assert.match(out.text(), /ntwine_code=c0de/);
 });
 
 test("Tailscale offers this machine's MagicDNS name and saves an external origin", async () => {
@@ -157,7 +157,7 @@ test("a private name claims on the spot — no form, no GitHub, QR straight away
   assert.deepEqual(claims, [""], "an empty name asks the claimer to mint one");
   assert.deepEqual(applied, [{ hostname: "abcdefghjkmnpqrstuvw.frizz.sh", claim: "abcdefghjkmnpqrstuvw", serve: "relay" }]);
   assert.match(out.text(), /Serving https:\/\/abcdefghjkmnpqrstuvw\.frizz\.sh \(frizz\.sh\)/);
-  assert.match(out.text(), /frizz_code=c0de/, "the done screen offers the sign-in QR");
+  assert.match(out.text(), /ntwine_code=c0de/, "the done screen offers the sign-in QR");
   assert.equal(pane.key("x"), "close");
 });
 
@@ -177,7 +177,7 @@ test("in an 80x24 window the done screen keeps the whole code on screen", async 
   assert.match(rows[0]!, /Serving/, "the message is the top line once the margin is dropped");
   const quiet = rows.findIndex((row) => /^ {2}\s+$/.test(row) && row.length > 30);
   assert.ok(quiet >= 0 && quiet <= 2, "the code's top quiet zone sits right under the message");
-  assert.ok(rows.some((row) => row.includes("frizz_code=c0de")), "the URL still fits");
+  assert.ok(rows.some((row) => row.includes("ntwine_code=c0de")), "the URL still fits");
   assert.ok(rows.some((row) => row.includes("press any key to return")), "and the way back");
 });
 

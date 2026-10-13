@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, CodexModel, DispatchPreferences, GithubItem } from "@frizz/shared"
+import type { BoardSnapshot, CodexModel, DispatchPreferences, GithubItem } from "@ntwine/shared"
 import { GithubPickerModal } from "./components/GithubPickerModal.tsx"
 import { Toaster } from "./components/Toaster.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -73,8 +73,8 @@ const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(requestUrl, window.location.origin)
-  if (url.pathname === "/_frizz/rpc/githubStatus") return json({ inRepo: true, authed: true, nameWithOwner: "fixture/repo" })
-  if (url.pathname === "/_frizz/rpc/githubList") {
+  if (url.pathname === "/_ntwine/rpc/githubStatus") return json({ inRepo: true, authed: true, nameWithOwner: "fixture/repo" })
+  if (url.pathname === "/_ntwine/rpc/githubList") {
     // Serve a real PAGE, exactly as the server does: queries carry their input as ?input=<json>, and
     // the response reports which page was served plus the totals the pager renders.
     const input = JSON.parse(url.searchParams.get("input") ?? "{}") as { page?: number; perPage?: number }
@@ -83,19 +83,19 @@ window.fetch = async (input, init) => {
     const page = Math.min(Math.max(1, input.page ?? 1), pageCount)
     return json({ items: items.slice((page - 1) * perPage, page * perPage), total: items.length, page, pageCount })
   }
-  if (url.pathname === "/_frizz/rpc/codexModels") return json(codexModels)
-  if (url.pathname === "/_frizz/rpc/acpAgents") return json([])
-  if (url.pathname === "/_frizz/rpc/dispatchPreferencesGet") return json(preferences)
-  if (url.pathname === "/_frizz/rpc/settingsGet") return json(settings)
-  if (url.pathname === "/_frizz/rpc/githubPromptDefaults") return json({ prompt: "Triage {repo}#{n}: {title}\n{url}\n\nRead the whole thread and say what you actually checked." })
-  if (url.pathname === "/_frizz/rpc/settingsSet") {
+  if (url.pathname === "/_ntwine/rpc/codexModels") return json(codexModels)
+  if (url.pathname === "/_ntwine/rpc/acpAgents") return json([])
+  if (url.pathname === "/_ntwine/rpc/dispatchPreferencesGet") return json(preferences)
+  if (url.pathname === "/_ntwine/rpc/settingsGet") return json(settings)
+  if (url.pathname === "/_ntwine/rpc/githubPromptDefaults") return json({ prompt: "Triage {repo}#{n}: {title}\n{url}\n\nRead the whole thread and say what you actually checked." })
+  if (url.pathname === "/_ntwine/rpc/settingsSet") {
     const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
     if (settingsDelay > 0) await new Promise((resolve) => window.setTimeout(resolve, settingsDelay))
     settings = body
     settingsWrites.push(body)
     return json(settings)
   }
-  if (url.pathname === "/_frizz/rpc/githubDispatchBatch") {
+  if (url.pathname === "/_ntwine/rpc/githubDispatchBatch") {
     // Isolated seam: the fixture never starts a worker. It records the payload so a test can assert
     // that what dispatches is exactly what the human watched themselves check.
     dispatched.push(JSON.parse(String(init?.body ?? "{}")))
@@ -105,7 +105,7 @@ window.fetch = async (input, init) => {
 }
 
 function json(result: unknown): Response {
-  return new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-frizz-boot": "fixture" } })
+  return new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-ntwine-boot": "fixture" } })
 }
 
 store.board = { projectDir: "/fixture/github-picker-range" } as BoardSnapshot

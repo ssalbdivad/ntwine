@@ -3,9 +3,9 @@ import test from "node:test"
 
 // Runtime coverage for the GitHub picker's header: the repo slug as a right-justified link out, and
 // the gear that opens the triage prompt in a modal popover. Drives github-picker-range-fixture, which
-// records every settingsSet the popover makes. Skipped unless FRIZZ_GITHUB_PROMPT_POPOVER_E2E_URL names
+// records every settingsSet the popover makes. Skipped unless NTWINE_GITHUB_PROMPT_POPOVER_E2E_URL names
 // a vite serving the fixtures (scripts/e2e-web.mjs sets it).
-const baseUrl = process.env.FRIZZ_GITHUB_PROMPT_POPOVER_E2E_URL
+const baseUrl = process.env.NTWINE_GITHUB_PROMPT_POPOVER_E2E_URL
 
 type Fixture = { settingsWrites: Record<string, unknown>[]; dispatched: unknown[] }
 const GEAR = 'button[aria-label="Triage prompt settings"]'

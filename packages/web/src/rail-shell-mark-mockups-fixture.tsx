@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactElement, ReactNode } from "react"
 import { Check, CircleDashed, Hourglass, SquareTerminal, Terminal } from "lucide-react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { BoxSpinner } from "./components/BoxSpinner.tsx"
 import { ThreadRow, type RowScope } from "./components/Sidebar.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -73,13 +73,13 @@ function Prompt({ size = 10, weight = 1.5, gap = 1.5, drop = 1, className = "" }
   )
 }
 
-// The shipped ACTIVE-background dot, and its parked variants. `.frizz-rail-dot` carries the pulse; a
+// The shipped ACTIVE-background dot, and its parked variants. `.ntwine-rail-dot` carries the pulse; a
 // parked row is not moving, so the static arms drop the animation and only tone moves.
 function Dot({ pulse = true, dim = 0, size = 0.31 }: { pulse?: boolean; dim?: number; size?: number }) {
   return (
     <span
       aria-hidden
-      className={pulse ? "frizz-rail-dot" : undefined}
+      className={pulse ? "ntwine-rail-dot" : undefined}
       style={{
         width: STATUS_BOX * size,
         height: STATUS_BOX * size,
@@ -197,7 +197,7 @@ const CANDIDATES: Candidate[] = [
 const FAMILY: { id: string; node: ReactElement }[] = [
   { id: "working", node: <BoxSpinner /> },
   { id: "background", node: <StatusBox><Dot /></StatusBox> },
-  { id: "needs-input", node: <StatusBox><span className="frizz-rail-glyph font-bold leading-none text-muted-70" style={{ fontSize: 10 }}>?</span></StatusBox> },
+  { id: "needs-input", node: <StatusBox><span className="ntwine-rail-glyph font-bold leading-none text-muted-70" style={{ fontSize: 10 }}>?</span></StatusBox> },
   { id: "snoozed-timer", node: <StatusBox><Hourglass size={9} className="text-muted-70" /></StatusBox> },
   { id: "done", node: <StatusBox><Check size={10} strokeWidth={3} className="text-muted-75" /></StatusBox> },
 ]

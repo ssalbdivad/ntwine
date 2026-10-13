@@ -16,9 +16,9 @@ import { ensureProjectIdFile } from "./project-root.ts"
 
 /** A home of its own, with folders under it: the walk-up stops at home, as it does on a real machine. */
 function machine(t: TestContext) {
-  const home = realpathSync(mkdtempSync(join(tmpdir(), "frizz-launch-routing-")))
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-launch-routing-")))
   t.after(() => rmSync(home, { recursive: true, force: true }))
-  mkdirSync(join(home, ".frizz"), { recursive: true }) // legacy collapse root, so data lands under it
+  mkdirSync(join(home, ".ntwine"), { recursive: true }) // legacy collapse root, so data lands under it
   const folder = (rel: string, ...files: string[]) => {
     const dir = join(home, rel)
     mkdirSync(dir, { recursive: true })
@@ -28,7 +28,7 @@ function machine(t: TestContext) {
   return { home, folder, open: (dir: string) => resolveProject(dir, home) }
 }
 
-test("a folder Frizz knows opens as itself, from anywhere inside it, and is registered by the answer", (t) => {
+test("a folder Ntwine knows opens as itself, from anywhere inside it, and is registered by the answer", (t) => {
   const { home, folder, open } = machine(t)
   const app = folder("code/kirby")
   const deep = folder("code/kirby/packages/web/src")
@@ -45,7 +45,7 @@ test("a folder Frizz knows opens as itself, from anywhere inside it, and is regi
   assert.equal(listProjects(home).length, 1)
 })
 
-test("the answer is a launch, so it stamps the project `frizz` was last run in; opening alone does not", (t) => {
+test("the answer is a launch, so it stamps the project `ntwine` was last run in; opening alone does not", (t) => {
   const { home, folder, open } = machine(t)
   const launched = folder("code/launched")
   const opened = folder("code/opened")

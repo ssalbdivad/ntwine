@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useSnapshot } from "valtio"
-import type { SubAgentDirectory, ThreadView } from "@frizz/shared"
+import type { SubAgentDirectory, ThreadView } from "@ntwine/shared"
 import { subAgentTitle } from "../groups.ts"
 import { subAgentDirectoryKey } from "../hooks/useSubAgentDirectory.ts"
 import { useProjectDir, useSubAgentTranscript } from "../hooks.ts"
@@ -295,7 +295,7 @@ function SubAgentSteerFooter({
     rpc.subAgentStop({ slug, id: subId })
       .then(({ descendantsStopped, note: subtree }) => {
         // The subtree is the part the drawer cannot show: this sheet renders ONE child's transcript,
-        // so its own fan-out ending is only ever visible here. A descendant frizz could not stop is
+        // so its own fan-out ending is only ever visible here. A descendant ntwine could not stop is
         // live work and gets the longer toast.
         const Noun = noun === "workflow" ? "Workflow" : "Sub-agent"
         if (subtree) showToast(`${Noun} stopped. ${subtree}`, { duration: 7000 })

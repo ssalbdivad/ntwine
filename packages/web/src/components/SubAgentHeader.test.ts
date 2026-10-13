@@ -16,6 +16,6 @@ test("the sub-agent drawer header names the work without repeating profile or ru
 
   assert.match(html, /Complete GVS fix differential repro/)
   assert.match(html, /aria-label="Close"/)
-  assert.doesNotMatch(html, /frizz:opus-xhigh/)
+  assert.doesNotMatch(html, /ntwine:opus-xhigh/)
   assert.doesNotMatch(html, /running|stale|finished|unavailable/)
 })

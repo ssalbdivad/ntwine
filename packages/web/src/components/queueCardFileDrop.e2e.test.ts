@@ -6,12 +6,12 @@ import test from "node:test"
 
 // A file dragged ANYWHERE onto a queue card goes into that card's prompt box (lib/fileDrop). Skipped
 // unless a Vite URL serving the fixtures is provided: start `vite` in packages/web and set
-// FRIZZ_QUEUE_CARD_FILE_DROP_E2E_URL to its origin (or run `nub run test:e2e`). Drives the queue-card
+// NTWINE_QUEUE_CARD_FILE_DROP_E2E_URL to its origin (or run `nub run test:e2e`). Drives the queue-card
 // fixture's two real cross-project queue cards (AllQueuesCard; upstream drove its board's TodosView cards). The drags are Chrome's OWN drag pipeline (CDP Input.dispatchDragEvent
 // with a real file path, the way a Finder drag arrives), not synthetic DOM events, so the browser decides
 // which element is under the pointer and what `relatedTarget` a dragleave carries. Only the /attach upload
 // is stubbed: it answers with a path named after the file, which is all the chip reads.
-const baseUrl = process.env.FRIZZ_QUEUE_CARD_FILE_DROP_E2E_URL
+const baseUrl = process.env.NTWINE_QUEUE_CARD_FILE_DROP_E2E_URL
 
 // The fixture's cards belong to the `fixture-card` project (lib/allQueues.ts threadKey).
 const card = (slug: string) => `[data-xq-card="fixture-card/${slug}"] [data-xq-card-root]`
@@ -39,7 +39,7 @@ test("a file dropped anywhere on a queue card attaches to that card's prompt box
       const fallthrough = window.fetch
       window.fetch = async (input, init) => {
         const url = typeof input === "string" ? input : (input as Request).url ?? input.toString()
-        if (!/\/_frizz\/(?:[^/]+\/)?attach$/.test(new URL(url, location.href).pathname)) return fallthrough(input, init)
+        if (!/\/_ntwine\/(?:[^/]+\/)?attach$/.test(new URL(url, location.href).pathname)) return fallthrough(input, init)
         const { name } = JSON.parse(String(init?.body)) as { name: string }
         return new Response(JSON.stringify({ path: `/fixture/uploads/${name}` }), { headers: { "content-type": "application/json" } })
       }

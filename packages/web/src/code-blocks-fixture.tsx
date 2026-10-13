@@ -66,7 +66,7 @@ const long = (n: number) => Array.from({ length: n }, (_, i) =>
 export const CASES: [string, string][] = [
   ["marked", `The backoff is the two marked lines:\n\n${fence("ts {7-8}", retry)}\n\nNothing else changed.`],
   ["marked-titled", fence(`ts title="packages/server/src/retry.ts" {3,8}`, retry)],
-  ["marked-wide", fence("bash {2}", `nub run build\ncurl -fsSL https://example.com/install.sh | FRIZZ_HOME=/opt/frizz FRIZZ_CHANNEL=stable FRIZZ_TELEMETRY=off bash -s -- --yes --no-modify-path --quiet\nnub run test`)],
+  ["marked-wide", fence("bash {2}", `nub run build\ncurl -fsSL https://example.com/install.sh | NTWINE_HOME=/opt/ntwine NTWINE_CHANNEL=stable NTWINE_TELEMETRY=off bash -s -- --yes --no-modify-path --quiet\nnub run test`)],
   ["diff", `A diff with no language named:\n\n${fence("diff", change)}`],
   ["diff-ts", `The same change as \`ts-diff\`:\n\n${fence("ts-diff", change)}`],
   ["diff-loose", fence("py-diff", `def retry(run, attempts=3):\n    for attempt in range(attempts):\n-        time.sleep(0.1)\n+        time.sleep(2 ** attempt / 10)\n    raise last`)],

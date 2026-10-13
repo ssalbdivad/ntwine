@@ -3,14 +3,14 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ThreadRow, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
 // Where a click would lead. Nothing here clicks; the prop is required because every real row has one.
 const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
-// The rail's done [✓] is a checkbox: on a row frizz owns it renders as its own checked button, outside
+// The rail's done [✓] is a checkbox: on a row ntwine owns it renders as its own checked button, outside
 // the row's button, so unchecking it reopens the thread instead of opening the drawer.
 
 const base = {

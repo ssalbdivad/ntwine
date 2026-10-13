@@ -1,9 +1,9 @@
 // ── The launcher's terminal readout ────────────────────────────────────────────────────────────────
-// What the operator sees while Frizz starts, and the block that stays on screen once it has.
+// What the operator sees while Ntwine starts, and the block that stays on screen once it has.
 //
 // This replaces a single animated line that had to switch itself off (`beginConcurrentLogs`) as soon
 // as the forked control-plane child began writing to the same TTY — the launcher cannot clear another
-// process' output, so the interesting half of every boot degraded into interleaved `[frizz] …` rows.
+// process' output, so the interesting half of every boot degraded into interleaved `[ntwine] …` rows.
 // The child is silent on the terminal now (its records go to the run log; `--debug` opens the tap
 // again), which leaves exactly one writer here and makes a real repaint safe.
 //
@@ -11,7 +11,7 @@
 // the cursor for good, so a stray write from a dependency — or a crash stack — can never land on top
 // of a region we are still redrawing.
 
-import type { SupervisorActivity } from "@frizz/server/dev-supervisor"
+import type { SupervisorActivity } from "@ntwine/server/dev-supervisor"
 
 export interface ReadoutOutput {
   isTTY?: boolean
@@ -229,7 +229,7 @@ export class Readout {
   }
 
   private header(): string[] {
-    const name = this.c(`${ANSI.bold}${ANSI.magenta}`, "FRIZZ")
+    const name = this.c(`${ANSI.bold}${ANSI.magenta}`, "NTWINE")
     const version = this.version ? ` ${this.c(ANSI.dim, `v${this.version}`)}` : ""
     return ["", `  ${name}${version}`, ""]
   }
@@ -252,7 +252,7 @@ export class Readout {
    * Non-TTY transcript: one settled, parseable row per state change, so a pipe still sees progress.
    *
    * Silent under `--debug`, where the log feed is the authoritative account and these rows were
-   * duplicating it in a second format ("frizz: ··· artifact — checking …" immediately beside
+   * duplicating it in a second format ("ntwine: ··· artifact — checking …" immediately beside
    * "INFO artifact Checking …"). The final ready/fail summary still prints in both modes.
    */
   private emitPlain(step: Step): void {
@@ -260,7 +260,7 @@ export class Readout {
     const mark =
       step.state === "done" ? "done" : step.state === "failed" ? "failed" : step.state === "skipped" ? "skipped" : "···"
     const detail = step.detail ? ` — ${step.detail}` : ""
-    const line = `frizz: ${mark} ${step.label.toLowerCase()}${detail}`
+    const line = `ntwine: ${mark} ${step.label.toLowerCase()}${detail}`
     if (line === this.lastPlainLine) return
     this.lastPlainLine = line
     this.out.write(`${line}\n`)
@@ -277,7 +277,7 @@ export class Readout {
   notice(tone: NoticeTone, label: string, detail?: string): void {
     const glyph = tone === "done" ? this.c(ANSI.green, "✓") : tone === "failed" ? this.c(ANSI.red, "✗") : this.c(ANSI.cyan, "↻")
     if (!this.tty || this.debug) {
-      this.out.write(`frizz: ${label.toLowerCase()}${detail ? ` — ${detail}` : ""}\n`)
+      this.out.write(`ntwine: ${label.toLowerCase()}${detail ? ` — ${detail}` : ""}\n`)
       return
     }
     // One blank line separates the first beat from the ready block's hint; later beats stack against
@@ -328,15 +328,15 @@ export class Readout {
     const status = options.status ?? `ready in ${elapsed}`
     this.stop()
     if (!this.tty || this.debug) {
-      this.out.write(`frizz: ${status}\n`)
-      for (const entry of entries) this.out.write(`frizz: ${entry.label.toLowerCase()}: ${entry.value}\n`)
-      if (options.warning) this.out.write(`frizz: warning: ${options.warning}\n`)
+      this.out.write(`ntwine: ${status}\n`)
+      for (const entry of entries) this.out.write(`ntwine: ${entry.label.toLowerCase()}: ${entry.value}\n`)
+      if (options.warning) this.out.write(`ntwine: warning: ${options.warning}\n`)
       return
     }
     const width = entries.reduce((max, entry) => Math.max(max, entry.label.length), 0) + 1
     const lines = [
       "",
-      `  ${this.c(`${ANSI.bold}${ANSI.magenta}`, "FRIZZ")}${
+      `  ${this.c(`${ANSI.bold}${ANSI.magenta}`, "NTWINE")}${
         this.version ? ` ${this.c(ANSI.dim, `v${this.version}`)}` : ""
       }  ${this.c(ANSI.dim, status)}`,
       "",
@@ -369,13 +369,13 @@ export class Readout {
     if (active) this.settle(active.key, "failed")
     this.stop()
     if (!this.tty || this.debug) {
-      this.out.write(`frizz: failed: ${message}\n`)
-      if (logPath) this.out.write(`frizz: log: ${logPath}\n`)
+      this.out.write(`ntwine: failed: ${message}\n`)
+      if (logPath) this.out.write(`ntwine: log: ${logPath}\n`)
       return
     }
     const lines = [
       "",
-      `  ${this.c(ANSI.red, "✗")}  ${this.c(ANSI.bold, "Frizz could not start")}`,
+      `  ${this.c(ANSI.red, "✗")}  ${this.c(ANSI.bold, "Ntwine could not start")}`,
       "",
       // Not truncated, for the same reason as `ready()`: the operator has to be able to read the whole
       // error and copy the whole path, and nothing repaints after this.
@@ -430,8 +430,8 @@ export function sliceVisible(line: string, limit: number): string {
 /**
  * A Readout that only ever prints notices, never a boot region.
  *
- * For a generation that inherited a live terminal mid-run — frizz-dev re-execs itself in place when
- * Update Frizz promotes a new artifact, so the successor owns the same tty with no boot to narrate.
+ * For a generation that inherited a live terminal mid-run — ntwine-dev re-execs itself in place when
+ * Update Ntwine promotes a new artifact, so the successor owns the same tty with no boot to narrate.
  * Without one of these that successor is mute for the rest of its life, and every later restart it
  * performs is invisible again.
  */
@@ -444,8 +444,8 @@ export function noticeOnlyReadout(options: ReadoutOptions = {}): Readout {
 /**
  * Put a supervisor lifecycle beat on the launcher's terminal.
  *
- * Both launchers render these identically, and both had exactly nothing here before: Restart Frizz
- * and Update Frizz are clicked in a browser and a control-plane crash is clicked by nobody, so the
+ * Both launchers render these identically, and both had exactly nothing here before: Restart Ntwine
+ * and Update Ntwine are clicked in a browser and a control-plane crash is clicked by nobody, so the
  * foreground process took the board down and brought it back without ever saying so.
  */
 export function renderSupervisorActivity(readout: Readout | undefined, event: SupervisorActivity): void {

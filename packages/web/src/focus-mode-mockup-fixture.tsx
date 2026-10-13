@@ -101,8 +101,8 @@ function MetaRail({ collapsed, fileOpen }: { collapsed?: boolean; fileOpen?: str
       </div>
 
       <SectionLabel count={3}>Sub-agents</SectionLabel>
-      <RailRow icon={spinner} label="Verifying the resolver fix against a live stack" meta="6m" sub="claude · frizz:high" />
-      <RailRow icon={spinner} label="Sweeping call sites of normalizeId" meta="2m" sub="claude · frizz:medium" />
+      <RailRow icon={spinner} label="Verifying the resolver fix against a live stack" meta="6m" sub="claude · ntwine:high" />
+      <RailRow icon={spinner} label="Sweeping call sites of normalizeId" meta="2m" sub="claude · ntwine:medium" />
       <RailRow icon={<CircleCheck size={12} className="text-muted-70" />} label="Traced the cache-collision repro" meta="11m" sub="returned · 1.2k tokens" />
 
       <SectionLabel count={1}>Background shells</SectionLabel>

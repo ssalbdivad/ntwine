@@ -3,7 +3,7 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
-const command = "npx frizz";
+const command = "npx ntwine";
 
 // the launch command as a pill that copies itself
 export function Install() {

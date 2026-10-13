@@ -91,7 +91,7 @@ test("end to end, a real run's own tally matches what the parent received", () =
   // count of verdicts a child emits, and the reporter's count of what arrived. A test name holding
   // the literal event type is in there on purpose: the preload matches the serializer's
   // length-prefixed form, so the name must not inflate the count.
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "frizz-test-guard-selftest-"));
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ntwine-test-guard-selftest-"));
   try {
     const fixture = path.join(scratch, "fixture.test.mjs");
     fs.writeFileSync(
@@ -104,13 +104,13 @@ test("end to end, a real run's own tally matches what the parent received", () =
       ].join("\n"),
     );
 
-    // NODE_TEST_CONTEXT and FRIZZ_TEST_LEDGER are set on us because we are ourselves a test-runner
+    // NODE_TEST_CONTEXT and NTWINE_TEST_LEDGER are set on us because we are ourselves a test-runner
     // child; leaving them set would make the inner runner think it too was a child and emit
     // serialized frames instead of the spec output this asserts on.
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT;
-    delete env.FRIZZ_TEST_LEDGER;
-    delete env.FRIZZ_TEST_GUARD_NO_BLOCKING;
+    delete env.NTWINE_TEST_LEDGER;
+    delete env.NTWINE_TEST_GUARD_NO_BLOCKING;
 
     const result = spawnSync(process.execPath, [path.join(here, "run-tests.mjs"), fixture], {
       cwd: root,

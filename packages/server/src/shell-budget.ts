@@ -1,10 +1,10 @@
-import { formatElapsed } from "@frizz/shared"
+import { formatElapsed } from "@ntwine/shared"
 import type { ShellBudgetRow, Storage } from "./storage.ts"
 
 // THE BACKGROUND-SHELL RUNTIME BUDGET — a shell ends on a clock only when somebody DECLARED one.
 //
 // History, because the rule has already moved once. Colin built background shells with NO clock, on
-// purpose (tailer.bgShellViews: "NO clock is a correct clock"): frizz cannot tell a CI watcher from a
+// purpose (tailer.bgShellViews: "NO clock is a correct clock"): ntwine cannot tell a CI watcher from a
 // dev server from outside, and some shells legitimately run for days. On 2026-09-29 the maintainer
 // found a shell 16 hours old ("background shells running for 16 hours makes no sense") and 4e5eaca1
 // gave EVERY shell a budget — its Bash `timeout`, else a 1h default. Within the day the default killed a
@@ -20,7 +20,7 @@ import type { ShellBudgetRow, Storage } from "./storage.ts"
 //    is stopped. The worker is prompted to choose, not forced: the contract says so, and the
 //    PreToolUse hook (cc-worker/hooks/bash-background.mjs) adds one line of context to a background
 //    call that carries no `timeout` — a poller, build or check gets one; a server or watcher does not.
-//  · IN THE MOMENT. `mcp__frizz__extend_shell` sets or moves a budget on ANY running shell, including
+//  · IN THE MOMENT. `mcp__ntwine__extend_shell` sets or moves a budget on ANY running shell, including
 //    one launched without — which is also the only way a codex background exec (no launch-time knob)
 //    ever gets one.
 //  · ENFORCED only once declared: past the deadline the worker gets ONE wake (scheduler SOURCE 13),
@@ -69,7 +69,7 @@ export interface ShellBudgetRecord {
 /** The wake a shell earns by outliving its budget. Written for the model, which has no clock of its own
  *  (see wakeTimeHeader): it says how long the shell has run, what it was allowed, and the two verbs that
  *  answer it — with the exact argument to pass, because a worker that has to look the id up first is a
- *  worker that spends its grace doing it. `stoppable:false` is a shell frizz holds no handle for (a
+ *  worker that spends its grace doing it. `stoppable:false` is a shell ntwine holds no handle for (a
  *  pre-broker row); it is warned and never killed, so the message must not threaten a kill that will not
  *  come. Durations in the house grammar (`1h 5m`), via the same formatter as the wake's clock line. */
 export function shellBudgetWarningMessage(input: {
@@ -85,12 +85,12 @@ export function shellBudgetWarningMessage(input: {
     ? `\`TaskStop\` with task id \`${handle}\``
     : input.backend === "codex" ? "end its process yourself" : "kill it yourself"
   const consequence = input.stoppable
-    ? ` Frizz stops it in ${formatElapsed(SHELL_BUDGET_GRACE_MS)} unless you extend it.`
-    : " Frizz cannot stop this one for you, so it keeps running until you do."
+    ? ` Ntwine stops it in ${formatElapsed(SHELL_BUDGET_GRACE_MS)} unless you extend it.`
+    : " Ntwine cannot stop this one for you, so it keeps running until you do."
   return (
     `\u23f0 Your background shell \`${handle}\` (${label}) has been running ${formatElapsed(input.ranMs)}, past its ` +
     `${formatElapsed(input.budgetMs)} budget.${consequence}\n\n` +
-    `If it must keep running, run \`frizzctl extend-shell ${handle} --for <duration>\` ` +
+    `If it must keep running, run \`ntwinectl extend-shell ${handle} --for <duration>\` ` +
     `(\`30m\`, \`2h\`, max 24h). If you no longer need it, stop it now (${stopVerb}).`
   )
 }
@@ -101,18 +101,18 @@ export type ShellStopReason =
   | { kind: "operator" }
   | { kind: "budget"; ranMs: number; budgetMs: number }
 
-/** What the worker is told when frizz kills one of its background commands. Neither provider tells its
+/** What the worker is told when ntwine kills one of its background commands. Neither provider tells its
  *  agent (see router.noticeShellStopped / codex terminateBackgroundExec for the measurements), so this
- *  is the only account of the kill it will ever get. `[frizz]` keeps it out of the human's chat
+ *  is the only account of the kill it will ever get. `[ntwine]` keeps it out of the human's chat
  *  (transcript.ts NOISE_PREFIXES). */
 export function shellStopNotice(label: string, reason: ShellStopReason = { kind: "operator" }): string {
   const tail = "It is no longer running and will never report a result — do not wait on it or poll it again."
   if (reason.kind === "operator") {
-    return `[frizz] The operator stopped your background command ${JSON.stringify(label)} from the Frizz dashboard. ${tail}`
+    return `[ntwine] The operator stopped your background command ${JSON.stringify(label)} from the Ntwine dashboard. ${tail}`
   }
   return (
-    `[frizz] Frizz stopped your background command ${JSON.stringify(label)} after ${formatElapsed(reason.ranMs)}: it ran ` +
-    `past its ${formatElapsed(reason.budgetMs)} budget and was not extended with \`frizzctl extend-shell\` after the ` +
+    `[ntwine] Ntwine stopped your background command ${JSON.stringify(label)} after ${formatElapsed(reason.ranMs)}: it ran ` +
+    `past its ${formatElapsed(reason.budgetMs)} budget and was not extended with \`ntwinectl extend-shell\` after the ` +
     `warning. ${tail} If you still need it, relaunch it — with a Bash \`timeout\` sized to it, or none if it must run until you stop it.`
   )
 }

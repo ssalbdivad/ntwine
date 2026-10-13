@@ -4,7 +4,7 @@ import test from "node:test"
 // This deliberately checks the browser-resolved paint, rather than the utility string. The
 // regression was an opacity animation on the portaled layer: it could have a `bg-*` class and
 // still composite the queue through the menu during its opening frame.
-const baseUrl = process.env.FRIZZ_OPAQUE_SELECTOR_E2E_URL
+const baseUrl = process.env.NTWINE_OPAQUE_SELECTOR_E2E_URL
 
 test("board rail and open drawer keep the profile menu above queue rows", {
   skip: !baseUrl,

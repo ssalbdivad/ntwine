@@ -13,7 +13,7 @@ import {
   type DispatchPreferences,
   type InterpretScheduleResult,
   type ScheduleView,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { DispatchForm, NewThreadDialog, type DispatchDirs } from "./components/NewThreadModal.tsx"
 import { carryDispatchDraft } from "./lib/scheduleDraftState.ts"
 import { Toaster } from "./components/Toaster.tsx"
@@ -208,9 +208,9 @@ window.fetch = async (input, init) => {
   const url = new URL(requestUrl, window.location.origin)
   if (/\/attach$/.test(url.pathname)) {
     if (sched.attachDelayMs) await new Promise((r) => setTimeout(r, sched.attachDelayMs))
-    return new Response(JSON.stringify({ path: "/fixture/.frizz/attachments/1-abcdef12-shot.png" }), { headers: { "content-type": "application/json" } })
+    return new Response(JSON.stringify({ path: "/fixture/.ntwine/attachments/1-abcdef12-shot.png" }), { headers: { "content-type": "application/json" } })
   }
-  // Both the page's client (`/_frizz/rpc/x`) and a project-pinned one (`/_frizz/<id>/rpc/x`, Undo's delete).
+  // Both the page's client (`/_ntwine/rpc/x`) and a project-pinned one (`/_ntwine/<id>/rpc/x`, Undo's delete).
   const name = /\/rpc\/([A-Za-z]+)$/.exec(url.pathname)?.[1]
   if (!name) return nativeFetch(input, init)
   const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : JSON.parse(url.searchParams.get("input") ?? "{}") as Record<string, unknown>
@@ -225,7 +225,7 @@ window.fetch = async (input, init) => {
     case "acpAgents": return json([])
     case "settingsGet": return json({ permissionMode: "bypassPermissions", notifications: true })
     case "authStatus": return json({ claude: "authed", codex: "authed", emails: {} })
-    case "userCommands": return json({ commands: [{ name: "review", description: "Review the diff", body: "Review the diff.", source: "project", path: "/fixture/.frizz/commands/review.md" }], frizzDir: "/fixture/.frizz/commands" })
+    case "userCommands": return json({ commands: [{ name: "review", description: "Review the diff", body: "Review the diff.", source: "project", path: "/fixture/.ntwine/commands/review.md" }], ntwineDir: "/fixture/.ntwine/commands" })
     case "listSchedules": return json([])
     case "dispatch":
       if (sched.failDispatch > 0) {
@@ -261,7 +261,7 @@ window.fetch = async (input, init) => {
 }
 
 function json(result: unknown): Response {
-  return new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-frizz-boot": "fixture" } })
+  return new Response(JSON.stringify({ result }), { headers: { "content-type": "application/json", "x-ntwine-boot": "fixture" } })
 }
 
 store.board = { projectDir: PROJECT_DIR, projectId: PROJECT_ID } as unknown as BoardSnapshot

@@ -14,7 +14,7 @@ import {
   setSettings,
 } from "./settings.ts"
 import { z } from "zod"
-import { Settings } from "@frizz/shared"
+import { Settings } from "@ntwine/shared"
 
 /** The pre-store file, as an install that predates the machine config store would have left it. */
 function writeLegacySettings(home: string, value: unknown): void {
@@ -28,7 +28,7 @@ function writeLegacySettings(home: string, value: unknown): void {
 for (const name of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) delete process.env[name]
 
 function sandbox(): { home: string; open: (name: string) => ReturnType<typeof createStorage>; done: () => void } {
-  const home = mkdtempSync(join(tmpdir(), "frizz-settings-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-settings-"))
   const opened: ReturnType<typeof createStorage>[] = []
   return {
     home,

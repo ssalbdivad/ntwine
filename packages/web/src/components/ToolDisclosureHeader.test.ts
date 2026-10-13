@@ -16,7 +16,7 @@ function disclosureBounds(html: string): { start: number; end: number } {
 test("renders file and expansion actions as siblings with a complete disclosure name", () => {
   const html = renderToStaticMarkup(
     createElement(ToolDisclosureHeader, {
-      className: "frizz-diff-header",
+      className: "ntwine-diff-header",
       controls: "edit-body-1",
       expanded: false,
       label: "Expand Edit diff: /repo/src/app.ts",
@@ -41,7 +41,7 @@ test("renders file and expansion actions as siblings with a complete disclosure 
 test("keeps an Agent drill-in button separate from the expanded disclosure state", () => {
   const html = renderToStaticMarkup(
     createElement(ToolDisclosureHeader, {
-      className: "frizz-bash-header",
+      className: "ntwine-bash-header",
       controls: "agent-prompt-1",
       expanded: true,
       label: "Collapse Agent prompt: Review permissions",
@@ -66,18 +66,18 @@ test("keeps an Agent drill-in button separate from the expanded disclosure state
 test("renders a running indicator only when the individual tool disclosure supplies one", () => {
   const running = renderToStaticMarkup(
     createElement(ToolDisclosureHeader, {
-      className: "frizz-bash-header",
+      className: "ntwine-bash-header",
       controls: "bash-body-running",
       expanded: false,
       label: "Expand Bash: watch CI",
       onToggle: () => {},
-      meta: createElement("span", { className: "frizz-live-dot", "data-running-indicator": "tool-disclosure", "aria-hidden": true }),
+      meta: createElement("span", { className: "ntwine-live-dot", "data-running-indicator": "tool-disclosure", "aria-hidden": true }),
       children: "watch CI",
     }),
   )
   const terminal = renderToStaticMarkup(
     createElement(ToolDisclosureHeader, {
-      className: "frizz-bash-header",
+      className: "ntwine-bash-header",
       controls: "bash-body-done",
       expanded: false,
       label: "Expand Bash: completed CI",
@@ -88,11 +88,11 @@ test("renders a running indicator only when the individual tool disclosure suppl
   )
 
   assert.match(running, /data-running-indicator="tool-disclosure"/)
-  assert.match(running, /frizz-live-dot/)
+  assert.match(running, /ntwine-live-dot/)
   assert.match(running, /flex shrink-0 items-center gap-1\.5/, "the status cluster and disclosure control use the compact shared rhythm")
   assert.match(running, /relative -top-px shrink-0 transition-transform/, "the disclosure glyph receives its optical vertical correction")
   assert.doesNotMatch(terminal, /data-running-indicator/)
-  assert.doesNotMatch(terminal, /frizz-live-dot/)
+  assert.doesNotMatch(terminal, /ntwine-live-dot/)
 })
 
 // The whole row toggles, so it must READ as clickable — its Bash/Todo siblings are one big <button>
@@ -102,7 +102,7 @@ test("renders a running indicator only when the individual tool disclosure suppl
 test("the row itself reads as clickable without becoming a second control", () => {
   const html = renderToStaticMarkup(
     createElement(ToolDisclosureHeader, {
-      className: "frizz-bash-header",
+      className: "ntwine-bash-header",
       controls: "read-body-1",
       expanded: false,
       label: "Expand Read: /repo/src/app.ts",
@@ -112,7 +112,7 @@ test("the row itself reads as clickable without becoming a second control", () =
   )
 
   const row = html.slice(0, html.indexOf(">") + 1)
-  assert.match(row, /class="frizz-bash-header w-full cursor-pointer text-left"/)
+  assert.match(row, /class="ntwine-bash-header w-full cursor-pointer text-left"/)
   assert.doesNotMatch(html, /role="button"/)
   assert.doesNotMatch(html, /tabindex/i)
 })

@@ -55,7 +55,7 @@ const waitFor = async (label, cond, ms = 240_000) => {
 let failed = false
 const check = (ok, label) => { console.log(`${ok ? "PASS" : "FAIL"}: ${label}`); if (!ok) failed = true }
 
-// 1. the ask reaches frizz as a real, answerable question card
+// 1. the ask reaches ntwine as a real, answerable question card
 const card = await waitFor("the question card", async () => {
   const { interactions } = await api.query("pendingInteractions", { slug, sessionId })
   return interactions.find((i) => i.payload.kind === "agent-question")

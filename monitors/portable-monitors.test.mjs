@@ -24,12 +24,12 @@ test("portable monitor guidance requires declared-project precedence and explici
   assert.match(guide, /do not silently fall back[\s\S]*shadow it/)
 })
 
-// The codex ORCHESTRATOR skill is retired, but Codex is still a live frizz worker BACKEND, so its
+// The codex ORCHESTRATOR skill is retired, but Codex is still a live ntwine worker BACKEND, so its
 // golden worker prompt keeps the declared-tooling prescription in the contract itself.
 //
 // THE TWO BACKENDS CARRY IT IN DIFFERENT PLACES, and asserting otherwise is what broke this test.
 // `c4e6b767` condensed the Claude contract and, as its body says, took "the project-declared-monitor
-// prescription and the frizz:waits pointer" out of it — the `waits` skill had been deleted in
+// prescription and the ntwine:waits pointer" out of it — the `waits` skill had been deleted in
 // `0b2fd7ed`, and the guidance still reaches a Claude worker through the `gh` skill asserted below,
 // which is loaded on demand rather than paid for on every turn. The goldens are current, not stale:
 // dispatch.test.ts compares both byte-for-byte against their sources and is green. So the Claude

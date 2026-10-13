@@ -4,8 +4,8 @@ import test from "node:test"
 // Opt-in, like every other e2e here: start `vite` in packages/web and point this at its origin (or run
 // `nub run test:e2e`, which does both).
 //   cd packages/web && nubx vite --port 5233 --strictPort --host 127.0.0.1 &
-//   FRIZZ_AWAITING_STEPS_E2E_URL=http://127.0.0.1:5233 nub --test src/components/AwaitingSteps.e2e.test.ts
-const baseUrl = process.env.FRIZZ_AWAITING_STEPS_E2E_URL
+//   NTWINE_AWAITING_STEPS_E2E_URL=http://127.0.0.1:5233 nub --test src/components/AwaitingSteps.e2e.test.ts
+const baseUrl = process.env.NTWINE_AWAITING_STEPS_E2E_URL
 
 // STEPS FOR THE HUMAN (2026-10-03): an ```awaiting fence carrying `steps:` draws them on the resting card
 // over ONE verb. The steps render through the markdown sanitizer, which needs a real DOM, so this is
@@ -68,8 +68,8 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
         order: [top("[data-card-chip]"), top("[data-card-title]"), top("[data-card-rule]"), top(".card-md")],
         proseColour: getComputedStyle(el.querySelector(".card-md p") as Element).color,
         stepColour: getComputedStyle(el.querySelector("[data-awaiting-steps] li") as Element).color,
-        stepHeights: [...el.querySelectorAll("[data-awaiting-steps] .frizz-step-text")].map((t) => t.getBoundingClientRect().height),
-        steps: [...el.querySelectorAll("[data-awaiting-steps] .frizz-step-text")].map((t) => (t as HTMLElement).innerText.trim()),
+        stepHeights: [...el.querySelectorAll("[data-awaiting-steps] .ntwine-step-text")].map((t) => t.getBoundingClientRect().height),
+        steps: [...el.querySelectorAll("[data-awaiting-steps] .ntwine-step-text")].map((t) => (t as HTMLElement).innerText.trim()),
         code: [...el.querySelectorAll("[data-awaiting-steps] li code")].map((c) => c.textContent),
         strong: [...el.querySelectorAll("[data-awaiting-steps] li strong")].map((c) => c.textContent),
         snooze: !!el.querySelector("[data-awaiting-snooze]"),
@@ -99,21 +99,21 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
 
     // ---- 2. the stepper: a tick marks the step done and moves the accent to the next one, and it
     //         survives a reload, because the reader is halfway through a sign-in ----
-    const stepper = () => page.$$eval("[data-awaiting-steps] .frizz-step", (lis) => lis.map((li) => ({
+    const stepper = () => page.$$eval("[data-awaiting-steps] .ntwine-step", (lis) => lis.map((li) => ({
       state: li.getAttribute("data-step-state"),
       checked: li.querySelector("button[role=checkbox]")?.getAttribute("aria-checked"),
     })))
     assert.deepEqual((await stepper()).map((s) => s.state), ["next", "todo", "todo"], "the first step is the one to do")
-    await page.click("[data-awaiting-steps] .frizz-step:nth-child(1) button[role=checkbox]")
-    await page.waitForFunction(() => document.querySelector("[data-awaiting-steps] .frizz-step")?.getAttribute("data-step-state") === "done")
+    await page.click("[data-awaiting-steps] .ntwine-step:nth-child(1) button[role=checkbox]")
+    await page.waitForFunction(() => document.querySelector("[data-awaiting-steps] .ntwine-step")?.getAttribute("data-step-state") === "done")
     assert.deepEqual(await stepper(), [{ state: "done", checked: "true" }, { state: "next", checked: "false" }, { state: "todo", checked: "false" }])
     await page.reload({ waitUntil: "networkidle0" })
     await page.waitForSelector(`${CARD} [data-awaiting-steps] li`)
     assert.deepEqual((await stepper()).map((s) => s.state), ["done", "next", "todo"], "the tick outlives a reload")
-    await page.click("[data-awaiting-steps] .frizz-step:nth-child(1) button[role=checkbox]")
-    await page.waitForFunction(() => document.querySelector("[data-awaiting-steps] .frizz-step")?.getAttribute("data-step-state") === "next")
+    await page.click("[data-awaiting-steps] .ntwine-step:nth-child(1) button[role=checkbox]")
+    await page.waitForFunction(() => document.querySelector("[data-awaiting-steps] .ntwine-step")?.getAttribute("data-step-state") === "next")
     assert.deepEqual((await stepper()).map((s) => s.state), ["next", "todo", "todo"], "and a second click unticks it")
-    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("frizz-steps-ticked:")).length), 0, "an unticked list leaves nothing behind")
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("ntwine-steps-ticked:")).length), 0, "an unticked list leaves nothing behind")
     await page.evaluate(() => {
       ;(window as unknown as { __rpc: unknown[] }).__rpc = []
       window.addEventListener("fixture-rpc", (e) => {

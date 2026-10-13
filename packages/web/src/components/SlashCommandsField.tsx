@@ -1,14 +1,14 @@
 import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { UserCommandName, type UserCommand } from "@frizz/shared"
+import { UserCommandName, type UserCommand } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { SETTINGS_HELP } from "../lib/settingsHelp.ts"
 import { invalidateUserCommands, useUserCommands } from "../hooks/useUserCommands.ts"
 import { SettingsField } from "./SettingsField.tsx"
 
-// Settings → Slash commands: every user command the prompt box offers (UserCommand in @frizz/shared),
-// and an editor for the ones written here. Only Frizz's own folder is written. A project's or the
-// machine-wide `~/.agents/commands` one opens as a COPY — saving it writes a Frizz command of the same
+// Settings → Slash commands: every user command the prompt box offers (UserCommand in @ntwine/shared),
+// and an editor for the ones written here. Only Ntwine's own folder is written. A project's or the
+// machine-wide `~/.agents/commands` one opens as a COPY — saving it writes an Ntwine command of the same
 // name, which then wins over the original — so nothing here ever edits a file another tool owns.
 //
 // Saved explicitly, not as-you-type like the project instructions: a command's NAME is its file name,
@@ -16,7 +16,7 @@ import { SettingsField } from "./SettingsField.tsx"
 
 type Draft = { name: string; description: string; body: string; previousName?: string; copiedFrom?: UserCommand }
 
-const SOURCE_LABEL: Record<UserCommand["source"], string> = { frizz: "frizz", project: "project", global: "global" }
+const SOURCE_LABEL: Record<UserCommand["source"], string> = { ntwine: "ntwine", project: "project", global: "global" }
 
 export function SlashCommandsField() {
   const queryClient = useQueryClient()
@@ -32,7 +32,7 @@ export function SlashCommandsField() {
     // A file with no description is listed under its prompt's first line (user-commands.ts); the field
     // starts empty then, or saving would write that line back as a description nobody wrote.
     const description = command.description === command.body.split("\n").find((l) => l.trim())?.trim() ? "" : command.description
-    if (command.source === "frizz") setDraft({ name: command.name, description, body: command.body, previousName: command.name })
+    if (command.source === "ntwine") setDraft({ name: command.name, description, body: command.body, previousName: command.name })
     else setDraft({ name: command.name, description, body: command.body, copiedFrom: command })
   }
 
@@ -42,7 +42,7 @@ export function SlashCommandsField() {
     const parsed = UserCommandName.safeParse(name)
     if (!parsed.success) return setError(parsed.error.issues[0]?.message ?? "Invalid name")
     if (!draft.body.trim()) return setError("Write the prompt the command sends")
-    const clash = commands.find((c) => c.source === "frizz" && c.name === name && c.name !== draft.previousName)
+    const clash = commands.find((c) => c.source === "ntwine" && c.name === name && c.name !== draft.previousName)
     if (clash) return setError(`/${name} already exists`)
     setSaving(true)
     try {
@@ -106,7 +106,7 @@ export function SlashCommandsField() {
                 setDraft(next)
                 setError(null)
               }}
-              dir={loaded.data?.frizzDir ?? ""}
+              dir={loaded.data?.ntwineDir ?? ""}
               error={error}
               saving={saving}
               onSave={() => void save()}
@@ -197,7 +197,7 @@ function CommandEditor({
       {error && <p role="alert" className="text-[11px] text-danger">{error}</p>}
       <div className="flex items-center gap-2">
         <span className="min-w-0 truncate text-[11px] text-muted-70" title={dir}>
-          Saved as <code className="font-mono-keep">{name || "name"}.md</code> in Frizz's commands folder
+          Saved as <code className="font-mono-keep">{name || "name"}.md</code> in Ntwine's commands folder
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">
           {onDelete && (

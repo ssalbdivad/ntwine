@@ -1,8 +1,8 @@
-// LIVE PROBE: can frizz actually KILL one running BACKGROUND SHELL, and does the AGENT hear about it?
+// LIVE PROBE: can ntwine actually KILL one running BACKGROUND SHELL, and does the AGENT hear about it?
 //   nub packages/server/src/backend/_live_shell_stop.mts
 //
 // WHY. `router.ts subAgentStoppable()` refuses a background shell categorically —
-//   "Frizz tracks a background shell by reading the worker's transcript and holds no handle on its
+//   "Ntwine tracks a background shell by reading the worker's transcript and holds no handle on its
 //    process, so it can't be stopped from here."
 // — which is why a running SHELL row carries no ×. The maintainer (2026-08-01): shells get stuck for a
 // day at a time and there is no way to clear one. The refusal is a claim about the PROVIDER, and the
@@ -11,9 +11,9 @@
 // and emits a `task_notification` with status 'stopped'.
 //
 // Reading typings is not evidence. This probe settles four things against a REAL claude session,
-// through frizz's OWN production path (broker bridge → daemon → SDK), never a hand-rolled SDK call:
+// through ntwine's OWN production path (broker bridge → daemon → SDK), never a hand-rolled SDK call:
 //
-//   Q1. Does frizz hold a task id for a background SHELL at all? (`tailer.subAgent(slug,id).taskId` —
+//   Q1. Does ntwine hold a task id for a background SHELL at all? (`tailer.subAgent(slug,id).taskId` —
 //       the exact lookup the router would do, on an entry whose kind is "shell".)
 //   Q2. Does `bridge.stopSubAgent({taskId})` — the production stop path — actually kill the OS
 //       process? Checked by grepping the process table for a unique marker baked into the command.
@@ -46,7 +46,7 @@ const cwd = realpathSync(mkdtempSync(join(tmpdir(), "shstop-repo-"))); execFileS
 // The marker is how the process table is searched. Unique per run so a concurrent probe (or another
 // agent on this machine) can never be matched — and so this probe can never kill anything it did not
 // start, which is the one hard rule of running here.
-const MARKER = `FRIZZ_SHELL_STOP_PROBE_${randomUUID().slice(0, 8)}`
+const MARKER = `NTWINE_SHELL_STOP_PROBE_${randomUUID().slice(0, 8)}`
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -107,7 +107,7 @@ const PROMPT = [
 try {
   await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: PROMPT })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -136,8 +136,8 @@ try {
   console.log(`\n      shellId = ${shellId ?? "(none)"}   taskId = ${taskId ?? "(none)"}`)
   const pidsBefore = livePids()
   console.log(`      pids matching ${MARKER} before the stop: ${pidsBefore.join(", ") || "(none)"}`)
-  ok("Q1 frizz tracks the shell as a live op with an id", Boolean(shellId), shellId ?? "")
-  ok("Q1 frizz holds a provider TASK ID for that shell", Boolean(taskId), taskId ?? "the refusal's premise would hold")
+  ok("Q1 ntwine tracks the shell as a live op with an id", Boolean(shellId), shellId ?? "")
+  ok("Q1 ntwine holds a provider TASK ID for that shell", Boolean(taskId), taskId ?? "the refusal's premise would hold")
   ok("the shell's OS process is actually running", pidsBefore.length > 0, `${pidsBefore.length} pid(s)`)
   // A shell that never started is not a probe of stopping, and the OS-level assertions below would
   // pass vacuously. Bail loudly instead of reporting a green run that measured nothing.
@@ -157,7 +157,7 @@ try {
   console.log(`      pids after the stop (+${Math.round((Date.now() - stopAt) / 1000)}s): ${pidsAfter.join(", ") || "(none)"}`)
   ok("Q2 the shell's OS process is GONE after the stop", pidsAfter.length === 0, pidsAfter.join(", "))
 
-  // ---- PHASE 3: does the row leave frizz's live surfaces? ---------------------------------------
+  // ---- PHASE 3: does the row leave ntwine's live surfaces? ---------------------------------------
   let cleared = false
   for (let i = 0; i < 20 && !cleared; i++) {
     tailer.tick()

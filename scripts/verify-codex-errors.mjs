@@ -1,6 +1,6 @@
 // Replay provider records through a built artifact's real tailer, board, RPC and browser. No live
 // worker is dispatched: the policy-error fixture is captured evidence, not another policy request.
-// VERIFY_PACKAGE=/path/to/installed/frizz exercises the published npm package instead of a source build.
+// VERIFY_PACKAGE=/path/to/installed/ntwine exercises the published npm package instead of a source build.
 import assert from "node:assert/strict"
 import { spawn, execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
@@ -9,16 +9,16 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { once } from "node:events"
 import { launchHeadless } from "./lib/headless-browser.mjs"
-import { buildFrizzArtifact } from "../src/artifacts.ts"
+import { buildNtwineArtifact } from "../src/artifacts.ts"
 import { resolveProject } from "../packages/server/src/project.ts"
 import { findByPath } from "../packages/server/src/project-registry.ts"
-import { frizzPaths } from "../packages/server/src/frizz-paths.ts"
+import { ntwinePaths } from "../packages/server/src/ntwine-paths.ts"
 import { createStorage } from "../packages/server/src/storage.ts"
 import { acquireProjectLaunchOwner, projectLaunchEnvironment } from "../packages/server/src/project-launch.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
 const source = resolve(import.meta.dirname, "..")
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-codex-errors-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-codex-errors-")))
 const home = join(root, "home")
 const projectDir = join(root, "project")
 const shots = resolve(process.env.VERIFY_SHOTS ?? join(source, ".adhoc-shots", "codex-errors"))
@@ -48,13 +48,13 @@ const until = async (predicate, label) => {
 }
 
 try {
-  for (const dir of [join(home, ".frizz"), projectDir, shots]) mkdirSync(dir, { recursive: true })
+  for (const dir of [join(home, ".ntwine"), projectDir, shots]) mkdirSync(dir, { recursive: true })
   execFileSync("git", ["init", "-q"], { cwd: projectDir })
   const project = resolveProject(projectDir, home)
   const projectSlug = findByPath(projectDir, home).slug
   const target = { projectId: project.id, projectDir, stateDir: project.stateDir }
   owner = acquireProjectLaunchOwner(target, "launcher")
-  storage = createStorage(join(home, ".frizz", "ui.db"), project.id)
+  storage = createStorage(join(home, ".ntwine", "ui.db"), project.id)
   const nativeId = randomUUID()
   const sessionId = randomUUID()
   const at = new Date(Date.now() - 20_000).toISOString()
@@ -67,7 +67,7 @@ try {
     + record({ type: "user_message", message: "Run the requested validation." }, at)
     + record({ type: "task_started" }, at)
     + record({ type: "task_complete", last_agent_message: null, error: { message, codex_error_info: "cyber_policy" } }, failedAt))
-  storage.upsertSession({ slug: "policy-failure", session_id: sessionId, thread_name: "frizz-policy-failure", spawned_at: at,
+  storage.upsertSession({ slug: "policy-failure", session_id: sessionId, thread_name: "ntwine-policy-failure", spawned_at: at,
     backend: "codex", agent_session_id: nativeId, codex_runtime: "app-server", model: "gpt-6-astra", effort: "high",
     title: "Provider failure regression", title_auto: 0, title_locked: 1, state: "open", exited: 0, archived: 0,
     last_read_at: null, unread: 1, rested_at: failedAt, meta: null, seen_at: null, transcript_id: null })
@@ -79,15 +79,15 @@ try {
   console.log(packageDir ? "Verifying the installed npm package" : "Building the artifact")
   const artifact = packageDir ? {
     runtimeDir: join(packageDir, "runtime"), webDir: join(packageDir, "web-dist"), digest: undefined,
-  } : buildFrizzArtifact(source, join(root, "artifacts"))
+  } : buildNtwineArtifact(source, join(root, "artifacts"))
   const boot = async () => {
     output = ""
     server = spawn(process.execPath, [packageDir ? join(packageDir, "dist", "dev-child.js") : join(artifact.runtimeDir, "src", "index.js")], {
       cwd: projectDir,
       env: projectLaunchEnvironment({ ...process.env, HOME: home, CODEX_HOME: join(home, ".codex"),
-        FRIZZ_DEV_CHILD: "1", FRIZZ_DEV_PORT: String(port), FRIZZ_WAKERS_OFF: "1", FRIZZ_ORPHAN_REAPER_OFF: "1", FRIZZ_TENANT_PRIME_OFF: "1",
-        FRIZZ_RUNTIMES_DIR: join(frizzPaths().cache, "runtimes"), FRIZZ_STABLE_ARTIFACT: artifact.digest,
-        FRIZZ_STABLE_WEB_DIST: artifact.webDir, FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"), FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker") }, target, owner.token),
+        NTWINE_DEV_CHILD: "1", NTWINE_DEV_PORT: String(port), NTWINE_WAKERS_OFF: "1", NTWINE_ORPHAN_REAPER_OFF: "1", NTWINE_TENANT_PRIME_OFF: "1",
+        NTWINE_RUNTIMES_DIR: join(ntwinePaths().cache, "runtimes"), NTWINE_STABLE_ARTIFACT: artifact.digest,
+        NTWINE_STABLE_WEB_DIST: artifact.webDir, NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"), NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker") }, target, owner.token),
       stdio: ["ignore", "pipe", "pipe"],
     })
     server.stdout.on("data", (chunk) => { output += chunk })
@@ -114,15 +114,15 @@ try {
   // the project's icon, which 404s for a project that has none — an answer, not a fault (ProjectSquare;
   // verify-all-queues.mjs and verify-server-package.mjs expect it too). The board this drawer sat on
   // until 2026-09-28 drew no square, so it never asked.
-  const projectIcon = `${api.origin}/_frizz/project-icon?id=${project.id}`
+  const projectIcon = `${api.origin}/_ntwine/project-icon?id=${project.id}`
   page.on("pageerror", (error) => errors.push(String(error)))
   page.on("console", (entry) => {
     // This artifact child deliberately has no launcher control plane. Its status 404 is expected;
     // every application error and every other missing resource still fails this test.
-    if (entry.type() === "error" && entry.location().url !== `${api.origin}/_frizz/control/status` && entry.location().url !== projectIcon) errors.push(`${entry.text()} ${entry.location().url ?? ""}`)
+    if (entry.type() === "error" && entry.location().url !== `${api.origin}/_ntwine/control/status` && entry.location().url !== projectIcon) errors.push(`${entry.text()} ${entry.location().url ?? ""}`)
   })
   page.on("response", (response) => {
-    if (response.status() === 404 && response.url() === `${api.origin}/_frizz/control/status`) controlStatusMisses++
+    if (response.status() === 404 && response.url() === `${api.origin}/_ntwine/control/status`) controlStatusMisses++
     else if (response.status() === 404 && response.url() === projectIcon) projectIconMisses++
     else if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`)
   })
@@ -140,7 +140,7 @@ try {
   const url = `${api.origin}/all/${projectSlug}/thread/policy-failure`
   for (const font of ["sans", "mono"]) {
     await api.mutate("settingsSet", { ...await api.query("settingsGet"), font })
-    await page.evaluateOnNewDocument((font) => { localStorage.setItem("frizz-font", font) }, font)
+    await page.evaluateOnNewDocument((font) => { localStorage.setItem("ntwine-font", font) }, font)
     for (const width of [1000, 390]) {
       await page.setViewport({ width, height: 900, deviceScaleFactor: 2 })
       await page.goto(url, { waitUntil: "networkidle2" })

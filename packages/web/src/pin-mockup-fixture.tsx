@@ -177,7 +177,7 @@ createRoot(document.getElementById("root")!).render(
     <div className="flex items-start gap-10">
       <Panel title="A — unlabeled band, pin-marked rows" note="Matches the rail's top bands, which carry no labels: the pinned rows simply come first, wearing a small pin where the cue's rest time would sit, with the usual rule below them. The mark yields to the hover actions like the rest time does.">
         <PromptBoxGhost />
-        <Row indicator={spinner} title="Frizz v2 launch checklist" mark={pinMark} />
+        <Row indicator={spinner} title="Ntwine v2 launch checklist" mark={pinMark} />
         <Row indicator={atRest} title="Redesign the queue card actions" mark={pinMark} />
         <Rule />
         <RailBelowPinned />
@@ -185,7 +185,7 @@ createRoot(document.getElementById("root")!).render(
       <Panel title="B — labeled bands: PINNED, ACTIVE" note="A PINNED header with a count, no per-row mark — and one ACTIVE header over the queue and the running rows together, with a short inset rule between the two groups instead of a band-rank divider.">
         <PromptBoxGhost />
         <Header label="Pinned" count={2} />
-        <Row indicator={spinner} title="Frizz v2 launch checklist" />
+        <Row indicator={spinner} title="Ntwine v2 launch checklist" />
         <Row indicator={atRest} title="Redesign the queue card actions" />
         <Rule />
         <RailBelowPinned labeled />
@@ -198,12 +198,12 @@ createRoot(document.getElementById("root")!).render(
           </div>
           <div>
             <p className="mb-1 px-1.5 text-[10.5px] text-muted-50">a pinned row, hovered</p>
-            <Row indicator={spinner} title="Frizz v2 launch checklist" mark={pinMark} hovered actions={<>{unpinAction}{expandAction}</>} />
+            <Row indicator={spinner} title="Ntwine v2 launch checklist" mark={pinMark} hovered actions={<>{unpinAction}{expandAction}</>} />
           </div>
           <div>
             <p className="mb-1 px-1.5 text-[10.5px] text-muted-50">the same rows, at rest (marks visible, actions hidden)</p>
             <Row indicator={atRest} title="Fix the cache collision in the resolver" restedAge="2h 10m" actions={<>{pinAction}{expandAction}</>} />
-            <Row indicator={spinner} title="Frizz v2 launch checklist" mark={pinMark} actions={<>{unpinAction}{expandAction}</>} />
+            <Row indicator={spinner} title="Ntwine v2 launch checklist" mark={pinMark} actions={<>{unpinAction}{expandAction}</>} />
           </div>
           <div>
             <p className="mb-1 px-1.5 text-[10.5px] text-muted-50">a done thread stays pinned until unpinned — the pin outranks Done</p>

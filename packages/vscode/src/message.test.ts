@@ -3,8 +3,8 @@ import assert from "node:assert/strict"
 // The PAGE's own serializer and parser, imported straight from the web package (they load under node):
 // what the extension sends must be exactly what the ⌘I flow sends, and must come back as chips.
 import { buildMessageWithContext, parseSentContext } from "../../web/src/lib/composerContext.ts"
-// The server's own frame rules — the schema and the socket's byte ceiling — so "fits" means what Frizz accepts.
-import { EditorClientMessageSchema } from "@frizz/shared"
+// The server's own frame rules — the schema and the socket's byte ceiling — so "fits" means what Ntwine accepts.
+import { EditorClientMessageSchema } from "@ntwine/shared"
 import { EDITOR_MAX_PAYLOAD_BYTES } from "../../server/src/editor-bridge.ts"
 import { composeInput, composeMessage, quotable, QUOTE_MAX_LINES, refLabel, type FileRef } from "./message.ts"
 
@@ -74,7 +74,7 @@ test("the input box names the reference the way the chip will", () => {
   assert.equal(refLabel({ path, display: "src/a.ts" }), "a.ts")
 })
 
-/** The compose frame exactly as connection.ts sends it, and whether Frizz would take it. */
+/** The compose frame exactly as connection.ts sends it, and whether Ntwine would take it. */
 function composeFrame(item: ReturnType<typeof composeInput>): { bytes: number; valid: boolean } {
   const frame = JSON.stringify({ t: "compose", id: "0b0c1f0e-6a43-4d5e-9f00-1a2b3c4d5e6f", item })
   return { bytes: Buffer.byteLength(frame, "utf8"), valid: EditorClientMessageSchema.safeParse(JSON.parse(frame)).success }
@@ -86,12 +86,12 @@ test("a prompt-box insert carries the selection's text and range, and the cursor
   assert.deepEqual(composeInput({ path }), { path })
 })
 
-test("a selection whose ENCODED size would overflow Frizz's frame is sent as its range, not as a frame Frizz closes the socket on", () => {
+test("a selection whose ENCODED size would overflow Ntwine's frame is sent as its range, not as a frame Ntwine closes the socket on", () => {
   // NUL padding: 30,000 bytes of UTF-8, under the quote cap, but six bytes apiece once JSON-encoded.
   const padded = { text: "\0".repeat(30_000), startLine: 3, endLine: 3 }
   assert.ok(quotable(padded), "the quote cap alone admits it")
   const naive = composeFrame({ path, ...padded })
-  assert.ok(naive.bytes > EDITOR_MAX_PAYLOAD_BYTES, `sent as text it is ${naive.bytes} bytes, past Frizz's ${EDITOR_MAX_PAYLOAD_BYTES}`)
+  assert.ok(naive.bytes > EDITOR_MAX_PAYLOAD_BYTES, `sent as text it is ${naive.bytes} bytes, past Ntwine's ${EDITOR_MAX_PAYLOAD_BYTES}`)
 
   const item = composeInput({ path, projectId: "p1", selection: padded })
   assert.deepEqual(item, { path, projectId: "p1", startLine: 3, endLine: 3 })
@@ -99,7 +99,7 @@ test("a selection whose ENCODED size would overflow Frizz's frame is sent as its
   assert.ok(sent.valid && sent.bytes <= EDITOR_MAX_PAYLOAD_BYTES)
 
   // Every selection that KEEPS its text fits, at the edges: the most escape-heavy and the widest
-  // characters the caps allow, beside the longest path Frizz takes, in the widest characters.
+  // characters the caps allow, beside the longest path Ntwine takes, in the widest characters.
   const longPath = `/${"€".repeat(4095)}`
   assert.equal(composeInput({ path, selection: { text: "\0".repeat(16_000), startLine: 1, endLine: 1 } }).text?.length, 16_000, "just under the bound, the text still travels")
   for (const edge of ["\0".repeat(16_000), "\x1b".repeat(16_384), "€".repeat(10_900), "😀".repeat(8_100), "x".repeat(32 * 1024)]) {

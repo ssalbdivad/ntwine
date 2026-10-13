@@ -1,5 +1,5 @@
-// LIVE repro (not a unit test; excluded from the *.test.ts glob). Does a codex thread KEEP frizz's MCP
-// tools across a Frizz restart that replaces its app-server?
+// LIVE repro (not a unit test; excluded from the *.test.ts glob). Does a codex thread KEEP ntwine's MCP
+// tools across an Ntwine restart that replaces its app-server?
 //
 //   nub packages/server/src/backend/_live_codex_resume_mcp.mts
 //   TRANSPORT=native nub …   — the production transport (`--listen unix://`, detached listener)
@@ -8,18 +8,18 @@
 //
 // Incident 2026-09-18 (hypergres/this-is-a-fresh-project-i): the 0.13.9 restart rejected the running
 // codex 0.154.0 daemon, forked a 0.155.0 one, and auto-resumed the interrupted turn. The worker's own
-// registry probe afterwards listed the operator's config.toml MCP servers and NO `mcp__frizz__*` at
-// all, so it could not register a question or sign off ("The restart removed Frizz's
-// question-registration tool"). The app-server's argv carried the process-wide `-c mcp_servers.frizz`
+// registry probe afterwards listed the operator's config.toml MCP servers and NO `mcp__ntwine__*` at
+// all, so it could not register a question or sign off ("The restart removed Ntwine's
+// question-registration tool"). The app-server's argv carried the process-wide `-c mcp_servers.ntwine`
 // mount the whole time.
 //
 // The flow below is the real one: a REAL CodexAppServerBridge over a REAL `codex app-server`, a thread
 // started with the per-thread mount, a turn killed mid-flight by SIGKILLing the app-server, then a
 // second bridge over the same SQLite db — the restarted runtime — whose warmUp() reconciles the
 // mid-turn row through `thread/resume` and auto-resumes it. Before and after, the model is asked to
-// call the probe tool. The probe MCP server is mounted under frizz's own server name (`frizz`), so
+// call the probe tool. The probe MCP server is mounted under ntwine's own server name (`ntwine`), so
 // `codexThreadMcpConfig` and `codexMcpConfigArgs` are the exact code under test; every probe
-// instance appends its lifecycle to one events file, tagged with the FRIZZ_THREAD_SLUG it was given,
+// instance appends its lifecycle to one events file, tagged with the NTWINE_THREAD_SLUG it was given,
 // which tells the per-thread mount from the argv one.
 //
 // The load-bearing evidence is the CALL event written by the probe when its tool actually executes,
@@ -35,19 +35,19 @@ import { createInteractionStore } from "../interaction-store.ts"
 import { CodexAppServerBridge, type CodexAppServerSpawn } from "./codex-app-server.ts"
 import { nativeListenCodexAppServerHost, readNativeRecord } from "./codex-app-server-native.ts"
 import { codexMcpConfigArgs } from "./codex-mcp.ts"
-import type { FrizzMcp } from "./types.ts"
+import type { NtwineMcp } from "./types.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN
-  || join(homedir(), ".frizz/runtimes/codex/0.155.0/vendor/aarch64-apple-darwin/bin/codex")
+  || join(homedir(), ".ntwine/runtimes/codex/0.155.0/vendor/aarch64-apple-darwin/bin/codex")
 const NATIVE = process.env.TRANSPORT === "native"
 const STALE_CWD = process.env.STALE_CWD === "1"
-// ARGV_ONLY=1: the bridge gets NO frizz descriptor (so it sends no per-thread bag), and the spawn
+// ARGV_ONLY=1: the bridge gets NO ntwine descriptor (so it sends no per-thread bag), and the spawn
 // callback appends the argv mount itself — the process-wide entry a thread with no bag lives on.
 // Stops after the BEFORE stage: the question is only whether that entry's tool is callable. (An
 // earlier revision sent an EMPTY per-thread `mcp_servers` bag instead, and learned that a per-thread
 // bag REPLACES the argv overrides rather than merging with them: no probe spawned at all.)
 const ARGV_ONLY = process.env.ARGV_ONLY === "1"
-const dir = mkdtempSync(join(tmpdir(), "frizz-codex-resume-mcp-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-codex-resume-mcp-"))
 const dbPath = join(dir, "ui.db")
 const probePath = join(dir, "probe-mcp.mjs")
 const eventsPath = join(dir, "probe-events.jsonl")
@@ -62,7 +62,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 // shared events file, tagged with the slug env the mount gave it (null ⇒ the process-wide argv mount).
 writeFileSync(probePath, `
 import { appendFileSync } from "node:fs"
-const SLUG = process.env.FRIZZ_THREAD_SLUG ?? null
+const SLUG = process.env.NTWINE_THREAD_SLUG ?? null
 const log = (event) => appendFileSync(${JSON.stringify(eventsPath)}, JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, slug: SLUG, cwd: process.cwd() }) + "\\n")
 const TOOL = {
   name: "probe_ping",
@@ -80,7 +80,7 @@ function handle(msg) {
       return reply(id, {
         protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : "2025-06-18",
         capabilities: { tools: {} },
-        serverInfo: { name: "frizzprobe", version: "0.0.1" },
+        serverInfo: { name: "ntwineprobe", version: "0.0.1" },
       })
     case "notifications/initialized":
     case "initialized":
@@ -113,8 +113,8 @@ process.stdin.on("data", (chunk) => {
 process.stdin.on("end", () => { log("exit"); process.exit(0) })
 `)
 
-// Mounted under frizz's own server name, so the exact production config builders are exercised.
-const frizzMcp: FrizzMcp = { scriptPath: probePath, stateDir: dir, projectId: "repro" }
+// Mounted under ntwine's own server name, so the exact production config builders are exercised.
+const ntwineMcp: NtwineMcp = { scriptPath: probePath, stateDir: dir, projectId: "repro" }
 
 type ProbeEvent = { at: string; pid: number; event: string; slug: string | null; cwd: string }
 function probeEvents(): ProbeEvent[] {
@@ -164,13 +164,13 @@ let spawned: { pid: number; child: ChildProcessWithoutNullStreams }[] = []
 const spawn: CodexAppServerSpawn = (binary, rawArgs, options) => {
   // ARGV_ONLY: the bridge was given no descriptor, so mount the argv entry here — the exact override
   // codexAppServerArgv would have put on the app-server's argv.
-  const args = ARGV_ONLY ? [rawArgs[0]!, ...codexMcpConfigArgs(frizzMcp), ...rawArgs.slice(1)] : [...rawArgs]
+  const args = ARGV_ONLY ? [rawArgs[0]!, ...codexMcpConfigArgs(ntwineMcp), ...rawArgs.slice(1)] : [...rawArgs]
   const child = spawnChild(binary, args, { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"] })
   spawned.push({ pid: child.pid!, child })
   // Production discards the app-server's stderr; keep it here, because an MCP child that fails to
   // start is reported ONLY there.
   child.stderr.pipe(createWriteStream(join(dir, `app-server-${child.pid}.stderr.log`)))
-  console.log(`    [spawned codex app-server pid=${child.pid}] argv has mcp_servers.frizz: ${args.some((a) => a.startsWith("mcp_servers.frizz="))}`)
+  console.log(`    [spawned codex app-server pid=${child.pid}] argv has mcp_servers.ntwine: ${args.some((a) => a.startsWith("mcp_servers.ntwine="))}`)
   return child
 }
 
@@ -180,7 +180,7 @@ function makeBridge(label: string) {
   let iid = 0, cid = 0
   const interactions = createInteractionStore(db, { now: () => new Date(), id: () => `i-${label}-${++iid}` })
   const bridge = new CodexAppServerBridge({
-    projectId: "repro", projectDir: dir, stateDir: dir, db, interactions, ...(ARGV_ONLY ? {} : { frizzMcp }),
+    projectId: "repro", projectDir: dir, stateDir: dir, db, interactions, ...(ARGV_ONLY ? {} : { ntwineMcp }),
     codexBin: CODEX_BIN, ...(NATIVE ? { host: nativeListenCodexAppServerHost } : { spawn }),
     now: () => new Date(), id: () => `c-${label}-${++cid}`,
     requestTimeoutMs: 90_000,
@@ -234,7 +234,7 @@ const fmt = (events: ProbeEvent[]) => JSON.stringify(events.map((e) => `${e.even
 ;(async () => {
   console.log(`dir:       ${dir}\nnonce:     ${nonce}\ncodex:     ${CODEX_BIN}\ntransport: ${NATIVE ? "native --listen" : "stdio"}\nstale cwd: ${STALE_CWD}`)
   try {
-    // ---- 1. the thread as frizz dispatches it ------------------------------------------------
+    // ---- 1. the thread as ntwine dispatches it ------------------------------------------------
     console.log("\n======== BEFORE: fresh app-server, thread/start with the per-thread mount ========")
     const one = makeBridge("1")
     const binding = await one.bridge.startDisposableSession({ threadSlug: slug, sessionId, cwd: workDir, sandbox: "read-only", ephemeral: false })
@@ -286,18 +286,18 @@ const fmt = (events: ProbeEvent[]) => JSON.stringify(events.map((e) => `${e.even
     const after = await probeTurn(two.bridge, binding.codexSessionId, "after")
 
     console.log("\n======== VERDICT ========")
-    ok("BEFORE the restart the model can call the frizz-mounted probe tool", before.called && before.sawNonce, before.answer?.slice(0, 120))
+    ok("BEFORE the restart the model can call the ntwine-mounted probe tool", before.called && before.sawNonce, before.answer?.slice(0, 120))
     ok("the fresh app-server spawned a probe for the resumed thread at all",
       sinceRestart.some((e) => e.event === "initialize"), fmt(sinceRestart))
     ok("the resumed thread got a probe instance carrying its slug (per-thread mount on thread/resume)",
       sinceRestart.some((e) => e.event === "initialize" && e.slug === slug))
-    ok("AFTER the restart the model can still call the frizz-mounted probe tool", after.called && after.sawNonce, after.answer?.slice(0, 120))
+    ok("AFTER the restart the model can still call the ntwine-mounted probe tool", after.called && after.sawNonce, after.answer?.slice(0, 120))
 
     for (const s of spawned) {
       const log = join(dir, `app-server-${s.pid}.stderr.log`)
       if (!existsSync(log)) continue
-      const lines = readFileSync(log, "utf8").split("\n").filter((l) => /frizz|mcp/i.test(l) && !/codex_apps|gmail|openaiDeveloperDocs/.test(l))
-      if (lines.length) console.log(`\n  app-server ${s.pid} stderr (mcp/frizz lines):\n    ${lines.slice(0, 20).join("\n    ")}`)
+      const lines = readFileSync(log, "utf8").split("\n").filter((l) => /ntwine|mcp/i.test(l) && !/codex_apps|gmail|openaiDeveloperDocs/.test(l))
+      if (lines.length) console.log(`\n  app-server ${s.pid} stderr (mcp/ntwine lines):\n    ${lines.slice(0, 20).join("\n    ")}`)
     }
     try { two.bridge.close(); two.interactions.dispose(); two.db.close() } catch {}
     console.log(`\n==== ${failures === 0 ? "MCP MOUNT SURVIVES THE RESTART" : "MOUNT LOST ACROSS THE RESTART — read the tape above"} ====`)

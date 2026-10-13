@@ -7,7 +7,7 @@ import {
 import { classifyUnownedBrokers } from "./unowned-brokers.ts"
 
 const MIN = 60_000
-const BROKER = "/usr/bin/node /home/u/frizz/packages/server/src/backend/claude-agent-broker.ts"
+const BROKER = "/usr/bin/node /home/u/ntwine/packages/server/src/backend/claude-agent-broker.ts"
 const CLAUDE = (flag: string) => `/home/u/.cache/frizz/runtimes/claude/2.1.293/claude --output-format stream-json ${flag} --mcp-config /tmp/x.json`
 const SID_A = "aaaaaaaa-1111-4111-8111-111111111111"
 const SID_B = "bbbbbbbb-2222-4222-8222-222222222222"
@@ -19,13 +19,13 @@ const p = (pid: number, ppid: number, command: string, rssKB: number, slug: stri
 // One machine's worth of rows: a launcher and its server, two threads, one orphan group, one lone
 // broker whose `claude` is gone, and an unrelated process.
 const ROWS: TopProc[] = [
-  p(90, 1, "/bin/sh /home/u/.local/bin/frizz-dev", 1_000),
-  p(91, 90, "/usr/bin/node /home/u/frizz/src/dev.ts", 100_000),
-  p(100, 91, "/usr/bin/node /home/u/frizz/packages/server/src/dev.ts", 800_000),
-  // thread A: untagged broker → tagged claude → tagged frizz MCP + a shell + a job that cleared its env
+  p(90, 1, "/bin/sh /home/u/.local/bin/ntwine-dev", 1_000),
+  p(91, 90, "/usr/bin/node /home/u/ntwine/src/dev.ts", 100_000),
+  p(100, 91, "/usr/bin/node /home/u/ntwine/packages/server/src/dev.ts", 800_000),
+  // thread A: untagged broker → tagged claude → tagged ntwine MCP + a shell + a job that cleared its env
   p(200, 1, BROKER, 30_000, null, 120 * MIN),
   p(201, 200, CLAUDE(`--session-id=${SID_A}`), 300_000, "thread-a", 119 * MIN),
-  p(202, 201, "/usr/bin/node /home/u/frizz/cc-worker/bin/frizz-mcp.mjs", 40_000, "thread-a"),
+  p(202, 201, "/usr/bin/node /home/u/ntwine/cc-worker/bin/ntwine-mcp.mjs", 40_000, "thread-a"),
   p(203, 201, "/bin/bash -c pnpm test", 4_000, "thread-a"),
   p(204, 203, "node mocha", 2_000_000, null),
   p(205, 204, "tsgo", 500_000, null),
@@ -40,7 +40,7 @@ const ROWS: TopProc[] = [
   p(402, 1, "node vite", 70_000, "thread-c", 30_000),
   // a broker whose claude is gone
   p(600, 1, BROKER, 25_000, null, 400 * MIN),
-  // not Frizz's
+  // not Ntwine's
   p(700, 1, "/usr/bin/sshd", 9_000),
 ]
 
@@ -50,7 +50,7 @@ test("a thread tree is its tagged processes, its broker, and untagged descendant
   const a = threads[0]!
   assert.deepEqual(a.pids, [200, 201, 202, 203, 204, 205, 206])
   assert.equal(a.rssKB, 30_000 + 300_000 + 40_000 + 4_000 + 2_000_000 + 500_000 + 50_000)
-  assert.equal(a.agentKB, 30_000 + 300_000 + 40_000, "broker + claude + frizz MCP")
+  assert.equal(a.agentKB, 30_000 + 300_000 + 40_000, "broker + claude + ntwine MCP")
   assert.equal(a.workKB, a.rssKB - a.agentKB)
   assert.equal(a.sessionId, SID_A)
   assert.equal(a.brokerPid, 200)
@@ -69,7 +69,7 @@ test("a slug with no session root is an orphan, and only the processes past the 
 })
 
 test("the reaper's own ancestry is never reapable", () => {
-  const rows = [...ROWS, p(800, 400, "node frizz top", 30_000, "thread-c", 10 * MIN)]
+  const rows = [...ROWS, p(800, 400, "node ntwine top", 30_000, "thread-c", 10 * MIN)]
   const { orphans } = groupThreadTrees(rows, { selfPid: 800 })
   // 400 is top's parent and 800 is top itself; 401 is aged and unprotected, 402 too young.
   assert.equal(orphans[0]!.reapable, 1)
@@ -78,9 +78,9 @@ test("the reaper's own ancestry is never reapable", () => {
 test("the readout leaves itself and its launcher out, and stops at the first ancestor that is not running it", () => {
   const rows = [
     ...ROWS,
-    p(810, 203, "/bin/bash -c frizz-dev top", 4_000, "thread-a"),
-    p(811, 810, "/bin/sh /home/u/.local/bin/frizz-dev top", 1_000, "thread-a"),
-    p(812, 811, "nub --no-env-file /home/u/frizz/src/index.ts top --json", 150_000, "thread-a"),
+    p(810, 203, "/bin/bash -c ntwine-dev top", 4_000, "thread-a"),
+    p(811, 810, "/bin/sh /home/u/.local/bin/ntwine-dev top", 1_000, "thread-a"),
+    p(812, 811, "nub --no-env-file /home/u/ntwine/src/index.ts top --json", 150_000, "thread-a"),
   ]
   assert.deepEqual([...readoutChain(rows, 812)].sort(), [810, 811, 812])
   assert.deepEqual([...readoutChain(ROWS, 999)], [999], "a self missing from the rows is still excluded")
@@ -152,7 +152,7 @@ test("the readout says what it could not read, in sentence case and the house du
       { id: "1", pid: 1, session: "thread-a", signature: "arktype:ark/type|pnpm test", cmd: "pnpm test", cwd: "/", heavy: true, estimateMB: 2560, status: "running", enqueuedAt: NOW - 200_000, admittedAt: NOW - 155_000, rssMB: 2100, forMs: 155_000, waitedMs: 45_000 },
       { id: "2", pid: 2, session: "thread-b", signature: "arktype:.|tsc", cmd: "tsc", cwd: "/", heavy: true, estimateMB: 2048, status: "queued", enqueuedAt: NOW - 30_000, waitReason: "1 job ahead in the queue", forMs: 30_000 },
     ] },
-    frizz: { totalKB: 4_000_000, serverKB: 901_000, threadsKB: 3_000_000, orphansKB: 280_000 },
+    ntwine: { totalKB: 4_000_000, serverKB: 901_000, threadsKB: 3_000_000, orphansKB: 280_000 },
     server: null,
     threads: threads.map((t) => ({ ...t, idleMs: 2 * 60 * MIN + 35 * MIN })),
     orphans,
@@ -165,7 +165,7 @@ test("the readout says what it could not read, in sentence case and the house du
   assert.match(text, /running .*thread-a .*2\.1GB .*2\.5GB .*2m .*45s/)
   assert.match(text, /queued .*thread-b .*30s .*1 job ahead in the queue/)
   assert.match(text, /thread-a .*2\.8GB .*2h .* 2h 35m/)
-  assert.match(text, /Hibernated threads and unowned brokers not shown: no Frizz server is running\./)
+  assert.match(text, /Hibernated threads and unowned brokers not shown: no Ntwine server is running\./)
   assert.match(text, /Orphans .*: 1\n[\s\S]*thread-c .*273MB +3 +reaped on the next sweep/)
   for (const bad of [/\d+ ?min\b/, /\d+ ?hrs?\b/, /\d+ minutes/]) assert.doesNotMatch(text, bad)
 })

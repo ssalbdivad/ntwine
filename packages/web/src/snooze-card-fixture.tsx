@@ -30,11 +30,11 @@ const foreign = params.get("foreign") === "1"
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  if (url.pathname === "/_frizz/rpc/setThreadSnooze") {
+  if (url.pathname === "/_ntwine/rpc/setThreadSnooze") {
     window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc: "setThreadSnooze", body: JSON.parse(String(init?.body ?? "{}")) } }))
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

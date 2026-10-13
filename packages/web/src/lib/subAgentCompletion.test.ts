@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { TranscriptToolCall } from "@frizz/shared"
+import type { TranscriptToolCall } from "@ntwine/shared"
 import { AGENT_OUTCOME_VERB, agentCompletionCall, subAgentCompletionOutcome, type CompletionMessageLike } from "./subAgentCompletion.ts"
 
 // The routing decision behind "an agent finishing looks like a background shell terminating". Getting
@@ -12,7 +12,7 @@ const dispatch: TranscriptToolCall = {
   name: "Agent",
   detail: "Audit the pricing parser for edge cases",
   prompt: "Audit it.",
-  subagentType: "frizz:opus-high",
+  subagentType: "ntwine:opus-high",
   agentId: "toolu_a",
   status: "completed",
 }

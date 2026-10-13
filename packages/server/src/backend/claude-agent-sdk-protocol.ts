@@ -2,7 +2,7 @@
 // the Anthropic SDK: callers depend on these bounded, versioned shapes rather than on an expansive
 // provider type union. The adapter is the sole translation boundary.
 
-import type { ThreadSkillSource } from "@frizz/shared"
+import type { ThreadSkillSource } from "@ntwine/shared"
 
 export const CLAUDE_AGENT_SDK_PROTOCOL_VERSION = 1 as const
 export const CLAUDE_AGENT_SDK_MAX_INPUT_BYTES = 64 * 1024
@@ -35,7 +35,7 @@ const DELIVERABLE_CONTROL_CODES = new Set([9, 10, 13])
  *
  * U+200D ZERO WIDTH JOINER is `\p{Cf}`, so every multi-part emoji (👩‍💻, 🏳️‍🌈, 👨‍👩‍👧) was refused, along
  * with a pasted BOM, a zero-width space and a soft hyphen. And because the daemon swallowed the
- * refusal (`claude-agent-broker.ts`) the message then VANISHED while frizz's RPC answered success.
+ * refusal (`claude-agent-broker.ts`) the message then VANISHED while ntwine's RPC answered success.
  * Measured live in `_live_broker_input_drop.mts`: one sentence delivered plain, and the same sentence
  * disappeared with a single emoji appended. The identical bytes typed straight into a `claude` CLI go
  * through untouched, so the broker path was silently stricter than the provider itself for the same
@@ -65,7 +65,7 @@ export type ClaudePermissionMode = "default" | "acceptEdits" | "bypassPermission
 
 // A capability a broker DAEMON advertises in its on-disk record, so the bridge can tell a daemon this
 // build forked from one a PREVIOUS build left running (they are detached and idle for six hours, so a
-// frizz upgrade routinely reattaches to an old one and no handshake would reveal the difference).
+// ntwine upgrade routinely reattaches to an old one and no handshake would reveal the difference).
 //
 // This one covers input ADDRESSING. A pre-2026-07-28 daemon validates an input message with a
 // validator that drops `parentToolUseId`, so a sub-agent steer sent to it arrives unaddressed — and an
@@ -74,7 +74,7 @@ export type ClaudePermissionMode = "default" | "acceptEdits" | "bypassPermission
 //
 // It lives HERE, in the pure protocol module, and deliberately not in claude-agent-broker.ts: that
 // file is the detached daemon's process entry point and throws at module scope when loaded as one
-// without FRIZZ_CLAUDE_BROKER. In the promoted artifact everything is a single bundle, so importing a
+// without NTWINE_CLAUDE_BROKER. In the promoted artifact everything is a single bundle, so importing a
 // VALUE from it initializes it inside the SERVER process, the entry-point check passes on the bundle's
 // own path, and the guard takes down the control plane at boot — green on dev source, dead on the
 // artifact.
@@ -95,7 +95,7 @@ export const CLAUDE_BROKER_CAPABILITY_STOP_TASK = "stop-task-v1"
 
 // This one covers reloading the worker plugin closure IN PLACE through the Agent SDK's
 // `Query.reloadPlugins()` — the same thing `/reload-plugins` drives interactively. It exists because
-// the only way frizz could previously pick up an edited hook, skill, agent profile or MCP tool was to
+// the only way ntwine could previously pick up an edited hook, skill, agent profile or MCP tool was to
 // restart the worker process, which throws away the conversation to apply a file change the running
 // session could have re-read. Same gate reasoning as stop-task: an older surviving daemon ignores the
 // unknown frame, so the bridge refuses up front rather than letting the UI claim a reload happened.
@@ -113,7 +113,7 @@ export const CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS = "reload-plugins-v1"
 export const CLAUDE_BROKER_CAPABILITY_RENAME = "rename-v1"
 
 // Listing the session's invocable skills through the SDK's `supportedCommands()` — the harness's own
-// discovery, so frizz never re-implements skill resolution (plugins, project, global, enable state)
+// discovery, so ntwine never re-implements skill resolution (plugins, project, global, enable state)
 // and never drifts from it. Read-only and cosmetic, but gated like the mutating verbs for the same
 // mechanical reason: an older surviving daemon ignores the unknown frame and the client would sit out
 // its deadline reporting "the session did not answer" instead of "this session is too old".
@@ -158,7 +158,7 @@ export interface ClaudeInputMessage {
   id: string
   text: string
   // ADDRESSING. Absent/undefined ⇒ the message is a top-level turn for the session's main thread —
-  // every follow-up frizz has ever sent. SET to a live Agent-tool dispatch's `tool_use_id` ⇒ the CLI
+  // every follow-up ntwine has ever sent. SET to a live Agent-tool dispatch's `tool_use_id` ⇒ the CLI
   // routes the message INTO that running sub-agent's own conversation instead, which is how a human
   // steers a child mid-flight. Verified live against claude 2.1.220 / SDK 0.3.207: a message carrying
   // the child's tool_use_id reached the child (it acted on it, and only the CHILD's subagent JSONL
@@ -300,7 +300,7 @@ export interface ClaudeTaskUsage {
  *
  * EVERY field except `kind`/`phase` is optional and informational, because the mapper is required to
  * DEGRADE rather than throw (see mapAssistant's incident note in claude-agent-sdk.ts): a task event
- * frizz cannot fully represent must cost that event's detail, never the session.
+ * ntwine cannot fully represent must cost that event's detail, never the session.
  */
 export interface ClaudeTaskEvent {
   kind: "task"

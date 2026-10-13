@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { parkExpiredWakeMessage, questionAnswerMessage, questionsCancelledWakeMessage, wakeDeliveryToken } from "@frizz/shared"
+import { parkExpiredWakeMessage, questionAnswerMessage, questionsCancelledWakeMessage, wakeDeliveryToken } from "@ntwine/shared"
 import { lastAskIndex, lastHumanTurnIndex, messagePresentationText } from "./messagePresentation.ts"
 
 test("messagePresentationText prefers a validated display projection without changing full text", () => {
@@ -27,7 +27,7 @@ test("lastAskIndex pins the human's latest landed turn, never a queued one or an
   assert.equal(lastAskIndex([ask, reply, report, report]), 0)
   assert.equal(lastAskIndex([ask, reply, instruction]), 0)
   // Another THREAD messaging this one is not the human either.
-  const fromThread = { role: "user" as const, sessionPeer: { name: "frizz-11" } }
+  const fromThread = { role: "user" as const, sessionPeer: { name: "ntwine-11" } }
   assert.equal(lastAskIndex([ask, reply, fromThread]), 0)
   assert.equal(lastHumanTurnIndex([{ ...ask, text: "ask" }, { ...reply, text: "r" }, { ...fromThread, text: "steer" }]), 0)
   // A queued follow-up pins to the bottom until it lands, so it is not the ask either.
@@ -40,10 +40,10 @@ test("lastAskIndex pins the human's latest landed turn, never a queued one or an
 
 // The queue card's window anchor (upstream's tests, 0a3b9139). Built from the SERVER's own composers rather
 // than a transcription of their output: the whole reason this can be got wrong is that an answer looks like
-// frizz's own writing on the wire, so a fixture that only resembles one would pin nothing.
+// ntwine's own writing on the wire, so a fixture that only resembles one would pin nothing.
 const ask = { role: "user" as const, text: "Go" }
 const reply = { role: "assistant" as const, text: "Working on it." }
-// A real delivery: frizz's clock note and the machine token ride on `text`, and the server strips both
+// A real delivery: ntwine's clock note and the machine token ride on `text`, and the server strips both
 // into `displayText` (transcript.ts userDisplayText). The rule has to read the projection — on the raw
 // text the clock note glues itself to the last answer as a continuation line.
 const delivered = (message: string) => ({
@@ -56,21 +56,21 @@ const answer = delivered(questionAnswerMessage([
   { questionId: "qst_1", question: "Push it to GitHub now, or leave it local?", chosen: ["Push it to origin/main"] },
 ]))
 
-test("lastHumanTurnIndex: an answer to a REGISTERED question is an interaction, though frizz delivered it", () => {
+test("lastHumanTurnIndex: an answer to a REGISTERED question is an interaction, though ntwine delivered it", () => {
   // The reported defect (2026-08-31): the card walked past the answer, back to "Go", and repainted the
   // whole already-answered iteration above the one the answer produced.
   assert.equal(lastHumanTurnIndex([ask, reply, answer, reply]), 2)
-  // …and it still wins over everything frizz genuinely wrote after it.
-  const goal = delivered("⏰ Frizz: your goal is still armed — keep going.")
+  // …and it still wins over everything ntwine genuinely wrote after it.
+  const goal = delivered("⏰ Ntwine: your goal is still armed — keep going.")
   assert.equal(lastHumanTurnIndex([ask, reply, answer, reply, goal, reply]), 2)
 })
 
-test("lastHumanTurnIndex: every other user record frizz or a child wrote is skipped", () => {
-  const goal = delivered("⏰ Frizz: your goal is still armed — keep going.")
-  const report = { role: "user" as const, text: "child reporting in", peerFrom: "frizz:high" }
+test("lastHumanTurnIndex: every other user record ntwine or a child wrote is skipped", () => {
+  const goal = delivered("⏰ Ntwine: your goal is still armed — keep going.")
+  const report = { role: "user" as const, text: "child reporting in", peerFrom: "ntwine:high" }
   const instruction = { role: "user" as const, text: "coordinator follow-up", agentInstruction: true as const }
   const queued = { role: "user" as const, text: "and one more thing", queued: true }
-  // Nobody answered — the autonomous-thread cancellation. Frizz's own news, in frizz's own voice, so it
+  // Nobody answered — the autonomous-thread cancellation. Ntwine's own news, in ntwine's own voice, so it
   // is not an interaction however close its delivery path is to the answer above.
   const cancelled = delivered(questionsCancelledWakeMessage(2))
 

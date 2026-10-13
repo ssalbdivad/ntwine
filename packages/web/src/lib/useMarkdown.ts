@@ -35,7 +35,7 @@ export type MarkdownScope = Required<Pick<MarkdownScopeOptions, "repo" | "appPat
 /**
  * WHERE THIS PROSE'S AUTHOR WORKED, when that is not the project root: a thread's worktree
  * (ThreadView.checkout.dir), provided around its transcript (ChatView.tsx ThreadView). An agent in
- * `.frizz/worktrees/<slug>` writes `src/a.ts` meaning ITS copy — the one it edited — and resolving that
+ * `.ntwine/worktrees/<slug>` writes `src/a.ts` meaning ITS copy — the one it edited — and resolving that
  * against the project root opened the main checkout's, which may not even have the change yet. So a
  * relative link resolves here first, and an inline-code path is looked up here first and then at the
  * project root (localFileCode.ts). When Done removes the worktree the board stops naming it, this falls

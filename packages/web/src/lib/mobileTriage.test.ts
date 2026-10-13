@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { nextThreadNeedingYou, phoneQueue } from "./mobileTriage.ts"
 
 // Rows the way the board sends them. `needsYou` is the server's queue bit (a queue card); an ask also

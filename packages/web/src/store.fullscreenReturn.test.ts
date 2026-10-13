@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { noteStandaloneThreadRender, primeFullscreenReturn, resetProjectState, store } from "./store.ts"
 
 // Leaving /full plays the door's transition in reverse, which can only morph the fullscreen column into a

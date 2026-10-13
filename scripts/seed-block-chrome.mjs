@@ -79,7 +79,7 @@ const records = [
     ],
   })]),
   user(9, [result("t_todo", "Todos have been modified successfully.")]),
-  asst(10, [call("t_agent", "Task", { subagent_type: "frizz:opus-high", description: "Audit the block radii", prompt: "List every block-level container in the transcript and its corner radius." })]),
+  asst(10, [call("t_agent", "Task", { subagent_type: "ntwine:opus-high", description: "Audit the block radii", prompt: "List every block-level container in the transcript and its corner radius." })]),
   user(11, [result("t_agent", "Nine containers, four distinct radii.")]),
   // A local image and a local non-image path render as their own block elements (BlockImage /
   // BlockFile), which nothing else in this thread exercises.
@@ -115,7 +115,7 @@ function land(slug, sessionId, title, rows, restedAt) {
   execFileSync("sqlite3", [
     db,
     `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0, '${restedAt}')`,
+     VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${T(0)}', '${title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0, '${restedAt}')`,
   ])
   console.log(`seeded ${slug} (${sessionId})`)
 }

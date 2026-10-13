@@ -1,6 +1,6 @@
 // Who a detached daemon's discovery record names — the PROCESS, not just its pid.
 //
-// Frizz's three daemon families (the Claude session broker, the Codex app-server daemon, the ACP daemon)
+// Ntwine's three daemon families (the Claude session broker, the Codex app-server daemon, the ACP daemon)
 // each publish a record carrying `daemonPid`, and each host used to treat "that pid is alive" as "that
 // daemon is alive". A pid is not an identity. A reboot kills every daemon without a breadcrumb and
 // leaves its record on disk — 8 broker daemons died exactly that way in the 2026-09-23..10-01

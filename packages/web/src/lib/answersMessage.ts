@@ -1,4 +1,4 @@
-import { ANSWER_CONTINUATION_INDENT, ANSWER_FOLLOW_UP_MARKER, ANSWER_PICK_PREFIX, BURIED_ANSWERS_HEADER, DISMISSED_ANSWER, SECRET_ANSWER_MASK, isSecretAnswerText, questionAnswerMessage, splitAnswersNote, type QuestionAnswer } from "@frizz/shared"
+import { ANSWER_CONTINUATION_INDENT, ANSWER_FOLLOW_UP_MARKER, ANSWER_PICK_PREFIX, BURIED_ANSWERS_HEADER, DISMISSED_ANSWER, SECRET_ANSWER_MASK, isSecretAnswerText, questionAnswerMessage, splitAnswersNote, type QuestionAnswer } from "@ntwine/shared"
 import { splitQuestionBlocks, parseQuestionBlock, type MessageSegment } from "./questionBlocks.ts"
 
 // Detect + parse OUR OWN composed-answer format, so a user message that is a multi-block answer renders
@@ -25,8 +25,8 @@ import { splitQuestionBlocks, parseQuestionBlock, type MessageSegment } from "./
 // is the entry point that accepts either.
 //
 // THAT SECOND FORM HAS A THIRD WRITER, and it is the one this file's shape now has to serve: an answer to
-// a REGISTERED question (`frizzctl ask`), composed on the SERVER by questionAnswerMessage because the
-// human may have answered while the worker's process was down. It arrives as a frizz WAKE rather than as
+// a REGISTERED question (`ntwinectl ask`), composed on the SERVER by questionAnswerMessage because the
+// human may have answered while the worker's process was down. It arrives as an ntwine WAKE rather than as
 // a message the browser sent, and the only thing that makes it read as the human's own answer instead of
 // a notification card is that it is written in this form (see Message, which checks for it first). The
 // marked rows are that path's: its questions can be a static TREE, which is flat on the wire.
@@ -140,7 +140,7 @@ export function parseBuriedAnswersMessage(text: string): PairedAnswer[] | null {
   // question is stored and restated VERBATIM (questionAnswerMessage), and a question that walks the human
   // through a procedure carries paragraphs — one that ended in an SSH public key on its own line (2026-09-23)
   // made the row span five lines, the single-line row pattern missed it, and the whole answer fell through
-  // to frizz's notification card as a broken numbered list, the human's own reply dangling under it as a
+  // to ntwine's notification card as a broken numbered list, the human's own reply dangling under it as a
   // paragraph of its own. So a row opens at `N. “` and its question runs to the first `” → `, wherever
   // that lands; only the ANSWER half continues line by line as before.
   let open: { n: number; followUp: boolean; lines: string[] } | null = null
@@ -231,8 +231,8 @@ export interface MsgLike {
 }
 
 // THE HUMAN'S TURN IS READ THROUGH ITS DISPLAY PROJECTION, never the raw record. The raw `text` of an
-// answers turn is not only what the human typed: frizz appends its own machine-facing tail to the copy
-// the worker receives — the clock note (`⏱ Frizz: the message above arrived 4h9m after your last one…`)
+// answers turn is not only what the human typed: ntwine appends its own machine-facing tail to the copy
+// the worker receives — the clock note (`⏱ Ntwine: the message above arrived 4h9m after your last one…`)
 // on any reply landing after a long gap — and the transcript is read from the WORKER's record, so that
 // tail is part of `text`. The server strips it into `displayText` (see transcript.ts userDisplayText),
 // and the plain bubble renders that. This pairing used to read `text` instead, so the numbered parser
@@ -254,7 +254,7 @@ const answerKey = (a: PairedAnswer): string => `${a.question ?? ""} ${a.answer}`
  *  board.answersInFlight). It is spent by the worker RECEIVING the answer — the newest USER record — and
  *  that is deliberately later than the delivery being handed to a channel.
  *
- *  But the transcript reaches the same bytes FIRST. Frizz's delivery lands in the worker's own queue the
+ *  But the transcript reaches the same bytes FIRST. Ntwine's delivery lands in the worker's own queue the
  *  moment it is injected, and Claude Code writes a `queue-operation enqueue` for it — which the transcript
  *  renders as a queued bubble, i.e. as this very Answers card, while `lastUserAt` has not moved because no
  *  user record exists yet. So for the whole length of the turn that was in flight (minutes on a loaded

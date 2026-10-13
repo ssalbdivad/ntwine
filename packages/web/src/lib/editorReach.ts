@@ -1,5 +1,5 @@
 import { proxy, useSnapshot } from "valtio"
-import { EMBED_MAX_DROPPED, EMBED_MAX_QUERY, type EmbedContextPicksMessage, type EmbedEditorExtrasMessage, type EmbedPickedFile } from "@frizz/shared"
+import { EMBED_MAX_DROPPED, EMBED_MAX_QUERY, type EmbedContextPicksMessage, type EmbedEditorExtrasMessage, type EmbedPickedFile } from "@ntwine/shared"
 import { contextDisplayPath } from "./composerContext.ts"
 import { embedded, postToHost } from "./embed.ts"
 
@@ -8,16 +8,16 @@ import { embedded, postToHost } from "./embed.ts"
 // extras-feed.ts):
 //
 //  - `@` in a prompt box offers the workspace's files beside the threads it always offered. The page has
-//    no index of the editor's workspace, so it asks the host (`frizz:pick-context` with the query) and
-//    the host answers with the best matches (`frizz:context-picks`). Choosing one writes the file as a
-//    whole-file reference — `` `src/a.ts` `` — the same text Add file to Frizz prompt and the context
+//    no index of the editor's workspace, so it asks the host (`ntwine:pick-context` with the query) and
+//    the host answers with the best matches (`ntwine:context-picks`). Choosing one writes the file as a
+//    whole-file reference — `` `src/a.ts` `` — the same text Add file to Ntwine prompt and the context
 //    bar's open files write (lib/editorCompose.ts composeEdit), so an agent reads one shape for "this
 //    file" whichever way it came in.
 //  - files dragged in from VS Code's explorer: the drag carries URIs, not File objects, which the box's
 //    attachment intake cannot take — so the host resolves the URIs to paths on its side (the same ask,
 //    with `uris`) and each becomes the same reference, at the caret.
 //  - the file's problems and the terminal's last command: the host says which there are
-//    (`frizz:editor-extras`), and the context bar's menu offers them (EditorContextBar.tsx).
+//    (`ntwine:editor-extras`), and the context bar's menu offers them (EditorContextBar.tsx).
 //
 // Embed mode only: in a browser tab nothing answers, and none of it is offered.
 
@@ -30,7 +30,7 @@ export interface EditorExtrasState {
 
 export const editorExtras = proxy<EditorExtrasState>({})
 
-/** A `frizz:editor-extras` replaces the last one whole: an entry it leaves out is no longer offered. */
+/** A `ntwine:editor-extras` replaces the last one whole: an entry it leaves out is no longer offered. */
 export function setEditorExtras(message: EmbedEditorExtrasMessage): void {
   editorExtras.problems = message.problems
   editorExtras.terminal = message.terminal
@@ -82,7 +82,7 @@ function ask(request: { query: string } | { uris: string[] }): Promise<EmbedPick
       clearTimeout(timer)
       resolve(files)
     })
-    postToHost({ type: "frizz:pick-context", id, ...request })
+    postToHost({ type: "ntwine:pick-context", id, ...request })
   })
 }
 

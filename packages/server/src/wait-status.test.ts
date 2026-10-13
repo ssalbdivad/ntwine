@@ -1,6 +1,6 @@
 // WHERE A REST OUT OF THE QUEUE SITS (maintainer 2026-10-05) — the fence's `status:` answer and the board's
 // band verdict, ThreadView.waitStatus. `working` is Running and spins, `watching` is Snoozed and still,
-// `needs_input` is the queue. The decision is NEEDS_INPUT_REQUIRED_AT's paragraph in @frizz/shared; the
+// `needs_input` is the queue. The decision is NEEDS_INPUT_REQUIRED_AT's paragraph in @ntwine/shared; the
 // verdict is board.deriveWaitStatus; needs-input.test.ts pins the queue rule the older `needs_input:` line
 // set, which the alias still drives.
 import { test } from "node:test"
@@ -8,7 +8,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { activeBandThread, awaitingNeedsInput, awaitingStatus, hasLiveOps, isSnoozed, NEEDS_INPUT_REQUIRED_AT, sectionOf, splitAwaitingFrontmatter, type AwaitingHint, type GithubWatchStatus, type ThreadView } from "@frizz/shared"
+import { activeBandThread, awaitingNeedsInput, awaitingStatus, hasLiveOps, isSnoozed, NEEDS_INPUT_REQUIRED_AT, sectionOf, splitAwaitingFrontmatter, type AwaitingHint, type GithubWatchStatus, type ThreadView } from "@ntwine/shared"
 import { createBoard, deriveAwaitingBackground, deriveNeedsYou, deriveWaitStatus, type RegisteredWatch } from "./board.ts"
 import { GITHUB_STATUS_SETTING, type GithubStatusBook } from "./awaiting.ts"
 import { Bus } from "./bus.ts"
@@ -24,7 +24,7 @@ const NOW = Date.parse(AT) + 5 * 60_000
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug: "t", session_id: "s", thread_name: "frizz-t", spawned_at: NEW_SPAWN, last_read_at: null,
+    slug: "t", session_id: "s", thread_name: "ntwine-t", spawned_at: NEW_SPAWN, last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: AT, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -71,7 +71,7 @@ test("`status:` is one structural line with three words, read case- and hyphen-b
   assert.equal(awaitingStatus(splitAwaitingFrontmatter("shells: [x]\nstatus: WATCHING\nfor: 2h").hints), "watching")
 })
 
-test("a word frizz cannot read is no answer — kept as written so the correction can quote it", () => {
+test("a word ntwine cannot read is no answer — kept as written so the correction can quote it", () => {
   const hints = splitAwaitingFrontmatter("shells: [x]\nstatus: busy\nfor: 2h").hints
   assert.deepEqual(hints.find((h) => h.kind === "status"), { kind: "status", value: "busy" })
   assert.equal(awaitingStatus(hints), null)
@@ -80,7 +80,7 @@ test("a word frizz cannot read is no answer — kept as written so the correctio
   assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("shells: [x]\nstatus: busy\nneeds_input: false\nfor: 2h").hints), false)
 })
 
-test("the older `needs_input:` line is an alias: true is the queue, false leaves the place to frizz", () => {
+test("the older `needs_input:` line is an alias: true is the queue, false leaves the place to ntwine", () => {
   const yes = splitAwaitingFrontmatter("shells: [x]\nneeds_input: true\nfor: 2h").hints
   assert.equal(awaitingStatus(yes), "needs_input")
   const no = splitAwaitingFrontmatter("shells: [x]\nneeds_input: false\nfor: 2h").hints
@@ -132,7 +132,7 @@ test("`working` on a PR spins while its checks run, and reads as a watch once th
   assert.equal(place(row(), park, { prs: [PR], github: { [PR]: ci({ checks: "passing", running: 0 }) } }).waitStatus, "watching")
   // Held at GitHub's "Approve and run" gate: nothing moves until a maintainer presses the button.
   assert.equal(place(row(), park, { prs: [PR], github: { [PR]: ci({ running: 0, gated: 2 }) } }).waitStatus, "watching")
-  // Never polled: frizz does not know, and not-knowing is not motion.
+  // Never polled: ntwine does not know, and not-knowing is not motion.
   assert.equal(place(row(), park, { prs: [PR] }).waitStatus, "watching")
 })
 
@@ -155,7 +155,7 @@ test("`needs_input` queues, and a queued rest never carries a band — event-sno
   assert.deepEqual(place(row({ bg_snooze_rested_at: AT }), t), { needsYou: false, waitStatus: undefined })
 })
 
-test("the older `needs_input: false`, and a legacy fence with neither line, get frizz's reading", () => {
+test("the older `needs_input: false`, and a legacy fence with neither line, get ntwine's reading", () => {
   const legacy = row({ spawned_at: LEGACY_SPAWN })
   // A live sub-agent or moving CI is work; a shell alone cannot say what it is, so it is a watch.
   assert.equal(place(row(), tele({ subAgents: [LIVE_AGENT], ...fence({ kind: "agent", value: "a01b2d20" }, FOR_2H, { kind: "needs_input", value: "false" }) })).waitStatus, "working")
@@ -182,7 +182,7 @@ test("no band off rest, and none while a message is on its way to the worker", (
 // the shared predicates — the sidebar's bands and the rail's running count — have to read it.
 
 test("the board carries the verdict, and the bands and the running count follow it", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-wait-status-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-wait-status-"))
   const project: Project = { dir, id: "p", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const fences: Record<string, Partial<SessionTelemetry>> = {
@@ -194,7 +194,7 @@ test("the board carries the verdict, and the bands and the running count follow 
     "ci": fence({ kind: "pr", value: PR }, FOR_2H, status("working")),
   }
   for (const slug of Object.keys(fences)) {
-    storage.upsertSession(row({ slug, session_id: `sess-${slug}`, thread_name: `frizz-${slug}`, spawned_at: slug === "legacy-watcher" ? LEGACY_SPAWN : NEW_SPAWN }))
+    storage.upsertSession(row({ slug, session_id: `sess-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: slug === "legacy-watcher" ? LEGACY_SPAWN : NEW_SPAWN }))
     storage.setBackend(slug, "claude")
     storage.setClaudeRuntime(slug, "broker")
   }

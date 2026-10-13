@@ -53,7 +53,7 @@ function harness(label: string, scenario = "hold-inputs") {
   const bridge = createClaudeAgentBrokerBridge({
     stateDir: dir,
     executablePath: exe,
-    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", FRIZZ_FAKE_CLAUDE_CAPTURE: capturePath },
+    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", NTWINE_FAKE_CLAUDE_CAPTURE: capturePath },
   })
   const waitFor = async (cond: () => boolean, ms = 12_000) => {
     const deadline = Date.now() + ms
@@ -143,7 +143,7 @@ test("no live daemon is a refusal, never a cold resume", { timeout: 30_000 }, as
 })
 
 test("a daemon too old to understand the frame is refused instead of waited out", { timeout: 30_000 }, async () => {
-  // A detached daemon outlives frizz upgrades by six hours, so the process on the other end may predate
+  // A detached daemon outlives ntwine upgrades by six hours, so the process on the other end may predate
   // `cancel-input` entirely — it would answer NOTHING, and the call would hang to its deadline and
   // then read as a wedged session. The capability the daemon stamped into its own record is what tells
   // the two apart.
@@ -169,7 +169,7 @@ test("a daemon too old to understand the frame is refused instead of waited out"
 })
 
 test("an unreadable answer is an ERROR, never a silent 'already delivered'", { timeout: 30_000 }, async () => {
-  // The failure this exists to prevent: if the provider's answer stops being a boolean and frizz
+  // The failure this exists to prevent: if the provider's answer stops being a boolean and ntwine
   // coerces it, every cancel reads as false. The operator is told the agent already has their message
   // while the CLI has in fact dropped it — and because a refusal writes no tombstone, the retracted
   // send goes on rendering as one the human sent. Refusing to guess is the only safe reading.

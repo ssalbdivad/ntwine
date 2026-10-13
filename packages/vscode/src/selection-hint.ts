@@ -1,5 +1,5 @@
-// THE SELECTION HINT — Cursor's quiet "⌘L to chat" beside a fresh selection, for Frizz: a line of faded
-// text after the selection, `Ctrl+L to add to Frizz` (`⌘L` on a Mac), so the chord is discoverable where the
+// THE SELECTION HINT — Cursor's quiet "⌘L to chat" beside a fresh selection, for Ntwine: a line of faded
+// text after the selection, `Ctrl+L to add to Ntwine` (`⌘L` on a Mac), so the chord is discoverable where the
 // human is already looking instead of only in a README and the `?` sheet. It is a text-editor decoration
 // (`after.contentText`), not a widget: nothing to click, nothing that takes focus, nothing a screen reader
 // announces on every selection, and it cannot cover code — it sits past the end of a line.
@@ -10,25 +10,25 @@
 //     (an untitled buffer, a git revision), so the hint is only where the chord works.
 //   - NOT in a diff (side-by-side, inline or the multi-file "Changes" view) — the tab in the editor's group
 //     must be a plain `TabInputText` of that very file. A diff is where the human reviews, often an agent's
-//     change Frizz itself opened; a line of ghost text after every selection there competes with the diff's
+//     change Ntwine itself opened; a line of ghost text after every selection there competes with the diff's
 //     own inline decorations and reads as part of the change. The chord still works in a diff; it is only
 //     not advertised there. Output panes, the debug console, settings JSON and notebooks fall out of the
 //     file-on-disk rule already.
 //   - NOT a select-all (the selection spans the whole document): Ctrl+A is a step toward copy, cut, format
 //     or replace far more often than toward a question, the caret then sits on the file's last line where
 //     the hint would land off screen anyway, and the human who means the whole file has Alt+K and Add file
-//     to Frizz prompt.
+//     to Ntwine prompt.
 //   - NOT a selection an extension set, or a jump made: VS Code reports both as `kind` Command (its
 //     extension host maps the sources "api", "code.jump" and "code.navigation" to it, and nothing else).
-//     Frizz's own file links select the lines they name (app.ts openFromFrizz), and a hint on a selection
+//     Ntwine's own file links select the lines they name (app.ts openFromNtwine), and a hint on a selection
 //     the human did not make is noise. Keyboard, mouse, and the editor's own commands — expand selection,
 //     Ctrl+D, a find match, which VS Code reports with no kind at all — all count.
 //   - NOT a selection already added: after Ctrl+L (or any add of that selection) the hint has done its job,
 //     until the selection changes.
 //   - SETTLED: 250ms after the last change, cleared AT ONCE on any change, so a drag or a held Shift+Arrow
 //     shows nothing until the hand stops, and nothing lags behind the caret.
-//   - only while this window is CONNECTED to Frizz (the chord says "Frizz isn't running" otherwise), and
-//     while `frizz.selectionHint` is on. The window losing focus clears it; the next selection brings it.
+//   - only while this window is CONNECTED to Ntwine (the chord says "Ntwine isn't running" otherwise), and
+//     while `ntwine.selectionHint` is on. The window losing focus clears it; the next selection brings it.
 //   - NOT in Cursor or Windsurf: each draws its own selection hint naming its own chat's chord, and in
 //     Cursor that chord is the same Ctrl+L / ⌘L — two hints for one chord would leave the human guessing
 //     which answers (README § Where the sidebar differs).
@@ -55,7 +55,7 @@ export const HINT_SETTLE_MS = 250
 
 /** The hint's words, with the chord in effect on the platform the window's UI runs on. */
 export function hintText(mac: boolean): string {
-  return `${mac ? "⌘L" : "Ctrl+L"} to add to Frizz`
+  return `${mac ? "⌘L" : "Ctrl+L"} to add to Ntwine`
 }
 
 /** Editors that draw their own selection hint for their own chat — on the same chord, in Cursor's case. */
@@ -94,7 +94,7 @@ export function selectionKey(path: string, selection: Pick<SelectionLike, "start
 // ── the glue ─────────────────────────────────────────────────────────────────────────────────────────
 
 export interface SelectionHintHost {
-  /** The window is connected to a Frizz that can take the selection. */
+  /** The window is connected to an Ntwine that can take the selection. */
   connected(): boolean
   /** The UI's platform when something running in it said so (the sidebar's relay), else undefined. */
   mac(): boolean | undefined
@@ -111,7 +111,7 @@ export interface SelectionHintShown {
 export interface SelectionHint {
   /** Something it depends on changed (the connection, the platform): look again. */
   refresh(): void
-  /** The selection in front was just added to Frizz: hide the hint until the selection changes. */
+  /** The selection in front was just added to Ntwine: hide the hint until the selection changes. */
   added(): void
   shown(): SelectionHintShown | undefined
 }
@@ -131,7 +131,7 @@ export function registerSelectionHint(api: Vscode, context: vscode.ExtensionCont
     rangeBehavior: api.DecorationRangeBehavior.ClosedClosed,
   })
   context.subscriptions.push(decoration)
-  const enabled = () => api.workspace.getConfiguration("frizz").get<boolean>(HINT_SETTING, true)
+  const enabled = () => api.workspace.getConfiguration("ntwine").get<boolean>(HINT_SETTING, true)
   const suppressedApp = ownHintApp(api.env.appName)
 
   let timer: NodeJS.Timeout | undefined
@@ -218,7 +218,7 @@ export function registerSelectionHint(api: Vscode, context: vscode.ExtensionCont
       if (on && event.document === on.editor.document) clear()
     }),
     api.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(`frizz.${HINT_SETTING}`)) settle()
+      if (event.affectsConfiguration(`ntwine.${HINT_SETTING}`)) settle()
     }),
     { dispose: () => clearTimeout(timer) },
   )

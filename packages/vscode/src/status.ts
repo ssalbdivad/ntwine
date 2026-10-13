@@ -1,22 +1,22 @@
 // THE STATUS BAR ITEM, as data: what it says, what hovering it says, and what clicking it does.
 //
-// Connected, it is "Frizz", with this workspace's Queue count beside it when anything is waiting on the
+// Connected, it is "Ntwine", with this workspace's Queue count beside it when anything is waiting on the
 // human — the one number worth a glance from the editor, and the one the sidebar's badge shows. A click
-// shows the Frizz sidebar, where those threads are. "Queued" and "running" are the page's own words
+// shows the Ntwine sidebar, where those threads are. "Queued" and "running" are the page's own words
 // for the queue and for what is spinning (its bands, Queue and Running, since 2026-10-06; Ready and
 // Working before). A project the server has not opened yet has no counts (the
 // `projects` push omits them), and says nothing rather than claiming zero.
 //
-// Offline, it stays short — a window with no Frizz running should not shout about it in every status
+// Offline, it stays short — a window with no Ntwine running should not shout about it in every status
 // bar — and the tooltip says what is true and that a click tries again.
 
-import type { EditorProject } from "@frizz/shared/editor-protocol"
+import type { EditorProject } from "@ntwine/shared/editor-protocol"
 import type { ConnectionStatus } from "./connection.ts"
 
 export interface StatusView {
   text: string
   tooltip: string
-  command: "frizz.sidebar.focus" | "frizz.reconnect"
+  command: "ntwine.sidebar.focus" | "ntwine.reconnect"
   /** This workspace's Queue count; 0 when not connected. */
   ready: number
 }
@@ -28,17 +28,17 @@ export interface StatusView {
  */
 export function statusView(connection: ConnectionStatus, projects: readonly EditorProject[], build?: string): StatusView {
   const view = statusFor(connection, projects)
-  return build ? { ...view, tooltip: `${view.tooltip}\nFrizz extension ${build}` } : view
+  return build ? { ...view, tooltip: `${view.tooltip}\nNtwine extension ${build}` } : view
 }
 
 function statusFor(connection: ConnectionStatus, projects: readonly EditorProject[]): StatusView {
   switch (connection.kind) {
     case "connecting":
-      return { text: "$(sync~spin) Frizz", tooltip: "Looking for Frizz…", command: "frizz.reconnect", ready: 0 }
+      return { text: "$(sync~spin) Ntwine", tooltip: "Looking for Ntwine…", command: "ntwine.reconnect", ready: 0 }
     case "offline":
-      return { text: "$(debug-disconnect) Frizz", tooltip: `${connection.reason.replace(/\.$/u, "")}. Click to try again.`, command: "frizz.reconnect", ready: 0 }
+      return { text: "$(debug-disconnect) Ntwine", tooltip: `${connection.reason.replace(/\.$/u, "")}. Click to try again.`, command: "ntwine.reconnect", ready: 0 }
     case "incompatible":
-      return { text: "$(warning) Frizz", tooltip: `${connection.reason} Click to try again.`, command: "frizz.reconnect", ready: 0 }
+      return { text: "$(warning) Ntwine", tooltip: `${connection.reason} Click to try again.`, command: "ntwine.reconnect", ready: 0 }
     case "connected": {
       const ready = projects.reduce((sum, project) => sum + (project.ready ?? 0), 0)
       const lines = projects.map((project) => {
@@ -46,9 +46,9 @@ function statusFor(connection: ConnectionStatus, projects: readonly EditorProjec
         return `${project.name}: ${project.ready ?? 0} queued · ${project.working ?? 0} running`
       })
       return {
-        text: ready > 0 ? `Frizz · ${ready} queued` : "Frizz",
-        tooltip: [...lines, "Click to show Frizz."].join("\n"),
-        command: "frizz.sidebar.focus",
+        text: ready > 0 ? `Ntwine · ${ready} queued` : "Ntwine",
+        tooltip: [...lines, "Click to show Ntwine."].join("\n"),
+        command: "ntwine.sidebar.focus",
         ready,
       }
     }
@@ -57,10 +57,10 @@ function statusFor(connection: ConnectionStatus, projects: readonly EditorProjec
 
 /**
  * What a command that needs the connection says without one: the connection's own reason, the one the
- * tooltip shows. A Frizz that is running but refused this window (one from before the editor connection,
+ * tooltip shows. An Ntwine that is running but refused this window (one from before the editor connection,
  * a version mismatch) is told to update, never reported as stopped.
  */
 export function notConnectedMessage(connection: ConnectionStatus): string {
   if (connection.kind === "offline" || connection.kind === "incompatible") return connection.reason
-  return "Still connecting to Frizz. Try again in a moment."
+  return "Still connecting to Ntwine. Try again in a moment."
 }

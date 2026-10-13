@@ -9,7 +9,7 @@ import { isBotGithubActor, type GithubReviewActivity } from "./github-review.ts"
 // high signal") is about a SUBSET of it. Edits were ruled out first: the poller keys on the immutable
 // node id and never asks for `lastEditedAt`, so every bump is a genuinely new item — Vercel edits its
 // deploy table in place, which wakes once per PR, not once per deployment. The corpus and the script
-// that re-derives every figure here live in `.frizz/pr-watch-noise/` (gitignored, 17MB).
+// that re-derives every figure here live in `.ntwine/pr-watch-noise/` (gitignored, 17MB).
 //
 // The rule is DELIBERATELY not "mute all bots" — that filter was tried and reverted (see
 // `isBotGithubActor`): Pullfrog, CodeRabbit, Copilot, Cursor, Codex, cubic, Greptile and Qodo all post

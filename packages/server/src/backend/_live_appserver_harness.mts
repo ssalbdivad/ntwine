@@ -26,7 +26,7 @@ function findRollout(sessionId: string): string | undefined {
 }
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const dir = mkdtempSync(join(tmpdir(), "frizz-live-appserver-"))
+const dir = mkdtempSync(join(tmpdir(), "ntwine-live-appserver-"))
 const db = new Database(join(dir, "ui.db"))
 db.pragma("journal_mode = WAL")
 let iid = 0, cid = 0
@@ -69,14 +69,14 @@ async function waitTurnClear(label: string, ms = 40_000) {
 
     await waitTurnClear("post-steer")
 
-    console.log("=== M2 CHECK: rollout has reasoning + frizz title comment? ===")
+    console.log("=== M2 CHECK: rollout has reasoning + ntwine title comment? ===")
     const rollout = findRollout(binding.codexSessionId)
     if (rollout) {
       const lines = readFileSync(rollout, "utf8").trim().split("\n").map((l) => { try { return JSON.parse(l) } catch { return {} } })
       const hasReasoning = lines.some((r) => r.type === "response_item" && r.payload?.type === "reasoning")
       const firstAgent = lines.find((r) => r.type === "event_msg" && r.payload?.type === "agent_message")
-      const titleComment = typeof firstAgent?.payload?.message === "string" && /<!--\s*frizz title=/.test(firstAgent.payload.message)
-      console.log(`  rollout=${rollout.split("/").pop()}  reasoning=${hasReasoning}  frizzTitleComment=${titleComment}`)
+      const titleComment = typeof firstAgent?.payload?.message === "string" && /<!--\s*ntwine title=/.test(firstAgent.payload.message)
+      console.log(`  rollout=${rollout.split("/").pop()}  reasoning=${hasReasoning}  ntwineTitleComment=${titleComment}`)
       if (titleComment) console.log("  title line:", (firstAgent.payload.message as string).split("\n")[0].slice(0, 120))
     } else console.log("  ROLLOUT NOT FOUND for", binding.codexSessionId)
 

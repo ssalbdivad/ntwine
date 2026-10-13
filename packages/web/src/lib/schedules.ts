@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { ScheduleView } from "@frizz/shared"
+import type { ScheduleView } from "@ntwine/shared"
 import { spanUntil } from "./activityTime.ts"
 
 // SCHEDULES ON THE PAGE (ARCHITECTURE.md § Scheduled threads): the cache keys every surface reads them under,

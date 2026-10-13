@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
-import { threadCanCompact, type ThreadView } from "@frizz/shared"
+import { threadCanCompact, type ThreadView } from "@ntwine/shared"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { showToast } from "../store.ts"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/Popover.tsx"
@@ -17,11 +17,11 @@ import { Popover, PopoverAnchor, PopoverContent } from "./ui/Popover.tsx"
 // no empty ring, no "—" placeholder: an absent reading must occupy no space at all, the same rule the
 // child row's working-duration follows. (Which threads have one, and why, is documented on
 // FoldState.contextWindow — the short version is that codex always does, and a Claude thread does from
-// its first assistant record, borrowing the window this frizz process last measured for its own model
+// its first assistant record, borrowing the window this ntwine process last measured for its own model
 // alias until its own turn ends and names one.)
 //
 // THE DENOMINATOR IS THE ROOM THIS THREAD HAS, NOT THE MODEL'S SIZE, and on a Claude thread those are
-// routinely different numbers. Frizz dispatches at the 1M window and then caps the worker at Settings'
+// routinely different numbers. Ntwine dispatches at the 1M window and then caps the worker at Settings'
 // compaction window (500K by default), and Claude Code's effective window is the `min` of the two — so
 // this dial read "253,862 of 1,000,000 tokens · 25% full" for a session that had used half its room and
 // was heading for a summary (maintainer 2026-09-01: "it's showing this even though the auto-compaction
@@ -41,7 +41,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "./ui/Popover.tsx"
 //
 // So if you are here because a thread appears to have NO indicator: the surface is almost certainly not
 // the reason. All three surfaces render this same component, and the answer is per-THREAD — the drawer
-// cannot show a reading the queue card would have shown. A Claude row is blank when frizz has no
+// cannot show a reading the queue card would have shown. A Claude row is blank when ntwine has no
 // denominator for it at all: nothing in this process has yet measured a window for that model alias,
 // and the thread has not finished a turn of its own. That was every freshly dispatched thread until
 // 2026-08-26 (maintainer: "the context breakdown is often not visible in the drawer view, which I find
@@ -109,7 +109,7 @@ export function ContextMeter({ thread }: { thread: ThreadView }) {
   const percent = displayPercent(context.tokens, context.window)
   // The arc's own fraction is NOT the floored percent: a 0.4%-full context should still show a hairline
   // of arc rather than a bare ring, and clamping keeps a reading that overshoots its window (a provider
-  // counting a request frizz has not seen the window change for) from wrapping past 12 o'clock.
+  // counting a request ntwine has not seen the window change for) from wrapping past 12 o'clock.
   const fraction = Math.max(0, Math.min(1, context.tokens / context.window))
   const headline = `Context ${percent}% full`
   const detail = `${context.tokens.toLocaleString()} of ${context.window.toLocaleString()} tokens`

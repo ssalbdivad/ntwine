@@ -1,4 +1,4 @@
-import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView, WorkCheckout } from "@frizz/shared"
+import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView, WorkCheckout } from "@ntwine/shared"
 import { mergeBackgroundShells, visibleChildOps, type TranscriptShellRecord } from "./childOps.ts"
 import { shellBudgetReading } from "./shellBudget.ts"
 import { promptingTerminal, terminalFailed, terminalLive } from "./threadTerminals.ts"

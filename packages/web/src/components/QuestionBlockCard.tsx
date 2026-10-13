@@ -1,4 +1,4 @@
-// THE question card — the single component every question in frizz renders through, whatever produced
+// THE question card — the single component every question in ntwine renders through, whatever produced
 // it. There are two producers and one look:
 //
 //   1. a ```question fence in an assistant message (lib/questionBlocks.ts parses the markdown), and
@@ -16,7 +16,7 @@
 // could only have been shared through a module cycle.
 import { Fragment, type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef } from "react"
 import { AlertTriangle, Check } from "lucide-react"
-import { SECRET_ANSWER_MASK } from "@frizz/shared"
+import { SECRET_ANSWER_MASK } from "@ntwine/shared"
 import { useInlineMarkdownHtml, useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import { parseQuestionBlock, splitOptionId, type BlockAnswer, type ParsedQuestion, type QuestionKind } from "../lib/questionBlocks.ts"

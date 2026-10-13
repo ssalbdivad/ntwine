@@ -1,6 +1,6 @@
 // THE QUESTION REGISTRY at the RPC boundary — the real router against real SQLite.
 //
-// `mcp__frizz__ask` registers a question the human owes an answer to, so that asking stops being a
+// `mcp__ntwine__ask` registers a question the human owes an answer to, so that asking stops being a
 // fenced block with the lifetime of the message carrying it (plans/rest-by-registration.md). The
 // tailer recomputes `pendingQuestion` from the LATEST assistant text on every assistant record
 // (`lastAssistantHasQuestion = hasQuestionBlock(raw)` — an assignment, not an OR) and clears it on any
@@ -12,8 +12,8 @@ import { existsSync, lstatSync, mkdtempSync, rmSync, statSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { AskedQuestion, BoardSnapshot, Settings } from "@frizz/shared"
-import { AnswerQuestionsInput, AskInput, BURIED_ANSWERS_HEADER, CHANGED_ANSWER, parseQuestionsCancelledWake, questionAnswerMessage, questionsCancelledWakeMessage, secretAnswerText } from "@frizz/shared"
+import type { AskedQuestion, BoardSnapshot, Settings } from "@ntwine/shared"
+import { AnswerQuestionsInput, AskInput, BURIED_ANSWERS_HEADER, CHANGED_ANSWER, parseQuestionsCancelledWake, questionAnswerMessage, questionsCancelledWakeMessage, secretAnswerText } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { createRouter } from "./router.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -22,7 +22,7 @@ import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
 
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-ask-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-ask-rpc-"))
   const project: Project = { dir, id: "ask", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -63,7 +63,7 @@ function harness() {
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-08-26T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-08-26T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -85,7 +85,7 @@ test("ask registers a question, mints its id, and reads back the whole open set"
     const result = await h.router.ask.handler({ input: { slug: "t", questions: [simple()] } })
     assert.equal(result.registered.length, 1)
     assert.match(result.registered[0].id, /^qst_[0-9a-f]{12}$/)
-    // THE WORKER NEVER CHOSE THE ID — frizz minted it — which is exactly why the answer restates the
+    // THE WORKER NEVER CHOSE THE ID — ntwine minted it — which is exactly why the answer restates the
     // question text later on: an id alone cannot be correlated back to anything the worker wrote.
     assert.deepEqual(result.open.map((q) => q.id), [result.registered[0].id])
     assert.deepEqual(result.open[0].spec, simple())
@@ -370,10 +370,10 @@ test("the × dismisses an ordinary question and CANNOT reach a danger-tagged one
 })
 
 test("the answer message is written in the wire form the chat renders as the human's own Answers card", () => {
-  // THE FORMAT IS THE ATTRIBUTION. This message is delivered as a frizz WAKE, and the chat draws a wake
-  // as frizz's own notification card — UNLESS the text is in the one form `parseAnswersCard` reads, which
+  // THE FORMAT IS THE ATTRIBUTION. This message is delivered as an ntwine WAKE, and the chat draws a wake
+  // as ntwine's own notification card — UNLESS the text is in the one form `parseAnswersCard` reads, which
   // it checks first. Getting it wrong does not fail: the answer simply stops being the human's words on
-  // screen and becomes agent-facing prose in a Frizz card over them (the 2026-08-27 regression).
+  // screen and becomes agent-facing prose in an Ntwine card over them (the 2026-08-27 regression).
   //
   // The worker never saw an id, so `{id: choice}` would be unreadable to it — each row quotes its own
   // question, which is also what makes the card restate the question beside the answer. And a dismissal
@@ -397,7 +397,7 @@ test("the answer message is written in the wire form the chat renders as the hum
 })
 
 test("nobody-is-coming is its own message, and NOT the answers form", () => {
-  // The autonomous thread whose questions were cancelled wholesale. Frizz is speaking here, not the
+  // The autonomous thread whose questions were cancelled wholesale. Ntwine is speaking here, not the
   // human, so it must NOT wear the Answers card — the chat draws it as a hairline instead.
   const message = questionsCancelledWakeMessage(2)
   assert.doesNotMatch(message, new RegExp(BURIED_ANSWERS_HEADER))
@@ -614,7 +614,7 @@ test("questions asked in ONE call keep their order — the tiebreak is insertion
 
 // A TYPED MESSAGE LEAVES A QUESTION OPEN AND OWED. The human wrote to the worker instead of answering: the
 // question still blocks `done` and still reads back as open, until the human answers or dismisses it or the
-// worker withdraws it. Frizz never withdraws it on the worker's behalf.
+// worker withdraws it. Ntwine never withdraws it on the worker's behalf.
 test("a question the human typed past stays open and owed — it blocks done until the worker unasks it", async () => {
   const h = harness()
   try {
@@ -668,7 +668,7 @@ test("a question the worker withdrew after the human's message, or the human dis
   } finally { h.close() }
 })
 
-// ---- SECRET requests (`mcp__frizz__secret`) --------------------------------------------------------
+// ---- SECRET requests (`mcp__ntwine__secret`) --------------------------------------------------------
 // A credential the human pastes — a one-time code, a token — goes to a private file, and every surface
 // that reads the answer row (the settled card, the in-flight card, the worker's wake) sees only where
 // it went. These pin the one property that matters: the value is in the file and NOWHERE in the row.

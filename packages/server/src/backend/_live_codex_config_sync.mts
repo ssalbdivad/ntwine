@@ -1,10 +1,10 @@
-// LIVE proof (not a unit test; excluded from the *.test.ts glob). After a Frizz update, what does a
+// LIVE proof (not a unit test; excluded from the *.test.ts glob). After an Ntwine update, what does a
 // Codex thread that was already running end up on — and is anything it was doing lost on the way?
 //
 //   env -u NODE_COMPAT nub packages/server/src/backend/_live_codex_config_sync.mts
-//   … --control      the same run with FRIZZ_PLUGIN_SYNC_OFF=1: the thread that was mid-turn must
+//   … --control      the same run with NTWINE_PLUGIN_SYNC_OFF=1: the thread that was mid-turn must
 //                    STAY on the old generation, or the run above proves nothing about the rebuild
-//   CODEX_BIN=/path/to/codex overrides the binary (default: Frizz's own provisioned pin, then PATH)
+//   CODEX_BIN=/path/to/codex overrides the binary (default: Ntwine's own provisioned pin, then PATH)
 //
 // NEEDS NO CODEX SIGN-IN. Codex is pointed at a local mock Responses provider under a temporary
 // CODEX_HOME, so a real turn runs — hooks fire, the MCP tool is listed and called, a background command
@@ -12,7 +12,7 @@
 // what a model would have CHOSEN to do; nothing here depends on that.
 //
 // The flow is the real one: the REAL CodexAppServerBridge over the REAL production transport (a detached
-// `codex app-server --listen unix://`), the real per-thread MCP mount and the real hook config. "A Frizz
+// `codex app-server --listen unix://`), the real per-thread MCP mount and the real hook config. "An Ntwine
 // update" is exactly what the code sees: bridge A is built with generation A's MCP script and hooks,
 // then closed, which leaves the listener running as a server exit does; bridge B is built over the same
 // database with generation B's. Three threads cross it:
@@ -41,16 +41,16 @@ import { CODEX_APP_SERVER_SUPPORTED_VERSION, CodexAppServerBridge } from "./code
 import { killNativeListener, nativeListenCodexAppServerHost, readNativeRecord } from "./codex-app-server-native.ts"
 
 const CONTROL = process.argv.includes("--control")
-if (CONTROL) process.env.FRIZZ_PLUGIN_SYNC_OFF = "1"
-else delete process.env.FRIZZ_PLUGIN_SYNC_OFF
-// The binary Frizz itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
+if (CONTROL) process.env.NTWINE_PLUGIN_SYNC_OFF = "1"
+else delete process.env.NTWINE_PLUGIN_SYNC_OFF
+// The binary Ntwine itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
 const CODEX_BIN = process.env.CODEX_BIN
   || provisionedBinary("codex", runtimesRoot(), CODEX_APP_SERVER_SUPPORTED_VERSION)
   || "codex"
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch { return false } }
-const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-codex-config-sync-")))
+const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-codex-config-sync-")))
 const codexHome = join(root, "codex-home")
 const repo = join(root, "repo")
 mkdirSync(codexHome); mkdirSync(repo)
@@ -67,7 +67,7 @@ const generation = {} as Record<Generation, { mcp: string; hook: string }>
 for (const g of ["A", "B"] as const) {
   const dir = join(root, `generation-${g}`, "runtime", "cc-worker")
   mkdirSync(join(dir, "bin"), { recursive: true }); mkdirSync(join(dir, "hooks"), { recursive: true })
-  const mcp = join(dir, "bin", "frizz-mcp.mjs")
+  const mcp = join(dir, "bin", "ntwine-mcp.mjs")
   // A dependency-free stdio MCP server with one tool, which answers with the path of its own file.
   writeFileSync(mcp, `
 import { appendFileSync } from "node:fs"
@@ -77,7 +77,7 @@ appendFileSync(${JSON.stringify(mcpEvents)}, JSON.stringify({ pid: process.pid, 
 const send = (m) => process.stdout.write(JSON.stringify(m) + "\\n")
 const reply = (id, result) => send({ jsonrpc: "2.0", id, result })
 function handle({ id, method, params } = {}) {
-  if (method === "initialize") return reply(id, { protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "frizzprobe", version: "0.0.1" } })
+  if (method === "initialize") return reply(id, { protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "ntwineprobe", version: "0.0.1" } })
   if (method === "tools/list") return reply(id, { tools: [{ name: "probe_ping", description: "Say which copy of the probe server answered.", inputSchema: { type: "object", properties: {}, additionalProperties: false } }] })
   if (method === "tools/call") return reply(id, { content: [{ type: "text", text: "answered by " + SELF + " pid " + process.pid }] })
   if (method === "ping") return reply(id, {})
@@ -169,7 +169,7 @@ function makeBridge(g: Generation) {
   const bridge = new CodexAppServerBridge({
     projectId: "probe", projectDir: repo, stateDir: root, db, interactions,
     // What context.ts hands the bridge: this generation's own MCP script, and this generation's hooks.
-    frizzMcp: { scriptPath: generation[g].mcp, stateDir: root, projectId: "probe" },
+    ntwineMcp: { scriptPath: generation[g].mcp, stateDir: root, projectId: "probe" },
     workerConfig: (_slug, sessionId) => ({ model_reasoning_summary: "detailed", ...codexScratchpadHookConfig(generation[g].hook, sessionId) }),
     codexBin: CODEX_BIN, host: nativeListenCodexAppServerHost,
     now: () => new Date(), id: () => `c-${g}-${++clientId}`, requestTimeoutMs: 60_000,
@@ -204,7 +204,7 @@ async function probe(bridge: CodexAppServerBridge, thread: Thread) {
   await sleep(400)
   const seen = requests.slice(from)
   const output = JSON.stringify(seen.at(-1)?.input?.findLast((item) => /output/.test(String(item.type ?? ""))) ?? "")
-  const answered = output.match(/answered by (\S+?frizz-mcp\.mjs) pid (\d+)/)
+  const answered = output.match(/answered by (\S+?ntwine-mcp\.mjs) pid (\d+)/)
   return {
     ended,
     mcp: answered ? generationOf(answered[1]!) : "none",
@@ -230,7 +230,7 @@ const onGeneration = (g: Generation, reading: Awaited<ReturnType<typeof probe>>)
 
 let listenerPid = -1
 try {
-  console.log(`[config-sync] ${CONTROL ? "CONTROL (FRIZZ_PLUGIN_SYNC_OFF=1)" : "proof"} · codex ${CODEX_BIN}\n[config-sync] workspace ${root}`)
+  console.log(`[config-sync] ${CONTROL ? "CONTROL (NTWINE_PLUGIN_SYNC_OFF=1)" : "proof"} · codex ${CODEX_BIN}\n[config-sync] workspace ${root}`)
   console.log("\n-- generation A's server dispatches three Codex threads --")
   const one = makeBridge("A")
   for (const thread of [IDLE, MIDTURN, EXEC]) {

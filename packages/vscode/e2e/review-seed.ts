@@ -1,8 +1,8 @@
-// A THREAD THAT WORKED IN A WORKTREE, seeded into a disposable Frizz (e2e/stack.ts) the frizz-stack way —
+// A THREAD THAT WORKED IN A WORKTREE, seeded into a disposable Ntwine (e2e/stack.ts) the ntwine-stack way —
 // a session row and a JSONL transcript the REAL server reads, never a worker. Its agent moved into
-// `.frizz/worktrees/<branch>` and edited files there with its tools, so the server's whole chain is the
+// `.ntwine/worktrees/<branch>` and edited files there with its tools, so the server's whole chain is the
 // thing under test: the transcript's edits read as the rail's edited files (which, before 11f327a0, came
-// back EMPTY for a worktree, `.frizz/` being ignored from the project root), the worktree as the thread's
+// back EMPTY for a worktree, `.ntwine/` being ignored from the project root), the worktree as the thread's
 // checkout, and the review pushed over the editor bridge to the window that has the project open.
 //
 // Runs in the harness (Node), never inside the editor.
@@ -45,9 +45,9 @@ export function seedReviewThread(options: { home: string; project: { id: string;
   records.push({ type: "assistant", sessionId: seeded.sessionId, cwd: repo.worktree, timestamp: at(5), message: { role: "assistant", id: "m-done", stop_reason: "end_turn", content: [{ type: "text", text: "**Done** — the loop is a reduce now, on the `tidy-the-loop` branch." }], usage: { input_tokens: 2, output_tokens: 20 } } })
   writeFileSync(join(transcripts, `${seeded.sessionId}.jsonl`), `${records.map((record) => JSON.stringify(record)).join("\n")}\n`)
 
-  execFileSync("sqlite3", ["-cmd", ".timeout 10000", join(home, ".frizz", "ui.db"),
+  execFileSync("sqlite3", ["-cmd", ".timeout 10000", join(home, ".ntwine", "ui.db"),
     `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, title_auto, backend, claude_runtime, model, effort, permission_mode, state, unread, exited, archived, rested_at)
-     VALUES (${q(project.id)}, ${q(seeded.slug)}, ${q(seeded.sessionId)}, ${q(`frizz-${seeded.slug}`)}, ${q(at(31))}, ${q(seeded.title)}, 0, 'claude', 'broker', 'opus', 'high', 'default', 'open', 1, 1, 0, ${q(at(5))})`])
+     VALUES (${q(project.id)}, ${q(seeded.slug)}, ${q(seeded.sessionId)}, ${q(`ntwine-${seeded.slug}`)}, ${q(at(31))}, ${q(seeded.title)}, 0, 'claude', 'broker', 'opus', 'high', 'default', 'open', 1, 1, 0, ${q(at(5))})`])
   options.log(`seeded ${seeded.slug}: a thread that edited ${repo.edited.length} files in ${repo.worktree}`)
   return seeded
 }

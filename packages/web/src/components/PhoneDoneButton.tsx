@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Check, Loader2 } from "lucide-react"
-import type { CompletionHold, ThreadView } from "@frizz/shared"
+import type { CompletionHold, ThreadView } from "@ntwine/shared"
 import { markDoneAndAdvance } from "../lib/mobileTriage.ts"
 import { completionHoldSummary } from "../lib/threadLifecycle.ts"
 import { Dialog } from "./ui/Dialog.tsx"

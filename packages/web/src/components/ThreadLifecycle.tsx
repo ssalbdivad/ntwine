@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react"
 import { Bot, Check, Loader2, SquareTerminal } from "lucide-react"
-import type { CompletionHold, ThreadView } from "@frizz/shared"
+import type { CompletionHold, ThreadView } from "@ntwine/shared"
 import { useThreadApi, useThreadIsForeignToPage } from "../api/threadApi.tsx"
 import { showToast } from "../store.ts"
 import { threadLifecycleAvailability, completionArchivesImmediately, completionHoldSummary } from "../lib/threadLifecycle.ts"
@@ -35,7 +35,7 @@ import { Dialog } from "./ui/Dialog.tsx"
 // side. The check is LAST: it is the verb a resting card most often ends on.
 //
 // A DONE thread states the state instead of offering the verbs (DoneReadout), because there is no
-// Reopen — a message reopens it. An unowned thread gets nothing at all: frizz recorded no lifecycle for
+// Reopen — a message reopens it. An unowned thread gets nothing at all: ntwine recorded no lifecycle for
 // it to vouch for.
 export function ThreadLifecycleActions({
   thread,

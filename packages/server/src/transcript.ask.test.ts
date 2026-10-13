@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { projectClaudeTranscript } from "./transcript.ts"
-import type { TranscriptToolCall } from "@frizz/shared"
+import type { TranscriptToolCall } from "@ntwine/shared"
 
 // The NATIVE QUESTION projection. The line this file defends: an `AskUserQuestion` tool_use carries its
 // structured questions onto the transcript card (`ask`), and its result — answered or withdrawn — only

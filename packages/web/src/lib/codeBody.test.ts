@@ -48,10 +48,10 @@ test("a cat -n excerpt highlights its source and keeps its line numbers as gutte
   const excerpt = "     1\tconst x = 1\n     2\t\n     3\tif (x) return\n"
   const html = renderCodeBody(excerpt, "typescript")
   assert.equal(textOf(html), excerpt)
-  assert.equal(html.match(/frizz-code-gutter/g)?.length, 3)
+  assert.equal(html.match(/ntwine-code-gutter/g)?.length, 3)
   // The number is inside the gutter span; the source beside it is highlighted, so `const` is a token
   // rather than part of the same run.
-  assert.match(html, /<span class="frizz-code-gutter">     1\t<\/span><span class="hljs-keyword">const<\/span>/)
+  assert.match(html, /<span class="ntwine-code-gutter">     1\t<\/span><span class="hljs-keyword">const<\/span>/)
 })
 
 test("a cat -n excerpt keeps multi-line constructs correct across its numbered lines", () => {
@@ -60,7 +60,7 @@ test("a cat -n excerpt keeps multi-line constructs correct across its numbered l
   // the excerpt was highlighted as ONE text rather than line by line.
   const line2 = html.split("\n")[1]
   assert.match(line2, /hljs-comment/)
-  assert.match(line2, /^<span class="frizz-code-gutter">     2\t<\/span>/)
+  assert.match(line2, /^<span class="ntwine-code-gutter">     2\t<\/span>/)
 })
 
 // Caught on the real wire, not in theory: a seeded excerpt ending on a blank source line arrived as
@@ -70,7 +70,7 @@ test("a numbered line whose trailing tab was trimmed does not disable the whole 
   const excerpt = "     1\tconst x = 1\n     2\tif (x) return\n    3"
   const html = renderCodeBody(excerpt, "typescript")
   assert.equal(textOf(html), excerpt)
-  assert.equal(html.match(/frizz-code-gutter/g)?.length, 3)
+  assert.equal(html.match(/ntwine-code-gutter/g)?.length, 3)
   assert.match(html, /hljs-keyword/)
 })
 
@@ -78,19 +78,19 @@ test("a numbered line whose trailing tab was trimmed does not disable the whole 
 // nothing but line numbers. At least one real tabbed prefix has to be present.
 test("a file of bare numbers is not mistaken for a numbered excerpt", () => {
   const html = renderCodeBody("101\n202\n303\n", "plaintext")
-  assert.ok(!html.includes("frizz-code-gutter"))
+  assert.ok(!html.includes("ntwine-code-gutter"))
 })
 
 // A tool result that merely mentions a numbered line must not have its prose eaten as gutters.
 test("prose that only looks numbered in places is not treated as an excerpt", () => {
   const prose = "1\tfirst\nthis line has no number\n3\tthird"
   const html = renderCodeBody(prose, "plaintext")
-  assert.ok(!html.includes("frizz-code-gutter"))
+  assert.ok(!html.includes("ntwine-code-gutter"))
   assert.equal(textOf(html), prose)
 })
 
 test("an unnumbered body highlights normally", () => {
   const html = renderCodeBody("echo hi\n", "bash")
-  assert.ok(!html.includes("frizz-code-gutter"))
+  assert.ok(!html.includes("ntwine-code-gutter"))
   assert.match(html, /hljs-built_in|hljs-keyword|echo/)
 })

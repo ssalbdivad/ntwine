@@ -4,7 +4,7 @@
 // table with a "Timers" group, one row per armed timer, named by the timer's own prompt and counting
 // down to its fire instant (AwaitingBackgroundCard).
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads, and timers armed
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads, and timers armed
 // through the REAL RPC (`setOwnThreadTimer`) so the registry rows the board derives from are the
 // production ones — not a hand-built props fixture. The fence is written AFTER arming, because the
 // timer ids are server-minted and the fence must name them.
@@ -20,7 +20,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, port, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, port, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home || !port) {
   console.error("usage: nub scripts/seed-timer-park.mjs --home=/abs/temp-home --port=NNNN")
   process.exit(1)
@@ -50,7 +50,7 @@ const spawnedAt = ago(10)
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${spawnedAt}', 'timer park · release hold', 'claude', 'broker', 'opus', 'high', 'default', '${spawnedAt}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${spawnedAt}', 'timer park · release hold', 'claude', 'broker', 'opus', 'high', 'default', '${spawnedAt}')`,
 ])
 writeFileSync(
   join(stateDir, "claude-broker", `${createHash("sha256").update(sessionId).digest("hex").slice(0, 16)}.json`),

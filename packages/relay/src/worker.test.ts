@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { generateClaimIdentity, exportClaimPublicKey, relayHandshakeInput } from "@frizz/shared"
+import { generateClaimIdentity, exportClaimPublicKey, relayHandshakeInput } from "@ntwine/shared"
 import { boardNameFor, handshakeAccepted, ownerPubkeyFor, visitorResponseInit, type RelayEnv } from "./worker.ts"
 
 const NOW = 1_800_000_000_000

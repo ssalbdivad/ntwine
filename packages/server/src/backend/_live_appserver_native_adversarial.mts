@@ -4,8 +4,8 @@
 // so sameProcess is always false). Run:
 //   nub packages/server/src/backend/_live_appserver_native_adversarial.mts
 //
-// A. A LIVE turn must SURVIVE a frizz restart UNTOUCHED — same turn id, NO recovery nudge, no second
-//    turn. If native's forced-cold reconcile retired or re-nudged a running turn, every frizz restart
+// A. A LIVE turn must SURVIVE an ntwine restart UNTOUCHED — same turn id, NO recovery nudge, no second
+//    turn. If native's forced-cold reconcile retired or re-nudged a running turn, every ntwine restart
 //    (which happens constantly) would disrupt every live codex turn. This is the highest-risk case.
 // B. Approvals must never STALL on native (Phase 1's guarantee, on the new default): an out-of-workspace
 //    write under danger-full-access must succeed with ZERO approval cards.
@@ -20,7 +20,7 @@ import { CodexAppServerBridge, type CodexAppServerDiagnostic } from "./codex-app
 import { nativeListenCodexAppServerHost, liveNativeRecord, killNativeListener } from "./codex-app-server-native.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const root = mkdtempSync(join(tmpdir(), "frizz-native-adv-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-native-adv-"))
 const dbPath = join(root, "ui.db")
 const PROJECT = "native-adv"
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -67,12 +67,12 @@ function makeBridge(label: string, collect?: CodexAppServerDiagnostic[]) {
 
 ;(async () => {
   try {
-    // ================= A: a LIVE turn survives a frizz restart UNTOUCHED =================
-    console.log("======== A — a LIVE turn survives a frizz restart with NO disruption ========")
+    // ================= A: a LIVE turn survives an ntwine restart UNTOUCHED =================
+    console.log("======== A — a LIVE turn survives an ntwine restart with NO disruption ========")
     const slugA = "live-turn", sessionA = "live-turn-session"
     const one = makeBridge("gen1")
     const bindA = await one.bridge.startDisposableSession({ threadSlug: slugA, sessionId: sessionA, cwd: root, sandbox: "read-only", ephemeral: false })
-    const codexSessionA = bindA.codexSessionId // the rollout filename uses the CODEX session id, not frizz's
+    const codexSessionA = bindA.codexSessionId // the rollout filename uses the CODEX session id, not ntwine's
     const started = await one.bridge.startTurn({ threadSlug: slugA, sessionId: sessionA, text: LONG })
     const originalTurn = started.turnId
     console.log(`  long turn started: ${originalTurn}`)
@@ -80,7 +80,7 @@ function makeBridge(label: string, collect?: CodexAppServerDiagnostic[]) {
     const bindingBefore = one.bridge.binding(slugA, sessionA)
     check("the turn is running before the restart", bindingBefore?.currentTurnId === originalTurn, bindingBefore?.currentTurnId)
 
-    console.log("  --- frizz restarts WHILE the turn is running ---")
+    console.log("  --- ntwine restarts WHILE the turn is running ---")
     one.bridge.close(); await one.bridge.shutdown().catch(() => {})
     try { one.interactions.dispose(); one.db.close() } catch {}
     await sleep(1000)

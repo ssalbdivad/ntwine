@@ -21,7 +21,7 @@
 // starts. The server name is kept, so tool names (`mcp__<server>__<tool>`) and permission rules match.
 //
 // THE CACHE is what the real server answered last time, keyed by everything that defines it (command,
-// args, env, cwd), under `<frizz data>/mcp-cache/`. With no cache yet the host starts the real server
+// args, env, cwd), under `<ntwine data>/mcp-cache/`. With no cache yet the host starts the real server
 // at the handshake — the first worker of a new configuration pays the old cost once. A lazily started
 // server's lists are re-read and compared, and a difference updates the cache and sends the client the
 // matching `list_changed` notification, so a server that grew a tool (an `@latest` pin) self-corrects.
@@ -109,9 +109,9 @@ export interface LazyMcpHostOptions {
   log?: (message: string) => void
 }
 
-/** FRIZZ_LAZY_MCP_OFF=1 restores the CLI's own eager start (mirrors FRIZZ_HIBERNATE_OFF). */
+/** NTWINE_LAZY_MCP_OFF=1 restores the CLI's own eager start (mirrors NTWINE_HIBERNATE_OFF). */
 export function lazyMcpEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.FRIZZ_LAZY_MCP_OFF !== "1"
+  return env.NTWINE_LAZY_MCP_OFF !== "1"
 }
 
 export function lazyMcpCacheKey(server: StdioMcpServer, cwd: string): string {
@@ -281,7 +281,7 @@ class LazyServer {
     const params = {
       protocolVersion: (this.clientInitParams?.protocolVersion as string | undefined) ?? FALLBACK_PROTOCOL_VERSION,
       capabilities: this.clientInitParams?.capabilities ?? {},
-      clientInfo: this.clientInitParams?.clientInfo ?? { name: "frizz-lazy-mcp", version: "1" },
+      clientInfo: this.clientInitParams?.clientInfo ?? { name: "ntwine-lazy-mcp", version: "1" },
     }
     const response = await Promise.race([this.internalRequest("initialize", params), exited])
     if (response.error) throw new Error(`MCP server "${this.name}" refused initialize: ${response.error.message}`)
@@ -314,7 +314,7 @@ class LazyServer {
   }
 
   private internalRequest(method: string, params?: unknown): Promise<JsonRpcMessage> {
-    const id = `frizz-lazy-${++this.nextInternalId}`
+    const id = `ntwine-lazy-${++this.nextInternalId}`
     return new Promise((resolve) => {
       this.internal.set(id, resolve)
       this.send({ jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) })
@@ -334,7 +334,7 @@ class LazyServer {
 
   private fromChild(message: JsonRpcMessage): void {
     if (isResponse(message)) {
-      const key = typeof message.id === "string" && message.id.startsWith("frizz-lazy-") ? message.id : undefined
+      const key = typeof message.id === "string" && message.id.startsWith("ntwine-lazy-") ? message.id : undefined
       const waiter = key !== undefined ? this.internal.get(key) : this.forwarded.get(JSON.stringify(message.id))
       if (key !== undefined) this.internal.delete(key)
       else this.forwarded.delete(JSON.stringify(message.id))

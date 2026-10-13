@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { BoardSnapshot, SocketServerMsg } from "@frizz/shared"
+import type { BoardSnapshot, SocketServerMsg } from "@ntwine/shared"
 
 // THE LIVE FEED AND THE PROJECT IT IS FOR — the seam that produced a real, shipped bug (2026-08-11:
 // every board on the machine rendered the launching project's threads under another project's URL,
@@ -118,12 +118,12 @@ test("nothing from the project the page has left reaches the UI", async () => {
     here.pathname = "/all/alpha/thread/other"
     const feed = await fresh("bound")
     feed.connectSync(queryClient as never)
-    assert.equal(FakeWebSocket.instances[0]?.url, "ws://127.0.0.1:54917/_frizz/alpha/ws")
+    assert.equal(FakeWebSocket.instances[0]?.url, "ws://127.0.0.1:54917/_ntwine/alpha/ws")
     assert.equal(feed.feedIsBoundTo("alpha"), true)
     here.pathname = "/all/beta/thread/other"
     assert.equal(feed.feedIsBoundTo("beta"), false, "the page moved; the socket did not")
     feed.rebindProject()
-    assert.equal(FakeWebSocket.instances[1]?.url, "ws://127.0.0.1:54917/_frizz/beta/ws")
+    assert.equal(FakeWebSocket.instances[1]?.url, "ws://127.0.0.1:54917/_ntwine/beta/ws")
     assert.equal(feed.feedIsBoundTo("beta"), true)
 
     // 2. A FRAME FROM THE PROJECT WE LEFT IS DROPPED — and the TRANSCRIPT frame is the one that proves
@@ -182,10 +182,10 @@ test("nothing from the project the page has left reaches the UI", async () => {
     const fallback = await fresh("fallback")
     fallback.connectSync(queryClient as never)
     FakeWebSocket.instances[0]!.serverClose() // never opened → the server has no /ws → commit to SSE
-    assert.equal(FakeEventSource.instances[0]?.url, "/_frizz/alpha/events")
+    assert.equal(FakeEventSource.instances[0]?.url, "/_ntwine/alpha/events")
     here.pathname = "/all/beta/thread/other"
     fallback.rebindProject()
-    assert.equal(FakeEventSource.instances[1]?.url, "/_frizz/beta/events", "the fallback must follow the switch")
+    assert.equal(FakeEventSource.instances[1]?.url, "/_ntwine/beta/events", "the fallback must follow the switch")
   } finally {
     for (const [key, descriptor] of globals) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor)

@@ -22,7 +22,7 @@ import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, use
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
 import { useLocation, useNavigate } from "react-router"
-import { expandUserCommandDraft, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@frizz/shared"
+import { expandUserCommandDraft, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { prefetchProjectTranscript } from "../hooks.ts"
@@ -58,7 +58,7 @@ import { AwaitingBackgroundCard, showsRestingCard, WaitRowOpenContext } from "./
 import { drawsSubAgentWaitCard, showsSubAgentWait } from "../lib/subAgentWait.ts"
 import { useThreadComposerControls } from "../hooks/useThreadComposerControls.tsx"
 import { ExpandThreadLink } from "./ExpandThreadLink.tsx"
-import { UpdateRequestedMarker } from "./FrizzWake.tsx"
+import { UpdateRequestedMarker } from "./NtwineWake.tsx"
 import { SpinoffButton, SpinoffOf } from "./Spinoff.tsx"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { LastActive } from "./LastActive.tsx"
@@ -299,8 +299,8 @@ export const AllQueuesCard = memo(function AllQueuesCard(props: AllQueuesCardPro
   // `drawnHeight`): the inline intrinsic size sizes it while it is skipped, the stand-in while it is near.
   const [remembered] = useState(() => drawnHeight(key))
   return (
-    <div ref={slotRef} data-xq-card={key} data-queue-leaving={leaving} data-queue-ghost={ghost || undefined} aria-hidden={ghost || undefined} data-queue-concealed={concealed || undefined} inert={concealed || ghost} className="frizz-card-slot min-w-0" style={remembered ? { containIntrinsicBlockSize: `auto ${remembered}px` } : undefined}>
-      <div className="frizz-card-clip min-h-0 min-w-0">
+    <div ref={slotRef} data-xq-card={key} data-queue-leaving={leaving} data-queue-ghost={ghost || undefined} aria-hidden={ghost || undefined} data-queue-concealed={concealed || undefined} inert={concealed || ghost} className="ntwine-card-slot min-w-0" style={remembered ? { containIntrinsicBlockSize: `auto ${remembered}px` } : undefined}>
+      <div className="ntwine-card-clip min-h-0 min-w-0">
         {built ? <CardArticle {...props} /> : <CardStandIn thread={thread} height={remembered} />}
       </div>
     </div>
@@ -320,7 +320,7 @@ function handoffQuery(project: QueuesProject, thread: ThreadView) {
 
 /**
  * A card not built yet, far from the screen: its frame and its title, at the height every unbuilt card is
- * guessed at (styles.css `.frizz-card-slot`'s intrinsic size — the same number, so the browser remembers
+ * guessed at (styles.css `.ntwine-card-slot`'s intrinsic size — the same number, so the browser remembers
  * the guess and not a short stand-in if it ever draws one). Nothing in it takes focus or a click: the card
  * replaces it before anyone can reach it, and a link here would be swapped out from under the focus.
  */
@@ -330,7 +330,7 @@ function CardStandIn({ thread, height }: { thread: ThreadView; height?: number }
       data-xq-card-stand-in
       aria-label={displayTitle(thread)}
       style={height ? { height } : undefined}
-      className={`frizz-card-body flex h-[540px] min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border border-border-strong bg-panel shadow-lg shadow-shadow-ink/25`}
+      className={`ntwine-card-body flex h-[540px] min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border border-border-strong bg-panel shadow-lg shadow-shadow-ink/25`}
     >
       <header className="rounded-t-xl border-b border-border/60 px-5 py-3.5">
         <h3 className="truncate text-[15px] font-semibold leading-snug">{displayTitle(thread)}</h3>
@@ -475,7 +475,7 @@ function CardArticle({
       {...fileDropZone.handlers}
       // The accent border while a file is over the card says WHICH card takes it; its prompt box says
       // where in it, with the same dashed "Drop file to attach" a drop on the box itself shows.
-      className={`frizz-card-body flex min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border ${fileDropZone.over ? "border-accent" : "border-border-strong"} bg-panel shadow-lg shadow-shadow-ink/25`}
+      className={`ntwine-card-body flex min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border ${fileDropZone.over ? "border-accent" : "border-border-strong"} bg-panel shadow-lg shadow-shadow-ink/25`}
     >
       {/* Collapsed, the header IS the card: the whole radius and no rule under it (upstream's state-dependent
           rounding — a rounded-top header with a rule over nothing reads as a doubled edge). */}
@@ -630,7 +630,7 @@ function CardArticle({
           {/* A question from a rest older than the human's bubble, flushed first as upstream's window
               flushes it — everything below the bubble is newer than it. */}
           {slots && <RegisteredQuestionStack key={`above-${restKey}`} thread={thread} questions={slots.above} keepAnswered />}
-          {/* A scheduled run's first message opens with Frizz's header for the worker; the card shows only the
+          {/* A scheduled run's first message opens with Ntwine's header for the worker; the card shows only the
               saved prompt under it, the human's own words — the title's repeat glyph already says where the
               run came from (ChatView ScheduledRunOpening does the same in the drawer). */}
           {/* An "Ask for update" click is the human's turn too (router.handoffOf), drawn as the transcript
@@ -692,7 +692,7 @@ function CardArticle({
           {restingShown && (handoff.data || handoff.isError) && (
             <CardAwaiting project={project} thread={thread} onLeave={onLeave} onSent={onSent} onLanded={onLanded} onReturn={onReturn} />
           )}
-          {/* A DONE THE WORKER REGISTERED (`mcp__frizz__done`) rather than fenced — the sign-off the worker
+          {/* A DONE THE WORKER REGISTERED (`mcp__ntwine__done`) rather than fenced — the sign-off the worker
               contract now asks for first — is in no message, so the handoff text above carries no fence
               for it and the card queued a finished thread with no Done card at all. The drawer draws it
               from the thread (ChatView's "registered-done" rung); this is the same predicate, keyed on
@@ -1305,7 +1305,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
   const submit = () => {
     const message = text.trim()
     if (!message) return
-    // `/login` / `/logout` are frizz-owned account actions for this thread's backend, invoked here and
+    // `/login` / `/logout` are ntwine-owned account actions for this thread's backend, invoked here and
     // never delivered to the worker as a prompt — as the drawer's box does (ThreadComposerBox.tsx). The
     // board's queue card intercepted them too; this card did not, so with the board gone a `/login`
     // typed into a card went into the worker's stdin.
@@ -1313,7 +1313,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
     if (alias) {
       draftStore.set(key, "")
       if (thread.backend === "acp") {
-        showToast("An ACP agent signs in through its own CLI — Frizz holds no account for it")
+        showToast("An ACP agent signs in through its own CLI — Ntwine holds no account for it")
         return
       }
       const backend: AccountBackend = thread.backend === "codex" ? "codex" : "claude"
@@ -1359,7 +1359,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
         busy={controls.busy}
         footer={controls.footer}
         // THE GOAL at the rail's left end, as on every thread prompt box (ThreadComposerBox) — for a
-        // Frizz-owned session. It reaches the card's project through the scope this box renders in.
+        // Ntwine-owned session. It reaches the card's project through the scope this box renders in.
         railLead={thread.kind === "session" && thread.foreign !== true ? <RecurringPromptControl thread={thread} /> : undefined}
       />
       {controls.status}

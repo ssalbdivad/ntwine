@@ -31,11 +31,11 @@ These come from the [light palette](https://github.com/colinhacks/frizz/blob/35a
 
 Fresh evidence, captured at 1440px and 390px with device scale 2:
 
-- [Sans board with both prompt composers and question card](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-board.png)
-- [Close view of the question, sent prompt and reply composer](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-question-card.png)
-- [Sans phone view](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-phone.png)
-- [Settings showing Sans](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-settings.png)
-- [Reproduction script](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/sans-capture.mjs) and [computed readings](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/readings.json)
+- [Sans board with both prompt composers and question card](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-board.png)
+- [Close view of the question, sent prompt and reply composer](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-question-card.png)
+- [Sans phone view](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-phone.png)
+- [Settings showing Sans](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/light-sans-settings.png)
+- [Reproduction script](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/sans-capture.mjs) and [computed readings](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/sans-current/readings.json)
 
 The latest head's provisional title now measures **5.08:1** and the settled Settings “Saved” label **5.41:1** in Light. Both original defects are resolved. The new screenshots were inspected; the phone view has no horizontal overflow, and Chrome recorded no console or page errors. All owned browser/server processes exited and both listening ports were checked closed. The old posting question was withdrawn because it requested fixes already present.
 
@@ -66,7 +66,7 @@ Reproduction used the exact PR head in an isolated real stack and Chrome:
 1. Set Appearance to Light, open Settings, switch Font from Sans to Mono, and measure the actual “Saved” result after opacity settles. This used the real settings mutation, not a fabricated status element.
 2. Supply a valid fresh-thread state to the real board store: `titleAuto: true`, empty `aiTitle`, and a current `spawnedAt`. Measure the unmodified `ThreadRow`, then switch the same page to Dark as a control. This is a renderer reproduction; no live model was dispatched for this state.
 
-The independent probe is [review-extra.mjs](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/review-extra.mjs), with measured output in [review-extra.json](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/review-extra.json). It can run after recreating the reviewed checkout at the adjacent `pr36` path and installing its dependencies.
+The independent probe is [review-extra.mjs](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/review-extra.mjs), with measured output in [review-extra.json](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/review-extra.json). It can run after recreating the reviewed checkout at the adjacent `pr36` path and installing its dependencies.
 
 The acceptance harness passes because the fixture has named threads and its settings checks do not capture a completed server-settings save. Add both states to `scripts/lib/light-mode-fixture.mjs` / `scripts/lib/light-mode-surfaces.mjs`, retaining the existing composited-contrast sampler. This requires changes to the two components, `theme.css`, and the targeted checks. Risk is low if the dark values remain unchanged; a global increase in text opacity would unnecessarily alter the whole app.
 
@@ -80,7 +80,7 @@ Also migrate the newly added unknown-status mark in `AwaitingBackgroundCard.tsx`
 
 | Area | Assessment |
 | --- | --- |
-| Preference and startup | A dedicated browser-local `frizz-theme` key, separate preference/resolved values, pre-paint resolution, OS changes and cross-tab synchronization fit the use case. No database migration or server setting is needed. The tested denied-storage and unavailable-settings paths still work. |
+| Preference and startup | A dedicated browser-local `ntwine-theme` key, separate preference/resolved values, pre-paint resolution, OS changes and cross-tab synchronization fit the use case. No database migration or server setting is needed. The tested denied-storage and unavailable-settings paths still work. |
 | CSS migration | Root-selected semantic palettes are better than duplicating components, adding per-call-site `dark:` branches, or inverting the page. Separate ink/fill/on-fill roles and explicit light secondary text address the real contrast problem. |
 | Terminal | The palette updates through `term.options.theme`, outside the effect owning the terminal and socket. The real login-terminal test preserved buffer, selection, focus and one connection. Explicit process true-color output correctly remains content-owned. |
 | Mermaid | Serializing configuration and rendering is justified because the imported renderer has global configuration. Captured palettes, unique IDs, stale-result rejection and rejection cleanup are appropriate. The browser run exercised multiple diagrams, rapid changes and malformed-source recovery. |
@@ -114,7 +114,7 @@ The browser run used port `45931` and `THEME_EVIDENCE_DIR` pointing into this th
 
 Desktop, 390px phone, both fonts and both themes were exercised. Inspected screenshots include the board, phone queue, settings, code/Mermaid, GitHub cards, Appearance crop and recovery. The Appearance caret's measured cap-band residual was **0px in both fonts**; horizontal ink-gap measurements and high-resolution crops were also produced. No new layout defect was found in the inspected states. The original hover finding is now tested through compiled CSS rules with an explicitly identified no-hover-host fallback, not a fake inline opacity replacement.
 
-Evidence lives in [the local evidence directory](../.frizz/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/). The promoted artifact digest was `db83f0576f815a8c06a34992dc9131031167f54a93bf3464e27a793e0c7b5a8f`. All owned browsers, servers and proxies were closed; the owned listening ports and recorded browser PIDs were checked afterward.
+Evidence lives in [the local evidence directory](../.ntwine/threads/6219833f-167e-41b1-8f63-63259a8ef30e/evidence/). The promoted artifact digest was `db83f0576f815a8c06a34992dc9131031167f54a93bf3464e27a793e0c7b5a8f`. All owned browsers, servers and proxies were closed; the owned listening ports and recorded browser PIDs were checked afterward.
 
 Limits: the full provider-dependent monorepo suite was not run, Safari/Firefox were not exercised, and current-main integration was inspected but not built. Source-regex adapter tests alone are weak lifecycle evidence; the actual browser and artifact runs supply that evidence here. The suite samples visible states and does not prove universal contrast, as the additional probe demonstrates.
 

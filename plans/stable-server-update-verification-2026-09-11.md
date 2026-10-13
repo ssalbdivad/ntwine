@@ -1,6 +1,6 @@
 # Stable launcher/server verification — 2026-09-11
 
-The implementation separates the public `frizz` launcher from unscoped `frizz-server`. Ordinary updates replace only the server child and its matched frontend/runtime closure. No npm publication or production restart was performed for this effort. Verification establishes the exercised behavior below, not literal certainty about every platform or future release.
+The implementation separates the public `ntwine` launcher from unscoped `ntwine-server`. Ordinary updates replace only the server child and its matched frontend/runtime closure. No npm publication or production restart was performed for this effort. Verification establishes the exercised behavior below, not literal certainty about every platform or future release.
 
 ## Design and safety boundary
 
@@ -17,7 +17,7 @@ Implementation: [`src/production.ts`](../src/production.ts), [`src/server-releas
 
 The reproducible harness is [`scripts/verify-server-updates.mjs`](../scripts/verify-server-updates.mjs). It packs the built launcher and instrumented copies of real server bundles, serves them through a private local npm registry, then uses real npm execution, real child processes and headless Chrome. Fault injection adds process observations or a specified failure; it does not replace the production installer, supervisor, storage, HTTP or browser code. These fixture tarballs are **not release artifacts**.
 
-Evidence lives under `.frizz/threads/83fb409a-c418-422d-8173-c7fb7823d626/` in the maintainer checkout. Each run's `evidence.json` includes process generations, status outcomes and cleanup.
+Evidence lives under `.ntwine/threads/83fb409a-c418-422d-8173-c7fb7823d626/` in the maintainer checkout. Each run's `evidence.json` includes process generations, status outcomes and cleanup.
 
 | Case | Observed result | Evidence directory |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ Evidence lives under `.frizz/threads/83fb409a-c418-422d-8173-c7fb7823d626/` in t
 
 The final singleton matrix used launcher PID `31041` throughout ordinary updates. No overlapping server processes or failed public-status probes were observed. Application sockets can disconnect during the serial handoff; that is distinct from losing the public recovery listener. Intentional launcher kills caused the expected connection-refused browser messages. JavaScript page errors were absent. Owned Chrome instances, launchers, server children and provider daemons were closed; final cleanup reported no remaining owned PIDs.
 
-Two test-instrument errors were corrected rather than misreported as product defects: a cold-download gate initially held both package names sharing version `0.13.0`, and a requested minimum-Node run initially left a newer Node first on PATH for npm's bin shebang. The final harness gates only `frizz-server` and asserts the actual child Node version.
+Two test-instrument errors were corrected rather than misreported as product defects: a cold-download gate initially held both package names sharing version `0.13.0`, and a requested minimum-Node run initially left a newer Node first on PATH for npm's bin shebang. The final harness gates only `ntwine-server` and asserts the actual child Node version.
 
 After the frozen pnpm install and final package build, the combined singleton/failure/worker matrix passed again in `server-ci-workers`, using actual Node `22.13.0`. Launcher PID `73417` stayed fixed through ordinary updates. Codex PID `76381` and Claude PID `77858` retained their generations and answered follow-ups. The earlier `server-main-workers` run additionally repeated the legacy `0.12.10` browser handoff on the merged source with both providers active.
 
@@ -49,8 +49,8 @@ The final smoke is in `release-candidate/final-smoke/`; the retained tarballs ar
 
 | Tarball | SHA-512 |
 | --- | --- |
-| `frizz-0.13.0.tgz` | `d53754813f9236ab30684689048f0c0d8a6e6a59bcea6b2e44e6bb1ff4ceb1d1112e19b96b34b1473003d869fa2eb04dfafe1121eecafd644fc0c8bbe6f6a6cd` |
-| `frizz-server-0.13.0.tgz` | `6c182f8841cbdda3f080cdbb6df064c1a9932712566270c2b6db30b40cd162933d99682f155f6cb4b278904c199d9d9e82973ea81c5f4002d199b00bf4491ef0` |
+| `ntwine-0.13.0.tgz` | `d53754813f9236ab30684689048f0c0d8a6e6a59bcea6b2e44e6bb1ff4ceb1d1112e19b96b34b1473003d869fa2eb04dfafe1121eecafd644fc0c8bbe6f6a6cd` |
+| `ntwine-server-0.13.0.tgz` | `6c182f8841cbdda3f080cdbb6df064c1a9932712566270c2b6db30b40cd162933d99682f155f6cb4b278904c199d9d9e82973ea81c5f4002d199b00bf4491ef0` |
 
 ## Browser and optical verification
 
@@ -66,9 +66,9 @@ The Windows VM experiment did not reach an initialized guest or working SSH conn
 
 ## Publication and diagnostic boundaries
 
-The package name is `frizz-server`, not `@frizzsh/server`, following the explicit selection. Initial publication and npm Trusted Publisher setup are documented in [`stable-server-publishing.md`](stable-server-publishing.md): GitHub owner `colinhacks`, repository `frizz`, workflow filename `release.yml`, no environment. Ordinary server releases leave the launcher package version alone.
+The package name is `ntwine-server`, not `@ntwinesh/server`, following the explicit selection. Initial publication and npm Trusted Publisher setup are documented in [`stable-server-publishing.md`](stable-server-publishing.md): GitHub owner `colinhacks`, repository `ntwine`, workflow filename `release.yml`, no environment. Ordinary server releases leave the launcher package version alone.
 
-The friend's `cd`/permission failure was not attributed to Frizz, FNM or macOS permissions by this work. The diagnostic question was cancelled; no speculative permissions, shell configuration or TCC changes were made. The new installer avoids invoking interactive shell hooks, but that is a design property, not a diagnosis of the reported machine.
+The friend's `cd`/permission failure was not attributed to Ntwine, FNM or macOS permissions by this work. The diagnostic question was cancelled; no speculative permissions, shell configuration or TCC changes were made. The new installer avoids invoking interactive shell hooks, but that is a design property, not a diagnosis of the reported machine.
 
 ## Local landing
 

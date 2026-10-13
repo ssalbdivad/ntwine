@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react"
-import type { ProjectCard } from "@frizz/shared"
+import type { ProjectCard } from "@ntwine/shared"
 import { humpStarts } from "./threadMentions.ts"
 
 // `#slug` NAMES A PROJECT (David 2026-10-06: "add # syntax for referring to projects like #home and

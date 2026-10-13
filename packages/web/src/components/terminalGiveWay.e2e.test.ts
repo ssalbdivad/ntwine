@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_TERMINAL_GIVE_WAY_E2E_URL
+const baseUrl = process.env.NTWINE_TERMINAL_GIVE_WAY_E2E_URL
 
 // WHO GIVES WAY ON A TERMINAL ROW, measured in a real browser — the rule is about LAYOUT, and a markup test can
 // only say which classes are there. The maintainer's rule (2026-09-29): a row's folder hint appears only where
@@ -28,7 +28,7 @@ const baseUrl = process.env.FRIZZ_TERMINAL_GIVE_WAY_E2E_URL
 //
 // Run it against a plain vite over packages/web:
 //   nubx vite --port 5391 --strictPort --host 127.0.0.1
-//   FRIZZ_TERMINAL_GIVE_WAY_E2E_URL=http://127.0.0.1:5391 nub --test packages/web/src/components/terminalGiveWay.e2e.test.ts
+//   NTWINE_TERMINAL_GIVE_WAY_E2E_URL=http://127.0.0.1:5391 nub --test packages/web/src/components/terminalGiveWay.e2e.test.ts
 test("a terminal row's label outranks its folder hint's word, its glyph never leaves, and your drawer header keeps its folder, at every width", {
   skip: !baseUrl,
   timeout: 120_000,

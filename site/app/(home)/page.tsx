@@ -17,7 +17,7 @@ import { Mark } from "@/components/mark";
 import { Shot } from "@/components/shot";
 import { githubUrl } from "@/lib/layout.shared";
 
-// every card names one thing Frizz does, in a line, and links to the page that says the rest
+// every card names one thing Ntwine does, in a line, and links to the page that says the rest
 const features = [
   { icon: AlarmClock, title: "Snooze", text: "Park a card until tomorrow, with what to do when it wakes.", href: "/docs/snooze" },
   { icon: Target, title: "Goals", text: "“Keep going until CI is green”, re-sent at every rest.", href: "/docs/goals" },
@@ -32,8 +32,8 @@ const features = [
 
 // the commitments every feature is held to, one line each; /docs/principles says the rest
 const principles = [
-  { title: "The agent decides.", text: "A thread's state is its agent's own last word. Frizz only checks that it holds up." },
-  { title: "Frizz never answers for it.", text: "Nothing is answered, parked or withdrawn on an agent's behalf, outside a short, listed set." },
+  { title: "The agent decides.", text: "A thread's state is its agent's own last word. Ntwine only checks that it holds up." },
+  { title: "Ntwine never answers for it.", text: "Nothing is answered, parked or withdrawn on an agent's behalf, outside a short, listed set." },
   { title: "Every card is yours to act on.", text: "Nothing enters the queue just to be dismissed, and a running thread never does." },
   { title: "Five bands, never lost.", text: "Pinned, Queue, Running, Snoozed, Done. Every thread is in exactly one." },
   { title: "One project at a time.", text: "A project's board is the default. All projects is one click away." },
@@ -66,7 +66,7 @@ export default function Home() {
     <main className="mx-auto w-full max-w-6xl px-6">
       <section className="grid items-center gap-12 pt-16 pb-20 md:grid-cols-[1fr_1.35fr] md:pt-24">
         <div>
-          <h1 className="sr-only">Frizz</h1>
+          <h1 className="sr-only">Ntwine</h1>
           <Mark className="h-auto w-24 md:w-28" />
           <p className="mt-8 text-3xl leading-tight font-semibold tracking-tight text-balance md:text-4xl">
             An opinionated agent console for extreme productivity.
@@ -90,7 +90,7 @@ export default function Home() {
           width={1760}
           height={1100}
           priority
-          alt="Frizz focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with lettered options and a countdown to the recommended pick."
+          alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with lettered options and a countdown to the recommended pick."
         />
       </section>
 
@@ -144,7 +144,7 @@ export default function Home() {
           <div className="mt-5 space-y-4 text-lg text-fd-muted-foreground">
             <p>
               An agent waiting on CI, a review, a reporter&rsquo;s reply or another thread registers a watch and rests,
-              out of your queue. Frizz holds the watch, not the agent&rsquo;s session, so it lasts as long as the
+              out of your queue. Ntwine holds the watch, not the agent&rsquo;s session, so it lasts as long as the
               server: days, or years.
             </p>
             <p>
@@ -179,12 +179,12 @@ export default function Home() {
         }
       >
         <p>
-          One server serves every repo on your machine, and each gets its own board. Run <Code>npx frizz</Code> in a
+          One server serves every repo on your machine, and each gets its own board. Run <Code>npx ntwine</Code> in a
           second one and it joins. All projects shows every board&rsquo;s work at once, one click away.
         </p>
         <p>
-          Each agent runs in its own background process. Close the tab or stop Frizz, and it keeps working; relaunch,
-          and Frizz reconnects.
+          Each agent runs in its own background process. Close the tab or stop Ntwine, and it keeps working; relaunch,
+          and Ntwine reconnects.
         </p>
       </Split>
 
@@ -237,11 +237,11 @@ export default function Home() {
           <Heading title="From your phone, too." />
           <div className="mt-5 space-y-4 text-lg text-fd-muted-foreground">
             <p>
-              Press <Code>R</Code> in the terminal running Frizz and pick how a phone reaches it. A private frizz.sh
+              Press <Code>R</Code> in the terminal running Ntwine and pick how a phone reaches it. A private frizz.sh
               name needs no account and nothing installed.
             </p>
             <p>
-              Frizz stays on localhost either way, and the first visit from each device needs a single-use sign-in
+              Ntwine stays on localhost either way, and the first visit from each device needs a single-use sign-in
               link, shown as a QR code.
             </p>
           </div>
@@ -252,7 +252,7 @@ export default function Home() {
             <span className="size-3 rounded-full bg-fd-border" />
             <span className="size-3 rounded-full bg-fd-border" />
             <span className="size-3 rounded-full bg-[var(--gold)]" />
-            <span className="ml-2 font-mono text-xs text-fd-muted-foreground">npx frizz</span>
+            <span className="ml-2 font-mono text-xs text-fd-muted-foreground">npx ntwine</span>
           </div>
           <pre className="overflow-x-auto p-5 font-mono text-[0.8rem] leading-relaxed">{remoteMenu}</pre>
         </div>
@@ -284,7 +284,7 @@ export default function Home() {
           <a href={githubUrl} className="hover:text-fd-foreground">
             GitHub
           </a>
-          <a href="https://www.npmjs.com/package/frizz" className="hover:text-fd-foreground">
+          <a href="https://www.npmjs.com/package/ntwine" className="hover:text-fd-foreground">
             npm
           </a>
         </span>

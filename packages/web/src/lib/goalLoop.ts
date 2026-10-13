@@ -1,4 +1,4 @@
-import { formatGoalFor, type ThreadRecurringPrompt } from "@frizz/shared"
+import { formatGoalFor, type ThreadRecurringPrompt } from "@ntwine/shared"
 import { formatRuntimeElapsed } from "./durationLabels.ts"
 
 // THE GOAL AS A LOOP: its run counter and limits, in the one short phrase the thread header's facts line

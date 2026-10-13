@@ -15,9 +15,9 @@
 //
 // ONE PAGE HERE MUST NAME NOTHING. unauthorizedPage is served to a visitor who has proved nothing, and
 // it may not disclose that a shell-capable board lives at this address — a property two tests in
-// restart-supervisor.test.ts assert against the whole response body with /frizz|board|agent/i. That is
+// restart-supervisor.test.ts assert against the whole response body with /ntwine|board|agent/i. That is
 // why the stylesheet is SPLIT and why BASE_STYLE below carries no comments: a CSS comment, a keyframe
-// name or a localStorage key that says "frizz" leaks just as loudly as a heading would, and the first
+// name or a localStorage key that says "ntwine" leaks just as loudly as a heading would, and the first
 // draft of this file leaked through all three at once.
 
 /** Every page here interpolates operator-supplied text, so there is one escape and it covers `>` too. */
@@ -118,7 +118,7 @@ const RECOVERY_STYLE = `
   font-family:var(--mono);font-size:11px;line-height:1.6;color:color-mix(in srgb,var(--fg) 70%,transparent);
 }
 
-/* THE LIVE DOT, and it is the app's own \`.frizz-live-dot\` — same 6px, same 28%/14% halo, same 1.25s
+/* THE LIVE DOT, and it is the app's own \`.ntwine-live-dot\` — same 6px, same 28%/14% halo, same 1.25s
    cadence — because it means the same thing here that it means there: work is in flight.
 
    Alignment is an INK problem. A baseline-aligned flex item with no text of its own contributes its
@@ -129,13 +129,13 @@ const RECOVERY_STYLE = `
 .dot{
   width:6px;height:6px;flex:0 0 auto;border-radius:9999px;background:var(--accent);
   box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 28%,transparent);
-  animation:frizz-live-pulse 1.25s ease-in-out infinite;
+  animation:ntwine-live-pulse 1.25s ease-in-out infinite;
   transform:translateY(calc(3px - .35em));
   transform:translateY(calc(3px - .5cap));
 }
 .dot[data-state=idle]{animation:none;background:var(--muted);box-shadow:none}
 .dot[data-state=bad]{animation:none;background:var(--danger);box-shadow:0 0 0 1px color-mix(in srgb,var(--danger) 28%,transparent)}
-@keyframes frizz-live-pulse{50%{opacity:.62;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}}
+@keyframes ntwine-live-pulse{50%{opacity:.62;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}}
 @media (prefers-reduced-motion:reduce){
   .dot{animation:none;background:transparent;border:2px solid var(--accent);box-shadow:none}
   .dot[data-state=idle]{border-color:var(--muted)}
@@ -148,15 +148,15 @@ const RECOVERY_STYLE = `
   color:transparent;
   background:linear-gradient(90deg,var(--muted) 0%,var(--muted) 35%,var(--fg) 50%,var(--muted) 65%,var(--muted) 100%) 0 0/200% 100%;
   -webkit-background-clip:text;background-clip:text;
-  animation:frizz-shimmer 2.2s linear infinite;
+  animation:ntwine-shimmer 2.2s linear infinite;
 }
-@keyframes frizz-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes ntwine-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){
   .probe[data-live=yes]{animation:none;background:none;color:var(--muted)}
 }
 `.trim()
 
-const THEME_SCRIPT = `var p;try{p=localStorage.getItem("frizz-theme")}catch{}var d=false;try{d=matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches}catch{}var t=p==="dark"||p==="light"?p:d?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;document.querySelector('meta[name="theme-color"]').content=t==="dark"?"#0d0e10":"#f7f7f7"`
+const THEME_SCRIPT = `var p;try{p=localStorage.getItem("ntwine-theme")}catch{}var d=false;try{d=matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches}catch{}var t=p==="dark"||p==="light"?p:d?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;document.querySelector('meta[name="theme-color"]').content=t==="dark"?"#0d0e10":"#f7f7f7"`
 
 /**
  * THE RECOVERY PAGE POLLS, and the comment this replaces said it deliberately did not: "a broken child
@@ -197,7 +197,7 @@ const RECOVERY_SCRIPT = `
       .then(function(r){return r.status!==503}).catch(function(){return false})
   }
   function readStatus(){
-    return fetch("/_frizz/control/status",{cache:"no-store",headers:{"cache-control":"no-store"}})
+    return fetch("/_ntwine/control/status",{cache:"no-store",headers:{"cache-control":"no-store"}})
       .then(function(r){return r.ok?r.json():null})
       .then(function(b){return b&&b.protocol===1?b:null}).catch(function(){return null})
   }
@@ -208,7 +208,7 @@ const RECOVERY_SCRIPT = `
     if(!status||status.state===told)return
     told=status.state
     if(status.state==="failed"){
-      heading.textContent="Frizz did not restart"
+      heading.textContent="Ntwine did not restart"
       // Not a second copy of the note below it — a lead-in to the log, which is the next thing down.
       detail.textContent="The launcher could not bring the application server back, and reported this:"
       showLog(status.message||"The launcher gave no reason.")
@@ -217,7 +217,7 @@ const RECOVERY_SCRIPT = `
     }
     showLog("")
     if(status.state==="restarting"){
-      heading.textContent="Frizz is restarting"
+      heading.textContent="Ntwine is restarting"
       detail.textContent="The application server is coming back up."
     }
   }
@@ -227,13 +227,13 @@ const RECOVERY_SCRIPT = `
     // A hidden tab neither polls nor spends its budget; visibilitychange starts the loop again.
     if(document.hidden)return
     alive().then(function(up){
-      if(up){say("Frizz is back. Reloading.",true);location.replace(target);return}
+      if(up){say("Ntwine is back. Reloading.",true);location.replace(target);return}
       return readStatus().then(function(status){
         narrate(status)
         if(stopped)return
         if(Date.now()>deadline){halt("No answer after 2m. This page stopped checking.",false);return}
         delay=Math.min(MAX,delay*GROWTH)
-        say("Waiting for Frizz",true)
+        say("Waiting for Ntwine",true)
         timer=setTimeout(tick,delay)
       })
     })
@@ -248,14 +248,14 @@ const RECOVERY_SCRIPT = `
     if(busy)return
     busy=true;stopped=false;told="";clearTimeout(timer)
     restart.disabled=true;restart.textContent="Restarting"
-    dot.removeAttribute("data-state");showLog("");say("Restarting Frizz",true)
-    fetch("/_frizz/control/restart",{method:"POST",headers:{"cache-control":"no-store"}})
+    dot.removeAttribute("data-state");showLog("");say("Restarting Ntwine",true)
+    fetch("/_ntwine/control/restart",{method:"POST",headers:{"cache-control":"no-store"}})
       .then(function(r){return r.json().catch(function(){return null}).then(function(b){return{ok:r.ok,status:r.status,body:b}})})
       .catch(function(){return{ok:false,status:0,body:null}})
       .then(function(r){
-        restart.disabled=false;restart.textContent="Restart Frizz";busy=false
+        restart.disabled=false;restart.textContent="Restart Ntwine";busy=false
         if(!r.ok){
-          heading.textContent="Frizz did not restart"
+          heading.textContent="Ntwine did not restart"
           detail.textContent="The launcher could not bring the application server back, and reported this:"
           showLog((r.body&&r.body.message)||("The launcher refused the restart ("+(r.status||"no response")+")."))
           halt("",true)
@@ -266,7 +266,7 @@ const RECOVERY_SCRIPT = `
       })
   })
 
-  say("Waiting for Frizz",true)
+  say("Waiting for Ntwine",true)
   tick()
 })()
 `.trim()
@@ -304,13 +304,13 @@ export type RecoveryVariant = "starting" | "unreachable"
 
 const RECOVERY_COPY: Record<RecoveryVariant, { title: string; heading: string; detail: string }> = {
   starting: {
-    title: "Restarting | Frizz",
-    heading: "Frizz is restarting",
+    title: "Restarting | Ntwine",
+    heading: "Ntwine is restarting",
     detail: "The application server is not listening yet. This page reloads as soon as it answers.",
   },
   unreachable: {
-    title: "Not responding | Frizz",
-    heading: "Frizz is not responding",
+    title: "Not responding | Ntwine",
+    heading: "Ntwine is not responding",
     detail: "The application server accepted this request and then dropped it. Restarting it usually clears this.",
   },
 }
@@ -318,7 +318,7 @@ const RECOVERY_COPY: Record<RecoveryVariant, { title: string; heading: string; d
 // The one fact an operator staring at this page actually wants, and the reason is worth stating: a
 // worker is a daemon in its OWN process group, so nothing here — a restart, a crash, a ctrl-C on the
 // launcher — reaches it. Its events queue while nothing is attached and replay when the board is back.
-const THREADS_NOTE = "Threads already running are not affected. Each runs as its own detached process, and Frizz reattaches to it on restart."
+const THREADS_NOTE = "Threads already running are not affected. Each runs as its own detached process, and Ntwine reattaches to it on restart."
 
 export function recoveryPage(url: string, variant: RecoveryVariant = "starting"): string {
   const copy = RECOVERY_COPY[variant]
@@ -337,7 +337,7 @@ export function recoveryPage(url: string, variant: RecoveryVariant = "starting")
       + `<p class="note">${THREADS_NOTE}</p>`
       + `<div class="actions">`
       + `<a class="btn" href="${target}">Try again</a>`
-      + `<button class="btn" type="button" id="restart">Restart Frizz</button>`
+      + `<button class="btn" type="button" id="restart">Restart Ntwine</button>`
       + `</div>`
       + `<p class="probe" id="probe" aria-live="polite"></p>`,
     script: RECOVERY_SCRIPT,
@@ -365,7 +365,7 @@ export function unauthorizedPage(reason?: "unknown" | "expired" | "already-used"
 
 /**
  * The refusal an operator sees after opening an exposed board by a name `--allowed-host` does not
- * list. Unlike unauthorizedPage this SAYS what Frizz is: the board is already open to this network by
+ * list. Unlike unauthorizedPage this SAYS what Ntwine is: the board is already open to this network by
  * IP with no gate at all, so naming the flag costs nothing and saves the guess. The name is escaped
  * even though the Host parser already refuses every character that could break markup.
  */
@@ -375,7 +375,7 @@ export function unlistedHostPage(name: string): string {
     title: "Not served by this name",
     appearance: true,
     body: `<h1>Not served by this name</h1>`
-      + `<p class="detail">Frizz does not answer to <code>${shown}</code>. A name a browser has to resolve is how DNS rebinding makes another site's page count as this board, so an exposed board accepts only its own hostname and the names its operator lists.</p>`
-      + `<p class="note">Open the board by its IP address, or relaunch with <code>--allowed-host ${shown}</code> (or <code>FRIZZ_ALLOWED_HOSTS=${shown}</code>) to accept this one.</p>`,
+      + `<p class="detail">Ntwine does not answer to <code>${shown}</code>. A name a browser has to resolve is how DNS rebinding makes another site's page count as this board, so an exposed board accepts only its own hostname and the names its operator lists.</p>`
+      + `<p class="note">Open the board by its IP address, or relaunch with <code>--allowed-host ${shown}</code> (or <code>NTWINE_ALLOWED_HOSTS=${shown}</code>) to accept this one.</p>`,
   })
 }

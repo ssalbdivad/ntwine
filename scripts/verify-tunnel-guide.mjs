@@ -2,7 +2,7 @@
 /**
  * The tunnel guide, driven end to end over the real internet.
  *
- * `docs/cloudflare-tunnel` makes three claims about the Frizz side that no unit test can settle: that a
+ * `docs/cloudflare-tunnel` makes three claims about the Ntwine side that no unit test can settle: that a
  * board behind a tunnel accepts requests arriving as the public origin, that it REFUSES them without a
  * redeemed access code, and that scanning the link it prints turns a phone into a signed-in visitor.
  * Every one of those depends on headers a real Cloudflare edge sets and a loopback probe does not.
@@ -10,16 +10,16 @@
  * A QUICK TUNNEL (`cloudflared tunnel --url`) rather than a named one, deliberately: it needs no zone,
  * no DNS record and no account, so this can run on any machine without touching anyone's
  * infrastructure. The named-tunnel commands in the guide are verified separately against
- * `cloudflared --help`; what is under test here is Frizz's behaviour behind a real edge.
+ * `cloudflared --help`; what is under test here is Ntwine's behaviour behind a real edge.
  *
  * KNOWN EXTERNAL FAILURE, and read it before blaming this repo: on 2026-08-25 every quick tunnel from
  * this machine answered 404 for EVERY origin, including a trivial server that returns 200 to any path.
  * Both curl and fetch saw it, so the 404 comes from Cloudflare's edge and not from the board.
  * TryCloudflare is rate-limited and carries no uptime guarantee — it is documented as unreliable. If
  * this harness reports the tunnel never answering, prove the edge with a two-line origin server before
- * looking at Frizz, or point TUNNEL_GUIDE_HOSTNAME at a named tunnel on a zone you control.
+ * looking at Ntwine, or point TUNNEL_GUIDE_HOSTNAME at a named tunnel on a zone you control.
  *
- * Runs the BUILT artifact, not the source, because that is what `npx frizz` gives a reader of the guide.
+ * Runs the BUILT artifact, not the source, because that is what `npx ntwine` gives a reader of the guide.
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -33,7 +33,7 @@ const check = (name, ok, detail = "") => {
   console.log(`${ok ? "  ok  " : " FAIL "} ${name}${detail ? ` — ${detail}` : ""}`);
 };
 
-const home = mkdtempSync(join(tmpdir(), "frizz-tunnel-guide-"));
+const home = mkdtempSync(join(tmpdir(), "ntwine-tunnel-guide-"));
 let tunnel = null;
 let board = null;
 const kill = (child) => { try { child?.kill("SIGTERM"); } catch { /* already gone */ } };
@@ -58,15 +58,15 @@ try {
   check("a Cloudflare tunnel is up", true, origin);
 
   // 2. The BUILT artifact, told which origin fronts it.
-  board = spawn(process.execPath, ["dist/frizz.js", "--public-origin", origin, "--port", String(PORT), "--no-app"], {
+  board = spawn(process.execPath, ["dist/ntwine.js", "--public-origin", origin, "--port", String(PORT), "--no-app"], {
     cwd: process.cwd(),
-    env: { ...process.env, HOME: home, FRIZZ_WAKERS_OFF: "1" },
+    env: { ...process.env, HOME: home, NTWINE_WAKERS_OFF: "1" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let out = "";
   board.stdout.on("data", (d) => (out += d));
   board.stderr.on("data", (d) => (out += d));
-  const [, code] = await waitFor(board.stdout, /frizz_code=([A-Za-z0-9_-]+)/, "the access link");
+  const [, code] = await waitFor(board.stdout, /ntwine_code=([A-Za-z0-9_-]+)/, "the access link");
   check("the board printed a single-use access link", true, `${code.slice(0, 6)}…`);
 
   // 3. Reachable from the public internet, and REFUSED without the code.
@@ -92,16 +92,16 @@ try {
   check("and an uninvited visitor is refused", cold.status === 401, `HTTP ${cold.status}`);
 
   // 4. Redeeming the code is what a phone does when it scans the QR.
-  const redeem = await fetch(`${origin}/?frizz_code=${encodeURIComponent(code)}`, { redirect: "manual" });
+  const redeem = await fetch(`${origin}/?ntwine_code=${encodeURIComponent(code)}`, { redirect: "manual" });
   const cookie = (redeem.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
-  check("scanning the link trades the code for a session", redeem.status === 302 && cookie.includes("frizz_session="), `HTTP ${redeem.status}`);
+  check("scanning the link trades the code for a session", redeem.status === 302 && cookie.includes("ntwine_session="), `HTTP ${redeem.status}`);
 
   const board200 = await fetch(origin, { headers: { cookie } });
   const html = await board200.text();
   check("the board itself loads for a signed-in visitor", board200.status === 200 && html.includes('id="root"'), `HTTP ${board200.status}, ${html.length} bytes`);
 
   // 5. The code is SINGLE use — the whole reason the link is safe to put on screen.
-  const replay = await fetch(`${origin}/?frizz_code=${encodeURIComponent(code)}`, { redirect: "manual" });
+  const replay = await fetch(`${origin}/?ntwine_code=${encodeURIComponent(code)}`, { redirect: "manual" });
   check("the same code cannot be redeemed twice", replay.status === 401, `HTTP ${replay.status}`);
 } catch (error) {
   check("harness completed", false, error instanceof Error ? error.message : String(error));

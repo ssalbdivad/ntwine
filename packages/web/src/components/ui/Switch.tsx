@@ -1,4 +1,4 @@
-// THE APP'S PILL SWITCH — shadcn's shape (a track, a thumb, one slide) in frizz's tokens.
+// THE APP'S PILL SWITCH — shadcn's shape (a track, a thumb, one slide) in ntwine's tokens.
 //
 // It replaced a segmented `Off | On` pair wherever a single boolean is being set. That control was two
 // buttons and a border, so an off state still drew a box the eye had to read before finding which half

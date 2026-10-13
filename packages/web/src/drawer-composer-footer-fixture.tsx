@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { useState } from "react"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { Composer } from "./components/Composer.tsx"
 import { ProfileGridSelector } from "./components/ProfileGridSelector.tsx"
 import { QueueOpsSummary } from "./components/QueueOpsSummary.tsx"

@@ -1,5 +1,5 @@
 import { ExternalLink, FileText } from "lucide-react"
-import type { ThreadLinkView } from "@frizz/shared"
+import type { ThreadLinkView } from "@ntwine/shared"
 import { CHILD_ARROW, CHILD_ARROW_CLASS, CHILD_KIND_TAG_CLASS, CHILD_MARK_SLOT_CLASS } from "../lib/childOps.ts"
 import { openLocalPath } from "../lib/local-file-links.ts"
 import type { MarkdownScope } from "../lib/useMarkdown.ts"
@@ -14,7 +14,7 @@ import type { MarkdownScope } from "../lib/useMarkdown.ts"
 // "It should be the exact same spacing and padding"). `items-baseline` stays: the icon's
 // `self-baseline` cap-band correction below has nothing to align to on an `items-center` row.
 // THE LABEL STARTS WHERE EVERY OTHER LABEL STARTS: the slot and the tag come from lib/childOps.ts, and
-// the tag's width is the shared per-font track in styles.css (`.frizz-kind-tag`). This row used to
+// the tag's width is the shared per-font track in styles.css (`.ntwine-kind-tag`). This row used to
 // give itself a 1em slot, a 9px tag and a 33px tag column, which put its label 14.1px right of a SHELL
 // row's in mono and 7.2px in sans (maintainer, same day: "The label is further to the right. Why?
 // There's no reason for that at all"). Ink gaps after, scripts/ink-gaps.mjs at dsf 6, mono: arrow→icon

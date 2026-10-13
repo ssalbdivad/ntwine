@@ -2,12 +2,12 @@ import { execFile } from "node:child_process"
 import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { promisify } from "node:util"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 
 // REMOVING IDLE WORKTREES (Settings → Remove idle worktrees after, `removeIdleWorktreesDays`, 7 by
-// default, 0 = never). Frizz creates no worktree, mandates no folder for one and removes none on done
+// default, 0 = never). Ntwine creates no worktree, mandates no folder for one and removes none on done
 // (ARCHITECTURE.md § No worktree opinions). But agents that follow the common convention leave
-// `<main checkout>/.frizz/worktrees/<slug>` behind once their branch is merged, and nothing ever comes
+// `<main checkout>/.ntwine/worktrees/<slug>` behind once their branch is merged, and nothing ever comes
 // back for them. So once shortly after boot and daily after, every registered project's repository is
 // looked at, and a worktree in that ONE folder goes when nothing in it could be lost and nobody is in
 // it. It replaced (2026-10-07) a fork feature that removed the worktrees a thread's transcript named
@@ -17,23 +17,23 @@ import { log as frizzLog } from "./logging.ts"
 // A worktree is removed only when EVERY check below holds. The first that fails, or that cannot be
 // answered (git errors, a file that will not stat), keeps it, and the reason is logged:
 //
-//   1. It is a LINKED worktree git knows (`git worktree list --porcelain`), inside `.frizz/worktrees`
+//   1. It is a LINKED worktree git knows (`git worktree list --porcelain`), inside `.ntwine/worktrees`
 //      of its repository's main checkout. Not locked (`git worktree remove` would refuse one anyway),
 //      not already prunable.
-//   2. NO REGISTERED PROJECT IS IN IT. A worktree opened as a Frizz project has its own board and
+//   2. NO REGISTERED PROJECT IS IN IT. A worktree opened as an Ntwine project has its own board and
 //      threads, which another tenant's view of "in use" does not cover.
 //   3. NO OPEN THREAD IS WORKING IN IT. Any thread on this server that is Running, in the Queue, Pinned
 //      or Snoozed — every thread but an unpinned, resting Done one — whose working folder (the tailer's
 //      checkout reading, its background shells' folders, its recent sub-agents' folders) is the
 //      worktree or inside it. Read from EVERY open project, since a thread may work in another
 //      project's worktree; and a repository with a registered project this server has not opened (one
-//      served by another Frizz) is skipped whole, because that server's threads are invisible here.
+//      served by another Ntwine) is skipped whole, because that server's threads are invisible here.
 //   4. GIT SAYS IT IS CLEAN: no modified, staged or untracked file (`git status --porcelain`).
 //   5. EVERY IGNORED FILE IS REGENERABLE. `git worktree remove` without --force refuses modified and
 //      untracked files but deletes IGNORED ones silently, and a `.env`, a local database or a hand-made
 //      fixture is ignored precisely because it is not in git. An ignored entry may go only when it is,
 //      or lies under, a dependency or build folder named in REGENERABLE_DIRS, or is a file named in
-//      REGENERABLE_FILES, or is a `.frizz/` folder holding only Frizz's own `.id` / `.gitignore`
+//      REGENERABLE_FILES, or is a `.ntwine/` folder holding only Ntwine's own `.id` / `.gitignore`
 //      markers. A NAME list, not a size or age heuristic: what makes a file safe to delete is that a
 //      command rebuilds it, and the name is the only evidence of that git gives. A build output this
 //      list does not know keeps its worktree, which is the cheap direction to be wrong in.
@@ -55,9 +55,9 @@ export const WORKTREE_SWEEP_INTERVAL_MS = DAY_MS
 /** The boot pass waits ten minutes: long enough for every registered project to be opened and its
  *  threads folded (tenant-prime.ts), so the in-use check reads a complete board. */
 export const WORKTREE_FIRST_SWEEP_MS = 10 * 60_000
-/** The folder, relative to a repository's main checkout. The one convention Frizz recognizes (board.ts
+/** The folder, relative to a repository's main checkout. The one convention Ntwine recognizes (board.ts
  *  ignores it too; router.ts settleWorktreePath repairs links into it). */
-export const WORKTREE_FOLDER = path.join(".frizz", "worktrees")
+export const WORKTREE_FOLDER = path.join(".ntwine", "worktrees")
 
 /** Dependency and build folders: whatever is under one is rebuilt by an install or a build. */
 export const REGENERABLE_DIRS: ReadonlySet<string> = new Set([
@@ -66,8 +66,8 @@ export const REGENERABLE_DIRS: ReadonlySet<string> = new Set([
   "target", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".gradle",
 ])
 const REGENERABLE_FILES = [/\.tsbuildinfo$/, /^\.DS_Store$/, /\.py[co]$/, /^\.eslintcache$/]
-/** What Frizz itself writes into a folder it resolves as a project (project-root.ts). */
-const FRIZZ_MARKERS: ReadonlySet<string> = new Set([".id", ".gitignore"])
+/** What Ntwine itself writes into a folder it resolves as a project (project-root.ts). */
+const NTWINE_MARKERS: ReadonlySet<string> = new Set([".id", ".gitignore"])
 
 /** Whether an ignored entry (a `git status --ignored` path relative to the worktree; a trailing `/` is a
  *  wholly ignored folder) is safe to delete with its worktree. See check 5. */
@@ -77,16 +77,16 @@ export function regenerable(entry: string, worktree: string): boolean {
   const last = segments.at(-1)!
   if (entry.endsWith("/")) {
     if (REGENERABLE_DIRS.has(last)) return true
-    if (last === ".frizz") {
+    if (last === ".ntwine") {
       try {
-        return readdirSync(path.join(worktree, entry)).every((name) => FRIZZ_MARKERS.has(name))
+        return readdirSync(path.join(worktree, entry)).every((name) => NTWINE_MARKERS.has(name))
       } catch {
         return false
       }
     }
     return false
   }
-  if (segments.at(-2) === ".frizz" && FRIZZ_MARKERS.has(last)) return true
+  if (segments.at(-2) === ".ntwine" && NTWINE_MARKERS.has(last)) return true
   return REGENERABLE_FILES.some((re) => re.test(last))
 }
 
@@ -101,7 +101,7 @@ export interface WorktreeFacts {
   path: string
   locked?: boolean
   prunable?: boolean
-  /** A registered Frizz project at or under the worktree (check 2). */
+  /** A registered Ntwine project at or under the worktree (check 2). */
   project?: string
   /** An open thread working in it (check 3). */
   inUseBy?: FolderInUse
@@ -267,7 +267,7 @@ export interface RepoSweepInput {
   days: number
   /** Folders open threads are working in (check 3). */
   inUse: readonly FolderInUse[]
-  /** Registered Frizz projects, by display name and folder (check 2). */
+  /** Registered Ntwine projects, by display name and folder (check 2). */
   projects: readonly { name: string; dir: string }[]
   now?: number
   /** Asked between worktrees: a stopping server ends the pass early. */
@@ -276,7 +276,7 @@ export interface RepoSweepInput {
 
 export type RepoSweepResult = { removed: string[]; kept: { path: string; reason: string }[] }
 
-/** Sweep one repository's `.frizz/worktrees`. Never throws: every failure is a kept worktree. */
+/** Sweep one repository's `.ntwine/worktrees`. Never throws: every failure is a kept worktree. */
 export async function sweepRepoWorktrees(input: RepoSweepInput): Promise<RepoSweepResult> {
   const result: RepoSweepResult = { removed: [], kept: [] }
   const main = canonical(input.main)
@@ -338,7 +338,7 @@ export async function sweepRepoWorktrees(input: RepoSweepInput): Promise<RepoSwe
   } catch {}
   if (result.removed.length > 0) {
     await git(main, ["worktree", "prune"]).catch((error) => {
-      frizzLog.warn("worktrees", `${main}: git worktree prune failed: ${errorText(error)}`)
+      ntwineLog.warn("worktrees", `${main}: git worktree prune failed: ${errorText(error)}`)
     })
   }
   return result
@@ -380,12 +380,12 @@ export async function sweepIdleWorktrees(deps: WorktreeSweepDeps, stopped: () =>
     if (!existsSync(path.join(main, WORKTREE_FOLDER))) continue
     const closed = members.find((member) => !member.open)
     if (closed) {
-      frizzLog.info("worktrees", `${main}: skipped, ${closed.name} is not open on this server, so its threads cannot be checked`)
+      ntwineLog.info("worktrees", `${main}: skipped, ${closed.name} is not open on this server, so its threads cannot be checked`)
       continue
     }
     const result = await sweepRepoWorktrees({ main, days, inUse, projects, now: deps.now?.(), stopped })
-    for (const dir of result.removed) frizzLog.info("worktrees", `removed ${dir}: idle ${days}d or more, clean, nothing in use`)
-    for (const { path: dir, reason } of result.kept) frizzLog.info("worktrees", `kept ${dir}: ${reason}`)
+    for (const dir of result.removed) ntwineLog.info("worktrees", `removed ${dir}: idle ${days}d or more, clean, nothing in use`)
+    for (const { path: dir, reason } of result.kept) ntwineLog.info("worktrees", `kept ${dir}: ${reason}`)
     total.removed.push(...result.removed)
     total.kept.push(...result.kept)
   }
@@ -403,7 +403,7 @@ export function startIdleWorktreeSweep(deps: WorktreeSweepDeps, timing = { first
   const run = () => {
     if (stopped || running) return
     running = sweepIdleWorktrees(deps, () => stopped)
-      .catch((error) => frizzLog.warn("worktrees", `idle worktree sweep failed: ${errorText(error)}`))
+      .catch((error) => ntwineLog.warn("worktrees", `idle worktree sweep failed: ${errorText(error)}`))
       .finally(() => {
         running = undefined
       })

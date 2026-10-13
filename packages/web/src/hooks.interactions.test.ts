@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { InteractionRecord, ThreadView } from "@frizz/shared"
+import type { InteractionRecord, ThreadView } from "@ntwine/shared"
 import { nextInteractionExpiryDelay, ownedInteractionScope, pendingInteractionScope } from "./hooks.ts"
 
 function thread(over: Partial<ThreadView> = {}): ThreadView {

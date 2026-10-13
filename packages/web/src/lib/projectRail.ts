@@ -9,11 +9,11 @@ import { rpc } from "../api/rpc.ts"
  * `projectRail` lives in server settings, which arrive an RPC round trip after React's first render.
  * Without a local copy the rail was absent for that render and then appeared, pushing every page
  * 57px to the right in front of the operator on every refresh (maintainer 2026-08-25: "This is
- * layout shift"). Same problem, same cure as the font: `index.html` reads `frizz-font` from
+ * layout shift"). Same problem, same cure as the font: `index.html` reads `ntwine-font` from
  * localStorage before first paint, and `font.ts` writes it back whenever settings load. Wrong only on
  * the first load in a fresh browser profile — and wrong in the direction the server default is.
  */
-const MIRROR_KEY = "frizz-project-rail"
+const MIRROR_KEY = "ntwine-project-rail"
 
 function readMirror(): boolean {
   try {

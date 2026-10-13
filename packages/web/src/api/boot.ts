@@ -1,11 +1,11 @@
-import { bootReloadDecision } from "@frizz/shared"
+import { bootReloadDecision } from "@ntwine/shared"
 
 // Server-restart detection. The server mints a random boot id per process; it rides every board /
-// board-delta SSE frame AND the `x-frizz-boot` header on every /rpc response. A new id is adopted in
+// board-delta SSE frame AND the `x-ntwine-boot` header on every /rpc response. A new id is adopted in
 // place: the transport reconnects and supplies a new keyframe, while React keeps mounted composers,
 // focus, selection, and scroll intact. A boot boundary must never turn an ordinary board update into
 // document navigation that throws away an unsent draft.
-const KEY = "frizz-boot-id"
+const KEY = "ntwine-boot-id"
 
 function read(key: string): string | null {
   try {

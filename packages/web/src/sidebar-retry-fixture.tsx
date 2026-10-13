@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { ThreadRow, type RowScope } from "./components/Sidebar.tsx"
 import { Toaster } from "./components/Toaster.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -11,7 +11,7 @@ import "./styles.css"
 const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
 // The sidebar's one-click recovery verb: a STOPPED row (an exited session) — and a row KILLED by a
-// usage limit frizz will auto-resume — expose a hover-revealed Retry on the right edge. This fixture
+// usage limit ntwine will auto-resume — expose a hover-revealed Retry on the right edge. This fixture
 // renders the REAL ThreadRow for the two stopped rows (a [!] stalled crash AND a […] exited-at-rest)
 // and the limit-killed row (the YELLOW hourglass — accent like the [!], since 2026-08-31), plus — for
 // contrast — a live working row and a live turn-idle resting row (neither may grow the button).
@@ -23,7 +23,7 @@ const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(requestUrl, window.location.href)
-  if (url.pathname === "/_frizz/rpc/followUp") {
+  if (url.pathname === "/_ntwine/rpc/followUp") {
     const body = JSON.parse(String(init?.body ?? "{}"))
     const log = JSON.parse(window.sessionStorage.getItem("followUpCalls") ?? "[]")
     log.push(body)
@@ -32,7 +32,7 @@ window.fetch = async (input, init) => {
   }
   // Retry is an ordinary eager send, which also fires markRead for the slug — stub it so the click path
   // runs clean (no stray 404) exactly as it does against the real server.
-  if (url.pathname === "/_frizz/rpc/markRead") {
+  if (url.pathname === "/_ntwine/rpc/markRead") {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return nativeFetch(input, init)
@@ -77,7 +77,7 @@ const exitedAtRestThread = {
   needsYou: true,
 } as unknown as ThreadView
 
-// A worker KILLED because it hit its session limit, which frizz will auto-resume when the window
+// A worker KILLED because it hit its session limit, which ntwine will auto-resume when the window
 // resets. It wears the YELLOW hourglass — accent like the stalled [!], hourglass because a wake is
 // coming — and queues (needsYou), with the same hover Retry as a stall (maintainer 2026-08-31: every
 // yellow row carries the hover Retry).

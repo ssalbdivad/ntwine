@@ -44,7 +44,7 @@ export const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60_000
  * to a leak of session cookies — bump this and release — with nothing for an operator to run.
  *
  *   1  2026-10-08  the frizz.sh relay was serving a backdoored build that copied every visitor's
- *                  `frizz_session` cookie (2026-09-21 to 2026-10-08).
+ *                  `ntwine_session` cookie (2026-09-21 to 2026-10-08).
  *
  * Never lower it. A board that recorded a higher epoch than its code knows (a downgrade) is left alone.
  */
@@ -90,7 +90,7 @@ export type RedeemResult =
   | { ok: true; session: string; expiresAt: number; id: string }
   | { ok: false; reason: "unknown" | "expired" | "already-used" }
 
-/** One device that redeemed a link. `label` is for the human reading `frizz --sessions`. */
+/** One device that redeemed a link. `label` is for the human reading `ntwine --sessions`. */
 export interface SessionRecord {
   id: string
   label: string
@@ -254,12 +254,12 @@ export class AccessStore {
   }
 
   /**
-   * Sign out EVERY device: `frizz --sign-out all`, and what a session-epoch bump asks of a running board.
+   * Sign out EVERY device: `ntwine --sign-out all`, and what a session-epoch bump asks of a running board.
    *
    * The denylist alone is not enough for that. It names only the ids it recorded, so a session minted
    * before ids existed (2026-08-25), or while the directory was held in memory, would survive it. A new
    * key kills every outstanding session whatever it carries; the denylist entries are what make
-   * `frizz --sessions` stop listing those devices as signed in. Returns how many recorded devices that was.
+   * `ntwine --sessions` stop listing those devices as signed in. Returns how many recorded devices that was.
    */
   signOutAll(): number {
     this.signingKey = this.rotateSigningKey()
@@ -271,7 +271,7 @@ export class AccessStore {
    * a restart, and self-describing enough that a stale cookie is rejected without any lookup.
    *
    * The `id` is what makes ONE device signable-out. It is short because an operator types it into
-   * `frizz --sign-out <id>`, and it is inside the signed payload so it cannot be swapped for another
+   * `ntwine --sign-out <id>`, and it is inside the signed payload so it cannot be swapped for another
    * device's. Rotating the key still revokes everything at once; this is the scalpel beside that axe.
    *
    * A session minted before ids existed has a two-part payload and still verifies — it simply has no id
@@ -318,7 +318,7 @@ export class AccessStore {
   }
 
   /**
-   * Which device this session belongs to, for the audit trail: its record id (what `frizz --sessions`
+   * Which device this session belongs to, for the audit trail: its record id (what `ntwine --sessions`
    * lists and `--sign-out` takes), `"legacy"` for a session minted before ids existed, or null when it
    * does not verify. Never the session itself — the id is the one part of it that is not a credential.
    */
@@ -417,7 +417,7 @@ export function fileSessionDirectory(stateDir: string, now: () => number = Date.
       writeFileSync(path, JSON.stringify(inner.list()), { mode: 0o600 })
     } catch (error) {
       // Best effort. Losing the write costs a remembered sign-out, not correctness of the live board.
-      if (process.env.FRIZZ_DEBUG_SESSIONS) console.error("[sessions] flush failed:", error)
+      if (process.env.NTWINE_DEBUG_SESSIONS) console.error("[sessions] flush failed:", error)
     }
   }
   return {
@@ -469,9 +469,9 @@ export function loadOrCreateSessionKey(stateDir: string): Buffer {
  * most recently. Returns the folder it came from, or undefined when nothing moved.
  *
  * The key, the device list and the epoch live in the state folder of whatever the server runs on.
- * That was the project a launch happened in, so each folder Frizz was ever started from holds its
+ * That was the project a launch happened in, so each folder Ntwine was ever started from holds its
  * own, and starting it somewhere else was a different key: every phone signed out. The stable
- * launcher now always runs the server on Frizz's own folder (production.ts), which ends that — and
+ * launcher now always runs the server on Ntwine's own folder (production.ts), which ends that — and
  * would itself sign every device out once, the day it first starts with no key there. So the state
  * a phone is holding a cookie for comes along. "Most recently used" is the device list's own
  * timestamp where there is one, because a sign-in writes it and a key only records when it was made.
@@ -607,7 +607,7 @@ export function loadSessionState(stateDir: string, epoch: number = SESSION_EPOCH
   const key = loadOrCreateSessionKey(stateDir)
   const directory = fileSessionDirectory(stateDir)
   // The rotated key already refuses every old session. Marking them in the directory as well is what
-  // stops `frizz --sessions` listing those devices as still signed in.
+  // stops `ntwine --sessions` listing those devices as still signed in.
   const signedOut = advance.advanced ? directory.revokeAll() : 0
   return { key, directory, rotateKey: () => rotateSessionKey(stateDir), advance, signedOut }
 }

@@ -1,9 +1,9 @@
-// LIVE PROBE: what does the Agent SDK tell frizz about an input it DELIVERED, and when?
+// LIVE PROBE: what does the Agent SDK tell ntwine about an input it DELIVERED, and when?
 //   nub packages/server/src/backend/_live_broker_dequeue.mts
 //
 // The question this exists to answer, empirically, before any design:
 //  1. Does the SDK emit a `user` event for a delivered input, and does that event carry the `uuid`
-//     frizz supplied on `sendInput` (ClaudeAgentSdkSession.send writes it as the input message's uuid)?
+//     ntwine supplied on `sendInput` (ClaudeAgentSdkSession.send writes it as the input message's uuid)?
 //  2. Does the on-disk JSONL user record carry that same uuid?
 //  3. Are there `queue-operation` records on the broker path at all, and do they carry the id?
 //  4. TWO follow-ups sent at once mid-turn: what does the stream/disk look like when both are
@@ -141,11 +141,11 @@ try {
     const mid = (e.event as unknown as Record<string, unknown>).messageId
     return typeof mid === "string" && known.has(mid)
   })
-  console.log(`Q1 events carrying a frizz input id: ${idsInEvents.length}` +
+  console.log(`Q1 events carrying an ntwine input id: ${idsInEvents.length}` +
     (idsInEvents.length ? ` → ${idsInEvents.map((e) => `${e.event.kind}:${label((e.event as unknown as Record<string, unknown>).messageId as string)}@${e.ms}ms`).join(", ")}` : ""))
 
   const diskWithId = diskLines.filter((d) => typeof d.rec.uuid === "string" && known.has(d.rec.uuid as string))
-  console.log(`Q2 disk records carrying a frizz input id: ${diskWithId.length}` +
+  console.log(`Q2 disk records carrying an ntwine input id: ${diskWithId.length}` +
     (diskWithId.length ? ` → ${diskWithId.map((d) => `${String(d.rec.type)}:${label(d.rec.uuid as string)}@${d.ms}ms`).join(", ")}` : ""))
 
   const queueOps = diskLines.filter((d) => d.rec.type === "queue-operation")

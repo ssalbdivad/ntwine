@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { AcpAgentModels } from "@frizz/shared"
+import type { AcpAgentModels } from "@ntwine/shared"
 import { acpModelGroups } from "./acpModelOptions.ts"
 
 const advertised: AcpAgentModels = {

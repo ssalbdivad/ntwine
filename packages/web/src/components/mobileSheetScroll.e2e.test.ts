@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// FRIZZ_MOBILE_SHEET_SCROLL_E2E_URL=<vite origin> — `nub run test:e2e` sets it.
-const baseUrl = process.env.FRIZZ_MOBILE_SHEET_SCROLL_E2E_URL
+// NTWINE_MOBILE_SHEET_SCROLL_E2E_URL=<vite origin> — `nub run test:e2e` sets it.
+const baseUrl = process.env.NTWINE_MOBILE_SHEET_SCROLL_E2E_URL
 
 // A `.md` reader opened from a thread on a phone rendered and would not scroll: the thread sheet is a
 // modal Radix dialog below 800px, its react-remove-scroll lock cancelled every touchmove and wheel
@@ -23,9 +23,9 @@ test("a .md reader stacked over a thread scrolls by touch and by wheel on a phon
   try {
     await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
     await page.goto(`${baseUrl}/mobile-sheet-scroll-fixture.html`, { waitUntil: "networkidle0" })
-    await page.waitForSelector(".frizz-sheet-panel .md-body")
+    await page.waitForSelector(".ntwine-sheet-panel .md-body")
     await page.waitForSelector("[role=dialog][aria-modal=true]")
-    const scroller = await page.$eval(".frizz-sheet-panel .md-body", (body) => {
+    const scroller = await page.$eval(".ntwine-sheet-panel .md-body", (body) => {
       const el = body.closest<HTMLElement>(".overflow-y-auto")!
       el.setAttribute("data-test-reader-scroller", "")
       const box = el.getBoundingClientRect()

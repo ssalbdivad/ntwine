@@ -1,4 +1,4 @@
-import { qrAreaOf, renderQrLines } from "@frizz/server/qr";
+import { qrAreaOf, renderQrLines } from "@ntwine/server/qr";
 import type { AccessLink } from "./access-pane.ts";
 import { ALT_SCREEN_OFF, ALT_SCREEN_ON, CLEAR, DIM, fitScreen, HIDE_CURSOR, type OptionalLine, RESET, SHOW_CURSOR } from "./access-pane.ts";
 import { type CloudConfig, customNamesOffered, describeCloudConfig } from "./cloud.ts";
@@ -13,7 +13,7 @@ import { applyRemoteChoice, type ClaimSignIn, kindOf, type RemoteChoice, type Re
  * Why here and not in flags: the choice is made once, and it is a walkthrough, not a switch. Each
  * setup has a prerequisite (a tunnel created in another terminal, a Tailscale daemon) that a flag
  * can only fail on, while a screen can check it, print the commands, and ask for
- * exactly the one or two values Frizz cannot find out for itself. What it saves is served by every
+ * exactly the one or two values Ntwine cannot find out for itself. What it saves is served by every
  * later plain launch; "Off" clears it.
  *
  * The pane is a small state machine over a handful of screens, rendered whole on every change. Keys
@@ -62,10 +62,10 @@ interface Choice {
 /** Every setup, in menu order. The menu shows the subset `choicesFor` picks, never this list directly. */
 const CHOICES: Choice[] = [
   { kind: "private", title: "Private name", blurb: "an unguessable name on frizz.sh — no account, nothing to install" },
-  { kind: "frizz", title: "Custom name", blurb: "<name>.frizz.sh of your choosing; needs a GitHub account" },
+  { kind: "ntwine", title: "Custom name", blurb: "<name>.frizz.sh of your choosing; needs a GitHub account" },
   { kind: "cloudflare", title: "Cloudflare Tunnel", blurb: "a domain you own on Cloudflare; cloudflared on this machine" },
   { kind: "tailscale", title: "Tailscale", blurb: "your tailnet; tailscale serve does the TLS" },
-  { kind: "other", title: "Something else", blurb: "any proxy or tunnel you run — tell Frizz its address" },
+  { kind: "other", title: "Something else", blurb: "any proxy or tunnel you run — tell Ntwine its address" },
   { kind: "off", title: "Off", blurb: "loopback only" },
 ];
 
@@ -79,12 +79,12 @@ const CHOICES: Choice[] = [
  */
 function choicesFor(current: CloudConfig | null): Choice[] {
   if (customNamesOffered()) return CHOICES;
-  if (kindOf(current) === "frizz") {
+  if (kindOf(current) === "ntwine") {
     return CHOICES.map((choice) =>
-      choice.kind === "frizz" ? { ...choice, blurb: `${current!.hostname} — kept and renewed; new custom names are paused` } : choice,
+      choice.kind === "ntwine" ? { ...choice, blurb: `${current!.hostname} — kept and renewed; new custom names are paused` } : choice,
     );
   }
-  return CHOICES.filter((choice) => choice.kind !== "frizz");
+  return CHOICES.filter((choice) => choice.kind !== "ntwine");
 }
 
 const ENTER = new Set(["\r", "\n"]);
@@ -160,7 +160,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
         "Reach this board from anywhere",
         "",
         ...wrap(
-          "Frizz binds 127.0.0.1 and has no login. Reaching it from another device means something in front of it does the authenticating. Whatever you pick here is remembered; from then on a plain `npx frizz` serves it.",
+          "Ntwine binds 127.0.0.1 and has no login. Reaching it from another device means something in front of it does the authenticating. Whatever you pick here is remembered; from then on a plain `npx ntwine` serves it.",
         ),
         "",
         ...choices().map((choice, index) => {
@@ -182,7 +182,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
         const cursor = focused ? "█" : "";
         return `${field.label.padEnd(10)} ${shown}${cursor}`;
       });
-      write([...head, "", ...fields, ...(s.note ? ["", s.note] : []), "", `${DIM}enter ${s.kind === "frizz" ? "claim" : "save"} · tab next field · esc back${RESET}`]);
+      write([...head, "", ...fields, ...(s.note ? ["", s.note] : []), "", `${DIM}enter ${s.kind === "ntwine" ? "claim" : "save"} · tab next field · esc back${RESET}`]);
       return;
     }
     if (s.name === "busy") {
@@ -223,7 +223,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
   };
 
   const formHead = (kind: FormKind): string[] => {
-    if (kind === "frizz") {
+    if (kind === "ntwine") {
       return [
         "Custom frizz.sh name",
         "",
@@ -235,7 +235,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
           : []),
         "",
         ...wrap(
-          "When you claim, Frizz shows a code to enter at github.com/login/device. The sign-in grants Frizz no permissions: it only tells the registrar which account you are.",
+          "When you claim, Ntwine shows a code to enter at github.com/login/device. The sign-in grants Ntwine no permissions: it only tells the registrar which account you are.",
         ),
       ];
     }
@@ -258,7 +258,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
         "  cloudflared tunnel route dns my-board board.example.com",
         "",
         ...wrap(
-          `Point it at http://127.0.0.1:${options.port} in ~/.cloudflared/frizz.yml, which Frizz reads by name. Then name them here, and Frizz runs the tunnel beside the board, so the two share a lifetime.`,
+          `Point it at http://127.0.0.1:${options.port} in ~/.cloudflared/ntwine.yml, which Ntwine reads by name. Then name them here, and Ntwine runs the tunnel beside the board, so the two share a lifetime.`,
         ),
       ];
     }
@@ -280,14 +280,14 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
         "",
         `  tailscale serve --bg ${options.port}`,
         "",
-        "Tailscale answers at the address below — that is the origin Frizz accepts.",
+        "Tailscale answers at the address below — that is the origin Ntwine accepts.",
       ];
     }
     return [
       "Something else",
       "",
       ...wrap(
-        `Terminate TLS wherever you like, proxy to http://127.0.0.1:${options.port}, and give Frizz the exact origin a browser will show — scheme and host, no path. Frizz answers only to that Host and prints a single-use sign-in link.`,
+        `Terminate TLS wherever you like, proxy to http://127.0.0.1:${options.port}, and give Ntwine the exact origin a browser will show — scheme and host, no path. Ntwine answers only to that Host and prints a single-use sign-in link.`,
       ),
     ];
   };
@@ -296,7 +296,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
     const current = options.current();
     const same = kindOf(current) === kind ? current : null;
     let fields: Field[];
-    if (kind === "frizz") {
+    if (kind === "ntwine") {
       fields = [{ label: "Name", value: same?.claim ?? "" }];
     } else if (kind === "cloudflare") {
       cloudflared = "pending";
@@ -331,7 +331,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
   // access takes, so the two surfaces cannot drift on what a choice means.
   const run = async (choice: RemoteChoice, back: Screen) => {
     try {
-      const name = choice.kind === "frizz" ? choice.name.trim() : "";
+      const name = choice.kind === "ntwine" ? choice.name.trim() : "";
       const abort = new AbortController();
       const next = await applyRemoteChoice(choice, {
         apply: options.apply,
@@ -350,7 +350,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
                 `Open      ${prompt.verificationUri}`,
                 `Enter     ${prompt.userCode}`,
                 "",
-                ...wrap("on this or any other device. Frizz asks GitHub for no permissions; the sign-in only names your account to the registrar."),
+                ...wrap("on this or any other device. Ntwine asks GitHub for no permissions; the sign-in only names your account to the registrar."),
               ],
               cancel: () => abort.abort(),
             };
@@ -371,8 +371,8 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
   const submit = (form: Extract<Screen, { name: "form" }>) => {
     const first = valueOf(form.fields[0]!);
     const choice: RemoteChoice =
-      form.kind === "frizz"
-        ? { kind: "frizz", name: first }
+      form.kind === "ntwine"
+        ? { kind: "ntwine", name: first }
         : form.kind === "cloudflare"
           ? { kind: "cloudflare", hostname: first, tunnel: valueOf(form.fields[1]!) }
           : { kind: form.kind, origin: first };
@@ -386,7 +386,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
   // its own — apply renews the lease by keypair, exactly as every launch does.
   const serveCurrent = async () => {
     const current = options.current();
-    const back: Screen = { name: "menu", index: rowOf("frizz") };
+    const back: Screen = { name: "menu", index: rowOf("ntwine") };
     if (!current) return;
     screen = { name: "busy", message: `serving ${current.hostname}…` };
     paint();
@@ -436,7 +436,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
           const choice = rows[Math.min(s.index, rows.length - 1)]!;
           if (choice.kind === "off") void turnOff();
           else if (choice.kind === "private") void claimPrivate();
-          else if (choice.kind === "frizz" && !customNamesOffered()) void serveCurrent();
+          else if (choice.kind === "ntwine" && !customNamesOffered()) void serveCurrent();
           else openForm(choice.kind);
           return "keep";
         }

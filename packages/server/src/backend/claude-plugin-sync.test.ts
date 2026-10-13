@@ -9,7 +9,7 @@ import { claudeClosureFingerprint, claudePluginSyncEnabled, createClaudePluginSy
 
 /** A project and an operator config dir the test owns, and a way to write a file under either. */
 function closureDirs() {
-  const root = mkdtempSync(join(tmpdir(), "frizz-closure-"))
+  const root = mkdtempSync(join(tmpdir(), "ntwine-closure-"))
   const closure = { projectDir: join(root, "project"), configDir: join(root, "home", ".claude") }
   mkdirSync(closure.projectDir, { recursive: true })
   mkdirSync(closure.configDir, { recursive: true })
@@ -221,8 +221,8 @@ test("a successful reload says so, and names load errors when there are any", as
   assert.match(h.state.log.at(-1)!, /reloaded in place with 2 load error\(s\)/)
 })
 
-test("FRIZZ_PLUGIN_SYNC_OFF=1 is the opt-out, and nothing else is", () => {
+test("NTWINE_PLUGIN_SYNC_OFF=1 is the opt-out, and nothing else is", () => {
   assert.equal(claudePluginSyncEnabled({}), true)
-  assert.equal(claudePluginSyncEnabled({ FRIZZ_PLUGIN_SYNC_OFF: "0" }), true)
-  assert.equal(claudePluginSyncEnabled({ FRIZZ_PLUGIN_SYNC_OFF: "1" }), false)
+  assert.equal(claudePluginSyncEnabled({ NTWINE_PLUGIN_SYNC_OFF: "0" }), true)
+  assert.equal(claudePluginSyncEnabled({ NTWINE_PLUGIN_SYNC_OFF: "1" }), false)
 })

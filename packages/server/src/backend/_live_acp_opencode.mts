@@ -54,7 +54,7 @@ const conn = new AcpConnection(proc, {
   onDiagnostic: (d) => { if (d.kind !== "stderr") console.log(`[diagnostic ${d.kind}] ${d.message}`) },
 })
 
-const init = AcpInitializeResult.parse(await conn.request("initialize", { protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "frizz", version: "0" } }, { timeoutMs: 30_000 }))
+const init = AcpInitializeResult.parse(await conn.request("initialize", { protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "ntwine", version: "0" } }, { timeoutMs: 30_000 }))
 console.log(`agent: ${init.agentInfo?.name ?? "?"} ${init.agentInfo?.version ?? ""} loadSession=${init.agentCapabilities?.loadSession}`)
 const sess = AcpNewSessionResult.parse(await conn.request("session/new", { cwd, mcpServers: [{ name: "probe", command: process.execPath, args: [mcpScript], env: [] }] }))
 console.log(`session ${sess.sessionId}; model=${String(sess.configOptions?.find((o) => o.category === "model")?.currentValue ?? "?")}`)

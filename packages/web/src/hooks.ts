@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
-import type { BackgroundShellOutputResult, BoardSnapshot, InteractionRecord, ThreadView, TranscriptMessage, TranscriptPage } from "@frizz/shared"
+import type { BackgroundShellOutputResult, BoardSnapshot, InteractionRecord, ThreadView, TranscriptMessage, TranscriptPage } from "@ntwine/shared"
 import { store, threadBySlug } from "./store.ts"
 import { projectRpc, rpc } from "./api/rpc.ts"
 import { projectQueryKeyHash } from "./lib/queryKeyScope.ts"
@@ -355,7 +355,7 @@ export function useTranscript(slug: string, opts: { poll: boolean }) {
       if (attempts >= MAX_HEAL_ATTEMPTS) return
       attempts++
       lastHealNewest = newest
-      console.warn("[frizz] transcript watchdog: stale view — self-healing", { slug, lagMs: step.lagMs, transport: socket ? "socket" : "poll", attempt: attempts })
+      console.warn("[ntwine] transcript watchdog: stale view — self-healing", { slug, lagMs: step.lagMs, transport: socket ? "socket" : "poll", attempt: attempts })
       if (socket) {
         // Re-establish the server-side subscription (drop→re-add on the ref count) so future pushes resume.
         unsubscribeTranscript(slug)

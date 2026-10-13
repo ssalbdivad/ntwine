@@ -52,7 +52,7 @@ const shared: BuildOptions = {
   external: ["vscode", "bufferutil", "utf-8-validate"],
   absWorkingDir: pkg,
   logLevel: "warning",
-  define: { __FRIZZ_BUILD__: JSON.stringify(stamp) },
+  define: { __NTWINE_BUILD__: JSON.stringify(stamp) },
 }
 
 await build({ ...shared, entryPoints: ["src/extension.ts"], outfile: join(dist, "extension.cjs") })

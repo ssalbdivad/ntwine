@@ -16,13 +16,13 @@ test("both worker backends receive the gerund activity-caption contract", () => 
 
 // ONE PLACE FOR WORKTREES. The contract named none until 2026-10-11, and four projects on one machine
 // had four conventions, two of them outside the project. The path is also known to the server: the
-// board's `.frizz` watcher prunes `worktrees` (board.test.ts pins that list) and repo-files.ts reads a
+// board's `.ntwine` watcher prunes `worktrees` (board.test.ts pins that list) and repo-files.ts reads a
 // worktree's own ignore rules, so a contract that moves the location has to move those with it.
 test("every backend sends worktrees to one directory inside the project", () => {
   for (const backend of ["claude", "codex", "acp"] as const) {
     const prompt = buildWorkerPrompt(backend)
     assert.match(prompt, /^## Git worktrees$/m)
-    assert.match(prompt, /`git worktree add \.frizz\/worktrees\/<slug> -b <slug>`/)
+    assert.match(prompt, /`git worktree add \.ntwine\/worktrees\/<slug> -b <slug>`/)
     assert.match(prompt, /A project that names its own worktree location or command keeps it/)
     assert.match(prompt, /never move or remove one you did not create/)
   }
@@ -81,7 +81,7 @@ test("the contract teaches that a registered question draws itself at the bottom
     assert.match(prompt, /draws NOTHING: one question, one card/)
     // The card is last, so the explanation is first — said where the worker asks AND where it stops.
     assert.match(c, /THE CARD IS THE LAST THING THE USER READS — PUT EVERY WORD OF EXPLANATION BEFORE IT/)
-    assert.match(c, /frizz draws the question at the BOTTOM of the handoff of the rest that asked it, below its last line/)
+    assert.match(c, /ntwine draws the question at the BOTTOM of the handoff of the rest that asked it, below its last line/)
     // A question stays at the rest that asked it (upstream 2026-10-05) — a later rest names it under
     // `questions:` or withdraws it, said once, where the worker stops. A typed message changes nothing
     // about it: it stays open until it is answered, dismissed or withdrawn. The refusal of a re-ask is
@@ -89,7 +89,7 @@ test("the contract teaches that a registered question draws itself at the bottom
     assert.match(c, /AT EVERY LATER REST, SAY WHERE EACH OLD QUESTION STANDS/)
     assert.match(c, /A QUESTION STAYS OPEN UNTIL IT IS ANSWERED, THE USER DISMISSES IT, OR YOU WITHDRAW IT/)
     assert.match(c, /A message\s+the user types instead of answering does not close it/)
-    assert.doesNotMatch(c, /SETS IT ASIDE|`keep`|mcp__frizz__keep/)
+    assert.doesNotMatch(c, /SETS IT ASIDE|`keep`|mcp__ntwine__keep/)
     assert.doesNotMatch(c, /A REPLY PAST A QUESTION IS A PIVOT/)
     assert.doesNotMatch(c, /`unask` the old id and `ask` again/)
     // Answers come a question at a time, so the worker must act on each as it lands — the reason the
@@ -163,9 +163,9 @@ test("the contract puts a draft being approved inside the option that sends it",
 })
 
 // A worker asked "can you see the highlighted code?" answered that it could not: a command it has never
-// heard named is one it never reaches for, so `frizzctl editor` reaches it only if the contract names it,
+// heard named is one it never reaches for, so `ntwinectl editor` reaches it only if the contract names it,
 // with the words that should make it reach for it. Since 2026-10-06 that holds while an editor has the
-// project open — the only time the MCP mount lists the tool (frizz-mcp GATED_TOOLS) — and otherwise the
+// project open — the only time the MCP mount lists the tool (ntwine-mcp GATED_TOOLS) — and otherwise the
 // contract does not name it at all.
 // The section is the ONLY difference the capability makes: spliced out, the contract is the default one
 // byte for byte, so the goldens (which pin the default) still pin every other word of the gated build.
@@ -173,8 +173,8 @@ test("every backend's contract names the editor tool, and when to call it, only 
   for (const backend of ["claude", "codex", "acp"] as const) {
     const withEditor = buildWorkerPrompt(backend, { editor: true })
     const without = buildWorkerPrompt(backend)
-    assert.match(withEditor.replace(/\s+/g, " "), /When the user points at code they have not pasted — "this", "the selected code", "the error" — run `frizzctl editor`/)
-    assert.doesNotMatch(without, /frizzctl editor|## The (?:user|human)'s editor/)
+    assert.match(withEditor.replace(/\s+/g, " "), /When the user points at code they have not pasted — "this", "the selected code", "the error" — run `ntwinectl editor`/)
+    assert.doesNotMatch(without, /ntwinectl editor|## The (?:user|human)'s editor/)
     assert.equal(buildWorkerPrompt(backend, { editor: false }), without)
     const section = withEditor.slice(withEditor.indexOf("## The user's editor"), withEditor.indexOf("\n\n## ", withEditor.indexOf("## The user's editor")))
     assert.equal(withEditor.replace(`\n\n${section}`, ""), without)
@@ -192,7 +192,7 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
     assert.match(prompt, /```awaiting\n {2}title: Approve the npm sign-in so the release can publish\n {2}steps:\n {4}- Open \[the npm sign-in this thread started\]/)
     // Its properties: verbatim, names the human (so no other name and no `for:`), always queues, and its
     // one verb comes back as the human's own reply — anything else is a message of their own.
-    assert.match(c, /The `title:` and `steps:` values are the exceptions: frizz reads them verbatim/)
+    assert.match(c, /The `title:` and `steps:` values are the exceptions: ntwine reads them verbatim/)
     assert.match(c, /Steps NAME THE USER as the wait, so the fence needs no other name and no `for:`/)
     assert.match(c, /it always puts the thread in their queue/)
     assert.match(c, /anything else they need to tell you — a step that failed, the account they used — comes as a message of their own/)
@@ -202,7 +202,7 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
     // by a bad/good pair, and the example fence itself carries a link.
     assert.match(c, /EVERY STEP IS CLICKABLE AND COMPLETE — A STEP THAT MAKES THE USER GO LOOKING IS A BROKEN STEP/)
     assert.match(c, /every page it names is a real Markdown link to that exact page/)
-    assert.match(c, /Good: `Open the \[Frizz account audit log\]\(https:\/\/dash\.cloudflare\.com\/<account-id>\/audit-log\)/)
+    assert.match(c, /Good: `Open the \[Ntwine account audit log\]\(https:\/\/dash\.cloudflare\.com\/<account-id>\/audit-log\)/)
     assert.match(prompt, /steps:\n {4}- Open \[the npm sign-in this thread started\]\(https:\/\/www\.npmjs\.com\/login\?next=\/login\/cli\/9f3c2a71\)[^\n]*\n {4}- /)
     // THE FIRST TEST (maintainer 2026-10-10): a step is only what the worker cannot do itself. It sits
     // AHEAD of clickable-and-complete, and the example fence obeys it — the command is the worker's, run
@@ -221,27 +221,27 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
     assert.match(c, /Something the user must DO \("re-pull before you restart"\) is not a dangling idea either: hand it to them under `steps:`/)
     assert.doesNotMatch(c, /that is the handoff, and it belongs in the prose/)
     // And the registered first cut is gone from the contract entirely.
-    assert.doesNotMatch(c, /mcp__frizz__instruct|\buninstruct\b/)
+    assert.doesNotMatch(c, /mcp__ntwine__instruct|\buninstruct\b/)
   }
 })
 
 // COMMAND WATCHES ARE CLAUDE-ONLY (2026-10-11). The server refuses every Codex and ACP thread one
 // (command-watch.ts `commandWatchRefusal`), so only Claude's contract may teach the key, the week-long
 // ceiling and the route to it; anywhere else each mention is a refused call per wait. Claude's must
-// also say why a polling shell is the wrong wait, and where the loop goes when Frizz refuses.
+// also say why a polling shell is the wrong wait, and where the loop goes when Ntwine refuses.
 test("only the Claude contract teaches command watches, and it routes outside-condition waits to them", () => {
   const claude = buildWorkerPrompt("claude")
-  assert.match(claude, /`commands:` — command watches you REGISTERED with `frizzctl watch-command add`/)
+  assert.match(claude, /`commands:` — command watches you REGISTERED with `ntwinectl watch-command add`/)
   assert.match(claude, /`commands:` with nothing but those, where it runs to a week/)
-  assert.match(claude, /`frizzctl watch-command add "<check that exits 0 once it holds>" --every 5m --for 6h`/)
+  assert.match(claude, /`ntwinectl watch-command add "<check that exits 0 once it holds>" --every 5m --for 6h`/)
   assert.match(claude, /Not a polling loop in a background shell/)
   assert.match(claude, /can never be hibernated/)
-  assert.match(claude, /Only when Frizz REFUSES it[\s\S]{0,140}does the loop go in a background shell/)
+  assert.match(claude, /Only when Ntwine REFUSES it[\s\S]{0,140}does the loop go in a background shell/)
   for (const backend of ["codex", "acp"] as const) {
     const prompt = buildWorkerPrompt(backend)
     assert.doesNotMatch(prompt, /watch-command|commands:|cmw_/, backend)
-    assert.doesNotMatch(prompt, /\{\{FRIZZ_/, backend)
+    assert.doesNotMatch(prompt, /\{\{NTWINE_/, backend)
     assert.match(prompt, /where it runs to a year — and at 30 minutes/, backend)
-    assert.match(prompt, /`frizzctl watch-issue`\.\n    For anything else stay ACTIVE/, backend)
+    assert.match(prompt, /`ntwinectl watch-issue`\.\n    For anything else stay ACTIVE/, backend)
   }
 })

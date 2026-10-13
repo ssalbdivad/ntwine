@@ -1,10 +1,10 @@
-import { claudeEditionIsNewer, claudeFamilyLabel, parseClaudeWireId, type ClaudeModel } from "@frizz/shared"
+import { claudeEditionIsNewer, claudeFamilyLabel, parseClaudeWireId, type ClaudeModel } from "@ntwine/shared"
 import { hibernationVerdict, type HibernationBlock, type HibernationCandidate } from "../thread-hibernation.ts"
 import type { SessionRow, Storage } from "../storage.ts"
 import type { SessionTelemetry } from "../tailer.ts"
 import { claudeBrokerRecordPath, liveBrokerRecord } from "./claude-broker-host.ts"
 
-// A Claude thread can fall BEHIND its own model family. Frizz dispatches on the family alias (`opus`) and
+// A Claude thread can fall BEHIND its own model family. Ntwine dispatches on the family alias (`opus`) and
 // the pinned runtime resolves it, so when a pin bump moves the alias (Claude Code 2.1.280 took `opus` from
 // Opus 5 to Opus 5.5) every worker started after the bump runs the new edition — and every worker started
 // before it keeps the old one, because a daemon keeps the `claude` binary it was forked with for as long as
@@ -88,7 +88,7 @@ export function claudeModelUpgradeRefusal(blockedBy: HibernationBlock): string {
     case "sub-agents": return "Wait for the thread's sub-agents to finish"
     case "background-shells": return "Wait for the thread's background shells to finish"
     case "undelivered-input": return "Wait for the last message to reach the worker"
-    case "not-a-broker-thread": return "Only a Claude thread Frizz runs can be upgraded"
+    case "not-a-broker-thread": return "Only a Claude thread Ntwine runs can be upgraded"
     case "archived": return "Reopen this thread before upgrading it"
     default: return "This thread's state cannot be read yet"
   }

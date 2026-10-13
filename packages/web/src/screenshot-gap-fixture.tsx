@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { ThreadView } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
@@ -22,7 +22,7 @@ import "./styles.css"
 // The GAPS are readable on a plain Vite dev server — they are decided by the tool's `sentImages`
 // field, not by whether the bytes arrived (pictureSpacing.e2e.test.ts asserts them there). To SEE the
 // frames, the picture has to load, and `/local-image` is not something Vite serves: run
-// `scripts/adhoc-stack.mjs`, proxy `/_frizz` at it from the Vite server, and pass `?shot=<abs path>` to
+// `scripts/adhoc-stack.mjs`, proxy `/_ntwine` at it from the Vite server, and pass `?shot=<abs path>` to
 // a real PNG under a trusted root (the OS temp dir is one). Without that, the gallery lists its path as
 // text — which is honest, but it is not the mass this page exists to judge.
 //
@@ -46,7 +46,7 @@ const PARAMS = new URLSearchParams(location.search)
 const CASE = PARAMS.get("case") ?? "shimmer"
 const LIVE = CASE === "shimmer" || CASE === "control" || CASE === "folded"
 const AGO = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString()
-const SHOT = PARAMS.get("shot") ?? "/tmp/frizz-shot-gap/report.png"
+const SHOT = PARAMS.get("shot") ?? "/tmp/ntwine-shot-gap/report.png"
 
 document.documentElement.dataset.font = PARAMS.get("font") === "mono" ? "mono" : "sans"
 
@@ -80,7 +80,7 @@ const thread = {
   spawnedAt: AGO(400),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/Users/colinmcd94/Documents/projects/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/Users/colinmcd94/Documents/projects/ntwine", threads: [thread] } as BoardSnapshot
 
 const bash = (desc: string, command: string, status = "completed") => ({ name: "Bash", detail: command, command, desc, status })
 const picture = (caption: string) => ({ name: "SendUserFile", detail: caption, sentImages: [SHOT], caption, status: "completed", durationMs: 120 })
@@ -118,7 +118,7 @@ const tail: TranscriptMessage[] = (
       ] as unknown as TranscriptMessage[])
     : CASE === "folded"
     ? ([
-        { sourceId: "m3", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [imageRead("/tmp/frizz-shot-gap/report.png")] }], at: AGO(40) },
+        { sourceId: "m3", role: "assistant", text: "", tools: [], parts: [{ kind: "tools", tools: [imageRead("/tmp/ntwine-shot-gap/report.png")] }], at: AGO(40) },
       ] as unknown as TranscriptMessage[])
     : CASE === "control"
     ? ([
@@ -172,7 +172,7 @@ const messages = [
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : ((input as Request).url ?? input.toString()), location.origin)
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(
       JSON.stringify({ result: { messages, transcriptKey: `${SLUG}-key`, hasEarlier: false, historyLoaded: true } }),
       { headers: { "content-type": "application/json" } },
@@ -180,14 +180,14 @@ window.fetch = async (input, init) => {
   }
   // The thread view reads its answered questions on mount; an empty object would hand React Query an
   // undefined list, which it logs as an error.
-  if (url.pathname === "/_frizz/rpc/threadSettledQuestions") {
+  if (url.pathname === "/_ntwine/rpc/threadSettledQuestions") {
     return new Response(JSON.stringify({ result: { questions: [] } }), { headers: { "content-type": "application/json" } })
   }
   // Lists too: the spinoff dialog iterates both.
-  if (url.pathname === "/_frizz/rpc/projectsQueues" || url.pathname === "/_frizz/rpc/projectsList") {
+  if (url.pathname === "/_ntwine/rpc/projectsQueues" || url.pathname === "/_ntwine/rpc/projectsList") {
     return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)

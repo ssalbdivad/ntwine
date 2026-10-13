@@ -23,7 +23,7 @@ import { Select } from "./ui/Select.tsx"
 const KINDS: { value: RemoteKind; label: string }[] = [
   { value: "off", label: "Off" },
   { value: "private", label: "Private frizz.sh name" },
-  { value: "frizz", label: "Custom frizz.sh name" },
+  { value: "ntwine", label: "Custom frizz.sh name" },
   { value: "cloudflare", label: "Cloudflare Tunnel" },
   { value: "tailscale", label: "Tailscale" },
   { value: "other", label: "Something else" },
@@ -33,7 +33,7 @@ const REMOTE_ACCESS_KEY = ["remoteAccess"] as const
 
 /** The setup in force, as the form's fields — so re-saving it, or changing one value, starts from what is there. */
 function fieldsOf(current: RemoteSetupView): Record<string, string> {
-  if (current.kind === "frizz") return { name: current.name ?? "" }
+  if (current.kind === "ntwine") return { name: current.name ?? "" }
   if (current.kind === "cloudflare") return { hostname: current.origin?.replace(/^https:\/\//, "") ?? "", tunnel: current.tunnel ?? "" }
   if (current.kind === "tailscale" || current.kind === "other") return { origin: current.origin ?? "" }
   return {}
@@ -52,7 +52,7 @@ export function RemoteAccessField() {
     return (
       <SettingsField label="Remote access" help={SETTINGS_HELP.remoteAccess}>
         <p className={HINT}>
-          This launch serves this machine only. Start Frizz with <code>npx frizz</code> (or <code>frizz-dev</code> from a
+          This launch serves this machine only. Start Ntwine with <code>npx ntwine</code> (or <code>ntwine-dev</code> from a
           checkout) to set up remote access.
         </p>
       </SettingsField>
@@ -92,24 +92,24 @@ function RemoteAccessForm({ state }: { state: RemoteAccessState }) {
 
   const choice = (): RemoteChoice => {
     if (kind === "off" || kind === "private") return { kind }
-    if (kind === "frizz") return { kind, name: field("name") }
+    if (kind === "ntwine") return { kind, name: field("name") }
     if (kind === "cloudflare") return { kind, hostname: field("hostname"), tunnel: field("tunnel") }
     return { kind, origin: field("origin") || (kind === "tailscale" ? tailscaleOrigin : "") }
   }
 
-  const unchanged = kind === current.kind && kind !== "frizz" && kind !== "cloudflare" && kind !== "tailscale" && kind !== "other"
+  const unchanged = kind === current.kind && kind !== "ntwine" && kind !== "cloudflare" && kind !== "tailscale" && kind !== "other"
   const busy = change.isPending
   // A custom-name claim waits on a GitHub device code while its POST is pending; the launcher reports the
   // code through the same reading, so poll it for as long as that wait can last.
   const live = useQuery({
     queryKey: REMOTE_ACCESS_KEY,
     queryFn: () => readRemoteAccess(),
-    enabled: busy && kind === "frizz",
-    refetchInterval: busy && kind === "frizz" ? 1_500 : false,
+    enabled: busy && kind === "ntwine",
+    refetchInterval: busy && kind === "ntwine" ? 1_500 : false,
   })
-  const signIn = busy && kind === "frizz" && live.data?.kind === "ready" ? live.data.state.signIn ?? null : null
+  const signIn = busy && kind === "ntwine" && live.data?.kind === "ready" ? live.data.state.signIn ?? null : null
   const error = change.error instanceof Error ? change.error.message : fresh.error instanceof Error ? fresh.error.message : null
-  const applyLabel = busy ? "Applying…" : kind === "off" ? "Turn off" : kind === "private" ? "Get a private name" : kind === "frizz" ? "Claim" : "Save"
+  const applyLabel = busy ? "Applying…" : kind === "off" ? "Turn off" : kind === "private" ? "Get a private name" : kind === "ntwine" ? "Claim" : "Save"
 
   return (
     <div className="flex flex-col gap-2.5" data-remote-access>
@@ -185,10 +185,10 @@ function KindDetails({
   if (kind === "private") {
     return <p className={HINT}>An unguessable name on frizz.sh. No account, nothing to install.</p>
   }
-  if (kind === "frizz") {
+  if (kind === "ntwine") {
     return (
       <>
-        <p className={HINT}>Claiming asks you to confirm a GitHub account with a one-time code. Frizz gets no GitHub permissions. One name per account.</p>
+        <p className={HINT}>Claiming asks you to confirm a GitHub account with a one-time code. Ntwine gets no GitHub permissions. One name per account.</p>
         <input
           aria-label="Name"
           className={INPUT}

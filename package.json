@@ -1,10 +1,10 @@
 {
-  "name": "frizz",
+  "name": "ntwine",
   "version": "0.13.13",
   "private": false,
   "description": "A local web UI for running many coding agents at once",
   "keywords": [
-    "frizz",
+    "ntwine",
     "agents",
     "claude-code",
     "codex",
@@ -13,31 +13,34 @@
     "ai"
   ],
   "license": "MIT",
-  "author": "Colin McDonnell",
-  "homepage": "https://github.com/colinhacks/frizz",
+  "author": "David Blass",
+  "contributors": [
+    "Colin McDonnell (original design, colinhacks/frizz)"
+  ],
+  "homepage": "https://github.com/ssalbdivad/ntwine",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/colinhacks/frizz.git"
+    "url": "git+https://github.com/ssalbdivad/ntwine.git"
   },
   "engines": {
     "node": "^22.13.0 || >=23.4.0"
   },
   "type": "module",
   "bin": {
-    "frizz": "./dist/frizz.js"
+    "ntwine": "./dist/ntwine.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "dev": "nub src/dev.ts",
-    "frizz-dev:install": "nub scripts/install-global-cli.mjs",
-    "frizz-dev:check": "nub scripts/install-global-cli.mjs --check",
-    "frizz-dev:uninstall": "nub scripts/install-global-cli.mjs --uninstall",
+    "ntwine-dev:install": "nub scripts/install-global-cli.mjs",
+    "ntwine-dev:check": "nub scripts/install-global-cli.mjs --check",
+    "ntwine-dev:uninstall": "nub scripts/install-global-cli.mjs --uninstall",
     "install:global": "nub scripts/install-global-cli.mjs",
-    "vscode:build": "nub run --filter frizz-vscode build",
-    "vscode:package": "nub run --filter frizz-vscode package",
-    "vscode:install": "nub run --filter frizz-vscode package && nub packages/vscode/scripts/install.ts",
+    "vscode:build": "nub run --filter ntwine-vscode build",
+    "vscode:package": "nub run --filter ntwine-vscode package",
+    "vscode:install": "nub run --filter ntwine-vscode package && nub packages/vscode/scripts/install.ts",
     "typecheck": "tsc -b packages/shared packages/rpc packages/claude-agent-sdk-runtime packages/server packages/registrar packages/relay . packages/web packages/vscode",
     "test": "nub scripts/run-tests.mjs",
     "test:e2e": "nub scripts/e2e-web.mjs",
@@ -48,8 +51,8 @@
     "@parcel/watcher": "^2.5"
   },
   "devDependencies": {
-    "@frizz/server": "workspace:*",
-    "@frizz/shared": "workspace:*",
+    "@ntwine/server": "workspace:*",
+    "@ntwine/shared": "workspace:*",
     "@types/node": "^24",
     "@types/ws": "^8.5",
     "esbuild": "^0.25.0",
@@ -69,8 +72,8 @@
       "esbuild"
     ]
   },
-  "frizzServer": {
-    "package": "frizz-server",
+  "ntwineServer": {
+    "package": "ntwine-server",
     "version": "0.15.23",
     "minimum": "0.15.21",
     "protocol": 1,

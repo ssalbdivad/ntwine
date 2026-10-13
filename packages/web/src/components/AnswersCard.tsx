@@ -5,7 +5,7 @@ import { BLOCK_RADIUS, CardContent, CardHead } from "./TranscriptCard.tsx"
 
 // THE HUMAN'S ANSWER, on their own side of the conversation. Three different acts compose the message
 // this renders — answering a ```question fence, answering a native ask, and answering a question the
-// worker REGISTERED (`frizzctl ask`) — and all three write the one wire form `parseAnswersCard`
+// worker REGISTERED (`ntwinectl ask`) — and all three write the one wire form `parseAnswersCard`
 // reads, so all three land here rather than in three shapes of bubble.
 //
 // It lived inside ChatView until 2026-08-27, when the registered path needed it too: that path's answer
@@ -17,7 +17,7 @@ export function AnswersCard({ answers, queued, sourceId }: { answers: PairedAnsw
   // Every row already drawn by a settled question card (ChatView's withoutSettledAnswers): no empty shell.
   if (rows.length === 0) return null
   return (
-    <div data-frizz-msg={sourceId} data-answers-card className={`self-end flex w-full max-w-[85%] flex-col items-end ${queued ? "opacity-50" : ""}`}>
+    <div data-ntwine-msg={sourceId} data-answers-card className={`self-end flex w-full max-w-[85%] flex-col items-end ${queued ? "opacity-50" : ""}`}>
       <div className={`w-full min-w-0 ${BLOCK_RADIUS} rounded-br-sm border border-border-strong bg-elevated p-4`}>
         <CardHead icon={ListChecks} label="Answers" />
         <CardContent>

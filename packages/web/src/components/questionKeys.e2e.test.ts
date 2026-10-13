@@ -7,9 +7,9 @@ import test from "node:test"
 // tested where layout exists, against the registered-question fixture's `?keys=1`: two queue cards (the
 // settings store + the land-it tree, then the commit gates) with the real Settings drawer and ⌘K palette
 // mounted off the store. Skipped unless a Vite URL serving the fixtures is provided (same pattern as the
-// other *.e2e.test.ts here): start `vite` in packages/web and set FRIZZ_QUESTION_KEYS_E2E_URL to its
+// other *.e2e.test.ts here): start `vite` in packages/web and set NTWINE_QUESTION_KEYS_E2E_URL to its
 // origin, or run `nub run test:e2e`, which sets it.
-const baseUrl = process.env.FRIZZ_QUESTION_KEYS_E2E_URL
+const baseUrl = process.env.NTWINE_QUESTION_KEYS_E2E_URL
 
 type Page = import("puppeteer").Page
 
@@ -25,7 +25,7 @@ async function launch() {
   const page = await browser.newPage()
   // These are independent keyboard cases, not navigation persistence cases. A fresh document now
   // restores staged picks, so explicitly clear the draft cache before each fixture load.
-  await page.evaluateOnNewDocument(() => localStorage.removeItem("frizz-drafts:v1"))
+  await page.evaluateOnNewDocument(() => localStorage.removeItem("ntwine-drafts:v1"))
   await page.setViewport({ width: 900, height: 800 })
   const errors: string[] = []
   page.on("console", (m) => { if (m.type() === "error" && !/404|favicon/i.test(m.text())) errors.push(m.text()) })

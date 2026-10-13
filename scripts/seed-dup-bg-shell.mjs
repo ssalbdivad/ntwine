@@ -83,7 +83,7 @@ for (const t of threads) {
   execFileSync("sqlite3", [
     db,
     `INSERT INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, title_auto, backend, model, effort, permission_mode, state, unread, exited, archived)
-     VALUES (${sessionVals}'${t.slug}', '${t.sessionId}', 'frizz-${t.slug}', '${T(0)}', '${t.title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
+     VALUES (${sessionVals}'${t.slug}', '${t.sessionId}', 'ntwine-${t.slug}', '${T(0)}', '${t.title}', 0, 'claude', 'opus', 'high', 'auto', 'open', 0, 0, 0)`,
   ])
   console.log(`seeded ${t.slug} (${t.sessionId})`)
 }

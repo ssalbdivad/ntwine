@@ -1,15 +1,15 @@
-// LIVE PROBE: does a codex background exec's row survive a Frizz restart that rejoins the same app-server?
+// LIVE PROBE: does a codex background exec's row survive an Ntwine restart that rejoins the same app-server?
 //   nub packages/server/src/backend/_live_codex_bgterm_reseed.mts
 //   CODEX_BIN=/path/to/codex overrides the binary (default: the provisioned 0.158.0 pin, then PATH).
 //
 // The row comes only from the bridge's `liveExecs` level, which is folded off `item/started`. That
 // notification goes to whichever client is attached when the exec starts, and the app-server outlives
-// Frizz (the native listener is detached), so after a restart the exec keeps running in its PTY while
+// Ntwine (the native listener is detached), so after a restart the exec keeps running in its PTY while
 // the new bridge has never heard of it. The fix re-seeds the level from `thread/backgroundTerminals/list`
 // on a rejoin of the same process (codex-app-server.ts seedLiveExecs). This drives the REAL thing:
 //
 //   Q1. A real yielded exec becomes a live exec on bridge A (the precondition).
-//   Q2. Closing bridge A — a Frizz restart — leaves the exec's OS process running.
+//   Q2. Closing bridge A — an Ntwine restart — leaves the exec's OS process running.
 //   Q3. A fresh bridge B on the same database and state dir rejoins the SAME listener and lists the
 //       exec, with the same processId, without any new turn. Before the fix this was [].
 //   Q4. When that exec then ends on its own (the probe SIGKILLs its OS process), does the row clear on
@@ -31,7 +31,7 @@ import { createStorage } from "../storage.ts"
 
 const UNIQ = 733
 const control = process.env.RESEED_CONTROL === "1"
-const PIN = join(homedir(), ".frizz/runtimes/codex/0.158.0/vendor/aarch64-apple-darwin/bin/codex")
+const PIN = join(homedir(), ".ntwine/runtimes/codex/0.158.0/vendor/aarch64-apple-darwin/bin/codex")
 const codexBin = process.env.CODEX_BIN ?? (existsSync(PIN) ? PIN : "codex")
 const projectId = "cxreseed"
 const stateDir = mkdtempSync(join(tmpdir(), "cxreseed-state-"))

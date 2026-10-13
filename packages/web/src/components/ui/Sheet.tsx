@@ -21,7 +21,7 @@ import {
 //
 // ONE LAYER HOLDS THAT LOCK: the topmost live one. react-remove-scroll lets exactly one lock decide — the
 // one that MOUNTED last — and it cancels every wheel and touchmove outside that lock's own element. A
-// plain sheet stacked over a thread (a `.md` reader, a sub-agent, a shell, the frizz-doc) is a sibling
+// plain sheet stacked over a thread (a `.md` reader, a sub-agent, a shell, the ntwine-doc) is a sibling
 // of the thread's Radix dialog, not inside it, so while the thread's lock was the deciding one the
 // sheet on top rendered and would not scroll a pixel on a phone. Mount order cannot be trusted to put
 // the right lock last: Radix mounts its lock a commit late (its Portal waits for a layout effect), so a
@@ -44,7 +44,7 @@ export function useIsTopDrawer(id: number): boolean {
 }
 
 // …and in an editor's sidebar at ANY width (lib/embed.ts): its drawers are the frame's full width
-// (styles.css `html[data-embed] .frizz-sheet-panel`), so they cover the page as a phone's do and must take
+// (styles.css `html[data-embed] .ntwine-sheet-panel`), so they cover the page as a phone's do and must take
 // the modal's lock and focus trap with them — a sidebar dragged past 800px otherwise scrolled the list
 // under an open thread.
 export function useNarrowDrawer(): boolean {

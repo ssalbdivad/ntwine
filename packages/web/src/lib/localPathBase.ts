@@ -1,5 +1,5 @@
 // Where a relative path written in prose points. Agents name files the way they typed them into a
-// shell — `packages/web/src/App.tsx`, `.frizz/threads/<id>/HANDOFF.md`, `~/.claude/CLAUDE.md` — and the
+// shell — `packages/web/src/App.tsx`, `.ntwine/threads/<id>/HANDOFF.md`, `~/.claude/CLAUDE.md` — and the
 // server has always resolved those against the project directory for a path in INLINE CODE
 // (local-file.ts `resolveOpenableFile`, behind rpc.resolveLocalPaths). A path written as a Markdown
 // LINK had no such base in chat, so it stayed a relative href and the browser resolved it against the

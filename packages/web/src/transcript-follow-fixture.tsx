@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
-import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView as ThreadViewModel, TranscriptMessage } from "@ntwine/shared"
 import { ThreadView } from "./components/ChatView.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { mergeOptimistic, preserveMessageIdentity } from "./lib/transcript-sync.ts"
@@ -45,10 +45,10 @@ let page: Page = { messages: seed, transcriptKey: "fixture-key", hasEarlier: fal
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  if (url.pathname === "/_frizz/rpc/threadTranscript" || url.pathname === "/_frizz/rpc/threadTranscriptEarlier") {
+  if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(JSON.stringify({ result: page }), { headers: { "content-type": "application/json" } })
   }
-  if (url.pathname.startsWith("/_frizz/rpc/")) {
+  if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   return originalFetch(input, init)
@@ -84,7 +84,7 @@ const thread = {
   lastActivityAt: at(20),
 } as unknown as ThreadViewModel
 
-store.board = { projectDir: "/fixture/frizz", threads: [thread] } as BoardSnapshot
+store.board = { projectDir: "/fixture/ntwine", threads: [thread] } as BoardSnapshot
 // Socket mode: no 1.5s interval refetch racing the scripted pushes below.
 store.socketTranscripts = true
 
@@ -100,7 +100,7 @@ function push(messages: TranscriptMessage[]) {
 
 function setRunning(running: boolean) {
   store.board = {
-    projectDir: "/fixture/frizz",
+    projectDir: "/fixture/ntwine",
     threads: [{ ...thread, runtime: running ? "running" : "idle" } as ThreadViewModel],
   } as BoardSnapshot
 }

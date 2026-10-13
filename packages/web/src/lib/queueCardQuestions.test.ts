@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { questionAnswerMessage } from "@frizz/shared"
+import { questionAnswerMessage } from "@ntwine/shared"
 import { handoffQuestionSlots } from "./queueCardQuestions.ts"
 
 // The queue card's three places for a question while it shows the handoff (lib/queueCardQuestions.ts):
@@ -10,7 +10,7 @@ import { handoffQuestionSlots } from "./queueCardQuestions.ts"
 const at = (min: number) => new Date(Date.UTC(2026, 9, 6, 9, min)).toISOString()
 const human = (min: number, text = "Rotate the signing key.") => ({ role: "user", text, at: at(min) })
 const worker = (min: number, text = "Here is where it stands.") => ({ role: "assistant", text, at: at(min) })
-// A frizz wake — a CI result, a timer — is a TURN to the anchor readers (it closes a rest) but not the
+// An ntwine wake — a CI result, a timer — is a TURN to the anchor readers (it closes a rest) but not the
 // human's: the card's bubble stays on the human's own message.
 const wake = (min: number) => ({ role: "user", text: "CI finished: all checks passed.", wake: true, at: at(min) })
 const question = (id: string, askedMin: number) => ({ id, askedAt: at(askedMin) })
@@ -51,7 +51,7 @@ test("a question from before the human's last turn flushes above the bubble, as 
 })
 
 test("the human's turn is THEIR turn: an answer delivered as a wake is one, a plain wake is not", () => {
-  // The registered answer frizz delivers counts as the human's turn (lastHumanTurnIndex), so a question
+  // The registered answer ntwine delivers counts as the human's turn (lastHumanTurnIndex), so a question
   // asked before it is above the bubble; the CI wake after it is not, so one asked between is BETWEEN.
   const answer = { role: "user", text: questionAnswerMessage([{ questionId: "qst_x", question: "Which key?", chosen: ["The new one"] }]), wake: true, at: at(2) }
   const messages = [human(0), worker(1), answer, worker(3), wake(4), worker(5)]

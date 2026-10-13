@@ -11,8 +11,8 @@ import { createInterface } from "node:readline"
 const args = process.argv.slice(2)
 const executablePath = process.argv[1] ?? ""
 const pathScenario = /^fake-claude--([a-z0-9-]+)(?:\.mjs)?$/i.exec(basename(executablePath))?.[1]
-const scenario = process.env.FRIZZ_FAKE_CLAUDE_SCENARIO ?? pathScenario ?? "basic"
-const capturePath = process.env.FRIZZ_FAKE_CLAUDE_CAPTURE ?? (pathScenario ? join(dirname(executablePath), "capture.jsonl") : undefined)
+const scenario = process.env.NTWINE_FAKE_CLAUDE_SCENARIO ?? pathScenario ?? "basic"
+const capturePath = process.env.NTWINE_FAKE_CLAUDE_CAPTURE ?? (pathScenario ? join(dirname(executablePath), "capture.jsonl") : undefined)
 const requestedSessionId = optionValue("--session-id") ?? optionValue("--resume") ?? "00000000-0000-4000-8000-000000000001"
 const sessionId = scenario === "mismatch" ? "00000000-0000-4000-8000-000000000099" : requestedSessionId
 const eventSessionId = scenario === "late-mismatch" ? "00000000-0000-4000-8000-000000000098" : sessionId
@@ -80,8 +80,8 @@ record({
   mcpConfigFileMode,
   cwd: process.cwd(),
   environment: {
-    frizzFakeInheritedPresent: process.env.FRIZZ_FAKE_INHERITED !== undefined,
-    frizzFakeOverridePresent: process.env.FRIZZ_FAKE_OVERRIDE !== undefined,
+    ntwineFakeInheritedPresent: process.env.NTWINE_FAKE_INHERITED !== undefined,
+    ntwineFakeOverridePresent: process.env.NTWINE_FAKE_OVERRIDE !== undefined,
     clientApp: process.env.CLAUDE_AGENT_SDK_CLIENT_APP,
     entrypoint: process.env.CLAUDE_CODE_ENTRYPOINT,
     pathPresent: typeof process.env.PATH === "string" && process.env.PATH.length > 0,
@@ -94,7 +94,7 @@ record({
     githubTokenPresent: process.env.GITHUB_TOKEN !== undefined,
     openaiApiKeyPresent: process.env.OPENAI_API_KEY !== undefined,
     awsSecretAccessKeyPresent: process.env.AWS_SECRET_ACCESS_KEY !== undefined,
-    frizzSecretPresent: process.env.FRIZZ_SHOULD_NOT_LEAK !== undefined,
+    ntwineSecretPresent: process.env.NTWINE_SHOULD_NOT_LEAK !== undefined,
     arbitrarySecretPresent: process.env.ARBITRARY_SECRET !== undefined,
     // The lifted worker caps, captured as the values that ACTUALLY reached the process. They spent
     // their whole life set on a spawn path nothing called, so every reader believed they were applied
@@ -183,7 +183,7 @@ function handleHostControl(message) {
     return
   }
   // The ONLY place real claude reports where a skill was resolved from — `SlashCommand` carries no
-  // source at all. Shaped like 2.1.246's answer: "projectSettings" is a root frizz maps, the invented
+  // source at all. Shaped like 2.1.246's answer: "projectSettings" is a root ntwine maps, the invented
   // root proves an unmapped one leaves its row unlabelled rather than mislabelled, and "compact" is a
   // frontmatter entry that is NOT a skill, so it must never reach the listing. "commit" is a
   // `.claude/commands/` file: a user root, though the init frame does not call it a skill.
@@ -227,7 +227,7 @@ function handleHostControl(message) {
     return
   }
   // Real claude names the session from `description` and, when `persist` is set, appends the
-  // `ai-title` transcript record frizz reads. The fake only needs to prove the REQUEST is made once,
+  // `ai-title` transcript record ntwine reads. The fake only needs to prove the REQUEST is made once,
   // with the dispatch prompt and persistence on, so it records and echoes a derived title.
   if (request.subtype === "generate_session_title") {
     record({ kind: "session-title", description: request.description, persist: request.persist })
@@ -620,7 +620,7 @@ function initializationPayload() {
     // "review" and "explore" are also named by the init frame's `skills` array below; "compact" is
     // not — it stands in for a built-in command, which listSkills offers beside the skills. "clear",
     // "__remote-workflow" and "extra-usage" stand in for the built-ins it must NOT offer: one that would
-    // break a Frizz thread, the CLI's internal plumbing, and a row kept only to name its successor.
+    // break an Ntwine thread, the CLI's internal plumbing, and a row kept only to name its successor.
     commands: [
       // Real claude appends its own root to a skill description as a trailing parenthetical. "review"
       // carries the one that MATCHES its reported source and must lose it; "explore" carries one that

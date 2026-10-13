@@ -27,7 +27,7 @@ test("detached daemon output names strip the .ts and drop the directory", () => 
 })
 
 test("the entry resolver prefers the bundled .js, falls back to source .ts, and names both when neither is there", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-daemon-entry-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-daemon-entry-"))
   const callerUrl = pathToFileURL(join(dir, "index.js")).href
 
   // A promoted artifact: one bundle plus the daemons emitted beside it.
@@ -55,7 +55,7 @@ test("the entry resolver prefers the bundled .js, falls back to source .ts, and 
 test("no shipped module resolves a sibling .ts at runtime — that path does not exist in an artifact", () => {
   const roots = [join(workspaceRoot, "packages", "server", "src"), join(workspaceRoot, "src")]
   // The ONE exemption, and it is a knowing one. dev-supervisor.ts forks dev-bootstrap.ts, but the dev
-  // supervisor is the SOURCE launcher — `frizz-dev` runs from a checkout where that file exists.
+  // supervisor is the SOURCE launcher — `ntwine-dev` runs from a checkout where that file exists.
   // Emitting it into artifacts to close the gap was tried and REVERTED: it woke a control-plane fork
   // that had been failing fast in every artifact ever built, and the woken path crashed on an
   // unguarded IPC send and left delegates registered against the developer's live project, wedging

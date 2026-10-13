@@ -20,8 +20,8 @@ const PNG = Uint8Array.from(
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  if (url.pathname === "/_frizz/local-image") return new Response(PNG, { headers: { "content-type": "image/png" } })
-  if (url.pathname.startsWith("/_frizz/rpc/")) return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
+  if (url.pathname === "/_ntwine/local-image") return new Response(PNG, { headers: { "content-type": "image/png" } })
+  if (url.pathname.startsWith("/_ntwine/rpc/")) return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })
   return originalFetch(input, init)
 }
 
@@ -30,14 +30,14 @@ window.fetch = async (input, init) => {
 // tile), each removable.
 const INITIAL = [
   "Please review these attachments before we start on the redesign.",
-  "/tmp/frizz-att/hero-mock.png",
-  "/tmp/frizz-att/before-after.webp",
-  "/tmp/frizz-att/spec-notes.pdf",
-  "/tmp/frizz-att/metrics.csv",
+  "/tmp/ntwine-att/hero-mock.png",
+  "/tmp/ntwine-att/before-after.webp",
+  "/tmp/ntwine-att/spec-notes.pdf",
+  "/tmp/ntwine-att/metrics.csv",
 ].join("\n")
 
 function Fixture() {
-  const [wide, setWide] = useState("Ship the new dashboard layout.\n/tmp/frizz-att/wireframe.png")
+  const [wide, setWide] = useState("Ship the new dashboard layout.\n/tmp/ntwine-att/wireframe.png")
   const [narrow, setNarrow] = useState(INITIAL)
   return (
     <div className="min-h-screen bg-bg text-fg flex flex-col items-center gap-10 p-10">

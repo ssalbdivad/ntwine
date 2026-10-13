@@ -2,7 +2,7 @@
 //
 // Every build said `0.1.0`, and the server dropped the hello's version on the floor, so when the
 // maintainer asked "is this window running the fix?" nobody could say: not the output channel, not the
-// status bar, not Frizz (review-final.md item 7). Now each build carries its version, the commit it was
+// status bar, not Ntwine (review-final.md item 7). Now each build carries its version, the commit it was
 // built from (and whether the tree had uncommitted changes in what the bundle is made of), when it was
 // built, and a random id. The label — `0.1.0+1a2b3c4d`, `0.1.0+1a2b3c4d-dirty` — is what the hello, the
 // log and the status bar's tooltip say; the id is what tells two builds apart, since two builds of one
@@ -36,10 +36,10 @@ export const BUILD_FILE = join("dist", "build.json")
 
 // esbuild's `define` replaces this identifier with the build's record. Run from source (the unit tests,
 // `nub` on a module) it is not defined, and the build reads as the source tree's.
-declare const __FRIZZ_BUILD__: BuildInfo | undefined
+declare const __NTWINE_BUILD__: BuildInfo | undefined
 
 /** This bundle's build, or — run from source, never built — a stand-in that names no commit. */
-export const BUILD: BuildInfo = typeof __FRIZZ_BUILD__ === "undefined" ? { version: "0.0.0", id: "source" } : __FRIZZ_BUILD__
+export const BUILD: BuildInfo = typeof __NTWINE_BUILD__ === "undefined" ? { version: "0.0.0", id: "source" } : __NTWINE_BUILD__
 
 /** `0.1.0+1a2b3c4d`, `0.1.0+1a2b3c4d-dirty`, or the bare version when no commit is known (semver build metadata). */
 export function buildLabel(build: Pick<BuildInfo, "version" | "commit" | "dirty">): string {

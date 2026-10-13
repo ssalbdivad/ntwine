@@ -1,4 +1,4 @@
-// LIVE REPRO of the maintainer's report, at the frizz SERVER level (real broker + real tailer + real
+// LIVE REPRO of the maintainer's report, at the ntwine SERVER level (real broker + real tailer + real
 // delivery ledger + real transcript projection):
 //   nub packages/server/src/backend/_live_broker_dupe.mts
 //
@@ -75,7 +75,7 @@ function dump(phase: string): void {
 
 try {
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -137,7 +137,7 @@ try {
   const leftover = parseDeliveryLedger(storage.getSession(slug)?.delivery_ledger)
   ok("the delivery ledger is empty", leftover.length === 0, `${leftover.length} left: ${leftover.map((i) => i.state).join(",")}`)
 
-  // THE IDENTITY CLAIM, verified end to end through the real bridge: frizz's deliveryId must come back
+  // THE IDENTITY CLAIM, verified end to end through the real bridge: ntwine's deliveryId must come back
   // as the queued_command attachment's source_uuid. That is what makes correlation exact.
   const path = claudeBackend.transcriptPath(sessionId)!
   const echoed = new Map<string, string>()

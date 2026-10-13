@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import "./styles.css"
-import type { GithubRefCard } from "@frizz/shared"
+import type { GithubRefCard } from "@ntwine/shared"
 import { GithubHovercards } from "./components/GithubHovercards.tsx"
 import { GithubRefCardBody } from "./components/GithubRefCardBody.tsx"
 import { setGithubRepo } from "./lib/githubAutolink.ts"

@@ -1,4 +1,4 @@
-import { INTERACTION_PROTOCOL_VERSION, InteractionRequest, type InteractionRequest as InteractionRequestType } from "@frizz/shared"
+import { INTERACTION_PROTOCOL_VERSION, InteractionRequest, type InteractionRequest as InteractionRequestType } from "@ntwine/shared"
 import type { InteractionSessionScope, InteractionStore } from "../interaction-store.ts"
 import { redactCredentialSyntax } from "../credential-redaction.ts"
 import { log } from "../logging.ts"
@@ -12,16 +12,16 @@ import {
   contentText, parseSessionUpdate,
   type AcpInitializeResult as AcpInitializeResultType, type AcpMcpServerStdio, type AcpRequestPermissionResult, type AcpToolCallUpdate,
 } from "./acp-types.ts"
-import { FRIZZ_MCP, frizzCliEnv, frizzMcpEnv, withFrizzCliOnPath, type FrizzCli, type FrizzMcp } from "./types.ts"
+import { NTWINE_MCP, ntwineCliEnv, ntwineMcpEnv, withNtwineCliOnPath, type NtwineCli, type NtwineMcp } from "./types.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
-import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@frizz/shared"
+import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@ntwine/shared"
 
 // The ACP backend's bridge: one live agent child per thread, driven over acp-rpc.ts, writing the
 // thread's transcript through acp-transcript.ts. It is the third of three transports and deliberately
 // the shallowest (plans/acp-backend.md): no daemon, no sub-agents, no quota, no steer.
 //
 // What it owns per session:
-//   - the child (spawn → initialize → session/new or session/load with the frizz MCP server mounted);
+//   - the child (spawn → initialize → session/new or session/load with the ntwine MCP server mounted);
 //   - the turn: `session/prompt` is long-lived and its response IS the end of the turn, so exactly one
 //     is in flight at a time and a follow-up that arrives mid-turn QUEUES and goes out the moment the
 //     current one returns (ACP has no steer; plan decision 8);
@@ -31,7 +31,7 @@ import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@frizz/shared
 //     resolves it and CANCELLED (fail closed) when the turn ends, the session is released or nobody can
 //     answer — the Claude bridge's contract, because a card nothing terminalizes never leaves the queue.
 //
-// The agent runs inside a DETACHED DAEMON (acp-daemon.ts, attached through acp-host.ts), so a Frizz
+// The agent runs inside a DETACHED DAEMON (acp-daemon.ts, attached through acp-host.ts), so an Ntwine
 // restart or crash only drops the socket: the agent, its running turn and every sub-agent inside it keep
 // going, and `warmUp()` reattaches at the next boot — adopting the in-flight `session/prompt` as the live
 // turn and raising afresh any permission card the dead runtime was holding. Until 2026-09-24 the agent
@@ -43,15 +43,15 @@ import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@frizz/shared
 export interface AcpBridgeOptions {
   projectId: string
   stateDir: string
-  /** The frizz MCP descriptor; absent ⇒ the worker simply lacks the frizz tools. */
-  frizzMcp?: FrizzMcp
+  /** The ntwine MCP descriptor; absent ⇒ the worker simply lacks the ntwine tools. */
+  ntwineMcp?: NtwineMcp
   /** Which threads get that mount. Absent ⇒ every thread. An ACP thread's contract is its first prompt,
-   *  so one started under the `frizzctl` contract is given no MCP server, and one that predates it
+   *  so one started under the `ntwinectl` contract is given no MCP server, and one that predates it
    *  keeps the server it was told about at every re-open. */
   mountsMcp?: (threadSlug: string) => boolean
-  /** Present ⇒ the agent's shell can run `frizzctl`: its directory goes on PATH and the agent's
+  /** Present ⇒ the agent's shell can run `ntwinectl`: its directory goes on PATH and the agent's
    *  environment names the server, the project and — one daemon per thread — the calling thread. */
-  frizzCli?: FrizzCli
+  ntwineCli?: NtwineCli
   interactions?: InteractionStore
   /** The operator's environment; filtered through inheritWorkerEnvironment before the child sees it. */
   env?: NodeJS.ProcessEnv
@@ -188,13 +188,13 @@ export function acpEffortOption(configOptions: readonly AcpConfigOption[]): { id
 
 function clip(text: string, max: number): string { return text.length > max ? `${text.slice(0, max - 1)}…` : text }
 
-function frizzMcpServer(mcp: FrizzMcp | undefined, slug: string): AcpMcpServerStdio[] {
+function ntwineMcpServer(mcp: NtwineMcp | undefined, slug: string): AcpMcpServerStdio[] {
   if (!mcp) return []
   return [{
-    name: FRIZZ_MCP.name,
+    name: NTWINE_MCP.name,
     command: process.execPath,
     args: [mcp.scriptPath],
-    env: Object.entries(frizzMcpEnv({ ...mcp, slug })).map(([name, value]) => ({ name, value })),
+    env: Object.entries(ntwineMcpEnv({ ...mcp, slug })).map(([name, value]) => ({ name, value })),
   }]
 }
 
@@ -212,7 +212,7 @@ function toolResultText(tc: AcpToolCallUpdate): string {
   return ""
 }
 
-/** An ACP permission request as a Frizz card. The card's decision ids are the CANONICAL ones the web
+/** An ACP permission request as an Ntwine card. The card's decision ids are the CANONICAL ones the web
  *  renders buttons for (typedInteractions.ts `specFor`); the agent's own optionIds are kept beside the
  *  pending entry and echoed back verbatim on the answer. */
 export function buildAcpPermissionInteraction(
@@ -269,7 +269,7 @@ export function buildAcpPermissionInteraction(
 
 export class AcpBridge {
   private readonly sessions = new Map<string, LiveSession>()
-  // Opens in flight, by Frizz session id. See `openOnce`.
+  // Opens in flight, by Ntwine session id. See `openOnce`.
   private readonly opening = new Map<string, ReturnType<AcpBridge["open"]>>()
   private readonly unsubscribe: (() => void) | undefined
   private closed = false
@@ -319,17 +319,17 @@ export class AcpBridge {
     const { threadSlug: slug, sessionId, cwd } = input
     const agent = this.resolveAgent(input.agentId)
     // An ACP agent is one detached daemon PER THREAD (acp-host.ts), so its environment can say who is
-    // calling — which is all `frizzctl`, run from the agent's own shell, needs. Applied when the daemon
-    // is forked; one that survived a Frizz restart keeps the environment it was born with.
-    const cli = this.options.frizzCli
+    // calling — which is all `ntwinectl`, run from the agent's own shell, needs. Applied when the daemon
+    // is forked; one that survived an Ntwine restart keeps the environment it was born with.
+    const cli = this.options.ntwineCli
     const inherited = inheritWorkerEnvironment(this.options.env ?? process.env)
-    const env = cli ? withFrizzCliOnPath({ ...inherited, ...frizzCliEnv(cli, slug) }, cli) : inherited
+    const env = cli ? withNtwineCliOnPath({ ...inherited, ...ntwineCliEnv(cli, slug) }, cli) : inherited
     const attachment = await this.host()({ stateDir: this.options.stateDir, threadSlug: slug, sessionId, command: agent.bin!, args: agent.args, cwd, env })
     const proc = attachment.process
     const writer = new AcpTranscriptWriter(acpTranscriptPath(this.options.stateDir, sessionId))
     let live: LiveSession | undefined
     // Traffic from the agent that arrives before the session is READY is held, not dropped or refused.
-    // On a reattach the daemon replays everything the agent said while Frizz was away — the running
+    // On a reattach the daemon replays everything the agent said while Ntwine was away — the running
     // turn's chunks, and any permission request it re-sends — the instant the socket opens, before
     // `initialize` has even been answered. Refusing a request then ("session not ready") would be taken
     // by the daemon as THE answer, and a dropped chunk is a hole in the transcript. `ready()` flips at
@@ -364,22 +364,22 @@ export class AcpBridge {
       init = AcpInitializeResult.parse(await conn.request("initialize", {
         protocolVersion: ACP_PROTOCOL_VERSION,
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-        clientInfo: { name: "frizz", version: "0" },
+        clientInfo: { name: "ntwine", version: "0" },
       }))
     } catch (err) { return fail(err instanceof Error ? new Error(`${agent.label} did not complete the ACP handshake: ${err.message}`) : err) }
-    const mcpServers = this.options.mountsMcp?.(slug) === false ? [] : frizzMcpServer(this.options.frizzMcp, slug)
+    const mcpServers = this.options.mountsMcp?.(slug) === false ? [] : ntwineMcpServer(this.options.ntwineMcp, slug)
     live = { slug, sessionId, cwd, agent, conn, init, acpSessionId: "", writer, loading: false, queue: [], pendingPerms: new Map(), tools: new Map(), exited: false, detaching: false }
     void conn.exited.then(() => { if (live) this.onExit(live) })
 
-    // REATTACHED to an agent that outlived a frizz restart: the session is already open (the daemon
+    // REATTACHED to an agent that outlived an ntwine restart: the session is already open (the daemon
     // reports its id) and a `session/prompt` may still be running. Adopt both — no session/new, no
     // session/load, and the in-flight prompt becomes the live turn so it ends in the transcript exactly
     // as it would have had nothing happened.
     if (attachment.reattached && attachment.hello.acpSessionId) {
       live.acpSessionId = attachment.hello.acpSessionId
-      writer.append({ kind: "acp-note", at: this.now(), text: `Reattached to the running ${agent.label} session after a Frizz restart.` })
+      writer.append({ kind: "acp-note", at: this.now(), text: `Reattached to the running ${agent.label} session after an Ntwine restart.` })
       if (attachment.hello.droppedWhileDetached > 0) {
-        writer.append({ kind: "acp-note", at: this.now(), text: `${attachment.hello.droppedWhileDetached} message(s) from the agent were lost while Frizz was away; the transcript may have gaps.` })
+        writer.append({ kind: "acp-note", at: this.now(), text: `${attachment.hello.droppedWhileDetached} message(s) from the agent were lost while Ntwine was away; the transcript may have gaps.` })
       }
       this.sessions.set(sessionId, live)
       const prompt = attachment.hello.outstanding.find((o) => o.method === "session/prompt")
@@ -555,7 +555,7 @@ export class AcpBridge {
       const init = AcpInitializeResult.parse(await conn.request("initialize", {
         protocolVersion: ACP_PROTOCOL_VERSION,
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-        clientInfo: { name: "frizz", version: "0" },
+        clientInfo: { name: "ntwine", version: "0" },
       }))
       const created = AcpNewSessionResult.parse(await conn.request("session/new", { cwd, mcpServers: [] }))
       const option = this.modelOption(created.configOptions)
@@ -924,7 +924,7 @@ export class AcpBridge {
     if (method === "session/request_permission") return this.handlePermission(live, params)
     // fs/* and terminal/* were not advertised in clientCapabilities; an agent that calls them anyway
     // gets the spec's answer and does its own I/O.
-    throw new AcpRequestError(ACP_ERROR_METHOD_NOT_FOUND, `frizz does not implement ${method}`)
+    throw new AcpRequestError(ACP_ERROR_METHOD_NOT_FOUND, `ntwine does not implement ${method}`)
   }
 
   private handlePermission(live: LiveSession, params: unknown): Promise<AcpRequestPermissionResult> {

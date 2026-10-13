@@ -80,7 +80,7 @@ test("dev supervisor classifies runtime and launcher/config changes without touc
   assert.equal(isDevServerSource(join(workspace, "packages", "unrelated-tool", "src", "index.ts")), false)
   assert.equal(isDevServerSource(join(server, "..", "..", "web", "src", "main.tsx")), false)
 
-  const disposableRoot = join(tmpdir(), "frizz-disposable-watch-root")
+  const disposableRoot = join(tmpdir(), "ntwine-disposable-watch-root")
   assert.equal(
     classifyDevChange(join(disposableRoot, "packages", "claude-agent-sdk-runtime", "src", "index.ts"), [disposableRoot]),
     "child",
@@ -88,7 +88,7 @@ test("dev supervisor classifies runtime and launcher/config changes without touc
   )
   // The ignore list names directories INSIDE a checkout, never the path TO one: a worktree in
   // ~/.cache/… is still source. Judged on the absolute path, every file in it was dropped.
-  const cachedRoot = join(tmpdir(), ".cache", "frizz-worktree")
+  const cachedRoot = join(tmpdir(), ".cache", "ntwine-worktree")
   assert.equal(classifyDevChange(join(cachedRoot, "packages", "server", "src", "router.ts"), [cachedRoot]), "child")
   assert.equal(classifyDevChange(join(cachedRoot, "src", "index.ts"), [cachedRoot]), "launcher")
   assert.equal(classifyDevChange(join(cachedRoot, "packages", "server", "src", ".cache", "generated.ts"), [cachedRoot]), null)
@@ -96,7 +96,7 @@ test("dev supervisor classifies runtime and launcher/config changes without touc
 
 test("dev child inherits the complete environment and adds only the child markers", () => {
   const input: NodeJS.ProcessEnv = {
-    HOME: "/tmp/frizz-home",
+    HOME: "/tmp/ntwine-home",
     PATH: "/bin:/usr/bin",
     SSH_AUTH_SOCK: "/tmp/agent-legacy.sock",
     CUSTOM_VALUE: "kept",
@@ -104,26 +104,26 @@ test("dev child inherits the complete environment and adds only the child marker
   const output = devChildEnv(input, 51234)
   assert.deepEqual(output, {
     ...input,
-    FRIZZ_DEV_PORT: "51234",
-    FRIZZ_DEV_CHILD: "1",
+    NTWINE_DEV_PORT: "51234",
+    NTWINE_DEV_CHILD: "1",
   })
   assert.notEqual(output, input)
-  assert.equal(input.FRIZZ_DEV_PORT, undefined, "the caller's env object is not mutated")
+  assert.equal(input.NTWINE_DEV_PORT, undefined, "the caller's env object is not mutated")
 })
 
 test("dev launcher re-exec preserves user environment and drops only child-private markers", () => {
   const output = devReexecEnv({
-    HOME: "/tmp/frizz-home",
+    HOME: "/tmp/ntwine-home",
     SSH_AUTH_SOCK: "/tmp/agent.sock",
     CUSTOM_VALUE: "kept",
-    FRIZZ_DEV_CHILD: "1",
-    FRIZZ_DEV_PORT: "4917",
+    NTWINE_DEV_CHILD: "1",
+    NTWINE_DEV_PORT: "4917",
   })
   assert.deepEqual(output, {
-    HOME: "/tmp/frizz-home",
+    HOME: "/tmp/ntwine-home",
     SSH_AUTH_SOCK: "/tmp/agent.sock",
     CUSTOM_VALUE: "kept",
-    FRIZZ_DEV_REEXEC: "1",
+    NTWINE_DEV_REEXEC: "1",
   })
 })
 
@@ -271,7 +271,7 @@ test("the drain deadline timer is unref'd", () => {
 })
 
 test("dev launcher syntax-checks package JSON and JSONC tsconfig before replacing a healthy child", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-dev-config-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-dev-config-"))
   try {
     const pkg = join(dir, "package.json")
     writeFileSync(pkg, '{"name":"ok"}\n')
@@ -292,7 +292,7 @@ test("dev launcher syntax-checks package JSON and JSONC tsconfig before replacin
 })
 
 test("exported supervisor API rejects an unowned caller before status or watcher initialization", async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-owner-gate-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-owner-gate-"))
   const stateDir = join(workspace, "state")
   mkdirSync(stateDir, { recursive: true })
   let watched = 0
@@ -315,7 +315,7 @@ test("exported supervisor API rejects an unowned caller before status or watcher
 })
 
 test("exported supervisor API rejects a valid owner token presented by the wrong process", { timeout: 10_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-wrong-process-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-wrong-process-"))
   const stateDir = join(workspace, "state")
   const launchTarget = { projectId: randomUUID(), projectDir: workspace, stateDir }
   mkdirSync(stateDir, { recursive: true })
@@ -357,16 +357,16 @@ test("exported supervisor API rejects a valid owner token presented by the wrong
 })
 
 test("supervisor rejects an unregistered child ready claim before accepting the generation", async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-child-gate-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-child-gate-"))
   const stateDir = join(workspace, "state")
   const childEntry = join(workspace, "unregistered-child.mjs")
   mkdirSync(stateDir, { recursive: true })
   writeFileSync(childEntry, `
     process.send?.({
-      type: "frizz-ready",
+      type: "ntwine-ready",
       pid: process.pid,
       processStart: "opaque:forged-unregistered-child",
-      port: Number(process.env.FRIZZ_DEV_PORT),
+      port: Number(process.env.NTWINE_DEV_PORT),
       bootId: "forged-ready",
     })
     process.on("SIGTERM", () => process.exit(0))
@@ -401,7 +401,7 @@ test("supervisor rejects an unregistered child ready claim before accepting the 
 })
 
 test("supervisor rejects a forged ready PID even when the child registered its real generation", async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-forged-ready-pid-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-forged-ready-pid-"))
   const stateDir = join(workspace, "state")
   const childEntry = join(workspace, "forged-ready-child.mjs")
   mkdirSync(stateDir, { recursive: true })
@@ -416,10 +416,10 @@ test("supervisor rejects a forged ready PID even when the child registered its r
     if (!target || !token) process.exit(70)
     const lease = registerProjectLaunchDelegate(target, token)
     process.send?.({
-      type: "frizz-ready",
+      type: "ntwine-ready",
       pid: process.pid + 100000,
       processStart: lease.processStart,
-      port: Number(process.env.FRIZZ_DEV_PORT),
+      port: Number(process.env.NTWINE_DEV_PORT),
       bootId: "forged-ready-pid",
     })
     const stop = () => { lease.release(); process.exit(0) }
@@ -528,7 +528,7 @@ async function exerciseDurableUpdateFailure(kind: DurableUpdateFailure): Promise
   observed: string
   status: SupervisorStatus
 }> {
-  const workspace = mkdtempSync(join(tmpdir(), `frizz-durable-update-${kind}-`))
+  const workspace = mkdtempSync(join(tmpdir(), `ntwine-durable-update-${kind}-`))
   const stateDir = join(workspace, ".state")
   const childEntry = join(workspace, "child.mjs")
   const observedPath = join(stateDir, "observed")
@@ -543,8 +543,8 @@ async function exerciseDurableUpdateFailure(kind: DurableUpdateFailure): Promise
     const target = projectLaunchTargetFromEnvironment(process.env)
     const token = projectLaunchOwnerTokenFromEnvironment(process.env)
     const delegate = registerProjectLaunchDelegate(target, token)
-    writeFileSync(process.env.OBSERVED, process.env.FRIZZ_STABLE_ARTIFACT)
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: "artifact-" + process.env.FRIZZ_STABLE_ARTIFACT + "-" + process.pid })
+    writeFileSync(process.env.OBSERVED, process.env.NTWINE_STABLE_ARTIFACT)
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: "artifact-" + process.env.NTWINE_STABLE_ARTIFACT + "-" + process.pid })
     const stop = () => { delegate.release(); process.exit(0) }
     process.once("SIGTERM", stop); process.once("disconnect", stop); setInterval(() => {}, 1000)
   `)
@@ -561,7 +561,7 @@ async function exerciseDurableUpdateFailure(kind: DurableUpdateFailure): Promise
       launchTarget: target,
       launchOwnerToken: owner.token,
       watch: false,
-      childLaunchProvider: () => ({ entry: childEntry, environment: { FRIZZ_STABLE_ARTIFACT: readFileSync(pointer, "utf8"), OBSERVED: observedPath } }),
+      childLaunchProvider: () => ({ entry: childEntry, environment: { NTWINE_STABLE_ARTIFACT: readFileSync(pointer, "utf8"), OBSERVED: observedPath } }),
       updateRestart: async () => {
         writeFileSync(pointer, newDigest)
         return { state: "ready" }
@@ -589,7 +589,7 @@ async function exerciseDurableUpdateFailure(kind: DurableUpdateFailure): Promise
         throw new Error("prepare fixture failed")
       }
     }
-    const response = await fetch(`http://127.0.0.1:${supervisor.port}/_frizz/control/update-restart`, {
+    const response = await fetch(`http://127.0.0.1:${supervisor.port}/_ntwine/control/update-restart`, {
       method: "POST", headers: { origin: `http://127.0.0.1:${supervisor.port}` },
     })
     assert.equal(response.status, 202)
@@ -648,7 +648,7 @@ test("Update & Restart keeps its supervisor recoverable when rollback fails", { 
 })
 
 test("Update & Restart hands the durable owner to a fresh supervisor without copying project state", { timeout: 20_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-durable-update-handoff-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-durable-update-handoff-"))
   const stateDir = join(workspace, ".state")
   const childEntry = join(workspace, "handoff-child.mjs")
   mkdirSync(stateDir, { recursive: true })
@@ -656,7 +656,7 @@ test("Update & Restart hands the durable owner to a fresh supervisor without cop
   // Codex input. The handoff must leave it in place rather than export/import a lossy snapshot.
   const storage = createStorage(join(stateDir, "ui.db"), "p")
   storage.upsertSession({
-    slug: "kept", session_id: "frizz-session", thread_name: "frizz-kept", spawned_at: new Date().toISOString(),
+    slug: "kept", session_id: "ntwine-session", thread_name: "ntwine-kept", spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: null, state: "open", meta: null, seen_at: null, transcript_id: null,
     backend: "codex", agent_session_id: "provider-rollout", control_error: "existing draft",
@@ -669,7 +669,7 @@ test("Update & Restart hands the durable owner to a fresh supervisor without cop
     const target = projectLaunchTargetFromEnvironment(process.env); const token = projectLaunchOwnerTokenFromEnvironment(process.env)
     const delegate = registerProjectLaunchDelegate(target, token)
     writeFileSync(process.env.OBSERVED, process.env.GENERATION)
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: process.env.GENERATION + "-" + process.pid })
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: process.env.GENERATION + "-" + process.pid })
     const stop = () => { delegate.release(); process.exit(0) }
     process.on("SIGTERM", stop); process.on("disconnect", stop); setInterval(() => {}, 1000)
   `)
@@ -695,7 +695,7 @@ test("Update & Restart hands the durable owner to a fresh supervisor without cop
     })
     const first = await supervisor.firstBoot
     assert.equal(readFileSync(observed, "utf8"), "old-child")
-    const response = await fetch(`http://127.0.0.1:${port}/_frizz/control/update-restart`, {
+    const response = await fetch(`http://127.0.0.1:${port}/_ntwine/control/update-restart`, {
       method: "POST", headers: { origin: `http://127.0.0.1:${port}` },
     })
     // The durable owner now acknowledges before its async build/re-exec can drain the request-owning
@@ -709,7 +709,7 @@ test("Update & Restart hands the durable owner to a fresh supervisor without cop
     const kept = reopened.getSession("kept")
     reopened.close()
     assert.deepEqual({ session: kept?.session_id, provider: kept?.agent_session_id, error: kept?.control_error }, {
-      session: "frizz-session", provider: "provider-rollout", error: "existing draft",
+      session: "ntwine-session", provider: "provider-rollout", error: "existing draft",
     })
   } finally {
     await successor?.close()
@@ -720,7 +720,7 @@ test("Update & Restart hands the durable owner to a fresh supervisor without cop
 })
 
 test("child-only Update & Restart commits one stable child without replacing its public listener", { timeout: 15_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-child-update-success-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-child-update-success-"))
   const stateDir = join(workspace, ".state")
   const childEntry = join(workspace, "child.mjs")
   const events = join(stateDir, "events")
@@ -728,12 +728,12 @@ test("child-only Update & Restart commits one stable child without replacing its
   writeFileSync(childEntry, `
     import { appendFileSync } from "node:fs"
     import { registerProjectLaunchDelegate, projectLaunchOwnerTokenFromEnvironment, projectLaunchTargetFromEnvironment } from ${JSON.stringify(projectLaunchUrl)}
-    const artifact = process.env.FRIZZ_STABLE_ARTIFACT
+    const artifact = process.env.NTWINE_STABLE_ARTIFACT
     const target = projectLaunchTargetFromEnvironment(process.env)
     const token = projectLaunchOwnerTokenFromEnvironment(process.env)
     const delegate = registerProjectLaunchDelegate(target, token)
     appendFileSync(process.env.EVENTS, \`start:\${artifact}:\${process.pid}\\n\`)
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: \`\${artifact}-\${process.pid}\` })
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: \`\${artifact}-\${process.pid}\` })
     const stop = () => { appendFileSync(process.env.EVENTS, \`stop:\${artifact}:\${process.pid}\\n\`); delegate.release(); process.exit(0) }
     process.once("SIGTERM", stop); process.once("disconnect", stop); setInterval(() => {}, 1000)
   `)
@@ -749,7 +749,7 @@ test("child-only Update & Restart commits one stable child without replacing its
   try {
     supervisor = await startDevSupervisor({
       port, cwd: workspace, stateDir, launchTarget: target, launchOwnerToken: owner.token, watch: false,
-      childLaunchProvider: () => ({ entry: childEntry, environment: { FRIZZ_STABLE_ARTIFACT: selected, EVENTS: events } }),
+      childLaunchProvider: () => ({ entry: childEntry, environment: { NTWINE_STABLE_ARTIFACT: selected, EVENTS: events } }),
       updateMode: "child",
       updateReadyTimeoutMs: 500,
       updateStabilizeMs: 20,
@@ -759,17 +759,17 @@ test("child-only Update & Restart commits one stable child without replacing its
       log: () => {}, error: () => {},
     })
     const first = await supervisor.firstBoot
-    assert.match((await fetch(`http://127.0.0.1:${port}/_frizz/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).statusText, /OK/)
-    const one = await fetch(`http://127.0.0.1:${port}/_frizz/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } })
+    assert.match((await fetch(`http://127.0.0.1:${port}/_ntwine/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).statusText, /OK/)
+    const one = await fetch(`http://127.0.0.1:${port}/_ntwine/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } })
     const [two, ordinaryRestart] = await Promise.all([
-      fetch(`http://127.0.0.1:${port}/_frizz/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } }),
-      fetch(`http://127.0.0.1:${port}/_frizz/control/restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } }),
+      fetch(`http://127.0.0.1:${port}/_ntwine/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } }),
+      fetch(`http://127.0.0.1:${port}/_ntwine/control/restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } }),
     ])
     assert.equal(one.status, 202)
     assert.equal(two.status, 202)
     assert.equal(ordinaryRestart.status, 202, "a concurrent ordinary restart joins the update rather than spawning a second child")
     const status = await eventually(async () => {
-      const body = await (await fetch(`http://127.0.0.1:${port}/_frizz/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; artifactDigest?: string }
+      const body = await (await fetch(`http://127.0.0.1:${port}/_ntwine/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; artifactDigest?: string }
       return body.state === "ready" && body.artifactDigest === "new" ? body : undefined
     }, "the committed child update")
     assert.equal(status.artifactDigest, "new")
@@ -788,7 +788,7 @@ test("child-only Update & Restart commits one stable child without replacing its
 // Both actions drain the running child and fork its replacement in the launch folder. With the
 // folder gone that fork fails, and so does the one that would restore the old child (2026-10-11).
 test("Restart and Update & Restart refuse, and leave the child serving, once the launch folder is deleted", { timeout: 15_000 }, async () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz-launch-folder-gone-"))
+  const base = mkdtempSync(join(tmpdir(), "ntwine-launch-folder-gone-"))
   const workspace = join(base, "project")
   const stateDir = join(base, "state")
   const childEntry = join(base, "child.mjs")
@@ -800,7 +800,7 @@ test("Restart and Update & Restart refuse, and leave the child serving, once the
     import { registerProjectLaunchDelegate, projectLaunchOwnerTokenFromEnvironment, projectLaunchTargetFromEnvironment } from ${JSON.stringify(projectLaunchUrl)}
     const delegate = registerProjectLaunchDelegate(projectLaunchTargetFromEnvironment(process.env), projectLaunchOwnerTokenFromEnvironment(process.env))
     appendFileSync(process.env.EVENTS, \`start:\${process.pid}\\n\`)
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: \`boot-\${process.pid}\` })
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: \`boot-\${process.pid}\` })
     const stop = () => { appendFileSync(process.env.EVENTS, \`stop:\${process.pid}\\n\`); delegate.release(); process.exit(0) }
     process.once("SIGTERM", stop); process.once("disconnect", stop); setInterval(() => {}, 1000)
   `)
@@ -808,13 +808,13 @@ test("Restart and Update & Restart refuse, and leave the child serving, once the
   const owner = acquireProjectLaunchOwner(target, "supervisor")
   const port = await freeSupervisorPort()
   const control = (path: string, method = "GET") =>
-    fetch(`http://127.0.0.1:${port}/_frizz/control/${path}`, { method, headers: { origin: `http://127.0.0.1:${port}` } })
+    fetch(`http://127.0.0.1:${port}/_ntwine/control/${path}`, { method, headers: { origin: `http://127.0.0.1:${port}` } })
   let prepares = 0
   let supervisor: DevSupervisor | undefined
   try {
     supervisor = await startDevSupervisor({
       port, cwd: workspace, stateDir, launchTarget: target, launchOwnerToken: owner.token, watch: false,
-      childLaunchProvider: () => ({ entry: childEntry, environment: { FRIZZ_STABLE_ARTIFACT: "old", EVENTS: events } }),
+      childLaunchProvider: () => ({ entry: childEntry, environment: { NTWINE_STABLE_ARTIFACT: "old", EVENTS: events } }),
       updateMode: "child",
       updateRestart: async () => { prepares++; return { state: "ready" } },
       commitUpdate: () => {},
@@ -847,7 +847,7 @@ test("Restart and Update & Restart refuse, and leave the child serving, once the
 
 test("child updates wait for advancing candidate boot progress, but bound stalls and endless progress", { timeout: 20_000 }, async () => {
   for (const mode of ["slow", "stalled", "foreign", "endless"] as const) {
-    const workspace = mkdtempSync(join(tmpdir(), `frizz-update-progress-${mode}-`))
+    const workspace = mkdtempSync(join(tmpdir(), `ntwine-update-progress-${mode}-`))
     const stateDir = join(workspace, ".state")
     mkdirSync(stateDir)
     const childEntry = join(workspace, "child.mjs")
@@ -861,12 +861,12 @@ test("child updates wait for advancing candidate boot progress, but bound stalls
       const progress = createBootProgressPublisher(target.stateDir, 0)
       const ready = () => {
         progress.done()
-        process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: String(process.pid) })
+        process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: String(process.pid) })
       }
       const stop = () => { progress.done(); delegate.release(); process.exit(0) }
       process.once("SIGTERM", stop); process.once("disconnect", stop)
       setInterval(() => {}, 1000)
-      if (process.env.FRIZZ_STABLE_ARTIFACT === "old") ready()
+      if (process.env.NTWINE_STABLE_ARTIFACT === "old") ready()
       else {
         let foreignStep = 0
         const publish = () => {
@@ -892,7 +892,7 @@ test("child updates wait for advancing candidate boot progress, but bound stalls
     try {
       supervisor = await startDevSupervisor({
         port, cwd: workspace, stateDir, launchTarget: target, launchOwnerToken: owner.token, watch: false,
-        childLaunchProvider: () => ({ entry: childEntry, environment: { FRIZZ_STABLE_ARTIFACT: selected } }),
+        childLaunchProvider: () => ({ entry: childEntry, environment: { NTWINE_STABLE_ARTIFACT: selected } }),
         updateMode: "child", updateReadyTimeoutMs: 600, updateHardTimeoutMs: 3000, updateStabilizeMs: 20,
         updateRestart: async () => { selected = "new"; return { state: "ready" } },
         commitUpdate: () => { commits++ },
@@ -901,9 +901,9 @@ test("child updates wait for advancing candidate boot progress, but bound stalls
       })
       await supervisor.firstBoot
       const origin = `http://127.0.0.1:${port}`
-      assert.equal((await fetch(`${origin}/_frizz/control/update-restart`, { method: "POST", headers: { origin } })).status, 202)
+      assert.equal((await fetch(`${origin}/_ntwine/control/update-restart`, { method: "POST", headers: { origin } })).status, 202)
       const result = await eventually(async () => {
-        const status = await (await fetch(`${origin}/_frizz/control/status`, { headers: { origin } })).json() as { state: string; artifactDigest?: string; message?: string }
+        const status = await (await fetch(`${origin}/_ntwine/control/status`, { headers: { origin } })).json() as { state: string; artifactDigest?: string; message?: string }
         return (mode === "slow" ? status.state === "ready" && status.artifactDigest === "new" : status.state === "failed") ? status : undefined
       }, `${mode} candidate verdict`)
       assert.equal(commits, mode === "slow" ? 1 : 0, mode)
@@ -922,7 +922,7 @@ test("child updates wait for advancing candidate boot progress, but bound stalls
 
 test("child-only update rolls back failed candidates and a close race without retrying them", { timeout: 30_000 }, async () => {
   for (const failure of ["hang", "crash", "commit", "rollback", "close"] as const) {
-    const workspace = mkdtempSync(join(tmpdir(), `frizz-child-update-${failure}-`))
+    const workspace = mkdtempSync(join(tmpdir(), `ntwine-child-update-${failure}-`))
     const stateDir = join(workspace, ".state")
     const childEntry = join(workspace, "child.mjs")
     const events = join(stateDir, "events")
@@ -930,13 +930,13 @@ test("child-only update rolls back failed candidates and a close race without re
     writeFileSync(childEntry, `
       import { appendFileSync } from "node:fs"
       import { registerProjectLaunchDelegate, projectLaunchOwnerTokenFromEnvironment, projectLaunchTargetFromEnvironment } from ${JSON.stringify(projectLaunchUrl)}
-      const artifact = process.env.FRIZZ_STABLE_ARTIFACT
+      const artifact = process.env.NTWINE_STABLE_ARTIFACT
       if (artifact === "hang") { appendFileSync(process.env.EVENTS, \"start:hang\\n\"); setInterval(() => {}, 1000) }
       else {
         const target = projectLaunchTargetFromEnvironment(process.env); const token = projectLaunchOwnerTokenFromEnvironment(process.env)
         const delegate = registerProjectLaunchDelegate(target, token)
         appendFileSync(process.env.EVENTS, \`start:\${artifact}:\${process.pid}\\n\`)
-        process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: \`\${artifact}-\${process.pid}\` })
+        process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: \`\${artifact}-\${process.pid}\` })
         if (artifact === "crash") setTimeout(() => process.exit(19), 5)
         const stop = () => { appendFileSync(process.env.EVENTS, \`stop:\${artifact}:\${process.pid}\\n\`); delegate.release(); process.exit(0) }
         process.once("SIGTERM", stop); process.once("disconnect", stop); setInterval(() => {}, 1000)
@@ -953,7 +953,7 @@ test("child-only update rolls back failed candidates and a close race without re
     try {
       supervisor = await startDevSupervisor({
         port, cwd: workspace, stateDir, launchTarget: target, launchOwnerToken: owner.token, watch: false,
-        childLaunchProvider: () => { launchSelections.push(selected); return { entry: childEntry, environment: { FRIZZ_STABLE_ARTIFACT: selected, EVENTS: events } } },
+        childLaunchProvider: () => { launchSelections.push(selected); return { entry: childEntry, environment: { NTWINE_STABLE_ARTIFACT: selected, EVENTS: events } } },
         updateMode: "child", updateReadyTimeoutMs: 500, updateStabilizeMs: 60,
         updateRestart: async () => { selected = failure === "commit" || failure === "rollback" ? "new" : failure === "close" ? "hang" : failure; return { state: "ready" } },
         commitUpdate: () => {
@@ -968,7 +968,7 @@ test("child-only update rolls back failed candidates and a close race without re
         log: () => {}, error: () => {},
       })
       await supervisor.firstBoot
-      const response = await fetch(`http://127.0.0.1:${port}/_frizz/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } })
+      const response = await fetch(`http://127.0.0.1:${port}/_ntwine/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } })
       assert.equal(response.status, 202, failure)
       if (failure === "close") {
         await supervisor.close()
@@ -979,7 +979,7 @@ test("child-only update rolls back failed candidates and a close race without re
       }
       if (failure === "rollback") {
         const status = await eventually(async () => {
-          const body = await (await fetch(`http://127.0.0.1:${port}/_frizz/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; message?: string }
+          const body = await (await fetch(`http://127.0.0.1:${port}/_ntwine/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; message?: string }
           return body.state === "failed" && /rollback failed/.test(body.message ?? "") ? body : undefined
         }, "rollback failure")
         assert.match(status.message ?? "", /not restarted because rollback did not restore/, failure)
@@ -989,7 +989,7 @@ test("child-only update rolls back failed candidates and a close race without re
         continue
       }
       const status = await eventually(async () => {
-        const body = await (await fetch(`http://127.0.0.1:${port}/_frizz/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; artifactDigest?: string }
+        const body = await (await fetch(`http://127.0.0.1:${port}/_ntwine/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; artifactDigest?: string }
         return body.state === "failed" && body.artifactDigest === "old" ? body : undefined
       }, `${failure} rollback`)
       assert.equal(status.artifactDigest, "old", failure)
@@ -1008,7 +1008,7 @@ test("child-only update rolls back failed candidates and a close race without re
 })
 
 test("child-only update rejects a candidate that exits during an async commit", { timeout: 15_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-child-update-commit-exit-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-child-update-commit-exit-"))
   const stateDir = join(workspace, ".state")
   const childEntry = join(workspace, "child.mjs")
   mkdirSync(stateDir, { recursive: true })
@@ -1016,7 +1016,7 @@ test("child-only update rejects a candidate that exits during an async commit", 
     import { registerProjectLaunchDelegate, projectLaunchOwnerTokenFromEnvironment, projectLaunchTargetFromEnvironment } from ${JSON.stringify(projectLaunchUrl)}
     const target = projectLaunchTargetFromEnvironment(process.env); const token = projectLaunchOwnerTokenFromEnvironment(process.env)
     const delegate = registerProjectLaunchDelegate(target, token)
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: \`\${process.env.FRIZZ_STABLE_ARTIFACT}-\${process.pid}\` })
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: \`\${process.env.NTWINE_STABLE_ARTIFACT}-\${process.pid}\` })
     const stop = () => { delegate.release(); process.exit(0) }
     process.once("SIGTERM", stop); process.once("disconnect", stop); setInterval(() => {}, 1000)
   `)
@@ -1034,7 +1034,7 @@ test("child-only update rejects a candidate that exits during an async commit", 
   try {
     supervisor = await startDevSupervisor({
       port, cwd: workspace, stateDir, launchTarget: target, launchOwnerToken: owner.token, watch: false,
-      childLaunchProvider: () => ({ entry: childEntry, environment: { FRIZZ_STABLE_ARTIFACT: selected } }),
+      childLaunchProvider: () => ({ entry: childEntry, environment: { NTWINE_STABLE_ARTIFACT: selected } }),
       updateMode: "child", updateReadyTimeoutMs: 500, updateStabilizeMs: 20,
       updateRestart: async () => { selected = "new"; return { state: "ready" } },
       commitUpdate: async () => { startCommit(); await commitGate; active = selected },
@@ -1042,7 +1042,7 @@ test("child-only update rejects a candidate that exits during an async commit", 
       log: () => {}, error: () => {},
     })
     const first = await supervisor.firstBoot
-    const response = await fetch(`http://127.0.0.1:${port}/_frizz/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } })
+    const response = await fetch(`http://127.0.0.1:${port}/_ntwine/control/update-restart`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}` } })
     assert.equal(response.status, 202)
     await committing
     const candidate = supervisor.currentBoot()
@@ -1051,7 +1051,7 @@ test("child-only update rejects a candidate that exits during an async commit", 
     await eventually(() => supervisor?.currentBoot() === null ? true : undefined, "candidate exit during commit")
     finishCommit()
     const status = await eventually(async () => {
-      const body = await (await fetch(`http://127.0.0.1:${port}/_frizz/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; artifactDigest?: string; message?: string }
+      const body = await (await fetch(`http://127.0.0.1:${port}/_ntwine/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })).json() as { state: string; artifactDigest?: string; message?: string }
       return body.state === "failed" && body.artifactDigest === "old" ? body : undefined
     }, "dead committed candidate rollback")
     assert.match(status.message ?? "", /stopped while committing/)
@@ -1071,7 +1071,7 @@ test("child-only update rejects a candidate that exits during an async commit", 
 // timer, which this test's timeout does not allow). On Windows, where every signal Node can send is a
 // TerminateProcess, the marker is the only evidence that a shutdown handler ran at all.
 test("stopping the control plane asks over IPC first, so the child's own shutdown runs before any signal", { timeout: 12_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-drain-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-drain-"))
   const stateDir = join(workspace, ".state")
   const markers = join(workspace, "markers")
   const childEntry = join(workspace, "drain-child.mjs")
@@ -1083,7 +1083,7 @@ test("stopping the control plane asks over IPC first, so the child's own shutdow
     import { registerProjectLaunchDelegate, projectLaunchOwnerTokenFromEnvironment, projectLaunchTargetFromEnvironment } from ${JSON.stringify(projectLaunchUrl)}
     const target = projectLaunchTargetFromEnvironment(process.env); const token = projectLaunchOwnerTokenFromEnvironment(process.env)
     const delegate = registerProjectLaunchDelegate(target, token)
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: "drain-" + process.pid })
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: "drain-" + process.pid })
     process.once("disconnect", () => {
       writeFileSync(join(process.env.MARKERS, String(process.pid)), "shutdown handler ran")
       delegate.release()
@@ -1103,8 +1103,8 @@ test("stopping the control plane asks over IPC first, so the child's own shutdow
       log: () => {}, error: (line) => { errors.push(line) },
     })
     const first = await supervisor.firstBoot
-    // Restart Frizz: the old generation was asked, not shot.
-    const restart = await fetch(`http://127.0.0.1:${port}/_frizz/control/restart`, {
+    // Restart Ntwine: the old generation was asked, not shot.
+    const restart = await fetch(`http://127.0.0.1:${port}/_ntwine/control/restart`, {
       method: "POST", headers: { origin: `http://127.0.0.1:${port}` },
     })
     assert.equal(restart.status, 202)
@@ -1129,7 +1129,7 @@ test("stopping the control plane asks over IPC first, so the child's own shutdow
 // the additive `preparing` stamp. "restarting" begins when the drain does. This child answers the ask
 // slowly on purpose, so the drain is wide enough to observe through the still-open proxy.
 test("an update reports the old child ready and preparing until the drain begins, then restarting", { timeout: 20_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-preparing-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-preparing-"))
   const stateDir = join(workspace, ".state")
   const childEntry = join(workspace, "slow-drain-child.mjs")
   mkdirSync(stateDir, { recursive: true })
@@ -1137,7 +1137,7 @@ test("an update reports the old child ready and preparing until the drain begins
     import { registerProjectLaunchDelegate, projectLaunchOwnerTokenFromEnvironment, projectLaunchTargetFromEnvironment } from ${JSON.stringify(projectLaunchUrl)}
     const target = projectLaunchTargetFromEnvironment(process.env); const token = projectLaunchOwnerTokenFromEnvironment(process.env)
     const delegate = registerProjectLaunchDelegate(target, token)
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: "slow-" + process.pid })
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: "slow-" + process.pid })
     const stop = () => setTimeout(() => { delegate.release(); process.exit(0) }, 1_000)
     process.once("SIGTERM", stop); process.once("disconnect", stop); setInterval(() => {}, 1000)
   `)
@@ -1148,7 +1148,7 @@ test("an update reports the old child ready and preparing until the drain begins
   const prepared = new Promise<{ state: "ready" }>((resolve) => { release = resolve })
   const status = async (): Promise<{ state: string; preparing?: boolean } | undefined> => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/_frizz/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })
+      const response = await fetch(`http://127.0.0.1:${port}/_ntwine/control/status`, { headers: { origin: `http://127.0.0.1:${port}` } })
       return await response.json() as { state: string; preparing?: boolean }
     } catch {
       return undefined
@@ -1167,7 +1167,7 @@ test("an update reports the old child ready and preparing until the drain begins
       log: () => {}, error: () => {},
     })
     const first = await supervisor.firstBoot
-    const response = await fetch(`http://127.0.0.1:${port}/_frizz/control/update-restart`, {
+    const response = await fetch(`http://127.0.0.1:${port}/_ntwine/control/update-restart`, {
       method: "POST", headers: { origin: `http://127.0.0.1:${port}` },
     })
     assert.equal(response.status, 202)
@@ -1205,7 +1205,7 @@ test("an update reports the old child ready and preparing until the drain begins
 })
 
 test("authenticated restart takes one fresh artifact launch snapshot and fails closed when it cannot verify one", { timeout: 15_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-artifact-restart-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-artifact-restart-"))
   const stateDir = join(workspace, ".state")
   const observed = join(stateDir, "child-artifact.json")
   mkdirSync(stateDir, { recursive: true })
@@ -1222,15 +1222,15 @@ test("authenticated restart takes one fresh artifact launch snapshot and fails c
     if (!target || !token) process.exit(73)
     const delegate = registerProjectLaunchDelegate(target, token)
     writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
-      artifact: process.env.FRIZZ_STABLE_ARTIFACT,
-      web: process.env.FRIZZ_STABLE_WEB_DIST,
+      artifact: process.env.NTWINE_STABLE_ARTIFACT,
+      web: process.env.NTWINE_STABLE_WEB_DIST,
       entry: import.meta.url,
     }))
     process.send?.({
-      type: "frizz-ready",
+      type: "ntwine-ready",
       pid: delegate.pid,
       processStart: delegate.processStart,
-      port: Number(process.env.FRIZZ_DEV_PORT),
+      port: Number(process.env.NTWINE_DEV_PORT),
       bootId: \`artifact-\${process.pid}-\${Date.now()}\`,
     })
     const stop = () => { delegate.release(); process.exit(0) }
@@ -1254,8 +1254,8 @@ test("authenticated restart takes one fresh artifact launch snapshot and fails c
     return {
       entry: artifactEntry(promoted),
       environment: {
-        FRIZZ_STABLE_ARTIFACT: promoted,
-        FRIZZ_STABLE_WEB_DIST: `/immutable/${promoted}/web`,
+        NTWINE_STABLE_ARTIFACT: promoted,
+        NTWINE_STABLE_WEB_DIST: `/immutable/${promoted}/web`,
       },
     }
   }
@@ -1279,8 +1279,8 @@ test("authenticated restart takes one fresh artifact launch snapshot and fails c
     })
     assert.match(firstObserved.entry, new RegExp(`artifact-${firstDigest}\\.mjs$`))
 
-    writeFileSync(pointer, secondDigest) // equivalent to verified `frizz-dev promote <digest>`
-    const response = await fetch(`http://127.0.0.1:${port}/_frizz/control/restart`, {
+    writeFileSync(pointer, secondDigest) // equivalent to verified `ntwine-dev promote <digest>`
+    const response = await fetch(`http://127.0.0.1:${port}/_ntwine/control/restart`, {
       method: "POST",
       headers: { origin: `http://127.0.0.1:${port}` },
     })
@@ -1297,7 +1297,7 @@ test("authenticated restart takes one fresh artifact launch snapshot and fails c
     assert.equal(readSupervisorStatus(join(stateDir, "dev-supervisor.lock"))?.artifactDigest, secondDigest)
 
     writeFileSync(pointer, "broken")
-    const failed = await fetch(`http://127.0.0.1:${port}/_frizz/control/restart`, {
+    const failed = await fetch(`http://127.0.0.1:${port}/_ntwine/control/restart`, {
       method: "POST",
       headers: { origin: `http://127.0.0.1:${port}` },
     })
@@ -1314,7 +1314,7 @@ test("authenticated restart takes one fresh artifact launch snapshot and fails c
 })
 
 test("the foreground launcher is told when the board restarts, recovers, and fails", { timeout: 15_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-activity-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-activity-"))
   const stateDir = join(workspace, ".state")
   mkdirSync(stateDir, { recursive: true })
   const entry = join(workspace, "child.mjs")
@@ -1329,10 +1329,10 @@ test("the foreground launcher is told when the board restarts, recovers, and fai
     if (!target || !token) process.exit(73)
     const delegate = registerProjectLaunchDelegate(target, token)
     process.send?.({
-      type: "frizz-ready",
+      type: "ntwine-ready",
       pid: delegate.pid,
       processStart: delegate.processStart,
-      port: Number(process.env.FRIZZ_DEV_PORT),
+      port: Number(process.env.NTWINE_DEV_PORT),
       bootId: \`activity-\${process.pid}-\${Date.now()}\`,
     })
     const stop = () => { delegate.release(); process.exit(0) }
@@ -1370,7 +1370,7 @@ test("the foreground launcher is told when the board restarts, recovers, and fai
     assert.equal(activity.length, 0, "the first boot is the readout's story, not a lifecycle beat")
     assert.equal(childExits, 0)
 
-    const restart = await fetch(`http://127.0.0.1:${port}/_frizz/control/restart`, {
+    const restart = await fetch(`http://127.0.0.1:${port}/_ntwine/control/restart`, {
       method: "POST",
       headers: { origin: `http://127.0.0.1:${port}` },
     })
@@ -1386,7 +1386,7 @@ test("the foreground launcher is told when the board restarts, recovers, and fai
 
     activity.length = 0
     usableEntry = false
-    const failed = await fetch(`http://127.0.0.1:${port}/_frizz/control/restart`, {
+    const failed = await fetch(`http://127.0.0.1:${port}/_ntwine/control/restart`, {
       method: "POST",
       headers: { origin: `http://127.0.0.1:${port}` },
     })
@@ -1404,7 +1404,7 @@ test("the foreground launcher is told when the board restarts, recovers, and fai
 })
 
 test("private SDK runtime changes recycle only disposable children and recover without touching workers", { timeout: 25_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-supervisor-e2e-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-supervisor-e2e-"))
   const stateDir = join(workspace, ".state")
   const sdkDir = join(workspace, "packages", "claude-agent-sdk-runtime")
   const sdkSrc = join(sdkDir, "src")
@@ -1417,7 +1417,7 @@ test("private SDK runtime changes recycle only disposable children and recover w
   mkdirSync(sdkSrc, { recursive: true })
   mkdirSync(stateDir, { recursive: true })
   writeFileSync(sdkIndex, "export const generation = 1\n")
-  writeFileSync(sdkPackage, '{"name":"@frizz/claude-agent-sdk-runtime","private":true,"type":"module"}\n')
+  writeFileSync(sdkPackage, '{"name":"@ntwine/claude-agent-sdk-runtime","private":true,"type":"module"}\n')
   writeFileSync(workerIdentityPath, '{"slug":"kept-worker","sessionId":"session-stable"}\n')
   writeFileSync(childEntry, `
     import { readFileSync } from "node:fs"
@@ -1437,10 +1437,10 @@ test("private SDK runtime changes recycle only disposable children and recover w
     if (!target || !token) process.exit(73)
     const delegate = registerProjectLaunchDelegate(target, token)
     process.send?.({
-      type: "frizz-ready",
+      type: "ntwine-ready",
       pid: delegate.pid,
       processStart: delegate.processStart,
-      port: Number(process.env.FRIZZ_DEV_PORT),
+      port: Number(process.env.NTWINE_DEV_PORT),
       bootId: \`fixture-\${process.pid}-\${Date.now()}\`,
     })
     const stop = () => { delegate.release(); process.exit(0) }
@@ -1519,7 +1519,7 @@ test("private SDK runtime changes recycle only disposable children and recover w
     boot = await recycle(boot, sdkExtra, "delete")
 
     // The private membrane's package metadata belongs to the child graph, not the stable launcher.
-    writeFileSync(sdkPackage, '{"name":"@frizz/claude-agent-sdk-runtime","private":true,"type":"module","version":"0.0.2"}\n')
+    writeFileSync(sdkPackage, '{"name":"@ntwine/claude-agent-sdk-runtime","private":true,"type":"module","version":"0.0.2"}\n')
     boot = await recycle(boot, sdkPackage, "update")
 
     // A deleted/invalid config is rejected before the healthy generation is stopped. Re-creation is
@@ -1532,7 +1532,7 @@ test("private SDK runtime changes recycle only disposable children and recover w
     }, "deleted package metadata to enter failed state")
     assert.equal(supervisor.currentBoot()?.pid, boot.pid)
     assertWorkerPreserved()
-    writeFileSync(sdkPackage, '{"name":"@frizz/claude-agent-sdk-runtime","private":true,"type":"module"}\n')
+    writeFileSync(sdkPackage, '{"name":"@ntwine/claude-agent-sdk-runtime","private":true,"type":"module"}\n')
     boot = await recycle(boot, sdkPackage, "create")
 
     // A child that cannot reach ready leaves the stable watcher alive in a precise failed state; the
@@ -1581,7 +1581,7 @@ test("runtimeExecArgv keeps the runtime's flags and drops an inline script", () 
 })
 
 test("probeLauncherSource: clean load is null; a syntax error or a hang names why", { timeout: 20_000 }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-launcher-probe-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-launcher-probe-"))
   try {
     const good = join(dir, "good.ts")
     const broken = join(dir, "broken.ts")
@@ -1599,7 +1599,7 @@ test("probeLauncherSource: clean load is null; a syntax error or a hang names wh
 })
 
 test("a launcher edit re-execs only into source that loads, with the launcher's own argv", { timeout: 25_000 }, async () => {
-  const workspace = mkdtempSync(join(tmpdir(), "frizz-dev-launcher-reexec-"))
+  const workspace = mkdtempSync(join(tmpdir(), "ntwine-dev-launcher-reexec-"))
   const stateDir = join(workspace, ".state")
   const launcherSource = join(workspace, "src", "index.ts")
   const childEntry = join(workspace, "fixture-control-plane.mjs")
@@ -1614,7 +1614,7 @@ test("a launcher edit re-execs only into source that loads, with the launcher's 
       registerProjectLaunchDelegate,
     } from ${JSON.stringify(projectLaunchUrl)}
     const delegate = registerProjectLaunchDelegate(projectLaunchTargetFromEnvironment(process.env), projectLaunchOwnerTokenFromEnvironment(process.env))
-    process.send?.({ type: "frizz-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.FRIZZ_DEV_PORT), bootId: \`fixture-\${process.pid}\` })
+    process.send?.({ type: "ntwine-ready", pid: delegate.pid, processStart: delegate.processStart, port: Number(process.env.NTWINE_DEV_PORT), bootId: \`fixture-\${process.pid}\` })
     const stop = () => { delegate.release(); process.exit(0) }
     process.once("SIGTERM", stop)
     process.once("disconnect", stop)
@@ -1662,12 +1662,12 @@ test("a launcher edit re-execs only into source that loads, with the launcher's 
     assert.ok(serving && serving.pid !== first.pid && processIsAlive(serving.pid), "the board keeps serving a live child")
 
     // The corrective edit re-execs, with the runtime's own flags and the launcher's argv — not this
-    // process's argv, which is what stranded `frizz-dev --dev` without its --port.
+    // process's argv, which is what stranded `ntwine-dev --dev` without its --port.
     notify!(null, [{ path: launcherSource, type: "update" }])
     await eventually(() => reexecs.length === 1 ? true : undefined, "the launcher re-exec")
     assert.equal(probes, 2)
     assert.deepEqual(reexecs[0]!.argv, [process.execPath, ...runtimeExecArgv(), "/repo/src/index.ts", "--dev", "--port", "9494"])
-    assert.equal(reexecs[0]!.env.FRIZZ_DEV_REEXEC, "1")
+    assert.equal(reexecs[0]!.env.NTWINE_DEV_REEXEC, "1")
   } finally {
     await supervisor?.close()
     launchOwner.release()
@@ -1684,7 +1684,7 @@ test("a forced supervisor stop still exits when releasing launch ownership throw
   const stop = createSupervisorShutdownHandler({
     close: () => new Promise<void>(() => {}),
     force: () => {},
-    release: () => { throw new Error("timed out waiting for the Frizz project ownership guard") },
+    release: () => { throw new Error("timed out waiting for the Ntwine project ownership guard") },
     exit: (code) => { exits.push(code) },
     error: (line) => { errors.push(line) },
     now: () => clock,

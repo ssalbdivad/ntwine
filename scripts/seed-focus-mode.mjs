@@ -25,7 +25,7 @@ const line = readFileSync(flags.stack, "utf8").split("\n").find((l) => l.startsW
 if (!line) throw new Error(`no stack json line in ${flags.stack}`)
 const stack = JSON.parse(line)
 const home = stack.home
-const db = join(home, ".frizz", "ui.db")
+const db = join(home, ".ntwine", "ui.db")
 const WAIT_FOR_LOCK = ["-cmd", ".timeout 10000"]
 const projects = [
   { id: stack.launcher.id, slug: stack.launcher.slug, dir: stack.launcher.dir },
@@ -63,7 +63,7 @@ function seed(project, t) {
   if (t.external) return console.log(`seeded ${project.slug}/${t.slug} (external)`)
   const live = !t.archived
   if (live) {
-    const stateDir = join(home, ".frizz", "projects", project.id)
+    const stateDir = join(home, ".ntwine", "projects", project.id)
     mkdirSync(join(stateDir, "claude-broker"), { recursive: true })
     const key = createHash("sha256").update(sessionId).digest("hex").slice(0, 16)
     writeFileSync(join(stateDir, "claude-broker", `${key}.json`), JSON.stringify({ sessionId, daemonPid: daemon.pid, socketPath: join(stateDir, "claude-broker", `${t.slug}.sock`) }))
@@ -72,7 +72,7 @@ function seed(project, t) {
     ...WAIT_FOR_LOCK,
     db,
     `INSERT OR REPLACE INTO session (project_id, slug, session_id, thread_name, spawned_at, title, title_auto, backend, claude_runtime, model, effort, permission_mode, state, unread, exited, archived, rested_at, snoozed_until, pinned_at)
-     VALUES (${q(project.id)}, ${q(t.slug)}, ${q(sessionId)}, ${q(`frizz-${t.slug}`)}, ${q(ago(t.rest + 13))}, ${q(t.title)}, 0, 'claude', ${live ? "'broker'" : "NULL"}, 'opus', 'high', 'default', ${t.archived ? "'archived'" : "'open'"}, 0, 0, ${t.archived ? 1 : 0}, ${t.inFlight ? "NULL" : q(ago(t.rest))}, ${q(t.snoozedUntil ?? null)}, ${q(t.pinned ? ago(t.rest + 5) : null)})`,
+     VALUES (${q(project.id)}, ${q(t.slug)}, ${q(sessionId)}, ${q(`ntwine-${t.slug}`)}, ${q(ago(t.rest + 13))}, ${q(t.title)}, 0, 'claude', ${live ? "'broker'" : "NULL"}, 'opus', 'high', 'default', ${t.archived ? "'archived'" : "'open'"}, 0, 0, ${t.archived ? 1 : 0}, ${t.inFlight ? "NULL" : q(ago(t.rest))}, ${q(t.snoozedUntil ?? null)}, ${q(t.pinned ? ago(t.rest + 5) : null)})`,
   ])
   console.log(`seeded ${project.slug}/${t.slug}`)
 }

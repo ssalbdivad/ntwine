@@ -1,14 +1,15 @@
 #!/usr/bin/env node
+import "@ntwine/shared/legacy-env"
 import type { RemoteController } from "./remote-controller.ts";
 import { wireRemote } from "./remote-wiring.ts";
-import { bindHostIsExposed } from "@frizz/server/local-origin";
-import { loadSessionState, sessionEpochLogLine, sessionEpochNotice } from "@frizz/server/access-codes";
-import { qrAreaOf, renderQrLines } from "@frizz/server/qr";
+import { bindHostIsExposed } from "@ntwine/server/local-origin";
+import { loadSessionState, sessionEpochLogLine, sessionEpochNotice } from "@ntwine/server/access-codes";
+import { qrAreaOf, renderQrLines } from "@ntwine/server/qr";
 import { listSessions, signOutSession } from "./sessions-cli.ts";
-import { SUPERVISOR_ACCESS_CODE_PATH } from "@frizz/server/restart-supervisor";
+import { SUPERVISOR_ACCESS_CODE_PATH } from "@ntwine/server/restart-supervisor";
 import type { AccessPane } from "./access-pane.ts";
 import type { PaneHost } from "./pane-host.ts";
-import { LOOPBACK_BIND_HOST } from "@frizz/server/local-origin";
+import { LOOPBACK_BIND_HOST } from "@ntwine/server/local-origin";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -22,18 +23,18 @@ import {
   runLogPath,
   setAmbientLogger,
   type Logger,
-} from "@frizz/server/logging";
+} from "@ntwine/server/logging";
 import {
-  buildFrizzArtifact,
+  buildNtwineArtifact,
   assertArtifactHostCompatible,
   defaultArtifactRoot,
-  ensureStableFrizzArtifact,
-  promoteFrizzArtifact,
-  readFrizzArtifact,
+  ensureStableNtwineArtifact,
+  promoteNtwineArtifact,
+  readNtwineArtifact,
   readStableArtifact,
 } from "./artifacts.ts";
 import { assertLaunchPrerequisites, assertRequiredExecutables } from "./preflight.ts";
-import { DEFAULT_DEV_PORT, fallbackPort } from "@frizz/shared";
+import { DEFAULT_DEV_PORT, fallbackPort } from "@ntwine/shared";
 import {
   acquireGlobalLaunchLock,
   allocatePort,
@@ -51,11 +52,11 @@ import {
   parseCliArgs,
   prepareSandbox,
   persistLauncher,
-  probeFrizz,
+  probeNtwine,
   JOIN_PROBE_TIMEOUT_MS,
   prepareBeforeGlobalLaunchLock,
   readPreferredPort,
-  requestFrizzStop,
+  requestNtwineStop,
   resolveWorkspace,
   sourceLabel,
   sourceWorkspaceDir,
@@ -76,10 +77,10 @@ import {
   tryAcquireProjectLaunchOwner,
   verifyProjectLaunchDelegate,
   type ProjectLaunchLease,
-} from "@frizz/server/project-launch";
-import { registerProject } from "@frizz/server/project-registry";
-import { ProjectServedElsewhereError, servingRecordElsewhere } from "@frizz/server/project-serving";
-import { resolveProjectLabel } from "@frizz/server/project-identity";
+} from "@ntwine/server/project-launch";
+import { registerProject } from "@ntwine/server/project-registry";
+import { ProjectServedElsewhereError, servingRecordElsewhere } from "@ntwine/server/project-serving";
+import { resolveProjectLabel } from "@ntwine/server/project-identity";
 import { runArtifactBuildJob, spawnArtifactBuild } from "./artifact-build-job.ts";
 
 // Update & Restart re-runs this entry as its artifact build job (see artifact-build-job.ts). It must
@@ -87,7 +88,7 @@ import { runArtifactBuildJob, spawnArtifactBuild } from "./artifact-build-job.ts
 if (runArtifactBuildJob()) await new Promise<never>(() => {});
 
 function fail(error: unknown): never {
-  console.error(`frizz: ${error instanceof Error ? error.message : error}`);
+  console.error(`ntwine: ${error instanceof Error ? error.message : error}`);
   process.exit(1);
 }
 
@@ -99,8 +100,8 @@ function printFarewell(code: number): void {
   const suffix = logger.file ? `\n  log: ${tildePath(logger.file, homedir())}` : "";
   process.stdout.write(
     code === 0
-      ? `\n  Frizz stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
-      : `\n  Frizz stopped with errors (exit ${code}).${suffix}\n\n`
+      ? `\n  Ntwine stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
+      : `\n  Ntwine stopped with errors (exit ${code}).${suffix}\n\n`
   );
 }
 
@@ -117,16 +118,16 @@ function sourceVersion(): string | undefined {
 }
 
 const argv = process.argv.slice(2);
-const sourceCommand = process.env.FRIZZ_SOURCE_COMMAND ?? "frizz-dev";
+const sourceCommand = process.env.NTWINE_SOURCE_COMMAND ?? "ntwine-dev";
 // `top` reads the machine and exits; it touches no workspace, lock or artifact, so it runs before any of
 // them are resolved and works from any directory. Shared with src/production.ts.
 if (argv[0] === "top") {
-  const { runTop } = await import("@frizz/server/top");
+  const { runTop } = await import("@ntwine/server/top");
   process.exit(await runTop(argv.slice(1)));
 }
 /**
  * build/promote/restart are ARTIFACT verbs: they suppress the readout and the foreground hold, do one
- * job and exit. Launching is not one of them — there is exactly one way to start Frizz, and it is the
+ * job and exit. Launching is not one of them — there is exactly one way to start Ntwine, and it is the
  * bare command with flags. `up` used to be a fourth verb here, sugar for `--cloud`; it was removed
  * because a second spelling of "start the server" is a second thing to explain, and because it read as
  * a per-project command on a server that has never been per-project.
@@ -154,7 +155,7 @@ if (argv.includes("--prod"))
 // than minting a second one, and still deletes it when the board finally stops.
 const sandbox = options.sandbox
   ? prepareSandbox()
-  : process.env.FRIZZ_DEV_REEXEC === "1" && process.env[DEV_SANDBOX_HOME_ENV]
+  : process.env.NTWINE_DEV_REEXEC === "1" && process.env[DEV_SANDBOX_HOME_ENV]
   ? { home: process.env[DEV_SANDBOX_HOME_ENV]!, project: process.cwd() }
   : null;
 if (sandbox) {
@@ -163,16 +164,16 @@ if (sandbox) {
 }
 
 const internalLaunch =
-  process.env.FRIZZ_DIRECT_SUPERVISOR === "1" ||
-  process.env.FRIZZ_DAEMON_CHILD === "1" ||
-  process.env.FRIZZ_DEV_REEXEC === "1" ||
-  process.env.FRIZZ_DEV_CHILD === "1";
+  process.env.NTWINE_DIRECT_SUPERVISOR === "1" ||
+  process.env.NTWINE_DAEMON_CHILD === "1" ||
+  process.env.NTWINE_DEV_REEXEC === "1" ||
+  process.env.NTWINE_DEV_CHILD === "1";
 const interactiveLaunch =
   !internalLaunch &&
   !options.stop &&
   !options.status &&
   // --link is a QUERY against a running board, not a launch. Counting it as interactive built a
-  // progress readout around it, so `frizz-dev --link` printed boot chatter above the URL you asked
+  // progress readout around it, so `ntwine-dev --link` printed boot chatter above the URL you asked
   // for — and it would have made the takeover below fire on a command that must never restart anything.
   !options.link &&
   command !== "restart" &&
@@ -184,12 +185,12 @@ const readout = interactiveLaunch
 
 /**
  * Where supervisor lifecycle beats print. Normally the boot readout — but a launcher that re-execed
- * itself through Update Frizz has no boot to narrate and still owns the operator's terminal, so it
+ * itself through Update Ntwine has no boot to narrate and still owns the operator's terminal, so it
  * gets a notice-only one rather than falling silent for the rest of the session.
  */
 const activityReadout =
   readout ??
-  (process.env.FRIZZ_DEV_REEXEC === "1" && process.stdout.isTTY
+  (process.env.NTWINE_DEV_REEXEC === "1" && process.stdout.isTTY
     ? noticeOnlyReadout({ version: sourceVersion() })
     : undefined);
 
@@ -206,15 +207,15 @@ let launchIntent: ReturnType<typeof resolveLaunchIntent> | undefined;
 try {
   const pinned = projectLaunchTargetFromEnvironment(process.env);
   const internal =
-    process.env.FRIZZ_DEV_CHILD === "1" ||
-    process.env.FRIZZ_DIRECT_SUPERVISOR === "1" ||
-    process.env.FRIZZ_DAEMON_CHILD === "1" ||
-    process.env.FRIZZ_DEV_REEXEC === "1";
+    process.env.NTWINE_DEV_CHILD === "1" ||
+    process.env.NTWINE_DIRECT_SUPERVISOR === "1" ||
+    process.env.NTWINE_DAEMON_CHILD === "1" ||
+    process.env.NTWINE_DEV_REEXEC === "1";
   if (internal && !pinned)
     throw new Error("internal launch is missing its pinned project identity");
   // Resolving a workspace opens this project's database, so check first and name what is wrong. The
   // Node floor is the live half for a real launch: on an unsupported release SQLite SEGFAULTS rather
-  // than erroring, and a segfault mid-boot reads as "Frizz is broken" instead of "upgrade Node".
+  // than erroring, and a segfault mid-boot reads as "Ntwine is broken" instead of "upgrade Node".
   // `--stop`/`--status` and the repair commands keep the executables-only check, since they only read a
   // status file and signal a process — that list is EMPTY today (nothing shells out to `git` or `tmux`
   // any more; see preflight.ts) and survives as the seam for the next hard dependency.
@@ -223,8 +224,8 @@ try {
     else assertRequiredExecutables();
   }
   // Running the command never ADOPTS the directory it was run in — see resolveLaunchIntent. A
-  // directory that is not already a project hosts the server on Frizz's own stand-in folder and
-  // lands on `/all`, or on `/` (the add-project dialog) when it is a repository Frizz has not seen.
+  // directory that is not already a project hosts the server on Ntwine's own stand-in folder and
+  // lands on `/all`, or on `/` (the add-project dialog) when it is a repository Ntwine has not seen.
   let hosted: Workspace | undefined;
   if (!internal) {
     const intent = resolveLaunchIntent();
@@ -255,13 +256,13 @@ try {
 // per-project artifact a reader debugging this board already looks at. A forked child inherits the
 // parent's path through the environment instead of opening its own.
 const logger: Logger = setAmbientLogger(
-  process.env.FRIZZ_LOG_FILE
-    ? createLogger({ file: process.env.FRIZZ_LOG_FILE, owner: false })
+  process.env.NTWINE_LOG_FILE
+    ? createLogger({ file: process.env.NTWINE_LOG_FILE, owner: false })
     : createLogger({ file: runLogPath(workspace.stateDir) })
 );
-attachTerminalMirror(logger, options.debug || process.env.FRIZZ_DEBUG === "1");
+attachTerminalMirror(logger, options.debug || process.env.NTWINE_DEBUG === "1");
 // Only the OPERATOR's invocation announces itself. The control-plane child re-enters this same entry
-// point with FRIZZ_DEV_CHILD=1 before reaching its own branch below, so without this guard every run
+// point with NTWINE_DEV_CHILD=1 before reaching its own branch below, so without this guard every run
 // logged the launcher banner twice — once for the real launch and once for the child.
 if (!internalLaunch) {
   logger.info("launcher", `${sourceCommand} starting in ${options.dev ? "source" : "artifact"} mode`);
@@ -289,12 +290,12 @@ let remote: RemoteController | null = null;
 
 // The supervisor validates every generation by forking this same source entry with a private marker.
 // That disposable child boots only the HTTP/Vite control plane; it must never recursively supervise.
-if (process.env.FRIZZ_DEV_CHILD === "1") {
+if (process.env.NTWINE_DEV_CHILD === "1") {
   const token = projectLaunchOwnerTokenFromEnvironment(process.env);
   if (!token) throw new Error("dev child is missing project launch ownership");
   verifyProjectLaunchDelegate(workspaceLaunchTarget(workspace), token);
   const { runDevControlPlaneChild } = await import(
-    "@frizz/server/dev-supervisor"
+    "@ntwine/server/dev-supervisor"
   );
   await runDevControlPlaneChild();
   await new Promise<never>(() => {});
@@ -316,22 +317,22 @@ async function runSupervisor(
   const supervisorEnv = projectLaunchEnvironment(
     {
       ...process.env,
-      FRIZZ_DIRECT_SUPERVISOR: "1",
+      NTWINE_DIRECT_SUPERVISOR: "1",
       // Every descendant appends to THIS run's log. That is what lets the control-plane child stay
       // silent on the terminal without its records being lost.
       ...logEnvironment(logger, options.debug ? "debug" : "info"),
-      ...(options.debug ? { FRIZZ_DEBUG: "1" } : {}),
+      ...(options.debug ? { NTWINE_DEBUG: "1" } : {}),
       // --dev runs Vite from this checkout, and Vite's dependency cache must never be shared with
       // another dev server rooted here (packages/web/vite.config.ts says why). Left at its default,
-      // a `frizz-dev --dev` beside the maintainer's `nub run dev` hashed its config differently and
+      // a `ntwine-dev --dev` beside the maintainer's `nub run dev` hashed its config differently and
       // re-optimized node_modules/.vite under the live server, whose open tab then 404ed on every
       // rewritten chunk (2026-10-01). So --dev keeps its own cache, and a sandbox one of its own.
       // Relative to packages/web like the throwaway stacks' `.vite-scratch`, and inside node_modules
       // on purpose: @vitejs/plugin-react skips any path containing node_modules, and a cache outside
       // it (one under the sandbox's /tmp home was tried) gets its prebundled react-scan run through
       // Fast Refresh, which throws "can't detect preamble" on every load.
-      ...(options.dev && !process.env.FRIZZ_VITE_CACHE_DIR
-        ? { FRIZZ_VITE_CACHE_DIR: sandbox ? "node_modules/.vite-sandbox" : "node_modules/.vite-frizz-dev" }
+      ...(options.dev && !process.env.NTWINE_VITE_CACHE_DIR
+        ? { NTWINE_VITE_CACHE_DIR: sandbox ? "node_modules/.vite-sandbox" : "node_modules/.vite-ntwine-dev" }
         : {}),
     },
     target,
@@ -339,19 +340,19 @@ async function runSupervisor(
   );
   const selectedArtifact = options.dev
     ? undefined
-    : pinnedArtifactDigest ?? process.env.FRIZZ_STABLE_ARTIFACT
-    ? readFrizzArtifact(
-        pinnedArtifactDigest ?? process.env.FRIZZ_STABLE_ARTIFACT!,
+    : pinnedArtifactDigest ?? process.env.NTWINE_STABLE_ARTIFACT
+    ? readNtwineArtifact(
+        pinnedArtifactDigest ?? process.env.NTWINE_STABLE_ARTIFACT!,
         defaultArtifactRoot()
       )
-    : ensureStableFrizzArtifact(
+    : ensureStableNtwineArtifact(
         workspace.stateDir,
         sourceWorkspaceDir(),
         defaultArtifactRoot()
       );
   if (selectedArtifact) assertArtifactHostCompatible(selectedArtifact);
   const { createSupervisorShutdownHandler, probeLauncherSource, startDevSupervisor } = await import(
-    "@frizz/server/dev-supervisor"
+    "@ntwine/server/dev-supervisor"
   );
   let supervisor: Awaited<ReturnType<typeof startDevSupervisor>>;
   const stableOptions = selectedArtifact
@@ -368,17 +369,17 @@ async function runSupervisor(
           firstChildLaunch = false;
           if (!artifact)
             throw new Error(
-              "the currently promoted Frizz artifact is missing or failed verification"
+              "the currently promoted Ntwine artifact is missing or failed verification"
             );
           assertArtifactHostCompatible(artifact);
           return {
             entry: join(artifact.runtimeDir, "src", "index.js"),
             environment: {
-              FRIZZ_STABLE_WEB_DIST: artifact.webDir,
-              FRIZZ_STABLE_ARTIFACT: artifact.digest,
-              FRIZZ_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
+              NTWINE_STABLE_WEB_DIST: artifact.webDir,
+              NTWINE_STABLE_ARTIFACT: artifact.digest,
+              NTWINE_SCRIPTS_DIR: join(artifact.runtimeDir, "board"),
               // The bundled runtime resolves its worker plugin from the verified artifact closure.
-              FRIZZ_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
+              NTWINE_WORKER_PLUGIN_DIR: join(artifact.runtimeDir, "cc-worker"),
             },
           };
         };
@@ -409,7 +410,7 @@ async function runSupervisor(
           },
           rollbackUpdate: () => {
             if (!updateRollbackArtifact) return;
-            promoteFrizzArtifact(
+            promoteNtwineArtifact(
               workspace.stateDir,
               updateRollbackArtifact,
               defaultArtifactRoot()
@@ -430,21 +431,21 @@ async function runSupervisor(
                   );
                   if (!artifact)
                     throw new Error(
-                      "the promoted Frizz artifact is missing or failed verification"
+                      "the promoted Ntwine artifact is missing or failed verification"
                     );
                   assertArtifactHostCompatible(artifact);
                   const env = projectLaunchEnvironment(
                     {
                       ...supervisorEnv,
-                      FRIZZ_DEV_REEXEC: "1",
-                      FRIZZ_SOURCE_DIR: sourceLabel(),
-                      FRIZZ_STABLE_ARTIFACT: artifact.digest,
+                      NTWINE_DEV_REEXEC: "1",
+                      NTWINE_SOURCE_DIR: sourceLabel(),
+                      NTWINE_STABLE_ARTIFACT: artifact.digest,
                     },
                     target,
                     launchOwner.token
                   );
-                  delete env.FRIZZ_DEV_CHILD;
-                  delete env.FRIZZ_DEV_PORT;
+                  delete env.NTWINE_DEV_CHILD;
+                  delete env.NTWINE_DEV_PORT;
                   // execve keeps this pid and this terminal, so the successor announces itself below
                   // once its first child is up. Saying it here too covers the window in between, which
                   // is the whole build-and-boot of a new artifact.
@@ -478,7 +479,7 @@ async function runSupervisor(
         // --dev is intentionally the only route that can boot source plus Vite/HMR.
         watch: true,
         // An edit to the launcher's own source re-execs this process in place. Its argv must be the
-        // internal re-entry's, not the operator's: `frizz-dev --dev` carries no --port, and the
+        // internal re-entry's, not the operator's: `ntwine-dev --dev` carries no --port, and the
         // re-entry refuses to start without one, so every launcher edit used to end the board with
         // "internal supervisor launch is missing --port" (2026-10-01, three runs in one evening).
         reexecArgs: devLauncherReexecArgs({
@@ -490,14 +491,14 @@ async function runSupervisor(
           // `--help` loads every module this entry imports statically and exits before touching any
           // state; dev-supervisor is the one launcher module it loads lazily, so it gets its own probe.
           const env = { ...supervisorEnv };
-          delete env.FRIZZ_DEV_REEXEC;
+          delete env.NTWINE_DEV_REEXEC;
           const [cli, supervisorModule] = await Promise.all([
             probeLauncherSource({ args: [import.meta.filename, "--help"], env }),
             probeLauncherSource({
               args: [
                 "--input-type=module",
                 "-e",
-                `await import(${JSON.stringify(import.meta.resolve("@frizz/server/dev-supervisor"))})`,
+                `await import(${JSON.stringify(import.meta.resolve("@ntwine/server/dev-supervisor"))})`,
               ],
               env,
             }),
@@ -542,15 +543,15 @@ async function runSupervisor(
       launchTarget: target,
       launchOwnerToken: launchOwner.token,
       ...stableOptions,
-      // This file IS frizz-dev: it only ever runs from a source checkout, and the published bin is
-      // src/production.ts (scripts/build-package.mjs maps "frizz.js" to it). So reaching here means
+      // This file IS ntwine-dev: it only ever runs from a source checkout, and the published bin is
+      // src/production.ts (scripts/build-package.mjs maps "ntwine.js" to it). So reaching here means
       // a development build, on BOTH routes — the artifact one as much as `--dev`. The web client
       // cannot work that out for itself, because the artifact route serves a Vite PRODUCTION bundle
       // where `import.meta.env.DEV` is statically false. Stated after the spread so no launch-mode
       // option can quietly take it away.
       dev: true,
       // The terminal that owns the board says so when the board goes down and comes back. Restart
-      // Frizz and Update Frizz are clicked in a browser and a control-plane crash is clicked by
+      // Ntwine and Update Ntwine are clicked in a browser and a control-plane crash is clicked by
       // nobody, so without this the foreground process is the last place to learn what happened.
       onActivity: (event) => renderSupervisorActivity(activityReadout, event),
       // Every child leaves the terminal as it found it at its own fork, and the first one was forked
@@ -559,7 +560,7 @@ async function runSupervisor(
     });
     // The supervisor is listening now, so a code minted here is immediately redeemable.
     // Serve the saved setup, offer Settings → Remote access, and bind L and R (remote-wiring.ts).
-    const wiring = await wireRemote({ supervisor, port, log: logger, say: (message) => console.error(`frizz: ${message}`), sandbox: sandbox !== null });
+    const wiring = await wireRemote({ supervisor, port, log: logger, say: (message) => console.error(`ntwine: ${message}`), sandbox: sandbox !== null });
     remote = wiring.remote;
     activeAccessLink = wiring.firstLink;
     accessPane = wiring.accessPane;
@@ -593,7 +594,7 @@ async function runSupervisor(
       process.exit(code);
     },
     error: (line) =>
-      logger.error("supervisor", line.startsWith("[frizz] ") ? line.slice(10) : line),
+      logger.error("supervisor", line.startsWith("[ntwine] ") ? line.slice(10) : line),
   });
   // SIGHUP is what closing a terminal sends, and Node's default action for it is to die on the spot —
   // so without this the launcher was killed WITHOUT running `stop`, and the control-plane child (which
@@ -607,10 +608,10 @@ async function runSupervisor(
   await supervisor.firstBoot;
   // The re-exec'd generation prints no boot block (it is not an interactive launch), so this one line
   // is the only thing that tells the operator the handoff finished. Two different things arrive here:
-  // Update Frizz execs into a promoted artifact and names its digest, while `--dev` re-execs this
+  // Update Ntwine execs into a promoted artifact and names its digest, while `--dev` re-execs this
   // launcher whenever its own source changes, where there is no artifact and nothing was updated.
-  if (process.env.FRIZZ_DEV_REEXEC === "1") {
-    const digest = process.env.FRIZZ_STABLE_ARTIFACT?.slice(0, 12);
+  if (process.env.NTWINE_DEV_REEXEC === "1") {
+    const digest = process.env.NTWINE_STABLE_ARTIFACT?.slice(0, 12);
     if (digest) activityReadout?.notice("done", "Updated", `now serving ${digest}`);
     else activityReadout?.notice("done", "Restarted", "this launcher reloaded itself in place");
   }
@@ -621,9 +622,9 @@ async function runSupervisor(
 // A legacy detached supervisor or durable re-exec re-enters here after launcher source changes. It must rebuild
 // its watcher in-place without competing with its own global lock or trying to open another window.
 if (
-  process.env.FRIZZ_DIRECT_SUPERVISOR === "1" ||
-  process.env.FRIZZ_DAEMON_CHILD === "1" ||
-  process.env.FRIZZ_DEV_REEXEC === "1"
+  process.env.NTWINE_DIRECT_SUPERVISOR === "1" ||
+  process.env.NTWINE_DAEMON_CHILD === "1" ||
+  process.env.NTWINE_DEV_REEXEC === "1"
 ) {
   if (!options.port) fail("internal supervisor launch is missing --port");
   await runSupervisor(
@@ -634,13 +635,13 @@ if (
 
 if (command === "build") {
   try {
-    const artifact = buildFrizzArtifact(
+    const artifact = buildNtwineArtifact(
       sourceWorkspaceDir(),
       defaultArtifactRoot(),
       { onProgress: (message) => logger.info("artifact", message) }
     );
     logger.info("artifact", `built ${artifact.digest}`);
-    console.log(`built Frizz artifact ${artifact.digest}`);
+    console.log(`built Ntwine artifact ${artifact.digest}`);
     console.log(`web: ${artifact.webDir}`);
     process.exit(0);
   } catch (error) {
@@ -655,14 +656,14 @@ if (command === "build") {
 if (command === "promote") {
   try {
     const digest = argv[1];
-    if (!digest) throw new Error("usage: frizz-dev promote <artifact-digest>");
-    const pointer = promoteFrizzArtifact(
+    if (!digest) throw new Error("usage: ntwine-dev promote <artifact-digest>");
+    const pointer = promoteNtwineArtifact(
       workspace.stateDir,
       digest,
       defaultArtifactRoot()
     );
     console.log(
-      `promoted Frizz artifact ${pointer.current}${
+      `promoted Ntwine artifact ${pointer.current}${
         pointer.previous ? ` (rollback ${pointer.previous})` : ""
       }`
     );
@@ -693,7 +694,7 @@ async function existingHealth() {
   const preferred = readPreferredPort(workspace.stateDir);
   if (preferred) ports.add(preferred);
   for (const port of ports) {
-    const health = await probeFrizz(port, expected);
+    const health = await probeNtwine(port, expected);
     if (health) return { port, health, owner, launchOwner: authoritative };
   }
   return { port: undefined, health: null, owner, launchOwner: authoritative };
@@ -716,7 +717,7 @@ async function claimProjectLaunch(): Promise<
         ? `${lastOwner.role} pid ${lastOwner.pid} owns startup but did not become ready`
         : "another launcher is still publishing project ownership";
       throw new Error(
-        `${detail}; retry, inspect frizz-dev --status, or stop the exact owner with frizz-dev --stop`
+        `${detail}; retry, inspect ntwine-dev --status, or stop the exact owner with ntwine-dev --stop`
       );
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -754,10 +755,10 @@ function ownSlug(launched = false): string | undefined {
 }
 
 /**
- * Where a Frizz that could already be serving this project would be listening.
+ * Where an Ntwine that could already be serving this project would be listening.
  *
  * An explicit `--port` is asked FIRST, for the same reason the well-known ones are asked at all: if a
- * Frizz is already serving this project there, joining it is the answer and starting a rival is not.
+ * Ntwine is already serving this project there, joining it is the answer and starting a rival is not.
  * Without it `--port N` skipped the join outright and then died at allocation, because the port it was
  * told to use was held by the very server it should have been using.
  */
@@ -772,17 +773,17 @@ function joinCandidatePorts(): number[] {
 }
 
 /**
- * A frizz-dev already running on this machine, serving THIS project under its own slug.
+ * An ntwine-dev already running on this machine, serving THIS project under its own slug.
  *
  * The same client-not-a-server move the published launcher makes, and it matters more here: this is
- * the command the maintainer actually runs, in four repositories. Without it a second `frizz-dev`
+ * the command the maintainer actually runs, in four repositories. Without it a second `ntwine-dev`
  * would start a second server rather than joining the one that is already serving every project.
  *
  * The identity check is the launcher's own handshake minus the owner proof — that proof is keyed to a
  * launch LEASE and a client holds none. What a client needs to know is that this port serves ITS id
  * from ITS directory, which is exactly what the id and dir answer.
  */
-async function joinRunningFrizz(): Promise<
+async function joinRunningNtwine(): Promise<
   { port: number; slug: string } | undefined
 > {
   const slug = ownSlug();
@@ -790,7 +791,7 @@ async function joinRunningFrizz(): Promise<
   const target = workspaceLaunchTarget(workspace);
   for (const port of joinCandidatePorts()) {
     if (
-      await probeFrizz(
+      await probeNtwine(
         port,
         {
           projectId: target.projectId,
@@ -807,18 +808,18 @@ async function joinRunningFrizz(): Promise<
 }
 
 /**
- * Say it on screen when this launch is about to become the machine's SECOND Frizz.
+ * Say it on screen when this launch is about to become the machine's SECOND Ntwine.
  *
- * Falling past the join is right when nothing is running and wrong in every other case: two Frizzes
+ * Falling past the join is right when nothing is running and wrong in every other case: two Ntwinees
  * means two schedulers, and one board's timers and recurring prompts firing twice. Until now the only
- * trace was `machine server address is held by a live frizz …; leaving it` in a per-project log file,
+ * trace was `machine server address is held by a live ntwine …; leaving it` in a per-project log file,
  * printed by the child a full twenty seconds after the launcher had already committed — so what the
  * operator saw was a clean startup banner on a port they did not ask for.
  */
-async function warnAboutStartingASecondFrizz(): Promise<void> {
+async function warnAboutStartingASecondNtwine(): Promise<void> {
   for (const port of joinCandidatePorts()) {
     if (await canBindPort(port)) continue;
-    const detail = `port ${port} is in use but did not answer for ${workspace.root}; starting a SECOND Frizz`;
+    const detail = `port ${port} is in use but did not answer for ${workspace.root}; starting a SECOND Ntwine`;
     logger.warn("launcher", detail);
     console.warn(`warning: ${detail}`);
     return;
@@ -831,13 +832,13 @@ let cachedSlugPath: string | undefined;
  * project's board became the default view on 2026-10-06:
  *
  *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
- *   - run in a repository Frizz has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
+ *   - run in a repository Ntwine has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
  *     whichever view this browser was on last (web routes.tsx LastViewRedirect);
  *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
  *   - no intent (a supervisor child, an update re-exec): `/`, the browser's own last view.
  *
  * From 2026-09-30 until then every launch landed on All projects at a bare `/` (maintainer: "by default
- * frizz should open the all projects view").
+ * ntwine should open the all projects view").
  *
  * `?add=` is a REQUEST, not a registration — nothing on disk changes until the operator confirms on
  * the page, which is the only reason an unmarked directory is safe to point the launcher at at all.
@@ -857,12 +858,12 @@ function landingPath(): string {
 }
 
 /**
- * Record in the machine's registry that `frizz` was just run in THIS project, cold or joining. The launch
+ * Record in the machine's registry that `ntwine` was just run in THIS project, cold or joining. The launch
  * itself lands on this project's board (slugPath), but the stamp outlives it: it is the board a bare `/`
  * opens in a browser with no view on record, and the project All projects' prompt box aims a new thread at
  * when this browser has neither picked nor focused one (web lib/crossProject.ts lastViewHref,
  * defaultCrossProjectFocus). Only an `open` launch is from a project: an `everything` or `offer`
- * launch is hosted on Frizz's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
+ * launch is hosted on Ntwine's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
  * Internal relaunches (a supervisor child, an update re-exec) carry no intent, so a restart never
  * re-stamps the host over a later launch elsewhere.
  */
@@ -878,7 +879,7 @@ async function openOrPrint(
   noteLaunchedHere();
   const url = `http://127.0.0.1:${port}${path}`;
   const home = homedir();
-  logger.info("launcher", `${reused ? "reusing" : "started"} Frizz at ${url} for ${workspace.root}`);
+  logger.info("launcher", `${reused ? "reusing" : "started"} Ntwine at ${url} for ${workspace.root}`);
   if (reused) {
     // Nothing was built and nothing was started. Settle those steps for what they are, or a reuse
     // paints as a cold boot whose artifact and server rows simply never happened.
@@ -891,7 +892,7 @@ async function openOrPrint(
     try {
       if (options.appMode) {
         await launchApp(url, { dataPath: join(workspace.stateDir, "browser-profile") });
-        browser = reused ? "focused the Frizz app window" : "opened the Frizz app window";
+        browser = reused ? "focused the Ntwine app window" : "opened the Ntwine app window";
       } else {
         await launchBrowserTab(url);
         browser = "opened in your default browser";
@@ -914,7 +915,7 @@ async function openOrPrint(
   if (sessionNotice && !reused) warnings.push(sessionNotice);
   if (!readout) {
     // `--status`, internal launches and pipes keep the plain, parseable records.
-    console.log(`${reused ? "reusing" : "started"} Frizz for ${workspace.root}`);
+    console.log(`${reused ? "reusing" : "started"} Ntwine for ${workspace.root}`);
     console.log(`source: ${sourceLabel()}`);
     console.log(url);
     if (publicOrigin) console.log(accessLink?.url ?? `${publicOrigin}/`);
@@ -956,21 +957,21 @@ async function openOrPrint(
 // This line used to claim tmux preserved them, which has been false since the runtime moved and had
 // operators reaching for a pane that does not exist.
 function stoppedMessage(): string {
-  return `stopped Frizz for ${workspace.root}; detached agent daemons were preserved`;
+  return `stopped Ntwine for ${workspace.root}; detached agent daemons were preserved`;
 }
 
 async function stopWorkspace(): Promise<void> {
   const target = launchTarget;
   const owner = readProjectLaunchOwner(workspace.stateDir);
   if (!owner) {
-    console.log(`Frizz is not running for ${workspace.root}`);
+    console.log(`Ntwine is not running for ${workspace.root}`);
     return;
   }
   const status = liveWorkspaceOwner(workspace.stateDir, target);
   const healthy = status ? null : await existingHealth();
   const controlPort = status?.port ?? healthy?.port;
   const controlled = controlPort
-    ? await requestFrizzStop(
+    ? await requestNtwineStop(
         controlPort,
         expectedOwnerHealth(target, owner),
         owner.token
@@ -981,7 +982,7 @@ async function stopWorkspace(): Promise<void> {
   // below while registered children self-exit on supervisor IPC disconnect.
   if (!controlled && !processGenerationIsStale(owner)) {
     throw new Error(
-      "Frizz refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
+      "Ntwine refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
     );
   }
   const deadline = Date.now() + 10_000;
@@ -1035,7 +1036,7 @@ try {
   // no board is up — starting one here would create an empty directory and answer a different question.
   const running = liveWorkspaceOwner(workspace.stateDir, workspaceLaunchTarget(workspace));
   if (!running?.port) {
-    console.error("frizz: no board is running for this workspace");
+    console.error("ntwine: no board is running for this workspace");
     process.exit(1);
   }
   if (options.signOut !== undefined) await signOutSession(running.port, options.signOut);
@@ -1047,7 +1048,7 @@ if (options.link) {
     // it, "I need another code" means restarting the server, which is absurd.
     const running = liveWorkspaceOwner(workspace.stateDir, launchTarget);
     if (!running?.port) {
-      console.error("frizz: no board is running for this workspace");
+      console.error("ntwine: no board is running for this workspace");
       process.exit(1);
     }
     const response = await fetch(`http://127.0.0.1:${running.port}${SUPERVISOR_ACCESS_CODE_PATH}`, {
@@ -1056,7 +1057,7 @@ if (options.link) {
     }).catch(() => undefined);
     if (!response?.ok) {
       const detail = response ? (await response.json().catch(() => undefined))?.error : undefined;
-      console.error(`frizz: ${detail ?? "could not mint an access link"}`);
+      console.error(`ntwine: ${detail ?? "could not mint an access link"}`);
       process.exit(1);
     }
     const { url } = (await response.json()) as { url: string };
@@ -1072,9 +1073,9 @@ if (options.link) {
 
 
   if (command === "restart") {
-    if (!before.port) throw new Error("Frizz is not running for this workspace");
+    if (!before.port) throw new Error("Ntwine is not running for this workspace");
     const response = await fetch(
-      `http://127.0.0.1:${before.port}/_frizz/control/restart`,
+      `http://127.0.0.1:${before.port}/_ntwine/control/restart`,
       {
         method: "POST",
         headers: { origin: `http://127.0.0.1:${before.port}` },
@@ -1086,10 +1087,10 @@ if (options.link) {
     };
     if (!response.ok || result.state !== "ready")
       throw new Error(
-        result.message ?? "Frizz did not become ready after restart"
+        result.message ?? "Ntwine did not become ready after restart"
       );
     console.log(
-      `restarted Frizz artifact ${
+      `restarted Ntwine artifact ${
         readStableArtifact(workspace.stateDir)?.digest ?? "unknown"
       }`
     );
@@ -1139,11 +1140,11 @@ if (options.link) {
       // not being served" stopped being the same statement. A project that joined holds no launch
       // lease and never writes a server.lock, so every check above misses it and the honest answer
       // is the one the join path already knows how to get.
-      const joined = await joinRunningFrizz();
+      const joined = await joinRunningNtwine();
       if (joined) {
         console.log(`running: http://127.0.0.1:${joined.port}/project/${encodeURIComponent(joined.slug)}`);
         console.log(`workspace: ${workspace.root}`);
-        console.log(`served by the frizz running on this machine, which this project did not start`);
+        console.log(`served by the ntwine running on this machine, which this project did not start`);
       } else console.log(`stopped: ${workspace.root}`);
     }
     process.exit();
@@ -1153,16 +1154,16 @@ if (options.link) {
     process.exit(0);
   }
   {
-    const joined = await joinRunningFrizz();
+    const joined = await joinRunningNtwine();
     if (joined) {
       // slugPath(), not the joined slug: the slug names the project this launch is HOSTED on, which
       // is only the project to open when the intent is `open`. An `everything`/`offer` launch joins a server
       // hosted on some other project and must still land on `/all` or `/?add=` — hard-coding the host's board here
-      // is what made `frizz-dev` in an unadopted directory open somebody else's board outright.
+      // is what made `ntwine-dev` in an unadopted directory open somebody else's board outright.
       await openOrPrint(joined.port, true, slugPath());
       process.exit(0);
     }
-    await warnAboutStartingASecondFrizz();
+    await warnAboutStartingASecondNtwine();
   }
   if (before.owner && !readProjectLaunchOwner(workspace.stateDir)) {
     const owner = before.owner;
@@ -1183,7 +1184,7 @@ if (options.link) {
         owner.state ?? "unknown"
       }: ${
         owner.message ?? "no detail"
-      }); fix the source or run frizz-dev --stop`
+      }); fix the source or run ntwine-dev --stop`
     );
   }
 
@@ -1194,10 +1195,10 @@ if (options.link) {
   }
   const launchOwner = projectClaim;
   const target = workspaceLaunchTarget(workspace);
-  // Another Frizz under this home already has this project open as one of its many — the installed
+  // Another Ntwine under this home already has this project open as one of its many — the installed
   // one, whose dev port this launch does not probe. Its server would refuse to boot on it anyway; say
   // so now, naming that server, rather than after a build and a boot. Checked once the launch lease is
-  // ours: a frizz-dev of this project that is still starting has had its chance to be reused above.
+  // ours: an ntwine-dev of this project that is still starting has had its chance to be reused above.
   const servedBy = servingRecordElsewhere(workspace.stateDir, target.projectId);
   if (servedBy !== undefined) {
     launchOwner.release();
@@ -1205,7 +1206,7 @@ if (options.link) {
   }
   // This preparation is local to the project. Keep it outside the machine-global port/start lock
   // so independent repositories can perform cold source/artifact work concurrently.
-  let pinnedArtifact: ReturnType<typeof ensureStableFrizzArtifact> | undefined;
+  let pinnedArtifact: ReturnType<typeof ensureStableNtwineArtifact> | undefined;
   let release: (() => void) | undefined;
   let portReservation: (() => void) | undefined;
   try {
@@ -1219,7 +1220,7 @@ if (options.link) {
           ? undefined
           : (() => {
               readout?.begin("artifact", "checking for a verified build");
-              const artifact = ensureStableFrizzArtifact(
+              const artifact = ensureStableNtwineArtifact(
                 workspace.stateDir,
                 sourceWorkspaceDir(),
                 defaultArtifactRoot(),
@@ -1264,7 +1265,7 @@ if (options.link) {
     }
     if (after.owner)
       throw new Error(
-        `supervisor pid ${after.owner.pid} became unhealthy during launch; run frizz-dev --status`
+        `supervisor pid ${after.owner.pid} became unhealthy during launch; run ntwine-dev --status`
       );
 
     const allocation = await allocatePort(

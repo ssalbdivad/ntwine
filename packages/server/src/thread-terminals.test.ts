@@ -4,7 +4,7 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { ThreadSlug } from "@frizz/shared"
+import { ThreadSlug } from "@ntwine/shared"
 import { createStorage, type Storage } from "./storage.ts"
 import { commandEnvironment, createTerminalRunner, endsOnPrompt, followUpScreen, type TerminalRunner, type TerminalRunnerDeps } from "./thread-terminals.ts"
 
@@ -21,14 +21,14 @@ const runners: TerminalRunner[] = []
 after(() => { for (const runner of runners) runner.shutdown() })
 
 function harness(opts: { storage?: Storage; dir?: string; inputQuietMs?: number; loadPty?: TerminalRunnerDeps["loadPty"] } = {}) {
-  const dir = opts.dir ?? realpathSync(mkdtempSync(join(tmpdir(), "frizz-term-")))
+  const dir = opts.dir ?? realpathSync(mkdtempSync(join(tmpdir(), "ntwine-term-")))
   const store = opts.storage ?? createStorage(join(dir, "ui.db"), "p")
   let changes = 0
   const runner = createTerminalRunner({
     storage: store,
     onChange: () => { changes++ },
     // `sh`, not the operator's login shell: a test must not depend on what ~/.profile prints.
-    env: { ...process.env, SHELL: "/bin/sh", FRIZZ_LOG_FILE: "/must/not/leak" },
+    env: { ...process.env, SHELL: "/bin/sh", NTWINE_LOG_FILE: "/must/not/leak" },
     stopGraceMs: 1_000,
     ...(opts.inputQuietMs === undefined ? {} : { inputQuietMs: opts.inputQuietMs }),
     ...(opts.loadPty ? { loadPty: opts.loadPty } : {}),
@@ -68,7 +68,7 @@ function alive(pid: number): boolean {
 
 test("a finished command keeps its output and exit code on its thread, and a late viewer still sees both", { skip: !posix }, async () => {
   const { runner, dir, start } = harness()
-  const { id } = await start("printf 'hello from %s\\n' \"$PWD\"; printf 'leak=%s\\n' \"${FRIZZ_LOG_FILE:-none}\"; exit 3")
+  const { id } = await start("printf 'hello from %s\\n' \"$PWD\"; printf 'leak=%s\\n' \"${NTWINE_LOG_FILE:-none}\"; exit 3")
   assert.ok(ThreadSlug.safeParse(id).success)
   assert.match(id, /^term-[0-9a-f]{12}$/)
   const exited = await exitedTerm(runner, id)
@@ -86,7 +86,7 @@ test("a finished command keeps its output and exit code on its thread, and a lat
   assert.equal(code, 3)
   // It ran in the folder it was given — the thread's working folder, not the server's.
   assert.match(screen, new RegExp(`hello from ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`))
-  // The server's own FRIZZ_* identity never reaches the command.
+  // The server's own NTWINE_* identity never reaches the command.
   assert.match(screen, /leak=none/)
   runner.shutdown()
 })
@@ -214,7 +214,7 @@ test("a follow-up after the server lost the last run's screen opens on just its 
 })
 
 test("a run the previous server never saw finish reads as interrupted after a restart", { skip: !posix }, async () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-term-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-term-")))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const before = harness({ storage, dir })
   const { id } = await before.start("sleep 60")
@@ -232,7 +232,7 @@ test("a run the previous server never saw finish reads as interrupted after a re
 })
 
 test("a pre-2026-09-29 command thread, with no parent, is nobody's terminal", () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "frizz-term-")))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-term-")))
   const storage = createStorage(join(dir, "ui.db"), "p")
   // The old top-level shape: no parent, no folder. The schema migration also archives it.
   storage.db.prepare("INSERT INTO thread_terminal (project_id, slug, command, created_at, started_at) VALUES ('p', 'term-legacy', 'npm run dev', 1, 1)").run()
@@ -243,16 +243,16 @@ test("a pre-2026-09-29 command thread, with no parent, is nobody's terminal", ()
   runner.shutdown()
 })
 
-test("the command environment drops every FRIZZ_* variable and names a colour terminal", () => {
-  const env = commandEnvironment({ PATH: "/bin", FRIZZ_STATE_DIR: "/x", FRIZZ_LAUNCH_PROJECT_ID: "p", HOME: "/h" })
-  assert.deepEqual(Object.keys(env).filter((k) => k.startsWith("FRIZZ_")), [])
+test("the command environment drops every NTWINE_* variable and names a colour terminal", () => {
+  const env = commandEnvironment({ PATH: "/bin", NTWINE_STATE_DIR: "/x", NTWINE_LAUNCH_PROJECT_ID: "p", HOME: "/h" })
+  assert.deepEqual(Object.keys(env).filter((k) => k.startsWith("NTWINE_")), [])
   assert.equal(env.PATH, "/bin")
   assert.equal(env.TERM, "xterm-256color")
 })
 
 // LAZY node-pty (2026-09-29). The addon is loaded on the terminal start path and nowhere else, so a box
 // where it will not load — no prebuild for the platform, a broken install — runs every other part of
-// Frizz, and the terminal itself says why it cannot start instead of the server dying at boot (#42).
+// Ntwine, and the terminal itself says why it cannot start instead of the server dying at boot (#42).
 test("a terminal whose pty cannot load fails in its own pane, with the reason, and the runner carries on", async () => {
   const { runner, start, changes } = harness({
     loadPty: () => Promise.reject(new Error("Cannot find module 'node-pty'")),
@@ -267,7 +267,7 @@ test("a terminal whose pty cannot load fails in its own pane, with the reason, a
   const screen = attachment.replay()
   assert.match(screen, /node-pty native module did not load/)
   assert.match(screen, /Cannot find module 'node-pty'/)
-  assert.match(screen, /Everything else in Frizz works without it/)
+  assert.match(screen, /Everything else in Ntwine works without it/)
   assert.equal(await new Promise<number | undefined>((resolve) => attachment.onExit(resolve)), 127)
   // Nothing about the failure is sticky: the next start asks for the addon again.
   const second = await start(undefined)

@@ -1,5 +1,5 @@
-import { ACP_MODEL_PREFIX, CODEX_MODELS_FALLBACK, PermissionMode, type Backend, type ClaudeModel, type CodexModel } from "@frizz/shared"
-export { CODEX_MODELS_FALLBACK } from "@frizz/shared"
+import { ACP_MODEL_PREFIX, CODEX_MODELS_FALLBACK, PermissionMode, type Backend, type ClaudeModel, type CodexModel } from "@ntwine/shared"
+export { CODEX_MODELS_FALLBACK } from "@ntwine/shared"
 import type { SelectOption, SelectGroup } from "../components/ui/Select.tsx"
 
 // Shared option sets for the permission / model / effort selects, used by both the New-thread
@@ -88,7 +88,7 @@ export function claudeModelOptions(claudeModels: readonly ClaudeModel[] = []): S
 }
 
 // Codex models + their PER-MODEL effort sets come from the server's codexModels() RPC. Loading and
-// incompatible-cache states use the shared degraded catalogue from @frizz/shared; keeping that one
+// incompatible-cache states use the shared degraded catalogue from @ntwine/shared; keeping that one
 // fallback at the protocol boundary prevents the browser and server from disagreeing about whether a
 // saved profile is dispatchable.
 // The shared fallback's Codex slugs when no live RPC list is on hand. backendForModel unions these

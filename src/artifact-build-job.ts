@@ -10,7 +10,7 @@ import { promoteCurrentSourceArtifact } from "./artifacts.ts";
  * signal handlers, so for the whole build:
  *
  * - the board stopped answering: the supervisor's proxy could not forward a single request, though
- *   the readout promised "the running Frizz is untouched until it is ready";
+ *   the readout promised "the running Ntwine is untouched until it is ready";
  * - SIGINT/SIGTERM/SIGHUP queued unhandled. A worker's `TaskStop` on a sandbox mid-update sat for
  *   6m24s, and Ctrl-C in the terminal did nothing until the build finished.
  *
@@ -20,10 +20,10 @@ import { promoteCurrentSourceArtifact } from "./artifacts.ts";
  * nub (whose loader rides NODE_OPTIONS, which the child inherits) and the bundled artifact, where
  * there is no separate module to point at — see DETACHED_DAEMON_ENTRIES for why that list stays short.
  */
-export const ARTIFACT_BUILD_JOB_ENV = "FRIZZ_ARTIFACT_BUILD_JOB";
+export const ARTIFACT_BUILD_JOB_ENV = "NTWINE_ARTIFACT_BUILD_JOB";
 
-const RESULT_PREFIX = "frizz-artifact-build-result ";
-const PROGRESS_PREFIX = "frizz-artifact-build-progress ";
+const RESULT_PREFIX = "ntwine-artifact-build-result ";
+const PROGRESS_PREFIX = "ntwine-artifact-build-progress ";
 
 interface ArtifactBuildJob {
   stateDir: string;

@@ -12,9 +12,9 @@ const live = (cwd: string | undefined, id: string) => ({
 const message = (tools: unknown[]) => ({ role: "assistant", at: "2026-09-30T10:00:00.000Z", tools, parts: [] }) as unknown as ChatMessage
 
 test("a live Codex shell carries its tool call's folder only when that folder is absolute", () => {
-  const shells = transcriptBackgroundShells([message([live("/home/u/repo/.frizz/worktrees/probe", "c1"), live("packages/web", "c2"), live(undefined, "c3"), live("C:\\repo\\web", "c4")])])
+  const shells = transcriptBackgroundShells([message([live("/home/u/repo/.ntwine/worktrees/probe", "c1"), live("packages/web", "c2"), live(undefined, "c3"), live("C:\\repo\\web", "c4")])])
   assert.deepEqual(shells.map((s) => [s.launchId, s.cwd]), [
-    ["c1", "/home/u/repo/.frizz/worktrees/probe"],
+    ["c1", "/home/u/repo/.ntwine/worktrees/probe"],
     ["c2", undefined],
     ["c3", undefined],
     ["c4", "C:\\repo\\web"],

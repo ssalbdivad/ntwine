@@ -234,7 +234,7 @@ function systemPlistParser(bytes) {
   return JSON.parse(run("plutil", ["-convert", "json", "-o", "-", "-"], { input: bytes }))
 }
 
-export function inspectOwnedFrizzShim(appPath, {
+export function inspectOwnedNtwineShim(appPath, {
   containerRoot,
   projectsRoot,
   expectedBundleName = basename(appPath, ".app"),
@@ -268,7 +268,7 @@ export function inspectOwnedFrizzShim(appPath, {
   const expectedProfile = join(browserProfile, "-", "Web Applications", `_crx_${appId}`)
   if (
     bundleName !== expectedBundleName ||
-    !/^Frizz(?: [1-9]\d*)?$/.test(bundleName) ||
+    !/^Ntwine(?: [1-9]\d*)?$/.test(bundleName) ||
     info.CFBundleExecutable !== "app_mode_loader" ||
     !appId ||
     shortcutUrl.protocol !== "http:" ||
@@ -326,16 +326,16 @@ export function writeStableRegularFile(path, parent, bytes, { mode } = {}) {
   }
 }
 
-export function discoverOwnedFrizzShims({ appsDir, projectsRoot, parsePlist = systemPlistParser }) {
+export function discoverOwnedNtwineShims({ appsDir, projectsRoot, parsePlist = systemPlistParser }) {
   const canonicalAppsDir = realpathSync(appsDir)
   const shims = []
   for (const entry of readdirSync(canonicalAppsDir, { withFileTypes: true })) {
-    if (!/^Frizz(?: [1-9]\d*)?\.app$/.test(entry.name)) continue
+    if (!/^Ntwine(?: [1-9]\d*)?\.app$/.test(entry.name)) continue
     if (entry.isSymbolicLink() || !entry.isDirectory()) {
       throw new Error(`${entry.name} must be a direct, non-symlink app bundle`)
     }
     const path = join(canonicalAppsDir, entry.name)
-    const owned = inspectOwnedFrizzShim(path, {
+    const owned = inspectOwnedNtwineShim(path, {
       containerRoot: canonicalAppsDir,
       projectsRoot,
       parsePlist,
@@ -396,8 +396,8 @@ export function refreshInstalledAppIcons({
   log = console.log,
 } = {}) {
   if (!appsDir || !projectsRoot || !icnsPath) throw new Error("appsDir, projectsRoot, and icnsPath are required")
-  const shims = discoverOwnedFrizzShims({ appsDir, projectsRoot, parsePlist })
-  if (shims.length === 0) throw new Error(`no positively identified Frizz app shims found in ${appsDir}`)
+  const shims = discoverOwnedNtwineShims({ appsDir, projectsRoot, parsePlist })
+  if (shims.length === 0) throw new Error(`no positively identified Ntwine app shims found in ${appsDir}`)
   for (const { path: appPath, owned } of shims) {
     const webAppsSuffix = `${sep}-${sep}Web Applications${sep}`
     const profile = owned.info.CrAppModeUserDataDir
@@ -409,7 +409,7 @@ export function refreshInstalledAppIcons({
 
   const icnsBytes = readStableRegularFile(icnsPath, dirname(icnsPath))
   const canonicalAppsDir = realpathSync(appsDir)
-  const transactionRoot = mkdtempSync(join(canonicalAppsDir, ".frizz-icon-transaction-"))
+  const transactionRoot = mkdtempSync(join(canonicalAppsDir, ".ntwine-icon-transaction-"))
   const transactions = []
   let mayRemoveTransactionRoot = false
   let committed = false
@@ -425,23 +425,23 @@ export function refreshInstalledAppIcons({
       const originalIcon = readStableRegularFile(owned.iconPath, owned.resources)
       const originalMode = lstatSync(owned.iconPath).mode & 0o777
       copyBundle(appPath, stagePath)
-      const staged = inspectOwnedFrizzShim(stagePath, {
+      const staged = inspectOwnedNtwineShim(stagePath, {
         containerRoot: transactionRoot,
         projectsRoot,
         expectedBundleName: owned.info.CFBundleName,
         parsePlist,
       })
-      if (!staged) throw new Error(`${basename(appPath)} lost its Frizz ownership metadata while staging`)
+      if (!staged) throw new Error(`${basename(appPath)} lost its Ntwine ownership metadata while staging`)
       writeStableRegularFile(staged.iconPath, staged.resources, icnsBytes, { mode: originalMode })
       signBundle(stagePath)
       verifyBundle(stagePath)
-      const verifiedStage = inspectOwnedFrizzShim(stagePath, {
+      const verifiedStage = inspectOwnedNtwineShim(stagePath, {
         containerRoot: transactionRoot,
         projectsRoot,
         expectedBundleName: owned.info.CFBundleName,
         parsePlist,
       })
-      if (!verifiedStage) throw new Error(`${basename(appPath)} lost its Frizz ownership metadata after signing`)
+      if (!verifiedStage) throw new Error(`${basename(appPath)} lost its Ntwine ownership metadata after signing`)
       if (!readStableRegularFile(verifiedStage.plistPath, dirname(verifiedStage.plistPath)).equals(originalPlist)) {
         throw new Error(`${basename(appPath)} metadata changed while staging`)
       }
@@ -468,13 +468,13 @@ export function refreshInstalledAppIcons({
     }
     for (const transaction of transactions) {
       verifyBundle(transaction.appPath)
-      const installed = inspectOwnedFrizzShim(transaction.appPath, {
+      const installed = inspectOwnedNtwineShim(transaction.appPath, {
         containerRoot: canonicalAppsDir,
         projectsRoot,
         expectedBundleName: transaction.owned.info.CFBundleName,
         parsePlist,
       })
-      if (!installed) throw new Error(`${basename(transaction.appPath)} lost its installed Frizz ownership metadata`)
+      if (!installed) throw new Error(`${basename(transaction.appPath)} lost its installed Ntwine ownership metadata`)
       if (!readStableRegularFile(installed.plistPath, dirname(installed.plistPath)).equals(transaction.originalPlist)) {
         throw new Error(`${basename(transaction.appPath)} installed metadata differs from its original metadata`)
       }
@@ -495,7 +495,7 @@ export function refreshInstalledAppIcons({
     for (const transaction of transactions) {
       log(`refreshed ${basename(transaction.appPath)} (${transaction.owned.info.CrAppModeShortcutURL})`)
     }
-    log(`refreshed ${transactions.length} positively identified Frizz app shim icon${transactions.length === 1 ? "" : "s"}`)
+    log(`refreshed ${transactions.length} positively identified Ntwine app shim icon${transactions.length === 1 ? "" : "s"}`)
     return transactions.map(({ appPath }) => appPath)
   } catch (error) {
     if (committed) {
@@ -532,7 +532,7 @@ export function refreshInstalledAppIcons({
 
 function buildIcns(workDir) {
   if (process.platform !== "darwin") throw new Error("--refresh-app-icons is supported only on macOS")
-  const iconset = join(workDir, "Frizz.iconset")
+  const iconset = join(workDir, "Ntwine.iconset")
   mkdirSync(iconset)
   const sizes = [
     ["icon_16x16.png", 16],
@@ -593,7 +593,7 @@ export function main(args = process.argv.slice(2)) {
     if (refreshAppIcons) {
       refreshInstalledAppIcons({
         appsDir: join(homedir(), "Applications", "Chrome Apps.localized"),
-        projectsRoot: join(homedir(), ".frizz", "projects"),
+        projectsRoot: join(homedir(), ".ntwine", "projects"),
         icnsPath: buildIcns(workDir),
       })
     }

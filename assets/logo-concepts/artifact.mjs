@@ -39,8 +39,8 @@ const SHEET_ONE_VERDICTS = {
 const SHEETS = {
   "signature-f": {
     dir: "out-sig",
-    file: "frizz-signature-f.html",
-    title: "Frizz — the cursive f, rotationally symmetric",
+    file: "ntwine-signature-f.html",
+    title: "Ntwine — the cursive f, rotationally symmetric",
     lede: `The written f, built as real geometry from the reference below and <b>exactly symmetric under a half turn</b>. That is not an ornament bolted on: two loops crossing once at a waist already ARE point reflections of each other through that crossing, so the letterform wants C2 — the previous draft simply broke it. Every mark here is derived from one half and rotated, never drawn twice, and every render is <b>measured</b> against its own 180-degree rotation.`,
     reference: "reference-brief.png",
     symmetry: true,
@@ -61,8 +61,8 @@ const SHEETS = {
   },
   "cursive-f": {
     dir: "out-f",
-    file: "frizz-cursive-f.html",
-    title: "Frizz — the hooked f",
+    file: "ntwine-cursive-f.html",
+    title: "Ntwine — the hooked f",
     lede: `Eight takes on a lowercase f built from hooks rather than loops. This is the favicon-viable family: an f whose terminals curl but never close, so there is no counter that can seal at 16px. <b>Judged against the real 16px render, not the hero.</b>`,
     footer: [
       `<b>The rule that shapes all of these.</b> A written ascender loop is about 52 units wide, so its counter is 2&times;52&minus;56 = 48 units — 1.5px, under the floor. That single number is why every workable f here is a <b>hooked</b> f rather than a looped one, and why the loop variants are marked ruled out.`,
@@ -71,8 +71,8 @@ const SHEETS = {
   },
   concepts: {
     dir: "out",
-    file: "frizz-logo-concepts.html",
-    title: "Frizz — icon concepts",
+    file: "ntwine-logo-concepts.html",
+    title: "Ntwine — icon concepts",
     lede: `Fifteen directions for the mark after the rename, each drawn as real geometry and rendered at 512, 128, 32 and 16&nbsp;px. <b>Every concept is judged at 16px, not at hero size</b> — the favicon is the constraint, so the small render is the evidence and the big one is the advert.`,
     before: true,
     footer: [
@@ -104,7 +104,7 @@ const card = (sheet, c) => {
       </div>
       <div class="ev">
         <div class="tabstrip">
-          <div class="tab"><img src="${uri(sheet.dir, `${c.id}-16.png`)}" width="16" height="16" alt=""><span>frizz</span></div>
+          <div class="tab"><img src="${uri(sheet.dir, `${c.id}-16.png`)}" width="16" height="16" alt=""><span>ntwine</span></div>
           <div class="tab dim"><img src="${uri(sheet.dir, `${c.id}-16.png`)}" width="16" height="16" alt=""><span>zod</span></div>
         </div>
         <span>actual size, in a tab</span>

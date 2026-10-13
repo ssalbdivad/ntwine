@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { ChevronsDownUp, ChevronsUpDown, Loader2, RotateCcw } from "lucide-react"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { Tooltip } from "./Tooltip.tsx"
 import { MarkAsButton } from "./MarkAsButton.tsx"
 import { offersRetry } from "../groups.ts"
@@ -18,11 +18,11 @@ export { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 // header so the two can never drift. Order left→right runs least→most important, so the primary verb
 // sits at the far RIGHT. The verbs SPLIT on kind:
 //   • SESSION (non-foreign): the fullscreen door, plus Retry on exactly the threads `offersRetry`
-//     picks — the STALLED ones (the rail's yellow [!]) and the ones KILLED by a usage limit frizz will
+//     picks — the STALLED ones (the rail's yellow [!]) and the ones KILLED by a usage limit ntwine will
 //     auto-resume (the yellow hourglass, offered the same one-click continue). Every surface that renders this
 //     component reads that same derivation, so the verb can never disagree between the card, the header
 //     and the rail. The live-process maintenance verbs (Reload plugins, Restart worker), the copy
-//     terminal command and the Frizz document sat here until 2026-09-29; they are the drawer's ⋯ menu
+//     terminal command and the Ntwine document sat here until 2026-09-29; they are the drawer's ⋯ menu
 //     items now (ThreadMenu.tsx), and Reload plugins is gone (upstream 288f5687: the server reloads a
 //     worker's plugins on its own).
 //     The two lifecycle verbs (snooze, mark as done) close the same strip after this component, from

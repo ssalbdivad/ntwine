@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { Terminal } from "@xterm/xterm"
-import type { TermClientMsg } from "@frizz/shared"
+import type { TermClientMsg } from "@ntwine/shared"
 import { queuedTerminalInputBytes, terminalCloseKind, terminalExitCode, terminalReconnectDelay } from "../lib/terminalConnection.ts"
 import { apiBase } from "../lib/base-path.ts"
 import { mountXterm } from "../lib/xtermSetup.ts"

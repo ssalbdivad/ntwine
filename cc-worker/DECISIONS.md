@@ -1,23 +1,23 @@
 # cc-worker — design decisions
 
-The **frizz** worker-side plugin (dir `cc-worker/`, manifest `name: "frizz"` since 2026-07-08) is
-consumed by frizz worker sessions: one interactive top-level
-`claude` per `.frizz/` thread, loaded via `claude --plugin-dir <repo>/cc-worker`. Each session is a
-**worker bound to ONE thread** (slug in env `FRIZZ_THREAD` + a `THREAD:` line in its prompt). The
-human + the frizz app are the orchestrator; the worker just drives its one thread. This records
+The **ntwine** worker-side plugin (dir `cc-worker/`, manifest `name: "ntwine"` since 2026-07-08) is
+consumed by ntwine worker sessions: one interactive top-level
+`claude` per `.ntwine/` thread, loaded via `claude --plugin-dir <repo>/cc-worker`. Each session is a
+**worker bound to ONE thread** (slug in env `NTWINE_THREAD` + a `THREAD:` line in its prompt). The
+human + the ntwine app are the orchestrator; the worker just drives its one thread. This records
 what was ported from the orchestrator `cc/` plugin, what was dropped, and why.
 
 ## Shared source, bundled runtime closure
 
-- **`scripts/frizz/config.mjs` and `scripts/frizz/agent-bindings.mjs` are THIN SHIMS** that
+- **`scripts/ntwine/config.mjs` and `scripts/ntwine/agent-bindings.mjs` are THIN SHIMS** that
   `export *` from `../../../board/*.mjs`. cc-worker never copies config/vocab/binding
   logic — there is exactly one source of truth (cc's). This assumes cc is a sibling dir (`../../cc/`
-  from the plugin root), the same assumption frizz's server makes (`ARCHITECTURE.md`: it imports
+  from the plugin root), the same assumption ntwine's server makes (`ARCHITECTURE.md`: it imports
   the board logic from `../../board/*.mjs`).
-- **`bin/frizz` and `bin/frizz-update`** are cc's exact shim pattern, resolving cc's real scripts at
+- **`bin/ntwine` and `bin/ntwine-update`** are cc's exact shim pattern, resolving cc's real scripts at
   `../../board/{index,thread-update}.mjs` relative to the bin file (cwd-independent). They
-  land on the worker's Bash PATH the way cc's do. `frizz-update` is the worker's primary tool for
-  owning its one thread file; `frizz` lets it read/validate the board.
+  land on the worker's Bash PATH the way cc's do. `ntwine-update` is the worker's primary tool for
+  owning its one thread file; `ntwine` lets it read/validate the board.
 - **Portable artifact rule:** `src/artifacts.ts` copies the exact sibling
   `board/` module closure to `runtime/board/`, beside `runtime/cc-worker/`.
   The existing shims therefore resolve inside an immutable artifact when the source checkout is gone;
@@ -25,43 +25,43 @@ what was ported from the orchestrator `cc/` plugin, what was dropped, and why.
 - **`agents/*.md`** are copied UNCHANGED from `cc/agents/` (16 profiles) — a worker dispatches its
   own helpers at the same model/effort cells as the orchestrator.
 
-## Hooks ported (all gated on `FRIZZ_THREAD` — inert if the plugin is loaded anywhere else)
+## Hooks ported (all gated on `NTWINE_THREAD` — inert if the plugin is loaded anywhere else)
 
 | Hook | Event | Ported from | What it does for a worker |
 | --- | --- | --- | --- |
 | `session-seed.mjs` | SessionStart (startup/resume/clear/compact) | cc `session-seed.mjs` | Injects the single-thread worker contract + the bound slug + its file path; re-grounds on compact. Also writes cc's `off` sentinel defensively (see interplay). |
 | `precompact-instructions.mjs` | PreCompact (auto/manual) | new — no cc equivalent | Steers WHAT SURVIVES compaction: emits an editorial brief asking the summarizer to preserve the high-level approach (plan, alternatives rejected, rationale) at high fidelity, plus a closing "Re-grounding before continuing:" section naming the thread's scratch-directory path and the files to re-read. **PLAIN STDOUT is the channel** — cc's usual `hookSpecificOutput` JSON would be handed to the summarizer as its literal instructions. Skips sub-agent contexts (the derived scratch-directory path is only guaranteed for the top-level worker). |
-| `scratchpad.mjs` | SessionStart (startup/resume/clear/compact) + PreCompact (auto/manual) + UserPromptSubmit + PostToolUse | new — no cc equivalent | Keeps a worker aware of its per-thread scratch DIRECTORY (`.frizz/threads/<sid>/`). `--mode=session-start` NAMES the files in it on the context-losing sources (compact/resume/clear) — a listing, never their content — and otherwise teaches the arrangement (write a doc, then arm `post_compaction`); `--mode=precompact` (**plain stdout**) tells the summarizer those files exist so it carries their paths forward; `--mode=nudge` fires on BOTH UserPromptSubmit and PostToolUse (mid-turn — the one that matters for long autonomous turns) once context has grown past `STALE_TOKENS` since the last write. Both nudge channels share one state file, so mid-turn firing does not multiply reminders. NOT gated on `FRIZZ_THREAD`; `--via=project` marks the repo-local registration and defers to this one inside a frizz worker. |
+| `scratchpad.mjs` | SessionStart (startup/resume/clear/compact) + PreCompact (auto/manual) + UserPromptSubmit + PostToolUse | new — no cc equivalent | Keeps a worker aware of its per-thread scratch DIRECTORY (`.ntwine/threads/<sid>/`). `--mode=session-start` NAMES the files in it on the context-losing sources (compact/resume/clear) — a listing, never their content — and otherwise teaches the arrangement (write a doc, then arm `post_compaction`); `--mode=precompact` (**plain stdout**) tells the summarizer those files exist so it carries their paths forward; `--mode=nudge` fires on BOTH UserPromptSubmit and PostToolUse (mid-turn — the one that matters for long autonomous turns) once context has grown past `STALE_TOKENS` since the last write. Both nudge channels share one state file, so mid-turn firing does not multiply reminders. NOT gated on `NTWINE_THREAD`; `--via=project` marks the repo-local registration and defers to this one inside an ntwine worker. |
 | `agent-dispatch.mjs` | PreToolUse(Agent) | cc `agent-dispatch.mjs` | Enforces `run_in_background:true`, strips `name`/`team_name`, appends a worker-flavored orchestration epilogue. |
-| `bash-background.mjs` | PreToolUse(Bash) | new | Denies a local shell job that escapes through `&` without a later `wait` or EXIT trap, including one hidden inside a command-position `bash -c '…'`. Shell job control bypasses Claude's task registry, so Frizz cannot track or wake it; self-contained probe concurrency, and a wrapper handed to another program (`ssh`/`docker run`/`limactl shell`), remain allowed. Also carries the job gate's rewrite (`job-gate/hook.ts`): a heavy command runs through `frizz-run` (2026-10-08 entry). |
-| `agent-bind.mjs` | PostToolUse(Agent) | cc `agent-bind.mjs` (verbatim behavior) | Records `agentId → thread` into `.frizz/.agent-bindings.jsonl` in cc's exact format, so a worker's THREAD-tagged helper renders on the frizz board's per-thread liveness. |
-| `stop-flush.mjs` | Stop | cc `frizz-stop-reminder.mjs` (dirty-check idea only) | If the worker's ONE thread file wasn't edited since the last rest, nudges it to flush its state (mtime dirty-check, cooldown-limited, least-alarming `additionalContext` channel). |
+| `bash-background.mjs` | PreToolUse(Bash) | new | Denies a local shell job that escapes through `&` without a later `wait` or EXIT trap, including one hidden inside a command-position `bash -c '…'`. Shell job control bypasses Claude's task registry, so Ntwine cannot track or wake it; self-contained probe concurrency, and a wrapper handed to another program (`ssh`/`docker run`/`limactl shell`), remain allowed. Also carries the job gate's rewrite (`job-gate/hook.ts`): a heavy command runs through `ntwine-run` (2026-10-08 entry). |
+| `agent-bind.mjs` | PostToolUse(Agent) | cc `agent-bind.mjs` (verbatim behavior) | Records `agentId → thread` into `.ntwine/.agent-bindings.jsonl` in cc's exact format, so a worker's THREAD-tagged helper renders on the ntwine board's per-thread liveness. |
+| `stop-flush.mjs` | Stop | cc `ntwine-stop-reminder.mjs` (dirty-check idea only) | If the worker's ONE thread file wasn't edited since the last rest, nudges it to flush its state (mtime dirty-check, cooldown-limited, least-alarming `additionalContext` channel). |
 
 ## cc hooks DROPPED — one line each on why
 
-- **`frizz-reminder.mjs` (UserPromptSubmit per-turn pulse)** — DROPPED. It nags the *orchestrator*
+- **`ntwine-reminder.mjs` (UserPromptSubmit per-turn pulse)** — DROPPED. It nags the *orchestrator*
   about the whole board (pending-by-status, reconcile-stale, un-drained follow-ups, revalidate-due).
   A worker owns one thread and does not orchestrate a board; a per-turn board pulse is pure noise.
-- **`frizz-stop-reminder.mjs` (board-wide Stop reconcile + pop-one decision queue)** — DROPPED as-is;
+- **`ntwine-stop-reminder.mjs` (board-wide Stop reconcile + pop-one decision queue)** — DROPPED as-is;
   only its per-thread dirty-check idea is reused in `stop-flush.mjs`. The rest (reconcile every
   rested agent, pop the next human-blocked thread and present it) is orchestrator decision-queue work
-  the frizz app + human own, not the worker.
-- **`frizz-notify-surface.mjs` (Stop) + `frizz-notify` bin/`notify.mjs`** — DROPPED. The durable
-  WIN/DECISION/BLOCKER notification queue is an orchestrator surfacing channel; in frizz the UI
+  the ntwine app + human own, not the worker.
+- **`ntwine-notify-surface.mjs` (Stop) + `ntwine-notify` bin/`notify.mjs`** — DROPPED. The durable
+  WIN/DECISION/BLOCKER notification queue is an orchestrator surfacing channel; in ntwine the UI
   surfaces "awaiting you" from thread `status: blocked` + `status_text` directly, so the worker needs
   no separate notify queue.
-- **`frizz-subagent-rest.mjs` (SubagentStop recorder) + `frizz-rest-guard.mjs` (SubagentStop guard)**
+- **`ntwine-subagent-rest.mjs` (SubagentStop recorder) + `ntwine-rest-guard.mjs` (SubagentStop guard)**
   — DROPPED. These feed the orchestrator's board-wide "reconcile every rested dispatched agent"
   machinery (`.rested-agents.jsonl`, the `.dispatch-count` gate). A worker actively collects its own
   handful of helpers before resting (contract in SKILL.md); it does not need the board-scale
   rest-reconciliation guard. The worker-facing half of the rest-guard's lesson (run long ops inline,
   don't rest on a waiter) is carried in the dispatch epilogue instead.
-- **`frizz-thread-edit-steer.mjs` (PostToolUse Edit/Write)** — DROPPED. It's an orchestrator
+- **`ntwine-thread-edit-steer.mjs` (PostToolUse Edit/Write)** — DROPPED. It's an orchestrator
   convenience that steers an in-flight agent when the orchestrator hand-edits a thread; a worker edits
   its OWN thread and dispatches its OWN helpers, so there's nothing to cross-steer.
 - **`session-end.mjs` (SessionEnd heartbeat clear)** — DROPPED. It clears the session-ownership
   HEARTBEAT so a dead orchestrator's threads orphan. Workers don't participate in cc's multi-session
-  ownership model (no `owner_session` claims, no heartbeat) — the frizz app tracks which session
+  ownership model (no `owner_session` claims, no heartbeat) — the ntwine app tracks which session
   drives which thread — so there's no heartbeat to clear.
 - **The `.dispatch-ledger.jsonl` write + THREAD-existence DENY gate + `.dispatch-count` bump**
   (inside cc's `agent-dispatch.mjs`) — DROPPED from the worker's PreToolUse. The ledger is a
@@ -73,44 +73,44 @@ what was ported from the orchestrator `cc/` plugin, what was dropped, and why.
 
 ## Interplay with the orchestrator `cc` plugin (double-hook analysis)
 
-**Question:** if the user has `cc` (the frizz orchestrator plugin) enabled globally AND a frizz
+**Question:** if the user has `cc` (the ntwine orchestrator plugin) enabled globally AND an ntwine
 worker session starts in the same repo, do both plugins' hooks fire (double-hook)?
 
 **Finding — NO, not by default. cc is inert in a fresh worker session.** cc's every hook is gated on
-`frizzActive(projectDir, sessionId)` (`board/config.mjs`). That gate is **opt-IN per
-session**: it requires `.frizz/` to exist AND a per-session sentinel at
-`.frizz/.session-state/<session_id>` containing `on` (written by `frizz on` / the orchestrator frizz
+`ntwineActive(projectDir, sessionId)` (`board/config.mjs`). That gate is **opt-IN per
+session**: it requires `.ntwine/` to exist AND a per-session sentinel at
+`.ntwine/.session-state/<session_id>` containing `on` (written by `ntwine on` / the orchestrator ntwine
 skill's Step 0). With no sentinel it returns **false** — the documented default:
 
 ```
-// config.mjs frizzActive(), final line:
-return false; // DEFAULT: OPT-IN — dormant until this session runs `frizz on`
+// config.mjs ntwineActive(), final line:
+return false; // DEFAULT: OPT-IN — dormant until this session runs `ntwine on`
 ```
 
-A freshly-spawned frizz worker has a distinct `CLAUDE_CODE_SESSION_ID` and never runs `frizz on`, so
-cc's `frizzActive()` is false for it → **all cc hooks are silent no-ops in the worker.** Meanwhile
-cc-worker gates on the orthogonal `FRIZZ_THREAD` env, so the two plugins key off different signals
+A freshly-spawned ntwine worker has a distinct `CLAUDE_CODE_SESSION_ID` and never runs `ntwine on`, so
+cc's `ntwineActive()` is false for it → **all cc hooks are silent no-ops in the worker.** Meanwhile
+cc-worker gates on the orthogonal `NTWINE_THREAD` env, so the two plugins key off different signals
 and do not both activate. No double-hook by default.
 
-**Residual risk:** if, inside a worker session, someone runs `frizz on` or loads the orchestrator
-`frizz` skill (whose Step 0 runs `frizz on`), cc's `frizzActive()` flips true AND cc-worker is active →
+**Residual risk:** if, inside a worker session, someone runs `ntwine on` or loads the orchestrator
+`ntwine` skill (whose Step 0 runs `ntwine on`), cc's `ntwineActive()` flips true AND cc-worker is active →
 both fire (you'd get orchestrator board nags inside a worker — wrong).
 
 **Mitigation implemented (cheap + safe + reversible):** `session-seed.mjs` writes cc's OWN per-session
 `off` sentinel for the worker's session id via cc's shared `setSessionOverride(dir, sid, 'off')` on
-every worker SessionStart. `frizzActive()` short-circuits to false on an `off` override
+every worker SessionStart. `ntwineActive()` short-circuits to false on an `off` override
 (`if (override === 'off') return false`), so cc is **guaranteed dormant** in a worker session even if
-something later attempts to activate it — unless the human deliberately runs `frizz on` afterward
+something later attempts to activate it — unless the human deliberately runs `ntwine on` afterward
 (which overwrites the sentinel), the explicit "I want this session to orchestrate too" escape hatch.
-This uses cc's own public API (identical to what `frizz off` does), touches only gitignored runtime
+This uses cc's own public API (identical to what `ntwine off` does), touches only gitignored runtime
 state keyed on this worker's session id, and does NOT disable cc-worker (which gates on
-`FRIZZ_THREAD`, not the sentinel). It's the safest cheap option: it neutralizes the other plugin
+`NTWINE_THREAD`, not the sentinel). It's the safest cheap option: it neutralizes the other plugin
 without a UI-side plugin-disable flag (Claude Code has no per-invocation "disable plugin X" flag), and
-the worker SKILL.md additionally tells the worker not to run `frizz on` / load the orchestrator skill.
+the worker SKILL.md additionally tells the worker not to run `ntwine on` / load the orchestrator skill.
 
 ## plugin.json
 
-`name: "frizz"` (renamed from `frizz-worker` on 2026-07-08 — see the follow-up note), `version: "0.1.2"`,
+`name: "ntwine"` (renamed from `ntwine-worker` on 2026-07-08 — see the follow-up note), `version: "0.1.2"`,
 `license: "MIT"`. Hooks are auto-discovered from `hooks/hooks.json` (same as cc — plugin.json carries
 no explicit hooks reference); every hook command is wired via `${CLAUDE_PLUGIN_ROOT}`.
 
@@ -118,7 +118,7 @@ no explicit hooks reference); every hook command is wired via `${CLAUDE_PLUGIN_R
 
 The portable worker launch passes its per-session plugin with `--plugin-dir` on both spawn and
 resume, and clears only `CLAUDE_CODE_SUBAGENT_MODEL` plus `CLAUDE_CODE_EFFORT_LEVEL`: those inherited
-variables would silently defeat Frizz's selected worker/profile. It deliberately does **not** replace
+variables would silently defeat Ntwine's selected worker/profile. It deliberately does **not** replace
 `HOME`, `CLAUDE_CONFIG_DIR`, or Claude's settings sources. Doing so would also change authentication,
 user-approved permissions, MCP configuration, and global plugin behavior; that is a product-policy
 decision, not an artifact-portability implementation detail. A future isolation policy must specify
@@ -139,46 +139,46 @@ at the default threshold, not the configured one), `permissions`, `hooks` and `e
 Measured against the maintainer's real config, one variable, observed through a project-scope hook:
 `--setting-sources=project,local` reported their `env` block UNSET, `user,project,local` reported it
 applied, both sessions exiting 0 with empty stderr. The default is now all three scopes — the same
-thing a plain `claude` in the same cwd reads. A frizz thread is the operator's own session on their own
+thing a plain `claude` in the same cwd reads. An ntwine thread is the operator's own session on their own
 machine, so the surprising behavior was the divergence, not the inheritance.
 
 ## 2026-07-02: Stop hook removed
-stop-flush.mjs is no longer wired (script kept for reference). User call: under frizz the
+stop-flush.mjs is no longer wired (script kept for reference). User call: under ntwine the
 tailer/board already surface worker state live, and the block-until-file-edited nag forced even
 trivial workers into Read/Edit dances that render as noise in the chat UI. Thread-file discipline
 remains a prompt-level contract (worker system prompt + SKILL), not a hook-enforced gate.
 
 ## 2026-07-08: Developer-experience port — doctrine, thread-type presets, dialectic
 Goal: carry the old cc/ plugin's developer experience (minus the orchestrator machinery) into
-frizz workers. What landed:
+ntwine workers. What landed:
 - **`skills/dialectic/SKILL.md`** — ported from `cc/skills/dialectic/` (self-contained dueling-
   sub-agents methodology; no board/reconcile dependency). Its model-tier references use this
-  plugin's namespace (`frizz:opus-high`, etc. — see the naming note below).
+  plugin's namespace (`ntwine:opus-high`, etc. — see the naming note below).
 - **`skills/worker/SKILL.md`** — added two sections: "Choosing a helper's model + effort" (the
   full Haiku/Sonnet/Opus tiering doctrine + effort ladder + bias-to-Opus corollary, adapted from
-  `cc/skills/frizz/SKILL.md:218-234` for a worker dispatching its OWN helpers) and "Thread-type
+  `cc/skills/ntwine/SKILL.md:218-234` for a worker dispatching its OWN helpers) and "Thread-type
   presets" (research / audit / implementation / planning — deliverable shape + "done" bar each,
   derived from that skill's `:92-150`/`:242-317`/`:463` framing). Also added a status-field
   discipline section (later split into `activity` + `status_text` — see the follow-up) and an
   "awaiting your OWN sub-agent is NOT blocked" clarification.
-- **`packages/server/src/workerPrompt.ts`** (frizz system prompt, not in this plugin) — carries the terse version
+- **`packages/server/src/workerPrompt.ts`** (ntwine system prompt, not in this plugin) — carries the terse version
   of the same three: a "Status discipline" block, the model/effort doctrine in the Sub-agents
   section, and a "Thread types" section. This is the maintainer's explicit ask that the preset
-  vocabulary ride in the SYSTEM prompt passed to every worker. No dispatch.ts change, so no frizz
+  vocabulary ride in the SYSTEM prompt passed to every worker. No dispatch.ts change, so no ntwine
   server restart is needed — `loadWorkerPrompt()` re-reads the file per dispatch and each spawned
   `claude` rescans this plugin dir fresh.
 
-### Naming: subagent_type is `frizz:<model>-<effort>` (plugin renamed to `frizz` on 2026-07-08)
+### Naming: subagent_type is `ntwine:<model>-<effort>` (plugin renamed to `ntwine` on 2026-07-08)
 The plugin's manifest `name` (`.claude-plugin/plugin.json`) drives the subagent-type NAMESPACE, and
 each agent file's frontmatter `name` drives the agent name — verified empirically with a throwaway
-plugin (`name:"frizz"` + agent `name:opus-high` → `frizz:opus-high`); the plugin DIRECTORY name does
-not matter. So the profiles dispatch as `frizz:opus-high` / `frizz:sonnet-medium` / `frizz:haiku`, and
-the skills as `frizz:worker` + `frizz:dialectic`. A BARE name (`opus-high`, `haiku`) does NOT resolve
-— the Agent tool returns "Agent type '…' not found. Available agents: … frizz:haiku …" — so every
-doctrine/dialectic reference uses the `frizz:`-prefixed form (confirmed end-to-end: `subagent_type:
-frizz:haiku` returns PONG). See the follow-up note below for why the name is `frizz`, not `frizz-worker`.
+plugin (`name:"ntwine"` + agent `name:opus-high` → `ntwine:opus-high`); the plugin DIRECTORY name does
+not matter. So the profiles dispatch as `ntwine:opus-high` / `ntwine:sonnet-medium` / `ntwine:haiku`, and
+the skills as `ntwine:worker` + `ntwine:dialectic`. A BARE name (`opus-high`, `haiku`) does NOT resolve
+— the Agent tool returns "Agent type '…' not found. Available agents: … ntwine:haiku …" — so every
+doctrine/dialectic reference uses the `ntwine:`-prefixed form (confirmed end-to-end: `subagent_type:
+ntwine:haiku` returns PONG). See the follow-up note below for why the name is `ntwine`, not `ntwine-worker`.
 
-## 2026-07-08 (follow-up): status split, validation hook, `frizz:` namespace rename
+## 2026-07-08 (follow-up): status split, validation hook, `ntwine:` namespace rename
 Three maintainer refinements landed on top of the port:
 
 **1. `status_text` split into `activity` + `status_text`.** The single overloaded field became two:
@@ -190,8 +190,8 @@ gerund/≤100 discipline moved OFF `status_text` and ONTO `activity` in `package
 row — is a SIBLING agent's scope; not touched here beyond `packages/server/src/workerPrompt.ts`.)
 
 **2. New PostToolUse validation hook — `hooks/thread-frontmatter-validate.mjs`** (matcher
-`Edit|Write|MultiEdit`, wired in `hooks/hooks.json`). Gated on FRIZZ_THREAD + a top-level
-`.frizz/<slug>.md` path (dotfiles + `.findings/` sidecars skipped via the vendored `threadSlug`). On
+`Edit|Write|MultiEdit`, wired in `hooks/hooks.json`). Gated on NTWINE_THREAD + a top-level
+`.ntwine/<slug>.md` path (dotfiles + `.findings/` sidecars skipped via the vendored `threadSlug`). On
 every thread-file edit it re-reads + validates the frontmatter and, on a HARD violation, returns
 `{"decision":"block","reason":…}` (PostToolUse block — the worker sees the quoted reason and
 re-edits); soft issues warn via `systemMessage`; a clean edit is silent; ANY error fails OPEN
@@ -200,32 +200,32 @@ re-edits); soft issues warn via `systemMessage`; a clean edit is silent; ANY err
 (first word ends in "ing"); `blocked` ⇒ at most ONE of `blocking_threads`/`revalidate_at`, and
 human-blocked (neither) ⇒ `status_text` required; `status_text` >240 chars warns. SELF-CONTAINED: it
 VENDORS minimal copies of cc's frontmatter parser (`index.mjs:82`), path matcher
-(`frizz-thread-edit-steer.mjs:67`), and vocab (`config.mjs:291`/`:301`) — cc-worker must not import cc
+(`ntwine-thread-edit-steer.mjs:67`), and vocab (`config.mjs:291`/`:301`) — cc-worker must not import cc
 at runtime. Verified: 10 direct unit cases (pass/block/warn/inert) + a real headless worker whose bad
 Write was blocked with the exact quoted reason.
 
-**3. Plugin renamed `frizz-worker` → `frizz`; worker skill renamed `frizz-worker` → `worker`.** The
-maintainer disliked the old worker-prefixed dispatch namespace. Renamed the manifest `name` to `frizz` and the 16 agent
-files + their frontmatter from `frizz-<model>-<effort>` to `<model>-<effort>` (bare `haiku`), so
-dispatches read `frizz:opus-high` etc. Renamed the worker skill dir + frontmatter `frizz-worker` →
-`worker` (giving `frizz:worker`, not the stutter `frizz:frizz-worker`). The plugin DIRECTORY stays
+**3. Plugin renamed `ntwine-worker` → `ntwine`; worker skill renamed `ntwine-worker` → `worker`.** The
+maintainer disliked the old worker-prefixed dispatch namespace. Renamed the manifest `name` to `ntwine` and the 16 agent
+files + their frontmatter from `ntwine-<model>-<effort>` to `<model>-<effort>` (bare `haiku`), so
+dispatches read `ntwine:opus-high` etc. Renamed the worker skill dir + frontmatter `ntwine-worker` →
+`worker` (giving `ntwine:worker`, not the stutter `ntwine:ntwine-worker`). The plugin DIRECTORY stays
 `cc-worker/` (dispatch.ts points at that path — unchanged, no server restart). Every reference in
 `packages/server/src/workerPrompt.ts`, both skills, the hooks, and this file was updated; a grep for the old prefix token is clean.
 
-**Accepted name collision.** The old GLOBAL orchestrator plugin (`cc/`) is ALSO named `frizz`. This is
-accepted as harmless: `cc/` is disabled in `~/.claude/settings.json` (`"frizz@frizz": false`) and, even
-when enabled, loads only in ORCHESTRATOR sessions (a different process class) — never in a frizz
+**Accepted name collision.** The old GLOBAL orchestrator plugin (`cc/`) is ALSO named `ntwine`. This is
+accepted as harmless: `cc/` is disabled in `~/.claude/settings.json` (`"ntwine@ntwine": false`) and, even
+when enabled, loads only in ORCHESTRATOR sessions (a different process class) — never in an ntwine
 worker, which loads ONLY this plugin via `--plugin-dir cc-worker`. Verified: the headless worker env
-(same settings.json) registers a clean `frizz:*` set with no `cc/` agents present. If a user ever
-loaded BOTH plugins in one session, Claude Code would namespace-collide two `frizz` plugins — but that
+(same settings.json) registers a clean `ntwine:*` set with no `cc/` agents present. If a user ever
+loaded BOTH plugins in one session, Claude Code would namespace-collide two `ntwine` plugins — but that
 combination does not occur on the worker path.
 
 ## 2026-07-08 (campaign): `needs-human` first-class status + interactive-prompt deny hooks
-Part of the board-wide redesign (owned jointly with the frizz UI half): `needs-human` becomes a
-first-class frizz status — the declared "awaiting a human" state and the queue's definition — while
+Part of the board-wide redesign (owned jointly with the ntwine UI half): `needs-human` becomes a
+first-class ntwine status — the declared "awaiting a human" state and the queue's definition — while
 `blocked` narrows to MACHINE-waits only. The vocab/parser/validator changes live in the shared cc/
 scripts (`config.mjs` STATUS/STATUS_ALIASES + new `effectiveStatus()`, `index.mjs`, `decisions.mjs`,
-`statusline-frizz.mjs`, `thread-update.mjs`, `frizz-reminder.mjs`) — consumed by frizz's readBoard
+`statusline-ntwine.mjs`, `thread-update.mjs`, `ntwine-reminder.mjs`) — consumed by ntwine's readBoard
 shell-out, so they take effect on the next board rebuild with NO server restart. cc-worker-side:
 
 - **`hooks/thread-frontmatter-validate.mjs`** — vendored vocab bumped: `needs-human` is canonical,
@@ -240,7 +240,7 @@ shell-out, so they take effect on the next board rebuild with NO server restart.
   is pending).
 - **`hooks/deny-ask.mjs`** (existing, PreToolUse `AskUserQuestion`) — deny reason re-pointed at
   `--status needs-human`. `AskUserQuestion` is a real tool → cleanly deniable via PreToolUse; verified
-  by piping the hook its exact payload (deny + reason) and confirming inert when FRIZZ_THREAD unset.
+  by piping the hook its exact payload (deny + reason) and confirming inert when NTWINE_THREAD unset.
 - **`hooks/deny-plan.mjs`** (NEW, PermissionRequest `ExitPlanMode`) — denies the plan-approval prompt.
   MECHANISM (per the Claude Code hooks docs): `ExitPlanMode` is a PERMISSION surface, not a plain
   tool, so it is denied via a **PermissionRequest** hook (matcher exactly `ExitPlanMode`), NOT
@@ -249,8 +249,8 @@ shell-out, so they take effect on the next board rebuild with NO server restart.
   **top-level `additionalContext`** (NOT `decision.message`), which Claude injects to the model as a
   plain-text system-reminder; exit 0 with the JSON on stdout (exit 2 makes Claude ignore it). CAVEAT:
   PermissionRequest hooks do NOT fire under `claude -p` (headless print mode), so the `-p` smoke test
-  can't exercise it — but a frizz worker runs as an INTERACTIVE `claude` session inside its
-  session-broker daemon, where they DO fire. Both deny hooks are FRIZZ_THREAD-gated and fail-open. (`AskUserQuestion` was not surfaced as
+  can't exercise it — but an ntwine worker runs as an INTERACTIVE `claude` session inside its
+  session-broker daemon, where they DO fire. Both deny hooks are NTWINE_THREAD-gated and fail-open. (`AskUserQuestion` was not surfaced as
   an invokable tool in the `-p` harness either, so both hooks were verified by piping their exact hook
   payloads rather than by driving a live prompt.)
 
@@ -259,7 +259,7 @@ shell-out, so they take effect on the next board rebuild with NO server restart.
 Replaces the observe-only `perm-observe.mjs`. Same registration (PermissionRequest, matcher `*`), but
 it now DECIDES: allow / deny / defer, first match wins.
 
-WHY IT DECIDES. frizz dispatches Claude workers at `--permission-mode auto`
+WHY IT DECIDES. ntwine dispatches Claude workers at `--permission-mode auto`
 (`WORKER_DISPATCH_PERMISSION`), and `auto` is **not** non-interactive — its classifier still raises a
 prompt for anything it judges risky. With nobody at the keyboard that parks a thread invisibly; one sat
 blocked on a `git push` for over a day. The blunt alternative was dispatching at `bypassPermissions`,
@@ -268,7 +268,7 @@ request again. Keeping `auto` and deciding here preserves the seam — and Claud
 in the pane ("Allowed by PermissionRequest hook"), so an auto-approval stays attributable rather than
 being indistinguishable from bypass.
 
-THE TABLE ships UNIVERSAL rules only; this plugin loads for every project frizz drives, so a rule that
+THE TABLE ships UNIVERSAL rules only; this plugin loads for every project ntwine drives, so a rule that
 is right for one repo is wrong for the next. `catastrophic-delete` and `raw-disk-write` deny outright
 (strictly safer than bypass, which would have allowed both). `restrictive-mode` DEFERS whenever
 `permission_mode` is anything but `auto` or `bypassPermissions`, which is what makes a genuine
@@ -279,7 +279,7 @@ on an `rm` whose target is built from variables, and explicit `ask` rules) falls
 `worker-autonomy` and is approved like auto's, behind the two refusals (upstream 9c6af4ad, 2026-10-10,
 after every marker on Colin's machine that day was a bypass defer). The fork had added a
 `bypass-safety-check` rule on 2026-09-28 that deferred those to a human instead; it was dropped on
-2026-10-12 (maintainer: approve automatically, like upstream). `FRIZZ_PERM_POLICY=review`
+2026-10-12 (maintainer: approve automatically, like upstream). `NTWINE_PERM_POLICY=review`
 defers everything. Fail-safe INVERTS the old observer's fail-open — for a hook that can APPROVE, any
 error must fall back to asking, never to allowing.
 
@@ -343,16 +343,16 @@ at the SOURCE instead: `ui/dispatch.ts` `workerPermissionMode()` coerces `--perm
 BOTH command builders (so dispatch, adopt, AND resume never spawn a worker in plan mode). Workers plan
 by writing the plan into the thread + `status: needs-human` (the contract), which has no plan-mode
 requirement — so nothing is lost. deny-plan then denies `ExitPlanMode` UNCONDITIONALLY when gated:
-for a real frizz worker (never in plan mode) that is always a spurious call → deny + redirect is
+for a real ntwine worker (never in plan mode) that is always a spurious call → deny + redirect is
 correct. RESIDUAL GAP (accepted, documented): the deny could softlock only a FOREIGN session that is
-simultaneously in plan mode AND running with FRIZZ_THREAD set AND this plugin loaded — a combination
-frizz never produces. A normal plan-mode session outside frizz is untouched (deny-plan is inert
-without FRIZZ_THREAD). Follow-up for UI honesty: `web/src/lib/options.ts` still offers "plan" in the
+simultaneously in plan mode AND running with NTWINE_THREAD set AND this plugin loaded — a combination
+ntwine never produces. A normal plan-mode session outside ntwine is untouched (deny-plan is inert
+without NTWINE_THREAD). Follow-up for UI honesty: `web/src/lib/options.ts` still offers "plan" in the
 dispatch permission-mode dropdown (coerced to `auto` at spawn) — the sibling can drop it there.
 
 ### Malformed-thread one-click repair — read-side recovery (2026-07-09)
 INCIDENT: a worker that spawned before the frontmatter-validation write-hook existed wrote
-`nub/.frizz/sandbox-windows-backend.md` with its metadata in **bold prose** instead of YAML
+`nub/.ntwine/sandbox-windows-backend.md` with its metadata in **bold prose** instead of YAML
 frontmatter. The board banner correctly reported "sandbox-windows-backend.md: no YAML frontmatter",
 but the thread was INVISIBLE to the queue/status system (the parser can't read its title/status →
 `status: ?`) until the orchestrator hand-edited YAML. Maintainer directive: "make sure that doesn't
@@ -370,10 +370,10 @@ MECHANISM:
 - `board/index.mjs` `--json` gains a parallel `errorItems: [{file, kind, message}]`
   (`kind: 'no-frontmatter'` = repairable, else `'other'`). The parser classifies — it knows exactly
   why it rejected the file. The legacy `errors: string[]` array is emitted UNCHANGED alongside it.
-- `errorItems` flows through `readBoard`/`frizz.ts` → `board.ts assemble()` → `BoardSnapshot` +
+- `errorItems` flows through `readBoard`/`ntwine.ts` → `board.ts assemble()` → `BoardSnapshot` +
   `BoardMeta` (so the repair affordance survives a board delta, not just the keyframe) → the
   TodosView banner, which renders a **Repair** button per `no-frontmatter` item.
-- `repairThread({file})` RPC (`repair.ts`) validates the file is a real `.md` DIRECTLY under `.frizz/`
+- `repairThread({file})` RPC (`repair.ts`) validates the file is a real `.md` DIRECTLY under `.ntwine/`
   (resolve + dirname===root guard; rejects `../`, `sub/`, absolute paths), refuses any file that
   already has a `---` block (repair is ONLY the missing-frontmatter case), then PREPENDS minimal
   frontmatter: `title` from the first `# H1` (else the filename slug), `status: active`, and a
@@ -383,17 +383,17 @@ CONSERVATIVE ON PURPOSE: repair NEVER infers status from prose. This morning's f
 bold — guessing wrong silently is worse than surfacing. `status: active` makes the thread visible;
 if its agent is gone, the runtime crash-net cards it for human attention — the correct escalation.
 
-RESIDUAL (accepted, documented): a Bash-written `.frizz/*.md` bypasses the file-tool hooks by design,
+RESIDUAL (accepted, documented): a Bash-written `.ntwine/*.md` bypasses the file-tool hooks by design,
 so the write-side can't prevent it — the read-side repair is the safety net that heals it in one
 click.
 
 ## 2026-07-09: v2 worker contract — the session-first rebuild (fences + scratchpad; thread-file contract DELETED)
-The maintainer settled frizz on a SESSION-FIRST model: threads ARE claude sessions and the human's
+The maintainer settled ntwine on a SESSION-FIRST model: threads ARE claude sessions and the human's
 dashboard shows the session TRANSCRIPT. Queue membership is explicit: `question` hands off to the
 human, `done` queues a checked completion, process-level blocks surface themselves, `awaiting`
-excuses a machine wait, and bare rest stays quiet. The entire `.frizz/<slug>.md` ownership contract is
+excuses a machine wait, and bare rest stays quiet. The entire `.ntwine/<slug>.md` ownership contract is
 GONE: no thread files, no frontmatter, no `status`/`activity`/`status_text`, no `needs-human`, no
-`blocked` machine fields, no `hasPlan`/`## Plan`, no `frizz-update`. Workers now SIGNAL through their
+`blocked` machine fields, no `hasPlan`/`## Plan`, no `ntwine-update`. Workers now SIGNAL through their
 FINAL MESSAGE and PERSIST through a SCRATCHPAD. This is the cc-worker-side realignment.
 
 **The new signal model (taught in `packages/server/src/workerPrompt.ts` §"End-of-turn signals" + `skills/worker/SKILL.md`):**
@@ -410,13 +410,13 @@ FINAL MESSAGE and PERSIST through a SCRATCHPAD. This is the cc-worker-side reali
   `ThreadFence` kind ∈ done|awaiting, `AwaitingHint` kind ∈ pr|ci|timer|session). Opening line is
   exactly ` ```done `/` ```awaiting ` (nothing after the language word); exactly one fence, at the end.
 
-**The scratchpad (`.frizz/threads/<session-id>/scratch.md`) — new §"Scratchpad" in both docs:** free-form
+**The scratchpad (`.ntwine/threads/<session-id>/scratch.md`) — new §"Scratchpad" in both docs:** free-form
 markdown, NO schema, NO validation. It is the worker's compaction-proof working memory (survive-
 compaction to-do lists / work queues / Ralph-style epic checklists live here, not in ephemeral
 context) AND the shared blackboard for parallel sub-agents (shared state is written into it; its PATH
 is passed into every sub-agent prompt; helpers READ it, the worker folds their results back in). The
 path is server-established convention already wired through `shared` (`scratchpadPath`), `router.ts`
-(reads `.frizz/threads/<session_id>/scratch.md`), and `dispatch.ts`.
+(reads `.ntwine/threads/<session_id>/scratch.md`), and `dispatch.ts`.
 
 **Hooks changed:**
 - **DELETED `hooks/thread-frontmatter-validate.mjs`** + its `hooks.json` PostToolUse `Edit|Write|
@@ -428,22 +428,22 @@ path is server-established convention already wired through `shared` (`scratchpa
 - **`hooks/session-seed.mjs`** — reseeded to the v2 contract: signal via the final message (bare rest
   is quiet; done queues checked completion; awaiting excuses a machine wait; question asks) + the
   scratchpad, whose concrete path is derived from
-  the SessionStart `session_id` (`currentSessionId(input.session_id)` → `.frizz/threads/<sid>/scratch.md`) and
-  named in the seed. FRIZZ_THREAD gating + the cc double-hook `off`-sentinel defense KEPT verbatim;
+  the SessionStart `session_id` (`currentSessionId(input.session_id)` → `.ntwine/threads/<sid>/scratch.md`) and
+  named in the seed. NTWINE_THREAD gating + the cc double-hook `off`-sentinel defense KEPT verbatim;
   the compact re-grounding now points at the scratchpad, not a thread file.
-- **`hooks/agent-dispatch.mjs`** — epilogue no longer says "don't edit `.frizz/` thread files or
-  config.yml"; now "don't edit the dispatcher's scratchpad (`.frizz/threads/<session-id>/scratch.md`) — READ it for shared
+- **`hooks/agent-dispatch.mjs`** — epilogue no longer says "don't edit `.ntwine/` thread files or
+  config.yml"; now "don't edit the dispatcher's scratchpad (`.ntwine/threads/<session-id>/scratch.md`) — READ it for shared
   context if its path is in your prompt, report in your FINAL MESSAGE." Background/name-strip
   enforcement unchanged.
-- **`hooks/deny-ask.mjs`** — redirect retargeted off `frizz-update … --status needs-human`: now "ask
+- **`hooks/deny-ask.mjs`** — redirect retargeted off `ntwine-update … --status needs-human`: now "ask
   in your FINAL MESSAGE with ```question blocks, then rest; a question IS the handback (no extra
-  fence)." Still PreToolUse(AskUserQuestion), FRIZZ_THREAD-gated, fail-open.
-- **`hooks/deny-plan.mjs`** — redirect retargeted off "write the plan into your thread `.frizz/<slug>.md`
-  + status: needs-human": now "write the plan into `.frizz/plans/<topic>.md` and/or the scratchpad;
+  fence)." Still PreToolUse(AskUserQuestion), NTWINE_THREAD-gated, fail-open.
+- **`hooks/deny-plan.mjs`** — redirect retargeted off "write the plan into your thread `.ntwine/<slug>.md`
+  + status: needs-human": now "write the plan into `.ntwine/plans/<topic>.md` and/or the scratchpad;
   ask via a ```question approval block." PermissionRequest(ExitPlanMode) mechanism + the plan-mode
   softlock reasoning (dispatch.ts coerces plan→auto) unchanged.
 - **`hooks/agent-bind.mjs`** — UNCHANGED (functionally). It records `agentId → thread` into
-  `.frizz/.agent-bindings.jsonl` from a helper's `THREAD: <slug>` tag; that tag still rides the
+  `.ntwine/.agent-bindings.jsonl` from a helper's `THREAD: <slug>` tag; that tag still rides the
   per-thread dispatch and references no dead status/frontmatter contract. NOTE for the server/tailer
   verticals: session-first sub-agent liveness is now TAILER-derived (`ThreadView.subAgents`), so the
   `.agent-bindings.jsonl` binding this hook writes may be VESTIGIAL. Left in place (harmless,
@@ -453,18 +453,18 @@ path is server-established convention already wired through `shared` (`scratchpa
 **`skills/worker/SKILL.md`** — rewritten to the same pillars (version 0.2.0): the signal model
 replaces the status-vocabulary sections; a scratchpad section replaces the "own ONE thread file"
 sections; thread-type presets keep the research/audit/implementation/planning taxonomy but strip
-every status reference (planning now delivers a `.frizz/plans/<topic>.md` artifact). The sub-agents
+every status reference (planning now delivers a `.ntwine/plans/<topic>.md` artifact). The sub-agents
 section adds "pass the scratchpad path into helper prompts." `skills/dialectic` untouched.
 
 **`plugin.json`** description updated: no more "validate thread-file frontmatter"; now fence signals
 + scratchpad blackboard + sub-agent profiles + deny-ask/deny-plan.
 
-**What the server/web verticals must know:** (a) FRIZZ_THREAD must keep being passed at spawn — every
-hook still gates on it. (b) The scratchpad path convention is `.frizz/threads/<session-id>/scratch.md` where
+**What the server/web verticals must know:** (a) NTWINE_THREAD must keep being passed at spawn — every
+hook still gates on it. (b) The scratchpad path convention is `.ntwine/threads/<session-id>/scratch.md` where
 `<session-id>` is the pinned `--session-id` (the same id the SessionStart hook sees as `session_id`);
 the seed hook NAMES that concrete path to the worker, so dispatch must keep pinning `--session-id`.
 (c) `packages/server/src/dispatch.ts` `composePrompt()` STILL emits the dead per-thread contract
-("You own `.frizz/<slug>.md` … set `status: blocked` … Set `status: done`") — that is server-vertical
+("You own `.ntwine/<slug>.md` … set `status: blocked` … Set `status: done`") — that is server-vertical
 scope (not editable here), but it now CONTRADICTS the v2 WORKER_PROMPT and must be rewritten to the
 fence/scratchpad model (or dropped) by the dispatch owner. Flagged to server-core.
 
@@ -487,7 +487,7 @@ contract is now narrower:
 - Every follow-up clears the old fence. “Back to awaiting” requires a fresh check: re-emit a current
   human/timer fence, or re-arm automation and remain active.
 
-Claude Code 2.1.207 was audited before teaching this. frizz does not pass `--tools`,
+Claude Code 2.1.207 was audited before teaching this. ntwine does not pass `--tools`,
 `--allowedTools`, or `--disallowedTools`, and its helper profiles only select model/effort, so wait
 tools are available to top-level workers and helpers. `Monitor` defaults to 300,000 ms (maximum
 3,600,000 ms); `persistent:true` runs until `TaskStop` or session end. Background Bash reports an
@@ -498,7 +498,7 @@ the top-level worker owns long-lived CI/PR/merge progression.
 
 ## 2026-07-13: ordinary rest returns to Queue; human Snooze/Archive own triage
 
-The quiet-bare-rest rule above was reversed after live use showed that an owned Frizz worker could
+The quiet-bare-rest rule above was reversed after live use showed that an owned Ntwine worker could
 come to rest without choosing a fence and disappear from the only surface the operator routinely
 triages. Queue membership is now server-derived from process rest, not dependent on perfect worker
 signaling:
@@ -539,24 +539,24 @@ or report the gate unmet.
 The plugin stops shipping three of its four skills. `skills/worker` is DELETED: it was a second copy
 of the worker contract whose single source is `packages/server/src/workerPrompt.ts` (the system
 prompt, rebuilt on every dispatch/resume and compaction-immune) — every contract edit had to be made
-twice, and the copies drifted. The session-seed pointer sentences that said "Load the `frizz:worker`
+twice, and the copies drifted. The session-seed pointer sentences that said "Load the `ntwine:worker`
 skill for the full contract" now point at the system-prompt contract only, and the contract tests pin
 the two backend prompts (not a skill copy). `skills/dialectic` is dropped from the plugin (generic
 methodology nobody wired into the seed or prompt; workers on other people's projects never asked for
-it). `skills/adhoc-cdp` MOVED to the frizz repo's own `.agents/skills/adhoc-cdp` (agent-neutral; `.claude/skills/adhoc-cdp` is a symlink to it so Claude and Codex share one copy) — its content is
-frizz-specific (adhoc-stack.mjs / shot.mjs), so it is a project skill, not global plugin cargo; the
+it). `skills/adhoc-cdp` MOVED to the ntwine repo's own `.agents/skills/adhoc-cdp` (agent-neutral; `.claude/skills/adhoc-cdp` is a symlink to it so Claude and Codex share one copy) — its content is
+ntwine-specific (adhoc-stack.mjs / shot.mjs), so it is a project skill, not global plugin cargo; the
 generic "verify in a real browser" principle already lives in the prompt's runtime-gate section.
 `skills/gh` remains the ONE injected skill: bulky, conditionally relevant, and its pointer is already
 auth-gated in the seed — exactly the on-demand shape skills are for.
 
 ## 2026-07-22: The no-PR rule now also lives in AGENTS.md (docs, not a hook)
 
-Root cause of "agents keep opening PRs despite FRIZZ.md": the worker contract + injected FRIZZ.md are a
+Root cause of "agents keep opening PRs despite NTWINE.md": the worker contract + injected NTWINE.md are a
 SNAPSHOT frozen at session creation. The Codex worker that opened PR #17 and #18 (thread `862831cf`,
-born 09:50 Jul 21) spawned minutes before FRIZZ.md injection first landed and hours before the no-PR
+born 09:50 Jul 21) spawned minutes before NTWINE.md injection first landed and hours before the no-PR
 rule existed, so it never saw the rule and carried the base contract's "open a PR and report its URL"
-on every turn. Editing FRIZZ.md does nothing for a session already in flight, and sub-agents never
-receive FRIZZ.md at all.
+on every turn. Editing NTWINE.md does nothing for a session already in flight, and sub-agents never
+receive NTWINE.md at all.
 
 Mitigation (docs only): the no-PR rule was added to `AGENTS.md` — the agent-neutral home Codex
 re-reads FRESH every session and sub-agents load. That reaches NEW sessions of both backends without a
@@ -571,11 +571,11 @@ is where they leaked. The scratchpad survives on disk but only helps if the post
 chooses to read it — a model decision, and it gets skipped. `precompact-instructions.mjs` steers the
 summarizer, but the summary is a lossy retelling by a model that never saw the reasoning, and it is
 regenerated from scratch every time. `carryover.mjs` removes the decision: whatever is in
-`.frizz/threads/<sid>/carryover.md` is spliced into the context window by the harness, before the
+`.ntwine/threads/<sid>/carryover.md` is spliced into the context window by the harness, before the
 model's first token. The model cannot forget to read it and the summarizer cannot paraphrase it away.
 
 **The file is authored by the AGENT, not by the hook** — it is a plain markdown file written with the
-Write tool. Rejected: a CLI (`frizz carryover set …`) and a dedicated MCP tool. Both add something to
+Write tool. Rejected: a CLI (`ntwine carryover set …`) and a dedicated MCP tool. Both add something to
 learn and to keep installed, and neither buys anything over a file the agent already knows how to
 write and a human can hand-edit mid-session (an edit is just an mtime change, which the nudge treats
 exactly like an agent's write — pinned by a test).
@@ -583,10 +583,10 @@ exactly like an agent's write — pinned by a test).
 **Keyed by session id**, taken from the hook's stdin `session_id` and falling back to
 `CLAUDE_CODE_SESSION_ID` via the shared `currentSessionId`. Those two are equal (already relied on by
 the activation sentinel), which is what lets the AGENT compute its own path from a Bash/Write call.
-Stored beside the scratchpad rather than under `.frizz/.session-state/` because the agent is already
-told the thread dir. `.frizz/` is gitignored in full, so a brief never reaches a commit, and nothing
-enumerates `.frizz/threads/*` to build the board (threads come from the DB), so writing a directory
-there for a non-frizz session cannot conjure a phantom thread card.
+Stored beside the scratchpad rather than under `.ntwine/.session-state/` because the agent is already
+told the thread dir. `.ntwine/` is gitignored in full, so a brief never reaches a commit, and nothing
+enumerates `.ntwine/threads/*` to build the board (threads come from the DB), so writing a directory
+there for a non-ntwine session cannot conjure a phantom thread card.
 
 **Staleness is measured in context TOKENS, and as GROWTH, never an absolute.** The transcript's
 newest usage record gives live context fill (`input + cache_creation + cache_read`); the hook reads
@@ -599,13 +599,13 @@ without moving the window much).
 
 **Why a nudge at all.** Without it the file is never written and the whole mechanism is decorative —
 an agent that is never reminded does not stop to journal. It is the one part that is a heuristic, so
-it is the one part with a cheap escape hatch: `FRIZZ_CARRYOVER_STALE_TOKENS` retunes it and
-`FRIZZ_CARRYOVER=off` disables every mode.
+it is the one part with a cheap escape hatch: `NTWINE_CARRYOVER_STALE_TOKENS` retunes it and
+`NTWINE_CARRYOVER=off` disables every mode.
 
-**Registered twice, deduped deterministically.** The plugin registration ships to every frizz worker
+**Registered twice, deduped deterministically.** The plugin registration ships to every ntwine worker
 everywhere. The repo's own `.claude/settings.json` carries the same three registrations with
-`--via=project` so plain (non-frizz) `claude` sessions in this repo get the behavior too; that flag
-exits when `FRIZZ_THREAD` is set, because such a session already loads the plugin and would
+`--via=project` so plain (non-ntwine) `claude` sessions in this repo get the behavior too; that flag
+exits when `NTWINE_THREAD` is set, because such a session already loads the plugin and would
 otherwise inject the brief twice. A flag plus an env check — no lock file, no race.
 
 VERIFIED LIVE against cli 2.1.220, in an isolated `/tmp` project, not by proxy:
@@ -638,13 +638,13 @@ deliberate: a bare reminder routes recovery through a decision the model can ski
 failure being fixed. The head is the floor; the pointer is the ceiling. The cap (12k chars, was 24k)
 keeps that floor affordable now that the target is unbounded working memory rather than a bounded brief.
 
-**"Present" no longer means "written".** frizz provisions scratch.md with a skeleton, so file-absence
+**"Present" no longer means "written".** ntwine provisions scratch.md with a skeleton, so file-absence
 is gone as the unwritten signal. `substanceLength()` strips headings, the provisioned orientation line
 and empty task boxes, and measures what remains. It is a heuristic on purpose — it only decides
 whether to NUDGE, so a wrong call costs one redundant reminder, never correctness.
 
 **The nudge now also fires on PostToolUse, and that is the real fix.** UserPromptSubmit alone only
-fires at turn boundaries, and a frizz worker runs enormous autonomous turns — dozens of tool calls
+fires at turn boundaries, and an ntwine worker runs enormous autonomous turns — dozens of tool calls
 between human prompts — so a whole session's work could compact unpersisted without a single nudge.
 PostToolUse `additionalContext` was verified live against cli 2.1.220 (a real session quoted a
 sentinel injected after a Bash call, and through the plugin the model received the nudge mid-turn and
@@ -684,7 +684,7 @@ cache-read vs 413 cache-create). `SessionStart` has a `fork` matcher so hooks ca
 Open problems before this could ship: the fork gets a NEW session id, so it must be handed the
 ORIGINAL pad path explicitly (its own hooks would derive a different one); concurrent writes against
 the live worker need an ownership rule; the spawn needs a single-flight lock so one threshold crossing
-cannot fan out into many forks; and frizz's discover/tailer must not adopt the fork's transcript as a
+cannot fan out into many forks; and ntwine's discover/tailer must not adopt the fork's transcript as a
 board thread.
 
 ### Codex parity gap
@@ -697,7 +697,7 @@ plugin-bundled. SessionStart distinguishes a `compact` source. Codex is BETTER i
 you SET the compaction threshold (`model_auto_compact_token_limit`, with
 `model_auto_compact_token_limit_scope` = `total` | `body_after_prefix`), so compaction can be made
 predictable with headroom rather than merely detected. Wrinkle: codex enforces hook TRUST
-(`--dangerously-bypass-hook-trust` exists for automation). **frizz currently wires ZERO hooks for
+(`--dangerously-bypass-hook-trust` exists for automation). **ntwine currently wires ZERO hooks for
 codex**, so a codex worker has only prompt-level scratchpad discipline — the largest remaining gap.
 
 ## 2026-07-30 (third pass): reinforcement is OPT-IN, and the two backends are gated differently
@@ -714,7 +714,7 @@ absence means off.
 
 **The two backends cannot be gated in the same place**, which is the whole design constraint here:
 
-- **Claude → a worker ENV VAR.** `hooks.json` is static, so `FRIZZ_SCRATCHPAD_HOOK=on` is what decides
+- **Claude → a worker ENV VAR.** `hooks.json` is static, so `NTWINE_SCRATCHPAD_HOOK=on` is what decides
   whether the registered hooks do anything. Stamped on the tmux spawn, and on the broker/SDK path via
   a new per-fork `extraWorkerEnv` on `ClaudeAgentBrokerBridge` — evaluated per fork, so flipping the
   setting reaches the next dispatch or cold-resume without a server restart.
@@ -735,7 +735,7 @@ absence means off.
 - **`bypass_hook_trust` is required** — codex SILENTLY SKIPS untrusted hook definitions, so without it
   the config is delivered and ignored, which looks exactly like a broken feature.
 - **Codex reports its OWN rollout session id to the hook** (e.g. `019fb427-…`, `transcript_path` under
-  `~/.codex/sessions`), NOT frizz's thread id. Hence the mandatory `--session=<frizz sessionId>`:
+  `~/.codex/sessions`), NOT ntwine's thread id. Hence the mandatory `--session=<ntwine sessionId>`:
   deriving the path would address a scratchpad that does not exist, and the worker would look
   unreinforced for a reason nobody could see. Codex does send `source` (`"startup"`), same field name
   as Claude, so the compact/resume branch works unchanged.
@@ -762,14 +762,14 @@ the DEFAULT worker — every worker, in practice — got nothing back after a co
 shipped and inert. A feature that is off by default is a feature that does not exist.
 
 Removed entirely: the `scratchpadReinforcement` setting (shared schema, server defaults, Settings
-drawer toggle), the `FRIZZ_SCRATCHPAD_HOOK=on` env plumbing (`scratchpadHookEnv`, the tmux spawn stamp,
+drawer toggle), the `NTWINE_SCRATCHPAD_HOOK=on` env plumbing (`scratchpadHookEnv`, the tmux spawn stamp,
 the broker bridge's `extraWorkerEnv` dep), and codex's `--enabled` flag. A dead toggle that gates
 nothing is worse than no toggle; when the fork checkpointer is built it brings its own setting.
 
-What survives: `--session=<frizz sessionId>` on the codex path stays MANDATORY (codex reports its own
+What survives: `--session=<ntwine sessionId>` on the codex path stays MANDATORY (codex reports its own
 rollout session id, so the derived path would address a scratchpad that does not exist), and
 `bypass_hook_trust` stays required (codex silently skips untrusted hook definitions). The escape hatch
-is now `FRIZZ_SCRATCHPAD_HOOK=off` — env only, and only an explicit off value disables, because it is
+is now `NTWINE_SCRATCHPAD_HOOK=off` — env only, and only an explicit off value disables, because it is
 for a one-off session, not a project posture.
 
 Behavior change beyond ungating: **an EMPTY pad now re-grounds too.** Previously a compaction with an
@@ -804,11 +804,11 @@ Rewritten in all four places a worker meets the pad, so the framing is consisten
 - `dispatch.ts` `scratchpadContent()` — the provisioned skeleton's own orientation line.
 - `cc-worker/hooks/session-seed.mjs` — the runtime `SCRATCHPAD:` line.
 
-**Deliberately NOT promised: automatic re-injection.** The prompt says frizz "helps by feeding the head
+**Deliberately NOT promised: automatic re-injection.** The prompt says ntwine "helps by feeding the head
 of this file back into your context", and the IMPERATIVE it gives is unconditional — re-read the file
 yourself after any compaction or resume. A contract that leans on a runtime guarantee degrades badly
 wherever that channel is absent, and one such gap is known: codex's `thread/resume` does NOT re-send
-the per-conversation `config`, so a COLD-resumed codex thread (frizz restart, app-server daemon death)
+the per-conversation `config`, so a COLD-resumed codex thread (ntwine restart, app-server daemon death)
 may lose its hooks. Unverified either way — flagged, not assumed.
 
 Fallout fixed in the same change (the hook's own template detector): `substanceLength()` recognised the
@@ -825,13 +825,13 @@ Suite 2413 pass / 0 fail, typecheck clean.
 
 ## 2026-07-30 (sixth pass): keep the helper epilogue universal
 
-`hooks/agent-dispatch.mjs` appends its epilogue to every Claude `Agent` helper launched by a frizz
+`hooks/agent-dispatch.mjs` appends its epilogue to every Claude `Agent` helper launched by an ntwine
 worker, regardless of the repository or kind of task. That makes it the wrong layer for requirements
 about compilation, shared build locks, build/test ownership, or how long-running operations should
 be managed.
 
 The epilogue keeps only universal coordination: return a useful handoff, do not mutate the owning
-worker's `.frizz/` state unless explicitly assigned, and use the always-available `SendMessage`
+worker's `.ntwine/` state unless explicitly assigned, and use the always-available `SendMessage`
 upward channel when the dispatcher acting mid-flight could change the outcome. Task-specific
 verification and process-lifecycle instructions belong in the dispatch prompt; repository-specific
 ones belong in the repository's own guidance. Background dispatch enforcement and `name` /
@@ -844,11 +844,11 @@ available directly and therefore drops the old deferred-tool / `ToolSearch` cave
 
 ## 2026-07-30 (sixth pass): the operator's Settings instructions move to the SYSTEM prompt
 
-Question from the maintainer: is FRIZZ.md eagerly loaded, and did the Settings prompt get replaced by
+Question from the maintainer: is NTWINE.md eagerly loaded, and did the Settings prompt get replaced by
 it? Answer, from the code: **both exist, neither replaced the other** — and they were being treated
 very differently.
 
-- **FRIZZ.md** → `frizzConfigBlock(projectDir)` → `extraSystemPrompt` at EVERY site (claude dispatch,
+- **NTWINE.md** → `ntwineConfigBlock(projectDir)` → `extraSystemPrompt` at EVERY site (claude dispatch,
   codex dispatch, adopt, resume, broker follow-up, router follow-up). System-level, so it already
   survives compaction and is rebuilt on every resume. Nothing to fix.
 - **The Settings preamble** (drawer label "Subagent instructions", schema field `dispatchPreamble`) →
@@ -856,14 +856,14 @@ very differently.
   message is exactly what compaction replaces with a summary. So the repo's conventions survived while
   the operator's own standing instructions quietly did not.
 
-Fixed by giving it the same treatment as FRIZZ.md: new `operatorInstructionsBlock(preamble)`, added to
+Fixed by giving it the same treatment as NTWINE.md: new `operatorInstructionsBlock(preamble)`, added to
 the system-prompt composition at all six sites, and REMOVED from `composePrompt` (which loses its
 `customInstructions` parameter). Moved rather than duplicated — leaving it in both would carry a second
 copy of a potentially long preamble in context for the whole pre-compaction window, and the block sits
 ABOVE the task banner either way, so the visible chat bubble is unchanged.
 
 Two things fall out for free: an edited setting now reaches a thread that is ALREADY RUNNING (the
-system prompt is rebuilt on every resume), and the block states its relationship to FRIZZ.md — follow
+system prompt is rebuilt on every resume), and the block states its relationship to NTWINE.md — follow
 both, prefer the more specific where they genuinely conflict — so a worker meeting two operator-authored
 surfaces knows how to reconcile them.
 
@@ -878,21 +878,21 @@ used `PROJECT INSTRUCTIONS` as its above-the-banner anchor; on an ABSENT string 
 passes VACUOUSLY (-1 < banner), so it was re-anchored on the scratchpad line and given an explicit
 `doesNotMatch` instead. Suite 2460 pass / 0 fail, typecheck clean.
 
-## 2026-07-30 (seventh pass): converge on FRIZZ.md — the Settings preamble is GONE
+## 2026-07-30 (seventh pass): converge on NTWINE.md — the Settings preamble is GONE
 
 Maintainer's call, one pass after making the preamble durable: rather than maintain two
 operator-authored surfaces, keep the one that is already versioned with the repo. `dispatchPreamble`
 (drawer label "Subagent instructions") is deleted outright — schema, server default, the drawer field
 and its draft plumbing, `operatorInstructionsBlock` and all six of its call sites.
 
-**FRIZZ.md is now the ONLY place project conventions live.** It was already the better surface and
-needed no work: `frizzConfigBlock()` puts it in `extraSystemPrompt` at every site (claude dispatch,
+**NTWINE.md is now the ONLY place project conventions live.** It was already the better surface and
+needed no work: `ntwineConfigBlock()` puts it in `extraSystemPrompt` at every site (claude dispatch,
 codex dispatch, adopt, resume, broker follow-up, router follow-up), so it survives compaction and is
 rebuilt on every resume. It is also reviewable in a diff, travels with a clone, and can differ per
 branch — none of which a value in a local SQLite settings blob can do.
 
 Checked before deleting rather than after: `DEFAULT_PREAMBLE` shipped as `""`, and a read of every
-`~/.frizz/projects/*/ui.db` found no project with a non-empty `dispatchPreamble`. So there is nothing to
+`~/.ntwine/projects/*/ui.db` found no project with a non-empty `dispatchPreamble`. So there is nothing to
 migrate and no operator text is silently dropped. `Settings` is a plain `z.object`, so an older blob
 that still carries the key parses fine — zod strips the unknown field.
 
@@ -936,7 +936,7 @@ The deliberately prompt-level fix preserves the useful part of that inheritance:
 - Newly provisioned pads recommend a light structure rather than enforce a machine schema: Goal,
   Task list, Decisions, Shared context, per-agent progress, Verification, and Next action. A visible
   legend uses `[ ]` pending, `[/]` in progress, `[x]` complete, `[-]` cancelled, and `[?]` blocked.
-  Frizz's Markdown renderer recognizes all five while the source stays readable in Obsidian/plain text.
+  Ntwine's Markdown renderer recognizes all five while the source stays readable in Obsidian/plain text.
 - If a pad is unexpectedly absent or empty after compaction/resume, the re-grounding injection says
   the exact path is authoritative, forbids searching neighboring thread pads or broadly reloading repo
   docs, and tells the root to reconstruct from the retained summary plus directly named handoffs.
@@ -956,7 +956,7 @@ blackboard pattern.
 
 The worker contract, dispatch orientation, Codex child hook, and Claude dispatch epilogue now say each
 sub-agent should merge its own scoped progress as it works. Deliverable file ownership never includes
-the Frizz scratchpad, and a root must reconcile concurrent scoped updates rather than act as sole
+the Ntwine scratchpad, and a root must reconcile concurrent scoped updates rather than act as sole
 writer. The existing merge-safety rules remain unchanged: re-read first, preserve all other content,
 and never delete, truncate, reinitialize, move, or replace the pad.
 
@@ -965,7 +965,7 @@ and never delete, truncate, reinitialize, move, or replace the pad.
 A three-level dispatch tree read, on the board, as one job done three times — root "Improve server
 logging…", child "Researching dev server readouts", grandchild "Survey dev server readouts". The
 topology was actually sound: the root's task had five research prongs, the child kept four (Vite,
-Next and wrangler source, repaint techniques, log-dir conventions, frizz's own state-dir convention)
+Next and wrangler source, repaint techniques, log-dir conventions, ntwine's own state-dir convention)
 and delegated only the pure-web prong. The grandchild's prompt was a strict subset, not a copy.
 
 What was broken was COLLECTION. The child backgrounded its helper, then hand-rolled a wait loop over
@@ -1012,7 +1012,7 @@ approach is inelegant and they do not want it. Do not rebuild it. Recorded here 
 does not re-derive the same idea from the same symptom, and because one measurement is worth keeping.
 
 THE MEASUREMENT STANDS, whatever is done about it. A scan of 532 real worker transcripts (session ids
-cross-referenced against every `~/.frizz/projects/*/ui.db`), 4,709 rest turns:
+cross-referenced against every `~/.ntwine/projects/*/ui.db`), 4,709 rest turns:
 
   rest turn      #1    #2-3   #4-6   #7-10  #11-20  #21+
   ```question    23%    22%    20%     20%     16%    9%
@@ -1029,17 +1029,17 @@ Two incidental findings worth keeping, since both cost a debugging cycle:
   written ASYNCHRONOUSLY, so at Stop time the message that just ended the turn is often not yet on
   disk — a hook that parses `transcript_path` to read the final message fired on only two of four
   live broker workers. Read the payload.
-- Stop-hook feedback reaches the model but never the human: frizz drops `isMeta` user records
+- Stop-hook feedback reaches the model but never the human: ntwine drops `isMeta` user records
   (`packages/server/src/transcript.ts`), so a blocked rest shows the worker's original message
   followed by whatever it sends next, with no visible trace of the hook.
 
 ## 2026-08-03: the Runtime QA gate is DELETED, and the settings drawer stops duplicating the composer
 
-Maintainer's call, verbatim: *"This is obviously something that should not be a global setting inside of frizz. This is extremely overfit to our specific requirements inside of this repo. Wipe it entirely."*
+Maintainer's call, verbatim: *"This is obviously something that should not be a global setting inside of ntwine. This is extremely overfit to our specific requirements inside of this repo. Wipe it entirely."*
 
-Three removals, one theme — Frizz's shipped worker contract states frizz MECHANICS, and everything else belongs to the repo or to the dispatch that starts the thread.
+Three removals, one theme — Ntwine's shipped worker contract states ntwine MECHANICS, and everything else belongs to the repo or to the dispatch that starts the thread.
 
-- **`runtimeGate` (setting) + `RUNTIME_GATE` (prompt module) — gone.** The browser-QA loop (drive it in Chrome, screenshot into the handoff, escalate to an adversarial reviewer) was frizz's own engineering norm shipped to every worker Frizz dispatches anywhere. That is what `FRIZZ.md` / `CLAUDE.md` are for: `frizzConfigBlock` already injects a repo's own conventions into every spawn/adopt/resume, and this repo keeps its full browser-QA section there. What remains in the shipped contract is the repo-agnostic line that was already in the Quality bar — *"Verify behavior end-to-end before calling anything done."* `VISUAL_EVIDENCE` **stays**: it documents Frizz's guarded local-image proxy, a platform capability, not a QA policy. `chrome-devtools` also stays always-mounted — giving a worker a browser is a capability, not an opinion about when to use it. **(Reversed 2026-08-26 — see the entry at the end of this file. The reasoning above survives one step further than it should have: mounting a browser is itself an opinion, and it was billed to every worker in tokens.)**
+- **`runtimeGate` (setting) + `RUNTIME_GATE` (prompt module) — gone.** The browser-QA loop (drive it in Chrome, screenshot into the handoff, escalate to an adversarial reviewer) was ntwine's own engineering norm shipped to every worker Ntwine dispatches anywhere. That is what `NTWINE.md` / `CLAUDE.md` are for: `ntwineConfigBlock` already injects a repo's own conventions into every spawn/adopt/resume, and this repo keeps its full browser-QA section there. What remains in the shipped contract is the repo-agnostic line that was already in the Quality bar — *"Verify behavior end-to-end before calling anything done."* `VISUAL_EVIDENCE` **stays**: it documents Ntwine's guarded local-image proxy, a platform capability, not a QA policy. `chrome-devtools` also stays always-mounted — giving a worker a browser is a capability, not an opinion about when to use it. **(Reversed 2026-08-26 — see the entry at the end of this file. The reasoning above survives one step further than it should have: mounting a browser is itself an opinion, and it was billed to every worker in tokens.)**
 - **Model + Effort — removed from the settings drawer.** They are chosen per dispatch in the prompt box (`DispatchPreferences`, one profile per runtime); a second global copy only made it ambiguous which one applied. `Settings.model` / `Settings.effort` survive on the wire: `dispatch-preferences.ts` still seeds the composer's first-run profile from them and `dispatch.ts` still falls back to them for GitHub batch dispatch.
 - **`autoResumeOnLimit` — gone; auto-resume is unconditional.** A thread cut off mid-turn by an exhausted subscription window always gets its own "continue" when the window rolls. `ThreadView.limitPause.autoResume` survives on the wire but is now purely a STALENESS verdict (`resolveLimitPause`): a fault old enough that the wake will never arrive stops promising one.
 
@@ -1063,7 +1063,7 @@ Pinned by a new test in `agent-dispatch-hook.test.ts` (the lead-with-the-default
 
 ## 2026-08-06: the canonical scratchpad is DELETED — a free scratch directory, and compaction recovery moves to the recurring prompt
 
-Frizz provisioned one canonical `scratch.md` per thread and a `SessionStart` hook spliced its HEAD into
+Ntwine provisioned one canonical `scratch.md` per thread and a `SessionStart` hook spliced its HEAD into
 the context window after every compaction. The argument for the injection was sound and is worth
 restating, because it is what any replacement has to answer: a bare "remember to read your scratchpad"
 routes recovery through a decision the model can skip, which is exactly the failure the pad existed to
@@ -1076,10 +1076,10 @@ epilogue for codex, a legend line in every provisioned pad, and a paragraph of t
 of it policing a hazard rather than removing it. And the injection was INVISIBLE to the operator, who
 could neither see what their worker would be handed nor change it.
 
-**What replaced it, maintainer's design:** the thread gets `.frizz/threads/<session-id>/` as a free-form
+**What replaced it, maintainer's design:** the thread gets `.ntwine/threads/<session-id>/` as a free-form
 scratch DIRECTORY — nothing provisioned into it, no reserved filename, no format — and compaction
-recovery moves to `mcp__frizz__recurring_prompt`'s new POST-COMPACTION trigger (scheduler SOURCE 7,
-landed the same day). The worker writes whatever doc it likes and LINKS it in the prompt; frizz re-sends
+recovery moves to `mcp__ntwine__recurring_prompt`'s new POST-COMPACTION trigger (scheduler SOURCE 7,
+landed the same day). The worker writes whatever doc it likes and LINKS it in the prompt; ntwine re-sends
 that text the instant the context is summarized away. Durable in SQLite, visible and editable in the
 thread footer, and the worker chooses what it gets back.
 
@@ -1103,7 +1103,7 @@ opens.
 `threads/<id>/scratch.md` to `threads/<id>/` — the new string is a PREFIX of the old one, so every
 transcript written before today still matches and no live thread lost its recovery path (pinned by
 `discover.test.ts`). And the Doc tab now renders the directory: files concatenated under a heading
-each, newest first, dotfiles excluded (frizz's own `.scratchpad-state.json` is not the worker's notes),
+each, newest first, dotfiles excluded (ntwine's own `.scratchpad-state.json` is not the worker's notes),
 binaries named rather than inlined, with per-file and total caps that say when they truncated. It is
 gated on the directory being NON-EMPTY rather than merely present, since dispatch now creates it empty
 and "exists" stopped meaning "the worker wrote something".
@@ -1119,49 +1119,49 @@ Maintainer: *"Changing the model and effort in a prompt box. That should be reme
 - **The web cache treats `["dispatchPreferencesGet"]` as machine-wide** (`lib/queryKeyScope.ts`), so the composer's optimistic write on one project is what a client-side switch paints on the next, rather than that project's last-seen copy for the beat before a refetch.
 
 Verified on a real two-project stack (launcher + tenant on one server): a profile chosen through the tenant's RPC is what the launcher reads, and back; a per-project `settingsSet` on the launcher stayed invisible to the tenant, which is the control that the two prefixes reach different projects.
-## 2026-08-26: Frizz mounts NO browser — a `chrome-devtools` server is the project's to bring
+## 2026-08-26: Ntwine mounts NO browser — a `chrome-devtools` server is the project's to bring
 
-Maintainer: *"Is the Chrome DevTool stuff something that frizz automatically injects? Why not just let the user bring that themselves? That's very confusing to me. I feel like there's a level of opinionation here that we don't really want."*
+Maintainer: *"Is the Chrome DevTool stuff something that ntwine automatically injects? Why not just let the user bring that themselves? That's very confusing to me. I feel like there's a level of opinionation here that we don't really want."*
 
 This reverses the 2026-08-03 line above (*"`chrome-devtools` also stays always-mounted — giving a worker a browser is a capability, not an opinion"*). The capability argument stopped holding once the bill was measured: the server's 29 tool schemas sat in the prefix of **every** worker session at **~6,400 tokens**, and most workers never open a page. A capability nobody asked for, charged per turn, is an opinion.
 
-- **Both backends stopped injecting it.** Claude's inline `--mcp-config` (`claudeMcpConfig`, `dispatch.ts`) and codex's `-c mcp_servers.chrome-devtools=…` app-server override (`codex-mcp.ts`) now mount the unified `frizz` server and nothing else. Parity was the point of the original pairing and it is the point of the removal.
+- **Both backends stopped injecting it.** Claude's inline `--mcp-config` (`claudeMcpConfig`, `dispatch.ts`) and codex's `-c mcp_servers.chrome-devtools=…` app-server override (`codex-mcp.ts`) now mount the unified `ntwine` server and nothing else. Parity was the point of the original pairing and it is the point of the removal.
 - **The lazy proxy went with it.** `cc-worker/bin/browser-mcp.mjs` and its committed schema snapshot `browser-mcp-tools.json` existed only to make the always-on mount affordable in MEMORY (159 MB → ~17 MB per worker, 2026-08-19). With no mount there is nothing to proxy, so they are deleted along with `chromeDevtoolsMcpSpec` / `chromeDevtoolsMcpMount` / `resolveBrowserMcpScript` / `CHROME_DEVTOOLS_MCP`, `scripts/harvest-browser-mcp-tools.mjs`, and the worker-plugin closure entries that required them. The memory win it bought is now the token win.
-- **Nothing about a browser is banned — it is just not Frizz's to decide.** A project adds a `.mcp.json` (plus `enabledMcpjsonServers` in `.claude/settings.json`, so a headless worker is never blocked on the approval prompt); an operator runs `claude mcp add --scope user`. Frizz's `--mcp-config` ADDS to whatever the CLI discovered rather than replacing it (frizz never passes `--strict-mcp-config`), so both paths reach a dispatched worker untouched.
-- **This repo does exactly that, and that is the whole demonstration.** Frizz's own skills drive Chrome headless, so the repo root carries the `.mcp.json` that used to be injected — pinned `chrome-devtools-mcp@1.7.0 --experimentalPageIdRouting --headless --isolated --no-usage-statistics`, the same argv the deleted spec rendered. Verified end-to-end on a disposable stack: a worker dispatched in a scratch project with no config reported `frizz` tools and no browser; a worker dispatched in this repo reported the full `mcp__chrome-devtools__*` set with no permission prompt.
+- **Nothing about a browser is banned — it is just not Ntwine's to decide.** A project adds a `.mcp.json` (plus `enabledMcpjsonServers` in `.claude/settings.json`, so a headless worker is never blocked on the approval prompt); an operator runs `claude mcp add --scope user`. Ntwine's `--mcp-config` ADDS to whatever the CLI discovered rather than replacing it (ntwine never passes `--strict-mcp-config`), so both paths reach a dispatched worker untouched.
+- **This repo does exactly that, and that is the whole demonstration.** Ntwine's own skills drive Chrome headless, so the repo root carries the `.mcp.json` that used to be injected — pinned `chrome-devtools-mcp@1.7.0 --experimentalPageIdRouting --headless --isolated --no-usage-statistics`, the same argv the deleted spec rendered. Verified end-to-end on a disposable stack: a worker dispatched in a scratch project with no config reported `ntwine` tools and no browser; a worker dispatched in this repo reported the full `mcp__chrome-devtools__*` set with no permission prompt.
 - **What deliberately stayed.** The orphan reaper still reaps `chrome-devtools-mcp` processes by name (a browser the USER brought leaks exactly the same way), and the transcript still renders a `take_screenshot` image result. Neither depends on who mounted the server.
 
 ## 2026-08-26: Sub-agent profiles are effort-only, and the dispatch epilogue carries mechanics, not a handoff format
 
-Follow-on to the browser decision above, from the same audit of what Frizz registers into a worker that the worker did not ask for. The maintainer's frame — *"a level of opinionation here that we don't really want"* — applied to two more registrations, and the frizz Goal had this thread decide them itself.
+Follow-on to the browser decision above, from the same audit of what Ntwine registers into a worker that the worker did not ask for. The maintainer's frame — *"a level of opinionation here that we don't really want"* — applied to two more registrations, and the ntwine Goal had this thread decide them itself.
 
-- **16 `frizz:<model>-<effort>` profiles → 5 `frizz:<effort>` ones.** The model×effort grid existed because the Agent tool once had no way to pin either; today its own `model` parameter overrides a profile's model, so the only knob a profile still has to carry is `effort`. The grid cost ~1,340 tokens of agent descriptions on every session, and those descriptions doubled as a routing doctrine ("Opus matches Fable and costs less", "Haiku for scripted harvest only") that no project asked for. `low` … `max` carry no model and inherit the worker's; Haiku, which takes no effort setting, is dispatched with `model: "haiku"` and no profile. The worker contract's Sub-agents section now states the two knobs and nothing about which tier deserves which task.
+- **16 `ntwine:<model>-<effort>` profiles → 5 `ntwine:<effort>` ones.** The model×effort grid existed because the Agent tool once had no way to pin either; today its own `model` parameter overrides a profile's model, so the only knob a profile still has to carry is `effort`. The grid cost ~1,340 tokens of agent descriptions on every session, and those descriptions doubled as a routing doctrine ("Opus matches Fable and costs less", "Haiku for scripted harvest only") that no project asked for. `low` … `max` carry no model and inherit the worker's; Haiku, which takes no effort setting, is dispatched with `model: "haiku"` and no profile. The worker contract's Sub-agents section now states the two knobs and nothing about which tier deserves which task.
 - **The dispatch-hook epilogue kept only what a helper cannot discover.** Its first paragraph prescribed the shape of a helper's final message (status, files, SHA, evidence, caveats, next action); that is a handoff format, and it is gone — one sentence remains saying the final message is what the dispatcher reads. The rest stayed because each line is a mechanic learned from a real failure: the `SendMessage({to: "main"})` upward channel, the own-file rule for the scratch directory, no fan-out of its own unless asked, and the symlinked-`.output` wait-loop trap.
-- **Verified** by the live harness (`_live_broker_workerenv.mts`, now dispatching `frizz:low`): a real broker worker through the real server dispatched the profile and it ran.
+- **Verified** by the live harness (`_live_broker_workerenv.mts`, now dispatching `ntwine:low`): a real broker worker through the real server dispatched the profile and it ran.
 
 ## 2026-08-26: three more worker registrations deleted — the waits skill, the pre-compaction brief, and the toon nudge
 
-Third pass of the same audit that removed the browser mount and the model×effort profile grid above, and the same test: does Frizz register this into every worker because the worker needs it, or because Frizz has an opinion?
+Third pass of the same audit that removed the browser mount and the model×effort profile grid above, and the same test: does Ntwine register this into every worker because the worker needs it, or because Ntwine has an opinion?
 
-- **`skills/waits` is DELETED.** Maintainer: *"I feel like the waits skill is being replaced now. I don't think we need that. We have our own system now for registering watchers and whatnot as tools."* The skill's whole job was teaching a worker how to hold a wait open without falling out of the board's Active band, and the durable half of that is now TOOLS — `mcp__frizz__watch_pr`, `mcp__frizz__timer`, `mcp__frizz__recurring_prompt` — which carry their own descriptions and need no playbook. What remains (a sub-agent owns the wait, `run_in_background` does not hold a rest, never fake a wait with a foreground sleep) is already stated once in the system-prompt contract, which is where a mechanical rule belongs.
+- **`skills/waits` is DELETED.** Maintainer: *"I feel like the waits skill is being replaced now. I don't think we need that. We have our own system now for registering watchers and whatnot as tools."* The skill's whole job was teaching a worker how to hold a wait open without falling out of the board's Active band, and the durable half of that is now TOOLS — `mcp__ntwine__watch_pr`, `mcp__ntwine__timer`, `mcp__ntwine__recurring_prompt` — which carry their own descriptions and need no playbook. What remains (a sub-agent owns the wait, `run_in_background` does not hold a rest, never fake a wait with a foreground sleep) is already stated once in the system-prompt contract, which is where a mechanical rule belongs.
 - **The portable monitors STAYED.** `skills/gh/scripts/{ci-watch,github-watch,review-watch}.mjs` are generated byte-for-byte from `monitors/` and are load-bearing for two other readers: the codex worker prompt names their absolute directory (`monitorScriptsDir()`, `dispatch.ts`, pinned by `dispatch.test.ts`), and `skills/gh` documents them as its declared-tooling fallback. Only the skill went.
 - **`hooks/precompact-instructions.mjs` is DELETED**, with both its `PreCompact` registrations. Maintainer: *"the pre-compaction instructions are probably too opinionated, entirely too opinionated."* It handed the summarizer an editorial brief about WHAT to preserve — plan, alternatives rejected, rationale, at high fidelity — which is a prescription about how someone else's work should be remembered. `scratchpad.mjs --mode=precompact` keeps both matchers: it only says the worker's scratch files exist and names their paths, which is mechanics.
 - **The `toon` bullet is gone from the seed's `⟦gh available⟧` block and from `skills/gh`.** Maintainer: *"It seems pretty opinionated to tell it to pipe through toon, given that toon is probably not installed on most machines. That might be over the line."* The original reasoning (`plans/github-integration.md` §9: worker-side yes, server-side no) was measured against THIS machine's toolchain; a `command -v toon` guard makes the advice safe but not less opinionated, and it spent prompt tokens on every authed session to describe a binary almost no repo has. The one raw-API recipe that piped through it now uses `--jq`, which ships with `gh`.
 
 ## 2026-08-28: the worker's tool is `goal`, and the scratch directory is offered rather than pushed
 
-Two corrections from one maintainer thread, both about Frizz telling the worker what to do instead of what it can do.
+Two corrections from one maintainer thread, both about Ntwine telling the worker what to do instead of what it can do.
 
-- **`recurring_prompt` is renamed `goal`.** The board panel, the footer mark and the delivered trailer have all said "Goal" since 2026-08-11; only the MCP tool still carried the mechanism's name. Maintainer: *"I don't think the tool is even called Recurring Prompt anymore, is it?"* — then *"Rename it."* Only the TOOL name and the worker-facing wording changed: the RPC procedures (`setOwnThreadRecurringPrompt`, `getOwnThreadRecurringPrompt`) and the `session.recurring_*` columns keep their names, because renaming the procedure is exactly what stranded every in-flight worker the last time (see the legacy aliases in `@frizz/shared`). No alias tool is listed for the old name — Claude Code rejects a tool name it has not listed, so an alias would have to be a visible second tool forever — and the new tool's description names its former name once, for a resumed worker whose summary still says `recurring_prompt`.
+- **`recurring_prompt` is renamed `goal`.** The board panel, the footer mark and the delivered trailer have all said "Goal" since 2026-08-11; only the MCP tool still carried the mechanism's name. Maintainer: *"I don't think the tool is even called Recurring Prompt anymore, is it?"* — then *"Rename it."* Only the TOOL name and the worker-facing wording changed: the RPC procedures (`setOwnThreadRecurringPrompt`, `getOwnThreadRecurringPrompt`) and the `session.recurring_*` columns keep their names, because renaming the procedure is exactly what stranded every in-flight worker the last time (see the legacy aliases in `@ntwine/shared`). No alias tool is listed for the old name — Claude Code rejects a tool name it has not listed, so an alias would have to be a visible second tool forever — and the new tool's description names its former name once, for a resumed worker whose summary still says `recurring_prompt`.
 - **Every surface that mentions the scratch directory stopped prescribing the notes-plus-arming arrangement.** The 2026-08-06 entry above set the rule "every surface that mentions the directory also mentions `post_compaction: true`", and it produced the effect the maintainer noticed: workers armed the post-compaction goal constantly, 49 of the 65 armed prompts in the live db copying the contract's template sentence verbatim. Maintainer: *"this is a very opinionated thing, and I don't think we should be pushing it as the thing to do. We should just be saying that the scratch directory is available to it if it wants it. We can also be saying that it can set these goal hooks."* The contract's scratch sections, the dispatch preamble, `scratchpadOrientation`, the five `scratchpad.mjs` hook texts and the tool's own `post_compaction` wording now say the directory and the goal hooks EXIST and leave the choice to the worker. The literal `post_compaction: true` stays on each surface so the capability is still discoverable; the nudge hook keeps its ~60k-token cadence with the informational wording.
 
 ## 2026-09-03: a worker mounts ONLY what its project declares — `--strict-mcp-config`, with the project's `.mcp.json` carried inline
 
-Maintainer, the evening of two memory crashes (a jetsam spiral into a watchdog panic at 19:50, a forced power-off at 20:52): *"Very weird that Frizz eagerly spawns Chrome DevTools."* It was not Frizz. It was the CLI's own discovery doing exactly what the 2026-08-26 entry above asked of it — in every worker at once.
+Maintainer, the evening of two memory crashes (a jetsam spiral into a watchdog panic at 19:50, a forced power-off at 20:52): *"Very weird that Ntwine eagerly spawns Chrome DevTools."* It was not Ntwine. It was the CLI's own discovery doing exactly what the 2026-08-26 entry above asked of it — in every worker at once.
 
-Measured on the maintainer's machine 2026-09-02, nine live workers: the user-scope `chrome-real` (`claude mcp add --scope user`, an npx chrome-devtools-mcp) and each project's `chrome-devtools` (`.mcp.json`) both booted in EVERY worker — 18 browser servers, 36 processes, 4.2 GB, and 61 thirty-second MCP connection timeouts inside the crash window. The 2026-08-26 line *"Frizz's `--mcp-config` ADDS to whatever the CLI discovered rather than replacing it (frizz never passes `--strict-mcp-config`)"* was written so a project and an operator could each bring a browser. It also meant a fleet multiplied the operator's personal servers by N.
+Measured on the maintainer's machine 2026-09-02, nine live workers: the user-scope `chrome-real` (`claude mcp add --scope user`, an npx chrome-devtools-mcp) and each project's `chrome-devtools` (`.mcp.json`) both booted in EVERY worker — 18 browser servers, 36 processes, 4.2 GB, and 61 thirty-second MCP connection timeouts inside the crash window. The 2026-08-26 line *"Ntwine's `--mcp-config` ADDS to whatever the CLI discovered rather than replacing it (ntwine never passes `--strict-mcp-config`)"* was written so a project and an operator could each bring a browser. It also meant a fleet multiplied the operator's personal servers by N.
 
-- **Every worker now launches under `--strict-mcp-config`** (`strictMcpConfig: true` on the SDK path, the flag on the argv path) and is handed its whole MCP surface inline, lowest precedence first: the operator's REMOTE user-scope servers (`type: http`/`sse` in `~/.claude.json` — a URL costs no process), the project's `.mcp.json` filtered by the same approval the CLI applies (`enableAllProjectMcpServers` / `enabledMcpjsonServers` / `disabledMcpjsonServers`, every layer unioned), then the `frizz` server, which wins a name collision. `packages/server/src/backend/project-mcp-servers.ts` is the rule and the reasons; the daemon reads it at every fork, so a `.mcp.json` edit reaches the next dispatch as it reaches the next plain `claude`.
+- **Every worker now launches under `--strict-mcp-config`** (`strictMcpConfig: true` on the SDK path, the flag on the argv path) and is handed its whole MCP surface inline, lowest precedence first: the operator's REMOTE user-scope servers (`type: http`/`sse` in `~/.claude.json` — a URL costs no process), the project's `.mcp.json` filtered by the same approval the CLI applies (`enableAllProjectMcpServers` / `enabledMcpjsonServers` / `disabledMcpjsonServers`, every layer unioned), then the `ntwine` server, which wins a name collision. `packages/server/src/backend/project-mcp-servers.ts` is the rule and the reasons; the daemon reads it at every fork, so a `.mcp.json` edit reaches the next dispatch as it reaches the next plain `claude`.
 - **User-scope STDIO servers are the one thing a worker no longer inherits.** `claude mcp add --scope user` still reaches the operator's own sessions. A project that wants one in its fleet declares it in its `.mcp.json` — the scope that means "this repo's sessions".
 - **Nothing about settings changed.** `settingSources` stays `user,project,local` (the 2026-08-16 entry): auth, permissions, hooks, plugins and `CLAUDE.md` all still reach a worker. Only MCP discovery is replaced, and only with what discovery would have produced minus the operator's local processes.
 - **What this does not fix.** Twelve threads restarted at once are still ~9 processes and ~1 GB each before any of them runs a build; the crash was the aggregate, and this removes its largest avoidable term. A dispatch-time back-pressure check is the follow-up.
@@ -1200,10 +1200,10 @@ The same test as the 2026-08-26 entries — *"a capability nobody asked for, cha
 
 - **Only `editor` qualified.** Of the fork's tools, `schedule`, `read_thread`/`message_thread`, `keep` and `extend_shell` back features that are always on; `editor` reads the human's VS Code / Cursor window, which most humans never connect. No tool and no contract text concerns thread terminals, so the node-pty probe gates nothing.
 - **The capability is "a window has THIS project open"** (`workerCapabilities`, dispatch.ts), not "any editor connected": the machine-wide reading would list the tool to every project's workers whenever one window is open anywhere, and answer all but one of them "none has this project open". One predicate gates both halves.
-- **The tool follows it LIVE.** Claude Code 2.1.287 re-lists a server that declares `tools.listChanged` when it sends `notifications/tools/list_changed`, on the SDK's headless path too. frizz-mcp asks `workerCapabilities` at the first `tools/list`, polls every 10s, and announces each change; a withdrawal needs two absent polls in a row (a window reloading drops its socket for seconds); a report it cannot read (no server, an older Frizz) hides nothing. A worker's frizz tools are deferred, so a change is one `deferred_tools_delta` line in the conversation, not a rewritten prefix.
+- **The tool follows it LIVE.** Claude Code 2.1.287 re-lists a server that declares `tools.listChanged` when it sends `notifications/tools/list_changed`, on the SDK's headless path too. ntwine-mcp asks `workerCapabilities` at the first `tools/list`, polls every 10s, and announces each change; a withdrawal needs two absent polls in a row (a window reloading drops its socket for seconds); a report it cannot read (no server, an older Ntwine) hides nothing. A worker's ntwine tools are deferred, so a change is one `deferred_tools_delta` line in the conversation, not a rewritten prefix.
 - **The section is fixed per process**: rendered at dispatch, adoption and every cold resume, the only moments a system prompt can change. So the two halves can briefly disagree, by design: an editor opened mid-session arrives as a tool with its own description; one closed mid-session leaves a paragraph naming a withdrawn tool until the next cold resume. The goldens pin the build with no editor; a test pins that the gated build differs from it by exactly that section.
 - **Codex is unverified** (no codex on the machine that made this): a client that ignores the notification keeps the list it read at session start, which is when its contract was rendered, so the two agree there too.
-- **Verified end to end** on a disposable stack with real Claude workers and a stand-in editor window on the bridge's real socket, reading each worker's own transcript: dispatched with no editor, no `mcp__frizz__editor` in the first `deferred_tools_delta` and no section in `prompt_snapshot`; an editor connecting between two turns added it to that live worker (`+editor`); a worker dispatched with the editor open had both, called the tool and got the window's report; closing the editor withdrew it (`-editor`) from that live worker.
+- **Verified end to end** on a disposable stack with real Claude workers and a stand-in editor window on the bridge's real socket, reading each worker's own transcript: dispatched with no editor, no `mcp__ntwine__editor` in the first `deferred_tools_delta` and no section in `prompt_snapshot`; an editor connecting between two turns added it to that live worker (`+editor`); a worker dispatched with the editor open had both, called the tool and got the window's report; closing the editor withdrew it (`-editor`) from that live worker.
 
 ## 2026-10-07: the per-Bash hook calls node directly; the shell pre-filter is gone
 
@@ -1212,39 +1212,39 @@ Reverses 2026-10-02 (David, `plans/upstream-superset.md`, trimming the fork befo
 - **The cost accepted**: the ~67ms p50 (346ms p95) node start per Bash call that the 2026-10-02 entry measured, which the shell skipped for ~93% of calls. The price of the shortcut was a second implementation of the hook's "nothing to do" decision in `case` patterns, kept equal to node only by that test and corpus, so every change to the node hook's triggers had to be made twice and re-proved.
 - **No behaviour is lost**: the pre-filter could only ever answer `{}` where node would, and handed node everything else byte for byte, so node alone makes the identical decision for every input.
 
-## 2026-10-08: heavy commands wait their turn in a host-wide memory gate (`job-gate/`, `frizz-run`)
+## 2026-10-08: heavy commands wait their turn in a host-wide memory gate (`job-gate/`, `ntwine-run`)
 
 A dozen agent sessions share one WSL box (31GiB), and RAM is what runs out: an arktype mocha suite peaks at 2.2–3.2GB RSS, a native tsc at 1.3–2.4GB, `next build` at 1GB+. Each agent sees only its own commands, so one session launching four suites at once thrashed the whole box into swap. The only place a "not now" can be said is the host, so the gate is a directory every wrapper reads under one lock (`gate.ts` header: the state format, every setting). It needs no server.
 
-- **The hook rewrites, the wrapper waits.** `job-gate/hook.ts` inserts `<node> frizz-run.ts --hook --` at the command position of each heavy simple command (`pnpm test|tsc|build|mocha|…`, `npx tsc`, bare `tsc`/`tsgo`/`mocha`, `node …/mocha/lib/cli/cli.js`, `next build`; `classify.ts` has the list and the transcript scan it came from). The shell keeps everything around it — `cd`, assignments, redirects, pipes — and the wrapper keeps cwd, stdio, exit code and signals.
+- **The hook rewrites, the wrapper waits.** `job-gate/hook.ts` inserts `<node> ntwine-run.ts --hook --` at the command position of each heavy simple command (`pnpm test|tsc|build|mocha|…`, `npx tsc`, bare `tsc`/`tsgo`/`mocha`, `node …/mocha/lib/cli/cli.js`, `next build`; `classify.ts` has the list and the transcript scan it came from). The shell keeps everything around it — `cd`, assignments, redirects, pipes — and the wrapper keeps cwd, stdio, exit code and signals.
 - **It rides `bash-background.mjs`, not a second hook.** Claude Code 2.1.290 keeps ONE `updatedInput` when several hooks return one (the last it reads wins), and bash-background already returns one to lift an untimed background call's timeout. Two hooks would race and drop either the wrap or the timeout; one process merges them.
-- **Fail open, at every layer.** The rewrite leaves anything it cannot read with certainty untouched (heredocs, `$(…)`, subshells, braces, keywords, `cmd &`). The gate is a `.ts` module imported on demand, so a Node that cannot strip types — including any copy under `node_modules`, where Node refuses to, which is where a published `frizz-server` lives — lands in the catch and the hook emits bash-background's own result. **So in a published install the gate is inert**; it runs where the plugin is loaded from a source checkout, as on this machine. Inside the wrapper, a state dir or lock it cannot use runs the command at once.
+- **Fail open, at every layer.** The rewrite leaves anything it cannot read with certainty untouched (heredocs, `$(…)`, subshells, braces, keywords, `cmd &`). The gate is a `.ts` module imported on demand, so a Node that cannot strip types — including any copy under `node_modules`, where Node refuses to, which is where a published `ntwine-server` lives — lands in the catch and the hook emits bash-background's own result. **So in a published install the gate is inert**; it runs where the plugin is loaded from a source checkout, as on this machine. Inside the wrapper, a state dir or lock it cannot use runs the command at once.
 - **Admission** (`decide`, pure): heavy jobs go FIFO among sessions under their cap (2), so a session that queued five suites cannot block another's one; nothing smaller jumps a head that does not fit. A job starts when MemAvailable − reserve (6GB) − what running jobs have yet to grow into covers its estimate, pressure is low, and fewer than `maxHeavy` (min(cpus, MemTotal/4GB)) run. With nothing heavy running the head always starts, so a box full of idle agents cannot deadlock it. Jobs under 1GB skip the line and caps.
 - **Pressure**: PSI `some avg10` ≥ 10% where the kernel has it; WSL's 5.15.153 is built without PSI, so swap-in rate from `/proc/vmstat`, held at ≥ 10MB/s. Six 2s samples on 2026-10-08 with 7.4GB already swapped and the CPUs ~90% busy read 0.15–2MB/s; thrash is a sustained multiple of that.
 - **Estimates are measured.** The wrapper polls its job's whole process tree in /proc (and each process's VmHWM for spikes between polls) and keeps the last five peaks per signature, `<repo>:<path>|<command words>`, with the repo read through a linked worktree's `.git` file so every worktree of arktype shares one history. Estimate = worst recent peak + 10%; unmeasured: 2.5GB heavy, 0.5GB light. A queued job re-reads it every poll, so a burst of identical suites sizes itself once the first finishes.
-- **No per-call bypass.** A hooked wrapper ignores a `FRIZZ_GATE=0` in its own environment, which a call can set for itself; the session's environment (read by the hook) and `config.json` in the state dir (read on every decision, so a running fleet can be switched off or retuned) are the off-switches.
+- **No per-call bypass.** A hooked wrapper ignores a `NTWINE_GATE=0` in its own environment, which a call can set for itself; the session's environment (read by the hook) and `config.json` in the state dir (read on every decision, so a running fleet can be switched off or retuned) are the off-switches.
 - **Per-job runtime limits (B3), measured jobs only.** On admit the job gets `NODE_OPTIONS=… --max-old-space-size=<cap>` (unless the caller set one) and `GOMEMLIMIT=<cap>MiB`, cap = max(1536, the worst past peak, any past cap; ×1.5 over a cap it died under). An unmeasured job is never capped: a cap under its real need is a crash. The floor comes from the table above `HEAP_FLOOR_MB` (gate.ts): on arktype's ark/type suite the heap cap moved nothing — mocha's own node is ~0.35GB of a 2.5GB tree, the rest is attest's tsgo — and wall time swung 1m 36s–5m 03s with load, so 1536 is simply the lowest tested cap that never failed. GOMEMLIMIT=1024MiB read ~8% lower, one run, suggestive at most.
-- **systemd memory scopes work here and are on for measured heavy jobs.** cgroup v2, memory controller delegated to `user@1000.service`: `systemd-run --user --scope -p MemoryMax=150M` OOM-killed a 300MB hog (exit 137) in 0.5s; `MemoryHigh=150M` let it finish but reclaimed it into swap (4.3s against 1.7s). A heavy job with history runs under MemoryHigh = max(est×1.25, est+512M), MemoryMax = max(est×1.5, est+1G); availability is probed and cached 10m. `FRIZZ_GATE_SCOPE=0` turns it off.
+- **systemd memory scopes work here and are on for measured heavy jobs.** cgroup v2, memory controller delegated to `user@1000.service`: `systemd-run --user --scope -p MemoryMax=150M` OOM-killed a 300MB hog (exit 137) in 0.5s; `MemoryHigh=150M` let it finish but reclaimed it into swap (4.3s against 1.7s). A heavy job with history runs under MemoryHigh = max(est×1.25, est+512M), MemoryMax = max(est×1.5, est+1G); availability is probed and cached 10m. `NTWINE_GATE_SCOPE=0` turns it off.
 - **Verified end to end, 2026-10-08**: a real hook input through `bash-background.mjs`, the rewritten `cd … && E2E_EXIT=3 <wrap> pnpm test 2>&1 | tail -3; echo ${PIPESTATUS[0]}` run by bash (cd, assignment, pipe and exit 3 all kept, peak recorded); eight 1GB synthetic hogs across three sessions launched within 1.1s. Default settings on the live box (~7GB available, 6GB reserve): admitted one at a time, every 10–12s, as each finished; min MemAvailable 4.2GB, max swap-in 8.6MB/s (mean 0.7). Reserve 2GB, history warm (est 1.16GB): five admitted within 3.2s, the rest as memory and the per-session cap freed; min MemAvailable 3.4GB, max swap-in 1.5MB/s. No job failed or was killed in either.
 
-## 2026-10-09: agents steer each other — `mcp__frizz__steer` between threads, `SendMessage` by agent id inside one
+## 2026-10-09: agents steer each other — `mcp__ntwine__steer` between threads, `SendMessage` by agent id inside one
 
 The maintainer, after a worker asked to send an audit's results to a resting thread spent sixteen tool calls finding the board's `followUp` route, the slug and the session id, and then curled it: *"We need to educate and encourage sub-agents to steer each other. And provide better mechanisms for doing so."*
 
-- **Between threads: `steer`, a frizz MCP tool over a new `steerThread` RPC.** Claude Code's cross-session `SendMessage` reaches only a session whose process is live, so a resting thread had no channel at all short of the board's own RPC. `steerThread` is the operator's follow-up delivery (one shared `deliverFollowUp` in `router.ts`), so it wakes a resting thread, queues into a running one, and reopens a done one. The server reads the target's current session itself and stamps the sender's name from its own row; the shim takes the sender from its env. The body arrives wrapped in `<thread-message from-thread=… from-title=…>` with a guidance line naming the sender's slug, and the chat draws it as the existing "Message from «thread»" hairline. Same project only, as `spawn_thread` is.
+- **Between threads: `steer`, an ntwine MCP tool over a new `steerThread` RPC.** Claude Code's cross-session `SendMessage` reaches only a session whose process is live, so a resting thread had no channel at all short of the board's own RPC. `steerThread` is the operator's follow-up delivery (one shared `deliverFollowUp` in `router.ts`), so it wakes a resting thread, queues into a running one, and reopens a done one. The server reads the target's current session itself and stamps the sender's name from its own row; the shim takes the sender from its env. The body arrives wrapped in `<thread-message from-thread=… from-title=…>` with a guidance line naming the sender's slug, and the chat draws it as the existing "Message from «thread»" hairline. Same project only, as `spawn_thread` is.
 - **`spawn_thread` now names the spawner at the end of the child's prompt**, so a spawned thread asked for results can `steer` them back. Its "results NEVER come back to you" premise was true only because nothing could carry them; the doctrine (last resort, do-or-ask first) is unchanged.
 - **Inside one session: measured, then taught.** Measured live on Claude Code 2.1.295 (2026-10-09, headless `claude -p` sessions, read off the sub-agent transcripts and token files each recipient wrote): a parent's `SendMessage` to a RUNNING child's full agent id is delivered when the child's current tool call returns; a child's `SendMessage` to a running sibling's id is delivered the same way, and to a finished sibling's id resumes it. Only the full id resolves — a prefix, the description or the `subagent_type` answers `No agent named '<x>' is reachable`. Children have no `ListAgents`, so a sibling is reachable only by an id someone hands it, or by replying to the `from=` of a message it received. The epilogue gains one sentence for the sideways channels; the worker contract gains one paragraph under Sub-agents and a short section for `steer`.
-- **This fork took the substance, not the tool (merge 2026-10-12).** It already had `mcp__frizz__message_thread` (2026-10-02, with `await_reply` and the `threads:` fence key) for the same delivery, so `steer` was not added: two verbs for one act would split every rule that names one. The spawner footer and the dispatch epilogue name `message_thread`, which resolves a slug as it does a handle. One difference stays: `message_thread` refuses a finished thread, where `steer` reopened it.
-- **Rejected: a separate tag under the `<frizz-…>` prefix.** That prefix is Frizz's plumbing (`NOISE_PREFIXES`), which the transcript drops whole; the first draft's `<frizz-thread-message>` vanished from the chat entirely.
+- **This fork took the substance, not the tool (merge 2026-10-12).** It already had `mcp__ntwine__message_thread` (2026-10-02, with `await_reply` and the `threads:` fence key) for the same delivery, so `steer` was not added: two verbs for one act would split every rule that names one. The spawner footer and the dispatch epilogue name `message_thread`, which resolves a slug as it does a handle. One difference stays: `message_thread` refuses a finished thread, where `steer` reopened it.
+- **Rejected: a separate tag under the `<ntwine-…>` prefix.** That prefix is Ntwine's plumbing (`NOISE_PREFIXES`), which the transcript drops whole; the first draft's `<ntwine-thread-message>` vanished from the chat entirely.
 
 ## 2026-10-11: the plugin is loaded through a path that moves — so a hook now runs under daemons older than itself
 
-The maintainer, looking at the Reload plugins button on a thread: *"Do we need the reload plugins button? Shouldn't this be happening automatically?"* It should, and it could not: a worker was launched against its server generation's own `runtime/cc-worker`, which never changes, so the button re-read the same bytes on every installed Frizz and a live thread kept the previous version's plugin until it restarted. `stable-plugin-path.ts` had been written for this on 2026-07-31 and never wired (`plans/live-worker-updates.md`).
+The maintainer, looking at the Reload plugins button on a thread: *"Do we need the reload plugins button? Shouldn't this be happening automatically?"* It should, and it could not: a worker was launched against its server generation's own `runtime/cc-worker`, which never changes, so the button re-read the same bytes on every installed Ntwine and a live thread kept the previous version's plugin until it restarted. `stable-plugin-path.ts` had been written for this on 2026-07-31 and never wired (`plans/live-worker-updates.md`).
 
-- **A worker is launched against `<cache>/current/cc-worker`**, a link the running server repoints at a staged copy of its own plugin (`workerPluginDir()` in `packages/server/src/dispatch.ts`). The frizz MCP shim's path is the exception and stays the generation's own: a reload does not re-spawn an MCP server, so a moving path would buy it nothing.
+- **A worker is launched against `<cache>/current/cc-worker`**, a link the running server repoints at a staged copy of its own plugin (`workerPluginDir()` in `packages/server/src/dispatch.ts`). The ntwine MCP shim's path is the exception and stays the generation's own: a reload does not re-spawn an MCP server, so a moving path would buy it nothing.
 - **Each worker's daemon re-reads the plugin closure by itself, between turns**, when its fingerprint changed (`packages/server/src/backend/claude-plugin-sync.ts`). The button, its phone row and the `reloadThreadPlugins` RPC are deleted.
 - **The closure it watches includes the operator's own**: `skills/<name>/SKILL.md`, `agents/**/*.md`, `commands/**/*.md`, the `enabledPlugins` of the settings files and `plugins/installed_plugins.json`, under both the project's `.claude` and the operator's. The button was covering this too, and not incidentally — measured on claude 2.1.296, a project skill written after a session started was NOT invocable a turn later, and a reload picked up a new skill, agent and command alike (40–85ms each). The fingerprint is stats, 1–4ms on the maintainer's machine; settings files are read for that one key rather than stat'ed, because Claude Code rewrites `settings.local.json` on every permission grant.
-- **THE CONTRACT THIS CHANGES FOR EVERY FILE IN THIS DIRECTORY.** A hook script used to run only under the daemon that was forked beside it, by the same version, with the environment that version composed. It now runs under whatever daemon is alive: `${CLAUDE_PLUGIN_ROOT}/hooks/x.mjs` resolves through the link at each run, so the moment a new Frizz boots, its hook scripts execute inside sessions an OLDER Frizz forked, with the older worker environment (`FRIZZ_THREAD`, `FRIZZ_PERM_DIR`, `FRIZZ_NATIVE_ASK` and whatever came after) and, until that session's next turn boundary, the older `hooks.json` registrations. So a hook that starts reading a new environment variable must behave sensibly when it is absent, and a hook must not assume a sibling registration added in the same release is already armed. The reverse skew is gone in exchange: a live worker no longer runs last month's hook against this month's server.
+- **THE CONTRACT THIS CHANGES FOR EVERY FILE IN THIS DIRECTORY.** A hook script used to run only under the daemon that was forked beside it, by the same version, with the environment that version composed. It now runs under whatever daemon is alive: `${CLAUDE_PLUGIN_ROOT}/hooks/x.mjs` resolves through the link at each run, so the moment a new Ntwine boots, its hook scripts execute inside sessions an OLDER Ntwine forked, with the older worker environment (`NTWINE_THREAD`, `NTWINE_PERM_DIR`, `NTWINE_NATIVE_ASK` and whatever came after) and, until that session's next turn boundary, the older `hooks.json` registrations. So a hook that starts reading a new environment variable must behave sensibly when it is absent, and a hook must not assume a sibling registration added in the same release is already armed. The reverse skew is gone in exchange: a live worker no longer runs last month's hook against this month's server.
 - **Measured against real claude 2.1.296** (`_live_plugin_sync.mts`, and its `--control` with the sync off): after a repoint the next prompt's hook ran the NEW script in both runs, which is the link alone; a `Stop` registration and a skill that exist only in the new version were live only with the sync on. Claude Code does not re-read a `--plugin-dir` plugin by itself.
 - **What a reload costs a conversation, since every live worker now does it unasked: no prompt-cache miss.** Read off the same two runs' transcripts, request by request: the first request after each reload read exactly the cached prefix the control's did (12,763 tokens, then 25,607 against the control's 19,964 a turn later, the difference being what the earlier reload had added) and WROTE about 5,500 more — the skill listing, re-announced as an attachment at the end of the conversation rather than changed in place at its head. So a reload is one listing's worth of cache write per live thread, once per change. The one thing that would invalidate the head is a changed MCP tool list, which a reload does not touch.
 - **Rejected: staging a source checkout too.** A dev server's `cc-worker/` is edited where it stands, so a worker launched against it already sees every script edit, and the daemon's fingerprint (size and mtime of every file) picks up the rest at the next turn boundary. A staged copy would only be a stale snapshot between the editor and the worker.
@@ -1252,23 +1252,23 @@ The maintainer, looking at the Reload plugins button on a thread: *"Do we need t
 
 ## 2026-10-11: a Codex thread's hooks ride every resume — so SessionStart(resume) fires there, and must say nothing
 
-The same question, asked of Codex: *"We need to make sure that it works on Claude Code and Codex."* It did not, and the reason was older than the question. A Codex thread has no plugin; its hooks are per-thread config, and Codex rebuilds a thread from the config of whichever request loads it. Frizz sent the hooks with `thread/start` alone, so the first `thread/resume` after any Frizz restart rebuilt the thread with an MCP mount and nothing else: no scratch-directory nudge, no `bash-background` guard, no SubagentStart epilogue, for the rest of the thread's life and with no error anywhere.
+The same question, asked of Codex: *"We need to make sure that it works on Claude Code and Codex."* It did not, and the reason was older than the question. A Codex thread has no plugin; its hooks are per-thread config, and Codex rebuilds a thread from the config of whichever request loads it. Ntwine sent the hooks with `thread/start` alone, so the first `thread/resume` after any Ntwine restart rebuilt the thread with an MCP mount and nothing else: no scratch-directory nudge, no `bash-background` guard, no SubagentStart epilogue, for the rest of the thread's life and with no error anywhere.
 
-- **The bridge sends them now, with the start and every resume** (`codexWorkerThreadConfig`, handed to the bridge as `workerConfig`). `ARCHITECTURE.md` § Stable server updates has the rule for when a resume rebuilds a thread and how Frizz makes it happen between turns.
-- **So `SessionStart` now fires with `source: "resume"` on Codex, which it never could.** `scratchpad.mjs` treats a resume as lost context and says so: *"Context was just lost…"*. On Codex that is false every time. A resumed thread is rebuilt from its rollout with the whole conversation in it (measured 2026-10-11 on codex 0.161.0: the request after two rebuilds still carried every earlier turn), and Frizz resumes a thread routinely, at its first message after each restart and again when a newer Frizz hands it new hooks.
+- **The bridge sends them now, with the start and every resume** (`codexWorkerThreadConfig`, handed to the bridge as `workerConfig`). `ARCHITECTURE.md` § Stable server updates has the rule for when a resume rebuilds a thread and how Ntwine makes it happen between turns.
+- **So `SessionStart` now fires with `source: "resume"` on Codex, which it never could.** `scratchpad.mjs` treats a resume as lost context and says so: *"Context was just lost…"*. On Codex that is false every time. A resumed thread is rebuilt from its rollout with the whole conversation in it (measured 2026-10-11 on codex 0.161.0: the request after two rebuilds still carried every earlier turn), and Ntwine resumes a thread routinely, at its first message after each restart and again when a newer Ntwine hands it new hooks.
 - **The Codex registration says so with a flag, `--resume-keeps-context`, and the hook exits silently for it.** A compaction still re-orients on Codex as anywhere, and a fresh start is still told the directory exists. Claude's registration does not carry the flag: a Claude resume is a cold start of the process, and it keeps the wording.
 - **Rejected: leaving `SessionStart` out of the bag a resume carries.** The bag replaces the thread's config whole, so a resume without the registration is a thread with no `SessionStart(compact)` either, which is the one channel that re-orients a Codex worker after a compaction.
 - **Rejected: teaching the hook that the caller is Codex by some other sign** (the `--session` flag, a transcript path under `~/.codex`). Those say who is calling, not what a resume means there. A flag that names the property survives the day a second backend has the same one.
 
-## 2026-10-11: a worker reaches Frizz through `frizzctl`, a command line, and no longer through MCP tools
+## 2026-10-11: a worker reaches Ntwine through `ntwinectl`, a command line, and no longer through MCP tools
 
-The sixteen worker capabilities (`ask`, `unask`, `secret`, `done`, `activity`, `watch`, `unwatch`, `watch-pr`, `watch-issue`, `timer`, `goal`, `title`, `link`, `unlink`, `steer`, `spawn-thread`) were MCP tools, `mcp__frizz__<name>`. They cost about 12k tokens of schema that each provider loads its own way, could not be composed with anything, and had to be mounted three different ways (a `--mcp-config` file for Claude, `-c mcp_servers.…` for Codex, `session/new` for ACP). Each is now a subcommand of `bin/frizzctl`, which a worker runs from its own shell on every backend. The reasoning is in the header of `bin/frizzctl.mjs`.
+The sixteen worker capabilities (`ask`, `unask`, `secret`, `done`, `activity`, `watch`, `unwatch`, `watch-pr`, `watch-issue`, `timer`, `goal`, `title`, `link`, `unlink`, `steer`, `spawn-thread`) were MCP tools, `mcp__ntwine__<name>`. They cost about 12k tokens of schema that each provider loads its own way, could not be composed with anything, and had to be mounted three different ways (a `--mcp-config` file for Claude, `-c mcp_servers.…` for Codex, `session/new` for ACP). Each is now a subcommand of `bin/ntwinectl`, which a worker runs from its own shell on every backend. The reasoning is in the header of `bin/ntwinectl.mjs`.
 
-- **One registry, two front-ends.** `lib/frizz-tools.mjs` holds each command's definition, its long description, its handler and how its arguments are spelled. `bin/frizzctl` is the command line over it, and `bin/frizz-mcp.mjs` is the same registry over MCP stdio, kept only for a thread that was started under the old contract.
-- **Every text a worker reads names the command.** The contract (`packages/server/src/workerPrompt.ts`), the hook messages here, the `frizz:gh` skill and every wake, bump and refusal the server composes say `frizzctl <command>`. Dated entries above this one keep the `mcp__frizz__*` names they were written with.
-- **The contract states the rule and the command's own `--help` carries the detail.** `frizzctl --help` is a short index; `frizzctl <command> --help` prints the description that used to be that tool's MCP description. A worker reads the long text of the command it is about to run and of no other.
+- **One registry, two front-ends.** `lib/ntwine-tools.mjs` holds each command's definition, its long description, its handler and how its arguments are spelled. `bin/ntwinectl` is the command line over it, and `bin/ntwine-mcp.mjs` is the same registry over MCP stdio, kept only for a thread that was started under the old contract.
+- **Every text a worker reads names the command.** The contract (`packages/server/src/workerPrompt.ts`), the hook messages here, the `ntwine:gh` skill and every wake, bump and refusal the server composes say `ntwinectl <command>`. Dated entries above this one keep the `mcp__ntwine__*` names they were written with.
+- **The contract states the rule and the command's own `--help` carries the detail.** `ntwinectl --help` is a short index; `ntwinectl <command> --help` prints the description that used to be that tool's MCP description. A worker reads the long text of the command it is about to run and of no other.
 - **Prose goes through a file or a quoted heredoc.** A handoff body is full of backticked paths and commands, and inside a double-quoted argument the shell would run them. Every text argument takes `--<name>-file <path|->`, and the contract teaches `<<'EOF'`.
-- **The caller is the environment's.** A handler reads `FRIZZ_THREAD` (or the explicit `FRIZZ_THREAD_SLUG` stamp) and never an argument, so a command line cannot name another thread. A sub-agent's shell inherits it and acts as its parent's thread.
-- **Exit 2 is a refusal, not a failure.** `frizzctl done` with a question open or a watch armed prints what blocks it and exits 2; a fault or a misuse exits 1.
-- **A worker's own command never becomes an approval card.** Dispatch pre-approves `Bash(frizzctl:*)`, the promise the MCP server's own pre-approval made: on a thread a human moved to `default`, the worker can still ask, register and sign off unasked. Measured against a real worker on Claude Code 2.1.296, the rule carries every form the contract teaches except a quoted heredoc whose body is a JSON object, which Claude Code's own command checks send to a prompt — and that is the form `frizzctl ask` needs. `hooks/perm-policy.mjs` approves exactly that shape itself (`own-frizzctl`: `frizzctl`, words the shell does not interpret, `<<'WORD'`, a literal body, nothing after the terminator) and nothing wider.
-- **Which threads still get the MCP server.** A Claude worker is handed the contract at every fork, so a daemon forked now never gets it. A Codex thread's contract is its base instructions and an ACP thread's is its first prompt, both fixed when the thread started, so the session row records which surface the thread was taught (`worker_surface`) and only a thread taught MCP is still handed the server, on its own thread config. Every thread, old or new, gets `frizzctl` on its shell's PATH.
+- **The caller is the environment's.** A handler reads `NTWINE_THREAD` (or the explicit `NTWINE_THREAD_SLUG` stamp) and never an argument, so a command line cannot name another thread. A sub-agent's shell inherits it and acts as its parent's thread.
+- **Exit 2 is a refusal, not a failure.** `ntwinectl done` with a question open or a watch armed prints what blocks it and exits 2; a fault or a misuse exits 1.
+- **A worker's own command never becomes an approval card.** Dispatch pre-approves `Bash(ntwinectl:*)`, the promise the MCP server's own pre-approval made: on a thread a human moved to `default`, the worker can still ask, register and sign off unasked. Measured against a real worker on Claude Code 2.1.296, the rule carries every form the contract teaches except a quoted heredoc whose body is a JSON object, which Claude Code's own command checks send to a prompt — and that is the form `ntwinectl ask` needs. `hooks/perm-policy.mjs` approves exactly that shape itself (`own-ntwinectl`: `ntwinectl`, words the shell does not interpret, `<<'WORD'`, a literal body, nothing after the terminator) and nothing wider.
+- **Which threads still get the MCP server.** A Claude worker is handed the contract at every fork, so a daemon forked now never gets it. A Codex thread's contract is its base instructions and an ACP thread's is its first prompt, both fixed when the thread started, so the session row records which surface the thread was taught (`worker_surface`) and only a thread taught MCP is still handed the server, on its own thread config. Every thread, old or new, gets `ntwinectl` on its shell's PATH.

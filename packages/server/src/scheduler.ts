@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { createHash, randomUUID } from "node:crypto"
-import { AGENT_PARK_FOR_MAX_MS, awaitingNeedsInput, awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_NEEDS_INPUT_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@frizz/shared"
+import { AGENT_PARK_FOR_MAX_MS, awaitingNeedsInput, awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_NEEDS_INPUT_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@ntwine/shared"
 import { GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, liveActivityOf, parkExpiresAt, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems, type LiveActivity } from "./awaiting.ts"
 import { isHeldRow, type CommandWatchRow, type PrWatchRow, type SessionRow, type Storage, type ThreadQuestionRow } from "./storage.ts"
 import type { CommandRunResult, CommandWatchService } from "./command-watch.ts"
@@ -37,16 +37,16 @@ export {
   parseGithubReviewActivities,
   type GithubReviewActivity,
 } from "./github-review.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 
 // ---- THE DURABLE WAKER ---------------------------------------------------------------------------
 // NOTHING IN AN ```awaiting FENCE WAKES A THREAD. A fence STATES what a thread is waiting on; every
-// wait frizz can actually fire is a REGISTRATION the worker made through a tool — a `thread_timer` row
-// (`frizzctl timer`), a `pr_watch` row (`frizzctl watch-pr`, SOURCE 11), a background shell's own
+// wait ntwine can actually fire is a REGISTRATION the worker made through a tool — a `thread_timer` row
+// (`ntwinectl timer`), a `pr_watch` row (`ntwinectl watch-pr`, SOURCE 11), a background shell's own
 // telemetry — or a condition the server itself observes: a provider limit lifting, a human's snooze
 // coming due, a recurring prompt's schedule, a rest with nothing declared. The limb that polled
 // `pr-watch:`/`pr:`/`ci:`/`timer:` hints out of the fence was hardwired off by the 2026-08-15 grammar
-// cut and deleted on 2026-08-24, because a line frizz cannot check is a wait that can silently never
+// cut and deleted on 2026-08-24, because a line ntwine cannot check is a wait that can silently never
 // resolve. Any other automated wait should stay ACTIVE instead, through Bash/Monitor (Claude) or a
 // blocking exec wait (Codex).
 //
@@ -227,7 +227,7 @@ function rollupEntrySkipped(conclusion: string | undefined): boolean {
 // terminal and none had failed, so the poll reported "✅ CI PASSED — 15 checks green" about a commit
 // whose real 29-check matrix had not been allowed to start and never did run on it.
 //
-// Frizz was already fetching the answer: `defaultFetchPr` lists the head's workflow runs to name failed
+// Ntwine was already fetching the answer: `defaultFetchPr` lists the head's workflow runs to name failed
 // jobs, and the gated ones are in that same list. `failedCheckNames` skips them because a pending
 // approval is not a failure, which is right — but until this they were then dropped on the floor rather
 // than reported as the distinct, and very actionable, state they are.
@@ -339,7 +339,7 @@ export function githubWatchStatus(pr: PrStatus, polledAt: string): GithubWatchSt
     : passed > 0 ? "passing"
     : "none" // no rollup at all, or one that is entirely skips: nothing has run and nothing is coming
   // MERGEABILITY, in GitHub's own three words plus the review gate. `blocked` is deliberately coarse:
-  // a required review and a failing required check are reported the same way, and frizz has no business
+  // a required review and a failing required check are reported the same way, and ntwine has no business
   // claiming to tell them apart.
   const merge: GithubWatchStatus["merge"] =
     pr.mergeable === "CONFLICTING" ? "conflicting"
@@ -409,7 +409,7 @@ function isLimitFenceId(fenceId: string): boolean {
   return fenceId.startsWith(LIMIT_FENCE_PREFIX)
 }
 
-// The message the resumed worker actually receives now lives in @frizz/shared (imported above), beside
+// The message the resumed worker actually receives now lives in @ntwine/shared (imported above), beside
 // its parser and every other wake formatter — the chat rebuilds this delivery's hairline from the
 // delivered text alone, so the pair has to sit in the one package both sides can reach.
 
@@ -496,10 +496,10 @@ function armedSnooze(row: Pick<SessionRow, "snoozed_until" | "snooze_prompt">): 
 // the agent is doing needs this one.
 //
 // It also remains the only recurring wake a worker CAN have. Claude Code's own `CronCreate` /
-// `ScheduleWakeup` cannot fire in the runtime frizz spawns: their gate stays shut while ANY background
+// `ScheduleWakeup` cannot fire in the runtime ntwine spawns: their gate stays shut while ANY background
 // task is outstanding, so the thread most in need of a nudge — one parked behind a sub-agent that will
 // never report — is exactly the one whose cron is dead (measured 2026-08-01: 3 fires in 150s with no
-// background work, 0 with a background shell alive). Riding frizz's outbox sidesteps that entirely.
+// background work, 0 with a background shell alive). Riding ntwine's outbox sidesteps that entirely.
 //
 // Its record of intent is the session row, with `recurring_armed_at` as the GENERATION: re-arming mints
 // a new one, so a delivery still in the outbox under the old settings reads as superseded.
@@ -507,7 +507,7 @@ function armedSnooze(row: Pick<SessionRow, "snoozed_until" | "snooze_prompt">): 
 // It never ABORTS the turn it lands in. Both transports accept a mid-turn message as an ordinary
 // queued/steered input, so the running work finishes and the prompt is read at the next sampling
 // boundary — which is what "fires on its cadence" means, and is also the only reading compatible with
-// frizz's completion invariant.
+// ntwine's completion invariant.
 //
 // THE FENCE PREFIXES ARE THE PRE-MERGE ONES, on purpose. They are internal delivery-id namespaces that
 // nothing outside this file reads, and renaming them would reclassify every delivery already sitting in
@@ -575,7 +575,7 @@ type RecurringRow = Pick<
 //
 // THE `done` CARVE-OUT IS THE LOOP'S OFF SWITCH, and is the one thing here that is not negotiable: the
 // delivered trailer tells the worker to sign off with `done` to stop the prompts, so a goal that kept
-// firing over a `done` fence would be a loop with no terminating condition that frizz had also promised
+// firing over a `done` fence would be a loop with no terminating condition that ntwine had also promised
 // terminates. Predictability cuts the other way here — an unconditional trigger is only simpler until it
 // is the thing reopening finished threads.
 
@@ -726,14 +726,14 @@ function restMessageIsSignedOff(
  *  trigger corrupted the signal it exists to produce.
  *
  *  WHAT STILL GETS THE RESCUE: an `awaiting` fence with no items at all, an unparseable PR ref, a timer
- *  id matching no armed row — every park frizz has no way to fire. Those are the threads that genuinely
+ *  id matching no armed row — every park ntwine has no way to fire. Those are the threads that genuinely
  *  wait forever, and this reads the SAME predicates the waker's own passes fire from, so the hold and the
  *  wake can never disagree about which is which.
  *
  *  A PR ENTRY IS THE ONE THAT NEEDS A SECOND FACT, since 2026-08-14: the fence no longer arms anything,
  *  so naming a PR says nothing about whether a wake is coming. A REGISTERED watcher
- *  (`frizzctl watch-pr`) will fire, so the Goal holds; a `prs:` entry with no registration behind it
- *  is a park frizz cannot honour, so it gets the rescue like any other unfireable item. Without the first
+ *  (`ntwinectl watch-pr`) will fire, so the Goal holds; a `prs:` entry with no registration behind it
+ *  is a park ntwine cannot honour, so it gets the rescue like any other unfireable item. Without the first
  *  half this reintroduces the measured loop above verbatim.
  *
  *  (The quoted incident keeps the spelling of its day: `pr-watch:` was the fence key until 2026-08-15,
@@ -747,10 +747,10 @@ function parkedOnAWaitItCannotAdvance(
   const fence = tele.lastFence
   if (fence?.kind !== "awaiting") return false
   // A REAL PARK, checked, not merely asserted. Three things have to hold: it names at least one item, it
-  // carries a usable `for:`, and EVERY item it names is something frizz can currently see. Anything else
+  // carries a usable `for:`, and EVERY item it names is something ntwine can currently see. Anything else
   // is a wait that cannot resolve, and gets the rescue — which is the whole reason the grammar became
   // structural. Before this, a worker could park indefinitely on `human: Alice` or on an instant already
-  // in the past, and frizz had no way to tell the difference from a healthy wait.
+  // in the past, and ntwine had no way to tell the difference from a healthy wait.
   return parkIsHonoured(readAwaitingPark(fence.hints), liveActivityOf(tele, registeredPrWatches, armedTimerIds))
 }
 
@@ -760,13 +760,13 @@ function registeredPrWatchesOf(storage: Storage, slug: string): ReadonlySet<stri
   return new Set(storage.listPrWatches(slug, { armedOnly: true }).filter((w) => w.kind !== "issue").map((w) => `${w.owner}/${w.repo}#${w.number}`))
 }
 
-/** The ISSUES a thread has registered (`frizzctl watch-issue`), by the same `owner/repo#N` — what an
+/** The ISSUES a thread has registered (`ntwinectl watch-issue`), by the same `owner/repo#N` — what an
  *  `issues:` fence entry is checked against. */
 function registeredIssueWatchesOf(storage: Storage, slug: string): ReadonlySet<string> {
   return new Set(storage.listPrWatches(slug, { armedOnly: true }).filter((w) => w.kind === "issue").map((w) => `${w.owner}/${w.repo}#${w.number}`))
 }
 
-/** This thread's ARMED command watch ids (`frizzctl watch-command`) — what a `commands:` entry is
+/** This thread's ARMED command watch ids (`ntwinectl watch-command`) — what a `commands:` entry is
  *  checked against. Only ARMED: a watch that passed has delivered its wake, and one that expired or was
  *  cancelled will never send one, so a park naming either is waiting on nothing. */
 function armedCommandWatchIdsOf(storage: Storage, slug: string): ReadonlySet<string> {
@@ -818,7 +818,7 @@ const STOP_HOOK_HINT_KEY = "stophook:rest"
 // The rest a delivery is bound to: the AGENT'S OWN last word.
 //
 // It was `lastActivityAt`, the thread's high-water mark over ANY record, and that was a self-feeding
-// loop for a thread whose worker is gone. Frizz speaks as the USER, so a delivered bump lands in the
+// loop for a thread whose worker is gone. Ntwine speaks as the USER, so a delivered bump lands in the
 // transcript and advances the high-water mark — minting a new "rest" that nobody rested, and with it a
 // new delivery id. Measured 2026-08-12 on a real stack with the worker absent: 10 bumps in 100 seconds,
 // climbing. It was survivable while a Goal was something an operator opted into on one thread; it stopped
@@ -826,7 +826,7 @@ const STOP_HOOK_HINT_KEY = "stophook:rest"
 //
 // `lastAssistantAt` keeps the property that made the old key work — a genuine new rest necessarily
 // carries a new one, so "at most one per rest" still falls out of delivery-id uniqueness — and adds the
-// one frizz needs: nothing frizz says can move it. A thread with no assistant output yet has never
+// one ntwine needs: nothing ntwine says can move it. A thread with no assistant output yet has never
 // rested.
 function stopHookFenceId(armedAt: string, restedAt: string): string {
   return `${STOP_HOOK_FENCE_PREFIX}:${armedAt}:${restedAt}`
@@ -855,7 +855,7 @@ function armedRest(row: RecurringRow): ArmedRest | undefined {
 // the thread's context away.
 //
 // WHY IT IS A TRIGGER AND NOT A HOOK. Compaction is the largest source of context loss there is, and
-// frizz used to answer it by having a worker-side hook splice the head of a canonical `scratch.md` into
+// ntwine used to answer it by having a worker-side hook splice the head of a canonical `scratch.md` into
 // the emptied window. That made the pad a load-bearing file every worker had to maintain whether or not
 // it wanted one. The recurring prompt already solves the same problem better: the worker writes whatever
 // doc it likes in its scratch directory and LINKS it here, and the link comes back at exactly the moment
@@ -1017,7 +1017,7 @@ export function enqueueInterruptEndedWake(
   }, input.nowMs ?? Date.now())
 }
 
-/** A message from ANOTHER THREAD (`frizzctl message-thread`, thread-mentions.ts). Keyed on a fresh id
+/** A message from ANOTHER THREAD (`ntwinectl message-thread`, thread-mentions.ts). Keyed on a fresh id
  *  per message, because every message is news of its own. Bound to a FACT — the other thread said it —
  *  so nothing this thread writes supersedes it, and deliverable INTO a busy turn exactly like a human's
  *  steer: the sender is often waiting on the answer, and the recipient's own work is not interrupted,
@@ -1061,7 +1061,7 @@ export function enqueueDeadlineNoticeWake(
 ): void {
   const nowMs = input.nowMs ?? Date.now()
   const fenceId = `${DEADLINE_NOTICE_FENCE_PREFIX}:${input.setAt ? `set:${input.setAt}` : `clear:${nowMs}`}`
-  // Every frizz wake carries the clock line, and send re-reads it (restampedWakeMessage) — but only on a
+  // Every ntwine wake carries the clock line, and send re-reads it (restampedWakeMessage) — but only on a
   // message that already has one, so it is stamped here, with the deadline as it now stands.
   const clock = wakeTimeHeader(nowMs, null, rowDeadline(storage.getSession(input.slug))?.atMs)
   createWakeDeliveryStore(storage.scope).enqueue({
@@ -1128,7 +1128,7 @@ function isOwnWatchExpiredFenceId(fenceId: string): boolean {
 }
 
 /** A COMMAND WATCH's wakes (SOURCE 16), one namespace per piece of news: it PASSED, its `for` ran out,
- *  or Frizz stopped it because the thread may no longer have commands run for it. Each is one-shot — the
+ *  or Ntwine stopped it because the thread may no longer have commands run for it. Each is one-shot — the
  *  row is settled by the time the wake is sent — so the id alone is the key, and three prefixes rather
  *  than one so a watch that is cancelled and later re-registered under the same id (it cannot be; ids are
  *  random) could never dedupe against the wrong news. Checked as THREE spellings for the reason
@@ -1244,7 +1244,7 @@ function isStrayShellsFenceId(fenceId: string): boolean {
 }
 
 /** The question a `thread_question` row asks, as one short line for a correction's list — the worker
- *  never saw the id frizz minted, so the id alone would not tell it which question is meant. */
+ *  never saw the id ntwine minted, so the id alone would not tell it which question is meant. */
 function questionLine(spec: string): string {
   try {
     const q = String((JSON.parse(spec) as { question?: unknown }).question ?? "").replace(/\s+/g, " ").trim()
@@ -1289,7 +1289,7 @@ function timerIdOf(fenceId: string): string {
  *  required", "HTTP 404"); everything after it is stack and hint. */
 export function conciseGhError(err: unknown): string {
   const code = (err as NodeJS.ErrnoException)?.code
-  if (code === "ENOENT") return "the `gh` CLI is not installed on the PATH of the process Frizz runs as"
+  if (code === "ENOENT") return "the `gh` CLI is not installed on the PATH of the process Ntwine runs as"
   if ((err as { killed?: unknown })?.killed || code === "ETIMEDOUT") return "`gh` did not answer within 15s"
   const stderr = typeof (err as { stderr?: unknown })?.stderr === "string" ? (err as { stderr: string }).stderr : ""
   const line = stderr.trim().split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0)
@@ -1300,7 +1300,7 @@ export function conciseGhError(err: unknown): string {
 
 export type PrProbe = { ok: true } | { ok: false; reason: string }
 
-/** CAN FRIZZ READ THIS PR AT ALL — asked at registration, so a watcher that could never fire is refused
+/** CAN NTWINE READ THIS PR AT ALL — asked at registration, so a watcher that could never fire is refused
  *  on the spot rather than armed. Reported 2026-08-25: a worker parked 12h+ on a watcher, and among the
  *  ways that happens is a PR the server's own `gh` cannot see (signed out on github.com, an SSO-gated
  *  org, a repo that does not exist, no `gh` on the daemon's PATH) — every poll failed, silently, and the
@@ -1335,7 +1335,7 @@ export async function probeIssueReadable(ref: PrRef): Promise<PrProbe> {
     )
     const url = (JSON.parse(stdout) as { url?: unknown })?.url
     if (typeof url === "string" && /\/pull\/\d+$/.test(url)) {
-      return { ok: false, reason: `#${ref.number} is a pull request, not an issue — register it with \`frizzctl watch-pr add\`` }
+      return { ok: false, reason: `#${ref.number} is a pull request, not an issue — register it with \`ntwinectl watch-pr add\`` }
     }
     return { ok: true }
   } catch (err) {
@@ -1346,7 +1346,7 @@ export async function probeIssueReadable(ref: PrRef): Promise<PrProbe> {
 // THROWS on a failed `gh`, so the poll can SAY why — it returned undefined for everything until
 // 2026-08-25, which made a PR the server could not read (signed out, SSO, no such repo, no `gh` on the
 // PATH) indistinguishable from a PR with nothing to report: no log line, no wake, ever. `undefined` is
-// kept for the one honest case, a response frizz cannot interpret (below).
+// kept for the one honest case, a response ntwine cannot interpret (below).
 async function defaultFetchPr(ref: PrRef): Promise<PrStatus | undefined> {
   try {
     const { stdout } = await execFileAsync(
@@ -1437,7 +1437,7 @@ export interface SchedulerDeps {
   retryMaxMs?: number
   maxDeliveryAttempts?: number
   deliveryBatchSize?: number
-  // THE RUNTIME BUDGET'S TEETH (SOURCE 13, shell-budget.ts): whether frizz can end one live shell, and
+  // THE RUNTIME BUDGET'S TEETH (SOURCE 13, shell-budget.ts): whether ntwine can end one live shell, and
   // the ONE stop that ends it — shell-stop.ts, the operator's × path, so a budget kill tells the worker
   // exactly as that one does. Absent ⇒ every over-budget shell is warned and none is ever stopped, which
   // is also the honest behaviour for a composition with no control channel.
@@ -1468,7 +1468,7 @@ export interface Scheduler {
    *  whole `tickMs` later. Fire-and-forget: it never throws and never blocks the caller's response.
    *
    *  It is a no-op unless the scheduler was actually STARTED — a disposable stack boots with
-   *  FRIZZ_WAKERS_OFF and never calls `start()`, and a kick that ran the sweep anyway would deliver
+   *  NTWINE_WAKERS_OFF and never calls `start()`, and a kick that ran the sweep anyway would deliver
    *  wakes the operator explicitly turned off. `tick()` stays the unconditional one, for tests and boot. */
   kick(): void
   /** THE HUMAN'S "Ask for update" (router.requestParkCheckIn): treat the park this thread rested on at
@@ -1509,7 +1509,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   const now = deps.now ?? Date.now
   const fetchPr = deps.fetchPr ?? defaultFetchPr
   const fetchGithubReview = deps.fetchGithubReview ?? createGithubReviewFetcher({ now })
-  const log = deps.log ?? ((m: string) => frizzLog.info("scheduler", m))
+  const log = deps.log ?? ((m: string) => ntwineLog.info("scheduler", m))
   const tickMs = deps.tickMs ?? 10_000
   const deliveryLeaseMs = Math.max(1, deps.deliveryLeaseMs ?? 30_000)
   const retryBaseMs = Math.max(1, deps.retryBaseMs ?? 5_000)
@@ -1832,7 +1832,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // first sampling boundary (see the bridge's `interruptTurn` contract for the measured latency); the
   // codex app-server steers the live turn through `turn/steer`. Neither ABORTS what is running, which is
   // the correct reading of "fires on its cadence" — the beat is delivered, the in-flight work is not
-  // cut off, and frizz's completion invariant stays intact.
+  // cut off, and ntwine's completion invariant stays intact.
   //
   // `unknown` still defers on every source, this one included: telemetry we cannot read is not a thread
   // we can safely address.
@@ -1989,7 +1989,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // worker's transcript under 184 limit records — a self-inflicted context burn on a thread that was
   // already stuck.
   //
-  // In memory on purpose: a frizz restart costs one extra attempt per thread, and a durable table for a
+  // In memory on purpose: an ntwine restart costs one extra attempt per thread, and a durable table for a
   // guard this cheap would be a migration in exchange for nothing.
   const spentEarlyResume = new Map<string, string>()
 
@@ -2054,7 +2054,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // A model-scoped limit is NOT the account running dry, and the provider's own message says so —
   // "You've reached your Fable 5 limit. Switch to another model, or manage usage credits … to
   // continue." Parking the thread behind that cap's `weekly-<model>` window costs up to seven days of
-  // capacity the account still has, so frizz takes the provider's advice on the thread's behalf:
+  // capacity the account still has, so ntwine takes the provider's advice on the thread's behalf:
   // persist the next model down as the thread's profile and resume it now. The resume is a COLD one
   // (the fault has no resolvable clock, so needsFreshProcessForLimit is true), and a cold resume forks
   // `claude` with `row.model` — which is what carries the new model into argv, and the reason this
@@ -2072,7 +2072,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     // Broker rows only. The cold fork is the thing that applies a new model, and only the broker
     // transport has one; a legacy row would be downgraded on paper and resumed on the old model.
     if (!row || row.claude_runtime !== "broker") return undefined
-    // Restarting is how the switch happens at all, so a thread frizz may not restart cannot be
+    // Restarting is how the switch happens at all, so a thread ntwine may not restart cannot be
     // switched — the same fail-closed reading, on the same predicate, as the resume's own freshProcess
     // decision. Such a thread keeps the ordinary wait-for-the-window behaviour.
     const tele = deps.tailer.get(c.slug)
@@ -2114,7 +2114,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (c.backend !== "claude" || (c.fault.window !== "session" && c.fault.window !== "weekly")) return undefined
     if (!deps.fableFallback?.() || !fableHasHeadroom(quota?.claude)) return undefined
     const row = deps.storage.getSession(c.slug)
-    // Broker rows only, and only a thread Frizz may restart — the same gates modelFallbackFor states.
+    // Broker rows only, and only a thread Ntwine may restart — the same gates modelFallbackFor states.
     if (!row || row.claude_runtime !== "broker") return undefined
     const tele = deps.tailer.get(c.slug)
     if (mayHaveLiveBackgroundWork(tele)) return undefined
@@ -2213,7 +2213,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // follow-up — the delivery gate below holds the item until the thread comes to rest instead.
   //
   // Unlike an unregistered legacy timer, an overdue snooze found at boot DOES fire: the DB row is
-  // itself the durable registration, so a deadline that crossed while frizz was down is exactly the case
+  // itself the durable registration, so a deadline that crossed while ntwine was down is exactly the case
   // this is meant to honor. The blast radius stays bounded by the handful of threads a human snoozed.
   function evalSnoozes(nowMs: number): void {
     for (const row of deps.storage.allSessions()) {
@@ -2241,11 +2241,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // passes do: timers live in their own table precisely because a thread may hold many, and most threads
   // hold none.
   //
-  // Like the snooze pass, an alarm that came due while frizz was DOWN still fires when it comes back —
+  // Like the snooze pass, an alarm that came due while ntwine was DOWN still fires when it comes back —
   // the row is its own durable registration, and "you asked to be woken at 15:00" does not stop being
   // true because the server restarted at 14:59. Unlike the snooze pass, it does not wait for rest.
   // ---- SOURCE 9: THE BUILT-IN SIGN-OFF NUDGE ---------------------------------------------------
-  // Frizz's own stop hook. Always on, not disableable per-thread, and invisible in the UI — orthogonal
+  // Ntwine's own stop hook. Always on, not disableable per-thread, and invisible in the UI — orthogonal
   // to the operator's Goal, which keeps its own three triggers.
   //
   // THE PER-THREAD OFF SWITCH WAS TRIED AND REVERTED (2026-08-13 → 2026-08-14): the Goal's then-existing
@@ -2267,13 +2267,13 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // that were about to produce an item nobody can triage.
   //
   // THE CAP IS CONSECUTIVE AND IT IS NOT OPTIONAL. An agent that rests bare, is told how to sign off,
-  // and rests bare again would otherwise be told forever — a nag loop frizz itself generates. After
+  // and rests bare again would otherwise be told forever — a nag loop ntwine itself generates. After
   // SIGNOFF_NUDGE_MAX in a row with no fence appearing, it gives up and the item sits in the queue as a
   // plain bare rest, which is exactly today's behaviour.
   //
   // ONLY A FENCE GIVES THE ALLOWANCE BACK. This used to say a new word from the HUMAN did too, on the
   // reasoning that their message is a new task and the count was about the old one — but that was written
-  // before the delivery-id fix below, and the code has never done it. It cannot: frizz's own nudge lands
+  // before the delivery-id fix below, and the code has never done it. It cannot: ntwine's own nudge lands
   // as a USER record, so "the human spoke" is a condition the nudge satisfies by nudging, which is the
   // 22-deliveries-in-four-minutes loop that fix exists to close. The consequence is worth stating plainly
   // rather than leaving as a footnote — on a thread with a Goal armed, two bare rests exhaust this
@@ -2291,15 +2291,15 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const tele = deps.tailer.get(row.slug)
       // THE AGENT MUST HAVE SPOKEN LAST, and this is the load-bearing guard rather than a nicety.
       //
-      // Frizz's own delivery lands in the transcript as a USER record, so it advances `lastActivityAt`
+      // Ntwine's own delivery lands in the transcript as a USER record, so it advances `lastActivityAt`
       // AND `lastUserAt`. Keying on either meant the nudge minted a fresh delivery id for a rest that
       // had not happened, and reset its own consecutive counter with its own message: measured on a real
       // stack, 22 deliveries in four minutes to one thread. The cap could not save it, because the thing
       // being counted was resetting the count.
       //
       // `lastAssistantAt > lastUserAt` is the honest question — did the AGENT end the exchange? — and it
-      // is immune to anything frizz says, because frizz only ever speaks as the user. A thread whose last
-      // word is frizz's own nudge is a thread that has not answered it yet.
+      // is immune to anything ntwine says, because ntwine only ever speaks as the user. A thread whose last
+      // word is ntwine's own nudge is a thread that has not answered it yet.
       // Same trap as the stop hook's: a signed-out provider answers instantly, so the failure LOOKS like
       // a fenceless rest and satisfies every guard above. Teaching it to sign off cannot help — it never
       // reached the model.
@@ -2314,7 +2314,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // needed, because the cap alone still spends two deliveries on a thread that can never use them.
       // ANY fence means the thread already said where it stands — including `awaiting`, which is still
       // a legitimate sign-off until the registry replaces it. Nothing to teach, AND the allowance comes
-      // back: signing off is the only event that proves the nudge worked, and the only one frizz cannot
+      // back: signing off is the only event that proves the nudge worked, and the only one ntwine cannot
       // cause by nudging. (Guarded on a non-zero count in storage, so this is a transition, not a write
       // on every tick.)
       //
@@ -2327,14 +2327,14 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // AND AN ANSWER ON ITS WAY COUNTS TOO, which is the case this guard read wrong for a day. Every
       // registration test above opens the INSTANT the human answers — the row leaves `open` and nothing
       // has replaced it yet — so the very next tick nudged a worker for resting without a fence while its
-      // answer was still in the outbox. The transcript then read: the worker's rest, "FRIZZ ASKED FOR A
+      // answer was still in the outbox. The transcript then read: the worker's rest, "NTWINE ASKED FOR A
       // SIGN-OFF", then the human's answer (maintainer 2026-08-27, on exactly that sequence). It also
       // spent one of the two nudges this thread will ever get on a thread that had done nothing wrong.
       //
       // A CANCELLATION ON ITS WAY IS THE SAME CASE FROM THE OTHER DIRECTION (2026-09-02): arming a Goal
       // dismisses the open questions wholesale, which turned a rest that had signed off WITH a question
       // into what this pass reads as a bare one — so the nudge took the rest ("you rested without a
-      // fence", to a worker whose question frizz itself had just cancelled) and the Goal stood down for
+      // fence", to a worker whose question ntwine itself had just cancelled) and the Goal stood down for
       // it. The armed-rest flag scopes it to exactly the threads whose dismissals wake on their own.
       //
       // AN OPEN QUESTION IS A SIGN-OFF ONLY AT THE REST THAT ASKED IT (upstream 2026-10-05). A question
@@ -2349,7 +2349,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // should keep it separate from goal… It should just be enabled all the time"). The reminder used
       // to ride the Goal's at-rest trailer so a rest produced one delivery instead of two — but that
       // made the protocol a thing a thread only learned if an operator had armed a Goal, and put a copy
-      // of it in the trailer, which is its own kind of repetition. It is frizz's own hook now: identical
+      // of it in the trailer, which is its own kind of repetition. It is ntwine's own hook now: identical
       // on every thread, whatever the operator has configured.
       // THE GOAL YIELDS TO IT INSTEAD (2026-08-28). "The second delivery costs one transcript record"
       // was the accounting here until then, and it was wrong: the two went out in one tick, 5 ms apart,
@@ -2359,7 +2359,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // ran at send. So this pass mints first in the tick and SOURCE 5 declines the rest it took.
       // AND NO GOAL-SHAPED EXEMPTION HERE — see the SOURCE 9 header for the day it had one.
       // THE CONSECUTIVE CAP. It counts fenceless rests and is cleared ONLY by a fence (above) — never by
-      // a user record, because frizz's own delivery is one, and anchoring on that let the nudge reset its
+      // a user record, because ntwine's own delivery is one, and anchoring on that let the nudge reset its
       // own counter with its own message.
       //
       // UNDER THE ANSWER-REQUIRED CONTRACT (2026-10-01; `status:` since 10-05) the fence decides the queue, so the reminder
@@ -2381,7 +2381,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const fenceId = signoffFenceId(spokeAt)
       const deliveryId = wakeDeliveryId(row.slug, row.session_id, fenceId)
       // Bound to the AGENT'S OWN last word, so one nudge per rest falls out of delivery-id uniqueness.
-      // Deliberately NOT `lastActivityAt`, which frizz's own delivery advances — see the guard above.
+      // Deliberately NOT `lastActivityAt`, which ntwine's own delivery advances — see the guard above.
       if (outbox.get(deliveryId)) continue
       // THIS THREAD's live ops and their ids, so the agent can write a correct fence without going looking
       // for an id it cannot see. Shells are named by `taskId` — the handle the runtime actually showed the
@@ -2441,7 +2441,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // The human working on the card holds it off, and the countdown's × turns it off (questionDefaultAtMs).
   // A thread's open questions go together (threadQuestionDefaults): one that waits holds them all.
   // The answer is stored exactly as the card would store it, so evalQuestionAnswers delivers it; its
-  // `text` says it was Frizz's default, not the human's pick. A recommendation marked `external` (it
+  // `text` says it was Ntwine's default, not the human's pick. A recommendation marked `external` (it
   // files, posts, merges or publishes) is never taken: the first option that stays on this machine is,
   // and with none the question waits. A question with nothing to take — free
   // text, `multi`, no recommendation, `danger` — waits for the human as before, and so does one they
@@ -2523,7 +2523,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // ---- SOURCE 12: A PARK THAT RAN OUT, OR THAT NAMED SOMETHING DEAD -------------------------------
   //
   // The two ways an ```awaiting fence stops being true, and neither may pass silently — that is the whole
-  // lesson of the three stalls this grammar replaced (see the AwaitingHint doc block in @frizz/shared).
+  // lesson of the three stalls this grammar replaced (see the AwaitingHint doc block in @ntwine/shared).
   //
   //  1. IT NAMED SOMETHING THAT IS NOT RUNNING. Checked the moment the fence lands. The bump says WHICH,
   //     because "your fence is wrong" sends a worker to re-read its own transcript for an id it has
@@ -2532,7 +2532,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   //     everything rather than the wait simply continuing, and re-parking on the same still-running
   //     items is UNLIMITED (maintainer 2026-08-15) — a three-hour build under a one-hour estimate is a
   //     bad estimate, not a failure, and each bump is a real checkpoint where it could decide otherwise.
-  /** Frizz's own message, with the clock on it. Used ONLY where frizz is the author — never on an
+  /** Ntwine's own message, with the clock on it. Used ONLY where ntwine is the author — never on an
    *  operator-authored prompt (a Goal, a heartbeat, a snooze), whose text is delivered verbatim by
    *  invariant. A broker-run worker is told neither the date nor the time by its runtime, so without this
    *  it cannot tell a four-minute park from a four-hour one. */
@@ -2578,7 +2578,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         continue
       }
       // The agent must have spoken last — same guard as the sign-off nudge, and for the same measured
-      // reason: frizz's own delivery lands as a USER record, so keying on activity would let this reset
+      // reason: ntwine's own delivery lands as a USER record, so keying on activity would let this reset
       // its own dedupe and bump in a loop.
       const spokeAt = tele.lastAssistantAt
       if (!spokeAt) continue
@@ -2625,15 +2625,15 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         if (outbox.get(deliveryId)) continue
         const one = unnamed.length === 1
         const head = unnamed.length > 0
-          ? `${one ? "a question of yours was" : `${unnamed.length} questions of yours were`} still OPEN and it does not name ${one ? "it" : "them"}, so frizz refused the park.`
-          : `it names ${notOpen.length === 1 ? "a question that is" : "questions that are"} not open, so frizz refused the park.`
+          ? `${one ? "a question of yours was" : `${unnamed.length} questions of yours were`} still OPEN and it does not name ${one ? "it" : "them"}, so ntwine refused the park.`
+          : `it names ${notOpen.length === 1 ? "a question that is" : "questions that are"} not open, so ntwine refused the park.`
         const message = [
           `${PARK_CORRECTION_QUESTION_LEAD}${head}`,
           ...(unnamed.length > 0 ? ["", "Open, and not named under `questions:`:", ...unnamed.map((q) => `- \`${q.id}\` — ${questionLine(q.spec)}`)] : []),
           ...(notOpen.length > 0 ? ["", "Named, but not an open question of yours:", ...notOpen.map((id) => `- \`${id}\``)] : []),
           "",
           "A fence beside open questions names EVERY one you still need answered — `questions: [qst_…]` —",
-          "and you withdraw the rest with `frizzctl unask <id>`. A named question's card is drawn at this rest;",
+          "and you withdraw the rest with `ntwinectl unask <id>`. A named question's card is drawn at this rest;",
           "an unnamed one stays where you asked it. Fix the list (or unask), re-send the fence, and the park",
           "takes. A fence on questions needs no other name and no `for:`.",
         ].join("\n")
@@ -2701,7 +2701,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const requested = checkInRequests.get(row.slug) === spokeAt
       const expired = requested || (expiresAt !== null && nowMs >= expiresAt)
       // NAMES NOTHING — the loudest case, and it was the silent one. A fence carrying only `for:` and
-      // `reason:` is a worker declaring a wait with NOTHING that can wake it: frizz refuses the park, the
+      // `reason:` is a worker declaring a wait with NOTHING that can wake it: ntwine refuses the park, the
       // thread queues, and until 2026-08-16 nobody told the worker why. It was routed to the sign-off
       // nudge, which only fires on a rest carrying NO fence — so this exact shape got nothing at all.
       //
@@ -2715,16 +2715,16 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // falls through the malformed-fence skip below and is simply honoured; with one, it expires.
       // `questions:` name the human the same way (2026-10-05), and the answer is the wake.
       const nameless = park.items.length === 0 && !parkOnHuman(park)
-      // HONOURED ⇒ the corrective allowance comes back. A park frizz can actually honour is the one
-      // event that proves a correction landed, and — unlike any activity signal — not one frizz can
+      // HONOURED ⇒ the corrective allowance comes back. A park ntwine can actually honour is the one
+      // event that proves a correction landed, and — unlike any activity signal — not one ntwine can
       // cause by correcting. Guarded on a non-zero count so this is a transition, not a write on every
       // tick, exactly as the sign-off nudge's reset is. It deliberately does NOT `continue`: an honoured
       // park can still have run out, and that bump is owed.
       //
       // NO ANSWER (2026-10-01). A worker dispatched under the answer-required contract owes every park an
-      // answer to "where does this rest sit?" (NEEDS_INPUT_REQUIRED_AT in @frizz/shared) — `status:` since
-      // 2026-10-05, `needs_input:` before it and still read. A fence without one — or with a value frizz
-      // cannot read — is not a park frizz may honour (the board queues the thread: needsInputParkHolds), so
+      // answer to "where does this rest sit?" (NEEDS_INPUT_REQUIRED_AT in @ntwine/shared) — `status:` since
+      // 2026-10-05, `needs_input:` before it and still read. A fence without one — or with a value ntwine
+      // cannot read — is not a park ntwine may honour (the board queues the thread: needsInputParkHolds), so
       // it does not give the allowance back either: a worker that keeps leaving the line out would
       // otherwise reset its own cap on every rest.
       const unanswered = needsInputRequired(row.spawned_at) && awaitingNeedsInput(tele.lastFence.hints) === null
@@ -2738,11 +2738,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         const fenceId = parkFenceId("needs-input", spokeAt)
         const deliveryId = wakeDeliveryId(row.slug, row.session_id, fenceId)
         if (outbox.get(deliveryId)) continue
-        // Quoted back when the worker wrote SOMETHING, so it sees the exact value frizz could not read —
+        // Quoted back when the worker wrote SOMETHING, so it sees the exact value ntwine could not read —
         // the `status:` line it wrote, or else the older `needs_input:` one.
         const written = [...tele.lastFence.hints].reverse().find((h) => h.kind === "status") ?? [...tele.lastFence.hints].reverse().find((h) => h.kind === "needs_input")
         const message = [
-          `${PARK_CORRECTION_NEEDS_INPUT_LEAD}\`status:\` that frizz can read — \`working\`, \`watching\` or \`needs_input\`${written ? ` (it says \`${written.kind}: ${written.value}\`)` : ""} — so frizz did not park it, and your thread is in the user's queue.`,
+          `${PARK_CORRECTION_NEEDS_INPUT_LEAD}\`status:\` that ntwine can read — \`working\`, \`watching\` or \`needs_input\`${written ? ` (it says \`${written.kind}: ${written.value}\`)` : ""} — so ntwine did not park it, and your thread is in the user's queue.`,
           "",
           "Every ```awaiting fence answers one question: where does this rest sit while the work runs?",
           "",
@@ -2777,22 +2777,22 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
 
       // FINISHED IS NOT THE SAME AS MISSING, and conflating them is what drove the worst churn observed.
       // `read-the-file-read-up` wrote 284 awaiting fences: it parked on a build, the build FINISHED, and
-      // frizz answered "NOT RUNNING" — which reads as "your fence is broken", so the worker relaunched
-      // instead of reading the output it was waiting for, and went round again. Frizz knows the
+      // ntwine answered "NOT RUNNING" — which reads as "your fence is broken", so the worker relaunched
+      // instead of reading the output it was waiting for, and went round again. Ntwine knows the
       // difference (the fold retires a shell with its finish instant), so it should say which.
       const finishedHandles = new Set<string>()
       for (const sh of tele.retiredShells ?? []) {
         for (const h of [sh.taskId, sh.id, sh.label]) if (h) finishedHandles.add(h)
       }
       // FINISHED-not-MISSING holds for every kind, not only shells (it shipped shell-only). A sub-agent
-      // that RETURNED reads `rested` in telemetry, and a timer that FIRED keeps its settled row — frizz
+      // that RETURNED reads `rested` in telemetry, and a timer that FIRED keeps its settled row — ntwine
       // can tell all three apart from a typo'd id, and the note below spends that knowledge. `stale`
       // stays out: it means "completion signal lost", which is genuinely ambiguous, not finished.
       for (const a of tele.subAgents ?? []) {
         if (a.state !== "rested") continue
         for (const h of [a.taskId, a.id, a.label]) if (h) finishedHandles.add(h)
       }
-      // A DEMOTED shell is a third case, neither finished nor missing: frizz has its launch, saw no
+      // A DEMOTED shell is a third case, neither finished nor missing: ntwine has its launch, saw no
       // completion notice, and can no longer find its process (tailer.ts probeShellsAlive). Calling that
       // "nothing by that name" sent a worker hunting for a typo in an id it had copied exactly — and,
       // before 2026-10-05, said so of a shell that was still running.
@@ -2823,7 +2823,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         (i.kind === "command" && settledCommands.get(i.value) === "passed")
       // SILENT IS NOT MISSING EITHER. A sub-agent that has written nothing for longer than its allowance —
       // 15 minutes of awake time, counted from the deadline of a Bash wait it declared (tailer.ts
-      // pendingCallDeadline) — reads `stale`. The id is right and the child may well be alive; what frizz
+      // pendingCallDeadline) — reads `stale`. The id is right and the child may well be alive; what ntwine
       // knows is that it has gone quiet past what it said it would. Saying "nothing by that name" sent the parent hunting for a typo. This wake IS the
       // regular-update expectation on a child: nothing is stopped, the parent is told, and it decides.
       const silentSince = new Map<string, string | undefined>()
@@ -2839,7 +2839,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         // a PR is unaccounted because the worker never registered it — a different mistake with a
         // different fix, and naming the fix here is the whole basis of the maintainer's 2026-08-24
         // decision to keep declaring and registering separate ("the worker learns to call the tool
-        // first"). Without this line the correction sends it to `frizzctl activity`, which will
+        // first"). Without this line the correction sends it to `ntwinectl activity`, which will
         // faithfully report that it has no PRs — true, and no help at all.
         const note = !gone
           ? "still running"
@@ -2850,32 +2850,32 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           : answeredItem(i)
           ? "ANSWERED — its reply was delivered to you; there is nothing left to wait on"
           : i.kind === "thread" && replyWaitOfItem(i)?.state === "fired"
-          ? "LAPSED — no reply came while the wait stood; read where it is with `frizzctl read-thread`"
+          ? "LAPSED — no reply came while the wait stood; read where it is with `ntwinectl read-thread`"
           : i.kind === "command" && settledCommands.get(i.value) === "passed"
           ? "already PASSED — its wake was delivered; there is nothing left to wait on"
           : i.kind === "command" && settledCommands.has(i.value)
-          ? `no longer armed (${settledCommands.get(i.value)}) — register it again with \`frizzctl watch-command add\` if you still need the wait`
+          ? `no longer armed (${settledCommands.get(i.value)}) — register it again with \`ntwinectl watch-command add\` if you still need the wait`
           : finishedItem(i)
           ? "FINISHED — its result is waiting for you"
           : silentItem(i)
-          ? `SILENT — nothing from it since ${silentSince.get(i.value) ?? "it started"}, longer than any call it has pending declared. It may be hung; frizz stopped nothing. Read its transcript, then wait on it again or \`TaskStop\` it`
+          ? `SILENT — nothing from it since ${silentSince.get(i.value) ?? "it started"}, longer than any call it has pending declared. It may be hung; ntwine stopped nothing. Read its transcript, then wait on it again or \`TaskStop\` it`
           : i.kind === "shell" && staleShellHandles.has(i.value)
-          ? "GONE WITHOUT A COMPLETION NOTICE — frizz knows this shell, but nothing holds its output file and no process it could be is still running; read its output to see how it ended"
+          ? "GONE WITHOUT A COMPLETION NOTICE — ntwine knows this shell, but nothing holds its output file and no process it could be is still running; read its output to see how it ended"
           : i.kind === "pr"
-          ? "NOT REGISTERED — register it with `frizzctl watch-pr add` first, then name it here"
+          ? "NOT REGISTERED — register it with `ntwinectl watch-pr add` first, then name it here"
           : i.kind === "issue"
-          ? "NOT REGISTERED — register it with `frizzctl watch-issue add` first, then name it here"
+          ? "NOT REGISTERED — register it with `ntwinectl watch-issue add` first, then name it here"
           : i.kind === "thread"
-          ? "NOT AWAITED — ask it with `frizzctl message-thread` and `--await-reply` first, then name it here"
+          ? "NOT AWAITED — ask it with `ntwinectl message-thread` and `--await-reply` first, then name it here"
           : i.kind === "command"
-          ? "NOT REGISTERED — register it with `frizzctl watch-command add` first, then name the id it gives you here"
+          ? "NOT REGISTERED — register it with `ntwinectl watch-command add` first, then name the id it gives you here"
           : "NOT RUNNING (nothing by that name)"
         // The PLURAL key, because that is what the worker has to write. `i.kind` is the internal wire
         // kind and stayed singular through the 2026-08-24 YAML cutover; printing it raw taught a
         // spelling the parser now refuses.
         return `- \`${AWAITING_KEY_OF[i.kind]}: [${i.value}]\` — ${note}`
       })
-      // A park on `steps:` that ran out is the only status line here frizz cannot read off a registry:
+      // A park on `steps:` that ran out is the only status line here ntwine cannot read off a registry:
       // the human may have done the steps without pressing anything, so the line sends the worker to
       // check the world rather than to re-post the same steps blind.
       if (park.steps.length > 0) {
@@ -2907,20 +2907,20 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         ? [
           // The LEAD comes from shared so the transcript can recognise this delivery as a correction and
           // drop it (isParkCorrection) — one string, written and read in one place, never two that drift.
-          `${PARK_CORRECTION_RETIRED_LEAD}${retired.length === 1 ? "a line kind" : "line kinds"} that no longer exist, so frizz ignored ${retired.length === 1 ? "it" : "them"} — the`,
+          `${PARK_CORRECTION_RETIRED_LEAD}${retired.length === 1 ? "a line kind" : "line kinds"} that no longer exist, so ntwine ignored ${retired.length === 1 ? "it" : "them"} — the`,
           "fence named nothing and your thread stayed in the queue.",
           "",
           ...retired.map((k) => `- \`${k}:\` is GONE → ${RETIRED_AWAITING_REPLACEMENT[k]}`),
           "",
-          "THE FRONTMATTER IS YAML, and every key is checked against something frizz can see:",
+          "THE FRONTMATTER IS YAML, and every key is checked against something ntwine can see:",
           "",
           "```awaiting",
           "shells: [<runtime task id>]   background shells you launched",
           "agents: [<runtime agent id>]  sub-agents you dispatched",
-          "timers: [tmr_…]               timers from `frizzctl timer set`",
-          "prs:    [owner/repo#123]      PRs registered with `frizzctl watch-pr add`",
-          "issues: [owner/repo#45]       GitHub issues registered with `frizzctl watch-issue add`",
-          "commands: [cmw_…]             command watches from `frizzctl watch-command add`",
+          "timers: [tmr_…]               timers from `ntwinectl timer set`",
+          "prs:    [owner/repo#123]      PRs registered with `ntwinectl watch-pr add`",
+          "issues: [owner/repo#45]       GitHub issues registered with `ntwinectl watch-issue add`",
+          "commands: [cmw_…]             command watches from `ntwinectl watch-command add`",
           "for:    2h                    REQUIRED — a DURATION, never an instant",
           "---",
           "one or two sentences: what is running, and what it gates",
@@ -2929,34 +2929,34 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "Keep the keys you need and drop the rest. There is NO prose above the `---`: a colon or a ` #`",
           "in a sentence breaks the YAML, which is why `reason:` is gone.",
           "",
-          "`frizzctl activity` lists everything you have running, and prints it back as a ready-to-paste",
+          "`ntwinectl activity` lists everything you have running, and prints it back as a ready-to-paste",
           "fence. If you are not waiting on anything, you are not awaiting — end with ```done, or register",
-          "a question with `frizzctl ask`.",
+          "a question with `ntwinectl ask`.",
         ].join("\n")
         : nameless
         ? [
           `${PARK_CORRECTION_NAMES_LEAD}nothing to wait on, so it is not a park — your thread is still`,
           "in the queue, and nothing will wake you.",
           "",
-          "A wait has to be something frizz can SEE. Register one, then name it:",
+          "A wait has to be something ntwine can SEE. Register one, then name it:",
           "",
-          "- a pull request → `frizzctl watch-pr add` (it wakes you on CI going green or red, and on every",
+          "- a pull request → `ntwinectl watch-pr add` (it wakes you on CI going green or red, and on every",
           "  later review and comment) → `prs: [owner/repo#123]`",
-          "- a GitHub issue → `frizzctl watch-issue add` (every later comment, a label or assignee moving,",
+          "- a GitHub issue → `ntwinectl watch-issue add` (every later comment, a label or assignee moving,",
           "  and the close) → `issues: [owner/repo#45]`",
-          "- a wall-clock check → `frizzctl timer set` → `timers: [tmr_…]`",
+          "- a wall-clock check → `ntwinectl timer set` → `timers: [tmr_…]`",
           "- an outside condition a command can check (a package version, a release run, a URL coming up)",
-          "  → `frizzctl watch-command add` → `commands: [cmw_…]`",
+          "  → `ntwinectl watch-command add` → `commands: [cmw_…]`",
           "- work you already launched → `shells: [<the id your runtime gave you>]` or `agents: [<id>]`",
           "",
           "The frontmatter is YAML: PLURAL keys, each taking a list, and your prose below the `---`.",
-          "Use `frizzctl activity` to read it all back as a ready-to-paste fence.",
+          "Use `ntwinectl activity` to read it all back as a ready-to-paste fence.",
           "",
           "AND IF YOU ARE NOT WAITING ON ANYTHING, you are not awaiting — you are done. End with ```done,",
-          "or register a question with `frizzctl ask` if you need the user.",
+          "or register a question with `ntwinectl ask` if you need the user.",
         ].join("\n")
-        // THESE TWO LIVE IN @frizz/shared, beside the parsers that read them back. Same rule as
-        // `limitResumeSteer`: a formatter the chat cannot parse falls through FrizzWake's legacy
+        // THESE TWO LIVE IN @ntwine/shared, beside the parsers that read them back. Same rule as
+        // `limitResumeSteer`: a formatter the chat cannot parse falls through NtwineWake's legacy
         // fallback and prints its agent-facing body verbatim as a bordered card. The wording is
         // unchanged — only its address is.
         : expired
@@ -2965,7 +2965,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         ? parkFinishedWakeMessage(status, dead.length !== 1)
         : dead.every(silentItem)
         ? [
-          `${PARK_CORRECTION_NAMES_LEAD}${dead.length === 1 ? "a sub-agent that has" : "sub-agents that have"} gone silent past what ${dead.length === 1 ? "it" : "they"} declared, so frizz woke you instead of holding the park.`,
+          `${PARK_CORRECTION_NAMES_LEAD}${dead.length === 1 ? "a sub-agent that has" : "sub-agents that have"} gone silent past what ${dead.length === 1 ? "it" : "they"} declared, so ntwine woke you instead of holding the park.`,
           "",
           ...status,
           "",
@@ -2977,14 +2977,14 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "",
           ...status,
           "",
-          "Use `frizzctl activity` to read back what you actually have out, with the exact id each line",
+          "Use `ntwinectl activity` to read back what you actually have out, with the exact id each line",
           "needs, then re-fence naming only those — or end in ```done or a registered question",
-          "(`frizzctl ask`) if there is nothing left to wait for.",
+          "(`ntwinectl ask`) if there is nothing left to wait for.",
         ].join("\n")
 
       const cause = retired.length > 0 ? "retired" : nameless ? "nameless" : expired ? "expired" : "dead"
       // THE IDS, INLINE — not a tool name. Every correction here used to end at "use
-      // `mcp__frizz__activity`", which a worker dispatched before that tool existed cannot call: its MCP
+      // `mcp__ntwine__activity`", which a worker dispatched before that tool existed cannot call: its MCP
       // server is frozen at dispatch. Those are precisely the threads still writing fences this check
       // refuses, so the one remedy on offer was unreachable by the population that needed it. The lines
       // below can be copied straight into a fence, and the tool remains the on-demand form of the same
@@ -3001,7 +3001,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       })
       // NOTHING RUNNING is itself the answer, and the most common one for a nameless fence: a worker
       // waiting on nothing is not awaiting, it is done. Said plainly rather than left as an empty list.
-      // THE CLOCK, on frizz's own correction. A broker-run worker is told neither the date nor the time by
+      // THE CLOCK, on ntwine's own correction. A broker-run worker is told neither the date nor the time by
       // its runtime (measured: zero date injections across an entire session), so it cannot tell that the
       // `for: 1h` it keeps writing has never once been reached — its last four parks each lasted minutes.
       // Elapsed is the feedback that turns the next `for:` into a judgement instead of a guess.
@@ -3012,7 +3012,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         // carry on", and the "nothing could wake you, finish in done" tail contradicted it.
         : cause === "expired" || allFinished
         ? head
-        : `${head}\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n\`\`\`done, or register a question with \`frizzctl ask\`.`
+        : `${head}\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n\`\`\`done, or register a question with \`ntwinectl ask\`.`
       // THE CONSECUTIVE CAP, and the reason SOURCE 12 needed one. A correction is only worth sending to a
       // worker that can act on it, and a worker whose contract froze before this grammar existed cannot:
       // no fence it knows how to write will pass the check. Uncapped, that is a closed loop — bump, wake,
@@ -3055,7 +3055,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   }
 
   // ---- SOURCE 11: THE REGISTERED PR WATCHERS ------------------------------------------------------
-  // A worker registers a pull request with `frizzctl watch-pr` and frizz brings it back whenever
+  // A worker registers a pull request with `ntwinectl watch-pr` and ntwine brings it back whenever
   // something happens on it (maintainer 2026-08-14: "The agent should have a tool to register a PR
   // watcher… it should get notified when CI either succeeds or failed and on follow-up reviews and
   // comments").
@@ -3082,7 +3082,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   /** `merge`, `labels` and `reviewers` are the PR's own state as of the last poll, and they are a
    *  BASELINE before they are a trigger: absent (a watcher armed before 2026-09-04, or a poll that fell
    *  back to `gh`, which does not fetch them) means "not known", so the next poll records them and says
-   *  nothing. Reporting a PR's existing labels as news the first time frizz looks at them would spend a
+   *  nothing. Reporting a PR's existing labels as news the first time ntwine looks at them would spend a
    *  turn on facts the worker put there itself — the same rule the review baseline already follows. */
   interface PrWatchCursor {
     seen: string[]
@@ -3222,7 +3222,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         sessionId: row.session_id,
         fenceId,
         hintKey: fenceId,
-        // In @frizz/shared beside `parsePrWatchExpiredWake`, for the reason above.
+        // In @ntwine/shared beside `parsePrWatchExpiredWake`, for the reason above.
         message: prWatchExpiredWakeMessage(ref, w.kind === "issue" ? "issue" : "pull"),
         reason: `${w.kind === "issue" ? "issue" : "pr"} watcher ${w.id} expired (${ref})`,
       }, nowMs).delivery
@@ -3303,7 +3303,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // and no children.
       //
       // `fetchPr` REMAINS THE FALLBACK, and it is not vestigial: an injected fetcher (every scheduler
-      // test that predates this) returns activity with no `pr`, and so does a response frizz cannot
+      // test that predates this) returns activity with no `pr`, and so does a response ntwine cannot
       // interpret, or a rollup longer than one page that it could not read to the end. Falling back
       // there keeps a watcher polling rather than going quiet on a shape
       // surprise — which is the failure mode this whole source exists to prevent. It runs through
@@ -3700,7 +3700,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (outbox.get(deliveryId)) return
     const item = outbox.enqueue({
       id: deliveryId, slug: row.slug, sessionId: row.session_id, fenceId,
-      // Frizz's own words about someone else's PR, so the clock rides along: a watcher wake is the one
+      // Ntwine's own words about someone else's PR, so the clock rides along: a watcher wake is the one
       // most likely to land on a thread that has been parked for hours without knowing it.
       hintKey: `${PR_WATCH_FENCE_PREFIX}:${watchId}`, message: withClock(message, deps.tailer.get(row.slug)?.lastAssistantAt), reason,
     }, nowMs).delivery
@@ -3734,7 +3734,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       if (row.state === "archived" || row.archived === 1) continue
       const tele = deps.tailer.get(row.slug)
       if (!tele) continue
-      // AT REST ONLY. Mid-turn the runtime's own notification is the delivery, and frizz adding a second
+      // AT REST ONLY. Mid-turn the runtime's own notification is the delivery, and ntwine adding a second
       // one would land while the agent is still working — the noise this pass exists to avoid.
       if (tele.turn !== "idle") continue
       // A signed-out provider answers in milliseconds and every reply is a "rest", which makes it a
@@ -3749,7 +3749,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // until it does (registeredDoneFence: a done stands through a prose-only reply to a newer user
       // record, not through a tool call or a failed turn after it). SOURCES 4 and 5 already decline
       // a done thread; this is the same guard. The one exception is a shell the worker REGISTERED a wait
-      // on (`frizzctl watch`): a registration trumps a done on the board, so it trumps it here too —
+      // on (`ntwinectl watch`): a registration trumps a done on the board, so it trumps it here too —
       // the wake is the thing it registered for. Matched by ROW, in any state but dropped, because
       // evalOwnWatches has already settled that row silently by the time this pass runs (it runs first
       // in the tick, and "target ended" is its silent case — the wake is this pass's to send). Once the
@@ -3798,7 +3798,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   //     deadline nor a wake that waited in the outbox eats into the worker's window to answer. See
   //     shellBudgetGraceFrom for how "delivered" is read.
   //
-  // A shell frizz cannot stop (a pre-broker row, or no task id yet) is warned and never killed — the
+  // A shell ntwine cannot stop (a pre-broker row, or no task id yet) is warned and never killed — the
   // warning says so. An ARCHIVED thread is nobody's to wake: it gets no warning and no kill notice, but
   // its shell still ends on the same clock, because a forgotten shell on a shelved thread is exactly the
   // 16-hour case. A kill that fails is retried, spaced, rather than every tick.
@@ -3902,7 +3902,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
 
   // ---- SOURCE 15: THE THREAD'S TIME LIMIT -------------------------------------------------------
   // ARCHITECTURE.md § Time limits. A thread with a deadline is checked in with at fixed points in its budget —
-  // half-time, 80%, shortly before and at the deadline (@frizz/shared deadlineStageFraction) — each
+  // half-time, 80%, shortly before and at the deadline (@ntwine/shared deadlineStageFraction) — each
   // asking for a different behaviour (deadline.ts deadlineCheckInMessage). Delivered MID-TURN at the
   // worker's next tool boundary, as a Goal heartbeat is; a resting thread is woken by it.
   //
@@ -4008,7 +4008,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     }
     for (const [slug, watches] of bySlug) {
       const tele = deps.tailer.get(slug)
-      // NO TELEMETRY IS NOT "NOT LIVE". A thread whose transcript frizz cannot read right now says
+      // NO TELEMETRY IS NOT "NOT LIVE". A thread whose transcript ntwine cannot read right now says
       // nothing about its shells, and settling on that reading would cancel a healthy wait — the same
       // shape as `probeShellAlive`'s rule that an undefined verdict is never treated as dead.
       if (!tele) continue
@@ -4027,7 +4027,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   }
 
   // ---- SOURCE 16: THE WORKER'S COMMAND WATCHES ------------------------------------------------------
-  // `frizzctl watch-command add` (2026-10-11): a shell command the server re-runs every `every` until it
+  // `ntwinectl watch-command add` (2026-10-11): a shell command the server re-runs every `every` until it
   // exits 0, so a wait on an outside condition holds nothing in the thread's own process tree and the
   // thread can hibernate under it. See command-watch.ts for the process and the gate.
   //
@@ -4282,7 +4282,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const answers: QuestionAnswer[] = []
       const dismissed: QuestionDismissal[] = []
       // The ids are kept alongside for the delivery key ONLY. The MESSAGE names each dismissed question
-      // by its text, because the worker never saw an id — frizz minted it — so a list of ids names
+      // by its text, because the worker never saw an id — ntwine minted it — so a list of ids names
       // nothing it can act on. (The human's Answers card leaves these rows out — see answersForDisplay.)
       const dismissedIds: string[] = []
       for (const q of rows) {
@@ -4380,7 +4380,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // run row (thread_schedule_run), claimed in this tick and launched outside it (schedules.ts evalDue).
   //
   // THE ONE EXCEPTION TO "NEVER FIRES ON FIRST SIGHT" (start, below): an occurrence that came due while
-  // Frizz was off does fire after a restart — once, and only within its lateness cap. It waits out a
+  // Ntwine was off does fire after a restart — once, and only within its lateness cap. It waits out a
   // post-boot grace first, so the tailer has vouched for the previous run before the overlap check reads it.
   function evalScheduledThreads(nowMs: number): void {
     deps.scheduledThreads?.evalDue(nowMs)
@@ -4636,7 +4636,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const tele = deps.tailer.get(row.slug)
       if (!tele || tele.turn !== "idle") continue
       // THE AGENT MUST HAVE SPOKEN LAST. `turn === "idle"` alone is not "the agent rested": a thread
-      // whose worker is gone is idle forever, and frizz's own bump keeps landing in its transcript. This
+      // whose worker is gone is idle forever, and ntwine's own bump keeps landing in its transcript. This
       // is the guard that makes the trigger mean "you stopped" rather than "nothing is happening" — see
       // `stopHookFenceId`. It costs the feature nothing: an agent that genuinely takes a turn and rests
       // again produces a NEW assistant timestamp, which is exactly when the Goal should fire.
@@ -4921,7 +4921,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // AN ANSWER NEVER MERGES WITH ANYTHING BUT ANOTHER ANSWER. `questionAnswerMessage` is the human's own
   // words in a shape the chat parses by position — its first line must be the answers header and every
   // trailing line is read as the last answer's continuation — so wrapping it in a heading or appending
-  // anything after it would render frizz's prose inside the human's answer chip. It is exempt from the
+  // anything after it would render ntwine's prose inside the human's answer chip. It is exempt from the
   // quiet window for the same reason it cannot wait.
   //
   // BUT ANSWERS FOLD INTO ONE ANOTHER (2026-09-29). They arrive a question at a time now, and every
@@ -4935,7 +4935,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     const adopted: WakeDelivery[] = []
     for (const sibling of outbox.pendingFor(carrier.slug, carrier.sessionId)) {
       if (sibling.id === carrier.id || isQuestionAnswerFenceId(sibling.fenceId) !== answers) continue
-      // An answers carrier takes only what folds into the human's form: a cancellation wake is frizz's
+      // An answers carrier takes only what folds into the human's form: a cancellation wake is ntwine's
       // own voice (questionsCancelledWakeMessage) and goes on its own.
       if (answers && (mergeAnswerMessages([carrier.message, sibling.message]) === undefined)) continue
       const context = deliveryContext(sibling)
@@ -4956,9 +4956,9 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     return adopted
   }
 
-  // The merged body is composed by `mergedWakeMessage` in @frizz/shared, beside the splitter the chat
+  // The merged body is composed by `mergedWakeMessage` in @ntwine/shared, beside the splitter the chat
   // reads it back with. Same rule as `limitResumeSteer` and the park wakes: a formatter the chat cannot
-  // parse falls through FrizzWake's fallback and prints its agent-facing body verbatim as a bordered
+  // parse falls through NtwineWake's fallback and prints its agent-facing body verbatim as a bordered
   // card, and this one did for five weeks.
 
   // A LONE wake's clock is re-read at SEND, for the same reason the merged one is: the stamp was taken at
@@ -5039,7 +5039,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         // THE CLOCK RIDES ON EVERY DELIVERY. A broker-run worker is told neither the date nor the time
         // by its runtime (measured: zero date injections across a whole session), so it has no way to
         // judge how long its own parks actually last — which is why `for:` values are guesses. This is
-        // the one place every frizz wake passes through, so one line here reaches all of them.
+        // the one place every ntwine wake passes through, so one line here reaches all of them.
         await deps.resume(item.slug, message, item.id)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)

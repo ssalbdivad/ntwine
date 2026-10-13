@@ -7,7 +7,7 @@ import { join } from "node:path"
 import { launchHeadless } from "./lib/headless-browser.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:4941/status-bar-fixture.html"
-const OUT = join(tmpdir(), "frizz-statusbar")
+const OUT = join(tmpdir(), "ntwine-statusbar")
 mkdirSync(OUT, { recursive: true })
 
 const results = []
@@ -58,7 +58,7 @@ try {
     const items = [
       ["identity", bar.querySelector("[data-project-identity-state]")],
       ["settings", bar.querySelector('[aria-label="Settings"]')],
-      ["reload", bar.querySelector('[aria-label="Update Frizz"],[aria-label="Restart Frizz"]')],
+      ["reload", bar.querySelector('[aria-label="Update Ntwine"],[aria-label="Restart Ntwine"]')],
       ["claude", bar.querySelector('[aria-label^="Claude"]')],
       ["codex", bar.querySelector('[aria-label^="Codex"]')],
     ]
@@ -96,7 +96,7 @@ try {
   await page.screenshot({ path: join(OUT, "01-healthy.png") })
 
   // ---- 2. the reload popover, opened with a REAL hover ------------------------------------------
-  const reload = await page.$('[aria-label="Update Frizz"],[aria-label="Restart Frizz"]')
+  const reload = await page.$('[aria-label="Update Ntwine"],[aria-label="Restart Ntwine"]')
   await reload.hover()
   await page.waitForSelector("#update-restart-popover", { timeout: 5000 })
   await new Promise((r) => setTimeout(r, 250))

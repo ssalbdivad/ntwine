@@ -116,13 +116,13 @@ const claudeTgz = tarball([
 ])
 
 function scratch(): string {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-runtimes-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-runtimes-"))
   return dir
 }
 
 // --- the pins ---------------------------------------------------------------------------------------
 
-test("the Claude pin is the SDK Frizz bundles, and the CLI that SDK was built against", () => {
+test("the Claude pin is the SDK Ntwine bundles, and the CLI that SDK was built against", () => {
   // The runtime package names the SDK version; the SDK's own package.json names its Claude Code.
   // Both are pinned here so a bump of one without the other fails instead of drifting.
   const runtimePkg = JSON.parse(readFileSync(new URL("../../claude-agent-sdk-runtime/package.json", import.meta.url), "utf8")) as { dependencies: Record<string, string> }
@@ -376,19 +376,19 @@ test("sweep: a version the OS refuses to remove is kept and named, and the sweep
 
 // --- resolution -------------------------------------------------------------------------------------
 
-test("resolve: an explicit executable wins and provisions nothing; FRIZZ_RUNTIMES=path skips it too", async () => {
+test("resolve: an explicit executable wins and provisions nothing; NTWINE_RUNTIMES=path skips it too", async () => {
   const root = scratch()
   const before = registry.requests.length
-  const explicit = await resolveRuntimes({ claudeBin: "/opt/claude", env: { FRIZZ_CODEX_BIN: "/opt/codex" }, root, registry: registry.url })
+  const explicit = await resolveRuntimes({ claudeBin: "/opt/claude", env: { NTWINE_CODEX_BIN: "/opt/codex" }, root, registry: registry.url })
   assert.deepEqual(explicit.claude, { bin: "/opt/claude", source: "override", version: "unknown" })
   assert.deepEqual(explicit.codex, { bin: "/opt/codex", source: "override", version: "unknown" })
-  const path = await resolveRuntimes({ env: { FRIZZ_RUNTIMES: "path" }, root, registry: registry.url })
+  const path = await resolveRuntimes({ env: { NTWINE_RUNTIMES: "path" }, root, registry: registry.url })
   assert.equal(path.claude.source, "path")
   assert.equal(path.claude.bin, "claude")
   assert.equal(path.codex.bin, "codex")
   assert.equal(registry.requests.length, before, "neither shape touched the registry")
   assert.equal(describeRuntime("claude", explicit.claude), "claude: /opt/claude (explicit)")
-  assert.equal(describeRuntime("codex", path.codex), "codex: codex from PATH — FRIZZ_RUNTIMES=path")
+  assert.equal(describeRuntime("codex", path.codex), "codex: codex from PATH — NTWINE_RUNTIMES=path")
   rmSync(root, { recursive: true, force: true })
 })
 

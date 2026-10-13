@@ -62,7 +62,7 @@ for (const [i, f] of ["src/resolver.ts", "src/jail.ts"].entries()) {
   toolCall(`t${i}`, "Read", { file_path: `${cwd}/${f}` })
   toolResult(`t${i}`, "…file contents…")
 }
-assistant("Frizz correction is complete and the sandbox policy is rebuilding.")
+assistant("Ntwine correction is complete and the sandbox policy is rebuilding.")
 user("Show me the list.")
 assistant(TASKS)
 // A user message whose LAST rendered thing is an image — the extra space belongs under the screenshot.
@@ -84,7 +84,7 @@ const { db } = sandbox
 // The unified schema keys every row by project and the column is NOT NULL; the legacy one has no
 // such column. `sessionProjectColumns` yields the right prefix pair for whichever this sandbox is.
 const { cols: sessionCols, vals: sessionVals } = sessionProjectColumns(sandbox)
-const threadName = `frizz-${SLUG}`
+const threadName = `ntwine-${SLUG}`
 execFileSync("sqlite3", [db, `DELETE FROM session WHERE slug = '${SLUG}';`])
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session
   (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, unread, exited, archived, title_auto, runtime_generation, profile_revision)

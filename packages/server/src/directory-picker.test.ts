@@ -27,7 +27,7 @@ test("a platform with no folder picker reports it rather than throwing", async (
 // editions nobody has installed stand in for a machine with neither, and the answer must be the
 // typed-path fallback, not a rejection — the same contract as an unsupported platform.
 test("windows walks its edition chain and degrades when none is installed", async () => {
-  const result = await pickWindowsFolder("Choose", ["frizz-no-such-shell-a", "frizz-no-such-shell-b"])
+  const result = await pickWindowsFolder("Choose", ["ntwine-no-such-shell-a", "ntwine-no-such-shell-b"])
   assert.equal(result.kind, "unavailable")
   assert.match(result.kind === "unavailable" ? result.reason : "", /no PowerShell/u)
 })
@@ -36,7 +36,7 @@ test("windows walks its edition chain and degrades when none is installed", asyn
 // is "the next edition" too — but when it was the LAST edition, its message is what the operator sees,
 // not "no PowerShell found". `node` stands in: it starts everywhere and refuses `-NoProfile`.
 test("windows reports the last edition's own failure when none ran the script", async () => {
-  const result = await pickWindowsFolder("Choose", ["frizz-no-such-shell", process.execPath])
+  const result = await pickWindowsFolder("Choose", ["ntwine-no-such-shell", process.execPath])
   assert.equal(result.kind, "unavailable")
   const reason = result.kind === "unavailable" ? result.reason : ""
   assert.doesNotMatch(reason, /no PowerShell/u)

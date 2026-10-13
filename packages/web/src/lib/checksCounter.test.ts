@@ -25,7 +25,7 @@ test("the counter leads on what decides the next move", () => {
   assert.equal(checksCounterLabel(status({ checks: "passing", passed: 29 })), "29 green")
 })
 
-test("a reading frizz does not have is absent, never a zero", () => {
+test("a reading ntwine does not have is absent, never a zero", () => {
   // Never polled: the row's own liveness mark already says the watcher is armed, and "0" would claim a
   // fact — that CI reported nothing — which is a different thing from not having looked.
   assert.equal(checksCounterLabel(undefined), undefined)

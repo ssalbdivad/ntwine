@@ -279,7 +279,7 @@ test("each reading parses back to what the chip shows", () => {
   assert.deepEqual(parseSentEditorContext(`hi\n\n${OLD_HEADER}\n\nOpen in the editor: src/a.ts`), { body: "hi", editor: { kind: "file", display: "src/a.ts" } })
   assert.equal(parseSentEditorContext(`hi\n\n${OLD_HEADER}\n\nSelected in src/a.ts (unsaved changes), lines 1-900 (not quoted here, and the copy on disk differs: ask the human to save it or paste it)`)?.editor.unquoted, "long")
   assert.equal(parseSentEditorContext(`hi\n\n${OLD_HEADER}\n\nSelected in Untitled-1 (unsaved, not a file on disk), lines 1-900 (not quoted here, and there is no file to read: ask the human to paste it)`)?.editor.unquoted, "long")
-  const oldNote = "The context above is from the human's editor, which shows the project's main checkout (/repo). You are working in your own worktree (/repo/.frizz/worktrees/tidy): the same relative path there is your copy, and it may differ from what they see."
+  const oldNote = "The context above is from the human's editor, which shows the project's main checkout (/repo). You are working in your own worktree (/repo/.ntwine/worktrees/tidy): the same relative path there is your copy, and it may differ from what they see."
   assert.equal(withoutWorktreeNote(`fix it\n\n${oldNote}`), "fix it")
 })
 
@@ -380,11 +380,11 @@ test("the last block decides: a different reading after the quote, or none quote
 
 // ── a thread in a worktree ──────────────────────────────────────────────────────────────────────────
 
-const WT = "/repo/.frizz/worktrees/tidy"
+const WT = "/repo/.ntwine/worktrees/tidy"
 
 test("a file in the thread's own worktree is relative to the worktree; a main-checkout file to the project", () => {
   // The agent resolves a relative path against its own working folder: from the worktree,
-  // `.frizz/worktrees/tidy/src/a.ts` names nothing.
+  // `.ntwine/worktrees/tidy/src/a.ts` names nothing.
   assert.equal(contextDisplayPath(`${WT}/src/a.ts`, "/repo", WT), "src/a.ts")
   assert.equal(contextDisplayPath("/repo/src/a.ts", "/repo", WT), "src/a.ts")
   assert.equal(contextDisplayPath("/elsewhere/a.ts", "/repo", WT), "/elsewhere/a.ts")
@@ -392,14 +392,14 @@ test("a file in the thread's own worktree is relative to the worktree; a main-ch
   // A sibling worktree outside the project.
   assert.equal(contextDisplayPath("/repo-perf/src/a.ts", "/repo", "/repo-perf"), "src/a.ts")
   // Without a checkout, exactly as before.
-  assert.equal(contextDisplayPath(`${WT}/src/a.ts`, "/repo"), ".frizz/worktrees/tidy/src/a.ts")
+  assert.equal(contextDisplayPath(`${WT}/src/a.ts`, "/repo"), ".ntwine/worktrees/tidy/src/a.ts")
   assert.equal(serializeContextItems([item({ path: `${WT}/docs/guide.md` })], "/repo", WT), "Selected context:\n\n@guide.md:3 (docs/guide.md, line 3):\n> some text")
   assert.equal(serializeEditorContext({ path: `${WT}/src/a.ts`, cursorLine: 4 }, [], "/repo", WT).endsWith("Open in the editor: src/a.ts (cursor on line 4)"), true)
 })
 
 test("the worktree note: only for context from the main checkout, sent to a thread working elsewhere", () => {
   const note = worktreeNote(["/repo/src/a.ts"], "/repo", { dir: WT, kind: "worktree" })
-  assert.equal(note, "The context above is from the user's editor, which shows the project's main checkout (/repo). You are working in your own worktree (/repo/.frizz/worktrees/tidy): the same relative path there is your copy, and it may differ from what they see.")
+  assert.equal(note, "The context above is from the user's editor, which shows the project's main checkout (/repo). You are working in your own worktree (/repo/.ntwine/worktrees/tidy): the same relative path there is your copy, and it may differ from what they see.")
   assert.match(worktreeNote(["/repo/src/a.ts"], "/repo", { dir: "/repo-perf", kind: "folder" }), /You are working in your own checkout \(\/repo-perf\)/)
   // Nothing to say: the thread is at the root, the file is the worktree's own, outside the project, the
   // terminal, or there is no context at all.

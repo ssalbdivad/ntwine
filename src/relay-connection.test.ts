@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { generateClaimIdentity, parseFrame, RELAY_KEEPALIVE_PING, serializeFrame } from "@frizz/shared";
+import { generateClaimIdentity, parseFrame, RELAY_KEEPALIVE_PING, serializeFrame } from "@ntwine/shared";
 import { connectRelay, defaultBackoff, signRelayHandshake, type RelaySocket } from "./relay-connection.ts";
 
 /** A socket a test drives by hand: it records what was sent and fires events on demand. */

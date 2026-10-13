@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto"
 // its target up in the session's task table, and a Workflow's agents are run by the workflow and never
 // entered there — so the lookup reads the agent as evicted and RESUMES A SECOND COPY from its transcript
 // beside the live one (read off the 2.1.287 bundle; seen live 2026-09-29, two writers in one worktree).
-// Frizz's own drawer steer cannot reach one either: it rides an input frame the CLI only routes to
+// Ntwine's own drawer steer cannot reach one either: it rides an input frame the CLI only routes to
 // tool_use ids its main thread issued.
 //
 // Hooks DO reach them. Measured on 2.1.287 (2026-10-06): a PostToolUse hook fires for every tool call
@@ -23,7 +23,7 @@ import { randomUUID } from "node:crypto"
 // engines floor, so the format is two short implementations pinned by one test
 // (`agent-inbox-hook.test.ts`), not a shared module:
 //
-//   <session-dir>/frizz-inbox/<agentId>/<ms>-<hrtime>-<uuid>.json   {"from": "...", "text": "...", "at": <ms>}
+//   <session-dir>/ntwine-inbox/<agentId>/<ms>-<hrtime>-<uuid>.json   {"from": "...", "text": "...", "at": <ms>}
 //
 // Names sort oldest first. The monotonic clock breaks a tie between two messages one sender posted in
 // the same millisecond; between two processes in one millisecond the order is arbitrary, and nothing
@@ -32,11 +32,11 @@ import { randomUUID } from "node:crypto"
 // One file per message, written to a temp name and renamed in, so a reader never sees half of one. The
 // reader claims each file by renaming it, so two hooks firing at once for parallel tool calls cannot
 // both deliver it. The session dir is the one Claude Code keeps beside the session transcript
-// (`<transcript without .jsonl>/`), which both sides can find without knowing anything of Frizz's.
+// (`<transcript without .jsonl>/`), which both sides can find without knowing anything of Ntwine's.
 
-export const INBOX_DIRNAME = "frizz-inbox"
+export const INBOX_DIRNAME = "ntwine-inbox"
 
-/** `@handle`: another Frizz thread, through `message_thread` to `@thread.child`. */
+/** `@handle`: another Ntwine thread, through `message_thread` to `@thread.child`. */
 export type InboxSender = "parent" | "operator" | `@${string}`
 
 /** A Workflow run's agents live in `<session-dir>/subagents/workflows/<run>` (workflow-runs.ts). */
@@ -60,7 +60,7 @@ export function postToAgentInbox(sessionDir: string, agentId: string, message: {
 
 // ── A RUNNING CHILD'S TIME LIMIT, REWRITTEN FROM OUTSIDE ─────────────────────────────────────────────────
 //
-// A child's deadline is worked out once, by its own hook, and kept in `<session-dir>/frizz-deadlines/
+// A child's deadline is worked out once, by its own hook, and kept in `<session-dir>/ntwine-deadlines/
 // <agentId>.json` (cc-worker/hooks/agent-deadline.mjs `agentDeadline`); its stage markers and its intro
 // marker sit beside it. A child dispatched before its thread had a limit therefore cached "none" and never
 // heard of one set later (2026-10-08: 12 children ran on unaware while their 4 parents handed off). So when
@@ -69,7 +69,9 @@ export function postToAgentInbox(sessionDir: string, agentId: string, message: {
 // the hook writes, plus `setBy: "user"`, which the hook's introduction reads; agent-inbox-hook.test.ts pins
 // the pair. A child already due sooner keeps its own limit.
 
-export const DEADLINES_DIRNAME = "frizz-deadlines"
+export const DEADLINES_DIRNAME = "ntwine-deadlines"
+/** The directory before the Frizz -> Ntwine rename, where a child started before it cached its limit. */
+const LEGACY_DEADLINES_DIRNAME = "frizz-deadlines"
 const STAGE_NAMES = ["half", "converge", "final", "over"] as const
 
 type ChildDeadlineFile = { atMs: number; setAtMs: number; announce: boolean; setBy?: "user" } | { none: true }
@@ -88,7 +90,8 @@ function readChildDeadline(dir: string, agentId: string): ChildDeadlineFile | un
 export function setChildDeadline(sessionDir: string, agentId: string, change: { atMs: number; nowMs: number } | null): boolean {
   if (!AGENT_ID.test(agentId)) throw new Error(`not an agent id: ${JSON.stringify(agentId)}`)
   const dir = join(sessionDir, DEADLINES_DIRNAME)
-  const current = readChildDeadline(dir, agentId)
+  const legacyDir = join(sessionDir, LEGACY_DEADLINES_DIRNAME)
+  const current = readChildDeadline(dir, agentId) ?? readChildDeadline(legacyDir, agentId)
   let next: ChildDeadlineFile
   if (change === null) {
     if (!current || "none" in current || current.setBy !== "user") return false
@@ -99,7 +102,9 @@ export function setChildDeadline(sessionDir: string, agentId: string, change: { 
   }
   mkdirSync(dir, { recursive: true })
   // A new limit is a new generation: its intro and every check-in are due again.
-  for (const marker of ["intro", ...STAGE_NAMES]) rmSync(join(dir, `${agentId}.${marker}`), { force: true })
+  for (const marker of ["intro", ...STAGE_NAMES]) {
+    for (const at of [dir, legacyDir]) rmSync(join(at, `${agentId}.${marker}`), { force: true })
+  }
   const tmp = join(dir, `.${agentId}.${randomUUID()}.tmp`)
   writeFileSync(tmp, JSON.stringify(next))
   renameSync(tmp, join(dir, `${agentId}.json`))

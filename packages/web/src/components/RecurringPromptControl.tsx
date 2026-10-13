@@ -6,7 +6,7 @@ import {
   formatGoalFor,
   parseGoalForSeconds,
   type ThreadView,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { formatAgo } from "../lib/durationLabels.ts"
 import { goalLimitsSentence, goalLoopReading } from "../lib/goalLoop.ts"
@@ -62,7 +62,7 @@ export function GoalMark({ size = 12, className = "" }: { size?: number; classNa
 }
 
 // THE GOAL PANEL: one glyph in the prompt box's rail, beside attach and send, holding what this thread is
-// TRYING TO ACHIEVE, which frizz re-sends so the operator does not have to type it again. It sat at the
+// TRYING TO ACHIEVE, which ntwine re-sends so the operator does not have to type it again. It sat at the
 // left of the thread's lifecycle footer until 2026-10-05; the footer went, and a standing message is
 // something you send, so it moved to the box it is sent from (maintainer: "move the goal icon over to
 // the bottom right of the prompt box").
@@ -128,7 +128,7 @@ export function RecurringPromptControl({ thread }: { thread: ThreadView }) {
     ? { collisionBoundary: bounds.surface, collisionPadding: { top: COLLISION_MARGIN, bottom: COLLISION_MARGIN, left: bounds.left, right: bounds.right } }
     : {}
   const armed = thread.recurringPrompt
-  // COLOURED IF ANY MECHANISM IS LIVE. The glyph answers one question — "is frizz going to re-prompt
+  // COLOURED IF ANY MECHANISM IS LIVE. The glyph answers one question — "is ntwine going to re-prompt
   // this thread on its own?" — and any one of them is a yes.
   const live = armed?.stopHook === true || armed?.heartbeat === true || armed?.postCompaction === true
   // THE LOOP'S COUNTER (`run 7 of 20 · 1h 12m left`) rode beside this mark in the lifecycle footer; in the
@@ -754,7 +754,7 @@ export function PromptPanel({ thread, armed, close, heading = true }: {
       <TextareaCodeFences value={text} />
       {/* THE THREE MECHANISMS, one per line under the text they all send. They are NAMED — Stop hook,
           Heartbeat, Compaction — rather than described, because those are the names everything else in
-          frizz uses for them: the scheduler's passes, the delivery fence prefixes, the trailer on every
+          ntwine uses for them: the scheduler's passes, the delivery fence prefixes, the trailer on every
           delivered message, and the divider the chat renders. A panel that called them anything else
           would be the only surface with its own vocabulary.
 
@@ -847,7 +847,7 @@ export function PromptPanel({ thread, armed, close, heading = true }: {
 
         {/* POST-COMPACTION (scheduler SOURCE 7). Named for the event rather than the mechanism, unlike
             its two neighbours, because "compaction" IS the name everything uses for it — there is no
-            frizz-coined term to be consistent with. It sits last because it is the only one that fires on
+            ntwine-coined term to be consistent with. It sits last because it is the only one that fires on
             something the harness does rather than on something the thread or the clock does.
 
             ONE WORD, not "After compaction". It was measured rather than chosen when the name column led

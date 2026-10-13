@@ -1,9 +1,9 @@
-// LIVE PROBE: the CODEX × end to end, through frizz's OWN stack rather than raw JSON-RPC.
+// LIVE PROBE: the CODEX × end to end, through ntwine's OWN stack rather than raw JSON-RPC.
 //   nub packages/server/src/backend/_live_codex_shell_stop.mts
 //
 // The two probes before this settled the protocol (`_live_codex_bgterm.mts`: terminate really kills the
 // OS process, codex tells its agent nothing, `thread/inject_items` reaches the model) and the id
-// (`_live_codex_bgterm_match.mts`: the rollout frizz folds carries NO handle, so `processId` has to come
+// (`_live_codex_bgterm_match.mts`: the rollout ntwine folds carries NO handle, so `processId` has to come
 // off the app-server item stream). This one drives the wiring built on top of them:
 //
 //   bridge.backgroundExecs()  →  tailer.codexBgShellViews  →  board bgShells (id + stoppable)
@@ -90,7 +90,7 @@ try {
   const slug = "codexshell-live"
   const sessionId = randomUUID()
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -100,7 +100,7 @@ try {
   console.log(`[probe] CONTROL — pids matching "sleep ${UNIQ}": ${JSON.stringify(livePids())}`)
   ok("control: nothing matching is running before the turn", livePids().length === 0)
 
-  // NOT ephemeral: Q4 reads the worker's own rollout to see whether frizz's notice reached the model, and
+  // NOT ephemeral: Q4 reads the worker's own rollout to see whether ntwine's notice reached the model, and
   // an ephemeral thread writes no rollout at all — the check then reads an empty string and "fails" for
   // a reason that has nothing to do with the notice.
   await bridge.startDisposableSession({ threadSlug: slug, sessionId, cwd, sandbox: "danger-full-access", approvalPolicy: "never", ephemeral: false } as never)
@@ -120,7 +120,7 @@ try {
     return false
   }
 
-  // ---- Q1: does it become a board row frizz can act on? ------------------------------------------
+  // ---- Q1: does it become a board row ntwine can act on? ------------------------------------------
   let shell: { id?: string; label: string; stoppable?: boolean; outputUnavailable?: boolean } | undefined
   const armed = Date.now() + 240_000
   while (Date.now() < armed) {
@@ -145,7 +145,7 @@ try {
   const beforeKill = liveProcs().map((proc) => proc.pid)
   const result = await bridge.terminateBackgroundExec({
     threadSlug: slug, sessionId, processId: shell.id,
-    notice: `[frizz] The operator stopped your background command "sleep ${UNIQ}" from the Frizz dashboard. It is no longer running and will never report a result — do not wait on it or poll it again.`,
+    notice: `[ntwine] The operator stopped your background command "sleep ${UNIQ}" from the Ntwine dashboard. It is no longer running and will never report a result — do not wait on it or poll it again.`,
   })
   console.log(`[probe] terminateBackgroundExec => ${JSON.stringify(result)}`)
   ok("Q2 the bridge reports the exec terminated", result.terminated)

@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { compactTokens, contextLine, displayUrl, effortWord, isLoopbackUrl, mobileThreadAge, mobileThreadState, turnStartedAt } from "./mobileThread.ts"
 
 const now = Date.parse("2026-09-30T12:00:00.000Z")
@@ -59,7 +59,7 @@ test("tokens and effort read in the phone footer's short grammar", () => {
   assert.equal(effortWord(undefined), undefined)
 })
 
-test("a link to the Frizz machine is recognised as unreachable from a phone", () => {
+test("a link to the Ntwine machine is recognised as unreachable from a phone", () => {
   assert.equal(isLoopbackUrl("http://localhost:5175/"), true)
   assert.equal(isLoopbackUrl("http://127.0.0.1:4930/x"), true)
   assert.equal(isLoopbackUrl("http://[::1]:8080/"), true)

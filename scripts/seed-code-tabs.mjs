@@ -11,7 +11,7 @@
 // real path around it — tailer → transcript projection → ChatView's fence and prose splitters — which
 // is where a run of fences could be cut apart before the Markdown renderer ever sees it as a run.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer reads.
 //
 // Usage: node scripts/seed-code-tabs.mjs --home=/abs/temp-home [--cwd=/abs/project] [--slug=code-tabs]
 import { execFileSync } from "node:child_process"
@@ -109,7 +109,7 @@ const records = [
   ].join("\n")),
 ]
 
-// The card's body is REGISTERED (`frizzctl done`), not written as a ```done fence: a signal fence
+// The card's body is REGISTERED (`ntwinectl done`), not written as a ```done fence: a signal fence
 // ends at the first bare ``` line, so a code fence cannot be written inside one at all.
 const doneBody = [
   "Both entry points are written. Run the server with either runtime:",
@@ -124,7 +124,7 @@ writeFileSync(join(jsonlDir, `${sessionId}.jsonl`), records.map((r) => JSON.stri
 execFileSync("sqlite3", [
   db,
   `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, rested_at)
-   VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${now()}', 'code tabs', 'claude', 'opus', 'high', 'default', '${now()}')`,
+   VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${now()}', 'code tabs', 'claude', 'opus', 'high', 'default', '${now()}')`,
 ])
 // `thread_done` exists only on the unified schema, where every row carries its project.
 if (sandbox.hasProjectId) {

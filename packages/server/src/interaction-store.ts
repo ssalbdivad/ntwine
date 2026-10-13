@@ -21,7 +21,7 @@ import {
   type InteractionValues,
   type ResolveInteractionInput as ResolveInteractionInputType,
   type CancelInteractionInput as CancelInteractionInputType,
-} from "@frizz/shared"
+} from "@ntwine/shared"
 
 export const INTERACTION_DB_SCHEMA_VERSION = 2
 const INTERACTION_RECORD_SCHEMA_VERSION = 1
@@ -566,7 +566,7 @@ export function ensureInteractionSchema(db: Database): void {
     CREATE UNIQUE INDEX IF NOT EXISTS interaction_journal_response_id
       ON interaction_journal (project_id, response_id) WHERE response_id IS NOT NULL;
 
-    -- A provider response is a two-phase transition. SENT means Frizz durably claimed exactly one
+    -- A provider response is a two-phase transition. SENT means Ntwine durably claimed exactly one
     -- write attempt; the interaction journal deliberately remains pending until the provider emits
     -- its explicit resolved notification. A process restart never rewinds SENT to QUEUED.
     CREATE TABLE IF NOT EXISTS interaction_provider_delivery (
@@ -1083,7 +1083,7 @@ export function createInteractionStore(db: Database, options: InteractionStoreOp
     }
     const resolution = sanitizedResolution(current, input, at)
     if (resolution.redactedFieldIds.length > 0) {
-      // A durable outbox cannot safely carry raw secret answers. Until Frizz has an encrypted,
+      // A durable outbox cannot safely carry raw secret answers. Until Ntwine has an encrypted,
       // process-bound escrow, refuse instead of persisting or losing a secret provider response.
       throw new InteractionStoreError("invalid-response", "secret provider answers require secure transient delivery")
     }

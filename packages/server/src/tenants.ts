@@ -1,12 +1,12 @@
 import type { AppContext, ContextOptions } from "./context.ts"
 import { projectContextCleanups } from "./context.ts"
 import { workDirOf, type Project } from "./project.ts"
-import { log as frizzLog } from "./logging.ts"
+import { log as ntwineLog } from "./logging.ts"
 
 // ONE PROCESS, N PROJECTS.
 //
 // `startServer` used to build exactly one AppContext and tear it down at process exit. That is the
-// assumption plans/singleton-frizz.md §4 item 2 calls out: there was no way to open a second project,
+// assumption plans/singleton-ntwine.md §4 item 2 calls out: there was no way to open a second project,
 // and no way to close one without closing the server.
 //
 // This is the keyed map that replaces it — projectId → AppContext, with activate/deactivate. The
@@ -16,7 +16,7 @@ import { log as frizzLog } from "./logging.ts"
 //
 // THE ERROR BOUNDARY LIVES HERE (§4 item 3). Per-subsystem guards are already good — tailer ticks,
 // board rebuilds, `fs.watch` setup and transcript discovery are each individually caught. What was
-// missing is a catch at the AppContext SEAM, so one project's malformed `.frizz/` (or, until the
+// missing is a catch at the AppContext SEAM, so one project's malformed `.ntwine/` (or, until the
 // unified database of 2026-08-27, its own corrupt `ui.db`) cannot take down every other project in a
 // shared process. `activate` therefore reports and returns
 // undefined rather than throwing: a project that will not open is one dead card, not an outage.
@@ -88,7 +88,7 @@ export function createTenantMap<App = unknown>(options: TenantMapOptions<App>): 
 
   const report = (project: Project, error: unknown): void => {
     const detail = error instanceof Error ? error.stack ?? error.message : String(error)
-    frizzLog.error("tenants", `project ${project.name} (${project.id}) failed to open: ${detail}`)
+    ntwineLog.error("tenants", `project ${project.name} (${project.id}) failed to open: ${detail}`)
     options.onError?.(project, error)
   }
 
@@ -112,7 +112,7 @@ export function createTenantMap<App = unknown>(options: TenantMapOptions<App>): 
     const attempt = (async () => {
       try {
         if (already) {
-          frizzLog.info("tenants", `project ${project.name} (${project.id}) moved from ${workDirOf(already.project)} to ${workDirOf(project)}; reopening it there`)
+          ntwineLog.info("tenants", `project ${project.name} (${project.id}) moved from ${workDirOf(already.project)} to ${workDirOf(project)}; reopening it there`)
           // Synchronously drops the entry from `open` before its first await, and `opening` is set the
           // moment this function yields — so a concurrent activate joins this attempt rather than
           // racing a second context onto the same database.
@@ -166,14 +166,14 @@ export function createTenantMap<App = unknown>(options: TenantMapOptions<App>): 
         // Keep going. A stuck subsystem must not strand the ones after it — storage above all, which
         // is the one whose handle actually has to be released.
         const detail = error instanceof Error ? error.message : String(error)
-        frizzLog.error("tenants", `project ${entry.project.name}: ${name} did not close cleanly: ${detail}`)
+        ntwineLog.error("tenants", `project ${entry.project.name}: ${name} did not close cleanly: ${detail}`)
       }
     }
     try {
       options.afterDeactivate?.(entry.project)
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
-      frizzLog.error("tenants", `project ${entry.project.name}: could not record that it closed: ${detail}`)
+      ntwineLog.error("tenants", `project ${entry.project.name}: could not record that it closed: ${detail}`)
     }
     return true
   }

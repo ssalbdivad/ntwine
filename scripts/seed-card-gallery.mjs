@@ -2,7 +2,7 @@
 // shape — a ```done fence, an ```awaiting fence (timer + pr-watch), and a ```question block — so the
 // card chrome can be judged in the REAL app (queue + thread drawer), not only in a fixture page.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the REAL tailer
+// Follows the ntwine-stack recipe: a session row + a JSONL the REAL tailer
 // reads. Nothing here writes board state directly; the transcript records drive it.
 //
 // Usage: node scripts/seed-card-gallery.mjs --home=/abs/temp-home
@@ -15,7 +15,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
-const { home, cwd = "/Users/colinmcd94/Documents/projects/frizz" } = flags
+const { home, cwd = "/Users/colinmcd94/Documents/projects/ntwine" } = flags
 if (!home) {
   console.error("usage: node seed-card-gallery.mjs --home=/abs/temp-home")
   process.exit(1)
@@ -89,7 +89,7 @@ const CARDS = [
 
 for (const card of CARDS) {
   const sessionId = `${card.slug}-0000-4000-8000-000000000000`.slice(0, 36)
-  const threadName = `frizz-${card.slug}`
+  const threadName = `ntwine-${card.slug}`
   const records = [
     {
       parentUuid: null,

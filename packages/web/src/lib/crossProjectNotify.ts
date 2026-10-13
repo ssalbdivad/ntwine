@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { queueUrgency, queuedThread, type ProjectQueue, type ThreadView } from "@frizz/shared"
+import { queueUrgency, queuedThread, type ProjectQueue, type ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { projectsQueuesQuery } from "./projectsQueuesRead.ts"
 import { notify } from "../api/board-stream.ts"

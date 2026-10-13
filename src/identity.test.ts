@@ -3,15 +3,15 @@ import test from "node:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { signClaim, verifyClaim } from "@frizz/shared";
+import { signClaim, verifyClaim } from "@ntwine/shared";
 import { claimIdentityFingerprint, claimIdentityPath, loadOrCreateClaimIdentity } from "./identity.ts";
 
-// A SET XDG variable outranks the throwaway home in frizz-paths.ts, so without this an XDG-configured
-// machine would mint and chmod keys in the operator's real `$XDG_STATE_HOME/frizz` (same as cloud.test.ts).
+// A SET XDG variable outranks the throwaway home in ntwine-paths.ts, so without this an XDG-configured
+// machine would mint and chmod keys in the operator's real `$XDG_STATE_HOME/ntwine` (same as cloud.test.ts).
 for (const name of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) delete process.env[name];
 
 function sandbox() {
-  return mkdtempSync(join(tmpdir(), "frizz-identity-"));
+  return mkdtempSync(join(tmpdir(), "ntwine-identity-"));
 }
 
 test("the identity is minted once and reused, or a name changes owner every launch", async () => {
@@ -30,7 +30,7 @@ test("the identity is minted once and reused, or a name changes owner every laun
 // pinned by the cases around it. Windows has no POSIX permission bits: NTFS access is an ACL, `fs.chmod`
 // sets only the read-only flag, and node reports 0666 for any writable file. The 0o600 the writer asks
 // for is inert there; making the file unreadable to other accounts would take an icacls ACL, which
-// frizz does not attempt.
+// ntwine does not attempt.
 test("the key file is 0600 — a readable identity is a name anyone on the box can take", { skip: process.platform === "win32" ? "no POSIX mode bits on win32" : false }, async () => {
   const home = sandbox();
   try {
@@ -67,9 +67,9 @@ test("a corrupt identity is an ERROR, never silently replaced", async () => {
   // cost here is losing a name you own, so the file is never overwritten behind the operator's back.
   const home = sandbox();
   try {
-    mkdirSync(join(home, ".frizz"), { recursive: true });
+    mkdirSync(join(home, ".ntwine"), { recursive: true });
     writeFileSync(claimIdentityPath(home), Buffer.alloc(4));
-    await assert.rejects(loadOrCreateClaimIdentity(home), /not a usable Frizz identity key/);
+    await assert.rejects(loadOrCreateClaimIdentity(home), /not a usable Ntwine identity key/);
     assert.equal(readFileSync(claimIdentityPath(home)).byteLength, 4, "the broken file is left for recovery");
   } finally {
     rmSync(home, { recursive: true, force: true });

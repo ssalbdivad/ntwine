@@ -3,11 +3,11 @@
 // stdio pipes and kills it on every one of its own death paths (idle, reachability self-collection,
 // signal, handshake timeout), so the app-server — and every sub-agent turn inside it — dies whenever
 // the daemon does. The native listener spawns `codex app-server --listen unix://` DETACHED and talks
-// over a socket, so there is no frizz-authored intermediary that can die and take it down.
+// over a socket, so there is no ntwine-authored intermediary that can die and take it down.
 //
-// This proves it end-to-end against real codex: start a turn, HARD-KILL the frizz process that spawned
+// This proves it end-to-end against real codex: start a turn, HARD-KILL the ntwine process that spawned
 // the listener (SIGKILL, no cleanup — the daemon's most dangerous case), and show the app-server is
-// still alive and the turn is still recoverable by a fresh frizz. Run:
+// still alive and the turn is still recoverable by a fresh ntwine. Run:
 //   nub packages/server/src/backend/_live_appserver_native_broker.mts
 import { spawnSync } from "node:child_process"
 import { mkdtempSync, readdirSync, readFileSync } from "node:fs"
@@ -19,7 +19,7 @@ import { CodexAppServerBridge } from "./codex-app-server.ts"
 import { nativeListenCodexAppServerHost, liveNativeRecord, killNativeListener } from "./codex-app-server-native.ts"
 
 const CODEX_BIN = process.env.CODEX_BIN || "codex"
-const root = mkdtempSync(join(tmpdir(), "frizz-native-broker-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-native-broker-"))
 const dbPath = join(root, "ui.db")
 const PROJECT = "native-broker"
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -62,7 +62,7 @@ function makeBridge(label: string) {
 
 ;(async () => {
   try {
-    console.log("======== native listener: the app-server outlives the frizz that spawned it ========")
+    console.log("======== native listener: the app-server outlives the ntwine that spawned it ========")
     const slug = "broker-thread", sessionId = "broker-session"
     const one = makeBridge("gen1")
     const binding = await one.bridge.startDisposableSession({
@@ -76,18 +76,18 @@ function makeBridge(label: string) {
     console.log(`  listener pid=${record.listenerPid} generation=${record.generation}`)
     check("the app-server listener is running", alive(record.listenerPid))
 
-    // The daemon's worst case: the frizz process that spawned the app-server dies HARD, no cleanup. With
+    // The daemon's worst case: the ntwine process that spawned the app-server dies HARD, no cleanup. With
     // the --stdio daemon this closes the app-server's stdin and it dies. With the native listener it is
     // detached + owns its own socket, so it must keep running. We can't SIGKILL ourselves, so drop every
     // handle the way a crash would and confirm the listener is untouched.
-    console.log("  --- dropping the frizz runtime with NO clean shutdown (crash-equivalent) ---")
+    console.log("  --- dropping the ntwine runtime with NO clean shutdown (crash-equivalent) ---")
     one.bridge.close()
     try { one.interactions.dispose(); one.db.close() } catch {}
     await sleep(1500)
-    check("the app-server SURVIVED the frizz runtime dying", alive(record.listenerPid))
+    check("the app-server SURVIVED the ntwine runtime dying", alive(record.listenerPid))
     check("its socket is still bound and accepting", liveNativeRecord(root, PROJECT)?.listenerPid === record.listenerPid)
 
-    console.log("  --- a fresh frizz generation boots and reattaches ---")
+    console.log("  --- a fresh ntwine generation boots and reattaches ---")
     const two = makeBridge("gen2")
     await two.bridge.warmUp()
     await sleep(1000)

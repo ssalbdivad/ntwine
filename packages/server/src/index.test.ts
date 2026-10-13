@@ -2,44 +2,44 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { registeredTenantHealth, splitTenantRequest, unknownProjectPage } from "./index.ts"
 
-// A project slug and one of Frizz's own route names occupy the same position, so `/_frizz/rpc/board`
-// and `/_frizz/nub/rpc/board` are indistinguishable until you know which slugs exist. The registry
+// A project slug and one of Ntwine's own route names occupy the same position, so `/_ntwine/rpc/board`
+// and `/_ntwine/nub/rpc/board` are indistinguishable until you know which slugs exist. The registry
 // settles it — and cannot be ambiguous, because it refuses to mint a slug that shadows a route name.
-test("splitTenantRequest tells a project slug from one of Frizz's own routes", () => {
-  const known = (s: string) => ["nub", "frizz", "pullfrog-app"].includes(s)
+test("splitTenantRequest tells a project slug from one of Ntwine's own routes", () => {
+  const known = (s: string) => ["nub", "ntwine", "pullfrog-app"].includes(s)
 
-  assert.deepEqual(splitTenantRequest("/_frizz/nub/rpc/board", known), {
+  assert.deepEqual(splitTenantRequest("/_ntwine/nub/rpc/board", known), {
     slug: "nub",
-    rest: "/_frizz/rpc/board",
+    rest: "/_ntwine/rpc/board",
   })
-  assert.deepEqual(splitTenantRequest("/_frizz/pullfrog-app/events", known), {
+  assert.deepEqual(splitTenantRequest("/_ntwine/pullfrog-app/events", known), {
     slug: "pullfrog-app",
-    rest: "/_frizz/events",
+    rest: "/_ntwine/events",
   })
   // Query strings ride along on the rest, untouched.
-  assert.deepEqual(splitTenantRequest("/_frizz/nub/local-image?path=%2Ftmp%2Fa.png", known), {
+  assert.deepEqual(splitTenantRequest("/_ntwine/nub/local-image?path=%2Ftmp%2Fa.png", known), {
     slug: "nub",
-    rest: "/_frizz/local-image?path=%2Ftmp%2Fa.png",
+    rest: "/_ntwine/local-image?path=%2Ftmp%2Fa.png",
   })
   // A bare slug with nothing after it still addresses that tenant.
-  assert.deepEqual(splitTenantRequest("/_frizz/nub", known), { slug: "nub", rest: "/_frizz/" })
+  assert.deepEqual(splitTenantRequest("/_ntwine/nub", known), { slug: "nub", rest: "/_ntwine/" })
 
   // An UNPREFIXED route is the launching project — a client that has not learned about slugs keeps working.
-  assert.equal(splitTenantRequest("/_frizz/rpc/board", known), undefined)
-  assert.equal(splitTenantRequest("/_frizz/events", known), undefined)
-  assert.equal(splitTenantRequest("/_frizz/health", known), undefined)
+  assert.equal(splitTenantRequest("/_ntwine/rpc/board", known), undefined)
+  assert.equal(splitTenantRequest("/_ntwine/events", known), undefined)
+  assert.equal(splitTenantRequest("/_ntwine/health", known), undefined)
   // An unknown first segment is a route name we have not met, never a project.
-  assert.equal(splitTenantRequest("/_frizz/not-a-project/rpc/board", known), undefined)
+  assert.equal(splitTenantRequest("/_ntwine/not-a-project/rpc/board", known), undefined)
   // Anything outside the reserved prefix is a project PAGE, handled by the SPA rather than here.
   assert.equal(splitTenantRequest("/nub", known), undefined)
   assert.equal(splitTenantRequest("/nub/thread/x", known), undefined)
   assert.equal(splitTenantRequest("/", known), undefined)
 })
 
-// THE POINT: a launcher asking "is the Frizz on this machine serving my project" must be answered out
+// THE POINT: a launcher asking "is the Ntwine on this machine serving my project" must be answered out
 // of the registry, never by opening the project. Routing that question through routeToTenant made it
 // cost a tenant activation — 34.5s against a live server on 2026-08-12 — and the launcher, which gives
-// up long before that, then started a SECOND Frizz for a project the first one was already serving.
+// up long before that, then started a SECOND Ntwine for a project the first one was already serving.
 test("registeredTenantHealth answers the join probe for a registered project without opening it", () => {
   const registry: Record<string, { id: string; path: string }> = {
     nub: { id: "50577e5e-802f-4567-bd0e-cf7cbf3d2ed5", path: "/Users/x/projects/nub" },
@@ -53,35 +53,35 @@ test("registeredTenantHealth answers the join probe for a registered project wit
     registeredTenantHealth(method, url, "boot-1", lookup, isOpen)
 
   // A registered project nobody has opened: answered, with ITS identity, not the launching project's.
-  assert.deepEqual(health("/_frizz/nub/health"), {
+  assert.deepEqual(health("/_ntwine/nub/health"), {
     ok: true,
     projectId: "50577e5e-802f-4567-bd0e-cf7cbf3d2ed5",
     projectDir: "/Users/x/projects/nub",
     bootId: "boot-1",
   })
-  // The id addresses a tenant as well as the slug, because a worker's frizz MCP holds the id.
-  assert.equal(health("/_frizz/b47f4055-4262-432a-af18-ded4cbfb3071/health")?.projectDir, "/Users/x/projects/zod")
+  // The id addresses a tenant as well as the slug, because a worker's ntwine MCP holds the id.
+  assert.equal(health("/_ntwine/b47f4055-4262-432a-af18-ded4cbfb3071/health")?.projectDir, "/Users/x/projects/zod")
   // A query string still names /health.
-  assert.equal(health("/_frizz/nub/health?x=1")?.projectId, registry.nub!.id)
+  assert.equal(health("/_ntwine/nub/health?x=1")?.projectId, registry.nub!.id)
 
   // An OPEN project falls through to its own app instead — that is what carries `ownerProof`, and
   // reaching it costs nothing once the tenant exists.
-  assert.equal(health("/_frizz/nub/health", (id) => id === registry.nub!.id), undefined)
+  assert.equal(health("/_ntwine/nub/health", (id) => id === registry.nub!.id), undefined)
 
   // Everything else routes normally. This shortcut answers exactly one route, and only for GET.
-  assert.equal(health("/_frizz/nub/rpc/board"), undefined)
-  assert.equal(health("/_frizz/nub/health", openNone, "POST"), undefined)
+  assert.equal(health("/_ntwine/nub/rpc/board"), undefined)
+  assert.equal(health("/_ntwine/nub/health", openNone, "POST"), undefined)
   // Unprefixed /health is the launching project's, owner proof and all.
-  assert.equal(health("/_frizz/health"), undefined)
+  assert.equal(health("/_ntwine/health"), undefined)
   // A project this machine does not know is not ours to answer for — the launcher must NOT join here.
-  assert.equal(health("/_frizz/not-a-project/health"), undefined)
+  assert.equal(health("/_ntwine/not-a-project/health"), undefined)
 })
 
 // A page for a project nobody has is the one URL the CLIENT cannot resolve: it renders the app, every
 // call it makes is answered 404 by the launching project, the board never lands, and it sits on
 // "connecting…" retrying forever. The registry is the authority, so the server answers instead.
 test("unknownProjectPage names the slug of a project page that does not exist", () => {
-  const known = (s: string) => ["nub", "frizz", "pullfrog-app"].includes(s)
+  const known = (s: string) => ["nub", "ntwine", "pullfrog-app"].includes(s)
 
   assert.equal(unknownProjectPage("/all/deleted-last-week", known), "deleted-last-week")
   // A project's board, its thread and its status list (`/project/<slug>…`, restored 2026-10-06).

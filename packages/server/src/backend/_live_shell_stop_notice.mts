@@ -1,5 +1,5 @@
-// LIVE PROBE 2: after frizz kills a background shell, is the AGENT told — and if not, does a
-// frizz-authored notice actually reach it?
+// LIVE PROBE 2: after ntwine kills a background shell, is the AGENT told — and if not, does a
+// ntwine-authored notice actually reach it?
 //   nub packages/server/src/backend/_live_shell_stop_notice.mts
 //
 // `_live_shell_stop.mts` established the first half: `stopTask` on a background Bash's task id kills
@@ -11,8 +11,8 @@
 //   Q1. Does the CLI write ANYTHING into the session transcript when a task is stopped by the client?
 //       Read the raw JSONL records straddling the stop. This is the authoritative answer, not the
 //       model's self-report.
-//   Q2. Does a `[frizz] …` notice delivered as a follow-up reach the model and change what it believes?
-//       `[frizz]`-prefixed user records are already frizz's channel for machine notices to a worker
+//   Q2. Does a `[ntwine] …` notice delivered as a follow-up reach the model and change what it believes?
+//       `[ntwine]`-prefixed user records are already ntwine's channel for machine notices to a worker
 //       (transcript.ts NOISE_PREFIXES hides them from the human's chat), so this is the shipping
 //       mechanism, tested as it would ship rather than as a mock.
 //   Q3. Same question for a stopped SUB-AGENT: today the × stops one silently too. Whether that path
@@ -35,7 +35,7 @@ import type { ClaudeQueryEvent } from "./claude-agent-sdk-protocol.ts"
 const claudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim()
 const stateDir = mkdtempSync(join(tmpdir(), "shnote-state-"))
 const cwd = realpathSync(mkdtempSync(join(tmpdir(), "shnote-repo-"))); execFileSync("git", ["init", "-q", cwd])
-const MARKER = `FRIZZ_SHELL_NOTICE_PROBE_${randomUUID().slice(0, 8)}`
+const MARKER = `NTWINE_SHELL_NOTICE_PROBE_${randomUUID().slice(0, 8)}`
 
 let failures = 0
 const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`) }
@@ -115,7 +115,7 @@ try {
     ].join("\n"),
   })
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -144,27 +144,27 @@ try {
   const written = after.slice(before)
   console.log(`\n      --- transcript records written in the 8s AFTER the stop (${written.length}) ---`)
   for (const rec of written) console.log("      " + describe(rec))
-  // Look for the ONE thing that would make frizz's notice redundant: an injected `<task-notification>`
+  // Look for the ONE thing that would make ntwine's notice redundant: an injected `<task-notification>`
   // user record naming this task. Matching on the words "stop"/"kill" anywhere in the record does not
   // work — an assistant record carries `stop_reason`, which matches every time.
   const notified = (recs: Array<Record<string, any>>, task: string) =>
     recs.some((rec) => rec.type === "user" && JSON.stringify(rec.message ?? "").includes("<task-notification>") && JSON.stringify(rec.message ?? "").includes(task))
   ok("Q1 the CLI injects NO task-notification when a background SHELL is stopped", !notified(written, taskId),
-    notified(written, taskId) ? "it does — frizz's notice would be redundant" : "confirmed silent; the worker is never told")
+    notified(written, taskId) ? "it does — ntwine's notice would be redundant" : "confirmed silent; the worker is never told")
 
-  // ---- Q2: does frizz's own notice land? --------------------------------------------------------
+  // ---- Q2: does ntwine's own notice land? --------------------------------------------------------
   // The wording under test is the wording that would ship. It must be unambiguous about three things
   // the worker acts on: which shell, that it is gone for good, and that waiting on it is now futile.
-  const NOTICE = `[frizz] The operator stopped your background shell "Ticking forever" from the Frizz dashboard. It is no longer running and will never report a result — do not wait on it. Its output up to the kill is still readable.`
+  const NOTICE = `[ntwine] The operator stopped your background shell "Ticking forever" from the Ntwine dashboard. It is no longer running and will never report a result — do not wait on it. Its output up to the kill is still readable.`
   await bridge.followUp({ threadSlug: slug, sessionId, cwd, text: NOTICE })
   const answer = await awaitAnswer()
-  console.log("\n      --- what the model said after frizz's notice ---")
+  console.log("\n      --- what the model said after ntwine's notice ---")
   console.log("      " + answer.replace(/\n/g, "\n      ").slice(0, 1200))
-  ok("Q2 the model acts on frizz's notice (acknowledges the shell is dead)",
+  ok("Q2 the model acts on ntwine's notice (acknowledges the shell is dead)",
     /stopped|killed|no longer|not running|won't wait|will not wait|dead|terminated/i.test(answer), answer.slice(0, 160))
 
   // The notice must NOT show up as a human-authored bubble in the chat — it is machine plumbing.
-  const noticeRec = records(sessionId).find((rec) => JSON.stringify(rec.message ?? "").includes("[frizz] The operator stopped"))
+  const noticeRec = records(sessionId).find((rec) => JSON.stringify(rec.message ?? "").includes("[ntwine] The operator stopped"))
   ok("Q2 the notice is a real user record in the transcript", Boolean(noticeRec))
 
   // ---- Q3: a stopped SUB-AGENT — is the parent told? -------------------------------------------
@@ -193,10 +193,10 @@ try {
     console.log(`\n      --- transcript records after the SUB-AGENT stop (${writtenAgent.length}) ---`)
     for (const rec of writtenAgent) console.log("      " + describe(rec))
     // The ASYMMETRY this probe exists to pin down: the provider DOES inject a task-notification for a
-    // stopped sub-agent. So the missing notice is a shell-only gap, and frizz must not add a second
+    // stopped sub-agent. So the missing notice is a shell-only gap, and ntwine must not add a second
     // notice on the sub-agent path — that would tell the worker the same thing twice.
     ok("Q3 the CLI DOES inject a task-notification when a SUB-AGENT is stopped", notified(writtenAgent, agentTask),
-      "the sub-agent path already notifies natively — frizz's notice is shell-only")
+      "the sub-agent path already notifies natively — ntwine's notice is shell-only")
   }
 
   console.log("\n      --- RAW task events ---")

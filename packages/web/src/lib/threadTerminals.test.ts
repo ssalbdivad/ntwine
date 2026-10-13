@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ThreadTerminal } from "@frizz/shared"
+import type { ThreadTerminal } from "@ntwine/shared"
 import { composerTerminalLine, promptingTerminal, runningTerminals, terminalFailed, terminalStateLabel } from "./threadTerminals.ts"
 
 const run = (over: Partial<ThreadTerminal>): ThreadTerminal => ({ id: "term-1", command: "npm run dev", cwd: "/repo", state: "exited", runId: 1, startedAt: "2026-09-23T10:00:00.000Z", ...over })

@@ -3,10 +3,10 @@
 // unit-tested) under plain node. Design: ARCHITECTURE.md § VS Code extension.
 
 import * as vscode from "vscode"
-import { activateFrizz, type FrizzExtensionApi } from "./app.ts"
+import { activateNtwine, type NtwineExtensionApi } from "./app.ts"
 
-export function activate(context: vscode.ExtensionContext): FrizzExtensionApi {
-  return activateFrizz(vscode, context)
+export function activate(context: vscode.ExtensionContext): NtwineExtensionApi {
+  return activateNtwine(vscode, context)
 }
 
 // The socket closes through the context's subscriptions; nothing else holds the window open.

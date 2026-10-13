@@ -18,7 +18,7 @@ const source = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const baseline = process.argv.includes("--baseline")
 const out = resolve(process.env.THEME_EVIDENCE_DIR ?? join(source, ".adhoc-shots/light-mode"))
 const port = Number(process.env.THEME_VERIFY_PORT ?? 45891)
-const root = mkdtempSync(join(tmpdir(), "frizz-light-qa-"))
+const root = mkdtempSync(join(tmpdir(), "ntwine-light-qa-"))
 const project = join(root, "theme-project")
 const tenant = join(root, "second-project")
 mkdirSync(out, { recursive: true })
@@ -36,7 +36,7 @@ const errors = []
 const result = { mode: baseline ? "baseline" : "acceptance", cases: [], colors: {} }
 const check = (label, detail) => { result.cases.push({ label, detail }); console.log(`PASS ${label}`, detail ?? "") }
 const wait = (ms) => new Promise(r => setTimeout(r, ms))
-const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("FRIZZ_")))
+const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("NTWINE_")))
 env.BROWSER = "/usr/bin/true"
 
 try {
@@ -75,7 +75,7 @@ try {
   const openSettings = async () => {
     await page.evaluate(async () => { const { store } = await import("/src/store.ts"); store.showSettings = true })
     await page.waitForSelector('header [title="Settings"]')
-    await page.waitForFunction(() => getComputedStyle(document.querySelector(".frizz-sheet-panel").parentElement).opacity === "1")
+    await page.waitForFunction(() => getComputedStyle(document.querySelector(".ntwine-sheet-panel").parentElement).opacity === "1")
   }
   const closeSettings = async () => {
     await page.keyboard.press("Escape")

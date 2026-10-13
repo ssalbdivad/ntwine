@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
 import { AlertTriangle, ArrowDown, ArrowUp, Bot, Check, ChevronRight, FileText, HelpCircle, Hourglass, KeyRound, Loader2, Repeat, TerminalSquare } from "lucide-react"
-import { awaitingSteps, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@frizz/shared"
-import type { AskQuestion, AwaitingHint, BgShellView, PendingAsk, ThreadWatchView, RegisteredQuestionView, SubAgentView, ThreadView as ThreadViewData, TranscriptEdit, TranscriptMessage, TranscriptPart, TranscriptTodo, TranscriptToolCall } from "@frizz/shared"
+import { awaitingSteps, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@ntwine/shared"
+import type { AskQuestion, AwaitingHint, BgShellView, PendingAsk, ThreadWatchView, RegisteredQuestionView, SubAgentView, ThreadView as ThreadViewData, TranscriptEdit, TranscriptMessage, TranscriptPart, TranscriptTodo, TranscriptToolCall } from "@ntwine/shared"
 import { store, threadBySlug, pushDrawer, pushScheduleDrawer, pushSubAgentDrawer, pushBackgroundShellDrawer, showToast } from "../store.ts"
 import { scheduledRunFacts } from "../lib/schedules.ts"
 import { useBoard, useProjectDir, useTranscript, type ChatMessage, type TranscriptData } from "../hooks.ts"
@@ -33,7 +33,7 @@ import { answersForDisplay, answersNote, parseAnswersCard, pairAllAnswers, settl
 import { questionsByAnchor } from "../lib/questionAnchor.ts"
 import { fenceStandsFor, placedRestEnds, placeQuestions, questionsAtCurrentRest, registeredStandingAt, type QuestionPlacement } from "../lib/questionShadow.ts"
 import { settledQuestionPositions, type SettledPlacement } from "../lib/settledQuestions.ts"
-import { FrizzWake, ShellWakeText } from "./FrizzWake.tsx"
+import { NtwineWake, ShellWakeText } from "./NtwineWake.tsx"
 import { RecurringPromptLine } from "./RecurringPromptLine.tsx"
 import { goalAwaitingFirstRest } from "../lib/goalLoop.ts"
 import { LinkifiedText } from "./LinkifiedText.tsx"
@@ -542,9 +542,9 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
               // What it will start with is the prompt box below.
               "Not started yet."
             ) : canAdoptThread(thread) ? (
-              // A thread frizz never originated (pre-existing .frizz board): no session, no
+              // A thread ntwine never originated (pre-existing .ntwine board): no session, no
               // transcript. Cold-adopt it — a fresh worker reads the thread FILE and continues;
-              // per the frizz contract the doc, not the conversation, is the durable context.
+              // per the ntwine contract the doc, not the conversation, is the durable context.
               // (Session language, not "agent": the thing that attaches IS an agent process, but the
               // UI's thread/session vocabulary keeps "agent" for genuine child sub-agents only.)
               <div className="text-center">
@@ -739,7 +739,7 @@ const EAGER_HISTORY_RETRY_MS = 250
 // from its estimate, and markdown, code and images keep settling for several frames after mount.
 const OPEN_AT_MESSAGE_HOLD_MS = 900
 
-// Opt-in drift diagnostic: `localStorage["frizz.debugScroll"] = "1"`, then reload.
+// Opt-in drift diagnostic: `localStorage["ntwine.debugScroll"] = "1"`, then reload.
 //
 // The mid-scroll drift this file works to prevent does NOT reproduce headlessly — a scripted wheel has
 // no momentum, and a seeded transcript has no images or async-settling cards — so a harness that goes
@@ -748,7 +748,7 @@ const OPEN_AT_MESSAGE_HOLD_MS = 900
 // moves while the reader is not touching the scroller, and names the pin at that moment, so a live
 // sighting comes with its size and its trigger instead of "it jumped again".
 const DEBUG_SCROLL = (() => {
-  try { return localStorage.getItem("frizz.debugScroll") === "1" } catch { return false }
+  try { return localStorage.getItem("ntwine.debugScroll") === "1" } catch { return false }
 })()
 
 type TranscriptTransportFallback = ReturnType<typeof useTranscript>["transportFallback"]
@@ -845,7 +845,7 @@ export interface RuntimeStatusState {
  *  TerminalNetCard) cannot disagree about whether a thread gets it.
  *
  *  It had a second rung, the generic "respond in your external terminal" permission banner, until
- *  upstream 511316d3 (2026-10-10): every thread Frizz runs is a broker session with no terminal, so that
+ *  upstream 511316d3 (2026-10-10): every thread Ntwine runs is a broker session with no terminal, so that
  *  banner could only draw in the gap around an answerable card. A permission block with no card now
  *  reads as the turn in flight it is (`drawsWorking`). */
 export function terminalNetRung(thread: ThreadViewData | undefined): "pending-ask" | null {
@@ -1300,7 +1300,7 @@ function VirtualizedThreadTranscript({
     // cannot show"). A handoff is written verdict-first, and on a 390pt screen a 40-line one opened at the
     // tail puts the reader on its last bullet with the verdict 30 lines up. So at rest the phone lands the
     // top of the newest thing the agent SAID at the top of the pane; a running thread still opens on the
-    // tail, where the live line is. `lastAgentIdx` is that message (lastAssistantIndex skips frizz's own
+    // tail, where the live line is. `lastAgentIdx` is that message (lastAssistantIndex skips ntwine's own
     // event rows); if it draws no row of its own — a fence-only rest the resting card states — the last
     // assistant row before it stands in, and with none the tail is still the answer. The fullscreen
     // hand-off above outranks this: it is the reader's own place, carried over.
@@ -1534,7 +1534,7 @@ function VirtualizedThreadTranscript({
         .find((element) => element.dataset.transcriptRowKey === previous.rowKey)
       if (previous && row) {
         const drift = Math.round(row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - previous.viewportTop)
-        if (Math.abs(drift) > 2) console.warn(`[frizz] transcript moved ${drift}px under a still reader — row=${previous.rowKey}`)
+        if (Math.abs(drift) > 2) console.warn(`[ntwine] transcript moved ${drift}px under a still reader — row=${previous.rowKey}`)
       }
     }
     // LAST: refresh where the reader is looking. This runs on every commit, every settle and every
@@ -1838,7 +1838,7 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
   const board = useBoard()
   const thread = threadBySlug(board, slug)
   const markComplete = useMutation({ mutationFn: () => rpc.markComplete({ slug }) })
-  // The "Frizz document" header affordance opens .frizz/<slug>.md (threadBody). Many session threads have
+  // The "Ntwine document" header affordance opens .ntwine/<slug>.md (threadBody). Many session threads have
   // no such file — a session thread's working files are its own business — so it would dead-end on
   // "No thread file found". Gate it on the doc actually having body content (same stripFrontmatter the
   // drawer renders through), so it shows iff there's a real doc to open. Shares the drawer's cached query
@@ -1924,7 +1924,7 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
 
 // The transcript's between-block RHYTHM — STEP, the tight run, the picture gap, and the VSpace element
 // that draws them — lives in ./rhythm.tsx, and is re-exported here because every caller already reaches
-// for it through ChatView. It moved out so the frizz wake renderer can charge the same STEP between the
+// for it through ChatView. It moved out so the ntwine wake renderer can charge the same STEP between the
 // two hairlines of a two-part delivery: ChatView imports that renderer, so it cannot import ChatView.
 export { STEP, META_CARD_STEP, PICTURE_STEP, USER_TAIL_EXTRA, VSpace } from "./rhythm.tsx"
 // Adjacent tool activity must read at the SAME tight run whether it's batched in one message or split
@@ -2064,7 +2064,7 @@ export function messageRendersNothing(m: ChatMessage, staleAwaiting?: boolean, c
 // disagree, one of them either strands a live fence or keeps drawing a settled one.
 //
 // SAID, NOT "IS THE LAST ASSISTANT ROW". A `kind:"event"` line carries `role:"assistant"` but nothing the
-// agent uttered — it is frizz's own synthetic marker for a rest, a wake, a compaction or a sub-agent
+// agent uttered — it is ntwine's own synthetic marker for a rest, a wake, a compaction or a sub-agent
 // completion. Counting one made the cut land AFTER the fence it was supposed to protect, and every rested
 // thread ends with exactly such a row ("Agent rested"), so EVERY live fence read as settled: the card and
 // its hourglass came off the one wait that was still open, and its body dropped to free-standing prose.
@@ -2571,7 +2571,7 @@ type ToolStatus = NonNullable<TranscriptToolCall["status"]>
 // systems, four saturations, two duration formatters and two separators, for eight readings of the same
 // kind (maintainer 2026-07-29: "a bizarre mix of font sizes, color saturations, and capitalization").
 // Worse, the lowercase half also sat 1.0px BELOW the title's cap band, because only the petite-caps half
-// carried `frizz-tool-header-caps`'s optical lift.
+// carried `ntwine-tool-header-caps`'s optical lift.
 //
 // So the typography, the `·` separator and the optical correction now live HERE, once, and a caller may
 // only choose its WORDS and its TONE. Consistency by construction: a new reading cannot invent a second
@@ -2584,7 +2584,7 @@ function ToolMetaReading({ tone, indicator, label, duration, title }: {
   title: string
 }) {
   return (
-    <span className={`petite-caps frizz-tool-header-caps flex shrink-0 items-center gap-1 whitespace-nowrap text-[11.5px] leading-none ${tone}`} title={title} aria-label={title}>
+    <span className={`petite-caps ntwine-tool-header-caps flex shrink-0 items-center gap-1 whitespace-nowrap text-[11.5px] leading-none ${tone}`} title={title} aria-label={title}>
       {indicator}
       <span>{[label, duration].filter(Boolean).join(" · ")}</span>
     </span>
@@ -2649,17 +2649,17 @@ function ToolLiveMark({ status, backgroundState, liveBackgroundState, startedAt 
   // to unlearn. `pending && background` is the fallback: detached, but no live op correlated to it.
   const mark =
     liveBackgroundState === "running" ? (
-      <span aria-hidden className="frizz-live-dot frizz-live-dot--shell" data-running-indicator="tool-disclosure" />
+      <span aria-hidden className="ntwine-live-dot ntwine-live-dot--shell" data-running-indicator="tool-disclosure" />
     ) : liveBackgroundState === "stale" ? (
       <span className={CHILD_STALE_DOT_CLASS} title={CHILD_STALE_SHELL_TITLE} />
     ) : hasRunningToolIndicator(status, backgroundState) || foregroundRunning ? (
-      <span aria-hidden className="frizz-live-dot frizz-live-dot--shell" data-running-indicator="tool-disclosure" />
+      <span aria-hidden className="ntwine-live-dot ntwine-live-dot--shell" data-running-indicator="tool-disclosure" />
     ) : null
   if (!mark) return null
   // `-mr-1` pulls the label back to roughly the dot↔label gap the child lines use: the header's own
   // gap-2 is tuned for a petite-caps label beside a path, and at full width a 6px dot floated away from
   // the word it qualifies.
-  return <span className="frizz-tool-mark -mr-1 flex w-[9px] shrink-0 justify-center">{mark}</span>
+  return <span className="ntwine-tool-mark -mr-1 flex w-[9px] shrink-0 justify-center">{mark}</span>
 }
 
 export function ToolStatusMeta({ status, backgroundState, liveBackgroundState, exitCode, durationMs }: { status?: ToolStatus; backgroundState?: TranscriptToolCall["backgroundState"]; liveBackgroundState?: "running" | "stale"; exitCode?: number; durationMs?: number }) {
@@ -2693,7 +2693,7 @@ export function ToolStatusMeta({ status, backgroundState, liveBackgroundState, e
             : [undefined, undefined]
   const duration = durationMs !== undefined ? formatToolDuration(durationMs) : undefined
   const title = [longLabel, duration].filter(Boolean).join(" · ")
-  const tone = status === "failed" ? "frizz-tool-failed" : status === "cancelled" ? "text-attention" : "text-muted-55"
+  const tone = status === "failed" ? "ntwine-tool-failed" : status === "cancelled" ? "text-attention" : "text-muted-55"
   return (
     <ToolMetaReading
       tone={tone}
@@ -2750,8 +2750,8 @@ function isFilePath(detail: string): boolean {
   return detail.startsWith("/") && !detail.includes(" ") && !detail.includes("…")
 }
 
-// A header-only tool card: the IDENTICAL bordered card chrome as Bash/Read/Edit/Agent (same .frizz-bash
-// container + .frizz-bash-header — border, bg, radius, padding, the label↔detail gap, 12.5px mono) but
+// A header-only tool card: the IDENTICAL bordered card chrome as Bash/Read/Edit/Agent (same .ntwine-bash
+// container + .ntwine-bash-header — border, bg, radius, padding, the label↔detail gap, 12.5px mono) but
 // with NO expandable body, so it drops only the chevron. This is the fallback for every call without a
 // payload — Grep, Glob, a pre-restart command-less Bash / excerpt-less Read, MCP tools, Monitor — the
 // COMMON case pre-restart, so it must be indistinguishable from a real card header. petite-caps label
@@ -2762,11 +2762,11 @@ function ToolCard({ name, detail, count, status, backgroundState, liveBackground
   const short = shownDetail ? shortenTarget(shownDetail) : undefined
   const linkPath = detail && isFilePath(detail) ? detail : undefined
   return (
-    <div className="frizz-bash" title={shownDetail}>
-      <div className="frizz-bash-header">
+    <div className="ntwine-bash" title={shownDetail}>
+      <div className="ntwine-bash-header">
         <span className="flex min-w-0 items-center gap-2">
           <ToolLiveMark status={status} backgroundState={backgroundState} liveBackgroundState={liveBackgroundState} startedAt={startedAt} />
-          <span className="petite-caps frizz-bash-label shrink-0">{prettyToolName(name)}</span>
+          <span className="petite-caps ntwine-bash-label shrink-0">{prettyToolName(name)}</span>
           {short &&
             (linkPath ? (
               // The path link swallows its own click so opening the file doesn't select the card.
@@ -2798,7 +2798,7 @@ function ToolCard({ name, detail, count, status, backgroundState, liveBackground
 // 2026-08-02 ("those should just be rendered … automatically"), which drew every one of them open.
 //
 // The one Read the server does NOT hand a picture is a Read of the human's own prompt attachment, whose
-// bubble already shows it (server/frizz-paths.ts isPromptAttachmentPath); that call keeps its plain
+// bubble already shows it (server/ntwine-paths.ts isPromptAttachmentPath); that call keeps its plain
 // header. Opened, the picture sits in the shared frame's mat (ImageFrame) and clicks through to the
 // lightbox viewer like any picture; any accompanying text result prints below it.
 function ToolImageCard({ name, detail, outputImage, output, status, durationMs }: { name: string; detail?: string; outputImage: string; output?: string; status?: ToolStatus; durationMs?: number }) {
@@ -2808,23 +2808,23 @@ function ToolImageCard({ name, detail, outputImage, output, status, durationMs }
   const label = prettyToolName(name)
   const short = detail ? shortenTarget(detail) : undefined
   return (
-    <div data-tool-image className="frizz-bash">
+    <div data-tool-image className="ntwine-bash">
       <ToolDisclosureHeader
-        className="frizz-bash-header"
+        className="ntwine-bash-header"
         controls={bodyId}
         expanded={open}
         label={`${open ? "Collapse" : "Expand"} ${label}${detail ? `: ${detail}` : ""}`}
         onToggle={() => setOpen((v) => !v)}
         meta={<ToolStatusMeta status={status} durationMs={durationMs} />}
       >
-        <span className="petite-caps frizz-bash-label shrink-0">{label}</span>
+        <span className="petite-caps ntwine-bash-label shrink-0">{label}</span>
         {short && <span className="min-w-0 truncate text-[11.5px] text-muted" title={detail}>{short}</span>}
       </ToolDisclosureHeader>
       <div id={bodyId} hidden={!open}>
         {open && (
           <>
             {broken ? (
-              <div className="frizz-bash-body break-all text-muted-70">{outputImage}</div>
+              <div className="ntwine-bash-body break-all text-muted-70">{outputImage}</div>
             ) : (
               <div className={IMAGE_FRAME_MAT}>
                 {/* `outputImage` is ALWAYS a hash-named copy in the screenshot cache, so its basename
@@ -2840,7 +2840,7 @@ function ToolImageCard({ name, detail, outputImage, output, status, durationMs }
                 />
               </div>
             )}
-            {output && <pre className="frizz-bash-body frizz-bash-output-body">{output}</pre>}
+            {output && <pre className="ntwine-bash-body ntwine-bash-output-body">{output}</pre>}
           </>
         )}
       </div>
@@ -2848,7 +2848,7 @@ function ToolImageCard({ name, detail, outputImage, output, status, durationMs }
   )
 }
 
-// A SendUserFile delivery — the worker surfacing files to the human. Same card family (`frizz-bash`) and
+// A SendUserFile delivery — the worker surfacing files to the human. Same card family (`ntwine-bash`) and
 // header as ToolImageCard so it reads as one of the tool cards, but OPEN by default: seeing the delivered
 // images IS the point. Body: the images as ONE lightbox gallery — the same object a ```lightbox fence
 // draws, because a delivery is the other way a worker SHOWS a picture (via the gated /local-image route)
@@ -2865,7 +2865,7 @@ function SentFilesCard({ images, files, caption, status, durationMs }: { images:
     files.length ? `${files.length} file${files.length === 1 ? "" : "s"}` : "",
   ].filter(Boolean).join(" · ")
   return (
-    <div className="frizz-bash">
+    <div className="ntwine-bash">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -2873,10 +2873,10 @@ function SentFilesCard({ images, files, caption, status, durationMs }: { images:
         aria-controls={bodyId}
         aria-expanded={open}
         aria-label={`${open ? "Collapse" : "Expand"} files sent to you${summary ? `: ${summary}` : ""}`}
-        className="frizz-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
+        className="ntwine-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="petite-caps frizz-bash-label shrink-0">Sent to you</span>
+          <span className="petite-caps ntwine-bash-label shrink-0">Sent to you</span>
           {summary && <span className="min-w-0 truncate text-[11.5px] text-muted">{summary}</span>}
         </span>
         <span className="flex shrink-0 items-center gap-2">
@@ -2955,7 +2955,7 @@ function BashBlock({
   const shownDesc = contextualDetail(desc, undefined, sessionId)
   const expandable = Boolean(command || output)
   return (
-    <div className="frizz-bash">
+    <div className="ntwine-bash">
       <button
         type="button"
         onClick={() => expandable && setOpen((v) => !v)}
@@ -2963,11 +2963,11 @@ function BashBlock({
         aria-controls={expandable ? bodyId : undefined}
         aria-expanded={expandable ? open : undefined}
         aria-label={`${expandable ? `${open ? "Collapse" : "Expand"} ` : ""}${prettyToolName(name)}${shownDesc ? `: ${shownDesc}` : ""}`}
-        className="frizz-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
+        className="ntwine-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
       >
         <span className="flex min-w-0 items-center gap-2">
           <ToolLiveMark status={status} backgroundState={backgroundState} liveBackgroundState={liveBackgroundState} startedAt={startedAt} />
-          <span className="petite-caps frizz-bash-label shrink-0">{prettyToolName(name)}</span>
+          <span className="petite-caps ntwine-bash-label shrink-0">{prettyToolName(name)}</span>
           <span className="min-w-0 truncate text-[11.5px] text-muted" title={shownDesc}>{shownDesc ?? ""}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
@@ -2979,21 +2979,21 @@ function BashBlock({
         <div id={bodyId} hidden={!open}>
           {open && command && (
             <>
-              {inputLabel && <div className="frizz-bash-output-label petite-caps">{inputLabel}</div>}
+              {inputLabel && <div className="ntwine-bash-output-label petite-caps">{inputLabel}</div>}
               {/* A Bash card's body is a shell command, so it highlights as one. A card carrying an
                   `inputLabel` is NOT shell — that is codex's structured tool input reusing this card
                   family — and stays plaintext rather than being painted in a grammar it isn't. */}
               <CodeBody
                 text={command}
                 language={inputLabel ? "plaintext" : "bash"}
-                className={`frizz-bash-body${inputLabel ? " frizz-bash-output-body" : ""}${long && !expanded ? " frizz-bash-clamp" : ""}`}
+                className={`ntwine-bash-body${inputLabel ? " ntwine-bash-output-body" : ""}${long && !expanded ? " ntwine-bash-clamp" : ""}`}
               />
               {long && (
                 <button
                   type="button"
                   onClick={() => setExpanded((v) => !v)}
                   onMouseDown={(e) => e.preventDefault()}
-                  className="frizz-bash-expand petite-caps px-2.5 pb-1.5"
+                  className="ntwine-bash-expand petite-caps px-2.5 pb-1.5"
                 >
                   {expanded ? "Collapse" : `Show all ${lineCount} lines`}
                 </button>
@@ -3002,14 +3002,14 @@ function BashBlock({
           )}
           {open && output && (
             <>
-              <div className="frizz-bash-output-label petite-caps">output</div>
-              <pre className={`frizz-bash-body frizz-bash-output-body${outLong && !outExpanded ? " frizz-bash-clamp" : ""}`}>{output}</pre>
+              <div className="ntwine-bash-output-label petite-caps">output</div>
+              <pre className={`ntwine-bash-body ntwine-bash-output-body${outLong && !outExpanded ? " ntwine-bash-clamp" : ""}`}>{output}</pre>
               {outLong && (
                 <button
                   type="button"
                   onClick={() => setOutExpanded((v) => !v)}
                   onMouseDown={(e) => e.preventDefault()}
-                  className="frizz-bash-expand petite-caps px-2.5 pb-1.5"
+                  className="ntwine-bash-expand petite-caps px-2.5 pb-1.5"
                 >
                   {outExpanded ? "Collapse" : `Show all ${outLineCount} lines`}
                 </button>
@@ -3026,7 +3026,7 @@ function BashBlock({
 // whose header is the petite-caps "Read" label + the repo-relative path (an editor deep-link when the
 // detail is a plain absolute path). Expanding reveals WHAT was read — the (server-capped) file excerpt
 // in mono, with the same clamp + "Show all N lines" affordance as a long Bash body. Reuses the
-// frizz-bash card classes so Bash / Edit / Read read as one system.
+// ntwine-bash card classes so Bash / Edit / Read read as one system.
 const READ_MAX_LINES = 16
 function ReadBlock({ detail, read, status, durationMs }: { detail?: string; read: string; status?: ToolStatus; durationMs?: number }) {
   const [open, setOpen] = useState(false)
@@ -3037,16 +3037,16 @@ function ReadBlock({ detail, read, status, durationMs }: { detail?: string; read
   const short = detail ? shortenTarget(detail) : undefined
   const linkPath = detail && isFilePath(detail) ? detail : undefined
   return (
-    <div className="frizz-bash">
+    <div className="ntwine-bash">
       <ToolDisclosureHeader
-        className="frizz-bash-header"
+        className="ntwine-bash-header"
         controls={bodyId}
         expanded={open}
         label={`${open ? "Collapse" : "Expand"} Read${detail ? `: ${detail}` : ""}`}
         onToggle={() => setOpen((v) => !v)}
         meta={<ToolStatusMeta status={status} durationMs={durationMs} />}
       >
-        <span className="petite-caps frizz-bash-label shrink-0">Read</span>
+        <span className="petite-caps ntwine-bash-label shrink-0">Read</span>
         {short &&
           (linkPath ? (
             <span className="min-w-0 truncate">
@@ -3067,14 +3067,14 @@ function ReadBlock({ detail, read, status, durationMs }: { detail?: string; read
             <CodeBody
               text={read}
               language={resolveFileLanguage(detail)}
-              className={`frizz-bash-body${long && !expanded ? " frizz-bash-clamp" : ""}`}
+              className={`ntwine-bash-body${long && !expanded ? " ntwine-bash-clamp" : ""}`}
             />
             {long && (
               <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
                 onMouseDown={(e) => e.preventDefault()}
-                className="frizz-bash-expand petite-caps px-2.5 pb-1.5"
+                className="ntwine-bash-expand petite-caps px-2.5 pb-1.5"
               >
                 {expanded ? "Collapse" : `Show all ${lineCount} lines`}
               </button>
@@ -3100,7 +3100,7 @@ function ReadBlock({ detail, read, status, durationMs }: { detail?: string; read
 //     came BACK on 2026-08-27, as a resolved model+effort CELL rather than a raw profile name
 //     (maintainer: "subagent dispatch cards should always show effort & model visible"). The ruling it
 //     overturns was about repeating the PARENT's profile: a dispatch card names a different runtime
-//     from the one the prompt box is set to, and after the effort-only split (frizz:high, the model on
+//     from the one the prompt box is set to, and after the effort-only split (ntwine:high, the model on
 //     the Agent tool's own parameter) the model was on no surface at all. The cell is resolved server
 //     side — see subagent-profile.ts — so the card, the drawer, the rail tooltip and the resting
 //     card's child line all read the same pair;
@@ -3209,7 +3209,7 @@ export function AgentBlock({
   // card in the transcript, and the runtime in the right-hand column is what says it ran and stopped.
   const mark =
     running ? (
-      <span aria-hidden className="frizz-live-dot frizz-live-dot--agent" data-running-indicator="subagent-disclosure" />
+      <span aria-hidden className="ntwine-live-dot ntwine-live-dot--agent" data-running-indicator="subagent-disclosure" />
     ) : live?.state === "stale" ? (
       <span className={CHILD_STALE_DOT_CLASS} title={CHILD_STALE_TITLE} />
     ) : live?.state === "rested" ? (
@@ -3222,11 +3222,11 @@ export function AgentBlock({
   }
 
   return (
-    <div className="frizz-bash">
+    <div className="ntwine-bash">
       <ToolDisclosureHeader
         // `@container`: the profile reading below gives way to the header's OWN width, not the viewport's —
         // a 300px VS Code sidebar draws this header 243px wide, a phone's drawer 318px, the desktop's 662px.
-        className="frizz-bash-header @container"
+        className="ntwine-bash-header @container"
         controls={bodyId}
         expanded={open}
         label={`${open ? "Collapse" : "Expand"} ${kind} dispatch: ${title}`}
@@ -3254,7 +3254,7 @@ export function AgentBlock({
               {profile && (
                 <span
                   data-subagent-profile
-                  className="petite-caps frizz-tool-header-caps shrink-0 whitespace-nowrap text-[11.5px] leading-none text-muted-55 @max-[18rem]:hidden"
+                  className="petite-caps ntwine-tool-header-caps shrink-0 whitespace-nowrap text-[11.5px] leading-none text-muted-55 @max-[18rem]:hidden"
                   title={`Sub-agent profile: ${profile}`}
                 >
                   {profile}
@@ -3266,10 +3266,10 @@ export function AgentBlock({
                   row's flex gap while the reading's identical dot ("stopped · 41 min") is spaced by two
                   text spaces, and the two rhythms did not agree — measured 8.91/8.26px of ink against
                   the text one's 6.51/7.01. Trimmed, they read as one chain (6.9/6.3). */}
-              {profile && reading && <span aria-hidden className="petite-caps frizz-tool-header-caps -mx-[2px] shrink-0 text-[11.5px] leading-none text-muted-55 @max-[18rem]:hidden">·</span>}
+              {profile && reading && <span aria-hidden className="petite-caps ntwine-tool-header-caps -mx-[2px] shrink-0 text-[11.5px] leading-none text-muted-55 @max-[18rem]:hidden">·</span>}
               {reading && (
                 <ToolMetaReading
-                  tone={reading.tone === "failed" ? "frizz-tool-failed" : "text-muted-55"}
+                  tone={reading.tone === "failed" ? "ntwine-tool-failed" : "text-muted-55"}
                   title={reading.title}
                   label={reading.label}
                   duration={reading.duration}
@@ -3286,8 +3286,8 @@ export function AgentBlock({
             the label back to roughly the dot↔label gap those lines use: the header's own gap-2 is tuned
             for a petite-caps label beside a path, and at full width a 6px dot floated away from the word
             it qualifies. Same slot, same class, same numbers as a background shell card's mark. */}
-        {mark && <span className="frizz-tool-mark -mr-1 flex w-[9px] shrink-0 justify-center">{mark}</span>}
-        <span className="petite-caps frizz-bash-label shrink-0">{kind}</span>
+        {mark && <span className="ntwine-tool-mark -mr-1 flex w-[9px] shrink-0 justify-center">{mark}</span>}
+        <span className="petite-caps ntwine-bash-label shrink-0">{kind}</span>
         {canDrill ? (
           <button
             type="button"
@@ -3306,13 +3306,13 @@ export function AgentBlock({
       <div id={bodyId} hidden={!open}>
         {open && (
           <>
-            {body && <pre className={`frizz-bash-body${long && !expanded ? " frizz-bash-clamp" : ""}`}>{body}</pre>}
+            {body && <pre className={`ntwine-bash-body${long && !expanded ? " ntwine-bash-clamp" : ""}`}>{body}</pre>}
             {long && (
               <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
                 onMouseDown={(e) => e.preventDefault()}
-                className="frizz-bash-expand petite-caps px-2.5 pb-1.5"
+                className="ntwine-bash-expand petite-caps px-2.5 pb-1.5"
               >
                 {expanded ? "Collapse" : `Show all ${lineCount} lines`}
               </button>
@@ -3468,7 +3468,7 @@ function ScheduledRunOpening({ scheduleId, header, prompt, sourceId, at }: { sch
   const phone = usePhoneQuestions() !== null
   const [sheet, setSheet] = useState(false)
   return (
-    <div data-frizz-msg={sourceId} data-scheduled-run={scheduleId} className="flex w-full flex-col gap-2">
+    <div data-ntwine-msg={sourceId} data-scheduled-run={scheduleId} className="flex w-full flex-col gap-2">
       <WakeDivider icon={Repeat} marker="scheduled-run" ariaLabel={`${label}. Open the schedule`} at={at} onClick={() => (phone ? setSheet(true) : pushScheduleDrawer(scheduleId, undefined, { drillIn: true }))}>
         {label}
       </WakeDivider>
@@ -3522,7 +3522,7 @@ function AnswersWithNote({ m, text, answers, note }: { m: ChatMessage; text: str
   return (
     // Full width and a column, so each child's own `self-end` + 85% cap lands exactly where it would
     // as a direct child of the transcript column.
-    <div data-frizz-msg={m.sourceId} data-answers-with-note className="flex w-full flex-col gap-2 self-end">
+    <div data-ntwine-msg={m.sourceId} data-answers-with-note className="flex w-full flex-col gap-2 self-end">
       <AnswersCard answers={answers} queued={m.queued} />
       {body(note, 0)}
       {m.deliveryState === "held" && m.deliveryId && <div className="self-end"><HeldLine deliveryId={m.deliveryId} text={text} rawText={m.text} /></div>}
@@ -3537,12 +3537,12 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
   //  · ThreadSlugContext — the same authorization boundary the fence-card buttons use. A queued bubble
   //    rendered inside a SUB-AGENT's transcript is not this surface's to retract.
   //  · deliveryId — the provider queued the message under that uuid; without it there is nothing to
-  //    address, which is exactly the case for a bubble frizz did not send (one typed in the terminal).
+  //    address, which is exactly the case for a bubble ntwine did not send (one typed in the terminal).
   //  · the backend — a codex steer has no queue to take anything out of.
   const unqueueSlug = useContext(ThreadSlugContext)
   const unqueueSupported = useUnqueueSupported(unqueueSlug)
   const { unqueue, pending: unqueuePending } = useUnqueueFollowUp(unqueueSlug)
-  // A HELD message (sent to the queue) is Frizz's alone to hand back, on every backend: no provider
+  // A HELD message (sent to the queue) is Ntwine's alone to hand back, on every backend: no provider
   // has it. Its own line below carries the same two verbs in words.
   const unqueueable = Boolean(queued && deliveryId && unqueueSlug && (unqueueSupported || held))
   // PUSH IT THROUGH. The other half of what you can do to a message that hasn't been read yet: instead
@@ -3552,7 +3552,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
   // worker would take — and pictured it as a lightning bolt, which meant nothing.
   //
   // Gated on `queued` and a running turn, NOT on deliveryId: this addresses the thread's turn, not one
-  // message, so it works for a queued bubble frizz did not itself send.
+  // message, so it works for a queued bubble ntwine did not itself send.
   // `queued ? slug : null` is a PERF gate, not a correctness one. Unlike unqueue's scalar (backend,
   // which effectively never changes) this one tracks `runtime`, which flips on every turn boundary —
   // subscribed unconditionally it would re-render every user bubble in the transcript each time a turn
@@ -3589,7 +3589,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
     // `self-end` must stay on THIS node: the parent scroll container is a flex column and the bubble's
     // right-justification depends on being its direct child (see the group-container note above the
     // queued-message stack).
-    <div data-frizz-msg={sourceId} className="self-end flex flex-col items-end gap-0.5 max-w-[85%]">
+    <div data-ntwine-msg={sourceId} className="self-end flex flex-col items-end gap-0.5 max-w-[85%]">
       {/* A quiet raised surface in the page's own ink — set apart from agent prose by its fill and its
           right alignment, not by contrast (an off-white bubble here read as a foreign object on the dark
           page, maintainer 2026-09-24). whitespace-pre-wrap is load-bearing: user text
@@ -3767,7 +3767,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // bubble honors \n but not a lone \r → the breaks collapse into a run-on. Normalize for BOTH render
     // paths (the server does this too, but this is the definitive per-surface guarantee for user text).
     const text = messagePresentationText(m).replace(/\r\n?/g, "\n")
-    // A SCHEDULED RUN'S OPENING (ARCHITECTURE.md § Scheduled threads): Frizz's header for the worker, then the
+    // A SCHEDULED RUN'S OPENING (ARCHITECTURE.md § Scheduled threads): Ntwine's header for the worker, then the
     // schedule's saved prompt. The header is machinery — which occurrence, how late, how to finish quietly
     // — so it folds to one line naming the schedule, and the prompt, which the human wrote, keeps the
     // human's bubble (ScheduledRunOpening).
@@ -3786,16 +3786,16 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
       return <AnswersWithNote m={m} text={text} answers={answers} note={note} />
     }
     // A scheduler wake is recorded as a user turn because it is pasted into the worker's composer —
-    // but FRIZZ wrote it, not the human, so it must not wear the human's right-justified
+    // but NTWINE wrote it, not the human, so it must not wear the human's right-justified
     // bubble. `m.wake` is the server's own tell (the delivery token it stripped), never a text guess.
-    // A recurring prompt (the Goal's, either trigger) is routed by FrizzWake, AFTER it cuts a merged
+    // A recurring prompt (the Goal's, either trigger) is routed by NtwineWake, AFTER it cuts a merged
     // delivery apart: the Goal's trailer is matched at the END of the text, so a delivery whose last wake
     // is the Goal's prompt ends in it too, and picking it off here read every wake held beside it as one
     // Goal line (upstream 14025d09).
-    // A message from ANOTHER FRIZZ THREAD is delivered as a wake, but it is another agent speaking, so
-    // it takes the agent-message bubble rather than Frizz's own chrome (AgentMessage.tsx). FrizzWake asks
+    // A message from ANOTHER NTWINE THREAD is delivered as a wake, but it is another agent speaking, so
+    // it takes the agent-message bubble rather than Ntwine's own chrome (AgentMessage.tsx). NtwineWake asks
     // this renderer for each part it draws, so one held and merged with other wakes is still a bubble.
-    if (m.wake) return <FrizzWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} />
+    if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} />
     // A SIDEWAYS writer of a user turn the human didn't type: another top-level thread messaging this
     // one. An expandable hairline naming and linking the sender — see SessionMessageLine.
     if (m.sessionPeer) return <SessionMessageLine peer={m.sessionPeer} text={text} queued={m.queued} sourceId={m.sourceId} at={m.at} wrap={dense} />
@@ -3808,7 +3808,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // A SPINOFF REQUEST: the human's instructions for a new thread, drawn as the card that links to it.
     // `m.spinoff` is the server's tell (transcript.ts withSpinoffCards).
     if (m.spinoff) return <SpinoffCard id={m.spinoff.id} instructions={m.spinoff.instructions} sourceId={m.sourceId} />
-    // A SPINOFF CHILD'S FIRST TURN: the human's instructions, and the context Frizz gave it folded
+    // A SPINOFF CHILD'S FIRST TURN: the human's instructions, and the context Ntwine gave it folded
     // beneath them — never one bubble holding both, since the context is not the human speaking.
     if (m.spinoffOrigin) return <SpinoffOriginCard instructions={m.spinoffOrigin.instructions} context={m.spinoffOrigin.brief.trim() ? <ProseHtml md={m.spinoffOrigin.brief} wrap /> : null} sourceId={m.sourceId} />
     // `rawText` rides alongside the presentation text because the two differ: the bubble shows the
@@ -3855,7 +3855,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
         // either side of it collapses with it. A SETTLED one keeps its prose as a note (below); the other
         // two draw nothing at all.
         //
-        // REFUSED — frizz declined to arm the park (see TranscriptMessage.fenceRefused), so a card would
+        // REFUSED — ntwine declined to arm the park (see TranscriptMessage.fenceRefused), so a card would
         // assert a wait nothing is holding, and the body is a handoff the worker is about to write again
         // in its re-fence.
         //
@@ -4056,12 +4056,12 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     )
   }
   // No gap on the container — between-block spacing is entirely the explicit VSpace elements.
-  // `data-frizz-msg` stamps this root with the message's own `sourceId`: a stable per-message handle for
+  // `data-ntwine-msg` stamps this root with the message's own `sourceId`: a stable per-message handle for
   // an inspector or an e2e selector, distinct from the pagination-anchor attribute (see the anchor test).
   return (
     // `data-question-set`: this message's fence cards are one batch, which a card's Enter walks before
     // it sends (QuestionBlockCard advanceOrSubmit).
-    <div data-frizz-msg={m.sourceId} data-question-set={answering ? "" : undefined} className="flex flex-col text-[13px] min-w-0">
+    <div data-ntwine-msg={m.sourceId} data-question-set={answering ? "" : undefined} className="flex flex-col text-[13px] min-w-0">
       {withSpacers(blocks, pictureAwareGap(pictureEdges, STEP))}
       {answerSheetOpen && answering && askBlocks.length > 0 ? (
         <MobileAnswerSheet blocks={askBlocks} answering={answering} onClose={() => setAnswerSheetOpen(false)} />
@@ -4095,7 +4095,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
 // (see renderText). One step down from answer prose, in the reasoning block's ruled-aside treatment.
 function SettledAwaitingNote({ body, wrap }: { body: string; wrap?: boolean }) {
   return (
-    <div className="frizz-settled-note border-l border-border/70 pl-3">
+    <div className="ntwine-settled-note border-l border-border/70 pl-3">
       <ProseHtml md={body} wrap={wrap} />
     </div>
   )
@@ -4194,7 +4194,7 @@ function visualizationTheme(requestId: number) {
 }
 
 // Codex Visualize emits a thread-local HTML fragment plus this directive. The server resolves the
-// basename against the owning Frizz session and wraps it in a CSP; this iframe deliberately omits
+// basename against the owning Ntwine session and wraps it in a CSP; this iframe deliberately omits
 // allow-same-origin, forms, popups, downloads, and navigation so fragment scripts never inherit the
 // control plane's authority. A tiny postMessage bridge supplies theme tokens and natural height.
 export function InlineVisualization({ file }: { file: string }) {
@@ -4238,7 +4238,7 @@ export function InlineVisualization({ file }: { file: string }) {
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return
-      if (event.data?.type === "frizz-inline-vis-ready") {
+      if (event.data?.type === "ntwine-inline-vis-ready") {
         sendTheme()
         return
       }
@@ -4247,7 +4247,7 @@ export function InlineVisualization({ file }: { file: string }) {
         setAppliedSrc(src)
         return
       }
-      if (event.data?.type !== "frizz-inline-vis-height") return
+      if (event.data?.type !== "ntwine-inline-vis-height") return
       const next = Number(event.data.height)
       if (Number.isFinite(next)) setHeight(Math.max(80, Math.min(2400, Math.ceil(next))))
     }
@@ -4477,7 +4477,7 @@ export function ProviderFaultCard({
 //
 // Deliberately NOT the sign-in card's shape, even though both are provider faults: here the
 // credential is fine and the recovery is TIME, not an action. So the card leads with information —
-// when the window comes back, and that frizz will pick the thread up itself — and keeps a manual
+// when the window comes back, and that ntwine will pick the thread up itself — and keeps a manual
 // continue as the secondary, for the operator who has capacity elsewhere and doesn't want to wait.
 export function LimitPauseCard({ slug, pause }: { slug: string; sessionId: string | undefined; pause: NonNullable<ThreadViewData["limitPause"]> }) {
   const [continuing, setContinuing] = useState(false)
@@ -4508,7 +4508,7 @@ export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: Non
     <TranscriptCard data-limit-pause tone="caution" icon={Hourglass} label={limitPauseTitle(pause)}>
       {/* The provider's own "You've hit your session limit · resets …" line sits directly above this
           card (unlike an auth error, it is informative, so transcript.ts keeps its bubble). So this
-          card says only what THAT line cannot: what frizz is going to do about it. */}
+          card says only what THAT line cannot: what ntwine is going to do about it. */}
       <span className={CARD_BODY}>{limitPauseResume(pause)}</span>
       <CardActions>
         <button
@@ -4524,7 +4524,7 @@ export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: Non
   )
 }
 
-// What frizz's permission policy REFUSED on the worker's behalf (cc-worker/hooks/perm-policy.mjs).
+// What ntwine's permission policy REFUSED on the worker's behalf (cc-worker/hooks/perm-policy.mjs).
 //
 // Denials only. A refusal is rare, changes what the worker can do, and is worth a card that stays put.
 // Approvals used to render here too, as one quiet line — and that was a mistake: the state behind it
@@ -4535,7 +4535,7 @@ export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: Non
 export function PermPolicyDenialCard({ policy, denies }: { policy: NonNullable<ThreadViewData["permPolicy"]>; denies?: number }) {
   const what = [policy.tool, policy.command].filter(Boolean).join(": ")
   return (
-    <TranscriptCard tone="caution" icon={AlertTriangle} label="Blocked by Frizz's permission policy">
+    <TranscriptCard tone="caution" icon={AlertTriangle} label="Blocked by Ntwine's permission policy">
       {/* The refused command leads on its own line — it is the thing you actually need to see — and
           the reason follows as prose. The reason is the same text the WORKER was given, so it
           already opens with "Refused:"; prefixing it here too read as a stutter. */}
@@ -4705,7 +4705,7 @@ export function GithubWatchRows({ watches }: { watches: readonly ThreadWatchView
 // deliberately NOT answer-chips: answering a native TUI dialog by keystroke injection is too fragile.
 // It carries NO action at all. It draws for a foreign session only (lib/operatorBlock.ts
 // `frozenPendingAsk`), which the operator is already running in their own terminal: the label says
-// where the answer goes, and Frizz has no session of its own there to hand them a command for.
+// where the answer goes, and Ntwine has no session of its own there to hand them a command for.
 export function PendingAskCard({ ask }: { ask: PendingAsk }) {
   return (
     <TranscriptCard tone="attention" icon={HelpCircle} label="Waiting on your answer — in your external terminal">
@@ -4824,15 +4824,15 @@ function ChildName({ label, subagentType, dispatchId }: { label?: string; subage
   )
 }
 
-// Another Frizz thread by handle: a link when this project (or another open one) resolves it, the bare
+// Another Ntwine thread by handle: a link when this project (or another open one) resolves it, the bare
 // `@handle` when nothing does.
 function ThreadHandleName({ handle }: { handle: string }) {
   const segment = useMentionSegments(`@${handle}`).find((s) => s.kind === "mention")
   return segment?.kind === "mention" ? <MentionLink segment={segment} /> : <span>@{handle}</span>
 }
 
-// THE INCOMING HALF of a thread-to-thread message: a wake carrying another Frizz thread's words, drawn as
-// that thread speaking (AgentMessage) rather than as Frizz's own chrome. Handed to FrizzWake, which asks
+// THE INCOMING HALF of a thread-to-thread message: a wake carrying another Ntwine thread's words, drawn as
+// that thread speaking (AgentMessage) rather than as Ntwine's own chrome. Handed to NtwineWake, which asks
 // it for the whole delivery and for each part of a merged one.
 function threadMessageBubble(text: string, sourceId: string | undefined, at: string | undefined): ReactNode | null {
   const message = parseThreadMessage(text)
@@ -4842,15 +4842,15 @@ function threadMessageBubble(text: string, sourceId: string | undefined, at: str
 }
 
 // THE OUTGOING HALF: this turn calling `SendMessage` (a steer to a child it dispatched, a report up to
-// `main`, a codex follow-up) or `message_thread` (another Frizz thread). The same component on every
+// `main`, a codex follow-up) or `message_thread` (another Ntwine thread). The same component on every
 // surface — the thread's chat and the sub-agent drawer both keep the body now, so there is no longer a
 // reason for the two to differ. The recipient is the child's dispatch DESCRIPTION, resolved server-side
 // (sendTargetLabel/sendDispatchId), because the raw `to` is an agent id that reads as a hash; a codex
 // target that was never dispatch-acked here stays plain text rather than a dead link.
 function SendMessageBlock({ to, body, type, dispatchId, targetLabel, at }: { to?: string; summary?: string; body: string; type?: string; dispatchId?: string; targetLabel?: string; status?: ToolStatus; durationMs?: number; at?: string }) {
-  if (type === "frizz_thread" || type === "frizz_thread_await") {
+  if (type === "ntwine_thread" || type === "ntwine_thread_await") {
     const handle = (to ?? "").replace(/^@/, "")
-    return <AgentMessage direction="out" kind="thread" name={<ThreadHandleName handle={handle} />} body={body} status={type === "frizz_thread_await" ? "reply requested" : undefined} at={at} />
+    return <AgentMessage direction="out" kind="thread" name={<ThreadHandleName handle={handle} />} body={body} status={type === "ntwine_thread_await" ? "reply requested" : undefined} at={at} />
   }
   const verb = sendMessageVerb(to, type)
   // `main` is the conversation that dispatched this child: the parent, not a sub-agent of anyone.
@@ -4901,7 +4901,7 @@ function EventLine({ text, boundary, wakeShellId, sourceId, at }: { text: string
       >
         {/* TRUNCATES, like every sibling: as a bare text node the label was a wrapping flex item, and
             once the age joined it the runtime-reported shell line broke onto two lines at 420px while
-            the frizz-reported twin beside it (ShellDoneDivider) clipped to one — the pair that must be
+            the ntwine-reported twin beside it (ShellDoneDivider) clipped to one — the pair that must be
             pixel-identical. The age stays outside this span so it survives the clip.
             A wake line QUOTES a title — `Agent terminal «…» finished`, which is every shell and monitor
             the server labels — and gives up the title, not its outcome, cut exactly as that twin cuts its
@@ -4914,7 +4914,7 @@ function EventLine({ text, boundary, wakeShellId, sourceId, at }: { text: string
   // line. No flanking dividers: it reads as a subtle annotation, not a section break, and uses the same
   // type scale as the adjacent activity gerund/digest.
   return (
-    <div data-frizz-msg={sourceId} className={TRANSCRIPT_META_LABEL_CLASS}>{text}</div>
+    <div data-ntwine-msg={sourceId} className={TRANSCRIPT_META_LABEL_CLASS}>{text}</div>
   )
 }
 
@@ -4922,7 +4922,7 @@ function EventLine({ text, boundary, wakeShellId, sourceId, at }: { text: string
 // (Claude's thinking is redacted at every seam, so this is Codex-only). Same regular light-grey line as
 // the tool digest beside it (TRANSCRIPT_META_LABEL_CLASS), content-width, chevron flush-right of the
 // label — so the quiet progress rows read as one family. Collapsed shows just the "Reasoning" label; the
-// whole row toggles to reveal the train of thought as muted markdown in a ruled block. The `.frizz-reasoning`
+// whole row toggles to reveal the train of thought as muted markdown in a ruled block. The `.ntwine-reasoning`
 // rule below quiets that body (12px/muted, and de-bolds codex's `**step header**` fragments) so an
 // expanded turn reads as a soft aside, never a wall of bold headers competing with the real answer.
 //
@@ -4937,10 +4937,10 @@ function EventLine({ text, boundary, wakeShellId, sourceId, at }: { text: string
 function CommandOutputBlock({ text, stream, command, sourceId }: { text: string; stream: "stdout" | "stderr"; command?: string; sourceId?: string }) {
   return (
     <div
-      data-frizz-msg={sourceId}
+      data-ntwine-msg={sourceId}
       data-command-output={command ?? ""}
       aria-label={command ? `${command} output` : "Command output"}
-      className={`frizz-command-output ml-[5px] border-l pl-3 ${stream === "stderr" ? "border-danger/60 text-danger-soft" : "border-border/70"}`}
+      className={`ntwine-command-output ml-[5px] border-l pl-3 ${stream === "stderr" ? "border-danger/60 text-danger-soft" : "border-border/70"}`}
     >
       <ProseHtml md={text} wrap />
     </div>
@@ -4951,7 +4951,7 @@ function ReasoningBlock({ text, sourceId }: { text: string; sourceId?: string })
   const [open, setOpen] = useState(false)
   const bodyId = useId()
   return (
-    <div data-frizz-msg={sourceId} className="flex flex-col">
+    <div data-ntwine-msg={sourceId} className="flex flex-col">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -4967,7 +4967,7 @@ function ReasoningBlock({ text, sourceId }: { text: string; sourceId?: string })
         <ChevronRight aria-hidden="true" size={13} className={transcriptMetaChevronClass(open)} />
       </button>
       {open && (
-        <div id={bodyId} className="frizz-reasoning mt-1.5 ml-[5px] border-l border-border/70 pl-3">
+        <div id={bodyId} className="ntwine-reasoning mt-1.5 ml-[5px] border-l border-border/70 pl-3">
           <ProseHtml md={text} wrap />
         </div>
       )}

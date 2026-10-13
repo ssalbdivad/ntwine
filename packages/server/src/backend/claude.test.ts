@@ -118,7 +118,7 @@ test("Claude worker profile sanitization reaches the launch environment", () => 
   for (const [key, value] of Object.entries(CLAUDE_WORKER_ENV)) {
     assert.equal(built.env[key], value, `${key} must reach the launch environment`)
   }
-  // The DEFAULT foreground timeout is Claude Code's own: Frizz pinned 60s until 2026-10-10.
+  // The DEFAULT foreground timeout is Claude Code's own: Ntwine pinned 60s until 2026-10-10.
   assert.equal("BASH_DEFAULT_TIMEOUT_MS" in built.env, false, "the default Bash timeout is left to Claude Code")
   assert.ok("CLAUDE_CODE_SUBAGENT_MODEL" in built.env)
   assert.ok("CLAUDE_CODE_EFFORT_LEVEL" in built.env)
@@ -131,7 +131,7 @@ test("Claude worker profile sanitization reaches the launch environment", () => 
 // The three QUIET caps a long-lived worker hits and a chat session does not. All three read
 // `Z.<VAR> ?? <default>` through the same `int({min:1,digitsOnly:true})` parser in the real 2.1.220
 // binary, so a non-digit override is silently discarded by Claude Code back to ITS default rather
-// than honored — which is why frizz only passes an override through in exactly that shape:
+// than honored — which is why ntwine only passes an override through in exactly that shape:
 //   · WebSearch (200): verified live — with the cap at 1 the second search returned "this session has
 //     used its web search budget (1 of 1 WebSearch calls)" instead of results.
 //   · Subagent spawns per session (200): past it every Task throws "Subagent spawn limit reached".
@@ -149,12 +149,12 @@ test("claudeWorkerEnvironment: every cap clears Claude Code's default and honors
     assert.ok(lifted > 20, `${name} must clear Claude Code's own default, not sit under it`)
     assert.equal(claudeWorkerEnvironment({ [name]: "750" })[name], "750", `${name}: operator policy wins`)
     // Each of these is rejected by Claude Code's own parser, so passing it through would silently
-    // DROP the worker back to ITS default — the frizz value is the safer answer for every one of them.
+    // DROP the worker back to ITS default — the ntwine value is the safer answer for every one of them.
     for (const bad of ["", "0", "-5", "1_000", "1e5", "20 ", "abc", "12.5", "+7"]) {
       assert.equal(
         claudeWorkerEnvironment({ [name]: bad })[name],
         String(lifted),
-        `${name}: malformed override ${JSON.stringify(bad)} must fall back to the frizz default`,
+        `${name}: malformed override ${JSON.stringify(bad)} must fall back to the ntwine default`,
       )
     }
   }
@@ -173,13 +173,13 @@ test("claudeWorkerEnvironment: lifts the WebSearch budget and honors only a well
     assert.equal(claudeWorkerEnvironment().CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION, "750", "operator policy wins")
 
     // Each of these is rejected by Claude Code's own parser, so passing it through would silently
-    // DROP the worker back to 200 — the frizz default is the safer answer for every one of them.
+    // DROP the worker back to 200 — the ntwine default is the safer answer for every one of them.
     for (const bad of ["", "0", "-5", "1_000", "1e5", "20 ", "abc", "12.5", "+7"]) {
       process.env.CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION = bad
       assert.equal(
         claudeWorkerEnvironment().CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION,
         String(WORKER_MAX_WEB_SEARCHES),
-        `malformed override ${JSON.stringify(bad)} must fall back to the frizz default`,
+        `malformed override ${JSON.stringify(bad)} must fall back to the ntwine default`,
       )
     }
   } finally {

@@ -1,11 +1,11 @@
 import { Repeat, Timer, Signpost } from "lucide-react"
-import type { RecurringPrompt } from "@frizz/shared"
+import type { RecurringPrompt } from "@ntwine/shared"
 import { WAKE_DIVIDER_NARROW_ONLY, WAKE_DIVIDER_WIDE_ONLY, WakeDivider } from "./WakeDivider.tsx"
 
 // A DELIVERED recurring prompt, in the transcript: a HAIRLINE NOTIFICATION, the same one every other
 // child event in this app wears.
 //
-// It arrives as an ordinary user turn (frizz pastes it into the worker's composer), so left alone it
+// It arrives as an ordinary user turn (ntwine pastes it into the worker's composer), so left alone it
 // rendered as the human's own bubble — claiming the operator had typed a paragraph the
 // scheduler composed, and repeating that paragraph in full every few minutes on any thread actually
 // being driven by one.
@@ -39,12 +39,12 @@ export function RecurringPromptLine(props: { bump: RecurringPrompt; sourceId?: s
   }
   const { bump, sourceId, at } = props
   const scheduled = bump.kind === "schedule"
-  // FRIZZ'S OWN SIGN-OFF REMINDER collapses hardest of all, because it is the only delivery here whose
+  // NTWINE'S OWN SIGN-OFF REMINDER collapses hardest of all, because it is the only delivery here whose
   // body says nothing about this thread: it is the protocol, restated. Rendered in full it sat as a card
   // ABOVE the agent's actual handoff and read as the more important of the two (maintainer 2026-08-12:
   // "We shouldn't show the stop hook message in the UI, at least not by default").
   if (bump.kind === "signoff") {
-    const label = "Frizz asked for a sign-off"
+    const label = "Ntwine asked for a sign-off"
     return (
       <WakeDivider icon={Signpost} sourceId={sourceId} marker="rest" ariaLabel={label} at={at}>
         {/* A truncating span, never a bare text node: bare, the label is a flex item that WRAPS, and

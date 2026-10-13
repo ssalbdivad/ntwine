@@ -21,7 +21,7 @@ const ROCKET = String.fromCodePoint(0x1f680)
 // follow-ups were not arriving and nothing said why. `UNSAFE_TEXT` — the DISPLAY/authority policy —
 // rejects the whole \p{Cf} family, and U+200D ZERO WIDTH JOINER is in it, so every multi-part emoji was
 // refused. The daemon then SWALLOWED the refusal (`void handle.send(...).catch(() => {})`), so the
-// message vanished after frizz had already answered its RPC with success. Proven with a one-variable
+// message vanished after ntwine had already answered its RPC with success. Proven with a one-variable
 // differential against a real daemon in `_live_broker_input_drop.mts`: one sentence delivered plain and
 // the same sentence disappeared with a single emoji appended.
 //

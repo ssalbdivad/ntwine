@@ -8,11 +8,11 @@
 // claude-broker-client.ts, but the bridge never supplied a handler — so `{kind:"lifecycle",
 // phase:"crashed", message}`, the single most useful line there is, went nowhere. And the daemon only
 // wrote diagnostics to an ATTACHED client (`if (client) write(...)`, unlike events, which are
-// backlogged), so a crash during a frizz restart — exactly when a detached daemon is most likely to
+// backlogged), so a crash during an ntwine restart — exactly when a detached daemon is most likely to
 // die unobserved — was guaranteed lost.
 //
-// So the DAEMON owns this file, not frizz. A death is precisely when the process may be seconds from
-// gone: an in-memory backlog dies with it and a relay needs a listener that a restarting frizz does not
+// So the DAEMON owns this file, not ntwine. A death is precisely when the process may be seconds from
+// gone: an in-memory backlog dies with it and a relay needs a listener that a restarting ntwine does not
 // have. Writing from inside the daemon is the only version that survives the event it is recording.
 //
 // Deliberately synchronous and best-effort — a logging failure must never perturb the session.
@@ -40,11 +40,11 @@ export interface ClaudeBrokerDiagnosticRecord {
  * The codex daemon has carried this vocabulary since the 2026-07-24 six-sub-agent loss
  * (`app-server-exited-code-*`, `self-collected-*`, `signal-*`, `idle-timeout`); the broker's
  * `shutdown()` wrote nothing at all, so a daemon collected by its 6h idle timer, terminated by a
- * signal, or self-collected for unreachability all vanished identically and frizz could only report the
+ * signal, or self-collected for unreachability all vanished identically and ntwine could only report the
  * generic "the thread went quiet". These are the named causes, one per exit path in
  * claude-agent-broker.ts:
  *
- *  - `frizz-requested`               — RunningBroker.close(); frizz asked for it.
+ *  - `ntwine-requested`               — RunningBroker.close(); ntwine asked for it.
  *  - `signal-SIG*`                  — SIGTERM/SIGINT/SIGHUP, i.e. killBroker or the operator/OS.
  *  - `session-stream-ended`         — the SDK's event stream ended normally (claude exited).
  *  - `session-stream-broken`        — EVENT_ERROR_TOLERANCE consecutive stream errors; genuinely broken.
@@ -59,7 +59,7 @@ export interface ClaudeBrokerDiagnosticRecord {
  *  - `socket-listen-failed`         — the listen() that makes this daemon reachable never succeeded.
  */
 export type ClaudeBrokerExitReason =
-  | "frizz-requested"
+  | "ntwine-requested"
   | "signal-SIGTERM"
   | "signal-SIGINT"
   | "signal-SIGHUP"
@@ -86,7 +86,7 @@ export interface ClaudeBrokerExitRecord {
   exit: { reason: ClaudeBrokerExitReason; detail?: string }
 }
 
-/** Why FRIZZ asked a daemon to end — written by the SERVER, into the daemon's log, before the signal.
+/** Why NTWINE asked a daemon to end — written by the SERVER, into the daemon's log, before the signal.
  *
  *  The daemon cannot know who signalled it, so its own breadcrumb for every requested teardown is the
  *  same `signal-SIGTERM`. Across the whole 2026-09-23..10-01 corpus (292 daemon generations, 238
@@ -189,7 +189,7 @@ export function recordClaudeBrokerTermination(
  *  Never gates anything: pure post-hoc attribution for what the bridge would otherwise report as "the
  *  thread went quiet."
  *
- *  An EMPTY generation means the caller could not identify the daemon it lost (a frizz restart with no
+ *  An EMPTY generation means the caller could not identify the daemon it lost (an ntwine restart with no
  *  record left on disk). That is not a licence to guess: it returns null for the same reason. */
 export function readClaudeBrokerExit(stateDir: string, sessionId: string, generation: string): ClaudeBrokerExitRecord | null {
   if (!generation) return null
@@ -230,7 +230,7 @@ export function describeClaudeBrokerExit(record: ClaudeBrokerExitRecord | null):
  * here. A DROPPED INPUT joined it on 2026-08-05, after thread `are-taking-over-an-in-flight-epic`
  * refused every input for over two hours — 21 heartbeats and the operator's own messages alike — while
  * the server's handler discarded every diagnostic that was not a crash. The `input` frame carries no
- * reply by design (see claude-agent-broker-bridge.ts), so this relay is the ONLY way frizz can learn
+ * reply by design (see claude-agent-broker-bridge.ts), so this relay is the ONLY way ntwine can learn
  * that a message it already recorded as `delivered` was in fact thrown away.
  *
  * The rest of `stderr` is ordinary provider noise, which is why this matches the daemon's own drop
@@ -239,7 +239,7 @@ export function describeClaudeBrokerExit(record: ClaudeBrokerExitRecord | null):
 /**
  * The DELIVERY id a drop diagnostic names, when it names one.
  *
- * This is what turns the drop from a log line into something frizz can act on: the id is the ledger row
+ * This is what turns the drop from a log line into something ntwine can act on: the id is the ledger row
  * the operator's message is sitting in, so the server can mark exactly that row failed (text kept, with
  * Retry / Edit / Dismiss) instead of leaving it to `ageDeliveries`, which holds a queue entry for an hour
  * on the (here false) premise that an enqueue proves the provider is holding it.

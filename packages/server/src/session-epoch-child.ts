@@ -6,15 +6,15 @@ import { SUPERVISOR_SESSIONS_PATH } from "./restart-supervisor.ts"
 /**
  * The server child's half of SESSION_EPOCH.
  *
- * The session gate lives in the LAUNCHER (the `frizz` package), and an in-app update replaces only this
- * child (the `frizz-server` package): the launcher, its listener and its in-memory signing key keep
+ * The session gate lives in the LAUNCHER (the `ntwine` package), and an in-app update replaces only this
+ * child (the `ntwine-server` package): the launcher, its listener and its in-memory signing key keep
  * running. So a launcher that predates an epoch bump never applies it on its own, and a launcher that
  * knows the bump applies it only at its next start. This closes that gap from the child's side:
  *
  *   1. Advance the epoch on disk. That rotates the key FILE, which every launcher (old or new) reads at
  *      its next start, so every session minted before the bump is dead from then on.
  *   2. Ask the running launcher, over loopback, to sign every device out now — the same request as
- *      `frizz --sign-out all`. Every launcher since 2026-08-25 answers it by denylisting every recorded
+ *      `ntwine --sign-out all`. Every launcher since 2026-08-25 answers it by denylisting every recorded
  *      device at once; one built with this change also swaps its in-memory key.
  *
  * What survives on a launcher older than this change, until its next start: a session minted before
@@ -38,7 +38,7 @@ export async function signOutOlderSessionEpoch(options: {
     const response = await (options.fetcher ?? fetch)(`http://127.0.0.1:${port}${SUPERVISOR_SESSIONS_PATH}`, {
       method: "POST",
       // Node's fetch sends no Origin, and the control plane wants one on a POST: name the loopback
-      // authority, as `frizz --sign-out` does.
+      // authority, as `ntwine --sign-out` does.
       headers: { origin: `http://127.0.0.1:${port}`, "content-type": "application/json" },
       body: JSON.stringify({ all: true }),
       signal: AbortSignal.timeout(5_000),

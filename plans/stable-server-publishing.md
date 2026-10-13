@@ -1,10 +1,10 @@
-# Initial `frizz-server` publication
+# Initial `ntwine-server` publication
 
-The initial `frizz-server@0.13.0` publication completed on 2026-09-11. Trusted publishing subsequently published `frizz-server@0.13.1` and `frizz@0.13.0`; see the [release verification](server-patch-release-verification-2026-09-11.md). The bootstrap procedure below is retained as a record. This document authorizes no publish by itself.
+The initial `ntwine-server@0.13.0` publication completed on 2026-09-11. Trusted publishing subsequently published `ntwine-server@0.13.1` and `ntwine@0.13.0`; see the [release verification](server-patch-release-verification-2026-09-11.md). The bootstrap procedure below is retained as a record. This document authorizes no publish by itself.
 
 ## Preconditions
 
-- The approved commit contains `frizz-server@0.13.0` in `packages/server-release/package.json`.
+- The approved commit contains `ntwine-server@0.13.0` in `packages/server-release/package.json`.
 - The root shell has been packed and verified against the same commit.
 - The server tarball has been inspected. It must contain `dist/dev-child.js`, detached daemon siblings, `web-dist/index.html`, and the `runtime/board` plus `runtime/cc-worker` closure.
 - The command runs from a clean checkout at the approved commit. Do not publish an artifact built from a later working tree.
@@ -23,32 +23,32 @@ Read the JSON result and inspect the named tarball before publishing. After rele
 
 ```sh
 npm login
-npm publish --access public /absolute/path/to/frizz-server-0.13.0.tgz
+npm publish --access public /absolute/path/to/ntwine-server-0.13.0.tgz
 ```
 
 The explicit tarball path prevents a later build or current working directory from changing the published bytes. The command is intentionally manual for the first package only.
 
 ## Trusted publishing
 
-After the manual bootstrap, configure a trusted publisher for `frizz-server` on npm. Use the GitHub Actions values below:
+After the manual bootstrap, configure a trusted publisher for `ntwine-server` on npm. Use the GitHub Actions values below:
 
 | Field | Value |
 | --- | --- |
 | Organization or user | `colinhacks` |
-| Repository | `frizz` |
+| Repository | `ntwine` |
 | Workflow filename | `release.yml` |
 | Environment name | `npm-publish` (GitHub lets only the `release` branch deploy to it; see the header of `release.yml`) |
 | Allowed actions | allow `npm publish` |
 
 The workflow file is `.github/workflows/release.yml` and already grants `id-token: write`. npm requires the filename only, not its path. Trusted-publisher configurations created after 2026-09-03 are stage-only by default, so direct `npm publish` must be allowed explicitly: a stage-only publisher rejects the workflow's publish with `E403 OIDC permission denied for this action`. From 2026-09-22 to 2026-09-30 this repo kept both publishers stage-only on purpose, with the workflow running `npm stage publish` and a maintainer approving every version with 2FA; that was dropped as too onerous. What still keeps a stolen push credential from shipping a package is the trigger: the workflow is `workflow_dispatch`-only (since 2026-09-23), and a push credential cannot dispatch.
 
-The npm organization `frizzsh` does not change these fields: they identify the GitHub repository, and the package is the unscoped `frizz-server` selected for this release.
+The npm organization `ntwinesh` does not change these fields: they identify the GitHub repository, and the package is the unscoped `ntwine-server` selected for this release.
 
 ## Automated releases
 
-The server package must exist before `release.yml` can publish a shell version that bootstraps it. After the first package and trusted publisher are configured, move the verified commit to the `release` branch and dispatch the workflow against it (`gh workflow run release.yml --ref release`); moving the branch alone starts nothing. The workflow publishes `frizz-server`, waits until npm serves it, then publishes `frizz`, and uses npm registry checks to make retries idempotent. The wait is what orders the two releases: npm holds each new version in review before serving it, and a shell must not go live before the server it boots.
+The server package must exist before `release.yml` can publish a shell version that bootstraps it. After the first package and trusted publisher are configured, move the verified commit to the `release` branch and dispatch the workflow against it (`gh workflow run release.yml --ref release`); moving the branch alone starts nothing. The workflow publishes `ntwine-server`, waits until npm serves it, then publishes `ntwine`, and uses npm registry checks to make retries idempotent. The wait is what orders the two releases: npm holds each new version in review before serving it, and a shell must not go live before the server it boots.
 
-Server/frontend/provider changes normally bump only `packages/server-release/package.json`. A shell release separately bumps root `package.json`; its `frizzServer.version` is the exact default for a machine without a selected generation, not a dependency range. Compatible server updates are selected independently after bootstrap.
+Server/frontend/provider changes normally bump only `packages/server-release/package.json`. A shell release separately bumps root `package.json`; its `ntwineServer.version` is the exact default for a machine without a selected generation, not a dependency range. Compatible server updates are selected independently after bootstrap.
 
 Before introducing data an older server cannot safely read, bump the server and shell data epochs together, including the constants in `src/server-release.ts`, and select an exact compatible bootstrap release. The old shell refuses such an in-app update. After an explicit stop/new-shell launch, the new shell records the higher epoch before the candidate can write; a failed candidate does not authorize a lower-epoch rollback. Protocol changes need a separate migration design. Never delete the compatibility marker to force a downgrade.
 
@@ -58,4 +58,4 @@ Reference: [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
 The workflow publishes and waits for npm to serve each version; it does not tag. Tags and GitHub releases are made by the releaser after a green run, from its own `gh` session: `nub scripts/tag-release.mjs`. The script waits up to 30s for the exact shell version's registry metadata, fails closed on a missing or invalid `gitHead`, tags that commit and never a checkout, never moves an existing tag, and creates only what is missing.
 
-The workflow tagged the shell itself until 2026-10-12. GitHub rejects a tag from the workflow's own token when that commit's workflow differs from the current run's, because the token may not introduce that workflow revision, and a later run reconciling an earlier shell is exactly that case (frizz 0.13.13).
+The workflow tagged the shell itself until 2026-10-12. GitHub rejects a tag from the workflow's own token when that commit's workflow differs from the current run's, because the token may not introduce that workflow revision, and a later run reconciling an earlier shell is exactly that case (ntwine 0.13.13).

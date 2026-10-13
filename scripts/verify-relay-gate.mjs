@@ -3,7 +3,7 @@
  * A relayed terminal against the REAL access gate.
  *
  * `verify-relay-e2e.mjs` proves the frames reach a socket server. It cannot prove the thing that
- * matters most about a terminal on the public internet: that Frizz's own gate stands in front of it.
+ * matters most about a terminal on the public internet: that Ntwine's own gate stands in front of it.
  * Its board is a toy that accepts every upgrade, so a relay forwarding NO identity at all passes there
  * and fails against the real thing — in whichever direction is worse.
  *
@@ -15,7 +15,7 @@
 import { createServer, request as httpRequest } from "node:http";
 import { once } from "node:events";
 import { WebSocketServer } from "ws";
-import { RestartSupervisorProxy } from "@frizz/server/restart-supervisor";
+import { RestartSupervisorProxy } from "@ntwine/server/restart-supervisor";
 import { serveRelayWebSocket } from "../src/relay-agent.ts";
 
 const PUBLIC_ORIGIN = "https://ada.frizz.sh";
@@ -92,7 +92,7 @@ try {
       {
         host: "127.0.0.1",
         port,
-        path: `/?frizz_code=${encodeURIComponent(code.code)}`,
+        path: `/?ntwine_code=${encodeURIComponent(code.code)}`,
         headers: { host: "ada.frizz.sh", origin: PUBLIC_ORIGIN },
         setHost: false,
       },
@@ -102,7 +102,7 @@ try {
     req.end();
   });
   const cookie = redeem.setCookie.map((c) => c.split(";")[0]).join("; ");
-  check("an access code is traded for a session cookie", cookie.includes("frizz_session="), `HTTP ${redeem.status}`);
+  check("an access code is traded for a session cookie", cookie.includes("ntwine_session="), `HTTP ${redeem.status}`);
 
   const invited = await attempt(
     [["host", "ada.frizz.sh"], ["origin", PUBLIC_ORIGIN], ["cookie", cookie]],

@@ -2,7 +2,7 @@ import type { Token, Tokens } from "marked"
 
 // GitHub-style autolinking of the two references agents and humans write constantly in prose but
 // almost never spell as a URL: an issue/PR number (`#123`, `owner/repo#123`) and a commit hash
-// (`749a37b`, `owner/repo@749a37b`). GitHub does this inside issues and PRs; Frizz's chat is where
+// (`749a37b`, `owner/repo@749a37b`). GitHub does this inside issues and PRs; Ntwine's chat is where
 // the same shorthand is written, and it was rendering as inert text.
 //
 // WHY A TOKEN REWRITE AND NOT A REGEX OVER THE MARKDOWN. Running this over the raw source would

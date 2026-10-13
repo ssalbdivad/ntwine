@@ -26,7 +26,7 @@ import {
   type ProcessPlatformAdapter,
   type ProjectLaunchTarget,
 } from "../packages/server/src/project-launch.ts";
-import { frizzPaths, launchHostDir, projectStateDir } from "@frizz/server/frizz-paths";
+import { ntwinePaths, launchHostDir, projectStateDir } from "@ntwine/server/ntwine-paths";
 import {
   acquireGlobalLaunchLock,
   allocatePort,
@@ -44,16 +44,16 @@ import {
   isHostWorkspace,
   resolveLaunchIntent,
   prepareBeforeGlobalLaunchLock,
-  probeFrizz,
+  probeNtwine,
   JOIN_PROBE_TIMEOUT_MS,
   HEALTH_PROBE_TIMEOUT_MS,
   devLauncherReexecArgs,
   durableReexecArgs,
   readPreferredPort,
   waitForWorkspace,
-  requestFrizzStop,
+  requestNtwineStop,
   resolveWorkspace,
-  runningFrizzStatus,
+  runningNtwineStatus,
   sourceWorkspaceDir,
   resolveLaunchControlTarget,
   stopProjectLaunch,
@@ -65,14 +65,14 @@ import {
   SANDBOX_DROPPED_XDG_ROOTS,
 } from "./launcher.ts";
 import { claimIdentityFingerprint, claimIdentityPath, loadOrCreateClaimIdentity } from "./identity.ts";
-import { DEFAULT_PORT, DEFAULT_DEV_PORT } from "@frizz/shared";
-import { listProjects, registerProject } from "@frizz/server/project-registry";
+import { DEFAULT_PORT, DEFAULT_DEV_PORT } from "@ntwine/shared";
+import { listProjects, registerProject } from "@ntwine/server/project-registry";
 
-test("artifact re-exec keeps the original canonical Frizz source directory", () => {
-  const source = mkdtempSync(join(tmpdir(), "frizz-canonical-source-"));
-  const artifactRuntime = join(tmpdir(), "frizz-builds", "digest", "runtime", "src");
+test("artifact re-exec keeps the original canonical Ntwine source directory", () => {
+  const source = mkdtempSync(join(tmpdir(), "ntwine-canonical-source-"));
+  const artifactRuntime = join(tmpdir(), "ntwine-builds", "digest", "runtime", "src");
   assert.equal(
-    sourceWorkspaceDir({ FRIZZ_SOURCE_DIR: source }),
+    sourceWorkspaceDir({ NTWINE_SOURCE_DIR: source }),
     source,
     "a deployed runtime must not infer its cache path as build source"
   );
@@ -121,7 +121,7 @@ function spawnLaunchProtocolChild(
     let port
     if (process.env.FAIL_CONTROL === "1") {
       control = createServer((req, res) => {
-        if (req.url === "/_frizz/health") {
+        if (req.url === "/_ntwine/health") {
           res.writeHead(200, { "content-type": "application/json" })
           res.end(JSON.stringify({
             ok: true,
@@ -132,7 +132,7 @@ function spawnLaunchProtocolChild(
           }))
           return
         }
-        res.writeHead(req.url === "/_frizz/control/stop" ? 503 : 404)
+        res.writeHead(req.url === "/_ntwine/control/stop" ? 503 : 404)
         res.end()
       })
       await new Promise((resolve) => control.listen(0, "127.0.0.1", resolve))
@@ -230,15 +230,15 @@ async function runRealCli(
     USERPROFILE: home,
   };
   for (const name of [
-    "FRIZZ_DEV_CHILD",
-    "FRIZZ_DIRECT_SUPERVISOR",
-    "FRIZZ_DAEMON_CHILD",
-    "FRIZZ_DEV_REEXEC",
-    "FRIZZ_LAUNCH_OWNER_TOKEN",
-    "FRIZZ_LAUNCH_PROJECT_ID",
-    "FRIZZ_LAUNCH_PROJECT_DIR",
-    "FRIZZ_LAUNCH_STATE_DIR",
-    "FRIZZ_LAUNCH_IDENTITY_SCOPE",
+    "NTWINE_DEV_CHILD",
+    "NTWINE_DIRECT_SUPERVISOR",
+    "NTWINE_DAEMON_CHILD",
+    "NTWINE_DEV_REEXEC",
+    "NTWINE_LAUNCH_OWNER_TOKEN",
+    "NTWINE_LAUNCH_PROJECT_ID",
+    "NTWINE_LAUNCH_PROJECT_DIR",
+    "NTWINE_LAUNCH_STATE_DIR",
+    "NTWINE_LAUNCH_IDENTITY_SCOPE",
   ])
     delete env[name];
   const child = spawnChild(process.execPath, [cliEntry, ...args], {
@@ -389,7 +389,7 @@ function assertOneIdentity(
     ["repository"]
   );
   assert.deepEqual(
-    execFileSync("git", ["config", "--local", "--get-all", "frizz.id"], {
+    execFileSync("git", ["config", "--local", "--get-all", "ntwine.id"], {
       cwd: repo,
       encoding: "utf8",
     })
@@ -397,10 +397,10 @@ function assertOneIdentity(
       .split(/\r?\n/u),
     [first.id]
   );
-  assert.deepEqual(readdirSync(join(frizzPaths({ home }).data, "projects")).sort(), [
+  assert.deepEqual(readdirSync(join(ntwinePaths({ home }).data, "projects")).sort(), [
     first.id,
   ]);
-  assert.equal(existsSync(join(repo, ".frizz", "frizz.id")), false);
+  assert.equal(existsSync(join(repo, ".ntwine", "ntwine.id")), false);
   return first.id;
 }
 
@@ -438,7 +438,7 @@ test("CLI options default to immutable mode and make source/HMR explicit", () =>
   assert.equal(parseCliArgs(["--debug"]).debug, true);
   assert.equal(parseCliArgs(["--debug"]).dev, false);
   assert.equal(parseCliArgs(["--no-app", "--debug"]).debug, true);
-  // A repository path is REFUSED, not ignored. One server serves every project, so `frizz /some/repo`
+  // A repository path is REFUSED, not ignored. One server serves every project, so `ntwine /some/repo`
   // asked a question the launcher no longer has — and someone with it in a script deserves to be told.
   assert.throws(
     () => parseCliArgs(["--no-app", "/tmp/repo with spaces"]),
@@ -466,12 +466,12 @@ test("CLI options default to immutable mode and make source/HMR explicit", () =>
     helpText(),
     /--dev\s+explicitly use the unsafe source watcher and Vite\/HMR/
   );
-  assert.doesNotMatch(helpText(), /--host|--public-origin|--cloud|FRIZZ_HOST/);
+  assert.doesNotMatch(helpText(), /--host|--public-origin|--cloud|NTWINE_HOST/);
   assert.match(helpText(), /press R in the terminal running it/);
   // The command name is a parameter, so no description may hard-code one. `--foreground` did, and
   // read as advice about a different binary whenever the launcher was invoked under another name.
-  assert.doesNotMatch(helpText("frizzctl"), /frizz-dev/);
-  assert.match(helpText("frizzctl"), /--foreground\s+accepted for compatibility; frizzctl/);
+  assert.doesNotMatch(helpText("ntwinectl"), /ntwine-dev/);
+  assert.match(helpText("ntwinectl"), /--foreground\s+accepted for compatibility; ntwinectl/);
 });
 
 test("help stays readable: one description column, and nothing wider than a terminal", () => {
@@ -487,7 +487,7 @@ test("help stays readable: one description column, and nothing wider than a term
 });
 
 test("workspace identity canonicalizes a symlink and survives spaces", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz launcher "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine launcher "));
   const repo = join(base, "repo with spaces");
   const alias = join(base, "repo alias");
   const home = join(base, "home");
@@ -505,8 +505,8 @@ test("workspace identity canonicalizes a symlink and survives spaces", () => {
   }
 });
 
-test("main and linked worktrees concurrently resolve to three stable isolated Frizz instances", async () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz linked worktree race "));
+test("main and linked worktrees concurrently resolve to three stable isolated Ntwine instances", async () => {
+  const base = mkdtempSync(join(tmpdir(), "ntwine linked worktree race "));
   const main = join(base, "main repo with spaces");
   const linkedOne = join(base, "linked worktree one");
   const linkedTwo = join(base, "linked worktree two");
@@ -534,7 +534,7 @@ test("main and linked worktrees concurrently resolve to three stable isolated Fr
       ["worktree", "add", "-q", "-b", "linked-two", linkedTwo],
       { cwd: main }
     );
-    execFileSync("git", ["config", "--local", "--add", "frizz.id", legacyId], {
+    execFileSync("git", ["config", "--local", "--add", "ntwine.id", legacyId], {
       cwd: main,
     });
     symlinkSync(linkedOne, linkedAlias);
@@ -616,14 +616,14 @@ test("main and linked worktrees concurrently resolve to three stable isolated Fr
       assert.equal(
         execFileSync(
           "git",
-          ["config", "--file", config, "--get-all", "frizz.id"],
+          ["config", "--file", config, "--get-all", "ntwine.id"],
           { encoding: "utf8" }
         ).trim(),
         result.id
       );
     }
     assert.equal(
-      execFileSync("git", ["config", "--local", "--get-all", "frizz.id"], {
+      execFileSync("git", ["config", "--local", "--get-all", "ntwine.id"], {
         cwd: main,
         encoding: "utf8",
       }).trim(),
@@ -636,7 +636,7 @@ test("main and linked worktrees concurrently resolve to three stable isolated Fr
           ["config", "--local", "--get", "extensions.worktreeConfig"],
           { cwd: main, stdio: "ignore" }
         ),
-      "Frizz does not mutate the repository-wide worktreeConfig extension"
+      "Ntwine does not mutate the repository-wide worktreeConfig extension"
     );
   } finally {
     rmSync(base, { recursive: true, force: true });
@@ -644,7 +644,7 @@ test("main and linked worktrees concurrently resolve to three stable isolated Fr
 });
 
 test("linked worktree identity survives moves and is retired on removal", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz worktree lifecycle "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine worktree lifecycle "));
   const main = join(base, "main");
   const linked = join(base, "linked old");
   const moved = join(base, "linked moved");
@@ -702,7 +702,7 @@ test("linked worktree identity survives moves and is retired on removal", () => 
 });
 
 test("simultaneous first-run CLI processes commit one project identity", async () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz cli identity race "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine cli identity race "));
   const repo = join(base, "repo with spaces");
   const home = join(base, "home");
   try {
@@ -720,7 +720,7 @@ test("simultaneous first-run CLI processes commit one project identity", async (
 });
 
 test("simultaneous CLI and direct-server starts share one identity namespace through aliases", async () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz mixed identity race "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine mixed identity race "));
   const repo = join(base, "canonical repo with spaces");
   const alias = join(base, "symlink repo alias");
   const home = join(base, "home");
@@ -743,14 +743,14 @@ test("simultaneous CLI and direct-server starts share one identity namespace thr
 });
 
 test("invalid or duplicated git-local project ids fail closed before state paths are derived", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz invalid identity "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine invalid identity "));
   const repo = join(base, "repo");
   const home = join(base, "home");
   try {
     execFileSync("git", ["init", "-q", repo]);
     execFileSync(
       "git",
-      ["config", "--local", "--add", "frizz.id", "../../outside"],
+      ["config", "--local", "--add", "ntwine.id", "../../outside"],
       { cwd: repo }
     );
     assert.throws(
@@ -761,9 +761,9 @@ test("invalid or duplicated git-local project ids fail closed before state paths
       () => resolveProject(repo, home),
       /expected exactly one UUID/
     );
-    assert.equal(existsSync(join(frizzPaths({ home }).data, "projects")), false);
+    assert.equal(existsSync(join(ntwinePaths({ home }).data, "projects")), false);
 
-    execFileSync("git", ["config", "--local", "--unset-all", "frizz.id"], {
+    execFileSync("git", ["config", "--local", "--unset-all", "ntwine.id"], {
       cwd: repo,
     });
     execFileSync(
@@ -772,7 +772,7 @@ test("invalid or duplicated git-local project ids fail closed before state paths
         "config",
         "--local",
         "--add",
-        "frizz.id",
+        "ntwine.id",
         "11111111-1111-1111-1111-111111111111",
       ],
       { cwd: repo }
@@ -783,7 +783,7 @@ test("invalid or duplicated git-local project ids fail closed before state paths
         "config",
         "--local",
         "--add",
-        "frizz.id",
+        "ntwine.id",
         "22222222-2222-2222-2222-222222222222",
       ],
       { cwd: repo }
@@ -796,14 +796,14 @@ test("invalid or duplicated git-local project ids fail closed before state paths
       () => resolveProject(repo, home),
       /expected exactly one UUID/
     );
-    assert.equal(existsSync(join(repo, ".frizz", "frizz.id")), false);
+    assert.equal(existsSync(join(repo, ".ntwine", "ntwine.id")), false);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
 });
 
 test("linked-worktree identity config fails closed and recovers from an interrupted Git config lock", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz linked invalid identity "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine linked invalid identity "));
   const main = join(base, "main");
   const linked = join(base, "linked");
   const home = join(base, "home");
@@ -825,7 +825,7 @@ test("linked-worktree identity config fails closed and recovers from an interrup
     });
     execFileSync(
       "git",
-      ["config", "--local", "--add", "frizz.id", repositoryId],
+      ["config", "--local", "--add", "ntwine.id", repositoryId],
       { cwd: main }
     );
     const config = resolveGitWorktree(linked).identityConfig;
@@ -836,12 +836,12 @@ test("linked-worktree identity config fails closed and recovers from an interrup
       "--file",
       config,
       "--add",
-      "frizz.id",
+      "ntwine.id",
       "../../outside",
     ]);
     assert.throws(
       () => resolveWorkspace(linked, home),
-      /linked-worktree frizz\.id is invalid/
+      /linked-worktree ntwine\.id is invalid/
     );
     rmSync(config);
     execFileSync("git", [
@@ -849,7 +849,7 @@ test("linked-worktree identity config fails closed and recovers from an interrup
       "--file",
       config,
       "--add",
-      "frizz.id",
+      "ntwine.id",
       validWorktreeId,
     ]);
     execFileSync("git", [
@@ -857,12 +857,12 @@ test("linked-worktree identity config fails closed and recovers from an interrup
       "--file",
       config,
       "--add",
-      "frizz.id",
+      "ntwine.id",
       validWorktreeId,
     ]);
     assert.throws(
       () => resolveWorkspace(linked, home),
-      /linked-worktree frizz\.id is invalid/
+      /linked-worktree ntwine\.id is invalid/
     );
 
     rmSync(config);
@@ -871,7 +871,7 @@ test("linked-worktree identity config fails closed and recovers from an interrup
       "--file",
       config,
       "--add",
-      "frizz.id",
+      "ntwine.id",
       repositoryId,
     ]);
     assert.throws(
@@ -885,7 +885,7 @@ test("linked-worktree identity config fails closed and recovers from an interrup
       () => resolveWorkspace(linked, home),
       /unable to persist linked-worktree/
     );
-    assert.equal(existsSync(join(frizzPaths({ home }).data, "projects")), false);
+    assert.equal(existsSync(join(ntwinePaths({ home }).data, "projects")), false);
     rmSync(`${config}.lock`);
 
     const recovered = resolveWorkspace(linked, home);
@@ -894,7 +894,7 @@ test("linked-worktree identity config fails closed and recovers from an interrup
     assert.equal(
       execFileSync(
         "git",
-        ["config", "--file", config, "--get-all", "frizz.id"],
+        ["config", "--file", config, "--get-all", "ntwine.id"],
         { encoding: "utf8" }
       ).trim(),
       recovered.id
@@ -905,7 +905,7 @@ test("linked-worktree identity config fails closed and recovers from an interrup
 });
 
 test("an interrupted Git config write fails without inventing an id and recovers cleanly", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz config lock recovery "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine config lock recovery "));
   const repo = join(base, "repo");
   const home = join(base, "home");
   try {
@@ -914,17 +914,17 @@ test("an interrupted Git config write fails without inventing an id and recovers
     writeFileSync(configLock, "partial interrupted config\n");
     assert.throws(() => resolveWorkspace(repo, home), /unable to persist/);
     assert.throws(() =>
-      execFileSync("git", ["config", "--local", "--get-all", "frizz.id"], {
+      execFileSync("git", ["config", "--local", "--get-all", "ntwine.id"], {
         cwd: repo,
         stdio: "ignore",
       })
     );
-    assert.equal(existsSync(join(frizzPaths({ home }).data, "projects")), false);
+    assert.equal(existsSync(join(ntwinePaths({ home }).data, "projects")), false);
 
     rmSync(configLock);
     const recovered = resolveWorkspace(repo, home);
     assert.match(recovered.id, /^[0-9a-f-]{36}$/u);
-    assert.deepEqual(readdirSync(join(frizzPaths({ home }).data, "projects")), [
+    assert.deepEqual(readdirSync(join(ntwinePaths({ home }).data, "projects")), [
       recovered.id,
     ]);
   } finally {
@@ -933,7 +933,7 @@ test("an interrupted Git config write fails without inventing an id and recovers
 });
 
 test("a malformed repository config never degrades direct startup into a random namespace", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz malformed config "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine malformed config "));
   const repo = join(base, "repo");
   const home = join(base, "home");
   try {
@@ -948,14 +948,14 @@ test("a malformed repository config never degrades direct startup into a random 
       () => resolveProject(repo, home),
       /unable to resolve Git repository root/
     );
-    assert.equal(existsSync(join(frizzPaths({ home }).data, "projects")), false);
+    assert.equal(existsSync(join(ntwinePaths({ home }).data, "projects")), false);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
 });
 
 test("submodules keep an independent ordinary-repository identity", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz submodule identity "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine submodule identity "));
   const upstream = join(base, "submodule upstream");
   const parent = join(base, "parent repo");
   const submodule = join(parent, "modules", "child module");
@@ -1020,7 +1020,7 @@ test("submodules keep an independent ordinary-repository identity", () => {
 });
 
 test("bare and non-Git directories retain their explicit fail-closed/degraded behavior", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz non-worktree identity "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine non-worktree identity "));
   const bare = join(base, "bare repo.git");
   const plain = join(base, "plain directory");
   const home = join(base, "home");
@@ -1049,7 +1049,7 @@ test("bare and non-Git directories retain their explicit fail-closed/degraded be
 });
 
 test("an existing id stays lock-free for a source supervisor child", async () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz existing identity "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine existing identity "));
   const repo = join(base, "repo");
   const alias = join(base, "alias");
   const home = join(base, "home");
@@ -1076,7 +1076,7 @@ test("an existing id stays lock-free for a source supervisor child", async () =>
   }
 });
 
-test("health probes accept only the expected Frizz workspace identity", async () => {
+test("health probes accept only the expected Ntwine workspace identity", async () => {
   const fetcher = async () =>
     new Response(
       JSON.stringify({
@@ -1089,7 +1089,7 @@ test("health probes accept only the expected Frizz workspace identity", async ()
     );
   assert.equal(
     (
-      await probeFrizz(
+      await probeNtwine(
         5000,
         { projectId: "p1", projectDir: "/tmp/repo" },
         fetcher as typeof fetch
@@ -1099,7 +1099,7 @@ test("health probes accept only the expected Frizz workspace identity", async ()
   );
   assert.equal(
     (
-      await probeFrizz(
+      await probeNtwine(
         5000,
         {
           projectId: "p1",
@@ -1112,7 +1112,7 @@ test("health probes accept only the expected Frizz workspace identity", async ()
     "proof"
   );
   assert.equal(
-    await probeFrizz(
+    await probeNtwine(
       5000,
       {
         projectId: "p1",
@@ -1124,7 +1124,7 @@ test("health probes accept only the expected Frizz workspace identity", async ()
     null
   );
   assert.equal(
-    await probeFrizz(
+    await probeNtwine(
       5000,
       { projectId: "other", projectDir: "/tmp/repo" },
       fetcher as typeof fetch
@@ -1132,7 +1132,7 @@ test("health probes accept only the expected Frizz workspace identity", async ()
     null
   );
   assert.equal(
-    await probeFrizz(
+    await probeNtwine(
       5000,
       { projectId: "p1", projectDir: "/tmp/hostile-other-worktree" },
       fetcher as typeof fetch
@@ -1140,7 +1140,7 @@ test("health probes accept only the expected Frizz workspace identity", async ()
     null
   );
   assert.equal(
-    await probeFrizz(
+    await probeNtwine(
       5000,
       { projectId: "p1", projectDir: "/tmp/repo" },
       (async () => new Response("nope")) as typeof fetch
@@ -1150,7 +1150,7 @@ test("health probes accept only the expected Frizz workspace identity", async ()
 });
 
 test("token-bound status and control remain usable when external generation proof is unavailable", async () => {
-  const projectDir = mkdtempSync(join(tmpdir(), "frizz-no-process-proof-"));
+  const projectDir = mkdtempSync(join(tmpdir(), "ntwine-no-process-proof-"));
   const target: ProjectLaunchTarget = {
     projectId: randomUUID(),
     projectDir,
@@ -1212,7 +1212,7 @@ test("token-bound status and control remain usable when external generation proo
       init?: RequestInit
     ) => {
       requests.push({ url: String(input), init });
-      if (String(input).endsWith("/_frizz/health")) {
+      if (String(input).endsWith("/_ntwine/health")) {
         return new Response(
           JSON.stringify({
             ok: true,
@@ -1224,13 +1224,13 @@ test("token-bound status and control remain usable when external generation proo
         );
       }
       assert.equal(
-        new Headers(init?.headers).get("x-frizz-launch-token"),
+        new Headers(init?.headers).get("x-ntwine-launch-token"),
         owner.token
       );
       return new Response(JSON.stringify({ accepted: true }), { status: 202 });
     }) as typeof fetch;
     assert.equal(
-      await requestFrizzStop(status.port, expected, owner.token, fetcher),
+      await requestNtwineStop(status.port, expected, owner.token, fetcher),
       true
     );
     assert.equal(requests.length, 2);
@@ -1241,10 +1241,10 @@ test("token-bound status and control remain usable when external generation proo
 });
 
 test(
-  "real frizz --stop reaps a dead v2 owner without attempting to signal it",
+  "real ntwine --stop reaps a dead v2 owner without attempting to signal it",
   { timeout: 15_000 },
   async () => {
-    const base = mkdtempSync(join(tmpdir(), "frizz-real-dead-owner-stop-"));
+    const base = mkdtempSync(join(tmpdir(), "ntwine-real-dead-owner-stop-"));
     const repo = join(base, "repo");
     const home = join(base, "home");
     mkdirSync(repo);
@@ -1260,7 +1260,7 @@ test(
       const result = await runRealCli(repo, home, ["--stop", "--no-app"]);
       assert.equal(result.code, 0, result.stderr);
       assert.equal(result.signal, null);
-      assert.match(result.stdout, /stopped Frizz/u);
+      assert.match(result.stdout, /stopped Ntwine/u);
       assert.equal(readProjectLaunchOwner(target.stateDir), null);
     } finally {
       await stopDisposableChild(owner.child);
@@ -1270,11 +1270,11 @@ test(
 );
 
 test(
-  "real frizz --stop never falls back to a PID signal when authenticated control fails",
+  "real ntwine --stop never falls back to a PID signal when authenticated control fails",
   { timeout: 15_000 },
   async () => {
     const base = mkdtempSync(
-      join(tmpdir(), "frizz-real-live-owner-stop-refusal-")
+      join(tmpdir(), "ntwine-real-live-owner-stop-refusal-")
     );
     const repo = join(base, "repo");
     const home = join(base, "home");
@@ -1335,11 +1335,11 @@ test(
 );
 
 test(
-  "real frizz --stop refuses live opaque and observable weak owners without token control",
+  "real ntwine --stop refuses live opaque and observable weak owners without token control",
   { timeout: 20_000 },
   async () => {
     const base = mkdtempSync(
-      join(tmpdir(), "frizz-real-unverifiable-owner-stop-")
+      join(tmpdir(), "ntwine-real-unverifiable-owner-stop-")
     );
     try {
       for (const [index, kind] of (["opaque", "weak"] as const).entries()) {
@@ -1415,10 +1415,10 @@ test(
 );
 
 test(
-  "real frizz --stop drains a dead owner's delegate before removing token status",
+  "real ntwine --stop drains a dead owner's delegate before removing token status",
   { timeout: 15_000 },
   async () => {
-    const base = mkdtempSync(join(tmpdir(), "frizz-real-delegate-stop-"));
+    const base = mkdtempSync(join(tmpdir(), "ntwine-real-delegate-stop-"));
     const repo = join(base, "repo");
     const home = join(base, "home");
     mkdirSync(repo);
@@ -1453,7 +1453,7 @@ test(
       await ownerExit;
       const result = await runRealCli(repo, home, ["--stop", "--no-app"]);
       assert.equal(result.code, 0, result.stderr);
-      assert.match(result.stdout, /stopped Frizz/u);
+      assert.match(result.stdout, /stopped Ntwine/u);
       assert.equal(readProjectLaunchOwner(target.stateDir), null);
       assert.equal(existsSync(statusPath), false);
       await stopDisposableChild(delegate.child);
@@ -1466,7 +1466,7 @@ test(
 );
 
 test("workspace status rejects a reused PID generation without probing a port or signalling", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz-reused-status-generation-"));
+  const base = mkdtempSync(join(tmpdir(), "ntwine-reused-status-generation-"));
   const target: ProjectLaunchTarget = {
     projectId: randomUUID(),
     projectDir: base,
@@ -1543,7 +1543,7 @@ test("workspace status rejects a reused PID generation without probing a port or
 });
 
 test("workspace status compares a stored generation with a real disposable process", async (t) => {
-  const base = mkdtempSync(join(tmpdir(), "frizz-real-status-generation-"));
+  const base = mkdtempSync(join(tmpdir(), "ntwine-real-status-generation-"));
   const child = spawnChild(
     process.execPath,
     ["-e", "setInterval(() => {}, 1_000)"],
@@ -1608,7 +1608,7 @@ test("port selection prefers the well-known port over a remembered one, and JUMP
   await assert.rejects(choosePort(DEFAULT_PORT, undefined, available), /already in use/);
 });
 
-test("the dev server has its own well-known port, so frizz-dev never fights the singleton for 9393", async () => {
+test("the dev server has its own well-known port, so ntwine-dev never fights the singleton for 9393", async () => {
   assert.notEqual(DEFAULT_DEV_PORT, DEFAULT_PORT);
   assert.equal(
     await choosePort(undefined, undefined, async () => true, DEFAULT_DEV_PORT),
@@ -1631,28 +1631,28 @@ test("a health probe can name the project it is asking about", async () => {
 
   // Unprefixed asks the launching project, exactly as before.
   assert.ok(
-    await probeFrizz(9393, { projectId: "beta-id", projectDir: "/repos/beta" }, answer(healthy))
+    await probeNtwine(9393, { projectId: "beta-id", projectDir: "/repos/beta" }, answer(healthy))
   );
-  assert.match(asked[0], /\/_frizz\/health$/);
+  assert.match(asked[0], /\/_ntwine\/health$/);
 
   // A slug asks THAT project. The server answers it from the registry without opening the project,
   // so asking is no longer opening — see registeredTenantHealth.
   assert.ok(
-    await probeFrizz(9393, { projectId: "beta-id", projectDir: "/repos/beta", slug: "beta" }, answer(healthy))
+    await probeNtwine(9393, { projectId: "beta-id", projectDir: "/repos/beta", slug: "beta" }, answer(healthy))
   );
-  assert.match(asked[1], /\/_frizz\/beta\/health$/);
+  assert.match(asked[1], /\/_ntwine\/beta\/health$/);
 
   // The identity gate is unchanged: a server serving someone else is refused, slug or no slug.
   assert.equal(
-    await probeFrizz(9393, { projectId: "alpha-id", projectDir: "/repos/alpha", slug: "beta" }, answer(healthy)),
+    await probeNtwine(9393, { projectId: "alpha-id", projectDir: "/repos/alpha", slug: "beta" }, answer(healthy)),
     null
   );
 });
 
 // THE REGRESSION: the join probe ran on the same 1s budget as "is the server I just started up yet",
-// against a route that could take seconds. Two runs of `frizz dev` in one directory seven minutes
+// against a route that could take seconds. Two runs of `ntwine dev` in one directory seven minutes
 // apart, 2026-08-12: the first answered in 943ms and joined, the second took 1052ms and started a
-// second Frizz on a second port. Whether the machine ends up with one scheduler or two must not be
+// second Ntwine on a second port. Whether the machine ends up with one scheduler or two must not be
 // decided by a coin flip, so the join gets a budget sized for a server that is genuinely busy.
 test("the join probe outwaits a busy server instead of starting a rival one", async () => {
   const healthy = { ok: true, projectId: "beta-id", projectDir: "/repos/beta", bootId: "b1" };
@@ -1673,9 +1673,9 @@ test("the join probe outwaits a busy server instead of starting a rival one", as
 
   assert.ok(JOIN_PROBE_TIMEOUT_MS > HEALTH_PROBE_TIMEOUT_MS);
   // A budget shorter than the server's answer gives up on it — this is the bug, pinned.
-  assert.equal(await probeFrizz(9494, expected, slow(60), 20), null);
+  assert.equal(await probeNtwine(9494, expected, slow(60), 20), null);
   // The join budget waits it out and joins.
-  assert.ok(await probeFrizz(9494, expected, slow(60), 5_000));
+  assert.ok(await probeNtwine(9494, expected, slow(60), 5_000));
 });
 
 test("a port held by a system reservation is not reported as a port in use", () => {
@@ -1703,7 +1703,7 @@ test("a bind probe reports why it failed, not merely that it did", async () => {
 });
 
 test("two distinct repositories concurrently reserve different launch ports without sharing launch ownership", async () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz-concurrent-repo-ports-"));
+  const base = mkdtempSync(join(tmpdir(), "ntwine-concurrent-repo-ports-"));
   const home = join(base, "home");
   const repos = [join(base, "repo-one"), join(base, "repo-two")];
   for (const repo of repos) {
@@ -1747,7 +1747,7 @@ test("two distinct repositories concurrently reserve different launch ports with
 });
 
 test("concurrent allocators never choose the same port, even while both probe it as free", async () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-port-allocation-"));
+  const home = mkdtempSync(join(tmpdir(), "ntwine-port-allocation-"));
   try {
     // Every port answers "free" to BOTH callers. That is exactly the bind-and-close TOCTOU window
     // canBindPort leaves open, and the reason allocation cannot rely on the probe alone once the
@@ -1783,7 +1783,7 @@ test("concurrent allocators never choose the same port, even while both probe it
 });
 
 test("a port reservation is exclusive while its owner lives and reclaimed once it dies", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-port-reservation-"));
+  const home = mkdtempSync(join(tmpdir(), "ntwine-port-reservation-"));
   try {
     const held = tryReservePort(4919, home);
     assert.ok(held);
@@ -1793,7 +1793,7 @@ test("a port reservation is exclusive while its owner lives and reclaimed once i
 
     // A launcher killed mid-boot leaves its claim on disk; the next allocation must reclaim it
     // rather than skipping that port forever.
-    mkdirSync(join(frizzPaths({ home }).state, "ports"), { recursive: true });
+    mkdirSync(join(ntwinePaths({ home }).state, "ports"), { recursive: true });
     writeFileSync(
       portReservationPath(4919, home),
       JSON.stringify({ pid: 999_999_999 })
@@ -1807,7 +1807,7 @@ test("a port reservation is exclusive while its owner lives and reclaimed once i
 });
 
 test("a booting repository holds only its port reservation, never the machine-global lock", async () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-launch-serialization-"));
+  const home = mkdtempSync(join(tmpdir(), "ntwine-launch-serialization-"));
   try {
     const available = async () => true;
     const reserve = (port: number) => tryReservePort(port, home);
@@ -1835,7 +1835,7 @@ test("a booting repository holds only its port reservation, never the machine-gl
 });
 
 test("workspace lock parsing removes stale owners and retains a live supervisor", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-lock-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-lock-test-"));
   try {
     writeFileSync(
       join(dir, "dev-supervisor.lock"),
@@ -1898,11 +1898,11 @@ test("status treats failed or degraded supervisor truth as actionable even with 
 });
 
 test("global allocation lock is exclusive and recovers stale, partial, and crashed claims", async () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-global-lock-"));
+  const home = mkdtempSync(join(tmpdir(), "ntwine-global-lock-"));
   const homeAlias = `${home}-alias`;
   try {
     symlinkSync(home, homeAlias);
-    const lockPath = join(home, ".frizz", "dev-launch.lock");
+    const lockPath = join(home, ".ntwine", "dev-launch.lock");
     mkdirSync(lockPath, { recursive: true });
     writeFileSync(
       join(lockPath, "owner.json"),
@@ -1943,7 +1943,7 @@ test("global allocation lock is exclusive and recovers stale, partial, and crash
 });
 
 test("separate repositories prepare concurrently while global startup allocation is held", async () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-global-launch-sequencing-"));
+  const home = mkdtempSync(join(tmpdir(), "ntwine-global-launch-sequencing-"));
   let first: { prepared: string; release: () => void } | undefined;
   let second: { prepared: string; release: () => void } | undefined;
   try {
@@ -1987,9 +1987,9 @@ test("separate repositories prepare concurrently while global startup allocation
 });
 
 test("global first-id lock rejects a reused PID generation instead of blocking on PID-only liveness", () => {
-  const home = mkdtempSync(join(tmpdir(), "frizz-global-generation-lock-"));
-  const lockPath = join(home, ".frizz", "dev-launch.lock");
-  mkdirSync(join(home, ".frizz"), { recursive: true });
+  const home = mkdtempSync(join(tmpdir(), "ntwine-global-generation-lock-"));
+  const lockPath = join(home, ".ntwine", "dev-launch.lock");
+  mkdirSync(join(home, ".ntwine"), { recursive: true });
   writeFileSync(
     lockPath,
     JSON.stringify({
@@ -2023,12 +2023,12 @@ test("global first-id lock rejects a reused PID generation instead of blocking o
 // ---- installer shim shape (scripts/install-global-cli.mjs) -------------------------------------
 //
 // The installed shim's NAME and BODY are both per-platform, because a `#!` line is not a command on
-// Windows: cmd.exe resolves a bare `frizz-dev` on PATH only through %PATHEXT%, and honours no
-// shebang, so the installer writes `frizz-dev.cmd` there and a `#!/bin/sh` file everywhere else.
+// Windows: cmd.exe resolves a bare `ntwine-dev` on PATH only through %PATHEXT%, and honours no
+// shebang, so the installer writes `ntwine-dev.cmd` there and a `#!/bin/sh` file everywhere else.
 // These helpers pin the shape actually written on the running platform — asserting the POSIX one
 // everywhere is what let an unrunnable shim pass as installed.
 const windowsShim = process.platform === "win32";
-const shimName = windowsShim ? "frizz-dev.cmd" : "frizz-dev";
+const shimName = windowsShim ? "ntwine-dev.cmd" : "ntwine-dev";
 // The shim embeds a REAL absolute path, so the separator is the platform's own. Build the pattern
 // from `sep` rather than loosening it to `.`: a shim aimed at `src.index.ts` must still fail.
 const shimEntry = new RegExp(`\\${sep}src\\${sep}index\\.ts`);
@@ -2038,16 +2038,16 @@ const foreignShim = (line: string) =>
 /** A marker-bearing shim of `version` aimed at `entry` — i.e. one this installer wrote, once. */
 const ownedShim = (version: string, entry: string) =>
   windowsShim
-    ? `@echo off\r\nrem # frizz-dev-source-launcher:${version}\r\nsetlocal\r\nset "FRIZZ_SOURCE_COMMAND=frizz-dev"\r\nnub --no-env-file "${entry}" %*\r\nexit /b %ERRORLEVEL%\r\n`
-    : `#!/bin/sh\n# frizz-dev-source-launcher:${version}\nexec env FRIZZ_SOURCE_COMMAND='frizz-dev' nub --no-env-file '${entry}' "$@"\n`;
+    ? `@echo off\r\nrem # ntwine-dev-source-launcher:${version}\r\nsetlocal\r\nset "NTWINE_SOURCE_COMMAND=ntwine-dev"\r\nnub --no-env-file "${entry}" %*\r\nexit /b %ERRORLEVEL%\r\n`
+    : `#!/bin/sh\n# ntwine-dev-source-launcher:${version}\nexec env NTWINE_SOURCE_COMMAND='ntwine-dev' nub --no-env-file '${entry}' "$@"\n`;
 /** Node refuses to spawn a `.bat`/`.cmd` without a shell (CVE-2024-27980), so Windows needs one. */
 const runShim = (shim: string, shimArgs: string[]) =>
   windowsShim
     ? execFileSync(`"${shim}"`, shimArgs, { encoding: "utf8", shell: true })
     : execFileSync(shim, shimArgs, { encoding: "utf8" });
 
-test("installer manages only an executable source-backed immutable frizz-dev shim idempotently", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-global-bin-"));
+test("installer manages only an executable source-backed immutable ntwine-dev shim idempotently", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-global-bin-"));
   const script = join(import.meta.dirname, "..", "scripts", "install-global-cli.mjs");
   try {
     execFileSync(process.execPath, [script, `--bin-dir=${dir}`], {
@@ -2055,27 +2055,27 @@ test("installer manages only an executable source-backed immutable frizz-dev shi
     });
     const shim = join(dir, shimName);
     const body = readFileSync(shim, "utf8");
-    assert.match(body, /frizz-dev-source-launcher:v5/);
+    assert.match(body, /ntwine-dev-source-launcher:v5/);
     // Only nub's disk-read `.env*` vars are dropped; a shell-exported key still reaches the worker.
     assert.match(body, /nub --no-env-file/);
     // `setlocal` is batch's `env VAR=…`: the variable dies with the shim instead of leaking into
     // the console that ran it.
     assert.match(
       body,
-      windowsShim ? /setlocal\r\nset "FRIZZ_SOURCE_COMMAND=frizz-dev"/ : /FRIZZ_SOURCE_COMMAND='frizz-dev'/
+      windowsShim ? /setlocal\r\nset "NTWINE_SOURCE_COMMAND=ntwine-dev"/ : /NTWINE_SOURCE_COMMAND='ntwine-dev'/
     );
     assert.match(body, shimEntry);
     assert.match(body, /\bnub\b/);
-    assert.match(runShim(shim, ["--help"]), /Frizz source launcher/);
+    assert.match(runShim(shim, ["--help"]), /Ntwine source launcher/);
     assert.match(
       execFileSync(process.execPath, [script, "--help"], { encoding: "utf8" }),
-      /frizz-dev:install/
+      /ntwine-dev:install/
     );
     assert.match(
       execFileSync(process.execPath, [script, "--check", `--bin-dir=${dir}`], {
         encoding: "utf8",
       }),
-      /installed Frizz development source launcher/
+      /installed Ntwine development source launcher/
     );
     execFileSync(process.execPath, [script, `--bin-dir=${dir}`], {
       encoding: "utf8",
@@ -2141,8 +2141,8 @@ test("installer upgrades its OWN current-marker shim when the checkout path move
   // Moving the checkout — or moving the CLI inside it, as the root-package layout did — changes the
   // path embedded in the shim. Ownership is the MARKER, so this is an upgrade, not a foreign file:
   // comparing the whole body made the installer refuse to replace a launcher it had written itself,
-  // reporting "is not the Frizz source launcher" about a file whose first comment line is that marker.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-global-bin-moved-"));
+  // reporting "is not the Ntwine source launcher" about a file whose first comment line is that marker.
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-global-bin-moved-"));
   const script = join(import.meta.dirname, "..", "scripts", "install-global-cli.mjs");
   const shim = join(dir, shimName);
   const movedFrom = join(sep === "\\" ? "C:\\old" : "/old", "checkout", "packages", "cli", "src", "index.ts");
@@ -2161,7 +2161,7 @@ test("installer upgrades its OWN current-marker shim when the checkout path move
 });
 
 test("installer rejects marker-bearing stale or altered shims", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-global-bin-stale-"));
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-global-bin-stale-"));
   const script = join(import.meta.dirname, "..", "scripts", "install-global-cli.mjs");
   const shim = join(dir, shimName);
   try {
@@ -2200,7 +2200,7 @@ test("installer rejects marker-bearing stale or altered shims", () => {
 });
 
 test("forced install replaces a symlink itself without changing its target", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-global-bin-symlink-"));
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-global-bin-symlink-"));
   const script = join(import.meta.dirname, "..", "scripts", "install-global-cli.mjs");
   const shim = join(dir, shimName);
   const protectedTarget = join(dir, "protected-command");
@@ -2221,14 +2221,14 @@ test("forced install replaces a symlink itself without changing its target", () 
       encoding: "utf8",
     });
     assert.equal(readFileSync(protectedTarget, "utf8"), protectedBody);
-    assert.match(readFileSync(shim, "utf8"), /frizz-dev-source-launcher:v5/);
+    assert.match(readFileSync(shim, "utf8"), /ntwine-dev-source-launcher:v5/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("concurrent installer processes publish only complete shims and clean up temporary files", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-global-bin-atomic-"));
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-global-bin-atomic-"));
   const script = join(import.meta.dirname, "..", "scripts", "install-global-cli.mjs");
   try {
     // Capture stderr rather than discarding it: `stdio: "ignore"` made a real Windows failure here
@@ -2256,7 +2256,7 @@ test("concurrent installer processes publish only complete shims and clean up te
       );
     });
     const shim = readFileSync(join(dir, shimName), "utf8");
-    assert.match(shim, /frizz-dev-source-launcher:v5/);
+    assert.match(shim, /ntwine-dev-source-launcher:v5/);
     assert.match(shim, shimEntry);
     assert.deepEqual(readdirSync(dir), [shimName]);
   } finally {
@@ -2283,7 +2283,7 @@ async function freePort(): Promise<number> {
 // booting behind the failure message. These pin the replacement contract.
 
 test("waitForWorkspace: a boot that keeps reporting progress outlives the stall window", async () => {
-  const stateDir = mkdtempSync(join(tmpdir(), "frizz-bootprogress-"));
+  const stateDir = mkdtempSync(join(tmpdir(), "ntwine-bootprogress-"));
   const port = await freePort();
   try {
     // Advance the published step every 40ms — well inside the 120ms stall window, indefinitely.
@@ -2306,7 +2306,7 @@ test("waitForWorkspace: a boot that keeps reporting progress outlives the stall 
 });
 
 test("waitForWorkspace: a boot that STOPS reporting fails inside the stall window, naming its last step", async () => {
-  const stateDir = mkdtempSync(join(tmpdir(), "frizz-bootprogress-"));
+  const stateDir = mkdtempSync(join(tmpdir(), "ntwine-bootprogress-"));
   const port = await freePort();
   try {
     writeFileSync(
@@ -2340,13 +2340,13 @@ test("waitForWorkspace: with no state dir the historical flat deadline is unchan
 
 
 /**
- * The launch policy, which is the whole behaviour of typing `frizz` somewhere.
+ * The launch policy, which is the whole behaviour of typing `ntwine` somewhere.
  *
  * Untested until 2026-08-11, and the gap showed: running it in a fresh checkout opened the LAST
  * project instead of that checkout. Each case below is one directory the operator can be standing in.
  */
-test("launch intent: a directory Frizz already knows opens its own board", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz launch intent known "));
+test("launch intent: a directory Ntwine already knows opens its own board", () => {
+  const base = mkdtempSync(join(tmpdir(), "ntwine launch intent known "));
   const home = join(base, "home");
   const other = join(base, "other repo");
   const repo = join(base, "known repo");
@@ -2373,7 +2373,7 @@ test("launch intent: a directory Frizz already knows opens its own board", () =>
     assert.ok(sub.kind === "open");
     assert.equal(sub.workspace.id, known.id);
 
-    // Known from `.frizz/.id` alone: a folder added once and since dropped from the registry file.
+    // Known from `.ntwine/.id` alone: a folder added once and since dropped from the registry file.
     writeFileSync(join(plain, "todo.md"), "");
     const adopted = resolveWorkspace(plain, home);
     const again = resolveLaunchIntent(plain, home, {});
@@ -2384,10 +2384,10 @@ test("launch intent: a directory Frizz already knows opens its own board", () =>
   }
 });
 
-// Maintainer 2026-10-10: "If the folder that you run it in is not a pre-existing Frizz project, it
+// Maintainer 2026-10-10: "If the folder that you run it in is not a pre-existing Ntwine project, it
 // should just bring you to the root of the dashboard." A repository was adopted on sight until then.
-test("launch intent: a repository Frizz has not seen lands on the dashboard, offered and unadopted", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz launch intent repo "));
+test("launch intent: a repository Ntwine has not seen lands on the dashboard, offered and unadopted", () => {
+  const base = mkdtempSync(join(tmpdir(), "ntwine launch intent repo "));
   const home = join(base, "home");
   const host = join(base, "host repo");
   const fresh = join(base, "fresh repo");
@@ -2402,7 +2402,7 @@ test("launch intent: a repository Frizz has not seen lands on the dashboard, off
     assert.ok(intent.kind === "offer");
     assert.equal(intent.directory, realpathSync(fresh));
     assert.equal(isHostWorkspace(intent.workspace, home), true, "never hosted on another project");
-    assert.equal(existsSync(join(fresh, ".frizz")), false);
+    assert.equal(existsSync(join(fresh, ".ntwine")), false);
     assert.equal(listProjects(home).length, 1);
   } finally {
     rmSync(base, { recursive: true, force: true });
@@ -2410,7 +2410,7 @@ test("launch intent: a repository Frizz has not seen lands on the dashboard, off
 });
 
 test("launch intent: an unmarked directory and $HOME land on the dashboard and are not asked about", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz launch intent bare "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine launch intent bare "));
   const home = join(base, "home");
   const host = join(base, "host repo");
   const bare = join(home, "Documents");
@@ -2427,20 +2427,20 @@ test("launch intent: an unmarked directory and $HOME land on the dashboard and a
       const intent = resolveLaunchIntent(cwd, home, {});
       assert.ok(intent.kind === "everything", cwd);
       // Not the registered project: a board borrowed from it stopped restarting once that folder
-      // was deleted, which nobody who typed `frizz` in $HOME had any reason to expect (2026-10-11).
+      // was deleted, which nobody who typed `ntwine` in $HOME had any reason to expect (2026-10-11).
       assert.equal(isHostWorkspace(intent.workspace, home), true, cwd);
-      assert.equal(existsSync(join(cwd, ".frizz")), false, cwd);
+      assert.equal(existsSync(join(cwd, ".ntwine")), false, cwd);
     }
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
 });
 
-// A new user's first `npx frizz` is typed in a fresh terminal — $HOME — or in ~/Documents, on a
+// A new user's first `npx ntwine` is typed in a fresh terminal — $HOME — or in ~/Documents, on a
 // machine with no project to host the server on. It used to end in "cd into a repository and run
-// frizz there".
+// ntwine there".
 test("launch intent: with no project at all, every directory still reaches the dashboard", () => {
-  const base = mkdtempSync(join(tmpdir(), "frizz launch intent first "));
+  const base = mkdtempSync(join(tmpdir(), "ntwine launch intent first "));
   const home = join(base, "home");
   const documents = join(home, "Documents");
   const repo = join(home, "code", "acme");
@@ -2456,13 +2456,13 @@ test("launch intent: with no project at all, every directory still reaches the d
     assert.ok(fromRepo.kind === "offer");
     assert.equal(fromRepo.directory, realpathSync(repo));
 
-    // ONE stand-in host, Frizz's own folder, the same on every launch — and never a project: no
+    // ONE stand-in host, Ntwine's own folder, the same on every launch — and never a project: no
     // directory the operator was standing in is written to, and the registry stays empty.
     const host = hostWorkspace(home);
     assert.equal(host.root, realpathSync(launchHostDir(home)));
     assert.equal(isHostWorkspace(host, home), true);
     for (const intent of [fromHome, fromDocuments, fromRepo]) assert.deepEqual(intent.workspace, host);
-    for (const dir of [home, documents, repo]) assert.equal(existsSync(join(dir, ".frizz")), false, dir);
+    for (const dir of [home, documents, repo]) assert.equal(existsSync(join(dir, ".ntwine")), false, dir);
     assert.equal(registerProject({ dir: host.root, id: host.id }, home).entry, undefined);
     assert.equal(listProjects(home).length, 0);
 
@@ -2485,7 +2485,7 @@ test("a launcher asks the running server where it lands, and decides for itself 
   const answering = (...responses: Array<Response | Error>): typeof fetch =>
     (async (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      seen.push({ url: String(input), method: init?.method, token: headers.get("x-frizz-launch-token"), origin: headers.get("origin"), body: JSON.parse(String(init?.body)) });
+      seen.push({ url: String(input), method: init?.method, token: headers.get("x-ntwine-launch-token"), origin: headers.get("origin"), body: JSON.parse(String(init?.body)) });
       const next = responses.shift() ?? new Response("gone", { status: 500 });
       if (next instanceof Error) throw next;
       return next;
@@ -2498,7 +2498,7 @@ test("a launcher asks the running server where it lands, and decides for itself 
   assert.deepEqual(route, { path: "/project/app", project: { name: "app", dir: "/code/app" } });
   // No Origin: a launcher is not a browser, and the token is the whole of what it is known by.
   assert.deepEqual(seen, [{
-    url: "http://127.0.0.1:9393/_frizz/control/launch", method: "POST", token: "owner-token", origin: null,
+    url: "http://127.0.0.1:9393/_ntwine/control/launch", method: "POST", token: "owner-token", origin: null,
     body: { protocol: 1, dir: "/code/app/src" },
   }]);
 
@@ -2518,7 +2518,7 @@ test("a launcher asks the running server where it lands, and decides for itself 
 
 test("boardAddress: a bare origin gains a slash, `/` or an offer does not", () => {
   assert.equal(boardAddress("http://127.0.0.1:9494"), "http://127.0.0.1:9494/");
-  assert.equal(boardAddress("http://127.0.0.1:9494/project/frizz"), "http://127.0.0.1:9494/project/frizz/");
+  assert.equal(boardAddress("http://127.0.0.1:9494/project/ntwine"), "http://127.0.0.1:9494/project/ntwine/");
   // `/all`, All projects (an `everything` launch since 2026-10-06), reads as the board does.
   assert.equal(boardAddress("http://127.0.0.1:9494/all"), "http://127.0.0.1:9494/all/");
   // `/` is already `/`, and `//` reads as a typo in the one line the operator clicks.
@@ -2528,11 +2528,11 @@ test("boardAddress: a bare origin gains a slash, `/` or an offer does not", () =
 });
 
 test("an update re-execs with the port alone; how the board is reached lives in the saved setup", () => {
-  assert.deepEqual(durableReexecArgs({ entry: "/opt/frizz/src/index.js", port: 9393 }), ["/opt/frizz/src/index.js", "--port", "9393"]);
+  assert.deepEqual(durableReexecArgs({ entry: "/opt/ntwine/src/index.js", port: 9393 }), ["/opt/ntwine/src/index.js", "--port", "9393"]);
 });
 
 test("a --dev launcher re-execs into a launch its internal re-entry accepts: --dev with the allocated port", () => {
-  // The operator typed `frizz-dev --dev`. Re-execing that argv reached a re-entry that refuses to start
+  // The operator typed `ntwine-dev --dev`. Re-execing that argv reached a re-entry that refuses to start
   // without --port, and every edit to the launcher's own source ended the board.
   const args = devLauncherReexecArgs({ entry: "/repo/src/index.ts", port: 9494, debug: false });
   assert.equal(args[0], "/repo/src/index.ts");
@@ -2580,7 +2580,7 @@ test("--sandbox parses, refuses the running-board queries, and prepares a dispos
     assert.equal(env.HOME, sandbox.home);
     assert.equal(env.USERPROFILE, sandbox.home);
     assert.equal(process.cwd(), realpathSync(sandbox.project));
-    // The throwaway project is one Frizz already knows, so the launch opens its board rather than
+    // The throwaway project is one Ntwine already knows, so the launch opens its board rather than
     // the dashboard — and a repository, so a worker there has somewhere to commit.
     assert.ok(existsSync(join(sandbox.project, ".git")));
     assert.equal(resolveLaunchIntent(sandbox.project, sandbox.home, env).kind, "open");
@@ -2592,19 +2592,19 @@ test("--sandbox parses, refuses the running-board queries, and prepares a dispos
   assert.equal(existsSync(sandbox.home), false);
 });
 
-// A fresh machine has no `~/.frizz`, and frizz-paths.ts reads that directory's EXISTENCE as "legacy
+// A fresh machine has no `~/.ntwine`, and ntwine-paths.ts reads that directory's EXISTENCE as "legacy
 // install, route every root here". Until 2026-08-28 this sharing created it on the real home just to
 // have somewhere to link the identity key from — so one sandbox launch on a fresh machine (or this
 // suite) silently moved every later launch off the XDG roots, and the registry, projects and database
 // written there looked gone.
-test("--sandbox never creates ~/.frizz on a real home that has none", () => {
-  const real = mkdtempSync(join(tmpdir(), "frizz-freshhome-"));
+test("--sandbox never creates ~/.ntwine on a real home that has none", () => {
+  const real = mkdtempSync(join(tmpdir(), "ntwine-freshhome-"));
   const env: NodeJS.ProcessEnv = {};
   const cwd = process.cwd();
   const sandbox = prepareSandbox(env, real);
   try {
-    assert.equal(existsSync(join(real, ".frizz")), false, "the real home keeps its fresh-install roots");
-    assert.equal(existsSync(join(sandbox.home, ".frizz")), false, "and so does the sandbox");
+    assert.equal(existsSync(join(real, ".ntwine")), false, "the real home keeps its fresh-install roots");
+    assert.equal(existsSync(join(sandbox.home, ".ntwine")), false, "and so does the sandbox");
     // The key is still shared: a first claim from the sandbox writes through the link into the real
     // home's state root, which is what makes it the machine's key rather than a throwaway.
     assert.equal(lstatSync(claimIdentityPath(sandbox.home)).isSymbolicLink(), true);
@@ -2621,12 +2621,12 @@ test("--sandbox never creates ~/.frizz on a real home that has none", () => {
 // deleted them on exit — 42s of the server's 44s start in the sandbox launch logged 2026-10-01.
 test("--sandbox shares the operator's runtime cache, resolved under the operator's own roots", () => {
   const cwd = process.cwd();
-  const real = mkdtempSync(join(tmpdir(), "frizz-rthome-"));
+  const real = mkdtempSync(join(tmpdir(), "ntwine-rthome-"));
   const plain: NodeJS.ProcessEnv = {};
   const sandbox = prepareSandbox(plain, real);
   try {
-    assert.equal(plain.FRIZZ_RUNTIMES_DIR, join(frizzPaths({ home: real, env: {} }).cache, "runtimes"));
-    assert.ok(!plain.FRIZZ_RUNTIMES_DIR!.startsWith(sandbox.home), "never under the throwaway home");
+    assert.equal(plain.NTWINE_RUNTIMES_DIR, join(ntwinePaths({ home: real, env: {} }).cache, "runtimes"));
+    assert.ok(!plain.NTWINE_RUNTIMES_DIR!.startsWith(sandbox.home), "never under the throwaway home");
   } finally {
     process.chdir(cwd);
     cleanupSandbox(sandbox.home);
@@ -2636,17 +2636,17 @@ test("--sandbox shares the operator's runtime cache, resolved under the operator
   const second = prepareSandbox(xdg, real);
   try {
     assert.equal(xdg.XDG_CACHE_HOME, undefined);
-    assert.equal(xdg.FRIZZ_RUNTIMES_DIR, join(real, "xdg-cache", "frizz", "runtimes"));
+    assert.equal(xdg.NTWINE_RUNTIMES_DIR, join(real, "xdg-cache", "ntwine", "runtimes"));
   } finally {
     process.chdir(cwd);
     cleanupSandbox(second.home);
   }
   // An explicit choice wins — that is how a run exercising provisioning itself asks for a cold root.
-  for (const explicit of [{ FRIZZ_RUNTIMES_DIR: "/elsewhere/runtimes" }, { FRIZZ_RUNTIMES: "/bin/fake" }]) {
+  for (const explicit of [{ NTWINE_RUNTIMES_DIR: "/elsewhere/runtimes" }, { NTWINE_RUNTIMES: "/bin/fake" }]) {
     const env: NodeJS.ProcessEnv = { ...explicit };
     const third = prepareSandbox(env, real);
     try {
-      assert.equal(env.FRIZZ_RUNTIMES_DIR, explicit.FRIZZ_RUNTIMES_DIR);
+      assert.equal(env.NTWINE_RUNTIMES_DIR, explicit.NTWINE_RUNTIMES_DIR);
     } finally {
       process.chdir(cwd);
       cleanupSandbox(third.home);
@@ -2656,10 +2656,10 @@ test("--sandbox shares the operator's runtime cache, resolved under the operator
 });
 
 // The other way a sandbox can reach the real install: a set XDG variable wins over the home in
-// frizz-paths.ts, so an inherited `$XDG_DATA_HOME` would put the sandbox's registry, identity key and
+// ntwine-paths.ts, so an inherited `$XDG_DATA_HOME` would put the sandbox's registry, identity key and
 // saved remote setup straight into the operator's real roots, where the exit cleanup never looks.
 test("--sandbox does not inherit the operator's XDG roots", () => {
-  const real = mkdtempSync(join(tmpdir(), "frizz-xdghome-"));
+  const real = mkdtempSync(join(tmpdir(), "ntwine-xdghome-"));
   const xdg = join(real, "xdg");
   const env: NodeJS.ProcessEnv = {
     XDG_DATA_HOME: join(xdg, "data"),
@@ -2671,13 +2671,13 @@ test("--sandbox does not inherit the operator's XDG roots", () => {
   const sandbox = prepareSandbox(env, real);
   try {
     for (const name of SANDBOX_DROPPED_XDG_ROOTS) assert.equal(env[name], undefined, name);
-    assert.equal(env.XDG_CONFIG_HOME, join(xdg, "config"), "a root frizz-paths.ts never reads is left alone");
+    assert.equal(env.XDG_CONFIG_HOME, join(xdg, "config"), "a root ntwine-paths.ts never reads is left alone");
     // With the roots gone, every home-scoped path is contained by the sandbox home on a linux resolve.
-    const paths = frizzPaths({ home: sandbox.home, platform: "linux", env });
+    const paths = ntwinePaths({ home: sandbox.home, platform: "linux", env });
     for (const root of [paths.data, paths.state, paths.cache]) assert.ok(root.startsWith(sandbox.home), root);
     // The operator's state root gets the directory their identity key lives in — that end of the link is
     // theirs by design (see the next test) — and nothing else; their data and cache roots are untouched.
-    assert.deepEqual(readdirSync(join(xdg, "state", "frizz")), [], "only the key's directory, still empty");
+    assert.deepEqual(readdirSync(join(xdg, "state", "ntwine")), [], "only the key's directory, still empty");
     assert.equal(existsSync(join(xdg, "data")), false, "no sandbox state under the real data root");
     assert.equal(existsSync(join(xdg, "cache")), false, "no sandbox state under the real cache root");
   } finally {
@@ -2689,10 +2689,10 @@ test("--sandbox does not inherit the operator's XDG roots", () => {
 
 // Production-shaped: `prepareSandbox()` with no arguments scrubs `process.env` itself, and the identity
 // link is placed by paths that read `process.env` too. Sharing before the scrub put the sandbox end of
-// the link at `$XDG_STATE_HOME/frizz/identity.key` and then had the sandbox read under its own home —
+// the link at `$XDG_STATE_HOME/ntwine/identity.key` and then had the sandbox read under its own home —
 // so an XDG-configured operator's sandbox minted a throwaway key on its first claim (PR #43 review).
 test("--sandbox keeps the operator's XDG-rooted identity readable after the scrub", async () => {
-  const real = mkdtempSync(join(tmpdir(), "frizz-xdgident-"));
+  const real = mkdtempSync(join(tmpdir(), "ntwine-xdgident-"));
   const state = join(real, "xdg", "state");
   const saved = Object.fromEntries(["HOME", "USERPROFILE", ...SANDBOX_DROPPED_XDG_ROOTS].map((name) => [name, process.env[name]]));
   const cwd = process.cwd();
@@ -2703,7 +2703,7 @@ test("--sandbox keeps the operator's XDG-rooted identity readable after the scru
   try {
     // Minted while the roots are set, so this IS the operator's key, at the XDG path.
     const realKey = claimIdentityPath(real);
-    assert.equal(realKey, join(state, "frizz", "identity.key"));
+    assert.equal(realKey, join(state, "ntwine", "identity.key"));
     const machine = await claimIdentityFingerprint(await loadOrCreateClaimIdentity(real));
     sandbox = prepareSandbox(undefined, real);
     assert.equal(process.env.XDG_STATE_HOME, undefined);
@@ -2726,16 +2726,16 @@ test("--sandbox keeps the operator's XDG-rooted identity readable after the scru
 
 test("--sandbox shares credentials with the real home, but no state", () => {
   // A fake "real" home with the files the cloud screens read.
-  const real = mkdtempSync(join(tmpdir(), "frizz-realhome-"));
+  const real = mkdtempSync(join(tmpdir(), "ntwine-realhome-"));
   mkdirSync(join(real, ".config", "gh"), { recursive: true });
   writeFileSync(join(real, ".config", "gh", "hosts.yml"), "github.com:\n  user: ada\n");
   mkdirSync(join(real, ".cloudflared"), { recursive: true });
   writeFileSync(join(real, ".cloudflared", "cert.pem"), "cert");
   writeFileSync(join(real, ".cloudflared", "0000-tunnel.json"), "{}");
-  writeFileSync(join(real, ".cloudflared", "frizz.yml"), "tunnel: real\n");
-  mkdirSync(join(real, ".frizz"), { recursive: true });
-  writeFileSync(join(real, ".frizz", "cloud.json"), JSON.stringify({ hostname: "real.example.com", serve: "external" }));
-  writeFileSync(join(real, ".frizz", "identity.key"), "real-key");
+  writeFileSync(join(real, ".cloudflared", "ntwine.yml"), "tunnel: real\n");
+  mkdirSync(join(real, ".ntwine"), { recursive: true });
+  writeFileSync(join(real, ".ntwine", "cloud.json"), JSON.stringify({ hostname: "real.example.com", serve: "external" }));
+  writeFileSync(join(real, ".ntwine", "identity.key"), "real-key");
 
   const cwd = process.cwd();
   const env: NodeJS.ProcessEnv = {};
@@ -2747,11 +2747,11 @@ test("--sandbox shares credentials with the real home, but no state", () => {
     assert.equal(readFileSync(join(sandbox.home, ".cloudflared", "0000-tunnel.json"), "utf8"), "{}");
     assert.equal(readFileSync(claimIdentityPath(sandbox.home), "utf8"), "real-key");
     // State does not: the real remote setup and the real tunnel config stay where they are, and a
-    // frizz.yml written in the sandbox lands in the sandbox.
-    assert.equal(existsSync(join(sandbox.home, ".frizz", "cloud.json")), false);
-    assert.equal(existsSync(join(sandbox.home, ".cloudflared", "frizz.yml")), false);
-    writeFileSync(join(sandbox.home, ".cloudflared", "frizz.yml"), "tunnel: sandbox\n");
-    assert.equal(readFileSync(join(real, ".cloudflared", "frizz.yml"), "utf8"), "tunnel: real\n");
+    // ntwine.yml written in the sandbox lands in the sandbox.
+    assert.equal(existsSync(join(sandbox.home, ".ntwine", "cloud.json")), false);
+    assert.equal(existsSync(join(sandbox.home, ".cloudflared", "ntwine.yml")), false);
+    writeFileSync(join(sandbox.home, ".cloudflared", "ntwine.yml"), "tunnel: sandbox\n");
+    assert.equal(readFileSync(join(real, ".cloudflared", "ntwine.yml"), "utf8"), "tunnel: real\n");
   } finally {
     process.chdir(cwd);
     cleanupSandbox(sandbox.home);
@@ -2759,9 +2759,9 @@ test("--sandbox shares credentials with the real home, but no state", () => {
   }
 });
 
-// ---- stopProjectLaunch / runningFrizzStatus: the registry launcher's --stop and --status ------------
+// ---- stopProjectLaunch / runningNtwineStatus: the registry launcher's --stop and --status ------------
 //
-// The registry launcher's farewell has said "stop it with frizz --stop" since 0.12.10 while the flag
+// The registry launcher's farewell has said "stop it with ntwine --stop" since 0.12.10 while the flag
 // fell through to the join path and opened a browser tab on the board (audit 2026-09-11, finding 2).
 // These pin the extracted protocol against a fake owner, status file, process table and control plane:
 // a live owner is asked over token-bound HTTP; one that refuses is left alone; a provably stale one
@@ -2769,7 +2769,7 @@ test("--sandbox shares credentials with the real home, but no state", () => {
 
 /** A project owned by a fake supervisor (pid 4100) whose status file names port 5091, plus the launcher that will stop it (pid 4200). */
 function ownedProjectFixture() {
-  const projectDir = mkdtempSync(join(tmpdir(), "frizz-stop-launch-"));
+  const projectDir = mkdtempSync(join(tmpdir(), "ntwine-stop-launch-"));
   const target: ProjectLaunchTarget = { projectId: randomUUID(), projectDir, stateDir: join(projectDir, "state") };
   const supervisor = { pid: 4100, processStart: "linux:boot:4100" };
   const launcher = { pid: 4200, processStart: "linux:boot:4200" };
@@ -2805,16 +2805,16 @@ function ownedProjectFixture() {
     (async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       requests.push(url);
-      assert.match(url, /^http:\/\/127\.0\.0\.1:5091\/_frizz\//);
-      if (url.endsWith("/_frizz/health")) {
+      assert.match(url, /^http:\/\/127\.0\.0\.1:5091\/_ntwine\//);
+      if (url.endsWith("/_ntwine/health")) {
         return new Response(JSON.stringify({ ok: true, projectId: target.projectId, projectDir: target.projectDir, bootId: "boot", ownerProof: proof }));
       }
-      if (url.endsWith("/_frizz/control/status")) {
+      if (url.endsWith("/_ntwine/control/status")) {
         return new Response(JSON.stringify({ protocol: 1, state: "ready", updateRestart: true, ...(options.version ? { version: options.version } : {}) }));
       }
-      assert.ok(url.endsWith("/_frizz/control/stop"), url);
+      assert.ok(url.endsWith("/_ntwine/control/stop"), url);
       assert.equal(init?.method, "POST");
-      assert.equal(new Headers(init?.headers).get("x-frizz-launch-token"), owner.token);
+      assert.equal(new Headers(init?.headers).get("x-ntwine-launch-token"), owner.token);
       // An accepted stop is what makes the supervisor's finally block release the owner record.
       if (options.stopStatus === 202) owner.release();
       return new Response(JSON.stringify({ accepted: options.stopStatus === 202 }), { status: options.stopStatus });
@@ -2837,7 +2837,7 @@ test("stopProjectLaunch asks a live owner to stop with its token and reports sto
       sleep: async () => {},
     });
     assert.deepEqual(result, { kind: "stopped", stale: false });
-    assert.deepEqual(fixture.requests.map((url) => url.slice(url.indexOf("/_frizz"))), ["/_frizz/health", "/_frizz/control/stop"]);
+    assert.deepEqual(fixture.requests.map((url) => url.slice(url.indexOf("/_ntwine"))), ["/_ntwine/health", "/_ntwine/control/stop"]);
     assert.equal(readProjectLaunchOwner(fixture.target.stateDir), null);
   } finally {
     fixture.dispose();
@@ -2845,7 +2845,7 @@ test("stopProjectLaunch asks a live owner to stop with its token and reports sto
 });
 
 test("stopProjectLaunch reports not-running when nothing owns the project", async () => {
-  const projectDir = mkdtempSync(join(tmpdir(), "frizz-stop-nothing-"));
+  const projectDir = mkdtempSync(join(tmpdir(), "ntwine-stop-nothing-"));
   const target: ProjectLaunchTarget = { projectId: randomUUID(), projectDir, stateDir: join(projectDir, "state") };
   try {
     assert.deepEqual(
@@ -2896,26 +2896,26 @@ test("stopProjectLaunch reaps a provably stale owner through the fencing acquisi
   }
 });
 
-test("runningFrizzStatus reports the live owner's port, pid and the version its status route serves", async () => {
+test("runningNtwineStatus reports the live owner's port, pid and the version its status route serves", async () => {
   const fixture = ownedProjectFixture();
   try {
     assert.deepEqual(
-      await runningFrizzStatus({ stateDir: fixture.target.stateDir, target: fixture.target, adapter: fixture.adapter, fetcher: fixture.controlPlane({ stopStatus: 503, version: "0.13.0" }) }),
+      await runningNtwineStatus({ stateDir: fixture.target.stateDir, target: fixture.target, adapter: fixture.adapter, fetcher: fixture.controlPlane({ stopStatus: 503, version: "0.13.0" }) }),
       { port: 5091, pid: 4100, version: "0.13.0", state: "ready" },
     );
     // A board that answers health but not the status route (a legacy supervisor) still reports itself.
     const healthOnly = (async (input: string | URL | Request) => {
-      if (String(input).endsWith("/_frizz/health")) return fixture.controlPlane({ stopStatus: 503 })(input);
+      if (String(input).endsWith("/_ntwine/health")) return fixture.controlPlane({ stopStatus: 503 })(input);
       throw new Error("ECONNRESET");
     }) as typeof fetch;
     assert.deepEqual(
-      await runningFrizzStatus({ stateDir: fixture.target.stateDir, target: fixture.target, adapter: fixture.adapter, fetcher: healthOnly }),
+      await runningNtwineStatus({ stateDir: fixture.target.stateDir, target: fixture.target, adapter: fixture.adapter, fetcher: healthOnly }),
       { port: 5091, pid: 4100 },
     );
     // Nothing live: a stale owner is null, not a broken report.
     fixture.processTable.delete(fixture.supervisor.pid);
     assert.equal(
-      await runningFrizzStatus({ stateDir: fixture.target.stateDir, target: fixture.target, adapter: fixture.adapter, fetcher: (async () => assert.fail("no probe without a live owner")) as typeof fetch }),
+      await runningNtwineStatus({ stateDir: fixture.target.stateDir, target: fixture.target, adapter: fixture.adapter, fetcher: (async () => assert.fail("no probe without a live owner")) as typeof fetch }),
       null,
     );
   } finally {
@@ -2924,12 +2924,12 @@ test("runningFrizzStatus reports the live owner's port, pid and the version its 
 });
 
 // One server serves every project, and it publishes its owner record under the project it was
-// launched from. `frizz --stop` in another project served by that board found no record there and
+// launched from. `ntwine --stop` in another project served by that board found no record there and
 // said "not running" (pullfrog on #35, 2026-09-11). The unscoped health names the host; its record
 // holds the token; the stop is the host's, token-bound, and the answer names where it was launched.
 test("--stop and --status from a project served by a board launched elsewhere resolve to that launch", async () => {
   const host = ownedProjectFixture();
-  const otherDir = mkdtempSync(join(tmpdir(), "frizz-served-"));
+  const otherDir = mkdtempSync(join(tmpdir(), "ntwine-served-"));
   try {
     const other: ProjectLaunchTarget = { projectId: randomUUID(), projectDir: otherDir, stateDir: join(otherDir, "state") };
     mkdirSync(other.stateDir, { recursive: true });
@@ -2938,7 +2938,7 @@ test("--stop and --status from a project served by a board launched elsewhere re
     const control = await resolveLaunchControlTarget({ stateDir: other.stateDir, target: other, fetcher, ports: [5091], stateDirFor });
     assert.equal(control.host, false);
     assert.deepEqual(control.target, host.target);
-    const status = await runningFrizzStatus({ stateDir: control.stateDir, target: control.target, adapter: host.adapter, fetcher });
+    const status = await runningNtwineStatus({ stateDir: control.stateDir, target: control.target, adapter: host.adapter, fetcher });
     assert.equal(status?.version, "1.3.0");
     const result = await stopProjectLaunch({ stateDir: control.stateDir, target: control.target, adapter: host.adapter, fetcher, sleep: async () => {} });
     assert.deepEqual(result, { kind: "stopped", stale: false });

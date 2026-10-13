@@ -3,7 +3,7 @@ import { slugMintedFromTitle, type SessionRow } from "./storage.ts"
 
 // THE PER-PROJECT FILE'S OWN MIGRATIONS, kept only to read one (2026-08-27).
 //
-// Until the unified database (see project-scope.ts and frizz-db.ts) every project had its own
+// Until the unified database (see project-scope.ts and ntwine-db.ts) every project had its own
 // `<stateDir>/ui.db`, and createStorage brought each one up to date on open with the block below:
 // the schema as CREATE TABLE IF NOT EXISTS, then a stack of additive ALTERs and idempotent repairs,
 // each guarded by its own try/catch or marker. None of that is needed for a database this code
@@ -24,7 +24,7 @@ export function migrateLegacyProjectDatabase(db: Database): void {
   // (state, expires_at), threw "no such column: expires_at".
   //
   // That is a STARTUP ABORT, not a degraded feature: createStorage throws, the control plane exits
-  // before ready, and the launcher reports only "Frizz did not become healthy". Seven of the fifty-four
+  // before ready, and the launcher reports only "Ntwine did not become healthy". Seven of the fifty-four
   // project databases on the maintainer's own machine could not open at all.
   //
   // DROPPED rather than rebuilt, because the shapes do not reconcile and no live state is lost. The old
@@ -93,7 +93,7 @@ export function migrateLegacyProjectDatabase(db: Database): void {
     -- A background op the operator RETIRED (the × on its row), by its dispatch tool_use id.
     --
     -- This has to be durable, and the reason is measured rather than defensive. Killing a background
-    -- shell writes NOTHING anywhere frizz can re-read: not a tool_result in the session JSONL (verified
+    -- shell writes NOTHING anywhere ntwine can re-read: not a tool_result in the session JSONL (verified
     -- in backend/_live_shell_stop_notice.mts — the transcript gains not one record), and not on disk
     -- (backend/_live_shell_stop_trace.mts — the output file survives the kill exactly as a normally
     -- finished shell's does, so file-absence proves nothing). The tailer's retirement therefore lived
@@ -220,12 +220,12 @@ export function migrateLegacyProjectDatabase(db: Database): void {
       id          TEXT PRIMARY KEY,
       thread_slug TEXT NOT NULL,
       -- The question TREE as the worker submitted it, validated at the RPC boundary and stored verbatim
-      -- (AskedQuestion in @frizz/shared). JSON rather than columns because the shape is recursive: an
+      -- (AskedQuestion in @ntwine/shared). JSON rather than columns because the shape is recursive: an
       -- option may carry follow-ups, three levels deep.
       spec        TEXT NOT NULL,
       state       TEXT NOT NULL CHECK (state IN ('open', 'answered', 'withdrawn', 'dismissed')),
       -- The structured answer, keyed by question id and RESTATING each question's text, because the
-      -- worker never saw the id -- frizz minted it -- so an id alone cannot be correlated back. Null
+      -- worker never saw the id -- ntwine minted it -- so an id alone cannot be correlated back. Null
       -- until the human sends; null forever on a withdrawn or dismissed row.
       answer      TEXT,
       -- Has the worker been handed this answer yet? A question is answered by the human and DELIVERED
@@ -247,7 +247,7 @@ export function migrateLegacyProjectDatabase(db: Database): void {
     --
     -- ONE ROW PER THREAD, replaced on each call: a worker declaring itself done twice has not finished
     -- two things. There is no state column and no settled_at, because a done row is spent by the human
-    -- SENDING MORE WORK rather than by anything frizz does -- board.ts compares done_at against the
+    -- SENDING MORE WORK rather than by anything ntwine does -- board.ts compares done_at against the
     -- newest user record and simply stops honouring an older one. That mirrors the fence exactly (the
     -- next assistant message replaced it) without a sweep to forget one.
     CREATE TABLE IF NOT EXISTS thread_done (
@@ -272,7 +272,7 @@ export function migrateLegacyProjectDatabase(db: Database): void {
     -- (No backticks in this comment: the whole schema is a template literal.)
   `)
   // THE COLUMN THAT OUTLIVED THE MULTIPLEXER (2026-08-19). This held the thread identity string
-  // `frizz-<slug>` and was called `tmux_name` for years after the last pane went away, which is most of
+  // `ntwine-<slug>` and was called `tmux_name` for years after the last pane went away, which is most of
   // why every reader kept concluding the agents still live in tmux. It is a plain rename: the VALUE was
   // never a pane name, only a name that happened to be given to one.
   //
@@ -384,14 +384,14 @@ export function migrateLegacyProjectDatabase(db: Database): void {
     // (see scheduler.ts, "WHAT A PENDING QUESTION DOES TO THE THREE TRIGGERS"). A database created before
     // that release still carries the column — it is `NOT NULL DEFAULT 0`, so nothing needs to write it,
     // and dropping it would cost a table rebuild to reclaim one inert integer per row.
-    // THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9, 2026-08-12). How many times in a row frizz has
+    // THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9, 2026-08-12). How many times in a row ntwine has
     // told this thread how to sign off without a fence appearing. Cleared ONLY when the thread signs
-    // off — never by a user record, because frizz's own delivery is one. The second column holds the
+    // off — never by a user record, because ntwine's own delivery is one. The second column holds the
     // last-nudged delivery id, for diagnosis.
     "signoff_nudges INTEGER NOT NULL DEFAULT 0",
     "signoff_nudge_anchor TEXT",
     // Cleared by `resetParkBumps` when a park is actually HONOURED — the one event that proves the
-    // correction landed, and the one frizz cannot cause by correcting.
+    // correction landed, and the one ntwine cannot cause by correcting.
     "park_bumps INTEGER NOT NULL DEFAULT 0",
     "park_bump_anchor TEXT",
     // Title provenance for the CURRENT text (2026-08-07): 1 = the worker's own title signal wrote it,
@@ -415,7 +415,7 @@ export function migrateLegacyProjectDatabase(db: Database): void {
     // column already exists
   }
   // THE REBRAND LEFT THESE ROWS BEHIND (2026-08-06). `thread_name` is re-derived as
-  // `frizz-<slug>` and checked on EVERY write by validateSessionIdentity, so a row still holding
+  // `ntwine-<slug>` and checked on EVERY write by validateSessionIdentity, so a row still holding
   // `fray-<slug>` is a row whose next write is rejected. The one-time migration that fixed this was
   // deleted once the projects in use had been converted — but ten project databases had simply not
   // been opened since, carrying fourteen threads between them, and a project nobody opened for a week
@@ -425,7 +425,8 @@ export function migrateLegacyProjectDatabase(db: Database): void {
   // LIKE matches nothing once a database has been through it, so it costs one no-op scan per boot and
   // there is nothing left to delete later.
   try {
-    db.exec("UPDATE session SET thread_name = 'frizz-' || substr(thread_name, 6) WHERE thread_name LIKE 'fray-%'")
+    db.exec("UPDATE session SET thread_name = 'ntwine-' || substr(thread_name, 6) WHERE thread_name LIKE 'fray-%'")
+    db.exec("UPDATE session SET thread_name = 'ntwine-' || substr(thread_name, 7) WHERE thread_name LIKE 'frizz-%'")
   } catch {
     // A pre-schema database, or one without the column yet. The ALTERs above own that case.
   }
@@ -565,7 +566,7 @@ export function migrateLegacyProjectDatabase(db: Database): void {
     // applied the config.toml defaults (`workspace-write` + `on-request`) and the tailer then folded
     // that observation back into permission_mode as if the operator had chosen it. `sandboxFor` reads
     // this column, so the downgrade became self-perpetuating: the thread requested workspace-write on
-    // every later resume and stalled on an approval nobody was watching. Frizz workers are dispatched
+    // every later resume and stalled on an approval nobody was watching. Ntwine workers are dispatched
     // non-interactively (WORKER_DISPATCH_PERMISSION.codex) and the per-thread picker was removed from
     // the UI, so there is no operator choice left for this rewrite to overwrite.
     db.exec(`
@@ -600,9 +601,9 @@ export function migrateLegacyProjectDatabase(db: Database): void {
     }
   }
   const codexColumns = db.prepare<[], { name: string }>("PRAGMA table_info(codex_app_server_session)").all().map((c) => c.name)
-  if (codexColumns.includes("fray_session_id") && !codexColumns.includes("frizz_session_id")) {
+  if (codexColumns.includes("fray_session_id") && !codexColumns.includes("ntwine_session_id")) {
     try {
-      db.exec("ALTER TABLE codex_app_server_session RENAME COLUMN fray_session_id TO frizz_session_id")
+      db.exec("ALTER TABLE codex_app_server_session RENAME COLUMN fray_session_id TO ntwine_session_id")
     } catch {
       // best-effort, as above
     }

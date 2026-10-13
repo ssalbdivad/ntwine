@@ -32,7 +32,7 @@
 // An answered question owes nothing, so it is never hoisted ABOVE (upstream draws a settled card only
 // inside its window), and the answering state's own greyed copy of a question just sent from this card is
 // the caller's to subtract (RegisteredQuestionStack keepAnswered draws that one in its slot).
-import type { RegisteredQuestionView } from "@frizz/shared"
+import type { RegisteredQuestionView } from "@ntwine/shared"
 import { type AnchorMessage, questionsByAnchor, restEnd } from "./questionAnchor.ts"
 import { lastHumanTurnIndex, type HumanTurnLike } from "./messagePresentation.ts"
 import { placedFrom, placeQuestions, questionsAtCurrentRest } from "./questionShadow.ts"

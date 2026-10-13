@@ -6,10 +6,10 @@ import { join } from "node:path"
 const quote = (s) => `'${String(s).replaceAll("'", "''")}'`
 
 export async function seedLightModeFixture(stack, api) {
-  const db = join(stack.home, ".frizz", "ui.db")
+  const db = join(stack.home, ".ntwine", "ui.db")
   const project = stack.launcher.dir
   const projectId = stack.launcher.id
-  const state = join(stack.home, ".frizz", "projects", projectId)
+  const state = join(stack.home, ".ntwine", "projects", projectId)
   const dir = join(stack.home, ".claude", "projects", project.replace(/[/.]/g, "-"))
   mkdirSync(dir, { recursive: true })
   mkdirSync(join(state, "claude-broker"), { recursive: true })
@@ -56,7 +56,7 @@ export async function seedLightModeFixture(stack, api) {
     // The server writes this database too (every seeded thread wakes its tailer), and the CLI's default
     // busy timeout is zero, so a write that met one of the server's failed outright: "database is locked"
     // (the same wait seed-all-queues.mjs gives its writes).
-    execFileSync("sqlite3", ["-cmd", ".timeout 10000", db, `INSERT INTO session (project_id,slug,session_id,thread_name,spawned_at,title,backend,claude_runtime,model,effort,permission_mode,rested_at) VALUES (${[projectId, fixture.slug, sessionId, `frizz-${fixture.slug}`, timestamp, fixture.title, "claude", "broker", "opus", "high", "default"].map(quote).join(",")},${fixture.running ? "NULL" : quote(timestamp)})`])
+    execFileSync("sqlite3", ["-cmd", ".timeout 10000", db, `INSERT INTO session (project_id,slug,session_id,thread_name,spawned_at,title,backend,claude_runtime,model,effort,permission_mode,rested_at) VALUES (${[projectId, fixture.slug, sessionId, `ntwine-${fixture.slug}`, timestamp, fixture.title, "claude", "broker", "opus", "high", "default"].map(quote).join(",")},${fixture.running ? "NULL" : quote(timestamp)})`])
   }
   const vis = join(project, ".codex", "visualizations", "2026", "09", "11", fixtures[0].sessionId)
   mkdirSync(vis, { recursive: true })
@@ -65,7 +65,7 @@ export async function seedLightModeFixture(stack, api) {
 <div class="viz-controls"><label class="form-label">Value <input id="value" class="form-control" value="42"></label><button id="increment" class="btn">Increment</button></div>
 <div id="series" style="height:35px;margin-top:14px;display:flex;gap:8px">${[1,2,3,4,5,6].map(n => `<span style="flex:1;background:var(--viz-series-${n})"></span>`).join("")}</div>
 <p class="text-muted">State remains here while the host changes appearance.</p>
-</section><script>window.mountIdentity = Math.random(); window.themeEvents = 0; addEventListener("frizz-theme-change", () => window.themeEvents++); document.querySelector("#increment").onclick = () => document.querySelector("#value").value = String(Number(document.querySelector("#value").value)+1);</script>`)
+</section><script>window.mountIdentity = Math.random(); window.themeEvents = 0; addEventListener("ntwine-theme-change", () => window.themeEvents++); document.querySelector("#increment").onclick = () => document.querySelector("#value").value = String(Number(document.querySelector("#value").value)+1);</script>`)
   for (let i = 0; i < 60; i++) {
     const board = await api.query("board")
     if (board.threads.some(t => t.id === "theme-rich")) break

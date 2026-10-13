@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { RegisteredQuestionView } from "@frizz/shared"
+import type { RegisteredQuestionView } from "@ntwine/shared"
 import type { BlockAnswer } from "./questionBlocks.ts"
 import { ROOT_PATH, childPath } from "./registeredQuestion.ts"
 import { SECRET_MASK, answerSteps, answerSummary, firstOpenStep, oneLineDescription, stepAfter, stepAfterPick, stepKey } from "./answerSheet.ts"

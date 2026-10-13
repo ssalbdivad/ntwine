@@ -1,8 +1,10 @@
+# The deployed Worker keeps its pre-rename name: a new name is a new script, with no secrets and a
+# fresh Durable Object namespace.
 name = "frizz-relay"
 main = "src/worker.ts"
 compatibility_date = "2026-08-24"
 
-# The Frizz account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
+# The Ntwine account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
 # "More than one account available but unable to select one" — a machine with several accounts cannot
 # guess, and CI has nobody to ask. An account id is not a secret; the API token is, and that stays out.
 account_id = "dde3ec1f6b1f0a397ea82a9ed322f5ce"
@@ -23,7 +25,7 @@ custom_domain = false
 zone_name = "frizz.sh"
 
 [vars]
-FRIZZ_ZONE = "frizz.sh"
+NTWINE_ZONE = "frizz.sh"
 
 # One Durable Object per claimed name: the only place in Workers where a visitor's request and that
 # board's live socket can reliably meet. SQLite-backed, which is what makes it available without a

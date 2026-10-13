@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Opt-in like the other *.e2e.test.ts here: start `vite` in packages/web and set
-// FRIZZ_MD_BLOCKS_E2E_URL to its origin, e.g.
-//   FRIZZ_MD_BLOCKS_E2E_URL=http://localhost:5831 nub --test --test-force-exit src/lib/mdBlocks.e2e.test.ts
-const baseUrl = process.env.FRIZZ_MD_BLOCKS_E2E_URL
+// NTWINE_MD_BLOCKS_E2E_URL to its origin, e.g.
+//   NTWINE_MD_BLOCKS_E2E_URL=http://localhost:5831 nub --test --test-force-exit src/lib/mdBlocks.e2e.test.ts
+const baseUrl = process.env.NTWINE_MD_BLOCKS_E2E_URL
 
 type Page = import("puppeteer").Page
 type FixtureWindow = Window & { __pwned?: string; __chipHits?: number; __picked?: number[]; __toggles?: string[] }

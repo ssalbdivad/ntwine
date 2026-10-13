@@ -83,7 +83,7 @@ test("a Fable cap on a real transcript restarts the thread on Opus, with Opus in
     assert.equal(forks[0].model, "opus", "THE POINT: the fork that actually happens is on the rung below")
     assert.equal(forks[0].effort, "high", "the thread's own effort survives the switch")
     assert.equal(forks[0].freshProcess, true, "a live process latched on the 429 would refuse this, and would keep the old model anyway")
-    assert.match(forks[0].text, /The Fable 5 limit that interrupted you is still closed — frizz restarted this thread on Opus\./)
+    assert.match(forks[0].text, /The Fable 5 limit that interrupted you is still closed — ntwine restarted this thread on Opus\./)
     assert.equal(h.storage.getSession("capped")?.model, "opus", "and the registry agrees, so the composer selector reads Opus too")
     await scheduler.stop()
   } finally {

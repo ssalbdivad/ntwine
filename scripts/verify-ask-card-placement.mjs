@@ -20,7 +20,7 @@ const [home, _socket, port, slugArg] = process.argv.slice(2)
 if (!home || !port) throw new Error("usage: <tempHome> <unused> <port> [slug] [--no-ask]")
 const withAsk = !process.argv.includes("--no-ask")
 
-const projectDir = "/Users/colinmcd94/Documents/projects/frizz"
+const projectDir = "/Users/colinmcd94/Documents/projects/ntwine"
 const cwdSlug = projectDir.replaceAll("/", "-")
 const sessionId = randomUUID()
 const slug = slugArg && !slugArg.startsWith("--") ? slugArg : "ask-placement-probe"
@@ -78,7 +78,7 @@ const { db, projectId } = sandbox
 const sql = (text) => execFileSync("sqlite3", [db, text], { encoding: "utf8" })
 
 sql(`INSERT INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode, state)
-     VALUES (${sessionVals}'${slug}', '${sessionId}', 'frizz-${slug}', '${t(0)}', 'Ask card placement probe', 'claude', 'opus', 'xhigh', 'auto', 'open')`)
+     VALUES (${sessionVals}'${slug}', '${sessionId}', 'ntwine-${slug}', '${t(0)}', 'Ask card placement probe', 'claude', 'opus', 'xhigh', 'auto', 'open')`)
 
 if (!withAsk) {
   console.log(JSON.stringify({ slug, sessionId, projectId, ask: false, url: `http://127.0.0.1:${port}/thread/${slug}/full` }))

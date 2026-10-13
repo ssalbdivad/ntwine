@@ -36,7 +36,7 @@ const glyph = (width: number, height = width) =>
 
 /** Build a throwaway project tree. Values are file contents; a Buffer is written as bytes. */
 function project(t: TestContext, name: string, files: Record<string, Buffer | string>): string {
-  const root = join(mkdtempSync(join(tmpdir(), "frizz-icon-")), name)
+  const root = join(mkdtempSync(join(tmpdir(), "ntwine-icon-")), name)
   t.after(() => rmSync(dirname(root), { recursive: true, force: true }))
   for (const [path, contents] of Object.entries(files)) {
     const full = join(root, path)
@@ -133,7 +133,7 @@ test("a web manifest's icons[] are candidates, resolved against the manifest (vi
   assert.equal(picked(root), join("packages", "app", "public", "logo512.png"))
 })
 
-test("a cache-busted manifest src still resolves (frizz's own manifest carries ?v=)", (t) => {
+test("a cache-busted manifest src still resolves (ntwine's own manifest carries ?v=)", (t) => {
   // `/logo512.png?v=5` joined verbatim is a path that cannot exist, which would
   // drop every icon the manifest declares and leave the project with none.
   const root = project(t, "busted", {

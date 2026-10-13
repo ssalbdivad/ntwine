@@ -7,6 +7,7 @@ import { ProjectSchedules, ThreadScheduleRef } from "./schedules.ts"
 import { formatDeadlineLeft, ThreadDeadlineView } from "./deadline.ts"
 import { EDITOR_COMPOSE_MAX_TEXT, EDITOR_MAX_FOLDERS, EDITOR_MAX_PATH, EDITOR_PROTOCOL_VERSION, EDITOR_REVIEW_MAX_CHECKOUTS, EDITOR_REVIEW_MAX_FILES, EDITOR_STATE_MAX_DIAGNOSTICS, EDITOR_STATE_MAX_MESSAGE, EDITOR_STATE_MAX_OPEN, EDITOR_STATE_MAX_SELECTION_TEXT, EDITOR_STATE_MAX_TAG, type EditorClientMessage, type EditorComposeInput, type EditorReviewTarget, type EditorSnapshot, type EditorWindowSummary } from "./editor-protocol.ts"
 import type { TranscriptPatchOp } from "./transcript-delta.ts"
+import { brandSpellings, eitherBrand } from "./legacy-brand.ts"
 
 // ---- Attachment intake (drag/drop, paste, file picker) ----
 // What a worker can actually GET AT. A format qualifies two ways: an agent's Read/file tool consumes
@@ -16,9 +17,9 @@ import type { TranscriptPatchOp } from "./transcript-delta.ts"
 // unzip/tar for an archive, and pandoc or LibreOffice (often already on the machine) for most of the
 // rest. Office, columnar and archive formats were REFUSED until 2026-08-27 on the theory that they'd
 // reach the agent as opaque zip/XML garbage; that underrates the agent, and the cost of the refusal
-// landed on the person, who had to convert the file by hand before Frizz would take it. A dropped file
+// landed on the person, who had to convert the file by hand before Ntwine would take it. A dropped file
 // lands on disk and its absolute path — inserted as plain text into the message — is what the worker
-// opens; nothing here is parsed, rendered or extracted by Frizz itself.
+// opens; nothing here is parsed, rendered or extracted by Ntwine itself.
 //
 // Widening this list widens NOTHING else. /local-image serves only its own content-type map (which
 // mirrors ATTACHMENT_IMAGE_EXTENSIONS), and the desktop-open action gates on trusted ROOTS rather than
@@ -48,7 +49,7 @@ export const ATTACHMENT_DATA_EXTENSIONS = [
   "parquet", "avro", "orc", "arrow", "feather", "ipynb", "db", "sqlite", "sqlite3",
 ] as const
 // Archives. `unzip` and `tar` are on every machine an agent runs on, and refusing a .zip while
-// accepting .docx — which IS a zip — was never coherent. Frizz never extracts one: the file sits on
+// accepting .docx — which IS a zip — was never coherent. Ntwine never extracts one: the file sits on
 // disk and the worker unpacks it deliberately, or does not.
 export const ATTACHMENT_ARCHIVE_EXTENSIONS = ["zip", "tar", "gz", "tgz", "bz2", "xz", "zst", "7z"] as const
 // Everything that is NOT rendered inline as an image: the chip set, and the alternation behind the
@@ -80,14 +81,14 @@ export function isAllowedAttachmentName(name: string): boolean {
 // The <input accept> value for the file picker: every allowed extension as `.ext`.
 export const ATTACHMENT_ACCEPT = ATTACHMENT_EXTENSIONS.map((e) => `.${e}`).join(",")
 
-// ---- Frizz board vocabulary (mirrors board/config.mjs) ----
+// ---- Ntwine board vocabulary (mirrors board/config.mjs) ----
 
-// Declaration order IS the lifecycle order (STATUS_ORDER = FrizzStatus.options), consumed by the
+// Declaration order IS the lifecycle order (STATUS_ORDER = NtwineStatus.options), consumed by the
 // status pickers and the roadmap-count ordering. `needs-human` is a FIRST-CLASS status — the declared
 // "awaiting a human" state and THE queue definition — and sits at the human gate between `active`
 // (work in flight) and `blocked` (now narrowed to machine-waits only: blocking_threads / revalidate_at).
-export const FrizzStatus = z.enum(["planning", "planned", "active", "needs-human", "blocked", "done", "dismissed"])
-export type FrizzStatus = z.infer<typeof FrizzStatus>
+export const NtwineStatus = z.enum(["planning", "planned", "active", "needs-human", "blocked", "done", "dismissed"])
+export type NtwineStatus = z.infer<typeof NtwineStatus>
 
 // How a blocked thread unblocks. `human` = the awaiting-you queue.
 export const BlockMechanism = z.enum(["human", "threads", "timer"])
@@ -117,7 +118,7 @@ export type Backend = z.infer<typeof Backend>
 // `gpt-5.6` that codex 400s, and a single hardcoded effort set that's wrong per-model). `slug` is the
 // `codex -m` id; `efforts` is exactly that model's supported reasoning levels (5.6 → …/max/ultra, 5.5 →
 // …/xhigh), so the effort dropdown offers only what the chosen model actually accepts. Ordered by the
-// cache's `priority` (index 0 = the codex default). See .frizz/codex-model-cache.md.
+// cache's `priority` (index 0 = the codex default). See .ntwine/codex-model-cache.md.
 export const CodexModel = z.object({
   slug: z.string(),
   displayName: z.string(),
@@ -134,7 +135,7 @@ export const CodexModel = z.object({
 export type CodexModel = z.infer<typeof CodexModel>
 
 // One selectable Claude Code model, as the pinned Claude runtime RESOLVES it (the claudeModels RPC).
-// `alias` is the `claude --model` word Frizz dispatches with and keys every preference on ("opus");
+// `alias` is the `claude --model` word Ntwine dispatches with and keys every preference on ("opus");
 // `label` is the resolved edition the operator should read in the picker ("Opus 5.5"), derived from
 // the runtime's own `supportedModels()` so the picker names the model the alias will actually run —
 // the same reason the Codex column reads "GPT-6 Astra" and not "gpt". `resolvedModel` is the canonical
@@ -150,7 +151,7 @@ export const ClaudeModel = z.object({
 })
 export type ClaudeModel = z.infer<typeof ClaudeModel>
 
-// The DEGRADED catalogue used while Frizz's pinned Codex runtime has not written a compatible
+// The DEGRADED catalogue used while Ntwine's pinned Codex runtime has not written a compatible
 // `models_cache.json` yet. This is deliberately one shared mirror: the server used to fall back to
 // GPT-5.5 alone while the browser's fallback included the current generation, so an older Codex app
 // rewriting the machine-wide cache made a model visible in one tab and unavailable in another.
@@ -170,7 +171,7 @@ export const CODEX_MODELS_FALLBACK: CodexModel[] = [
   { slug: "gpt-5.6-luna", displayName: "GPT-5.6 Luna", defaultEffort: "medium", efforts: ["low", "medium", "high", "xhigh", "max"] },
 ]
 
-// An Agent Client Protocol agent Frizz can launch (server/backend/acp-agents.ts). `available` means
+// An Agent Client Protocol agent Ntwine can launch (server/backend/acp-agents.ts). `available` means
 // its executable was found on the server's PATH; the composer lists only those, as `acp:<id>` models.
 export const AcpAgent = z.object({
   id: z.string(),
@@ -214,9 +215,9 @@ export interface AcpModelPreset {
   efforts: readonly string[]
 }
 
-// Meta's Muse Wonder models through OpenCode's OpenRouter provider (OPENROUTER_API_KEY in Frizz's
+// Meta's Muse Wonder models through OpenCode's OpenRouter provider (OPENROUTER_API_KEY in Ntwine's
 // environment, or `opencode auth login`). OpenCode offers minimal…max for Muse Wonder; the ladder here is
-// the part of it Frizz's effort vocabulary already has.
+// the part of it Ntwine's effort vocabulary already has.
 const MUSE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // Verified live 2026-10-13 (opencode 1.19.0): low and high reach OpenRouter as `reasoning.effort`.
@@ -240,7 +241,7 @@ export type AcpAgentModel = z.infer<typeof AcpAgentModel>
 export const AcpAgentModels = z.object({
   agentId: z.string(),
   models: z.array(AcpAgentModel),
-  /** The model the agent opens a session on when Frizz asks for none. */
+  /** The model the agent opens a session on when Ntwine asks for none. */
   current: z.string().optional(),
   /** Why the list is empty, when the probe could not open a session (not installed, not logged in…). */
   error: z.string().optional(),
@@ -271,10 +272,10 @@ export const ThreadAgent = z.object({
 })
 
 // A LIVE background sub-agent the thread's worker dispatched and is now resting against — derived by
-// the JSONL tailer from Agent-tool dispatches + their task-notifications, NOT the .frizz file. This is
+// the JSONL tailer from Agent-tool dispatches + their task-notifications, NOT the .ntwine file. This is
 // what makes a "dispatched a sub-agent, then came to rest" worker read as in-motion rather than idle.
 // `running` = the child's transcript is still being appended to; `stale` = no output for a while (a
-// completion record we likely missed). Distinct from `ThreadAgent`/`agents` (frizz frontmatter).
+// completion record we likely missed). Distinct from `ThreadAgent`/`agents` (ntwine frontmatter).
 export const SubAgentView = z.object({
   label: z.string(), // the dispatch's `description` (e.g. "Investigate nubjs/nub GitHub issue 376")
   startedAt: z.string(), // ISO8601 of the dispatch record
@@ -306,7 +307,7 @@ export const SubAgentView = z.object({
   // as BgShellView.taskId is for a shell. Every liveness reading accepts both. Absent for a codex row
   // and for a Claude row between its tool_use and its launch ack.
   taskId: z.string().optional(),
-  // Can frizz actually END this child's work right now? Computed SERVER-side (board.ts, the one place
+  // Can ntwine actually END this child's work right now? Computed SERVER-side (board.ts, the one place
   // holding both the session row and the tailer's telemetry) and never re-derived by a client — the
   // same discipline as `steerable`, and for the same reason: the policy depends on the thread's
   // TRANSPORT, which the browser has no honest way to know.
@@ -406,7 +407,7 @@ export function isDirectSubAgent(agent: { depth?: number }): boolean {
 // draws anything for the main checkout, so the readout appears only when it says something.
 //   kind "worktree" — the folder's `.git` is a FILE: a linked worktree (`git worktree add`, EnterWorktree).
 //   kind "folder"   — anything else off the root: another repository's own checkout, or a plain folder.
-// Frizz takes no position on worktrees; this INFORMS where a terminal will open and never prescribes.
+// Ntwine takes no position on worktrees; this INFORMS where a terminal will open and never prescribes.
 export const WorkCheckout = z.object({ dir: z.string(), kind: z.enum(["worktree", "folder"]) }).strict()
 export type WorkCheckout = z.infer<typeof WorkCheckout>
 
@@ -423,7 +424,7 @@ export const BgShellView = z.object({
   startedAt: z.string(), // ISO8601 of the launch record
   state: z.enum(["running", "stale"]),
   id: z.string().optional(),
-  // Can frizz actually END this shell right now? The same contract as SubAgentView.stoppable — computed
+  // Can ntwine actually END this shell right now? The same contract as SubAgentView.stoppable — computed
   // server-side, never re-derived by a client — but it takes TWO answers, because a shell's control
   // handle is not implied by the thread's transport alone:
   //   · the TAILER contributes "we hold a provider task handle for this shell" (its launch ack names
@@ -434,20 +435,20 @@ export const BgShellView = z.object({
   // the transport would render and then fail — "We shouldn't show the X if it doesn't fucking work".
   //
   // Until 2026-08-01 this field did not exist and no shell could be stopped: the server refused
-  // categorically, on the belief that frizz "holds no handle on its process". That was measured wrong —
+  // categorically, on the belief that ntwine "holds no handle on its process". That was measured wrong —
   // a background Bash is a TASK in the same session-wide registry a sub-agent lives in, so
   // `Query.stopTask` ends it (verified end-to-end in backend/_live_shell_stop.mts: the OS process is
   // gone inside a second).
   stoppable: z.boolean().optional(),
-  // Frizz cannot read this shell's output, so the row must NOT offer a drill-in. True only for a CODEX
+  // Ntwine cannot read this shell's output, so the row must NOT offer a drill-in. True only for a CODEX
   // background exec: codex keeps a yielded command's output inside its own session and hands it back
-  // only when the model polls, so there is no file for frizz to tail — unlike a Claude shell, whose
-  // output file frizz reads directly. Absent ⇒ readable, which is every row that predates codex shells.
+  // only when the model polls, so there is no file for ntwine to tail — unlike a Claude shell, whose
+  // output file ntwine reads directly. Absent ⇒ readable, which is every row that predates codex shells.
   //
   // A positive flag for the EXCEPTION rather than a `readable` that every existing row would have to
   // start setting: an old snapshot then keeps its drill-in instead of silently losing it.
   outputUnavailable: z.boolean().optional(),
-  // The command this shell runs, when frizz knows it independently of the label. Set only on a CODEX
+  // The command this shell runs, when ntwine knows it independently of the label. Set only on a CODEX
   // row, where it is the ONE thing the board's copy of the shell and the transcript's copy share — see
   // lib/childOps.ts mergeBackgroundShells, which reconciles the two on it. A Claude row leaves it
   // absent: its two copies already reconcile on the launch tool_use id, and a `command` that merely
@@ -505,7 +506,7 @@ export const EndedShellView = z.object({
   status: z.enum(["completed", "failed", "killed"]),
   startedAt: z.string().optional(),
   finishedAt: z.string().optional(),
-  taskId: z.string().optional(), // see BgShellView.taskId — what a frizz-relayed completion names it by
+  taskId: z.string().optional(), // see BgShellView.taskId — what an ntwine-relayed completion names it by
   monitor: z.boolean().optional(),
   cwd: z.string().optional(),
   checkout: WorkCheckout.optional(),
@@ -545,7 +546,7 @@ export const BackgroundShellOutputResult = z.object({
   // cleanup removed after the shell ended.
   missing: z.boolean().optional(),
   // A CODEX background exec: Codex keeps its output inside its own session and hands it to the model when
-  // it polls, so Frizz holds no file to read. The command, the folder and Stop still work.
+  // it polls, so Ntwine holds no file to read. The command, the folder and Stop still work.
   outputUnavailable: z.boolean().optional(),
   // Where it runs (BgShellView.cwd) and that folder's checkout when it is off the project root — kept
   // with the retired shell, so an open drawer keeps its subtitle after the shell ends.
@@ -675,7 +676,7 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 // a recorded done, which is why a worker that has just asked rests normally and writes no fence at all.
 // A question still open from an EARLIER rest is not: the worker names it under `questions:` or withdraws
 // it (2026-10-05). This is the FENCE form of the middle one, and it is PURE STRUCTURE — a list of things
-// frizz can look up, a duration, and one line of prose.
+// ntwine can look up, a duration, and one line of prose.
 //
 //   shells: [<runtime task id>, …]   background shells it launched   → checked against live telemetry
 //   agents: [<runtime agent id>, …]  sub-agents it dispatched        → checked against live telemetry
@@ -735,7 +736,7 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //
 // REGISTRATION IS ORTHOGONAL TO THIS FENCE (maintainer 2026-08-15). Dispatching a shell or a sub-agent,
 // setting a timer, registering a PR watcher — none of that is a fence, and none of it parks anything.
-// Those things simply exist and frizz watches them. The fence is only how a worker declares that it has
+// Those things simply exist and ntwine watches them. The fence is only how a worker declares that it has
 // STOPPED, and names which of them it stopped for.
 //
 // EVERY NAME IS CHECKED, THE MOMENT THE FENCE LANDS. All valid ⇒ the thread goes to Held. Any name that
@@ -772,7 +773,7 @@ export type AwaitingHint = z.infer<typeof AwaitingHint>
  *  each as a separate bug report: a `for:`-only fence, a card printing `watch: bvg44v4ij`, and a Goal
  *  loop re-writing `pr-watch:` every six seconds.
  *
- *  Falling through quietly is the whole problem: the worker cannot see which line frizz ignored, so it
+ *  Falling through quietly is the whole problem: the worker cannot see which line ntwine ignored, so it
  *  writes the same one again. Recognising them by name is what lets the bump say "you wrote `pr-watch:`,
  *  that kind is gone, here is what replaced it" (maintainer 2026-08-17: "BLOCK THEM with an error
  *  message… tell them what is now supported"). */
@@ -799,9 +800,9 @@ export function retiredAwaitingKindsIn(body: string): RetiredAwaitingKind[] {
 /** What each retired kind became, so the bump can say it in one line rather than restating the grammar. */
 export const RETIRED_AWAITING_REPLACEMENT: Record<RetiredAwaitingKind, string> = {
   "watch": "`shells: [<the id your runtime gave you>]` (or `agents: [<id>]`) — the same id, in the current sequence",
-  "pr-watch": "register the PR with `frizzctl watch-pr add`, then name it `prs: [owner/repo#123]`",
-  "human": "there is no human gate any more — steps only the user can perform go under `steps:`, one `- ` item per line; a decision you need from them is a question, registered with `frizzctl ask`",
-  "ci": "CI is not a wait of its own: register the PR with `frizzctl watch-pr add` and you are woken when its checks settle",
+  "pr-watch": "register the PR with `ntwinectl watch-pr add`, then name it `prs: [owner/repo#123]`",
+  "human": "there is no human gate any more — steps only the user can perform go under `steps:`, one `- ` item per line; a decision you need from them is a question, registered with `ntwinectl ask`",
+  "ci": "CI is not a wait of its own: register the PR with `ntwinectl watch-pr add` and you are woken when its checks settle",
   "session": "there is no cross-session wait — name the sub-agent you dispatched with `agents: [<id>]`",
   // THE 2026-08-24 CUTOVER. The frontmatter is YAML now, and YAML has no repeated keys — so the four
   // one-per-line item kinds became plural sequences, and `reason:` (the prose that made YAML impossible)
@@ -814,7 +815,7 @@ export const RETIRED_AWAITING_REPLACEMENT: Record<RetiredAwaitingKind, string> =
   "reason": "put it below the `---` as ordinary Markdown — the frontmatter is YAML now and takes no prose",
 }
 
-/** The four kinds that NAME A LIVE THING. Every one is checked against something frizz can look up — a
+/** The four kinds that NAME A LIVE THING. Every one is checked against something ntwine can look up — a
  *  runtime handle in this thread's telemetry, or a row in one of its registries — which is the whole
  *  point of the grammar. `for`/`reason` describe the park itself and name nothing. */
 /** THE ONE FENCE-FRONTMATTER PARSER, and it lives here because there used to be TWO.
@@ -829,7 +830,7 @@ export const RETIRED_AWAITING_REPLACEMENT: Record<RetiredAwaitingKind, string> =
  *  DEFENSIVE BY CONTRACT: it runs on whatever an LLM wrote, so it never throws. A parse failure, a
  *  non-mapping document, a key holding the wrong type, or an empty sequence all yield NO hints — which
  *  makes the fence name less than it claimed and gets the worker BUMPED rather than parked. Silently
- *  parking on a fence frizz could not read is the one outcome that must be impossible.
+ *  parking on a fence ntwine could not read is the one outcome that must be impossible.
  */
 
 /** Any `key: value` line at the top level of the frontmatter. Deliberately WIDER than the grammar: its
@@ -839,7 +840,7 @@ export const RETIRED_AWAITING_REPLACEMENT: Record<RetiredAwaitingKind, string> =
  *  the body as a sentence and left the fence with no answer. */
 const AWAITING_KEY_RE = /^([a-z][a-z_-]*):\s*(\S.*)?$/i
 
-/** The keys the frontmatter recognises as STRUCTURE: four PLURAL sequences of things frizz can look up,
+/** The keys the frontmatter recognises as STRUCTURE: four PLURAL sequences of things ntwine can look up,
  *  the scalars `for:`, `status:` and its alias `needs_input:`, and `title:` and `steps:` — which are
  *  recognised here so they never fall to the body, but are read verbatim rather than as YAML (see
  *  splitAwaitingFrontmatter). Anything else falls through to the body. `needs-input` is the same key
@@ -854,11 +855,11 @@ const AWAITING_SEQUENCE_KEYS: { [key: string]: AwaitingItemKind | undefined } = 
   agents: "agent",
   timers: "timer",
   prs: "pr",
-  // `issues:` (2026-09-14) names a GitHub ISSUE registered with `frizzctl watch-issue`. Its own key
+  // `issues:` (2026-09-14) names a GitHub ISSUE registered with `ntwinectl watch-issue`. Its own key
   // rather than a second spelling under `prs:`, because the two are different registrations: an issue
   // has no CI and no merge, and the correction for an unregistered one names a different command.
   issues: "issue",
-  // `commands:` (2026-10-11) names a command watch registered with `frizzctl watch-command`, by its
+  // `commands:` (2026-10-11) names a command watch registered with `ntwinectl watch-command`, by its
   // `cmw_…` id. Checked like a timer: the row must be armed on THIS thread.
   commands: "command",
 }
@@ -965,7 +966,7 @@ export function splitAwaitingFrontmatter(raw: string): { body: string; hints: Aw
   // what keeps a retired `pr:` with its list underneath from orphaning a bare sequence into the parser.
   // `inTitle` and `inSteps` are the same rule for the two keys that are prose: their lines follow them
   // verbatim.
-  // `threads:` names another Frizz thread this one asked with `frizzctl message-thread` and
+  // `threads:` names another Ntwine thread this one asked with `ntwinectl message-thread` and
   // `await_reply: true`, by its `@handle` — and `@` is a character YAML reserves, so `threads: [@x]` is a
   // parse error that would cost the fence every lookup beside it. So its values are read verbatim too,
   // as a flow list or `- ` items, with any quotes a worker added taken off.
@@ -1169,9 +1170,9 @@ export function awaitingFenceTitle(hints: readonly AwaitingHint[] | undefined): 
 //   watching     something must happen outside the thread (a release, a
 //                review, another agent's merge, tomorrow's cycle)          → Snoozed
 //
-// The worker says it because frizz cannot see it: a background shell is a build or a poller through the
+// The worker says it because ntwine cannot see it: a background shell is a build or a poller through the
 // same telemetry, and the contract routes long waits to sub-agents, so a sub-agent can be a watcher too.
-// What frizz CAN see still bounds it, in the safe direction only: `working` with nothing named in motion
+// What ntwine CAN see still bounds it, in the safe direction only: `working` with nothing named in motion
 // draws no spinner (board.deriveWaitStatus), and every park still holds only while each named item is
 // live and its `for:` has not run out (awaiting.needsInputParkHolds).
 export const AWAITING_STATUSES = ["needs_input", "working", "watching"] as const
@@ -1243,7 +1244,7 @@ export function isAwaitingItemKind(kind: string): kind is AwaitingItemKind {
   return (AWAITING_ITEM_KINDS as readonly string[]).includes(kind)
 }
 
-/** `for: 2h` — how long this park may stand before frizz bumps the worker to re-check everything.
+/** `for: 2h` — how long this park may stand before ntwine bumps the worker to re-check everything.
  *
  *  A DURATION, NEVER AN INSTANT, and that is the entire point. The grammar this replaced took an absolute
  *  ISO instant, which a worker has to compute — and on 2026-08-15 one wrote `timer: 2026-08-14T19:45:00Z`
@@ -1298,7 +1299,7 @@ export const SnoozeUntil = z.string().regex(
 export type SnoozeUntil = z.infer<typeof SnoozeUntil>
 
 // The follow-up a snooze carries. Its presence is what turns a snooze from a passive reminder (the
-// card re-surfaces, you act) into a SCHEDULED BUMP (frizz resumes the agent with this text at the
+// card re-surfaces, you act) into a SCHEDULED BUMP (ntwine resumes the agent with this text at the
 // deadline). Trimmed at the boundary so whitespace can never arm a wake that delivers nothing, and
 // capped like a composer message because it is delivered as an ordinary user turn.
 export const SNOOZE_PROMPT_MAX = 4000
@@ -1442,7 +1443,7 @@ export function formatGoalFor(seconds: number): string {
   return `${seconds}s`
 }
 
-/** What frizz delivers ONCE when a Goal disarms itself at a limit (scheduler `evalGoalLimits`). Frizz is
+/** What ntwine delivers ONCE when a Goal disarms itself at a limit (scheduler `evalGoalLimits`). Ntwine is
  *  the author, so this is the news and not an operator prompt: which limit, and how many runs landed.
  *
  *  It tells the worker NOT to re-arm around the limit. The limit is the loop's terminating condition —
@@ -1455,7 +1456,7 @@ export function goalLimitMessage(o: { reason: "runs" | "time"; runs: number; max
     ? `Your Goal reached its run limit and stopped: ${o.runs} of ${o.maxRuns ?? o.runs} runs delivered.`
     : `Your Goal reached its time limit${o.forSeconds ? ` (${formatGoalFor(o.forSeconds)})` : ""} and stopped after ${runs}.`
   return (
-    `${head} Frizz will not send it again.\n\n` +
+    `${head} Ntwine will not send it again.\n\n` +
     "(The loop is over by design. Wrap up what it was doing and say where the work stands. Its text is" +
     " kept in the thread footer, so it can be re-armed — but do not re-arm it yourself just to keep going" +
     " past the limit that ended it.)"
@@ -1464,7 +1465,7 @@ export function goalLimitMessage(o: { reason: "runs" | "time"; runs: number; max
 
 // ---- The opt-out ---------------------------------------------------------------------------------
 // THE OPT-OUT IS THE ```done FENCE, as of 2026-08-11. A worker that signs off as done has said "there
-// is no further work here", and frizz stops prompting it — every trigger, because a run that keeps
+// is no further work here", and ntwine stops prompting it — every trigger, because a run that keeps
 // being woken has not stalled and the whole point of the signal is that it has finished.
 //
 // IT USED TO BE A SENTINEL WORD, `ALLDONE`, and collapsing the two is the change. One vocabulary beats
@@ -1483,7 +1484,7 @@ export function goalLimitMessage(o: { reason: "runs" | "time"; runs: number; max
 // loop by itself.
 
 // Claude Code narrates its OWN control action into the transcript: every turn cut short leaves a bare
-// `[Request interrupted by user]` user record. Frizz cuts turns short as a feature — "send now" (⌘⏎ and
+// `[Request interrupted by user]` user record. Ntwine cuts turns short as a feature — "send now" (⌘⏎ and
 // the queue's push-through button) interrupts the running turn so the worker reads the queue at once —
 // so the marker landed as a human bubble directly above the very message that caused it, saying nothing
 // the reader did not just do (maintainer 2026-08-14). The broker's own shutdown writes the same record,
@@ -1513,7 +1514,7 @@ export const ALLDONE_SENTINEL = "ALLDONE"
 /** Does this assistant text defer its recurring prompt? True iff some line, stripped of markdown
  * emphasis/backticks and trailing punctuation, IS the sentinel.
  *
- * CASE-SENSITIVE, which is load-bearing now that the word is `AWAITING`: frizz's own signal-fence
+ * CASE-SENSITIVE, which is load-bearing now that the word is `AWAITING`: ntwine's own signal-fence
  * grammar opens with ```awaiting, and a worker parking on a fence writes that token constantly. Lowered
  * case would make every ```awaiting fence silently suppress a bump as well. */
 export function saysAllDone(text: string | undefined): boolean {
@@ -1539,7 +1540,7 @@ const OPT_OUT_NOTE =
   "To stop these, sign off with a ```done fence — but ONLY when the work is genuinely finished:" +
   " it files this thread away, and nothing but new work from the user reopens it."
 
-/** What frizz delivers when the ON REST trigger fires: the operator's words VERBATIM, then the trailer.
+/** What ntwine delivers when the ON REST trigger fires: the operator's words VERBATIM, then the trailer.
  * Kept beside the parser so the wording sent and the wording recognized can never drift apart.
  *
  * IT DOES NOT ADVERTISE THE OTHER EXIT, and that is a budget decision rather than an oversight. An
@@ -1574,13 +1575,13 @@ const OVER_QUESTION_NOTE =
   " to answer it: decide it yourself, say in one line which way you went and what would reverse it," +
   " and carry on. Do NOT re-ask it."
 
-/** What frizz delivers when the POST-COMPACTION trigger fires (scheduler SOURCE 7).
+/** What ntwine delivers when the POST-COMPACTION trigger fires (scheduler SOURCE 7).
  *
  * This one lands in a context that has just been summarized away, which is the whole reason it exists —
  * so unlike its two siblings the trailer must first say WHERE the reader is, or the operator's words
  * arrive with nothing to attach to. It also answers the compaction preamble in the same breath: a
  * worker reading "a previous conversation that ran out of context" routinely treats it as a report on
- * ITSELF and starts winding down, and this delivery is the one piece of frizz text guaranteed to land
+ * ITSELF and starts winding down, and this delivery is the one piece of ntwine text guaranteed to land
  * in that exact window.
  *
  * Like the schedule trigger's, it may arrive MID-TURN — a compaction does not stop the work. */
@@ -1593,7 +1594,7 @@ export function compactionPromptMessage(prompt: string): string {
   )
 }
 
-/** What frizz delivers when the ON SCHEDULE trigger fires. Same text, same shape, and it names the
+/** What ntwine delivers when the ON SCHEDULE trigger fires. Same text, same shape, and it names the
  * cadence — which is the ONE thing that distinguishes the two deliveries now that the prompt is shared.
  * A worker needs that distinction: a scheduled delivery may arrive MID-TURN, so reading one does not
  * mean it has stopped.
@@ -1625,7 +1626,7 @@ export function formatIntervalLabel(seconds: number): string {
  * The chat needs to tell a delivery from a human message, and to say WHICH TRIGGER fired, and the
  * transcript carries no structure — a delivery is an ordinary user turn. So this parses the trailer the
  * two composers above emit, exactly as `parseGithubWakeSteer` parses the steer its own formatter writes.
- * That is not a text GUESS: the format is frizz's, it is defined ten lines up, and both directions live
+ * That is not a text GUESS: the format is ntwine's, it is defined ten lines up, and both directions live
  * in this file so they cannot drift. Anything that does not match returns undefined and renders as it
  * did before — text is never lost to a parse. */
 export interface RecurringPrompt {
@@ -1647,12 +1648,12 @@ const RECURRING_TRAILER =
   /\n\n\((?:Goal|Recurring prompt|Stop hook|Heartbeat) — (?:sent (?:(each time you come to rest)|every ([^.)]+))|(your context was just compacted))\. [^)]*\)$/
 export function parseRecurringPrompt(text: string | undefined): RecurringPrompt | undefined {
   if (typeof text !== "string") return undefined
-  // Frizz's built-in sign-off reminder (scheduler SOURCE 9). It carries no trailer — it is not the
-  // operator's text with a note attached, it IS frizz's text — so it is matched on its own opening
-  // marker and collapsed like any other repeating frizz delivery. Left as a card it dominated the queue
+  // Ntwine's built-in sign-off reminder (scheduler SOURCE 9). It carries no trailer — it is not the
+  // operator's text with a note attached, it IS ntwine's text — so it is matched on its own opening
+  // marker and collapsed like any other repeating ntwine delivery. Left as a card it dominated the queue
   // item it was complaining about (maintainer 2026-08-12, with a screenshot of exactly that).
   const lead = text.trimStart()
-  if (lead.startsWith(SIGNOFF_NUDGE_MARKER) || lead.startsWith(LEGACY_SIGNOFF_NUDGE_MARKER)) return { kind: "signoff", prompt: "" }
+  if (SIGNOFF_NUDGE_MARKERS.some((marker) => lead.startsWith(marker))) return { kind: "signoff", prompt: "" }
   const m = RECURRING_TRAILER.exec(text.trimEnd())
   if (!m) return undefined
   const prompt = text.trimEnd().slice(0, m.index).trim()
@@ -1664,7 +1665,7 @@ export function parseRecurringPrompt(text: string | undefined): RecurringPrompt 
 }
 
 // ---- ONE-OFF TIMERS (scheduler SOURCE 6) ---------------------------------------------------------
-// A worker's own alarm clock: text it asks frizz to hand back at ONE instant, once. It is the recurring
+// A worker's own alarm clock: text it asks ntwine to hand back at ONE instant, once. It is the recurring
 // prompt's ON SCHEDULE trigger with the repetition taken out — same durable outbox, same mid-turn
 // delivery — and a thread may hold ARBITRARILY MANY at a time, which is the whole reason they are rows
 // of their own rather than another set of `recurring_*` columns on the session (one row can hold one
@@ -1689,7 +1690,7 @@ export const TIMER_MAX_ARMED = 64
 
 export const TimerPromptText = z.string().trim().min(1).max(TIMER_PROMPT_MAX)
 
-/** What frizz delivers when a one-off timer fires: the worker's own words VERBATIM, then a one-line
+/** What ntwine delivers when a one-off timer fires: the worker's own words VERBATIM, then a one-line
  *  trailer naming the INSTANT — with several timers armed at once, the instant is the only thing that
  *  says WHICH one this is.
  *
@@ -1697,22 +1698,22 @@ export const TimerPromptText = z.string().trim().min(1).max(TIMER_PROMPT_MAX)
  *  parser exists because a recurring prompt repeats the same paragraph down the whole transcript and has
  *  to collapse to a divider; a one-off is said once, so the chat's generic first-party wake card — the
  *  one already written for "a CI/timer/limit wake" — shows it correctly with no new component. */
-/** What frizz delivers when one of a thread's background shells finishes while the thread is RESTING.
+/** What ntwine delivers when one of a thread's background shells finishes while the thread is RESTING.
  *
  *  There is no operator text to carry — nobody asked for this wake, a finished shell simply happened —
  *  so the message IS the news, and it has two jobs: say WHICH shell precisely enough to act on, and say
- *  why frizz is the one saying it. The second matters because the agent has a runtime notification for
+ *  why ntwine is the one saying it. The second matters because the agent has a runtime notification for
  *  exactly this event and will reasonably wonder why it did not arrive: it only ever reaches a RUNNING
  *  turn, so a shell that finishes behind a rested worker is never reported by anyone else. */
 // ---- THE AGENT-FACING TRAILERS, AS CONSTANTS ------------------------------------------------------
-// Each of these is a paragraph frizz writes FOR THE WORKER at the end of a wake it composed: what the
+// Each of these is a paragraph ntwine writes FOR THE WORKER at the end of a wake it composed: what the
 // registration is, whether it is still armed, and which tool drops it. A human reading the transcript
 // has no watcher to re-register and no tool to call, so none of it is ever news to them.
 //
 // THEY ARE CONSTANTS SO ONE FUNCTION CAN STRIP ALL OF THEM (`stripWakeTrailer`, beside the rest of the
 // wake grammar). The dividers already drop the trailer by never rendering it — but that only holds for
 // a delivery some parser RECOGNIZED, and the browser is the half that routinely cannot: a tab is a
-// build behind whenever frizz restarts under it, so the first delivery in a shape its bundle predates
+// build behind whenever ntwine restarts under it, so the first delivery in a shape its bundle predates
 // falls through to the raw-text card and prints this boilerplate to the operator (maintainer
 // 2026-09-04, on a conflict wake an hour-old tab could not parse: "this should just never show up").
 // Stripping in the display projection makes that impossible for a tab of ANY age, and for any wake
@@ -1721,23 +1722,23 @@ export const TimerPromptText = z.string().trim().min(1).max(TIMER_PROMPT_MAX)
 // The WORKER's copy is untouched — the projection narrows what is shown, never what was delivered.
 export const PR_WATCH_SPENT_TRAILER = "(This watcher is spent — there is nothing further to report on a finished PR.)"
 export const PR_WATCH_ARMED_TRAILER = "(Registered PR watcher — STILL ARMED. It reports again on the next CI change, review,"
-  + " comment, label, conflict or review request. Drop it with `frizzctl watch-pr drop <id>` when it stops"
+  + " comment, label, conflict or review request. Drop it with `ntwinectl watch-pr drop <id>` when it stops"
   + " mattering.)"
-export const SHELL_DONE_TRAILER = "(Frizz sends this because it finished after you came to rest, where your runtime's own completion"
+export const SHELL_DONE_TRAILER = "(Ntwine sends this because it finished after you came to rest, where your runtime's own completion"
   + " notification does not reach you. Read its output if you still need it.)"
 export const ISSUE_WATCH_SPENT_TRAILER = "(This watcher is spent — there is nothing further to report on a closed issue.)"
 export const ISSUE_WATCH_ARMED_TRAILER = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or"
-  + " assignee change, and once more when the issue closes. Drop it with `frizzctl watch-issue drop <id>` when"
+  + " assignee change, and once more when the issue closes. Drop it with `ntwinectl watch-issue drop <id>` when"
   + " it stops mattering.)"
 // THE TWO ARMED TRAILERS AS THEY WERE WRITTEN UNTIL 2026-10-11, when the drop verb they name was an MCP
 // tool. Nothing composes them any more, but every transcript written before that date ends its watcher
 // wakes with these exact bytes, and `stripWakeTrailer` matches exact strings — so they stay in its list,
 // or a wake delivered last week would start printing its boilerplate at the operator again.
 const LEGACY_PR_WATCH_ARMED_TRAILER = "(Registered PR watcher — STILL ARMED. It reports again on the next CI change, review,"
-  + " comment, label, conflict or review request. Drop it with `mcp__frizz__watch_pr` when it stops"
+  + " comment, label, conflict or review request. Drop it with `mcp__ntwine__watch_pr` when it stops"
   + " mattering.)"
 const LEGACY_ISSUE_WATCH_ARMED_TRAILER = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or"
-  + " assignee change, and once more when the issue closes. Drop it with `mcp__frizz__watch_issue` when"
+  + " assignee change, and once more when the issue closes. Drop it with `mcp__ntwine__watch_issue` when"
   + " it stops mattering.)"
 // The same two, for a watcher the HUMAN armed from the done card (router.watchDoneRef, 2026-10-07). The
 // worker signed off `done` and never registered it, so the wake says whose it is, that it stays, and how
@@ -1758,7 +1759,7 @@ export const ISSUE_WATCH_HUMAN_TRAILER = "(The user registered this issue watche
   + " again on the next comment, label or assignee change, and once more when the issue closes. Leave it"
   + " armed." + HUMAN_WATCH_SURFACE
 
-/** What frizz delivers when a REGISTERED PR WATCHER has something to report.
+/** What ntwine delivers when a REGISTERED PR WATCHER has something to report.
  *
  *  Two things can move and the message names which: CI reaching a terminal verdict, and new review or
  *  comment activity. Both in one message when both happened in one poll — a worker woken twice for one
@@ -1837,7 +1838,7 @@ export function prWatchWakeMessage(input: {
   return lines.join("\n")
 }
 
-/** What frizz delivers when a REGISTERED ISSUE WATCHER has something to report — the issue twin of
+/** What ntwine delivers when a REGISTERED ISSUE WATCHER has something to report — the issue twin of
  *  `prWatchWakeMessage`, with the CI limb gone because an issue has none.
  *
  *  THE LINES KEEP THE PR SHAPES ON PURPOSE. `⏰ owner/repo#N was CLOSED.` and `🔔 owner/repo#N: …` are
@@ -1889,13 +1890,13 @@ export function shellDoneMessage(shell: { taskId?: string; label: string; status
  *  IT EXISTS TO MAKE ONE EVENT READ AS ONE EVENT. A background shell finishing while the worker is
  *  RUNNING is reported by the runtime, and the transcript has always drawn that as a wake divider
  *  (`backgroundWakeLabel` — "Agent terminal «…» finished"). The very same shell finishing while the
- *  worker RESTS is reported by frizz instead, because the runtime's notification only ever reaches a
+ *  worker RESTS is reported by ntwine instead, because the runtime's notification only ever reaches a
  *  running turn — and that one arrived as a full-width card. So whether a shell's completion was a
  *  hairline or a panel came down to whether anyone happened to be awake, which is not a distinction the
  *  transcript should be drawing at all (maintainer 2026-08-19, extending the pr-watch fix: "yes").
  *
- *  The trailer is not parsed and not rendered: "frizz sends this because your runtime's own completion
- *  notification does not reach you" explains frizz to the agent, and the human it is shown to never had
+ *  The trailer is not parsed and not rendered: "ntwine sends this because your runtime's own completion
+ *  notification does not reach you" explains ntwine to the agent, and the human it is shown to never had
  *  that expectation to correct. */
 export interface ShellDoneWake {
   taskId?: string
@@ -1944,7 +1945,7 @@ export function interruptEndedSubAgentsMessage(agents: readonly InterruptEndedSu
 }
 
 /** Is this delivered wake the interrupt note above? A text match, honest for the same reason it is for
- *  `SIGNOFF_NUDGE_MARKER`: frizz writes the lead and nothing else does. */
+ *  `SIGNOFF_NUDGE_MARKER`: ntwine writes the lead and nothing else does. */
 export function isInterruptEndedWake(text: string): boolean {
   const lead = text.trimStart()
   return lead.startsWith(INTERRUPT_ENDED_LEAD) || lead.startsWith(legacyHumanWording(INTERRUPT_ENDED_LEAD))
@@ -1982,18 +1983,20 @@ export function isInterruptEndedWake(text: string): boolean {
 // reminder wanted anyway.
 /** The nudge's opening line, exported because it does DOUBLE DUTY: it tells the agent whose message
  *  this is, and it is what the transcript matches on to collapse the delivery to one hairline rather
- *  than rendering frizz's boilerplate as a card over the agent's own words. A text match is honest here
- *  — frizz writes this string and frizz reads it, both from this file. */
-export const SIGNOFF_NUDGE_MARKER = "**This message is from frizz, not from the user.**"
+ *  than rendering ntwine's boilerplate as a card over the agent's own words. A text match is honest here
+ *  — ntwine writes this string and ntwine reads it, both from this file. */
+export const SIGNOFF_NUDGE_MARKER = "**This message is from ntwine, not from the user.**"
 
-/** Frizz's worker-facing vocabulary said "the human" until 2026-10-08 and says "the user" now (a worker
- *  leaking the contract's noun into its prose reads less oddly that way). Text frizz wrote BEFORE the
+/** Ntwine's worker-facing vocabulary said "the human" until 2026-10-08 and says "the user" now (a worker
+ *  leaking the contract's noun into its prose reads less oddly that way). Text ntwine wrote BEFORE the
  *  change is still in every open thread's transcript, so each recognizer that matches one of these
  *  constants also accepts its old spelling, rebuilt from the new one so the two cannot drift. */
 function legacyHumanWording(text: string): string {
   return text.replaceAll("The user", "The human").replaceAll("the user", "the human")
 }
 const LEGACY_SIGNOFF_NUDGE_MARKER = legacyHumanWording(SIGNOFF_NUDGE_MARKER)
+/** Both wordings, each in both product names (legacy-brand.ts). */
+const SIGNOFF_NUDGE_MARKERS = [SIGNOFF_NUDGE_MARKER, LEGACY_SIGNOFF_NUDGE_MARKER].flatMap(brandSpellings)
 
 /** The live things a thread could legitimately park on, appended to the reminder so the agent does not
  *  have to go looking for ids it cannot see. Maintainer 2026-08-14: "the handoff lists out all of the
@@ -2027,16 +2030,16 @@ export interface SignoffLiveOps {
 // The awaiting grammar references live things BY ID, so a worker that has lost them (a compaction, a long
 // turn) cannot write a correct fence and will be bumped for naming something wrong. Giving it the exact
 // lines here closes that loop at the one moment it is provably needed: it just rested without a fence.
-// `frizzctl activity` returns the same list on demand, from the same source.
+// `ntwinectl activity` returns the same list on demand, from the same source.
 /** The registries as one `kinds: [id, …]` line per kind a fence can copy verbatim, each above the ids it
  *  holds and what they are, or `[]` when nothing is running.
  *
  *  ONE LINE PER KIND, NOT PER ITEM, because the frontmatter is YAML (2026-08-24) and YAML has no repeated
  *  keys. This printed `shell: <id>` per item until 2026-09-25 — the retired grammar, which the park check
- *  refuses by name — so a worker that copied what frizz handed it was bumped for copying it.
+ *  refuses by name — so a worker that copied what ntwine handed it was bumped for copying it.
  *
  *  Shared with SOURCE 12's corrections, and that sharing is the point rather than tidiness: a worker
- *  dispatched before `mcp__frizz__activity` existed CANNOT call it — its MCP server is frozen at dispatch
+ *  dispatched before `mcp__ntwine__activity` existed CANNOT call it — its MCP server is frozen at dispatch
  *  — so a correction whose only remedy is that tool teaches the oldest threads nothing, which is exactly
  *  the population most likely to be writing a bad fence. Printing the ids needs no tool at all. */
 export function liveOpsLines(ops?: SignoffLiveOps, needsInput = false): string[] {
@@ -2173,7 +2176,7 @@ function replyWaitNudgeMessage(threads: readonly { id?: string; label: string }[
     "```",
     ...(extras.length ? ["", `Add a line only if this rest waits on these too: ${extras.join(", ")}.`] : []),
     "",
-    "If work is left, do it now; if you no longer need the answer, stop waiting with `frizzctl unwatch <id>` on the wait's `tmr_…` id (`frizzctl activity` lists it) and sign off.",
+    "If work is left, do it now; if you no longer need the answer, stop waiting with `ntwinectl unwatch <id>` on the wait's `tmr_…` id (`ntwinectl activity` lists it) and sign off.",
   ].join("\n")
 }
 
@@ -2191,11 +2194,11 @@ export function signoffNudgeMessage(ops?: SignoffLiveOps, needsInput = false): s
     lines.push("", "An ```awaiting fence names only what you are ACTUALLY waiting on, one such list per kind, plus")
     if (needsInput) {
       lines.push("a required `for:` duration (`30s`/`15m`/`2h`/`3d`) and a required `status:` (`working`, `watching`")
-      lines.push("or `needs_input`), then a `---` line and whatever prose the user needs. Frizz checks every id:")
+      lines.push("or `needs_input`), then a `---` line and whatever prose the user needs. Ntwine checks every id:")
       lines.push("name something that is not running and you are bumped rather than parked.")
     } else {
       lines.push("a required `for:` duration (`30s`/`15m`/`2h`/`3d`), then a `---` line and whatever prose you want")
-      lines.push("(optional). Frizz checks every id: name something that is not running and you are bumped")
+      lines.push("(optional). Ntwine checks every id: name something that is not running and you are bumped")
       lines.push("rather than parked.")
     }
   }
@@ -2293,14 +2296,14 @@ function signoffNudgeText(needsInput: boolean): string {
   "the write-up.",
   "",
   "**DECIDE RATHER THAN ASK.** Stop only for a decision that is genuinely the user's AND that blocks you",
-  "right now: register that one with `frizzctl ask`. Every other open choice INSIDE the task — a name, a",
+  "right now: register that one with `ntwinectl ask`. Every other open choice INSIDE the task — a name, a",
   "default, a reversible design call — is yours to make: decide it, say in one line which way you went and",
   "what would reverse it, and carry on. A choice that would ENLARGE the task is not one of those: an",
   "unanswered question is not permission to go build the answer.",
   "",
   "Otherwise, sign off — a registration, or a fence at the END of your next message:",
   "",
-  "- `frizzctl ask` — you need the user. NOT a fence: the ```question fence is retired, and a fence",
+  "- `ntwinectl ask` — you need the user. NOT a fence: the ```question fence is retired, and a fence",
   "  with a question in its body is plain prose. Register it (options with one-line trade-offs, the",
   "  recommended one first), then rest normally — an open registered question is the sign-off.",
   "- `` ```done `` — genuinely FINISHED. A DISMISSAL: the card is filed away and nobody looks again, so",
@@ -2308,26 +2311,26 @@ function signoffNudgeText(needsInput: boolean): string {
   "  deliverable, each opening with a **bolded verb phrase**. A card is read at a glance: keep it short.",
   ...signoffNudgeAwaitingLines(needsInput),
   "",
-  "  Frizz CHECKS every line: name something that is not running and you are bumped rather than parked.",
+  "  Ntwine CHECKS every line: name something that is not running and you are bumped rather than parked.",
   "  A fence that names NOTHING is not a park at all — if you are not waiting on anything, you are not",
-  "  awaiting, you are done. Register a PR with `frizzctl watch-pr add` and a timer with",
-  "  `frizzctl timer set`; `frizzctl activity` reads back everything you have running, with its id.",
+  "  awaiting, you are done. Register a PR with `ntwinectl watch-pr add` and a timer with",
+  "  `ntwinectl timer set`; `ntwinectl activity` reads back everything you have running, with its id.",
   "- `` ```awaiting `` with `steps:` — the user must PERFORM something you cannot: sign in, approve,",
   "  merge, press a button you may not. List each step as a `- ` line under `steps:`, written to be",
   "  followed cold: a real Markdown link to every page and file it names, every command in a code span,",
-  "  every value the act needs written in. Frizz reads them verbatim. Steps name the USER as the wait,",
+  "  every value the act needs written in. Ntwine reads them verbatim. Steps name the USER as the wait,",
   "  so the fence needs no other name and no `for:`, and the thread goes into their queue. Their Done",
   "  comes back to you as their reply; anything else they need to say comes as a message of their own.",
   "- `` ```awaiting `` with `questions:` — a question you registered at an EARLIER rest is still open and",
   "  you still need its answer. Name every such question (`questions: [qst_…]`) and withdraw the rest with",
-  "  `frizzctl unask <id>`: a fence that leaves an open question out is refused. A named card is drawn at",
+  "  `ntwinectl unask <id>`: a fence that leaves an open question out is refused. A named card is drawn at",
   "  this rest; an unnamed one stays where you asked it.",
   "",
   "**STILL OWED counts things you are not going to do yourself.** A decision you are RECOMMENDING, a",
   "draft you wrote but did not send, follow-up work you discovered — all of it dies with the card, even",
   "the part that is someone else's to do. Each ends on a question with your recommendation as option 1,",
   "or you DO it first — a sub-agent's result comes BACK to you, so it lands on your card; a new card via",
-  "`frizzctl spawn-thread` is the LAST resort, since nothing it learns returns to you or its siblings.",
+  "`ntwinectl spawn-thread` is the LAST resort, since nothing it learns returns to you or its siblings.",
   "None of them is a `done`. And what is not",
   "worth a card is not worth a SENTENCE: delete the dangling \"one thing to carry forward\", never park it",
   "in the handoff.",
@@ -2339,7 +2342,7 @@ function signoffNudgeText(needsInput: boolean): string {
   "",
   "Only if it does NOT stand alone, fix that first, briefly. It has to be readable cold: the user has",
   "seen nothing since their own last message — the Goal, this reminder, a watcher wake all came from",
-  "frizz — so anything you assumed they had followed, they have not.",
+  "ntwine — so anything you assumed they had followed, they have not.",
   ].join("\n")
 }
 
@@ -2364,25 +2367,25 @@ export function carriedQuestionsNudgeMessage(questions: readonly { id: string; q
     "",
     ...questions.map((q) => `- \`${q.id}\` — ${q.question}`),
     "",
-    "Frizz does not draw an earlier rest's question under your newest handoff: its card stays where you",
+    "Ntwine does not draw an earlier rest's question under your newest handoff: its card stays where you",
     `asked it. So say where ${one ? "it stands" : "each one stands"}:`,
     "",
     "- STILL NEED THE ANSWER → end with an ```awaiting fence naming it, `questions: [qst_…]`. A fence on",
     "  questions needs no other name and no `for:`, and the thread stays in the user's queue. The card is",
     "  drawn at this rest, under the reasoning you write below the `---` — what changed since you asked,",
     "  if anything did.",
-    "- NO LONGER NEED IT → withdraw it with `frizzctl unask <id>`, then sign off as you otherwise would.",
+    "- NO LONGER NEED IT → withdraw it with `ntwinectl unask <id>`, then sign off as you otherwise would.",
     ...liveOpsLines(ops, needsInput),
   ]
   return lines.join("\n")
 }
 
 // ---- THE FENCE CORRECTIONS (scheduler SOURCE 12) -------------------------------------------------
-// Frizz refusing a park and telling the worker why: a fence naming something that is not running, a
+// Ntwine refusing a park and telling the worker why: a fence naming something that is not running, a
 // fence naming nothing at all, a fence written in a line kind that no longer exists.
 //
 // THEY ARE INVISIBLE IN THE CHAT, and that is the whole reason these two strings live here. A
-// correction is frizz talking to the AGENT about its own grammar — there is no news in it and nothing
+// correction is ntwine talking to the AGENT about its own grammar — there is no news in it and nothing
 // for the human to do — and left as a first-party card it dominated the very handoff it was complaining
 // about, then sat above the worker's re-fence as a second, louder copy of a conversation the human was
 // never part of (maintainer 2026-08-19, with a screenshot of exactly that). It is the same verdict the
@@ -2391,8 +2394,8 @@ export function carriedQuestionsNudgeMessage(questions: readonly { id: string; q
 //
 // The LEADS are matched rather than a marker being minted, so the corrections already sitting in every
 // open thread on disk disappear too — a marker would only ever reach the ones written after it shipped.
-// A text match is honest for the same reason it is honest for `SIGNOFF_NUDGE_MARKER`: frizz writes these
-// strings and frizz reads them, and the formatter in scheduler.ts builds its heads FROM them, so the two
+// A text match is honest for the same reason it is honest for `SIGNOFF_NUDGE_MARKER`: ntwine writes these
+// strings and ntwine reads them, and the formatter in scheduler.ts builds its heads FROM them, so the two
 // cannot drift.
 //
 // `⏰ Your wait expired` is deliberately NOT one of them. That is not a correction — the fence was right
@@ -2411,7 +2414,7 @@ export const PARK_CORRECTION_QUESTION_LEAD = "⚠️ Your ```awaiting fence land
  *  where the thread sits while it waits — no `status:` (2026-10-05; `needs_input:` before it), or a value
  *  that is none of its answers. The lead is unchanged across the rename, so old corrections still fold. */
 export const PARK_CORRECTION_NEEDS_INPUT_LEAD = "⚠️ Your ```awaiting fence gives no "
-/** Is this delivered wake one of frizz's fence corrections? */
+/** Is this delivered wake one of ntwine's fence corrections? */
 export function isParkCorrection(text: string): boolean {
   const t = text.trimStart()
   return t.startsWith(PARK_CORRECTION_NAMES_LEAD) || t.startsWith(PARK_CORRECTION_RETIRED_LEAD) || t.startsWith(PARK_CORRECTION_QUESTION_LEAD) || t.startsWith(PARK_CORRECTION_NEEDS_INPUT_LEAD)
@@ -2423,8 +2426,8 @@ export function timerPromptMessage(prompt: string, fireAt: string): string {
 
 /** A fired one-off timer, read back out of its delivery.
  *
- *  THIS ONE KEEPS ITS BODY, and it is the only wake in the family that does. Everything else frizz
- *  composes is frizz's own sentence about something outside the turn, so a hairline says all of it; this
+ *  THIS ONE KEEPS ITS BODY, and it is the only wake in the family that does. Everything else ntwine
+ *  composes is ntwine's own sentence about something outside the turn, so a hairline says all of it; this
  *  is the WORKER'S OWN prose, arbitrary and up to TIMER_PROMPT_MAX long. The recurring prompt collapses
  *  to a bare label for a reason that does NOT hold here — its text is the ARMED text, still legible and
  *  editable in the Goal panel, so repeating it inline adds nothing (see RecurringPromptLine). A fired
@@ -2434,7 +2437,7 @@ export function timerPromptMessage(prompt: string, fireAt: string): string {
  *  Hence a hairline WITH a disclosure — the family's shape, the body one click away (maintainer
  *  2026-08-19, choosing that over both a card and a bare line).
  *
- *  Matched on the TRAILER, exactly like `parseRecurringPrompt`: frizz writes it and frizz reads it, both
+ *  Matched on the TRAILER, exactly like `parseRecurringPrompt`: ntwine writes it and ntwine reads it, both
  *  from this file, and the prompt above it is arbitrary text no pattern could anchor on. */
 export interface TimerWake {
   prompt: string
@@ -2471,7 +2474,7 @@ export function parseSpinoffRequest(text: string): { id: string; instructions: s
 }
 
 /** The new thread's first prompt when it does not fork the parent: the human's words and where they came
- *  from, then the context Frizz assembled from the parent (spinoffContext). Written by the SERVER, so the
+ *  from, then the context Ntwine assembled from the parent (spinoffContext). Written by the SERVER, so the
  *  human's instructions reach the child verbatim, and the child can find its way back.
  *
  *  The parent is named by its `@handle` when it has one — what `read_thread` resolves and what the
@@ -2500,14 +2503,14 @@ function spinoffParentRef(input: { parentSlug: string; parentTitle: string; pare
 }
 
 /** The CONTEXT a spinoff child starts with when it does not fork its parent (David 2026-10-07): a Codex
- *  or ACP parent, a cross-project spinoff, or a Claude parent with no transcript yet. Frizz assembles it
+ *  or ACP parent, a cross-project spinoff, or a Claude parent with no transcript yet. Ntwine assembles it
  *  from what it already stores — the parent's original request, its latest handoff (a registered done's
  *  body, else its last resting message) and, across projects, where the parent lives — and points the
  *  child at `read_thread` for the rest. No model writes it and nothing reaches the parent, so a spinoff
  *  never touches the thread it came from.
  *
  *  The request and the handoff lead, so the text the child is NAMED from (spinoffNameSource) is about the
- *  work rather than Frizz's own orientation. Each is quoted, being another thread's words. `readAs` is
+ *  work rather than Ntwine's own orientation. Each is quoted, being another thread's words. `readAs` is
  *  what `read_thread` resolves the parent by: its handle, or its slug when it has none. */
 export function spinoffContext(input: {
   parentSlug: string
@@ -2570,7 +2573,7 @@ export function spinoffNameSource(origin: { instructions: string; brief: string 
 // first turn, like the request's parser.
 const SPINOFF_CHILD_PROMPT = /^A spinoff of (?:@[\p{L}\p{N}_.-]+|\[[^\]\n]*\]\(\/thread\/[^)\s]+\)), at the (?:user|human)'s request\. Their instructions:\n\n((?:>[^\n]*(?:\n|$))+)\n(?:Context from (?:@[\p{L}\p{N}_.-]+|that thread)|The context (?:@[\p{L}\p{N}_.-]+|that thread) gathered for you):\n\n([\s\S]*)$/u
 
-// A FORKED child's prompt (spinoffForkPrompt): the same opening and quote, then Frizz's orientation —
+// A FORKED child's prompt (spinoffForkPrompt): the same opening and quote, then Ntwine's orientation —
 // which is not a brief, so it projects as none.
 const SPINOFF_FORK_PROMPT = new RegExp(
   String.raw`^A spinoff of (?:@[\p{L}\p{N}_.-]+|\[[^\]\n]*\]\(\/thread\/[^)\s]+\)), at the (?:user|human)'s request\. Their instructions:\n\n((?:>[^\n]*(?:\n|$))+)\n` +
@@ -2596,7 +2599,7 @@ export function parseSpinoffChildPrompt(text: string): { instructions: string; b
 
 /** The message a worker receives when the usage window that cut it off has rolled over.
  *
- *  MOVED HERE FROM THE SCHEDULER on 2026-08-19, when this became the last frizz-composed wake still
+ *  MOVED HERE FROM THE SCHEDULER on 2026-08-19, when this became the last ntwine-composed wake still
  *  arriving as a card. It could not be a hairline while it lived in the server package: the chat has
  *  nothing but the delivered text to draw from, so the parser has to sit beside the formatter, and only
  *  this package is reachable from both sides. Every other wake formatter is here for that same reason.
@@ -2609,10 +2612,10 @@ export function limitResumeSteer(window: LimitWindow): string {
   return `⏳ The ${which} that interrupted you has reset. Continue exactly where you left off.`
 }
 
-/** The message a worker receives when frizz answered a MODEL-SCOPED cap by moving the thread down a rung.
+/** The message a worker receives when ntwine answered a MODEL-SCOPED cap by moving the thread down a rung.
  *
  *  The provider's own line says it outright — "Switch to another model … to continue" — so the account
- *  is not out of capacity, this MODEL is, and waiting out a weekly window is the wrong answer. Frizz
+ *  is not out of capacity, this MODEL is, and waiting out a weekly window is the wrong answer. Ntwine
  *  takes the provider's advice on the thread's behalf and restarts it on the next model down (see
  *  claudeFallbackModel), which is why this wake says nothing has reset: the cap is still standing.
  *
@@ -2620,10 +2623,10 @@ export function limitResumeSteer(window: LimitWindow): string {
  *  ("Fable", "Opus"), never their argv slugs — because the operator reads this line in the transcript
  *  and the composer's selector beside it says exactly the same word. */
 export function limitModelSwitchSteer(capped: string, to: string): string {
-  return `⏳ The ${capped} limit that interrupted you is still closed — frizz restarted this thread on ${to}. Continue exactly where you left off.`
+  return `⏳ The ${capped} limit that interrupted you is still closed — ntwine restarted this thread on ${to}. Continue exactly where you left off.`
 }
 
-const LIMIT_MODEL_SWITCH = /^⏳ The (.+?) limit that interrupted you is still closed — frizz restarted this thread on (.+?)\. Continue exactly where you left off\.$/
+const LIMIT_MODEL_SWITCH = eitherBrand(/^⏳ The (.+?) limit that interrupted you is still closed — ntwine restarted this thread on (.+?)\. Continue exactly where you left off\.$/)
 
 /** Which model was capped and which one the thread now runs, or `null` when this is not a switch wake. */
 export function parseLimitModelSwitchWake(text: string): { capped: string; to: string } | null {
@@ -2643,12 +2646,12 @@ export function parseLimitResumeWake(text: string): { window: LimitWindow } | nu
 
 // ---- THE PARK-INTEGRITY WAKES (scheduler SOURCE 12) ------------------------------------------------
 // THE RULE THIS FILE ALREADY STATES, applied to the three formatters that never made it here: a wake
-// frizz composes ITSELF is a hairline, because it is one line of news about something outside the turn,
+// ntwine composes ITSELF is a hairline, because it is one line of news about something outside the turn,
 // and the instructions under that line are addressed to the WORKER — its own registrations, its own
 // fence grammar, the tools it should call. Left in the server package a formatter has no parser the chat
-// can reach, so it fell through `FrizzWake`'s legacy fallback and printed VERBATIM: a bordered "Frizz"
+// can reach, so it fell through `NtwineWake`'s legacy fallback and printed VERBATIM: a bordered "Ntwine"
 // card of agent-contract prose, in the human's transcript (maintainer 2026-08-24, on a card reading
-// "THE ONLY LINE KINDS NOW SUPPORTED": "frizz cards that seem to be exposing internals").
+// "THE ONLY LINE KINDS NOW SUPPORTED": "ntwine cards that seem to be exposing internals").
 //
 // Measured before the move: 73 of 12 891 delivered wakes on this machine drew that raw card, and every
 // live one was one of the three below. So they move here for the same reason `limitResumeSteer` did on
@@ -2678,7 +2681,7 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
     ...(checkIn
       ? [
         "THIS IS YOUR SUB-AGENT CHECK-IN. Before re-parking:",
-        "1. Read where each child stands: `frizzctl read-thread` on its address, its output file, or the",
+        "1. Read where each child stands: `ntwinectl read-thread` on its address, its output file, or the",
         "   commits and files it has written since the last check-in.",
         "2. Steer any child that is off course, stuck or duplicating another's work. `SendMessage` reaches a",
         "   plain background sub-agent and a running Workflow's agent alike.",
@@ -2693,7 +2696,7 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
         prior === "working" || prior === "watching"
           ? `   \`status: needs_input\` when the user can read or act on something now; otherwise keep\n   \`status: ${prior}\`, which your last park answered, unless the wait itself changed.`
           : "   `status: needs_input` when the user can read or act on something now, else `working` —\n   or `watching` when the children only watch the world for you.",
-        "4. Ask now. A decision the work has surfaced that is the user's to make goes to `frizzctl ask`",
+        "4. Ask now. A decision the work has surfaced that is the user's to make goes to `ntwinectl ask`",
         "   at this check-in — never into the note or a file \"for the user\", which nobody is prompted to",
         "   answer. The children keep running while it waits; rest on the question, with no fence.",
         "",
@@ -2701,7 +2704,7 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
       : []),
     "Re-park if they are genuinely still going — there is no limit on that, and a long job is not a",
     "failure. If something is finished, read its result. If nothing is left, end in ```done or register",
-    "a question with `frizzctl ask`.",
+    "a question with `ntwinectl ask`.",
   ].join("\n")
 }
 
@@ -2715,7 +2718,7 @@ export function parkFinishedWakeMessage(status: readonly string[], several: bool
     "READ ITS OUTPUT AND CARRY ON. This is not a broken fence and there is nothing to fix: the wait",
     "you declared simply ended. Do NOT relaunch the same work — its result is already on disk.",
     "",
-    "Then park on whatever comes next, or end in ```done or a registered question (`frizzctl ask`) if nothing is left.",
+    "Then park on whatever comes next, or end in ```done or a registered question (`ntwinectl ask`) if nothing is left.",
   ].join("\n")
 }
 
@@ -2724,7 +2727,7 @@ export function prWatchExpiredWakeMessage(ref: string, kind: "pull" | "issue" = 
   // The head keeps its exact wording for either subject — `PR_WATCH_EXPIRED_HEAD` reads it — and only
   // the noun and the command it points back at change.
   const noun = kind === "issue" ? "issue" : "PR"
-  const command = kind === "issue" ? "frizzctl watch-issue add" : "frizzctl watch-pr add"
+  const command = kind === "issue" ? "ntwinectl watch-issue add" : "ntwinectl watch-pr add"
   return (
     `⏰ Your watcher on ${ref} has expired and is no longer armed — nothing on that ${noun} will wake ` +
     `you now.\n\nIf you still care about it, register it again with \`${command}\` and a ` +
@@ -2744,7 +2747,7 @@ export function ownWatchExpiredWakeMessage(kind: "shell" | "agent", target: stri
   return (
     `⏰ Your watch on the ${what} \`${target}\` has expired and is no longer armed — nothing about it ` +
     `will wake you now, and it is no longer holding your thread out of the queue.\n\nIf you are still ` +
-    `waiting on it, register it again with \`frizzctl watch\` and a fresh \`--for\`. If you are not, ` +
+    `waiting on it, register it again with \`ntwinectl watch\` and a fresh \`--for\`. If you are not, ` +
     `and it was the only thing you were waiting on, end in a proper terminal state instead of parking ` +
     `on it again.`
   )
@@ -2787,9 +2790,9 @@ export function parsePrWatchExpiredWake(text: string): { ref: string } | null {
 
 const OWN_WATCH_EXPIRED_HEAD = /^⏰ Your watch on the (sub-agent|background shell) `([^`]+)` has expired and is no longer armed\b/
 
-/** A lapsed `frizzctl watch` on one of the worker's own shells or sub-agents, or null. The twin of
+/** A lapsed `ntwinectl watch` on one of the worker's own shells or sub-agents, or null. The twin of
  *  the PR one above, and it had no parser from the day `ownWatchExpiredWakeMessage` shipped — so the one
- *  frizz-composed wake left printing its "register it again with `frizzctl watch`" body at the human
+ *  ntwine-composed wake left printing its "register it again with `ntwinectl watch`" body at the human
  *  was this (measured 2026-10-11: 1 of the 4 deliveries on this machine still drawing the verbatim card). */
 export function parseOwnWatchExpiredWake(text: string): { kind: "shell" | "agent"; target: string } | null {
   const m = OWN_WATCH_EXPIRED_HEAD.exec(text.trim())
@@ -2824,7 +2827,7 @@ export const GithubChecksState = z.enum(["none", "running", "passing", "failing"
 export type GithubChecksState = z.infer<typeof GithubChecksState>
 
 /** Can GitHub merge it? `blocked` covers a required review or a failing required check — GitHub reports
- *  the two the same way, and neither is something frizz should claim to distinguish. */
+ *  the two the same way, and neither is something ntwine should claim to distinguish. */
 export const GithubMergeState = z.enum(["mergeable", "blocked", "conflicting", "unknown"])
 export type GithubMergeState = z.infer<typeof GithubMergeState>
 
@@ -2853,7 +2856,7 @@ export const GithubWatchStatus = z.object({
   merge: GithubMergeState,
   /** OPEN | CLOSED | MERGED, lowercased. A merged or closed PR ends the wait outright. */
   state: z.enum(["open", "closed", "merged"]),
-  /** When frizz last heard from GitHub. A poll can fail or be rate-limited, and a stale reading stated
+  /** When ntwine last heard from GitHub. A poll can fail or be rate-limited, and a stale reading stated
    *  as current is worse than no reading. */
   polledAt: z.string(),
   /** The head commit this verdict was reached on. A PR watcher reports a CI verdict when it is NEWS, and
@@ -2883,7 +2886,7 @@ export const GithubIssueStatus = z.object({
   title: z.string().max(200).optional(),
   /** The conversation's size, so the card can say "14 comments" the way GitHub's list does. */
   comments: z.number().int().nonnegative(),
-  /** When frizz last heard from GitHub, for the same reason `GithubWatchStatus.polledAt` carries it. */
+  /** When ntwine last heard from GitHub, for the same reason `GithubWatchStatus.polledAt` carries it. */
   polledAt: z.string(),
 }).strict()
 export type GithubIssueStatus = z.infer<typeof GithubIssueStatus>
@@ -2980,13 +2983,13 @@ export const AddOwnPrWatchInput = z.object({
    *  well as a day — and a day spent it against every external PR, which does not move on that clock.
    *
    *  REQUIRED BY THE TOOL, OPTIONAL ON THE WIRE, and the asymmetry is deliberate. A worker's MCP server
-   *  outlives every frizz restart, so a session dispatched before this existed still holds a binary that
+   *  outlives every ntwine restart, so a session dispatched before this existed still holds a binary that
    *  cannot send it — and making the RPC reject that would break `watch_pr` outright for every thread
    *  already running, with no recourse from inside those threads. Absent ⇒ PR_WATCH_DEFAULT_FOR, which
    *  still BOUNDS the poll; the point of the field is that a worker chooses, and one that cannot choose
    *  is better bounded than broken. */
   for: z.string().trim().min(1).max(16).optional(),
-  /** What `target` names. `issue` (from `frizzctl watch-issue`, 2026-09-14) registers a watcher on a
+  /** What `target` names. `issue` (from `ntwinectl watch-issue`, 2026-09-14) registers a watcher on a
    *  GitHub issue — same registry, same poll cadence, same drop verb, but a different probe (`gh issue
    *  view`), a different GraphQL fragment and a report with no CI in it. ABSENT MEANS A PULL REQUEST,
    *  for the same reason `for` is optional on the wire: every `watch_pr` binary dispatched before this
@@ -3043,13 +3046,13 @@ export const DropOwnPrWatchResult = z.object({
 export type DropOwnPrWatchResult = z.infer<typeof DropOwnPrWatchResult>
 
 // ---- THE WORKER'S OWN WATCHES on its own running work (2026-08-26) -----------------------------------
-// `frizzctl watch` / `frizzctl unwatch`. See plans/rest-by-registration.md: a wait stops being a
+// `ntwinectl watch` / `ntwinectl unwatch`. See plans/rest-by-registration.md: a wait stops being a
 // line the worker restates at every rest and becomes a row it creates once.
 //
 // ONE VERB ACROSS KINDS, unlike the four narrow item kinds the fence grammar has. A shell and a sub-agent
 // are the same act — "bring me back when this finishes" — and splitting them into two tools would teach
 // two things where there is one. A PR keeps its own verb because it is not the same act: `watch_pr`
-// creates a REPEATING poll against a service frizz has to reach, and it can fail for reasons a runtime
+// creates a REPEATING poll against a service ntwine has to reach, and it can fail for reasons a runtime
 // handle never can (signed out, an SSO-gated org, no `gh`).
 export const OwnWatchKind = z.enum(["shell", "agent"])
 export type OwnWatchKind = z.infer<typeof OwnWatchKind>
@@ -3064,7 +3067,7 @@ export const AddOwnWatchInput = z.object({
    *
    *  VALIDATED AGAINST LIVE TELEMETRY, NOT AGAINST ITS SHAPE. A PR ref is checkable by shape because
    *  `owner/repo#123` looks like nothing else; a shell handle and a sub-agent handle are both opaque
-   *  runtime strings and overlap completely, so shape can only ever be a guess. What frizz CAN answer
+   *  runtime strings and overlap completely, so shape can only ever be a guess. What ntwine CAN answer
    *  exactly is whether this thread has a live shell — or a live sub-agent — answering to this handle, and
    *  that is both the stronger check and the one that catches the real mistake: naming a sub-agent under
    *  `kind: "shell"`, which is what put two sub-agents under a "Background shells" heading on 2026-08-26. */
@@ -3083,7 +3086,7 @@ export const AddOwnWatchInput = z.object({
 }).strict()
 export type AddOwnWatchInput = z.infer<typeof AddOwnWatchInput>
 
-// ---- EXTENDING A BACKGROUND SHELL'S RUNTIME BUDGET (`frizzctl extend-shell`, 2026-09-29) -------------
+// ---- EXTENDING A BACKGROUND SHELL'S RUNTIME BUDGET (`ntwinectl extend-shell`, 2026-09-29) -------------
 // A background shell carries a budget only when one was declared (server shell-budget.ts: its launch
 // `timeout`, or this; no default). Past it the worker is warned once and, unextended, the shell is
 // stopped ten minutes later. This GIVES a budget to a shell launched without one, answers that warning
@@ -3155,7 +3158,7 @@ export type DropOwnWatchResult = z.infer<typeof DropOwnWatchResult>
 export const OWN_WATCH_MAX_ARMED = 24
 
 // ---- THE WORKER'S COMMAND WATCHES (2026-10-11) -------------------------------------------------------
-// `frizzctl watch-command`. A wait on an OUTSIDE condition a shell command can check — a package version
+// `ntwinectl watch-command`. A wait on an OUTSIDE condition a shell command can check — a package version
 // appearing on npm, a release run finishing, a URL coming up — run by the SERVER on a cadence, so the
 // wait holds nothing in the thread's own process tree and a resting thread can hibernate under it.
 //
@@ -3290,7 +3293,7 @@ function commandRunClause(run: Pick<CommandWatchRun, "outcome" | "exitCode">): s
 
 const COMMAND_WATCH_PASSED_HEAD = /^✅ Your command watch `(cmw_[a-z0-9]+)` PASSED\b/
 const COMMAND_WATCH_EXPIRED_HEAD = /^⏰ Your command watch `(cmw_[a-z0-9]+)` has expired and is no longer armed\b/
-const COMMAND_WATCH_CANCELLED_HEAD = /^⚠️ Frizz cancelled your command watch `(cmw_[a-z0-9]+)`/
+const COMMAND_WATCH_CANCELLED_HEAD = eitherBrand(/^⚠️ Ntwine cancelled your command watch `(cmw_[a-z0-9]+)`/)
 
 /** The wake a command watch sends when a check exits 0 — the one piece of news it exists to deliver. */
 export function commandWatchPassedWakeMessage(input: { id: string; command: string; output: string; runs: number; armedMs: number }): string {
@@ -3320,17 +3323,17 @@ export function commandWatchExpiredWakeMessage(input: { id: string; command: str
       ? `Its last check ${commandRunClause(last)}${tail ? `, ending:\n\n${codeBlock(tail)}` : " and printed nothing."}`
       : "It never completed a check.",
     "",
-    "If you still mean to wait, find out why it never passed, then register it again with `frizzctl watch-command add` " +
+    "If you still mean to wait, find out why it never passed, then register it again with `ntwinectl watch-command add` " +
       "and a fresh `--for`. If you do not, and it was the only thing you were waiting on, end in a proper terminal " +
       "state instead of parking on it again.",
   ].join("\n")
 }
 
-/** The wake a command watch sends when Frizz stops it before it passed or expired — the thread's
+/** The wake a command watch sends when Ntwine stops it before it passed or expired — the thread's
  *  permission mode or sandbox changed under it, so the server may no longer run the command for it. */
 export function commandWatchCancelledWakeMessage(input: { id: string; command: string; reason: string }): string {
   return [
-    `⚠️ Frizz cancelled your command watch \`${input.id}\` and will not run it again: ${input.reason}`,
+    `⚠️ Ntwine cancelled your command watch \`${input.id}\` and will not run it again: ${input.reason}`,
     "",
     codeBlock(input.command, "sh"),
     "",
@@ -3350,7 +3353,7 @@ export function parseCommandWatchWake(text: string): { kind: "passed" | "expired
 }
 
 // ---- THE WORKER'S REGISTERED QUESTIONS (2026-08-26) ------------------------------------------------
-// `frizzctl ask` / `frizzctl unask`. See plans/rest-by-registration.md.
+// `ntwinectl ask` / `ntwinectl unask`. See plans/rest-by-registration.md.
 //
 // THE FREE-FORM ```question FENCE IS RETIRED (2026-09-11). A fence with a question in its body was the
 // original way a worker asked, and the `ask` tool landed beside it on 2026-08-26 as the "better" form
@@ -3385,7 +3388,7 @@ export function questionFencesLive(spawnedAt: string | number | undefined | null
 }
 
 // THE WORKER DECIDES WHETHER A REST NEEDS THE HUMAN (maintainer 2026-10-01). Until this cut, whether a
-// thread resting on running work sat in the queue or in the Active band was frizz's GUESS, one rule per
+// thread resting on running work sat in the queue or in the Active band was ntwine's GUESS, one rule per
 // kind of wait: a live sub-agent kept it out, a shell did not, a declared shell did, a watched PR did
 // only while its CI ran. Each rule was a guess about what the worker wanted, and the worker knows — a
 // worker with a sub-agent out and half a report the human could already act on had no way to say so
@@ -3453,7 +3456,7 @@ export interface AskedOption {
    *  this" (maintainer 2026-10-10: "weird that there's a recommended chip on only a single item"). */
   recommended?: boolean
   /** Taking this option acts OUTSIDE this machine — files an issue, posts a comment, merges, pushes,
-   *  publishes, spends — usually under the human's name. Frizz's unanswered-question default never takes
+   *  publishes, spends — usually under the human's name. Ntwine's unanswered-question default never takes
    *  such an option (recommendedDefaultAnswer): the David, 2026-10-06, after a TS 7 migration
    *  thread asked whether to file an upstream issue under their account and the 10m default was on
    *  course to file it — "an issue shouldn't be opened from me unless I actually answer". */
@@ -3479,7 +3482,7 @@ export interface AskedQuestion {
    *  not consent for something irreversible; declining is an OPTION inside the question. */
   danger?: boolean
   /** The worker's mark that this decision shapes the work built on it — a library's architecture, a
-   *  public API, a data model — so a guessed answer would be redone, not tweaked. Frizz's
+   *  public API, a data model — so a guessed answer would be redone, not tweaked. Ntwine's
    *  unanswered-question default never answers it (recommendedDefaultAnswer); the recommendation still
    *  shows. David, 2026-10-08, after a 3.0 precompile design thread had its architecture questions
    *  answered by the 10m default: "fundamental architectural decisions like this … should wait for my
@@ -3492,7 +3495,7 @@ export interface AskedQuestion {
    *  fails safe when a worker forgets — `waitForHuman` is kept only so older workers' calls still parse,
    *  and now changes nothing a missing `mayDefault` does not already do. */
   mayDefault?: boolean
-  /** A SECRET request (`frizzctl secret`): a free-text question whose answer is a credential — a
+  /** A SECRET request (`ntwinectl secret`): a free-text question whose answer is a credential — a
    *  one-time code, a token, a password. The card masks the box and keeps the typed value out of every
    *  draft cache; the server serves the value once, from memory, through a named pipe
    *  (`secret-files.ts`) and stores and delivers only `secretAnswerText`, so the value never reaches
@@ -3510,7 +3513,7 @@ export interface AskedQuestion {
  *  follow-ups per option and the open set per thread all carried caps (8 / 4 / 4 / 12) until
  *  2026-09-03, when the maintainer had them removed as arbitrary ("what other stupid limits are
  *  there?"). The depth stays only because the MCP schema INLINES the tree to exactly this depth — no
- *  `$ref`, since some clients drop one (cc-worker/bin/frizz-mcp.mjs) — so it can be raised, never
+ *  `$ref`, since some clients drop one (cc-worker/bin/ntwine-mcp.mjs) — so it can be raised, never
  *  unbounded. */
 export const ASK_MAX_DEPTH = 3
 
@@ -3600,12 +3603,12 @@ export type AskInput = z.infer<typeof AskInput>
 
 /** One registered question, as every reader sees it: the worker's read-back, the board, and the card. */
 export const RegisteredQuestionView = z.object({
-  /** Minted by frizz. The worker never chose it, which is why an answer RESTATES the question text —
+  /** Minted by ntwine. The worker never chose it, which is why an answer RESTATES the question text —
    *  an id alone cannot be correlated back to what was asked. */
   id: z.string(),
   spec: AskedQuestionSchema,
   askedAt: z.string(),
-  /** When Frizz will take the recommended option for the human (questionDefaultAtMs). Absent when it
+  /** When Ntwine will take the recommended option for the human (questionDefaultAtMs). Absent when it
    *  will not: the thread is still working, the question has nothing to take, it was typed past, or the
    *  human turned the default off with the countdown's ×. The card counts down to it. */
   defaultsAt: z.string().optional(),
@@ -3620,11 +3623,11 @@ export const RegisteredQuestionView = z.object({
 export type RegisteredQuestionView = z.infer<typeof RegisteredQuestionView>
 
 /** HAS THE HUMAN TYPED TO THE WORKER SINCE THIS WAS ASKED? True when their newest TYPED turn landed
- *  after the ask (`lastHumanAt` is the tailer's clock for exactly that; frizz's own wakes never move it,
+ *  after the ask (`lastHumanAt` is the tailer's clock for exactly that; ntwine's own wakes never move it,
  *  and neither does a delivery of answers). An unknown clock reads as "no".
  *
  *  It changes nothing about the question's lifecycle: a question stays open, and owed, until the human
- *  answers or dismisses it or the worker withdraws it with `unask`. The one reader is Frizz's default
+ *  answers or dismisses it or the worker withdraws it with `unask`. The one reader is Ntwine's default
  *  answer (scheduler evalQuestionDefaults, and the board's countdown), which never takes an option on a
  *  question the human has typed past: that one waits for the human, or for the worker's `unask`. */
 export function questionRepliedPast(q: { asked_at: number }, lastHumanAt: string | undefined): boolean {
@@ -3633,7 +3636,7 @@ export function questionRepliedPast(q: { asked_at: number }, lastHumanAt: string
   return Number.isFinite(human) && Number.isFinite(q.asked_at) && human > q.asked_at
 }
 
-/** HOW LONG A RESTED THREAD WAITS ON AN UNANSWERED QUESTION BEFORE FRIZZ TAKES THE WORKER'S RECOMMENDED
+/** HOW LONG A RESTED THREAD WAITS ON AN UNANSWERED QUESTION BEFORE NTWINE TAKES THE WORKER'S RECOMMENDED
  *  OPTION FOR IT (2026-10-05). A long-running thread that asks and rests stalls on the human's clock: a
  *  wave-Z design thread sat for hours on a "narrow the error rule?" card whose recommended option the
  *  maintainer then picked anyway (maintainer: "it should have a timeout after which it selects
@@ -3676,15 +3679,15 @@ export const HoldQuestionDefaultResult = z.object({ held: z.boolean() }).strict(
 export type HoldQuestionDefaultResult = z.infer<typeof HoldQuestionDefaultResult>
 
 /** The `text` an automatic answer carries beside its picked label — read by the worker in the answers
- *  wake and by the human on the settled card, so neither mistakes Frizz's default for the human's pick. */
-export const DEFAULTED_ANSWER_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m, so Frizz took the recommended option`
+ *  wake and by the human on the settled card, so neither mistakes Ntwine's default for the human's pick. */
+export const DEFAULTED_ANSWER_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m, so Ntwine took the recommended option`
 
 /** The `text` when the recommended option acts outside this machine, so the default took the first
  *  option that does not. The worker reads it as "the human never approved the external act" — the
  *  recommendation is still theirs to put to the human later, never something to do anyway. */
-export const DEFAULTED_FALLBACK_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m. The recommended option acts outside this machine, so Frizz took the first option that does not; the user has not approved the recommended one`
+export const DEFAULTED_FALLBACK_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m. The recommended option acts outside this machine, so Ntwine took the first option that does not; the user has not approved the recommended one`
 
-/** The option Frizz's default takes on one question node, or undefined when it takes none: the
+/** The option Ntwine's default takes on one question node, or undefined when it takes none: the
  *  recommended option when it stays on this machine, else the FIRST option that does — the worker
  *  orders options by preference, so that is the least-blocking safe one. No recommendation, or every
  *  option `external`, takes nothing. */
@@ -3697,7 +3700,7 @@ function defaultOption(node: AskedQuestion): { option: AskedOption; fallback: bo
   return safe ? { option: safe, fallback: true } : undefined
 }
 
-/** The answer Frizz gives an unanswered question on the human's behalf, or undefined when it has none to
+/** The answer Ntwine gives an unanswered question on the human's behalf, or undefined when it has none to
  *  give: a free-text or `multi` question (no single pick to take), one with no option marked
  *  `recommended`, a `danger` question — the irreversible call stays the human's however long it
  *  waits — one the worker did not mark `mayDefault` (follow-ups ride on the root's mark), and one whose every option is `external`. A recommendation marked `external` is never taken:
@@ -3806,7 +3809,7 @@ export type UnaskResult = z.infer<typeof UnaskResult>
 
 /** One question's answer, as the worker receives it.
  *
- *  IT RESTATES THE QUESTION. The worker never saw `questionId` — frizz minted it at registration — so
+ *  IT RESTATES THE QUESTION. The worker never saw `questionId` — ntwine minted it at registration — so
  *  the id alone cannot be correlated back to anything the worker wrote. The text is what makes the
  *  payload readable on its own, and it is why this is not simply `{id: choice}`. */
 export interface QuestionAnswer {
@@ -3951,7 +3954,7 @@ export const SKIPPED_ANSWER = "(skipped for now — ask again if it still matter
 export const CHANGED_ANSWER = "(changed — replaces the earlier answer)"
 
 /** A question the human waved away, as the answer message needs it: the TEXT, never the id. The worker
- *  never saw an id — frizz minted it — so a list of ids names nothing it can act on. */
+ *  never saw an id — ntwine minted it — so a list of ids names nothing it can act on. */
 export interface QuestionDismissal {
   question: string
 }
@@ -3961,10 +3964,10 @@ export interface QuestionDismissal {
  *
  *  IT IS THE HUMAN'S OWN TURN AND IT MUST READ AS ONE. The chat renders any user message in this wire
  *  form as the structured Answers card — each question restated above the chip carrying what was chosen
- *  or typed — and it checks for that form BEFORE it checks whether frizz delivered the message, so
+ *  or typed — and it checks for that form BEFORE it checks whether ntwine delivered the message, so
  *  matching the format is the whole of the attribution. Until 2026-08-27 this composed
  *  `Answers to the questions you registered:` over `- ` bullets, which matched no parser: a registered
- *  question's answer landed in the transcript as frizz's own notification card, full of agent-facing
+ *  question's answer landed in the transcript as ntwine's own notification card, full of agent-facing
  *  prose, over the human's own words (maintainer: "Why did you regress how this looks when I answer a
  *  question? They used to look good. It just showed it, reiterated the question as well as my selected
  *  or typed answer", then, of the header: "Why would this show up in the UI?").
@@ -3983,7 +3986,7 @@ export function questionAnswerMessage(answers: readonly QuestionAnswer[], dismis
   // NO ANSWERS AT ALL is its own message, not the answers one with an empty list. It reaches exactly one
   // thread: an AUTONOMOUS one, whose questions were cancelled wholesale when its Goal was armed and
   // which has no next steer for them to ride (scheduler.evalQuestionAnswers). Wording it as "answers"
-  // would tell that worker the human replied, when the whole point is that nobody is going to. Frizz is
+  // would tell that worker the human replied, when the whole point is that nobody is going to. Ntwine is
   // speaking here rather than the human, so the chat draws it as a hairline — see questionsCancelledWake.
   if (answers.length === 0) return questionsCancelledWakeMessage(dismissed.length)
   const rows: string[] = []
@@ -4002,13 +4005,13 @@ export function questionAnswerMessage(answers: readonly QuestionAnswer[], dismis
  *  adoptCompanions). Every other merged wake goes out under a heading per part, but an answers message is
  *  the HUMAN'S OWN TURN in a shape the chat parses by position — the header first, and every line that
  *  is not a row read as the last row's continuation — so a heading, or a second header halfway down,
- *  would print frizz's prose inside the human's answer chip. So the parts are folded into the one form:
+ *  would print ntwine's prose inside the human's answer chip. So the parts are folded into the one form:
  *  one header, every row renumbered in order. That is safe to do on the text because of the wire's own
  *  invariant (ANSWER_CONTINUATION_INDENT): a row is the only line that starts `N. ` at column 0, so a
  *  continuation can never be mistaken for one and renumbered.
  *
  *  Each part may carry its trailing clock line (the scheduler's withClock); it is dropped here and the
- *  caller stamps ONE. Undefined when any part is not an answers message — a cancellation wake is frizz's
+ *  caller stamps ONE. Undefined when any part is not an answers message — a cancellation wake is ntwine's
  *  own voice and never merges into the human's. */
 export function mergeAnswerMessages(parts: readonly string[]): string | undefined {
   const lines: string[] = []
@@ -4054,8 +4057,8 @@ export function splitAnswersNote(text: string): { answers: string; note: string 
   return { answers: text.slice(0, at).trimEnd(), note: text.slice(at + marker.length).trim() }
 }
 
-/** THE ONE WAKE ON THIS PATH FRIZZ WRITES IN ITS OWN VOICE, so it is the one the chat draws as a
- *  hairline instead of a card (FrizzWake's rule: frizz's own news is a line, someone else's prose keeps
+/** THE ONE WAKE ON THIS PATH NTWINE WRITES IN ITS OWN VOICE, so it is the one the chat draws as a
+ *  hairline instead of a card (NtwineWake's rule: ntwine's own news is a line, someone else's prose keeps
  *  the card). It says nobody is coming — the thread went autonomous while questions were still open, so
  *  they were cancelled wholesale and there is no next steer for them to ride. */
 export function questionsCancelledWakeMessage(count: number): string {
@@ -4128,7 +4131,7 @@ export const ThreadFence = z.object({
   kind: z.enum(["done", "awaiting"]),
   body: z.string(), // fence body minus hint lines, capped server-side; may be ""
   hints: z.array(AwaitingHint).default([]),
-  // Present only on a completion the worker REGISTERED (`frizzctl done`, board.registeredDoneFence)
+  // Present only on a completion the worker REGISTERED (`ntwinectl done`, board.registeredDoneFence)
   // rather than wrote as a ```done fence in its final message. The two are one fence to every predicate,
   // but the TRANSCRIPT draws a fence card from the message text it parses — so a registered done, which
   // is in no message, needs the client to know it must draw the card itself at the bottom of the thread
@@ -4150,7 +4153,7 @@ export type ThreadFence = z.infer<typeof ThreadFence>
 export const LimitWindow = z.enum(["session", "weekly", "model", "unknown"])
 export type LimitWindow = z.infer<typeof LimitWindow>
 
-// A thread whose turn was cut off mid-work by an exhausted subscription window, plus what frizz will
+// A thread whose turn was cut off mid-work by an exhausted subscription window, plus what ntwine will
 // do about it. `resumesAt` is a unix-seconds instant resolved from the provider's own reset clock (or
 // its usage endpoint) — absent when neither source could supply one, in which case `autoResume` is
 // false and the thread stays a normal human handoff.
@@ -4159,7 +4162,7 @@ export const LimitPause = z.object({
   window: LimitWindow,
   at: z.string(), // ISO8601 of the limit record — "when the agent got cut off"
   resumesAt: z.number().optional(), // unix seconds the window rolls
-  // Whether frizz intends to deliver its own "continue" once `resumesAt` passes. False when the
+  // Whether ntwine intends to deliver its own "continue" once `resumesAt` passes. False when the
   // setting is off, the instant is unresolvable, or the pause is too old to safely resume.
   autoResume: z.boolean(),
 })
@@ -4202,7 +4205,7 @@ export type DropOwnLinkResult = z.infer<typeof DropOwnLinkResult>
 // agent works in (server thread-terminals.ts). It is not a thread: it has no row and no card of its own,
 // and rides its parent's `ThreadView.terminals`. `id` is its /term/<id> handle. `runId` counts starts, so
 // a restart is a NEW terminal to the browser (a fresh pty, a fresh screen) rather than more output on the
-// old one. An exited run with no `exitCode` is one the server went away under (a Frizz restart takes its
+// old one. An exited run with no `exitCode` is one the server went away under (an Ntwine restart takes its
 // children with it) — shown as interrupted, never as a success.
 export const ThreadTerminal = z.object({
   id: ThreadSlug,
@@ -4321,7 +4324,7 @@ export const SpinoffView = z.object({
 }).strict()
 export type SpinoffView = z.infer<typeof SpinoffView>
 
-// One sidebar row: frizz board thread + runtime overlay.
+// One sidebar row: ntwine board thread + runtime overlay.
 /**
  * The in-flight tool call a board row can name: the tool, the model's own one-line `description` (a
  * Bash call's), and the target the input reveals (a path, a pattern, a command's first line). A subset
@@ -4337,7 +4340,7 @@ export type LiveTool = z.infer<typeof LiveTool>
 export const ThreadView = z.object({
   id: ThreadSlug, // slug; filename is <slug>.md
   title: z.string(),
-  status: FrizzStatus,
+  status: NtwineStatus,
   statusText: z.string().optional(),
   // Form-constrained gerund label (≤100 chars, e.g. "Awaiting CI on PR #391") the worker maintains;
   // the listing row's at-a-glance gloss. Optional → absent on old threads renders nothing. Distinct
@@ -4359,7 +4362,7 @@ export const ThreadView = z.object({
   agents: z.array(ThreadAgent),
   errors: z.array(z.string()),
   warnings: z.array(z.string()),
-  // runtime overlay (from the UI server, not the .frizz file)
+  // runtime overlay (from the UI server, not the .ntwine file)
   runtime: RuntimeState,
   sessionId: z.string().optional(),
   threadName: z.string().optional(),
@@ -4390,7 +4393,7 @@ export const ThreadView = z.object({
   // subject, and this is the part allowed to move. Shown beside the name on the queue card, in the
   // drawer header and in the rail row's tooltip — never as a second rail line, which would cost the rail
   // its density. Absent until the first one lands. Named `statusLine` because `status` above is the
-  // legacy .frizz-file lifecycle field, synthesized and unused for session rows; the registry column is
+  // legacy .ntwine-file lifecycle field, synthesized and unused for session rows; the registry column is
   // `session.status`.
   statusLine: z.string().optional(),
   // When `statusLine` last CHANGED (ISO) — the start of the task it names. While the thread is working
@@ -4486,10 +4489,10 @@ export const ThreadView = z.object({
   limitPause: LimitPause.optional(),
   providerError: ProviderError.optional(),
 
-  // ---- Session-first fields (ALL optional: absent ⇒ a legacy .frizz-file row / pre-restart server;
+  // ---- Session-first fields (ALL optional: absent ⇒ a legacy .ntwine-file row / pre-restart server;
   // the client treats such rows as Legacy-shelf material). Deliberately not zod-defaulted so server
   // constructors that predate the model still typecheck and old snapshots parse unchanged. ----
-  // "session" = a session-backed thread (the working rail's unit); "legacy" (or absent) = a .frizz
+  // "session" = a session-backed thread (the working rail's unit); "legacy" (or absent) = a .ntwine
   // file row, rendered read-only in the collapsed Legacy shelf.
   // There is no third kind. Terminal COMMAND threads (`kind: "command"`, 2026-09-23) were rows of their
   // own until 2026-09-29; a terminal now belongs to a session thread (`terminals` below).
@@ -4556,7 +4559,7 @@ export const ThreadView = z.object({
   returnedSubAgents: z.array(ReturnedSubAgentView).optional(),
   // Which Claude transport serves this thread. "broker" — a session-broker-owned Agent SDK session with
   // a typed control channel — is the only one there is; ABSENT means a row dispatched before the broker
-  // became the sole transport, which frizz can no longer reach that way. Only the broker can be asked to
+  // became the sole transport, which ntwine can no longer reach that way. Only the broker can be asked to
   // reload its plugin closure in place, so the board needs this to decide whether to offer that verb at
   // all rather than render a button that throws.
   claudeRuntime: z.literal("broker").optional(),
@@ -4812,7 +4815,7 @@ export function watchingRest(t: Pick<ThreadView, "waitStatus" | "runtime">): boo
 // hasLiveOps read that through its old meaning and isSnoozed's very FIRST gate threw the thread into the
 // Active band — the band ARCHITECTURE.md reserves for rows with no queue card and something in flight,
 // against its own definition of Snoozed: "a declared `human:` gate, a valid future `timer:`, a user
-// wall-clock snooze, or a limit pause frizz will auto-resume". Reported 2026-08-26 on a thread parked on
+// wall-clock snooze, or a limit pause ntwine will auto-resume". Reported 2026-08-26 on a thread parked on
 // a Sept-2 timer: "showing up in a separate rail that isn't held".
 //
 // ALONE is the whole predicate. Anything else behind the same fence keeps the row visible and undimmed,
@@ -4846,7 +4849,7 @@ function fenceNamesGithub(t: ThreadView): boolean {
 }
 
 /** IS CI RUNNING ON A PULL REQUEST THIS THREAD WATCHES? The one reading of a PR wait that is MOTION —
- *  something is happening somewhere, and its finish is a wake frizz delivers — as opposed to the settled
+ *  something is happening somewhere, and its finish is a wake ntwine delivers — as opposed to the settled
  *  readings (green, red, no checks, merged, closed, never polled), which are a handoff sitting on a
  *  human. It picks the rail's mark for the `pr` kind: the octocat inside the spinner while checks run,
  *  the static octocat once they settle (maintainer 2026-09-20: a PR wait "should just stay in the running
@@ -4920,7 +4923,7 @@ export function isSnoozed(t: ThreadView, nowMs = Date.now()): boolean {
   // thread on a stale story. The server already queues it (needsYou, next line), but the mark and the
   // band must not hinge on that flag arriving: a limit-killed thread is never Snoozed unless the
   // OPERATOR snoozed it (userSnooze above, which wins by design). PRESENCE, not `autoResume`: a fault
-  // frizz cannot promise to resume (an unknown phrasing, an aged-out pause) is MORE the human's
+  // ntwine cannot promise to resume (an unknown phrasing, an aged-out pause) is MORE the human's
   // problem, not less.
   if (t.limitPause && t.foreign !== true) return false
   // Without an explicit user snooze, higher-priority attention states render ?, !, or a native
@@ -4970,7 +4973,7 @@ export function sectionOf(t: ThreadView): SectionKey | null {
   // between Needs-you and Working on click, which read as an unread feature). It is the Active AND
   // Rested bands together; the rule between them is drawn downstream (partitionActive), and the
   // needs-you/awaiting distinction renders as the row INDICATOR and the queue cards, not as sections.
-  // Legacy (.frizz-file) rows are HIDDEN entirely (null; not even a shelf). Foreign never rows.
+  // Legacy (.ntwine-file) rows are HIDDEN entirely (null; not even a shelf). Foreign never rows.
   if (t.kind !== "session") return null
   // Archived → Done, UNLESS it's actively running: a live, in-flight session must never sit under Done
   // (Colin 2026-07-10, hit 3×). It shows in the Active band (labelled Running) with its spinner while it
@@ -5090,7 +5093,7 @@ export function needsAction(t: ThreadView): boolean {
   //     comes to rest — counting it early yields a card with no visible ask.
   //   • A SESSION EXISTS (runtime !== "none"): the queue is strictly "agent work paused on the
   //     human" (maintainer, 2026-07-09: with no agent it makes no sense for a thread to ever show
-  //     up inside the queue). A needs-human thread worked OUTSIDE frizz (frizz classic, hand
+  //     up inside the queue). A needs-human thread worked OUTSIDE ntwine (ntwine classic, hand
   //     edits) has no transcript to card — it stays visible in the SIDEBAR (yellow awaiting-you
   //     dot), and its click-through composite (doc + kick-off composer) is where it gets read and
   //     acted on. `exited` still cards: that agent RAN and asked here — the ask is in its transcript.
@@ -5178,13 +5181,13 @@ export const BoardSnapshot = z.object({
   // The server's home directory — the expansion of a `~` a worker wrote in prose. Agents reference
   // files that way constantly (`~/.claude/CLAUDE.md`), and the browser has no way to derive it, so a
   // `~`-anchored Markdown link had no absolute path to become and stayed a same-origin anchor that
-  // navigated out of Frizz. The client only ever uses it to build a path it then hands BACK to the
+  // navigated out of Ntwine. The client only ever uses it to build a path it then hands BACK to the
   // server, which realpath-gates it exactly as it gates one the author typed in full. Optional so a
   // pre-restart server keeps working; absent means `~` links stay unresolved, i.e. the old behaviour.
   homeDir: z.string().optional(),
-  // (No `.frizz/ exists` bit here on purpose. Threads are session-first — the ui.db registry IS the
-  // board — so `.frizz/` presence says nothing about whether this project has one. Its only consumer
-  // was a shell gate that dead-ended `.frizz`-less repos; the server still probes the directory
+  // (No `.ntwine/ exists` bit here on purpose. Threads are session-first — the ui.db registry IS the
+  // board — so `.ntwine/` presence says nothing about whether this project has one. Its only consumer
+  // was a shell gate that dead-ended `.ntwine`-less repos; the server still probes the directory
   // locally where it genuinely matters, for scratchpad storage.)
   threads: z.array(ThreadView),
   errors: z.array(z.string()),
@@ -5250,8 +5253,8 @@ export const AuthSnapshot = z.object({
   codex: ProviderAuth,
   emails: AccountEmails,
 })
-// The backends that HAVE an account Frizz can read and act on. An ACP agent's credentials belong to the
-// agent's own CLI (plans/acp-backend.md, decision 5): Frizz never reads, refreshes or revokes them.
+// The backends that HAVE an account Ntwine can read and act on. An ACP agent's credentials belong to the
+// agent's own CLI (plans/acp-backend.md, decision 5): Ntwine never reads, refreshes or revokes them.
 export const AccountBackend = z.enum(["claude", "codex"])
 export type AccountBackend = z.infer<typeof AccountBackend>
 export const AccountLogoutInput = z.object({ backend: AccountBackend }).strict()
@@ -5276,7 +5279,7 @@ export type PermissionMode = z.infer<typeof PermissionMode>
 
 // Where a vetted local artifact link opens. This is intentionally a server-owned setting: the
 // browser never gets permission to navigate to file:// or choose an arbitrary executable. `editor` is
-// the SERVER's own `$VISUAL`/`$EDITOR`, read from the environment Frizz was started in — the browser
+// the SERVER's own `$VISUAL`/`$EDITOR`, read from the environment Ntwine was started in — the browser
 // still names no executable, it only picks "whatever this machine's shell already says".
 export const LocalFileOpener = z.enum(["system", "cursor", "vscode", "editor", "finder", "copy"])
 export type LocalFileOpener = z.infer<typeof LocalFileOpener>
@@ -5304,7 +5307,7 @@ export const Settings = z.object({
   // orchestration". It travels the wire as an effort because that is how Claude Code's own `/effort`
   // presents it; resolveClaudeEffort (server/backend/claude-effort.ts) translates it at the spawn edge.
   //
-  // "auto" is not a level either: it asks Frizz to pick one per dispatch from the prompt (a short Haiku
+  // "auto" is not a level either: it asks Ntwine to pick one per dispatch from the prompt (a short Haiku
   // call, server/effort-chooser.ts) before anything launches. It is a DISPATCH value only — a started
   // thread's row records the concrete level that call chose, so no runtime ever sees "auto".
   effort: z.enum(["auto", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"]).optional(),
@@ -5313,7 +5316,7 @@ export const Settings = z.object({
    * The permanent column of project icons. OFF by default, on purpose.
    *
    * A rail of every project on the machine is a standing invitation to leave the thread you are in —
-   * "just too tempting" (upstream maintainer 2026-08-06). Frizz's home is one board; All projects is a
+   * "just too tempting" (upstream maintainer 2026-08-06). Ntwine's home is one board; All projects is a
    * page you go to, not furniture you sit beside. Hidden, the way back is a breadcrumb in the status bar,
    * which costs a click exactly when you meant to switch and nothing when you did not.
    *
@@ -5326,10 +5329,10 @@ export const Settings = z.object({
   projectRail: z.boolean(),
   // (No `homeFolder`: the Home workspace's agents run in the operator's home folder, always. It was a
   // setting from 2026-09-28 to 2026-10-07; a stored value is stripped on parse, this being non-strict.)
-  // (No `worktreeDir` / `removeWorktreesOnDone`: Frizz mandates no worktree folder and removes no
+  // (No `worktreeDir` / `removeWorktreesOnDone`: Ntwine mandates no worktree folder and removes no
   // worktree on done, as upstream. Settings from 2026-09-30 to 2026-10-07; stripped on parse.)
   /**
-   * Remove a linked git worktree under a registered project's `<main checkout>/.frizz/worktrees` once it
+   * Remove a linked git worktree under a registered project's `<main checkout>/.ntwine/worktrees` once it
    * has been idle this many days and nothing in it could be lost: clean, only regenerable ignored files,
    * its HEAD on a ref, and no open thread working in it. Checked shortly after boot and daily after
    * (server/worktree-sweep.ts). Branches are never deleted. 0 = never. Optional so an old blob parses;
@@ -5353,8 +5356,8 @@ export const Settings = z.object({
    * model. Machine-level, because quota is the account's, not a project's.
    */
   fableFallback: z.boolean().optional(),
-  // There is no `backgroundSummaries` key any more: Frizz's own model calls were a Settings switch until
-  // 2026-10-07, and are on now (FRIZZ_*=0 still turns one off). A stored key is stripped on parse.
+  // There is no `backgroundSummaries` key any more: Ntwine's own model calls were a Settings switch until
+  // 2026-10-07, and are on now (NTWINE_*=0 still turns one off). A stored key is stripped on parse.
   // There is no `font` key any more. The interface rendered in one of two type families as a machine
   // setting until 2026-09-19 (maintainer: "let's drop monospace as an option"); every surface is sans
   // now, and index.html pins `data-font="sans"` on <html> directly. Settings is a non-strict object,
@@ -5362,10 +5365,10 @@ export const Settings = z.object({
   // Default action for a vetted non-image local path in agent markdown. Image clicks always use the
   // OS default viewer so screenshots retain their expected behavior.
   localFileOpener: LocalFileOpener.optional(),
-  // The token count at which a NEW Claude worker auto-compacts its conversation. Frizz requests the
+  // The token count at which a NEW Claude worker auto-compacts its conversation. Ntwine requests the
   // 1M context window on every dispatch (resolveClaudeLaunchModel), so without this a worker grows
   // toward 1M before it ever compacts — and every turn past 200K re-sends up to 5x the conversation a
-  // 200K TUI session would, which is the single largest reason a Frizz thread spends quota faster than
+  // 200K TUI session would, which is the single largest reason an Ntwine thread spends quota faster than
   // the TUI (measured 2026-08-26). Reaches the worker as CLAUDE_CODE_AUTO_COMPACT_WINDOW, which Claude
   // Code caps to the model's real window. Optional so an old blob parses; defaultSettings pins 500_000
   // (maintainer 2026-08-26: "a default compaction window of 500k by default").
@@ -5398,7 +5401,7 @@ export const Settings = z.object({
   // unset OR blank the server falls back to its exported DEFAULT_GITHUB_PROMPT. Substitution tokens
   // the server fills: {repo} {n} {title} {url} {labels} {body}. The leading `THREAD: <slug>` tag is
   // prepended by the server (not part of the editable template) so a custom prompt can never break the
-  // thread↔.frizz-file binding. Optional so old settings blobs parse.
+  // thread↔.ntwine-file binding. Optional so old settings blobs parse.
   //
   // ONE field, not one per kind. Issue and PR each had their own template until 2026-08-15, and the two
   // said the same thing twice: read the whole thread, be skeptical, cite what you checked, post nothing.
@@ -5454,7 +5457,7 @@ const DispatchProfileSnapshotShape = z.object({
   backend: Backend,
   model: z.string().trim().min(1).max(200),
   // Required for Claude and Codex (the refinement below); absent for an ACP agent, which runs with
-  // whatever model and effort its own CLI is configured for — Frizz has no effort axis to offer there.
+  // whatever model and effort its own CLI is configured for — Ntwine has no effort axis to offer there.
   effort: Settings.shape.effort,
   // IGNORED: dispatch permission is decided server-side (workerDispatchPermission) from the
   // non-interactive floor plus the operator's Settings choice, never per dispatch. Optional so old
@@ -5494,7 +5497,7 @@ function requireEffortOutsideAcp(profile: { backend: Backend; effort?: string },
 export const DispatchInput = z.object({
   // Optional: when omitted, dispatch derives a fallback title from the prompt (Claude later renames
   // the session via ai-title, which the UI prefers for display). The thread FILE always gets a
-  // concrete title regardless — frizz requires one.
+  // concrete title regardless — ntwine requires one.
   title: z.string().min(1).optional(),
   prompt: z.string().min(1),
   slug: ThreadSlug.optional(), // derived from title if omitted
@@ -5510,10 +5513,10 @@ export const DispatchInput = z.object({
   effort: Settings.shape.effort,
   // The thread's TIME LIMIT (deadline.ts): the absolute instant the browser resolved from the prompt
   // box's control ("2h", "15:30"). Set by the HUMAN — a worker's `spawn_thread` cannot pass one, so a
-  // spawned thread starts with none and its own worker may set it with `frizzctl deadline`.
+  // spawned thread starts with none and its own worker may set it with `ntwinectl deadline`.
   deadline: z.string().refine((v) => Number.isFinite(Date.parse(v)), "deadline must be an ISO-8601 instant").optional(),
   // `spawn_thread`'s choice of project (router spawnTarget, server spawn-project.ts): a slug, name, id or
-  // checkout path of a project Frizz has open. Omitted ⇒ the project this dispatch was addressed to.
+  // checkout path of a project Ntwine has open. Omitted ⇒ the project this dispatch was addressed to.
   project: z.string().min(1).optional(),
   // The thread calling `spawn_thread`, from the shim's own identity. Its presence marks a WORKER's
   // dispatch, whose prompt is checked for another project's checkout when `project` is omitted; the
@@ -5559,7 +5562,7 @@ export type StartHeldThreadInput = z.infer<typeof StartHeldThreadInput>
 // current thread supplying the context. It is not a sub-agent (nothing returns to the parent) and not a
 // bare dispatch (the new thread does not start cold). On a Claude thread the new thread is a FORK of the
 // parent's session and starts with its whole conversation (2026-09-30, spinoffForkPrompt, server
-// router.ts forkSpinoff). Everywhere else it starts fresh on context Frizz assembles from the parent
+// router.ts forkSpinoff). Everywhere else it starts fresh on context Ntwine assembles from the parent
 // (2026-10-07, spinoffContext). Either way the parent is sent nothing. Both threads then carry the edge:
 // the parent's timeline shows the request as a card linking forward, and the child's header links back.
 // "Spinoff" is one word, verb and noun alike (maintainer 2026-09-29); it is asked of the whole thread,
@@ -5614,7 +5617,7 @@ export const FollowUpInput = z.object({
   // follow-up rather than the scheduler's answer wake so the pair arrives together, in the order the
   // human wrote it, and as fast as a steer does.
   answers: z.array(QuestionAnswerSchema).optional(),
-  // SEND TO THE QUEUE: while the agent is mid-turn, Frizz keeps this message and delivers it when the
+  // SEND TO THE QUEUE: while the agent is mid-turn, Ntwine keeps this message and delivers it when the
   // thread comes to rest, so it opens the next turn instead of steering this one. At rest it is an
   // ordinary send — there is nothing to wait for. See `held` in the server's delivery-ledger.ts.
   hold: z.boolean().optional(),
@@ -5623,7 +5626,7 @@ export const FollowUpInput = z.object({
   // Retire the worker's live process before delivering, so this message lands in a `claude` that has
   // just started. The operator's "Restart worker" verb — the ONLY caller that sets it — exists because
   // a worker inherits its plugin/hooks AND its system prompt at process start and can never pick up a
-  // newer frizz build in place (hooks are read once, at startup). Everything else that needs a fresh
+  // newer ntwine build in place (hooks are read once, at startup). Everything else that needs a fresh
   // process derives it server-side; see needsFreshProcessForLimit.
   freshProcess: z.boolean().optional(),
   // PREEMPT the operation the worker is running right now, so this message is read at once instead of
@@ -5692,7 +5695,7 @@ export const DeliverQueuedNowInput = z.object({
   slug: ThreadSlug,
   // Same staleness guard as unqueueFollowUp: a stale tab must not preempt a re-dispatched session.
   sessionId: z.string().min(1),
-  // Hand over what Frizz is HOLDING for the agent's rest ("Send to queue") and stop there — no
+  // Hand over what Ntwine is HOLDING for the agent's rest ("Send to queue") and stop there — no
   // interrupt. The "Send now" under a held bubble: the operator changed their mind about waiting, not
   // about interrupting, so the message goes in as the steer it would have been.
   releaseOnly: z.boolean().optional(),
@@ -5705,7 +5708,7 @@ export type DeliverQueuedNowInput = z.infer<typeof DeliverQueuedNowInput>
 export const DeliverQueuedNowResult = z.object({
   interrupted: z.boolean(),
   reason: z.string().optional(),
-  // How many messages Frizz was HOLDING for the agent's rest ("Send to queue") and has now handed over.
+  // How many messages Ntwine was HOLDING for the agent's rest ("Send to queue") and has now handed over.
   // Those were never in a provider queue, so on a runtime that cannot be interrupted this is the whole
   // of what "send now" did — and it is a success the surface must not report as a refusal.
   released: z.number().int().nonnegative().optional(),
@@ -5724,7 +5727,7 @@ export const CompactThreadInput = z.object({
 }).strict()
 export type CompactThreadInput = z.infer<typeof CompactThreadInput>
 
-/** Whether the thread's runtime gives Frizz a way to request a compaction at all — the gate the
+/** Whether the thread's runtime gives Ntwine a way to request a compaction at all — the gate the
  *  server enforces and the context meter's panel reads to decide whether to offer the button. */
 export function threadCanCompact(thread: { backend?: string; claudeRuntime?: string; foreign?: boolean }): boolean {
   if (thread.foreign) return false
@@ -5786,18 +5789,18 @@ export const SetThreadRecurringPromptInput = z.object({
 // z.input. Inferring the output here is what made the drift gate fire.
 export type SetThreadRecurringPromptInput = z.input<typeof SetThreadRecurringPromptInput>
 
-// The WORKER half, through `frizzctl goal` (which POSTs the same `/rpc/*` surface the
+// The WORKER half, through `ntwinectl goal` (which POSTs the same `/rpc/*` surface the
 // board uses). A worker has no other way to keep a long effort moving — Claude Code's own in-session
-// schedulers cannot fire in the runtime frizz spawns — so this is the counterpart to the operator's
+// schedulers cannot fire in the runtime ntwine spawns — so this is the counterpart to the operator's
 // control above, writing the same row.
 //
 // Deliberately NOT session-guarded, unlike the operator's input: the MCP server is spawned with its
 // thread's slug and keeps it across a resume, while the session id and generation bump underneath it.
 // A guard here would fail on exactly the long-lived thread this exists for. The slug is stamped into
-// that server's env by frizz, not supplied by the model.
+// that server's env by ntwine, not supplied by the model.
 //
 // There is deliberately no thread parameter a model could aim elsewhere: a worker may only ever arm its
-// OWN thread. One agent making a DIFFERENT thread loop forever is not a capability frizz hands out.
+// OWN thread. One agent making a DIFFERENT thread loop forever is not a capability ntwine hands out.
 //
 // `prompt: null` is the explicit stop, which is how a worker ends its own loop deliberately rather than
 // by falling back on the ALLDONE sentinel.
@@ -5812,7 +5815,7 @@ export const SetOwnThreadRecurringPromptInput = z.object({
   postCompaction: z.boolean().default(false),
   /** ACCEPTED AND IGNORED. The question hold was deleted 2026-08-16 (see scheduler.ts) and no caller in
    *  this repo sends it any more — but this object is `.strict()`, and the caller on the other end is a
-   *  DETACHED worker daemon holding the `frizz-mcp.mjs` it was spawned with. Those outlive a server
+   *  DETACHED worker daemon holding the `ntwine-mcp.mjs` it was spawned with. Those outlive a server
    *  restart by design, so for as long as any pre-2026-08-16 worker is alive a `start` would otherwise
    *  come back as a validation error on a field the model cannot see it is sending. Tolerated here rather
    *  than in the router so the shape stays one declaration; delete it once no such worker can be running.
@@ -5838,7 +5841,7 @@ export const SetOwnThreadRecurringPromptResult = z.object({
 }).strict()
 export type SetOwnThreadRecurringPromptResult = z.infer<typeof SetOwnThreadRecurringPromptResult>
 
-// The READ half, from `frizzctl goal get`. Without it a worker can only
+// The READ half, from `ntwinectl goal get`. Without it a worker can only
 // write: it cannot tell whether it is armed at all, what text it armed before its context was compacted
 // away, or whether the human has since edited it in the Goal panel. Same caller rules as the write above —
 // keyed on the slug alone, and no thread parameter a model could aim at anyone else's row.
@@ -5899,7 +5902,7 @@ export const ThreadActivityItem = z.object({
    *  reply from, its `@handle`. */
   id: z.string(),
   label: z.string(),
-  /** ISO8601 of when it started or was armed — absent when frizz has no instant for it. */
+  /** ISO8601 of when it started or was armed — absent when ntwine has no instant for it. */
   since: z.string().optional(),
   /** A timer's fire instant, or a PR's expiry. Absent for shells and sub-agents. */
   until: z.string().optional(),
@@ -5911,7 +5914,7 @@ export const ThreadActivityItem = z.object({
   /** A SUB-AGENT's `thread.subAgent` address (thread-handle.ts), so the worker names it in its prose the
    *  way the board shows it — as a link the human can click — rather than as "a sub-agent". */
   address: z.string().optional(),
-  /** A SHELL's runtime-budget deadline (ISO8601) — when frizz warns about it and, unextended, stops it
+  /** A SHELL's runtime-budget deadline (ISO8601) — when ntwine warns about it and, unextended, stops it
    *  ten minutes later. Its own field rather than `until`, which reads as "fires at" everywhere else. */
   budgetEndsAt: z.string().optional(),
 }).strict()
@@ -5952,8 +5955,8 @@ export type CancelOwnThreadTimerResult = z.infer<typeof CancelOwnThreadTimerResu
 
 // ---- The SUPERSEDED worker shapes, kept alive for MCP servers already in flight -----------------
 //
-// A worker's `frizz-mcp.mjs` is spawned ONCE, out of the promoted build its session was dispatched with,
-// and it lives as long as that session — across every frizz server restart. The server meanwhile gets
+// A worker's `ntwine-mcp.mjs` is spawned ONCE, out of the promoted build its session was dispatched with,
+// and it lives as long as that session — across every ntwine server restart. The server meanwhile gets
 // restarted from newer source whenever the operator promotes a build. So `/rpc` is a VERSIONED CONTRACT
 // between two processes that update INDEPENDENTLY, and renaming a procedure a worker's MCP server calls
 // strands every session already running.
@@ -6001,8 +6004,8 @@ export type AiRenameThreadInput = z.infer<typeof AiRenameThreadInput>
 export const AiRenameThreadResult = z.object({ title: z.string().min(1).max(200) })
 export type AiRenameThreadResult = z.infer<typeof AiRenameThreadResult>
 
-// THE WORKER NAMING ITS OWN THREAD, from `frizzctl title`. Both backends get a name automatically at
-// spawn — Claude from the provider's own titler, Codex from the first-line `<!-- frizz title="…" -->`
+// THE WORKER NAMING ITS OWN THREAD, from `ntwinectl title`. Both backends get a name automatically at
+// spawn — Claude from the provider's own titler, Codex from the first-line `<!-- ntwine title="…" -->`
 // marker — and both are minted from the raw dispatch prompt before the worker has read a single line of
 // the repo, so they can only ever paraphrase what the operator typed. That is how a zod thread came out
 // named "Zon4.5 features and z.properties documentation audit": the titler copied the operator's typo
@@ -6014,7 +6017,7 @@ export type AiRenameThreadResult = z.infer<typeof AiRenameThreadResult>
 //
 // Unlike RenameThreadInput it never LOCKS the row — the name is machine-authored, so a human rename
 // still outranks it. Unguarded on session/generation for `SetOwnThreadRecurringPromptInput`'s reasons:
-// the MCP server knows only the slug frizz stamped into its env, and a model chooses the TEXT, never
+// the MCP server knows only the slug ntwine stamped into its env, and a model chooses the TEXT, never
 // the thread.
 export const SetOwnThreadTitleInput = z.object({
   slug: ThreadSlug,
@@ -6061,7 +6064,7 @@ export type ReadThreadResult = z.infer<typeof ReadThreadResult>
 // (the `subAgentDirectory` RPC). The board's `subAgents` is the LIVE list only; a child that has returned
 // leaves it, but its name, its transcript and its place in the tree stay on disk in the session's own
 // `subagents/` dir (Claude's `agent-<id>.meta.json` sidecars, and each Workflow run's journal), so the
-// directory is read from there rather than kept by Frizz. It is what `@thread.` completes against in the
+// directory is read from there rather than kept by Ntwine. It is what `@thread.` completes against in the
 // prompt box, and what a `@thread.subAgent` mention opens — after the child has returned as well as while
 // it runs (shared thread-handle.ts for the address itself).
 export const SubAgentDirectoryEntry = z.object({
@@ -6150,7 +6153,7 @@ export const SetThreadPermissionResult = z.object({
   // nothing was applied to the live session at all.
   //
   // It is ALSO the Claude answer, arrived at from the opposite direction: a permission mode is a LAUNCH
-  // flag there, so frizz retires the idle worker process and the next turn cold-resumes under the new
+  // flag there, so ntwine retires the idle worker process and the next turn cold-resumes under the new
   // one (router `setThreadPermission`). Same promise to the operator — stored, and true from the next
   // turn on — reached by restarting rather than by retuning.
   effect: z.enum(["applied", "next-turn", "next-resume"]),
@@ -6165,20 +6168,20 @@ export const ThreadProfileOptionsResult = z.object({
 })
 export type ThreadProfileOptionsResult = z.infer<typeof ThreadProfileOptionsResult>
 
-// The thread's invocable skills — and, on Claude, the built-in slash commands a Frizz thread can run —
+// The thread's invocable skills — and, on Claude, the built-in slash commands an Ntwine thread can run —
 // for the composer's `/` typeahead. Always the HARNESS's own list —
 // Claude's `supportedCommands()` through the broker, Codex's `skills/list` through the app-server —
-// never a frizz-side scan of skill directories, which could only drift from what the session actually
+// never an ntwine-side scan of skill directories, which could only drift from what the session actually
 // loaded. `description` may be empty (Claude's init-frame names carry no descriptions for entries the
 // command list omits).
 //
 // `source` is where the harness resolved the skill FROM, normalized to one vocabulary so the typeahead
 // renders "project" the same whether Claude called it `projectSettings` or Codex called it `repo`. It
 // is OPTIONAL, and deliberately so: the promise is "show it if we know it", and a harness that reports
-// a scope frizz has no mapping for must degrade to an unlabelled row rather than to a wrong label.
-// `frizz` is never a harness's answer: it labels a USER COMMAND written in Frizz's own editor, which the
+// a scope ntwine has no mapping for must degrade to an unlabelled row rather than to a wrong label.
+// `ntwine` is never a harness's answer: it labels a USER COMMAND written in Ntwine's own editor, which the
 // composer offers in the same menu (UserCommand below).
-export const ThreadSkillSource = z.enum(["project", "user", "builtin", "plugin", "frizz"])
+export const ThreadSkillSource = z.enum(["project", "user", "builtin", "plugin", "ntwine"])
 export type ThreadSkillSource = z.infer<typeof ThreadSkillSource>
 export const ThreadSkill = z.object({
   name: z.string().min(1).max(512),
@@ -6199,15 +6202,15 @@ export type ThreadSkillsResult = z.infer<typeof ThreadSkillsResult>
 // USER SLASH COMMANDS — a markdown file whose body is a prompt, invoked by its file name (`commit.md` is
 // `/commit`). The same format Claude Code and Cursor read: an optional frontmatter block carrying
 // `description` and `argument-hint`, then the prompt, where `$ARGUMENTS` stands for whatever was typed
-// after the name. Frizz reads them from three places, first match winning:
+// after the name. Ntwine reads them from three places, first match winning:
 //
-// - `frizz` — `<Frizz data home>/commands/`, the ones written in Frizz's own editor. The only kind it edits.
+// - `ntwine` — `<Ntwine data home>/commands/`, the ones written in Ntwine's own editor. The only kind it edits.
 // - `project` — `<project>/.agents/commands/`, a repo's own, checked in beside its skills.
 // - `global` — `~/.agents/commands/`, the agent-neutral home every agent tool on the machine can share.
 //
-// FRIZZ expands them, not the harness, so `/commit` means the same thing on a Claude, Codex or ACP
+// NTWINE expands them, not the harness, so `/commit` means the same thing on a Claude, Codex or ACP
 // thread — see expandUserCommand.
-export const UserCommandSource = z.enum(["frizz", "project", "global"])
+export const UserCommandSource = z.enum(["ntwine", "project", "global"])
 export type UserCommandSource = z.infer<typeof UserCommandSource>
 // A file name is a command name: what can follow a `/` and survive every filesystem.
 export const UserCommandName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/, "Use letters, digits, '-', '_', '.' or ':' (up to 64), starting with a letter or digit")
@@ -6222,8 +6225,8 @@ export const UserCommand = z.object({
 export type UserCommand = z.infer<typeof UserCommand>
 export const UserCommandsResult = z.object({
   commands: z.array(UserCommand).max(1024),
-  // Where a new Frizz command is written, for the editor to say.
-  frizzDir: z.string(),
+  // Where a new Ntwine command is written, for the editor to say.
+  ntwineDir: z.string(),
 }).strict()
 export type UserCommandsResult = z.infer<typeof UserCommandsResult>
 export const SaveUserCommandInput = z.object({
@@ -6238,7 +6241,7 @@ export type SaveUserCommandInput = z.infer<typeof SaveUserCommandInput>
 export const DeleteUserCommandInput = z.object({ name: UserCommandName }).strict()
 export type DeleteUserCommandInput = z.infer<typeof DeleteUserCommandInput>
 
-// The text a user command is DELIVERED as. Not a `<frizz-…>` tag: that prefix marks Frizz's own
+// The text a user command is DELIVERED as. Not a `<ntwine-…>` tag: that prefix marks Ntwine's own
 // plumbing, which every transcript drops (NOISE_PREFIXES), and this is the human's message. The prompt goes to the agent wrapped in a tag naming the
 // command and what was typed after it, so any surface that reads the message back — the transcript, a
 // queued bubble, a retry — can show `/commit fix the tests` instead of the whole expanded prompt.
@@ -6324,11 +6327,11 @@ export const UpgradeThreadModelResult = z.object({ effect: z.literal("next-turn"
 export type UpgradeThreadModelResult = z.infer<typeof UpgradeThreadModelResult>
 
 // ---- DISPATCH TASK BANNER (composer ↔ transcript) -------------------------------------------------
-// The loud fence frizz puts between its own dispatch orientation and the human operator's prompt. It is
+// The loud fence ntwine puts between its own dispatch orientation and the human operator's prompt. It is
 // BOTH the worker's system→human handoff cue and the transcript's display boundary, so it lives here,
 // next to the other exact presentation markers, rather than in either consumer.
 //
-// The rule the banner buys is: NOTHING of frizz's sits below it. Everything the worker needs to be told
+// The rule the banner buys is: NOTHING of ntwine's sits below it. Everything the worker needs to be told
 // about the framing goes ABOVE — below the banner is the operator's prompt, byte for byte, and the
 // first user bubble shows exactly that. (Until 2026-07-26 an explanation line and a bare `TASK:` marker
 // sat between the banner and the prompt; that marker was the display cut, which is why the retired
@@ -6348,7 +6351,7 @@ export const DISPATCH_TASK_BANNER_MARKER = `\n${DISPATCH_TASK_BANNER}\n\n`
 // Exact, versioned presentation boundary in a GitHub batch-dispatch prompt. The worker receives the
 // whole prompt; transcript normalization exposes only the generated lead above this line as
 // `displayText`. Namespacing + versioning make an ordinary HTML comment or markdown example inert.
-export const GITHUB_DISPATCH_UI_BOUNDARY = "<!-- frizz:github-dispatch-ui-boundary:v1 -->"
+export const GITHUB_DISPATCH_UI_BOUNDARY = "<!-- ntwine:github-dispatch-ui-boundary:v1 -->"
 
 // ---- WAKE-DELIVERY TOKEN (scheduler ↔ transcript) ------------------------------------------------
 // The scheduler appends this to every wake it delivers so the worker's own next user record proves the
@@ -6357,7 +6360,7 @@ export const GITHUB_DISPATCH_UI_BOUNDARY = "<!-- frizz:github-dispatch-ui-bounda
 //
 // PRODUCER AND STRIPPER LIVE TOGETHER ON PURPOSE. The delivered message is recorded as an ordinary user
 // turn, and the chat renders user text VERBATIM (a pre-wrap bubble, not markdown), so an unstripped
-// token is shown to the human as literal `<!-- frizz-wake:… -->`. A format change on one side without the
+// token is shown to the human as literal `<!-- ntwine-wake:… -->`. A format change on one side without the
 // other silently brings that back; keeping the pair adjacent is the guard.
 // WHAT TIME IT IS, AND HOW LONG YOU HAVE BEEN GONE — because a broker-run worker is told neither.
 //
@@ -6371,7 +6374,7 @@ export const GITHUB_DISPATCH_UI_BOUNDARY = "<!-- frizz:github-dispatch-ui-bounda
 // minutes. ELAPSED is the number that teaches it: "you last spoke 3h 12m ago" is the feedback that makes
 // the next `for:` an actual judgement.
 //
-// Frizz cannot fix the runtime's env block, but every wake IT sends lands in the worker's context, so
+// Ntwine cannot fix the runtime's env block, but every wake IT sends lands in the worker's context, so
 // this rides along on all of them — one line, at the point every delivery passes through.
 export function formatElapsed(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "an unknown time"
@@ -6385,12 +6388,12 @@ export function formatElapsed(ms: number): string {
   return h % 24 === 0 ? `${d}d` : `${d}d ${h % 24}h`
 }
 
-/** One line of wall clock, prepended to every frizz delivery. Local time, because that is the clock the
+/** One line of wall clock, prepended to every ntwine delivery. Local time, because that is the clock the
  *  human reading the transcript is on. `lastAssistantAt` absent ⇒ the elapsed clause is dropped rather
  *  than guessed.
  *
  *  A THREAD WITH A TIME LIMIT (deadline.ts) also hears what is left of it — `· 42m left`, `· over by 8m`
- *  — so the worker sees its clock on every turn Frizz starts, not only at the check-ins. */
+ *  — so the worker sees its clock on every turn Ntwine starts, not only at the check-ins. */
 export function wakeTimeHeader(nowMs: number, lastAssistantAt?: string | null, deadlineMs?: number | null): string {
   const d = new Date(nowMs)
   const p2 = (n: number) => String(n).padStart(2, "0")
@@ -6406,7 +6409,7 @@ export function wakeTimeHeader(nowMs: number, lastAssistantAt?: string | null, d
 // message the transcript then shows to a human, who has one. Rendered it is pure noise at the foot of
 // every wake card, and on the one wake that is the human's OWN words (an answer to a registered
 // question) it is worse than noise: the answers parser reads a trailing line as a continuation of the
-// last answer, so frizz's clock printed INSIDE the chip holding what the human chose. That exact defect
+// last answer, so ntwine's clock printed INSIDE the chip holding what the human chose. That exact defect
 // was reported for the gap note on 2026-08-25 ("the freaking time stamps are still showing up in my
 // question answers") and this is the same line arriving by the other door.
 //
@@ -6415,12 +6418,12 @@ export function wakeTimeHeader(nowMs: number, lastAssistantAt?: string | null, d
 // only: the stored text keeps the stamp, which is the whole point of sending it.
 const WAKE_TIME_HEADER_TAIL = /\n+⏱ \d{4}-\d{2}-\d{2} \d{2}:\d{2}(?: — you last spoke [^\n]*? ago)?(?: · (?:[^\n]*? left|over by [^\n]*?))?\.[ \t]*$/
 
-/** Display projection: a frizz wake without the clock line frizz appended for the worker. */
+/** Display projection: an ntwine wake without the clock line ntwine appended for the worker. */
 export function stripWakeTimeHeader(text: string): string {
   return text.replace(WAKE_TIME_HEADER_TAIL, "")
 }
 
-// The trailers frizz writes for the WORKER at the end of a wake it composed, declared with their
+// The trailers ntwine writes for the WORKER at the end of a wake it composed, declared with their
 // producers above. Every one of them is a sentence about a registration the reader does not hold and a
 // command the reader cannot run.
 //
@@ -6430,14 +6433,14 @@ export function stripWakeTimeHeader(text: string): string {
 // instead, which is the same outcome by the other route.
 // The three a human-armed watch writes also strip in their pre-2026-10-08 wording (legacyHumanWording).
 const HUMAN_WATCH_TRAILERS = [PR_WATCH_HUMAN_TRAILER, ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_QUIET_TRAILER]
-const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER]
+const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER].flatMap(brandSpellings)
 
-/** Display projection: a frizz wake without the agent-facing trailer frizz appended for the worker.
+/** Display projection: an ntwine wake without the agent-facing trailer ntwine appended for the worker.
  *
  *  Anchored to END-OF-TEXT, after the clock line and the delivery token have already come off (see
  *  `userDisplayText`, which composes the three in that order — the order they were appended in). Exact
  *  strings, never a shape: a paragraph that merely LOOKS like a trailer — a worker quoting one back, a
- *  human pasting one into a bug report — keeps it, and only the bytes frizz itself wrote are dropped. */
+ *  human pasting one into a bug report — keeps it, and only the bytes ntwine itself wrote are dropped. */
 export function stripWakeTrailer(text: string): string {
   for (const trailer of WAKE_TRAILERS) {
     const at = text.lastIndexOf(trailer)
@@ -6450,7 +6453,7 @@ export function stripWakeTrailer(text: string): string {
   return text
 }
 
-/** The gap the HUMAN left before replying, as a line frizz appends to their message.
+/** The gap the HUMAN left before replying, as a line ntwine appends to their message.
  *
  *  A worker has no clock of its own (a broker-run one is told neither the date nor the time by its
  *  runtime), so an answer arriving after four hours is indistinguishable from one arriving after four
@@ -6460,7 +6463,7 @@ export function stripWakeTrailer(text: string): string {
  *  Below the floor it returns undefined — a live back-and-forth needs no stamp on every turn, and a note
  *  on each one is noise that teaches nothing.
  *
- *  ATTRIBUTED, because the message it rides on is the human's and this line is not. Frizz names itself
+ *  ATTRIBUTED, because the message it rides on is the human's and this line is not. Ntwine names itself
  *  here for the same reason SIGNOFF_NUDGE_MARKER does. */
 export const HUMAN_GAP_FLOOR_MS = 20 * 60_000
 
@@ -6470,7 +6473,7 @@ export function humanGapNote(nowMs: number, lastAssistantAt?: string | null): st
   const d = new Date(nowMs)
   const p2 = (n: number) => String(n).padStart(2, "0")
   const stamp = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`
-  return `⏱ Frizz: the message above arrived ${formatElapsed(nowMs - since)} after your last one. It is now ${stamp}.`
+  return `⏱ Ntwine: the message above arrived ${formatElapsed(nowMs - since)} after your last one. It is now ${stamp}.`
 }
 
 // PRODUCER AND STRIPPER LIVE TOGETHER, for the reason the wake token's pair does — except this one is
@@ -6486,18 +6489,18 @@ export function humanGapNote(nowMs: number, lastAssistantAt?: string | null): st
 // wall clock, so a message that merely quotes one — a bug report pasting the line, this comment's own
 // wording — is left in the bubble intact. The round-trip test over humanGapNote is what keeps a wording
 // change on the producer from silently putting the note back in front of the human.
-const HUMAN_GAP_NOTE_TAIL = /\n+⏱ Frizz: the message above arrived [^\n]* after your last one\. It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.[ \t]*$/
+const HUMAN_GAP_NOTE_TAIL = eitherBrand(/\n+⏱ Ntwine: the message above arrived [^\n]* after your last one\. It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.[ \t]*$/)
 
-/** Display projection: the human's message without the clock note frizz appended for the worker. */
+/** Display projection: the human's message without the clock note ntwine appended for the worker. */
 export function stripHumanGapNote(text: string): string {
   return text.replace(HUMAN_GAP_NOTE_TAIL, "")
 }
 
-/** A TYPED MESSAGE REACHING A WORKER THAT HAS QUESTIONS OPEN, with frizz's note naming them — appended
+/** A TYPED MESSAGE REACHING A WORKER THAT HAS QUESTIONS OPEN, with ntwine's note naming them — appended
  *  to the copy handed to the worker, exactly as humanGapNote is, and to that copy ONLY.
  *
  *  THE MESSAGE CHANGES NOTHING ABOUT THEM: each stays open until the human answers or dismisses it or the
- *  worker withdraws it. Frizz cannot tell a pivot from a side question; the worker can, so the note tells
+ *  worker withdraws it. Ntwine cannot tell a pivot from a side question; the worker can, so the note tells
  *  it to `unask` at once any the message moved past, and to name the rest under `questions:` when it
  *  rests — the rule the park-integrity check and the carried-questions nudge then hold it to.
  *
@@ -6511,7 +6514,7 @@ export function openQuestionsNote(open: readonly { id: string; question: string 
     return `“${text.length > 100 ? `${text.slice(0, 99)}…` : text}” (${q.id})`
   })
   const count = open.length === 1 ? "1 question you registered is" : `${open.length} questions you registered are`
-  return `❓ Frizz: ${count} still open: ${named.join(", ")}.${OPEN_QUESTIONS_NOTE_TAIL}`
+  return `❓ Ntwine: ${count} still open: ${named.join(", ")}.${OPEN_QUESTIONS_NOTE_TAIL}`
 }
 
 const OPEN_QUESTIONS_NOTE_TAIL =
@@ -6529,7 +6532,7 @@ const OPEN_QUESTIONS_NOTE_TAIL_2026_10_13 =
 // with `keep` (2026-10-02, then 2026-09-30). Still stripped, so a transcript written then does not start
 // showing it in the human's bubble.
 const OPEN_QUESTIONS_NOTE_TAIL_2026_10_02 =
-  " They no longer hold this thread, and frizz WITHDRAWS every one still set aside when you next come to " +
+  " They no longer hold this thread, and ntwine WITHDRAWS every one still set aside when you next come to " +
   "rest. `keep` one only if it is directly relevant to the message above — reworded with `question` if " +
   "the direction changed — and it rides to the bottom of your next handoff; let the rest go. If the work " +
   "later needs one of them, ask a new question then."
@@ -6549,17 +6552,17 @@ const OPEN_QUESTIONS_NOTE_TAIL_2026_09_29 =
 // the worker's transcript, where it is simply part of their bubble. Anchored to end-of-text on a line of
 // its own and to the note's fixed opening AND closing words, so a message that quotes one keeps it.
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-const OPEN_QUESTIONS_NOTE_LINE = new RegExp(
-  `\\n+❓ Frizz: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
-)
+const OPEN_QUESTIONS_NOTE_LINE = eitherBrand(new RegExp(
+  `\\n+❓ Ntwine: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
+))
 
-/** Display projection: the human's message without the open-questions note frizz appended for the
+/** Display projection: the human's message without the open-questions note ntwine appended for the
  *  worker. */
 export function stripOpenQuestionsNote(text: string): string {
   return text.replace(OPEN_QUESTIONS_NOTE_LINE, "")
 }
 
-/** Every rider frizz appends to the worker's copy of a TYPED follow-up, off, in the reverse of the order
+/** Every rider ntwine appends to the worker's copy of a TYPED follow-up, off, in the reverse of the order
  *  the router appends them (the gap note, then the open-questions note). The one call every display and
  *  match key should make, so a rider added later cannot be stripped in one place and shown in another. */
 export function stripFollowUpRiders(text: string): string {
@@ -6567,25 +6570,25 @@ export function stripFollowUpRiders(text: string): string {
 }
 
 export function wakeDeliveryToken(id: string): string {
-  return `<!-- frizz-wake:${id} -->`
+  return `<!-- ntwine-wake:${id} -->`
 }
 
 // Anchored to end-of-text with its leading blank line, matching how context.ts appends it. Requiring
 // that trailing position (rather than matching anywhere) keeps prose that merely quotes the token —
 // this comment's own wording, a bug report pasting one — intact in the bubble.
-const WAKE_DELIVERY_TOKEN_TAIL = /\n*<!-- frizz-wake:[A-Za-z0-9_-]+ -->\s*$/
+const WAKE_DELIVERY_TOKEN_TAIL = eitherBrand(/\n*<!-- ntwine-wake:[A-Za-z0-9_-]+ -->\s*$/)
 
 // The token wherever it sits ON A LINE OF ITS OWN. That is how the scheduler always writes it, and it
-// is never how prose quotes one — a human asking "why is <!-- frizz-wake:… --> in my bubble?" writes it
+// is never how prose quotes one — a human asking "why is <!-- ntwine-wake:… --> in my bubble?" writes it
 // mid-sentence, which this deliberately leaves alone (see the transcript test of exactly that).
 //
 // The tail anchor above is the RULE; this is the BACKSTOP. The tail is only correct while one record
 // holds one delivery, and the runtime breaks that whenever two land while the worker is mid-turn
 // (splitWakeDeliveries, below). Splitting restores the anchor — but the split has to model how the
-// runtime joins, and that is not frizz's format to pin. So the display strip refuses to depend on it:
+// runtime joins, and that is not ntwine's format to pin. So the display strip refuses to depend on it:
 // a token on its own line is machine plumbing wherever it ended up, and no shape the runtime invents
 // next can put one in front of the human again.
-const WAKE_DELIVERY_TOKEN_LINE = /(?:^|\n)[ \t]*<!-- frizz-wake:[A-Za-z0-9_-]+ -->[ \t]*(?=\n|$)/g
+const WAKE_DELIVERY_TOKEN_LINE = eitherBrand(/(?:^|\n)[ \t]*<!-- ntwine-wake:[A-Za-z0-9_-]+ -->[ \t]*(?=\n|$)/g)
 
 // Display projection: the steer the human is meant to read, without the machine-facing token.
 export function stripWakeDeliveryToken(text: string): string {
@@ -6597,10 +6600,10 @@ export function stripWakeDeliveryToken(text: string): string {
   return out === text ? text.replace(WAKE_DELIVERY_TOKEN_TAIL, "") : out.replace(/^\n+/, "").replace(/\s+$/, "")
 }
 
-// Was this user turn WRITTEN BY FRIZZ rather than by the human? The token rides only on a scheduler
+// Was this user turn WRITTEN BY NTWINE rather than by the human? The token rides only on a scheduler
 // delivery, so its presence is the one unambiguous tell — and it matters for presentation: a wake
 // rendered in the human's own off-white right-justified bubble claims the operator typed it, when in
-// fact frizz is reporting something it noticed. The chat renders these as a first-party card instead.
+// fact ntwine is reporting something it noticed. The chat renders these as a first-party card instead.
 export function isWakeDelivery(text: string): boolean {
   return WAKE_DELIVERY_TOKEN_TAIL.test(text)
 }
@@ -6615,12 +6618,12 @@ export function isWakeDelivery(text: string): boolean {
 // LAST one — while the first delivery's own token and trailer are stranded in the middle, where no
 // anchored parse can see them. That is exactly how a recurring prompt lost its `Recurring prompt · at
 // rest` divider and rendered instead as a generic bell card with the whole run of deliveries inside it,
-// interior `<!-- frizz-wake:… -->` and all (measured: 14 of 380 real deliveries on this machine).
+// interior `<!-- ntwine-wake:… -->` and all (measured: 14 of 380 real deliveries on this machine).
 //
 // So cut the record back into the deliveries the scheduler actually sent, and let each one be projected
 // on its own. A boundary is a token line WITH MORE CONTENT AFTER IT — the token ends a delivery, so
 // anything below it came from the next one. Deliberately not keyed on the runtime's joiner (measured
-// today as a single "\n"): that is its format, not frizz's, and a fix that hard-codes it silently stops
+// today as a single "\n"): that is its format, not ntwine's, and a fix that hard-codes it silently stops
 // working the day it changes. Whitespace between segments is dropped with the join.
 /** One user record → the deliveries it carries, each ending in its own token. `[text]` when it carries
  *  a single delivery (or none), so every caller can treat the split as the general case. */
@@ -6639,8 +6642,8 @@ export function splitWakeDeliveries(text: string): string[] {
   return out
 }
 
-// ---- A MERGED delivery: several of frizz's OWN wakes, sent as one message --------------------------
-// The other way one record comes to hold several wakes, and the one frizz composes itself. The scheduler
+// ---- A MERGED delivery: several of ntwine's OWN wakes, sent as one message --------------------------
+// The other way one record comes to hold several wakes, and the one ntwine composes itself. The scheduler
 // holds a thread's wakes through a quiet window and sends everything waiting for it as ONE message
 // (scheduler `adoptCompanions`): a lead sentence, then each wake's own text under a numbered heading,
 // then one clock. One delivery, one token — so `splitWakeDeliveries` above sees a single wake, and every
@@ -6648,18 +6651,18 @@ export function splitWakeDeliveries(text: string): string[] {
 //
 // THE COMPOSER AND THE SPLITTER SIT TOGETHER HERE because they did not, from the day the merge shipped
 // (2026-09-03) until 2026-10-11: the composer lived in the scheduler, where the chat cannot reach it, so
-// the envelope had no parser and fell through `FrizzWake` to the verbatim card — both wakes' agent-facing
+// the envelope had no parser and fell through `NtwineWake` to the verbatim card — both wakes' agent-facing
 // bodies, in a bordered box, in the human's transcript. It is not a rare shape: a park ending and the
 // shell whose exit ended it are caused by one event, so they are queued together and merged every time
-// (maintainer 2026-10-11, on exactly that pair: "I'm so tired of these unformatted shitty Frizz blocks
+// (maintainer 2026-10-11, on exactly that pair: "I'm so tired of these unformatted shitty Ntwine blocks
 // showing up"). Same rule as every formatter above — the parser has to sit beside it, and only this
 // package is reachable from both sides.
-const MERGED_WAKE_LEAD = /^Frizz held (\d+) wakes for this thread and is delivering them together, oldest first\. Each is under its own heading; read all of them before acting on any\.(?=\n|$)/
+const MERGED_WAKE_LEAD = eitherBrand(/^Ntwine held (\d+) wakes for this thread and is delivering them together, oldest first\. Each is under its own heading; read all of them before acting on any\.(?=\n|$)/)
 // A section heading, with the blank line the composer always puts on both sides of it.
 const MERGED_WAKE_HEADING = /\n\n### (\d+)\. [^\n]*?(?: — (\d+) identical events)?\n\n/g
 
 /** Several wakes as ONE message: each under its own reason line, oldest first, and ONE clock at the foot
- *  in place of the one each frizz-authored part carried (a stamp per section would put five clocks in
+ *  in place of the one each ntwine-authored part carried (a stamp per section would put five clocks in
  *  one message; the display stripper is anchored to a single trailing one). Parts whose reason AND body
  *  are identical — the same review event reported by two polls, the same "CI passing" twice — fold into
  *  one section that says how many there were, rather than saying the same thing three times to a reader
@@ -6673,7 +6676,7 @@ export function mergedWakeMessage(frame: readonly { reason: string; message: str
     if (same) same.count++
     else sections.push({ reason: part.reason, body, count: 1 })
   }
-  const lead = `Frizz held ${frame.length} wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.`
+  const lead = `Ntwine held ${frame.length} wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.`
   const body = sections.map((s, i) => `### ${i + 1}. ${s.reason}${s.count > 1 ? ` — ${s.count} identical events` : ""}\n\n${s.body}`)
   return `${lead}\n\n${body.join("\n\n")}\n\n${wakeTimeHeader(nowMs, lastAssistantAt, deadlineMs)}`
 }
@@ -6692,7 +6695,7 @@ export interface MergedWakePart {
  *  the clock may still be on the text or already stripped — both come off here, so the raw record and
  *  its display projection parse alike.
  *
- *  IT REFUSES RATHER THAN GUESSES. Most parts are frizz's own sentences, but a Goal prompt or a timer's
+ *  IT REFUSES RATHER THAN GUESSES. Most parts are ntwine's own sentences, but a Goal prompt or a timer's
  *  text is arbitrary prose and may carry numbered headings of its own — and nothing in the envelope says
  *  which `### 2.` is the scheduler's. So every such heading must be a boundary, numbered 1, 2, 3 in
  *  order, and the parts must add up to the count the lead declares; anything else is no split, and the
@@ -6716,7 +6719,7 @@ export function parseMergedWake(text: string): MergedWakePart[] | null {
 
 // ---- harness plumbing that arrives dressed as a user turn -----------------------------------------
 // A user record that is not the human speaking: a task-notification from a background child, a bare
-// system-reminder wrapper, a frizz orchestrator pulse. Matched on the LEADING tag so a human message
+// system-reminder wrapper, an ntwine orchestrator pulse. Matched on the LEADING tag so a human message
 // that merely QUOTES one of these somewhere inside still counts as the human.
 //
 // THIS IS THE SHARED CLASSIFIER, and it is shared for a reason. It used to live in transcript.ts alone,
@@ -6732,7 +6735,7 @@ export function parseMergedWake(text: string): MergedWakePart[] | null {
 // they are "not a message from a person", and both reach the queue exactly like a typed follow-up — so
 // until this prefix they rendered as the operator's own gray bubble. A peer's actual MESSAGE is not
 // plumbing and is not matched here; see parseCrossSessionMessage.
-const NOISE_PREFIXES = ["<task-notification>", "[SYSTEM NOTIFICATION", "<system-reminder>", "<frizz-", "[frizz]", "[Cross-session "]
+const NOISE_PREFIXES = ["<task-notification>", "[SYSTEM NOTIFICATION", "<system-reminder>", "<ntwine-", "[ntwine]", "[Cross-session "].flatMap(brandSpellings)
 export function isInjectedNoise(text: string): boolean {
   const t = text.trimStart()
   return NOISE_PREFIXES.some((p) => t.startsWith(p))
@@ -6775,7 +6778,7 @@ export function parseAgentMessage(text: string): { from: string; body: string } 
 }
 
 // ---- A MESSAGE FROM ANOTHER CLAUDE SESSION (a peer thread, not a sub-agent) ----------------------
-// What one top-level session's `SendMessage({to:"frizz-75"})` delivers into ANOTHER session — a
+// What one top-level session's `SendMessage({to:"ntwine-75"})` delivers into ANOTHER session — a
 // coordinator thread steering a thread it spawned, say. Claude Code writes it in two places, and both
 // carry the same wrapper:
 //
@@ -6783,13 +6786,13 @@ export function parseAgentMessage(text: string): { from: string; body: string } 
 //   • the delivery record of an idle session: the wrapper behind a fixed preamble and in front of a
 //     paragraph of handling guidance addressed to the receiving agent.
 //
-//   <cross-session-message from="uds:/tmp/cc-socks/2908.sock" from-name="frizz-11" from-mode="bypass">
+//   <cross-session-message from="uds:/tmp/cc-socks/2908.sock" from-name="ntwine-11" from-mode="bypass">
 //   …the body…
 //   </cross-session-message>
 //
 // Left alone it renders as the operator's own bubble with the XML showing. `from` is the sender's
 // messaging socket, `from-name` its Claude Code session name (`<cwd basename>-<2 hex>`, which is not a
-// Frizz thread name and is not unique). The server turns the socket into the sending THREAD (see
+// Ntwine thread name and is not unique). The server turns the socket into the sending THREAD (see
 // session-peer.ts); this parser only takes the wrapper apart. Anchored at both ends, so prose that quotes
 // a wrapper stays prose.
 const CROSS_SESSION_PREAMBLE = /^Another Claude session sent a message(?: while you were working)?:\n/
@@ -6822,7 +6825,7 @@ export function parseCrossSessionMessage(text: string): { name?: string; socket?
   return { ...(name ? { name } : {}), ...(socket ? { socket } : {}), body }
 }
 
-// ---- A message from ANOTHER FRIZZ THREAD (`frizzctl message-thread`) ---------------------------------
+// ---- A message from ANOTHER NTWINE THREAD (`ntwinectl message-thread`) ---------------------------------
 // FORMATTER AND PARSER LIVE TOGETHER, for the reason the PR-watcher steer below gives: the scheduler
 // pastes this text into the recipient's composer as a wake, and the chat has nothing but the text to
 // rebuild the sender, the body and whether it answered a wait from. The agent-facing instructions after
@@ -6834,27 +6837,27 @@ export function threadMessageBody(input: { fromHandle: string; message: string; 
   const where = input.fromProject ? `in the ${input.fromProject} project` : "in this project"
   const how = input.awaitsReply
     ? `@${from} is WAITING on your answer — it is parked until you reply. Answer with ` +
-      `\`frizzctl message-thread ${from} --message-file -\` as soon as you can, even if only to say you cannot help; it ` +
+      `\`ntwinectl message-thread ${from} --message-file -\` as soon as you can, even if only to say you cannot help; it ` +
       "reaches that thread, not the user."
-    : `Answer with \`frizzctl message-thread ${from} --message-file -\` only if it asks you something; it reaches that ` +
+    : `Answer with \`ntwinectl message-thread ${from} --message-file -\` only if it asks you something; it reaches that ` +
       "thread, not the user. Do not reply just to acknowledge."
   return [
-    `Message from @${from}, another Frizz thread ${where}${input.answersWait ? THREAD_MESSAGE_ANSWERS : ""}:`,
+    `Message from @${from}, another Ntwine thread ${where}${input.answersWait ? THREAD_MESSAGE_ANSWERS : ""}:`,
     "",
     input.message,
     "",
     "---",
     `${how} Do not drop your own work for it unless it matters to that work. ` +
-      `\`frizzctl read-thread ${from}\` reads @${from}'s own request, approach and latest handoff.`,
+      `\`ntwinectl read-thread ${from}\` reads @${from}'s own request, approach and latest handoff.`,
   ].join("\n")
 }
 
 const THREAD_MESSAGE_ANSWERS = " — this answers the message you were waiting on"
-const THREAD_MESSAGE_HEAD = /^Message from @([^\s,]+), another Frizz thread (?:in this project|in the (.+?) project)( — this answers the message you were waiting on)?:\n\n/
+const THREAD_MESSAGE_HEAD = eitherBrand(/^Message from @([^\s,]+), another Ntwine thread (?:in this project|in the (.+?) project)( — this answers the message you were waiting on)?:\n\n/)
 // The instructions open on one of exactly two sentences, so a `---` the SENDER wrote inside its message
-// is never mistaken for the trailer. `mcp__frizz__message_thread` is how they named the reply until
+// is never mistaken for the trailer. `mcp__ntwine__message_thread` is how they named the reply until
 // 2026-10-12, and every message already in a transcript still ends that way.
-const THREAD_MESSAGE_TRAILER = /\n\n---\n(?:@[^\s]+ is WAITING on your answer|Answer with `(?:mcp__frizz__message_thread|frizzctl message-thread)\b)[\s\S]*$/
+const THREAD_MESSAGE_TRAILER = eitherBrand(/\n\n---\n(?:@[^\s]+ is WAITING on your answer|Answer with `(?:mcp__ntwine__message_thread|ntwinectl message-thread)\b)[\s\S]*$/)
 
 export function parseThreadMessage(text: string): { from: string; project?: string; answersWait: boolean; awaitsReply: boolean; body: string } | undefined {
   const head = THREAD_MESSAGE_HEAD.exec(text)
@@ -6920,7 +6923,7 @@ function wakeItemTail(item: GithubWakeItem): string {
 //
 // The tail is DERIVED from the items and never stored: the parser drops these lines and rebuilds the
 // steer from the header and item lines alone, which is what keeps the round-trip exact without adding a
-// field to GithubWakeSteer. It is also invisible to the human — FrizzWake renders from the PARSE,
+// field to GithubWakeSteer. It is also invisible to the human — NtwineWake renders from the PARSE,
 // not from this text — so it costs the card nothing to speak to the worker here.
 const WAKE_REVIEW_LEAD = "A review's body is often empty because its substance is inline comments. Read them, one call each:"
 
@@ -6957,7 +6960,7 @@ function wakeReviewTail(steer: GithubWakeSteer): string {
 // the contract that keeps formatter and parser from drifting.
 const WAKE_BACKLOG_TAIL =
   "These were already on the PR when you parked, so you may have handled some. Check what is still" +
-  " unaddressed, deal with it, and re-park — this is the only time frizz replays a PR's existing" +
+  " unaddressed, deal with it, and re-park — this is the only time ntwine replays a PR's existing" +
   " activity to you."
 
 /** Is this delivered steer the FIRST-PARK REPLAY rather than news?
@@ -6971,7 +6974,7 @@ const WAKE_BACKLOG_TAIL =
  *  intact — see the note above on why `backlog` is an argument and not a field. A legacy transcript
  *  written before the tail existed simply reads as not-a-backlog, which is what it was. */
 export function isGithubWakeBacklog(text: string | undefined): boolean {
-  return typeof text === "string" && text.includes(WAKE_BACKLOG_TAIL)
+  return typeof text === "string" && brandSpellings(WAKE_BACKLOG_TAIL).some((tail) => text.includes(tail))
 }
 
 export function formatGithubWakeSteer({ ref, items, omitted }: GithubWakeSteer, opts: { backlog?: boolean } = {}): string {
@@ -6983,7 +6986,7 @@ export function formatGithubWakeSteer({ ref, items, omitted }: GithubWakeSteer, 
     return `${icon} New GitHub ${item.label} on ${ref} from @${item.actor}${item.at ? ` at ${item.at}` : ""}. Read that exact ${item.label} — ${WAKE_SCOPE} — and continue${url}${reviewTail}`
   }
   const more = omitted > 0 ? `\n- …and ${omitted} more not listed — check ${ref} for the rest` : ""
-  // The blank line separates the instruction from the items. Frizz's transcript renders a delivered
+  // The blank line separates the instruction from the items. Ntwine's transcript renders a delivered
   // wake as PLAIN TEXT with line breaks preserved, so this buys a paragraph break rather than an <li>,
   // and it keeps the two readable as distinct parts in a terminal composer too.
   // Each line carries its OWN 🤖/👤. A burst routinely mixes a maintainer's comment with a review
@@ -7075,7 +7078,7 @@ export function parseGithubWakeSteer(text: string): GithubWakeSteer | null {
 // raw-text blob in the chat.
 //
 // Which is exactly what it was doing. A watcher's REVIEW activity has rendered as a hairline divider
-// since the card died (see FrizzWake), but "#760 was CLOSED" and "CI PASSED on #761" fell through
+// since the card died (see NtwineWake), but "#760 was CLOSED" and "CI PASSED on #761" fell through
 // to the fallback card — so the same watcher, on the same PR, spoke in two completely different voices
 // down one transcript, and the louder voice was the one carrying the least news (maintainer 2026-08-18,
 // with a screenshot of two full-width CLOSED cards under a run of hairlines: "these callouts should
@@ -7084,7 +7087,7 @@ export function parseGithubWakeSteer(text: string): GithubWakeSteer | null {
 // It reads ONE line out of a delivery that may carry several parts — a CI verdict and a review steer
 // arrive together when one poll saw both — so the caller parses this AND `parseGithubWakeSteer`, and
 // renders a divider per part. Everything else in the message is the agent-facing trailer (the
-// still-armed / watcher-is-spent parenthetical), which is boilerplate frizz wrote for the worker and
+// still-armed / watcher-is-spent parenthetical), which is boilerplate ntwine wrote for the worker and
 // has nothing to say to a human.
 export type PrWatchWake =
   | { ref: string; kind: "merged" | "closed" }
@@ -7108,7 +7111,7 @@ const PR_WATCH_STATE = new RegExp(String.raw`^🔔 (${WAKE_REF}): (.+)\.$`)
  *  ITS OWN PARSER RATHER THAN A `PrWatchWake` VARIANT, because it coexists with one: a poll that sees CI
  *  go red AND a label move says both, and `parsePrWatchWake` returns the FIRST line it recognizes. Two
  *  parsers means two dividers, which is what the CI line and the review steer already do down the same
- *  delivery. The clauses are kept as ONE opaque string: they are prose frizz composed for the worker,
+ *  delivery. The clauses are kept as ONE opaque string: they are prose ntwine composed for the worker,
  *  and the chat's job is to show them, not to re-derive what they meant. */
 export interface PrWatchStateWake { ref: string; detail: string }
 
@@ -7318,7 +7321,7 @@ export const EditorComposeInputSchema = z.object({
   startLine: EditorLine.optional(),
   endLine: EditorLine.optional(),
 }).strict()
-// The `editor` frame — what a window's editor shows, for the agents (`frizzctl editor`). Every
+// The `editor` frame — what a window's editor shows, for the agents (`ntwinectl editor`). Every
 // count and length is capped, so one frame is bounded however large the workspace; the extension fits
 // itself under these and under EDITOR_STATE_MAX_BYTES before it sends (packages/vscode editor-state.ts).
 const EditorStateLines = z.object({ startLine: EditorLine, endLine: EditorLine }).strict()
@@ -7468,7 +7471,7 @@ export type BoardEvent = Extract<ServerEvent, { type: "board" }>
 export type BoardDelta = Extract<ServerEvent, { type: "board-delta" }>
 
 // Pure delta engine + client apply/decision helpers (kept in a sibling module, re-exported here so
-// `@frizz/shared` stays the single entry point).
+// `@ntwine/shared` stays the single entry point).
 export * from "./claim.ts"
 export * from "./claude-editions.ts"
 export * from "./code-fences.ts"
@@ -7585,7 +7588,7 @@ export const TranscriptToolCall = z.object({
   // `subagentType` the model+effort cell, and expanding reveals the (capped) dispatch `prompt`. All
   // optional so a pre-restart server / older transcript falls back to the plain `Agent(detail)` line.
   prompt: z.string().optional(), // the capped dispatch prompt (the AgentBlock's expanded body)
-  // The RESOLVED model+effort cell (e.g. "frizz:opus-high"), not `subagent_type` verbatim: a modern
+  // The RESOLVED model+effort cell (e.g. "ntwine:opus-high"), not `subagent_type` verbatim: a modern
   // profile is effort-only, so the server folds the call's `model` — or, when omitted, the model the
   // dispatching turn itself ran at — back into the cell. See server/subagent-profile.ts.
   subagentType: z.string().optional(),
@@ -7751,11 +7754,11 @@ export const TranscriptMessage = z.object({
   // the server's from the instant it arrives. "failed": the transport threw, or never answered — the
   // text is kept until the operator retries, edits or dismisses it, and nothing retries it on its own.
   // Additive + optional: an older client renders both as a plain bubble (gray for "sending").
-  // "held": the operator sent it TO THE QUEUE — Frizz has it and no transport does, until the agent rests.
+  // "held": the operator sent it TO THE QUEUE — Ntwine has it and no transport does, until the agent rests.
   deliveryState: z.enum(["sending", "pending", "enqueued", "delivered", "unconfirmed", "failed", "held"]).optional(),
   // Why a "failed" send failed, verbatim from the transport. Set only alongside deliveryState "failed".
   deliveryError: z.string().optional(),
-  // FRIZZ wrote this user turn, not the human: it is a scheduler wake delivery (isWakeDelivery). The
+  // NTWINE wrote this user turn, not the human: it is a scheduler wake delivery (isWakeDelivery). The
   // client renders it as a first-party card rather than the human's off-white right-justified bubble,
   // which was claiming the operator had typed a message the watcher composed. Additive + optional: an
   // old client ignores it and shows the plain bubble (the previous behavior), and an old server simply
@@ -7792,7 +7795,7 @@ export const TranscriptMessage = z.object({
   // off-white bubble with the XML showing — claiming the human typed what a child reported.
   //
   // `peerFrom` is the sender label the wrapper carries (today the child's `subagent_type`, e.g.
-  // `frizz:opus-high`, because the worker dispatch hook strips `name`), and `displayText` carries the
+  // `ntwine:opus-high`, because the worker dispatch hook strips `name`), and `displayText` carries the
   // unwrapped body.
   //
   // `peerDispatchId` is what makes the chat's report line CLICKABLE: it is the child's Agent DISPATCH
@@ -7810,8 +7813,8 @@ export const TranscriptMessage = z.object({
   peerDispatchId: z.string().optional(),
   // …and the tell that `peerFrom` is ONLY that subagent_type — that the parser could not resolve the
   // dispatch's own description for this sender. It matters because a profile cell is not a name: every
-  // child dispatched at `frizz:opus-high` reports under the identical string, so a divider reading
-  // «frizz:opus-high» names the MODEL, not the work, and two siblings are indistinguishable
+  // child dispatched at `ntwine:opus-high` reports under the identical string, so a divider reading
+  // «ntwine:opus-high» names the MODEL, not the work, and two siblings are indistinguishable
   // (maintainer 2026-08-06: "I'm also still occasionally seeing things like 'Agent <OPUS:HIGH>
   // rested'"). The client renders an unnamed sender as "Sub-agent reported" and keeps the cell in the
   // tooltip, rather than promoting a profile to a title.
@@ -7831,19 +7834,19 @@ export const TranscriptMessage = z.object({
   // it. Not the human, and not a sub-agent either: the chat draws it as an expandable hairline naming
   // the sending thread, with the body one click away. `displayText` carries the unwrapped body.
   //
-  // `name` is the sender's Claude Code session name, the fallback label. `thread` is the Frizz thread
+  // `name` is the sender's Claude Code session name, the fallback label. `thread` is the Ntwine thread
   // behind it, filled in by the server from the sender's socket (session-peer.ts) — absent when the
-  // sender is not a Frizz thread or is gone without having been resolved, and then the line names the
+  // sender is not an Ntwine thread or is gone without having been resolved, and then the line names the
   // session without a link. `project` is the URL slug of the sender's project.
   sessionPeer: z.object({
     name: z.string().optional(),
     socket: z.string().optional(),
     thread: z.object({ project: z.string().optional(), slug: z.string(), title: z.string() }).optional(),
   }).optional(),
-  // FRIZZ REFUSED the ```awaiting fence this message ends in — it named something that is not running,
+  // NTWINE REFUSED the ```awaiting fence this message ends in — it named something that is not running,
   // or named nothing at all, or used a retired line kind (see `isParkCorrection`). The fence is not a
   // park, so the chat draws nothing for it: an hourglass card with a park button asserts a wait that
-  // frizz declined to arm, and the settled-fence prose beneath it is a handoff the worker is about to
+  // ntwine declined to arm, and the settled-fence prose beneath it is a handoff the worker is about to
   // write again in its re-fence. Set by the server when it drops the correction that followed, so the
   // signal and the thing it is derived from can never disagree in the browser.
   //
@@ -7854,7 +7857,7 @@ export const TranscriptMessage = z.object({
   // 2026-10-07 — the user turn that delivered the request to the worker (parseSpinoffRequest). The chat
   // draws it as a spinoff card: the human's instructions and a link to the new thread. Additive + optional.
   spinoff: z.object({ id: z.string(), instructions: z.string() }).optional(),
-  // A SPINOFF CHILD'S FIRST TURN: the prompt Frizz composed from the human's instructions and the
+  // A SPINOFF CHILD'S FIRST TURN: the prompt Ntwine composed from the human's instructions and the
   // parent's context (spinoffChildPrompt), read back into its parts. The chat draws it as the thread's
   // spinoff header — the instructions as the human's request, the context folded beneath them — never as
   // one user bubble, since the context is not the human's words. `displayText` carries the instructions alone, so everything that quotes a thread's request
@@ -7991,7 +7994,7 @@ export const ProjectCard = z.object({
   path: z.string(),
   lastOpenedAt: z.string(),
   /**
-   * When `frizz` was last run in this project (a cold launch or a join), as the launcher stamped it in
+   * When `ntwine` was last run in this project (a cold launch or a join), as the launcher stamped it in
    * the registry. All projects' prompt box aims at the most recent one when this browser has neither
    * picked nor focused a project. Absent for a project no current launcher has run in.
    */
@@ -8001,7 +8004,7 @@ export const ProjectCard = z.object({
   /**
    * When this project's icon was last established, or absent if it never has been.
    *
-   * Carried purely so the client can hang it off the `/_frizz/project-icon` URL: the icon bytes are
+   * Carried purely so the client can hang it off the `/_ntwine/project-icon` URL: the icon bytes are
    * cached hard (a rail of forty squares is forty requests, and none of them should recur), which
    * means a newly uploaded icon would otherwise stay invisible behind the cached old one. A changed
    * version is a changed URL, so the swap is immediate without weakening the caching for everyone.
@@ -8033,7 +8036,7 @@ export const ProjectCard = z.object({
   /**
    * The built-in HOME workspace rather than a registered project: the prompt box's target for work
    * that belongs to no project, run in the operator's home folder. `path` is
-   * that folder. It cannot be renamed, given an icon or removed — it is not a folder Frizz adopted, so
+   * that folder. It cannot be renamed, given an icon or removed — it is not a folder Ntwine adopted, so
    * there is nothing to forget — and it draws a house instead of a monogram.
    */
   home: z.literal(true).optional(),
@@ -8118,7 +8121,7 @@ export type ProjectPickResult = z.infer<typeof ProjectPickResult>
  *
  * THE PROJECT TRAVELS WITH ITS THREADS. A `ThreadView` carries no project, and slugs are unique only
  * within one, so a list merged across projects is only safe to act on while every row still says whose
- * it is. The page addresses each action through `/_frizz/<projectId>/rpc`, never through its own URL.
+ * it is. The page addresses each action through `/_ntwine/<projectId>/rpc`, never through its own URL.
  *
  * `threads` is every OPEN session thread — the Queue, Running, Snoozed and Pinned rows the project's own
  * rail draws, plus any ARCHIVED one whose worker is still running (sectionOf lifts it into Running until
@@ -8151,7 +8154,7 @@ export const ProjectQueue = z.object({
    *  All projects `@` typeahead offers after the open ones (web lib/threadMentions.ts). Never drawn as
    *  rows: this page's Done band is still `doneCount`. */
   recentDone: z.array(ThreadView).optional(),
-  /** The project's schedules — the row's fourth count, warning-toned when one was paused by Frizz or is
+  /** The project's schedules — the row's fourth count, warning-toned when one was paused by Ntwine or is
    *  a proposal waiting for Turn on. Absent when the project has none. */
   schedules: ProjectSchedules.optional(),
 })
@@ -8182,7 +8185,7 @@ export const ThreadLocation = z.object({ projectSlug: z.string(), projectName: z
 export type ThreadLocation = z.infer<typeof ThreadLocation>
 
 /**
- * Everything Frizz itself serves lives under this prefix, so the top level stays free for the project
+ * Everything Ntwine itself serves lives under this prefix, so the top level stays free for the project
  * routes (`/project/<slug>`) and for the SPA's own route names. Without a reserved namespace the
  * deny-list is a growing list of route names that breaks the day someone clones a repo called
  * `settings`.
@@ -8194,9 +8197,19 @@ export type ThreadLocation = z.infer<typeof ThreadLocation>
  * (This docstring sat ~80 lines up the file, stacked on ProjectCard's own, until 2026-08-07 — which is
  * why nothing here said where the client half lived.)
  */
-export const FRIZZ_ROUTE_PREFIX = "/_frizz"
-export function frizzRoute(path: string): string {
-  return `${FRIZZ_ROUTE_PREFIX}${path.startsWith("/") ? path : `/${path}`}`
+export const NTWINE_ROUTE_PREFIX = "/_ntwine"
+/**
+ * The prefix before the Frizz -> Ntwine rename (2026-10-13). A worker's MCP server, a tab or a script
+ * started before it still calls `/_frizz/…`, so the server reads that prefix as this one.
+ */
+const LEGACY_ROUTE_PREFIX = "/_frizz"
+export function adoptLegacyRoute(url: string): string {
+  return url === LEGACY_ROUTE_PREFIX || url.startsWith(`${LEGACY_ROUTE_PREFIX}/`) || url.startsWith(`${LEGACY_ROUTE_PREFIX}?`)
+    ? `${NTWINE_ROUTE_PREFIX}${url.slice(LEGACY_ROUTE_PREFIX.length)}`
+    : url
+}
+export function ntwineRoute(path: string): string {
+  return `${NTWINE_ROUTE_PREFIX}${path.startsWith("/") ? path : `/${path}`}`
 }
 
 /**
@@ -8214,7 +8227,7 @@ export function frizzRoute(path: string): string {
 export const DEFAULT_PORT = 9393
 
 /**
- * The dev server's own default, so `frizz-dev` never fights the singleton for `9393`.
+ * The dev server's own default, so `ntwine-dev` never fights the singleton for `9393`.
  *
  * Picked off the same verified shortlist as DEFAULT_PORT: IANA-unassigned on TCP and UDP, on neither
  * browser's blocklist, no tool default. Adjacent by sight for the same reason the fallback is.
@@ -8233,8 +8246,9 @@ export const DEFAULT_DEV_PORT = 9494
 export function fallbackPort(base: number): number {
   return base + 10_000
 }
-// A thread's stable identity string, `frizz-<slug>`. It named a tmux session once; frizz has no tmux,
+// A thread's stable identity string, `ntwine-<slug>`. It named a tmux session once; ntwine has no tmux,
 // and this survives as the integrity check on the session row's `thread_name` column — a row whose
 // stored name does not re-derive from its own slug has been tampered with or mis-keyed.
-export const threadIdentityName = (slug: string) => `frizz-${ThreadSlug.parse(slug)}`
+export const threadIdentityName = (slug: string) => `ntwine-${ThreadSlug.parse(slug)}`
 export * from "./schedule-rule.ts"
+export { brandSpellings, eitherBrand, frizzWording } from "./legacy-brand.ts"

@@ -1,8 +1,8 @@
-// A DETACHED DAEMON is a module frizz spawns as its own `node <file>` process. Unlike every other
+// A DETACHED DAEMON is a module ntwine spawns as its own `node <file>` process. Unlike every other
 // module in this workspace it must therefore EXIST AS A REAL FILE at runtime — being reachable
 // through an `import` is not enough.
 //
-// That is the trap this module exists to close. A promoted frizz artifact is ONE esbuild bundle
+// That is the trap this module exists to close. A promoted ntwine artifact is ONE esbuild bundle
 // (`<artifact>/runtime/src/index.js`), so a daemon referenced the obvious way —
 // `new URL("./thing-daemon.ts", import.meta.url)` — resolves to a sibling path the bundle never
 // emitted. `spawn()` still succeeds; node then exits MODULE_NOT_FOUND, and the caller reports the
@@ -22,11 +22,11 @@ import { fileURLToPath } from "node:url"
 export const DETACHED_DAEMON_ENTRIES = [
   "packages/server/src/backend/codex-app-server-daemon.ts",
   // The Claude session broker: owns a live Claude Agent SDK session and serves a socket, so the
-  // session survives a frizz restart (frizz reconnects instead of cold resume-from-disk). Forked by
+  // session survives an ntwine restart (ntwine reconnects instead of cold resume-from-disk). Forked by
   // claude-broker-host.ts; run as its own `node <file>` process, so it must ship as a real sibling .js.
   "packages/server/src/backend/claude-agent-broker.ts",
   // The ACP agent daemon: owns one ACP agent child per thread and serves its JSON-RPC over a socket,
-  // so the agent and its running turn survive a frizz restart. Forked by acp-host.ts.
+  // so the agent and its running turn survive an ntwine restart. Forked by acp-host.ts.
   "packages/server/src/backend/acp-daemon.ts",
   // Deliberately SHORT beyond these. One thing is pointedly absent:
   //
@@ -53,6 +53,6 @@ export function detachedDaemonOutputName(entry: string): string {
 export function resolveDetachedDaemonEntry(moduleUrl: string, basename: string): string {
   const candidates = [`./${basename}.js`, `./${basename}.ts`].map((rel) => fileURLToPath(new URL(rel, moduleUrl)))
   const found = candidates.find((path) => existsSync(path))
-  if (!found) throw new Error(`frizz is missing the ${basename} entry — looked for ${candidates.join(" and ")}`)
+  if (!found) throw new Error(`ntwine is missing the ${basename} entry — looked for ${candidates.join(" and ")}`)
   return found
 }

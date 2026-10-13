@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import {
   type DeviceCodePrompt,
-  FRIZZ_GITHUB_CLIENT_ID,
+  NTWINE_GITHUB_CLIENT_ID,
   GITHUB_CLIENT_ID_PLACEHOLDER,
   githubClientId,
   GithubSignInError,
@@ -211,7 +211,7 @@ test("while the client id is the placeholder, a sign-in refuses before touching 
   let called = false;
   await assert.rejects(
     runDeviceFlow({
-      clientId: githubClientId({ FRIZZ_GITHUB_CLIENT_ID: GITHUB_CLIENT_ID_PLACEHOLDER }),
+      clientId: githubClientId({ NTWINE_GITHUB_CLIENT_ID: GITHUB_CLIENT_ID_PLACEHOLDER }),
       onPrompt: () => {},
       fetchImpl: (async () => {
         called = true;
@@ -222,7 +222,7 @@ test("while the client id is the placeholder, a sign-in refuses before touching 
       error instanceof GithubSignInError && error.code === "not-configured" && /private frizz\.sh name needs no account/.test(error.message),
   );
   assert.equal(called, false);
-  assert.equal(githubClientId({ FRIZZ_GITHUB_CLIENT_ID: GITHUB_CLIENT_ID_PLACEHOLDER }), null);
-  assert.equal(githubClientId({}), FRIZZ_GITHUB_CLIENT_ID === GITHUB_CLIENT_ID_PLACEHOLDER ? null : FRIZZ_GITHUB_CLIENT_ID);
-  assert.equal(githubClientId({ FRIZZ_GITHUB_CLIENT_ID: " Iv1.override " }), "Iv1.override", "the env override wins");
+  assert.equal(githubClientId({ NTWINE_GITHUB_CLIENT_ID: GITHUB_CLIENT_ID_PLACEHOLDER }), null);
+  assert.equal(githubClientId({}), NTWINE_GITHUB_CLIENT_ID === GITHUB_CLIENT_ID_PLACEHOLDER ? null : NTWINE_GITHUB_CLIENT_ID);
+  assert.equal(githubClientId({ NTWINE_GITHUB_CLIENT_ID: " Iv1.override " }), "Iv1.override", "the env override wins");
 });

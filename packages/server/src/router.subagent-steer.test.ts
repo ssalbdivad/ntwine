@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, Settings } from "@frizz/shared"
+import type { BoardSnapshot, Settings } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { loadWorkerPrompt, scratchpadOrientation, workerScratchPath } from "./dispatch.ts"
 import { createRouter } from "./router.ts"
@@ -34,13 +34,13 @@ function harness(subAgent: (slug: string, id: string) => SubAgentInfo, opts: {
   steerThrows?: Error
   // The live subtree hanging off the stopped row, deepest-first — what the tailer reads off sidecars.
   descendantTasks?: string[]
-  // Task ids whose stop throws, to pin that a descendant frizz cannot end is COUNTED and stated
+  // Task ids whose stop throws, to pin that a descendant ntwine cannot end is COUNTED and stated
   // rather than swallowed under a "stopped" the operator would read as "the work ended".
   stopFailsFor?: readonly string[]
   // The board's live shells, so a shell stop can read its own label for the kill notice.
   bgShells?: readonly { id: string; label: string; state?: string }[]
   // The broker's answer to "is this session's daemon still up" — the gate on the kill notice. Default
-  // true; false pins that frizz reports the worker was NOT told rather than cold-starting a process.
+  // true; false pins that ntwine reports the worker was NOT told rather than cold-starting a process.
   daemonAlive?: boolean
   // Make the notice delivery FAIL, to pin that a dead notice never turns a real kill into an error.
   followUpThrows?: Error
@@ -51,7 +51,7 @@ function harness(subAgent: (slug: string, id: string) => SubAgentInfo, opts: {
   // every test stub (and every thread the fold has no reading for) would refuse.
   turn?: "in-flight" | "idle"
 } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-subagent-steer-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-subagent-steer-"))
   const project: Project = { dir, id: "steer", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -86,7 +86,7 @@ function harness(subAgent: (slug: string, id: string) => SubAgentInfo, opts: {
   }
   const steers: { threadSlug: string; sessionId: string; subAgentId: string; text: string; deliveryId?: string }[] = []
   const stops: { threadSlug: string; sessionId: string; taskId: string }[] = []
-  // Every message frizz delivered into the worker's own conversation. For these tests that is only ever
+  // Every message ntwine delivered into the worker's own conversation. For these tests that is only ever
   // the shell-kill notice — the one thing the provider does not tell a worker itself.
   const notices: { threadSlug: string; sessionId: string; text: string; permissionMode?: string; appendSystemPrompt?: string }[] = []
   const codexTerminations: { threadSlug: string; sessionId: string; processId: string; notice?: string }[] = []
@@ -134,7 +134,7 @@ function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
     slug,
     session_id: `sid-${slug}`,
-    thread_name: `frizz-${slug}`,
+    thread_name: `ntwine-${slug}`,
     spawned_at: "2026-07-28T00:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -219,7 +219,7 @@ test("a failed broker delivery is not journaled as a steer the child received", 
   }
 })
 
-test("a provider-recorded Claude steer and Frizz's delivery journal render once", async () => {
+test("a provider-recorded Claude steer and Ntwine's delivery journal render once", async () => {
   let outputFile = ""
   const h = harness(() => ({ ...RUNNING_DIRECT, outputFile }))
   try {
@@ -313,7 +313,7 @@ test("subAgentSteer refuses while the PARENT's own turn is in flight — the CLI
 // next tool call (agent-inbox.ts; the hook's own side is agent-inbox-hook.test.ts). The CLI is never
 // involved, so nothing can be absorbed into the parent's turn and the in-flight gate does not apply.
 function workflowAgent(state: "running" | "done" = "running") {
-  const sessionDir = mkdtempSync(join(tmpdir(), "frizz-wf-session-"))
+  const sessionDir = mkdtempSync(join(tmpdir(), "ntwine-wf-session-"))
   const info: SubAgentInfo = { state, direct: false, workflowAgent: { runDir: join(sessionDir, "subagents", "workflows", "wf_1") } }
   return { sessionDir, info }
 }
@@ -326,7 +326,7 @@ test("subAgentSteer posts a Workflow agent's steer to its mailbox, even mid-turn
     const result = await h.router.subAgentSteer.handler({ input: { slug: "t", id: "ad5015db0606ea02e", message: "use the new helper", deliveryId: "d1" } })
     assert.deepEqual(result, { delivered: true })
     assert.deepEqual(h.steers, [], "the broker's addressed frame cannot reach a Workflow agent")
-    const box = join(wf.sessionDir, "frizz-inbox", "ad5015db0606ea02e")
+    const box = join(wf.sessionDir, "ntwine-inbox", "ad5015db0606ea02e")
     const files = readdirSync(box)
     assert.equal(files.length, 1)
     assert.deepEqual({ ...JSON.parse(readFileSync(join(box, files[0]), "utf8")), at: 0 }, { from: "operator", text: "use the new helper", at: 0 })
@@ -347,7 +347,7 @@ test("subAgentSteer refuses a Workflow agent that has finished — it makes no m
   try {
     seed(h.storage, "t")
     await assert.rejects(() => h.router.subAgentSteer.handler({ input: { slug: "t", id: "ad5015db0606ea02e", message: "hello" } }), /no longer running/)
-    assert.equal(existsSync(join(wf.sessionDir, "frizz-inbox")), false)
+    assert.equal(existsSync(join(wf.sessionDir, "ntwine-inbox")), false)
   } finally {
     h.cleanup()
     rmSync(wf.sessionDir, { recursive: true, force: true })
@@ -424,7 +424,7 @@ test("the × stops the subtree too, and reports the count that the vanished row 
 
 test("a descendant that cannot be stopped is stated, not swallowed — and never blocks the rest", async () => {
   // The benign cause is a race (it settled between the sidecar read and the stop), but a real failure
-  // is live work frizz did not end, and the row is about to leave the board. Counting it and saying so
+  // is live work ntwine did not end, and the row is about to leave the board. Counting it and saying so
   // is the whole point; a silent success here is the original bug one level down.
   const h = harness(() => RUNNING_DIRECT, {
     descendantTasks: ["agent-grand-a", "agent-grand-b"],
@@ -491,7 +491,7 @@ test("subAgentStop refuses runtimes without a real provider stop path", async ()
 // and it's still running." These pin the three branches that make the control honest again — a real
 // stop where one exists, no silent retire when the stop failed, and a stated REASON when the runtime
 // has no stop at all. The reason matters as much as the kill: a row that vanishes while the work
-// keeps burning tokens is the bug, whether or not frizz could have prevented it.
+// keeps burning tokens is the bug, whether or not ntwine could have prevented it.
 
 test("the × STOPS a broker-backed child for real, then retires the row", async () => {
   const h = harness(() => RUNNING_DIRECT)
@@ -559,7 +559,7 @@ test("a runtime with no stop path still clears the row, but SAYS the work may su
 // ── STOPPING A BACKGROUND SHELL ──────────────────────────────────────────────────────────────────
 //
 // The × was withheld from every running shell until 2026-08-01, on a premise that turned out to be
-// false: frizz DOES hold a handle on a background Bash — the provider's own task id, which it has been
+// false: ntwine DOES hold a handle on a background Bash — the provider's own task id, which it has been
 // recording off the launch ack all along, and which `Query.stopTask` accepts (verified end-to-end in
 // backend/_live_shell_stop.mts: the OS process dies within a second). The maintainer's case was a
 // watcher wedged for 24 hours with no way to clear it.
@@ -567,7 +567,7 @@ test("a runtime with no stop path still clears the row, but SAYS the work may su
 // The NOTICE is the other half and is shell-only. Measured on a real session
 // (backend/_live_shell_stop_notice.mts): stopping a sub-agent injects a `<task-notification>` the model
 // reads and acts on; stopping a shell injects NOTHING, and the model goes on believing its shell is
-// "presumably still running". These pin that frizz fills exactly that gap, and only it.
+// "presumably still running". These pin that ntwine fills exactly that gap, and only it.
 
 const RUNNING_SHELL = () => ({ outputFile: "/tmp/sh.log", state: "running" as const, direct: false, taskId: "bshell1" })
 const SHELL_LOOKUP = () => ({ command: "npx vite --port 5231", outputFile: "/tmp/sh.log", state: "running" as const })
@@ -608,7 +608,7 @@ test("the × STOPS a background shell for real, retires the row, and TELLS the w
     assert.equal(h.notices.length, 1, "the worker is told exactly once")
     // The worker must be able to tell WHICH of its shells died, so the notice carries the label the
     // worker itself gave the launch — read off the live row BEFORE the kill retires it.
-    assert.match(h.notices[0]!.text, /^\[frizz\] /, "machine plumbing, hidden from the human's chat")
+    assert.match(h.notices[0]!.text, /^\[ntwine\] /, "machine plumbing, hidden from the human's chat")
     assert.match(h.notices[0]!.text, /Watching CI/)
     assert.match(h.notices[0]!.text, /do not wait on it/)
     // `isDaemonAlive` is a check, not a hold: if the daemon exits before this frame lands, followUp
@@ -667,7 +667,7 @@ test("a shell kill whose NOTICE cannot land is still a kill — and says the wor
   }
 })
 
-test("stopping a SUB-AGENT sends no frizz notice — the provider already injects its own", async () => {
+test("stopping a SUB-AGENT sends no ntwine notice — the provider already injects its own", async () => {
   const h = harness(() => RUNNING_DIRECT)
   try {
     seed(h.storage, "t")
@@ -771,7 +771,7 @@ test("subAgentTranscript reports steerability + the reason the drawer shows in p
     settled.cleanup()
   }
 
-  // An id frizz cannot place at all stays exactly as it was: "gone", empty, and no affordance.
+  // An id ntwine cannot place at all stays exactly as it was: "gone", empty, and no affordance.
   const gone = harness(() => undefined)
   try {
     seed(gone.storage, "t")
@@ -792,7 +792,7 @@ test("subAgentTranscript reports steerability + the reason the drawer shows in p
 // Both halves are measured, not assumed (backend/_live_codex_bgterm.mts + _live_codex_shell_stop.mts):
 // terminate really kills the OS process, and codex — like Claude — tells its agent NOTHING, because
 // completion there is polled rather than pushed. `thread/inject_items` is what closes that, and the
-// live probe's worker then said "the background command has been stopped … because frizz explicitly
+// live probe's worker then said "the background command has been stopped … because ntwine explicitly
 // told me the operator stopped it."
 
 test("the × on a CODEX shell terminates it by processId and injects the notice", async () => {
@@ -807,7 +807,7 @@ test("the × on a CODEX shell terminates it by processId and injects the notice"
     assert.equal(h.codexTerminations.length, 1)
     const call = h.codexTerminations[0]!
     assert.equal(call.processId, "24573", "the row's id IS the processId — codex has exactly one handle")
-    assert.match(call.notice ?? "", /^\[frizz\] /, "machine plumbing, hidden from the human's chat")
+    assert.match(call.notice ?? "", /^\[ntwine\] /, "machine plumbing, hidden from the human's chat")
     assert.match(call.notice ?? "", /gh run watch/, "the worker has to know WHICH command died")
     assert.match(call.notice ?? "", /do not wait on it or poll it again/, "codex completion is POLLED — saying 'do not wait' alone would leave it polling")
     assert.deepEqual(h.stops, [], "the Claude control was never touched")
@@ -864,7 +864,7 @@ test("with no codex bridge the codex route never fires — the row just clears",
 //
 // shell-stop.ts is the one body the × and the scheduler's budget kill share (scheduler SOURCE 13). What
 // the budget changes is only the REASON the worker reads — and, for an archived thread, whether it is
-// told at all. What it must never do is the ×'s escape hatch: a shell frizz cannot stop is left exactly
+// told at all. What it must never do is the ×'s escape hatch: a shell ntwine cannot stop is left exactly
 // where it is, not retired as a phantom while it keeps running.
 
 const BUDGET = { kind: "budget" as const, ranMs: 70 * 60_000, budgetMs: 60 * 60_000 }
@@ -878,7 +878,7 @@ test("a BUDGET stop kills through the same provider control and tells the worker
     assert.deepEqual(h.stops, [{ threadSlug: "t", sessionId: "sid-t", taskId: "bshell1" }])
     assert.deepEqual(h.dismissals, [{ slug: "t", id: "toolu_sh" }])
     assert.equal(h.notices.length, 1)
-    assert.match(h.notices[0]!.text, /^\[frizz\] Frizz stopped your background command "Run vite dev server" after 1h 10m: it ran past its 1h budget/)
+    assert.match(h.notices[0]!.text, /^\[ntwine\] Ntwine stopped your background command "Run vite dev server" after 1h 10m: it ran past its 1h budget/)
     assert.doesNotMatch(h.notices[0]!.text, /operator/, "the operator did not do this, and the worker must not be told they did")
   } finally {
     h.cleanup()
@@ -897,7 +897,7 @@ test("a budget stop with notify:false kills without waking the worker", async ()
   }
 })
 
-test("a budget stop of a shell frizz CANNOT stop does nothing at all — no kill, no retire", async () => {
+test("a budget stop of a shell ntwine CANNOT stop does nothing at all — no kill, no retire", async () => {
   const h = harness(RUNNING_SHELL, { backgroundShell: SHELL_LOOKUP, bgShells: [{ id: "toolu_sh", label: "Run vite dev server" }] })
   try {
     seed(h.storage, "t", { claudeRuntime: null }) // a pre-broker row: no control channel

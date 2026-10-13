@@ -24,7 +24,7 @@ test("liveThreadsForBackend: counts only this provider's live session threads", 
     thread({ backend: "codex", runtime: "running" }),
     thread({ runtime: "spawning" }), // no backend recorded → treated as Claude
     thread({ backend: "claude", runtime: "perm-prompt" }),
-    thread({ backend: "claude", runtime: "running", foreign: true }), // foreign rows are not frizz-owned
+    thread({ backend: "claude", runtime: "running", foreign: true }), // foreign rows are not ntwine-owned
     thread({ backend: "claude", runtime: "running", kind: "legacy" }),
   ]
   assert.equal(liveThreadsForBackend(threads, "claude"), 3)
@@ -42,7 +42,7 @@ test("liveThreadsForBackend: a parked parent with a RUNNING background child sti
 })
 
 function withStub(script: string, fn: (bin: string) => Promise<void>): Promise<void> {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-logout-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-logout-"))
   const bin = join(dir, "provider-stub")
   writeFileSync(bin, `#!/bin/sh\n${script}\n`, { mode: 0o755 })
   return fn(bin).finally(() => rmSync(dir, { recursive: true, force: true }))

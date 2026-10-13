@@ -1,4 +1,4 @@
-// End-to-end over the REAL frizz graph — storage → tailer fold → board assembly — driven by a
+// End-to-end over the REAL ntwine graph — storage → tailer fold → board assembly — driven by a
 // scripted Claude provider that writes the same two artifacts a live broker session does: records on
 // disk and typed events over the socket. No `claude`, no daemon, no browser, no sleeps.
 //
@@ -416,7 +416,7 @@ test("integration: a structured task_notification retires the child with NO pros
 
 test("integration: a parent that dispatched in the BACKGROUND and rested reads as at rest, not working", async () => {
   // The reported bug, on the seam that produced it (2026-07-30: a thread whose own turn had ended 63
-  // minutes earlier rendered the "Working…" shimmer). A frizz worker's normal shape is `run_in_background:
+  // minutes earlier rendered the "Working…" shimmer). An ntwine worker's normal shape is `run_in_background:
   // true` then rest, and a background child keeps streaming assistant/user events on the PARENT's socket
   // for its whole life. Folding those as the parent's own turn held `runtime: "running"` for the child's
   // entire lifetime, which also starved `awaitingBackground` — it requires turn-idle, so the one card
@@ -513,7 +513,7 @@ test("integration: a re-steer survives the stream and the transcript racing each
   //
   // Record timestamps here are REAL instants, not the T0/T1/T2 fixtures the other cases use. The guard
   // compares the row's `startedAt` (a record timestamp, written by the CLI) against the task's
-  // `updatedAt` (a `Date.now()` in the frizz process) — one wall clock on one host in production, but
+  // `updatedAt` (a `Date.now()` in the ntwine process) — one wall clock on one host in production, but
   // hours apart if the records claim 2026-07-01. A fixture that mixes them does not test the guard, it
   // just happens to sit on one side of it.
   const h = createIntegrationHarness()
@@ -595,7 +595,7 @@ test("integration: the PROSE fold still retires a child on its own, with no stru
 })
 
 test("integration: a NON-terminal structured status never retires a live child", async () => {
-  // The dangerous direction. A status frizz has never seen, or a plain progress ping, must leave the
+  // The dangerous direction. A status ntwine has never seen, or a plain progress ping, must leave the
   // child exactly where it is — the board reporting done while the work continues is far worse than
   // the phantom this whole change is about.
   const h = createIntegrationHarness()
@@ -655,7 +655,7 @@ test("integration: a structured completion reaches the BOARD, not just the taile
   }
 })
 
-// THE REPORTED BUG, END TO END: "frizz shows thinking, but it's not really waiting on anything."
+// THE REPORTED BUG, END TO END: "ntwine shows thinking, but it's not really waiting on anything."
 // A worker changes its own cwd — `EnterWorktree`, or any move of the checkout under a live session —
 // and Claude Code re-buckets that session's transcript into the log dir for the new cwd. The path the
 // tailer bound then names nothing. `consume` skips a missing file in silence, so the fold FREEZES on

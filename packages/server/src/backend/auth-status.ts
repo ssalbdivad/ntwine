@@ -3,7 +3,7 @@ import { homedir, platform } from "node:os"
 import { readFileSync, statSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
-import type { AccountEmails, AuthSnapshot, ProviderAuth } from "@frizz/shared"
+import type { AccountEmails, AuthSnapshot, ProviderAuth } from "@ntwine/shared"
 import { tokenFromCredentialsJson } from "./claude-quota.ts"
 import { defaultCodexHome } from "./codex.ts"
 import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
@@ -43,10 +43,10 @@ function claudeFileState(configDir: string): CredState {
 // clean "absent"; any other failure is "error" (→ unknown, fail open).
 async function claudeKeychainState(): Promise<CredState> {
   // DEV/QA seam: on a Keychain-backed macOS install, pointing CLAUDE_CONFIG_DIR at an empty dir does
-  // NOT simulate signed-out because the Keychain still holds the real token. FRIZZ_KEYCHAIN_DISABLED
+  // NOT simulate signed-out because the Keychain still holds the real token. NTWINE_KEYCHAIN_DISABLED
   // forces the Keychain source to read as absent so the signed-out gate can be exercised locally. Never
   // honored in a production build, so it can't weaken real auth detection in a deploy.
-  if (process.env.FRIZZ_KEYCHAIN_DISABLED && process.env.NODE_ENV !== "production") return "absent"
+  if (process.env.NTWINE_KEYCHAIN_DISABLED && process.env.NODE_ENV !== "production") return "absent"
   if (platform() !== "darwin") return "absent"
   try {
     const { stdout } = await execFileAsync("security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"], {
@@ -78,8 +78,8 @@ export async function readClaudeAuthState(configDir = claudeConfigDir()): Promis
 // either an API key (OPENAI_API_KEY) or a ChatGPT-plan OAuth blob (tokens.access_token); either one
 // present ⇒ authed. Missing file ⇒ signed-out; present-but-unreadable/unparseable ⇒ unknown (fail open).
 export function readCodexAuthState(codexHome = defaultCodexHome()): ProviderAuth {
-  // Codex ALSO authenticates from the environment — frizz forwards OPENAI_API_KEY / CODEX_API_KEY /
-  // CODEX_ACCESS_TOKEN into the spawned app-server (a worker inherits frizz's environment minus frizz's
+  // Codex ALSO authenticates from the environment — ntwine forwards OPENAI_API_KEY / CODEX_API_KEY /
+  // CODEX_ACCESS_TOKEN into the spawned app-server (a worker inherits ntwine's environment minus ntwine's
   // own control plane; see worker-env.ts, which replaced the CODEX_APP_SERVER_ENV_KEYS allowlist this
   // once had to stay in step with). A user authed that way has NO auth.json, so checking the file alone
   // would falsely block them with no way to recover (the "codex login" the modal suggests isn't how
@@ -109,7 +109,7 @@ export function readCodexAuthState(codexHome = defaultCodexHome()): ProviderAuth
  * The ChatGPT account Codex would load from auth.json at process start.
  *
  * Codex's AuthManager intentionally keeps one in-memory credential snapshot for the life of an
- * app-server. Frizz uses this non-secret identifier to notice when an account switch replaced the
+ * app-server. Ntwine uses this non-secret identifier to notice when an account switch replaced the
  * file underneath a long-lived listener. Environment authentication takes precedence over the file,
  * so there is no meaningful ChatGPT account identity to track in that mode.
  */
@@ -294,7 +294,7 @@ export function readClaudeAccountEmail(path = claudeAccountFile()): string | und
 
 // Codex keeps no plaintext account record: the identity lives in the OIDC id_token inside auth.json.
 // Read the payload segment WITHOUT verifying the signature — this is a display label sourced from the
-// user's own credential file, not an authorization decision, and frizz has no key to verify it against.
+// user's own credential file, not an authorization decision, and ntwine has no key to verify it against.
 // An expired id_token still names the right account (Codex refreshes in place), so expiry is ignored.
 export function readCodexAccountEmail(codexHome = defaultCodexHome()): string | undefined {
   let doc: { tokens?: { id_token?: unknown } }

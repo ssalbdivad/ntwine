@@ -5,10 +5,10 @@
 // sign-in link. Through the public origin it is 403, and a launch with no transport to drive (`pnpm dev`)
 // answers 404.
 
-export const REMOTE_ACCESS_PATH = "/_frizz/control/remote"
+export const REMOTE_ACCESS_PATH = "/_ntwine/control/remote"
 
 /** Mirrors RemoteKind in src/remote-setup.ts. */
-export type RemoteKind = "private" | "frizz" | "cloudflare" | "tailscale" | "other" | "off"
+export type RemoteKind = "private" | "ntwine" | "cloudflare" | "tailscale" | "other" | "off"
 
 /** Mirrors RemoteSetupView in src/remote-setup.ts. */
 export interface RemoteSetupView {
@@ -46,7 +46,7 @@ export type RemoteAccessReading =
 export type RemoteChoice =
   | { kind: "off" }
   | { kind: "private" }
-  | { kind: "frizz"; name: string }
+  | { kind: "ntwine"; name: string }
   | { kind: "cloudflare"; hostname: string; tunnel: string }
   | { kind: "tailscale" | "other"; origin: string }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type { EditedFile } from "@frizz/shared"
+import type { EditedFile } from "@ntwine/shared"
 import { editedFileSegments, editedFileTree, flattenEditedFileTree } from "./editedFileTree.ts"
 
 const file = (path: string): EditedFile => ({ path, edits: 1 })
@@ -61,10 +61,10 @@ test("a file under the home directory is rooted at ~ (maintainer 2026-10-05), th
     "/Users/me/.claude/CLAUDE.md",
     "/Users/me/.claude/projects/-demo-/memory/note.md",
     "/Users/me/.agents/skills/demo/SKILL.md",
-    "/tmp/frizz-x/scratch.md",
+    "/tmp/ntwine-x/scratch.md",
   ].map(file)
   assert.deepEqual(rows(files, "/Users/me/proj", home), [
-    "0d /tmp/frizz-x",
+    "0d /tmp/ntwine-x",
     "1f scratch.md",
     "0d ~",
     "1d .agents/skills/demo",
@@ -82,7 +82,7 @@ test("a file under the home directory is rooted at ~ (maintainer 2026-10-05), th
   assert.deepEqual(rows([file("/Users/me/notes.md")], "/Users/me/proj", home), ["0d ~", "1f notes.md"])
   // The directory paths the rail keys on: `~` does not double, and nothing under it reads `/`.
   const dirs = flattenEditedFileTree(editedFileTree(files, "/Users/me/proj", home)).flatMap((n) => (n.kind === "dir" ? [n.path] : []))
-  assert.deepEqual(dirs, ["/tmp/frizz-x", "~", "~/.agents/skills/demo", "~/.claude", "~/.claude/projects/-demo-/memory", "src"])
+  assert.deepEqual(dirs, ["/tmp/ntwine-x", "~", "~/.agents/skills/demo", "~/.claude", "~/.claude/projects/-demo-/memory", "src"])
   // A sibling user's home is not this one.
   assert.deepEqual(editedFileSegments("/Users/meow/a.ts", "/Users/me/proj", home), ["/", "Users", "meow", "a.ts"])
 })

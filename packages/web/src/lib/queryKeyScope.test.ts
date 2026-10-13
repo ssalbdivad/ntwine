@@ -124,13 +124,13 @@ test("an entry written for a project by name is the one that project's page read
   // hooks.ts prefetchProjectTranscript writes another project's transcript at the click, while the page is
   // still bound to the project being left; the drawer reads it once the page has moved.
   const qc = client()
-  await withPathname("/all/frizz", () =>
+  await withPathname("/all/ntwine", () =>
     qc.prefetchQuery({ queryKey: ["transcript", "fix-auth"], queryKeyHashFn: (key) => projectQueryKeyHash("home", key), queryFn: () => ({ messages: ["prefetched"] }) }))
   withPathname("/all/home/thread/fix-auth", () => {
     assert.deepEqual(qc.getQueryData(["transcript", "fix-auth"]), { messages: ["prefetched"] })
   })
-  withPathname("/all/frizz/thread/fix-auth", () => {
+  withPathname("/all/ntwine/thread/fix-auth", () => {
     assert.equal(qc.getQueryData(["transcript", "fix-auth"]), undefined, "and only that project's page")
   })
-  assert.equal(projectQueryKeyHash("home", ["projectsQueues"]), projectQueryKeyHash("frizz", ["projectsQueues"]), "machine-wide keys stay shared")
+  assert.equal(projectQueryKeyHash("home", ["projectsQueues"]), projectQueryKeyHash("ntwine", ["projectsQueues"]), "machine-wide keys stay shared")
 })

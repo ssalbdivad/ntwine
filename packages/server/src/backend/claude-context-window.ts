@@ -1,4 +1,4 @@
-// The 1M context window: what frizz asks for on every Claude dispatch, and why the ask always ships
+// The 1M context window: what ntwine asks for on every Claude dispatch, and why the ask always ships
 // a fallback beside it.
 //
 // Claude Code turns a `[1m]` model suffix into the `context-1m-2025-08-07` beta header CLIENT-SIDE:
@@ -8,7 +8,7 @@
 // why the catalogue does NOT carry `[1m]` rows: the window is a launch property, not a model choice.
 //
 // The header is an OPT-IN, not the only path to the window — the window is granted by the
-// SUBSCRIPTION. Measured 2026-08-18 on the maintainer's account through frizz's own SDK transport,
+// SUBSCRIPTION. Measured 2026-08-18 on the maintainer's account through ntwine's own SDK transport,
 // reading `result.modelUsage[…].contextWindow`:
 //
 //   model "opus"       → 1_000_000   ← already 1M with no suffix at all

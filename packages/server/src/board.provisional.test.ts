@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { sectionOf, type ThreadView } from "@frizz/shared"
+import { sectionOf, type ThreadView } from "@ntwine/shared"
 import { boardTelemetry, createBoard } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
@@ -22,7 +22,7 @@ const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString(
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `${slug}-session`, thread_name: `frizz-${slug}`, spawned_at: minutesAgo(60), last_read_at: null,
+    slug, session_id: `${slug}-session`, thread_name: `ntwine-${slug}`, spawned_at: minutesAgo(60), last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -46,7 +46,7 @@ interface Fixture {
 }
 
 function fixture(): Fixture {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-provisional-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-provisional-"))
   const project: Project = { dir, id: "project-provisional", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   return {
@@ -205,7 +205,7 @@ test("a cache miss falls back to the durable rest: a rested row with nothing in 
 })
 
 test("an unprimed reading cannot put a thread INTO the queue, only keep one there: no card appears and leaves during a prime", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-provisional-queue-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-provisional-queue-"))
   const project: Project = { dir, id: "project-provisional-queue", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   // A bare rest: queued, by its own reading. `stale` has no stamp — it was outside the queue before the

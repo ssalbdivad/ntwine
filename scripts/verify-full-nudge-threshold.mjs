@@ -10,7 +10,7 @@
 // For each target gap it re-pins to the bottom, wheels up to that gap with real wheel events, lets the
 // reader-gesture window expire, then lands three real appends and reports whether the reader moved.
 //
-// Usage — boot a disposable stack first (see .agents/skills/frizz-stack), then:
+// Usage — boot a disposable stack first (see .agents/skills/ntwine-stack), then:
 //   node scripts/verify-full-nudge-threshold.mjs --home=… --url=… [--gaps=24,48,96,200]
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs"
@@ -68,7 +68,7 @@ for (let i = 0; i < 12; i++) seed.push(assistant(prose(3 + (i % 3), `Working ste
 let tailId = `msg_${n}`
 writeFileSync(jsonl, seed.map((r) => JSON.stringify(r)).join("\n") + "\n")
 execFileSync("sqlite3", [db, `INSERT OR REPLACE INTO session (${sessionCols}slug, session_id, thread_name, spawned_at, title, backend, model, effort, permission_mode)
-  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'frizz-${SLUG}', '${now()}', 'Nudge threshold', 'claude', 'opus', 'high', 'default')`])
+  VALUES (${sessionVals}'${SLUG}', '${SESSION}', 'ntwine-${SLUG}', '${now()}', 'Nudge threshold', 'claude', 'opus', 'high', 'default')`])
 const append = (record) => appendFileSync(jsonl, JSON.stringify(record) + "\n")
 
 let failures = 0

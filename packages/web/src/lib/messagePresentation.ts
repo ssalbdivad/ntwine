@@ -1,4 +1,4 @@
-import { BURIED_ANSWERS_HEADER, parseParkWake, userCommandDisplayText, type TranscriptMessage } from "@frizz/shared"
+import { BURIED_ANSWERS_HEADER, parseParkWake, userCommandDisplayText, type TranscriptMessage } from "@ntwine/shared"
 
 // Rendering-only text choice. The server keeps a generated prompt's full `text` for transcript logic
 // and supplies `displayText` only when an exact presentation boundary was validated. A USER COMMAND
@@ -45,15 +45,15 @@ export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
 // Upstream's copy has since grown one of its own: a `sessionPeer` record is another thread messaging this
 // one (upstream ed99e01c), not the operator.
 //
-// Anything frizz composed is out, not just anything frizz delivered. A `wake` user record is frizz writing
+// Anything ntwine composed is out, not just anything ntwine delivered. A `wake` user record is ntwine writing
 // as the user — the Goal delivery, the sign-off reminder, a watcher wake — and cutting there opened the card
-// on frizz's own boilerplate with the human's task hidden above it (maintainer 2026-08-12: "queue cards
+// on ntwine's own boilerplate with the human's task hidden above it (maintainer 2026-08-12: "queue cards
 // STILL need to go all the way back to the last user message"). A `peerFrom` record is a SUB-AGENT
 // reporting up, an `agentInstruction` a coordinator speaking into a CHILD, and a QUEUED send has not been
 // delivered, so nothing after it is a reply to it.
 //
-// …EXCEPT THE ONE TURN FRIZZ DELIVERS THAT THE HUMAN WROTE: the answer to a REGISTERED question
-// (`frizzctl ask`). It rides in as a scheduler wake because the human may have answered while the
+// …EXCEPT THE ONE TURN NTWINE DELIVERS THAT THE HUMAN WROTE: the answer to a REGISTERED question
+// (`ntwinectl ask`). It rides in as a scheduler wake because the human may have answered while the
 // worker's process was down, so `wake` alone cannot decide the writer; the answers header (shared
 // questionAnswerMessage) does (maintainer 2026-08-31: "the cue card should only go back to the most
 // recent user interaction").

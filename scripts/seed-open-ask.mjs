@@ -4,7 +4,7 @@
 // The verify script's header always asked for "an open-ask thread" and none was ever checked in.
 //
 // Registered, not ```question fences. The fence was retired as a way to ask on 2026-09-11 (a worker asks
-// with `mcp__frizz__ask`, which writes a `thread_question` row), and the one page's card draws a fence
+// with `mcp__ntwine__ask`, which writes a `thread_question` row), and the one page's card draws a fence
 // read-only: only the drawer still answers one. So the ask a worker can actually make today is two rows
 // in `thread_question`, written here the way scripts/seed-all-queues.mjs writes its own, because no
 // human-facing RPC registers a question — only a worker's MCP call does.
@@ -76,7 +76,7 @@ writeFileSync(join(brokerDir, `${createHash("sha256").update(SESSION).digest("he
 
 execFileSync("sqlite3", ["-cmd", ".timeout 10000", sandbox.db, `DELETE FROM session WHERE slug = '${slug}';`])
 execFileSync("sqlite3", ["-cmd", ".timeout 10000", sandbox.db, `INSERT INTO session (${cols}slug, session_id, thread_name, spawned_at, title, backend, claude_runtime, model, effort, permission_mode, rested_at)
-  VALUES (${vals}'${slug}', '${SESSION}', 'frizz-${slug}', '${at(0)}', 'Fix the flaky cache test', 'claude', 'broker', 'opus', 'high', 'default', '${at(5)}')`])
+  VALUES (${vals}'${slug}', '${SESSION}', 'ntwine-${slug}', '${at(0)}', 'Fix the flaky cache test', 'claude', 'broker', 'opus', 'high', 'default', '${at(5)}')`])
 // Asked AT the rest (the handoff's own timestamp), after the task: a question asked before the human's
 // latest turn is one they already replied past, and the card draws only the ones still owed.
 execFileSync("sqlite3", ["-cmd", ".timeout 10000", sandbox.db, `DELETE FROM thread_question WHERE thread_slug = '${slug}';`])

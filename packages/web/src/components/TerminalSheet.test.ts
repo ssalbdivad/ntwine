@@ -32,7 +32,7 @@ test("a poll that keeps failing before any reply says so", () => {
 
 test("gone and Codex take their own words", () => {
   assert.equal(agentTerminalEmpty({ state: "gone" }, false, 0), "This terminal is closed.")
-  assert.equal(agentTerminalEmpty({ state: "running", outputUnavailable: true }, false, 0), "Codex hands this command's output to the agent when it checks in, so Frizz can't show it here.")
+  assert.equal(agentTerminalEmpty({ state: "running", outputUnavailable: true }, false, 0), "Codex hands this command's output to the agent when it checks in, so Ntwine can't show it here.")
 })
 
 // ONE ORDER FOR ONE SHELL'S TWO NUMBERS, on every surface: the budget, then the age (the strip's and the
@@ -57,7 +57,7 @@ test("the reading's parts give way whole, and a narrow header drops a `running` 
   assert.match(html, /<span class="min-w-0 truncate @max-\[28rem\]:hidden ">running<\/span><span data-reading-part="true" class="shrink-0"><span class="whitespace-pre @max-\[28rem\]:hidden"> · <\/span>12m left/)
   // Every separator keeps its spaces: each opens a flex item, where a leading space is otherwise collapsed.
   assert.equal([...html.matchAll(/<span class="whitespace-pre[^"]*"> · <\/span>/g)].length, 2)
-  // No Stop (a finished run, a shell Frizz cannot stop), or a state that is not `running`: the word stays.
+  // No Stop (a finished run, a shell Ntwine cannot stop), or a state that is not `running`: the word stays.
   const done = renderToStaticMarkup(createElement(StateReading, { state: "exit 2", tone: "danger", attr: {} }))
   assert.doesNotMatch(done, /@max-\[28rem\]:hidden/)
   const asking = renderToStaticMarkup(createElement(StateReading, { state: "waiting for input", age: "6m", tone: "attention", stopShown: true, attr: {} }))
@@ -96,7 +96,7 @@ test("the header's title and reading share a baseline, and a narrow header puts 
 // word ellipsizes), and the folder keeps at least `…/probe · worktree` — its min-content, which is what the
 // path's head is built to contribute nothing to but its ellipsis.
 test("a narrow header's second line keeps the folder's last segment and kind, and the reading gives way to it", () => {
-  const subtitle = createElement(TerminalSubtitle, { cwd: "/tmp/tu-r3-v-repo/.frizz/worktrees/probe", checkout: { dir: "/tmp/tu-r3-v-repo/.frizz/worktrees/probe", kind: "worktree" }, homeDir: "/home/u" })
+  const subtitle = createElement(TerminalSubtitle, { cwd: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", checkout: { dir: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", kind: "worktree" }, homeDir: "/home/u" })
   const html = renderToStaticMarkup(createElement(SheetHeader, { title: 'read -p "name? " x', titleMono: true, subtitle, subtitleKeeps: true, meta: createElement(StateReading, { state: "waiting for input", age: "4m", tone: "attention", stopShown: true, attr: {} }), onClose: () => {} }))
   const classOf = (re: RegExp) => re.exec(html)?.[1]?.split(" ") ?? []
   const line = classOf(/<span data-sheet-second-line="true" class="([^"]*)"/)
@@ -111,11 +111,11 @@ test("a narrow header's second line keeps the folder's last segment and kind, an
   for (const cls of ["w-0", "min-w-[1.5em]", "max-w-max", "grow", "truncate"]) assert.ok(head.includes(cls), `head: ${cls}`)
   const tail = classOf(/<span data-terminal-subtitle-tail="true" class="([^"]*)"/)
   for (const cls of ["shrink-0", "truncate", "max-w-[16ch]"]) assert.ok(tail.includes(cls), `tail: ${cls}`)
-  assert.match(html, /<bdi>\/tmp\/tu-r3-v-repo\/\.frizz\/worktrees\/<\/bdi><\/span><span data-terminal-subtitle-tail="true" class="[^"]*">probe<\/span><span data-terminal-subtitle-kind="true" class="shrink-0 whitespace-pre"> · worktree<\/span>/)
+  assert.match(html, /<bdi>\/tmp\/tu-r3-v-repo\/\.ntwine\/worktrees\/<\/bdi><\/span><span data-terminal-subtitle-tail="true" class="[^"]*">probe<\/span><span data-terminal-subtitle-kind="true" class="shrink-0 whitespace-pre"> · worktree<\/span>/)
   // A plain-string subtitle (a thread title) keeps no minimum: it is not a place.
   const plain = renderToStaticMarkup(createElement(SheetHeader, { title: "x", subtitle: "Fix the login flow", meta: createElement("span", null, "exit 2"), onClose: () => {} }))
   assert.doesNotMatch(plain, /min-w-min/)
-  assert.deepEqual(splitFolder("~/frizz/.frizz/worktrees/probe/"), { head: "~/frizz/.frizz/worktrees/", tail: "probe" }, "the slash rides the head, so its least is `…/`")
+  assert.deepEqual(splitFolder("~/ntwine/.ntwine/worktrees/probe/"), { head: "~/ntwine/.ntwine/worktrees/", tail: "probe" }, "the slash rides the head, so its least is `…/`")
   assert.deepEqual(splitFolder("~/probe"), { head: "", tail: "~/probe" }, "a head shorter than its ellipsis stays whole")
   assert.deepEqual(splitFolder("C:\\work\\repo"), { head: "C:\\work\\", tail: "repo" })
 })

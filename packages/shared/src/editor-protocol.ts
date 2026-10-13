@@ -1,8 +1,8 @@
-// THE EDITOR BRIDGE — the wire between Frizz and an editor extension (packages/vscode) running in a
+// THE EDITOR BRIDGE — the wire between Ntwine and an editor extension (packages/vscode) running in a
 // VS Code, Cursor or Windsurf window. Design and rationale: ARCHITECTURE.md § VS Code extension.
 //
 // One WebSocket per editor WINDOW, opened BY the extension to the one machine-wide endpoint
-// `/_frizz/editor` (never per project: a window's folders can span several projects, and the server
+// `/_ntwine/editor` (never per project: a window's folders can span several projects, and the server
 // is a singleton). Over it the extension says which folders it has open, whether it has focus, and —
 // for the agents to read — what its editor shows (`editor`, below);
 // the server sends it files to open and folders to raise, and the projects its folders belong to with
@@ -16,7 +16,7 @@
 import type { FilePosition } from "./file-position.ts"
 
 /** The machine-wide editor socket. Never project-prefixed; the server answers it before tenant routing. */
-export const EDITOR_SOCKET_PATH = "/_frizz/editor"
+export const EDITOR_SOCKET_PATH = "/_ntwine/editor"
 export const EDITOR_PROTOCOL_VERSION = 1
 
 /**
@@ -31,7 +31,7 @@ export const EDITOR_COMPOSE_MAX_TEXT = 64 * 1024
 /**
  * What a server can do beyond v1, named in its `welcome` (`features`). The protocol stays v1 and grows by
  * these instead: the server closes a socket on ANY frame it does not know (4401), so an extension that
- * sent a new frame to a Frizz from before it would be refused on every redial, forever. A new extension
+ * sent a new frame to an Ntwine from before it would be refused on every redial, forever. A new extension
  * sends a new frame only to a server that named it; an old extension ignores the field.
  */
 export const EDITOR_FEATURES = {
@@ -46,8 +46,8 @@ export const EDITOR_FEATURES = {
   review: "review",
   /**
    * The page this server serves can live in an editor's sidebar (`?embed=vscode`, packages/web lib/
-   * embed.ts). A server without it serves a page that never says `frizz:ready` there, and the sidebar
-   * says to update Frizz rather than that it is still loading. `editor-state` came after embed mode, so
+   * embed.ts). A server without it serves a page that never says `ntwine:ready` there, and the sidebar
+   * says to update Ntwine rather than that it is still loading. `editor-state` came after embed mode, so
    * a server naming only that one has it too.
    */
   sidebar: "sidebar",
@@ -86,7 +86,7 @@ export const EDITOR_STATE_MAX_BYTES = 56 * 1024
 
 /** Close codes the server uses beyond the standard ones, so the extension can say why it was dropped. */
 export const EDITOR_CLOSE = {
-  /** The hello's `v` is not one this server speaks. The extension should say "update Frizz or the extension". */
+  /** The hello's `v` is not one this server speaks. The extension should say "update Ntwine or the extension". */
   unsupportedVersion: 4400,
   /** A frame failed validation. */
   invalidMessage: 4401,
@@ -105,7 +105,7 @@ export function editorKindOf(appName: string): EditorKind {
   return "other"
 }
 
-/** A selection (or a whole file) the human sends to Frizz's prompt box from the editor. */
+/** A selection (or a whole file) the human sends to Ntwine's prompt box from the editor. */
 export interface EditorComposeInput {
   /** The project the file belongs to, as the extension matched it; the page's fallback target. */
   projectId?: string
@@ -117,7 +117,7 @@ export interface EditorComposeInput {
   endLine?: number
 }
 
-/** A compose input the server is holding until a Frizz page claims it (`composeTake`). */
+/** A compose input the server is holding until an Ntwine page claims it (`composeTake`). */
 export interface EditorComposeItem extends EditorComposeInput {
   id: string
   /** The sending window's app name, for copy ("From VS Code"). */
@@ -143,11 +143,11 @@ export interface EditorHello {
   focused: boolean
   /**
    * How long ago this window last had focus, when it does not have it now. A reconnect (every window
-   * redials after a Frizz restart, while the human is in the browser) would otherwise erase which
+   * redials after an Ntwine restart, while the human is in the browser) would otherwise erase which
    * window was used last, and an open no folder claims would go to whichever window redialled last.
    */
   focusedAgoMs?: number
-  /** Whether this window takes file opens from Frizz (the extension's `frizz.openFileLinks` setting). */
+  /** Whether this window takes file opens from Ntwine (the extension's `ntwine.openFileLinks` setting). */
   acceptsOpens: boolean
   /** `os.homedir()` and `process.platform` of the extension host — how the server tells a window that shares its filesystem. */
   home: string
@@ -180,7 +180,7 @@ export interface EditorCompose {
 
 // ── what the human has in front of them, for the agents (`editor`) ─────────────────────────────────
 //
-// The editor as a worker reads it through `mcp__frizz__editor` (cc-worker/bin/frizz-mcp.mjs → the
+// The editor as a worker reads it through `mcp__ntwine__editor` (cc-worker/bin/ntwine-mcp.mjs → the
 // `editorState` RPC): the file in front with its selection and the selected text, the other open tabs,
 // and the editor's errors and warnings. Claude Code's IDE integration gives its agent the same picture
 // (getCurrentSelection, getOpenEditors, getDiagnostics); without it an agent asked about "the selected
@@ -244,7 +244,7 @@ export interface EditorDiagnostic {
 
 /**
  * The `editor` frame: everything a worker may read about this window's editor, whole. `shared: false` is
- * the human's `frizz.shareEditorState` turned off — sent once, with everything else empty, so the server
+ * the human's `ntwine.shareEditorState` turned off — sent once, with everything else empty, so the server
  * forgets what it had and can tell a worker WHY it has nothing.
  */
 export interface EditorSnapshot {
@@ -272,7 +272,7 @@ export interface EditorFeatures {
  * What this window wants to be told beyond v1 — sent only to a server whose welcome names
  * EDITOR_FEATURES.attention, once after the welcome and again when it changes. `attention`: this window
  * shows a notification when a thread needs the human. Only older extensions send it: the toast and its
- * `frizz.notify` setting were removed on 2026-10-05, so the current extension never listens. A window that
+ * `ntwine.notify` setting were removed on 2026-10-05, so the current extension never listens. A window that
  * never says so is never the one a thread's notification goes to, so it cannot swallow one another window
  * would have shown.
  */
@@ -309,13 +309,13 @@ export interface EditorFocus {
 
 // ── a thread's changes, as VS Code's multi-file diff (`review`) ──────────────────────────────────────
 //
-// Claude Code and Cursor show an agent's edits as native diffs. A Frizz worker edits files directly, often
-// in a worktree of its own, so the Frizz form is to open everything a thread changed as one multi-file
+// Claude Code and Cursor show an agent's edits as native diffs. An Ntwine worker edits files directly, often
+// in a worktree of its own, so the Ntwine form is to open everything a thread changed as one multi-file
 // diff against where it started. The SERVER names what to show — the checkouts the thread's edits are in,
 // read off its transcript (review-target.ts) — and the EXTENSION, which runs where the files are, asks git
 // for the base and the changed files and opens the diff (packages/vscode review.ts). The same target
 // reaches the extension two ways: pushed in a `review` frame when the human asks from a browser tab, and
-// fetched with the `reviewTarget` RPC when they ask from the sidebar (`frizz:review`, embed-protocol.ts).
+// fetched with the `reviewTarget` RPC when they ask from the sidebar (`ntwine:review`, embed-protocol.ts).
 
 /** One checkout a thread changed files in. */
 export interface EditorReviewCheckout {
@@ -334,7 +334,7 @@ export interface EditorReviewCheckout {
 export interface EditorReviewTarget {
   /** The thread's title, for the diff's tab: "Changes in <title>". */
   title: string
-  /** The checkout the thread edited in last first. Empty: it has edited nothing Frizz can see. */
+  /** The checkout the thread edited in last first. Empty: it has edited nothing Ntwine can see. */
   checkouts: EditorReviewCheckout[]
 }
 
@@ -351,7 +351,7 @@ export interface EditorComposed {
   error?: string
 }
 
-/** One Frizz project, for the extension to map files to and to show counts for. */
+/** One Ntwine project, for the extension to map files to and to show counts for. */
 export interface EditorProject {
   id: string
   slug: string
@@ -381,7 +381,7 @@ export type EditorAttentionNeeds = "terminal" | "approval" | "question" | "stopp
  * A thread of a project this window has open came to rest needing the human — it entered the queue
  * (board.ts notifyNeedsYou's `needs-decision`, the edge the page's own notifications use). Sent to ONE
  * window: of those that said `listen {attention: true}` and have the project open, the one the human was
- * in last. The extension shows it unless the Frizz sidebar is in sight (it shows the card already).
+ * in last. The extension shows it unless the Ntwine sidebar is in sight (it shows the card already).
  */
 export interface EditorAttention {
   t: "attention"
@@ -407,7 +407,7 @@ export interface EditorAttentionThread {
 
 export type EditorServerMessage = EditorWelcome | EditorOpen | EditorFocus | EditorReview | EditorComposed | EditorProjects | EditorHeartbeat | EditorAttention
 
-/** What a Frizz page knows about connected editor windows (`editorWindows`, and the `editors` event). */
+/** What an Ntwine page knows about connected editor windows (`editorWindows`, and the `editors` event). */
 export interface EditorWindowSummary {
   app: string
   kind: EditorKind
@@ -415,7 +415,7 @@ export interface EditorWindowSummary {
   acceptsOpens: boolean
   /** The window can show a thread's changes (`review`); absent from an extension from before it. */
   reviews?: true
-  /** The Frizz extension's build in that window (its hello's `extensionVersion`: `0.1.0+1a2b3c4d`). */
+  /** The Ntwine extension's build in that window (its hello's `extensionVersion`: `0.1.0+1a2b3c4d`). */
   extensionVersion?: string
 }
 
@@ -425,7 +425,7 @@ export interface EditorWindowSummary {
  * neither, and an agent there reads the editor only when it decides to call its `editor` tool. So the
  * tab's prompt boxes show one quiet line — `VS Code: a.ts:12-20` — naming what that tool would read: the
  * file in front of the window the human used last that has the project open, and its selection's lines,
- * only while that window shares its editor (`frizz.shareEditorState`). Never the text: a click asks for
+ * only while that window shares its editor (`ntwine.shareEditorState`). Never the text: a click asks for
  * it (`editorFront({ text: true })`'s `item`), so what crosses is what the human chose to add.
  */
 export interface EditorFront {
@@ -464,7 +464,7 @@ export interface EditorStateWindow {
 
 /**
  * Where the CALLING thread works when that is not the project's own checkout — a worktree, most often
- * (`.frizz/worktrees/<slug>`, about one thread in seven). The human's editor usually shows the main
+ * (`.ntwine/worktrees/<slug>`, about one thread in seven). The human's editor usually shows the main
  * checkout, so the file they have selected there is THEIR copy; the same relative path under `dir` is the
  * worker's, and the two can differ. Absent: the thread works at the project root, or the caller named no
  * thread.
@@ -482,7 +482,7 @@ export interface EditorStateCheckout {
 export interface EditorStateResult {
   windows: EditorStateWindow[]
   /**
-   * Every editor window connected to Frizz, these included. The others are counted and NOT described: their
+   * Every editor window connected to Ntwine, these included. The others are counted and NOT described: their
    * folders are other projects, which a worker of this one has no business learning (until 2026-10-02 they
    * were listed, folders and all, to any worker of any project).
    */

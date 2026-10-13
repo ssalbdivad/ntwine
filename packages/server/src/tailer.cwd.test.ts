@@ -13,17 +13,17 @@ import type { Project } from "./project.ts"
 // already reads, over real folders (a linked worktree's `.git` is a FILE, as in thread-cwd.test.ts).
 
 function world(opts: { shellCwd?: (outputFile: string) => string | undefined; deps?: Partial<Parameters<typeof createTailer>[0]> } = {}) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "frizz-tail-cwd-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-tail-cwd-")))
   const project = join(root, "repo")
   mkdirSync(join(project, ".git"), { recursive: true })
   mkdirSync(join(project, "packages", "web"), { recursive: true })
-  const worktree = join(project, ".frizz", "worktrees", "probe")
+  const worktree = join(project, ".ntwine", "worktrees", "probe")
   mkdirSync(join(worktree, "src"), { recursive: true })
   writeFileSync(join(worktree, ".git"), `gitdir: ${join(project, ".git", "worktrees", "probe")}\n`)
   const logDir = join(root, "projects", "-repo")
   mkdirSync(logDir, { recursive: true })
   const storage = createStorage(join(root, "ui.db"), "p")
-  const row: SessionRow = { slug: "t", session_id: "sid", thread_name: "frizz-t", spawned_at: "2026-07-01T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null }
+  const row: SessionRow = { slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: "2026-07-01T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null }
   storage.upsertSession(row)
   const changes = { n: 0 }
   const transcript = join(logDir, "sid.jsonl")
@@ -65,7 +65,7 @@ const bgAck = (taskId: string, path: string) => `Command running in background w
 test("leadingCd: one literal leading cd moves the start folder; anything cleverer does not", () => {
   const base = "/home/u/repo"
   assert.equal(leadingCd("cd /home/u/repo/packages/web && nubx vite", base), "/home/u/repo/packages/web")
-  assert.equal(leadingCd("cd .frizz/worktrees/x && nub test", base), "/home/u/repo/.frizz/worktrees/x")
+  assert.equal(leadingCd("cd .ntwine/worktrees/x && nub test", base), "/home/u/repo/.ntwine/worktrees/x")
   assert.equal(leadingCd(`cd "packages/web" ; ls`, base), "/home/u/repo/packages/web")
   assert.equal(leadingCd("cd 'a b' && ls", base), "/home/u/repo/a b")
   assert.equal(leadingCd("cd ~/other && ls", base), join(homedir(), "other"))
@@ -134,7 +134,7 @@ test("a leading literal cd sets the start folder; `cd \"$D\"` keeps the session'
   try {
     w.append(
       user(w.project),
-      bash("toolu_cd", "cd .frizz/worktrees/probe && nub test", w.project),
+      bash("toolu_cd", "cd .ntwine/worktrees/probe && nub test", w.project),
       result("toolu_cd", bgAck("bc", "/nowhere/tasks/bc.output"), w.project),
       bash("toolu_var", `cd "$D" && nub test`, w.project),
       result("toolu_var", bgAck("bv", "/nowhere/tasks/bv.output"), w.project),
@@ -216,8 +216,8 @@ test("a Monitor's log is found beside the session's Bash logs, and only once it 
 
 test("codex: a tool call's workdir is the agent's folder — absolute, or relative to the project", () => {
   const s = newTailState("t", "sid", "/x")
-  applyEvent(s, { kind: "tool-call", at: "2026-07-01T00:00:01.000Z", id: "c1", name: "exec_command", input: { cmd: "ls", workdir: "/repo/.frizz/worktrees/a" } })
-  assert.equal(s.cwd, "/repo/.frizz/worktrees/a")
+  applyEvent(s, { kind: "tool-call", at: "2026-07-01T00:00:01.000Z", id: "c1", name: "exec_command", input: { cmd: "ls", workdir: "/repo/.ntwine/worktrees/a" } })
+  assert.equal(s.cwd, "/repo/.ntwine/worktrees/a")
   applyEvent(s, { kind: "tool-call", at: "2026-07-01T00:00:02.000Z", id: "c2", name: "exec_command", input: { cmd: "ls", workdir: "packages/web" } })
   assert.equal(s.cwd, "packages/web", "kept raw — the tailer resolves it against the project")
   applyEvent(s, { kind: "tool-call", at: "2026-07-01T00:00:03.000Z", id: "c3", name: "apply_patch", input: "*** Begin Patch" })

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, type ReactNode } from "react"
 import { Bot, Folder, FolderGit2, Loader2, SquareTerminal, X } from "lucide-react"
-import type { BgShellView, ThreadView, WorkCheckout } from "@frizz/shared"
+import type { BgShellView, ThreadView, WorkCheckout } from "@ntwine/shared"
 import { useThreadApi, useThreadApiBase, useThreadProjectDir } from "../api/threadApi.tsx"
 import type { Api } from "../api/rpc.ts"
 import { useBackgroundShellLines, useBoard } from "../hooks.ts"
@@ -41,7 +41,7 @@ const ROW = "flex min-w-0 items-center gap-1.5 text-[11.5px]"
 const IDENTITY = "group flex min-w-0 items-center gap-1.5 overflow-hidden text-left outline-none rounded-sm focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
 
 // THE OWNER MARK sits IN THE MARK SLOT — the 9px column the liveness dot used to fill — and its hue is the
-// row's liveness. Not a glyph slot of its own beside the tag: `.frizz-kind-tag` is a fixed track so every
+// row's liveness. Not a glyph slot of its own beside the tag: `.ntwine-kind-tag` is a fixed track so every
 // label on the strip starts at one x, and a second slot would push these labels 14px right of the AGENT
 // and WATCH rows around them (the drift the maintainer caught on 2026-09-11, "The label is further to the
 // right. Why?"). The slot is 9px and the glyph 1em (11.5px), so it overflows 1.25px a side into the row's
@@ -98,8 +98,8 @@ const COMMAND_RUN = "font-mono-keep text-[11px] leading-none"
 // is one colour down the strip's readings column, whichever row says it.
 const DANGER = "text-[color:var(--gh-fg-danger)]"
 const PROCESS_HUE: Record<ProcessState, string> = {
-  running: "text-shell frizz-live-glyph",
-  quiet: "text-shell frizz-live-glyph-quiet",
+  running: "text-shell ntwine-live-glyph",
+  quiet: "text-shell ntwine-live-glyph-quiet",
   prompt: "text-attention",
   finished: "text-muted-45",
   failed: DANGER,

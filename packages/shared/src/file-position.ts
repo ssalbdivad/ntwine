@@ -7,7 +7,7 @@
 //   editor/compiler   `a.ts:12`  `a.ts:12:3`  `a.ts:12-20`  `a.ts:12:3-20`
 //   GitHub fragment   `a.ts#L12` `a.ts#L12C3` `a.ts#L12-L20` `a.ts#L12-20`
 //
-// Pure and dependency-free on purpose: the extension bundles it, and pulling `@frizz/shared`'s index
+// Pure and dependency-free on purpose: the extension bundles it, and pulling `@ntwine/shared`'s index
 // (zod, yaml) into an editor extension for one regex would be absurd.
 
 export interface FilePosition {

@@ -2,9 +2,9 @@ import type { IncomingMessage } from "node:http"
 import type { Duplex } from "node:stream"
 import { createHash } from "node:crypto"
 import { WebSocketServer, type WebSocket } from "ws"
-import type { BoardSnapshot, ServerEvent, SocketServerMsg, TranscriptMessage, TranscriptPushPage } from "@frizz/shared"
+import type { BoardSnapshot, ServerEvent, SocketServerMsg, TranscriptMessage, TranscriptPushPage } from "@ntwine/shared"
 import { projectTranscriptSessionPeers, type SessionPeerThread } from "./session-peer.ts"
-import { SocketClientMsg, diffTranscriptWindow, frizzRoute, transcriptPatchOps } from "@frizz/shared"
+import { SocketClientMsg, diffTranscriptWindow, ntwineRoute, transcriptPatchOps } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import type { Emitter } from "./bus.ts"
 import type { Project } from "./project.ts"
@@ -18,7 +18,7 @@ import { isTrustedLocalWebSocketRequest, rejectWebSocketUpgrade } from "./local-
 // per-thread transcript PUSH (replacing the client's 1.5s threadTranscript poll). index.ts routes the
 // /ws upgrade here.
 
-const WS_PATH = frizzRoute("/ws")
+const WS_PATH = ntwineRoute("/ws")
 
 function isWsPath(url: string | undefined): boolean {
   return (url ?? "").split("?")[0] === WS_PATH
@@ -329,7 +329,7 @@ export function createAppSocketServer(deps: AppSocketDeps): AppSocketServer {
   // ── transcript deltas ───────────────────────────────────────────────────────────────────────────
   // Per slug, the window of the latest read: its signature and one content identity per message. The next
   // read is diffed against it, and a connection that holds exactly that window is sent only the difference
-  // (a `transcript-delta`, see @frizz/shared transcript-delta.ts) instead of the whole window again.
+  // (a `transcript-delta`, see @ntwine/shared transcript-delta.ts) instead of the whole window again.
   // Bounded like the cache: dropped as soon as the slug's last subscriber leaves.
   const windowBases = new Map<string, { sig: string; ids: string[] }>()
   // Per connection, the signature of the transcript window it last RECEIVED for each slug. This is what

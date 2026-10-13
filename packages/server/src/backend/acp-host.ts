@@ -3,7 +3,7 @@
 // attachment as an ordinary `AcpProcess`, so the bridge's JSON-RPC layer (acp-rpc.ts) is unchanged.
 //
 // The whole point is the lifetime split. `kill()` on this adapter DETACHES the socket; it never kills
-// the daemon. So when the frizz runtime is recycled — Update & Restart, a crash — the agent and every
+// the daemon. So when the ntwine runtime is recycled — Update & Restart, a crash — the agent and every
 // turn running inside it keep going, and the next runtime attaches to the SAME process. A long-lived
 // process needs someone to END it: that is `stopAcpDaemon`, for an explicit teardown (the thread
 // dismissed, its session replaced, Mark as done) and never for a restart.
@@ -22,15 +22,15 @@ import { StringDecoder } from "node:string_decoder"
 import { resolveDetachedDaemonEntry } from "../detached-daemons.ts"
 import { endDaemonTree } from "./daemon-tree.ts"
 import { recordedDaemonIsLive } from "./daemon-identity.ts"
-import { frizzIpcPath } from "./ipc-path.ts"
+import { ntwineIpcPath } from "./ipc-path.ts"
 import { spawnAcpChild, type AcpProcess, type AcpSpawn, type AcpSpawnOptions } from "./acp-rpc.ts"
-import { log as frizzLog } from "../logging.ts"
+import { log as ntwineLog } from "../logging.ts"
 import { launchEnvironment } from "./worker-env.ts"
 
 export interface AcpDaemonRecord {
   threadSlug: string
   sessionId: string
-  /** Identity of the agent PROCESS. Unchanged across a frizz restart; new only when the agent itself
+  /** Identity of the agent PROCESS. Unchanged across an ntwine restart; new only when the agent itself
    *  died and a fresh daemon replaced it. */
   generation: string
   daemonPid: number
@@ -56,7 +56,7 @@ export interface AcpDaemonHello {
 
 export interface AcpAttachment {
   process: AcpProcess
-  /** True when we joined an agent that was ALREADY running (it outlived a frizz restart). */
+  /** True when we joined an agent that was ALREADY running (it outlived an ntwine restart). */
   reattached: boolean
   generation: string
   daemonPid: number
@@ -93,7 +93,7 @@ export function acpDaemonRecordPath(stateDir: string, sessionId: string): string
  *  short name (same trick as the session broker and the codex daemon). */
 export function acpDaemonSocketPath(stateDir: string, sessionId: string): string {
   const key = createHash("sha256").update(stateDir).update("\0").update(sessionId).digest("hex").slice(0, 16)
-  return frizzIpcPath(`frizz-acp-${key}`)
+  return ntwineIpcPath(`ntwine-acp-${key}`)
 }
 
 function pidAlive(pid: number): boolean {
@@ -190,7 +190,7 @@ function forkDaemon(options: AcpHostOptions): Promise<AcpDaemonRecord> {
     // payload and is applied by the daemon, keeping the audited env allowlist authoritative.
     // launchEnvironment, not process.env, so the daemon never carries what the dev server's Vite wrote
     // (worker-env.ts).
-    env: { ...launchEnvironment(), FRIZZ_ACP_DAEMON: payload },
+    env: { ...launchEnvironment(), NTWINE_ACP_DAEMON: payload },
     detached: true,
     stdio: "ignore",
     windowsHide: true,
@@ -288,7 +288,7 @@ function attach(record: AcpDaemonRecord, timeoutMs: number): Promise<{ process: 
         buffer = buffer.slice(index + 1)
         const trimmed = line.trim()
         if (!trimmed) continue
-        // Control lines (a reserved `frizz` key) are the daemon's own; everything else is verbatim
+        // Control lines (a reserved `ntwine` key) are the daemon's own; everything else is verbatim
         // agent JSON-RPC and must reach the bridge's parser untouched.
         if (trimmed.startsWith("{\"frizz\":")) {
           if (!settled) {
@@ -351,7 +351,7 @@ export const daemonAcpHost: AcpHost = async (options) => {
   } catch (error) {
     // LAST RESORT, and deliberately not a hard failure: the daemon buys restart survival, and a daemon
     // that cannot start must cost that property, never the ACP thread itself.
-    frizzLog.error("acp", `acp daemon unavailable (${(error as Error).message}); running ${options.command} as a plain child — its turns will NOT survive a frizz restart`)
+    ntwineLog.error("acp", `acp daemon unavailable (${(error as Error).message}); running ${options.command} as a plain child — its turns will NOT survive an ntwine restart`)
     return directAcpHost(spawnAcpChild)(options)
   }
 }

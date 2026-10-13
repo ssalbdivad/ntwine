@@ -1,16 +1,16 @@
 {
-  "name": "frizz-vscode",
-  "displayName": "Frizz",
-  "description": "Ask Frizz about the code in front of you, and open Frizz's file links in this window",
+  "name": "ntwine-vscode",
+  "displayName": "Ntwine",
+  "description": "Ask Ntwine about the code in front of you, and open Ntwine's file links in this window",
   "version": "0.1.0",
   "private": true,
   "publisher": "ssalbdivad",
   "license": "MIT",
   "author": "Colin McDonnell",
-  "homepage": "https://github.com/ssalbdivad/frizz",
+  "homepage": "https://github.com/ssalbdivad/ntwine",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ssalbdivad/frizz.git",
+    "url": "git+https://github.com/ssalbdivad/ntwine.git",
     "directory": "packages/vscode"
   },
   "type": "module",
@@ -24,7 +24,7 @@
     "Other"
   ],
   "keywords": [
-    "frizz",
+    "ntwine",
     "agents",
     "claude-code",
     "codex"
@@ -34,7 +34,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onWebviewPanel:frizz.thread"
+    "onWebviewPanel:ntwine.thread"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -45,328 +45,328 @@
   "contributes": {
     "commands": [
       {
-        "command": "frizz.ask",
-        "title": "Ask Frizz…",
-        "category": "Frizz"
+        "command": "ntwine.ask",
+        "title": "Ask Ntwine…",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.sendToThread",
-        "title": "Send to Frizz thread…",
-        "category": "Frizz"
+        "command": "ntwine.sendToThread",
+        "title": "Send to Ntwine thread…",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.addToPrompt",
-        "title": "Add to Frizz prompt",
-        "category": "Frizz"
+        "command": "ntwine.addToPrompt",
+        "title": "Add to Ntwine prompt",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.addFileToPrompt",
-        "title": "Add file to Frizz prompt",
-        "category": "Frizz"
+        "command": "ntwine.addFileToPrompt",
+        "title": "Add file to Ntwine prompt",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.addSelectionOrFile",
-        "title": "Add selection or file to Frizz prompt",
-        "category": "Frizz"
+        "command": "ntwine.addSelectionOrFile",
+        "title": "Add selection or file to Ntwine prompt",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.focusPrompt",
+        "command": "ntwine.focusPrompt",
         "title": "Go to the prompt box",
-        "category": "Frizz"
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.addTerminalSelection",
-        "title": "Add to Frizz prompt",
-        "category": "Frizz"
+        "command": "ntwine.addTerminalSelection",
+        "title": "Add to Ntwine prompt",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.addProblems",
-        "title": "Add problems in this file to Frizz prompt",
-        "category": "Frizz"
+        "command": "ntwine.addProblems",
+        "title": "Add problems in this file to Ntwine prompt",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.addTerminalOutput",
-        "title": "Add last terminal command to Frizz prompt",
-        "category": "Frizz"
+        "command": "ntwine.addTerminalOutput",
+        "title": "Add last terminal command to Ntwine prompt",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.askToFix",
-        "title": "Ask Frizz to fix",
-        "category": "Frizz"
+        "command": "ntwine.askToFix",
+        "title": "Ask Ntwine to fix",
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.reviewThread",
+        "command": "ntwine.reviewThread",
         "title": "Review a thread's changes…",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(diff-multiple)"
       },
       {
-        "command": "frizz.openThreadInTab",
+        "command": "ntwine.openThreadInTab",
         "title": "Open thread in editor tab",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(window)"
       },
       {
-        "command": "frizz.sidebar.queue",
+        "command": "ntwine.sidebar.queue",
         "title": "Back to queue",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(arrow-left)"
       },
       {
-        "command": "frizz.sidebar.newThread",
+        "command": "ntwine.sidebar.newThread",
         "title": "New thread",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(add)"
       },
       {
-        "command": "frizz.sidebar.jump",
+        "command": "ntwine.sidebar.jump",
         "title": "Jump to a thread",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(search)"
       },
       {
-        "command": "frizz.sidebar.settings",
+        "command": "ntwine.sidebar.settings",
         "title": "Settings",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(gear)"
       },
       {
-        "command": "frizz.sidebar.shortcuts",
+        "command": "ntwine.sidebar.shortcuts",
         "title": "Keyboard shortcuts",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(keyboard)"
       },
       {
-        "command": "frizz.open",
+        "command": "ntwine.open",
         "title": "Open in browser",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(link-external)"
       },
       {
-        "command": "frizz.sidebar.reload",
+        "command": "ntwine.sidebar.reload",
         "title": "Reload sidebar",
-        "category": "Frizz",
+        "category": "Ntwine",
         "icon": "$(refresh)"
       },
       {
-        "command": "frizz.showLog",
+        "command": "ntwine.showLog",
         "title": "Show log",
-        "category": "Frizz"
+        "category": "Ntwine"
       },
       {
-        "command": "frizz.reconnect",
+        "command": "ntwine.reconnect",
         "title": "Reconnect",
-        "category": "Frizz"
+        "category": "Ntwine"
       }
     ],
     "submenus": [
       {
-        "id": "frizz.editor",
-        "label": "Frizz"
+        "id": "ntwine.editor",
+        "label": "Ntwine"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "submenu": "frizz.editor",
-          "group": "frizz"
+          "submenu": "ntwine.editor",
+          "group": "ntwine"
         }
       ],
-      "frizz.editor": [
+      "ntwine.editor": [
         {
-          "command": "frizz.ask",
-          "group": "frizz@1"
+          "command": "ntwine.ask",
+          "group": "ntwine@1"
         },
         {
-          "command": "frizz.sendToThread",
-          "group": "frizz@2"
+          "command": "ntwine.sendToThread",
+          "group": "ntwine@2"
         },
         {
-          "command": "frizz.addToPrompt",
-          "group": "frizz@3"
+          "command": "ntwine.addToPrompt",
+          "group": "ntwine@3"
         },
         {
-          "command": "frizz.addFileToPrompt",
-          "group": "frizz@4"
+          "command": "ntwine.addFileToPrompt",
+          "group": "ntwine@4"
         },
         {
-          "command": "frizz.addProblems",
-          "when": "config.frizz.useSidebar",
-          "group": "frizz@5"
+          "command": "ntwine.addProblems",
+          "when": "config.ntwine.useSidebar",
+          "group": "ntwine@5"
         }
       ],
       "explorer/context": [
         {
-          "command": "frizz.ask",
+          "command": "ntwine.ask",
           "when": "!explorerResourceIsFolder",
-          "group": "frizz@1"
+          "group": "ntwine@1"
         },
         {
-          "command": "frizz.addFileToPrompt",
+          "command": "ntwine.addFileToPrompt",
           "when": "!explorerResourceIsFolder",
-          "group": "frizz@2"
+          "group": "ntwine@2"
         }
       ],
       "editor/title/context": [
         {
-          "command": "frizz.addFileToPrompt",
+          "command": "ntwine.addFileToPrompt",
           "when": "resourceScheme == file",
-          "group": "frizz@1"
+          "group": "ntwine@1"
         }
       ],
       "terminal/context": [
         {
-          "command": "frizz.addTerminalSelection",
-          "when": "terminalTextSelected && config.frizz.useSidebar",
-          "group": "frizz@1"
+          "command": "ntwine.addTerminalSelection",
+          "when": "terminalTextSelected && config.ntwine.useSidebar",
+          "group": "ntwine@1"
         },
         {
-          "command": "frizz.addTerminalOutput",
-          "when": "config.frizz.useSidebar",
-          "group": "frizz@2"
+          "command": "ntwine.addTerminalOutput",
+          "when": "config.ntwine.useSidebar",
+          "group": "ntwine@2"
         }
       ],
       "view/title": [
         {
-          "command": "frizz.sidebar.queue",
-          "when": "view == frizz.sidebar && frizz.sidebarView == thread",
+          "command": "ntwine.sidebar.queue",
+          "when": "view == ntwine.sidebar && ntwine.sidebarView == thread",
           "group": "navigation@1"
         },
         {
-          "command": "frizz.sidebar.newThread",
-          "when": "view == frizz.sidebar && frizz.sidebarView && frizz.sidebarView != thread",
+          "command": "ntwine.sidebar.newThread",
+          "when": "view == ntwine.sidebar && ntwine.sidebarView && ntwine.sidebarView != thread",
           "group": "navigation@2"
         },
         {
-          "command": "frizz.sidebar.jump",
-          "when": "view == frizz.sidebar && frizz.sidebarView",
+          "command": "ntwine.sidebar.jump",
+          "when": "view == ntwine.sidebar && ntwine.sidebarView",
           "group": "navigation@3"
         },
         {
-          "command": "frizz.sidebar.settings",
-          "when": "view == frizz.sidebar && frizz.sidebarView",
+          "command": "ntwine.sidebar.settings",
+          "when": "view == ntwine.sidebar && ntwine.sidebarView",
           "group": "navigation@4"
         },
         {
-          "command": "frizz.openThreadInTab",
-          "when": "view == frizz.sidebar && frizz.sidebarView == thread",
-          "group": "frizz@0"
+          "command": "ntwine.openThreadInTab",
+          "when": "view == ntwine.sidebar && ntwine.sidebarView == thread",
+          "group": "ntwine@0"
         },
         {
-          "command": "frizz.sidebar.reload",
-          "when": "view == frizz.sidebar",
-          "group": "frizz@1"
+          "command": "ntwine.sidebar.reload",
+          "when": "view == ntwine.sidebar",
+          "group": "ntwine@1"
         },
         {
-          "command": "frizz.open",
-          "when": "view == frizz.sidebar",
-          "group": "frizz@2"
+          "command": "ntwine.open",
+          "when": "view == ntwine.sidebar",
+          "group": "ntwine@2"
         },
         {
-          "command": "frizz.sidebar.shortcuts",
-          "when": "view == frizz.sidebar && frizz.sidebarView",
-          "group": "frizz@3"
+          "command": "ntwine.sidebar.shortcuts",
+          "when": "view == ntwine.sidebar && ntwine.sidebarView",
+          "group": "ntwine@3"
         }
       ],
       "commandPalette": [
         {
-          "command": "frizz.askToFix",
+          "command": "ntwine.askToFix",
           "when": "false"
         },
         {
-          "command": "frizz.addTerminalSelection",
+          "command": "ntwine.addTerminalSelection",
           "when": "false"
         },
         {
-          "command": "frizz.addSelectionOrFile",
+          "command": "ntwine.addSelectionOrFile",
           "when": "false"
         },
         {
-          "command": "frizz.addProblems",
-          "when": "config.frizz.useSidebar"
+          "command": "ntwine.addProblems",
+          "when": "config.ntwine.useSidebar"
         },
         {
-          "command": "frizz.addTerminalOutput",
-          "when": "config.frizz.useSidebar"
+          "command": "ntwine.addTerminalOutput",
+          "when": "config.ntwine.useSidebar"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "frizz.addToPrompt",
+        "command": "ntwine.addToPrompt",
         "key": "ctrl+i",
         "mac": "cmd+i",
         "when": "editorTextFocus && editorHasSelection"
       },
       {
-        "command": "frizz.addToPrompt",
+        "command": "ntwine.addToPrompt",
         "key": "ctrl+l",
         "mac": "cmd+l",
         "when": "editorTextFocus && editorHasSelection"
       },
       {
-        "command": "frizz.focusPrompt",
+        "command": "ntwine.focusPrompt",
         "key": "ctrl+l",
         "mac": "cmd+l",
-        "when": "editorTextFocus && !editorHasSelection && config.frizz.useSidebar"
+        "when": "editorTextFocus && !editorHasSelection && config.ntwine.useSidebar"
       },
       {
-        "command": "frizz.addSelectionOrFile",
+        "command": "ntwine.addSelectionOrFile",
         "key": "alt+k",
         "mac": "alt+k",
-        "when": "editorTextFocus && !frizz.claudeCodeInstalled"
+        "when": "editorTextFocus && !ntwine.claudeCodeInstalled"
       }
     ],
     "configuration": {
-      "title": "Frizz",
+      "title": "Ntwine",
       "properties": {
-        "frizz.serverUrl": {
+        "ntwine.serverUrl": {
           "type": "string",
           "default": "",
-          "markdownDescription": "The Frizz server's address, such as `http://127.0.0.1:9393`. Leave empty to find the Frizz running on this machine."
+          "markdownDescription": "The Ntwine server's address, such as `http://127.0.0.1:9393`. Leave empty to find the Ntwine running on this machine."
         },
-        "frizz.openFileLinks": {
+        "ntwine.openFileLinks": {
           "type": "boolean",
           "default": true,
-          "description": "Open file links from Frizz in this window"
+          "description": "Open file links from Ntwine in this window"
         },
-        "frizz.shareEditorState": {
+        "ntwine.shareEditorState": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Share what you have in front of you in this editor with Frizz: the file you are in and what you have selected, with its text, goes with every message you send from the Frizz sidebar, and Frizz's agents can read it — with your open tabs and the editor's errors and warnings — when they need it. So you can ask about \"this\" without pasting it. The eye on the sidebar's prompt box is this setting. Turn it off to keep the editor to yourself: only what you add to a prompt goes. Text from files that may hold secrets (`.env`, keys, credentials) is never sent on its own."
+          "markdownDescription": "Share what you have in front of you in this editor with Ntwine: the file you are in and what you have selected, with its text, goes with every message you send from the Ntwine sidebar, and Ntwine's agents can read it — with your open tabs and the editor's errors and warnings — when they need it. So you can ask about \"this\" without pasting it. The eye on the sidebar's prompt box is this setting. Turn it off to keep the editor to yourself: only what you add to a prompt goes. Text from files that may hold secrets (`.env`, keys, credentials) is never sent on its own."
         },
-        "frizz.matchEditorTheme": {
+        "ntwine.matchEditorTheme": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show Frizz in your color theme's colors, so the sidebar, and a thread you open in an editor tab, match the rest of the editor. Turn it off to see Frizz's own colors. Either way, Frizz follows your theme between light and dark."
+          "markdownDescription": "Show Ntwine in your color theme's colors, so the sidebar, and a thread you open in an editor tab, match the rest of the editor. Turn it off to see Ntwine's own colors. Either way, Ntwine follows your theme between light and dark."
         },
-        "frizz.selectionHint": {
+        "ntwine.selectionHint": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show a quiet hint at the end of what you select in the editor, `Ctrl+L to add to Frizz` (`⌘L` on macOS), while Frizz is running. Not in diffs, and not for a select-all. The chord works either way."
+          "markdownDescription": "Show a quiet hint at the end of what you select in the editor, `Ctrl+L to add to Ntwine` (`⌘L` on macOS), while Ntwine is running. Not in diffs, and not for a select-all. The chord works either way."
         },
-        "frizz.useSidebar": {
+        "ntwine.useSidebar": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Put what you add from the editor — **Add to Frizz prompt** (`Ctrl+L`), a file, a problem's **Ask Frizz to fix**, a terminal selection — and **Ask Frizz…** and **Send to Frizz thread…** into the Frizz sidebar's prompt box, to write the rest there. Turn it off to send selections and files to Frizz in your browser, and to type Ask and Send messages in an input box."
+          "markdownDescription": "Put what you add from the editor — **Add to Ntwine prompt** (`Ctrl+L`), a file, a problem's **Ask Ntwine to fix**, a terminal selection — and **Ask Ntwine…** and **Send to Ntwine thread…** into the Ntwine sidebar's prompt box, to write the rest there. Turn it off to send selections and files to Ntwine in your browser, and to type Ask and Send messages in an input box."
         }
       }
     },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "frizz",
-          "title": "Frizz",
-          "icon": "media/frizz.svg"
+          "id": "ntwine",
+          "title": "Ntwine",
+          "icon": "media/ntwine.svg"
         }
       ]
     },
     "views": {
-      "frizz": [
+      "ntwine": [
         {
           "type": "webview",
-          "id": "frizz.sidebar",
-          "name": "Frizz"
+          "id": "ntwine.sidebar",
+          "name": "Ntwine"
         }
       ]
     }
@@ -380,8 +380,8 @@
     "ws": "^8.18"
   },
   "devDependencies": {
-    "@frizz/server": "workspace:*",
-    "@frizz/shared": "workspace:*",
+    "@ntwine/server": "workspace:*",
+    "@ntwine/shared": "workspace:*",
     "@types/node": "^24",
     "@types/vscode": "1.90.0",
     "@types/ws": "^8.5",

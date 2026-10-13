@@ -1,4 +1,4 @@
-import { qrAreaOf, renderQrLines } from "@frizz/server/qr";
+import { qrAreaOf, renderQrLines } from "@ntwine/server/qr";
 import { installPaneHost, type Pane } from "./pane-host.ts";
 
 /**

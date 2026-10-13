@@ -1,7 +1,7 @@
 // LIVE PROBE: does a REAL ACP agent's turn survive the bridge going away, through the detached daemon?
 //   nub packages/server/src/backend/_live_acp_daemon_restart.mts [agentId]     default: opencode
 //
-// Bridge A dispatches a prompt whose tool call takes ~20s, is shut down mid-turn (exactly what a Frizz
+// Bridge A dispatches a prompt whose tool call takes ~20s, is shut down mid-turn (exactly what an Ntwine
 // restart does to it), and bridge B — a fresh instance over the same state dir — warms up, adopts the
 // turn and records its ending. Any permission card the agent raises is answered `accept` here.
 // Exit 0 only when B saw the turn live, the turn ended successfully with the sentinel, and the daemon

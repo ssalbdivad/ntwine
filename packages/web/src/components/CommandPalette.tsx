@@ -13,7 +13,7 @@ import { sortThreads, displayName, displayTitle } from "../groups.ts"
 import { isCrossProjectPath } from "../lib/base-path.ts"
 import { aboveDrawersZ } from "../lib/overlaySurface.ts"
 import { startTour } from "../lib/tour.ts"
-import type { ScheduleView } from "@frizz/shared"
+import type { ScheduleView } from "@ntwine/shared"
 
 // Cmd+K palette: fuzzy-jump to any thread (over title + slug, grouped like the sidebar) plus the
 // common actions. cmdk owns the filtering; we set each item's `value` to the text we want matched.
@@ -63,7 +63,7 @@ export function CommandPalette() {
   }
 
   function jump(slug: string) {
-    openThread(slug) // side drawer: chat, or the frizz doc for a never-spawned thread
+    openThread(slug) // side drawer: chat, or the ntwine doc for a never-spawned thread
   }
 
   return (

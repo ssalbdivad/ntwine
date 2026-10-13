@@ -6,8 +6,8 @@ import test from "node:test"
 // then "respect the hierarchy": a file open in the viewer closes first).
 // Real server, real transcript, real file reads; only the absent launcher status probe is stubbed.
 // Boot scripts/adhoc-stack.mjs, then scripts/seed-file-panel-stack.mjs --home=<its HOME>.
-// FRIZZ_FULL_ESCAPE_E2E_URL=http://127.0.0.1:<port> nub --test <this file>
-const baseUrl = process.env.FRIZZ_FULL_ESCAPE_E2E_URL
+// NTWINE_FULL_ESCAPE_E2E_URL=http://127.0.0.1:<port> nub --test <this file>
+const baseUrl = process.env.NTWINE_FULL_ESCAPE_E2E_URL
 
 test("Escape on /full unwinds the layers above the page, then exits fullscreen", { skip: !baseUrl, timeout: 120_000 }, async () => {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -19,7 +19,7 @@ test("Escape on /full unwinds the layers above the page, then exits fullscreen",
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
     await page.setRequestInterception(true)
     page.on("request", (r) => {
-      if (new URL(r.url()).pathname === "/_frizz/control/status") {
+      if (new URL(r.url()).pathname === "/_ntwine/control/status") {
         void r.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ protocol: 1, state: "ready", updateRestart: false }) })
       } else void r.continue()
     })

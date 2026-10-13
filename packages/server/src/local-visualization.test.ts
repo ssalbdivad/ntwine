@@ -7,7 +7,7 @@ import test from "node:test"
 import { resolveLocalVisualization } from "./local-visualization.ts"
 
 test("resolves only the owning session's newest visualization and wraps it as a sandbox document", async () => {
-  const root = await mkdtemp(join(tmpdir(), "frizz-inline-vis-"))
+  const root = await mkdtemp(join(tmpdir(), "ntwine-inline-vis-"))
   try {
     const older = join(root, ".codex", "visualizations", "2026", "07", "21", "session-a")
     const newer = join(root, ".codex", "visualizations", "2026", "07", "22", "session-a")
@@ -25,11 +25,11 @@ test("resolves only the owning session's newest visualization and wraps it as a 
     assert.match(result.body, /<!doctype html>/)
     assert.match(result.body, /<section>newer<\/section>/)
     assert.doesNotMatch(result.body, /older|wrong session/)
-    assert.match(result.body, /frizz-inline-vis-height/)
+    assert.match(result.body, /ntwine-inline-vis-height/)
     assert.match(result.body, /event\.source !== parent/)
     assert.match(result.body, /Number\.isSafeInteger\(event\.data\.requestId\)/)
-    assert.match(result.body, /new CustomEvent\("frizz-theme-change"/)
-    assert.match(result.body, /frizz-inline-vis-applied", requestId: event\.data\.requestId/)
+    assert.match(result.body, /new CustomEvent\("ntwine-theme-change"/)
+    assert.match(result.body, /ntwine-inline-vis-applied", requestId: event\.data\.requestId/)
     assert.match(result.contentSecurityPolicy, /default-src 'none'/)
     assert.match(result.contentSecurityPolicy, /connect-src 'none'/)
     assert.match(result.contentSecurityPolicy, /sandbox allow-scripts/)
@@ -39,8 +39,8 @@ test("resolves only the owning session's newest visualization and wraps it as a 
 })
 
 test("rejects traversal, non-contract names, oversized fragments, and symlink escapes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "frizz-inline-vis-gates-"))
-  const outside = await mkdtemp(join(tmpdir(), "frizz-inline-vis-outside-"))
+  const root = await mkdtemp(join(tmpdir(), "ntwine-inline-vis-gates-"))
+  const outside = await mkdtemp(join(tmpdir(), "ntwine-inline-vis-outside-"))
   try {
     const dir = join(root, ".codex", "visualizations", "2026", "07", "22", "session-a")
     mkdirSync(dir, { recursive: true })
@@ -66,8 +66,8 @@ test("rejects traversal, non-contract names, oversized fragments, and symlink es
 })
 
 test("rejects a visualization root symlinked outside the project", async () => {
-  const root = await mkdtemp(join(tmpdir(), "frizz-inline-vis-root-link-"))
-  const outside = await mkdtemp(join(tmpdir(), "frizz-inline-vis-root-outside-"))
+  const root = await mkdtemp(join(tmpdir(), "ntwine-inline-vis-root-link-"))
+  const outside = await mkdtemp(join(tmpdir(), "ntwine-inline-vis-root-outside-"))
   try {
     const dir = join(outside, "2026", "07", "22", "session-a")
     mkdirSync(dir, { recursive: true })

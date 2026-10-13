@@ -1,7 +1,7 @@
 import { join } from "node:path"
 import { readdirSync, statSync, openSync, readSync, fstatSync, closeSync } from "node:fs"
 import { spawn } from "node:child_process"
-import type { ProviderQuota, QuotaWindow } from "@frizz/shared"
+import type { ProviderQuota, QuotaWindow } from "@ntwine/shared"
 import { defaultCodexHome } from "./codex.ts"
 import { resolveCodexExecutable } from "./codex-executable.ts"
 import { readCodexAccountId, readCodexAuthState } from "./auth-status.ts"
@@ -17,7 +17,7 @@ import { CLIENT_INFO, CLIENT_CAPABILITIES } from "./codex-app-server.ts"
 //
 // The fallback ordering is not cosmetic: rollouts carry NO account identity (verified — `session_meta`
 // has session_id/cwd/originator/cli_version/git and nothing about the account), so after `codex login`
-// switches accounts, every rollout on disk still describes the OLD one. That is exactly how frizz came
+// switches accounts, every rollout on disk still describes the OLD one. That is exactly how ntwine came
 // to show "1% remaining" from an exhausted previous account while `codex` in a terminal reported a
 // fresh 100% (2026-07-31). Nothing local can re-attribute those files, so the live read has to be
 // primary and the tail only a degradation path for when the app-server can't be reached.
@@ -204,7 +204,7 @@ export function readCodexQuotaFromRollouts(codexHome = defaultCodexHome()): Prov
 //     "primary":{"usedPercent":0,"windowDurationMins":10080,"resetsAt":1786130265},
 //     "secondary":null,"credits":{…}}, "rateLimitsByLimitId":{…}, "rateLimitResetCredits":{…}}}
 //
-// `rateLimitsByLimitId` additionally breaks the account down per model family; frizz shows the account
+// `rateLimitsByLimitId` additionally breaks the account down per model family; ntwine shows the account
 // aggregate, so only the top-level `rateLimits` is read.
 
 // The camelCase (app-server) spelling of a window.
@@ -241,8 +241,8 @@ export function queryCodexRateLimits(
     let child: ReturnType<typeof spawn>
     try {
       // DELIBERATELY BARE — no codexAppServerArgv here. This is a short-lived read of the quota
-      // endpoint, not a worker: mounting frizz's MCP server would make every quota poll fork a
-      // frizz-MCP process for tools nothing in this path can call, and drag in whatever servers the
+      // endpoint, not a worker: mounting ntwine's MCP server would make every quota poll fork a
+      // ntwine-MCP process for tools nothing in this path can call, and drag in whatever servers the
       // operator's own codex config mounts alongside it.
       //
       // Resolved inside the try: on Windows a bare `codex` never reaches an npm-installed CLI (see
@@ -329,7 +329,7 @@ export function queryCodexRateLimits(
 
 // HOW OFTEN THAT PROCESS MAY START. Every live read is a whole `codex app-server`, and the read is
 // driven by a browser poll (every 30s, every 15s while EITHER provider's reading is degraded) on a
-// machine whose Codex runtime Frizz itself provisioned — so it runs for people who have never used
+// machine whose Codex runtime Ntwine itself provisioned — so it runs for people who have never used
 // Codex. Until 2026-10-11 the only bound was a 20s memo that treated a failed read like a good one:
 // a 30s poll always missed it, so one open tab started an app-server on every poll for as long as it
 // stayed open, signed in or not, and the same again for a read that could never succeed. Four bounds

@@ -6,7 +6,7 @@ import { test } from "node:test"
 import { completePath } from "./path-complete.ts"
 
 function fixture() {
-  const home = mkdtempSync(join(tmpdir(), "frizz-path-complete-"))
+  const home = mkdtempSync(join(tmpdir(), "ntwine-path-complete-"))
   for (const dir of ["code/frizz", "code/Fray", "code/nub", "code/.hidden", "other"]) mkdirSync(join(home, dir), { recursive: true })
   writeFileSync(join(home, "code/frizz.txt"), "")
   symlinkSync(join(home, "other"), join(home, "code/linked"))

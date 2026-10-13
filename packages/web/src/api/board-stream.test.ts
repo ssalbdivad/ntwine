@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ServerEvent } from "@frizz/shared"
+import type { ServerEvent } from "@ntwine/shared"
 import { BoardStream, notify } from "./board-stream.ts"
 import { setHomeFocus } from "../lib/base-path.ts"
 import { store } from "../store.ts"

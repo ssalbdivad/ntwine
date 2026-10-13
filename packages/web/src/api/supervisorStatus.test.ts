@@ -1,11 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
-import { isDevFrizzBuild } from "./restart.ts"
+import { isDevNtwineBuild } from "./restart.ts"
 import { supervisorPollMs, supervisorStatusQueryOptions } from "./supervisorStatus.ts"
 
 // The contract, not an optimisation detail: THREE independent surfaces ask the supervisor the same
-// question — App's control-plane monitor, the Restart Frizz button, and the dev-build verb in a thread
+// question — App's control-plane monitor, the Restart Ntwine button, and the dev-build verb in a thread
 // header (one header per queue card). On the maintainer's board they were measured firing at t+58ms,
 // t+61ms and t+63ms of a single navigation, into a six-connection HTTP/1.1 pool that was already
 // carrying ~11 RPCs. Sharing one query is what keeps that at one request.
@@ -57,7 +57,7 @@ test("however many surfaces read the supervisor, ONE status request goes on the 
   qc.clear()
 })
 
-// A `null` answer is not evidence of a production build: getFrizzSupervisorStatus folds an unreachable
+// A `null` answer is not evidence of a production build: getNtwineSupervisorStatus folds an unreachable
 // supervisor, a non-protocol reply and the SPA HTML fallback all into it, and a supervisor is
 // legitimately unreachable while it restarts. The poll is the retry — the module-level promise this
 // replaced could cache that window for the rest of the page's life.
@@ -72,12 +72,12 @@ test("an unreachable supervisor reads as not-dev, and the next read asks again",
   const reader = observe(qc)
   await settle()
   assert.equal(reader.observer.getCurrentResult().data, null)
-  assert.equal(isDevFrizzBuild(reader.observer.getCurrentResult().data ?? null), false, "never show a dev-only verb on no evidence")
+  assert.equal(isDevNtwineBuild(reader.observer.getCurrentResult().data ?? null), false, "never show a dev-only verb on no evidence")
   assert.equal(calls(), 1)
 
   down = false
   await reader.observer.refetch()
-  assert.equal(isDevFrizzBuild(reader.observer.getCurrentResult().data ?? null), true, "the next read believes the supervisor, not the outage")
+  assert.equal(isDevNtwineBuild(reader.observer.getCurrentResult().data ?? null), true, "the next read believes the supervisor, not the outage")
   assert.equal(calls(), 2)
 
   reader.stop()

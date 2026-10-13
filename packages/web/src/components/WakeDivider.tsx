@@ -1,5 +1,5 @@
 // The hairline+label+hairline chrome of a WAKE DIVIDER — extracted from ChatView so any surface can
-// wear it without importing the whole thread view (and without a module cycle: ChatView imports the frizz
+// wear it without importing the whole thread view (and without a module cycle: ChatView imports the ntwine
 // wake renderer, so that renderer could not reach back into ChatView for this).
 //
 // It is the one rendering EVERY child-event now shares. A background shell coming to rest, a Monitor
@@ -80,7 +80,7 @@ export function WakeDivider({ icon: Icon, children, sourceId, ariaLabel, marker,
   }
   return (
     <div
-      data-frizz-msg={sourceId}
+      data-ntwine-msg={sourceId}
       data-wake-divider={marker}
       className="@container/wake my-1 flex items-center gap-3"
       // A divider carrying an interactive title is not an ARIA `separator` (a separator may not own a

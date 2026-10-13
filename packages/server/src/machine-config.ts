@@ -1,7 +1,7 @@
 import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import type { z } from "zod"
-import { frizzPaths } from "./frizz-paths.ts"
+import { ntwinePaths } from "./ntwine-paths.ts"
 
 // THE MACHINE-LEVEL KEY/VALUE STORE — the counterpart of a project database's `settings` table.
 //
@@ -27,7 +27,7 @@ import { frizzPaths } from "./frizz-paths.ts"
 // silently rewrote the maintainer's own notifications flag when a test defaulted it.
 
 export function machineConfigPath(home: string): string {
-  return join(frizzPaths({ home }).data, "config.json")
+  return join(ntwinePaths({ home }).data, "config.json")
 }
 
 function readAll(home: string): Record<string, unknown> {

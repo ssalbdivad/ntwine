@@ -17,7 +17,7 @@ export const STATUS_BOX = 15
 // rested while its sub-agents are still out, and GitHub's octocat for a PR whose checks are running —
 // the same glyphs the static StatusBox draws for the settled version of each state, so a row keeps its
 // mark and only gains or loses the motion around it. The mark is centred over the SVG rather than drawn
-// into it so it can be any element, including the CSS-sized `.frizz-rail-dot`.
+// into it so it can be any element, including the CSS-sized `.ntwine-rail-dot`.
 export function BoxSpinner({ size = STATUS_BOX, children }: { size?: number; children?: ReactNode }) {
   // Geometry MUST match StatusBox exactly (maintainer 2026-07-10: the spinner read "slightly smaller
   // and bolder"). StatusBox is a 15px border-box with a 1px border and rounded-[4px] corners, so the

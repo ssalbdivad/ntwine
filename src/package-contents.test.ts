@@ -7,7 +7,7 @@ import { WORKER_PLUGIN_REQUIRED_FILES } from "./worker-plugin-closure.ts";
 
 /**
  * The published package is the REPO ROOT, so `files` is the only thing standing between npm and the
- * whole checkout — `plans/`, `attachments/`, `scratch/`, `.frizz/`, agent scratch directories, every worktree
+ * whole checkout — `plans/`, `attachments/`, `scratch/`, `.ntwine/`, agent scratch directories, every worktree
  * under `.claude/`. When the package lived in `packages/cli` a mistake here shipped a few stray files;
  * now it can ship the repository. npm excludes `.git` and `node_modules` on its own and nothing else.
  *
@@ -17,10 +17,10 @@ import { WORKER_PLUGIN_REQUIRED_FILES } from "./worker-plugin-closure.ts";
  */
 const manifest = JSON.parse(
   readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8")
-) as { files?: string[]; bin?: Record<string, string>; name?: string; frizzServer?: unknown; dependencies?: Record<string, string> };
+) as { files?: string[]; bin?: Record<string, string>; name?: string; ntwineServer?: unknown; dependencies?: Record<string, string> };
 const serverManifest = JSON.parse(
   readFileSync(join(import.meta.dirname, "..", "packages", "server-release", "package.json"), "utf8")
-) as { files?: string[]; name?: string; frizzServer?: unknown; dependencies?: Record<string, string>; engines?: { node?: string }; pnpm?: { onlyBuiltDependencies?: string[] } };
+) as { files?: string[]; name?: string; ntwineServer?: unknown; dependencies?: Record<string, string>; engines?: { node?: string }; pnpm?: { onlyBuiltDependencies?: string[] } };
 const sourceServerManifest = JSON.parse(
   readFileSync(join(import.meta.dirname, "..", "packages", "server", "package.json"), "utf8")
 ) as { dependencies?: Record<string, string> };
@@ -48,7 +48,7 @@ test("no files entry can escape the package root or widen to the whole checkout"
 /**
  * `runtime/` is a COPY of `board/` and `cc-worker/`, so the closure the pack step asserts is only as
  * good as those source paths still existing. Renaming a required hook is otherwise caught by nothing
- * until prepack — or, for the frizz-dev path, until a promoted artifact fails to verify.
+ * until prepack — or, for the ntwine-dev path, until a promoted artifact fails to verify.
  */
 test("every required worker-plugin file exists at the repo root the staged runtime mirrors", () => {
   const repo = join(import.meta.dirname, "..");
@@ -71,15 +71,15 @@ test("every bin target resolves inside a published directory", () => {
 });
 
 test("the shell bootstraps the versioned public server contract", () => {
-  assert.deepEqual(manifest.frizzServer, {
-    package: "frizz-server",
+  assert.deepEqual(manifest.ntwineServer, {
+    package: "ntwine-server",
     version: "0.15.23",
     minimum: "0.15.21",
     protocol: 1,
     dataEpoch: 1,
   });
-  assert.equal(serverManifest.name, "frizz-server");
-  assert.deepEqual(serverManifest.frizzServer, { protocol: 1, dataEpoch: 1 });
+  assert.equal(serverManifest.name, "ntwine-server");
+  assert.deepEqual(serverManifest.ntwineServer, { protocol: 1, dataEpoch: 1 });
   // The launcher parses both at every start and refuses a minimum its own pin does not meet, so a
   // manifest that would stop every launch has to fail here, before it is published.
   assert.equal(serverReleaseSpec(manifest).version, "0.15.23");
@@ -87,7 +87,7 @@ test("the shell bootstraps the versioned public server contract", () => {
 });
 
 test("native server dependencies do not leak back into the stable shell", () => {
-  // The shell stays addon-free: it is what `npx frizz` installs first, on any box.
+  // The shell stays addon-free: it is what `npx ntwine` installs first, on any box.
   assert.equal(manifest.dependencies?.["node-pty"], undefined);
   // The server's one pty is a THREAD TERMINAL (server/src/thread-terminals.ts), and it is loaded LAZILY —
   // on a terminal's start, never at boot — so a box where the addon will not load still serves every

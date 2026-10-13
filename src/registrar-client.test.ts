@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer, type Server } from "node:http";
 import { once } from "node:events";
-import { generateClaimIdentity, verifyClaim } from "@frizz/shared";
+import { generateClaimIdentity, verifyClaim } from "@ntwine/shared";
 import { ClaimError, claimName, registrarOrigin, DEFAULT_REGISTRAR } from "./registrar-client.ts";
 
 /** A real HTTP server, so the request is actually serialized, sent, parsed and answered. */
@@ -133,7 +133,7 @@ test("a registrar that is DOWN is distinguished from one that refused", async ()
     claimName({ name: "colin", port: 9393, identity, origin: "http://127.0.0.1:1" }),
     (error: ClaimError) => {
       assert.equal(error.code, "unreachable");
-      assert.match(error.message, /could not reach the Frizz registrar/);
+      assert.match(error.message, /could not reach the Ntwine registrar/);
       return true;
     },
   );
@@ -163,6 +163,6 @@ test("a 200 that is not a claim result is refused rather than half-used", async 
 
 test("the registrar origin is overridable, for a self-hoster or a test", () => {
   assert.equal(registrarOrigin({}), DEFAULT_REGISTRAR);
-  assert.equal(registrarOrigin({ FRIZZ_REGISTRAR: "  https://mine.example  " }), "https://mine.example");
-  assert.equal(registrarOrigin({ FRIZZ_REGISTRAR: "  " }), DEFAULT_REGISTRAR);
+  assert.equal(registrarOrigin({ NTWINE_REGISTRAR: "  https://mine.example  " }), "https://mine.example");
+  assert.equal(registrarOrigin({ NTWINE_REGISTRAR: "  " }), DEFAULT_REGISTRAR);
 });

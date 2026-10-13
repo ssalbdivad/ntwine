@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react"
 import { Loader2 } from "lucide-react"
-import type { ScheduleRunView, ScheduleView } from "@frizz/shared"
+import type { ScheduleRunView, ScheduleView } from "@ntwine/shared"
 import { useBackDismiss } from "../lib/backDismiss.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { formatSnoozeWake } from "../lib/snooze.ts"

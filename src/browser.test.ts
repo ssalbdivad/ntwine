@@ -32,7 +32,7 @@ test("default browser launch accepts only absolute http(s) URLs", () => {
     args: ["https://example.com/path?a=1"],
   })
   assert.throws(() => defaultBrowserOpenCommand("not a URL", "darwin"), /invalid browser URL/)
-  assert.throws(() => defaultBrowserOpenCommand("file:///tmp/frizz", "darwin"), /unsupported browser URL scheme/)
+  assert.throws(() => defaultBrowserOpenCommand("file:///tmp/ntwine", "darwin"), /unsupported browser URL scheme/)
   assert.throws(() => defaultBrowserOpenCommand("https://example.com", "aix"), /not supported/)
 })
 
@@ -83,16 +83,16 @@ test("a Chrome-disambiguated shim bundle is the same app, not a stale one", () =
   // Chrome appends " 1", " 2", … when the bundle filename already exists, and that is the COMMON
   // case: manifestIdFor is origin-scoped, so every project's port installs its own bundle. Rejecting
   // the suffix made every project after the first reinstall its shim on each --app launch, which is
-  // how a real machine ended up with Frizz.app, Frizz 1.app, Frizz 2.app and Frizz 3.app.
-  assert.equal(bundleNameMatchesManifest("Frizz"), true)
-  assert.equal(bundleNameMatchesManifest("Frizz 1"), true)
-  assert.equal(bundleNameMatchesManifest("Frizz 42"), true)
+  // how a real machine ended up with Ntwine.app, Ntwine 1.app, Ntwine 2.app and Ntwine 3.app.
+  assert.equal(bundleNameMatchesManifest("Ntwine"), true)
+  assert.equal(bundleNameMatchesManifest("Ntwine 1"), true)
+  assert.equal(bundleNameMatchesManifest("Ntwine 42"), true)
 
   // A genuine rename must still read as stale so the bundle gets reinstalled under the new name.
-  assert.equal(bundleNameMatchesManifest("Frizzed"), false)
-  assert.equal(bundleNameMatchesManifest("Frizz Board"), false)
-  assert.equal(bundleNameMatchesManifest("Frizz "), false)
-  assert.equal(bundleNameMatchesManifest("Frizz 1x"), false)
+  assert.equal(bundleNameMatchesManifest("Ntwineed"), false)
+  assert.equal(bundleNameMatchesManifest("Ntwine Board"), false)
+  assert.equal(bundleNameMatchesManifest("Ntwine "), false)
+  assert.equal(bundleNameMatchesManifest("Ntwine 1x"), false)
   assert.equal(bundleNameMatchesManifest(""), false)
 })
 
@@ -101,7 +101,7 @@ test("a Chrome-disambiguated shim bundle is the same app, not a stale one", () =
 // live child — a stub runner cannot show it. Linux/macOS only: the stand-ins are POSIX sh.
 
 function fakeOpener(body: string): { path: string; dir: string } {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-url-handler-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-url-handler-"))
   const path = join(dir, "xdg-open")
   writeFileSync(path, `#!/bin/sh\n${body}\n`)
   chmodSync(path, 0o755)
@@ -168,7 +168,7 @@ test("a handler that refuses (nonzero exit) is a failure, named without the open
 
 test("a missing handler binary is a failure, not a hang", async () => {
   await assert.rejects(
-    runUrlHandler(join(tmpdir(), "frizz-no-such-opener-binary"), ["http://127.0.0.1:4917/"], { acceptAfterMs: 20_000 }),
+    runUrlHandler(join(tmpdir(), "ntwine-no-such-opener-binary"), ["http://127.0.0.1:4917/"], { acceptAfterMs: 20_000 }),
     /ENOENT/,
   )
 })

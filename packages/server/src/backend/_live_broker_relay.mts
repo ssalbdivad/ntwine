@@ -2,8 +2,8 @@
 //   nub packages/server/src/backend/_live_broker_relay.mts
 // Proves the parts the raw PoC skipped, with the SDK's typed payloads:
 //   1. a permission request relays over the socket as a typed ClaudePermissionRequest; deny reaches the model
-//   2. a PENDING permission survives frizz dying + a fresh reconnect (re-delivered), then the session continues
-// The broker runs DETACHED so "frizz" (this harness's socket) can drop and a new socket can reconnect.
+//   2. a PENDING permission survives ntwine dying + a fresh reconnect (re-delivered), then the session continues
+// The broker runs DETACHED so "ntwine" (this harness's socket) can drop and a new socket can reconnect.
 import net from "node:net"
 import { spawn } from "node:child_process"
 import { existsSync, mkdtempSync, rmSync } from "node:fs"
@@ -23,7 +23,7 @@ const ok = (label: string, cond: boolean, detail = "") => { if (!cond) failures+
 
 const config = { socketPath, cwd, sessionId, executablePath: claudeBin, permissionMode: "default", env: process.env }
 const broker = spawn(process.execPath, ["--experimental-strip-types", join(here, "claude-agent-broker.ts")], {
-  cwd: join(here, "..", "..", ".."), env: { ...process.env, FRIZZ_CLAUDE_BROKER: JSON.stringify(config) }, stdio: ["ignore", "inherit", "inherit"], detached: true,
+  cwd: join(here, "..", "..", ".."), env: { ...process.env, NTWINE_CLAUDE_BROKER: JSON.stringify(config) }, stdio: ["ignore", "inherit", "inherit"], detached: true,
 })
 
 interface Client { send: (o: unknown) => void; input: (text: string) => void; answer: (requestId: string, decision: unknown) => void; waitFor: (pred: (f: any) => boolean, ms?: number) => Promise<any>; close: () => void }
@@ -71,14 +71,14 @@ try {
   ok("DENY reached the model over the relay (BLOCKED)", !!blocked)
   ok("denied Write did not execute", !existsSync(denyPath))
 
-  // ---- 2. A pending permission survives frizz dying + reconnect -----------------------------------
+  // ---- 2. A pending permission survives ntwine dying + reconnect -----------------------------------
   c1.input(`Now use the Write tool to create the file at ${allowPath} with the text ok.`)
   const preq2 = await c1.waitFor((f) => f.t === "permission-request" && /allow\.txt/.test(JSON.stringify(f.request?.input)))
   ok("second permission request arrived (for allow.txt)", !!preq2)
-  console.log("  » dropping the socket WITHOUT answering (frizz 'dies' mid-permission)…")
+  console.log("  » dropping the socket WITHOUT answering (ntwine 'dies' mid-permission)…")
   c1.close()
   await wait(2_000)
-  const c2 = await connect() // frizz "restarts"
+  const c2 = await connect() // ntwine "restarts"
   await c2.waitFor((f) => f.t === "hello", 20_000)
   const preq2b = await c2.waitFor((f) => f.t === "permission-request" && /allow\.txt/.test(JSON.stringify(f.request?.input)), 20_000)
   ok("the pending permission was RE-DELIVERED to the reconnected client", !!preq2b, `requestId=${preq2b.requestId}`)

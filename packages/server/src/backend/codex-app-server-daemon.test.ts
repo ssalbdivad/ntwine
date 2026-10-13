@@ -1,4 +1,4 @@
-// The daemon exists for ONE reason: a codex turn must survive the frizz runtime being recycled by
+// The daemon exists for ONE reason: a codex turn must survive the ntwine runtime being recycled by
 // Update & Restart. These drive the REAL daemon process over its REAL socket, standing in a scripted
 // fake for `codex app-server` so the protocol edges (handshake caching, id rewriting, queue-while-
 // detached) can be asserted deterministically. The end-to-end proof against the real app-server lives
@@ -63,7 +63,7 @@ process.stdin.on("data", (c) => {
     if (!line.trim()) continue
     let m; try { m = JSON.parse(line) } catch { continue }
     if (m.method === "initialize") {
-      process.stdout.write(JSON.stringify({ id: m.id, result: { userAgent: "frizz/0.144.6 (test)" } }) + "\\n")
+      process.stdout.write(JSON.stringify({ id: m.id, result: { userAgent: "ntwine/0.144.6 (test)" } }) + "\\n")
     } else if (m.method === "ping") {
       process.stdout.write(JSON.stringify({ id: m.id, result: { sawId: m.id, echo: m.params && m.params.echo } }) + "\\n")
     } else if (m.method === "flood") {
@@ -105,7 +105,7 @@ interface Harness {
 }
 
 function harness(): Harness {
-  const stateDir = mkdtempSync(join(tmpdir(), "frizz-codex-daemon-test-"))
+  const stateDir = mkdtempSync(join(tmpdir(), "ntwine-codex-daemon-test-"))
   return { stateDir, codexBin: fakeAppServerBin(stateDir) }
 }
 
@@ -171,14 +171,14 @@ test("codex daemon: the app-server survives a client detaching, and the next cli
     assert.equal(first.authAccountId, "account-one")
     const childPid = record!.childPid
 
-    // Detach exactly the way the bridge does when the frizz runtime is recycled.
+    // Detach exactly the way the bridge does when the ntwine runtime is recycled.
     first.process.kill()
     await delay(300)
 
     assert.equal(liveDaemonRecord(h.stateDir, PROJECT)?.daemonPid, record!.daemonPid, "the daemon outlived its client")
 
     const second = await daemonCodexAppServerHost(options(h))
-    assert.equal(second.reattached, true, "the next frizz generation reattaches rather than forking")
+    assert.equal(second.reattached, true, "the next ntwine generation reattaches rather than forking")
     assert.equal(second.generation, first.generation, "same generation == the same app-server process")
     assert.equal(second.authAccountId, "account-one", "a reattach reports the process's original account")
     assert.equal(liveDaemonRecord(h.stateDir, PROJECT)?.childPid, childPid, "and it is literally the same child")
@@ -194,7 +194,7 @@ test("codex daemon: `initialize` from a reattaching client is served from cache,
     const first = await daemonCodexAppServerHost(options(h))
     const c1 = client(first.process)
     const init1 = await c1.request("initialize", { clientInfo: CLIENT_INFO, capabilities: CLIENT_CAPABILITIES })
-    assert.deepEqual(init1.result, { userAgent: "frizz/0.144.6 (test)" })
+    assert.deepEqual(init1.result, { userAgent: "ntwine/0.144.6 (test)" })
     first.process.kill()
     await delay(200)
 
@@ -204,7 +204,7 @@ test("codex daemon: `initialize` from a reattaching client is served from cache,
     const second = await daemonCodexAppServerHost(options(h))
     const c2 = client(second.process)
     const init2 = await c2.request("initialize", { clientInfo: CLIENT_INFO, capabilities: CLIENT_CAPABILITIES })
-    assert.deepEqual(init2.result, { userAgent: "frizz/0.144.6 (test)" }, "reattach still gets the real handshake")
+    assert.deepEqual(init2.result, { userAgent: "ntwine/0.144.6 (test)" }, "reattach still gets the real handshake")
     second.process.kill()
   } finally {
     killCodexAppServerDaemon(h.stateDir, PROJECT)
@@ -342,8 +342,8 @@ test("codex daemon: a daemon that cannot start falls back to an in-process app-s
 })
 
 // ---- lifecycle ownership --------------------------------------------------------------------------
-// frizz adopted a long-lived process without adopting the work that goes with one: for a while
-// `killCodexAppServerDaemon` had ZERO production callers, so nothing in frizz ever ended a daemon's
+// ntwine adopted a long-lived process without adopting the work that goes with one: for a while
+// `killCodexAppServerDaemon` had ZERO production callers, so nothing in ntwine ever ended a daemon's
 // life. These drive the REAL daemon (and, for the version gate, the REAL bridge) through the two ways
 // a daemon has to be able to die.
 
@@ -363,7 +363,7 @@ process.stdin.on("data", (c) => {
     let m; try { m = JSON.parse(line) } catch { continue }
     if (m.method === "initialize") {
       process.stdout.write(JSON.stringify({ id: m.id, result: {
-        userAgent: "frizz/" + version + " (test)",
+        userAgent: "ntwine/" + version + " (test)",
         codexHome: "/tmp/fake-codex-home",
         platformFamily: "unix",
         platformOs: "macos",
@@ -381,7 +381,7 @@ process.stdin.resume()
 `
 
 function versionedHarness(initialVersion: string) {
-  const stateDir = mkdtempSync(join(tmpdir(), "frizz-codex-skew-test-"))
+  const stateDir = mkdtempSync(join(tmpdir(), "ntwine-codex-skew-test-"))
   writeFileSync(join(stateDir, FAKE_SCRIPT_NAME), VERSIONED_FAKE_APP_SERVER)
   const codexBin = FAKE_BIN
   const versionFile = join(stateDir, "codex-version")
@@ -421,9 +421,9 @@ function skewBridge(h: ReturnType<typeof versionedHarness>, diagnostics: unknown
 //
 // The daemon performs `initialize` ONCE and caches the result for its whole life. So the ordinary
 // upgrade path — bump CODEX_APP_SERVER_SUPPORTED_VERSION, Update & Restart — leaves a surviving
-// daemon serving the OLD userAgent to every new frizz generation. The bridge's version gate then
+// daemon serving the OLD userAgent to every new ntwine generation. The bridge's version gate then
 // rejects every single connect, forever: the daemon re-arms its 6h idle timer on each client drop, so
-// a frizz that keeps retrying keeps the wedged daemon alive indefinitely, and the symptom is
+// an ntwine that keeps retrying keeps the wedged daemon alive indefinitely, and the symptom is
 // indistinguishable from Codex being completely down.
 //
 // Modelled by holding the SUPPORTED constant fixed (it is a constant) and moving the installed
@@ -440,7 +440,7 @@ test("codex daemon: a daemon caching a stale handshake is reforked, not left to 
     await delay(200)
     assert.equal(liveDaemonRecord(h.stateDir, PROJECT)?.generation, staleGeneration, "the stale daemon outlived its client")
 
-    // codex is upgraded on disk to the version this frizz supports. The daemon does not notice: it
+    // codex is upgraded on disk to the version this ntwine supports. The daemon does not notice: it
     // will answer `initialize` from its cache with 0.140.0 until something ends its life.
     h.setInstalledVersion(CODEX_APP_SERVER_SUPPORTED_VERSION)
 
@@ -527,7 +527,7 @@ function alive(pid: number): boolean {
 // A daemon is discoverable ONLY through its record file — daemonCodexAppServerHost reads exactly that
 // one path — so a daemon whose record has vanished is unreachable forever and its `codex app-server`
 // (~150 MB, and still able to edit the filesystem) is pure waste for the remaining six hours of
-// IDLE_EXIT_MS. Nothing else collects these: the orphan reaper keys on FRIZZ_THREAD, which this
+// IDLE_EXIT_MS. Nothing else collects these: the orphan reaper keys on NTWINE_THREAD, which this
 // per-PROJECT daemon does not carry, and it explicitly PROTECTS any process named `codex` as a
 // session root. Daemons forked from agent worktrees that were later deleted leaked exactly this way,
 // in pairs, and had to be reclaimed by hand.
@@ -536,7 +536,7 @@ test("codex daemon: a daemon whose record has vanished collects itself, app-serv
   const attachment = await daemonCodexAppServerHost({ ...options(h), reachabilityCheckMs: 150 })
   const record = liveDaemonRecord(h.stateDir, PROJECT)!
   try {
-    attachment.process.kill() // detach the way a recycled frizz runtime does
+    attachment.process.kill() // detach the way a recycled ntwine runtime does
     await delay(200)
     assert.ok(alive(record.daemonPid), "still alive while its record stands: this is the restart window")
 
@@ -569,7 +569,7 @@ test("codex daemon: merely being unattached is NOT abandonment — the restart w
     assert.ok(alive(record.daemonPid), "the daemon survived a long restart window")
     assert.ok(alive(record.childPid), "and so did the app-server holding the in-flight turn")
     const second = await daemonCodexAppServerHost({ ...options(h), reachabilityCheckMs: 100 })
-    assert.equal(second.reattached, true, "and the next frizz generation still rejoins it")
+    assert.equal(second.reattached, true, "and the next ntwine generation still rejoins it")
     assert.equal(second.generation, record.generation, "the SAME app-server process")
     second.process.kill()
   } finally {

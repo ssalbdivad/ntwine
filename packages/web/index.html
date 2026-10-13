@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Pre-hydration only: App.tsx replaces this with "owner/repo | Frizz" once the board arrives. -->
-    <title>Frizz</title>
+    <!-- Pre-hydration only: App.tsx replaces this with "owner/repo | Ntwine" once the board arrives. -->
+    <title>Ntwine</title>
     <!-- Own Dock/tab identity. The SVG favicon is preferred by modern browsers; the PNGs are the
          fallback + the source Chrome rasterizes into the macOS app icon when the app is installed
-         ("Install frizz…" / Create Shortcut → Open as window), which is the only way a Chrome-hosted
+         ("Install ntwine…" / Create Shortcut → Open as window), which is the only way a Chrome-hosted
          window gets its own Dock name+icon (a plain --app window is owned by Chrome). -->
     <!-- ?v= is a cache-buster: Chrome caches favicons per-URL for a long time, so an icon EDIT at the
          same path keeps showing the stale cached copy (a hard-quit doesn't clear it). Bump this whenever
-         the icon art changes so the browser refetches. v6: fff — the cursive f written three times. -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=6" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=6" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=6" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=6" />
+         the icon art changes so the browser refetches. v7: ntwine — three threads plaited. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=7" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=7" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=7" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=7" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0d0e10" />
     <!-- FLASH GUARD, and it is about NAVIGATION rather than first run. Switching projects was once
@@ -33,23 +33,23 @@
       html[data-host-colors="editor"], html[data-host-colors="editor"] body { background: var(--vscode-editor-background); }
     </style>
     <!-- …and in an editor's sidebar the EDITOR's theme wins (src/lib/embed.ts, which this mirrors: the
-         `embed`/`theme` query on the frame's first address, else the frame's `frizz.embed` session
+         `embed`/`theme` query on the frame's first address, else the frame's `ntwine.embed` session
          record). Without it the sidebar painted the stored or OS theme first and flipped a beat later. -->
     <script>
-      let frizzThemePreference
-      try { frizzThemePreference = localStorage.getItem("frizz-theme") } catch {}
-      let frizzSystemDark = false
-      try { frizzSystemDark = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches } catch {}
-      let frizzEmbed = null
+      let ntwineThemePreference
+      try { ntwineThemePreference = localStorage.getItem("ntwine-theme") } catch {}
+      let ntwineSystemDark = false
+      try { ntwineSystemDark = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches } catch {}
+      let ntwineEmbed = null
       try {
-        const record = JSON.parse(sessionStorage.getItem("frizz.embed") || "null")
+        const record = JSON.parse(sessionStorage.getItem("ntwine.embed") || "null")
         const query = new URLSearchParams(location.search)
-        if (query.get("embed") === "vscode") frizzEmbed = { host: "vscode", theme: query.get("theme"), palette: record && record.host === "vscode" ? record.palette : undefined }
-        else frizzEmbed = record
+        if (query.get("embed") === "vscode") ntwineEmbed = { host: "vscode", theme: query.get("theme"), palette: record && record.host === "vscode" ? record.palette : undefined }
+        else ntwineEmbed = record
       } catch {}
-      if (frizzEmbed && frizzEmbed.host === "vscode") {
+      if (ntwineEmbed && ntwineEmbed.host === "vscode") {
         document.documentElement.dataset.embed = "vscode"
-        if (frizzEmbed.theme === "dark" || frizzEmbed.theme === "light") frizzThemePreference = frizzEmbed.theme
+        if (ntwineEmbed.theme === "dark" || ntwineEmbed.theme === "light") ntwineThemePreference = ntwineEmbed.theme
         // The editor's COLOURS (src/lib/embed.ts parsePalette, which this mirrors — the names and the value
         // pattern are packages/shared embed-protocol.ts's, and embed.test.ts holds the two in step). The
         // relay puts its first theme message on the frame's address as a fragment, so the very first paint
@@ -57,14 +57,14 @@
         // the address. A reload of the frame then finds the latest in the record.
         try {
           const hash = location.hash || ""
-          if (hash.startsWith("#frizz-theme=")) {
-            const sent = JSON.parse(decodeURIComponent(hash.slice("#frizz-theme=".length)))
-            frizzEmbed.palette = sent && typeof sent === "object" && sent.colors ? { colors: sent.colors, surface: sent.surface, contrast: sent.contrast } : undefined
-            sessionStorage.setItem("frizz.embed", JSON.stringify(frizzEmbed))
+          if (hash.startsWith("#ntwine-theme=")) {
+            const sent = JSON.parse(decodeURIComponent(hash.slice("#ntwine-theme=".length)))
+            ntwineEmbed.palette = sent && typeof sent === "object" && sent.colors ? { colors: sent.colors, surface: sent.surface, contrast: sent.contrast } : undefined
+            sessionStorage.setItem("ntwine.embed", JSON.stringify(ntwineEmbed))
             history.replaceState(history.state, "", location.pathname + location.search)
           }
         } catch {}
-        const palette = frizzEmbed.palette
+        const palette = ntwineEmbed.palette
         const colors = palette && typeof palette === "object" ? palette.colors : null
         const surface = palette && palette.surface === "editor" ? "editor" : "sideBar"
         const color = /^(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\(\s*[0-9.]+%?\s*[,\s]\s*[0-9.]+%?\s*[,\s]\s*[0-9.]+%?\s*(?:[,/]\s*[0-9.]+%?\s*)?\))$/u
@@ -75,10 +75,10 @@
           if (palette.contrast === true) document.documentElement.dataset.hostContrast = ""
         }
       }
-      const frizzTheme = frizzThemePreference === "dark" || frizzThemePreference === "light" ? frizzThemePreference : frizzSystemDark ? "dark" : "light"
-      document.documentElement.dataset.theme = frizzTheme
-      document.documentElement.style.colorScheme = frizzTheme
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", frizzTheme === "dark" ? "#0d0e10" : "#f7f7f7")
+      const ntwineTheme = ntwineThemePreference === "dark" || ntwineThemePreference === "light" ? ntwineThemePreference : ntwineSystemDark ? "dark" : "light"
+      document.documentElement.dataset.theme = ntwineTheme
+      document.documentElement.style.colorScheme = ntwineTheme
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", ntwineTheme === "dark" ? "#0d0e10" : "#f7f7f7")
     </script>
   </head>
   <body>

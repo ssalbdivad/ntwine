@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { projectClaudeTranscript, projectCodexTranscript } from "./transcript.ts"
-import type { TranscriptToolCall } from "@frizz/shared"
+import type { TranscriptToolCall } from "@ntwine/shared"
 
 // The built-in TO-DO LIST projection. The line this file defends: a checklist is built ONLY from a call
 // that carries the whole list — `TaskList`'s result, a codex `update_plan`, a legacy `TodoWrite`. Claude's

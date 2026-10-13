@@ -2,7 +2,7 @@ import { Profiler, memo, useCallback, useEffect, useMemo, useState, type Compone
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router"
-import { parkExpiredWakeMessage, type BoardSnapshot, type RegisteredQuestionView, type ThreadHandoff, type ThreadView as ThreadViewModel, type TranscriptMessage } from "@frizz/shared"
+import { parkExpiredWakeMessage, type BoardSnapshot, type RegisteredQuestionView, type ThreadHandoff, type ThreadView as ThreadViewModel, type TranscriptMessage } from "@ntwine/shared"
 import { useLeavingCards } from "./components/AllQueues.tsx"
 import { AllQueuesCard } from "./components/AllQueuesCard.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -33,7 +33,7 @@ import "./styles.css"
 //                              A reply sent from the first card's box steers it: the "poll" drops the
 //                              thread 400ms later, once the fade is over.
 //     &replyDelay=<ms>         …the reply's followUp answers only after that long (a cold resume, a retry).
-//   ?case=registered-done      the thread signed off with `mcp__frizz__done`: no fence in the handoff text,
+//   ?case=registered-done      the thread signed off with `mcp__ntwine__done`: no fence in the handoff text,
 //                              a registered `lastFence` on the thread (B1).
 //   ?case=fenced-and-registered  both: the fence in the text AND the registration — one card, not two.
 //   ?case=pending-ask          a FOREIGN session frozen at a native AskUserQuestion, nothing journaled (B2);
@@ -72,7 +72,7 @@ import "./styles.css"
 //                              filter does (the rest unmount), and __filter(null) shows them all again.
 //
 // The card's project is NOT the page's: `store.board` names another project, so a control that read the
-// page's client instead of the card's would call `/_frizz/rpc/…` (unprefixed) and show up in __rpc as
+// page's client instead of the card's would call `/_ntwine/rpc/…` (unprefixed) and show up in __rpc as
 // such.
 
 const params = new URLSearchParams(location.search)
@@ -332,7 +332,7 @@ const json = (result: unknown) => new Response(JSON.stringify({ result }), { hea
 const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
-  if (!url.pathname.startsWith("/_frizz/")) return originalFetch(input, init)
+  if (!url.pathname.startsWith("/_ntwine/")) return originalFetch(input, init)
   log.calls.push({ path: url.pathname, at: performance.now() })
   const rpc = /\/rpc\/([^/]+)$/.exec(url.pathname)?.[1]
   // Not an RPC (an attachment's `/attach`): left to whatever a test installed under this stub.

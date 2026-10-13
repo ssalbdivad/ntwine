@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { AskedQuestion } from "@frizz/shared"
+import type { AskedQuestion } from "@ntwine/shared"
 import type { BlockAnswer } from "./questionBlocks.ts"
 import { ROOT_PATH, childPath, liveQuestionNodes, nodeAnswered, questionComplete, registeredAnswer, settledQuestionNodes, toParsedQuestion } from "./registeredQuestion.ts"
 

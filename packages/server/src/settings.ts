@@ -1,7 +1,7 @@
 import { readFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
-import { MACHINE_SETTING_KEYS, Settings } from "@frizz/shared"
-import { frizzPaths } from "./frizz-paths.ts"
+import { MACHINE_SETTING_KEYS, Settings } from "@ntwine/shared"
+import { ntwinePaths } from "./ntwine-paths.ts"
 import { deleteMachineConfig, readMachineConfig, writeMachineConfig } from "./machine-config.ts"
 import type { Storage } from "./storage.ts"
 
@@ -24,7 +24,7 @@ const SETTINGS_KEY = "settings"
  *
  * `home` is REQUIRED and deliberately not defaulted to homedir(). These were pure storage functions
  * before this file learned about a machine-level record; defaulting it silently turned every existing
- * caller — the test suite included — into one that reads and WRITES the real ~/.frizz. That is not
+ * caller — the test suite included — into one that reads and WRITES the real ~/.ntwine. That is not
  * hypothetical: the first run of this change wrote `notifications: false` into the maintainer's own
  * settings, which would have quietly turned their desktop notifications off.
  */
@@ -34,7 +34,7 @@ const MachineSettingsRecord = Settings.partial()
 
 /** The pre-store file. Read-only since 2026-08-25; `resetSettings` is the only thing that removes it. */
 export function legacyMachineSettingsPath(home: string): string {
-  return join(frizzPaths({ home }).data, "settings.json")
+  return join(ntwinePaths({ home }).data, "settings.json")
 }
 
 function pickMachine(settings: Settings): MachineSettings {
@@ -79,7 +79,7 @@ export const defaultSettings = (): Settings => ({
   notifications: true,
   localFileOpener: "system",
   // 500K tokens: half the 1M window every Claude worker is dispatched with. See the schema for why a
-  // worker left to compact at 1M is the biggest single reason a Frizz thread out-spends the TUI.
+  // worker left to compact at 1M is the biggest single reason an Ntwine thread out-spends the TUI.
   autoCompactWindow: 500_000,
   // "auto" = the CLI's own tier (1h on a subscription). See the schema and claudePromptCacheEnv for
   // when "5m" is the cheaper choice.

@@ -60,7 +60,7 @@ export function PendingThreadSheet() {
         role="dialog"
         aria-label={`Thread: ${pending.title}`}
         data-pending-thread-sheet={pending.slug}
-        className={`fixed right-0 top-0 overflow-hidden text-sm text-fg outline-none ${SHEET_PANEL_CLASS} animate-[frizz-sheet-in_200ms_ease-out] motion-reduce:animate-none`}
+        className={`fixed right-0 top-0 overflow-hidden text-sm text-fg outline-none ${SHEET_PANEL_CLASS} animate-[ntwine-sheet-in_200ms_ease-out] motion-reduce:animate-none`}
         style={{ zIndex: 51, width: sheetWidth(0) }}
       >
         <SheetHeader title={pending.title} subtitle={pending.projectName} onClose={cancel} initialFocus />

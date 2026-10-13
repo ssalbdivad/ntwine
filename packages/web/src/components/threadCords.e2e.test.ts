@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_THREAD_CORDS_E2E_URL
+const baseUrl = process.env.NTWINE_THREAD_CORDS_E2E_URL
 
 // THE CORDS FOLLOW THE ROWS WHEN SOMETHING ABOVE THE RAIL GROWS (ThreadConnector.tsx `movers`).
 //

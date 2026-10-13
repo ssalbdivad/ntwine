@@ -1,7 +1,7 @@
 // DELETING THREADS at the RPC boundary — the real router against real SQLite and a real project folder.
 //
 // What a delete has to buy is the reason it exists: the slug is free again (the next "Shell budgets"
-// is `shell-budgets`, not `shell-budgets-2`), the `@handle` no longer resolves, and nothing Frizz keeps
+// is `shell-budgets`, not `shell-budgets-2`), the `@handle` no longer resolves, and nothing Ntwine keeps
 // for the thread survives it. The bulk and automatic doors must take exactly the done threads the
 // predicate names — counted from when the HUMAN last touched them, never the agent's own activity — and
 // nothing open, recently touched or pinned.
@@ -10,7 +10,7 @@ import assert from "node:assert/strict"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BoardSnapshot, Settings } from "@frizz/shared"
+import type { BoardSnapshot, Settings } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import type { AppContext } from "./context.ts"
 import { resolveSlug } from "./dispatch.ts"
@@ -26,7 +26,7 @@ const NOW = Date.parse("2026-09-30T12:00:00.000Z")
 const daysAgo = (days: number) => new Date(NOW - days * DAY_MS).toISOString()
 
 function harness() {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-thread-delete-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-thread-delete-"))
   const project: Project = { dir, id: "del", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -61,7 +61,7 @@ function harness() {
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: daysAgo(60),
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: daysAgo(60),
     last_read_at: null, unread: 0, exited: 1, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -75,25 +75,25 @@ function seed(storage: ReturnType<typeof createStorage>, slug: string, opts: { d
   if (opts.done) storage.setState(slug, "archived")
 }
 
-test("deleting a thread frees its slug and its @handle, and removes everything Frizz kept for it", async () => {
+test("deleting a thread frees its slug and its @handle, and removes everything Ntwine kept for it", async () => {
   const h = harness()
   try {
     seed(h.storage, "shell-budgets", { done: true, title: "Shell budgets" })
     h.storage.markThreadDone("shell-budgets", "- shipped", NOW)
-    const scratch = join(h.dir, ".frizz", "threads", "sid-shell-budgets")
+    const scratch = join(h.dir, ".ntwine", "threads", "sid-shell-budgets")
     mkdirSync(scratch, { recursive: true })
     writeFileSync(join(scratch, "notes.md"), "notes")
-    const frizzDir = join(h.dir, ".frizz")
+    const ntwineDir = join(h.dir, ".ntwine")
     const taken = (s: string) => h.storage.getSession(s) !== undefined
     // The control: while it exists, the next thread of that name is pushed to -2 and the handle finds it.
-    assert.equal(resolveSlug(frizzDir, "shell-budgets", taken), "shell-budgets-2")
+    assert.equal(resolveSlug(ntwineDir, "shell-budgets", taken), "shell-budgets-2")
     assert.equal(resolveThreadHandle("@shell-budgets", projectThreadNames(h.storage.allSessions()))?.slug, "shell-budgets")
 
     await h.router.deleteThread.handler({ input: { slug: "shell-budgets" } })
 
     assert.equal(h.storage.getSession("shell-budgets"), undefined)
     assert.equal(h.storage.getThreadDone("shell-budgets"), undefined)
-    assert.equal(resolveSlug(frizzDir, "shell-budgets", taken), "shell-budgets")
+    assert.equal(resolveSlug(ntwineDir, "shell-budgets", taken), "shell-budgets")
     assert.equal(resolveThreadHandle("@shell-budgets", projectThreadNames(h.storage.allSessions())), undefined)
     assert.equal(existsSync(scratch), false, "the scratch directory goes with the thread")
     assert.ok(h.storage.forgottenIds().has("sid-shell-budgets"), "its transcript is tombstoned so discovery cannot bring it back")

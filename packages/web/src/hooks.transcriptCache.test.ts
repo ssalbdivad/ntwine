@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { BoardSnapshot, ThreadView } from "@frizz/shared"
+import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
 import { latestConfirmation, staleOpenHoldStamp, transcriptStaleTime, transcriptWatchdogStep, WATCHDOG_MAX_DEFER_TICKS } from "./hooks.ts"
 
 // The transcript query had no staleTime, so every open re-read the whole transcript — including a return

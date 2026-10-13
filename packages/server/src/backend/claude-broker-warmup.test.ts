@@ -1,7 +1,7 @@
 // CI test for the two things the Claude broker was missing next to the codex app-server: an EAGER boot
 // reattach (`warmUp`), and a named cause for a daemon death.
 //
-// Driven by the FAKE claude CLI against a REAL forked daemon over a real socket — the frizz restart is
+// Driven by the FAKE claude CLI against a REAL forked daemon over a real socket — the ntwine restart is
 // simulated the way it actually happens (the bridge's clients go away; the detached daemon does not),
 // so the assertion is about the real reconnect path, not a stand-in for it.
 import { chmodSync, copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
@@ -15,7 +15,7 @@ import Database from "../sqlite.ts"
 import { createInteractionStore } from "../interaction-store.ts"
 import { createClaudeAgentBrokerBridge } from "./claude-agent-broker-bridge.ts"
 import { runClaudeBroker } from "./claude-agent-broker.ts"
-import { frizzIpcPath } from "./ipc-path.ts"
+import { ntwineIpcPath } from "./ipc-path.ts"
 import { brokerLastKnownPath, claudeBrokerRecordPath, liveBrokerRecords, readBrokerRecord } from "./claude-broker-host.ts"
 import { claudeBrokerDiagnosticLogPath, readClaudeBrokerExit } from "./claude-broker-diagnostics.ts"
 
@@ -48,11 +48,11 @@ function fakeExe(dir: string, scenario: string): string {
 
 // THE test for warmUp, with its own control in the same run.
 //
-// A tool-permission escalation is raised while frizz is DOWN: frizz #1 never answers it, then goes away
+// A tool-permission escalation is raised while ntwine is DOWN: ntwine #1 never answers it, then goes away
 // without touching the daemon. The daemon holds the canUseTool promise and re-delivers it to whoever
 // attaches next — but before warmUp() nothing ever attached, so the card never appeared and the thread
 // sat blocked on a promise nobody could answer until a human sent it a follow-up.
-test("warmUp reattaches a live daemon at boot and routes a permission raised while frizz was down", { timeout: 30_000 }, async () => {
+test("warmUp reattaches a live daemon at boot and routes a permission raised while ntwine was down", { timeout: 30_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), "cbrk-warm-"))
   const exe = fakeExe(dir, "permission")
   const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" }
@@ -60,8 +60,8 @@ test("warmUp reattaches a live daemon at boot and routes a permission raised whi
   const slug = "warm-thread"
   const scope = { projectId: "proj-warm", threadSlug: slug, sessionId }
 
-  // frizz #1: no dashboard store, and a decision hook that NEVER answers — the escalation is raised and
-  // left hanging, exactly as it would be if frizz died between the request and the human seeing it.
+  // ntwine #1: no dashboard store, and a decision hook that NEVER answers — the escalation is raised and
+  // left hanging, exactly as it would be if ntwine died between the request and the human seeing it.
   let escalations = 0
   const first = createClaudeAgentBrokerBridge({
     stateDir: dir, executablePath: exe, env,
@@ -72,13 +72,13 @@ test("warmUp reattaches a live daemon at boot and routes a permission raised whi
   try {
     await first.spawnDispatch({ threadSlug: slug, sessionId, cwd: dir, prompt: "do the thing", permissionMode: "default" })
     await waitFor(() => escalations > 0)
-    // frizz #1 goes away. close() drops the sockets and deliberately leaves the daemon running — that IS
+    // ntwine #1 goes away. close() drops the sockets and deliberately leaves the daemon running — that IS
     // the restart, and it is why the broker exists.
     first.close()
     await sleep(300)
-    assert.ok(readBrokerRecord(claudeBrokerRecordPath(dir, sessionId)), "the detached daemon outlived frizz #1")
+    assert.ok(readBrokerRecord(claudeBrokerRecordPath(dir, sessionId)), "the detached daemon outlived ntwine #1")
 
-    // frizz #2 boots. Constructed exactly as context.ts constructs it, ownedSessions included.
+    // ntwine #2 boots. Constructed exactly as context.ts constructs it, ownedSessions included.
     second = createClaudeAgentBrokerBridge({
       stateDir: dir, executablePath: exe, env,
       interactions: store, projectId: "proj-warm",
@@ -160,11 +160,11 @@ test("warmUp swallows a throwing resolver and an absent record directory", { tim
 
 // ---- death attribution -------------------------------------------------------------------------
 
-test("a broker records WHY it exited — frizz asked for it", { timeout: 15_000 }, async () => {
+test("a broker records WHY it exited — ntwine asked for it", { timeout: 15_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), "cbrk-exit-"))
   const exe = fakeExe(dir, "basic")
   const sessionId = randomUUID()
-  const socketPath = frizzIpcPath(`cbx-${createHash("sha256").update(randomUUID()).digest("hex").slice(0, 16)}`)
+  const socketPath = ntwineIpcPath(`cbx-${createHash("sha256").update(randomUUID()).digest("hex").slice(0, 16)}`)
   const broker = runClaudeBroker({
     socketPath, cwd: dir, sessionId, executablePath: exe, permissionMode: "default",
     env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" },
@@ -176,7 +176,7 @@ test("a broker records WHY it exited — frizz asked for it", { timeout: 15_000 
     await broker.close()
     const exit = readClaudeBrokerExit(dir, sessionId, broker.generation)
     assert.ok(exit, "the daemon recorded its exit")
-    assert.equal(exit.exit.reason, "frizz-requested")
+    assert.equal(exit.exit.reason, "ntwine-requested")
     assert.equal(exit.daemonPid, process.pid)
     assert.equal(exit.generation, broker.generation, "the record names the generation that died")
     // The defect this argument exists for: the log is per SESSION, so it still holds this death after the
@@ -196,7 +196,7 @@ test("a broker records WHY it exited — frizz asked for it", { timeout: 15_000 
   }
 })
 
-// The most common broker death there is: frizz's own killBroker, an operator `kill`, an OS shutdown.
+// The most common broker death there is: ntwine's own killBroker, an operator `kill`, an OS shutdown.
 // The signal handler exits IMMEDIATELY by design and never reaches shutdown(), so before this it left
 // no trace whatsoever.
 //
@@ -289,7 +289,7 @@ test("a dead daemon that left no breadcrumb reads as an absent record, never a t
 // ---- the auto-compact ceiling survives the restart that outlives the daemon ------------------------
 // The ceiling is a FORK-TIME property — Settings' own help says a running thread keeps the value it was
 // forked with — so the board's context denominator cannot be re-derived from Settings when the dial is
-// drawn. It comes off the daemon's own record, which is the only thing left after frizz #1 is gone.
+// drawn. It comes off the daemon's own record, which is the only thing left after ntwine #1 is gone.
 test("a reattach reports the ceiling the DAEMON was forked with, not the one Settings holds now", { timeout: 30_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), "cbrk-ceiling-"))
   const exe = fakeExe(dir, "basic")
@@ -308,7 +308,7 @@ test("a reattach reports the ceiling the DAEMON was forked with, not the one Set
     first.close() // the restart: the sockets go, the detached daemon stays
     await sleep(300)
 
-    // frizz #2 boots with the drawer moved to 200K. The DAEMON is still the 500K one, and saying 200K
+    // ntwine #2 boots with the drawer moved to 200K. The DAEMON is still the 500K one, and saying 200K
     // would understate the room a running thread has by more than half.
     const adopted: Array<number | undefined> = []
     second = createClaudeAgentBrokerBridge({
@@ -321,7 +321,7 @@ test("a reattach reports the ceiling the DAEMON was forked with, not the one Set
     await waitFor(() => adopted.length > 0)
     assert.deepEqual(adopted, [500_000], "the record outranks today's Settings")
 
-    // A daemon forked by a build that predates the field says nothing, and the environment frizz would
+    // A daemon forked by a build that predates the field says nothing, and the environment ntwine would
     // compose for it now is then the closest true statement there is — never silently no ceiling at all,
     // which would put the dial back to dividing by the model's whole window.
     const record = readBrokerRecord(recordPath)!

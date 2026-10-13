@@ -21,7 +21,7 @@ const AT = "2026-08-14T00:00:00.000Z"
 const LATER = "2026-08-14T00:10:00.000Z"
 const NOW = Date.parse(LATER) + 1000
 const REF = "acme/app#391"
-// A `pr-watch:` line DECLARES a wait; `mcp__frizz__watch_pr` CREATES one. The board honours a declaration
+// A `pr-watch:` line DECLARES a wait; `mcp__ntwine__watch_pr` CREATES one. The board honours a declaration
 // only when a registered watcher stands behind it — otherwise the thread is claiming a wait nothing will
 // ever deliver. Every case here therefore carries the registered set explicitly.
 const REGISTERED = new Set([REF])
@@ -55,7 +55,7 @@ test("the verdict and the counts read the rollup the way `evalRollup` does", () 
 // ---- what "passing" is allowed to mean (2026-09-04) ----
 //
 // THE REGRESSION THESE PIN, in the shape it actually arrived in. nodejs/node#65795 was opened at
-// 2026-09-04T15:12Z and frizz's first report, 62s later, read "✅ CI PASSED — 15 checks green". The
+// 2026-09-04T15:12Z and ntwine's first report, 62s later, read "✅ CI PASSED — 15 checks green". The
 // commit was never built: Node's real 29-check matrix was held at GitHub's fork-approval gate and the
 // 15 entries in the rollup were 12 `SKIPPED` no-ops plus 3 label bots. Both halves had to be wrong at
 // once for the sentence to be composed, so both are pinned separately below and then together.
@@ -138,7 +138,7 @@ test("nodejs/node#65795, verbatim: the reading that produced `15 checks green` n
       [0, 1, 2].map(() => check({ status: "COMPLETED", conclusion: "SKIPPED", name }))),
   ]
   // …and the 8 workflows GitHub was holding, which produced no check run at all and so appear nowhere
-  // in that rollup. `gh run list --commit <sha>` is where they are, and frizz already fetches it.
+  // in that rollup. `gh run list --commit <sha>` is where they are, and ntwine already fetches it.
   const workflowRuns = ["Test Linux", "Test macOS", "Linters", "Coverage Windows", "Build from tarball",
     "Test Shared libraries", "Test and upload documentation to artifacts", "First commit message adheres to guidelines"]
     .map((workflowName) => ({ workflowName, status: "completed", conclusion: "ACTION_REQUIRED" }))
@@ -163,7 +163,7 @@ test("a failure outranks anything still running, and the failing jobs are NAMED"
   assert.deepEqual(s.failing, ["lint", "deploy"])
 })
 
-// An entry frizz cannot classify must never launder itself into a green verdict — the same rule
+// An entry ntwine cannot classify must never launder itself into a green verdict — the same rule
 // `evalRollup` is written to, and the reason a `ci:` wait could never fire on a shape surprise.
 test("an unrecognizable entry counts as still running, never as quietly passing", () => {
   const s = githubWatchStatus(pr({ rollup: [check({}), check({ status: "COMPLETED", conclusion: "SUCCESS" })] }), AT)
@@ -177,7 +177,7 @@ test("mergeability is GitHub's own three words, plus the review gate", () => {
   assert.equal(githubWatchStatus(pr({ rollup: green, mergeable: "CONFLICTING" }), AT).merge, "conflicting")
   assert.equal(githubWatchStatus(pr({ rollup: green }), AT).merge, "unknown", "no reading is not a verdict")
   // `blocked` is deliberately coarse: a required review and a failing required check are reported the
-  // same way by GitHub, and frizz has no business claiming to tell them apart.
+  // same way by GitHub, and ntwine has no business claiming to tell them apart.
   assert.equal(
     githubWatchStatus(pr({ rollup: green, mergeable: "MERGEABLE", reviewDecision: "CHANGES_REQUESTED" }), AT).merge,
     "blocked",
@@ -206,7 +206,7 @@ test("the book drops a malformed entry rather than failing the whole read", () =
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug: "t", session_id: "s", thread_name: "frizz-t", spawned_at: AT, last_read_at: null,
+    slug: "t", session_id: "s", thread_name: "ntwine-t", spawned_at: AT, last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: AT, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   } as SessionRow
@@ -228,7 +228,7 @@ test("checks still running hold the thread OUT of the queue — the active rail,
   assert.equal(deriveAwaitingBackground(row(), watching(), "turn-idle", false, NOW, undefined, false, running, REGISTERED), true)
 })
 
-// THE REGISTERED WATCH ALONE HOLDS (2026-09-20). A worker that called `mcp__frizz__watch_pr` and rested
+// THE REGISTERED WATCH ALONE HOLDS (2026-09-20). A worker that called `mcp__ntwine__watch_pr` and rested
 // without a fence — the shape the worker contract steers toward — was queued while its checks ran, while
 // the rail's mark read the same registered row and called the thread live. The registry is the signal.
 test("a registered watch with no fence holds the thread out of the queue while checks run", () => {

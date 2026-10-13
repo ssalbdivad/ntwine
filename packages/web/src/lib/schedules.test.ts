@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { parseScheduledRunPrompt, scheduledRunHeader, scheduledRunPrompt } from "@frizz/shared"
+import { parseScheduledRunPrompt, scheduledRunHeader, scheduledRunPrompt } from "@ntwine/shared"
 import { QueryClient } from "@tanstack/react-query"
 import { invalidateSchedules, proposedByLine, scheduledRunFacts, scheduleKeys, scheduleNextLabel } from "./schedules.ts"
 

@@ -9,7 +9,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { AskedQuestion, BoardSnapshot, Settings } from "@frizz/shared"
+import type { AskedQuestion, BoardSnapshot, Settings } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { createRouter } from "./router.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -18,7 +18,7 @@ import type { Project } from "./project.ts"
 import type { SessionTelemetry, Tailer } from "./tailer.ts"
 
 function harness(tele?: Partial<SessionTelemetry>) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-done-rpc-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-done-rpc-"))
   const project: Project = { dir, id: "done", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const snapshot: BoardSnapshot = { projectDir: dir, projectName: "test", projectLabel: "test", threads: [], errors: [], warnings: [] }
@@ -46,7 +46,7 @@ function harness(tele?: Partial<SessionTelemetry>) {
 
 function row(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug, session_id: `sid-${slug}`, thread_name: `frizz-${slug}`, spawned_at: "2026-08-27T00:00:00.000Z",
+    slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-08-27T00:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }

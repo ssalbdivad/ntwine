@@ -8,9 +8,9 @@ import test from "node:test"
 // and the default is an optimistic TanStack write — so a source test could pin none of them.
 //
 // Drives dispatch-composer-profile-fixture (default GPT-5.6 Sol › medium), which records every
-// preference write and every dispatch body. Skipped unless FRIZZ_DISPATCH_PICK_E2E_URL names a vite
+// preference write and every dispatch body. Skipped unless NTWINE_DISPATCH_PICK_E2E_URL names a vite
 // serving the fixtures (scripts/e2e-web.mjs sets it).
-const baseUrl = process.env.FRIZZ_DISPATCH_PICK_E2E_URL
+const baseUrl = process.env.NTWINE_DISPATCH_PICK_E2E_URL
 
 type Page = import("puppeteer").Page
 type Recorded = { writes: Record<string, unknown>[]; dispatches: { backend?: string; model?: string; effort?: string; prompt?: string }[] }
@@ -43,7 +43,7 @@ const recorded = (page: Page): Promise<Recorded> =>
 const pill = (page: Page) => page.$eval(PILL, (el) => el.textContent?.replace(/\s+/g, " ").trim())
 const storedPick = (page: Page) =>
   page.evaluate((prefix) => {
-    const entries = JSON.parse(sessionStorage.getItem("frizz-drafts:v1") ?? "{}").entries ?? {}
+    const entries = JSON.parse(sessionStorage.getItem("ntwine-drafts:v1") ?? "{}").entries ?? {}
     return Object.entries(entries).find(([key]) => key.startsWith(prefix))?.[1] ?? null
   }, PICK_KEY)
 
@@ -116,7 +116,7 @@ test("Make default writes the pick once, and the box stays on it after sending",
     await page.waitForFunction((sel) => !document.querySelector(sel), {}, MAKE_DEFAULT)
     assert.deepEqual((await recorded(page)).writes, [{ field: "profile", backend: "codex", model: "gpt-5.6-sol", effort: "low" }])
     assert.equal(await pill(page), "GPT-5.6 Sol › low")
-    await page.waitForFunction((prefix) => !Object.keys(JSON.parse(sessionStorage.getItem("frizz-drafts:v1") ?? "{}").entries ?? {}).some((key) => key.startsWith(prefix)), {}, PICK_KEY)
+    await page.waitForFunction((prefix) => !Object.keys(JSON.parse(sessionStorage.getItem("ntwine-drafts:v1") ?? "{}").entries ?? {}).some((key) => key.startsWith(prefix)), {}, PICK_KEY)
 
     await send(page, "on the new default")
     await dispatchCount(page, 1)

@@ -1,4 +1,4 @@
-// THE SIDEBAR'S PURE HALF — what the Frizz sidebar (sidebar.ts) frames, how it checks what the page
+// THE SIDEBAR'S PURE HALF — what the Ntwine sidebar (sidebar.ts) frames, how it checks what the page
 // says, which key chords it acts on, and where an editor command's selection goes. No `vscode` here, so
 // every rule below is a unit test under plain node (embed.test.ts); sidebar.ts and app.ts are the glue.
 // Design: ARCHITECTURE.md § VS Code extension. The wire: packages/shared/src/embed-protocol.ts.
@@ -15,7 +15,7 @@ import {
   type EmbedComposedMessage,
   type EmbedPageMessage,
   type EmbedTheme,
-} from "@frizz/shared/embed-protocol"
+} from "@ntwine/shared/embed-protocol"
 
 // ── the frame's address ──────────────────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export function embedTheme(kind: number): EmbedTheme {
  * `<origin>/project/<slug>?embed=vscode&theme=dark` — this window's project's board — or
  * `<origin>/all?embed=…` (All projects) when no folder maps to one. The page reads the query once at boot; the PATH names its view
  * (web lib/pageView.ts). It was `/?…&project=<slug>` until 2026-10-06, while a board was a query on `/`; a
- * Frizz that new still redirects that shape to the path, so an older extension lands on the board too.
+ * Ntwine that new still redirects that shape to the path, so an older extension lands on the board too.
  */
 export function embedUrl(origin: string, theme: EmbedTheme, projectSlug: string | undefined): string {
   const url = new URL(projectSlug ? projectPath(projectSlug) : ALL_PROJECTS_PATH, origin)
@@ -105,13 +105,13 @@ function portOf(url: URL): number {
 
 export type FrameTarget =
   | { kind: "frame"; url: string; origin: string }
-  /** The window would reach Frizz on another port, which every Frizz gate refuses. */
+  /** The window would reach Ntwine on another port, which every Ntwine gate refuses. */
   | { kind: "remapped"; port: number; external: number }
 
 /**
- * What the frame may load, given the URL Frizz was found at and what `env.asExternalUri` made of it.
- * Locally the two are the same; under Remote-WSL the host may come back as `localhost`, which Frizz
- * accepts (local-origin.ts). A different PORT is a tunnel Frizz does not know about: its gate requires
+ * What the frame may load, given the URL Ntwine was found at and what `env.asExternalUri` made of it.
+ * Locally the two are the same; under Remote-WSL the host may come back as `localhost`, which Ntwine
+ * accepts (local-origin.ts). A different PORT is a tunnel Ntwine does not know about: its gate requires
  * the request's port to be its own, so the page and every request it made would be refused — the view
  * says so instead of framing a page that cannot work.
  */
@@ -138,84 +138,84 @@ const MAX_FIELD = 8192
 
 /**
  * A page → host message, checked field by field — the relay already took it only from its own frame at
- * Frizz's origin, and this is the second check the contract asks for. Anything unknown, misshapen or out
+ * Ntwine's origin, and this is the second check the contract asks for. Anything unknown, misshapen or out
  * of bounds is `undefined`, which the sidebar ignores. Only the fields the contract names are kept.
  * `origin` is the frame's: a route's `href` is kept only on it (otherwise the route is kept without it).
  */
 export function parsePageMessage(value: unknown, origin?: string): EmbedPageMessage | undefined {
   if (!isRecord(value) || typeof value.type !== "string") return undefined
   switch (value.type) {
-    case "frizz:ready":
-      return value.v === EMBED_PROTOCOL_VERSION ? { type: "frizz:ready", v: EMBED_PROTOCOL_VERSION } : undefined
-    case "frizz:composed": {
+    case "ntwine:ready":
+      return value.v === EMBED_PROTOCOL_VERSION ? { type: "ntwine:ready", v: EMBED_PROTOCOL_VERSION } : undefined
+    case "ntwine:composed": {
       if (typeof value.id !== "string" || !value.id || value.id.length > 200 || typeof value.ok !== "boolean") return undefined
       if (value.error !== undefined && (typeof value.error !== "string" || value.error.length > MAX_FIELD)) return undefined
-      return { type: "frizz:composed", id: value.id, ok: value.ok, ...(typeof value.error === "string" ? { error: value.error } : {}) }
+      return { type: "ntwine:composed", id: value.id, ok: value.ok, ...(typeof value.error === "string" ? { error: value.error } : {}) }
     }
-    case "frizz:open-file": {
+    case "ntwine:open-file": {
       const { path, line, column, endLine } = value
       if (typeof path !== "string" || !path || path.length > MAX_FIELD || path.includes("\0") || !(isAbsolute(path) || /^[A-Za-z]:[\\/]/u.test(path))) return undefined
       if (!isLine(line) || !isLine(column) || !isLine(endLine)) return undefined
       return {
-        type: "frizz:open-file",
+        type: "ntwine:open-file",
         path,
         ...(line === undefined ? {} : { line: line as number }),
         ...(column === undefined ? {} : { column: column as number }),
         ...(endLine === undefined ? {} : { endLine: endLine as number }),
       }
     }
-    case "frizz:open-external": {
+    case "ntwine:open-external": {
       if (typeof value.url !== "string" || value.url.length > MAX_FIELD) return undefined
       const url = webUrl(value.url)
-      return url ? { type: "frizz:open-external", url } : undefined
+      return url ? { type: "ntwine:open-external", url } : undefined
     }
-    case "frizz:key": {
+    case "ntwine:key": {
       const { key, code, ctrl, meta, shift, alt } = value
       if (typeof key !== "string" || typeof code !== "string" || key.length > 64 || code.length > 64) return undefined
       if (typeof ctrl !== "boolean" || typeof meta !== "boolean" || typeof shift !== "boolean" || typeof alt !== "boolean") return undefined
-      return { type: "frizz:key", key, code, ctrl, meta, shift, alt }
+      return { type: "ntwine:key", key, code, ctrl, meta, shift, alt }
     }
-    case "frizz:add-context": {
+    case "ntwine:add-context": {
       const { what, path } = value
-      if (what === "selection" || what === "problems" || what === "terminal") return path === undefined ? { type: "frizz:add-context", what } : undefined
+      if (what === "selection" || what === "problems" || what === "terminal") return path === undefined ? { type: "ntwine:add-context", what } : undefined
       if (what !== "file" || typeof path !== "string" || !path || path.length > MAX_FIELD || path.includes("\0")) return undefined
       if (!(isAbsolute(path) || /^[A-Za-z]:[\\/]/u.test(path))) return undefined
-      return { type: "frizz:add-context", what, path }
+      return { type: "ntwine:add-context", what, path }
     }
-    case "frizz:share-editor":
-      return typeof value.on === "boolean" ? { type: "frizz:share-editor", on: value.on } : undefined
-    case "frizz:route": {
+    case "ntwine:share-editor":
+      return typeof value.on === "boolean" ? { type: "ntwine:share-editor", on: value.on } : undefined
+    case "ntwine:route": {
       const { view, title, description } = value
       if (view !== "queue" && view !== "thread" && view !== "settings" && view !== "other") return undefined
       if (typeof title !== "string" || title.length > MAX_TITLE) return undefined
       if (description !== undefined && (typeof description !== "string" || description.length > MAX_TITLE)) return undefined
       const href = pageHref(value.href, origin)
-      return { type: "frizz:route", view, title, ...(description ? { description } : {}), ...(href ? { href } : {}) }
+      return { type: "ntwine:route", view, title, ...(description ? { description } : {}), ...(href ? { href } : {}) }
     }
-    case "frizz:review": {
-      // Two names and nothing else: the extension asks Frizz what they mean (embed-protocol.ts).
+    case "ntwine:review": {
+      // Two names and nothing else: the extension asks Ntwine what they mean (embed-protocol.ts).
       const { thread, project, title } = value
       if (typeof thread !== "string" || typeof project !== "string" || !SLUG.test(thread) || !SLUG.test(project)) return undefined
       if (title !== undefined && (typeof title !== "string" || title.length > MAX_TITLE)) return undefined
-      return { type: "frizz:review", thread, project, ...(title ? { title } : {}) }
+      return { type: "ntwine:review", thread, project, ...(title ? { title } : {}) }
     }
-    case "frizz:pick-context": {
+    case "ntwine:pick-context": {
       // A search (`query`) or a drop (`uris`), never both: a drop names exactly what to add.
       const { id, query, uris } = value
       if (typeof id !== "string" || !id || id.length > 200) return undefined
       if (query !== undefined) {
         if (uris !== undefined || typeof query !== "string" || query.length > EMBED_MAX_QUERY) return undefined
-        return { type: "frizz:pick-context", id, query }
+        return { type: "ntwine:pick-context", id, query }
       }
       if (!Array.isArray(uris) || uris.length === 0 || uris.length > EMBED_MAX_DROPPED) return undefined
       if (!uris.every((uri) => typeof uri === "string" && uri.length > 0 && uri.length <= MAX_FIELD && !uri.includes("\0"))) return undefined
-      return { type: "frizz:pick-context", id, uris: uris as string[] }
+      return { type: "ntwine:pick-context", id, uris: uris as string[] }
     }
   }
   return undefined
 }
 
-/** A thread's or project's slug as Frizz spells them in a route: no slash, no space, nothing to escape. */
+/** A thread's or project's slug as Ntwine spells them in a route: no slash, no space, nothing to escape. */
 const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/u
 
 /** A thread's or project's slug, as `SLUG` admits one — for a name that came back from anywhere (a tab's saved state). */
@@ -271,7 +271,7 @@ export function webUrl(text: string): string | undefined {
  * `primary` is Cmd on a Mac and Ctrl elsewhere; the terminal and source control are Ctrl on every
  * platform, as VS Code binds them.
  *
- * One is Frizz's own rather than VS Code's default: ⌘L / Ctrl+L, Cursor's chord to its chat and back. In the
+ * One is Ntwine's own rather than VS Code's default: ⌘L / Ctrl+L, Cursor's chord to its chat and back. In the
  * editor it comes to the sidebar's prompt box (package.json binds it: with a selection the selection comes
  * along as a chip); pressed here it goes back to the editor the human came from.
  */
@@ -316,27 +316,27 @@ export function chordCommand(key: KeyChord, mac: boolean): string | undefined {
 // ── where an editor command's selection goes ─────────────────────────────────────────────────────────
 
 export interface SidebarReadiness {
-  /** The `frizz.useSidebar` setting. */
+  /** The `ntwine.useSidebar` setting. */
   enabled: boolean
-  /** There is a Frizz for the sidebar to frame: connected, or found by discovery. */
-  frizz: boolean
+  /** There is an Ntwine for the sidebar to frame: connected, or found by discovery. */
+  ntwine: boolean
 }
 
 /**
- * "Add to Frizz prompt", and every other way a piece of the editor gets into a prompt (a file from a tab
+ * "Add to Ntwine prompt", and every other way a piece of the editor gets into a prompt (a file from a tab
  * or the explorer, a problem's quick fix, a terminal selection): into the sidebar's front composer, with
  * the view revealed — opened, the first time in a window — and the caret after the chip. The sidebar is
  * where the human looks now (David, 2026-10-01: a Cursor-style shortcut that inlines the highlighted
  * code into the current prompt), so the first cut's rule — the browser until the sidebar had been opened
- * in this window — is gone. Off, or with no Frizz to frame, the server holds the item for a browser page,
+ * in this window — is gone. Off, or with no Ntwine to frame, the server holds the item for a browser page,
  * as before the sidebar; a sidebar that never loads or refuses falls back to the same (app.ts).
  */
 export function addRoute(sidebar: SidebarReadiness): "sidebar" | "server" {
-  return sidebar.enabled && sidebar.frizz ? "sidebar" : "server"
+  return sidebar.enabled && sidebar.ntwine ? "sidebar" : "server"
 }
 
 /**
- * "Ask Frizz…" and "Send to Frizz thread…": with the setting on, the sidebar's composer — it is revealed
+ * "Ask Ntwine…" and "Send to Ntwine thread…": with the setting on, the sidebar's composer — it is revealed
  * (which opens it) and waited for — instead of a one-line input box. Text a caller passed as an argument
  * (a keybinding, another extension, a test) is a message to SEND, not a draft to write, so it keeps the
  * direct path that sends it.
@@ -365,9 +365,9 @@ export async function composeInSidebar(
   options: { preserveFocus: boolean; readyMs: number; composeMs: number },
 ): Promise<{ ok: true; id: string } | { ok: false; why: string }> {
   await sidebar.reveal(options.preserveFocus)
-  if (!(await sidebar.waitReady(options.readyMs))) return { ok: false, why: "The Frizz sidebar didn't load in time." }
+  if (!(await sidebar.waitReady(options.readyMs))) return { ok: false, why: "The Ntwine sidebar didn't load in time." }
   const answer = await sidebar.compose(input, options.composeMs)
-  if (!answer) return { ok: false, why: "The Frizz sidebar didn't answer." }
-  if (!answer.ok) return { ok: false, why: `The Frizz sidebar couldn't take it: ${answer.error ?? "no reason given"}` }
+  if (!answer) return { ok: false, why: "The Ntwine sidebar didn't answer." }
+  if (!answer.ok) return { ok: false, why: `The Ntwine sidebar couldn't take it: ${answer.error ?? "no reason given"}` }
   return { ok: true, id: answer.id }
 }

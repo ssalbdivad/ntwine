@@ -3,8 +3,8 @@ import assert from "node:assert/strict"
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { questionAnswerMessage, questionsCancelledWakeMessage, type InteractionRequest } from "@frizz/shared"
-import { ANSWER_IN_FLIGHT_EXCUSAL_MS, SIGNOFF_NUDGE_EXCUSAL_MS, DELIVERY_IN_FLIGHT_SPIN_MS, answerAwaitingDelivery, deriveDeliveryInFlight, answersInFlight, appServerTurnStalled, createBoard, deriveAwaitingBackground, deriveNeedsYou, degradeIfAwaitingAnswer, degradeIfNoTranscript, fenceWatchViews, hasDeclaredWait, hasParkedTimerWatch, hasRegisteredBackgroundPark, isBoardRelevantFrizzPath, registeredDoneFence, queuedOnlyForReply, replyUnseen, resolveLimitPause, returnedSubAgentsView, resolveSessionPermission, resolveSessionProfile, resolveSessionTitle, stampShellBudgets, type RegisteredWatch } from "./board.ts"
+import { questionAnswerMessage, questionsCancelledWakeMessage, type InteractionRequest } from "@ntwine/shared"
+import { ANSWER_IN_FLIGHT_EXCUSAL_MS, SIGNOFF_NUDGE_EXCUSAL_MS, DELIVERY_IN_FLIGHT_SPIN_MS, answerAwaitingDelivery, deriveDeliveryInFlight, answersInFlight, appServerTurnStalled, createBoard, deriveAwaitingBackground, deriveNeedsYou, degradeIfAwaitingAnswer, degradeIfNoTranscript, fenceWatchViews, hasDeclaredWait, hasParkedTimerWatch, hasRegisteredBackgroundPark, isBoardRelevantNtwinePath, registeredDoneFence, queuedOnlyForReply, replyUnseen, resolveLimitPause, returnedSubAgentsView, resolveSessionPermission, resolveSessionProfile, resolveSessionTitle, stampShellBudgets, type RegisteredWatch } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { SETTLE_MS } from "./queue-clock.ts"
 import { createStorage, type ThreadQuestionRow } from "./storage.ts"
@@ -23,7 +23,7 @@ const LATER = "2026-07-09T11:00:00.000Z"
 
 function row(over: Partial<SessionRow> = {}): SessionRow {
   return {
-    slug: "t", session_id: "s", thread_name: "frizz-t", spawned_at: T0, last_read_at: null,
+    slug: "t", session_id: "s", thread_name: "ntwine-t", spawned_at: T0, last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null, ...over,
   }
@@ -261,7 +261,7 @@ test("resolveSessionTitle: a PERSISTED worker title survives the loss of its tel
     { title: "i want to start working", titleAuto: true, titleLocked: false, aiTitle: undefined, titleNamed: false },
   )
   // THE REGISTRY COPY OUTRANKS TELEMETRY. This assertion read the other way ("live telemetry is the
-  // FRESHER of the two") until `mcp__frizz__title` existed, and freshness was the right tiebreak only
+  // FRESHER of the two") until `mcp__ntwine__title` existed, and freshness was the right tiebreak only
   // while the two could not disagree: the persisted copy was written FROM telemetry on the same fold
   // tick, so it was byte-identical or absent. A worker registering its own name breaks the tie for
   // real — the row now holds the name it chose after reading the task, and the wire still holds the
@@ -364,7 +364,7 @@ test("deriveNeedsYou: a fresh delivery never hides a crash or a hard live ask", 
 })
 
 test("board interaction presence cache follows the exact session and rechecks after terminal edges", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-interactions-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-interactions-"))
   const project: Project = {
     dir,
     id: "project-board",
@@ -374,7 +374,7 @@ test("board interaction presence cache follows the exact session and rechecks af
     cwdSlug: "fixture",
   }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "typed", session_id: "session-a", thread_name: "frizz-typed" }))
+  storage.upsertSession(row({ slug: "typed", session_id: "session-a", thread_name: "ntwine-typed" }))
   const tailer = {
     get: () => undefined,
     foreignIds: () => [],
@@ -389,8 +389,8 @@ test("board interaction presence cache follows the exact session and rechecks af
   const request = (providerRequestId: string, sessionId = "session-a"): InteractionRequest => ({
     protocolVersion: 1,
     contentFormat: "plain-text",
-    provider: { kind: "frizz" },
-    source: { kind: "frizz", id: "board-test" },
+    provider: { kind: "ntwine" },
+    source: { kind: "ntwine", id: "board-test" },
     owner: {
       projectId: project.id,
       threadSlug: "typed",
@@ -449,7 +449,7 @@ test("board interaction presence cache follows the exact session and rechecks af
     storage.interactions.create(request("old-session-request")).interaction
     assert.equal(current().pendingInteraction, true)
     assert.equal(current().actionableInteraction, true)
-    storage.upsertSession(row({ slug: "typed", session_id: "session-b", thread_name: "frizz-typed" }))
+    storage.upsertSession(row({ slug: "typed", session_id: "session-b", thread_name: "ntwine-typed" }))
     assert.equal(current().pendingInteraction, false, "a replacement session cannot inherit the old journal scope")
     assert.equal(current().actionableInteraction, false, "a replacement session cannot inherit the old actionability bit")
   } finally {
@@ -466,10 +466,10 @@ test("board interaction presence cache follows the exact session and rechecks af
 // call — "…next I'm creating the lane worktrees" — which never mentioned that anything was being asked
 // (2026-09-28, a bypass-mode worker held on Claude Code's dangerous-removal check).
 test("a needs-decision notification for a turn held on a request says what the request asks", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-notify-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-notify-"))
   const project: Project = { dir, id: "project-notify", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "gated", session_id: "session-a", thread_name: "frizz-gated", title: "Status of the split" }))
+  storage.upsertSession(row({ slug: "gated", session_id: "session-a", thread_name: "ntwine-gated", title: "Status of the split" }))
   storage.setClaudeRuntime("gated", "broker") // as every live Claude row is; without it a turn with no process reads as a crash
   const narration = "Baseline build is green; typecheck and tests are still running. Next I'm creating the lane worktrees."
   const tailer = {
@@ -492,7 +492,7 @@ test("a needs-decision notification for a turn held on a request says what the r
     storage.interactions.create({
       protocolVersion: 1,
       contentFormat: "plain-text",
-      provider: { kind: "frizz" },
+      provider: { kind: "ntwine" },
       source: { kind: "tool", id: "toolu_1", label: "Bash" },
       owner: { projectId: project.id, threadSlug: "gated", sessionId: "session-a", turnId: "turn", itemId: "req-1", sessionEpoch: 0, capabilityRevision: 0 },
       providerRequestId: "req-1",
@@ -512,7 +512,7 @@ test("a needs-decision notification for a turn held on a request says what the r
 })
 
 test("board keeps provider delivery visible while ordinary resting-thread queue membership survives response delivery and restart", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-provider-delivery-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-provider-delivery-"))
   const project: Project = {
     dir,
     id: "project-provider-board",
@@ -532,7 +532,7 @@ test("board keeps provider delivery visible while ordinary resting-thread queue 
   } satisfies Tailer
   const dbPath = join(dir, "ui.db")
   let storage = createStorage(dbPath, "p")
-  storage.upsertSession(row({ slug: "provider", session_id: "provider-session", thread_name: "frizz-provider" }))
+  storage.upsertSession(row({ slug: "provider", session_id: "provider-session", thread_name: "ntwine-provider" }))
   let board = createBoard(project, storage, new Bus(), tailer, "provider-boot-1")
   let unsubscribe = storage.interactions.subscribe((change) => board.interactionChanged?.(change))
   const request: InteractionRequest = {
@@ -643,7 +643,7 @@ test("deriveNeedsYou: a checked ```done fence at rest queues until archived, eve
 // line and a future `timer: <instant>` each took a thread OUT of the operator queue on the worker's
 // word alone. Nothing ever fired a human gate, and one timer was published 5h55m in the PAST — it
 // parsed, armed nothing, and parked its thread for 5.5 hours. Both kinds are deleted (2026-08-15).
-// A fence now has to NAME something frizz can find, and neither of these does.
+// A fence now has to NAME something ntwine can find, and neither of these does.
 test("deriveNeedsYou: an unverifiable awaiting fence does NOT leave the operator queue", () => {
   const noSuchShell = tele({ lastFence: { kind: "awaiting", body: "", hints: [{ kind: "shell", value: "Alice must approve" }] }, lastActivityAt: LATER })
   const noSuchTimer = tele({ lastFence: { kind: "awaiting", body: "", hints: [{ kind: "timer", value: "tmr_nosuchtimer" }] }, lastActivityAt: LATER })
@@ -794,10 +794,10 @@ test("deriveNeedsYou: 'until all sub-agents return' lets go on a gap, a human tu
 
 test("returnedSubAgentsView: the returns inside the wait still open, never an earlier batch's", () => {
   const earlier = retired("old", "2026-09-29T09:40:00.000Z", { startedAt: "2026-09-29T09:30:00.000Z" })
-  const failed = retired("b", "2026-09-29T10:05:00.000Z", { status: "failed", subagentType: "frizz:opus-high" })
+  const failed = retired("b", "2026-09-29T10:05:00.000Z", { status: "failed", subagentType: "ntwine:opus-high" })
   const view = returnedSubAgentsView(tele({ subAgents: [agent("c")], retiredSubAgents: [failed, earlier, retired("a", FAN_A_BACK)] }))
   assert.deepEqual(view?.map((r) => [r.id, r.status]), [["a", "completed"], ["b", "failed"]], "oldest return first, the earlier batch left out")
-  assert.equal(view?.[1]?.subagentType, "frizz:opus-high")
+  assert.equal(view?.[1]?.subagentType, "ntwine:opus-high")
   // A child that came back before the parent even rested is still part of the batch.
   const fast = retired("fast", "2026-09-29T10:00:02.000Z")
   assert.deepEqual(returnedSubAgentsView(tele({ subAgents: [agent("c")], retiredSubAgents: [fast] }))?.map((r) => r.id), ["fast"])
@@ -811,10 +811,10 @@ test("returnedSubAgentsView: the returns inside the wait still open, never an ea
 })
 
 test("board: a queued parent carries its returned sub-agents, and the snooze parks it through the view", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-fanout-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-fanout-"))
   const project: Project = { dir, id: "project-fanout", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "parent", session_id: "sess-parent", thread_name: "frizz-parent", rested_at: FAN_REREST }))
+  storage.upsertSession(row({ slug: "parent", session_id: "sess-parent", thread_name: "ntwine-parent", rested_at: FAN_REREST }))
   storage.setBackend("parent", "claude")
   storage.setClaudeRuntime("parent", "broker")
   let current = tele({ turn: "idle", subAgents: [agent("b"), agent("c")], retiredSubAgents: [retired("a", FAN_A_BACK)], lastFence: hintless, lastAssistantAt: FAN_REREST })
@@ -1055,12 +1055,12 @@ test("board: an EXITED parent resting on a 'running' sub-agent surfaces as a sta
   // End-to-end through board assembly: a dead worker (no live process → runtime 'exited') whose telemetry still
   // reports a running sub-agent must enter Queue (needsYou) AND card as a crash/stall (crashed), so the
   // human sees it instead of it silently dangling under stale child liveness.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-crash-bgwork-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-crash-bgwork-"))
   const project: Project = { dir, id: "board-crash-bgwork", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "dead-parent", thread_name: "frizz-dead-parent", seen_at: LATER }))
+  storage.upsertSession(row({ slug: "dead-parent", thread_name: "ntwine-dead-parent", seen_at: LATER }))
   // Sibling with an already-STALE child: it must still surface, but as a bare rest, NOT a stalled crash.
-  storage.upsertSession(row({ slug: "dead-parent-stale", thread_name: "frizz-dead-parent-stale", seen_at: LATER }))
+  storage.upsertSession(row({ slug: "dead-parent-stale", thread_name: "ntwine-dead-parent-stale", seen_at: LATER }))
   const tailer = {
     get: (slug: string) => tele({
       turn: "idle",
@@ -1090,15 +1090,15 @@ test("board: an EXITED parent resting on a 'running' sub-agent surfaces as a sta
 })
 
 test("board: native Codex failures settle a lagging rollout, converge without duplicates, and cannot replace recovery", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-codex-error-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-codex-error-"))
   const project: Project = { dir, id: "p", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "failed", session_id: "sid", thread_name: "frizz-failed" }))
+  storage.upsertSession(row({ slug: "failed", session_id: "sid", thread_name: "ntwine-failed" }))
   storage.setBackend("failed", "codex")
   storage.setCodexRuntime("failed", "app-server")
   const error = { message: "Request rejected", code: "cyber_policy", at: LATER }
   let current = tele({ turn: "in-flight", lastActivityAt: T0 })
-  let live: { bridgeTurn: boolean; ownedSince: string; providerError: import("@frizz/shared").ProviderError } = { bridgeTurn: false, ownedSince: T0, providerError: error }
+  let live: { bridgeTurn: boolean; ownedSince: string; providerError: import("@ntwine/shared").ProviderError } = { bridgeTurn: false, ownedSince: T0, providerError: error }
   const tailer = { get: () => current, foreignIds: () => [], subAgent: () => undefined, forget: () => {}, start: () => {}, stop: () => {}, tick: () => {} } satisfies Tailer
   // The clock sits beside the fixture's own dates, so the readings below hang on the retry this pins and
   // never on how far the wall clock has run past the fixture.
@@ -1133,11 +1133,11 @@ test("board: a codex app-server thread whose turn died with its app-server cards
   // inside the shared codex daemon and has no process of its own to probe, so its runtime comes only
   // from the rollout — which froze mid-turn when the process died and therefore reads "in-flight" forever. The bridge's liveness answer is what makes the difference
   // between a thread that spins on `running` and never queues, and one the human actually sees.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-appserver-stall-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-appserver-stall-"))
   const project: Project = { dir, id: "board-appserver-stall", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   for (const slug of ["stalled", "driving", "mirrored"]) {
-    storage.upsertSession(row({ slug, session_id: `${slug}-s`, thread_name: `frizz-${slug}`, seen_at: LATER }))
+    storage.upsertSession(row({ slug, session_id: `${slug}-s`, thread_name: `ntwine-${slug}`, seen_at: LATER }))
     storage.setBackend(slug, "codex")
     storage.setCodexRuntime(slug, "app-server")
   }
@@ -1171,8 +1171,8 @@ test("board: a codex app-server thread whose turn died with its app-server cards
     assert.equal(driving.runtime, "running", "the bridge is driving this turn right now")
     assert.equal(driving.needsYou, false)
 
-    // An external `codex resume` in the operator's terminal keeps appending after frizz took the
-    // thread: a real live turn frizz is mirroring, so it must not be declared dead.
+    // An external `codex resume` in the operator's terminal keeps appending after ntwine took the
+    // thread: a real live turn ntwine is mirroring, so it must not be declared dead.
     const mirrored = snap.threads.find((candidate) => candidate.id === "mirrored")!
     assert.equal(mirrored.runtime, "running")
     assert.equal(mirrored.needsYou, false)
@@ -1204,7 +1204,7 @@ test("deriveNeedsYou: manual snooze suppresses every queue reason until its exac
 // was an absolute instant the worker computed: one was published 5h55m in the past, parsed fine, armed
 // nothing, and left its thread parked for 5.5 hours with no wake possible.
 //
-// Both kinds are deleted. A park is now a STRUCTURAL declaration naming things frizz can look up
+// Both kinds are deleted. A park is now a STRUCTURAL declaration naming things ntwine can look up
 // (hasDeclaredBackgroundPark), so what this pins is that the assertions alone no longer buy anything.
 test("deriveNeedsYou: an awaiting fence alone never excuses a rest — only a checkable park does", () => {
   const now = Date.parse("2026-07-13T12:00:00.000Z")
@@ -1234,7 +1234,7 @@ test("deriveNeedsYou: an awaiting fence alone never excuses a rest — only a ch
 })
 
 test("board arms the exact durable snooze deadline, clears it, and requeues ordinary rest without browser activity", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-snooze-wake-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-snooze-wake-"))
   const project: Project = {
     dir,
     id: "project-snooze-wake",
@@ -1248,7 +1248,7 @@ test("board arms the exact durable snooze deadline, clears it, and requeues ordi
   storage.upsertSession(row({
     slug: "snooze-wake",
     session_id: "snooze-session",
-    thread_name: "frizz-snooze-wake",
+    thread_name: "ntwine-snooze-wake",
     snoozed_until: until,
   }))
   const tailer = {
@@ -1283,7 +1283,7 @@ test("board arms the exact durable snooze deadline, clears it, and requeues ordi
 })
 
 test("board immediately expires a snooze whose deadline passes between assembly and timer scheduling", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-snooze-race-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-snooze-race-"))
   const base = Date.parse("2026-07-13T12:00:00.000Z")
   const until = new Date(base + 10).toISOString()
   let clockReads = 0
@@ -1299,7 +1299,7 @@ test("board immediately expires a snooze whose deadline passes between assembly 
   storage.upsertSession(row({
     slug: "snooze-race",
     session_id: "snooze-race-session",
-    thread_name: "frizz-snooze-race",
+    thread_name: "ntwine-snooze-race",
     snoozed_until: until,
   }))
   const tailer = {
@@ -1368,7 +1368,7 @@ test("degradeIfAwaitingAnswer: an open question downgrades the spinner, and noth
 // of the queue whenever anything re-opened the turn; with the runtime degraded above, the gate is
 // satisfied by construction and the ask cards. Pinned here as a pair so neither half can drift back.
 test("deriveNeedsYou: a degraded ask-row cards — the pair is what puts it in the queue", () => {
-  const row = { slug: "t", session_id: "sid", thread_name: "frizz-t", spawned_at: "2026-08-24T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null } as never
+  const row = { slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: "2026-08-24T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: null, meta: null, seen_at: null, transcript_id: null } as never
   const tele = { turn: "in-flight", pendingQuestion: true } as never
   const nowMs = Date.parse("2026-08-24T00:10:00.000Z")
   assert.equal(deriveNeedsYou(row, tele, "running", false, nowMs), false, "un-degraded, the rest-gate swallows the ask — the state the maintainer saw")
@@ -1396,10 +1396,10 @@ test("deriveNeedsYou: a degraded ask-row cards — the pair is what puts it in t
 // the worse of the two — a shell does not excuse a rest on its own, a sub-agent does.
 // A permission marker is a file; it outlives the daemon that was parked on it.
 test("a broker thread whose daemon died while parked on a permission request is a stall, not a live approval", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-deadperm-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-deadperm-"))
   const project: Project = { dir, id: "project-dp", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "parked", session_id: "sess-parked", thread_name: "frizz-parked" }))
+  storage.upsertSession(row({ slug: "parked", session_id: "sess-parked", thread_name: "ntwine-parked" }))
   storage.setBackend("parked", "claude")
   storage.setClaudeRuntime("parked", "broker")
   const tailer = {
@@ -1419,10 +1419,10 @@ test("a broker thread whose daemon died while parked on a permission request is 
 })
 
 test("a rested broker thread whose daemon died holding live sub-agents surfaces instead of vanishing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-deaddaemon-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-deaddaemon-"))
   const project: Project = { dir, id: "project-dd", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "orphaned", session_id: "sess-orphaned", thread_name: "frizz-orphaned", rested_at: T0 }))
+  storage.upsertSession(row({ slug: "orphaned", session_id: "sess-orphaned", thread_name: "ntwine-orphaned", rested_at: T0 }))
   storage.setBackend("orphaned", "claude")
   storage.setClaudeRuntime("orphaned", "broker")
 
@@ -1484,13 +1484,13 @@ test("a rested broker thread whose daemon died holding live sub-agents surfaces 
 })
 
 // A dead daemon with NOTHING outstanding is the ordinary resting state of every broker thread: the
-// daemon exits (idle-timeout, or frizz stopping it) and the next prompt forks a successor. That must stay
+// daemon exits (idle-timeout, or ntwine stopping it) and the next prompt forks a successor. That must stay
 // a clean `turn-idle` rest, or the fix above would card the entire board as crashed.
 test("a rested broker thread whose daemon died with NO outstanding work stays an ordinary rest", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-quietdaemon-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-quietdaemon-"))
   const project: Project = { dir, id: "project-qd", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "quiet", session_id: "sess-quiet", thread_name: "frizz-quiet", rested_at: T0 }))
+  storage.upsertSession(row({ slug: "quiet", session_id: "sess-quiet", thread_name: "ntwine-quiet", rested_at: T0 }))
   storage.setBackend("quiet", "claude")
   storage.setClaudeRuntime("quiet", "broker")
 
@@ -1513,10 +1513,10 @@ test("a rested broker thread whose daemon died with NO outstanding work stays an
 // has to reach the delivery gate, or a follow-up receipted by a daemon that then died keeps the
 // thread's own ```done card out of the queue for the rest of UNCONFIRMED_DROP_MS.
 test("a broker thread whose daemon died still holding a follow-up returns to the queue", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-deadsend-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-deadsend-"))
   const project: Project = { dir, id: "project-ds", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "stranded", session_id: "sess-stranded", thread_name: "frizz-stranded", rested_at: T0 }))
+  storage.upsertSession(row({ slug: "stranded", session_id: "sess-stranded", thread_name: "ntwine-stranded", rested_at: T0 }))
   storage.setBackend("stranded", "claude")
   storage.setClaudeRuntime("stranded", "broker")
   storage.setDeliveryLedger("stranded", ledger("enqueued"))
@@ -1538,13 +1538,13 @@ test("a broker thread whose daemon died still holding a follow-up returns to the
 })
 
 test("a broker claude thread with no transcript reads as stalled, while a codex app-server thread does not", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-notranscript-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-notranscript-"))
   const project: Project = { dir, id: "project-nt", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "broker", session_id: "sess-broker", thread_name: "frizz-broker" }))
+  storage.upsertSession(row({ slug: "broker", session_id: "sess-broker", thread_name: "ntwine-broker" }))
   storage.setBackend("broker", "claude")
   storage.setClaudeRuntime("broker", "broker")
-  storage.upsertSession(row({ slug: "codex", session_id: "sess-codex", thread_name: "frizz-codex" }))
+  storage.upsertSession(row({ slug: "codex", session_id: "sess-codex", thread_name: "ntwine-codex" }))
   storage.setBackend("codex", "codex")
   storage.setCodexRuntime("codex", "app-server")
 
@@ -1572,7 +1572,7 @@ test("appServerTurnStalled: only a turn nobody is driving, and only once the rea
   const owned = "2026-07-09T10:00:00.000Z"
   const ownedMs = Date.parse(owned)
   const wellPast = ownedMs + 120_000
-  // The live incident: the app-server died mid-turn, so the rollout froze BEFORE frizz last took the
+  // The live incident: the app-server died mid-turn, so the rollout froze BEFORE ntwine last took the
   // thread and nothing has advanced it since. That is a stall.
   assert.equal(appServerTurnStalled({ bridgeTurn: false, ownedSince: owned }, "2026-07-09T09:59:00.000Z", wellPast), true)
   // A rollout with no activity at all behaves the same — there is nothing to argue it is alive.
@@ -1581,7 +1581,7 @@ test("appServerTurnStalled: only a turn nobody is driving, and only once the rea
   // call legitimately writes nothing for minutes).
   assert.equal(appServerTurnStalled({ bridgeTurn: true, ownedSince: owned }, undefined, wellPast), false)
   // Someone else is driving it — a `codex resume` in the operator's own terminal keeps appending after
-  // frizz took the thread. frizz is mirroring a genuinely live turn; leave it running.
+  // ntwine took the thread. ntwine is mirroring a genuinely live turn; leave it running.
   assert.equal(appServerTurnStalled({ bridgeTurn: false, ownedSince: owned }, "2026-07-09T10:00:30.000Z", wellPast), false)
   // Read skew at the end of a normal turn: the bridge has cleared its turn but the rollout's matching
   // record has not reached the tailer yet. The grace makes that flash impossible.
@@ -1613,11 +1613,11 @@ test("registered auto-titles stay in SQLite/transcript and never sync into a pla
   const boardSource = readFileSync(new URL("./board.ts", import.meta.url), "utf8")
   assert.doesNotMatch(boardSource, /\brunThreadUpdate\b/)
 
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-auto-title-"))
-  mkdirSync(join(dir, ".frizz"))
-  const regular = join(dir, ".frizz", "auto-regular.md")
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-auto-title-"))
+  mkdirSync(join(dir, ".ntwine"))
+  const regular = join(dir, ".ntwine", "auto-regular.md")
   const external = join(dir, "outside.md")
-  const linked = join(dir, ".frizz", "auto-linked.md")
+  const linked = join(dir, ".ntwine", "auto-linked.md")
   // A terminal-looking planted file would archive this state=NULL row if the legacy reader opened it.
   writeFileSync(regular, "---\ntitle: Planted\nstatus: done\n---\nregular sentinel\n")
   writeFileSync(external, "external sentinel\n")
@@ -1635,7 +1635,7 @@ test("registered auto-titles stay in SQLite/transcript and never sync into a pla
     storage.upsertSession(row({
       slug,
       session_id: `session-${slug}`,
-      thread_name: `frizz-${slug}`,
+      thread_name: `ntwine-${slug}`,
       title: "Stored fallback",
       title_auto: 1,
       state: null,
@@ -1681,8 +1681,8 @@ test("registered auto-titles stay in SQLite/transcript and never sync into a pla
 })
 
 test("board provenance excludes legacy files, keeps a foreign transcript read-only, and survives restart", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-provenance-"))
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-provenance-"))
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
   const reportedInvalidFiles = [
     "nubx-dashdash-A-conformance",
     "bun-1.4-lockfile-v2-research",
@@ -1693,10 +1693,10 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
   ]
   for (const slug of [...reportedInvalidFiles, "valid-external-legacy"]) {
     // Deliberately malformed: if the legacy parser sees any of these, the snapshot gains an error.
-    writeFileSync(join(dir, ".frizz", `${slug}.md`), "not frontmatter\n")
+    writeFileSync(join(dir, ".ntwine", `${slug}.md`), "not frontmatter\n")
   }
   writeFileSync(
-    join(dir, ".frizz", "migrated-ui-done.md"),
+    join(dir, ".ntwine", "migrated-ui-done.md"),
     "---\ntitle: Migrated UI thread\nstatus: done\n---\n",
   )
   const project: Project = {
@@ -1712,7 +1712,7 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
   storage.upsertSession(row({
     slug: "ui-claude",
     session_id: "claude-session",
-    thread_name: "frizz-ui-claude",
+    thread_name: "ntwine-ui-claude",
     title: "Claude UI thread",
     title_auto: 0,
     state: null,
@@ -1720,7 +1720,7 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
   storage.upsertSession(row({
     slug: "ui-codex",
     session_id: "codex-session",
-    thread_name: "frizz-ui-codex",
+    thread_name: "ntwine-ui-codex",
     title: "Codex UI thread",
     backend: "codex",
     state: "archived",
@@ -1729,7 +1729,7 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
   storage.upsertSession(row({
     slug: "migrated-ui-done",
     session_id: "migrated-session",
-    thread_name: "frizz-migrated-ui-done",
+    thread_name: "ntwine-migrated-ui-done",
     title: "Migrated UI thread",
     state: null,
     archived: 0,
@@ -1756,7 +1756,7 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
   try {
     let snapshot = await board.snapshot()
     assert.deepEqual(snapshot.threads.map((thread) => thread.id).sort(), ["foreign-terminal-origin", "migrated-ui-done", "ui-claude", "ui-codex"])
-    // LEGACY provenance is still absolute: an unregistered `.frizz` file never becomes a row. A FOREIGN
+    // LEGACY provenance is still absolute: an unregistered `.ntwine` file never becomes a row. A FOREIGN
     // transcript now does — the External sessions band (2026-08-19) — but it arrives read-only and
     // carries none of the row-derived state it has no source for.
     assert.equal(snapshot.threads.some((thread) => thread.kind === "legacy"), false)
@@ -1780,11 +1780,11 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
 
     // Finalized adoption writes the same durable session row as dispatch. Once that explicit boundary
     // exists, a formerly external legacy file is represented as an owned session—not as a legacy row.
-    writeFileSync(join(dir, ".frizz", "adopted-through-ui.md"), "still not parsed\n")
+    writeFileSync(join(dir, ".ntwine", "adopted-through-ui.md"), "still not parsed\n")
     storage.upsertSession(row({
       slug: "adopted-through-ui",
       session_id: "adopted-session",
-      thread_name: "frizz-adopted-through-ui",
+      thread_name: "ntwine-adopted-through-ui",
       title: "Adopted through UI",
       state: "open",
     }))
@@ -1821,10 +1821,10 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
 
 // A row in this band must carry a NAME, not a uuid. Both harnesses name their own threads and both
 // fall back to the opening human turn when they have not — verified by driving each of their resume
-// pickers on 2026-08-24 — so frizz reads them in that same order.
+// pickers on 2026-08-24 — so ntwine reads them in that same order.
 test("an external row is named by its harness, else by the turn the conversation opened on", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-external-title-"))
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-external-title-"))
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
   const project: Project = { dir, id: "p", name: "f", label: "f", stateDir: dir, cwdSlug: "f" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const telemetry = new Map<string, SessionTelemetry>([
@@ -1856,7 +1856,7 @@ test("an external row is named by its harness, else by the turn the conversation
     assert.equal(rows.get("named-by-prompt")?.titleAuto, true, "a chop of the prompt IS a machine guess")
 
     // NEVER the "Spinning up a thread…" placeholder: that promises a title on its way, and for a
-    // session frizz did not dispatch nothing is on its way.
+    // session ntwine did not dispatch nothing is on its way.
     assert.equal(rows.get("nameless")?.title, "Session nameless")
   } finally {
     await board.stop()
@@ -1871,8 +1871,8 @@ test("an external row is named by its harness, else by the turn the conversation
 // the window it belongs to; listing it here would be noise, and clicking into it would invite two
 // drivers on one transcript.
 test("the External band lists only RESTED foreign sessions, and drops one the moment its turn starts", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-foreign-band-"))
-  mkdirSync(join(dir, ".frizz"), { recursive: true })
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-foreign-band-"))
+  mkdirSync(join(dir, ".ntwine"), { recursive: true })
   const project: Project = {
     dir,
     id: "project-board-foreign-band",
@@ -1924,7 +1924,7 @@ test("the External band lists only RESTED foreign sessions, and drops one the mo
     assert.deepEqual(board.refresh().threads.map((thread) => thread.id), [], "a foreign session that starts working drops out")
 
     // And a title-less session still rows, under a short-id name rather than a spinning-up placeholder
-    // (nothing is on its way — no titler runs for a session frizz did not dispatch).
+    // (nothing is on its way — no titler runs for a session ntwine did not dispatch).
     telemetry.set("rested-terminal", tele({ turn: "idle" }))
     const untitled = board.refresh().threads.find((thread) => thread.id === "rested-terminal")
     assert.equal(untitled?.title, "Session rested-t")
@@ -1937,8 +1937,8 @@ test("the External band lists only RESTED foreign sessions, and drops one the mo
 })
 
 test("board stop drains a watcher setup that races shutdown and immediately unsubscribes it", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-watch-shutdown-"))
-  mkdirSync(join(dir, ".frizz"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-watch-shutdown-"))
+  mkdirSync(join(dir, ".ntwine"))
   const project: Project = {
     dir,
     id: "project-board-watch-shutdown",
@@ -1988,29 +1988,29 @@ test("board stop drains a watcher setup that races shutdown and immediately unsu
   }
 })
 
-// THE WATCH SCOPE. `.frizz/` is a shared directory, not a board directory: every dispatched worker owns
-// `.frizz/threads/<session-id>/` as free-form scratch, and the board CLI churns sentinels under
-// `.frizz/.session-state/`. A rebuild is thousands of synchronous node:sqlite queries on the event loop,
+// THE WATCH SCOPE. `.ntwine/` is a shared directory, not a board directory: every dispatched worker owns
+// `.ntwine/threads/<session-id>/` as free-form scratch, and the board CLI churns sentinels under
+// `.ntwine/.session-state/`. A rebuild is thousands of synchronous node:sqlite queries on the event loop,
 // so a recursive watch over the lot let any agent's note stall every RPC the browser had in flight
 // (measured 2026-09-04: 4.5-10ms board RPC idle, 49-1069ms on the live server). These pin the narrowing
 // in both directions, because the failure mode of over-narrowing — a sidebar that stops updating — is
 // far worse than the slowness it fixes.
-test("the .frizz watch predicate admits a top-level thread document and nothing else", () => {
-  const roots = new Set(["/repo/.frizz", "/private/repo/.frizz"])
-  assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/my-thread.md"), true, "the one file the board re-reads")
+test("the .ntwine watch predicate admits a top-level thread document and nothing else", () => {
+  const roots = new Set(["/repo/.ntwine", "/private/repo/.ntwine"])
+  assert.equal(isBoardRelevantNtwinePath(roots, "/repo/.ntwine/my-thread.md"), true, "the one file the board re-reads")
   // The realpath spelling is the one @parcel/watcher actually reports for a symlinked root.
-  assert.equal(isBoardRelevantFrizzPath(roots, "/private/repo/.frizz/my-thread.md"), true)
-  assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/threads/2f0a/scratch.md"), false, "worker scratch")
-  assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/.session-state/2f0a.seen"), false, "CLI liveness sidecar")
-  assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/plans/design.md"), false, "a .md one level down is not a thread file")
-  assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/worktrees/feature/README.md"), false, "a worker's git worktree")
-  assert.equal(isBoardRelevantFrizzPath(roots, "/repo/.frizz/config.yml"), false, "nothing the board projection reads")
-  assert.equal(isBoardRelevantFrizzPath(roots, "/elsewhere/.frizz/my-thread.md"), false, "another project's tree")
+  assert.equal(isBoardRelevantNtwinePath(roots, "/private/repo/.ntwine/my-thread.md"), true)
+  assert.equal(isBoardRelevantNtwinePath(roots, "/repo/.ntwine/threads/2f0a/scratch.md"), false, "worker scratch")
+  assert.equal(isBoardRelevantNtwinePath(roots, "/repo/.ntwine/.session-state/2f0a.seen"), false, "CLI liveness sidecar")
+  assert.equal(isBoardRelevantNtwinePath(roots, "/repo/.ntwine/plans/design.md"), false, "a .md one level down is not a thread file")
+  assert.equal(isBoardRelevantNtwinePath(roots, "/repo/.ntwine/worktrees/feature/README.md"), false, "a worker's git worktree")
+  assert.equal(isBoardRelevantNtwinePath(roots, "/repo/.ntwine/config.yml"), false, "nothing the board projection reads")
+  assert.equal(isBoardRelevantNtwinePath(roots, "/elsewhere/.ntwine/my-thread.md"), false, "another project's tree")
 })
 
 test("a worker scratch write triggers no board rebuild, while a top-level .md still does", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-watch-scope-"))
-  mkdirSync(join(dir, ".frizz"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-watch-scope-"))
+  mkdirSync(join(dir, ".ntwine"))
   const project: Project = {
     dir, id: "project-board-watch-scope", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture",
   }
@@ -2045,23 +2045,23 @@ test("a worker scratch write triggers no board rebuild, while a top-level .md st
     const afterStart = builds
     assert.ok(afterStart >= 1, "the initial build ran")
     assert.deepEqual(ignored, [
-      join(dir, ".frizz", "threads"),
-      join(dir, ".frizz", ".session-state"),
-      join(dir, ".frizz", "worktrees"),
+      join(dir, ".ntwine", "threads"),
+      join(dir, ".ntwine", ".session-state"),
+      join(dir, ".ntwine", "worktrees"),
     ])
 
-    // NEGATIVE: the scratch directory Frizz hands every worker, the CLI's sentinel dir, and a worker's
+    // NEGATIVE: the scratch directory Ntwine hands every worker, the CLI's sentinel dir, and a worker's
     // git worktree — a whole checkout, whose own top-level `.md` files are not this board's threads.
     fire([
-      join(dir, ".frizz", "threads", "2f0a", "scratch.md"),
-      join(dir, ".frizz", ".session-state", "2f0a.seen"),
-      join(dir, ".frizz", "worktrees", "feature", "README.md"),
+      join(dir, ".ntwine", "threads", "2f0a", "scratch.md"),
+      join(dir, ".ntwine", ".session-state", "2f0a.seen"),
+      join(dir, ".ntwine", "worktrees", "feature", "README.md"),
     ])
     await settle()
     assert.equal(builds, afterStart, "worker scratch must not rebuild the board")
 
     // POSITIVE, and the control that proves the counter above can move at all.
-    fire([join(dir, ".frizz", "my-thread.md")])
+    fire([join(dir, ".ntwine", "my-thread.md")])
     await settle()
     assert.equal(builds, afterStart + 1, "a top-level thread document still rebuilds promptly")
 
@@ -2082,11 +2082,11 @@ test("a worker scratch write triggers no board rebuild, while a top-level .md st
   }
 })
 
-test("a .frizz watcher that cannot start does not fail the board", async () => {
+test("a .ntwine watcher that cannot start does not fail the board", async () => {
   // 2026-10-06: a worktree build deleted a directory mid-walk, @parcel/watcher's subscribe rejected
   // with ENOENT, start() rethrew it, and the whole project failed to open — scheduler included.
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-watch-fail-"))
-  mkdirSync(join(dir, ".frizz"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-watch-fail-"))
+  mkdirSync(join(dir, ".ntwine"))
   const project: Project = { dir, id: "board-watch-fail", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const tailer = {
@@ -2102,7 +2102,7 @@ test("a .frizz watcher that cannot start does not fail the board", async () => {
   const board = createBoard(project, storage, new Bus(), tailer, "watch-fail-boot", {
     subscribe: async () => {
       attempts++
-      throw new Error("inotify_add_watch on '/x/.frizz/worktrees/a/out' failed: No such file or directory")
+      throw new Error("inotify_add_watch on '/x/.ntwine/worktrees/a/out' failed: No such file or directory")
     },
   })
   try {
@@ -2117,10 +2117,10 @@ test("a .frizz watcher that cannot start does not fail the board", async () => {
 })
 
 test("board exposes a typed providerFault from tailer auth telemetry — category only, no raw text", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-auth-fault-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-auth-fault-"))
   const project: Project = { dir, id: "board-auth-fault", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "auth-fault", thread_name: "frizz-auth-fault", backend: "claude" }))
+  storage.upsertSession(row({ slug: "auth-fault", thread_name: "ntwine-auth-fault", backend: "claude" }))
   const tailer = {
     get: (slug: string) => (slug === "auth-fault" ? tele({ authFault: "authentication_rejected" }) : undefined),
     foreignIds: () => [],
@@ -2145,10 +2145,10 @@ test("board exposes a typed providerFault from tailer auth telemetry — categor
 
 // The phone board's second line: the live tool while a call runs, and the handoff's real first line.
 test("board carries the live tool and the handoff's first line from the tailer onto the view", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-row-line-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-row-line-"))
   const project: Project = { dir, id: "board-row-line", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "live", thread_name: "frizz-live", backend: "claude" }))
+  storage.upsertSession(row({ slug: "live", thread_name: "ntwine-live", backend: "claude" }))
   const tailer = {
     get: (slug: string) => (slug === "live"
       ? tele({ turn: "in-flight", liveTool: { name: "Bash", desc: "Running the focused tests" }, lastAssistant: "**Fixed** — green. - one", lastAssistantLine: "**Fixed** — green." })
@@ -2180,7 +2180,7 @@ test("board carries the live tool and the handoff's first line from the tailer o
 // prompt box, similar to how subagents work"). Its two kinds come from two different places, and that
 // split is the thing to hold on to:
 //
-//   • a GITHUB row is one REGISTERED PR watcher (`mcp__frizz__watch_pr`). It stands whether or not the
+//   • a GITHUB row is one REGISTERED PR watcher (`mcp__ntwine__watch_pr`). It stands whether or not the
 //     fence mentions it, because a registration is live work regardless of what the worker wrote.
 //   • a SHELL row is a `watch:` line in the standing fence, checked against a live shell. It is a
 //     DECLARATION, so it lives and dies with the fence.
@@ -2218,7 +2218,7 @@ test("a registered watcher shows with no fence at all", () => {
 })
 
 // …AND A DECLARATION WITH NOTHING BEHIND IT SHOWS NOTHING. The fence can name any PR it likes; only a
-// registration makes frizz watch one, so an unregistered line would put a row on the strip that nothing
+// registration makes ntwine watch one, so an unregistered line would put a row on the strip that nothing
 // can ever fire.
 test("a pr-watch line with no registration behind it yields no row", () => {
   assert.deepEqual(fenceWatchViews("t", parked({ kind: "pr", value: "colinhacks/zod#6382" }), FENCE_AT, {}, []), [])
@@ -2308,7 +2308,7 @@ test("nothing registered and nothing declared, no rows", () => {
 // ---- REGISTERED WATCHES (2026-08-26) ----
 //
 // The registry half of the same split, and the one the fence never had: a `thread_watch` row created by
-// `mcp__frizz__watch`. It follows the GITHUB/TIMER side — the row outlives the message that made it, so
+// `mcp__ntwine__watch`. It follows the GITHUB/TIMER side — the row outlives the message that made it, so
 // it stands fence or no fence — and it parks the thread on its own, which is the whole point of
 // plans/rest-by-registration.md: a wait stops being a line the worker has to restate at every rest.
 const NOW = Date.parse(FENCE_AT) + 60_000 // a minute into the rest
@@ -2496,7 +2496,7 @@ test("an answered row in flight composes the exact message the delivery will car
 test("the WORKER RECEIVING it spends it — not the outbox claiming it", () => {
   // `delivered` is the OUTBOX's verdict — it can flip on the daemon's acknowledgement, before the
   // transcript has the record — so keying on it would reopen the same hole a moment wide. The newest
-  // user record is the honest test: frizz's delivery IS a user record, so the moment the worker has it,
+  // user record is the honest test: ntwine's delivery IS a user record, so the moment the worker has it,
   // the card the transcript draws takes over.
   assert.ok(answersInFlight([askedRow({ delivered: 1 })], new Date(1999).toISOString()), "acknowledged is not on screen")
   assert.equal(answersInFlight([askedRow()], new Date(2000).toISOString()), undefined, "the record landed")
@@ -2593,10 +2593,10 @@ test("deriveDeliveryInFlight: never over a queued thread, a running turn, a dead
 //
 // A fenceless rest entered the queue the instant it happened, the nudge woke the worker two seconds
 // later (off the queue), and its sign-off put it back: a card that blinked in and out (2026-10-01,
-// `work-on-a-frizz-integration-vscode`: rest 21:14:18.8, nudge 21:14:21.0, done 21:14:24.2).
+// `work-on-a-ntwine-integration-vscode`: rest 21:14:18.8, nudge 21:14:21.0, done 21:14:24.2).
 
 test("a bare rest the sign-off nudge will take stays out of the queue until the nudge has had its window", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-signoff-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-signoff-"))
   const project: Project = { dir, id: "project-signoff", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const restedAt = Date.parse(T0) + 60_000
@@ -2606,9 +2606,9 @@ test("a bare rest the sign-off nudge will take stays out of the queue until the 
     fenced: { ...bare, lastFence: { kind: "done", body: "Shipped.", hints: [] } },
     capped: bare,
   }
-  storage.upsertSession(row({ slug: "bare", session_id: "s-bare", thread_name: "frizz-bare" }))
-  storage.upsertSession(row({ slug: "fenced", session_id: "s-fenced", thread_name: "frizz-fenced" }))
-  storage.upsertSession(row({ slug: "capped", session_id: "s-capped", thread_name: "frizz-capped" }))
+  storage.upsertSession(row({ slug: "bare", session_id: "s-bare", thread_name: "ntwine-bare" }))
+  storage.upsertSession(row({ slug: "fenced", session_id: "s-fenced", thread_name: "ntwine-fenced" }))
+  storage.upsertSession(row({ slug: "capped", session_id: "s-capped", thread_name: "ntwine-capped" }))
   storage.countSignoffNudge("capped", "signoff:a")
   storage.countSignoffNudge("capped", "signoff:b")
   const tailer = {
@@ -2715,7 +2715,7 @@ test("a STALE fault from before the human's message cannot withdraw the done", (
 })
 
 test("a same-instant tie stands, because the two instants come off DIFFERENT clocks", () => {
-  // The row's instant is frizz's own Date.now(); the telemetry's is the transcript record's. A worker
+  // The row's instant is ntwine's own Date.now(); the telemetry's is the transcript record's. A worker
   // signing off on the turn a user record started is the ordinary case, not a reopening.
   const at = Date.parse("2026-08-27T01:00:00.000Z")
   assert.equal(registeredDoneFence({ body: "done", doneAt: at }, "2026-08-27T01:00:00.000Z")?.kind, "done")
@@ -2723,7 +2723,7 @@ test("a same-instant tie stands, because the two instants come off DIFFERENT clo
 
 test("an unparseable user instant cannot silently revoke a completion", () => {
   // `Date.parse` returns NaN, and every comparison against NaN is false — so a naive `>` would have
-  // left the done standing by accident rather than on purpose. It stands ON PURPOSE: a timestamp frizz
+  // left the done standing by accident rather than on purpose. It stands ON PURPOSE: a timestamp ntwine
   // cannot read is not evidence that the human said anything.
   assert.equal(registeredDoneFence({ body: "done", doneAt: 1000 }, "not-a-date")?.kind, "done")
 })
@@ -2779,10 +2779,10 @@ test("a registered issue watcher gets a github row with subject issue, read from
 // halves: the edition the worker RUNS (off the transcript's model id) and the newer one its family
 // resolves to now (off the pin's catalogue) — and whether the next turn already starts on it by itself.
 test("a Claude thread on an older edition of its family carries its running label and the upgrade", () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-edition-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-edition-"))
   const project: Project = { dir, id: "project-ed", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "behind", session_id: "sess-behind", thread_name: "frizz-behind", model: "opus", effort: "high" }))
+  storage.upsertSession(row({ slug: "behind", session_id: "sess-behind", thread_name: "ntwine-behind", model: "opus", effort: "high" }))
   storage.setBackend("behind", "claude")
   storage.setClaudeRuntime("behind", "broker")
   let observed = "claude-opus-5"
@@ -2826,10 +2826,10 @@ test("a Claude thread on an older edition of its family carries its running labe
 // is the human's to notice in the Running band and interrupt there. A worker whose process has DIED
 // mid-turn is deriveNeedsYou's crash net, which still queues it.
 test("board: a silent in-flight turn stays in Running", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-silent-turn-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-silent-turn-"))
   const project: Project = { dir, id: "p", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
   const storage = createStorage(join(dir, "ui.db"), "p")
-  storage.upsertSession(row({ slug: "wedged", session_id: "sid", thread_name: "frizz-wedged", seen_at: LATER }))
+  storage.upsertSession(row({ slug: "wedged", session_id: "sid", thread_name: "ntwine-wedged", seen_at: LATER }))
   storage.setBackend("wedged", "codex")
   storage.setCodexRuntime("wedged", "app-server")
   const now = Date.now()

@@ -1,10 +1,10 @@
 import { queryOptions, useQuery, type QueryClient, type UseQueryResult } from "@tanstack/react-query"
-import { FRIZZ_SUPERVISOR_STATUS_WAKE_EVENT, getFrizzSupervisorStatus, type FrizzSupervisorStatus, type StampedSupervisorStatus } from "./restart.ts"
+import { NTWINE_SUPERVISOR_STATUS_WAKE_EVENT, getNtwineSupervisorStatus, type NtwineSupervisorStatus, type StampedSupervisorStatus } from "./restart.ts"
 import { store } from "../store.ts"
 
-// ── ONE reader of /_frizz/control/status, for every consumer ───────────────────────────────────────────
+// ── ONE reader of /_ntwine/control/status, for every consumer ───────────────────────────────────────────
 // Three call sites used to ask the supervisor the same question on three private schedules: App's
-// hand-rolled control-plane loop, the Restart Frizz button's mount probe, and the dev-build probe behind
+// hand-rolled control-plane loop, the Restart Ntwine button's mount probe, and the dev-build probe behind
 // the worker-restart verb. Measured on the maintainer's board (2026-09-04) they fired at t+58ms, t+61ms
 // and t+63ms of ONE navigation — three of the ~11 RPCs starting within 5ms of each other, into a browser
 // HTTP/1.1 pool of six, in the burst that left a threadTranscript reporting `stall: 1978ms` before it was
@@ -27,7 +27,7 @@ export const SUPERVISOR_STATUS_KEY = ["supervisorStatus"] as const
  * Fast while a transition is in flight — server-confirmed, OR optimistically raised by the button that
  * asked for it, which is the window where the supervisor has not yet answered but the overlay is up.
  */
-export function supervisorPollMs(state: FrizzSupervisorStatus["state"] | undefined, restartPending: boolean): number {
+export function supervisorPollMs(state: NtwineSupervisorStatus["state"] | undefined, restartPending: boolean): number {
   return state === "restarting" || restartPending ? HANDOFF_MS : AT_REST_MS
 }
 
@@ -40,10 +40,10 @@ export const supervisorStatusQueryOptions = queryOptions({
   // are structurally equal, so react-query hands App a fresh object per poll.
   queryFn: async (): Promise<StampedSupervisorStatus | null> => {
     const requestedAt = Date.now()
-    const status = await getFrizzSupervisorStatus()
+    const status = await getNtwineSupervisorStatus()
     return status ? { ...status, requestedAt } : null
   },
-  // `null` is a legitimate ANSWER here, never an error: getFrizzSupervisorStatus folds an unreachable
+  // `null` is a legitimate ANSWER here, never an error: getNtwineSupervisorStatus folds an unreachable
   // supervisor, a non-protocol reply and the SPA HTML fallback all into it and never rejects. So there is
   // nothing to retry, and — unlike the module-level promise this replaces — nothing caches that window
   // for the life of the page either. The next poll is the retry, which is how a dev-only verb reappears
@@ -71,7 +71,7 @@ let wakeClient: QueryClient | null = null
 export function initSupervisorStatus(queryClient: QueryClient): void {
   if (wakeClient) return
   wakeClient = queryClient
-  window.addEventListener(FRIZZ_SUPERVISOR_STATUS_WAKE_EVENT, () => {
+  window.addEventListener(NTWINE_SUPERVISOR_STATUS_WAKE_EVENT, () => {
     void queryClient.refetchQueries({ queryKey: SUPERVISOR_STATUS_KEY, exact: true })
   })
 }

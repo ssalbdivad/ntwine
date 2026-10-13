@@ -98,7 +98,7 @@ process.stdin.on("data", (c) => {
   for (let i; (i = b.indexOf("\\n")) >= 0;) {
     const line = b.slice(0, i); b = b.slice(i + 1)
     let m; try { m = JSON.parse(line) } catch { continue }
-    if (m.method === "initialize") process.stdout.write(JSON.stringify({ id: m.id, result: { userAgent: "frizz/0.144.6 (harness)" } }) + "\\n")
+    if (m.method === "initialize") process.stdout.write(JSON.stringify({ id: m.id, result: { userAgent: "ntwine/0.144.6 (harness)" } }) + "\\n")
   }
 })
 process.stdin.resume()
@@ -111,10 +111,10 @@ const families = {
     return {
       socketPath: codexAppServerSocketPath(dir, projectId),
       recordPath: codexAppServerDaemonRecordPath(dir, projectId),
-      fork: (generation) => forkDaemon("codex-app-server-daemon.ts", "FRIZZ_CODEX_APP_SERVER_DAEMON", {
+      fork: (generation) => forkDaemon("codex-app-server-daemon.ts", "NTWINE_CODEX_APP_SERVER_DAEMON", {
         projectId, socketPath: codexAppServerSocketPath(dir, projectId), recordPath: codexAppServerDaemonRecordPath(dir, projectId),
         codexBin: process.execPath, cwd: dir, env: { PATH: process.env.PATH ?? "" }, generation,
-        clientInfo: { name: "frizz", version: "0" }, capabilities: {}, appServerArgs: [join(dir, "fake-app-server.mjs")],
+        clientInfo: { name: "ntwine", version: "0" }, capabilities: {}, appServerArgs: [join(dir, "fake-app-server.mjs")],
         reachabilityCheckMs: CHECK_MS,
       }, dir),
     }
@@ -124,7 +124,7 @@ const families = {
     return {
       socketPath: acpDaemonSocketPath(dir, sessionId),
       recordPath: acpDaemonRecordPath(dir, sessionId),
-      fork: (generation) => forkDaemon("acp-daemon.ts", "FRIZZ_ACP_DAEMON", {
+      fork: (generation) => forkDaemon("acp-daemon.ts", "NTWINE_ACP_DAEMON", {
         threadSlug: "t1", sessionId, socketPath: acpDaemonSocketPath(dir, sessionId), recordPath: acpDaemonRecordPath(dir, sessionId),
         command: process.execPath, args: [join(backendDir, "acp.fixtures/fake-acp-agent.mjs")], cwd: dir,
         env: { PATH: process.env.PATH ?? "" }, generation, reachabilityCheckMs: CHECK_MS,

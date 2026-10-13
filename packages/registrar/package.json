@@ -1,5 +1,5 @@
 {
-  "name": "@frizz/registrar",
+  "name": "@ntwine/registrar",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -7,7 +7,7 @@
     ".": "./src/worker.ts"
   },
   "dependencies": {
-    "@frizz/shared": "workspace:*"
+    "@ntwine/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7",

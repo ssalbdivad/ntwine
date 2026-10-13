@@ -9,7 +9,7 @@
 //   · ThreadSlugContext — supplied by the drawer's own ChatView, so open the thread to exercise it.
 //   · backend !== "codex" — the row is a claude row.
 //
-// Follows the frizz-stack recipe: a session row + a JSONL the tailer reads.
+// Follows the ntwine-stack recipe: a session row + a JSONL the tailer reads.
 // Usage: node scripts/seed-queued-unqueueable.mjs --home=/abs/temp-home --port=NNNN
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -62,7 +62,7 @@ const records = [
 ]
 writeFileSync(join(jsonlDir, `${SESSION_ID}.jsonl`), records.map((r) => JSON.stringify(r)).join("\n") + "\n")
 
-const threadName = `frizz-${SLUG}`
+const threadName = `ntwine-${SLUG}`
 
 // `enqueued` rather than `pending`: it is the state a real follow-up settles into once Claude Code has
 // written its enqueue record, and it deliberately never ages into the amber "check the terminal"

@@ -1,4 +1,4 @@
-import type { BgShellView, ThreadView } from "@frizz/shared"
+import type { BgShellView, ThreadView } from "@ntwine/shared"
 import { visibleChildOps, type TranscriptShellRecord } from "./childOps.ts"
 import { cardProcesses } from "./threadProcesses.ts"
 

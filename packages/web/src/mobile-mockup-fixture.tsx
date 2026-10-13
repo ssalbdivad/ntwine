@@ -1,4 +1,4 @@
-// FRIZZ ON A PHONE — the whole product, mocked up for a 390pt viewport.
+// NTWINE ON A PHONE — the whole product, mocked up for a 390pt viewport.
 //
 // Not a test and not shipped UI: a DESIGN SURFACE, in the shape `awaiting-mockups-fixture.tsx`
 // established. Every screen renders in the app's REAL stylesheet on the app's REAL tokens, so a choice
@@ -211,7 +211,7 @@ function ChildOp({ kind, label, elapsed }: { kind: "agent" | "shell"; label: str
 const PROJECTS = [
   { slug: "nub", label: "nubjs/nub", tint: "bg-[#e8b923] text-bg", initial: "N", path: "~/code/nub", asks: 2, active: 2, snoozed: 1, when: "now" },
   { slug: "zod", label: "colinhacks/zod", tint: "bg-[#4a9eff] text-bg", initial: "Z", path: "~/code/zod", asks: 1, active: 0, snoozed: 2, when: "2h" },
-  { slug: "frizz", label: "colinhacks/frizz", tint: "bg-[#b47feb] text-bg", initial: "F", path: "~/Documents/projects/frizz", asks: 0, active: 3, snoozed: 0, when: "12m" },
+  { slug: "ntwine", label: "colinhacks/frizz", tint: "bg-[#b47feb] text-bg", initial: "F", path: "~/Documents/projects/ntwine", asks: 0, active: 3, snoozed: 0, when: "12m" },
   { slug: "acme-app", label: "acme/app", tint: "bg-[#4ac97e] text-bg", initial: "A", path: "~/work/acme/app", asks: 0, active: 0, snoozed: 1, when: "yesterday" },
   { slug: "pullfrog", label: "pullfrog/web", tint: "bg-[#6b7280] text-bg", initial: "P", path: "~/code/pullfrog", asks: 0, active: 0, snoozed: 0, when: "3d" },
   { slug: "sonner", label: "emilkowal/sonner", tint: "bg-[#33363c] text-fg", initial: "S", path: "~/code/sonner", asks: 0, active: 0, snoozed: 0, when: "1w" },
@@ -724,7 +724,7 @@ function ActionsScreen() {
             <Group>
               <Row icon={<Pencil size={16} className="text-muted" />} label="Rename thread" />
               <RowRule inset={53} />
-              <Row icon={<FileText size={16} className="text-muted" />} label="Frizz document" chevron />
+              <Row icon={<FileText size={16} className="text-muted" />} label="Ntwine document" chevron />
               <RowRule inset={53} />
               <Row icon={<ArrowUpRight size={16} className="text-muted" />} label="Open full page" chevron />
             </Group>
@@ -909,11 +909,11 @@ function SettingsScreen() {
           <Row icon={<Check size={15} className="text-fg" />} iconTint="bg-[#4ac97e]/18" label="Alert me when a thread finishes" trailing={<Toggle />} />
         </Group>
 
-        <GroupHeader>Frizz</GroupHeader>
+        <GroupHeader>Ntwine</GroupHeader>
         <Group>
           <Row icon={<Info size={15} className="text-fg" />} iconTint="bg-elevated" label="Version" value="0.4.2" />
           <RowRule inset={57} />
-          <Row icon={<RotateCcw size={15} className="text-fg" />} iconTint="bg-elevated" label="Update and restart" detail="Frizz keeps the previous version if the build fails" />
+          <Row icon={<RotateCcw size={15} className="text-fg" />} iconTint="bg-elevated" label="Update and restart" detail="Ntwine keeps the previous version if the build fails" />
         </Group>
       </div>
     </Canvas>
@@ -937,7 +937,7 @@ function SubAgentScreen() {
                 Audit the parser for edge cases
               </span>
               <div className="flex flex-wrap items-center gap-1.5">
-                <Chip tone="text-fg/80">frizz:opus-high</Chip>
+                <Chip tone="text-fg/80">ntwine:opus-high</Chip>
                 <Chip>running 2m 14s</Chip>
               </div>
             </div>
@@ -1014,10 +1014,10 @@ function EmptyScreen() {
         <img src="/apple-touch-icon.png" width={64} height={64} alt="" className="rounded-[15px] opacity-90" />
         <h2 className="m-0 mt-4 text-[19px] font-semibold tracking-[-0.015em] text-fg">No threads yet</h2>
         {/* One line, and no invented starter prompts. The + is the way in and it is already on screen;
-            a list of tasks Frizz made up for you is not an empty state, it is a suggestion nobody
+            a list of tasks Ntwine made up for you is not an empty state, it is a suggestion nobody
             asked for. */}
         <p className="m-0 mt-1.5 text-center text-[14px] leading-[20px] text-muted">
-          Describe a task and Frizz dispatches a worker for it. Everything it does lands back here.
+          Describe a task and Ntwine dispatches a worker for it. Everything it does lands back here.
         </p>
       </div>
       <Fab />
@@ -1159,7 +1159,7 @@ function Gallery() {
   return (
     <div className="min-h-dvh bg-bg px-10 py-12">
       <header className="mb-10 flex max-w-[720px] flex-col gap-2.5">
-        <h1 className="m-0 text-[24px] font-semibold tracking-[-0.02em] text-fg">Frizz on a phone</h1>
+        <h1 className="m-0 text-[24px] font-semibold tracking-[-0.02em] text-fg">Ntwine on a phone</h1>
         <p className="m-0 text-[14px] leading-[21px] text-muted">
           Thirteen screens, drawn at 390×844 in the app's own stylesheet and tokens. Append{" "}
           <code className="rounded bg-panel-2 px-1 py-0.5 font-mono-keep text-[12.5px]">?screen=board</code> for one on

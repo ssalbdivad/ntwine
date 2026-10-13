@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { ServerEvent } from "@frizz/shared"
-import { deltaAction } from "@frizz/shared"
+import type { ServerEvent } from "@ntwine/shared"
+import { deltaAction } from "@ntwine/shared"
 import { store, setBoard, applyDelta, openThread } from "../store.ts"
 import { noteServerBootId } from "./boot.ts"
 import { crossProjectHref, projectSlug } from "../lib/base-path.ts"
@@ -117,7 +117,7 @@ export function refreshProjectList(queryClient: QueryClient | null | undefined):
 export function notify(event: Extract<ServerEvent, { type: "notify" }>, forProject?: string): void {
   if (!store.notificationsEnabled) return
   // A page framed by an editor's sidebar (lib/embed.ts) cannot raise one: a cross-origin frame is
-  // refused the permission, and the editor shows Frizz's attention itself (its badge and status bar).
+  // refused the permission, and the editor shows Ntwine's attention itself (its badge and status bar).
   if (embedded()) return
   if (!document.hidden) return
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return
@@ -138,7 +138,7 @@ export function notify(event: Extract<ServerEvent, { type: "notify" }>, forProje
     // Same project (the overwhelmingly common case): the in-app drawer. Otherwise that project's drawer
     // address, through the router — the page opens it in place.
     if (project === undefined || projectSlug() === project) {
-      openThread(event.slug) // side drawer: chat, or the frizz doc for a never-spawned thread
+      openThread(event.slug) // side drawer: chat, or the ntwine doc for a never-spawned thread
     } else {
       spaNavigate(`${crossProjectHref(project)}/thread/${encodeURIComponent(event.slug)}`)
     }

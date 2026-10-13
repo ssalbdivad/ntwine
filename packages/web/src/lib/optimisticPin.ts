@@ -1,5 +1,5 @@
 import { proxy, useSnapshot } from "valtio"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { threadKey, type QueuesProject } from "./allQueues.ts"
 
 // OPTIMISTIC PIN — the pin and unpin land on the list the instant the operator clicks, the same way a

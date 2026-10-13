@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ProjectCard, ProjectQueue, ThreadView } from "@frizz/shared"
+import type { ProjectCard, ProjectQueue, ThreadView } from "@ntwine/shared"
 import { answerProse, handoffParts, isBusy, mergedQueue, queuesProjects, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
 
 function thread(id: string, over: Partial<ThreadView> = {}): ThreadView {
@@ -122,12 +122,12 @@ test("a handoff splits into prose, its signal fences, and the question fences no
 // the frontmatter has to survive the split: a steps fence's BODY is empty by design, and the card drew a
 // bare "Awaiting" over nothing when only the body came through (2026-10-06).
 test("an awaiting fence keeps its frontmatter, so a steps-only fence still carries its title and steps", () => {
-  const parts = handoffParts("You can use it two ways.\n\n```awaiting\ntitle: Restart Frizz\nsteps:\n  - Restart Frizz.\n  - Start a new thread.\n```")
+  const parts = handoffParts("You can use it two ways.\n\n```awaiting\ntitle: Restart Ntwine\nsteps:\n  - Restart Ntwine.\n  - Start a new thread.\n```")
   assert.equal(parts.prose, "You can use it two ways.")
   assert.deepEqual(parts.fences, [{
     kind: "awaiting",
     body: "",
-    hints: [{ kind: "title", value: "Restart Frizz" }, { kind: "step", value: "Restart Frizz." }, { kind: "step", value: "Start a new thread." }],
+    hints: [{ kind: "title", value: "Restart Ntwine" }, { kind: "step", value: "Restart Ntwine." }, { kind: "step", value: "Start a new thread." }],
   }])
 })
 
@@ -215,15 +215,15 @@ test("the focused project is drawn from its live board, never another project's"
 // THE PAGE'S ONE QUEUE (David 2026-09-28: "One queue across all projects").
 test("every project's ready threads merge into one queue, in the order each entered it", () => {
   const ready = (id: string, queuedAt: string) => thread(id, { needsYou: true, queuedAt: `2026-09-23T${queuedAt}:00.000Z`, lastAssistantAt: "2026-09-23T08:00:00.000Z" })
-  // `app` is listed ABOVE `frizz` in the rail. Its first ready thread arrives at 10:30, after both of
-  // frizz's: it joins the bottom, where lanes in rail order drew its whole lane above the card being read.
-  const projects = queuesProjects([card("app"), card("frizz")], [
+  // `app` is listed ABOVE `ntwine` in the rail. Its first ready thread arrives at 10:30, after both of
+  // ntwine's: it joins the bottom, where lanes in rail order drew its whole lane above the card being read.
+  const projects = queuesProjects([card("app"), card("ntwine")], [
     queue("app", [ready("pr-1402", "10:30")]),
-    queue("frizz", [ready("fix-auth", "10:00"), ready("2fa", "10:10")]),
+    queue("ntwine", [ready("fix-auth", "10:00"), ready("2fa", "10:10")]),
   ])
   const line = (direction: "fifo" | "lifo") => mergedQueue(projects, direction).map(({ project, thread }) => threadKey(project.id, thread.id))
-  assert.deepEqual(line("fifo"), ["frizz/fix-auth", "frizz/2fa", "app/pr-1402"])
-  assert.deepEqual(line("lifo"), ["app/pr-1402", "frizz/2fa", "frizz/fix-auth"])
+  assert.deepEqual(line("fifo"), ["ntwine/fix-auth", "ntwine/2fa", "app/pr-1402"])
+  assert.deepEqual(line("lifo"), ["app/pr-1402", "ntwine/2fa", "ntwine/fix-auth"])
 })
 
 test("two projects' threads with the same slug stay two cards, each with its own project", () => {

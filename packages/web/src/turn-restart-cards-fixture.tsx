@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ThreadView } from "@frizz/shared"
+import type { ThreadView } from "@ntwine/shared"
 import { ProviderFaultCard, LimitPauseCard } from "./components/ChatView.tsx"
 import { Toaster } from "./components/Toaster.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -16,7 +16,7 @@ const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   const url = new URL(requestUrl, window.location.href)
-  if (url.pathname === "/_frizz/rpc/followUp") {
+  if (url.pathname === "/_ntwine/rpc/followUp") {
     const body = JSON.parse(String(init?.body ?? "{}"))
     const log = JSON.parse(window.sessionStorage.getItem("followUpCalls") ?? "[]")
     log.push(body)
@@ -24,7 +24,7 @@ window.fetch = async (input, init) => {
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   // markRead rides along on every eager send; stub it so the card's click path stays self-contained.
-  if (url.pathname === "/_frizz/rpc/markRead") {
+  if (url.pathname === "/_ntwine/rpc/markRead") {
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   return nativeFetch(input, init)

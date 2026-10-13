@@ -95,7 +95,7 @@ test("public restart supervisor preserves routes, does not restart initial/subre
     await proxy.listen()
     assert.equal((await get(port, "/thread/demo?tab=terminal")).body, "one:/thread/demo?tab=terminal")
     assert.equal((await get(port, "/assets/app.css")).body, "one:/assets/app.css")
-    assert.equal(restarts, 0, "ordinary initial and subresource requests never restart Frizz")
+    assert.equal(restarts, 0, "ordinary initial and subresource requests never restart Ntwine")
 
     assert.equal((await get(port, SUPERVISOR_RESTART_PATH, "POST")).status, 202)
     assert.equal((await get(port, "/thread/demo?tab=terminal")).body, "generation-2:/thread/demo?tab=terminal")
@@ -114,7 +114,7 @@ test("public restart supervisor preserves routes, does not restart initial/subre
 
 test("public supervisor serves local images without entering or requiring the disposable child", async () => {
   const image = Buffer.from("89504e470d0a1a0a", "hex")
-  const imageDir = mkdtempSync(join(tmpdir(), "frizz-supervisor-image-"))
+  const imageDir = mkdtempSync(join(tmpdir(), "ntwine-supervisor-image-"))
   const imagePath = join(imageDir, "handoff.png")
   writeFileSync(imagePath, image)
 
@@ -126,7 +126,7 @@ test("public supervisor serves local images without entering or requiring the di
   })
   try {
     await proxy.listen()
-    const path = `/_frizz/local-image?path=${encodeURIComponent(imagePath)}`
+    const path = `/_ntwine/local-image?path=${encodeURIComponent(imagePath)}`
     const served = await getBytes(port, path, { "sec-fetch-site": "same-origin" })
     assert.equal(served.status, 200)
     assert.equal(served.headers["content-type"], "image/png")
@@ -150,7 +150,7 @@ test("public supervisor serves local images without entering or requiring the di
     const videoPath = join(imageDir, "flow.webm")
     const video = Buffer.from(Array.from({ length: 2048 }, (_, i) => i % 241))
     writeFileSync(videoPath, video)
-    const videoUrl = `/_frizz/local-image?path=${encodeURIComponent(videoPath)}`
+    const videoUrl = `/_ntwine/local-image?path=${encodeURIComponent(videoPath)}`
     const range = await getBytes(port, videoUrl, { "sec-fetch-site": "same-origin", range: "bytes=1024-1535" })
     assert.equal(range.status, 206)
     assert.equal(range.headers["content-type"], "video/webm")
@@ -226,7 +226,7 @@ test("update-and-restart is explicit and never falls through to an ordinary rest
     await proxy.listen()
     const response = await get(port, SUPERVISOR_UPDATE_RESTART_PATH, "POST")
     assert.equal(response.status, 409)
-    assert.match(response.body, /immutable Frizz artifact/)
+    assert.match(response.body, /immutable Ntwine artifact/)
     assert.equal(ordinary, 0)
     assert.match((await get(port, SUPERVISOR_STATUS_PATH)).body, /"updateRestart":false/)
   } finally {
@@ -254,13 +254,13 @@ test("status advertises Update & Restart only when the durable supervisor owns t
 })
 
 // The launcher is the ONLY thing that can answer "is this a development build". The client used to
-// guess with `import.meta.env.DEV`, which is false in every artifact frizz-dev builds — so the dev-only
+// guess with `import.meta.env.DEV`, which is false in every artifact ntwine-dev builds — so the dev-only
 // Restart-worker verb was compiled out of the build its author ran all day. Absent must keep meaning
-// "no", so a published Frizz never grows a dev affordance.
+// "no", so a published Ntwine never grows a dev affordance.
 test("status reports a development build only when the launcher says so", async () => {
   for (const [name, dev, expected] of [
-    ["frizz-dev / pnpm dev", true, /"dev":true/],
-    ["the published frizz bin", undefined, /^(?!.*"dev")/s],
+    ["ntwine-dev / pnpm dev", true, /"dev":true/],
+    ["the published ntwine bin", undefined, /^(?!.*"dev")/s],
   ] as [string, boolean | undefined, RegExp][]) {
     const current = await child(`dev-${String(dev)}`)
     const port = await freePort()
@@ -281,7 +281,7 @@ test("status reports a development build only when the launcher says so", async 
 })
 
 // Only the registry launcher can name versions, so the fields ride the same launcher-only contract as
-// `updateAvailable`: absent for frizz-dev and legacy supervisors, and `updateVersion` absent until the
+// `updateAvailable`: absent for ntwine-dev and legacy supervisors, and `updateVersion` absent until the
 // registry probe has actually observed something newer.
 test("status names the running and newer versions only when the launcher supplies them", async () => {
   const current = await child("versioned")
@@ -314,7 +314,7 @@ test("status names the running and newer versions only when the launcher supplie
     running = "0.4.3"
     assert.match((await get(port, SUPERVISOR_STATUS_PATH)).body, /"version":"0\.4\.3"/, "a child-only commit can update the running version without replacing the listener")
     const versionless = (await get(barePort, SUPERVISOR_STATUS_PATH)).body
-    assert.doesNotMatch(versionless, /"version"|"launcherVersion"|"updateVersion"/, "frizz-dev/legacy stays byte-identical")
+    assert.doesNotMatch(versionless, /"version"|"launcherVersion"|"updateVersion"/, "ntwine-dev/legacy stays byte-identical")
   } finally {
     await proxy.close().catch(() => undefined)
     await bare.close().catch(() => undefined)
@@ -443,17 +443,17 @@ test("the proxy refuses a foreign Origin instead of laundering it into the child
   try {
     await proxy.listen()
     const host = `127.0.0.1:${port}`
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host, origin: `http://127.0.0.1:${port}` }, "POST")).status, 200)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host, origin: `http://127.0.0.1:${port}` }, "POST")).status, 200)
     // A same-origin GET may legitimately omit Origin; the child still applies its own per-route rule.
     assert.equal((await proxied(port, "/assets/app.css", { host })).status, 200)
     for (const origin of ["http://evil.example", `http://localhost.evil:${port}`, `http://127.0.0.1:${port + 1}`]) {
-      assert.equal((await proxied(port, "/_frizz/rpc/x", { host, origin }, "POST")).status, 403, origin)
+      assert.equal((await proxied(port, "/_ntwine/rpc/x", { host, origin }, "POST")).status, 403, origin)
     }
     // A Host naming somebody else is refused too, which is what stops DNS rebinding.
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host: `frizz.evil:${port}` }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host: `ntwine.evil:${port}` }, "POST")).status, 403)
     // ...and wordlessly: a loopback-only board has no operator arriving by name, only probes.
-    assert.equal((await proxied(port, "/", { host: `frizz.evil:${port}` })).body, "Forbidden")
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host, "x-forwarded-host": "evil.example" }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/", { host: `ntwine.evil:${port}` })).body, "Forbidden")
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host, "x-forwarded-host": "evil.example" }, "POST")).status, 403)
   } finally {
     await proxy.close().catch(() => undefined)
     await current.close().catch(() => undefined)
@@ -467,26 +467,26 @@ test("--host: a non-loopback bind accepts IP-literal authorities, and loopback s
   const proxy = new RestartSupervisorProxy({
     port,
     host: "0.0.0.0",
-    allowedHosts: ["frizz.local"],
+    allowedHosts: ["ntwine.local"],
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
   try {
     await proxy.listen()
-    for (const authority of [`192.168.1.5:${port}`, `10.0.0.4:${port}`, `frizz.local:${port}`, `127.0.0.1:${port}`]) {
-      const status = (await proxied(port, "/_frizz/rpc/x", { host: authority, origin: `http://${authority}` }, "POST")).status
+    for (const authority of [`192.168.1.5:${port}`, `10.0.0.4:${port}`, `ntwine.local:${port}`, `127.0.0.1:${port}`]) {
+      const status = (await proxied(port, "/_ntwine/rpc/x", { host: authority, origin: `http://${authority}` }, "POST")).status
       assert.equal(status, 200, authority)
     }
     // Exposure widens WHICH authority is legitimate, never the Origin-must-match-Host rule itself.
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host: `192.168.1.5:${port}`, origin: "http://evil.example" }, "POST")).status, 403)
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host: `evil.example:${port}` }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host: `192.168.1.5:${port}`, origin: "http://evil.example" }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host: `evil.example:${port}` }, "POST")).status, 403)
     // Opening the board by an unlisted name is refused WITH the flag that would allow it — a bare
     // "Forbidden" sent the operator back to the IP and a guess ("it seems to filter by hostname?").
     const byName = await proxied(port, "/", { host: `pupper:${port}` })
     assert.equal(byName.status, 403)
     assert.match(byName.headers?.["content-type"] ?? "", /text\/html/)
     assert.match(byName.body, /--allowed-host pupper/)
-    assert.match(byName.body, /FRIZZ_ALLOWED_HOSTS=pupper/)
+    assert.match(byName.body, /NTWINE_ALLOWED_HOSTS=pupper/)
     // The name is echoed only when it parsed as a host — a port alias is a trick, not a typo.
     assert.equal((await proxied(port, "/", { host: `pupper:${port + 1}` })).body, "Forbidden")
   } finally {
@@ -497,7 +497,7 @@ test("--host: a non-loopback bind accepts IP-literal authorities, and loopback s
 
 test("an exposed board supplies the Sec-Fetch stamp a LAN browser cannot send", async () => {
   // Chrome sends Sec-Fetch-* only to a potentially-trustworthy origin, which http://192.168.1.5 is
-  // not. Frizz's missing-Origin rules ask for `sec-fetch-site: same-origin`, so without the proxy
+  // not. Ntwine's missing-Origin rules ask for `sec-fetch-site: same-origin`, so without the proxy
   // vouching, --host served the shell and then 403'd every /rpc read the app made. Measured in
   // Chrome 151: the LAN request carried neither an origin nor a sec-fetch-site header.
   const seen: Array<Record<string, string | string[] | undefined>> = []
@@ -510,20 +510,20 @@ test("an exposed board supplies the Sec-Fetch stamp a LAN browser cannot send", 
   const exposed = new RestartSupervisorProxy({ port, host: "0.0.0.0", childPort: () => current.port, restart: async () => ({ state: "ready" }) })
   try {
     await exposed.listen()
-    assert.equal((await proxied(port, "/_frizz/rpc/board", { host: `192.168.1.5:${port}` })).status, 200)
+    assert.equal((await proxied(port, "/_ntwine/rpc/board", { host: `192.168.1.5:${port}` })).status, 200)
     assert.equal(seen.at(-1)?.["sec-fetch-site"], "same-origin", "a LAN read is vouched for")
 
     // Loopback is untouched even on an exposed board: the browser really can stamp that one, so the
     // real signal is forwarded and its absence stays meaningful.
-    await proxied(port, "/_frizz/rpc/board", { host: `127.0.0.1:${port}` })
+    await proxied(port, "/_ntwine/rpc/board", { host: `127.0.0.1:${port}` })
     assert.equal(seen.at(-1)?.["sec-fetch-site"], undefined, "loopback keeps the browser's own signal")
 
     // A stamp the caller supplied is never overwritten, in either direction.
-    await proxied(port, "/_frizz/rpc/board", { host: `192.168.1.5:${port}`, "sec-fetch-site": "cross-site" })
+    await proxied(port, "/_ntwine/rpc/board", { host: `192.168.1.5:${port}`, "sec-fetch-site": "cross-site" })
     assert.equal(seen.at(-1)?.["sec-fetch-site"], "cross-site", "a declared cross-site request stays cross-site")
 
     // Vouching is for the Origin-LESS case only; a present Origin still has to match, and did.
-    await proxied(port, "/_frizz/rpc/board", { host: `192.168.1.5:${port}`, origin: `http://192.168.1.5:${port}` })
+    await proxied(port, "/_ntwine/rpc/board", { host: `192.168.1.5:${port}`, origin: `http://192.168.1.5:${port}` })
     assert.equal(seen.at(-1)?.["sec-fetch-site"], undefined)
   } finally {
     await exposed.close().catch(() => undefined)
@@ -542,7 +542,7 @@ test("a loopback-bound proxy never vouches, so its missing-Origin posture is exa
   const proxy = new RestartSupervisorProxy({ port, childPort: () => current.port, restart: async () => ({ state: "ready" }) })
   try {
     await proxy.listen()
-    await proxied(port, "/_frizz/rpc/board", { host: `127.0.0.1:${port}` })
+    await proxied(port, "/_ntwine/rpc/board", { host: `127.0.0.1:${port}` })
     assert.equal(seen.at(-1)?.["sec-fetch-site"], undefined, "the default posture invents no signal")
   } finally {
     await proxy.close().catch(() => undefined)
@@ -556,8 +556,8 @@ test("a loopback-bound proxy rejects the LAN authority an exposed one would acce
   const proxy = new RestartSupervisorProxy({ port, childPort: () => current.port, restart: async () => ({ state: "ready" }) })
   try {
     await proxy.listen()
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host: `192.168.1.5:${port}` }, "POST")).status, 403)
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host: `frizz.local:${port}` }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host: `192.168.1.5:${port}` }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host: `ntwine.local:${port}` }, "POST")).status, 403)
   } finally {
     await proxy.close().catch(() => undefined)
     await current.close().catch(() => undefined)
@@ -599,7 +599,7 @@ async function upgrade(port: number, headers: Record<string, string>): Promise<"
 
 test("a WebSocket upgrade is gated at the proxy, where a browser Origin is mandatory", async () => {
   // The child requires an Origin on every upgrade, but proxyHeaders manufactures one, so the child
-  // can never enforce that itself. The terminal socket is the most privileged surface Frizz has.
+  // can never enforce that itself. The terminal socket is the most privileged surface Ntwine has.
   const upstream = await listen((_req, res) => res.end())
   // An upgraded socket is DETACHED from the http server, so closeAllConnections() cannot reach it and
   // the server never emits 'close'. Hold them here and destroy them explicitly, or teardown hangs.
@@ -624,7 +624,7 @@ test("a WebSocket upgrade is gated at the proxy, where a browser Origin is manda
     assert.equal(await upgrade(port, { host: `evil.example:${port}`, origin: `http://evil.example:${port}` }), "refused")
 
     // Regression: an upgraded socket is detached from the http server, so closeAllConnections() never
-    // reaches it and close() waited on it forever. Frizz always has live WebSockets once a browser is
+    // reaches it and close() waited on it forever. Ntwine always has live WebSockets once a browser is
     // open, so this hung every shutdown that followed a real page load.
     await assert.doesNotReject(
       Promise.race([
@@ -669,7 +669,7 @@ test("--public-origin: a tunnelled request is accepted and reaches the child wit
   const port = await freePort()
   const proxy = new RestartSupervisorProxy({
     port,
-    publicOrigin: "https://frizz.example.com",
+    publicOrigin: "https://ntwine.example.com",
     childPort: () => current.port,
     restart: async () => ({ state: "ready" }),
   })
@@ -678,21 +678,21 @@ test("--public-origin: a tunnelled request is accepted and reaches the child wit
     // This test is about HEADER STRIPPING, not auth, so it redeems a real code for the session cookie
     // that gets past the gate. A public origin with no credential is 401 — see the bearer-gate test below.
     const minted = proxy.issueAccessCode()!
-    const exchanged = await proxied(port, `/?frizz_code=${minted.code}`, { host: "frizz.example.com", origin: "https://frizz.example.com" })
+    const exchanged = await proxied(port, `/?ntwine_code=${minted.code}`, { host: "ntwine.example.com", origin: "https://ntwine.example.com" })
     const session = String(exchanged.headers?.["set-cookie"]).split(";")[0]!
     // Exactly what cloudflared sends: the browser's Host and Origin verbatim, plus its own forwarding.
     // `x-forwarded-host` is Tailscale Serve's addition rather than cloudflared's — both are supported
     // fronts, so the accepted shape covers the union rather than one vendor's subset.
     const tunnelled = {
-      host: "frizz.example.com",
-      origin: "https://frizz.example.com",
+      host: "ntwine.example.com",
+      origin: "https://ntwine.example.com",
       "x-forwarded-for": "203.0.113.7",
       "x-forwarded-proto": "https",
-      "x-forwarded-host": "frizz.example.com",
+      "x-forwarded-host": "ntwine.example.com",
       "sec-fetch-site": "same-origin",
       cookie: session,
     }
-    assert.equal((await proxied(port, "/_frizz/rpc/x", tunnelled, "POST")).status, 200)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", tunnelled, "POST")).status, 200)
     const forwarded = seen.at(-1)!
     assert.equal(forwarded.host, `127.0.0.1:${current.port}`)
     assert.equal(forwarded.origin, `http://127.0.0.1:${current.port}`)
@@ -704,14 +704,14 @@ test("--public-origin: a tunnelled request is accepted and reaches the child wit
 
     // The widening is exactly one origin wide. A neighbouring name, a scheme downgrade, and the
     // loopback caller trying to borrow the tunnel's forwarding licence are all still refused.
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { ...tunnelled, host: "frizz.example.com.evil", origin: "https://frizz.example.com.evil" }, "POST")).status, 403)
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { ...tunnelled, origin: "http://frizz.example.com" }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { ...tunnelled, host: "ntwine.example.com.evil", origin: "https://ntwine.example.com.evil" }, "POST")).status, 403)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { ...tunnelled, origin: "http://ntwine.example.com" }, "POST")).status, 403)
     assert.equal(
-      (await proxied(port, "/_frizz/rpc/x", { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, "x-forwarded-for": "203.0.113.7" }, "POST")).status,
+      (await proxied(port, "/_ntwine/rpc/x", { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, "x-forwarded-for": "203.0.113.7" }, "POST")).status,
       403,
     )
     // The operator's own tab on the box keeps working while a tunnel is declared.
-    assert.equal((await proxied(port, "/_frizz/rpc/x", { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }, "POST")).status, 200)
+    assert.equal((await proxied(port, "/_ntwine/rpc/x", { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }, "POST")).status, 200)
   } finally {
     await proxy.close().catch(() => undefined)
     await current.close().catch(() => undefined)
@@ -754,7 +754,7 @@ async function upgradeStatus(port: number, headers: Record<string, string>): Pro
 }
 
 test("--public-origin without a session is not a reachable state: the gate covers page and socket", async () => {
-  // Frizz has no accounts, so on a tunnelled board a session minted from a single-use code IS the
+  // Ntwine has no accounts, so on a tunnelled board a session minted from a single-use code IS the
   // authorization. What must hold: loopback is never challenged, the public origin always is, and the
   // board socket is gated too — a shell reachable over ws:// without a session would make the page
   // gate theatre.
@@ -773,15 +773,15 @@ test("--public-origin without a session is not a reachable state: the gate cover
     // No session at all: refused, and the page must not advertise what lives here.
     const bare = await proxied(port, "/", publicHeaders)
     assert.equal(bare.status, 401)
-    assert.ok(!/frizz|board|agent/i.test(bare.body), `401 page leaked product identity: ${bare.body.slice(0, 120)}`)
+    assert.ok(!/ntwine|board|agent/i.test(bare.body), `401 page leaked product identity: ${bare.body.slice(0, 120)}`)
 
     // The one-time link is traded for a session cookie and bounced to a URL without the secret in it,
     // so it never lands in history, a Referer, or a screenshot.
     const minted = proxy.issueAccessCode()!
-    const exchange = await proxied(port, `/thread/abc?frizz_code=${minted.code}`, publicHeaders)
+    const exchange = await proxied(port, `/thread/abc?ntwine_code=${minted.code}`, publicHeaders)
     assert.equal(exchange.status, 302)
     assert.equal(exchange.headers?.location, "/thread/abc")
-    assert.match(String(exchange.headers?.["set-cookie"]), /frizz_session=/)
+    assert.match(String(exchange.headers?.["set-cookie"]), /ntwine_session=/)
     assert.match(String(exchange.headers?.["set-cookie"]), /HttpOnly/)
     const session = String(exchange.headers?.["set-cookie"]).split(";")[0]!
 
@@ -791,7 +791,7 @@ test("--public-origin without a session is not a reachable state: the gate cover
     // A tampered session of the SAME LENGTH is refused — the signature, not the shape, is the proof.
     const flipped = session.slice(0, -1) + (session.endsWith("a") ? "b" : "a")
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: flipped })).status, 401)
-    assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: "frizz_session=short" })).status, 401)
+    assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: "ntwine_session=short" })).status, 401)
 
     // The board socket and every terminal ride this gate too.
     assert.equal(await upgradeStatus(port, publicHeaders), "401")
@@ -833,7 +833,7 @@ test("the proxy tells the child who called: loopback or public, and which sessio
     assert.deepEqual(decodeCallerStamp(seen.at(-1)), { via: "loopback", remote: "127.0.0.1", session: null })
 
     const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
-    const exchange = await proxied(port, `/?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
+    const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
     const cookie = String(exchange.headers?.["set-cookie"]).split(";")[0]!
     const sessions = JSON.parse((await proxied(port, SUPERVISOR_SESSIONS_PATH, loopback)).body) as { sessions: { id: string }[] }
     const id = sessions.sessions[0]!.id
@@ -841,11 +841,11 @@ test("the proxy tells the child who called: loopback or public, and which sessio
     // A relayed visitor: the public authority, the device's session RECORD id, the relay's claimed
     // client address — and a forged stamp of its own, which does not survive.
     const relayed = { ...publicHeaders, cookie, "cf-connecting-ip": "203.0.113.9", [CALLER_HEADER]: forged }
-    assert.equal((await proxied(port, "/_frizz/rpc/projectsList", relayed)).status, 200)
+    assert.equal((await proxied(port, "/_ntwine/rpc/projectsList", relayed)).status, 200)
     const stamp = decodeCallerStamp(seen.at(-1))
     assert.deepEqual(stamp, { via: "public", remote: "127.0.0.1", host: "colin.frizz.sh", clientIp: "203.0.113.9", session: id })
     const raw = Buffer.from(seen.at(-1)!, "base64url").toString("utf8")
-    assert.ok(!raw.includes(cookie.slice("frizz_session=".length)), "the session value never leaves the proxy")
+    assert.ok(!raw.includes(cookie.slice("ntwine_session=".length)), "the session value never leaves the proxy")
   } finally {
     await proxy.close().catch(() => undefined)
     await current.close().catch(() => undefined)
@@ -871,39 +871,75 @@ test("an access code is spent once over HTTP: it mints a session, then stops wor
     const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
     const code = proxy.issueAccessCode()
     assert.ok(code, "a declared public origin can mint codes")
-    assert.equal(proxy.accessUrl(code.code), `https://colin.frizz.sh/?frizz_code=${code.code}`)
+    assert.equal(proxy.accessUrl(code.code), `https://colin.frizz.sh/?ntwine_code=${code.code}`)
 
     // No credential at all.
     assert.equal((await proxied(port, "/", publicHeaders)).status, 401)
 
     // Spending the code redirects, strips the secret from the URL, and hands back a session.
-    const spent = await proxied(port, `/thread/x?frizz_code=${code.code}`, publicHeaders)
+    const spent = await proxied(port, `/thread/x?ntwine_code=${code.code}`, publicHeaders)
     assert.equal(spent.status, 302)
     assert.equal(spent.headers?.location, "/thread/x", "the code is stripped from the redirect target")
     const setCookie = String(spent.headers?.["set-cookie"])
-    assert.match(setCookie, /frizz_session=/)
+    assert.match(setCookie, /ntwine_session=/)
     assert.match(setCookie, /HttpOnly/)
     assert.match(setCookie, /SameSite=Lax/)
     assert.equal(consumed, 1, "consumption fires once, so a launcher can repaint the QR")
 
     // That session works.
-    const session = /frizz_session=([^;]+)/.exec(setCookie)![1]!
-    assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: `frizz_session=${session}` })).status, 200)
-    assert.equal(await upgrade(port, { ...publicHeaders, cookie: `frizz_session=${session}` }), "forwarded")
+    const session = /ntwine_session=([^;]+)/.exec(setCookie)![1]!
+    assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: `ntwine_session=${session}` })).status, 200)
+    assert.equal(await upgrade(port, { ...publicHeaders, cookie: `ntwine_session=${session}` }), "forwarded")
 
     // The code does NOT. This is the property the standing secret never had.
-    const replay = await proxied(port, `/?frizz_code=${code.code}`, publicHeaders)
+    const replay = await proxied(port, `/?ntwine_code=${code.code}`, publicHeaders)
     assert.equal(replay.status, 401)
     assert.match(replay.body, /already been used/, "says WHICH failure, so the operator knows to reissue")
     assert.equal(consumed, 1, "a refused replay does not fire consumption again")
 
     // A code that was never issued is refused without disclosing anything.
-    const bogus = await proxied(port, "/?frizz_code=neverissued", publicHeaders)
+    const bogus = await proxied(port, "/?ntwine_code=neverissued", publicHeaders)
     assert.equal(bogus.status, 401)
-    assert.doesNotMatch(bogus.body, /frizz|board|agent/i, "the 401 page still names nothing")
+    assert.doesNotMatch(bogus.body, /ntwine|board|agent/i, "the 401 page still names nothing")
 
     // Loopback remains completely ungated.
     assert.equal((await proxied(port, "/", { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` })).status, 200)
+  } finally {
+    await proxy.close().catch(() => undefined)
+    await current.close().catch(() => undefined)
+  }
+})
+
+// A device signed in before the Frizz -> Ntwine rename holds `frizz_session`, and a link minted then
+// carries `?frizz_code=`. Both keep working; a page load moves the cookie to its new name.
+test("a pre-rename code and session keep working, and a page load moves the cookie to ntwine_session", async () => {
+  const current = await child("only")
+  const port = await freePort()
+  const proxy = new RestartSupervisorProxy({
+    port,
+    publicOrigin: "https://colin.frizz.sh",
+    childPort: () => current.port,
+    restart: async () => ({ state: "ready" }),
+  })
+  try {
+    await proxy.listen()
+    const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
+    const spent = await proxied(port, `/thread/x?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
+    assert.equal(spent.status, 302)
+    assert.equal(spent.headers?.location, "/thread/x", "the old parameter is stripped too")
+    const session = /ntwine_session=([^;]+)/.exec(String(spent.headers?.["set-cookie"]))![1]!
+
+    const old = { ...publicHeaders, cookie: `frizz_session=${session}` }
+    assert.equal((await proxied(port, "/", old)).status, 200, "a fetch under the old cookie is served as it is")
+    assert.equal(await upgrade(port, old), "forwarded")
+    const moved = await proxied(port, "/thread/x", { ...old, "sec-fetch-mode": "navigate" })
+    assert.equal(moved.status, 302)
+    assert.equal(moved.headers?.location, "/thread/x")
+    const cookies = moved.headers?.["set-cookie"] ?? []
+    assert.ok(cookies.some((c) => c.startsWith(`ntwine_session=${session};`)), String(cookies))
+    assert.ok(cookies.some((c) => /^frizz_session=;.*Max-Age=0/.test(c)), String(cookies))
+
+    assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: "frizz_session=forged.x", "sec-fetch-mode": "navigate" })).status, 401, "a dead old cookie is not adopted")
   } finally {
     await proxy.close().catch(() => undefined)
     await current.close().catch(() => undefined)
@@ -929,20 +965,20 @@ test("--link mints from loopback only: a tunnelled session cannot hand out furth
     const minted = await proxied(port, SUPERVISOR_ACCESS_CODE_PATH, loopback, "POST")
     assert.equal(minted.status, 200)
     const { url } = JSON.parse(minted.body) as { url: string }
-    assert.match(url, /^https:\/\/colin\.frizz\.sh\/\?frizz_code=/)
+    assert.match(url, /^https:\/\/colin\.frizz\.sh\/\?ntwine_code=/)
 
     // And the link it hands back actually works, which is the only thing that makes --link useful.
-    const code = new URL(url).searchParams.get("frizz_code")!
-    const redeemed = await proxied(port, `/?frizz_code=${code}`, { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" })
+    const code = new URL(url).searchParams.get("ntwine_code")!
+    const redeemed = await proxied(port, `/?ntwine_code=${code}`, { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" })
     assert.equal(redeemed.status, 302)
 
     // From the tunnel: refused outright, session or no session.
     const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
-    const session = /frizz_session=([^;]+)/.exec(String(redeemed.headers?.["set-cookie"]))![1]!
+    const session = /ntwine_session=([^;]+)/.exec(String(redeemed.headers?.["set-cookie"]))![1]!
     // With no session the control plane's session gate answers first (see the control-plane gate test).
     assert.equal((await proxied(port, SUPERVISOR_ACCESS_CODE_PATH, publicHeaders, "POST")).status, 401)
     assert.equal(
-      (await proxied(port, SUPERVISOR_ACCESS_CODE_PATH, { ...publicHeaders, cookie: `frizz_session=${session}` }, "POST")).status,
+      (await proxied(port, SUPERVISOR_ACCESS_CODE_PATH, { ...publicHeaders, cookie: `ntwine_session=${session}` }, "POST")).status,
       403,
       "even a VALID session may not mint",
     )
@@ -988,7 +1024,7 @@ test("setPublicOrigin flips the gate on a running board, and clearing it flips i
     assert.equal((await proxied(port, "/", publicHeaders)).status, 401)
     const minted = proxy.issueAccessCode()
     assert.ok(minted)
-    const exchange = await proxied(port, `/?frizz_code=${minted.code}`, publicHeaders)
+    const exchange = await proxied(port, `/?ntwine_code=${minted.code}`, publicHeaders)
     assert.equal(exchange.status, 302)
     const session = String(exchange.headers?.["set-cookie"]).split(";")[0]!
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: session })).status, 200)
@@ -1012,7 +1048,7 @@ test("sign out this device: a tunnelled session ends ITSELF, persisted, and can 
   // loopback-only rule for signing out OTHER devices is exactly as strict as before.
   const current = await child("only")
   const port = await freePort()
-  const dir = mkdtempSync(join(tmpdir(), "frizz-sign-out-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-sign-out-"))
   const proxy = new RestartSupervisorProxy({
     port,
     publicOrigin: "https://colin.frizz.sh",
@@ -1025,7 +1061,7 @@ test("sign out this device: a tunnelled session ends ITSELF, persisted, and can 
     const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
     const loopback = { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }
     const redeem = async () => {
-      const exchange = await proxied(port, `/?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
+      const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
       return String(exchange.headers?.["set-cookie"]).split(";")[0]!
     }
     const phone = await redeem()
@@ -1063,7 +1099,7 @@ test("sign out this device: a tunnelled session ends ITSELF, persisted, and can 
     })
     assert.equal(signOut.status, 200)
     assert.deepEqual(JSON.parse(signOut.body), { protocol: 1, result: "signed-out", id: idOf(phone) })
-    assert.match(String(signOut.headers["set-cookie"]), /^frizz_session=;.*Max-Age=0/, "the browser is told to drop the cookie")
+    assert.match(String(signOut.headers["set-cookie"]), /^ntwine_session=;.*Max-Age=0/, "the browser is told to drop the cookie")
 
     // The phone is refused on its very next request — page and socket — even holding the old cookie.
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: phone })).status, 401)
@@ -1101,7 +1137,7 @@ test("sign out this device: a tunnelled session ends ITSELF, persisted, and can 
 })
 
 test("the control plane is behind the session gate: no session through the tunnel, no restart, no status", async () => {
-  // handle() routes /_frizz/control/* to handleControl BEFORE its own session check, and handleControl
+  // handle() routes /_ntwine/control/* to handleControl BEFORE its own session check, and handleControl
   // judged only Host and Origin — which a non-browser client sets freely. So anyone who knew a board's
   // public name could restart it, start an update, and read its status with no session at all. Found
   // while building the phone's sign-out. What must hold now: every control path refuses a public request
@@ -1122,7 +1158,7 @@ test("the control plane is behind the session gate: no session through the tunne
     await proxy.listen()
     const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
     const loopback = { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}` }
-    const exchange = await proxied(port, `/?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
+    const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
     const session = String(exchange.headers?.["set-cookie"]).split(";")[0]!
     const forged = session.slice(0, -1) + (session.endsWith("a") ? "b" : "a")
     const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
@@ -1187,7 +1223,7 @@ test("the control plane is behind the session gate: no session through the tunne
     const dead = await proxied(port, SUPERVISOR_SIGN_OUT_PATH, { ...publicHeaders, cookie: forged }, "POST")
     assert.equal(dead.status, 401)
     assert.deepEqual(JSON.parse(dead.body), { protocol: 1, result: "no-remote-session" })
-    assert.match(String(dead.headers?.["set-cookie"]), /^frizz_session=;.*Max-Age=0/)
+    assert.match(String(dead.headers?.["set-cookie"]), /^ntwine_session=;.*Max-Age=0/)
   } finally {
     await proxy.close().catch(() => undefined)
     await current.close().catch(() => undefined)
@@ -1242,7 +1278,7 @@ test("remote access is changed from this machine only: a live session through th
 
     // Through the tunnel, holding a live session: refused for both verbs, handler untouched.
     const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
-    const exchange = await proxied(port, `/?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
+    const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
     const session = String(exchange.headers?.["set-cookie"]).split(";")[0]!
     assert.equal((await proxied(port, SUPERVISOR_REMOTE_PATH, { ...publicHeaders, cookie: session })).status, 403)
     assert.equal((await proxied(port, SUPERVISOR_REMOTE_PATH, { ...publicHeaders, cookie: session }, "POST")).status, 403)
@@ -1259,7 +1295,7 @@ test("an epoch bump reaches a RUNNING launcher: the server child signs every old
   // pre-id one no denylist can name — leave new ones alone, and do nothing on the next start.
   const current = await child("only")
   const port = await freePort()
-  const dir = mkdtempSync(join(tmpdir(), "frizz-epoch-live-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-epoch-live-"))
   const key = loadOrCreateSessionKey(dir)
   const proxy = new RestartSupervisorProxy({
     port,
@@ -1274,7 +1310,7 @@ test("an epoch bump reaches a RUNNING launcher: the server child signs every old
     await proxy.listen()
     const publicHeaders = { host: "colin.frizz.sh", origin: "https://colin.frizz.sh" }
     const redeem = async () => {
-      const exchange = await proxied(port, `/?frizz_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
+      const exchange = await proxied(port, `/?ntwine_code=${proxy.issueAccessCode()!.code}`, publicHeaders)
       return String(exchange.headers?.["set-cookie"])
     }
     const phoneHeader = await redeem()
@@ -1282,7 +1318,7 @@ test("an epoch bump reaches a RUNNING launcher: the server child signs every old
     assert.match(phoneHeader, /; Max-Age=(2591999|2592000)(;|$)/)
     const phone = phoneHeader.split(";")[0]!
     const payload = `${Date.now() + 60 * 24 * 60 * 60_000}.legacy-nonce`
-    const legacy = `frizz_session=${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`
+    const legacy = `ntwine_session=${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: phone })).status, 200)
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: legacy })).status, 200)
 
@@ -1327,7 +1363,7 @@ test("an epoch bump reaches a RUNNING launcher: the server child signs every old
 })
 
 test("the server child trusts only its own launcher's status file to name the port", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-epoch-pid-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-epoch-pid-"))
   try {
     loadOrCreateSessionKey(dir)
     writeFileSync(join(dir, "dev-supervisor.lock"), JSON.stringify({ pid: process.pid + 1, port: 1 }))

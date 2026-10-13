@@ -26,7 +26,7 @@
 export const THREAD_HANDLE_MAX_CHARS = 20
 
 /** Past this many words a stored title is not a name but a sentence (a legacy row, a long human rename),
- *  and a hyphenated run of it would be unreadable; it stays as written and has no handle. Frizz mints one
+ *  and a hyphenated run of it would be unreadable; it stays as written and has no handle. Ntwine mints one
  *  or two words, but the name SHOWN can be Claude's own session title until then, and that runs to four
  *  or five ("Test fixture secret word" — seen on a real dispatch, 2026-09-29); those still need a handle
  *  that matches what the board shows. */
@@ -126,7 +126,7 @@ export function replyWaitPrompt(handle: string, slug: string, project?: string):
     // Read in two places: as the wait's name while it stands, and as the wake if it fires — so the first
     // sentence is the wait and the rest is conditional on it having run out.
     `Waiting on @${handle} to reply (${replyWaitRef(slug, project)}). If this fires, no answer came in time: read where it is ` +
-    "with `frizzctl read-thread`, then ask again with `frizzctl message-thread … --await-reply` if " +
+    "with `ntwinectl read-thread`, then ask again with `ntwinectl message-thread … --await-reply` if " +
     "the answer still matters, or go on without it."
   )
 }

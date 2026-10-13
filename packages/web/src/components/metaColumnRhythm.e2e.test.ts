@@ -3,7 +3,7 @@ import test from "node:test"
 
 // Runtime coverage for the QUIET META COLUMN — the `Ran N tool calls` digest, a collapsed reasoning row
 // and the live shimmer. Skipped unless a Vite URL serving the fixtures is provided (same pattern as the
-// other *.e2e.test.ts here): start `vite` in packages/web and set FRIZZ_META_COLUMN_RHYTHM_E2E_URL to
+// other *.e2e.test.ts here): start `vite` in packages/web and set NTWINE_META_COLUMN_RHYTHM_E2E_URL to
 // its origin.
 //
 // Two invariants, both from the same report (maintainer 2026-08-01, on a column reading `Ran 8 tool
@@ -16,7 +16,7 @@ import test from "node:test"
 //      CARD on at least one side of the seam — two borders that close together still read as two
 //      blocks, whereas two bare grey lines that close together read as one wrapped paragraph.
 //      Measured in the browser because it is layout.
-const baseUrl = process.env.FRIZZ_META_COLUMN_RHYTHM_E2E_URL
+const baseUrl = process.env.NTWINE_META_COLUMN_RHYTHM_E2E_URL
 
 const STEP = 14
 // The virtualizer positions rows at fractional offsets, so a measured gap lands within a sub-pixel of
@@ -45,8 +45,8 @@ async function column(page: import("puppeteer").Page) {
     const scope = document.querySelector("[data-virtualized-transcript]")
     if (!scope) return { error: "transcript not mounted" }
     const round = (n: number) => Math.round(n * 10) / 10
-    const items = [...scope.querySelectorAll("[data-frizz-msg]")].map((e) => ({
-      id: e.getAttribute("data-frizz-msg")!,
+    const items = [...scope.querySelectorAll("[data-ntwine-msg]")].map((e) => ({
+      id: e.getAttribute("data-ntwine-msg")!,
       top: e.getBoundingClientRect().top,
       bottom: e.getBoundingClientRect().bottom,
     }))

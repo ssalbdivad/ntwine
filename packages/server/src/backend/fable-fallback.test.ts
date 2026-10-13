@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { ProviderQuota } from "@frizz/shared"
+import type { ProviderQuota } from "@ntwine/shared"
 import { baseNearlyOut, dispatchFallsBackToFable, fableHasHeadroom } from "./fable-fallback.ts"
 
 function quota(windows: Record<string, number>): ProviderQuota {

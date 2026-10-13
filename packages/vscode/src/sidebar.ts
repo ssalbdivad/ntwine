@@ -1,11 +1,11 @@
-// THE FRIZZ SIDEBAR — a view in its own activity-bar container that IS the Frizz page: one iframe of the
+// THE NTWINE SIDEBAR — a view in its own activity-bar container that IS the Ntwine page: one iframe of the
 // discovered origin, `?embed=vscode&theme=…&project=…`, relayed to the extension by a script in the
 // webview document (sidebar-html.ts). The queue, the threads and the composers are the app's own, live
 // over its own socket; what this file adds is what a frame cannot do for itself — keys VS Code would
 // otherwise never see, files and links opened in the editor, VS Code's theme, the Ready badge, the
 // editor commands' selections put straight into a composer, and the HEADER: the page draws none in the
-// sidebar, so VS Code's own title row above the frame carries the header's doors (`frizz:command`), shown
-// by the page's view (`frizz:route` → the `frizz.sidebarView` context key), and the badge's tooltip carries
+// sidebar, so VS Code's own title row above the frame carries the header's doors (`ntwine:command`), shown
+// by the page's view (`ntwine:route` → the `ntwine.sidebarView` context key), and the badge's tooltip carries
 // its counts. Design: ARCHITECTURE.md § VS Code extension; the wire:
 // packages/shared/src/embed-protocol.ts; the pure rules: embed.ts.
 //
@@ -22,14 +22,14 @@ import type {
   EmbedNavigateMessage,
   EmbedPageMessage,
   EmbedRouteMessage,
-} from "@frizz/shared/embed-protocol"
+} from "@ntwine/shared/embed-protocol"
 import { embedTheme, embedUrl, frameTarget, parsePageMessage } from "./embed.ts"
 import { actOnPage, Composes, type FrameLink, type PageHost } from "./framed-page.ts"
-import { frameDocument, HINT, HINT_OLD_FRIZZ, messageDocument, nonce, type ViewAction } from "./sidebar-html.ts"
+import { frameDocument, HINT, HINT_OLD_NTWINE, messageDocument, nonce, type ViewAction } from "./sidebar-html.ts"
 
 type Vscode = typeof vscode
 
-export const SIDEBAR_VIEW = "frizz.sidebar"
+export const SIDEBAR_VIEW = "ntwine.sidebar"
 /** The command VS Code generates for every view: reveal it, open it if it never was, and focus it. */
 export const SIDEBAR_FOCUS = `${SIDEBAR_VIEW}.focus`
 /**
@@ -37,42 +37,42 @@ export const SIDEBAR_FOCUS = `${SIDEBAR_VIEW}.focus`
  * "other"), or "" while no page has said where it is — a loading or missing page, whose buttons could
  * do nothing.
  */
-export const SIDEBAR_VIEW_KEY = "frizz.sidebarView"
+export const SIDEBAR_VIEW_KEY = "ntwine.sidebarView"
 
 /**
- * How long a page gets to say `frizz:ready` before the view offers Reload. An installed Frizz boots its
- * page in a second or two; a Frizz run from source serves ~250 unbundled modules through Vite, which took
+ * How long a page gets to say `ntwine:ready` before the view offers Reload. An installed Ntwine boots its
+ * page in a second or two; an Ntwine run from source serves ~250 unbundled modules through Vite, which took
  * 13s and 42s to load on a busy machine (scripts/e2e-sidebar.ts, 2026-10-01) — and offered Reload under
- * a page that was only slow. An older Frizz, which has no embed mode, never says it, and its page still
+ * a page that was only slow. An older Ntwine, which has no embed mode, never says it, and its page still
  * shows under the bar.
  */
-/** `frizz.matchEditorTheme` (package.json): the page in the editor's colours rather than Frizz's palette. */
+/** `ntwine.matchEditorTheme` (package.json): the page in the editor's colours rather than Ntwine's palette. */
 export const MATCH_THEME_SETTING = "matchEditorTheme"
 const READY_HINT_MS = 20_000
 /** Status and project pushes arrive a frame apart after a connect; one render for the pair. */
 const REFRESH_DEBOUNCE_MS = 200
-const OLD_FRIZZ_LOG = "The Frizz this window reached is older than the sidebar: its page shows, but can't take the editor's selections or open files here. Update Frizz."
+const OLD_NTWINE_LOG = "The Ntwine this window reached is older than the sidebar: its page shows, but can't take the editor's selections or open files here. Update Ntwine."
 const EVENTS_KEPT = 50
 
 /** The sidebar's host: what every framed page may ask (framed-page.ts), and where its page comes from. */
 export interface SidebarHost extends PageHost {
-  /** Where Frizz is: the connected origin, else the last discovery's. */
+  /** Where Ntwine is: the connected origin, else the last discovery's. */
   origin(): string | undefined
   /** The project this window's folders map to, if any. */
   projectSlug(): string | undefined
-  /** What to say when there is no Frizz to frame — the connection's own words, or undefined while it is still looking. */
+  /** What to say when there is no Ntwine to frame — the connection's own words, or undefined while it is still looking. */
   notFound(): string | undefined
   /**
-   * Whether the Frizz at that origin serves a page that can live in the sidebar: "no" when its editor
+   * Whether the Ntwine at that origin serves a page that can live in the sidebar: "no" when its editor
    * connection says it predates the sidebar, "unknown" while nothing has said. "no" shows the bar over the
-   * frame at once, saying to update Frizz, instead of waiting out READY_HINT_MS to say it is loading.
+   * frame at once, saying to update Ntwine, instead of waiting out READY_HINT_MS to say it is loading.
    */
   pageSupport(): "yes" | "no" | "unknown"
   openInBrowser(): void
   reconnect(): void
 }
 
-/** What the view shows and did, for the end-to-end suite (FrizzExtensionApi.sidebar). */
+/** What the view shows and did, for the end-to-end suite (NtwineExtensionApi.sidebar). */
 export interface SidebarSnapshot {
   opened: boolean
   visible: boolean
@@ -88,9 +88,9 @@ export interface SidebarSnapshot {
   badge?: number
   /** The badge's tooltip: the page's counts when it said them, else the Ready count. */
   badgeTooltip?: string
-  /** What `frizz.sidebarView` was set to, "" for none. */
+  /** What `ntwine.sidebarView` was set to, "" for none. */
   view: string
-  /** The page's address for what it shows, from its last `frizz:route`. */
+  /** The page's address for what it shows, from its last `ntwine:route`. */
   href?: string
   /** Page messages as handled: the type, and what came of it (a command run, "ignored", "opened", "missing"…). */
   events: { type: string; outcome: string }[]
@@ -101,9 +101,9 @@ export interface Sidebar {
   opened(): boolean
   /** The view is in sight: opened, and its container showing. */
   visible(): boolean
-  /** The page in the frame said `frizz:ready` and is still the page there. */
+  /** The page in the frame said `ntwine:ready` and is still the page there. */
   ready(): boolean
-  /** Re-read where Frizz is and this window's project, and re-frame only when either changed. */
+  /** Re-read where Ntwine is and this window's project, and re-frame only when either changed. */
   refresh(): void
   /** Frame the page afresh. */
   reload(): void
@@ -115,7 +115,7 @@ export interface Sidebar {
   /** Post a compose to the page and wait for its answer; undefined when it was not ready or did not answer within `ms`. */
   compose(input: Omit<EmbedComposeMessage, "type" | "id">, ms: number): Promise<EmbedComposedMessage | undefined>
   navigate(to: EmbedNavigateMessage["to"]): Promise<boolean>
-  /** The page's address for what the view shows (its last `frizz:route`), while it is in sight; else undefined. */
+  /** The page's address for what the view shows (its last `ntwine:route`), while it is in sight; else undefined. */
   href(): string | undefined
   /** Post to the page if it is ready; false if it is not, or the post failed. */
   post(message: EmbedEditorContextMessage | EmbedCommandMessage | EmbedEditorExtrasMessage): Promise<boolean>
@@ -150,11 +150,11 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
   /** Documents the frame has loaded since it was framed: past the first, the page loaded one itself. */
   let loads = 0
   /**
-   * The page reloaded itself and has not said it is ready since. Frizz's page reloads on a server restart
+   * The page reloaded itself and has not said it is ready since. Ntwine's page reloads on a server restart
    * (a new build, Vite's dev client), and a reload that lands while the server is down — the supervisor
    * restarts it twice in a second when commits land together — leaves the browser's error page in the
    * frame: blank in VS Code, and silent, so the view showed nothing until the window was reloaded
-   * (2026-10-07). Such a frame is framed afresh: when its ready timer runs out with Frizz reachable, and
+   * (2026-10-07). Such a frame is framed afresh: when its ready timer runs out with Ntwine reachable, and
    * when the connection comes back.
    */
   let reloaded = false
@@ -167,12 +167,12 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
   const focusListeners: (() => void)[] = []
   let waiters: ((ready: boolean) => void)[] = []
   const readyListeners: ((ready: boolean) => void)[] = []
-  /** The value `frizz.sidebarView` has, so it is set only on a change. */
+  /** The value `ntwine.sidebarView` has, so it is set only on a change. */
   let routeView = ""
 
   const theme = () => embedTheme(api.window.activeColorTheme.kind)
-  /** `frizz.matchEditorTheme`: the page wears the editor's colours (the relay reads them; sidebar-html.ts). */
-  const matchTheme = () => api.workspace.getConfiguration("frizz").get<boolean>(MATCH_THEME_SETTING, true) !== false
+  /** `ntwine.matchEditorTheme`: the page wears the editor's colours (the relay reads them; sidebar-html.ts). */
+  const matchTheme = () => api.workspace.getConfiguration("ntwine").get<boolean>(MATCH_THEME_SETTING, true) !== false
   const record = (type: string, outcome: string) => {
     events.push({ type, outcome })
     if (events.length > EVENTS_KEPT) events.shift()
@@ -209,13 +209,13 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
   }
 
   /**
-   * What the page's `frizz:route` says to VS Code: the context key the title row's buttons show by, and the
+   * What the page's `ntwine:route` says to VS Code: the context key the title row's buttons show by, and the
    * counts, which ride the badge's tooltip. Undefined resets them, for a page that is gone or not yet ready.
    *
    * NOT the view's `title` or `description`, though the route carries both. A single-view container's
    * row reads "<container>: <view title>", and VS Code re-cases it — capitalize on 1.140, uppercase on
-   * 1.90 — so a thread's handle came out "Frizz: Tidy-The-Sample-Loop", and it drops the description
-   * there altogether (scripts/e2e-sidebar.ts, 2026-10-01). The row says "Frizz"; the page names the
+   * 1.90 — so a thread's handle came out "Ntwine: Tidy-The-Sample-Loop", and it drops the description
+   * there altogether (scripts/e2e-sidebar.ts, 2026-10-01). The row says "Ntwine"; the page names the
    * thread it shows in its own drawer header, and the list names its scope.
    */
   function applyRoute(route: EmbedRouteMessage | undefined): void {
@@ -247,11 +247,11 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
     const origin = host.origin()
     if (!origin) {
       // A page already showing stays: it says it is offline itself, keeps its drafts on screen, and
-      // reconnects on its own when Frizz is back on the same port. A new port re-frames it (below).
+      // reconnects on its own when Ntwine is back on the same port. A new port re-frames it (below).
       if (frameUrl && !force) return
       const reason = host.notFound()
       // Still looking: say so and offer nothing; looked and found nothing: say why, and offer to look again.
-      showMessage(reason ?? "Looking for Frizz…", reason ? [{ action: "retry", label: "Try again" }] : [])
+      showMessage(reason ?? "Looking for Ntwine…", reason ? [{ action: "retry", label: "Try again" }] : [])
       return
     }
     const slug = host.projectSlug()
@@ -271,8 +271,8 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
     if (generation !== renders || !view) return
     const target = frameTarget(wanted, external)
     if (target.kind === "remapped") {
-      host.log.warn(`The sidebar can't show Frizz: this window reaches it on port ${target.external}, and Frizz only answers on port ${target.port}.`)
-      showMessage("Frizz can't load in this window's sidebar. Open it in your browser instead.", [{ action: "browser", label: "Open in browser" }])
+      host.log.warn(`The sidebar can't show Ntwine: this window reaches it on port ${target.external}, and Ntwine only answers on port ${target.port}.`)
+      showMessage("Ntwine can't load in this window's sidebar. Open it in your browser instead.", [{ action: "browser", label: "Open in browser" }])
       framedKey = key
       return
     }
@@ -281,16 +281,16 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
     message = undefined
     frameUrl = target.url
     frameOrigin = target.origin
-    // A Frizz known to predate the sidebar says so from the first paint: its page will never be ready.
+    // An Ntwine known to predate the sidebar says so from the first paint: its page will never be ready.
     const old = host.pageSupport() === "no"
     if (old) {
-      host.log.warn(OLD_FRIZZ_LOG)
+      host.log.warn(OLD_NTWINE_LOG)
       hinted = true
-      hintText = HINT_OLD_FRIZZ
+      hintText = HINT_OLD_NTWINE
     }
     loads = 0
     reloaded = false
-    view.webview.html = frameDocument({ nonce: nonce(), url: target.url, origin: target.origin, match: matchTheme(), ...(old ? { hint: HINT_OLD_FRIZZ } : {}) })
+    view.webview.html = frameDocument({ nonce: nonce(), url: target.url, origin: target.origin, match: matchTheme(), ...(old ? { hint: HINT_OLD_NTWINE } : {}) })
     armReadyTimer()
   }
 
@@ -319,11 +319,11 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
     armReadyTimer()
   }
 
-  /** The bar over a page that is not ready, in the words that fit what is known about the Frizz behind it. */
+  /** The bar over a page that is not ready, in the words that fit what is known about the Ntwine behind it. */
   function showHint(): void {
-    const text = host.pageSupport() === "no" ? HINT_OLD_FRIZZ : HINT.text
+    const text = host.pageSupport() === "no" ? HINT_OLD_NTWINE : HINT.text
     if (hinted && text === hintText) return
-    if (text === HINT_OLD_FRIZZ) host.log.warn(OLD_FRIZZ_LOG)
+    if (text === HINT_OLD_NTWINE) host.log.warn(OLD_NTWINE_LOG)
     hinted = true
     hintText = text
     void post({ view: "hint", show: true, text })
@@ -340,21 +340,21 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
 
   async function onPageMessage(page: EmbedPageMessage): Promise<void> {
     switch (page.type) {
-      case "frizz:ready": {
+      case "ntwine:ready": {
         reloaded = false
         setReady(true)
         record(page.type, "ready")
         void post({ view: "hint", show: false })
         // The page read its theme from the URL when the frame was made; VS Code's may have changed since.
-        void post({ type: "frizz:theme", theme: theme() })
-        void post({ type: "frizz:host-state", ...host.hostState() })
+        void post({ type: "ntwine:theme", theme: theme() })
+        void post({ type: "ntwine:host-state", ...host.hostState() })
         settle(true)
         return
       }
-      case "frizz:composed":
+      case "ntwine:composed":
         record(page.type, composes.answer(page) ? (page.ok ? "ok" : `refused: ${page.error ?? ""}`) : "unknown id")
         return
-      case "frizz:route":
+      case "ntwine:route":
         applyRoute(page)
         record(page.type, page.view)
         return
@@ -431,11 +431,11 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
       },
     }, { webviewOptions: { retainContextWhenHidden: true } }),
     api.window.onDidChangeActiveColorTheme(() => {
-      if (ready) void post({ type: "frizz:theme", theme: theme() })
+      if (ready) void post({ type: "ntwine:theme", theme: theme() })
     }),
     // To the relay, which holds the colours: it answers with a theme message with them, or without.
     api.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(`frizz.${MATCH_THEME_SETTING}`)) void post({ view: "match-theme", on: matchTheme() })
+      if (event.affectsConfiguration(`ntwine.${MATCH_THEME_SETTING}`)) void post({ view: "match-theme", on: matchTheme() })
     }),
     { dispose: () => {
       clearTimeout(readyTimer)
@@ -450,10 +450,10 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
     refresh() {
       clearTimeout(refreshTimer)
       refreshTimer = setTimeout(() => {
-        // A page that reloaded into a Frizz that was down is the browser's error page: the connection
+        // A page that reloaded into an Ntwine that was down is the browser's error page: the connection
         // coming back is the moment to frame it again.
         void render(frameUrl !== undefined && reloaded && !ready)
-        // The connection may have just learned what the framed Frizz is (a welcome, a 404): a page that
+        // The connection may have just learned what the framed Ntwine is (a welcome, a 404): a page that
         // never got ready and now is known never to be says why, without waiting out the timer.
         if (frameUrl && !ready && host.pageSupport() === "no") showHint()
       }, REFRESH_DEBOUNCE_MS)
@@ -486,14 +486,14 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
       return composes.send(post, input, ms)
     },
     async navigate(to) {
-      return ready && (await post({ type: "frizz:navigate", to }))
+      return ready && (await post({ type: "ntwine:navigate", to }))
     },
     href: () => (ready && view?.visible ? routeHref : undefined),
     async post(message) {
       return ready && (await post(message))
     },
     pushState() {
-      if (ready) void post({ type: "frizz:host-state", ...host.hostState() })
+      if (ready) void post({ type: "ntwine:host-state", ...host.hostState() })
     },
     onReady(listener) {
       readyListeners.push(listener)

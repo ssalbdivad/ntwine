@@ -69,7 +69,7 @@ export function shouldPushQueuedComposerEnter(event: ComposerKeyboardEvent, isEm
  * Only a running broker-backed Claude turn can be preempted: the SDK interrupt aborts the turn and
  * (since the query declares `perTaskStopAffordance`, 2026-09-24) spares its sub-agents. Codex is
  * excluded because its app-server owns the steer-vs-start decision and a follow-up STEERS the running
- * turn — Frizz never sends `turn/interrupt` for a message, and a `spawn_agent` child would die with
+ * turn — Ntwine never sends `turn/interrupt` for a message, and a `spawn_agent` child would die with
  * an interrupted turn. An ACP agent has no steer, so a follow-up queues behind the running turn, and
  * `session/cancel` is reserved for ending the thread. On both, ⌘-Enter is a plain send. A
  * `submitOverride` surface is excluded: that is the queue card, whose every send — a plain reply as much

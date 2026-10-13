@@ -1,5 +1,5 @@
 // Measure what `rpc/dispatch` costs BEFORE the worker exists — the dead time between the user
-// pressing Enter and frizz having done anything useful. This is the phase the auth-preflight and
+// pressing Enter and ntwine having done anything useful. This is the phase the auth-preflight and
 // board-rebuild fixes target; the worker's own boot-to-first-transcript-byte is downstream of it and
 // deliberately NOT measured here.
 //
@@ -16,7 +16,7 @@ const api = createRpcClient(base)
 
 await api.waitForHealth()
 
-// The preflight is prompt-independent, so keep the prompt trivial; we are timing frizz, not the model.
+// The preflight is prompt-independent, so keep the prompt trivial; we are timing ntwine, not the model.
 const prompt = "reply with the single word ok"
 const timings = []
 const spawned = []

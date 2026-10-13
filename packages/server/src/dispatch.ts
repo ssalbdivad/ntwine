@@ -17,15 +17,16 @@ import {
   PermissionMode,
   type ProviderAuth,
   type ProviderQuota,
-} from "@frizz/shared"
-import { log as frizzLog } from "./logging.ts"
+} from "@ntwine/shared"
+import { log as ntwineLog } from "./logging.ts"
 import { PERM_DIR_ENV, permRequestDir, workDirOf, type Project } from "./project.ts"
+import { projectInstructionsPath } from "./project-instructions.ts"
 import type { SessionRow, Storage } from "./storage.ts"
 import { isHeldRow } from "./storage.ts"
 import type { BoardManager } from "./board.ts"
-import type { AgentBackend, BackendKind, BuiltCommand, FrizzCli, FrizzMcp } from "./backend/types.ts"
+import type { AgentBackend, BackendKind, BuiltCommand, NtwineCli, NtwineMcp } from "./backend/types.ts"
 import { workerMcpServers, type WorkerMcpServers } from "./backend/project-mcp-servers.ts"
-import { FRIZZ_CLI, FRIZZ_MCP, WORKER_DISALLOWED_TOOLS, claudeWorkerEnv, frizzMcpEnv } from "./backend/types.ts"
+import { NTWINE_CLI, NTWINE_MCP, WORKER_DISALLOWED_TOOLS, claudeWorkerEnv, ntwineMcpEnv } from "./backend/types.ts"
 // The lifted worker caps live beside the shared worker environment they belong to (backend/types.ts).
 // Re-exported here because this is where callers have always reached for them.
 export { WORKER_MAX_WEB_SEARCHES, WORKER_MAX_SUBAGENTS, WORKER_MAX_CONCURRENT_SUBAGENTS } from "./backend/types.ts"
@@ -38,7 +39,7 @@ import { threadNameProblem, type ThreadNamer } from "./thread-names.ts"
 import type { CodexAppServerBridge } from "./backend/codex-app-server.ts"
 import type { AcpBridge } from "./backend/acp-bridge.ts"
 import { acpAgentIdFromModel } from "./backend/acp-agents.ts"
-import { acpModelIdFromModel, DEADLINE_MAX_MS, DEADLINE_MIN_MS } from "@frizz/shared"
+import { acpModelIdFromModel, DEADLINE_MAX_MS, DEADLINE_MIN_MS } from "@ntwine/shared"
 import { deadlineSection } from "./deadline.ts"
 import { claudeBrokerBridgeEnabled, type ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-bridge.ts"
 import { claudeUltracodeFlags, resolveClaudeEffort } from "./backend/claude-effort.ts"
@@ -47,7 +48,7 @@ import { dispatchFallsBackToFable } from "./backend/fable-fallback.ts"
 import { readCodexModels } from "./backend/codex-models.ts"
 import { AUTO_EFFORT, type ChooseEffort } from "./effort-chooser.ts"
 import { ProviderAuthRequiredError } from "./backend/auth-status.ts"
-import { readBoard, type FrizzBoard, type FrizzThread } from "./frizz.ts"
+import { readBoard, type NtwineBoard, type NtwineThread } from "./ntwine.ts"
 import { SYSTEM_PROMPT_DIR, cleanupAdoptionSessionFiles, systemPromptPath, writeMcpConfigFile } from "./session-files.ts"
 import {
   ADOPTION_ATTEMPT_LEASE_MS,
@@ -63,26 +64,26 @@ import {
 // `claude_runtime="broker"`, forked by claude-broker-host.ts with `detached: true` into its own
 // process group; a Codex thread runs its turns inside the app-server daemon. (Some thirty comments
 // below narrated a terminal pane in the present tense until 2026-08-19, which is how reader after
-// reader — human and agent — kept re-deriving a transport frizz stopped having.)
+// reader — human and agent — kept re-deriving a transport ntwine stopped having.)
 // Session-first (2026-07-09): a new dispatch
-// writes NO .frizz/<slug>.md thread file — the session IS the thread, and it gets an empty folder
-// (.frizz/threads/<sessionId>/) to use as it likes. The prompt is the ONLY intelligence: the worker
-// contract + this repo's FRIZZ.md + the scratch orientation + the task. Project-specific conventions
-// live in FRIZZ.md alone — the old settings `dispatchPreamble` was retired in favour of it, so there is
+// writes NO .ntwine/<slug>.md thread file — the session IS the thread, and it gets an empty folder
+// (.ntwine/threads/<sessionId>/) to use as it likes. The prompt is the ONLY intelligence: the worker
+// contract + this repo's NTWINE.md + the scratch orientation + the task. Project-specific conventions
+// live in NTWINE.md alone — the old settings `dispatchPreamble` was retired in favour of it, so there is
 // exactly ONE operator-authored surface.
 
-// title -> slug. The rule itself lives in @frizz/shared beside the ThreadSlug contract (the
+// title -> slug. The rule itself lives in @ntwine/shared beside the ThreadSlug contract (the
 // registry's boot repair recognises dispatch-minted slugs with it); re-exported here because every
 // caller reaches for it through the dispatcher.
 export { slugify }
 
 // Derive a concrete thread title from the prompt when the human didn't supply one: the first ~6
 // words of the prompt's first line, capped at 48 chars, ellipsized if anything was dropped. The
-// thread FILE always needs a title (frizz requires one) and the slug derives from it, so this never
+// thread FILE always needs a title (ntwine requires one) and the slug derives from it, so this never
 // returns empty. Claude later renames the session (ai-title), which the UI prefers for display.
 // Leading filler that carries no topic ("also spin up…", "please go ahead and…") and trailing
 // function words a truncation must never end on (the old first-6-words cut produced slugs like
-// "also-spin-up-a-sub-agent-to" — a dangling mid-phrase chop that reads as garbage in .frizz/).
+// "also-spin-up-a-sub-agent-to" — a dangling mid-phrase chop that reads as garbage in .ntwine/).
 const LEAD_FILLER = new Set(["also", "please", "and", "then", "now", "ok", "okay", "hey", "just", "so", "well", "next", "go", "ahead", "lets", "let's", "can", "you", "could", "would"])
 const TRAIL_STOP = new Set([
   "to", "a", "an", "the", "of", "for", "with", "in", "on", "at", "by", "and", "or", "but", "that",
@@ -107,12 +108,12 @@ export function fallbackTitle(prompt: string): string {
   return t || "thread"
 }
 
-// First free slug: <base>, then <base>-2, -3, … skipping any existing .frizz/<slug>.md AND any taken
-// registry slug (session-first: new dispatches have no .frizz file, so uniqueness must also clear the
+// First free slug: <base>, then <base>-2, -3, … skipping any existing .ntwine/<slug>.md AND any taken
+// registry slug (session-first: new dispatches have no .ntwine file, so uniqueness must also clear the
 // storage rows — else two fileless sessions could collide on a slug). `taken` is the row predicate.
-export function resolveSlug(frizzDir: string, base: string, taken?: (slug: string) => boolean): string {
+export function resolveSlug(ntwineDir: string, base: string, taken?: (slug: string) => boolean): string {
   base = ThreadSlug.parse(base)
-  const isTaken = (slug: string) => existsSync(join(frizzDir, `${slug}.md`)) || (taken?.(slug) ?? false)
+  const isTaken = (slug: string) => existsSync(join(ntwineDir, `${slug}.md`)) || (taken?.(slug) ?? false)
   if (!isTaken(base)) return base
   for (let n = 2; ; n++) {
     const suffix = `-${n}`
@@ -139,7 +140,7 @@ function sameFileStat(a: LegacyThreadFileIdentity, b: LegacyThreadFileIdentity):
     a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs && a.digest === b.digest
 }
 
-// Resolve an adoption source without ever accepting an indirect path. Both `.frizz` and the selected
+// Resolve an adoption source without ever accepting an indirect path. Both `.ntwine` and the selected
 // markdown file must be real (not symlink) direct children of the real project root. Reading the file
 // into the identity digest closes replacement/content races across the fresh-board authorization pass.
 export function resolveLegacyThreadFile(projectDir: string, value: unknown): LegacyThreadFileIdentity | null {
@@ -147,17 +148,17 @@ export function resolveLegacyThreadFile(projectDir: string, value: unknown): Leg
   if (!parsed.success) return null
   try {
     const projectRoot = realpathSync(projectDir)
-    const frizzPath = join(projectRoot, ".frizz")
-    const frizzStat = lstatSync(frizzPath)
-    if (!frizzStat.isDirectory() || frizzStat.isSymbolicLink()) return null
-    const realFrizz = realpathSync(frizzPath)
-    if (dirname(realFrizz) !== projectRoot || basename(realFrizz) !== ".frizz") return null
+    const ntwinePath = join(projectRoot, ".ntwine")
+    const ntwineStat = lstatSync(ntwinePath)
+    if (!ntwineStat.isDirectory() || ntwineStat.isSymbolicLink()) return null
+    const realNtwine = realpathSync(ntwinePath)
+    if (dirname(realNtwine) !== projectRoot || basename(realNtwine) !== ".ntwine") return null
 
-    const path = join(realFrizz, `${parsed.data}.md`)
+    const path = join(realNtwine, `${parsed.data}.md`)
     const before = lstatSync(path)
     if (!before.isFile() || before.isSymbolicLink()) return null
     const realPath = realpathSync(path)
-    if (dirname(realPath) !== realFrizz || basename(realPath) !== `${parsed.data}.md`) return null
+    if (dirname(realPath) !== realNtwine || basename(realPath) !== `${parsed.data}.md`) return null
     let contents: Buffer
     let openedBefore: Stats
     let openedAfter: Stats
@@ -197,7 +198,7 @@ export function resolveLegacyThreadFile(projectDir: string, value: unknown): Leg
 
 const ADOPTABLE_LEGACY_STATUSES = new Set(["planning", "planned", "active", "needs-human", "blocked"])
 
-export function isAdoptableLegacyBoardThread(thread: FrizzThread, slug: string): boolean {
+export function isAdoptableLegacyBoardThread(thread: NtwineThread, slug: string): boolean {
   return thread.id === slug &&
     ADOPTABLE_LEGACY_STATUSES.has(thread.status) &&
     thread.owner == null &&
@@ -205,7 +206,7 @@ export function isAdoptableLegacyBoardThread(thread: FrizzThread, slug: string):
     Array.isArray(thread.errors) && thread.errors.length === 0
 }
 
-function boardAuthorizesAdoption(board: FrizzBoard, slug: string): boolean {
+function boardAuthorizesAdoption(board: NtwineBoard, slug: string): boolean {
   const matches = board.threads.filter((thread) => thread.id === slug)
   if (matches.length !== 1 || !isAdoptableLegacyBoardThread(matches[0], slug)) return false
   return !board.errorItems.some((item) => item.file === `${slug}.md`)
@@ -227,7 +228,7 @@ function ensureSafeDirectDirectory(parent: string, name: string): string {
 }
 
 // ---- THE THREAD SCRATCH DIRECTORY ----------------------------------------------------------------
-// `.frizz/threads/<sessionId>/` — a folder the worker and its sub-agents may use however they like, and
+// `.ntwine/threads/<sessionId>/` — a folder the worker and its sub-agents may use however they like, and
 // nothing more than that. NOTHING is provisioned into it: no skeleton, no reserved filename, no format.
 //
 // It REPLACED a canonical `scratch.md` (2026-08-06, maintainer's call). That pad was one file every
@@ -237,20 +238,20 @@ function ensureSafeDirectDirectory(parent: string, name: string): string {
 // children clobbering the one file. A folder deletes that surface outright: each agent writes its OWN
 // file, so there is nothing to merge and nothing to clobber.
 //
-// What replaced the compaction injection is `frizzctl goal`'s POST-COMPACTION trigger
-// (scheduler SOURCE 7). The worker links whatever doc it wrote here and frizz hands that link back the
+// What replaced the compaction injection is `ntwinectl goal`'s POST-COMPACTION trigger
+// (scheduler SOURCE 7). The worker links whatever doc it wrote here and ntwine hands that link back the
 // moment the context is summarized away. Durable in SQLite, and visible to the operator — which the hook
 // injection never was.
 export function scratchDirRelPath(sessionId: string): string {
-  return `.frizz/threads/${sessionId}`
+  return `.ntwine/threads/${sessionId}`
 }
 
 /**
  * The scratch directory as the WORKER must be told it: relative to its cwd wherever the board sits in
  * that cwd (every registered project — byte-identical to what workers have always been told), and
  * ABSOLUTE for the Home workspace, whose board is in its state directory while its agents run in the
- * home folder (home-workspace.ts). There, the relative form names `~/.frizz/threads/…` — and a worker
- * that created that would make Frizz read `~/.frizz` as its legacy data root on the next boot.
+ * home folder (home-workspace.ts). There, the relative form names `~/.ntwine/threads/…` — and a worker
+ * that created that would make Ntwine read `~/.ntwine` as its legacy data root on the next boot.
  */
 export function workerScratchPath(project: Pick<Project, "dir" | "workDir">, sessionId: string): string {
   const rel = scratchDirRelPath(sessionId)
@@ -262,14 +263,14 @@ export function workerScratchPath(project: Pick<Project, "dir" | "workDir">, ses
 export function writeScratchDir(projectDir: string, sessionId: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/.test(sessionId)) throw new Error("invalid session id")
   const projectRoot = realpathSync(projectDir)
-  const frizzDir = ensureSafeDirectDirectory(projectRoot, ".frizz")
-  const threadsDir = ensureSafeDirectDirectory(frizzDir, "threads")
+  const ntwineDir = ensureSafeDirectDirectory(projectRoot, ".ntwine")
+  const threadsDir = ensureSafeDirectDirectory(ntwineDir, "threads")
   ensureSafeDirectDirectory(threadsDir, sessionId)
   return scratchDirRelPath(sessionId)
 }
 
 // The FIXED worker system prompt for `kind`, compiled in via workerPrompt.ts (single source of truth).
-// Not user-modifiable — project-specific conventions ride FRIZZ.md (frizzConfigBlock), appended
+// Not user-modifiable — project-specific conventions ride NTWINE.md (ntwineConfigBlock), appended
 // separately. `caps` drops the sections whose feature cannot fire for this worker (workerCapabilities
 // below); omitted, every gated section is left out, which is the contract the goldens pin.
 export function loadWorkerPrompt(kind: BackendKind = "claude", caps: WorkerCapabilities = {}): string {
@@ -277,9 +278,9 @@ export function loadWorkerPrompt(kind: BackendKind = "claude", caps: WorkerCapab
 }
 
 // WHAT A WORKER IN `dir` CAN REACH RIGHT NOW — the one predicate behind both halves of the gate: the
-// contract sections loadWorkerPrompt renders at a worker's start, and the tools its frizz-mcp lists
+// contract sections loadWorkerPrompt renders at a worker's start, and the tools its ntwine-mcp lists
 // (router `workerCapabilities`, polled live). `editor`: an editor window has this project open, which is
-// exactly when `frizzctl editor` has something to read (editor-bridge.ts editorState; `also` adds a
+// exactly when `ntwinectl editor` has something to read (editor-bridge.ts editorState; `also` adds a
 // thread's own checkout outside the project folder, as that tool does). Machine-wide "any editor
 // connected" would list the tool to every project's workers whenever one window is open anywhere, and
 // it would answer them all "none has this project open".
@@ -289,7 +290,7 @@ export function workerCapabilities(editors: Pick<EditorBridge, "editorState"> | 
 
 // The portable CI/review monitors, which ship inside the worker plugin (`sync-portable-monitors.mjs`
 // copies `monitors/` there, and `runtime/cc-worker` carries them in a published artifact). Claude finds
-// them through the `frizz:gh` skill; codex has no skills, so its prompt needs the absolute path or the
+// them through the `ntwine:gh` skill; codex has no skills, so its prompt needs the absolute path or the
 // model writes its own poll loop instead. Verified against a real file rather than assumed, so a layout
 // change degrades to the prompt's relative fallback instead of naming a directory that isn't there.
 export function monitorScriptsDir(): string | undefined {
@@ -322,7 +323,7 @@ export function codexScratchpadHookConfig(
   boardRoot?: string,
 ): Record<string, unknown> {
   if (!hookScript || !sessionId) return {}
-  // `--session` is mandatory: codex reports its OWN rollout session id to the hook, so without frizz's
+  // `--session` is mandatory: codex reports its OWN rollout session id to the hook, so without ntwine's
   // thread id the hook would resolve a scratchpad path that does not exist. `--board-root` is the same
   // problem for the directory: the hook would take its cwd, and a Home thread's cwd is not where its
   // board is (workerScratchPath). The shared app-server cannot carry a per-thread env, so it is argv.
@@ -346,7 +347,7 @@ export function codexScratchpadHookConfig(
         matcher: "^Bash$",
         hooks: [{
           type: "command",
-          command: `node ${JSON.stringify(bashBackgroundHook)} --frizz-thread`,
+          command: `node ${JSON.stringify(bashBackgroundHook)} --ntwine-thread`,
         }],
       }],
       // Native Codex children inherit the root scratch-directory instruction even with
@@ -356,7 +357,7 @@ export function codexScratchpadHookConfig(
       // `--resume-keeps-context`: a Codex thread that is resumed comes back from its rollout with its
       // whole conversation, so SessionStart(resume) is no loss and the hook must not announce one. It
       // could not fire at all until the hooks rode every resume (codexWorkerThreadConfig); now it fires
-      // on each one — the first message after a Frizz restart included.
+      // on each one — the first message after an Ntwine restart included.
       SessionStart: [cmd("--mode=session-start --resume-keeps-context")],
       UserPromptSubmit: [cmd("--mode=nudge")],
       PostToolUse: [cmd("--mode=nudge --event=PostToolUse")],
@@ -365,13 +366,13 @@ export function codexScratchpadHookConfig(
 }
 
 /**
- * Everything a Frizz worker's Codex thread carries as per-thread config besides its MCP mount: the
+ * Everything an Ntwine worker's Codex thread carries as per-thread config besides its MCP mount: the
  * reasoning summaries the transcript renders, and the hooks above.
  *
  * It is handed to the BRIDGE (context.ts `workerConfig`), not to one `thread/start`, because Codex
  * rebuilds a thread from the config of whichever request loaded it: sent with the dispatch alone, both
  * were gone after the thread's first resume. Built by the server that is running now, so a thread that
- * comes back under a newer Frizz gets that Frizz's registrations. `boardRoot` is the thread's board when
+ * comes back under a newer Ntwine gets that Ntwine's registrations. `boardRoot` is the thread's board when
  * it runs somewhere else (a Home thread: codexScratchpadHookConfig `--board-root`).
  */
 export function codexWorkerThreadConfig(sessionId: string, boardRoot?: string): Record<string, unknown> {
@@ -386,7 +387,7 @@ export function scratchpadHookScript(): string | undefined {
 
 // The first USER message a dispatched agent receives: scratch-directory orientation + custom
 // instructions + task. Session-first (2026-07-09) — the old thread-ownership contract is REPLACED by
-// this orientation (a new dispatch owns no .frizz file). The fixed worker prompt (workerPrompt.ts) and
+// this orientation (a new dispatch owns no .ntwine file). The fixed worker prompt (workerPrompt.ts) and
 // the same scratch line at SYSTEM level travel via --append-system-prompt (see buildClaudeCommand) so
 // they survive compaction and re-apply on resume; this composes the visible-message half.
 export function composePrompt(sessionId: string, prompt: string, kind: BackendKind = "claude", scratchPath = scratchDirRelPath(sessionId)): string {
@@ -398,18 +399,18 @@ export function composePrompt(sessionId: string, prompt: string, kind: BackendKi
       ? "Native sub-agents share it — have each write its OWN file rather than all editing one."
       : "Name it in a sub-agent's prompt when you want its notes to land somewhere you can read; give each child its OWN file rather than having them all edit one."
   const scratch =
-    `Your scratch directory is \`${scratchPath}/\` — yours to use however you like, for as many files as you like. It is EMPTY and nothing is expected in it: a single direct task usually needs nothing, and writing notes is never a substitute for doing the work. ${children} Nothing here is read automatically; if you ever want a note to come back after a compaction, \`frizzctl goal start --post-compaction\` re-sends a prompt of your choosing — one that can link a file here — into the emptied window.`
-  // The banner makes the system→human handoff unmistakable to the worker, and NOTHING of frizz's is
+    `Your scratch directory is \`${scratchPath}/\` — yours to use however you like, for as many files as you like. It is EMPTY and nothing is expected in it: a single direct task usually needs nothing, and writing notes is never a substitute for doing the work. ${children} Nothing here is read automatically; if you ever want a note to come back after a compaction, \`ntwinectl goal start --post-compaction\` re-sends a prompt of your choosing — one that can link a file here — into the emptied window.`
+  // The banner makes the system→human handoff unmistakable to the worker, and NOTHING of ntwine's is
   // allowed below it: the framing note goes here, ABOVE, so everything past the banner is the
   // operator's prompt byte for byte. That is also what the transcript projectors cut on
   // (DISPATCH_TASK_BANNER_MARKER), so the first chat bubble shows the operator's words alone.
   const handoff =
-    "\n\nEverything above the banner below is frizz system orientation. Everything below it is the user's own prompt, verbatim — that, and nothing else, is your task."
+    "\n\nEverything above the banner below is ntwine system orientation. Everything below it is the user's own prompt, verbatim — that, and nothing else, is your task."
   return `${scratch}${handoff}\n\n\n${DISPATCH_TASK_BANNER_MARKER}${prompt}`
 }
 
 // The appended SYSTEM prompt a broker Claude worker runs under: the worker contract, the scratch line
-// and the project's FRIZZ.md. Compaction never touches it — it is not a message — but a cold resume
+// and the project's NTWINE.md. Compaction never touches it — it is not a message — but a cold resume
 // forks the daemon with whatever its caller passed, and a fork without it is a worker with no contract
 // for as long as that daemon lives: every later follow-up reconnects to it and its own copy is
 // ignored. So every caller that can reach the bridge's `followUp` builds it here.
@@ -421,7 +422,7 @@ export function claudeWorkerSystemPrompt(
   return [
     loadWorkerPrompt("claude", extras.capabilities),
     scratchpadOrientation(sessionId, "claude", workerScratchPath(board, sessionId)),
-    frizzConfigBlock(board.dir),
+    ntwineConfigBlock(board.dir),
     extras.deadline,
   ].filter(Boolean).join("\n\n")
 }
@@ -437,7 +438,7 @@ export function scratchpadOrientation(sessionId: string, kind: BackendKind = "cl
     kind === "codex"
       ? "native sub-agents share it, so give each its own file"
       : "name it in a sub-agent's prompt when you want its notes back, and give each child its own file"
-  const scratch = `SCRATCH DIRECTORY: ${scratchPath}/ — yours, free-form, as many files as you like, and nothing is expected in it. A single direct task usually needs none; writing notes is never a substitute for doing the work (${children}). Nothing in this directory is read automatically; if you want a note back after a compaction, \`frizzctl goal start --post-compaction\` re-sends a prompt of your choosing.`
+  const scratch = `SCRATCH DIRECTORY: ${scratchPath}/ — yours, free-form, as many files as you like, and nothing is expected in it. A single direct task usually needs none; writing notes is never a substitute for doing the work (${children}). Nothing in this directory is read automatically; if you want a note back after a compaction, \`ntwinectl goal start --post-compaction\` re-sends a prompt of your choosing.`
   const who = operatorIdentity()
   const address = `${who ? `The user is ${who}. ` : ""}Your messages are read by the user: write to them as "you", never "the user" (a question's own wording aside)${who ? `, and name them as ${who} to another thread` : ""}.`
   return `${scratch}\n\n${address}`
@@ -464,9 +465,9 @@ export function operatorIdentity(): string | null {
   return operatorCache
 }
 
-// A project can ship a repo-committed `FRIZZ.md` at its root to steer frizz workers with its OWN
-// engineering-PROCESS norms — gates, review depth, commit/PR conventions — which OVERRIDE frizz's
-// built-in PROCESS defaults (NOT the frizz-mechanical contract: signal fences, scratchpad, sub-agent
+// A project can ship a repo-committed `NTWINE.md` at its root to steer ntwine workers with its OWN
+// engineering-PROCESS norms — gates, review depth, commit/PR conventions — which OVERRIDE ntwine's
+// built-in PROCESS defaults (NOT the ntwine-mechanical contract: signal fences, scratchpad, sub-agent
 // dispatch and the question handback stay in force — the injected header says so, matching the "Defer"
 // section of the worker contract). When present, its contents are injected into every worker's SYSTEM
 // prompt (dispatch, adopt, AND resume; both backends) under that header, so both see it without relying on the
@@ -474,25 +475,25 @@ export function operatorIdentity(): string | null {
 // next launch.
 //
 // The read is guarded by statSync BEFORE readFileSync: only a regular file under a size cap is read.
-// That keeps one accidental/hostile FRIZZ.md from wedging the server's event loop on EVERY dispatch and
+// That keeps one accidental/hostile NTWINE.md from wedging the server's event loop on EVERY dispatch and
 // resume — a FIFO would make readFileSync block forever, a symlink loop throws, a directory/device
 // isn't a regular file, and a runaway/generated file is rejected by size rather than fully slurped.
 // The surviving content is then clipped to keep token/context cost bounded. Returns "" when
 // absent/oversized/non-regular/empty — the caller drops it from the composed extra-system-prompt.
 //
 // THE CLIP IS SILENT TO EVERYONE WHO MATTERS, so the cap has to clear a REAL file rather than look
-// prudent. At 12,000 it did not: this repo's own FRIZZ.md was 16,522 characters on 2026-08-28, so
-// every worker frizz dispatched here lost the last 4,522 — beginning exactly at "## Git: land on
+// prudent. At 12,000 it did not: this repo's own NTWINE.md was 16,522 characters on 2026-08-28, so
+// every worker ntwine dispatched here lost the last 4,522 — beginning exactly at "## Git: land on
 // local `main` — NEVER open a pull request", the rule CLAUDE.md calls the most-violated one in the
-// repo. The marker says `[FRIZZ.md truncated]`, and nobody reads their own system prompt to find it.
+// repo. The marker says `[NTWINE.md truncated]`, and nobody reads their own system prompt to find it.
 // 24,000 characters is ~6k tokens, against a contract already several times that, and it clears the
-// real file with 45% headroom. `frizzConfigBlock injects this repo's own FRIZZ.md IN FULL` fails
+// real file with 45% headroom. `ntwineConfigBlock injects this repo's own NTWINE.md IN FULL` fails
 // LOUDLY the next time the file outgrows it, which is the actual guard — the number is only a number.
 // How long a dispatch waits on the quota read the Fable fallback consults before launching without it.
 const FABLE_FALLBACK_QUOTA_TIMEOUT_MS = 3_000
 
-const FRIZZ_MD_MAX_CHARS = 24_000
-const FRIZZ_MD_MAX_BYTES = 64 * 1024
+const NTWINE_MD_MAX_CHARS = 24_000
+const NTWINE_MD_MAX_BYTES = 64 * 1024
 /** The row write for a dispatch-time time limit — the instant the browser resolved — or a refusal when it
  *  is out of bounds by the time it arrived. The budget runs from NOW, the moment the thread starts. */
 export function dispatchDeadline(raw: string, nowMs = Date.now()): { deadlineAt: string; setAt: string; setBy: "human" } {
@@ -503,26 +504,26 @@ export function dispatchDeadline(raw: string, nowMs = Date.now()): { deadlineAt:
   return { deadlineAt: new Date(atMs).toISOString(), setAt: new Date(nowMs).toISOString(), setBy: "human" }
 }
 
-export function frizzConfigBlock(projectDir: string): string {
-  const path = join(projectDir, "FRIZZ.md")
+export function ntwineConfigBlock(projectDir: string): string {
+  const path = projectInstructionsPath(projectDir)
   let body: string
   try {
     const st = statSync(path) // follows a symlink to its target; ENOENT/ELOOP throw → caught
-    if (!st.isFile() || st.size > FRIZZ_MD_MAX_BYTES) return "" // not a regular file, or runaway size
+    if (!st.isFile() || st.size > NTWINE_MD_MAX_BYTES) return "" // not a regular file, or runaway size
     body = readFileSync(path, "utf8").trim()
   } catch {
-    return "" // no FRIZZ.md, unreadable, symlink loop, etc. → inject nothing
+    return "" // no NTWINE.md, unreadable, symlink loop, etc. → inject nothing
   }
   if (!body) return ""
-  const clipped = body.length > FRIZZ_MD_MAX_CHARS ? `${body.slice(0, FRIZZ_MD_MAX_CHARS)}\n\n[FRIZZ.md truncated]` : body
-  return `PROJECT FRIZZ CONFIG (from this repo's FRIZZ.md) — the project's own conventions for frizz workers. They OVERRIDE the frizz worker PROCESS defaults above (review depth, gates, git/PR conventions, the quality bar) wherever they conflict; follow them. They do NOT relax the frizz-mechanical contract — the signal fences, the scratchpad, sub-agent dispatch and the question handback still bind:\n\n${clipped}`
+  const clipped = body.length > NTWINE_MD_MAX_CHARS ? `${body.slice(0, NTWINE_MD_MAX_CHARS)}\n\n[NTWINE.md truncated]` : body
+  return `PROJECT NTWINE CONFIG (from this repo's NTWINE.md) — the project's own conventions for ntwine workers. They OVERRIDE the ntwine worker PROCESS defaults above (review depth, gates, git/PR conventions, the quality bar) wherever they conflict; follow them. They do NOT relax the ntwine-mechanical contract — the signal fences, the scratchpad, sub-agent dispatch and the question handback still bind:\n\n${clipped}`
 }
 
 // Workers have NO coherent interactive-plan-mode semantics: plan mode stays read-only until an
 // INTERACTIVE ExitPlanMode approval, which a headless dashboard worker can't satisfy (no one is at
 // the keyboard) and which blocks all edits until then — a softlock. A worker "plans" by writing a
-// durable plan file and asking via `frizzctl ask`, never via interactive plan
-// mode. So a worker is NEVER spawned in plan mode: `plan` is coerced to the safe frizz default
+// durable plan file and asking via `ntwinectl ask`, never via interactive plan
+// mode. So a worker is NEVER spawned in plan mode: `plan` is coerced to the safe ntwine default
 // (`auto`). Applied inside BOTH spawn builders so dispatch, adopt, AND resume are all covered. (The
 // dispatch UI still OFFERS "plan" in its permission-mode dropdown — dropping it in web/options.ts is
 // a follow-up for UI honesty; this coercion is the actual enforcement + the softlock fix.)
@@ -530,7 +531,7 @@ function workerPermissionMode(m: PermissionMode): PermissionMode {
   return m === "plan" ? "auto" : m
 }
 
-// Every frizz-CREATED worker launches maximally non-interactive: an unattended headless worker cannot
+// Every ntwine-CREATED worker launches maximally non-interactive: an unattended headless worker cannot
 // answer an interactive prompt, so a RESTRICTIVE dispatch-time permission choice is a footgun, not a
 // feature — it just stalls the thread on a modal nobody is watching. Claude gets `auto`; codex gets
 // `bypassPermissions` (→ `-s danger-full-access`). These are the FLOOR the dispatch/adopt paths stamp
@@ -539,7 +540,7 @@ function workerPermissionMode(m: PermissionMode): PermissionMode {
 export const WORKER_DISPATCH_PERMISSION: Record<BackendKind, PermissionMode> = {
   claude: "auto",
   codex: "bypassPermissions",
-  // An ACP agent's permissions are its own (plans/acp-backend.md, decision 7): Frizz sends no mode and
+  // An ACP agent's permissions are its own (plans/acp-backend.md, decision 7): Ntwine sends no mode and
   // mirrors whatever the agent asks as a card. The value here is recorded on the row and nothing else.
   acp: "auto",
 }
@@ -583,7 +584,7 @@ export function effectivePermissionMode(kind: BackendKind, mode: PermissionMode)
 
 // The assembled system prompt (worker norms + spawn-specific orientation) is ~16KB — passing it
 // inline as `--append-system-prompt <text>` puts all 16KB on the launch command line. That is what
-// broke every spawn on 2026-07-09 (100% of dispatch/adopt/resume): the terminal multiplexer frizz
+// broke every spawn on 2026-07-09 (100% of dispatch/adopt/resume): the terminal multiplexer ntwine
 // launched workers through back then capped its command length and failed each one with a silent
 // "command too long". That launch path is retired, but a command line is a bounded resource in its
 // own right (execvp's ARG_MAX), so the fix stays: claude accepts `--append-system-prompt-file
@@ -600,34 +601,34 @@ function systemPromptFlags(sessionId: string, system: string): string[] {
   return ["--append-system-prompt-file", path]
 }
 
-/** Where the frizz MCP server should look for the running server, and whose board it acts on. */
-export interface FrizzMcpTarget {
+/** Where the ntwine MCP server should look for the running server, and whose board it acts on. */
+export interface NtwineMcpTarget {
   /** THIS project's state dir. Identity, and the lock path a pre-singleton server published. */
   stateDir: string
-  /** The LAUNCHING project's `server.lock` — the only one this process writes. See FrizzMcp. */
+  /** The LAUNCHING project's `server.lock` — the only one this process writes. See NtwineMcp. */
   serverLock?: string
-  /** THIS project's registry id, so the script addresses `/_frizz/<id>/rpc/…` and not the launcher's. */
+  /** THIS project's registry id, so the script addresses `/_ntwine/<id>/rpc/…` and not the launcher's. */
   projectId?: string
 }
 
 /**
- * The descriptor for the worker command line (`frizzctl`): the directory that goes on a worker's PATH,
+ * The descriptor for the worker command line (`ntwinectl`): the directory that goes on a worker's PATH,
  * and where the command finds the running server and which project it addresses.
  *
  * The directory is the one a worker is LAUNCHED against (workerPluginDir — the stable path where one
  * is staged), not the immutable one the plugin was found in. That is the opposite choice from
- * resolveFrizzMcp below, for the same fact: an MCP server is spawned once per session and never
+ * resolveNtwineMcp below, for the same fact: an MCP server is spawned once per session and never
  * re-read, so a path that moves bought it nothing; a shell resolves a command on every call, so a
  * worker that outlives an update runs the updated command the moment the stable path is repointed.
  *
  * Undefined when the plugin or the command cannot be found — the worker's shell then simply has no
- * `frizzctl`, and workerPluginDir has already said so in the log.
+ * `ntwinectl`, and workerPluginDir has already said so in the log.
  */
-export function resolveFrizzCli(target: string | FrizzMcpTarget, pluginDir: string | undefined = workerPluginDir()): FrizzCli | undefined {
+export function resolveNtwineCli(target: string | NtwineMcpTarget, pluginDir: string | undefined = workerPluginDir()): NtwineCli | undefined {
   const { stateDir, serverLock, projectId } = typeof target === "string" ? { stateDir: target } : target
   if (!pluginDir) return undefined
   const binDir = join(pluginDir, "bin")
-  if (!existsSync(join(binDir, FRIZZ_CLI.name))) return undefined
+  if (!existsSync(join(binDir, NTWINE_CLI.name))) return undefined
   return {
     binDir,
     stateDir,
@@ -636,25 +637,25 @@ export function resolveFrizzCli(target: string | FrizzMcpTarget, pluginDir: stri
   }
 }
 
-// Resolve the descriptor for the unified frizz MCP server: the abs path to the stdio server script
-// (shipped as a sibling of bin/frizz in the worker plugin dir, so it rides the SAME ship+resolve path
+// Resolve the descriptor for the unified ntwine MCP server: the abs path to the stdio server script
+// (shipped as a sibling of bin/ntwine in the worker plugin dir, so it rides the SAME ship+resolve path
 // that already carries the plugin to prod) + where the script finds the running server and which
 // project it addresses. Returns undefined when the plugin dir or script can't be found — the worker
-// then simply lacks the frizz tools rather than failing to spawn. `env`/`moduleUrl` injectable for
+// then simply lacks the ntwine tools rather than failing to spawn. `env`/`moduleUrl` injectable for
 // tests. A bare state dir is still accepted (one project, one server: the pre-singleton shape).
-export function resolveFrizzMcp(
-  target: string | FrizzMcpTarget,
+export function resolveNtwineMcp(
+  target: string | NtwineMcpTarget,
   moduleUrl = import.meta.url,
   env: NodeJS.ProcessEnv = process.env,
   slug?: string,
-): FrizzMcp | undefined {
+): NtwineMcp | undefined {
   const { stateDir, serverLock, projectId } = typeof target === "string" ? { stateDir: target } : target
   // The directory the plugin was FOUND in, not the stable path workerPluginDir() launches against. An
   // MCP server is spawned once per session and a plugin reload does not re-spawn it (measured in
   // plans/live-worker-updates.md §0), so the shim gains nothing from a path that moves.
   const pluginDir = resolveWorkerPluginDir(moduleUrl, env)
   if (!pluginDir) return undefined
-  const scriptPath = join(pluginDir, "bin", FRIZZ_MCP.script)
+  const scriptPath = join(pluginDir, "bin", NTWINE_MCP.script)
   if (!existsSync(scriptPath)) return undefined
   return {
     scriptPath,
@@ -666,12 +667,12 @@ export function resolveFrizzMcp(
 }
 
 // Claude flags that mount a worker's MCP servers via ONE `--mcp-config` file and PRE-APPROVE
-// the frizz server's tools (`--allowedTools`) so a headless worker never blocks on a permission prompt
+// the ntwine server's tools (`--allowedTools`) so a headless worker never blocks on a permission prompt
 // it has nobody to answer. The config is a FILE, never inline JSON: it carries the operator's credentials
 // (a remote server's headers, a stdio server's env), and an argv is readable by every local process
 // through `ps` (see writeMcpConfigFile).
-// The unified `frizz` server is the ONLY server frizz itself injects, and only when its descriptor
-// resolved — frizz injects no browser and nothing else (see backend/types.ts). Everything else a
+// The unified `ntwine` server is the ONLY server ntwine itself injects, and only when its descriptor
+// resolved — ntwine injects no browser and nothing else (see backend/types.ts). Everything else a
 // worker mounts is the PROJECT's: since 2026-09-03 every worker runs under `--strict-mcp-config`, so
 // the CLI discovers no `.mcp.json` and no user-scope server on its own, and the project's approved
 // servers ride this same config (`project`, from project-mcp-servers.ts — which is also where
@@ -679,73 +680,73 @@ export function resolveFrizzMcp(
 export interface ClaudeMcpStdioConfig { command: string; args?: string[]; env?: Record<string, string> }
 export interface ClaudeMcpConfig { mcpServers: WorkerMcpServers; allowedTools: string[] }
 
-// The structured frizz MCP mount, shared by the `claude` CLI argv (rendered to --mcp-config/
+// The structured ntwine MCP mount, shared by the `claude` CLI argv (rendered to --mcp-config/
 // --allowedTools flags below) AND the broker SDK path (passed straight into query()'s mcpServers/
 // allowedTools). One source of truth so both forms mount the SAME servers with the SAME pre-approvals.
-export function claudeMcpConfig(mcp?: FrizzMcp, project?: WorkerMcpServers): ClaudeMcpConfig {
+export function claudeMcpConfig(mcp?: NtwineMcp, project?: WorkerMcpServers): ClaudeMcpConfig {
   const mcpServers: WorkerMcpServers = {}
   const allowedTools: string[] = []
   if (mcp) {
-    // command is the ABSOLUTE node path (process.execPath — the node running the frizz server), NOT bare
+    // command is the ABSOLUTE node path (process.execPath — the node running the ntwine server), NOT bare
     // "node": Claude spawns the MCP-server process itself, and a worker's PATH varies by launch context
-    // (a GUI-launched frizz, a login-shell difference) — if `node` isn't on it, the MCP server never
+    // (a GUI-launched ntwine, a login-shell difference) — if `node` isn't on it, the MCP server never
     // starts and the tool silently never appears in the worker. An absolute path removes that dependency.
-    // FRIZZ_THREAD_SLUG is the MCP server's CALLER IDENTITY — the channel through which a tool could act
+    // NTWINE_THREAD_SLUG is the MCP server's CALLER IDENTITY — the channel through which a tool could act
     // on its own thread. The MCP server is spawned per worker and nothing in the MCP protocol carries a
     // caller identity, so its env is the only place this can come from; a resume keeps the same slug, so
     // it stays correct for the whole life of the thread. TEN tools read it (`title`, `ask`, `unask`,
     // `done`, `watch`, `unwatch`, `watch_pr`, `timer`, `goal`, `activity`) and every one of them fails
     // without it — the comment here said "No SHIPPED tool reads it today" long after that stopped being
     // true, and the codex side went unfixed behind that belief until 2026-09-04.
-    // FRIZZ_SERVER_LOCK and FRIZZ_PROJECT_ID (frizzMcpEnv) are what make the tools work in a project
+    // NTWINE_SERVER_LOCK and NTWINE_PROJECT_ID (ntwineMcpEnv) are what make the tools work in a project
     // the singleton did NOT launch from: the first says where the one published lock is, the second
     // says whose board to act on. Both omitted ⇒ the script keeps its original behaviour (this
     // project's own lock, unprefixed RPC), which is exactly right for one project on its own server.
-    const env = frizzMcpEnv(mcp)
-    mcpServers[FRIZZ_MCP.name] = { command: process.execPath, args: [mcp.scriptPath], env }
-    // SERVER-level, not per tool: every tool the unified frizz server exposes (today
-    // `mcp__frizz__spawn_thread`) is pre-approved, so adding one never needs an allow-list edit.
-    allowedTools.push(`mcp__${FRIZZ_MCP.name}`)
+    const env = ntwineMcpEnv(mcp)
+    mcpServers[NTWINE_MCP.name] = { command: process.execPath, args: [mcp.scriptPath], env }
+    // SERVER-level, not per tool: every tool the unified ntwine server exposes (today
+    // `mcp__ntwine__spawn_thread`) is pre-approved, so adding one never needs an allow-list edit.
+    allowedTools.push(`mcp__${NTWINE_MCP.name}`)
   }
-  // The project's servers underneath, frizz's on top: a project cannot shadow `frizz` by naming a server
-  // after it. Only the frizz server is pre-approved — a project server keeps the approval story it had.
+  // The project's servers underneath, ntwine's on top: a project cannot shadow `ntwine` by naming a server
+  // after it. Only the ntwine server is pre-approved — a project server keeps the approval story it had.
   return { mcpServers: workerMcpServers(project, mcpServers), allowedTools }
 }
 
 /**
- * What a Claude worker is handed in place of the mount, since 2026-10-11: NO frizz MCP server, and a
+ * What a Claude worker is handed in place of the mount, since 2026-10-11: NO ntwine MCP server, and a
  * pre-approval for the command line that replaced it.
  *
  * A Claude worker gets the current contract at every fork (the system prompt is an argument, not
  * something the transcript stores), so a daemon forked by this server is always one that was told to
- * run `frizzctl` — there is no legacy Claude thread to keep the tools for, only legacy daemons, which
+ * run `ntwinectl` — there is no legacy Claude thread to keep the tools for, only legacy daemons, which
  * already hold theirs and are not re-read.
  *
- * `Bash(frizzctl:*)` is the same promise `mcp__frizz` made at server level: a worker's own sign-off is
- * never something a human has to approve. It is what keeps `frizzctl ask` and `frizzctl done` from
+ * `Bash(ntwinectl:*)` is the same promise `mcp__ntwine` made at server level: a worker's own sign-off is
+ * never something a human has to approve. It is what keeps `ntwinectl ask` and `ntwinectl done` from
  * becoming approval cards on a thread the human moved to `default`, where perm-policy.mjs defers every
  * prompt (`restrictive-mode`). Claude Code matches the rule against each command of the parsed line, so
- * `frizzctl … && frizzctl …` is covered and `frizzctl … && something-else` is judged on its second half.
+ * `ntwinectl … && ntwinectl …` is covered and `ntwinectl … && something-else` is judged on its second half.
  *
  * WHAT THE RULE CARRIES, MEASURED (2.1.296, a real worker on a `default` thread,
- * `backend/_live_broker_frizzctl.mts`): a bare call, an inline JSON argument, `--input <file>`,
- * `< file`, a `;` or `&&` chain of frizzctl calls and a quoted heredoc of prose all ran unasked. ONE
+ * `backend/_live_broker_ntwinectl.mts`): a bare call, an inline JSON argument, `--input <file>`,
+ * `< file`, a `;` or `&&` chain of ntwinectl calls and a quoted heredoc of prose all ran unasked. ONE
  * form did not: a quoted heredoc whose body holds a JSON object, which Claude Code's own command checks
  * bounce to a prompt whatever the allow list says. That is the form `ask` needs most, so the worker's
- * permission hook approves exactly that shape itself (`own-frizzctl` in cc-worker/hooks/perm-policy.mjs).
+ * permission hook approves exactly that shape itself (`own-ntwinectl` in cc-worker/hooks/perm-policy.mjs).
  */
-export function claudeCliConfig(cli?: FrizzCli, project?: WorkerMcpServers): ClaudeMcpConfig {
-  return { mcpServers: workerMcpServers(project, {}), allowedTools: cli ? [`Bash(${FRIZZ_CLI.name}:*)`] : [] }
+export function claudeCliConfig(cli?: NtwineCli, project?: WorkerMcpServers): ClaudeMcpConfig {
+  return { mcpServers: workerMcpServers(project, {}), allowedTools: cli ? [`Bash(${NTWINE_CLI.name}:*)`] : [] }
 }
 
 // The argv rendering of claudeMcpConfig above. Writes the session's config file as a side effect, the
 // way systemPromptFlags writes its prompt file.
-export function claudeMcpFlags(sessionId: string, mcp?: FrizzMcp, project?: WorkerMcpServers): string[] {
+export function claudeMcpFlags(sessionId: string, mcp?: NtwineMcp, project?: WorkerMcpServers): string[] {
   const { mcpServers, allowedTools } = claudeMcpConfig(mcp, project)
   // `--strict-mcp-config` ALWAYS, even with nothing to mount: the flag is what keeps the operator's
   // user-scope servers out of the worker, and a worker with no servers is still one that must not boot
   // them. NOTHING mounted ⇒ no OTHER flags. That state became reachable when the always-on browser
-  // mount was removed (a checkout whose worker plugin does not resolve has no frizz descriptor either),
+  // mount was removed (a checkout whose worker plugin does not resolve has no ntwine descriptor either),
   // and an empty `--allowedTools=` is not the same as omitting it — it hands the CLI one rule that is
   // the empty string. Emit neither rather than two empty ones.
   const argv = ["--strict-mcp-config"]
@@ -753,14 +754,14 @@ export function claudeMcpFlags(sessionId: string, mcp?: FrizzMcp, project?: Work
   // ONE comma-joined `--allowedTools=` in EQUALS form: the flag is VARIADIC, so a space-separated
   // value with a positional right behind it (e.g. the minimal no-system-prompt argv, where the prompt
   // directly follows) would be swallowed as a second rule. The equals form binds exactly one token —
-  // immune to argv reordering. Verified live: `claude -p --allowedTools=mcp__frizz <prompt>` runs the
+  // immune to argv reordering. Verified live: `claude -p --allowedTools=mcp__ntwine <prompt>` runs the
   // tools unprompted with the prompt surviving as the positional.
   argv.push("--mcp-config", writeMcpConfigFile(sessionId, mcpServers))
   if (allowedTools.length > 0) argv.push(`--allowedTools=${allowedTools.join(",")}`)
   return argv
 }
 
-// A frizz worker runs under a dashboard, not a live chat, so a BLOCKING question tool would hang the
+// An ntwine worker runs under a dashboard, not a live chat, so a BLOCKING question tool would hang the
 // session invisibly — there is nobody at the keyboard to click it. Remove it at spawn rather than
 // arguing against it in prose: the contract used to spend a paragraph on "NEVER invoke it" AND a
 // PreToolUse hook denied it, three mechanisms for one prohibition. Taking the tool away is the cheap
@@ -789,7 +790,7 @@ export function buildClaudeCommand(opts: {
   // Extra spawn-specific system-prompt text appended AFTER the worker norms (e.g. the adoption
   // orientation) — system-level so the visible transcript carries only the human's own words.
   extraSystemPrompt?: string
-  frizzMcp?: FrizzMcp
+  ntwineMcp?: NtwineMcp
   projectMcpServers?: WorkerMcpServers
 }): string[] {
   const argv = [opts.claudeBin ?? "claude", "--session-id", opts.sessionId, "--permission-mode", workerPermissionMode(opts.permissionMode)]
@@ -806,7 +807,7 @@ export function buildClaudeCommand(opts: {
   if (effort.effort) argv.push("--effort", effort.effort)
   argv.push(...claudeUltracodeFlags(effort))
   if (opts.pluginDir) argv.push("--plugin-dir", opts.pluginDir)
-  argv.push(...claudeMcpFlags(opts.sessionId, opts.frizzMcp, opts.projectMcpServers))
+  argv.push(...claudeMcpFlags(opts.sessionId, opts.ntwineMcp, opts.projectMcpServers))
   argv.push(...workerDisallowedToolFlags())
   // The fixed worker norms live in the SYSTEM prompt: rebuilt on every invocation (incl. resume)
   // and immune to compaction, unlike a first user message.
@@ -817,7 +818,7 @@ export function buildClaudeCommand(opts: {
   return argv
 }
 
-// The frizz-worker plugin directory. The implementation lives in worker-plugin-dir.ts: it moved there
+// The ntwine-worker plugin directory. The implementation lives in worker-plugin-dir.ts: it moved there
 // so backend/types.ts could resolve the plugin's bin/ for the browser-MCP proxy without importing this
 // module and closing an import cycle. That mount is gone (2026-08-26) and nothing outside this file
 // imports the leaf any more, but the split is harmless and moving it back would churn every caller —
@@ -834,10 +835,10 @@ let missingPluginReported = false
  *
  * IT SHOUTS WHEN IT CANNOT RESOLVE, because every consumer of this value FAILS OPEN and does so in
  * silence: `if (opts.pluginDir) argv.push(…)`, `if (!pluginDir) return undefined`, `return plugin ? … :
- * undefined`. A worker dispatched without it loses the worker-contract hooks, the `frizz:*` sub-agent
- * profiles, the frizz MCP tools (spawn_thread / goal / timer), the on-demand skills AND the
+ * undefined`. A worker dispatched without it loses the worker-contract hooks, the `ntwine:*` sub-agent
+ * profiles, the ntwine MCP tools (spawn_thread / goal / timer), the on-demand skills AND the
  * portable monitors — all five ride this one directory — and it still boots perfectly happily.
- * Measured against the real CLI on 2026-08-11: with the plugin dir a worker reports 16 `frizz:*` agent
+ * Measured against the real CLI on 2026-08-11: with the plugin dir a worker reports 16 `ntwine:*` agent
  * types; with a path that does not exist it answers the prompt normally, exit 0, no error, no warning.
  * Nothing on the board would ever say so.
  *
@@ -850,11 +851,11 @@ export function workerPluginDir(): string | undefined {
   const dir = resolveWorkerPluginDir()
   if (!dir && !missingPluginReported) {
     missingPluginReported = true
-    frizzLog.error(
+    ntwineLog.error(
       "dispatch",
       "worker plugin NOT FOUND (no cc-worker/.claude-plugin/plugin.json among this module's ancestors, and " +
-        "FRIZZ_WORKER_PLUGIN_DIR is unset or unverifiable). Workers dispatched now will silently lack the " +
-        "worker contract hooks, the frizz:* sub-agent profiles, the frizz MCP tools and the portable monitors.",
+        "NTWINE_WORKER_PLUGIN_DIR is unset or unverifiable). Workers dispatched now will silently lack the " +
+        "worker contract hooks, the ntwine:* sub-agent profiles, the ntwine MCP tools and the portable monitors.",
     )
   }
   return dir && launchableWorkerPluginDir(dir)
@@ -871,7 +872,7 @@ let stagingFailureReported = false
  * The path a worker is LAUNCHED against, which is not always where the plugin was found.
  *
  * An artifact launch hands this process an immutable, version-specific directory
- * (`FRIZZ_WORKER_PLUGIN_DIR`: a server release's or a promoted build's `runtime/cc-worker`). A worker
+ * (`NTWINE_WORKER_PLUGIN_DIR`: a server release's or a promoted build's `runtime/cc-worker`). A worker
  * launched against that outlives the version: its daemon is detached, so after an update it keeps
  * running the old hooks, skills and sub-agent profiles for as long as it lives, and re-reading its
  * plugin re-reads the same bytes. So that directory is staged and the worker is handed the STABLE path
@@ -889,7 +890,7 @@ export function launchableWorkerPluginDir(
   env: NodeJS.ProcessEnv = process.env,
   roots: { stageRoot?: string; stableRoot?: string } = {},
 ): string {
-  if (env.FRIZZ_WORKER_PLUGIN_DIR !== source) return source
+  if (env.NTWINE_WORKER_PLUGIN_DIR !== source) return source
   try {
     if (pluginIdentity?.source !== source) pluginIdentity = { source, version: pluginContentDigest(source) }
     return stageStablePluginDir({ source, version: pluginIdentity.version, ...roots }).stablePath
@@ -897,7 +898,7 @@ export function launchableWorkerPluginDir(
     // Once: the condition belongs to the install, and this runs on every dispatch.
     if (!stagingFailureReported) {
       stagingFailureReported = true
-      frizzLog.error(
+      ntwineLog.error(
         "dispatch",
         `worker plugin could not be staged at a stable path (${error instanceof Error ? error.message : String(error)}); ` +
           `workers launched now read ${source} directly and will not follow a later update until they restart.`,
@@ -932,8 +933,8 @@ export function buildClaudeResumeCommand(opts: {
   // Extra system-prompt text appended AFTER the worker norms (e.g. the scratchpad orientation) — the
   // system prompt is rebuilt per invocation, so a resume must re-carry it or the scratchpad is forgotten.
   extraSystemPrompt?: string
-  // The frizz MCP server must ride resume too (a resumed worker keeps the capability).
-  frizzMcp?: FrizzMcp
+  // The ntwine MCP server must ride resume too (a resumed worker keeps the capability).
+  ntwineMcp?: NtwineMcp
   projectMcpServers?: WorkerMcpServers
 }): string[] {
   const argv = [opts.claudeBin ?? "claude", "--permission-mode", workerPermissionMode(opts.permissionMode)]
@@ -943,7 +944,7 @@ export function buildClaudeResumeCommand(opts: {
   if (effort.effort) argv.push("--effort", effort.effort)
   argv.push(...claudeUltracodeFlags(effort))
   if (opts.pluginDir) argv.push("--plugin-dir", opts.pluginDir)
-  argv.push(...claudeMcpFlags(opts.sessionId, opts.frizzMcp, opts.projectMcpServers))
+  argv.push(...claudeMcpFlags(opts.sessionId, opts.ntwineMcp, opts.projectMcpServers))
   argv.push(...workerDisallowedToolFlags())
   // The system prompt is rebuilt per invocation — the resume must re-carry the worker norms too.
   // Same file-based path as buildClaudeCommand (see systemPromptFlags): inline would put the whole
@@ -964,7 +965,7 @@ export interface Dispatcher {
   //
   // `opts.nameSource` is the text the thread is NAMED from — the fallback title (and so the slug), a
   // caller title's disambiguating word, and the async mint — when that is not the prompt itself. Only
-  // the server sets it: a spinoff's prompt opens with Frizz's own "A spinoff of @parent…" boilerplate,
+  // the server sets it: a spinoff's prompt opens with Ntwine's own "A spinoff of @parent…" boilerplate,
   // and naming from that produced slugs like `a-spinoff-of-shell-budgets-thread-…` (2026-09-30), so
   // router.ts names the child from the human's instructions and its context instead. Deliberately
   // not a DispatchInput field: the RPC is callable by any worker and the web, and what a thread is
@@ -981,8 +982,8 @@ export interface Dispatcher {
   // links, a name the human typed — carries over, and the upsert that writes the live row clears the hold.
   // Server-only, like `fork`: the caller is held-start.ts.
   dispatch(input: DispatchInput, opts?: { backend?: BackendKind; nameSource?: string; fork?: { sessionId: string }; onto?: SessionRow }): Promise<{ slug: string; sessionId: string }>
-  // Cold-adopt an EXISTING thread frizz didn't originate (e.g. a repo with a pre-existing .frizz
-  // board): spawn a fresh worker pointed at the thread file. Frizz's contract makes this sound —
+  // Cold-adopt an EXISTING thread ntwine didn't originate (e.g. a repo with a pre-existing .ntwine
+  // board): spawn a fresh worker pointed at the thread file. Ntwine's contract makes this sound —
   // the doc, not the conversation, is the durable context; the worker reads it and continues.
   adopt(slug: string, message?: string): Promise<{ slug: string; sessionId: string }>
   // Write down a HELD THREAD for `opts.holder`: a thread row with a name and a session id but no agent
@@ -999,7 +1000,7 @@ export interface Dispatcher {
   createHeldThread(input: CreateHeldThreadInput, opts: { holder: string; scheduleRun?: { scheduleId: string; snoozedUntil: string | null; title: string } }): { slug: string; sessionId: string }
   // Take over an EXTERNAL session — one of the human's own `claude`/`codex` terminals, listed in the
   // rail's External band. Distinct from `adopt` above, which cold-starts a fresh worker on a thread
-  // FILE: this one binds frizz to a conversation that already exists and continues it.
+  // FILE: this one binds ntwine to a conversation that already exists and continues it.
   adoptSession(input: { sessionId: string; backend: BackendKind; title?: string }): Promise<{ slug: string; sessionId: string }>
 }
 
@@ -1077,7 +1078,7 @@ export interface DispatchDeps {
 
 export function createDispatcher(deps: DispatchDeps): Dispatcher {
   const readBoardSource = deps.readBoard ?? readBoard
-  const frizzDir = join(deps.project.dir, ".frizz")
+  const ntwineDir = join(deps.project.dir, ".ntwine")
   // Where the agents run, as against where the board is (`deps.project.dir`). The same directory for
   // every registered project; the Home workspace's folder for Home. See project.ts workDirOf.
   const workDir = workDirOf(deps.project)
@@ -1157,7 +1158,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // missing binary, timeout) fails OPEN so a network blip never traps a logged-in user. Runs
       // before the scratchpad/spawn/registry so a rejected dispatch leaves zero trace; the browser
       // keeps the draft and opens the sign-in modal off the sentinel message.
-      // An ACP agent has no credential Frizz can read: its auth is probed by the agent itself on
+      // An ACP agent has no credential Ntwine can read: its auth is probed by the agent itself on
       // session/new, and the bridge turns that refusal into an actionable dispatch error.
       if (kind !== "acp" && deps.preflightAuth && (await deps.preflightAuth(kind).catch((): ProviderAuth => "unknown")) === "signed-out") {
         throw new ProviderAuthRequiredError(kind)
@@ -1191,15 +1192,15 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         if (!callerTitle && !onto) void deps.threadNamer?.mint(slug, sessionId, nameSource)
       }
       const base = input.slug ?? slugify(title)
-      const slug = onto ? onto.slug : resolveSlug(frizzDir, base, (s) => deps.storage.getSession(s) !== undefined)
+      const slug = onto ? onto.slug : resolveSlug(ntwineDir, base, (s) => deps.storage.getSession(s) !== undefined)
       // The title flags a held thread already has: a name the human typed stays locked against the worker's rename.
       const titleFlags = onto
         ? { title_auto: onto.title_auto, title_locked: onto.title_locked }
         : undefined
-      // Codex TUI does not reliably emit either a native title or Frizz's requested hidden marker.
+      // Codex TUI does not reliably emit either a native title or Ntwine's requested hidden marker.
       // Keep the already bounded, deterministic dispatch title as the durable automatic fallback.
       // Unlike the full composed prompt, fallbackTitle is capped and topic-oriented; a later valid
-      // provider/Frizz signal may still replace it through the title_auto CAS.
+      // provider/Ntwine signal may still replace it through the title_auto CAS.
       const registryTitle = title
       const sessionId = onto ? onto.session_id : randomUUID()
       const permissionMode = workerDispatchPermission(kind, settings)
@@ -1222,7 +1223,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       const deadlineBlock = deadline ? deadlineSection({ deadline_at: deadline.deadlineAt, deadline_set_at: deadline.setAt, deadline_set_by: "human", deadline_stage: null }) : ""
 
       // Session-first: provision the thread's scratch DIRECTORY (empty; the worker fills it or does
-      // not) — NO .frizz/<slug>.md file. It keys on the frizz-minted sessionId, which stays the row's
+      // not) — NO .ntwine/<slug>.md file. It keys on the ntwine-minted sessionId, which stays the row's
       // session_id for BOTH backends (codex's discovered rollout id is pinned separately on
       // agent_session_id).
       const scratchRel = writeScratchDir(deps.project.dir, sessionId)
@@ -1235,14 +1236,14 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // locates on disk exactly like a discovered rollout (identical filename suffix). This is the SOLE
       // codex transport: the interactive TUI path was retired, so a codex dispatch that can't reach the
       // bridge fails loudly rather than degrading. The worker contract + scratchpad orientation ride
-      // baseInstructions, and the frizz title protocol rides developerInstructions.
+      // baseInstructions, and the ntwine title protocol rides developerInstructions.
       if (kind === "codex") {
         const bridge = deps.codexAppServer
         if (!bridge) {
           cleanupDispatchFiles(scratchRel, { argv: [], env: {}, prewrite: [] }, sessionId)
           throw new Error("Codex app-server is unavailable; cannot start this thread. Check that `codex` is installed and its app-server protocol matches the pinned revision (re-pin if you upgraded codex).")
         }
-        const extraSystemPrompt = [scratchpadOrientation(sessionId, kind, scratchPath), frizzConfigBlock(deps.project.dir), deadlineBlock]
+        const extraSystemPrompt = [scratchpadOrientation(sessionId, kind, scratchPath), ntwineConfigBlock(deps.project.dir), deadlineBlock]
           .filter(Boolean).join("\n\n")
         try {
           const spawned = await bridge.spawnDispatch({
@@ -1291,7 +1292,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           deps.storage.setAgentSession(slug, spawned.binding.codexSessionId)
           deps.storage.setCodexRuntime(slug, "app-server")
           mintName(slug, sessionId)
-          // The contract this thread was just started with teaches `frizzctl`, and a codex thread keeps
+          // The contract this thread was just started with teaches `ntwinectl`, and a codex thread keeps
           // the contract it was started with — so it is never handed the MCP tools (workerTaughtMcp).
           deps.storage.setWorkerSurface(slug, "cli")
           void deps.board.rebuild().catch(() => {})
@@ -1309,7 +1310,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
 
       // The generic ACP transport (plans/acp-backend.md). The agent is named by the model slug
       // (`acp:<agent>` — model drives backend everywhere else too), the worker contract rides the FIRST
-      // prompt because ACP has no system-prompt channel, and the frizz MCP server mounts through
+      // prompt because ACP has no system-prompt channel, and the ntwine MCP server mounts through
       // session/new. The bridge writes the transcript the tailer folds; the row pins the ACP session id
       // in `agent_session_id` (like codex) and the agent id in `acp_agent`.
       if (kind === "acp") {
@@ -1319,7 +1320,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           cleanupDispatchFiles(scratchRel, { argv: [], env: {}, prewrite: [] }, sessionId)
           throw new Error(!bridge ? "The ACP bridge is unavailable; cannot start this thread." : `An ACP dispatch needs an agent: pick one in the composer (model \`acp:<agent>\`), got ${JSON.stringify(model ?? null)}.`)
         }
-        const firstPrompt = [loadWorkerPrompt("acp", workerCapabilities(deps.editors, workDir)), scratchpadOrientation(sessionId, kind, scratchPath), frizzConfigBlock(deps.project.dir), deadlineBlock, prompt]
+        const firstPrompt = [loadWorkerPrompt("acp", workerCapabilities(deps.editors, workDir)), scratchpadOrientation(sessionId, kind, scratchPath), ntwineConfigBlock(deps.project.dir), deadlineBlock, prompt]
           .filter(Boolean).join("\n\n")
         try {
           const spawned = await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: workDir, agentId, modelId: acpModelIdFromModel(model), effort, prompt: firstPrompt, userText: input.prompt })
@@ -1361,9 +1362,9 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
 
       // Claude session-broker transport, the SOLE claude transport — exactly the shape the codex branch
       // above already has. A DETACHED daemon owns the Claude Agent SDK session over a local socket, so
-      // the session OUTLIVES frizz: a restart reconnects to the LIVE session instead of cold
+      // the session OUTLIVES ntwine: a restart reconnects to the LIVE session instead of cold
       // resume-from-disk, and permissions stay structured and TYPED (no terminal, no PTY, no TUI
-      // scraping — none of which frizz has had since the cutover). FRIZZ_CLAUDE_BROKER_BRIDGE="0" is a
+      // scraping — none of which ntwine has had since the cutover). NTWINE_CLAUDE_BROKER_BRIDGE="0" is a
       // kill switch, not a fallback: with the bridge absent (that switch, or a test context) there is no
       // other path left, so the dispatch fails loudly rather than degrading. The worker contract +
       // scratchpad orientation ride the appended system prompt, and persistSession makes the daemon
@@ -1378,7 +1379,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         const appendSystemPrompt = [
           loadWorkerPrompt("claude", workerCapabilities(deps.editors, workDir)),
           scratchpadOrientation(sessionId, kind, scratchPath),
-          frizzConfigBlock(deps.project.dir),
+          ntwineConfigBlock(deps.project.dir),
           deadlineBlock,
         ].filter(Boolean).join("\n\n")
         // A FORK's opening prompt is sent under a uuid minted here, so the record the CLI writes for it —
@@ -1459,7 +1460,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         : input.title?.trim() && !threadNameProblem(input.title.trim()) ? input.title.trim() : undefined
       const title = scheduled && typed ? typed
         : (typed && deps.threadNamer ? deps.threadNamer.distinct(typed, input.prompt) : typed) || fallbackTitle(input.prompt)
-      const slug = resolveSlug(frizzDir, slugify(title), (s) => deps.storage.getSession(s) !== undefined)
+      const slug = resolveSlug(ntwineDir, slugify(title), (s) => deps.storage.getSession(s) !== undefined)
       const sessionId = randomUUID()
       const settings = deps.getSettings()
       const saved = input.model === undefined || input.effort === undefined ? savedProfile(kind, settings) : {}
@@ -1497,7 +1498,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       return { slug, sessionId }
     },
 
-    // ---- PROMOTION: the human steered one of their own terminals, so it becomes a frizz thread ----
+    // ---- PROMOTION: the human steered one of their own terminals, so it becomes an ntwine thread ----
     //
     // There is no "adopt" button and no separate ceremony (maintainer 2026-08-24: "once the user steers
     // an external thread, it should then be essentially promoted to operate as a regular thread"). The
@@ -1527,10 +1528,10 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       const { sessionId: externalId, backend, title } = parsed.data
       // The id must be genuinely UNOWNED. Checking the registry (rather than trusting the caller's
       // claim that this came from the External band) is what stops a crafted request from minting a
-      // second row over a thread frizz is already driving.
+      // second row over a thread ntwine is already driving.
       for (const row of deps.storage.allSessions()) {
         if (row.session_id === externalId || row.agent_session_id === externalId || row.transcript_id === externalId) {
-          throw new Error("that session is already a frizz thread")
+          throw new Error("that session is already an ntwine thread")
         }
       }
       const displayTitle = title?.trim() || `Session ${externalId.slice(0, 8)}`
@@ -1562,17 +1563,17 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         // resumes the session with `row.permission_mode`, and a row with none fell through to the
         // bridge's `"default"` — Claude's prompt-on-everything mode, which the worker's own perm-policy
         // hook then DEFERS on every call (`restrictive-mode`), so each Edit became a card. Observed
-        // 2026-09-03 on a terminal session driven from the board: every frizz-sent turn ran at
+        // 2026-09-03 on a terminal session driven from the board: every ntwine-sent turn ran at
         // `default` while the human's own TUI on the same transcript sat at `auto`.
         permission_mode: workerDispatchPermission(backend, deps.getSettings()),
       })
       deps.storage.setBackend(slug, backend)
       // A session promoted onto the board was taught no contract at all. What it will be told from
-      // here on — every wake and bump — names `frizzctl`, so that is the surface it is given.
+      // here on — every wake and bump — names `ntwinectl`, so that is the surface it is given.
       deps.storage.setWorkerSurface(slug, "cli")
       if (backend === "codex") deps.storage.setAgentSession(slug, externalId)
       // The TRANSPORT, without which the follow-up that triggered this promotion has nowhere to go.
-      // Every claude thread is broker-backed — the legacy path throws "frizz has no other claude
+      // Every claude thread is broker-backed — the legacy path throws "ntwine has no other claude
       // transport" — and a row that never went through dispatch does not get this stamped for free.
       else deps.storage.setClaudeRuntime(slug, "broker")
       return { slug, sessionId }
@@ -1592,7 +1593,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // one non-oracular failure and occurs before ensureServer, scratch creation, spawn, or storage.
       const source = resolveLegacyThreadFile(deps.project.dir, slug)
       if (!source) throw unavailable()
-      let freshBoard: FrizzBoard
+      let freshBoard: NtwineBoard
       try {
         freshBoard = await readBoardSource(deps.project.dir)
         if (!boardAuthorizesAdoption(freshBoard, slug)) throw unavailable()
@@ -1676,7 +1677,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // frontmatter untouched.
       const adoption =
         "ADOPTION: this thread predates you and has prior context recorded in `" +
-        (boardRoot ? join(boardRoot, ".frizz", `${slug}.md`) : `.frizz/${slug}.md`) +
+        (boardRoot ? join(boardRoot, ".ntwine", `${slug}.md`) : `.ntwine/${slug}.md`) +
         "` (a previous agent or session worked it — you have no access to that conversation, and you don't need it). READ THAT FILE FIRST for context: `## Goal` is the mission, `## Status`/`## Decisions`/`## Next step` are where things stand. It is CONTEXT, not a contract — do NOT edit its frontmatter. You work session-first from here: keep your working state in your scratchpad and signal end-of-turn with the done/awaiting fences. The user's message below is your steer on top of that context."
       const task = message?.trim() || "Pick up this thread and continue from where the file says things stand."
       // Provision a scratch directory too (the adopted worker's own space); the legacy file stays read-only.
@@ -1693,7 +1694,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // pane under a leased attempt token and rebind the pane identity across slow post-create setup —
       // a multi-process protocol whose entire purpose was making a PANE claim safe. There is no pane
       // to claim now: the daemon record plus the session id is the identity, so the attempt token
-      // stays (it still fences two frizz processes racing the same slug) and everything pane-shaped goes.
+      // stays (it still fences two ntwine processes racing the same slug) and everything pane-shaped goes.
       const bridge = deps.claudeBroker
       if (!bridge) {
         rollback()
@@ -1716,7 +1717,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           appendSystemPrompt: [
             loadWorkerPrompt("claude", workerCapabilities(deps.editors, workDir)),
             scratchpadOrientation(sessionId, "claude", workerScratchPath(deps.project, sessionId)),
-            frizzConfigBlock(deps.project.dir),
+            ntwineConfigBlock(deps.project.dir),
             adoption,
           ].filter(Boolean).join("\n\n"),
           model: adoptProfile.model,

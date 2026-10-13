@@ -17,7 +17,7 @@
 // Two surfaces, one per --surface: the QUEUE card (its own card-level Send) and the thread DRAWER
 // (the drawer's prompt box). They run the same block through different controllers.
 //
-// Seed a stack + question threads first (scripts/seed-question-cards.mjs, see .agents/skills/frizz-stack):
+// Seed a stack + question threads first (scripts/seed-question-cards.mjs, see .agents/skills/ntwine-stack):
 //   node scripts/verify-question-answer.mjs --url=http://127.0.0.1:4930 --slug=q-legacy-approval
 //   node scripts/verify-question-answer.mjs --url=… --slug=q-legacy-danger --mode=chip
 import { launchHeadless } from "./lib/headless-browser.mjs"
@@ -85,7 +85,7 @@ try {
   // the one being driven. After a send the queue card dissolves (the optimistic dismissal), so fall
   // back to the viewport rather than crashing on the element that is correctly no longer there.
   const shootCard = async (name) => {
-    const path = `${shots}/frizz-question-${slug}-${surface}-${name}.png`
+    const path = `${shots}/ntwine-question-${slug}-${surface}-${name}.png`
     const el = await page.$(SEL)
     if (el) await el.screenshot({ path })
     else await page.screenshot({ path })

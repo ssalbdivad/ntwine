@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const baseUrl = process.env.FRIZZ_TOOLTIP_SWITCH_E2E_URL
+const baseUrl = process.env.NTWINE_TOOLTIP_SWITCH_E2E_URL
 
 // Icon verbs sit shoulder to shoulder, and the tooltip has to name the one you are actually pointing
 // at. It did not, first reported on the maintenance pair (Restart worker, Reload plugins): hovering
@@ -21,7 +21,7 @@ const baseUrl = process.env.FRIZZ_TOOLTIP_SWITCH_E2E_URL
 // HOVERABLE CONTENT and holds a tooltip open while the pointer is inside the grace polygon between
 // the trigger and its content — and this content is a wide box sitting directly above BOTH icons, so
 // the neighbour is inside the polygon. `disableHoverableContent` on the provider is the fix; nothing
-// in frizz needs to hover INTO a tooltip, and the ones that must stay reachable on touch use the
+// in ntwine needs to hover INTO a tooltip, and the ones that must stay reachable on touch use the
 // clickable branch, which is not Radix at all.
 //
 // Driven with real pointer movement rather than dispatched events, because that distinction is the
@@ -29,7 +29,7 @@ const baseUrl = process.env.FRIZZ_TOOLTIP_SWITCH_E2E_URL
 //
 // Opt-in like this repo's other e2e tests — point it at a vite server for packages/web:
 //   npx vite --port 5799 --strictPort   (in packages/web)
-//   FRIZZ_TOOLTIP_SWITCH_E2E_URL=http://localhost:5799 nub --test --test-force-exit \
+//   NTWINE_TOOLTIP_SWITCH_E2E_URL=http://localhost:5799 nub --test --test-force-exit \
 //     'packages/web/src/components/tooltipSwitch.e2e.test.ts'
 test("the tooltip names whichever icon verb the pointer is on, including the neighbour it slid from", {
   skip: !baseUrl,

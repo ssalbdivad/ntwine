@@ -42,7 +42,7 @@
   --breakpoint-split: 1200px;
 
   /* A parked PR watcher's mark. Fitted to the accent-yellow/shell-blue pair in OKLCH rather than picked
-     — see the .frizz-live-dot--github rule below for the numbers and for why it is violet and not the
+     — see the .ntwine-live-dot--github rule below for the numbers and for why it is violet and not the
      green that fits the same numbers. */
   /* Live-work indicators split by runtime concern: a background SHELL/Monitor pulses blue, a
      sub-agent pulses the accent-yellow. The blue is a clear azure, kept distinct from --color-live
@@ -104,14 +104,14 @@
 }
 
 /* PHONE SHEETS ARE THE WHOLE SCREEN.
-   Every drawer in the app — thread, frizz-doc, plan, sub-agent, background shell, settings — renders on
+   Every drawer in the app — thread, ntwine-doc, plan, sub-agent, background shell, settings — renders on
    `SHEET_PANEL_CLASS` (lib/sheet.ts) and sizes itself with an inline width: either the stack curve
    `min(720px, 80vw)` or, for settings, a fixed 560px. At 390pt that leaves a 78px sliver of board
    showing down one side and a panel too narrow to read a transcript in.
    `!important` because the width those panels carry is an INLINE style, which no ordinary rule can
    outrank. The breakpoint is `MOBILE_MAX_PX` in lib/mobile.ts — change them together. */
 @media (max-width: 700px) {
-  .frizz-sheet-panel {
+  .ntwine-sheet-panel {
     width: 100vw !important;
     max-width: 100vw !important;
     border-left: 0;
@@ -128,7 +128,7 @@
    phone's page (lib/mobile.ts) — so a thread's drawer covers it, as a phone's sheet does: a sidebar
    dragged past 700px drew the thread as an 80vw panel with a strip of the page beside it. `data-embed`
    is set by index.html before first paint. No safe areas: a sidebar has none. */
-html[data-embed] .frizz-sheet-panel {
+html[data-embed] .ntwine-sheet-panel {
   width: 100vw !important;
   max-width: 100vw !important;
   border-left: 0;
@@ -138,7 +138,7 @@ html[data-embed] .frizz-sheet-panel {
    #181818 side bar, a sheet set into the editor — what the colours are there to stop. Inside it, what
    matched the panel (its header, its footer, the cards on it) matches the surface instead; panel-2 and
    elevated keep their lift. */
-html[data-host-colors] .frizz-sheet-panel {
+html[data-host-colors] .ntwine-sheet-panel {
   --color-panel: var(--color-bg);
 }
 /* …and a focus ring the browser draws on its own (`outline: auto`, a row that kept the keyboard) is in
@@ -284,18 +284,18 @@ body {
 .title-refresh-offset {
   translate: 0 var(--title-refresh-offset);
 }
-/* Markdown prose rendered INSIDE a .frizz-bash card (the SendMessage peer-message body) is PROSE, not
+/* Markdown prose rendered INSIDE a .ntwine-bash card (the SendMessage peer-message body) is PROSE, not
    code — so it must read in the app's sans-serif prose font,
    matching the surrounding assistant messages. Re-assert the body-font rule here so the mono that
-   .frizz-bash forces onto its code/command bodies doesn't bleed into this one prose body. */
-.frizz-bash .md-body {
+   .ntwine-bash forces onto its code/command bodies doesn't bleed into this one prose body. */
+.ntwine-bash .md-body {
   font-family: var(--font-sans);
 }
 
 /* The expanded body of a codex model-reasoning block. The summary is a QUIET secondary aside, so it
    reads one step down from real answer prose: 12px (matching the block's collapsed header) on a tighter
    block step, in the muted color — never the 14px fg body that would compete with the actual answer. */
-.frizz-reasoning .md-body {
+.ntwine-reasoning .md-body {
   font-size: 12px;
   --md-step: 8px;
   color: var(--color-muted);
@@ -303,7 +303,7 @@ body {
 /* A settled awaiting fence's note (ChatView SettledAwaitingNote): a check-in's progress update the worker
    has since moved past. Same quiet aside as the reasoning body — muted, one step down — so a run of them
    reads as the orchestration's history rather than competing with what the worker is saying now. */
-.frizz-settled-note .md-body {
+.ntwine-settled-note .md-body {
   font-size: 12px;
   --md-step: 8px;
   color: var(--color-muted);
@@ -314,7 +314,7 @@ body {
    wall of loud headers — the opposite of the quiet metadata aside this block wants. Drop the emphasis to
    the body weight so the steps read as a soft train-of-thought list; a detailed-mode header still leads
    its paragraph by position, not by shouting. */
-.frizz-reasoning .md-body strong {
+.ntwine-reasoning .md-body strong {
   font-weight: inherit;
 }
 
@@ -349,7 +349,7 @@ body {
 /* Live work is a color-plus-motion cue: the bright dot remains readable in high contrast, while
    reduced-motion users retain the same static ring. CSS-only animation avoids transcript rerenders
    and therefore cannot disturb scroll anchoring. */
-.frizz-live-dot {
+.ntwine-live-dot {
   display: block;
   width: 6px;
   height: 6px;
@@ -363,7 +363,7 @@ body {
   /* Keep the motion cue close to the mark. At high browser zoom the former 4px pulse read as a
      second, much larger circle rather than a quiet live-state halo. */
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--live-dot) 28%, transparent);
-  animation: frizz-live-pulse 1.25s ease-in-out infinite;
+  animation: ntwine-live-pulse 1.25s ease-in-out infinite;
 }
 /* Three runtime concerns, three hues: background shells pulse blue, sub-agents pulse the accent-yellow,
    and a parked PR watcher pulses violet.
@@ -393,13 +393,13 @@ body {
    sufficient — green sits between yellow and blue on the wheel, so the trio read as a traffic light
    rather than as three peers. Violet sits outside that arc. Re-measure before changing any of the three,
    and move all of them together if you move one. */
-.frizz-live-dot--shell { --live-dot: var(--color-shell); }
-.frizz-live-dot--agent { --live-dot: var(--color-accent); }
-.frizz-live-dot--github { --live-dot: var(--color-watch); }
+.ntwine-live-dot--shell { --live-dot: var(--color-shell); }
+.ntwine-live-dot--agent { --live-dot: var(--color-accent); }
+.ntwine-live-dot--github { --live-dot: var(--color-watch); }
 /* A THREAD TERMINAL waiting at a prompt (ThreadTerminals.tsx): the attention hue, and STILL — nothing is
    moving, it is waiting on the human, which is also what queued its thread. Same geometry and halo as the
    live dots, so the slot reads as one mark in another state. */
-.frizz-live-dot--attention { --live-dot: var(--color-attention); animation: none; }
+.ntwine-live-dot--attention { --live-dot: var(--color-attention); animation: none; }
 
 /* THE LIVENESS DOT'S SLOT on a child-op row (ChildOpRow, the card and sheet densities). The row is
    `items-center`, which centres the dot's BOX on the flex line — but the eye reads the dot against the
@@ -421,7 +421,7 @@ body {
 
    The readings live here rather than at the call site so the next reader knows to RE-MEASURE rather than
    re-guess — and if the row's type scale or its line-height moves, both numbers are stale together. */
-.frizz-op-dot-slot { transform: translateY(0); }
+.ntwine-op-dot-slot { transform: translateY(0); }
 /* THE KIND TAG'S COLUMN — one fixed track behind every `AGENT` / `SHELL` / `WATCH` / `File` / `Link` tag
    on the ops strip (ChildOpRow's sheet density and ThreadLinks, both via CHILD_KIND_TAG_CLASS), so every
    label on the strip starts at the same x. Each row is its own flex line, so nothing shares a track
@@ -439,9 +439,9 @@ body {
    Mono keeps exactly the column its five-letter tags always had; sans takes its widest tag plus a quarter
    pixel, which also closes the ~2px AGENT-vs-SHELL raggedness that column carried there. Re-measure both
    if the tag's size or any tag's word changes. */
-.frizz-kind-tag { width: 3.4em; }
+.ntwine-kind-tag { width: 3.4em; }
 /* THE RAIL's rest-with-live-work mark — a pulsing dot centred in the sidebar's 15px StatusBox. Same
-   hue, same cadence and the same meaning as `.frizz-live-dot` above, but it is a mark INSIDE the
+   hue, same cadence and the same meaning as `.ntwine-live-dot` above, but it is a mark INSIDE the
    checkbox family's box, so it takes THAT family's geometry rather than the transcript's. Two
    deliberate differences, both measured rather than judged:
      • 0.31 of the box, not 0.4. `.md-task-in-progress` settled this exact question for this exact box
@@ -469,10 +469,10 @@ body {
    +0.146em and sans -0.048em. With the trim, all four readings land at 0.000px.
    A browser without text-box support simply falls back to em-box centring — the behaviour that shipped
    before the constant existed, and never worse than it. */
-.frizz-rail-glyph {
+.ntwine-rail-glyph {
   text-box: trim-both cap alphabetic;
 }
-.frizz-rail-dot {
+.ntwine-rail-dot {
   /* 5px, A WHOLE ODD NUMBER — not `calc(15px * 0.31)` = 4.65px, which is the same half-pixel trap
      scripts/verify-rail-status-glyphs.mjs already gates the SVG marks on ("an ODD size lands on the
      grid … which is why every mark here is 9 or 11 and none is 10"). The dot escaped that gate only
@@ -494,30 +494,30 @@ body {
      around it stood still, which was how a shell-only rest said "alive, not moving". The motion now
      lives on the FRAME: the rail draws this dot inside the BoxSpinner (Sidebar.tsx shellDot), and the
      maintainer's rule is a "solid, non-pulsing blue dot" inside the spinner — two animations on one
-     15px mark would fight. The transcript's live-shell dot (.frizz-live-dot--shell) keeps its own pulse;
+     15px mark would fight. The transcript's live-shell dot (.ntwine-live-dot--shell) keeps its own pulse;
      that surface has no spinner around it. */
 }
-/* The armed heartbeat's pulse. Slower than the shell dot's 1.25s and shallower — this mark says "frizz
+/* The armed heartbeat's pulse. Slower than the shell dot's 1.25s and shallower — this mark says "ntwine
    will nudge this in a few minutes", not "something is happening right now", and a mark that beats as
    urgently as live work would misreport a thread that is simply parked. Tone only, same ruling as
    above: the glyph's geometry is what identifies it. Paused rows render without this class at all. */
-.frizz-rail-heartbeat {
-  animation: frizz-rail-heartbeat-pulse 2.4s ease-in-out infinite;
+.ntwine-rail-heartbeat {
+  animation: ntwine-rail-heartbeat-pulse 2.4s ease-in-out infinite;
 }
-@keyframes frizz-rail-heartbeat-pulse {
+@keyframes ntwine-rail-heartbeat-pulse {
   50% { opacity: 0.5; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .frizz-rail-heartbeat { animation: none; opacity: 1; }
+  .ntwine-rail-heartbeat { animation: none; opacity: 1; }
 }
-@keyframes frizz-live-pulse {
+@keyframes ntwine-live-pulse {
   50% { opacity: 0.62; box-shadow: 0 0 0 2px color-mix(in srgb, var(--live-dot) 14%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .frizz-live-dot { animation: none; background: transparent; border: 2px solid var(--live-dot); box-shadow: none; }
+  .ntwine-live-dot { animation: none; background: transparent; border: 2px solid var(--live-dot); box-shadow: none; }
 }
 
-/* NO SPINNER LIVES HERE ANY MORE. `.frizz-tool-spinner` was the dispatch card's right-hand indicator for
+/* NO SPINNER LIVES HERE ANY MORE. `.ntwine-tool-spinner` was the dispatch card's right-hand indicator for
    a pending call with no child record, on the theory that "we have no record of this child" is the one
    thing elapsed time cannot speak for. It was removed 2026-08-01 ("a right-justified spinner with the
    'running' label that should not show up under any circumstances") because the premise was wrong: the
@@ -536,7 +536,7 @@ body {
    not bring it back for a shell without a signal that can tell "alive and quiet" from "gone".
    As designed, it BREATHES: a slow, soft in/out that reads as a calm, resting pulse (distinct from the
    brighter, faster accent pulse that signals fresh output), muted, with the motion alone saying alive. */
-.frizz-live-dot-quiet {
+.ntwine-live-dot-quiet {
   display: block;
   width: 6px;
   height: 6px;
@@ -555,16 +555,16 @@ body {
      "quiet", and the element's own opacity multiplies this ring too, so it stays the quieter of the
      two for free. */
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--quiet-dot) 28%, transparent);
-  animation: frizz-live-breathe 2.6s ease-in-out infinite;
+  animation: ntwine-live-breathe 2.6s ease-in-out infinite;
 }
-.frizz-live-dot-quiet--shell { --live-dot: var(--color-shell); }
+.ntwine-live-dot-quiet--shell { --live-dot: var(--color-shell); }
 /* Breathes on OPACITY ALONE. It used to scale 0.82→1 as well, which made the quiet dot read as a
    physically SMALLER mark than the bright one beside it rather than a calmer one — 4.92px against
    6px, and at the same keyframe as the 0.4 opacity trough, so the smallest instant was also the
    faintest (maintainer 2026-07-30: "I don't understand why the blue dot is so small for an idle
    shell… it should be the same size as the other ones"). Size is what says "this is the same kind of
    mark"; tone and motion are what say "quiet". Only the latter two may vary. */
-@keyframes frizz-live-breathe {
+@keyframes ntwine-live-breathe {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.9; }
 }
@@ -572,21 +572,21 @@ body {
   /* No `transform: none` any more — the keyframes stopped scaling, so there is nothing to undo. The
      halo drops with the same `box-shadow: none` the bright dot uses here: this variant already paints
      a 1.5px ring, and stacking the halo outside it would make the STATIC mark the largest of the three. */
-  .frizz-live-dot-quiet { animation: none; opacity: 1; background: transparent; box-shadow: none; border: 1.5px solid var(--quiet-dot); }
+  .ntwine-live-dot-quiet { animation: none; opacity: 1; background: transparent; box-shadow: none; border: 1.5px solid var(--quiet-dot); }
 }
 /* THE OWNER GLYPH ON A PROCESS ROW (ThreadTerminals.tsx ProcessRow) — a bot or a terminal square in the
    9px mark slot, where these dots used to sit, carrying the same liveness by the same motion: running
    pulses on the live dot's own 1.25s cadence (tone only — 1 → 0.62 → 1, the dot's trough), quiet breathes
    on the quiet dot's 2.6s (0.4 ↔ 0.9). Opacity alone, never a scale: the glyph's size is what says which
    owner it is. Colour comes from the row (`text-shell`), so these carry motion and nothing else. */
-.frizz-live-glyph {
-  animation: frizz-live-glyph-pulse 1.25s ease-in-out infinite;
+.ntwine-live-glyph {
+  animation: ntwine-live-glyph-pulse 1.25s ease-in-out infinite;
 }
-@keyframes frizz-live-glyph-pulse {
+@keyframes ntwine-live-glyph-pulse {
   50% { opacity: 0.62; }
 }
-.frizz-live-glyph-quiet {
-  animation: frizz-live-breathe 2.6s ease-in-out infinite;
+.ntwine-live-glyph-quiet {
+  animation: ntwine-live-breathe 2.6s ease-in-out infinite;
 }
 /* STILL, BUT STILL TWO STATES. With motion reduced the pulse and the breath both stop, and a quiet row at
    full opacity read exactly as a running one — both `text-shell`, only the tooltip telling them apart. The
@@ -594,10 +594,10 @@ body {
    breath's own middle instead (0.4 ↔ 0.9, held at 0.5): the same shell hue, visibly calmer, and still far
    from the grey a finished row wears. */
 @media (prefers-reduced-motion: reduce) {
-  .frizz-live-glyph { animation: none; opacity: 1; }
-  .frizz-live-glyph-quiet { animation: none; opacity: 0.5; }
+  .ntwine-live-glyph { animation: none; opacity: 1; }
+  .ntwine-live-glyph-quiet { animation: none; opacity: 0.5; }
 }
-/* NO "FINISHED" DOT EITHER. `.frizz-live-dot-done` briefly filled the liveness slot on every settled
+/* NO "FINISHED" DOT EITHER. `.ntwine-live-dot-done` briefly filled the liveness slot on every settled
    background/dispatch card so they stayed findable in a scrolled transcript. Removed 2026-08-01
    ("remove the status indicator entirely for a sub-agent or background shell that has completed"): the
    whole column means "something is alive behind this row", so marking finished rows put a glyph on
@@ -742,7 +742,7 @@ a[href] {
 }
 /* PendingThreadSheet's slide-in: the drawer family's 200ms translate, as an animation so it starts on the
    frame's first paint without a second render (see that component). */
-@keyframes frizz-sheet-in {
+@keyframes ntwine-sheet-in {
   from {
     transform: translateX(100%);
   }
@@ -1092,7 +1092,7 @@ a[href] {
 
    THE RAIL runs down the rest of the gutter and through the gap below the step, which is the step's
    PADDING rather than a margin precisely so the gutter can reach into it (`margin-bottom` = −gap). */
-.md-body ol.frizz-steps {
+.md-body ol.ntwine-steps {
   --step-mark: calc(17em / 13);
   /* 12, not 10: between two one-line steps the rail is the gap minus its 5px of clearance, and at 10 it
      drew a 5px dash that read as a speck rather than a connector. */
@@ -1101,29 +1101,29 @@ a[href] {
   margin: 0;
   padding: 0;
 }
-.md-body .frizz-step {
+.md-body .ntwine-step {
   display: grid;
   grid-template-columns: var(--step-mark) minmax(0, 1fr);
   column-gap: 0.62em;
   margin: 0;
   padding-bottom: var(--step-gap);
 }
-.md-body .frizz-step:last-child {
+.md-body .ntwine-step:last-child {
   padding-bottom: 0;
 }
-.frizz-step-gutter {
+.ntwine-step-gutter {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-bottom: calc(-1 * var(--step-gap));
 }
-.frizz-step:last-child .frizz-step-gutter {
+.ntwine-step:last-child .ntwine-step-gutter {
   margin-bottom: 0;
 }
-.frizz-step-line {
+.ntwine-step-line {
   display: block;
 }
-.frizz-step-mark {
+.ntwine-step-mark {
   display: inline-block;
   position: relative;
   box-sizing: border-box;
@@ -1135,10 +1135,10 @@ a[href] {
   border-radius: 50%;
   color: color-mix(in srgb, var(--color-muted) 85%, transparent);
 }
-.frizz-step-mark:has(> button):hover {
+.ntwine-step-mark:has(> button):hover {
   border-color: color-mix(in srgb, var(--color-muted) 80%, transparent);
 }
-.frizz-step-face {
+.ntwine-step-face {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1150,21 +1150,21 @@ a[href] {
   background: none;
   color: inherit;
 }
-button.frizz-step-face {
+button.ntwine-step-face {
   cursor: pointer;
 }
-button.frizz-step-face:focus-visible {
+button.ntwine-step-face:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
   outline-offset: 2px;
 }
-.frizz-step-num {
+.ntwine-step-num {
   font-size: calc(10em / 13);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   text-box: trim-both cap alphabetic;
 }
-.frizz-step-rail {
+.ntwine-step-rail {
   flex: 1;
   width: 1px;
   margin: 3px 0 2px;
@@ -1172,11 +1172,11 @@ button.frizz-step-face:focus-visible {
      at the 7px a rail runs between two one-line steps. */
   background: color-mix(in srgb, var(--color-muted) 28%, transparent);
 }
-.frizz-step:last-child .frizz-step-rail {
+.ntwine-step:last-child .ntwine-step-rail {
   display: none;
 }
 /* The step to do NEXT — the first one not yet ticked, and only while the thread rests on them. */
-.frizz-step[data-step-state="next"] .frizz-step-mark {
+.ntwine-step[data-step-state="next"] .ntwine-step-mark {
   color: var(--color-accent);
   border-color: color-mix(in srgb, var(--color-accent) 90%, transparent);
 }
@@ -1184,12 +1184,12 @@ button.frizz-step-face:focus-visible {
    only by its glyph, and a column of rings had to be read mark by mark to find where the reader was;
    the fill is the stepper's own "complete" and scans at a glance. The text takes the task family's
    checked tone, links included, so a ticked step recedes as one piece rather than leaving its link lit. */
-.frizz-step[data-step-state="done"] .frizz-step-mark {
+.ntwine-step[data-step-state="done"] .ntwine-step-mark {
   background: color-mix(in srgb, var(--color-muted) 22%, transparent);
   border-color: transparent;
 }
-.frizz-step[data-step-state="done"] .frizz-step-text,
-.frizz-step[data-step-state="done"] .frizz-step-text a {
+.ntwine-step[data-step-state="done"] .ntwine-step-text,
+.ntwine-step[data-step-state="done"] .ntwine-step-text a {
   color: color-mix(in srgb, var(--color-muted) 90%, transparent);
 }
 /* Links and local-file actions wear ONE treatment on both prose surfaces — the block body and the
@@ -1239,7 +1239,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
 /* What the picture viewer draws an SVG on. A drawing is usually dark strokes on NOTHING, which on the
    dark page is nothing at all; the checkerboard is the conventional "no paint here", so its greys are
    fixed in both themes — it stands for transparency, not for a surface of the app. */
-.frizz-transparency-grid {
+.ntwine-transparency-grid {
   background-color: #ffffff;
   background-image: conic-gradient(#e8e8e8 25%, transparent 0 50%, #e8e8e8 0 75%, transparent 0);
   background-size: 16px 16px;
@@ -2039,7 +2039,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
 }
 /* ── Rendered diffs ─────────────────────────────────────────────────────────────────────────────
    The Edit card's rows (lib/diff/diff.css) in a Markdown fence: the same fills and sign colours, from
-   the same palette, so a diff an agent writes and one Frizz renders from a tool call read as one thing.
+   the same palette, so a diff an agent writes and one Ntwine renders from a tool call read as one thing.
    A row is the line number (only when the diff has hunk headers to count from), the sign, the code.
 
    The numbers are drawn by the stylesheet from `data-line`, and the sign column is not selectable: the
@@ -2176,7 +2176,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    and get the app's colours with no CSS of its own.
 
    Only the TOKEN spans are coloured here. The base text colour deliberately stays with each surface
-   (`.md-body .hljs` below, `.frizz-bash-body` in diff.css), because unclassified code should read as
+   (`.md-body .hljs` below, `.ntwine-bash-body` in diff.css), because unclassified code should read as
    that surface's own foreground rather than pull a second grey into the card. */
 .md-body .hljs {
   color: var(--code-base);
@@ -2252,7 +2252,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
 }
 /* A ```diff fence, which is the one grammar that paints WHOLE LINES rather than tokens. The tints
    match the rendered Edit diff's own add/del rows (lib/diff/diff.css) so a diff pasted into prose and
-   a diff frizz rendered itself do not read as two different things. */
+   a diff ntwine rendered itself do not read as two different things. */
 .hljs .hljs-addition {
   color: var(--code-add);
   background: var(--code-add-bg);
@@ -2320,7 +2320,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    it: the same tone the rendered diff gives its own gutter, and unselectable-looking but still
    SELECTABLE, because copying the excerpt has always yielded the numbers and quietly changing that
    would break anyone who pastes a line reference out of a card. */
-.frizz-code-gutter {
+.ntwine-code-gutter {
   color: var(--code-gutter);
 }
 .md-body blockquote {
@@ -2518,8 +2518,8 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    board also pinned a visible neighbour card in the unmount frame, until 2026-09-28.) Duration MUST
    stay in sync with EXIT_MS in AllQueues.tsx (it keeps the card mounted through the fade before
    unmounting). */
-.frizz-card-slot { opacity: 1; }
-.frizz-card-slot[data-queue-leaving="true"] { opacity: 0; }
+.ntwine-card-slot { opacity: 1; }
+.ntwine-card-slot[data-queue-leaving="true"] { opacity: 0; }
 /* A card more than a viewport off screen is SKIPPED — no style, layout or paint — and sized from the height
    it had the last time it was drawn (`auto`), or from 540px, the median card on a 244-card mirror (p10
    315, p90 793), until it has been drawn once (lib/cardVisibility.ts builds and draws every card in idle
@@ -2529,33 +2529,33 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    containment, which would clip what a visible card draws outside its box: its shadow, the arrival ring,
    the leaving blur, a reply box's menu. The intrinsic size stays on a near card too: `auto` only records
    the drawn height while the property is present. Width is left to the column (the slot stretches). */
-.frizz-card-slot { content-visibility: auto; contain-intrinsic-block-size: auto 540px; }
-.frizz-card-slot[data-near] { content-visibility: visible; }
+.ntwine-card-slot { content-visibility: auto; contain-intrinsic-block-size: auto 540px; }
+.ntwine-card-slot[data-near] { content-visibility: visible; }
 /* The hairline rule under a card is the slot's next SIBLING (a lane, AllQueues.tsx Lane, renders one
    between each pair of cards, never inside a slot), and it unmounts with the card it follows — so it
    fades with it too, or the rule would stand at full strength beside a card that has already dissolved. */
-.frizz-card-slot[data-queue-leaving="true"] + hr { opacity: 0; }
-.frizz-card-slot > .frizz-card-clip > .frizz-card-body { transform-origin: center center; }
-.frizz-card-slot[data-queue-leaving="true"] > .frizz-card-clip > .frizz-card-body { transform: scale(0.94); filter: blur(6px); }
+.ntwine-card-slot[data-queue-leaving="true"] + hr { opacity: 0; }
+.ntwine-card-slot > .ntwine-card-clip > .ntwine-card-body { transform-origin: center center; }
+.ntwine-card-slot[data-queue-leaving="true"] > .ntwine-card-clip > .ntwine-card-body { transform: scale(0.94); filter: blur(6px); }
 /* Promote to a compositing layer ONLY while dissolving — a permanent will-change on every mounted card
    would pin a GPU layer per queue row for its whole lifetime. */
-.frizz-card-slot[data-queue-leaving="true"] > .frizz-card-clip > .frizz-card-body { will-change: transform, filter; }
+.ntwine-card-slot[data-queue-leaving="true"] > .ntwine-card-clip > .ntwine-card-body { will-change: transform, filter; }
 /* A GHOST (lib/stableQueue.ts): the card's thread left the queue on its own while the card was on screen,
    so its place is held as an EMPTY GAP until the human's next scroll or key closes it (AllQueues.tsx).
    Hidden, not removed: the gap is exactly the card's own height, so nothing on screen moves. The rule
    after it goes too, or one gap would read as two rules around nothing. It replaced a half-tone card the
    maintainer found confusing and could not act on (2026-09-29). */
-.frizz-card-slot[data-queue-ghost] > .frizz-card-clip,
-.frizz-card-slot[data-queue-ghost] + hr { visibility: hidden; }
+.ntwine-card-slot[data-queue-ghost] > .ntwine-card-clip,
+.ntwine-card-slot[data-queue-ghost] + hr { visibility: hidden; }
 /* CONCEALED: its drawer is open, where it is read. It stays drawn in its place in the queue, under the
    sheet — `inert` alone takes it out of the tab order and out of reach of a click (AllQueues.tsx). */
 @media (prefers-reduced-motion: no-preference) {
-  .frizz-card-slot > .frizz-card-clip { transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1); }
-  .frizz-card-slot[data-queue-leaving="true"],
-  .frizz-card-slot[data-queue-leaving="true"] + hr {
+  .ntwine-card-slot > .ntwine-card-clip { transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1); }
+  .ntwine-card-slot[data-queue-leaving="true"],
+  .ntwine-card-slot[data-queue-leaving="true"] + hr {
     transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .frizz-card-slot > .frizz-card-clip > .frizz-card-body {
+  .ntwine-card-slot > .ntwine-card-clip > .ntwine-card-body {
     transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
                 filter 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -2566,7 +2566,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    29 projects clips hard against the divider and reads as the end of the list rather than the middle
    of it. The mask is unconditional — at the top of the scroll the first 10px fade into the rule above
    them, which costs nothing, and a JS-driven conditional mask would repaint on every scroll frame. */
-.frizz-rail-scroll {
+.ntwine-rail-scroll {
   scrollbar-width: none;
   /* BOTTOM ONLY. A symmetric fade dimmed the top of the FIRST square permanently — it sits flush
      against the band's top edge — and a gradient darkening the top of a tile reads as a shadow
@@ -2578,10 +2578,10 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
 /* Only while there is genuinely more below. Against the true end of the list a fade is not a hint,
    it is a dimmed square — the same artifact, at the other end, as the top fade that read as a shadow
    falling on the first icon. ProjectRail sets the attribute from the band's own scroll geometry. */
-.frizz-rail-scroll[data-overflowing] {
+.ntwine-rail-scroll[data-overflowing] {
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--rail-fade)), transparent 100%);
 }
-.frizz-rail-scroll::-webkit-scrollbar {
+.ntwine-rail-scroll::-webkit-scrollbar {
   display: none;
 }
 
@@ -2609,7 +2609,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    middle has a box that starts a thousand pixels above the viewport — so the whole screen rushed
    downward for 200ms while the column faded in over it. (It was measured on the project board's queue
    card, which the door also stood on until 2026-09-28.) The door measures the part of the surface
-   that is on screen (lib/fullscreenMorph.ts) and hands it here as `--frizz-vt-from-*`; the `to` side
+   that is on screen (lib/fullscreenMorph.ts) and hands it here as `--ntwine-vt-from-*`; the `to` side
    stays the group's own computed geometry, so only the start moves. `data-vt-door` is set by the
    door and cleared render-phase on the way back, so the reverse leg — whose old element is the
    /full column, always fully on screen — keeps the browser's keyframes. The old snapshot is still
@@ -2617,19 +2617,19 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
    and it is a percentage of the group's width because the snapshot is sized by that width and scales
    with it as the surface's width morphs into the column's. */
 html[data-vt-door="expand"]::view-transition-group(thread-chat) {
-  animation-name: frizz-vt-chat-from-visible;
+  animation-name: ntwine-vt-chat-from-visible;
 }
-@keyframes frizz-vt-chat-from-visible {
+@keyframes ntwine-vt-chat-from-visible {
   from {
-    transform: translate(var(--frizz-vt-from-x), var(--frizz-vt-from-y));
-    width: var(--frizz-vt-from-w);
-    height: var(--frizz-vt-from-h);
+    transform: translate(var(--ntwine-vt-from-x), var(--ntwine-vt-from-y));
+    width: var(--ntwine-vt-from-w);
+    height: var(--ntwine-vt-from-h);
   }
 }
 html[data-vt-door="expand"]::view-transition-old(thread-chat) {
-  margin-block-start: var(--frizz-vt-old-shift, 0%);
+  margin-block-start: var(--ntwine-vt-old-shift, 0%);
 }
-@keyframes frizz-vt-rail-in {
+@keyframes ntwine-vt-rail-in {
   from {
     opacity: 0;
     translate: 48px 0;
@@ -2638,9 +2638,9 @@ html[data-vt-door="expand"]::view-transition-old(thread-chat) {
 /* `:only-child` = no old counterpart (a genuine enter) — the guard matters if a /full → /full
    navigation ever opts in, where the rail would exist on both sides and should morph, not replay. */
 ::view-transition-new(thread-rail):only-child {
-  animation: frizz-vt-rail-in 200ms cubic-bezier(0, 0, 0.2, 1) both;
+  animation: ntwine-vt-rail-in 200ms cubic-bezier(0, 0, 0.2, 1) both;
 }
-@keyframes frizz-vt-rail-out {
+@keyframes ntwine-vt-rail-out {
   to {
     opacity: 0;
     translate: 48px 0;
@@ -2648,7 +2648,7 @@ html[data-vt-door="expand"]::view-transition-old(thread-chat) {
 }
 /* The reverse leg (leaving /full for the page): the rail is old-only and exits the way it came in. */
 ::view-transition-old(thread-rail):only-child {
-  animation: frizz-vt-rail-out 200ms cubic-bezier(0, 0, 0.2, 1) both;
+  animation: ntwine-vt-rail-out 200ms cubic-bezier(0, 0, 0.2, 1) both;
 }
 /* The door checks prefers-reduced-motion before opting in at all; this is the backstop for any other
    caller of startViewTransition. `animation: none` completes every group instantly — a hard cut. */

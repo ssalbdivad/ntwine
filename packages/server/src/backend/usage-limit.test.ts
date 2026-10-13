@@ -35,7 +35,7 @@ test("classify: the real weekly-limit record → weekly window", () => {
 
 test("classify: the OTHER synthetic API errors in the corpus are NOT limits", () => {
   // These three are the complete set of non-limit isApiErrorMessage records observed locally. If any
-  // of them classified as a limit, frizz would auto-"continue" a thread whose real problem is
+  // of them classified as a limit, ntwine would auto-"continue" a thread whose real problem is
   // connectivity, an outage, or a terms prompt — none of which a wait fixes.
   assert.equal(classifyLimitRecord({ isApiErrorMessage: true, error: "server_error" }, "API Error: Unable to connect to API (ENOTFOUND)"), undefined)
   assert.equal(classifyLimitRecord({ isApiErrorMessage: true, error: "unknown" }, "API Error: Overloaded"), undefined)
@@ -250,7 +250,7 @@ test("quotaWindowRecovered: nothing to read → INDETERMINATE, never a cheerful 
 })
 
 test("quotaWindowRecovered: a re-limit inside the CURRENT window reads as not-recovered (the anti-loop)", () => {
-  // This is the property that makes the whole feature loop-proof. Suppose the window rolled, frizz
+  // This is the property that makes the whole feature loop-proof. Suppose the window rolled, ntwine
   // resumed a thread, and it immediately blew the fresh window again. The NEW fault sits inside the
   // NEW window, so window-identity says "not recovered" and no second wake fires.
   const windowStart = Date.parse("2026-07-09T12:00:00.000Z")

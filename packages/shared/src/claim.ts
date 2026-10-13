@@ -7,7 +7,7 @@
  *
  * DEPENDENCY-FREE ON PURPOSE. Both halves run this code, and they run in different places: the CLI on
  * Node, the Worker on workerd. Web Crypto's Ed25519 is the one primitive both have, so nothing here
- * imports from `node:` or from the rest of `@frizz/shared` — a Worker can import this single file
+ * imports from `node:` or from the rest of `@ntwine/shared` — a Worker can import this single file
  * without dragging in zod, yaml and 3,600 lines of unrelated types.
  */
 
@@ -28,7 +28,7 @@ export const CLAIM_MAX_AGE_MS = 5 * 60_000
 export const CLAIM_LEASE_MS = 30 * 24 * 60 * 60_000
 
 /**
- * Names Frizz keeps for itself.
+ * Names Ntwine keeps for itself.
  *
  * `_acme-challenge` is the one that actually matters — handing it out would let someone obtain a
  * certificate for a name in the zone. The rest are the ordinary infrastructure labels that would be
@@ -114,7 +114,7 @@ export interface ClaimPayload {
    * A GitHub access token, proving the claimant is a real account.
    *
    * SIGNED but NEVER STORED. The registrar exchanges it for a user id, records the id as the name's
-   * owner, and discards the token — it is a rate limit on identity, not a login, and Frizz keeps no
+   * owner, and discards the token — it is a rate limit on identity, not a login, and Ntwine keeps no
    * session with GitHub at all. Renewals carry no token: the keypair alone proves ownership after the
    * first claim, so a name does not depend on GitHub being reachable to stay alive.
    *
@@ -227,7 +227,7 @@ export function claimNameIsValid(raw: string): boolean {
  */
 export function claimSigningInput(payload: ClaimPayload): Bytes {
   const canonical = [
-    "frizz-claim",
+    "ntwine-claim",
     `v${CLAIM_PROTOCOL_VERSION}`,
     payload.name,
     String(payload.port),

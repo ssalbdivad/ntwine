@@ -68,7 +68,7 @@ test("the retired per-browser code-files choice is dropped from a stored blob", 
 })
 
 test("the context bar's eye is no longer a pref: a stored value is dropped and everything else kept", () => {
-  // It is the extension's frizz.shareEditorState now (lib/editorContext.ts setShareEditor).
+  // It is the extension's ntwine.shareEditorState now (lib/editorContext.ts setShareEditor).
   assert.equal("sendEditorContext" in parseStoredPrefs(null), false)
   const older = parseStoredPrefs(JSON.stringify({ sendEditorContext: false, queueOrder: "lifo", diffsRedefaulted: true }))
   assert.equal("sendEditorContext" in older, false)

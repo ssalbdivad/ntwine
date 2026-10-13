@@ -1,4 +1,4 @@
-import { FrizzStatus, type ThreadView } from "@frizz/shared"
+import { NtwineStatus, type ThreadView } from "@ntwine/shared"
 
 type RecoveryThread = Pick<ThreadView, "kind" | "foreign" | "runtime">
 
@@ -20,5 +20,5 @@ export function canRetry(thread: RecoveryThread): boolean {
 }
 
 // Lifecycle order for status pickers: planning → planned → active → blocked → done → dismissed.
-// This is the shared FrizzStatus enum's own declaration order — single-sourced, never re-listed.
-export const STATUS_ORDER: readonly FrizzStatus[] = FrizzStatus.options
+// This is the shared NtwineStatus enum's own declaration order — single-sourced, never re-listed.
+export const STATUS_ORDER: readonly NtwineStatus[] = NtwineStatus.options

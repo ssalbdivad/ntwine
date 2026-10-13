@@ -14,8 +14,8 @@ import test from "node:test"
 //     and every question it did not answer stays open (the worker decides what the reply made moot);
 //   · a pick made while the reply box holds a draft waits for that reply's Enter.
 // Skipped unless a Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts
-// here): start `vite` in packages/web and set FRIZZ_REGISTERED_QUESTION_AUTOSEND_E2E_URL to its origin.
-const baseUrl = process.env.FRIZZ_REGISTERED_QUESTION_AUTOSEND_E2E_URL
+// here): start `vite` in packages/web and set NTWINE_REGISTERED_QUESTION_AUTOSEND_E2E_URL to its origin.
+const baseUrl = process.env.NTWINE_REGISTERED_QUESTION_AUTOSEND_E2E_URL
 
 type Page = import("puppeteer").Page
 type Answer = { questionId: string; question: string; chosen: string[]; text?: string; followUps?: unknown[] }

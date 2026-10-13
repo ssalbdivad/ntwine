@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { AdoptThreadInput, DispatchInput, THREAD_SLUG_MAX_CHARS, ThreadSlug, threadIdentityName } from "@frizz/shared"
+import { AdoptThreadInput, DispatchInput, THREAD_SLUG_MAX_CHARS, ThreadSlug, threadIdentityName } from "@ntwine/shared"
 import { createDispatcher, resolveLegacyThreadFile, resolveSlug, slugify } from "./dispatch.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
 import { defaultSettings } from "./settings.ts"
@@ -12,7 +12,7 @@ import { cwdSlug, type Project } from "./project.ts"
 import type { BoardManager } from "./board.ts"
 import type { ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-bridge.ts"
 import { type PaneIdentity } from "./adoption-recovery.ts"
-import { readBoard, type FrizzBoard, type FrizzThread } from "./frizz.ts"
+import { readBoard, type NtwineBoard, type NtwineThread } from "./ntwine.ts"
 import {
   ADOPTION_ATTEMPT_LEASE_MS,
   reconcileAdoptionClaims,
@@ -23,7 +23,7 @@ function sessionRow(slug: string, over: Partial<SessionRow> = {}): SessionRow {
   return {
     slug,
     session_id: `${slug}-owner`,
-    thread_name: `frizz-${slug}`,
+    thread_name: `ntwine-${slug}`,
     spawned_at: "2026-07-13T00:00:00.000Z",
     last_read_at: null,
     unread: 0,
@@ -56,13 +56,13 @@ interface SpawnRecord {
 function harness(options: {
   hasSession?: (slug: string) => boolean
   onSpawn?: (storage: Storage, spawn: SpawnRecord) => void
-  readBoard?: (threads: readonly FrizzThread[], dir: string) => FrizzBoard | Promise<FrizzBoard>
+  readBoard?: (threads: readonly NtwineThread[], dir: string) => NtwineBoard | Promise<NtwineBoard>
   adoptionRuntime?: AdoptionRecoveryRuntime
   preflightAuth?: (kind: string) => Promise<"authed" | "signed-out" | "unknown">
   preflightCodexBinary?: () => Promise<"present" | "missing" | "unknown">
   settings?: Partial<ReturnType<typeof defaultSettings>>
 } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-adopt-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-adopt-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = {
     dir,
@@ -79,7 +79,7 @@ function harness(options: {
   let hasSessionCalls = 0
   let rebuilds = 0
   let boardReads = 0
-  const legacyThreads = new Map<string, FrizzThread>()
+  const legacyThreads = new Map<string, NtwineThread>()
   const board = {
     snapshot: async () => ({}),
     currentSeq: () => 0,
@@ -128,7 +128,7 @@ function harness(options: {
     preflightCodexBinary: options.preflightCodexBinary,
   })
 
-  const discoverLegacy = (slug: string, over: Partial<FrizzThread> = {}) => {
+  const discoverLegacy = (slug: string, over: Partial<NtwineThread> = {}) => {
     legacyThreads.set(slug, {
       id: slug,
       title: slug,
@@ -140,10 +140,10 @@ function harness(options: {
       ...over,
     })
   }
-  const addLegacyFile = (slug: string, over: Partial<FrizzThread> = {}) => {
-    mkdirSync(join(dir, ".frizz"), { recursive: true })
+  const addLegacyFile = (slug: string, over: Partial<NtwineThread> = {}) => {
+    mkdirSync(join(dir, ".ntwine"), { recursive: true })
     writeFileSync(
-      join(dir, ".frizz", `${slug}.md`),
+      join(dir, ".ntwine", `${slug}.md`),
       `---\ntitle: ${slug}\nstatus: active\n---\n\n## Goal\n\nContinue ${slug}.\n`,
     )
     discoverLegacy(slug, over)
@@ -192,7 +192,7 @@ test("one canonical thread slug contract rejects path, control, option, Unicode,
     assert.equal(ThreadSlug.safeParse(valid).success, true, valid)
     assert.equal(DispatchInput.safeParse({ prompt: "safe", slug: valid }).success, true, valid)
     assert.equal(AdoptThreadInput.safeParse({ slug: valid }).success, true, valid)
-    assert.equal(threadIdentityName(valid), `frizz-${valid}`)
+    assert.equal(threadIdentityName(valid), `ntwine-${valid}`)
   }
   for (const invalid of HOSTILE_SLUGS) {
     assert.equal(ThreadSlug.safeParse(invalid).success, false, JSON.stringify(invalid))
@@ -208,7 +208,7 @@ test("derived and collision slugs remain canonical at the maximum length", () =>
   const max = slugify("a".repeat(THREAD_SLUG_MAX_CHARS + 50))
   assert.equal(max.length, THREAD_SLUG_MAX_CHARS)
   assert.equal(ThreadSlug.safeParse(max).success, true)
-  const dir = mkdtempSync(join(tmpdir(), "frizz-slug-bound-"))
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-slug-bound-"))
   writeFileSync(join(dir, `${max}.md`), "taken")
   const collision = resolveSlug(dir, max)
   assert.equal(collision.length, THREAD_SLUG_MAX_CHARS)
@@ -225,33 +225,33 @@ test("direct dispatcher entry points reject hostile slugs before board, spawn, s
   assert.equal(h.boardReads(), 0)
   assert.equal(h.spawned.length, 0)
   assert.equal(h.storage.allSessions().length, 0)
-  assert.equal(existsSync(join(h.dir, ".frizz")), false)
+  assert.equal(existsSync(join(h.dir, ".ntwine")), false)
 })
 
 test("storage rejects a noncanonical thread identity at its direct mutation boundary", () => {
   const h = harness()
   assert.throws(() => h.storage.insertSessionIfAbsent(sessionRow("../escape")))
   assert.throws(() => h.storage.upsertSession(sessionRow("-option")))
-  assert.throws(() => h.storage.upsertSession(sessionRow("safe", { thread_name: "frizz-someone-else" })))
+  assert.throws(() => h.storage.upsertSession(sessionRow("safe", { thread_name: "ntwine-someone-else" })))
   assert.equal(h.storage.allSessions().length, 0)
 })
 
 test("the real board reader omits unsafe ids and never follows markdown symlinks", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "frizz-board-safe-"))
-  mkdirSync(join(dir, ".frizz"))
-  writeFileSync(join(dir, ".frizz", "safe.md"), "---\ntitle: safe\nstatus: active\n---\n\n## Goal\n\nsafe\n")
-  writeFileSync(join(dir, ".frizz", "Upper.md"), "---\ntitle: Upper\nstatus: active\n---\n")
-  const outside = join(mkdtempSync(join(tmpdir(), "frizz-board-outside-")), "outside.md")
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-safe-"))
+  mkdirSync(join(dir, ".ntwine"))
+  writeFileSync(join(dir, ".ntwine", "safe.md"), "---\ntitle: safe\nstatus: active\n---\n\n## Goal\n\nsafe\n")
+  writeFileSync(join(dir, ".ntwine", "Upper.md"), "---\ntitle: Upper\nstatus: active\n---\n")
+  const outside = join(mkdtempSync(join(tmpdir(), "ntwine-board-outside-")), "outside.md")
   writeFileSync(outside, "---\ntitle: linked\nstatus: active\n---\n")
-  symlinkSync(outside, join(dir, ".frizz", "linked.md"))
+  symlinkSync(outside, join(dir, ".ntwine", "linked.md"))
 
   const board = await readBoard(dir)
   assert.deepEqual(board.threads.map((thread) => thread.id), ["safe"])
   assert.ok(board.errors.some((error) => error.includes("unsafe filename stem") && error.includes("Upper")))
 
-  const linkedRoot = mkdtempSync(join(tmpdir(), "frizz-board-linked-root-"))
-  symlinkSync(join(dir, ".frizz"), join(linkedRoot, ".frizz"))
-  await assert.rejects(readBoard(linkedRoot), /unsafe or missing \.frizz directory/)
+  const linkedRoot = mkdtempSync(join(tmpdir(), "ntwine-board-linked-root-"))
+  symlinkSync(join(dir, ".ntwine"), join(linkedRoot, ".ntwine"))
+  await assert.rejects(readBoard(linkedRoot), /unsafe or missing \.ntwine directory/)
 })
 
 test("a file that is absent from the fresh board is stale and cannot be adopted", async () => {
@@ -264,11 +264,11 @@ test("a file that is absent from the fresh board is stale and cannot be adopted"
   assert.equal(h.boardReads(), 1)
   assert.equal(h.spawned.length, 0)
   assert.equal(h.storage.getSession("stale"), undefined)
-  assert.equal(existsSync(join(h.dir, ".frizz", "threads")), false)
+  assert.equal(existsSync(join(h.dir, ".ntwine", "threads")), false)
 })
 
 test("fresh-board ownership, agents, errors, and terminal or unknown statuses all fail closed", async () => {
-  const cases: [string, Partial<FrizzThread>][] = [
+  const cases: [string, Partial<NtwineThread>][] = [
     ["owned", { owner: "another-session" }],
     ["agent-bound", { agents: [{ id: "agent-1", state: "working" }] }],
     ["invalid", { errors: ["invalid frontmatter"] }],
@@ -291,14 +291,14 @@ test("fresh-board ownership, agents, errors, and terminal or unknown statuses al
   }
 })
 
-test("legacy source resolution rejects a symlinked file and a symlinked .frizz root", async () => {
-  const externalDir = mkdtempSync(join(tmpdir(), "frizz-adopt-outside-"))
+test("legacy source resolution rejects a symlinked file and a symlinked .ntwine root", async () => {
+  const externalDir = mkdtempSync(join(tmpdir(), "ntwine-adopt-outside-"))
   const externalFile = join(externalDir, "outside.md")
   writeFileSync(externalFile, "---\ntitle: outside\nstatus: active\n---\n")
 
   const fileLink = harness()
-  mkdirSync(join(fileLink.dir, ".frizz"))
-  symlinkSync(externalFile, join(fileLink.dir, ".frizz", "linked.md"))
+  mkdirSync(join(fileLink.dir, ".ntwine"))
+  symlinkSync(externalFile, join(fileLink.dir, ".ntwine", "linked.md"))
   fileLink.discoverLegacy("linked")
   assert.equal(resolveLegacyThreadFile(fileLink.dir, "linked"), null)
   await assert.rejects(fileLink.dispatcher.adopt("linked"), /thread is not available for adoption/)
@@ -306,24 +306,24 @@ test("legacy source resolution rejects a symlinked file and a symlinked .frizz r
   assert.equal(fileLink.ensureCalls(), 0)
   assert.equal(fileLink.spawned.length, 0)
 
-  const frizzLink = harness()
-  const externalFrizz = join(externalDir, "frizz-root")
-  mkdirSync(externalFrizz)
-  writeFileSync(join(externalFrizz, "linked-root.md"), "---\ntitle: linked-root\nstatus: active\n---\n")
-  symlinkSync(externalFrizz, join(frizzLink.dir, ".frizz"))
-  frizzLink.discoverLegacy("linked-root")
-  assert.equal(resolveLegacyThreadFile(frizzLink.dir, "linked-root"), null)
-  await assert.rejects(frizzLink.dispatcher.adopt("linked-root"), /thread is not available for adoption/)
-  assert.equal(frizzLink.boardReads(), 0)
-  assert.equal(frizzLink.ensureCalls(), 0)
-  assert.equal(frizzLink.spawned.length, 0)
+  const ntwineLink = harness()
+  const externalNtwine = join(externalDir, "ntwine-root")
+  mkdirSync(externalNtwine)
+  writeFileSync(join(externalNtwine, "linked-root.md"), "---\ntitle: linked-root\nstatus: active\n---\n")
+  symlinkSync(externalNtwine, join(ntwineLink.dir, ".ntwine"))
+  ntwineLink.discoverLegacy("linked-root")
+  assert.equal(resolveLegacyThreadFile(ntwineLink.dir, "linked-root"), null)
+  await assert.rejects(ntwineLink.dispatcher.adopt("linked-root"), /thread is not available for adoption/)
+  assert.equal(ntwineLink.boardReads(), 0)
+  assert.equal(ntwineLink.ensureCalls(), 0)
+  assert.equal(ntwineLink.spawned.length, 0)
 })
 
 test("a threads directory symlink cannot redirect adoption writes outside the project", async () => {
   const h = harness()
   h.addLegacyFile("scratch-link")
-  const external = mkdtempSync(join(tmpdir(), "frizz-scratch-outside-"))
-  symlinkSync(external, join(h.dir, ".frizz", "threads"))
+  const external = mkdtempSync(join(tmpdir(), "ntwine-scratch-outside-"))
+  symlinkSync(external, join(h.dir, ".ntwine", "threads"))
 
   await assert.rejects(h.dispatcher.adopt("scratch-link"), /thread is not available for adoption/)
   assert.deepEqual(readdirSync(external), [])
@@ -334,7 +334,7 @@ test("a threads directory symlink cannot redirect adoption writes outside the pr
 test("a source replaced while its fresh board is read fails the identity recheck", async () => {
   const h = harness({
     readBoard: (threads, dir) => {
-      writeFileSync(join(dir, ".frizz", "changed.md"), "---\ntitle: changed\nstatus: active\n---\n\nchanged during scan\n")
+      writeFileSync(join(dir, ".ntwine", "changed.md"), "---\ntitle: changed\nstatus: active\n---\n\nchanged during scan\n")
       return { config: {}, threads: [...threads], errors: [], warnings: [], errorItems: [] }
     },
   })
@@ -344,7 +344,7 @@ test("a source replaced while its fresh board is read fails the identity recheck
   assert.equal(h.boardReads(), 1)
   assert.equal(h.spawned.length, 0)
   assert.equal(h.storage.getSession("changed"), undefined)
-  assert.equal(existsSync(join(h.dir, ".frizz", "threads")), false)
+  assert.equal(existsSync(join(h.dir, ".ntwine", "threads")), false)
 })
 
 test("adopt claims a fresh slug once and stores an exact Claude identity", async () => {
@@ -376,7 +376,7 @@ test("adopt claims a fresh slug once and stores an exact Claude identity", async
   // argv: there is no argv, because there is no pane to spawn one into.
   const systemPrompt = h.spawned[0].appendSystemPrompt ?? ""
   assert.match(systemPrompt, /ADOPTION: this thread predates you/)
-  assert.match(systemPrompt, /\.frizz\/fresh\.md/)
+  assert.match(systemPrompt, /\.ntwine\/fresh\.md/)
   assert.doesNotMatch(systemPrompt, /\.\.\//)
   assert.equal(h.boardReads(), 1)
   assert.equal(h.rebuilds(), 1)
@@ -413,7 +413,7 @@ test("an unexpired durable adoption reservation blocks retry before spawn or fil
 
   await assert.rejects(h.dispatcher.adopt("reserved"), /thread is not available for adoption/)
   assert.equal(h.spawned.length, 0)
-  assert.equal(existsSync(join(h.dir, ".frizz", "threads")), false)
+  assert.equal(existsSync(join(h.dir, ".ntwine", "threads")), false)
 })
 
 
@@ -487,7 +487,7 @@ test("signed-out preflight rejects dispatch before scratch, spawn, and storage",
   assert.deepEqual(seen, ["claude"])
   assert.equal(h.spawned.length, 0)
   // Zero trace: no scratchpad tree, no registry row.
-  assert.equal(existsSync(join(h.dir, ".frizz")), false)
+  assert.equal(existsSync(join(h.dir, ".ntwine")), false)
 })
 
 test("a missing codex binary rejects a codex dispatch early, before any thread state", async () => {
@@ -503,7 +503,7 @@ test("a missing codex binary rejects a codex dispatch early, before any thread s
   assert.equal(probed.length, 1, "the binary was probed")
   assert.equal(h.spawned.length, 0)
   // Zero trace, exactly like the signed-out gate: no scratchpad, no registry row.
-  assert.equal(existsSync(join(h.dir, ".frizz")), false)
+  assert.equal(existsSync(join(h.dir, ".ntwine")), false)
 })
 
 test("codex dispatch proceeds when the binary probe is uncertain — fail OPEN, never trap a working user", async () => {
@@ -573,7 +573,7 @@ test("no injected preflight (unit-test composition) leaves dispatch untouched", 
 test("adoptSession: a claude terminal keeps its id and its transcript, and no worker is started", async () => {
   const h = harness()
   const EXTERNAL = "6543d3fb-e38e-461a-b10a-9c78261b67b2"
-  const res = await h.dispatcher.adoptSession({ sessionId: EXTERNAL, backend: "claude", title: "Debug Frizz thread startup issue" })
+  const res = await h.dispatcher.adoptSession({ sessionId: EXTERNAL, backend: "claude", title: "Debug Ntwine thread startup issue" })
 
   // THE ID DOES NOT CHANGE — slug and session_id are both the id the session was discovered under.
   // That is what lets promotion happen under a mounted composer: every piece of optimistic client
@@ -585,10 +585,10 @@ test("adoptSession: a claude terminal keeps its id and its transcript, and no wo
   assert.equal(row?.session_id, EXTERNAL)
   assert.equal(row?.backend, "claude")
   assert.equal(row?.agent_session_id ?? null, null, "claude's transcript IS <session_id>.jsonl; nothing extra to pin")
-  assert.equal(row?.thread_name, `frizz-${EXTERNAL}`)
+  assert.equal(row?.thread_name, `ntwine-${EXTERNAL}`)
   // The name the human just read in the rail, kept — and NOT marked provisional, because it is a real
   // name (Claude's own ai-title) rather than the dispatch chop that placeholder exists for.
-  assert.equal(row?.title, "Debug Frizz thread startup issue")
+  assert.equal(row?.title, "Debug Ntwine thread startup issue")
   assert.equal(row?.title_auto, 0)
   assert.equal(h.spawned.length, 0, "promotion starts no worker; the follow-up that triggered it resumes")
 })
@@ -627,7 +627,7 @@ test("adoptSession: the promoted row carries the dispatch launch mode, never an 
   assert.equal(shipped.storage.getSession(CLAUDE_ID)?.permission_mode, "bypassPermissions")
   assert.equal(shipped.storage.getSession(ROLLOUT)?.permission_mode, "bypassPermissions")
 
-  // The one Settings deviation frizz honours for claude — and a restrictive value left by an older
+  // The one Settings deviation ntwine honours for claude — and a restrictive value left by an older
   // build still coerces to the floor rather than to Claude's `default`.
   const auto = harness({ settings: { permissionMode: "auto" } })
   await auto.dispatcher.adoptSession({ sessionId: CLAUDE_ID, backend: "claude", title: "Terminal" })
@@ -637,7 +637,7 @@ test("adoptSession: the promoted row carries the dispatch launch mode, never an 
   assert.equal(restrictive.storage.getSession(CLAUDE_ID)?.permission_mode, "auto")
 })
 
-test("adoptSession: a session frizz already owns cannot be promoted again, through EITHER id column", async () => {
+test("adoptSession: a session ntwine already owns cannot be promoted again, through EITHER id column", async () => {
   const h = harness()
   const CLAUDE_ID = "6543d3fb-e38e-461a-b10a-9c78261b67b2"
   const ROLLOUT = "01a01b81-bbf3-7841-b704-a7c4b95b7bd7"
@@ -646,9 +646,9 @@ test("adoptSession: a session frizz already owns cannot be promoted again, throu
 
   // The registry is re-read rather than the caller's claim trusted: the request arrives from a browser
   // saying "this came from the foreign band", and a crafted one must not be able to mint a second row
-  // over a thread frizz is already driving.
-  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: CLAUDE_ID, backend: "claude" }), /already a frizz thread/)
-  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: ROLLOUT, backend: "codex" }), /already a frizz thread/)
+  // over a thread ntwine is already driving.
+  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: CLAUDE_ID, backend: "claude" }), /already an ntwine thread/)
+  await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: ROLLOUT, backend: "codex" }), /already an ntwine thread/)
   // And a malformed id is refused before anything is written.
   await assert.rejects(() => h.dispatcher.adoptSession({ sessionId: "../escape", backend: "claude" }), /cannot be adopted/)
 })

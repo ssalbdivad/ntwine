@@ -17,7 +17,7 @@
 // the page draws now.
 //
 // Usage (run from the stack's launching project dir — the fixture's transcript is keyed by the cwd):
-//   nub scripts/verify-rail-background-band.mjs --url=http://127.0.0.1:4931/ --home=/tmp/frizz-adhoc-home-X
+//   nub scripts/verify-rail-background-band.mjs --url=http://127.0.0.1:4931/ --home=/tmp/ntwine-adhoc-home-X
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -40,14 +40,14 @@ if (!url || !home) {
 const RUN = Date.now().toString(36).slice(-6)
 const SLUG = `preview-server-e2e-${RUN}`
 const SESSION_ID = `e2e11111-2222-3333-4444-${RUN.padStart(12, "0")}`
-const THREAD_NAME = `frizz-${SLUG}`
+const THREAD_NAME = `ntwine-${SLUG}`
 // THE NEGATIVE CONTROL, and it is not optional: the maintainer scoped this mark with "this should not
 // show up if there are sub-agents". A pass on the shell case alone would not distinguish "the dot
 // appears for a live shell" from "the dot appears for any live background work" — the exact thing the
 // scope forbids. So a second real session rests on a real dispatched CHILD and must keep the spinner.
 const CTRL_SLUG = `subagent-control-e2e-${RUN}`
 const CTRL_SESSION_ID = `e2e99999-8888-7777-6666-${RUN.padStart(12, "0")}`
-const CTRL_THREAD_NAME = `frizz-${CTRL_SLUG}`
+const CTRL_THREAD_NAME = `ntwine-${CTRL_SLUG}`
 const failures = []
 
 // The sandbox project dir the stack created, and the Claude transcript dir keyed by the project's cwd
@@ -122,7 +122,7 @@ try {
         type: "tool_use",
         id: "toolu_agent_audit",
         name: "Agent",
-        input: { description: "Tracing every broker exit", prompt: "trace them", subagent_type: "frizz:opus-high", run_in_background: true },
+        input: { description: "Tracing every broker exit", prompt: "trace them", subagent_type: "ntwine:opus-high", run_in_background: true },
       }],
     },
   }))
@@ -198,7 +198,7 @@ try {
       const row = document.querySelector(`[data-sidebar-item="${s}"]`)
       return {
         glyph: row?.querySelector("[data-rail-glyph]")?.getAttribute("data-rail-glyph") ?? null,
-        hasDot: !!row?.querySelector(".frizz-rail-dot"),
+        hasDot: !!row?.querySelector(".ntwine-rail-dot"),
         hasSpinner: !!row?.querySelector("svg animate"),
       }
     }, slug)
@@ -229,7 +229,7 @@ try {
       const inRunningBand = !!(row && row.closest("[data-xq-rail-project]") && !row.hasAttribute("data-xq-rail-row"))
       return {
         glyph: mark?.getAttribute("data-rail-glyph") ?? null,
-        hasDot: !!row?.querySelector(".frizz-rail-dot"),
+        hasDot: !!row?.querySelector(".ntwine-rail-dot"),
         hasSpinner: !!row?.querySelector("svg animate"),
         inRunningBand,
       }

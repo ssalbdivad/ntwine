@@ -1,18 +1,18 @@
-// LIVE end-to-end test of the CONTEXT METER's denominator across a frizz restart:
+// LIVE end-to-end test of the CONTEXT METER's denominator across an ntwine restart:
 //   real claude → broker daemon → socket → bridge.onEvent → ingest.contextWindow → tailer state.
 //   nub packages/server/src/backend/_live_broker_context_window.mts
 //
 // The window rides ONE frame — `result.modelUsage` — and picking this thread's row out of it needs the
 // resolved model alias, which only `init` names (claude-runtime-ingest.ts pickWindow). Real claude
 // re-emits `init` at the start of EVERY turn, but the SDK wrapper used to swallow every re-init, so the
-// alias was announced exactly once per DAEMON lifetime — to whichever frizz process happened to be
-// attached at that moment. A broker daemon OUTLIVES the frizz server, so after a restart the reattached
+// alias was announced exactly once per DAEMON lifetime — to whichever ntwine process happened to be
+// attached at that moment. A broker daemon OUTLIVES the ntwine server, so after a restart the reattached
 // thread could never relearn it and its context dial never came back, however long it kept working.
 // Measured on the maintainer's board before the fix: 42 of 323 claude threads carried a reading, split
-// exactly on which frizz process had forked the daemon.
+// exactly on which ntwine process had forked the daemon.
 //
 // So the shape here is the restart itself: fork a daemon, run a turn, DROP the bridge and the ingest
-// while leaving the daemon alive, build fresh ones (what a restarted frizz does), follow up, and demand
+// while leaving the daemon alive, build fresh ones (what a restarted ntwine does), follow up, and demand
 // the reading come back. The second half of this harness fails on the pre-fix wrapper.
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, realpathSync, rmSync } from "node:fs"
@@ -48,7 +48,7 @@ const env = Object.fromEntries(
     .filter((k) => process.env[k]).map((k) => [k, process.env[k]!]),
 )
 
-/** One frizz generation: a bridge, its ingest, and the tailer that reads the window off it. */
+/** One ntwine generation: a bridge, its ingest, and the tailer that reads the window off it. */
 function generation(label: string) {
   const kinds: string[] = []
   let tailer!: Tailer
@@ -80,14 +80,14 @@ let first: ReturnType<typeof generation> | undefined
 let second: ReturnType<typeof generation> | undefined
 try {
   storage.upsertSession({
-    slug, session_id: sessionId, thread_name: `frizz-${slug}`, spawned_at: new Date().toISOString(),
+    slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: new Date().toISOString(),
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   })
   storage.setBackend(slug, "claude")
   storage.setClaudeRuntime(slug, "broker")
 
-  // ── generation 1: the frizz that FORKS the daemon ────────────────────────────────────────────────
+  // ── generation 1: the ntwine that FORKS the daemon ────────────────────────────────────────────────
   first = generation("gen1")
   first.tailer.tick() // prime
   await first.bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd, prompt: "Reply with exactly LIVE-OK then stop. Do not use any tools." })
@@ -102,14 +102,14 @@ try {
   first.close()
   first = undefined
 
-  // ── generation 2: the frizz that REATTACHES ──────────────────────────────────────────────────────
+  // ── generation 2: the ntwine that REATTACHES ──────────────────────────────────────────────────────
   second = generation("gen2")
   second.tailer.tick() // prime — a fresh process re-derives the fold from the transcript
   await second.bridge.followUp({ threadSlug: slug, sessionId, cwd, text: "Reply with exactly LIVE-TWO then stop. Do not use any tools." })
   ok("gen2: the turn settled", await second.settled())
   // THE REGRESSION. Pre-fix this is false: the daemon's handle had already emitted its one init to the
   // process that is now gone, and every later re-init was swallowed inside the wrapper.
-  ok("gen2: the reattached frizz was told the model (per-turn re-init)", second.kinds.includes("init"), second.kinds.join(","))
+  ok("gen2: the reattached ntwine was told the model (per-turn re-init)", second.kinds.includes("init"), second.kinds.join(","))
   const w2 = second.ingest.contextWindow(sessionId)
   ok("gen2: the context window came back after the restart", typeof w2 === "number" && w2 > 0, `window=${w2}`)
   ok("gen2: it reached the tail state", (second.tailer.get(slug)?.contextWindow ?? 0) > 0, `tail=${second.tailer.get(slug)?.contextWindow}`)

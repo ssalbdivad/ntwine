@@ -1,4 +1,4 @@
-// Headless screenshot + in-page evaluate loop for iterating on the frizz UI.
+// Headless screenshot + in-page evaluate loop for iterating on the ntwine UI.
 // It drives puppeteer's own headless shell through `launchHeadless()` (lib/headless-browser.mjs): no
 // window, no Dock tile, a temp profile, never the installed Chrome, and a page that sees a dark system.
 // This is the visual-review loop: screenshot + evaluate_script routines
