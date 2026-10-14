@@ -1,94 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { useNavigate } from "react-router"
-import { Plus } from "lucide-react"
-import type { ProjectCard } from "@ntwine/shared"
-import { ProjectSquare } from "./ProjectSquare.tsx"
-import { homeOf, shortPath, useAddProject, warmProjectPicker } from "./ProjectActions.tsx"
-import { projectViewHref } from "../lib/pageView.ts"
 import { useIsMobile } from "../lib/mobile.ts"
 import { endTour, setTourStep, useTourStep } from "../lib/tour.ts"
 
-// FIRST RUN (lib/tour.ts): a project to start in, then a short tour of its board.
-
-// ---- The project pick ---------------------------------------------------------------------------------
-
-/**
- * A bare `/` in a browser that has never been onboarded and has a project to show: which one to start in.
- * Choosing one opens its board, where the tour starts (routes.tsx). Adding one first lands back here with
- * it listed. With no project at all this is the welcome instead (ProjectActions.tsx Welcome).
- */
-export function ProjectPick({ projects: cards }: { projects: readonly ProjectCard[] }) {
-  const navigate = useNavigate()
-  const add = useAddProject()
-  const home = homeOf(cards)
-  const projects = cards.filter((card) => !card.home && !card.stale)
-  const homeCard = cards.find((card) => card.home && !card.stale)
-  const list = useRef<HTMLUListElement>(null)
-  const choose = (card: ProjectCard) => navigate(projectViewHref(card.slug))
-  // The first project is focused, so Enter takes it and ↑/↓ walk the list.
-  useEffect(() => {
-    list.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true })
-  }, [])
-  const step = (event: React.KeyboardEvent<HTMLUListElement>) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
-    const buttons = [...(list.current?.querySelectorAll<HTMLButtonElement>("button") ?? [])]
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
-    const next = buttons[Math.max(0, Math.min(buttons.length - 1, at + (event.key === "ArrowDown" ? 1 : -1)))]
-    event.preventDefault()
-    next?.focus()
-  }
-  return (
-    <div className="flex min-h-dvh w-full">
-      <div data-onboarding-pick className="m-auto flex w-full max-w-[420px] flex-col items-center gap-2.5 px-6 py-14 text-center">
-        <img src="/favicon.svg" width={76} height={76} alt="" className="rounded-[17px]" />
-        <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">Pick a project to start with</h1>
-        <p className="text-[13px] leading-relaxed text-muted">You can add more and switch between them any time.</p>
-        <ul ref={list} onKeyDown={step} className="mt-4 flex w-full max-w-[360px] flex-col gap-0.5 text-left">
-          {projects.map((project) => (
-            <li key={project.id}>
-              <button
-                type="button"
-                data-onboarding-project={project.slug}
-                onClick={() => choose(project)}
-                className="flex w-full min-w-0 items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] outline-none transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:ring-1 focus-visible:ring-focus-ink-60"
-              >
-                <span className="shrink-0"><ProjectSquare project={project} size={16} /></span>
-                <span className="min-w-0 shrink-0 truncate font-medium text-fg">{project.name}</span>
-                <span className="ml-auto min-w-0 truncate font-mono text-[10.5px] text-muted-55">{shortPath(project.path, home)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          onPointerEnter={warmProjectPicker}
-          onFocus={warmProjectPicker}
-          onClick={add.start}
-          disabled={add.pending}
-          className="mt-1 flex w-full max-w-[360px] items-center gap-2.5 rounded-md border border-dashed border-border-strong px-2.5 py-2 text-left text-[13px] text-muted outline-none transition-colors hover:border-fg/40 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-60"
-        >
-          <Plus size={16} aria-hidden className="shrink-0" />
-          {add.pending ? "Choosing a folder…" : "Add a project"}
-        </button>
-        {homeCard && (
-          <p className="mt-4 text-[11.5px] text-muted-70">
-            Or{" "}
-            <button
-              type="button"
-              data-onboarding-home
-              onClick={() => choose(homeCard)}
-              className="rounded-sm text-fg/85 underline decoration-muted/40 underline-offset-2 outline-none transition-colors hover:text-fg hover:decoration-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
-            >
-              start in {shortPath(homeCard.path, home)}
-            </button>{" "}
-            without a project.
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
+// FIRST RUN (lib/tour.ts): a short tour of the page.
 
 // ---- The tour -----------------------------------------------------------------------------------------
 

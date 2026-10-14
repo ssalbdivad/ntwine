@@ -38,7 +38,7 @@ test("a folder Ntwine knows opens as itself, from anywhere inside it, and is reg
   assert.deepEqual(listProjects(home), [], "classifying writes nothing")
 
   const route = routeLaunch(deep, open, home)
-  assert.deepEqual(route, { path: "/project/kirby", project: { name: "kirby", dir: app } })
+  assert.deepEqual(route, { path: "/", project: { name: "kirby", dir: app } })
   assert.equal(findByPath(app, home)?.slug, "kirby")
   // Asked again, it is the same project at the same address.
   assert.deepEqual(routeLaunch(app, open, home), route)
@@ -62,7 +62,7 @@ test("a folder known only to the registry still opens, so an uncommitted id file
   const plain = folder("notes")
   registerProject({ dir: plain, id: "029a30af-f126-40e3-b04c-d80e74e3e090" }, home)
   assert.deepEqual(classifyLaunch(plain, home), { kind: "open", root: plain })
-  assert.equal(routeLaunch(plain, open, home).path, "/project/notes")
+  assert.deepEqual(routeLaunch(plain, open, home), { path: "/", project: { name: "notes", dir: plain } })
 })
 
 test("a folder that looks like a project is offered, and nothing is registered until the operator says so", (t) => {

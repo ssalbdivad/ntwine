@@ -156,7 +156,7 @@ try {
   // the project's focused board again since then (`/project/<slug>/thread/<t>` opens that thread too), but
   // `url` stays the drawer prefix. `gridUrl` is kept for older callers, naming All projects — the
   // grid's successor — at `/all` since 2026-10-06, when `/` became a redirect to the browser's last view
-  // (a fresh browser's is a project's board, which is not what a caller asking for the grid meant).
+  // (which need not be All projects for a browser that has chosen a board).
   const { findByPath, registerProject } = await import("../packages/server/src/project-registry.ts")
   const { resolveProject } = await import("../packages/server/src/project.ts")
   // The real launcher stamps the project it was run in as LAUNCHED (src/production.ts noteLaunchedHere),

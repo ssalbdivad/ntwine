@@ -387,8 +387,8 @@ function legacyProject(): { id: string; root: string; name: string; slug: string
   const { id, root, name } = intent.workspace;
   try {
     // `launched`: this registration IS a launch — `ntwine` run here — so it stamps lastLaunchedAt, the
-    // board a bare `/` opens in a browser with no view on record and the project All projects' prompt
-    // box aims a new thread at (web lib/crossProject.ts lastViewHref, defaultCrossProjectFocus). The
+    // project All projects' prompt box aims a new thread at (web lib/crossProject.ts
+    // defaultCrossProjectFocus). The
     // server's own answer stamps it the same way (launch-routing.ts routeLaunch). Only an `open` launch
     // is from a project; internal relaunches (a supervisor child, an update re-exec) never land here.
     const slug = registerProject({ dir: root, id, remoteOwner: resolveProjectLabel(root)?.split("/")[0], launched: true }, homedir()).entry?.slug;
@@ -400,10 +400,10 @@ function legacyProject(): { id: string; root: string; name: string; slug: string
 }
 
 /**
- * Where to land under those rules (upstream's answer since a project's board became the default view
- * on 2026-10-06, upstream commit 0a3b9139):
+ * Where to land under those rules:
  *
- *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
+ *   - run in a project: `/`, the browser's own last view (All projects for a new browser), with that
+ *     project registered and stamped as the prompt box's pick;
  *   - run in a repository Ntwine has not seen (`offer`): the add-project dialog asking about it,
  *     `/?add=<dir>`, over whichever view this browser was on last (web routes.tsx LastViewRedirect);
  *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
@@ -419,7 +419,7 @@ function legacyLanding(): LaunchRoute {
     if (intent.kind === "everything") return { path: "/all" };
     if (intent.kind === "offer") return { path: offerPath(intent.directory) };
     const project = legacyProject();
-    return project ? { path: `/project/${project.slug}`, project: { name: project.name, dir: project.root } } : { path: "/" };
+    return project ? { path: "/", project: { name: project.name, dir: project.root } } : { path: "/" };
   } catch (error) {
     // The server is up and every other project is on its dashboard; a folder Git cannot read is a
     // line to print, not a reason to leave the operator with nothing.

@@ -1,15 +1,11 @@
 import { useSyncExternalStore } from "react"
 
-// FIRST RUN — the onboarding a browser sees once: a project to start in (components/Onboarding.tsx
-// ProjectPick, at a bare `/`), then a short tour of that project's board (Tour). A browser that arrives on a
-// board directly — `ntwine` run in a project opens `/project/<slug>` — has its project already, and gets
-// only the tour.
+// FIRST RUN — the tour a browser sees once (components/Onboarding.tsx Tour), over the first page it shows:
+// All projects for a new browser, or whichever board a link opened.
 //
 // "Once" is per BROWSER, like the last view (crossProject.ts): `ntwine.onboarded` is written when the tour
 // ends, however it ends. A browser that already has a view on record from before the onboarding existed
-// gets it too: the pick lists every project it already has, and the tour shows what the board has become
-// since — David, 2026-10-07, upgrading without ever having taken it: "I should get the tour and project
-// intro". Captured at module load, so the decision holds for the whole page.
+// gets it too, since the tour shows what the page has become since. Captured at module load, so the decision holds for the whole page.
 
 const ONBOARDED_KEY = "ntwine.onboarded"
 

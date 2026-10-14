@@ -34,13 +34,13 @@ $ npx ntwine
 
   NTWINE v0.4.0  ready in 4.0s
 
-  ➜  Local:    http://127.0.0.1:9393/project/acme/
+  ➜  Local:    http://127.0.0.1:9393/
   ➜  Project:  acme — path/to/acme
 
   press ctrl-c to stop · run with --debug for the full event feed
 ```
 
-A browser tab opens on acme's board, because acme is already a project. In a repository Ntwine has not seen it asks whether to add it, and anywhere else it opens **All projects**; running the command never makes a project by itself. The first time, a short tour points out the four things on the board. Ntwine listens on port 9393 (19393 if something else holds it), and one server serves every project on the machine, so a second run joins the server already running. Runs on macOS, Linux and Windows.
+A browser tab opens on **All projects**, with acme picked in the prompt box because it is already a project. In a repository Ntwine has not seen it asks whether to add it first; running the command never makes a project by itself. The first time, a short tour points out the four things on the page. Ntwine listens on port 9393 (19393 if something else holds it), and one server serves every project on the machine, so a second run joins the server already running. Runs on macOS, Linux and Windows.
 
 <p align="center">
   <img src="assets/board.png" alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick." width="100%">
@@ -64,7 +64,7 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 **The board shows what's true, densely.**
 
 - There are five bands: Pinned, Queue, Running, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
-- Projects stay separate. The default view is one project's board, and All projects is one click away.
+- Projects stay separate. All projects is the default view and never interleaves them, and each project's board is one click away.
 - Density over decoration, and few settings. The default view shows at least as much as the original board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
 
 **Ntwine is the process that outlives the agent.**
@@ -111,7 +111,7 @@ Here's what I've built on top of the original design so far:
 - **Spinoff.** Start a new thread from any card with its context, without interrupting the one you're reading.
 - **Snooze until sub-agents return.** A queued parent waiting on its sub-agents parks until every one is back, and each return still wakes it.
 - **Thread names and status lines.** Every thread gets a stable name and a one-line status (a hover on a board), plus Auto effort.
-- **First-run onboarding.** A new browser picks a project, then gets a short tour of its board. **Take the tour** in ⌘K replays it.
+- **First-run tour.** A new browser opens on All projects with a short tour of the page. **Take the tour** in ⌘K replays it.
 - **Schedules.** Type "every weekday at 9am triage new issues" and the prompt box reads the schedule as you type. Each run starts a fresh thread.
 - **Time limits.** Give a thread `2h` or `15:30`. The agent plans the best result it can deliver by then, its sub-agents get a share, and the card counts down. Running out never interrupts a turn.
 - **Thread terminals.** Press `t` on a thread, or start a prompt with `$ npm test`, to get a shell in the folder its agent works in. It stops when the thread is done.
@@ -122,7 +122,7 @@ Here's what I've built on top of the original design so far:
 - **Files and pictures.** A reader that follows a file as it's saved, and a viewer that zooms, pans and pages through an agent's screenshots.
 - **Usage.** A quota chip that warns you before your plan runs out, and an optional Fable fallback for new Claude threads.
 - **Housekeeping.** Thread info (tokens, turns, cost), deleting done threads you haven't touched in a while, and keeping the machine awake while an agent works.
-- **All projects** at `/all`. This builds on the original project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. A project's board is still the default, and the sidebar is still there exactly as upstream ships it, opt-in under **Settings → Project sidebar**.
+- **All projects** at `/all`. This builds on the original project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. It's the default view; each project's board is one click away, and the project sidebar is opt-in under **Settings → Project sidebar**.
 - **[ntwine.app/docs](https://ntwine.app/docs)**, the full docs, with one page per feature.
 
 <br/>

@@ -103,15 +103,17 @@ export function routeLaunch(
   // address it by, and under a server hosted on Ntwine's own folder nothing else leads to it.
   const slug = findById(project.id, home)?.slug
   if (!slug) return { path: "/", notice: `Could not add ${project.dir} to the project list.` }
-  // This IS a launch — `ntwine` run in this project — so it stamps lastLaunchedAt: the board a bare `/`
-  // opens in a browser with no view on record, and the project All projects' prompt box aims a new
-  // thread at (web lib/crossProject.ts). The entry already exists by id, so this only touches it.
+  // This IS a launch — `ntwine` run in this project — so it stamps lastLaunchedAt: the project All
+  // projects' prompt box aims a new thread at (web lib/crossProject.ts). The entry already exists by id,
+  // so this only touches it.
   try {
     registerProject({ dir: project.dir, id: project.id, launched: true }, home)
   } catch {
-    // The registry is an index; the board opens without the stamp.
+    // The registry is an index; the page opens without the stamp.
   }
-  return { path: `/project/${slug}`, project: { name: project.name, dir: project.dir } }
+  // `/`, the browser's own last view: All projects for a new browser, with this project as its prompt
+  // box's pick. From 2026-10-06 to 2026-10-14 a launch opened this project's board instead.
+  return { path: "/", project: { name: project.name, dir: project.dir } }
 }
 
 /** Read a request body, or say what is wrong with it. */

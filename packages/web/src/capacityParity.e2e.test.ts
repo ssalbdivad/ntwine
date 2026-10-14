@@ -26,9 +26,8 @@ import type { Browser } from "puppeteer"
 // was that there is no view setting and All projects stays home at `/` — so the DEFAULT had to carry that
 // load, and "carries it" is defined against the original design: the default must show at least as
 // much, without scrolling, as upstream's default does. That is a number, so it is pinned as one. Later
-// that day a project's BOARD became the default (`/` goes back to the last view, a board for a browser
-// that never chose) and All projects moved to `/all`, one click away; both views keep the bar, since
-// either can be the one a browser opens.
+// that day All projects moved to `/all` and `/` began going back to the browser's last view, so either
+// view can be the one a browser opens, and both keep the bar.
 //
 // WITH THE RAIL ON AND OFF. Upstream's project rail came back the same day, opt-in (Settings → Project
 // sidebar, `projectRail`). It takes 57px of width on both views, which can wrap a title onto a second

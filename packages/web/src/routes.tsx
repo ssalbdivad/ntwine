@@ -6,8 +6,8 @@ import { App } from "./App.tsx"
 import { ProjectRail, RAIL_INSET_CLASS } from "./components/ProjectRail.tsx"
 import { StandaloneThreadPage } from "./components/StandaloneThreadPage.tsx"
 import { AddProjectHost, Welcome } from "./components/ProjectActions.tsx"
-import { ProjectPick, Tour } from "./components/Onboarding.tsx"
-import { hasOnboarded, startTourOnFirstRun } from "./lib/tour.ts"
+import { Tour } from "./components/Onboarding.tsx"
+import { startTourOnFirstRun } from "./lib/tour.ts"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { GithubHovercards } from "./components/GithubHovercards.tsx"
 import { Toaster } from "./components/Toaster.tsx"
@@ -158,16 +158,15 @@ function useProjectBinding(slug: string | undefined): boolean {
   return ready
 }
 
-// ONE PAGE, AND ITS PATH NAMES ITS VIEW (lib/pageView.ts): one project's board at `/project/<slug>` (the
-// default; upstream's scheme, restored 2026-10-06 — it was the query `/?project=<slug>` from 2026-09-29, which
-// now redirects here, and before 2026-09-28 a page of its own), or every project at `/all` (the bare `/`
-// from 2026-09-30 to 2026-10-06). `/` itself names no view: it goes back to the one this browser showed
-// last (LastViewRedirect), and on a phone it is the projects list. A bare `/status/<s>` and anything else
-// unknown lands on `/`, keeping the query a launcher may have sent (`?add=`).
+// ONE PAGE, AND ITS PATH NAMES ITS VIEW (lib/pageView.ts): every project at `/all` (the default), or one
+// project's board at `/project/<slug>` (the query `/?project=<slug>` from 2026-09-29 to 2026-10-06, which
+// now redirects here). `/` itself names no view: it goes back to the one this browser showed last
+// (LastViewRedirect), and on a phone it is the projects list. Anything unknown lands on `/`, keeping the
+// query a launcher may have sent (`?add=`).
 
 /**
  * THE PAGE — one project's board, or every project's list and queue, and the only page there is: `/all`
- * and its `/all/<slug>/thread/<t>`, `/project/<slug>` with its `/thread/<t>` and `/status/<s>`, and on a
+ * and its `/all/<slug>/thread/<t>`, `/project/<slug>` with its `/thread/<t>`, and on a
  * phone `/`, the projects list over All projects' binding.
  *
  * It is always BOUND to one project, the page project: the live feed, the store and every page-relative
@@ -199,10 +198,9 @@ function PageRoute() {
 }
 
 /**
- * A BARE `/` — what a typed address or an old bookmark is — goes back to the
- * view this browser showed last: a project's board, or All projects (lib/crossProject.ts lastViewHref). A
- * browser that never showed one gets a board, never All projects, because a board is the default: the
- * project `ntwine` was last run in, else the first. With no project at all it is the welcome.
+ * A BARE `/` — what a typed address, an old bookmark or a launch is — goes back to the view this browser
+ * showed last: a project's board, or All projects (lib/crossProject.ts lastViewHref). A browser that never
+ * showed one gets All projects, the default. With no project at all it is the welcome.
  *
  * It replaces its history entry, so Back never lands on a `/` that would only send it forward again. The
  * two arrivals from outside (usePageResolution below: the launcher's `?add=`, the server's `?unknown=`)
@@ -212,17 +210,11 @@ function PageRoute() {
 function LastViewRedirect() {
   const { search } = useLocation()
   const cards = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
-  // Shared with the page (same key), so the view it lands on paints from this read.
-  const queues = useQuery(projectsQueuesQuery)
   useState(() => answerArrival(search))
   if (cards.error) return <RegistryError error={String(cards.error)} />
-  if (!cards.data || queues.isPending) return <PageSpinner />
-  const openIds = queues.data ? new Set(queues.data.map((queue) => queue.projectId)) : undefined
-  const target = lastViewHref(cards.data, lastView(), openIds, lastFocusedProject())
+  if (!cards.data) return <PageSpinner />
+  const target = lastViewHref(cards.data, lastView())
   if (target === undefined) return <Welcome projects={cards.data} />
-  // A browser on its first run picks the project to start in, rather than being dropped into one
-  // (lib/tour.ts). Never in an editor's sidebar, whose view the editor pins.
-  if (!hasOnboarded() && !embedded()) return <ProjectPick projects={cards.data} />
   return <Navigate to={target} replace />
 }
 
@@ -266,12 +258,11 @@ function CrossProjectPage() {
   useRouteToStore()
   useRouterTransition()
   useState(() => primeReturnFromFullscreen(thread))
-  // A browser's first board starts the tour (lib/tour.ts) — whether it was picked on `/` or opened directly,
-  // as `ntwine` run in a project does.
-  const boardShown = page.kind === "page" && page.view.kind === "project"
+  // A browser's first page starts the tour (lib/tour.ts), on All projects or a board alike.
+  const pageShown = page.kind === "page"
   useEffect(() => {
-    if (boardShown && !embedded()) startTourOnFirstRun()
-  }, [boardShown])
+    if (pageShown && !embedded()) startTourOnFirstRun()
+  }, [pageShown])
   if (page.kind === "error") return <RegistryError error={page.error} />
   if (page.kind === "loading") return <PageSpinner />
   if (page.kind === "welcome") return <Welcome projects={page.projects} />
@@ -357,7 +348,7 @@ function usePageResolution(routeSlug: string | undefined): PageResolution {
 }
 
 /**
- * Any address the page does not have — a bare `/status/<s>`, a typo — lands on `/`, keeping the query
+ * Any address the page does not have — a typo, an old `/status/<s>` — lands on `/`, keeping the query
  * (`?add=`, `?unknown=`) it carries. The old names of All projects (`/queues`, `/projects`) and an
  * All-projects drawer's address cut short (`/all/<slug>`) land on All projects, at `/all`.
  */
@@ -465,7 +456,6 @@ export const router = createBrowserRouter([
       { path: `${CROSS_PROJECT_PATH}/thread/:thread`, element: <PageRoute /> },
       { path: PROJECT_PATH, element: <PageRoute /> },
       { path: `${PROJECT_PATH}/thread/:thread`, element: <PageRoute /> },
-      { path: `${PROJECT_PATH}/status/:status`, element: <PageRoute /> },
       // Anything else is the page — never a blank route (see "ONE PAGE" above).
       { path: "*", element: <HomeRedirect /> },
     ],

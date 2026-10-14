@@ -83,9 +83,8 @@ export function rememberLastFocusedProject(projectId: string): void {
 }
 
 // THE LAST VIEW THIS BROWSER SHOWED — a project's board or All projects — which is where a bare `/` goes
-// (routes.tsx LastViewRedirect). Decided 2026-10-06, when David asked for upstream's per-project default: a
-// project's board is the default view, All projects one click away, and `/` names neither, so it goes back
-// to whichever this browser had. Navigation memory, not a setting: it is written whenever the page shows a
+// (routes.tsx LastViewRedirect), and with it every launch from a project. `/` names neither view, so it goes
+// back to whichever this browser had, and to All projects when it had none. Navigation memory, not a setting: it is written whenever the page shows a
 // view, and nothing offers to change it. Per BROWSER (localStorage), like the pick above and unlike the
 // view itself, which is each tab's path. A board is remembered by ID, so a rename still finds it. An
 // editor's sidebar does not write it (routes.tsx): it is a frame in another app, and its view is the
@@ -109,7 +108,7 @@ export function rememberLastView(view: { kind: "all" } | { kind: "project"; id: 
   try {
     if (localStorage.getItem(LAST_VIEW_KEY) !== value) localStorage.setItem(LAST_VIEW_KEY, value)
   } catch {
-    // Storage disabled: a bare `/` falls through to the default board (lastViewHref step 2).
+    // Storage disabled: a bare `/` falls through to All projects (lastViewHref step 2).
   }
 }
 
@@ -119,29 +118,18 @@ export function rememberLastView(view: { kind: "all" } | { kind: "project"; id: 
  *
  *   1. the view this browser showed LAST (`remembered`, lastView above) — All projects, or a board whose
  *      project is still registered and its directory still there;
- *   2. else a board, never All projects: the project this browser last focused, else the one `ntwine` was
- *      most recently RUN in, else the one opened most recently, else the first in the machine's order
- *      (defaultCrossProjectFocus — the same order All projects' prompt box falls back through).
+ *   2. else All projects, the default.
  *
- * A browser that never chose lands on a board because a board is the default; All projects is where it
- * goes once someone has gone there.
+ * All projects with nothing in it but the Home workspace is the welcome; a remembered Home board is not.
  */
-export function lastViewHref(
-  cards: readonly Pick<ProjectCard, "id" | "slug" | "stale" | "lastOpenedAt" | "lastLaunchedAt" | "home">[],
-  remembered: string | null,
-  openIds?: ReadonlySet<string>,
-  lastFocusedId: string | null = null,
-): string | undefined {
+export function lastViewHref(cards: readonly Pick<ProjectCard, "id" | "slug" | "stale" | "home">[], remembered: string | null): string | undefined {
   const present = cards.filter((card) => !card.stale)
-  // All projects with nothing in it but the Home workspace is the welcome; so is `/`, by step 2.
-  if (remembered === ALL_VIEW && present.some((card) => !card.home)) return "/all"
   if (remembered?.startsWith(PROJECT_VIEW_PREFIX)) {
     const id = remembered.slice(PROJECT_VIEW_PREFIX.length)
     const card = present.find((candidate) => candidate.id === id)
     if (card) return `/project/${encodeURIComponent(card.slug)}`
   }
-  const slug = defaultCrossProjectFocus(cards, null, openIds, lastFocusedId)
-  return slug === undefined ? undefined : `/project/${encodeURIComponent(slug)}`
+  return present.some((card) => !card.home) ? "/all" : undefined
 }
 
 /**

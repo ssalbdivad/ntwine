@@ -7,8 +7,8 @@
 //     launcher's `?focus=<slug>` land there;
 //   · the view lives in the ADDRESS, per tab: two tabs on two boards stay there across reloads; All
 //     projects is `/all` (a retired `/?all` lands there), and a bare `/` goes back to the view this
-//     browser showed LAST — a board for a browser that never chose (2026-10-06; it was All projects from
-//     2026-09-30) — while a phone's `/` is its projects list;
+//     browser showed LAST — All projects for a browser that never chose (a board from 2026-10-06 to
+//     2026-10-14) — while a phone's `/` is its projects list;
 //   · the status row's switcher changes the view by navigating, and Back undoes it; All projects is the
 //     unified page, with the prompt box's picker carried over to the project just left;
 //   · a thread drawer closes back to the tab's view, not to a guess;
@@ -327,14 +327,12 @@ try {
     await showing(page, A)
     check("after choosing a project, / opens its board", true)
   })
-  await step("a fresh browser at / lands on a board, and a retired ?all lands on /all", async () => {
+  await step("a fresh browser at / lands on All projects, and a retired ?all lands on /all", async () => {
     const empty = await browser.createBrowserContext()
     const blank = await open(empty, `${origin}/`)
-    await blank.waitForFunction(() => /^\/project\/[^/]+$/.test(location.pathname), { timeout: 10_000 })
-      .catch(async () => { throw new Error(`a fresh browser at / never reached a board; it is at ${await address(blank)}`) })
-    const landed = decodeURIComponent((await address(blank)).slice("/project/".length))
-    await showing(blank, bySlug[landed] ?? { slug: landed })
-    check("a fresh browser at / opens a project's board, never All projects", Boolean(bySlug[landed]), landed)
+    await waitAddress(blank, "/all")
+    await showing(blank, null)
+    check("a fresh browser at / opens All projects", true)
     await blank.goto(`${origin}/?all`, { waitUntil: "networkidle2" })
     await waitAddress(blank, "/all")
     await showing(blank, null)

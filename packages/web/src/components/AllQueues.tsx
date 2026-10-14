@@ -64,7 +64,6 @@ import { glideTo, gliding, useViewportLock } from "../lib/viewportLock.ts"
 import { drawCardNow } from "../lib/cardVisibility.ts"
 import { holdQueueCardLanding } from "../lib/queueLandingHold.ts"
 import { pageScrollY } from "../lib/pageScrollLock.ts"
-import { StatusListView } from "./StatusListView.tsx"
 import { isPageKey, registerQueueCursor, releaseAutoOpened, runThreadCommand, useShortcut } from "../lib/keyboardRuntime.ts"
 import { runExternalOpen } from "../lib/externalOpen.ts"
 import { PROJECT_STEP_CHORDS, detectPlatform, formatChord, parseChord } from "../lib/keybindings.ts"
@@ -574,13 +573,7 @@ export function AllQueuesPage() {
         aria-label="Queue"
         className="flex min-h-screen w-[720px] max-w-[62vw] min-w-0 flex-col py-5 max-[800px]:min-h-0 max-[800px]:w-full max-[800px]:max-w-none"
       >
-        {focused && snap.statusView !== null ? (
-          // A board's status list, `/project/<slug>/status/<s>` (upstream's URL-only view), in the queue's
-          // place: the panel upstream's main column put around it, since the queue's cards carry their own.
-          <div data-status-list className="mt-8 flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-panel max-[800px]:mt-2">
-            <StatusListView status={snap.statusView} />
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="flex flex-1 items-center justify-center">
             <span className="block h-5 w-5 animate-spin rounded-full border-2 border-muted/50 border-t-transparent" />
           </div>

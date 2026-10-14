@@ -7,7 +7,6 @@ import { applyLocation, appPushedCurrentEntry, noteRouterTransition, primeReturn
 function resetStore(): void {
   store.drawers = []
   store.routeThreadSlug = null
-  store.statusView = null
   store.board = null
   store.pendingOpen = null
 }
@@ -594,22 +593,4 @@ test("an entry this tab pushed — a drawer it opened, reloaded or gone back to 
     unregister()
     resetStore()
   }
-})
-
-// `/project/<slug>/status/<s>`: a board's status list (StatusListView.tsx), URL-only as upstream's was.
-test("a status address shows that status's list under any drawer opened from it, and the page's root leaves it", () => {
-  resetStore()
-  store.drawers = [{ id: "d1", kind: "thread", slug: "open" }] as typeof store.drawers
-  primeRoute("/status/blocked")
-  assert.equal(store.statusView, "blocked")
-  assert.ok(store.drawers.every((d) => d.closing), "nothing open over the list")
-  primeRoute("/thread/x")
-  assert.equal(store.statusView, "blocked", "a drawer opened from the list keeps the list under it")
-  primeRoute("/status/needs-human/")
-  assert.equal(store.statusView, "needs-human")
-  primeRoute("/")
-  assert.equal(store.statusView, null)
-  primeRoute("/status/%E0%A4%A")
-  assert.equal(store.statusView, null, "a malformed name is the board itself")
-  resetStore()
 })

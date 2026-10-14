@@ -37,10 +37,10 @@ nub scripts/adhoc-stack.mjs --port=4930 > /tmp/stack.log 2>&1     # Bash run_in_
 
 `url` is the launcher's drawer prefix, `/all/<slug>`: append `/thread/<t>` for that thread's drawer over
 the one page, or `/thread/<t>/full` for its fullscreen page. A bare `url` lands on `/all`, All projects,
-which `gridUrl` names directly. A project's BOARD (the page focused on it, the default view) is
+which `gridUrl` names directly. A project's BOARD (the page focused on it) is
 `/project/<slug>`, and its threads `/project/<slug>/thread/<t>` (a queued one lands on its card,
-anything else opens its drawer). A bare `/` is neither: it goes to the view this browser showed last,
-and in a fresh headless profile that is a project's board — so name the view you mean.
+anything else opens its drawer). A bare `/` goes to the view this browser showed last, which in a fresh
+headless profile is All projects — so name the view you mean.
 
 **Never pipe it through `head`/`sed`/`grep` to read that line.** The stack keeps logging (every Vite HMR
 update, and the shared tree is edited constantly), so the reader exits, the pipe closes, and the next
@@ -91,8 +91,8 @@ curl -s -H 'sec-fetch-site: same-origin' "http://127.0.0.1:45571/_ntwine/<tenant
 ```
 
 **In a browser, every project is on ONE page, `/all`** (All projects), and one project's board is
-`/project/<slug>` (the switcher over the prompt box goes there too). Never aim at a bare `/`: it
-redirects to the browser's last view, a board in a fresh profile. A tenant's thread is
+`/project/<slug>` (the switcher over the prompt box goes there too). A bare `/` redirects to the
+browser's last view, All projects in a fresh profile. A tenant's thread is
 `http://127.0.0.1:45571/all/<tenant-slug>/thread/<t>` on All projects, or
 `/project/<tenant-slug>/thread/<t>` on its board. `…/thread/<t>/full` is its fullscreen page.
 `scripts/verify-all-queues.mjs` is a worked example of driving the page across four projects.

@@ -37,9 +37,9 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 // border, no shadow, no z-index. Its two ends land on the composer's own border, which is what makes a
 // borderless strip read as belonging to the box below it.
 //
-// THE DOOR HOME, ON A BOARD ONLY (`crumb`). It goes to All projects, at `/all`: the board is the default
-// view, but All projects is the level above it, the one that holds every board (2026-10-06; it was the
-// bare `/` until then, and `/` now only goes back to the last view, which from a board is the board). All
+// THE DOOR HOME, ON A BOARD ONLY (`crumb`). It goes to All projects, at `/all`: the level above the board,
+// the one that holds every board (2026-10-06; it was the bare `/` until then, and `/` now only goes back
+// to the last view, which from a board is the board). All
 // projects has no door: there is nowhere above it to go (David 2026-09-28: "there should no longer be
 // an everything or an infinity button on the threads view on the left"). Upstream led its board's row
 // with ⌂, the way out to its projects page at `/` (upstream 0a3b9139 StatusRow.tsx) — a router

@@ -24,14 +24,13 @@ points.
 **The board (original design; § Board nomenclature)**
 - Every thread is in exactly one of five rails (Pinned, Queue, Running, Snoozed, Done), and no view may lose that
   distinction. On a board, Pinned, Queue and Running never fold.
-- Projects stay separate. The default view is one project's board at `/project/<slug>`; All projects lives at `/all`.
+- Projects stay separate. All projects at `/all` is the default view and never interleaves projects; each project's board is at `/project/<slug>`.
 - The default view shows at least as much as upstream's board at heavy load (17 projects, ~70 threads).
   `packages/web/src/capacityParity.e2e.test.ts` is the bar.
 - Density over decoration, and few settings.
 - One server serves every project. Nothing Ntwine runs on its own uses a pty or tmux.
 - Ntwine brings no model of its own: the few calls it makes itself (names, status lines, Auto effort,
   schedule reading) run on the operator's Claude sign-in, each with a `NTWINE_*=0` off-switch.
-- Upstream takes changes in pieces: soundness fixes first, never a wholesale structural change.
 
 **Working here (David)**
 - Copy says what the human can do, never how Ntwine works. It is sentence case, and durations use one grammar.
@@ -244,7 +243,7 @@ Every thread Ntwine started is in exactly one of five bands, top to bottom:
 - **Snoozed** — the dimmed park band (an armed timer, a wall-clock snooze, the resting card's event-snooze, a rest its worker called `status: watching`). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
 - **Done** — the archived section.
 
-**External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. A project's board (`/project/<slug>`, the default view) names all five under headers, and Pinned, Queue and Running never fold; a working row's status there is a hover, with only its clock on the line. All projects (`/all`, one click away; a bare `/` goes back to whichever view the browser showed last) names none — each row says its band by its own mark (a pin, a rest time, a spinner), its status inline — and a folded project's row counts its Pinned, Queue and Running.
+**External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. A project's board (`/project/<slug>`) names all five under headers, and Pinned, Queue and Running never fold; a working row's status there is a hover, with only its clock on the line. All projects (`/all`, one click away; a bare `/` goes back to whichever view the browser showed last) names none — each row says its band by its own mark (a pin, a rest time, a spinner), its status inline — and a folded project's row counts its Pinned, Queue and Running.
 
 The trap is that `sectionOf` (`@ntwine/shared`, re-exported by `groups.ts`) returns `"active"` for Running AND Queue rows alike — that key names the `<section>` holding both bands, not the maintainer's word — and the band keys are still the fork's old labels, `ready` (Queue) and `working` (Running). `partitionActive` splits the section (`.running` = Running, `.rested` = Queue), and `inActiveBand` is the one predicate that means Running exactly. Full detail, including why the archived key is `"inactive"` while its label reads Done, in `ARCHITECTURE.md` § Board nomenclature.
 

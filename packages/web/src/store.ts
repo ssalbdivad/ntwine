@@ -132,10 +132,6 @@ export const store = proxy({
   // The router parks the slug here and App resolves it the first render the board is authoritative
   // (see resolveRoutedThread). Parked slugs keep the address bar on /thread/<slug> meanwhile.
   routeThreadSlug: null as string | null,
-  // A project board's STATUS LIST (`/project/<slug>/status/<s>`, StatusListView.tsx): the status it lists,
-  // drawn in the queue's place, or null for the queue. URL-only, as upstream's was — nothing on the page
-  // links to one — and the view under any drawer opened from it, so closing the drawer comes back to it.
-  statusView: null as string | null,
   // Another project's thread, clicked open from the queue and not yet drawn: its drawer cannot exist until
   // the page has rebound to that project and its board has landed, which on a loaded machine took seconds
   // (2026-10-01: ~5s on WSL for "Show earlier messages"). PendingThreadSheet draws the drawer's frame for
@@ -661,7 +657,6 @@ export function resetProjectState() {
   store.filePanels = []
   store.imageViewer = null
   store.routeThreadSlug = null
-  store.statusView = null
   store.socketBoardFallback = null
   store.socketTranscriptFallbacks = {}
   store.showSettings = false

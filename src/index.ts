@@ -827,17 +827,16 @@ async function warnAboutStartingASecondNtwine(): Promise<void> {
 
 let cachedSlugPath: string | undefined;
 /**
- * Where to land — upstream's answer again (upstream commit 0a3b9139, src/index.ts slugPath), since a
- * project's board became the default view on 2026-10-06:
+ * Where to land:
  *
- *   - run in a project: THAT PROJECT'S BOARD, `/project/<slug>`;
+ *   - run in a project: `/`, the browser's own last view (All projects for a new browser), with the
+ *     project registered and stamped as the prompt box's pick (noteLaunchedHere);
  *   - run in a repository Ntwine has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
  *     whichever view this browser was on last (web routes.tsx LastViewRedirect);
  *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
  *   - no intent (a supervisor child, an update re-exec): `/`, the browser's own last view.
  *
- * From 2026-09-30 until then every launch landed on All projects at a bare `/` (maintainer: "by default
- * ntwine should open the all projects view").
+ * From 2026-10-06 to 2026-10-14 a launch in a project opened that project's board instead.
  *
  * `?add=` is a REQUEST, not a registration — nothing on disk changes until the operator confirms on
  * the page, which is the only reason an unmarked directory is safe to point the launcher at at all.
@@ -850,19 +849,14 @@ function slugPath(): string {
 function landingPath(): string {
   if (launchIntent?.kind === "offer") return `/?add=${encodeURIComponent(launchIntent.directory)}`;
   if (launchIntent?.kind === "everything") return "/all";
-  if (launchIntent?.kind !== "open") return "/";
-  // The registry is an index: a launch it cannot record still opens, on the browser's own last view.
-  const slug = ownSlug();
-  return slug ? `/project/${encodeURIComponent(slug)}` : "/";
+  return "/";
 }
 
 /**
- * Record in the machine's registry that `ntwine` was just run in THIS project, cold or joining. The launch
- * itself lands on this project's board (slugPath), but the stamp outlives it: it is the board a bare `/`
- * opens in a browser with no view on record, and the project All projects' prompt box aims a new thread at
- * when this browser has neither picked nor focused one (web lib/crossProject.ts lastViewHref,
- * defaultCrossProjectFocus). Only an `open` launch is from a project: an `everything` or `offer`
- * launch is hosted on Ntwine's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
+ * Record in the machine's registry that `ntwine` was just run in THIS project, cold or joining: the
+ * project All projects' prompt box aims a new thread at when this browser has neither picked nor focused
+ * one (web lib/crossProject.ts defaultCrossProjectFocus). Only an `open` launch is from a project: an
+ * `everything` or `offer` launch is hosted on Ntwine's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
  * Internal relaunches (a supervisor child, an update re-exec) carry no intent, so a restart never
  * re-stamps the host over a later launch elsewhere.
  */

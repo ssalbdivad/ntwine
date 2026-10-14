@@ -7,11 +7,10 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 //
 //   /                              where this browser was last (a redirect), or a phone's projects list —
 //                                  bound to the prompt box's pick (below)
-//   /all                           All projects — bound to the prompt box's pick (below)
+//   /all                           All projects, the default — bound to the prompt box's pick (below)
 //   /all/<slug>/thread/<t>         All projects with that thread's drawer open — bound to its project
-//   /project/<slug>                that project's board, the default (upstream's scheme, restored 2026-10-06)
+//   /project/<slug>                that project's board
 //   /project/<slug>/thread/<t>     the board with that thread open (its card, or its drawer)
-//   /project/<slug>/status/<s>     the board's status list (StatusListView.tsx)
 //
 // and either thread address plus `/full` is that thread's fullscreen page. That works because Ntwine's own
 // routes live under `/_ntwine/`, so the top-level namespace is the SPA's.
@@ -38,8 +37,7 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
  * re-points under its project (prefixedAppRoute). This is the single definition of that set —
  * `isNtwineRoute` in markdownTargets.ts used to keep its own copy, and a stale copy is not a small bug:
  * every in-app link starts looking like a FILESYSTEM path to the markdown sanitizer, and renders as a
- * disabled local-file chip. Only `thread`: a status list lives under its project's board
- * (`/project/<slug>/status/<s>`), and a bare `/status/<s>` is a retired address (isRetiredAppPath).
+ * disabled local-file chip. Only `thread`: a bare `/status/<s>` is a retired address (isRetiredAppPath).
  */
 export const APP_ROUTE_SEGMENTS = new Set(["thread"])
 
@@ -95,7 +93,8 @@ export const PROJECT_PREFIX = "/project"
 
 /**
  * A project board's address, EXACTLY: `/project/<slug>`, its thread `…/thread/<t>` and that thread's
- * `…/full`, and its status list `…/status/<s>`, each with an optional trailing slash. Nothing else under
+ * `…/full`, and its retired status list `…/status/<s>` (gone 2026-10-14; old links still land in the app),
+ * each with an optional trailing slash. Nothing else under
  * `/project/` is a page: `/project` is a real directory on plenty of machines, and the markdown sanitizer
  * asks this (through projectSlug) whether a link is in-app — `/project/acme/src/main.rs` is somebody's file.
  * Query and fragment are not part of a path; a caller handing an href is answered for its path.

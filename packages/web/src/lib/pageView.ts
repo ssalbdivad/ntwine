@@ -1,16 +1,10 @@
-// THE PAGE'S VIEW — which projects the one page shows: ONE project (its board, the default) or every
-// project (All projects).
+// THE PAGE'S VIEW — which projects the one page shows: every project (All projects, the default) or ONE
+// project (its board).
 //
-// A project's BOARD is the default (David asked for it 2026-10-06, on upstream's case in the standups of
-// 2026-10-01 and 10-06: projects stay separate, as in Claude, ChatGPT and T3; one sidebar of every project
-// loses the five bands and does not scale to 17 projects and ~70 threads; Ntwine's design goal is
-// progressive focus). It is
-// the original design's one project per page, Ntwine's original shape: the list is that project's, banded as
-// its sidebar banded it (ProjectBoard.tsx), the queue shows its cards, and the prompt box dispatches into it.
-// All projects — every project's list and one queue across all of them, with the prompt box's own picker
-// — stays, one click away (the switcher's first entry, the board's home crumb, the rail's top door), but
-// is no longer home. It was home at a bare `/` from 2026-09-30 (maintainer: "by default ntwine should open
-// the all projects view") until then.
+// ALL PROJECTS is home: every project's list and one queue across all of them, with the prompt box's own
+// picker. A project's BOARD is one click away (the switcher, the list's project rows, the rail): the list is
+// that project's, banded (ProjectBoard.tsx), the queue shows its cards, and the prompt box dispatches into
+// it. From 2026-10-06 to 2026-10-14 the board was the default instead; David reversed that on 2026-10-14.
 //
 // THE VIEW IS THE PATH, so every tab, bookmark and launch keeps its own, and a link says what it opens:
 //
@@ -18,13 +12,11 @@
 //                               on a phone its projects list (PhonePage.tsx)
 //   /all                        All projects
 //   /all/<slug>/thread/<t>      All projects, with that thread's drawer over it
-//   /project/<slug>             that project's board — the launcher opens its own project's
+//   /project/<slug>             that project's board
 //   /project/<slug>/thread/<t>  the board, with that thread open (its card, or its drawer)
-//   /project/<slug>/status/<s>  the board's status list
 //
-// `/project/<slug>` is upstream's own scheme (upstream singleton-ntwine.md: `?project=` was considered there and
-// rejected), restored 2026-10-06 (David: the fork is the base, and everything upstream decided is in it —
-// plans/upstream-superset.md §2). From 2026-09-29 to then the board was a QUERY on `/` (`/?project=<slug>`,
+// `/project/<slug>` is the original design's scheme (`?project=` was considered there and rejected). From
+// 2026-09-29 to 2026-10-06 the board was a QUERY on `/` (`/?project=<slug>`,
 // first spelled `?focus=`), and a drawer's address could not say which view it sat on, so each tab kept
 // its view in sessionStorage. The path says it now, so there is nothing left for a tab to remember; the
 // old queries redirect to the path (routes.tsx, legacyViewRedirect below).

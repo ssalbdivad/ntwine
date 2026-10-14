@@ -7,8 +7,7 @@ import { homeHref } from "./pageView.ts"
 
 // URL ⇄ state sync, SPA-style. Inner paths: `/` (the page), `/thread/<slug>` (the page with that
 // thread open in the drawer STACK's topmost thread layer — or, from a cold link on a project's board, a
-// queued thread landed on its card: store.resolveRoutedThread), and `/status/<s>` (a board's status
-// list, StatusListView.tsx). In the address bar they sit under the page's prefix — `/project/<slug>/…`
+// queued thread landed on its card: store.resolveRoutedThread). In the address bar they sit under the page's prefix — `/project/<slug>/…`
 // on a board, `/all/<project>/…` for a drawer on All projects (base-path.ts). The fullscreen page,
 // `/thread/<slug>/full`, is its own route.
 //
@@ -16,7 +15,7 @@ import { homeHref } from "./pageView.ts"
 // button unwinds it; other transitions REPLACE so transient state never buries the back stack.
 //
 // (The focus machine this used to route through was deleted, and so, on 2026-09-28, was the `view` it
-// then wrote; the board's `/status/<s>` lists came back with the board on 2026-10-06, as `store.statusView`.)
+// then wrote.)
 
 function currentPath(): string {
   const top = topRoutedSlug()
@@ -25,8 +24,6 @@ function currentPath(): string {
   // frame or two before the board settles the destination, and settling it into a drawer would then
   // push a redundant history entry for a URL the user never left.
   if (store.routeThreadSlug) return `/thread/${encodeURIComponent(store.routeThreadSlug)}`
-  // A status list is the view under every drawer opened from it: closing the last one comes back to it.
-  if (store.statusView !== null) return `/status/${encodeURIComponent(store.statusView)}`
   return "/"
 }
 
@@ -45,15 +42,6 @@ export function applyPath(path: string): void {
   // An address that is not the pending open's thread (Back, another thread) abandons that open.
   const pendingSlug = store.pendingOpen?.slug
   if (pendingSlug !== undefined && (!thread || decodeSegment(thread[1]) !== pendingSlug)) store.pendingOpen = null
-  const status = path.match(/^\/status\/([^/]+)\/?$/)
-  if (status) {
-    // A board's status list (StatusListView.tsx): the page under it, with nothing open over it. Only a
-    // board has the route (routes.tsx); a malformed name is the board itself.
-    store.statusView = decodeSegment(status[1])
-    store.routeThreadSlug = null
-    closeDrawersById(store.drawers.map((d) => d.id))
-    return
-  }
   if (thread) {
     const slug = decodeSegment(thread[1])
     if (slug === null) {
@@ -87,9 +75,7 @@ export function applyPath(path: string): void {
     store.routeThreadSlug = slug
     return
   }
-  // Everything else is the page; Back past the last thread layer unwinds the stack (animated). A thread
-  // address (above) leaves a status list under it alone; the page's own root is the queue.
-  store.statusView = null
+  // Everything else is the page; Back past the last thread layer unwinds the stack (animated).
   store.routeThreadSlug = null
   closeDrawersById(store.drawers.map((d) => d.id))
 }

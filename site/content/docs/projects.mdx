@@ -7,7 +7,7 @@ Every folder you add becomes a **project**. Ntwine is a single server: one on yo
 
 ## A board per project
 
-Each project has its own **board** at `/project/<name>`. It shows the project's threads under the five named [bands](/docs/queue#the-bands), its cards beside them, and a prompt box that starts threads in it. A working thread's status shows when you point at it, and its sub-agents are listed under it. `npx ntwine` in a project opens that project's board, and a bare `http://127.0.0.1:9393/` opens whichever view this browser showed last.
+Each project has its own **board** at `/project/<name>`. It shows the project's threads under the five named [bands](/docs/queue#the-bands), its cards beside them, and a prompt box that starts threads in it. A working thread's status shows when you point at it, and its sub-agents are listed under it. `npx ntwine` and a bare `http://127.0.0.1:9393/` open whichever view this browser showed last, and All projects the first time.
 
 The switcher above the prompt box moves between projects and counts each one's queued and running threads. <kbd>⌥</kbd><kbd>↑</kbd> and <kbd>⌥</kbd><kbd>↓</kbd> step between projects from anywhere, and <kbd>⌘</kbd><kbd>K</kbd> jumps to any of them.
 
@@ -27,7 +27,7 @@ If you want every project in view, turn on **Settings → Project sidebar**. It 
 
 Running `npx ntwine` never creates a project on its own:
 
-- In a folder that's already a project, it opens that board.
+- In a folder that's already a project, it opens the view you were last on, with that project picked in the prompt box.
 - In a repository (`.git`, `.jj`, `.hg`, `.svn`), or a folder with a `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml` or similar, it asks whether to add it, and adds it once you confirm.
 - Anywhere else, it opens **All projects**.
 
