@@ -7,8 +7,8 @@ import { NTWINE_MCP, ntwineMcpEnv, type NtwineMcp } from "./types.ts"
 //
 // WHY THE APP-SERVER'S ARGV. On codex-cli 0.146.0 it was the ONLY channel that worked: putting
 // `mcp_servers` in `thread/start`'s untyped `config` bag mounted nothing, and the model answered the
-// literal word `NOTOOL` — its own report that the tool was not in its registry. That measurement is
-// reproducible via `packages/server/src/backend/_live_codex_mcp_inject.mts`.
+// literal word `NOTOOL` — its own report that the tool was not in its registry (`_live_codex_mcp_inject.mts`,
+// a probe deleted 2026-10-14; it is in git history).
 //
 // THAT IS NO LONGER TRUE, and this file now uses BOTH channels. Re-measured against codex-cli 0.153.2,
 // the per-thread override works and gives each thread its own MCP child with its own env — which is

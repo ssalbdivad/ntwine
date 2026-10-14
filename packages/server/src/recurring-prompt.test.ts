@@ -7,8 +7,8 @@
 //      while merely toggling off and on must NOT (that would re-send a bump the operator watched land).
 //
 // The end-to-end proof that a real agent is bumped at rest, bumped again at its NEXT rest, and left
-// alone once it answers ALLDONE lives in backend/_live_recurring_prompt.mts — a live probe, not a unit
-// test, because the only thing worth asserting there is what a real worker does.
+// alone once it answers ALLDONE was backend/_live_recurring_prompt.mts — a live probe, not a unit test,
+// because the only thing worth asserting there is what a real worker does (deleted 2026-10-14; in git history).
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"

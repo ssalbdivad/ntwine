@@ -7,11 +7,11 @@ import { Lock } from "lucide-react"
 // THE COPY IS THE MAINTAINER'S, verbatim (2026-10-12). It replaced "Held in memory on the machine
 // running Ntwine and handed to one command, once. The worker never sees it.", which wrapped to two lines
 // on every surface. Of five treatments of that long copy, the maintainer said: "They're all so bad …
-// shorten it onto one line and then go with something like option A with the hanging lock." Round 2,
-// which settled the lock, is the mockup sheet `secret-caption-mockups-fixture.tsx`. "Only in memory"
-// is the FIFO in packages/server/src/secret-files.ts, which never writes the value to disk. Windows has
-// no FIFOs, so there the value sits in a short-lived 0600 file. Measured in sans: one line on a desktop
-// card 456px wide or wider. A 356px card and the phone's 390pt sheet wrap once, and `text-pretty` keeps
+// shorten it onto one line and then go with something like option A with the hanging lock." A second
+// round of drawn treatments settled the lock. "Only in memory" is the FIFO in
+// packages/server/src/secret-files.ts, which never writes the value to disk. Windows has no FIFOs, so
+// there the value sits in a short-lived 0600 file. Measured in sans: one line on a desktop card 456px
+// wide or wider. A 356px card and the phone's 390pt sheet wrap once, and `text-pretty` keeps
 // the second line from being a lone word ("…show up / in transcripts.").
 //
 // THE LOCK SITS ON THE CAP BAND. Its box is 0.9em square and `self-baseline` in an `items-baseline` row.

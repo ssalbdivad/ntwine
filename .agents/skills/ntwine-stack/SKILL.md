@@ -167,7 +167,7 @@ For transcript/board/telemetry flows, the tailer needs only three things, all in
    liveness comes from the row's runtime, so a simulated worker needs no process at all.
 
 This is the sanctioned exception to "never hand-write rows": the row is the fixture, and appending records
-then exercises the REAL tailer → board → push → render pipeline end-to-end. Dozens of worked examples live
+then exercises the REAL tailer → board → push → render pipeline end-to-end. Worked examples live
 in `scripts/seed-*.mjs`.
 
 ---

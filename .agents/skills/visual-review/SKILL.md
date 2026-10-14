@@ -216,7 +216,7 @@ understand why the blue dot is so small."* The halo was a third of the mark's wi
 When marks that should match still look mismatched and geometry says they agree, measure the PIXELS:
 
 ```bash
-node scripts/ink-pixels.mjs "$URL" ".ntwine-live-dot, .ntwine-live-dot-quiet" --dsf=4
+node scripts/ink-pixels.mjs "$URL" ".ntwine-live-dot" --dsf=4
 # → per element: box [6,6] | INK [8,8] css | contrast 422
 ```
 
