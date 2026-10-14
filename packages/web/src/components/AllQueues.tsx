@@ -730,15 +730,6 @@ function ProjectPicker({ projects, focus, onPick }: { projects: QueuesProject[];
   }, [projects])
   const triggerRef = useRef<HTMLButtonElement>(null)
   const alone = useAloneOnItsLine(triggerRef)
-  const choice = (project: QueuesProject, hint?: string) => (
-    <MenuItem key={project.id} value={project.slug} onSelect={() => onPick(project)} icon={<ProjectSquare project={project.card ?? fallbackCard(project)} size={14} />}>
-      <span className={`min-w-0 flex-1 truncate ${project.slug === focus ? "text-fg" : ""}`}>{project.name}</span>
-      {hint && <span className="min-w-0 shrink truncate font-mono text-[10.5px] text-muted-55">{hint}</span>}
-      {/* Choosable — opening its board may be exactly what brings it up — but not a surprise. */}
-      {!project.open && <span className="shrink-0 text-[10.5px] text-muted-55">Not open</span>}
-      {project.slug === focus && <Check size={12} aria-label="Current" className="shrink-0 text-fg" />}
-    </MenuItem>
-  )
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -762,23 +753,41 @@ function ProjectPicker({ projects, focus, onPick }: { projects: QueuesProject[];
         </button>
       </MenuTrigger>
       <MenuContent align="start">
-        <div className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-medium text-muted-55">Start in</div>
-        <div className="max-h-[min(60vh,420px)] overflow-y-auto">
-          {choices.map((project) => choice(project))}
-        </div>
-        {homeChoice && (
-          <>
-            {choices.length > 0 && <MenuSeparator />}
-            {/* Outside the scrolling list, so it never scrolls away — and inset by the scrollbar gutter that
-                list reserves (styles.css `scrollbar-gutter: stable`), or its hint ended 7px right of the
-                check marks above it. */}
-            <div className="pr-[var(--sbw)]">
-              {choice(homeChoice, homeChoice.card && shortPath(homeChoice.card.path, homeChoice.homeDir))}
-            </div>
-          </>
-        )}
+        {/* Built only while open, as the page's switcher is (ProjectSwitcher.tsx SwitcherMenu). */}
+        <PickerChoices choices={choices} homeChoice={homeChoice} focus={focus} onPick={onPick} />
       </MenuContent>
     </Menu>
+  )
+}
+
+function PickerChoices({ choices, homeChoice, focus, onPick }: { choices: QueuesProject[]; homeChoice: QueuesProject | undefined; focus: string | undefined; onPick: (project: QueuesProject) => void }) {
+  const choice = (project: QueuesProject, hint?: string) => (
+    <MenuItem key={project.id} value={project.slug} onSelect={() => onPick(project)} icon={<ProjectSquare project={project.card ?? fallbackCard(project)} size={14} />}>
+      <span className={`min-w-0 flex-1 truncate ${project.slug === focus ? "text-fg" : ""}`}>{project.name}</span>
+      {hint && <span className="min-w-0 shrink truncate font-mono text-[10.5px] text-muted-55">{hint}</span>}
+      {/* Choosable — opening its board may be exactly what brings it up — but not a surprise. */}
+      {!project.open && <span className="shrink-0 text-[10.5px] text-muted-55">Not open</span>}
+      {project.slug === focus && <Check size={12} aria-label="Current" className="shrink-0 text-fg" />}
+    </MenuItem>
+  )
+  return (
+    <>
+      <div className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-medium text-muted-55">Start in</div>
+      <div className="max-h-[min(60vh,420px)] overflow-y-auto">
+        {choices.map((project) => choice(project))}
+      </div>
+      {homeChoice && (
+        <>
+          {choices.length > 0 && <MenuSeparator />}
+          {/* Outside the scrolling list, so it never scrolls away — and inset by the scrollbar gutter that
+              list reserves (styles.css `scrollbar-gutter: stable`), or its hint ended 7px right of the
+              check marks above it. */}
+          <div className="pr-[var(--sbw)]">
+            {choice(homeChoice, homeChoice.card && shortPath(homeChoice.card.path, homeChoice.homeDir))}
+          </div>
+        </>
+      )}
+    </>
   )
 }
 

@@ -81,12 +81,18 @@ export function schedulePreviewModel(spec: SchedulePreviewSpec, nowMs: number, v
 
 /** The browser's IANA zone — what the preview names a schedule's zone against. */
 export function browserZone(): string {
+  // Read at most once a minute: building the formatter to ask is the expensive part, the prompt box asks on
+  // every render, and a machine that changes zone is answered within the minute.
+  const now = Date.now()
+  if (zoneRead && now - zoneRead.at < 60_000) return zoneRead.zone
+  let zone = "UTC"
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  } catch {
-    return "UTC"
-  }
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  } catch {}
+  zoneRead = { zone, at: now }
+  return zone
 }
+let zoneRead: { zone: string; at: number } | undefined
 
 export function SchedulePreview({
   spec,
