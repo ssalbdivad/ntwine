@@ -86,7 +86,9 @@ export function ProjectDock({
         {/* All LEADS the squares, as the first of the views they are: one row reading "All, or one of
             these" is what says a square narrows the page — and, with no title menu over the prompt box
             since 2026-10-14, it is the way back from a project's page. */}
-        <span data-tour="dock-all" className="flex">
+        {/* `-ml-1.5` hangs the chip's padding past the column's edge, so "All"'s ink starts on it. Not the right:
+            selected, the chip draws its fill, and that BOX then stands the squares' own 10px off the first. */}
+        <span data-tour="dock-all" className="-ml-1.5 flex">
           <LensChip label="All" active={!focused && !lens} onClick={() => { setLens(null); onAll(focused) }} />
         </span>
         {reorder.ordered.map((project) => {
