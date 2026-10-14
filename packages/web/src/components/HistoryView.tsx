@@ -177,8 +177,9 @@ function Ledger({ body }: { body: string }) {
   return (
     // 22px: the title's left edge (the 14px square plus the row's 8px gap), so the ledger hangs under the title.
     <div className="card-md pl-[22px] text-fg/75">
-      {/* Three of the card scale's 20px lines. */}
-      <div ref={box} className={open ? "" : "max-h-[60px] overflow-hidden"}>
+      {/* About three lines: three bullets of the card scale (20px lines, 26px apart as list items) end near
+          76px; prose runs 20px a line, so its fourth line starts there and the fade takes it. */}
+      <div ref={box} className={open ? "" : `max-h-[76px] overflow-hidden ${overflows ? "[mask-image:linear-gradient(to_bottom,black_75%,transparent)]" : ""}`}>
         <LinkedHtml className={`md-body ${QUEUE_WRAP}`} html={html} />
       </div>
       {(overflows || open) && (
