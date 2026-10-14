@@ -102,6 +102,8 @@ Done leaves the sidebar except for its tail. In its place:
 - Server: a cross-project Done query, paginated by rest time with filters. `ProjectQueue.recentDone`
   already rides the poll per project, so the Finished tail needs no new read; History does. A
   cross-project thread search for the palette, over open and Done threads.
+- The first-run tour (`Onboarding.tsx`): its "Your projects" step describes today's per-project list and
+  "N more"; with tiers it becomes the tier list, with History and the dock as their own steps.
 - Docs: CLAUDE.md's "The board" principles, ARCHITECTURE.md § Board nomenclature, and the capacity test
   are rewritten to the new bar. The band vocabulary (Ready/Working/Snoozed/Done) becomes tier vocabulary
   (Needs you/Working/Waiting/Finished), which touches `BANDS` and every label that reads from it.
